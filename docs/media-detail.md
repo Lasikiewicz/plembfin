@@ -132,17 +132,25 @@ first complete render.
   /api/manual-watch` awaits the outbound dispatch to every target before responding
   (rather than backgrounding it), and a manual unwatch (`POST /api/manual-unwatch`,
   `POST /api/playback-progress/unwatch`) always forces a live re-push even when
-  Plembfin's own state already says unwatched - so the UI can show a row as
-  "Syncing..." for the duration of the request and only flip it to
-  watched/unwatched once the response confirms the push actually completed,
-  instead of updating optimistically on click. Multiple watch actions can be
-  in flight at the same time (`state.savingWatchActions` is a set, not a single
-  value): clicking mark watched/unwatched on one episode, season, show, or movie
-  only disables the buttons that target the same episodes (or the same movie),
-  so a large season/show sync doesn't block marking something unrelated watched
-  while it runs. Show-wide controls (mark/resync the whole show, edit show date,
-  edit images, fix match, merge) stay disabled until every action on that show
-  finishes, since they'd otherwise re-push episodes that are already mid-sync.
+  Plembfin's own state already says unwatched - so the UI can show a row as busy
+  for the duration of the request and only flip it to watched/unwatched once the
+  response confirms the push actually completed, instead of updating optimistically
+  on click. Mark-watched/resync busy rows read "Syncing..." while mark-unwatched
+  busy rows read "Unwatching..." - the two states are tracked in separate sets
+  (`state.savingWatchActions` for mark-watched/resync, `state.savingUnwatchIds` for
+  mark-unwatched, keyed by watch-record id) so a season/show sync in one direction
+  never mislabels a row that's actually being unwatched, or vice versa. Multiple
+  watch actions can be in flight at the same time: clicking mark watched/unwatched
+  on one episode, season, show, or movie only disables the buttons that target the
+  same episodes (or the same movie), so a large season/show sync doesn't block
+  marking something unrelated watched while it runs. Show-wide controls
+  (mark/resync the whole show, edit show date, edit images, fix match, merge) stay
+  disabled until every action on that show finishes, since they'd otherwise
+  re-push episodes that are already mid-sync. Removing a single watch date from
+  the edit-date dialog (`edit-dialogs.js`) also marks that row's id busy in
+  `state.savingUnwatchIds` for the duration of the delete, so it reads
+  "Unwatching..." underneath the dialog if an unrelated in-flight sync happens to
+  re-render the season/show panel while the delete is still pending.
 - **Rewatch tracking** - a genuine rewatch (a webhook playback event for an
   already-watched item on a later UTC calendar day; see [webhooks.md](webhooks.md#rewatch-detection))
   adds a new watch record instead of being dropped as a duplicate. A bare

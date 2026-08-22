@@ -106,7 +106,12 @@ Behavior:
 
 - Local results match the watch history/library caches; remote results come from TMDB
   search (debounced - `state.globalSearchRemoteTimer`), merged and de-duplicated with
-  local items marked as in-library.
+  local items marked as in-library. Both the full results page and the topbar
+  dropdown list what's on a connected media server ahead of TMDB/TVDB-only matches -
+  local items are collected first and never reordered below a remote one on the
+  results page, and the dropdown groups by in-library status before ranking by
+  relevance within each group (except an actor name matching the query, which is
+  always surfaced first regardless of source).
 - People use TMDB's dedicated `search/person` endpoint rather than competing with
   movies and shows for the 20 mixed-search result slots. The page initially shows
   the first person page and **Load more people** fetches later pages up to TMDB's
@@ -122,12 +127,13 @@ Behavior:
   uses the built-in project key. If TMDB is unavailable, its error notice is shown only
   when TVDB also returned nothing.
 - The dropdown collects candidates from every source, then ranks each of its three
-  columns by how closely the title answers the query (`searchRelevance` in `app.js`:
-  exact title, then prefix, then whole-word, then substring, with in-library titles
-  breaking ties) before trimming to five. Ranking after collection rather than capping
-  per source is what keeps a close match visible regardless of which catalogue it came
-  from. The sort is stable, so equally relevant results keep their collection order and
-  the list does not reshuffle between renders.
+  columns by in-library status first and then by how closely the title answers the
+  query (`searchRelevance`/`rankSearchResults` in `app.js`: exact title, then prefix,
+  then whole-word, then substring) before trimming to five. Ranking after collection
+  rather than capping per source is what keeps a close match visible regardless of
+  which catalogue it came from. The sort is stable, so equally relevant results within
+  the same group keep their collection order and the list does not reshuffle between
+  renders.
 - A result click opens the standard detail page: in-library items by their local id,
   discovery-only items via the TMDB routes (`/movie/tmdb/:id`, `/tvshow/tmdb/:id`), and
   TVDB-only series via `/tvshow/tvdb/:id`. Detail pages reached this way offer Seerr

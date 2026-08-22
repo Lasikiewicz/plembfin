@@ -16,3 +16,4 @@ First-run / onboarding experience for new users.
 
 - Status: not started
 - Currently a fresh install just generates an admin password to the console log and drops the user straight into a bare login screen, with no guided setup for connecting Plex/Emby/Jellyfin, TMDB keys, etc.
+

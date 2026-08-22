@@ -326,8 +326,14 @@ export function openEditDateDialog(_container, id, currentWatchedAt, onSaved, op
         rowValueBtn.disabled = true;
         rowValueBtn.textContent = "Removing…";
       }
+      // Scoped to this row's own id so a rerender triggered by an unrelated
+      // in-flight sync (e.g. another episode's mark-watched finishing) can't
+      // mistake this row for busy, and so this row correctly reads
+      // "Unwatching…" underneath if such a rerender does happen mid-delete.
+      state.savingUnwatchIds.add(rowId);
       try {
         await apiDeleteWatchDate(rowId);
+        state.savingUnwatchIds.delete(rowId);
         rowEl.remove();
         updateRemoveButtonsState();
         const remainingDates = [...listEl.querySelectorAll(".watch-date-value-btn")]
@@ -343,6 +349,7 @@ export function openEditDateDialog(_container, id, currentWatchedAt, onSaved, op
         _clearDerivedUiCaches({ resetExplorer: true });
         await _loadHistory({ force: true }).catch(() => null);
       } catch (err) {
+        state.savingUnwatchIds.delete(rowId);
         if (status) status.textContent = `Error: ${err.message}`;
         removeBtn.disabled = false;
         if (rowValueBtn) {

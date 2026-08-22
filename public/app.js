@@ -872,26 +872,26 @@ function comparableTitle(value) {
 }
 
 // How closely a title answers the query. An exact title beats a prefix, which
-// beats a match anywhere in the title, and a title in your library breaks ties
-// against an identical remote one.
-function searchRelevance(title, needle, isLocal = false) {
+// beats a match anywhere in the title.
+function searchRelevance(title, needle) {
   const value = comparableTitle(title);
   if (!value || !needle) return 0;
-  let score = 0;
-  if (value === needle) score = 8;
-  else if (value.startsWith(`${needle} `)) score = 6;
-  else if (value.includes(` ${needle} `) || value.endsWith(` ${needle}`)) score = 4;
-  else if (value.includes(needle)) score = 2;
-  else if (needle.includes(value)) score = 1;
-  return score && isLocal ? score + 1 : score;
+  if (value === needle) return 8;
+  if (value.startsWith(`${needle} `)) return 6;
+  if (value.includes(` ${needle} `) || value.endsWith(` ${needle}`)) return 4;
+  if (value.includes(needle)) return 2;
+  if (needle.includes(value)) return 1;
+  return 0;
 }
 
-// Stable sort by relevance: equally relevant results keep the order the sources
-// were collected in, so the ranking never reshuffles on a re-render.
+// Whatever is on a connected media server is grouped ahead of TMDB/TVDB-only
+// matches, then ranked by relevance within each group. Stable sort: equally
+// relevant results keep the order the sources were collected in, so the
+// ranking never reshuffles on a re-render.
 function rankSearchResults(results, needle) {
   return results
-    .map((result, index) => ({ result, index, score: searchRelevance(result.title, needle, result.isLocal) }))
-    .sort((a, b) => (b.score - a.score) || (a.index - b.index))
+    .map((result, index) => ({ result, index, score: searchRelevance(result.title, needle) }))
+    .sort((a, b) => (Number(b.result.isLocal) - Number(a.result.isLocal)) || (b.score - a.score) || (a.index - b.index))
     .map((entry) => entry.result);
 }
 

@@ -252,7 +252,8 @@ export function triggerSearchPage(query) {
           mediaType: "tv"
         });
       }
-      // Prioritize actor matching query at the top
+      // Prioritize actor matching query at the top, then whatever is on a
+      // connected media server ahead of TMDB/TVDB-only matches.
       const qLower = query.toLowerCase();
       results.sort((a, b) => {
         const aIsPersonMatch = a.mediaType === "person" && a.title.toLowerCase() === qLower;
@@ -263,6 +264,8 @@ export function triggerSearchPage(query) {
         const bIsPersonPartial = b.mediaType === "person" && b.title.toLowerCase().includes(qLower);
         if (aIsPersonPartial && !bIsPersonPartial) return -1;
         if (!aIsPersonPartial && bIsPersonPartial) return 1;
+        if (a.isLocal && !b.isLocal) return -1;
+        if (!a.isLocal && b.isLocal) return 1;
         return 0; // Maintain original order
       });
       state.searchResults = results;

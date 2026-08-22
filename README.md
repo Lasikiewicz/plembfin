@@ -67,7 +67,7 @@ None of these talk to each other - they all talk to Plembfin.
 - **Security hardening** - strict CSP, scrypt password hashing, rate-limited login, HMAC-signed sessions
 - **Artwork pipeline** - posters and logos cached locally from TMDB, TheTVDB, and Fanart.tv
 - **Accurate TV data** - episode titles/numbering/air dates from TheTVDB; cast, trailers, and reviews from TMDB
-- **Unified search** - your library, TMDB, and TheTVDB in one set of results, with no duplicates
+- **Unified search** - your library, TMDB, and TheTVDB in one set of results, with no duplicates and what's already on your media servers listed first
 - **Installable on phones** - add to an iOS or Android home screen as a standalone app
 
 See [`docs/architecture.md`](docs/architecture.md) for how each feature is actually built.
