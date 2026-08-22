@@ -1,7 +1,17 @@
 {
-  "build": 19,
-  "updatedAt": "2026-08-22T17:26:01+01:00",
+  "build": 20,
+  "updatedAt": "2026-08-22T18:00:48+01:00",
   "entries": [
+    {
+      "build": 20,
+      "date": "2026-08-22T18:00:48+01:00",
+      "commit": "a271032cd8756321c9e00dbd17c8f910b5556608",
+      "message": "Fix - Improve sync activity and tracker identity",
+      "author": "Lasikiewicz",
+      "details": [
+        "Keep queued sync items visible, enrich movie provider IDs, and improve Trakt matching."
+      ]
+    },
     {
       "build": 19,
       "date": "2026-08-22T17:26:01+01:00",
