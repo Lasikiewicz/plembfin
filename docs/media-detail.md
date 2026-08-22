@@ -326,7 +326,16 @@ first complete render.
   edited date), so a platform that already received the deleted watch as
   "watched" gets corrected instead of continuing to disagree with Plembfin;
   left uncorrected, that platform's own next catch-up scan could otherwise
-  re-import its stale "watched" state as a brand-new phantom watch. The
+  re-import its stale "watched" state as a brand-new phantom watch. Once that
+  replay finishes, its outcome is written onto the surviving row's own
+  `sync_dispatch_telemetry` (`formatDispatchTelemetry`, shared with
+  `routes/sync.js`'s manual-watch handler) - a promoted row's telemetry would
+  otherwise stay "Dispatch status: pending" forever, which is exactly what the
+  scheduler's backlog sweep (`syncPendingManualDispatches` in `scheduled.js`,
+  see `scheduled-sync.md`) watches for; left unpersisted, that sweep would
+  re-dispatch the row later using its own media object, which does not carry
+  this row's `watched_at`, sending Trakt today's date instead of the real one
+  this replay just correctly sent. The
   per-season "Edit season date" dialog additionally offers **Remove duplicate
   watches** when any episode in the season has more than one recorded watch: it
   keeps only the oldest watch per episode and bulk-deletes the rest in a single

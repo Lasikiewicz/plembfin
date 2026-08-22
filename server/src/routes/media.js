@@ -26,6 +26,7 @@ import { searchTvdbSeriesList, resolveTvdbSeriesId, getTvdbSeriesArtwork } from 
 import { getFanartMovieArt, getFanartTvArt, getAllFanartMovieImages, getAllFanartTvImages } from "../utils/fanartGateway.js";
 import { getOmdbRating } from "../utils/omdbGateway.js";
 import { POSTERS_DIR, BACKDROPS_DIR, PROFILES_DIR, PUBLIC_DIR } from "../paths.js";
+import { formatDispatchTelemetry } from "./sync.js";
 import {
   countPlaybackProgressRows,
   countWatchedPlaystateRows,
@@ -783,7 +784,13 @@ function propagateCorrectedWatchDate(recordId) {
       const media = watchRowToMedia(row, "manual");
       if (!media?.isValid) return;
       const config = await loadMediaConfig();
-      await syncCanonicalPlaystate(media, config, createLoopStore(), "watched");
+      const summary = await syncCanonicalPlaystate(media, config, createLoopStore(), "watched");
+      // Without this, the row's own telemetry stays whatever it was before this
+      // replay - often "Dispatch status: pending" - so the scheduler's backlog
+      // sweep (syncPendingManualDispatches in scheduled.js) keeps treating it as
+      // needing a retry and re-dispatches it later with its own, less complete
+      // media object, potentially overwriting this correct, dated replay.
+      await updateWatchTelemetry(row.id, formatDispatchTelemetry(summary, media, "watched"));
     })
     .catch((error) => console.error(`Failed to propagate corrected watch date for record ${recordId}:`, error.message || error));
 }
@@ -802,8 +809,20 @@ function propagateWatchDateRemoval(remainingRow, deletedRow) {
   if (!row) return;
   const media = watchRowToMedia(row, "manual");
   if (!media?.isValid) return;
+  const action = remainingRow ? "watched" : "unwatched";
   loadMediaConfig()
-    .then((config) => syncCanonicalPlaystate(media, config, createLoopStore(), remainingRow ? "watched" : "unwatched"))
+    .then((config) => syncCanonicalPlaystate(media, config, createLoopStore(), action))
+    .then(async (summary) => {
+      // Persist the real outcome (and the historical watched_at it was sent
+      // with) onto the surviving row's own telemetry. Left at whatever it was
+      // before - "Dispatch status: pending" for a row remainingWatchRowFor()
+      // just promoted from unwatched - the scheduler's backlog sweep
+      // (syncPendingManualDispatches in scheduled.js) treats it as still
+      // needing a retry and re-dispatches it later with its own media object,
+      // which does not carry this row's watched_at, sending Trakt today's
+      // date instead of the real one this replay just correctly sent.
+      if (remainingRow) await updateWatchTelemetry(remainingRow.id, formatDispatchTelemetry(summary, media, action));
+    })
     .catch((error) => console.error(`Failed to propagate watch date removal for ${row.id}:`, error.message || error));
 }
 

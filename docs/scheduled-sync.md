@@ -212,7 +212,13 @@ Implementation lives in `server/src/scheduled.js`.
      that vanish below the threshold are marked/cleared as stale.
 2. **Manual dispatch queue** - **runs every minute**:
    - `syncPendingManualDispatches` processes anything queued by the UI or an import
-     (manual mark-watched, Trakt history, retries).
+     (manual mark-watched, Trakt history, retries). The `media` object it builds for
+     each retried row carries that row's own `watched_at` - without it, Trakt's sync
+     payload falls back to the current time, so a genuinely historical watch (one
+     re-dispatched later rather than right when it happened, e.g. a row that
+     `remainingWatchRowFor()` in `dataRepo.js` promoted from a stale unwatched marker
+     back to watched) would reach Trakt stamped as watched right now instead of on
+     its real date.
    - Records whose targets keep failing are retried with **exponential backoff**
      (1 m → 5 m → 15 m → 1 h → 6 h, tracked in the `sync_retry_count` /
      `sync_next_retry_at` columns on `watch_history`). After 10 failed attempts a

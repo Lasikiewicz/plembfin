@@ -1400,7 +1400,7 @@ function isTargetSynced(telemetry = "", target = "", source = "") {
   return false;
 }
 
-async function syncPendingManualDispatches(config, loopStore, logger = console.log) {
+export async function syncPendingManualDispatches(config, loopStore, logger = console.log) {
   if (!watchedPlayedSyncEnabled()) {
     logger("Pending watched dispatch sync is disabled.");
     return 0;
@@ -1446,6 +1446,11 @@ async function syncPendingManualDispatches(config, loopStore, logger = console.l
         title: row.title,
         type: row.media_type,
         source: row.source,
+        // Without this, a retried dispatch falls back to Date.now() in
+        // traktClient.js's syncPayload, so a row that genuinely happened at
+        // some earlier date reaches Trakt stamped as watched right now
+        // instead - the same class of bug already fixed for manualWatchMediaFromRecord.
+        watched_at: row.watched_at || undefined,
         watchProvenance: row.watch_provenance || null,
         isValid: true,
         ids: {

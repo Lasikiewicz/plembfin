@@ -222,7 +222,7 @@ export async function normalizeWebhook(req) {
   };
 }
 
-function formatDispatchTelemetry(summary, media, action = "watched") {
+export function formatDispatchTelemetry(summary, media, action = "watched") {
   const actionLabel = action === "unwatched" || action === "unplayed" ? "Marked Unwatched" : "Marked Watched";
   const lines = [
     `Origin: ${media.source || "unknown"}`,
