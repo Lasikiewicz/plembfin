@@ -18,7 +18,8 @@ import { probePlexNotificationSocket } from "../utils/plexNotificationListener.j
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes } from "../utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes } from "../utils/jellyfinClient.js";
 import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook } from "../utils/parsers.js";
-import { getTargetsForSource, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
+import { getTargetsForSource, shouldSyncResumeProgress, syncCanonicalPlaystate, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
+import { runWithConcurrency } from "../utils/concurrency.js";
 import { watchedPlayedSyncEnabled } from "../utils/syncFlags.js";
 import { fetchPosterFromTmdb } from "../utils/tmdbClient.js";
 import { cacheBackdropFromUrl, cachePosterFromUrl, cacheProfileFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "../utils/posterCache.js";
@@ -36,6 +37,7 @@ import {
   auditStalePendingWatchRows,
   repairStalePendingWatchRows,
   auditSplitIdentityUnwatches,
+  repairSplitIdentityUnwatches,
   countPlaybackProgressRows,
   countWatchedPlaystateRows,
   watchHistoryQualityCounts,
@@ -466,6 +468,42 @@ export async function handleSplitIdentityUnwatchAudit(req, res) {
   if (!(await requireAdmin(req, res))) return;
   const result = auditSplitIdentityUnwatches();
   return sendJson(res, { ok: true, ...result }, 200, { "Cache-Control": "no-store" });
+}
+
+// Opt-in repair for the candidates the audit above finds - not wired to any
+// automatic trigger, only reachable by an admin explicitly calling this
+// endpoint. Fixes Plembfin's own database first (repairSplitIdentityUnwatches
+// in dataRepo.js), then re-pushes the restored "watched" state out to every
+// connected platform for each item, the same canonical-replay path a manual
+// watch-date correction already uses (propagateWatchDateRemoval in
+// routes/media.js), so the servers that received the false unplayed mark get
+// corrected too rather than only Plembfin's own history.
+const SPLIT_IDENTITY_UNWATCH_REPAIR_CONCURRENCY = 6;
+
+export async function handleSplitIdentityUnwatchRepair(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const result = await repairSplitIdentityUnwatches();
+    const config = await loadMediaConfig();
+    const loopStore = createLoopStore();
+    const propagationErrors = [];
+    await runWithConcurrency(result.media, async (media) => {
+      try {
+        await syncCanonicalPlaystate(media, config, loopStore, "watched");
+      } catch (error) {
+        propagationErrors.push({ title: media.title, error: error.message || String(error) });
+      }
+    }, SPLIT_IDENTITY_UNWATCH_REPAIR_CONCURRENCY);
+    writeAuditLog("history.split_identity_unwatch_repair", {
+      ip: req.ip || req.socket?.remoteAddress,
+      detail: { repaired: result.repaired, propagationErrors: propagationErrors.length },
+    });
+    return sendJson(res, { ok: true, repaired: result.repaired, propagationErrors }, 200, { "Cache-Control": "no-store" });
+  } catch (error) {
+    return sendJson(res, { error: error.message || "Split identity unwatch repair failed" }, 500);
+  }
 }
 
 export function handlePing(req, res) {

@@ -1,6 +1,7 @@
 import { setEmbyProgress } from "./embyClient.js";
 import { setJellyfinProgress } from "./jellyfinClient.js";
 import { setPlexProgress } from "./plexClient.js";
+import { db } from "../db.js";
 import {
   deletePlaybackProgress,
   deleteWatchRecord,
@@ -16,6 +17,76 @@ import {
   upsertPlaystateForMedia,
 } from "./dataRepo.js";
 import { completeDispatchTracking, getTargetsForSource, syncMediaPlaystate, syncMediaUnplayedPlaystate } from "./syncOrchestrator.js";
+
+// Cross-platform mass-false-unwatch circuit breaker. applyUnwatchedTransition
+// below is the single choke point every *automatic* (non-manual) unwatch path
+// already funnels through - Plex/Emby/Jellyfin webhooks, the Plex real-time
+// notification listener and adaptive poller, the Emby/Jellyfin unwatched-
+// fallback polls, and the Trakt poller. Any one of those source servers having
+// its own bad moment (a library rescan, a metadata refresh, a database
+// hiccup, a rate-limited/truncated API response) can make it report a burst
+// of items as suddenly unplayed that were never genuinely unwatched - and
+// each one individually looks like a normal single unwatch, so nothing
+// distinguishes it from real activity until you look at the volume. Real
+// incident (2026-08-21): a ~7-minute window, 264+ episodes across dozens of
+// completely unrelated shows, all sourced from one Jellyfin poll/webhook
+// burst - each one propagated to Plex and Emby before anyone noticed.
+//
+// This is deliberately coarser than the per-show/per-batch guard Trakt's own
+// poller already has (partitionSuspiciousUnwatches in trackerSync.js, which
+// only trips when *one show* loses a large share of its episodes at once):
+// it catches the case that guard misses, a burst spread thin across many
+// different shows/movies rather than concentrated in one. It is backed by
+// the shared loop_keys table (not in-memory) so it works correctly across
+// a split web/worker deployment, where webhooks and scheduled polls can land
+// on different processes.
+//
+// Manual/explicit sources (a user marking something unwatched in Plembfin
+// itself, Force Sync, Set Plembfin as Source of Truth, Trakt import) are
+// never subject to this - a person is allowed to unwatch as much as they
+// want in one sitting; only automatic, inbound-from-a-server decisions are
+// rate-limited.
+const AUTOMATIC_UNWATCH_SOURCES = new Set(["plex", "emby", "jellyfin", "trakt"]);
+const AUTOMATIC_UNWATCH_BURST_WINDOW_MS = 5 * 60 * 1000;
+const AUTOMATIC_UNWATCH_BURST_THRESHOLD = 15;
+const AUTOMATIC_UNWATCH_BURST_KEY_PREFIX = "auto-unwatch-burst:";
+
+const countRecentAutomaticUnwatchesStmt = db.prepare(
+  "SELECT COUNT(*) AS c FROM loop_keys WHERE key LIKE ? AND expire_at > ?",
+);
+const recordAutomaticUnwatchStmt = db.prepare(
+  "INSERT INTO loop_keys (id, key, value, created_at, expire_at) VALUES (@id, @key, @value, @created_at, @expire_at)",
+);
+
+function isAutomaticUnwatchSource(source) {
+  return AUTOMATIC_UNWATCH_SOURCES.has(String(source || "").toLowerCase());
+}
+
+// Returns true (and does not record anything) when this automatic unwatch
+// should be held back as part of a suspected mass false-unwatch burst.
+function automaticUnwatchBurstDetected(media) {
+  if (!isAutomaticUnwatchSource(media?.source)) return false;
+  const now = Date.now();
+  const recentCount = countRecentAutomaticUnwatchesStmt.get(`${AUTOMATIC_UNWATCH_BURST_KEY_PREFIX}%`, now).c;
+  if (recentCount >= AUTOMATIC_UNWATCH_BURST_THRESHOLD) {
+    console.error(
+      `applyUnwatchedTransition: held back automatic unwatch for "${media.title || "unknown title"}" ` +
+      `(source: ${media.source}) - ${recentCount} automatic unwatches already recorded in the last ` +
+      `${Math.round(AUTOMATIC_UNWATCH_BURST_WINDOW_MS / 60000)}m, which looks like a mass false-unwatch ` +
+      `burst rather than genuine activity. Not propagating; check the source server and re-verify manually ` +
+      `if this item really was unwatched.`,
+    );
+    return true;
+  }
+  recordAutomaticUnwatchStmt.run({
+    id: crypto.randomUUID(),
+    key: `${AUTOMATIC_UNWATCH_BURST_KEY_PREFIX}${media.source}:${media.title || ""}`,
+    value: String(now),
+    created_at: now,
+    expire_at: now + AUTOMATIC_UNWATCH_BURST_WINDOW_MS,
+  });
+  return false;
+}
 
 export async function applyWatchedTransition(media, config, loopStore, { trackDispatch = true } = {}) {
   const existing = await getPlaystateForMedia(media).catch(() => null);
@@ -128,6 +199,16 @@ export async function applyUnwatchedTransition(media, config, loopStore, {
       id: existingRecord?.id || "",
       alreadyUnwatched: true,
       summary: { skipped: true, status: "skipped", details: "Already unwatched; no change to propagate", targetStates: [] },
+    };
+  }
+
+  if (automaticUnwatchBurstDetected(media)) {
+    return {
+      wasDeleted: false,
+      id: existingRecord?.id || "",
+      alreadyUnwatched: false,
+      heldBackSuspiciousBurst: true,
+      summary: { skipped: true, status: "skipped", details: "Held back: looks like a mass false-unwatch burst (see server logs).", targetStates: [] },
     };
   }
 

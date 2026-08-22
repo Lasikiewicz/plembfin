@@ -80,3 +80,37 @@ test("auditSplitIdentityUnwatches ignores an unwatch that predates the watched r
   const audit = repo.auditSplitIdentityUnwatches();
   assert.ok(!audit.sample.some((entry) => entry.watchedRow.id === watched.id));
 });
+
+test("repairSplitIdentityUnwatches deletes the shadowing row and restores playstate to watched", async () => {
+  const watched = await repo.insertWatchRecord({
+    title: "G'wed - S03E03", show_title: "G'wed", media_type: "episode", season: 3, episode: 3,
+    watched_at: "2026-06-08T21:43:00.000Z", source: "manual", tmdb_id: "245412", sync_action: "watched",
+  });
+  await watched.assetPrefetch;
+  backdateUpdatedAt(watched.id, Date.parse("2026-06-08T21:43:00.000Z"));
+
+  const unwatched = await repo.insertWatchRecord({
+    title: "G'wed - S03E03", show_title: "G'wed", media_type: "episode", season: 3, episode: 3,
+    watched_at: "2026-08-21T17:25:11.818Z", source: "jellyfin", imdb_id: "tt28510783", sync_action: "unwatched",
+  });
+  backdateUpdatedAt(unwatched.id, Date.parse("2026-08-21T17:25:11.818Z"));
+
+  const before = repo.auditSplitIdentityUnwatches();
+  assert.ok(before.sample.some((entry) => entry.watchedRow.id === watched.id));
+
+  const result = await repo.repairSplitIdentityUnwatches();
+  assert.ok(result.repaired >= 1);
+  const restoredMedia = result.media.find((m) => m.title === "G'wed - S03E03");
+  assert.ok(restoredMedia, "expected the restored media object to be returned for outbound re-propagation");
+  assert.equal(restoredMedia.source, "manual");
+  assert.equal(restoredMedia.watched_at, "2026-06-08T21:43:00.000Z");
+
+  // The shadowing unwatched row is gone...
+  assert.equal(await repo.getWatchRecordByIdLight(unwatched.id), null);
+  // ...and playstate for the surviving watched row's own key reads watched again.
+  const state = await repo.getPlaystateForMedia({ type: "episode", show_title: "G'wed", season: 3, episode: 3, ids: { tmdb: "245412" }, isValid: true });
+  assert.equal(state?.state, "watched");
+
+  const after = repo.auditSplitIdentityUnwatches();
+  assert.ok(!after.sample.some((entry) => entry.watchedRow.id === watched.id));
+});

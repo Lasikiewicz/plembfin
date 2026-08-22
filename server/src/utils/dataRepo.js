@@ -3385,10 +3385,12 @@ export function repairStalePendingWatchRows() {
 // strictly newer than the watch it shadows, is a strong signal of this
 // specific chain of events rather than an intentional unwatch.
 //
-// Deliberately audit-only: reverting an unwatch that really was intentional
-// would itself be a phantom watch, so this surfaces candidates for review
-// rather than restoring anything automatically.
-export function auditSplitIdentityUnwatches({ sampleSize = 50 } = {}) {
+// Deliberately audit-only by default (see auditSplitIdentityUnwatches):
+// reverting an unwatch that really was intentional would itself be a phantom
+// watch. Shared by the audit and the (separately opt-in) repair below so both
+// use the exact same fingerprint - returns full rows, not the trimmed shape
+// the audit endpoint reports.
+function findSplitIdentityUnwatchCandidates() {
   const rows = selectAllEpisodesStmt.all().filter(isPlembfinTrackedEpisodeRow);
   const groups = new Map();
   for (const row of rows) {
@@ -3401,7 +3403,7 @@ export function auditSplitIdentityUnwatches({ sampleSize = 50 } = {}) {
     groups.get(groupKey).push(row);
   }
 
-  const findings = [];
+  const candidates = [];
   for (const groupRows of groups.values()) {
     const distinctKeys = new Set(groupRows.map((row) => row.media_key).filter(Boolean));
     if (distinctKeys.size < 2) continue;
@@ -3416,22 +3418,65 @@ export function auditSplitIdentityUnwatches({ sampleSize = 50 } = {}) {
     if (newestWatched.media_key === newestUnwatched.media_key) continue;
     if (Number(newestUnwatched.updated_at || 0) <= Number(newestWatched.updated_at || 0)) continue;
 
-    findings.push({
-      show: groupRows[0].show_title || showTitleFrom(groupRows[0].title),
-      season: groupRows[0].season,
-      episode: groupRows[0].episode,
-      watchedRow: {
-        id: newestWatched.id, mediaKey: newestWatched.media_key, watchedAt: newestWatched.watched_at,
-        source: newestWatched.source, updatedAt: newestWatched.updated_at,
-      },
-      unwatchedRow: {
-        id: newestUnwatched.id, mediaKey: newestUnwatched.media_key, watchedAt: newestUnwatched.watched_at,
-        source: newestUnwatched.source, updatedAt: newestUnwatched.updated_at, telemetry: newestUnwatched.sync_dispatch_telemetry || null,
-      },
-    });
+    candidates.push({ show: groupRows[0].show_title || showTitleFrom(groupRows[0].title), watchedRow: newestWatched, unwatchedRow: newestUnwatched });
   }
+  return candidates;
+}
 
+// Deliberately audit-only: reverting an unwatch that really was intentional
+// would itself be a phantom watch, so this surfaces candidates for review
+// rather than restoring anything automatically.
+export function auditSplitIdentityUnwatches({ sampleSize = 50 } = {}) {
+  const candidates = findSplitIdentityUnwatchCandidates();
+  const findings = candidates.map(({ show, watchedRow, unwatchedRow }) => ({
+    show,
+    season: watchedRow.season,
+    episode: watchedRow.episode,
+    watchedRow: {
+      id: watchedRow.id, mediaKey: watchedRow.media_key, watchedAt: watchedRow.watched_at,
+      source: watchedRow.source, updatedAt: watchedRow.updated_at,
+    },
+    unwatchedRow: {
+      id: unwatchedRow.id, mediaKey: unwatchedRow.media_key, watchedAt: unwatchedRow.watched_at,
+      source: unwatchedRow.source, updatedAt: unwatchedRow.updated_at, telemetry: unwatchedRow.sync_dispatch_telemetry || null,
+    },
+  }));
   return { count: findings.length, sample: findings.slice(0, sampleSize) };
+}
+
+// Opt-in repair for the candidates auditSplitIdentityUnwatches finds. For
+// each one: deletes the shadowing unwatched row and restores playstate to
+// the shadowed watched row's own date. This only fixes Plembfin's own
+// database - it deliberately does not import a syncOrchestrator dependency
+// (see the backend module discipline rule against cycles back into modules
+// dataRepo.js is itself imported by), so the caller is responsible for
+// re-pushing the corrected "watched" state to Plex/Emby/Jellyfin/Trakt using
+// the returned media-shaped objects, the same way propagateWatchDateRemoval
+// in routes/media.js already does for the equivalent single-item case.
+export async function repairSplitIdentityUnwatches() {
+  const candidates = findSplitIdentityUnwatchCandidates();
+  const restored = [];
+  for (const { watchedRow, unwatchedRow } of candidates) {
+    const media = {
+      title: watchedRow.title,
+      type: watchedRow.media_type,
+      season: watchedRow.season,
+      episode: watchedRow.episode,
+      show_title: watchedRow.show_title,
+      isValid: true,
+      source: "manual",
+      watched_at: watchedRow.watched_at,
+      ids: { imdb: watchedRow.imdb_id || undefined, tmdb: watchedRow.tmdb_id || undefined, tvdb: watchedRow.tvdb_id || undefined },
+    };
+    await deleteWatchRecordById(unwatchedRow.id, { skipInvalidate: true });
+    // Upsert, not a plain UPDATE: the original bug could have deleted the
+    // playstate row entirely (not just left it stale), so there may be
+    // nothing at watchedRow.media_key for an UPDATE to find.
+    await upsertPlaystateForMedia(media, "watched", watchedRow.watched_at, { skipInvalidate: true });
+    restored.push(media);
+  }
+  if (restored.length) await invalidateHistoryDerivedCaches();
+  return { repaired: restored.length, media: restored };
 }
 
 // --- Maintenance helpers (used by index.js admin endpoints) ----------------

@@ -139,21 +139,43 @@ performs a real dispatch on its next tick, rather than fabricating a "settled" t
 way the Trakt-specific repair above does (`auditStalePendingWatchRows`/
 `repairStalePendingWatchRows` in `dataRepo.js`).
 
-A related but more serious aftermath of the same pre-fix `deleteWatchDates` bug: before it
-was fixed, deleting a duplicate could wrongly
-decide nothing remained for an episode and push a *real* mark-unplayed to Plex/Emby/Jellyfin,
-even though a genuine earlier watch (stored under a different `media_key` for the same
-show/season/episode) still existed there. The Emby/Jellyfin/Plex unwatched-fallback polls then
-correctly - by their own logic - observed that now-genuinely-unplayed state on the external
-server and recorded it as Plembfin's own canonical unwatched row, copying the corruption back
-in rather than causing it. The result: a show/season/episode with an older `watched` row under
-one `media_key` and a newer `unwatched` row under a different one, so the item now reads as
-unwatched despite real watch history existing for it - and marking it watched again inserts a
-second row alongside the shadowed one instead of recognizing it, since the shadowed row's
-current state genuinely is unwatched. `GET /api/split-identity-unwatch-audit` finds candidates
-matching this exact fingerprint (read-only; `auditSplitIdentityUnwatches` in `dataRepo.js`).
-There is deliberately no repair endpoint yet - reverting an unwatch that was actually intentional
-would itself be a phantom watch, so candidates need manual review before anything is restored.
+A related but more serious failure mode produces the same shape of corruption from a source
+outside Plembfin's own code: one connected media server having a bad moment - a library
+rescan, a metadata refresh, a rate-limited or truncated API response - can make it report a
+burst of items as suddenly unplayed that were never genuinely unwatched. Each one
+individually looks like a normal single unwatch (a webhook, a notification, an unwatched-
+fallback poll result), so nothing distinguished it from real activity until the volume did.
+Real incident (2026-08-21): a single Jellyfin burst produced 264+ falsely-unwatched episodes
+across dozens of unrelated shows within about seven minutes, each one propagated on to Plex
+and Emby before anyone noticed. The result in each case: a show/season/episode with an older
+`watched` row under one `media_key` and a newer `unwatched` row under a different one, so the
+item reads as unwatched despite real watch history existing for it - and marking it watched
+again inserts a second row alongside the shadowed one instead of recognizing it, since the
+shadowed row's current state genuinely is unwatched.
+
+**Prevention**: `applyUnwatchedTransition` in `watchStateTransitions.js` is the single choke
+point every automatic (non-manual) unwatch path already funnels through - Plex/Emby/Jellyfin
+webhooks, the Plex notification listener and adaptive poller, the Emby/Jellyfin unwatched-
+fallback polls, and the Trakt poller. It now tracks a shared, `loop_keys`-backed sliding-
+window count of automatic unwatches (sourced `plex`/`emby`/`jellyfin`/`trakt`) and holds back
+any single unwatch once more than a threshold have been recorded within a short window,
+logging a loud warning instead of propagating it. This works correctly across a split
+web/worker deployment (the counter lives in SQLite, not process memory) and never affects
+manual/explicit sources (a person unwatching things in Plembfin itself, Force Sync, Set
+Plembfin as Source of Truth, Trakt import) - only automatic, inbound-from-a-server decisions
+are rate-limited. It is deliberately coarser than the per-show guard Trakt's own poller
+already has (`partitionSuspiciousUnwatches` in `trackerSync.js`, which only trips when *one
+show* loses a large share of its episodes at once): it catches a burst spread thin across many
+different shows, which that guard misses.
+
+**Repair**: `GET /api/split-identity-unwatch-audit` finds already-affected episodes matching
+the fingerprint above (read-only; `auditSplitIdentityUnwatches` in `dataRepo.js`).
+`POST /api/split-identity-unwatch-repair` restores each one - deletes the shadowing unwatched
+row, restores playstate to the shadowed watch's own date, and re-pushes the corrected
+"watched" state to every connected platform (`repairSplitIdentityUnwatches` in `dataRepo.js`,
+propagated the same way `propagateWatchDateRemoval` in `routes/media.js` replays a corrected
+date). This is an explicit admin action, not wired to any automatic trigger - review the audit
+output first.
 
 An explicit unplayed webhook/notification or Trakt snapshot removal changes the canonical
 state to unwatched and propagates it. Plex show and season notifications are expanded into
