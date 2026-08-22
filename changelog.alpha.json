@@ -1,18 +1,18 @@
 {
-  "baseVersion": "0.10.1",
+  "baseVersion": "0.10.2",
   "build": 1,
   "entries": [
     {
       "build": 1,
-      "version": "0.10.1.1",
-      "date": "2026-08-22T22:12:16+01:00",
-      "commit": "c9b27bd03319963756404a13caca987f4e5c2c98",
-      "message": "Merge remote-tracking branch 'origin/develop' into develop",
-      "author": "Lasikiewicz",
+      "version": "0.10.2.1",
+      "date": "2026-08-22T21:16:18Z",
+      "commit": "f57340491374e41c31f030ee1378ffa79908b028",
+      "message": "Chore - Update changelog for 821e261",
+      "author": "github-actions[bot]",
       "details": [
-        "Merge remote-tracking branch 'origin/develop' into develop"
+        "Updated user and developer documentation."
       ]
     }
   ],
-  "updatedAt": "2026-08-22T22:12:16+01:00"
+  "updatedAt": "2026-08-22T21:16:18Z"
 }
