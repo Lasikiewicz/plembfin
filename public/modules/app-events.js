@@ -445,6 +445,22 @@ function attachEvents() {
     });
   }
 
+  elements.syncProgressIndicator?.addEventListener("click", () => {
+    closeMobileMenu();
+    navigateTo("/sync-activity");
+  });
+
+  elements.syncActivityRefresh?.addEventListener("click", () => {
+    _cb.loadSyncActivity?.({ force: true })?.catch?.(() => { });
+  });
+
+  elements.syncActivityRows?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-sync-activity-download]");
+    if (!button) return;
+    const downloaded = _cb.downloadSyncActivityLog?.(button.dataset.syncActivityDownload);
+    if (!downloaded) setMessage("That sync log is no longer available - refresh the page.", "error");
+  });
+
   elements.appVersion?.addEventListener("click", () => {
     closeMobileMenu();
     navigateTo("/settings/about");

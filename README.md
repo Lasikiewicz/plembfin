@@ -55,6 +55,7 @@ None of these talk to each other - they all talk to Plembfin.
 - **Resume progress sync** - pause on one server, pick up where you left off on another
 - **Rewatch tracking** - watching something again logs a new play instead of overwriting the old one; detail pages show full watch history, and duplicate-cleanup tools keep rewatches intact while removing accidental repeats
 - **Now Playing dashboard** - live sessions, weekly charts, recent history
+- **Sync Activity page** - a permanent sidebar indicator showing Idle or how far a running sync has got, opening a page that lists every synced item newest first with where the request came from, where it was sent, each target's result, and a downloadable per-item log
 - **Stats** - all-time and per-period reports, top shows, platform breakdowns
 - **Upcoming episodes** - a scrolling calendar of past and future air dates, cached server-side for instant loads
 - **Live Trakt sync** - two-way sync with built-in device authorization, per-play rewatch import, and protection against a slow Trakt response cascading into a false mass-unwatch

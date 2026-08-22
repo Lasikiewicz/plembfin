@@ -8,6 +8,7 @@ import { buildWebhookUrl, renderSettingsInlineHelp } from "./modules/help-conten
 import { isCachedStorageImageUrl, compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, rememberPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, tmdbProfile, proxiedArtworkUrl } from "./modules/images.js";
 import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runPhantomWatchAudit, runPhantomWatchRepair, runTraktBackfill, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, loadPlembfinBackups, renderPlembfinBackups, runDuplicateWatchCleanup } from "./modules/tools.js?v=20260810";
 import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, showAvailIssuePopup, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerRetrySync, triggerCronSync, triggerStopSync, triggerForceSync, isSyncProgressActive } from "./modules/sync.js";
+import { renderSyncActivity, renderSyncActivityStatus, setSyncActivityProgress, loadSyncActivity, downloadSyncActivityLog, startSyncActivityRefresh, stopSyncActivityRefresh } from "./modules/sync-activity.js";
 import { initSyncPreview } from "./modules/sync-preview.js";
 import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched, loadPartWatched } from "./modules/dashboard.js";
 import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, loadStats, renderRankingTable } from "./modules/stats.js";
@@ -112,6 +113,11 @@ function bindElements() {
     appVersion: document.querySelector("#appVersion"),
     syncProgressIndicator: document.querySelector("#syncProgressIndicator"),
     syncProgressText: document.querySelector("#syncProgressText"),
+    syncActivityStatus: document.querySelector("#syncActivityStatus"),
+    syncActivityStatusText: document.querySelector("#syncActivityStatusText"),
+    syncActivitySummary: document.querySelector("#syncActivitySummary"),
+    syncActivityRefresh: document.querySelector("#syncActivityRefresh"),
+    syncActivityRows: document.querySelector("#syncActivityRows"),
     changelogPanel: document.querySelector("#changelogPanel"),
     changelogRefreshButton: document.querySelector("#changelogRefreshButton"),
     authForm: document.querySelector("#authForm"),
@@ -1368,6 +1374,10 @@ function handleRouting(path) {
     state.activeView = "history";
     state.mediaDetailInline = false;
     clearMediaDetailState();
+  } else if (pathname === "/sync-activity") {
+    state.activeView = "syncActivity";
+    state.mediaDetailInline = false;
+    clearMediaDetailState();
   } else if (pathname === "/search") {
     state.activeView = "search";
     state.mediaDetailInline = false;
@@ -1585,6 +1595,10 @@ function syncPageTopbar() {
     title = "Watch History";
     subtitle = "";
     activeControls = elements.historyTopbarControls;
+  } else if (state.activeView === "syncActivity") {
+    title = "Sync Activity";
+    subtitle = "";
+    activeControls = null;
   } else if (state.activeView === "stats") {
     title = "Stats";
     subtitle = "";
@@ -1694,6 +1708,13 @@ function applyActiveView() {
   if (state.activeView === "explorer" && !state.mediaDetailInline) renderExplorer();
   if (state.activeView === "search") renderSearchPage();
   if (state.activeView === "history") renderHistoryView();
+  if (state.activeView === "syncActivity") {
+    renderSyncActivity();
+    startSyncActivityRefresh();
+    if (state.token) loadSyncActivity({ force: true }).catch((error) => setMessage(error.message, "error"));
+  } else {
+    stopSyncActivityRefresh();
+  }
   if (state.activeView !== "explorer") {
     state.explorerLoadObserver?.disconnect();
     state.explorerLoadObserver = undefined;
@@ -1959,13 +1980,12 @@ function renderSyncProgress({ total = 0, completed = 0 } = {}) {
   const wasSyncing = isBackgroundSyncing;
   isBackgroundSyncing = syncing;
 
-  if (elements.syncProgressIndicator && elements.syncProgressText) {
-    if (total > 0) {
-      elements.syncProgressText.textContent = `Syncing ${completed} of ${total}`;
-      elements.syncProgressIndicator.classList.remove("hidden");
-    } else {
-      elements.syncProgressIndicator.classList.add("hidden");
-    }
+  // The sidebar indicator is permanent: it reads "Sync - Idle" when nothing is
+  // running and "Sync - <completed> of <total>" while a sync is in flight.
+  setSyncActivityProgress({ total, completed });
+
+  if (state.activeView === "syncActivity") {
+    loadSyncActivity({ force: true }).catch(() => null);
   }
 
   // When background sync transitions from running to finished, perform an immediate settle refresh
@@ -2530,8 +2550,11 @@ function initialize() {
     runPhantomWatchAudit,
     runPhantomWatchRepair,
     runDuplicateWatchCleanup,
+    loadSyncActivity,
+    downloadSyncActivityLog,
   });
   applyAppearanceToBody(APPEARANCE_DEFAULTS);
+  renderSyncActivityStatus();
   applyExplorerPosterWidth();
   elements.adminEmail.value = localStorage.getItem("adminUsername") || "";
   elements.adminToken.value = "";

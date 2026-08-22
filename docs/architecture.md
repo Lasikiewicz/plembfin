@@ -48,6 +48,7 @@ new metadata requests.
 | Background/scheduled sync, catch-up sync | `server/src/scheduler.js`, `server/src/scheduled.js` | [scheduled-sync.md](scheduled-sync.md) |
 | Now Playing (dashboard live sessions) | `handleNowPlaying` in `server/src/routes/sync.js`, `server/src/utils/liveSessions.js`, `activeSessions.js`, `public/modules/sync.js` | [now-playing.md](now-playing.md) |
 | Dashboard rendering | `public/modules/dashboard.js` | [dashboard.md](dashboard.md) |
+| Sidebar sync indicator, Sync Activity page | `public/modules/sync-activity.js`, `handleSyncHistory` in `routes/sync.js` | [dashboard.md](dashboard.md) |
 | Movies library page | `public/modules/explorer.js`, `queryMovies` in `dataRepo.js` | [movies.md](movies.md) |
 | TV Shows library page | `public/modules/explorer.js`, `queryShows`, `showProgressCache.js`, `nextAiringCache.js` | [tv-shows.md](tv-shows.md) |
 | Upcoming episode calendar | `public/modules/upcoming.js`, `handleUpcoming` in `routes/metadata.js`, `upcomingCalendarCache.js`, `nextAiringCache.js` | [upcoming.md](upcoming.md) |
@@ -231,6 +232,7 @@ including this file (`architecture.md`), the per-feature docs, and the
 | `logs.js` | Frontend debug-log store (localStorage ring buffer) + fetching backend diagnostic logs. |
 | `images.js` | Poster/artwork frontend: `posterMarkup` (with its loading skeleton), `hydratePosterFallbacks`, `/api/poster` lookups with a persistent cache, TMDB image URL builders, `proxiedArtworkUrl`, `isCachedStorageImageUrl`. See [posters-artwork.md](posters-artwork.md). |
 | `sync.js` | Now Playing polling + rendering, sync-status pills/telemetry parsing, sync jobs + sync history panels, cron/force-sync triggers. |
+| `sync-activity.js` | The always-present sidebar sync indicator (Idle / N of M) and the `/sync-activity` page: per-media rows from `/api/sync-history` newest first, source-to-target route line, per-target result pills, and the per-item log download. See [dashboard.md](dashboard.md). |
 | `dashboard.js` | Dashboard rendering: Now Playing grid, recent-history rows, part-watched (continue watching) rail. See [dashboard.md](dashboard.md). |
 | `stats.js` | Stats page: KPI cards, leaderboards, platform split, month chart, yearly/monthly review reports. See [stats.md](stats.md). |
 | `explorer.js` | Movies grid, TV Shows grid, History page, Search page: paging, sorting, filters, IntersectionObserver infinite scroll, TMDB prefetch. See [movies.md](movies.md), [tv-shows.md](tv-shows.md), [history-search.md](history-search.md). |
@@ -541,6 +543,7 @@ Full detail: [auth.md](auth.md).
   routing, shared callbacks, and element binding.
 - SPA navigation via `navigateTo(url)` / `handleRouting()` / `history.pushState`.
   Routes: `/` dashboard, `/movies`, `/tvshows`, `/upcoming`, `/history`, `/stats`,
+  `/sync-activity`,
   `/search`, `/settings` and `/settings/:section` (plus `/sync`, `/logs`, and retired
   grouped settings aliases), `/movie/:id`,
   `/movie/tmdb/:id`, `/tvshow/:key(/season/:n(/episode/:n))`, `/tvshow/tmdb/:id`,

@@ -19,7 +19,7 @@ export const HISTORY_VIEW_MODES = ["grid", "list", "cards"];
 export const HISTORY_FILTERS = ["all", "movies", "shows"];
 export const DASHBOARD_HISTORY_VIEW_KEY = "plembfin:dashboardHistoryView";
 export const DASHBOARD_HISTORY_VIEW_MODES = ["cards", "posters"];
-export const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "upcoming", "settings", "help", "search", "history"];
+export const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "upcoming", "settings", "help", "search", "history", "syncActivity"];
 export const SETTINGS_TABS = ["account", "connections", "metadata", "data", "system"];
 
 function _startOfWeek(value) {
@@ -57,6 +57,10 @@ export const state = {
   syncHistory: [],
   syncHistoryLoaded: false,
   syncHistoryLoading: false,
+  syncActivity: [],
+  syncActivityLoaded: false,
+  syncActivityLoading: false,
+  syncActivityProgress: { total: 0, completed: 0 },
   changelog: null,
   savedConfig: {},
   stats: {

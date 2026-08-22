@@ -28,6 +28,7 @@
     <link rel="modulepreload" href="/modules/tools-duplicates.js" />
     <link rel="modulepreload" href="/modules/sync.js" />
     <link rel="modulepreload" href="/modules/sync-preview.js" />
+    <link rel="modulepreload" href="/modules/sync-activity.js" />
     <link rel="modulepreload" href="/modules/dashboard.js" />
     <link rel="modulepreload" href="/modules/stats.js" />
     <link rel="modulepreload" href="/modules/upcoming.js" />
@@ -83,10 +84,10 @@
             </div>
           </div>
           <div class="sidebar-footer">
-            <div id="syncProgressIndicator" class="sync-progress-indicator hidden" role="status" title="Background sync in progress">
+            <button id="syncProgressIndicator" class="sync-progress-indicator" type="button" data-sync-state="idle" title="Open sync activity">
               <span class="sync-progress-dot" aria-hidden="true"></span>
-              <span id="syncProgressText" class="sync-progress-text"></span>
-            </div>
+              <span id="syncProgressText" class="sync-progress-text" role="status">Sync - Idle</span>
+            </button>
             <button id="appVersion" class="app-version" type="button" title="Open changelog">v0.0.0</button>
             <div id="sidebarAppearanceWrap" class="sidebar-appearance-wrap hidden">
               <button id="sidebarAppearanceButton" class="nav-tab sidebar-appearance-button" type="button" aria-expanded="false">
@@ -404,6 +405,22 @@
               </div>
             </div>
             <div id="upcomingCalendar" class="upcoming-calendar"></div>
+          </section>
+        </section>
+
+        <section id="sync-activity-view" class="view-panel hidden" data-view-panel="syncActivity">
+          <section class="glass-panel p-section">
+            <div class="sync-activity-header">
+              <div class="sync-activity-status" id="syncActivityStatus" data-sync-state="idle">
+                <span class="sync-progress-dot" aria-hidden="true"></span>
+                <span id="syncActivityStatusText">Sync - Idle</span>
+              </div>
+              <div class="sync-activity-header-actions">
+                <span id="syncActivitySummary" class="status-pill status-muted">No activity</span>
+                <button id="syncActivityRefresh" class="button-ghost" type="button">Refresh</button>
+              </div>
+            </div>
+            <div id="syncActivityRows" class="sync-activity-rows"></div>
           </section>
         </section>
 

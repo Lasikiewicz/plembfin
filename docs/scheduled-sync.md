@@ -232,7 +232,7 @@ Implementation lives in `server/src/scheduled.js`.
    - Every real dispatch this queue makes (and every other one - a bulk duplicate-watch
      cleanup, a single manual watch/unwatch, a webhook-triggered propagation) goes through
      `syncMediaPlaystate` or `syncMediaUnplayedPlaystate` in `syncOrchestrator.js`, which is
-     where the sidebar's "Syncing N of M" indicator gets its numbers - tracking it there,
+     where the sidebar's "Sync - N of M" indicator gets its numbers - tracking it there,
      rather than per call site, means the indicator does not depend on knowing every place
      that can trigger a dispatch. A "burst" opens the first time a dispatch starts after being
      fully idle and closes `DISPATCH_PROGRESS_IDLE_MS` (2s) after the last one in it finishes,

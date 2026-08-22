@@ -59,14 +59,35 @@ the "Changelog & update check" section of [architecture.md](architecture.md).
 
 ### Background sync indicator
 
-A "Syncing N of M" line appears above the version badge whenever Plembfin is actively
-dispatching watch-state changes out to Plex/Emby/Jellyfin/Trakt - the scheduler's
-pending-dispatch queue working through a backlog, a bulk duplicate-watch cleanup, a
-manual watch/unwatch, anything - and hides once that activity settles. It's driven by
-the `sync-progress` events on the `GET /api/live-updates` SSE stream (`onSyncProgress`
-in `live-updates.js`, rendered by `renderSyncProgress` in `app.js`); see the "Manual
-dispatch queue" part of [scheduled-sync.md](scheduled-sync.md#what-it-does-each-run)
-for where the underlying `{ total, completed }` snapshot comes from.
+A sync line sits above the version badge on every page. It reads "Sync - Idle" when
+nothing is being dispatched and "Sync - N of M" while Plembfin is actively pushing
+watch-state changes out to Plex/Emby/Jellyfin/Trakt - the scheduler's pending-dispatch
+queue working through a backlog, a bulk duplicate-watch cleanup, a manual
+watch/unwatch, anything. The indicator is driven by the `sync-progress` events on the
+`GET /api/live-updates` SSE stream (`onSyncProgress` in `live-updates.js`, rendered by
+`renderSyncProgress` in `app.js`); see the "Manual dispatch queue" part of
+[scheduled-sync.md](scheduled-sync.md#what-it-does-each-run) for where the underlying
+`{ total, completed }` snapshot comes from.
+
+Clicking the line opens the Sync Activity page at `/sync-activity`.
+
+### Sync Activity page
+
+`/sync-activity` (`public/modules/sync-activity.js`) lists what Plembfin has synced,
+one row per media item, newest first, backed by `GET /api/sync-history`. The same
+Idle / N of M status appears at the top of the page, and the page reloads itself every
+15 seconds while it is the visible view so a running sync fills in as it goes.
+
+Each row shows the title, media type, source badge, action (Marked Watched, Marked
+Unwatched, or Resume Progress), timestamp, a "From <source> -> To <targets>" route line
+naming the app that reported the play and the apps it was dispatched to, per-target
+result pills with each target's status and failure detail, and the overall status.
+Failed rows carry a red edge and pending ones a yellow edge.
+
+A "Download log" button on each row saves that single item's record as a plain-text
+`.log` file: title, media type, action, status, local and ISO timestamps, record id,
+the source it came from, the targets it went to, the details string, every target
+result with its detail, and the raw payload debug JSON when the record has one.
 
 ## Posters
 

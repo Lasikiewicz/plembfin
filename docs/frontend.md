@@ -53,6 +53,7 @@ SPA navigation via `history.pushState`:
 | `/movies`, `/tvshows` | Explorer in movies/shows mode |
 | `/upcoming` | Upcoming TV episode calendar |
 | `/history`, `/stats`, `/search?q=` | History / Stats / Search |
+| `/sync-activity` | Sync Activity: per-media sync rows, newest first |
 | `/settings`, `/settings/:section` | Settings landing list and parent-group administration sections; child sections use `#hash` anchors |
 | `/sync`, `/logs`, retired grouped `/settings/*` URLs | Compatibility aliases normalized to supported settings sections |
 | `/movie/:idOrSlug`, `/movie/tmdb/:id(-slug)` | Movie detail (inline in explorer) |

@@ -308,6 +308,7 @@ When adding frontend code, place it in the most specific existing module that ow
 | Poster URLs, image caching, `posterMarkup` | `modules/images.js` |
 | Static help/guide HTML | `modules/help-content.js` |
 | Sync status, sync history, now-playing polling | `modules/sync.js`, `modules/sync-preview.js` |
+| Sidebar sync indicator and the Sync Activity page (`/sync-activity`) | `modules/sync-activity.js` |
 | Dashboard rendering | `modules/dashboard.js` |
 | Stats rendering | `modules/stats.js` |
 | Explorer grid, history page, search page | `modules/explorer.js` |

@@ -1,0 +1,249 @@
+import { buildAuthHeaders } from "./auth.js";
+import { state, elements } from "./state.js";
+import { escapeHtml, escapeAttribute, platformBadge, sourceClass, formatDate } from "./utils.js";
+import { syncHistoryTone, syncHistoryActionLabel } from "./sync.js";
+
+const REFRESH_MS = 15000;
+const ACTIVITY_LIMIT = 200;
+
+let refreshTimer = null;
+
+function authHeaders() {
+  return buildAuthHeaders(state.token);
+}
+
+function statusText() {
+  const total = Number(state.syncActivityProgress?.total) || 0;
+  const completed = Number(state.syncActivityProgress?.completed) || 0;
+  return total > 0 && completed < total ? `Sync - ${completed} of ${total}` : "Sync - Idle";
+}
+
+function isActive() {
+  const total = Number(state.syncActivityProgress?.total) || 0;
+  const completed = Number(state.syncActivityProgress?.completed) || 0;
+  return total > 0 && completed < total;
+}
+
+function targetPillRow(entry = {}) {
+  const targets = Array.isArray(entry.targetStates) ? entry.targetStates : [];
+  if (!targets.length) return `<span class="target-pill" data-status="pending">No target detail</span>`;
+  return targets
+    .map((target) => {
+      const status = String(target.status || "unknown").toLowerCase();
+      const tone = status === "success" ? "success" : status === "error" ? "error" : "pending";
+      const detail = target.detail ? ` - ${target.detail}` : "";
+      const label = `${platformBadge(target.target)} ${status}${detail}`;
+      return `<span class="target-pill" data-status="${tone}" title="${escapeAttribute(label)}">${escapeHtml(platformBadge(target.target))}: ${escapeHtml(status)}</span>`;
+    })
+    .join("");
+}
+
+function routeTargetNames(entry = {}) {
+  const targets = Array.isArray(entry.targetStates) ? entry.targetStates : [];
+  const names = [];
+  for (const target of targets) {
+    const name = platformBadge(target.target);
+    if (name && !names.includes(name)) names.push(name);
+  }
+  return names;
+}
+
+// "Where the request came from and where it went": the source is the app that
+// reported the play, the targets are the apps Plembfin dispatched it to.
+function routeLine(entry = {}) {
+  const source = platformBadge(entry.source) || "Unknown";
+  const targets = routeTargetNames(entry);
+  const to = targets.length ? targets.map((name) => escapeHtml(name)).join(", ") : "No targets recorded";
+  return `
+    <div class="sync-activity-row-route">
+      <span class="sync-activity-route-leg"><span>From</span><b>${escapeHtml(source)}</b></span>
+      <span class="sync-activity-route-arrow" aria-hidden="true">-&gt;</span>
+      <span class="sync-activity-route-leg"><span>To</span><b>${to}</b></span>
+    </div>
+  `;
+}
+
+function activityRow(entry = {}) {
+  const tone = syncHistoryTone(entry);
+  const mediaType = String(entry.mediaType || "").toLowerCase() === "movie" ? "Movie" : "TV";
+  const source = platformBadge(entry.source);
+  const statusLabel = entry.status || "unknown";
+  const statusClass = tone === "error" ? "status-error" : tone === "pending" ? "status-warning" : "status-ready";
+  const id = entry.id != null ? String(entry.id) : "";
+  return `
+    <article class="sync-activity-row" data-tone="${tone}" data-activity-id="${escapeAttribute(id)}">
+      <span class="sync-status-dot sync-status-dot--${tone}" aria-hidden="true"></span>
+      <div class="sync-activity-row-main">
+        <div class="sync-activity-row-title">${escapeHtml(entry.title || "Unknown media")}</div>
+        <div class="sync-activity-row-meta">
+          <span class="sync-activity-type">${escapeHtml(mediaType)}</span>
+          <span class="source-badge ${escapeAttribute(sourceClass(entry.source))}">${escapeHtml(source)}</span>
+          <span>${escapeHtml(syncHistoryActionLabel(entry))}</span>
+          <span>${escapeHtml(formatDate(entry.timestamp))}</span>
+        </div>
+        ${routeLine(entry)}
+        ${entry.details ? `<div class="sync-activity-row-detail">${escapeHtml(entry.details)}</div>` : ""}
+      </div>
+      <div class="sync-activity-row-targets">${targetPillRow(entry)}</div>
+      <div class="sync-activity-row-actions">
+        <span class="status-pill ${statusClass} sync-activity-row-status">${escapeHtml(statusLabel)}</span>
+        <button class="button-ghost sync-activity-download" type="button" data-sync-activity-download="${escapeAttribute(id)}" title="Download this item's sync log">Download log</button>
+      </div>
+    </article>
+  `;
+}
+
+function logTimestamp(value) {
+  const time = Number(value);
+  if (!Number.isFinite(time) || time <= 0) return "Unknown";
+  return `${formatDate(time)} (${new Date(time).toISOString()})`;
+}
+
+// One media item's sync record as plain text: what was synced, where the
+// request came from, where it was dispatched to, and what each target replied.
+export function buildSyncActivityLog(entry = {}) {
+  const targets = Array.isArray(entry.targetStates) ? entry.targetStates : [];
+  const lines = [
+    "Plembfin sync log",
+    `Exported: ${new Date().toISOString()}`,
+    "",
+    `Title: ${entry.title || "Unknown media"}`,
+    `Media type: ${entry.mediaType || "unknown"}`,
+    `Action: ${syncHistoryActionLabel(entry)}`,
+    `Status: ${entry.status || "unknown"}`,
+    `Logged at: ${logTimestamp(entry.timestamp)}`,
+    `Record id: ${entry.id != null ? entry.id : "unknown"}`,
+    "",
+    `Request came from: ${platformBadge(entry.source) || "Unknown"}`,
+    `Dispatched to: ${routeTargetNames(entry).join(", ") || "No targets recorded"}`,
+    "",
+    `Details: ${entry.details || "No details"}`,
+    "",
+    "Target results:",
+  ];
+
+  if (!targets.length) {
+    lines.push("  No target detail recorded.");
+  } else {
+    for (const target of targets) {
+      const detail = target.detail ? ` - ${target.detail}` : "";
+      lines.push(`  ${platformBadge(target.target) || "Unknown"}: ${String(target.status || "unknown").toLowerCase()}${detail}`);
+    }
+  }
+
+  const debug = entry.rawPayloadDebug && Object.keys(entry.rawPayloadDebug).length ? entry.rawPayloadDebug : null;
+  if (debug) {
+    lines.push("", "Raw payload debug:", JSON.stringify(debug, null, 2));
+  }
+
+  return `${lines.join("\n")}\n`;
+}
+
+function syncActivityLogFilename(entry = {}) {
+  const safeTitle = String(entry.title || "media")
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "")
+    .trim()
+    .replace(/\s+/g, "-")
+    .slice(0, 80) || "media";
+  const stamp = Number(entry.timestamp) > 0 ? new Date(Number(entry.timestamp)).toISOString().replace(/[:.]/g, "-") : "unknown-time";
+  return `${safeTitle}-sync-${stamp}.log`;
+}
+
+export function downloadSyncActivityLog(id) {
+  const entry = state.syncActivity.find((item) => String(item.id) === String(id));
+  if (!entry) return false;
+  const blob = new Blob([buildSyncActivityLog(entry)], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = syncActivityLogFilename(entry);
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 0);
+  return true;
+}
+
+export function renderSyncActivityStatus() {
+  const text = statusText();
+  const stateName = isActive() ? "active" : "idle";
+  if (elements.syncProgressIndicator && elements.syncProgressText) {
+    elements.syncProgressText.textContent = text;
+    elements.syncProgressIndicator.dataset.syncState = stateName;
+  }
+  if (elements.syncActivityStatus && elements.syncActivityStatusText) {
+    elements.syncActivityStatusText.textContent = text;
+    elements.syncActivityStatus.dataset.syncState = stateName;
+  }
+}
+
+export function setSyncActivityProgress({ total = 0, completed = 0 } = {}) {
+  state.syncActivityProgress = { total, completed };
+  renderSyncActivityStatus();
+}
+
+export function renderSyncActivity() {
+  renderSyncActivityStatus();
+  if (!elements.syncActivityRows) return;
+
+  if (state.syncActivityLoading && !state.syncActivity.length) {
+    elements.syncActivityRows.innerHTML = `<div class="empty-log"><b>Loading sync activity</b><span>Fetching what has been synced recently.</span></div>`;
+    if (elements.syncActivitySummary) {
+      elements.syncActivitySummary.textContent = "Loading";
+      elements.syncActivitySummary.className = "status-pill status-muted";
+    }
+    return;
+  }
+
+  const rows = [...state.syncActivity].sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
+  const failed = rows.filter((entry) => syncHistoryTone(entry) === "error").length;
+
+  if (elements.syncActivitySummary) {
+    elements.syncActivitySummary.textContent = rows.length
+      ? `${rows.length} item${rows.length === 1 ? "" : "s"} / ${failed} failed`
+      : "No activity";
+    elements.syncActivitySummary.className = `status-pill ${failed ? "status-error" : rows.length ? "status-ready" : "status-muted"}`;
+  }
+
+  if (!rows.length) {
+    elements.syncActivityRows.innerHTML = `<div class="empty-log"><b>Nothing synced yet</b><span>Watches propagated to your media servers and trackers appear here, newest first.</span></div>`;
+    return;
+  }
+
+  elements.syncActivityRows.innerHTML = rows.map(activityRow).join("");
+}
+
+export async function loadSyncActivity({ force = false } = {}) {
+  if (!state.token || (state.syncActivityLoading && !force)) return state.syncActivity;
+  state.syncActivityLoading = true;
+  renderSyncActivity();
+  try {
+    const url = new URL("/api/sync-history", window.location.origin);
+    url.searchParams.set("limit", String(ACTIVITY_LIMIT));
+    const response = await fetch(url, { headers: authHeaders(), cache: "no-store" });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `Sync activity load failed with ${response.status}`);
+    state.syncActivity = Array.isArray(body.history) ? body.history : [];
+    state.syncActivityLoaded = true;
+    return state.syncActivity;
+  } finally {
+    state.syncActivityLoading = false;
+    renderSyncActivity();
+  }
+}
+
+// The page keeps itself current while it is the visible view: a sync that is
+// running writes new rows continuously, and the live-update stream only carries
+// the running counter, not the per-item results.
+export function startSyncActivityRefresh() {
+  stopSyncActivityRefresh();
+  refreshTimer = window.setInterval(() => {
+    if (state.activeView !== "syncActivity") return;
+    loadSyncActivity({ force: true }).catch(() => null);
+  }, REFRESH_MS);
+}
+
+export function stopSyncActivityRefresh() {
+  if (refreshTimer) window.clearInterval(refreshTimer);
+  refreshTimer = null;
+}
