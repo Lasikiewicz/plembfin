@@ -4,6 +4,14 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v0.10.2 - 22 August 2026
+
+Fix - Recognize BUILD_CHANNEL=latest and stable as release channel
+
+- Update channel detection to treat BUILD_CHANNEL=latest, stable, and main as release channel
+- Prevent presence of changelog.develop.json from overriding release builds that contain changelog.json
+- Add test coverage verifying channel resolution for latest, stable, and release tags
+
 ## v0.10.1 - 22 August 2026
 
 Docs - Modernize hub architecture diagram and refine feature documentation

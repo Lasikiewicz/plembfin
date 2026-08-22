@@ -1,7 +1,19 @@
 {
-  "version": "0.10.1",
-  "updatedAt": "2026-08-22T20:58:29Z",
+  "version": "0.10.2",
+  "updatedAt": "2026-08-22T21:13:26Z",
   "entries": [
+    {
+      "version": "0.10.2",
+      "date": "2026-08-22T21:13:26Z",
+      "commit": "821e261105ec31d00d045489301d59182e2ed8f9",
+      "message": "Fix - Recognize BUILD_CHANNEL=latest and stable as release channel",
+      "author": "github-actions[bot]",
+      "details": [
+        "Update channel detection to treat BUILD_CHANNEL=latest, stable, and main as release channel",
+        "Prevent presence of changelog.develop.json from overriding release builds that contain changelog.json",
+        "Add test coverage verifying channel resolution for latest, stable, and release tags"
+      ]
+    },
     {
       "version": "0.10.1",
       "date": "2026-08-22T20:58:29Z",
