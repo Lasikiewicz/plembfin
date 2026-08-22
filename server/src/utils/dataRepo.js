@@ -3479,6 +3479,107 @@ export async function repairSplitIdentityUnwatches() {
   return { repaired: restored.length, media: restored };
 }
 
+// Read-only detector for a broader aftermath of the same mass false-unwatch
+// incident (2026-08-21) that auditSplitIdentityUnwatches targets, for
+// episodes where the shadowed watched row didn't survive at all - every row
+// left for the episode reads sync_action='unwatched', so there is nothing to
+// "restore" a playstate to, only rows to consolidate into a fresh watched one.
+//
+// The fingerprint: no row in the group currently reads watched, but at least
+// one of the unwatched rows came from an automatic source (plex/emby/jellyfin
+// - never "manual", which only a person or an explicit replay produces). A
+// genuine, intentional unwatch normally converges to one clean row via
+// applyUnwatchedTransition's own supersede/reuse logic; multiple automatic-
+// sourced unwatched rows (or even a single one with no surviving watched
+// sibling anywhere) sitting for the same episode is the same automatic-source-
+// cascade signature as the split-identity case, just missing its shadowed
+// watched half. The row with the oldest watched_at across the whole group is
+// treated as the best evidence of when the item was actually, genuinely
+// watched.
+//
+// This is a broader, less certain heuristic than auditSplitIdentityUnwatches
+// (there is no surviving watched row to confirm against), so it is even more
+// important that this stays audit-only until a human has reviewed real
+// candidates - an automatic source is also exactly what a genuine unwatch
+// performed directly on a media server (not through Plembfin) looks like.
+const AUTOMATIC_UNWATCH_ROW_SOURCES = new Set(["plex", "emby", "jellyfin"]);
+
+function findLikelyFalseUnwatchCandidates() {
+  const rows = selectAllEpisodesStmt.all().filter(isPlembfinTrackedEpisodeRow);
+  const groups = new Map();
+  for (const row of rows) {
+    const showKey = canonicalTitleKey(showTitleFrom(row.show_title || row.title));
+    const season = row.season == null ? null : Number(row.season);
+    const episode = row.episode == null ? null : Number(row.episode);
+    if (!showKey || season == null || episode == null) continue;
+    const groupKey = `${showKey}|s${season}e${episode}`;
+    if (!groups.has(groupKey)) groups.set(groupKey, []);
+    groups.get(groupKey).push(row);
+  }
+
+  const candidates = [];
+  for (const groupRows of groups.values()) {
+    const hasWatched = groupRows.some((row) => (row.sync_action || "watched") === "watched");
+    if (hasWatched) continue;
+    const automaticUnwatched = groupRows.filter(
+      (row) => row.sync_action === "unwatched" && AUTOMATIC_UNWATCH_ROW_SOURCES.has(String(row.source || "").toLowerCase()),
+    );
+    if (!automaticUnwatched.length) continue;
+    const bestEvidence = groupRows.reduce((best, row) => (String(row.watched_at || "") < String(best.watched_at || "") ? row : best));
+    candidates.push({ show: groupRows[0].show_title || showTitleFrom(groupRows[0].title), rows: groupRows, bestEvidence });
+  }
+  return candidates;
+}
+
+export function auditLikelyFalseUnwatches({ sampleSize = 50 } = {}) {
+  const candidates = findLikelyFalseUnwatchCandidates();
+  const findings = candidates.map(({ show, rows, bestEvidence }) => ({
+    show,
+    season: bestEvidence.season,
+    episode: bestEvidence.episode,
+    restoreUsing: { id: bestEvidence.id, watchedAt: bestEvidence.watched_at, source: bestEvidence.source },
+    rows: rows.map((row) => ({
+      id: row.id, mediaKey: row.media_key, watchedAt: row.watched_at, source: row.source,
+      updatedAt: row.updated_at, telemetry: row.sync_dispatch_telemetry || null,
+    })),
+  }));
+  return { count: findings.length, sample: findings.slice(0, sampleSize) };
+}
+
+// Opt-in repair for the candidates above: deletes every stale row for the
+// episode (none of them currently reads watched) and inserts one fresh
+// canonical "watched" record using the oldest row's own date as the best
+// evidence of when it was genuinely watched. Returns media-shaped objects for
+// the caller to re-push to Plex/Emby/Jellyfin/Trakt, the same contract
+// repairSplitIdentityUnwatches uses.
+export async function repairLikelyFalseUnwatches() {
+  const candidates = findLikelyFalseUnwatchCandidates();
+  const restored = [];
+  for (const { rows, bestEvidence } of candidates) {
+    const media = {
+      title: bestEvidence.title,
+      type: bestEvidence.media_type,
+      season: bestEvidence.season,
+      episode: bestEvidence.episode,
+      show_title: bestEvidence.show_title,
+      isValid: true,
+      source: "manual",
+      watched_at: bestEvidence.watched_at,
+      ids: { imdb: bestEvidence.imdb_id || undefined, tmdb: bestEvidence.tmdb_id || undefined, tvdb: bestEvidence.tvdb_id || undefined },
+    };
+    for (const row of rows) {
+      await deleteWatchRecordById(row.id, { skipInvalidate: true });
+    }
+    const record = mediaToWatchRecord({ ...media, syncAction: "watched" }, "manual");
+    record.sync_action = "watched";
+    await insertWatchRecord(record, { skipInvalidate: true });
+    await upsertPlaystateForMedia(media, "watched", bestEvidence.watched_at, { skipInvalidate: true });
+    restored.push(media);
+  }
+  if (restored.length) await invalidateHistoryDerivedCaches();
+  return { repaired: restored.length, media: restored };
+}
+
 // --- Maintenance helpers (used by index.js admin endpoints) ----------------
 export async function findExistingWatch(mediaKey, watchedAt) {
   return rowToWatch(findExistingStmt.get(mediaKey, watchedAt));

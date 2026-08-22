@@ -177,6 +177,21 @@ propagated the same way `propagateWatchDateRemoval` in `routes/media.js` replays
 date). This is an explicit admin action, not wired to any automatic trigger - review the audit
 output first.
 
+Some affected episodes lost the shadowed watched row entirely rather than just having it
+shadowed, so every remaining row reads unwatched and there is nothing for the split-identity
+audit to shadow-match against (real incidents: The 'Burbs S01E01, Silo S03E02). The fingerprint
+there is broader and less certain: no row in the group currently reads watched, but at least
+one of the unwatched rows came from an automatic source (`plex`/`emby`/`jellyfin`, never
+`manual`) - a genuine intentional unwatch normally converges to one clean row, so an automatic-
+sourced unwatched row with no surviving watched sibling anywhere is the same cascade signature,
+just missing its watched half. `GET /api/likely-false-unwatch-audit` finds these (read-only;
+`auditLikelyFalseUnwatches` in `dataRepo.js`); `POST /api/likely-false-unwatch-repair`
+consolidates every stale row for the episode into one fresh watched record using the oldest
+row's own date as the best evidence of when it was genuinely watched, then re-pushes it to
+every connected platform (`repairLikelyFalseUnwatches`). Being less certain than the split-
+identity fingerprint - an automatic source is also what a genuine unwatch performed directly on
+a media server looks like - review real candidates even more carefully before repairing.
+
 An explicit unplayed webhook/notification or Trakt snapshot removal changes the canonical
 state to unwatched and propagates it. Plex show and season notifications are expanded into
 their episodes so bulk library actions follow the same transition path. Polling remains

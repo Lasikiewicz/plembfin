@@ -38,6 +38,8 @@ import {
   repairStalePendingWatchRows,
   auditSplitIdentityUnwatches,
   repairSplitIdentityUnwatches,
+  auditLikelyFalseUnwatches,
+  repairLikelyFalseUnwatches,
   countPlaybackProgressRows,
   countWatchedPlaystateRows,
   watchHistoryQualityCounts,
@@ -459,9 +461,7 @@ export async function handleStalePendingWatchRepair(req, res) {
 // Read-only - see the comment on auditSplitIdentityUnwatches in dataRepo.js.
 // Surfaces episodes where a genuine earlier watch appears shadowed by a
 // later unwatched row recorded under a different media_key, for manual
-// review; there is deliberately no matching repair endpoint yet, since
-// restoring a watched state automatically risks reviving a genuinely
-// intentional unwatch.
+// review before the repair endpoint below is used.
 export async function handleSplitIdentityUnwatchAudit(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET") return methodNotAllowed(res);
@@ -503,6 +503,52 @@ export async function handleSplitIdentityUnwatchRepair(req, res) {
     return sendJson(res, { ok: true, repaired: result.repaired, propagationErrors }, 200, { "Cache-Control": "no-store" });
   } catch (error) {
     return sendJson(res, { error: error.message || "Split identity unwatch repair failed" }, 500);
+  }
+}
+
+// Read-only - see the comment on auditLikelyFalseUnwatches in dataRepo.js.
+// Broader than the split-identity audit above: catches an episode where the
+// shadowed watched row didn't survive at all, so every remaining row reads
+// unwatched. Less certain than the split-identity fingerprint (there is no
+// surviving watched row to confirm against), so review real candidates
+// before running the repair below.
+export async function handleLikelyFalseUnwatchAudit(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  const result = auditLikelyFalseUnwatches();
+  return sendJson(res, { ok: true, ...result }, 200, { "Cache-Control": "no-store" });
+}
+
+// Opt-in repair for the candidates above - consolidates every stale row for
+// the episode into one fresh canonical watched record (repairLikelyFalseUnwatches
+// in dataRepo.js) and re-pushes it to every connected platform, same pattern
+// as handleSplitIdentityUnwatchRepair above.
+const LIKELY_FALSE_UNWATCH_REPAIR_CONCURRENCY = 6;
+
+export async function handleLikelyFalseUnwatchRepair(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const result = await repairLikelyFalseUnwatches();
+    const config = await loadMediaConfig();
+    const loopStore = createLoopStore();
+    const propagationErrors = [];
+    await runWithConcurrency(result.media, async (media) => {
+      try {
+        await syncCanonicalPlaystate(media, config, loopStore, "watched");
+      } catch (error) {
+        propagationErrors.push({ title: media.title, error: error.message || String(error) });
+      }
+    }, LIKELY_FALSE_UNWATCH_REPAIR_CONCURRENCY);
+    writeAuditLog("history.likely_false_unwatch_repair", {
+      ip: req.ip || req.socket?.remoteAddress,
+      detail: { repaired: result.repaired, propagationErrors: propagationErrors.length },
+    });
+    return sendJson(res, { ok: true, repaired: result.repaired, propagationErrors }, 200, { "Cache-Control": "no-store" });
+  } catch (error) {
+    return sendJson(res, { error: error.message || "Likely false unwatch repair failed" }, 500);
   }
 }
 
