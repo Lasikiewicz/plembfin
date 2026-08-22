@@ -4,10 +4,10 @@ const API_BASE = "https://api.trakt.tv";
 const API_VERSION = "2";
 const USER_AGENT = "Plembfin (https://github.com/Lasikiewicz/plembfin)";
 
-async function request(url, { method = "GET", body, clientId, accessToken, timeoutMs = 20_000, includePagination = false } = {}) {
+async function request(url, { method = "GET", body, clientId, accessToken, timeoutMs = 20_000, includePagination = false, lane = "sync" } = {}) {
   const response = await fetchWithTimeout(url, {
     method,
-    lane: "sync",
+    lane,
     headers: {
       "content-type": "application/json",
       "user-agent": USER_AGENT,
@@ -178,9 +178,9 @@ function syncPayload(media, state) {
   return { movies: [item] };
 }
 
-export function setTraktWatchState({ clientId, accessToken }, media, state) {
+export function setTraktWatchState({ clientId, accessToken }, media, state, { lane = "sync" } = {}) {
   const path = state === "unwatched" ? "/sync/history/remove" : "/sync/history";
-  return request(`${API_BASE}${path}`, { method: "POST", clientId, accessToken, body: syncPayload(media, state) });
+  return request(`${API_BASE}${path}`, { method: "POST", clientId, accessToken, body: syncPayload(media, state), lane });
 }
 
 export function trackerMediaKey(media) {

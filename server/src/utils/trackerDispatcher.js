@@ -38,19 +38,56 @@ export function trackerMediaWithSeriesIds(media = {}, details = {}) {
   };
 }
 
-// Skips the TMDB title search entirely when the episode already carries a
-// usable id - the lookup exists only to backfill series-level ids for
-// episodes that arrive with none, not to re-derive ids for rows that already
-// have a trustworthy one.
+// Same backfill-only reasoning as trackerMediaWithSeriesIds above, for a
+// movie instead of an episode: only fills in ids when the movie arrived with
+// none at all (e.g. a media server webhook for a very new release its own
+// metadata agent has not matched yet, like ids: {} straight from Plex), never
+// replaces an id that's already there.
+export function trackerMediaWithMovieIds(media = {}, details = {}) {
+  if ((media.type || media.mediaType) !== "movie") return media;
+  const tmdb = String(details.id || details.external_ids?.tmdb_id || "").trim();
+  const tvdb = String(details.external_ids?.tvdb_id || "").trim();
+  const imdb = String(details.external_ids?.imdb_id || "").trim();
+  if (!tmdb && !tvdb && !imdb) return media;
+  const existingIds = media.ids || {};
+  return {
+    ...media,
+    ids: {
+      ...(tmdb ? { tmdb } : {}),
+      ...(tvdb ? { tvdb } : {}),
+      ...(imdb ? { imdb } : {}),
+      ...existingIds,
+    },
+  };
+}
+
+// Skips the TMDB title search entirely when the item already carries a
+// usable id - the lookup exists only to backfill ids for items that arrive
+// with none, not to re-derive ids for rows that already have a trustworthy
+// one. Covers movies as well as episodes: a movie reported by a media server
+// whose own metadata agent has not matched it yet (ids: {}) would otherwise
+// be permanently unreachable on Trakt even though Plembfin's own TMDB
+// integration could resolve it by title.
 async function hydrateTrackerMedia(media) {
-  if ((media.type || media.mediaType) !== "episode") return media;
+  const type = media.type || media.mediaType;
+  if (type !== "episode" && type !== "movie") return media;
   const existingIds = media.ids || {};
   if (existingIds.imdb || existingIds.tmdb || existingIds.tvdb) return media;
-  const title = trackerShowTitle(media);
+  if (type === "episode") {
+    const title = trackerShowTitle(media);
+    if (!title) return media;
+    try {
+      const details = await getTmdbDetails({ mediaType: "tv", title, light: true });
+      return trackerMediaWithSeriesIds(media, details);
+    } catch {
+      return media;
+    }
+  }
+  const title = String(media.title || "").trim();
   if (!title) return media;
   try {
-    const details = await getTmdbDetails({ mediaType: "tv", title, light: true });
-    return trackerMediaWithSeriesIds(media, details);
+    const details = await getTmdbDetails({ mediaType: "movie", title, light: true });
+    return trackerMediaWithMovieIds(media, details);
   } catch {
     return media;
   }
@@ -103,12 +140,12 @@ function traktNotFoundCount(result) {
 // entries at whatever time it happened to run. A genuine watch reported by a
 // media server still just adds, since that really is a new play. Removing an
 // item with no existing history is a no-op on Trakt's side, not an error.
-async function performTraktDispatch(connection, trackerMedia, state, isCanonicalReplay) {
+async function performTraktDispatch(connection, trackerMedia, state, isCanonicalReplay, lane = "sync") {
   let removeResult = null;
   if (isCanonicalReplay) {
-    removeResult = await setTraktWatchState(connection, trackerMedia, "unwatched");
+    removeResult = await setTraktWatchState(connection, trackerMedia, "unwatched", { lane });
   }
-  const result = await setTraktWatchState(connection, trackerMedia, state);
+  const result = await setTraktWatchState(connection, trackerMedia, state, { lane });
   return { removeResult, result };
 }
 
@@ -134,7 +171,7 @@ async function seriesIdsForRetry(media) {
   return ids.imdb || ids.tmdb || ids.tvdb ? ids : null;
 }
 
-async function dispatchTrakt(media, state) {
+async function dispatchTrakt(media, state, lane = "sync") {
   let connection = await withFreshTraktConnection();
   if (!connection) return { target: "trakt", status: "skipped", detail: "Trakt is not connected" };
   // Anything sourced from Trakt itself - the live poller ("trakt") or a bulk
@@ -146,11 +183,11 @@ async function dispatchTrakt(media, state) {
   const isCanonicalReplay = state === "watched" && String(media.source || "").toLowerCase() === "manual";
   let dispatch;
   try {
-    dispatch = await performTraktDispatch(connection, trackerMedia, state, isCanonicalReplay);
+    dispatch = await performTraktDispatch(connection, trackerMedia, state, isCanonicalReplay, lane);
   } catch (error) {
     if (error.status !== 401) throw error;
     connection = await withFreshTraktConnection(true);
-    dispatch = await performTraktDispatch(connection, trackerMedia, state, isCanonicalReplay);
+    dispatch = await performTraktDispatch(connection, trackerMedia, state, isCanonicalReplay, lane);
   }
   const mediaKey = trackerMediaKey(trackerMedia);
   recordTrackerOutbound("trakt", mediaKey, trackerMedia, state);
@@ -162,7 +199,7 @@ async function dispatchTrakt(media, state) {
     const changed = seriesIds && JSON.stringify(seriesIds) !== JSON.stringify(trackerMedia.ids || {});
     if (changed) {
       const retryMedia = { ...trackerMedia, ids: seriesIds };
-      const retryDispatch = await performTraktDispatch(connection, retryMedia, state, isCanonicalReplay).catch(() => null);
+      const retryDispatch = await performTraktDispatch(connection, retryMedia, state, isCanonicalReplay, lane).catch(() => null);
       if (retryDispatch && traktNotFoundCount(retryDispatch.result) === 0) {
         dispatch = retryDispatch;
         addNotFound = 0;
@@ -192,11 +229,11 @@ async function dispatchTrakt(media, state) {
   return { target: "trakt", status: "success", detail };
 }
 
-export async function dispatchTrackerWatchState(media, state) {
+export async function dispatchTrackerWatchState(media, state, { lane = "sync" } = {}) {
   const connection = getTrackerConnection("trakt");
   if (!connection || connection.status === "disabled") return [];
   try {
-    return [await dispatchTrakt(media, state)];
+    return [await dispatchTrakt(media, state, lane)];
   } catch (error) {
     updateTrackerConnectionStatus("trakt", { lastError: error.message });
     const status = error.code === "not_found" ? "not_found" : "failed";

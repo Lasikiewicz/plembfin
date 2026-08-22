@@ -88,7 +88,7 @@ function automaticUnwatchBurstDetected(media) {
   return false;
 }
 
-export async function applyWatchedTransition(media, config, loopStore, { trackDispatch = true } = {}) {
+export async function applyWatchedTransition(media, config, loopStore, { trackDispatch = true, lane = "sync" } = {}) {
   const existing = await getPlaystateForMedia(media).catch(() => null);
   if (existing?.state === "watched") {
     // A pre-reserved batch slot (trackDispatch: false) skips syncMediaPlaystate
@@ -113,7 +113,7 @@ export async function applyWatchedTransition(media, config, loopStore, { trackDi
   const result = await insertWatchRecord(record, { skipInvalidate: true });
   await upsertPlaystateForMedia(media, "watched", result.record.watched_at, { skipInvalidate: true });
   await deletePlaybackProgress(media).catch(() => null);
-  const summary = await syncMediaPlaystate(media, config, loopStore, { trackDispatch }).catch((error) => ({
+  const summary = await syncMediaPlaystate(media, config, loopStore, { trackDispatch, lane }).catch((error) => ({
     skipped: false, status: "error", details: `Watched propagation failed: ${error.message || String(error)}`, targetStates: [],
   }));
   await updateWatchTelemetry(result.id, [
@@ -154,6 +154,7 @@ export async function applyUnwatchedTransition(media, config, loopStore, {
   includeSourcePlatform = false,
   trackDispatch = true,
   force = false,
+  lane = "sync",
 } = {}) {
   const existingWatched = await findWatchedByAnyMediaKey(media).catch(() => null);
   const existingRecord = recordId
@@ -166,17 +167,17 @@ export async function applyUnwatchedTransition(media, config, loopStore, {
     // Nothing to insert/delete - plembfin already has this as unwatched - but
     // still clear progress and push "unplayed" live to every connected target.
     await deletePlaybackProgress(media).catch(() => null);
-    const syncMedia = includeSourcePlatform ? { ...media, source: "manual" } : media;
+    const syncMedia = { ...(includeSourcePlatform ? { ...media, source: "manual" } : media), lane };
     for (const target of getTargetsForSource(syncMedia.source, config)) {
       try {
-        if (target === "plex") await setPlexProgress(config.plex, { ...media, positionMs: 0 });
-        if (target === "emby") await setEmbyProgress(config.emby, { ...media, positionMs: 0 });
-        if (target === "jellyfin") await setJellyfinProgress(config.jellyfin, { ...media, positionMs: 0 });
+        if (target === "plex") await setPlexProgress(config.plex, { ...syncMedia, positionMs: 0 });
+        if (target === "emby") await setEmbyProgress(config.emby, { ...syncMedia, positionMs: 0 });
+        if (target === "jellyfin") await setJellyfinProgress(config.jellyfin, { ...syncMedia, positionMs: 0 });
       } catch (error) {
         console.log(`Resume progress clear on ${target} during unwatch failed (non-fatal)`, error.message);
       }
     }
-    const summary = await syncMediaUnplayedPlaystate(syncMedia, config, loopStore, { trackDispatch }).catch((error) => ({
+    const summary = await syncMediaUnplayedPlaystate(syncMedia, config, loopStore, { trackDispatch, lane }).catch((error) => ({
       skipped: false, status: "error", details: `Unwatched propagation failed: ${error.message || String(error)}`, targetStates: [],
     }));
     if (existingRecord?.id) {
@@ -235,18 +236,18 @@ export async function applyUnwatchedTransition(media, config, loopStore, {
   const result = await insertWatchRecord(unplayedRecord, { skipInvalidate: true, id: reusableId });
   await upsertPlaystateForMedia(media, "unwatched", result.record.watched_at, { skipInvalidate: true });
 
-  const syncMedia = includeSourcePlatform ? { ...media, source: "manual" } : media;
+  const syncMedia = { ...(includeSourcePlatform ? { ...media, source: "manual" } : media), lane };
   for (const target of getTargetsForSource(syncMedia.source, config)) {
     try {
-      if (target === "plex") await setPlexProgress(config.plex, { ...media, positionMs: 0 });
-      if (target === "emby") await setEmbyProgress(config.emby, { ...media, positionMs: 0 });
-      if (target === "jellyfin") await setJellyfinProgress(config.jellyfin, { ...media, positionMs: 0 });
+      if (target === "plex") await setPlexProgress(config.plex, { ...syncMedia, positionMs: 0 });
+      if (target === "emby") await setEmbyProgress(config.emby, { ...syncMedia, positionMs: 0 });
+      if (target === "jellyfin") await setJellyfinProgress(config.jellyfin, { ...syncMedia, positionMs: 0 });
     } catch (error) {
       console.log(`Resume progress clear on ${target} during unwatch failed (non-fatal)`, error.message);
     }
   }
 
-  const summary = await syncMediaUnplayedPlaystate(syncMedia, config, loopStore, { trackDispatch }).catch((error) => ({
+  const summary = await syncMediaUnplayedPlaystate(syncMedia, config, loopStore, { trackDispatch, lane }).catch((error) => ({
     skipped: false,
     status: "error",
     details: `Unwatched propagation failed: ${error.message || String(error)}`,

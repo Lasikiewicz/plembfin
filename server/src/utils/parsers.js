@@ -1,5 +1,6 @@
 import { watchedThresholdPercent } from "./tuning.js";
 import { buildWatchProvenance } from "./watchProvenance.js";
+import { releaseDateForItem, releaseDateForPlexItem } from "./watchDates.js";
 
 const EMPTY_IDS = { imdb: undefined, tmdb: undefined, tvdb: undefined };
 const PLEX_ACTIVE_EVENTS = ["media.play", "media.resume", "media.progress", "media.pause"];
@@ -371,18 +372,41 @@ function buildPayload({
   episodeTitle,
   playedAt = "",
   playedFlagOnly = false,
+  releaseDate = "",
   ingestPath = "",
   watchProvenance = null,
   rawPayloadDebug = {},
 }) {
   const isActionable = ["active", "completed", "ended", "unplayed", "added"].includes(phase);
   const resolvedWatchProvenance = watchProvenance || buildWatchProvenance(
-    { source, event, phase, itemId, user, device, deviceId, client, clientVersion, sessionId, playedAt },
-    { ingestPath, sourceTimestamp: playedAt },
+    {
+      source,
+      event,
+      phase,
+      itemId,
+      user,
+      device,
+      deviceId,
+      client,
+      clientVersion,
+      sessionId,
+      // A flag-only event can expose a server-updated LastPlayedDate even
+      // though no playback occurred. It is useful for echo detection, but it
+      // is not the historical watch timestamp we should display/store.
+      playedAt: playedFlagOnly ? "" : playedAt,
+    },
+    {
+      ingestPath,
+      sourceTimestamp: playedFlagOnly ? "" : playedAt,
+      note: playedFlagOnly && releaseDate
+        ? "The source reported a manual played flag without playback evidence; the release date will be used as the watch date."
+        : "",
+    },
   );
   return {
     playedAt,
     playedFlagOnly: Boolean(playedFlagOnly),
+    releaseDate,
     title: title || "Unknown media",
     type,
     source,
@@ -445,6 +469,7 @@ export async function parsePlexWebhook(formData) {
     const offsetMs = positionMillisecondsFrom(metadata);
     const durationMs = durationMillisecondsFrom(metadata);
     const ids = parsePlexGuids(metadata);
+    const releaseDate = releaseDateForPlexItem(metadata);
     const user = payload.Account?.title || "";
     const client = plexClientFrom(payload);
 
@@ -468,6 +493,7 @@ export async function parsePlexWebhook(formData) {
         clientVersion: client.clientVersion,
         sessionId: client.sessionId,
         itemId: metadata.ratingKey,
+        releaseDate,
         ingestPath: "plex_webhook",
         poster: plexPosterInfo(metadata, type),
         episodeTitle: type === "episode" ? metadata.title : null,
@@ -494,6 +520,7 @@ export async function parsePlexWebhook(formData) {
       clientVersion: client.clientVersion,
       sessionId: client.sessionId,
       itemId: metadata.ratingKey,
+      releaseDate,
       ingestPath: "plex_webhook",
       poster: plexPosterInfo(metadata, type),
       episodeTitle: type === "episode" ? metadata.title : null,
@@ -523,6 +550,7 @@ export function buildPlexMediaFromMetadata(metadata = {}, { phase = "unplayed" }
   const type = normalizeType(metadata.type);
   const ids = parsePlexGuids(metadata);
   const title = extractTitle(type, metadata, "plex");
+  const releaseDate = releaseDateForPlexItem(metadata);
   return buildPayload({
     type,
     source: "plex",
@@ -535,6 +563,11 @@ export function buildPlexMediaFromMetadata(metadata = {}, { phase = "unplayed" }
     ingestPath: "plex_notification",
     user: "",
     itemId: metadata.ratingKey,
+    releaseDate,
+    // This notification is a library-state change, not a playback lifecycle
+    // payload. The caller may upgrade it to a real playback date when a recent
+    // live session proves that the watched threshold was reached.
+    playedFlagOnly: phase === "completed",
     poster: plexPosterInfo(metadata, type),
     episodeTitle: type === "episode" ? metadata.title : null,
     rawPayloadDebug: { source: "plex_notification", ratingKey: metadata.ratingKey },
@@ -557,6 +590,7 @@ export function parseJellyfinWebhook(json) {
     const episode = episodeNumberFrom(item);
     const episodeTitle = type === "episode" ? itemTitleFrom(item) : null;
     const client = embyLikeClientFrom(json, item);
+    const releaseDate = releaseDateForItem(item);
 
     if (phase === "ignored") {
       return buildPayload({
@@ -578,6 +612,7 @@ export function parseJellyfinWebhook(json) {
         clientVersion: client.clientVersion,
         sessionId: client.sessionId,
         itemId: item.Id,
+        releaseDate,
         ingestPath: "jellyfin_webhook",
         poster: embyLikePosterInfo(item, type),
         episodeTitle,
@@ -613,6 +648,7 @@ export function parseJellyfinWebhook(json) {
       episodeTitle,
       playedAt: playedAtFrom(item, json),
       playedFlagOnly: isPlayedFlagOnlyEvent(event),
+      releaseDate,
       rawPayloadDebug: {
         payloadKeys: Object.keys(json || {}),
         itemKeys: Object.keys(item),
@@ -649,6 +685,7 @@ export function parseEmbyWebhook(json) {
     const episode = episodeNumberFrom(item);
     const episodeTitle = type === "episode" ? itemTitleFrom(item) : null;
     const client = embyLikeClientFrom(json, item);
+    const releaseDate = releaseDateForItem(item);
 
     if (phase === "ignored") {
       return buildPayload({
@@ -670,6 +707,7 @@ export function parseEmbyWebhook(json) {
         clientVersion: client.clientVersion,
         sessionId: client.sessionId,
         itemId: item.Id,
+        releaseDate,
         ingestPath: "emby_webhook",
         poster: embyLikePosterInfo(item, type),
         episodeTitle,
@@ -705,6 +743,7 @@ export function parseEmbyWebhook(json) {
       episodeTitle,
       playedAt: playedAtFrom(item, json),
       playedFlagOnly: isPlayedFlagOnlyEvent(event),
+      releaseDate,
       rawPayloadDebug: {
         payloadKeys: Object.keys(json || {}),
         itemKeys: Object.keys(item),

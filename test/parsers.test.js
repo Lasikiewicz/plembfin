@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   decodeHtmlEntities,
+  buildPlexMediaFromMetadata,
   parseEmbyWebhook,
   parseJellyfinWebhook,
   parsePlexGuids,
@@ -181,6 +182,34 @@ test("played-flag events are tagged and dated from the server's own played times
   assert.equal(jellyfinMarkPlayed.playedAt, "2026-07-25T20:15:47.000Z");
   assert.equal(jellyfinMarkPlayed.watchProvenance.ingest_path, "jellyfin_webhook");
   assert.equal(jellyfinMarkPlayed.watchProvenance.event, "ItemMarkPlayed");
+});
+
+test("played-flag history uses release date metadata instead of the manual click timestamp", () => {
+  const embyMarkPlayed = parseEmbyWebhook({
+    Event: "item.markplayed",
+    Item: {
+      Type: "Movie",
+      Name: "Toy Story 5",
+      PremiereDate: "2026-06-19T00:00:00Z",
+      ProviderIds: {},
+      UserData: { Played: true, LastPlayedDate: "2026-08-22T08:22:00Z" },
+    },
+  });
+  assert.equal(embyMarkPlayed.playedFlagOnly, true);
+  assert.equal(embyMarkPlayed.releaseDate, "2026-06-19T00:00:00.000Z");
+  assert.equal(embyMarkPlayed.watchProvenance.source_timestamp, "");
+  assert.match(embyMarkPlayed.watchProvenance.note, /release date will be used/);
+
+  const plexNotification = buildPlexMediaFromMetadata({
+    type: "movie",
+    title: "Toy Story 5",
+    ratingKey: "toy-story-5",
+    originallyAvailableAt: "2026-06-19",
+    lastViewedAt: 1787424000,
+  }, { phase: "completed" });
+  assert.equal(plexNotification.playedFlagOnly, true);
+  assert.equal(plexNotification.releaseDate, "2026-06-19T00:00:00.000Z");
+  assert.equal(plexNotification.watchProvenance.source_timestamp, "");
 });
 
 test("real playback events are not treated as bare played-flag events", async () => {

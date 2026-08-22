@@ -43,7 +43,7 @@ const accountIdCache = new Map();
 const ACCOUNT_ID_TTL_MS = 10 * 60 * 1000;
 const ACCOUNT_ID_NEGATIVE_TTL_MS = 60 * 1000;
 
-export async function resolvePlexAccountId(config = {}) {
+export async function resolvePlexAccountId(config = {}, { lane = "sync" } = {}) {
   const username = normalizePlexIdentity(config.username);
   if (!username) return null;
   if (isOwnerPlexUsername(username)) return 1;
@@ -57,7 +57,7 @@ export async function resolvePlexAccountId(config = {}) {
 
   let accountId = null;
   try {
-    const response = await fetchPlexWithRefresh(config, accountsUrl);
+    const response = await fetchPlexWithRefresh(config, accountsUrl, { lane });
     if (!response.ok) {
       console.warn(`Plex account mapping failed with HTTP ${response.status}`);
     } else {
@@ -79,8 +79,8 @@ export async function resolvePlexAccountId(config = {}) {
   return accountId;
 }
 
-async function addConfiguredPlexAccountId(url, config = {}) {
-  const accountId = await resolvePlexAccountId(config);
+async function addConfiguredPlexAccountId(url, config = {}, { lane = "sync" } = {}) {
+  const accountId = await resolvePlexAccountId(config, { lane });
   if (accountId != null) {
     url.searchParams.set("accountID", String(accountId));
   }
@@ -164,7 +164,7 @@ async function searchPlexFallback(config, media, targetType) {
     url.searchParams.set("query", queryTitle);
 
     traceLog("Plex search fallback started", { query: queryTitle, targetType });
-    const response = await fetchPlexWithRefresh(config, url);
+    const response = await fetchPlexWithRefresh(config, url, { lane: media?.lane || "sync" });
 
     if (!response.ok) {
       console.error("Plex search fallback failed", { status: response.status });
@@ -222,7 +222,7 @@ async function findPlexSeries(config, media) {
     const ratingKey = plexRatingKeyCache.get(cacheKey);
     if (ratingKey) {
       try {
-        const item = await fetchPlexMetadataItem(config, ratingKey);
+        const item = await fetchPlexMetadataItem(config, ratingKey, { lane: media?.lane || "sync" });
         if (item) {
           return item;
         }
@@ -245,7 +245,7 @@ async function findPlexSeries(config, media) {
       const url = new URL(`${baseUrl}/library/all`);
       url.searchParams.set("guid", guid);
       url.searchParams.set("type", "2"); // 2 is Show/Series in Plex
-      const response = await fetchPlexWithRefresh(config, url);
+      const response = await fetchPlexWithRefresh(config, url, { lane: media?.lane || "sync" });
       if (!response.ok) {
         console.error("Plex series lookup failed", { status: response.status, guid });
         return null;
@@ -286,7 +286,7 @@ export async function fetchPlexSeriesEpisodes(config, media) {
   url.searchParams.set("includeGuids", "1");
   url.searchParams.set("includeMedia", "1");
 
-  const response = await fetchPlexWithRefresh(config, url);
+  const response = await fetchPlexWithRefresh(config, url, { lane: media?.lane || "sync" });
   if (!response.ok) {
     throw new Error(`Plex allLeaves lookup failed with status ${response.status} for series ${series.ratingKey}`);
   }
@@ -305,7 +305,7 @@ async function findPlexMovie(config, media) {
       url.searchParams.set("guid", guid);
       url.searchParams.set("type", "1"); // 1 is Movie in Plex
       console.log("Plex movie lookup started", { guid });
-      const response = await fetchPlexWithRefresh(config, url);
+      const response = await fetchPlexWithRefresh(config, url, { lane: media?.lane || "sync" });
       if (!response.ok) {
         console.error("Plex movie lookup failed", { status: response.status, guid });
         return null;
@@ -361,7 +361,7 @@ export async function findPlexItem(config, media) {
     const ratingKey = plexRatingKeyCache.get(cacheKey);
     if (ratingKey) {
       try {
-        const item = await fetchPlexMetadataItem(config, ratingKey);
+        const item = await fetchPlexMetadataItem(config, ratingKey, { lane: media?.lane || "sync" });
         if (item) {
           return item;
         }
@@ -401,9 +401,9 @@ export async function markPlexPlayed(config, media) {
     const url = new URL(`${trimTrailingSlash(config.baseUrl)}/:/scrobble`);
     url.searchParams.set("key", item.ratingKey);
     url.searchParams.set("identifier", "com.plexapp.plugins.library");
-    await addConfiguredPlexAccountId(url, config);
+    await addConfiguredPlexAccountId(url, config, { lane: media?.lane || "sync" });
 
-    const response = await fetchPlexWithRefresh(config, url);
+    const response = await fetchPlexWithRefresh(config, url, { lane: media?.lane || "sync" });
     if (!response.ok) {
       throw new Error(`Plex scrobble failed with status ${response.status}`);
     }
@@ -429,9 +429,9 @@ export async function markPlexUnplayed(config, media) {
     const url = new URL(`${trimTrailingSlash(config.baseUrl)}/:/unscrobble`);
     url.searchParams.set("key", item.ratingKey);
     url.searchParams.set("identifier", "com.plexapp.plugins.library");
-    await addConfiguredPlexAccountId(url, config);
+    await addConfiguredPlexAccountId(url, config, { lane: media?.lane || "sync" });
 
-    const response = await fetchPlexWithRefresh(config, url);
+    const response = await fetchPlexWithRefresh(config, url, { lane: media?.lane || "sync" });
     if (!response.ok) {
       throw new Error(`Plex unscrobble failed with status ${response.status}`);
     }
@@ -463,9 +463,9 @@ export async function setPlexProgress(config, media) {
     const unscrobbleUrl = new URL(`${trimTrailingSlash(config.baseUrl)}/:/unscrobble`);
     unscrobbleUrl.searchParams.set("key", item.ratingKey);
     unscrobbleUrl.searchParams.set("identifier", "com.plexapp.plugins.library");
-    await addConfiguredPlexAccountId(unscrobbleUrl, config);
+    await addConfiguredPlexAccountId(unscrobbleUrl, config, { lane: media?.lane || "sync" });
 
-    const unscrobbleResponse = await fetchPlexWithRefresh(config, unscrobbleUrl);
+    const unscrobbleResponse = await fetchPlexWithRefresh(config, unscrobbleUrl, { lane: media?.lane || "sync" });
     if (!unscrobbleResponse.ok) {
       throw new Error(`Plex progress unscrobble failed with status ${unscrobbleResponse.status}`);
     }
@@ -475,9 +475,9 @@ export async function setPlexProgress(config, media) {
     url.searchParams.set("identifier", "com.plexapp.plugins.library");
     url.searchParams.set("time", String(positionMs));
     url.searchParams.set("state", "stopped");
-    await addConfiguredPlexAccountId(url, config);
+    await addConfiguredPlexAccountId(url, config, { lane: media?.lane || "sync" });
 
-    const response = await fetchPlexWithRefresh(config, url);
+    const response = await fetchPlexWithRefresh(config, url, { lane: media?.lane || "sync" });
     if (!response.ok) {
       throw new Error(`Plex progress update failed with status ${response.status}`);
     }
@@ -493,16 +493,16 @@ export async function setPlexProgress(config, media) {
 // Mark unplayed directly by ratingKey, skipping the search/match step. Used by the
 // authoritative restore clear pass, which already has the native ratingKey from
 // fetchPlexWatchedItems and doesn't need to re-resolve the item.
-export async function markPlexUnplayedByRatingKey(config, ratingKey) {
+export async function markPlexUnplayedByRatingKey(config, ratingKey, { lane = "sync" } = {}) {
   requirePlexConfig(config);
   if (!ratingKey) return { platform: "plex", status: "not_found" };
 
   const url = new URL(`${trimTrailingSlash(config.baseUrl)}/:/unscrobble`);
   url.searchParams.set("key", String(ratingKey));
   url.searchParams.set("identifier", "com.plexapp.plugins.library");
-  await addConfiguredPlexAccountId(url, config);
+  await addConfiguredPlexAccountId(url, config, { lane });
 
-  const response = await fetchPlexWithRefresh(config, url);
+  const response = await fetchPlexWithRefresh(config, url, { lane });
   if (!response.ok) {
     throw new Error(`Plex unscrobble failed with status ${response.status} for ratingKey ${ratingKey}`);
   }
@@ -513,15 +513,15 @@ export async function markPlexUnplayedByRatingKey(config, ratingKey) {
 // the requesting token's user data (viewCount / viewOffset). Used by the notification
 // listener to resolve a changed ratingKey into a media object and decide whether the
 // item transitioned to unwatched. Returns null when the item no longer exists.
-export async function fetchPlexMetadataItem(config, ratingKey) {
+export async function fetchPlexMetadataItem(config, ratingKey, { lane = "sync" } = {}) {
   requirePlexConfig(config);
   if (!ratingKey) return null;
 
   const url = new URL(`${trimTrailingSlash(config.baseUrl)}/library/metadata/${encodeURIComponent(ratingKey)}`);
   url.searchParams.set("includeGuids", "1");
-  await addConfiguredPlexAccountId(url, config);
+  await addConfiguredPlexAccountId(url, config, { lane });
 
-  const response = await fetchPlexWithRefresh(config, url);
+  const response = await fetchPlexWithRefresh(config, url, { lane });
   if (response.status === 404) return null;
   if (!response.ok) {
     throw new Error(`Plex metadata lookup failed with status ${response.status} for ratingKey ${ratingKey}`);
@@ -533,16 +533,16 @@ export async function fetchPlexMetadataItem(config, ratingKey) {
 // Expands a show/season notification into the episodes whose user state Plex changed.
 // Plex emits container timeline entries for bulk "mark watched/unwatched" actions, so
 // listening only for episode entries leaves those actions invisible until fallback polling.
-export async function fetchPlexContainerEpisodes(config, ratingKey, containerType = "show") {
+export async function fetchPlexContainerEpisodes(config, ratingKey, containerType = "show", { lane = "sync" } = {}) {
   requirePlexConfig(config);
   if (!ratingKey) return [];
 
   const suffix = containerType === "season" ? "children" : "allLeaves";
   const url = new URL(`${trimTrailingSlash(config.baseUrl)}/library/metadata/${encodeURIComponent(ratingKey)}/${suffix}`);
   url.searchParams.set("includeGuids", "1");
-  await addConfiguredPlexAccountId(url, config);
+  await addConfiguredPlexAccountId(url, config, { lane });
 
-  const response = await fetchPlexWithRefresh(config, url);
+  const response = await fetchPlexWithRefresh(config, url, { lane });
   if (response.status === 404) return [];
   if (!response.ok) {
     throw new Error(`Plex ${containerType} episode lookup failed with status ${response.status} for ratingKey ${ratingKey}`);

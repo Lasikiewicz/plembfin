@@ -117,24 +117,31 @@ function targetsForMedia(media, config, stateType) {
   return targets.filter((target) => requested.has(target));
 }
 
-function clientFor(target, config, media) {
-  if (target === "plex") return () => markPlexPlayed(config.plex, media);
-  if (target === "emby") return () => markEmbyPlayed(config.emby, media);
-  if (target === "jellyfin") return () => markJellyfinPlayed(config.jellyfin, media);
+function mediaWithLane(media, lane = "sync") {
+  return { ...media, lane };
+}
+
+function clientFor(target, config, media, lane = "sync") {
+  const outboundMedia = mediaWithLane(media, lane);
+  if (target === "plex") return () => markPlexPlayed(config.plex, outboundMedia);
+  if (target === "emby") return () => markEmbyPlayed(config.emby, outboundMedia);
+  if (target === "jellyfin") return () => markJellyfinPlayed(config.jellyfin, outboundMedia);
   throw new Error(`Unknown sync target: ${target}`);
 }
 
-function clientUnplayedFor(target, config, media) {
-  if (target === "plex") return () => markPlexUnplayed(config.plex, media);
-  if (target === "emby") return () => markEmbyUnplayed(config.emby, media);
-  if (target === "jellyfin") return () => markJellyfinUnplayed(config.jellyfin, media);
+function clientUnplayedFor(target, config, media, lane = "sync") {
+  const outboundMedia = mediaWithLane(media, lane);
+  if (target === "plex") return () => markPlexUnplayed(config.plex, outboundMedia);
+  if (target === "emby") return () => markEmbyUnplayed(config.emby, outboundMedia);
+  if (target === "jellyfin") return () => markJellyfinUnplayed(config.jellyfin, outboundMedia);
   throw new Error(`Unknown sync target: ${target}`);
 }
 
-function clientProgressFor(target, config, media) {
-  if (target === "plex") return () => setPlexProgress(config.plex, media);
-  if (target === "emby") return () => setEmbyProgress(config.emby, media);
-  if (target === "jellyfin") return () => setJellyfinProgress(config.jellyfin, media);
+function clientProgressFor(target, config, media, lane = "sync") {
+  const outboundMedia = mediaWithLane(media, lane);
+  if (target === "plex") return () => setPlexProgress(config.plex, outboundMedia);
+  if (target === "emby") return () => setEmbyProgress(config.emby, outboundMedia);
+  if (target === "jellyfin") return () => setJellyfinProgress(config.jellyfin, outboundMedia);
   throw new Error(`Unknown sync target: ${target}`);
 }
 
@@ -448,8 +455,8 @@ function formatTargets(targets) {
   return `${labels.slice(0, -1).join(", ")} & ${labels.at(-1)}`;
 }
 
-async function includeTrackerDispatch(summary, media, state) {
-  const trackerStates = (await dispatchTrackerWatchState(media, state)).filter((entry) => entry.status !== "skipped");
+async function includeTrackerDispatch(summary, media, state, lane = "sync") {
+  const trackerStates = (await dispatchTrackerWatchState(media, state, { lane })).filter((entry) => entry.status !== "skipped");
   if (!trackerStates.length) return summary;
   const normalized = trackerStates.map((entry) => ({ ...entry, status: entry.status === "failed" ? "error" : entry.status === "not_found" ? "skipped" : entry.status }));
   const targetStates = [...(summary.targetStates || []), ...normalized];
@@ -466,7 +473,7 @@ async function includeTrackerDispatch(summary, media, state) {
   };
 }
 
-export async function syncMediaPlaystate(media, config, kv, { trackDispatch = true } = {}) {
+export async function syncMediaPlaystate(media, config, kv, { trackDispatch = true, lane = "sync" } = {}) {
   if (!watchedPlayedSyncEnabled()) {
     console.log("Sync playstate skipped: watched/played syncing is disabled");
     return { skipped: true, status: "skipped", details: "Watched/played syncing is disabled.", targetStates: [], results: [] };
@@ -510,7 +517,7 @@ export async function syncMediaPlaystate(media, config, kv, { trackDispatch = tr
     await recordOutboundPlayedMarks(media, targets, kv);
 
     const jobs = targets.map((target) => {
-      const run = clientFor(target, config, media);
+      const run = clientFor(target, config, media, lane);
       return run();
     });
 
@@ -536,7 +543,7 @@ export async function syncMediaPlaystate(media, config, kv, { trackDispatch = tr
       })),
     });
 
-    summary = await includeTrackerDispatch(summary, media, "watched");
+    summary = await includeTrackerDispatch(summary, media, "watched", lane);
     return { ...summary, skipped: false, results };
   } finally {
     completeDispatchTracking();
@@ -549,19 +556,19 @@ export async function syncMediaPlaystate(media, config, kv, { trackDispatch = tr
 // This is intentionally separate from syncMediaPlaystate: normal inbound
 // events still fan out only to the other platforms, while canonical repair
 // must be able to put the reporting platform back into agreement too.
-export async function syncCanonicalPlaystate(media, config, kv, state = "watched") {
+export async function syncCanonicalPlaystate(media, config, kv, state = "watched", { lane = "sync" } = {}) {
   const canonicalMedia = {
     ...media,
     source: "manual",
     isValid: media?.isValid !== false,
   };
   if (String(state).toLowerCase() === "unwatched" || String(state).toLowerCase() === "unplayed") {
-    return syncMediaUnplayedPlaystate(canonicalMedia, config, kv);
+    return syncMediaUnplayedPlaystate(canonicalMedia, config, kv, { lane });
   }
-  return syncMediaPlaystate(canonicalMedia, config, kv);
+  return syncMediaPlaystate(canonicalMedia, config, kv, { lane });
 }
 
-export async function syncMediaUnplayedPlaystate(media, config, kv, { trackDispatch = true } = {}) {
+export async function syncMediaUnplayedPlaystate(media, config, kv, { trackDispatch = true, lane = "sync" } = {}) {
   if (!watchedPlayedSyncEnabled()) {
     return { skipped: true, status: "skipped", details: "Watched/played syncing is disabled.", targetStates: [], results: [] };
   }
@@ -604,14 +611,14 @@ export async function syncMediaUnplayedPlaystate(media, config, kv, { trackDispa
     // still gets the unplayed mark below.
     await Promise.all(targets.map(async (target) => {
       try {
-        await clientProgressFor(target, config, { ...media, positionMs: 0 })();
+        await clientProgressFor(target, config, { ...media, positionMs: 0 }, lane)();
       } catch (error) {
         console.log(`Resume progress clear on ${target} during unwatch failed (non-fatal)`, error.message);
       }
     }));
 
     const jobs = targets.map((target) => {
-      const run = clientUnplayedFor(target, config, media);
+      const run = clientUnplayedFor(target, config, media, lane);
       return run();
     });
 
@@ -630,14 +637,14 @@ export async function syncMediaUnplayedPlaystate(media, config, kv, { trackDispa
       })),
     });
 
-    summary = await includeTrackerDispatch(summary, media, "unwatched");
+    summary = await includeTrackerDispatch(summary, media, "unwatched", lane);
     return { ...summary, skipped: false, results };
   } finally {
     completeDispatchTracking();
   }
 }
 
-export async function syncMediaProgress(media, config, kv) {
+export async function syncMediaProgress(media, config, kv, { lane = "sync" } = {}) {
   if (!shouldSyncResumeProgress(media)) {
     console.log("Sync progress skipped: resume payload is not actionable", {
       source: media.source,
@@ -676,7 +683,7 @@ export async function syncMediaProgress(media, config, kv) {
   });
 
   const jobs = targets.map((target) => {
-    const run = clientProgressFor(target, config, media);
+    const run = clientProgressFor(target, config, media, lane);
     return run();
   });
 

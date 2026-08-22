@@ -1400,7 +1400,13 @@ async function hydrateImmersiveShowModal(showKey, activeSeasonNum, requestToken)
 export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, activeEpisodeNum = null, historyId = "") {
   // Half of a two-token handshake with media-detail-movie.js - see the
   // bumpMediaRenderToken doc comment in media-detail-context.js before changing this.
-  bumpMediaRenderToken(); // invalidate any in-flight movie render
+  // Captured locally (unlike the tmdbId/tvdbId siblings' own bump further down,
+  // which they check against their own token) so the local-library render path
+  // below - which never delegates to those siblings - can tell whether it was
+  // superseded by a later navigation (e.g. the user clicking away to the TV
+  // Shows list) while one of its own awaited fetches was still in flight, and
+  // bail out instead of overwriting whatever rendered in the meantime.
+  const renderToken = bumpMediaRenderToken(); // invalidate any in-flight movie render
   syncInlineMediaDetailHeading("shows");
   state.activeShowModalKey = showKey;
   state.activeShowModalTitle = null;
@@ -1570,6 +1576,7 @@ export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, 
         return;
       }
     }
+    if (currentMediaRenderToken() !== renderToken) return;
     root.innerHTML = `
       <div class="modal-backdrop-image"></div>
       <div class="immersive-container media-detail-page">
@@ -1582,6 +1589,7 @@ export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, 
     return;
   }
 
+  if (currentMediaRenderToken() !== renderToken) return;
   if (!Array.isArray(show.episodes) || !show.episodes.length) {
     root.innerHTML = `
       <div class="modal-backdrop-image"></div>
@@ -1599,6 +1607,7 @@ export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, 
       return null;
     });
     if (detailedShow) show = detailedShow;
+    if (currentMediaRenderToken() !== renderToken) return;
     if (!Array.isArray(show.episodes) || !show.episodes.length) {
       if (showKey === "unknown-show" || sanitizeTitle(show.title) === "Unknown Show") {
         state.activeShowModalSeason = activeSeasonNum;
@@ -1624,6 +1633,7 @@ export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, 
     }
   }
 
+  if (currentMediaRenderToken() !== renderToken) return;
   state.activeShowModalSeason = activeSeasonNum;
   const requestToken = ++state.showModalRequestToken;
   const playbackProgressPromise = ensurePlaybackProgressLoaded();

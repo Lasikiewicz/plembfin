@@ -776,7 +776,7 @@ export async function handleWatchDates(req, res) {
 // showing the old, missing, or a previously-fabricated date after a manual
 // fix. Fire-and-forget: the edit itself must not wait on several outbound API
 // calls to save, and a propagation failure must not undo the local edit.
-function propagateCorrectedWatchDate(recordId) {
+function propagateCorrectedWatchDate(recordId, { lane = "interactive" } = {}) {
   getWatchRecordByIdLight(recordId)
     .then(async (row) => {
       if (!row) return;
@@ -784,7 +784,7 @@ function propagateCorrectedWatchDate(recordId) {
       const media = watchRowToMedia(row, "manual");
       if (!media?.isValid) return;
       const config = await loadMediaConfig();
-      const summary = await syncCanonicalPlaystate(media, config, createLoopStore(), "watched");
+      const summary = await syncCanonicalPlaystate(media, config, createLoopStore(), "watched", { lane });
       // Without this, the row's own telemetry stays whatever it was before this
       // replay - often "Dispatch status: pending" - so the scheduler's backlog
       // sweep (syncPendingManualDispatches in scheduled.js) keeps treating it as
@@ -804,14 +804,14 @@ function propagateCorrectedWatchDate(recordId) {
 // platform's own catch-up scan runs. Reuses the same loop-safe canonical
 // replay as propagateCorrectedWatchDate and Force Sync's "Set Plembfin as
 // Source of Truth". Fire-and-forget, same reasoning as above.
-function propagateWatchDateRemoval(remainingRow, deletedRow) {
+function propagateWatchDateRemoval(remainingRow, deletedRow, { lane = "interactive" } = {}) {
   const row = remainingRow || deletedRow;
   if (!row) return;
   const media = watchRowToMedia(row, "manual");
   if (!media?.isValid) return;
   const action = remainingRow ? "watched" : "unwatched";
   loadMediaConfig()
-    .then((config) => syncCanonicalPlaystate(media, config, createLoopStore(), action))
+    .then((config) => syncCanonicalPlaystate(media, config, createLoopStore(), action, { lane }))
     .then(async (summary) => {
       // Persist the real outcome (and the historical watched_at it was sent
       // with) onto the surviving row's own telemetry. Left at whatever it was
@@ -878,7 +878,7 @@ export async function handleDeleteWatchDates(req, res) {
 
   const { affectedMedia, ...result } = await deleteWatchDates(ids);
   for (const media of affectedMedia || []) {
-    propagateWatchDateRemoval(media.remainingRow, media.deletedRow);
+    propagateWatchDateRemoval(media.remainingRow, media.deletedRow, { lane: "sync" });
   }
   writeAuditLog("media.watch_dates_bulk_deleted", {
     ip: req.ip || req.socket?.remoteAddress,
@@ -968,7 +968,7 @@ export async function handleDuplicateWatchCleanup(req, res) {
     const { affectedMedia, deleted } = await deleteWatchDates(batch);
     removed += deleted.length;
     for (const media of affectedMedia || []) {
-      propagateWatchDateRemoval(media.remainingRow, media.deletedRow);
+      propagateWatchDateRemoval(media.remainingRow, media.deletedRow, { lane: "sync" });
     }
   }
 
@@ -990,7 +990,7 @@ export async function handleUpdateWatchDates(req, res) {
   const body = await readJson(req);
   const result = await updateWatchDates(body.updates);
   if (!result.ok) return sendJson(res, { error: result.error }, 400);
-  for (const updatedId of result.updated_ids || []) propagateCorrectedWatchDate(updatedId);
+  for (const updatedId of result.updated_ids || []) propagateCorrectedWatchDate(updatedId, { lane: "sync" });
   return sendJson(res, result);
 }
 

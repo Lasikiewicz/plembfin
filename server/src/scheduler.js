@@ -5,8 +5,10 @@ import { createPlexAdaptivePoller } from "./utils/plexAdaptivePoller.js";
 import { fetchPlexContainerEpisodes, fetchPlexMetadataItem, findPlexItem } from "./utils/plexClient.js";
 import { buildPlexMediaFromMetadata } from "./utils/parsers.js";
 import { buildWatchProvenance, provenanceTelemetryLines } from "./utils/watchProvenance.js";
+import { listActiveSessions } from "./utils/activeSessions.js";
 import { runScheduledSync } from "./scheduled.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
+import { watchedThresholdPercent } from "./utils/tuning.js";
 import { isRecentOutboundUnplayedFlagEcho, lastOutboundPlayedMarkAt, syncMediaPlaystate } from "./utils/syncOrchestrator.js";
 import { applyUnwatchedTransition } from "./utils/watchStateTransitions.js";
 import { pollConnectedTrackers } from "./utils/trackerSync.js";
@@ -27,8 +29,9 @@ import {
   mediaToWatchRecord,
   updateWatchTelemetry,
   upsertPlaystateForMedia,
+  loadLiveTrackingCache,
 } from "./utils/dataRepo.js";
-import { watchedAtForPlexItem } from "./utils/watchDates.js";
+import { resolvePlexWatchDate } from "./utils/watchDates.js";
 
 const NEXT_AIRING_REFRESH_INTERVAL_MS = 30 * 60 * 1000;
 const UPCOMING_CALENDAR_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
@@ -36,6 +39,66 @@ const NEXT_AIRING_REFRESH_LIMIT = 40;
 let lastNextAiringRefreshAt = 0;
 let nextAiringInitialBuildPending = true;
 let lastUpcomingCalendarRefreshAt = 0;
+
+function playbackTitleKey(value = "") {
+  return String(value || "").toLowerCase().replace(/\(\d{4}\)/g, "").replace(/[^a-z0-9]+/g, "").trim();
+}
+
+function parseLivePayload(row = {}) {
+  try {
+    const payload = JSON.parse(row.payload_json || "{}");
+    return payload && typeof payload === "object" ? payload : {};
+  } catch {
+    return {};
+  }
+}
+
+function livePlaybackMatchesMedia(row = {}, media = {}) {
+  if (String(row.source_platform || row.source || "").toLowerCase() !== "plex") return false;
+  const payload = parseLivePayload(row);
+  const rowSeason = row.season ?? payload.season;
+  const rowEpisode = row.episode ?? payload.episode;
+  if (media.season != null && rowSeason != null && Number(media.season) !== Number(rowSeason)) return false;
+  if (media.episode != null && rowEpisode != null && Number(media.episode) !== Number(rowEpisode)) return false;
+  const title = row.title || payload.title || "";
+  return playbackTitleKey(title) === playbackTitleKey(media.title);
+}
+
+async function hasRecentPlexThresholdPlayback(media) {
+  const cutoff = Date.now() - 15 * 60 * 1000;
+  const [activeRows, trackedRows] = await Promise.all([
+    listActiveSessions().catch(() => []),
+    loadLiveTrackingCache({ includeCompleted: true }).catch(() => []),
+  ]);
+
+  const activeEvidence = activeRows.some((row) =>
+    livePlaybackMatchesMedia({
+      source_platform: row.source,
+      title: row.title,
+      last_progress: row.progress,
+      updated_at: row.updatedAt,
+      payload_json: JSON.stringify(row),
+    }, media)
+    && Number(row.progress || 0) >= watchedThresholdPercent()
+    && Number(row.updatedAt || 0) >= cutoff,
+  );
+  if (activeEvidence) return true;
+
+  return trackedRows.some((row) =>
+    livePlaybackMatchesMedia(row, media)
+    && Number(row.last_progress || 0) >= watchedThresholdPercent()
+    && Math.max(Number(row.updated_at || 0), Number(row.completed_at || 0)) >= cutoff,
+  );
+}
+
+// Plex's library notification stream reports the resulting watched flag, but
+// it does not say whether the user watched through the configured threshold or
+// clicked "Mark watched". A recent threshold-reaching live session is the
+// deciding evidence; without it, a server-supplied lastViewedAt is the time of
+// the manual click and must not become the historical watch date.
+export function resolvePlexNotificationWatchDate(metadata = {}, { hasPlaybackEvidence = false } = {}) {
+  return resolvePlexWatchDate(metadata, { hasPlaybackEvidence });
+}
 
 async function refreshNextAiringCache({ limit = NEXT_AIRING_REFRESH_LIMIT, forceAll = false } = {}) {
   const cache = await readNextAiringCache();
@@ -214,9 +277,12 @@ async function handlePlexLibraryItemChange(ratingKey, metadataOverride = null) {
   const viewOffset = Number(metadata.viewOffset || 0);
   if (viewCount > 0) {
     const playstate = await getPlaystateForMedia(media).catch(() => null);
-    const { watchedAt } = watchedAtForPlexItem(metadata);
+    const watchDate = resolvePlexNotificationWatchDate(metadata, {
+      hasPlaybackEvidence: await hasRecentPlexThresholdPlayback(media),
+    });
+    const watchedAt = watchDate.watchedAt;
     if (!watchedAt) {
-      console.log("Plex notifications: skipped watched item without a source view timestamp", {
+      console.log("Plex notifications: skipped watched item without a playback timestamp or release date", {
         title: media.title,
         ratingKey,
       });
@@ -224,9 +290,11 @@ async function handlePlexLibraryItemChange(ratingKey, metadataOverride = null) {
       return;
     }
 
+    media.watched_at = watchedAt;
+
     media.watchProvenance = buildWatchProvenance(
       { source: "plex", event: "notification.viewstate", phase: "completed", itemId: ratingKey },
-      { ingestPath: "plex_notification", sourceTimestamp: watchedAt },
+      { ingestPath: "plex_notification", sourceTimestamp: watchDate.sourceTimestamp, note: watchDate.note },
     );
 
     const loopStore = createLoopStore();
@@ -501,4 +569,3 @@ export function stopPlexAdaptivePoller() {
 export function pokePlexAdaptivePoller() {
   plexAdaptivePoller?.poke();
 }
-

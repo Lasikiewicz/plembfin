@@ -31,8 +31,8 @@ function providerTerms(ids = {}) {
   ].filter(Boolean);
 }
 
-async function fetchJson(url, config) {
-  const response = await fetchWithTimeout(url, { headers: authHeaders(config) });
+async function fetchJson(url, config, media = null) {
+  const response = await fetchWithTimeout(url, { headers: authHeaders(config), lane: media?.lane || "sync" });
   if (!response.ok) {
     throw new Error(`Jellyfin request failed with status ${response.status}`);
   }
@@ -90,7 +90,7 @@ async function searchJellyfinFallback(config, media, targetType) {
 
   console.log("Jellyfin search fallback started", { query: queryTitle, targetType });
   try {
-    const body = await fetchJson(url, config);
+    const body = await fetchJson(url, config, media);
     const results = body?.Items || [];
 
     const matched = results.filter((item) => {
@@ -123,7 +123,7 @@ async function findByProviderIds(config, media, itemTypes) {
 
     console.log("Jellyfin lookup started", { itemTypes, providerTerm });
     try {
-      const body = await fetchJson(url, config);
+      const body = await fetchJson(url, config, media);
       const [prov, val] = providerTerm.split(".");
       const providerKey = prov.charAt(0).toUpperCase() + prov.slice(1);
 
@@ -176,7 +176,7 @@ async function findEpisode(config, media) {
     url.searchParams.set("api_key", jellyfinApiKey(config));
 
     try {
-      const body = await fetchJson(url, config);
+      const body = await fetchJson(url, config, media);
       const episodes = body?.Items?.filter((item) => jellyfinEpisodeMatchesCoordinates(item, season, episodeNum)) || [];
 
       if (episodes.length) {
@@ -242,6 +242,7 @@ export async function markJellyfinPlayed(config, media) {
           ...authHeaders(config),
           "Content-Type": "application/json",
         },
+        lane: media?.lane || "sync",
         body: JSON.stringify({}),
       });
       if (!response.ok) {
@@ -281,6 +282,7 @@ export async function markJellyfinUnplayed(config, media) {
           ...authHeaders(config),
           "Content-Type": "application/json",
         },
+        lane: media?.lane || "sync",
         body: JSON.stringify({}),
       });
       if (!response.ok) {
@@ -327,6 +329,7 @@ export async function setJellyfinProgress(config, media) {
           ...authHeaders(config),
           "Content-Type": "application/json",
         },
+        lane: media?.lane || "sync",
         body: JSON.stringify({
           PlaybackPositionTicks: positionMs * 10000,
           Played: false,
@@ -348,7 +351,7 @@ export async function setJellyfinProgress(config, media) {
   }
 }
 
-export async function fetchJellyfinEpisodes(config, parentId) {
+export async function fetchJellyfinEpisodes(config, parentId, media = null) {
   requireJellyfinConfig(config);
   const apiKey = jellyfinApiKey(config);
   const baseUrl = trimTrailingSlash(config.baseUrl);
@@ -359,7 +362,7 @@ export async function fetchJellyfinEpisodes(config, parentId) {
   url.searchParams.set("Fields", "ProviderIds,UserData,PremiereDate,ProductionYear,MediaSources,MediaStreams,Width,Height");
   url.searchParams.set("api_key", apiKey);
 
-  const data = await fetchJson(url, config);
+  const data = await fetchJson(url, config, media);
   return data?.Items || [];
 }
 
@@ -371,13 +374,13 @@ export async function fetchJellyfinSeriesEpisodes(config, media) {
   }
   if (!series || series.length === 0) return [];
 
-  const episodeGroups = await Promise.all(series.map((item) => fetchJellyfinEpisodes(config, item.Id).catch(() => [])));
+  const episodeGroups = await Promise.all(series.map((item) => fetchJellyfinEpisodes(config, item.Id, media).catch(() => [])));
   return episodeGroups.flat();
 }
 
 // Mark unplayed directly by native item Id, skipping the search/match step. Used by the
 // authoritative restore clear pass, which already has the Id from fetchJellyfinWatchedItems.
-export async function markJellyfinUnplayedById(config, itemId) {
+export async function markJellyfinUnplayedById(config, itemId, { lane = "sync" } = {}) {
   requireJellyfinConfig(config);
   if (!itemId) return { platform: "jellyfin", status: "not_found" };
 
@@ -387,6 +390,7 @@ export async function markJellyfinUnplayedById(config, itemId) {
   const response = await fetchWithTimeout(url, {
     method: "DELETE",
     headers: { ...authHeaders(config), "Content-Type": "application/json" },
+    lane,
     body: JSON.stringify({}),
   });
   if (!response.ok) {

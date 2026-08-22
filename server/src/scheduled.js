@@ -12,7 +12,7 @@ import { createLoopStore } from "./utils/loopStore.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
 import { isCronSyncPaused, loadWatchBackupRuntime } from "./utils/watchHistoryBackups.js";
 import { executeForceSyncPlan } from "./utils/forceSyncExecutor.js";
-import { isEmbyLikePlayed, watchedAtForEmbyLikeItem, watchedAtForPlexItem } from "./utils/watchDates.js";
+import { isEmbyLikePlayed, resolvePlexWatchDate, watchedAtForEmbyLikeItem, watchedAtForPlexItem } from "./utils/watchDates.js";
 import { isVerboseLogging } from "./utils/logVerbose.js";
 import { buildWatchProvenance, provenanceTelemetryLines } from "./utils/watchProvenance.js";
 import { recordWatchAuditEvent, recordWatchAuditEvents } from "./utils/watchAudit.js";
@@ -1033,9 +1033,15 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
       if (item.type !== "movie" && item.type !== "episode") continue;
       if (kind === "section" && Number(item.viewCount || 0) <= 0) continue;
 
-      const { watchedAt } = watchedAtForPlexItem(item);
+      // The history endpoint represents an actual Plex viewing-history entry.
+      // Section listings only expose the watched flag/lastViewedAt, which can
+      // also be produced by a manual "Mark watched" click. Treat the latter
+      // as a manual flag unless the realtime notification path has already
+      // established playback evidence.
+      const watchDate = resolvePlexWatchDate(item, { hasPlaybackEvidence: kind === "history" });
+      const watchedAt = watchDate.watchedAt;
       if (!watchedAt) {
-        logger(`Plex: skipped watched item without a source view timestamp: ${item.title || item.grandparentTitle || "unknown"}`);
+        logger(`Plex: skipped watched item without a source view timestamp or release date: ${item.title || item.grandparentTitle || "unknown"}`);
         continue;
       }
 
@@ -1043,10 +1049,10 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
       if (seenKeys.has(dedupeKey)) continue;
       seenKeys.add(dedupeKey);
 
-      uniqueItems.push({ item, watchedAt });
+      uniqueItems.push({ item, watchedAt, watchDate });
     }
 
-    for (const { item, watchedAt } of uniqueItems) {
+    for (const { item, watchedAt, watchDate } of uniqueItems) {
       const media = {
         title: item.title,
         type: item.type,
@@ -1074,7 +1080,7 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
       media.watched_at = watchedAt;
       media.watchProvenance = buildWatchProvenance(
         { source: "plex", event: "library_history", phase: "completed", itemId: item.ratingKey, user: username },
-        { ingestPath: "plex_scheduled_library_history", sourceTimestamp: watchedAt },
+        { ingestPath: "plex_scheduled_library_history", sourceTimestamp: watchDate.sourceTimestamp, note: watchDate.note },
       );
       if (!scheduledMediaInScope(config, media)) continue;
 
@@ -1102,7 +1108,7 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
           logger(`Plex: skipped pre-restore item (played ${watchedAt}): ${media.title}`);
           continue;
         }
-        logger(`Plex: detected new watched item: ${media.title} (watched at ${watchedAt})`);
+        logger(`Plex: detected new watched item: ${media.title} (watched at ${watchedAt}${watchDate.manualMark ? "; manual flag anchored to release date" : ""})`);
         const watchRecord = mediaToWatchRecord(media, "plex");
         watchRecord.watched_at = watchedAt;
         watchRecord.sync_action = "watched";

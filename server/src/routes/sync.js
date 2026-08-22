@@ -33,7 +33,8 @@ import { watchedPlayedSyncEnabled } from "../utils/syncFlags.js";
 import { forceSyncMediaState, normalizeMediaForceSyncRequest } from "../utils/mediaForceSync.js";
 import { forceSyncLibraryState, normalizeLibraryForceSyncRequest } from "../utils/libraryForceSync.js";
 import { appendMediaForceSyncActivity, createMediaForceSyncActivity, finishMediaForceSyncActivity, getMediaForceSyncActivity, isMediaForceSyncCancellationRequested, requestMediaForceSyncCancellation } from "../utils/mediaForceSyncActivity.js";
-import { provenanceTelemetryLines } from "../utils/watchProvenance.js";
+import { buildWatchProvenance, provenanceTelemetryLines } from "../utils/watchProvenance.js";
+import { releaseDateForItem } from "../utils/watchDates.js";
 import { applyUnwatchedTransition } from "../utils/watchStateTransitions.js";
 import { recordWatchAuditEvent, recordWatchAuditEvents } from "../utils/watchAudit.js";
 import { fetchPosterFromTmdb } from "../utils/tmdbClient.js";
@@ -468,8 +469,8 @@ function mediaFromWatchRecord(record) {
 // Core of "mark unwatched": delete the watched record, write a superseding
 // unwatched record, flip the playstate cache, and propagate unplayed to the other
 // platforms. Shared by the webhook `unplayed` phase and the manual-unwatch handler.
-export async function applyManualUnwatch(media, config, loopStore, recordId = "", { includeSourcePlatform = false, trackDispatch = true, force = false } = {}) {
-  const result = await applyUnwatchedTransition(media, config, loopStore, { recordId, includeSourcePlatform, trackDispatch, force });
+export async function applyManualUnwatch(media, config, loopStore, recordId = "", { includeSourcePlatform = false, trackDispatch = true, force = false, lane = "sync" } = {}) {
+  const result = await applyUnwatchedTransition(media, config, loopStore, { recordId, includeSourcePlatform, trackDispatch, force, lane });
   // includeSourcePlatform means this is an explicit manual action, not an inbound
   // event from `media.source` - applyUnwatchedTransition dispatches under "manual"
   // for the same reason (see its includeSourcePlatform handling), so the recorded
@@ -799,7 +800,12 @@ export async function handleManualUnwatch(req, res) {
         const record = await getWatchRecordById(id);
         if (!record) throw new Error("Watch record not found");
         const media = mediaFromWatchRecord(record);
-        const { id: unwatchedId, summary } = await applyManualUnwatch(media, config, loopStore, id, { includeSourcePlatform: true, trackDispatch: false, force: true });
+        const { id: unwatchedId, summary } = await applyManualUnwatch(media, config, loopStore, id, {
+          includeSourcePlatform: true,
+          trackDispatch: false,
+          force: true,
+          lane: ids.length === 1 ? "interactive" : "sync",
+        });
         succeeded += 1;
         results[index] = { id, unwatchedId, status: summary.status, targetStates: summary.targetStates || [] };
       } catch (error) {
@@ -886,7 +892,10 @@ export async function handleManualWatch(req, res) {
     reserveDispatchBatch(syncTasks.length);
     await runWithConcurrency(syncTasks, async (task) => {
       try {
-        const summary = await syncMediaPlaystate(task.media, config, loopStore, { trackDispatch: false }).catch((error) => ({
+        const summary = await syncMediaPlaystate(task.media, config, loopStore, {
+          trackDispatch: false,
+          lane: records.length === 1 ? "interactive" : "sync",
+        }).catch((error) => ({
           skipped: false,
           status: "error",
           details: `Manual watch propagation failed: ${error.message || String(error)}`,
@@ -991,7 +1000,7 @@ export async function handlePlaybackProgressWatch(req, res) {
 
     (async () => {
       try {
-        const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
+        const summary = await syncMediaPlaystate(media, config, loopStore, { lane: "interactive" }).catch((error) => ({
           skipped: false,
           status: "error",
           details: `Watch propagation failed: ${error.message || String(error)}`,
@@ -1044,7 +1053,7 @@ export async function handlePlaybackProgressUnwatch(req, res) {
     const config = await loadMediaConfig();
     const loopStore = createLoopStore();
 
-    const { id: unwatchedId, summary } = await applyManualUnwatch(media, config, loopStore, "", { includeSourcePlatform: true, force: true });
+    const { id: unwatchedId, summary } = await applyManualUnwatch(media, config, loopStore, "", { includeSourcePlatform: true, force: true, lane: "interactive" });
     return sendJson(res, { ok: true, id: unwatchedId, status: summary.status, targetStates: summary.targetStates || [] });
   } catch (error) {
     console.error("Playback progress unwatch failed", error);
@@ -1084,9 +1093,9 @@ export async function handleRetrySync(req, res) {
   let summary;
   try {
     if (action === "unwatched" || action === "unplayed") {
-      summary = await syncMediaUnplayedPlaystate(media, config, loopStore);
+      summary = await syncMediaUnplayedPlaystate(media, config, loopStore, { lane: "interactive" });
     } else {
-      summary = await syncMediaPlaystate(media, config, loopStore);
+      summary = await syncMediaPlaystate(media, config, loopStore, { lane: "interactive" });
     }
   } catch (error) {
     console.error("Retry sync failed", error);
@@ -1644,6 +1653,8 @@ export async function handleWebhook(req, res) {
             watchProvenance: media.watchProvenance || media.watch_provenance
               ? { ...(media.watchProvenance || media.watch_provenance), item_id: ep.Id || (media.watchProvenance || media.watch_provenance).item_id }
               : null,
+            playedFlagOnly: Boolean(media.playedFlagOnly),
+            releaseDate: media.playedFlagOnly ? releaseDateForItem(ep) : "",
             isValid: true,
           };
           episodeMedia.posterUrl = posterPathFromMedia(episodeMedia);
@@ -1811,10 +1822,39 @@ export async function handleWebhook(req, res) {
       }
     }
 
-    // A played-flag event says nothing about *when* the play happened and can be
-    // delivered hours late, so trust the server's own played timestamp over
-    // arrival time. Playback events arrive live and keep the current time.
-    if (media.playedFlagOnly && media.playedAt) media.watched_at = media.playedAt;
+    // A played-flag event says that the source's watched bit changed, not that
+    // playback crossed the configured threshold. Servers commonly update
+    // LastPlayedDate to the moment of a manual "Mark watched" click, so that
+    // value must not become the historical watch date. Use the real release
+    // day for flag-only events; never fall through to mediaToWatchRecord's
+    // current-time default when the source has no release date.
+    if (media.playedFlagOnly) {
+      if (!media.releaseDate) {
+        console.log("Webhook: skipped manual played flag without a release date", {
+          source: media.source,
+          title: media.title,
+          event: media.event,
+        });
+        await deletePlaybackProgress(media).catch(() => null);
+        await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
+        return sendJson(res, {
+          ok: true,
+          inserted: false,
+          skipped: true,
+          reason: "Manual played flag had no release date to use as its historical watch date",
+        });
+      }
+      media.watched_at = media.releaseDate;
+      const existingProvenance = media.watchProvenance || media.watch_provenance || {};
+      media.watchProvenance = buildWatchProvenance(
+        { ...media, playedAt: "" },
+        {
+          ingestPath: existingProvenance.ingest_path || `${media.source || "source"}_webhook`,
+          sourceTimestamp: "",
+          note: existingProvenance.note || "The source reported a manual played flag without playback evidence; the release date was used as the watch date.",
+        },
+      );
+    }
 
     // Check if a recent watch record already exists (e.g., from full sync)
     // to avoid creating duplicates. Look for records watched in the last hour.

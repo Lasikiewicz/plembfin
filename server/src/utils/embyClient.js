@@ -25,8 +25,8 @@ function providerTerms(ids = {}) {
   ].filter(Boolean);
 }
 
-async function fetchJson(url, config) {
-  const response = await fetchWithTimeout(url, { headers: authHeaders(config) });
+async function fetchJson(url, config, media = null) {
+  const response = await fetchWithTimeout(url, { headers: authHeaders(config), lane: media?.lane || "sync" });
   if (!response.ok) {
     throw new Error(`Emby request failed with status ${response.status}`);
   }
@@ -84,7 +84,7 @@ async function searchEmbyFallback(config, media, targetType) {
 
   console.log("Emby search fallback started", { query: queryTitle, targetType });
   try {
-    const body = await fetchJson(url, config);
+    const body = await fetchJson(url, config, media);
     const results = body?.Items || [];
 
     const matched = results.filter((item) => {
@@ -117,7 +117,7 @@ async function findByProviderIds(config, media, itemTypes) {
 
     console.log("Emby lookup started", { itemTypes, providerTerm });
     try {
-      const body = await fetchJson(url, config);
+      const body = await fetchJson(url, config, media);
       const [prov, val] = providerTerm.split(".");
       const providerKey = prov.charAt(0).toUpperCase() + prov.slice(1);
 
@@ -170,7 +170,7 @@ async function findEpisode(config, media) {
     url.searchParams.set("api_key", config.apiKey);
 
     try {
-      const body = await fetchJson(url, config);
+      const body = await fetchJson(url, config, media);
       const episodes = body?.Items?.filter((item) => embyEpisodeMatchesCoordinates(item, season, episodeNum)) || [];
 
       if (episodes.length) {
@@ -233,6 +233,7 @@ export async function markEmbyPlayed(config, media) {
       const response = await fetchWithTimeout(url, {
         method: "POST",
         headers: authHeaders(config),
+        lane: media?.lane || "sync",
       });
       if (!response.ok) {
         throw new Error(`Emby mark played failed with status ${response.status} for item ${item.Id}`);
@@ -268,6 +269,7 @@ export async function markEmbyUnplayed(config, media) {
       const response = await fetchWithTimeout(url, {
         method: "DELETE",
         headers: authHeaders(config),
+        lane: media?.lane || "sync",
       });
       if (!response.ok) {
         throw new Error(`Emby mark unplayed failed with status ${response.status} for item ${item.Id}`);
@@ -312,6 +314,7 @@ export async function setEmbyProgress(config, media) {
           ...authHeaders(config),
           "Content-Type": "application/json",
         },
+        lane: media?.lane || "sync",
         body: JSON.stringify({
           PlaybackPositionTicks: positionMs * 10000,
           Played: false,
@@ -333,7 +336,7 @@ export async function setEmbyProgress(config, media) {
   }
 }
 
-export async function fetchEmbyEpisodes(config, parentId) {
+export async function fetchEmbyEpisodes(config, parentId, media = null) {
   requireEmbyConfig(config);
   const baseUrl = trimTrailingSlash(config.baseUrl);
   const url = new URL(`${baseUrl}/Users/${config.userId}/Items`);
@@ -343,7 +346,7 @@ export async function fetchEmbyEpisodes(config, parentId) {
   url.searchParams.set("Fields", "ProviderIds,UserData,PremiereDate,ProductionYear,MediaSources,MediaStreams,Width,Height");
   url.searchParams.set("api_key", config.apiKey);
 
-  const data = await fetchJson(url, config);
+  const data = await fetchJson(url, config, media);
   return data?.Items || [];
 }
 
@@ -355,20 +358,20 @@ export async function fetchEmbySeriesEpisodes(config, media) {
   }
   if (!series || series.length === 0) return [];
 
-  const episodeGroups = await Promise.all(series.map((item) => fetchEmbyEpisodes(config, item.Id).catch(() => [])));
+  const episodeGroups = await Promise.all(series.map((item) => fetchEmbyEpisodes(config, item.Id, media).catch(() => [])));
   return episodeGroups.flat();
 }
 
 // Mark unplayed directly by native item Id, skipping the search/match step. Used by the
 // authoritative restore clear pass, which already has the Id from fetchEmbyWatchedItems.
-export async function markEmbyUnplayedById(config, itemId) {
+export async function markEmbyUnplayedById(config, itemId, { lane = "sync" } = {}) {
   requireEmbyConfig(config);
   if (!itemId) return { platform: "emby", status: "not_found" };
 
   const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${config.userId}/PlayedItems/${itemId}`);
   url.searchParams.set("api_key", config.apiKey);
 
-  const response = await fetchWithTimeout(url, { method: "DELETE", headers: authHeaders(config) });
+  const response = await fetchWithTimeout(url, { method: "DELETE", headers: authHeaders(config), lane });
   if (!response.ok) {
     throw new Error(`Emby mark unplayed failed with status ${response.status} for item ${itemId}`);
   }

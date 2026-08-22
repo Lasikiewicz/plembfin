@@ -100,3 +100,40 @@ export function releaseDateForPlexItem(item = {}) {
       (item.year ? `${item.year}-01-01T00:00:00.000Z` : ""),
   );
 }
+
+// A played flag raised by a library action is not playback evidence. When the
+// source does not provide a trustworthy play timestamp, use the item's release
+// day as the stable historical date rather than the time Plembfin happened to
+// receive the flag (or the time somebody clicked "Mark watched").
+export function releaseDateForSourceItem(item = {}, source = "") {
+  return String(source || "").toLowerCase() === "plex"
+    ? releaseDateForPlexItem(item)
+    : releaseDateForItem(item);
+}
+
+// Plex's library-state notification reports that the watched flag is set, but
+// it cannot distinguish a threshold-reaching playback from a manual "Mark
+// watched" action. Only use Plex's viewed timestamp when the caller has
+// independently confirmed playback; otherwise anchor the manual state to the
+// item's release day instead of the click/notification time.
+export function resolvePlexWatchDate(item = {}, { hasPlaybackEvidence = false } = {}) {
+  const viewedAt = watchedAtForPlexItem(item).watchedAt;
+  const releaseDate = releaseDateForPlexItem(item);
+  if (hasPlaybackEvidence && viewedAt) {
+    return { watchedAt: viewedAt, manualMark: false, sourceTimestamp: viewedAt, note: "" };
+  }
+  if (releaseDate) {
+    return {
+      watchedAt: releaseDate,
+      manualMark: true,
+      sourceTimestamp: "",
+      note: "Plex reported a watched library flag without a recent threshold-reaching playback session; the release date was used instead of the manual mark time.",
+    };
+  }
+  return {
+    watchedAt: "",
+    manualMark: true,
+    sourceTimestamp: "",
+    note: "Plex reported a watched library flag without a reliable playback timestamp or release date.",
+  };
+}

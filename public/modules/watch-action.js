@@ -958,6 +958,11 @@ export async function confirmAndMarkUnwatched(button) {
       } else {
         await _openShowImmersiveModalByTvdbId(state.activeShowTvdbId);
       }
+    } else if (kind === "movie" && state.activeMovieTmdbId) {
+      // Stay on the movie's own detail page and re-render it showing the new
+      // unwatched status, matching the show/episode/season branch above,
+      // instead of closing the modal back to whatever page was behind it.
+      await _openMovieImmersiveModalByTmdbId(state.activeMovieTmdbId);
     } else {
       _closeMediaDetail();
       _renderActiveView();
