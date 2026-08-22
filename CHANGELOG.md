@@ -4,6 +4,26 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v0.10.1 - 22 August 2026
+
+Docs - Modernize hub architecture diagram and refine feature documentation
+
+- Redesign architecture hub diagram with transparent background and clean vector styling
+- Embed official high-resolution Plembfin logo badge in central hub
+- Tune palette to crisp cyan, emerald, amber, and blue accents
+- Correct clip-path local coordinate alignment for central Plembfin logo badge
+- Support both href and xlink:href in embedded image tag for full SVG renderer compatibility
+- Genericize internal 500 error responses and debug diagnostics to prevent stack trace and exception leakage
+- Remove all auxiliary category headers, feature badges, and subtext
+- Redesign nodes into sleek, compact horizontal pill badges with icons and app names
+- Convert central Plembfin logo badge to pure SVG vector paths
+- Eliminate raster data URIs so the center hub logo reliably renders across all browsers and GitHub markdown
+- Redesign architecture hub diagram with native vector graphics and official logos
+- Add official Fanart.tv faceted vector emblem and full TMDB vector mark
+- Embed official Plembfin dark header logo in central hub card
+- Reframe Key Features section in README with positive, capability-focused copy
+- Streamline README flow by removing standalone sync safety section
+
 ## v0.10.0 - 22 August 2026
 
 Fix - Resolve CodeQL alerts and update undici and CodeQL action dependencies
