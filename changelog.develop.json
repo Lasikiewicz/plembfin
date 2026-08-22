@@ -1,7 +1,20 @@
 {
-  "build": 22,
-  "updatedAt": "2026-08-22T21:24:14+01:00",
+  "build": 23,
+  "updatedAt": "2026-08-22T21:28:14+01:00",
   "entries": [
+    {
+      "build": 23,
+      "date": "2026-08-22T21:28:14+01:00",
+      "commit": "d6f8f5651dbcefc3ca49e2302a3f53714c1772a4",
+      "message": "Fix - Resolve CodeQL alerts and update undici and CodeQL action dependencies",
+      "author": "Lasikiewicz",
+      "details": [
+        "Sanitize 500 error responses in HTTP utility to prevent potential stack trace or file path exposure",
+        "Pass console error log arguments separately to prevent tainted format string warnings",
+        "Bump undici to 8.10.0 for upstream stream encoding and socket DNS origin fixes",
+        "Bump GitHub CodeQL action to v4.37.4"
+      ]
+    },
     {
       "build": 22,
       "date": "2026-08-22T21:24:14+01:00",
