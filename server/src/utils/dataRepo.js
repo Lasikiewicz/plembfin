@@ -1207,8 +1207,8 @@ export async function insertWatchRecord(record, { skipInvalidate = false, id: pr
   // Eagerly pull + store TMDB metadata/artwork at ingest (fire-and-forget;
   // returned so the webhook can await it before responding if it wants to).
   let assetPrefetch = Promise.resolve(null);
-  if (isWatchedAction(normalized) && (normalized.tmdb_id || normalized.title)) {
-    assetPrefetch = prefetchTmdbMetadataBackground(normalized.media_type, normalized.tmdb_id, normalized.title, id).catch(() => null);
+  if ((normalized.media_type === "movie" || isWatchedAction(normalized)) && (normalized.tmdb_id || normalized.title)) {
+    assetPrefetch = prefetchTmdbMetadataBackground(normalized.media_type, normalized.tmdb_id, normalized.title, id, normalized).catch(() => null);
   }
   return { id, record: normalized, assetPrefetch };
 }
@@ -1326,9 +1326,9 @@ export async function batchInsertWatchRecords(records) {
         }, "watched", normalized.watched_at, { skipInvalidate: true });
       }
     }
-    for (const normalized of toInsert) {
-      if (isWatchedAction(normalized) && (normalized.tmdb_id || normalized.title)) {
-        prefetchTmdbMetadataBackground(normalized.media_type, normalized.tmdb_id, normalized.title).catch(() => null);
+    for (const normalized of insertedRecords) {
+      if (isWatchedAction(normalized) && (normalized.media_type === "movie" || normalized.tmdb_id || normalized.title)) {
+        prefetchTmdbMetadataBackground(normalized.media_type, normalized.tmdb_id, normalized.title, normalized.id, normalized).catch(() => null);
       }
     }
     await invalidateHistoryDerivedCaches();
@@ -2181,9 +2181,12 @@ export async function purgeCompletedLiveTrackingCache(olderThan = Date.now() - 2
 }
 
 // --- History queries -------------------------------------------------------
-async function loadHistoryRows({ limit = 50, offset = 0 } = {}) {
+async function loadHistoryRows({ limit = 50, offset = 0, fresh = false } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), MAX_HISTORY_LIMIT);
   const safeOffset = Math.max(Number(offset) || 0, 0);
+  if (fresh) {
+    return selectAllHistoryStmt.all().map(rowToWatch).slice(safeOffset, safeOffset + safeLimit);
+  }
   const allRows = await getCachedHistory();
   return allRows.slice(safeOffset, safeOffset + safeLimit);
 }
@@ -2464,12 +2467,13 @@ function allNonSuccessTargetsNotFound(telemetry) {
   return nonSuccessLines.every((l) => l.toLowerCase().includes("no matching item found"));
 }
 
-export async function querySyncJobs({ limit = 100, offset = 0, status = "outstanding" } = {}) {
+export async function querySyncJobs({ limit = 100, offset = 0, status = "outstanding", fresh = false } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
   const safeOffset = Math.max(Number(offset) || 0, 0);
   const rows = await loadHistoryRows({
     limit: Math.min(Math.max(safeLimit * 5, safeLimit), MAX_HISTORY_LIMIT),
     offset: safeOffset,
+    fresh,
   });
 
   const filtered = rows.filter((row) => {
@@ -2726,7 +2730,7 @@ export async function getWatchRecordByMediaKey(mediaKey, minWatchedAt = null) {
   return rowToWatch(recent);
 }
 
-export async function updateWatchRecord(id, fields = {}) {
+export async function updateWatchRecord(id, fields = {}, { preserveDispatchState = false, auditSource = "manual" } = {}) {
   if (!id) return { ok: false, error: "id is required" };
   const existing = selectByIdStmt.get(String(id)) || selectByMediaKeyStmt.all(String(id))[0];
   if (!existing) return { ok: false, error: "Watch record not found" };
@@ -2750,7 +2754,7 @@ export async function updateWatchRecord(id, fields = {}) {
   if (fields.tmdb_id != null) { sets.push("tmdb_id = ?"); params.push(String(fields.tmdb_id).trim()); }
   if (fields.tvdb_id != null) { sets.push("tvdb_id = ?"); params.push(String(fields.tvdb_id).trim()); }
   const identityChanged = fields.imdb_id != null || fields.tmdb_id != null || fields.tvdb_id != null;
-  if (identityChanged) {
+  if (identityChanged && !preserveDispatchState) {
     sets.push("sync_dispatch_telemetry = ?", "sync_retry_count = ?", "sync_next_retry_at = ?");
     params.push("Identity updated via Fix Match. Pending outbound sync.", 0, 0);
   }
@@ -2795,7 +2799,7 @@ export async function updateWatchRecord(id, fields = {}) {
     mediaType: existing.media_type,
     title: fields.title != null ? String(fields.title).trim() : existing.title,
     showTitle: existing.show_title,
-    source: "manual",
+    source: auditSource,
     ids: {
       imdb: existing.imdb_id,
       tmdb: fields.tmdb_id != null ? String(fields.tmdb_id).trim() : existing.tmdb_id,
@@ -2804,8 +2808,10 @@ export async function updateWatchRecord(id, fields = {}) {
     season: existing.season,
     episode: existing.episode,
     status: "updated",
-    details: "Stored watch history record updated in Plembfin.",
-    payload: { fields, previousRecord: existing, updatedAt },
+    details: preserveDispatchState
+      ? "Provider IDs enriched from TMDB metadata without resetting outbound dispatch state."
+      : "Stored watch history record updated in Plembfin.",
+    payload: { fields, previousRecord: existing, updatedAt, preserveDispatchState },
   });
   if (normalizedWatchedAt && existing.media_key) {
     const relatedRows = relatedTrackedWatchRowsForDateEdit(existing);
@@ -4353,10 +4359,62 @@ export async function computeTvNextAiringDate(details, tmdbId) {
   }
 }
 
-async function prefetchTmdbMetadataBackground(mediaType, tmdbId, title, recordId = "") {
+function movieProviderIdsFromTmdbDetails(details = {}) {
+  return {
+    imdb_id: cleanString(details.external_ids?.imdb_id),
+    tmdb_id: cleanString(details.id || details.external_ids?.tmdb_id),
+    tvdb_id: cleanString(details.external_ids?.tvdb_id),
+  };
+}
+
+// TMDB is the metadata authority for movie identity in Plembfin. A media
+// server can report a movie before its own agent has matched it, leaving the
+// watch row with no ids (the exact shape that made Toy Story 5 skip Trakt).
+// Fill only missing provider ids and preserve the row's current dispatch state:
+// this is metadata enrichment, not a Fix Match action, so it must not create a
+// fresh retry or turn a completed dispatch back into a queued one.
+async function persistMovieProviderIds(recordId, record = {}, details = {}) {
+  if (!recordId || String(record.media_type || "").toLowerCase() !== "movie") return null;
+  const existing = selectByIdStmt.get(String(recordId));
+  if (!existing) return null;
+
+  const discovered = movieProviderIdsFromTmdbDetails(details);
+  const fields = {};
+  for (const field of ["imdb_id", "tmdb_id", "tvdb_id"]) {
+    if (!cleanString(existing[field]) && discovered[field]) fields[field] = discovered[field];
+  }
+  if (!Object.keys(fields).length) return rowToWatch(existing);
+
+  const result = await updateWatchRecord(String(recordId), fields, {
+    preserveDispatchState: true,
+    auditSource: "tmdb_metadata",
+  });
+  if (!result.ok) return null;
+
+  for (const [field, value] of Object.entries(fields)) record[field] = value;
+  const fresh = selectByIdStmt.get(String(recordId));
+  if (fresh) {
+    record.media_key = fresh.media_key;
+    return rowToWatch(fresh);
+  }
+  return null;
+}
+
+async function prefetchTmdbMetadataBackground(mediaType, tmdbId, title, recordId = "", record = {}) {
   try {
     const lookupTitle = String(mediaType).toLowerCase() === "movie" ? title : showTitleFrom(title);
-    const details = await getTmdbDetails({ mediaType, tmdbId, title: lookupTitle });
+    const details = await getTmdbDetails({
+      mediaType,
+      tmdbId,
+      title: lookupTitle,
+      ids: {
+        imdbId: record.imdb_id,
+        tvdbId: record.tvdb_id,
+      },
+    });
+    await persistMovieProviderIds(recordId, record, details).catch((error) => {
+      console.error("Failed to persist TMDB movie ids", error);
+    });
     if (recordId && details?.cached_poster_url) {
       await updateWatchPosterUrl(recordId, details.cached_poster_url).catch(() => null);
     }

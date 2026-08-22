@@ -357,6 +357,8 @@ async function recordSyncHistory(media = {}, summary = {}, action = "watched") {
       progress: media.progress ?? null,
       offsetMs: media.offsetMs ?? media.positionMs ?? null,
       provenance: media.watchProvenance || media.watch_provenance || null,
+      watchRecordId: media.watchRecordId || media.watch_record_id || media.recordId || media.record_id || null,
+      mediaKey: mediaKeyFor(media),
       // Keep whatever the parser worked out about an unrecognised request. For a
       // rejected webhook this is the only record of which server sent it and in
       // what format, and without it the entry is an unattributable dead end.
@@ -390,6 +392,7 @@ function shouldIgnoreWebhookUser(mediaUser = "", configuredUser = "", { strictNa
 
 export function manualWatchMediaFromRecord(record = {}) {
   return {
+    watchRecordId: record.id || record.watchRecordId || record.watch_record_id || undefined,
     title: record.title,
     type: record.media_type,
     source: "manual",
@@ -450,6 +453,7 @@ async function enrichProgressWatchRecordWithTmdb(record = {}, body = {}) {
 
 function mediaFromWatchRecord(record) {
   return {
+    watchRecordId: record.id || record.watchRecordId || record.watch_record_id || undefined,
     title: record.title,
     type: record.media_type,
     source: record.source || "manual",
@@ -477,7 +481,11 @@ export async function applyManualUnwatch(media, config, loopStore, recordId = ""
   // history must say "manual" too rather than echoing the target's original watch
   // provenance (e.g. a record originally captured from Trakt) as if that platform
   // had requested this unwatch.
-  const historyMedia = includeSourcePlatform ? { ...media, source: "manual" } : media;
+  const historyMedia = {
+    ...media,
+    ...(result.id ? { watchRecordId: result.id } : {}),
+    ...(includeSourcePlatform ? { source: "manual" } : {}),
+  };
   // The force path still dispatches (and returns alreadyUnwatched: true purely
   // to signal "no new watch_history row"), so it needs recording too.
   if (!result.alreadyUnwatched || force) await recordSyncHistory(historyMedia, result.summary, "unwatched");
@@ -639,12 +647,99 @@ export async function handleSyncLibraries(req, res) {
   return sendJson(res, { libraries, errors: failures }, 200, { "Cache-Control": "no-store" });
 }
 
+function syncTelemetryLineValue(telemetry = "", label = "") {
+  const prefix = `${label}:`;
+  const line = String(telemetry || "").split(/\r?\n/).find((item) => item.toLowerCase().startsWith(prefix.toLowerCase()));
+  return line ? line.slice(prefix.length).trim() : "";
+}
+
+function syncTelemetryTargetStates(telemetry = "") {
+  return String(telemetry || "")
+    .split(/\r?\n/)
+    .map((line) => line.trim().match(/^(plex|emby|jellyfin|trakt)\s+(?:progress\s+)?status:\s*(.+)$/i))
+    .filter(Boolean)
+    .map(([, target, result]) => {
+      const separator = result.indexOf(" - ");
+      const status = (separator < 0 ? result : result.slice(0, separator)).trim().toLowerCase() || "unknown";
+      const detail = separator < 0 ? "" : result.slice(separator + 3).trim();
+      return { target: target.toLowerCase(), status, ...(detail ? { detail } : {}) };
+    });
+}
+
+export function queuedWatchRecordToSyncActivity(row = {}) {
+  const telemetry = String(row.sync_dispatch_telemetry || "");
+  const timestamp = Number(row.updated_at || row.created_at) || Date.parse(String(row.watched_at || "")) || Date.now();
+  const status = syncTelemetryLineValue(telemetry, "Dispatch status").toLowerCase() || "queued";
+  const details = syncTelemetryLineValue(telemetry, "Details") || "Outbound synchronization queued after the Plembfin history write.";
+  const ids = {
+    imdb: row.imdb_id || "",
+    tmdb: row.tmdb_id || "",
+    tvdb: row.tvdb_id || "",
+  };
+  return {
+    id: `queued:${row.id}`,
+    timestamp,
+    mediaType: row.media_type || "unknown",
+    title: row.title || "Unknown media",
+    source: row.source || "unknown",
+    status,
+    details,
+    action: row.sync_action || "watched",
+    targetStates: syncTelemetryTargetStates(telemetry),
+    rawPayloadDebug: {
+      event: row.watch_provenance?.event || "",
+      phase: row.watch_provenance?.phase || "",
+      ids,
+      season: row.season ?? null,
+      episode: row.episode ?? null,
+      provenance: row.watch_provenance || null,
+      watchRecordId: row.id != null ? String(row.id) : "",
+      mediaKey: row.media_key || "",
+    },
+    createdAt: Number(row.created_at || 0),
+  };
+}
+
+function normalizedSyncActivityTitle(value = "") {
+  return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function queuedActivityAlreadyRecorded(row, history = []) {
+  const recordId = row.id != null ? String(row.id) : "";
+  const title = normalizedSyncActivityTitle(row.title);
+  const mediaType = String(row.media_type || "").toLowerCase();
+  const action = String(row.sync_action || "watched").toLowerCase();
+  const queuedAt = Number(row.updated_at || row.created_at) || Date.parse(String(row.watched_at || "")) || 0;
+  return history.some((entry) => {
+    const debug = entry.rawPayloadDebug || {};
+    if (recordId && String(debug.watchRecordId || debug.watch_record_id || "") === recordId) return true;
+    if (mediaType !== String(entry.mediaType || "").toLowerCase()) return false;
+    if (action !== String(entry.action || "watched").toLowerCase()) return false;
+    if (title !== normalizedSyncActivityTitle(entry.title)) return false;
+    const historyAt = Number(entry.timestamp || 0);
+    return queuedAt > 0 && historyAt > 0 && Math.abs(historyAt - queuedAt) <= 15 * 60 * 1000;
+  });
+}
+
 export async function handleSyncHistory(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
-  const history = await getSyncHistory(req.query.limit || 100);
-  return sendJson(res, { history }, 200, { "Cache-Control": "private, max-age=15, stale-while-revalidate=60", Vary: "Authorization" });
+  const requestedLimit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 200);
+  const [history, queuedRows] = await Promise.all([
+    getSyncHistory(requestedLimit),
+    // This endpoint is deliberately fresh: most ingest paths defer their
+    // derived-cache invalidation until after outbound dispatch, while the
+    // Activity page should show the queue during that dispatch window.
+    querySyncJobs({ limit: 500, status: "outstanding", fresh: true }),
+  ]);
+  const queued = queuedRows
+    .filter((row) => !queuedActivityAlreadyRecorded(row, history))
+    .map(queuedWatchRecordToSyncActivity);
+  const merged = [...history, ...queued]
+    .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0))
+    .slice(0, requestedLimit);
+  return sendJson(res, { history: merged }, 200, { "Cache-Control": "private, max-age=15, stale-while-revalidate=60", Vary: "Authorization" });
 }
 
 // Explicit detail-page repair. This is intentionally separate from the
@@ -860,6 +955,7 @@ export async function handleManualWatch(req, res) {
 
       const exactExistingWatched = existing?.sync_action === "watched";
       let id = "";
+      let storedRecord = existing || record;
       if (exactExistingWatched) {
         id = existing.id;
         skipped += 1;
@@ -868,10 +964,17 @@ export async function handleManualWatch(req, res) {
         if (existing) await deleteWatchRecordById(existing.id, { skipInvalidate: true }).catch(() => null);
         const insertResult = await insertWatchRecord(record, { skipInvalidate: true, id: existing?.id || "" });
         id = insertResult.id;
+        storedRecord = insertResult.record;
         await insertResult.assetPrefetch?.catch(() => null);
         inserted += 1;
       }
 
+      media.watchRecordId = id;
+      media.ids = {
+        imdb: storedRecord.imdb_id || undefined,
+        tmdb: storedRecord.tmdb_id || undefined,
+        tvdb: storedRecord.tvdb_id || undefined,
+      };
       await upsertPlaystateForMedia(media, "watched", record.watched_at, { skipInvalidate: true });
       syncTasks.push({ media, id, record });
 
@@ -991,8 +1094,14 @@ export async function handlePlaybackProgressWatch(req, res) {
       const insertResult = await insertWatchRecord(normalizedRecord, { skipInvalidate: true, id: existing?.id || "" });
       id = insertResult.id;
       await insertResult.assetPrefetch?.catch(() => null);
+      media.ids = {
+        imdb: insertResult.record.imdb_id || undefined,
+        tmdb: insertResult.record.tmdb_id || undefined,
+        tvdb: insertResult.record.tvdb_id || undefined,
+      };
     }
 
+    media.watchRecordId = id;
     await upsertPlaystateForMedia(media, "watched", record.watched_at, { skipInvalidate: true });
 
     await deletePlaybackProgress({ ...progressRow, media_key: mediaKey }).catch(() => null);
@@ -1957,6 +2066,17 @@ export async function handleWebhook(req, res) {
     watchRecord.sync_action = "watched";
     watchRecord.sync_dispatch_telemetry = formatDispatchTelemetry({ skipped: false, status: "pending", details: "Propagation queued", targetStates: [] }, media, "watched");
     const result = await insertWatchRecord(watchRecord, { skipInvalidate: true });
+    // Resolve a movie's provider ids before its first outbound dispatch. The
+    // prefetch still runs in the background for episodes and for callers that
+    // do not need the result synchronously, but a movie with no identity must
+    // give Trakt the same complete metadata that is persisted on the row.
+    if (media.type === "movie") await result.assetPrefetch?.catch(() => null);
+    media.watchRecordId = result.id;
+    media.ids = {
+      imdb: result.record.imdb_id || undefined,
+      tmdb: result.record.tmdb_id || undefined,
+      tvdb: result.record.tvdb_id || undefined,
+    };
     console.log("Webhook: inserted watch record", {
       source: media.source,
       title: media.title,

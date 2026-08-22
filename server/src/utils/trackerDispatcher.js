@@ -39,9 +39,9 @@ export function trackerMediaWithSeriesIds(media = {}, details = {}) {
 }
 
 // Same backfill-only reasoning as trackerMediaWithSeriesIds above, for a
-// movie instead of an episode: only fills in ids when the movie arrived with
-// none at all (e.g. a media server webhook for a very new release its own
-// metadata agent has not matched yet, like ids: {} straight from Plex), never
+// movie instead of an episode: fills in ids the movie arrived without (e.g. a
+// media server webhook for a very new release whose own metadata agent has not
+// matched yet, like ids: {} straight from Plex), never
 // replaces an id that's already there.
 export function trackerMediaWithMovieIds(media = {}, details = {}) {
   if ((media.type || media.mediaType) !== "movie") return media;
@@ -61,23 +61,26 @@ export function trackerMediaWithMovieIds(media = {}, details = {}) {
   };
 }
 
-// Skips the TMDB title search entirely when the item already carries a
-// usable id - the lookup exists only to backfill ids for items that arrive
-// with none, not to re-derive ids for rows that already have a trustworthy
-// one. Covers movies as well as episodes: a movie reported by a media server
-// whose own metadata agent has not matched it yet (ids: {}) would otherwise
-// be permanently unreachable on Trakt even though Plembfin's own TMDB
-// integration could resolve it by title.
+// Hydrates any missing provider ids even when the item already carries one:
+// TMDB's details response carries the other external ids, and existing ids
+// remain authoritative; this only fills gaps.
 async function hydrateTrackerMedia(media) {
   const type = media.type || media.mediaType;
   if (type !== "episode" && type !== "movie") return media;
   const existingIds = media.ids || {};
-  if (existingIds.imdb || existingIds.tmdb || existingIds.tvdb) return media;
+  const hasAllIds = Boolean(existingIds.imdb && existingIds.tmdb && existingIds.tvdb);
+  if (hasAllIds) return media;
   if (type === "episode") {
     const title = trackerShowTitle(media);
     if (!title) return media;
     try {
-      const details = await getTmdbDetails({ mediaType: "tv", title, light: true });
+      const details = await getTmdbDetails({
+        mediaType: "tv",
+        tmdbId: existingIds.tmdb || "",
+        title,
+        ids: { imdbId: existingIds.imdb, tvdbId: existingIds.tvdb },
+        light: true,
+      });
       return trackerMediaWithSeriesIds(media, details);
     } catch {
       return media;
@@ -86,7 +89,13 @@ async function hydrateTrackerMedia(media) {
   const title = String(media.title || "").trim();
   if (!title) return media;
   try {
-    const details = await getTmdbDetails({ mediaType: "movie", title, light: true });
+    const details = await getTmdbDetails({
+      mediaType: "movie",
+      tmdbId: existingIds.tmdb || "",
+      title,
+      ids: { imdbId: existingIds.imdb, tvdbId: existingIds.tvdb },
+      light: true,
+    });
     return trackerMediaWithMovieIds(media, details);
   } catch {
     return media;

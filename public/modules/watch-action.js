@@ -917,6 +917,27 @@ export async function confirmAndMarkUnwatched(button) {
   });
   if (!confirmed) return;
 
+  // Keep the movie identity before any awaited work. The forced history load
+  // below can cause another render (or a live update) to replace the active
+  // detail state, which used to make the post-unwatch branch fall through to
+  // closeMediaDetail and send the user back to the library.
+  const movieTmdbId = kind === "movie"
+    ? String(
+      button.dataset.unwatchTmdbId
+      || state.activeMovieTmdbId
+      || state.activeMediaInfo?.tmdbData?.id
+      || state.activeMediaInfo?.media?.tmdb_id
+      || "",
+    ).trim()
+    : "";
+  const movieDetailWasOpen = kind === "movie" && (
+    Boolean(movieTmdbId)
+    || Boolean(state.activeMovieModalId)
+    || state.activeMediaInfo?.mediaType === "movie"
+    || state.mediaDetailInline
+    || window.location.pathname.startsWith("/movie/")
+  );
+
   button.disabled = true;
   const originalText = button.textContent;
   button.textContent = "Removing…";
@@ -958,11 +979,13 @@ export async function confirmAndMarkUnwatched(button) {
       } else {
         await _openShowImmersiveModalByTvdbId(state.activeShowTvdbId);
       }
-    } else if (kind === "movie" && state.activeMovieTmdbId) {
+    } else if (movieDetailWasOpen) {
       // Stay on the movie's own detail page and re-render it showing the new
       // unwatched status, matching the show/episode/season branch above,
       // instead of closing the modal back to whatever page was behind it.
-      await _openMovieImmersiveModalByTmdbId(state.activeMovieTmdbId);
+      // A title without a TMDB id has no alternate detail loader, so leave its
+      // already-mounted page in place rather than navigating away from it.
+      if (movieTmdbId) await _openMovieImmersiveModalByTmdbId(movieTmdbId);
     } else {
       _closeMediaDetail();
       _renderActiveView();

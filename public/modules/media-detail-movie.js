@@ -269,7 +269,7 @@ function _renderWatchedMovieContent(root, movie, {
       imdbId: tmdbData?.imdb_id || movie.imdb_id || "",
       disabled: isSaving,
     })}
-    <button class="action-pill action-pill-ghost" type="button" ${isSaving ? "disabled" : ""} data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">
+    <button class="action-pill action-pill-ghost" type="button" ${isSaving ? "disabled" : ""} data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-tmdb-id="${escapeAttribute(tmdbData?.id || movie.tmdb_id || "")}" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">
       ${eyeSlashIcon}
       <span>Mark <br>Unwatched</span>
     </button>
@@ -446,7 +446,7 @@ export function patchMovieWatchedState(movie) {
       tvdbId: movie.tvdb_id || "",
       imdbId: movie.imdb_id || "",
     })}
-    <button class="action-pill action-pill-ghost" type="button" data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">
+    <button class="action-pill action-pill-ghost" type="button" data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-tmdb-id="${escapeAttribute(movie.tmdb_id || "")}" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">
       ${eyeSlashIcon}
       <span>Mark <br>Unwatched</span>
     </button>
