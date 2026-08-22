@@ -1,7 +1,21 @@
 {
-  "build": 16,
-  "updatedAt": "2026-08-22T05:26:18+01:00",
+  "build": 17,
+  "updatedAt": "2026-08-22T08:54:48+01:00",
   "entries": [
+    {
+      "build": 17,
+      "date": "2026-08-22T08:54:48+01:00",
+      "commit": "b5a38f9568e3dcce9538e1bcace7f183436aa799",
+      "message": "Feature - Distinct unwatching busy state and local-first search ordering",
+      "author": "Lasikiewicz",
+      "details": [
+        "Mark-unwatched buttons (episode, season, and show) now show \"Unwatching...\" while removal is in flight instead of the mark-watched \"Syncing...\" label, and are properly disabled during that time",
+        "Removing a single watch date from the edit-date dialog now marks that specific row as unwatching, so it is not mislabeled if an unrelated sync re-renders the page underneath",
+        "The full search page and the topbar search dropdown now list what is on a connected media server ahead of TMDB/TheTVDB-only matches, instead of relying on incidental result ordering",
+        "Updated docs/media-detail.md and docs/history-search.md to describe the new busy-state tracking and search ordering",
+        "Removed the completed \"Unwatching\" label and \"local results first\" backlog items from TODO.md"
+      ]
+    },
     {
       "build": 16,
       "date": "2026-08-22T05:26:18+01:00",
