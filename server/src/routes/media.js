@@ -792,7 +792,7 @@ function propagateCorrectedWatchDate(recordId, { lane = "interactive" } = {}) {
       // media object, potentially overwriting this correct, dated replay.
       await updateWatchTelemetry(row.id, formatDispatchTelemetry(summary, media, "watched"));
     })
-    .catch((error) => console.error(`Failed to propagate corrected watch date for record ${recordId}:`, error.message || error));
+    .catch((error) => console.error("Failed to propagate corrected watch date for record", recordId, error?.message || error));
 }
 
 // Deleting a watch date changes what Plembfin considers canonical for that
@@ -823,7 +823,7 @@ function propagateWatchDateRemoval(remainingRow, deletedRow, { lane = "interacti
       // date instead of the real one this replay just correctly sent.
       if (remainingRow) await updateWatchTelemetry(remainingRow.id, formatDispatchTelemetry(summary, media, action));
     })
-    .catch((error) => console.error(`Failed to propagate watch date removal for ${row.id}:`, error.message || error));
+    .catch((error) => console.error("Failed to propagate watch date removal for record", row.id, error?.message || error));
 }
 
 // Adds another watch date for the same movie/episode as `id` (the "Add another
