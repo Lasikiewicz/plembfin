@@ -1,7 +1,21 @@
 {
-  "build": 15,
-  "updatedAt": "2026-08-22T05:12:56+01:00",
+  "build": 16,
+  "updatedAt": "2026-08-22T05:26:18+01:00",
   "entries": [
+    {
+      "build": 16,
+      "date": "2026-08-22T05:26:18+01:00",
+      "commit": "2e360df4988627f640399b2bad300cc8b280299d",
+      "message": "Feature - Make Sync Activity rows clickable and name Trakt correctly",
+      "author": "Lasikiewicz",
+      "details": [
+        "Target results are now the app's icon followed by its status instead of pills, coloured by outcome with the failure detail on hover",
+        "Trakt dispatches are named and shown as Trakt with their own icon rather than being labelled Plex, alongside Plex, Emby, Jellyfin, and Plembfin's own manual actions",
+        "The Download log button sits on the same line as the target results",
+        "Clicking a media title opens that title's page, using your library first and the recorded TMDB/TVDB ids otherwise",
+        "Clicking anywhere else on a row expands it to show that item's full log inline, and a background refresh keeps opened rows open"
+      ]
+    },
     {
       "build": 15,
       "date": "2026-08-22T05:12:56+01:00",
