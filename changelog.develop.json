@@ -1,7 +1,18 @@
 {
-  "build": 13,
-  "updatedAt": "2026-08-22T04:30:10+01:00",
+  "build": 14,
+  "updatedAt": "2026-08-22T04:52:32+01:00",
   "entries": [
+    {
+      "build": 14,
+      "date": "2026-08-22T04:52:32+01:00",
+      "commit": "b3644e41c7e0db73863a78ea83f64b232565f320",
+      "message": "Fix - Send the correct historical date to Trakt for a re-dispatched watch",
+      "author": "Lasikiewicz",
+      "details": [
+        "A watch that gets re-dispatched later instead of right when it happened (e.g. the last watch date you leave standing after removing a duplicate) now reaches Trakt with its real recorded date and time, not the current moment - the scheduler's background retry queue was building its outbound payload without that date at all",
+        "Removing or correcting a watch date now records the real outcome of that sync (including which platforms it actually reached) on the affected record, instead of leaving it stuck showing a pending sync forever"
+      ]
+    },
     {
       "build": 13,
       "date": "2026-08-22T04:30:10+01:00",
