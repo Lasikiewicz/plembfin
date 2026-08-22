@@ -1,7 +1,20 @@
 {
-  "build": 9,
-  "updatedAt": "2026-08-22T02:02:56+01:00",
+  "build": 10,
+  "updatedAt": "2026-08-22T02:37:58+01:00",
   "entries": [
+    {
+      "build": 10,
+      "date": "2026-08-22T02:37:58+01:00",
+      "commit": "101fc3e1f036f303d8bb6d0c0e487f4b3c967d65",
+      "message": "Fix - Stop duplicate-watch cleanup from deleting a real watch behind a stale unwatch",
+      "author": "Lasikiewicz",
+      "details": [
+        "Removing duplicate watches (per-season or library-wide) could wrongly delete a genuinely watched episode and leave it unwatched, if the same episode also had an older, unrelated row that had been explicitly marked unwatched at some earlier point",
+        "The stale unwatched row isn't a countable duplicate watch at all, but duplicate-detection was treating it as one - and since it could sort ahead of the real watch (same or earlier timestamp), it got 'kept' as the supposed oldest copy while the actual watch was deleted as the 'duplicate', wrongly unwatching an item that was never actually duplicated",
+        "Library-wide scan/cleanup and the per-season 'Remove duplicate watches' control both now only ever compare rows that currently read as watched; a later explicit unwatch still shows in the play-history list, it's just never treated as a removable duplicate",
+        "Added a regression test reproducing the exact scenario"
+      ]
+    },
     {
       "build": 9,
       "date": "2026-08-22T02:02:56+01:00",
