@@ -1,7 +1,21 @@
 {
-  "build": 10,
-  "updatedAt": "2026-08-22T02:37:58+01:00",
+  "build": 11,
+  "updatedAt": "2026-08-22T02:54:13+01:00",
   "entries": [
+    {
+      "build": 11,
+      "date": "2026-08-22T02:54:13+01:00",
+      "commit": "d9c59b820bc34f5a3c1ce7c21ce4bd67f9ea28d4",
+      "message": "Feature - Add audit/repair for episodes with no surviving watched row",
+      "author": "Lasikiewicz",
+      "details": [
+        "Some episodes affected by the mass false-unwatch incident lost the shadowed watched row entirely rather than just having it shadowed (real cases: The 'Burbs S01E01, Silo S03E02) - every remaining row reads unwatched, so the existing split-identity audit never finds them",
+        "Added GET /api/likely-false-unwatch-audit (read-only): flags an episode where no row currently reads watched but at least one unwatched row came from an automatic source (plex/emby/jellyfin, never manual) with no surviving watched sibling anywhere - the same cascade signature as the split-identity case, just missing its watched half",
+        "Added POST /api/likely-false-unwatch-repair: consolidates every stale row for the episode into one fresh watched record using the oldest row's own date as the best evidence of a genuine watch, then re-pushes it to every connected platform",
+        "This fingerprint is less certain than the split-identity one (an automatic source is also what a genuine unwatch performed directly on a media server looks like), so it stays audit-only until real candidates are reviewed",
+        "Added regression tests for both the audit and the repair"
+      ]
+    },
     {
       "build": 10,
       "date": "2026-08-22T02:37:58+01:00",
