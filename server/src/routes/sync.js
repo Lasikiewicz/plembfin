@@ -470,9 +470,16 @@ function mediaFromWatchRecord(record) {
 // platforms. Shared by the webhook `unplayed` phase and the manual-unwatch handler.
 export async function applyManualUnwatch(media, config, loopStore, recordId = "", { includeSourcePlatform = false, trackDispatch = true, force = false } = {}) {
   const result = await applyUnwatchedTransition(media, config, loopStore, { recordId, includeSourcePlatform, trackDispatch, force });
+  // includeSourcePlatform means this is an explicit manual action, not an inbound
+  // event from `media.source` - applyUnwatchedTransition dispatches under "manual"
+  // for the same reason (see its includeSourcePlatform handling), so the recorded
+  // history must say "manual" too rather than echoing the target's original watch
+  // provenance (e.g. a record originally captured from Trakt) as if that platform
+  // had requested this unwatch.
+  const historyMedia = includeSourcePlatform ? { ...media, source: "manual" } : media;
   // The force path still dispatches (and returns alreadyUnwatched: true purely
   // to signal "no new watch_history row"), so it needs recording too.
-  if (!result.alreadyUnwatched || force) await recordSyncHistory(media, result.summary, "unwatched");
+  if (!result.alreadyUnwatched || force) await recordSyncHistory(historyMedia, result.summary, "unwatched");
   return result;
 }
 

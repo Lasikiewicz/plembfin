@@ -180,7 +180,7 @@ export async function applyUnwatchedTransition(media, config, loopStore, {
       skipped: false, status: "error", details: `Unwatched propagation failed: ${error.message || String(error)}`, targetStates: [],
     }));
     if (existingRecord?.id) {
-      await updateWatchTelemetry(existingRecord.id, unwatchedTelemetry(summary, media), { skipInvalidate: true }).catch(() => null);
+      await updateWatchTelemetry(existingRecord.id, unwatchedTelemetry(summary, syncMedia), { skipInvalidate: true }).catch(() => null);
     }
     return { wasDeleted: false, id: existingRecord?.id || "", alreadyUnwatched: true, summary };
   }
@@ -252,6 +252,6 @@ export async function applyUnwatchedTransition(media, config, loopStore, {
     details: `Unwatched propagation failed: ${error.message || String(error)}`,
     targetStates: [],
   }));
-  await updateWatchTelemetry(result.id, unwatchedTelemetry(summary, media), { skipInvalidate: true });
+  await updateWatchTelemetry(result.id, unwatchedTelemetry(summary, syncMedia), { skipInvalidate: true });
   return { wasDeleted, id: result.id, alreadyUnwatched: false, summary };
 }
