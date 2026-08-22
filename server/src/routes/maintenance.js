@@ -33,6 +33,9 @@ import { POSTERS_DIR, BACKDROPS_DIR, PROFILES_DIR, PUBLIC_DIR } from "../paths.j
 import {
   auditStaleTraktImportRows,
   repairStaleTraktImportRows,
+  auditStalePendingWatchRows,
+  repairStalePendingWatchRows,
+  auditSplitIdentityUnwatches,
   countPlaybackProgressRows,
   countWatchedPlaystateRows,
   watchHistoryQualityCounts,
@@ -419,6 +422,50 @@ export async function handleStaleTraktImportRepair(req, res) {
   } catch (error) {
     return sendJson(res, { error: error.message || "Stale Trakt import repair failed" }, 500);
   }
+}
+
+// General form of the cleanup above - see the comment on
+// auditStalePendingWatchRows/repairStalePendingWatchRows in dataRepo.js.
+// Catches a watched row left with NULL/empty telemetry or an exhausted retry
+// count by any code path that replays canonical state without writing the
+// result back onto the row, not just the Trakt importer. Audit is read-only
+// so it is safe to poll before confirming.
+export async function handleStalePendingWatchAudit(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  const result = auditStalePendingWatchRows();
+  return sendJson(res, { ok: true, ...result }, 200, { "Cache-Control": "no-store" });
+}
+
+export async function handleStalePendingWatchRepair(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const result = repairStalePendingWatchRows();
+    writeAuditLog("history.stale_pending_watch_repair", {
+      ip: req.ip || req.socket?.remoteAddress,
+      detail: { repaired: result.repaired },
+    });
+    return sendJson(res, { ok: true, ...result }, 200, { "Cache-Control": "no-store" });
+  } catch (error) {
+    return sendJson(res, { error: error.message || "Stale pending watch repair failed" }, 500);
+  }
+}
+
+// Read-only - see the comment on auditSplitIdentityUnwatches in dataRepo.js.
+// Surfaces episodes where a genuine earlier watch appears shadowed by a
+// later unwatched row recorded under a different media_key, for manual
+// review; there is deliberately no matching repair endpoint yet, since
+// restoring a watched state automatically risks reviving a genuinely
+// intentional unwatch.
+export async function handleSplitIdentityUnwatchAudit(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  const result = auditSplitIdentityUnwatches();
+  return sendJson(res, { ok: true, ...result }, 200, { "Cache-Control": "no-store" });
 }
 
 export function handlePing(req, res) {

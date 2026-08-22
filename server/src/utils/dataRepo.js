@@ -3309,6 +3309,131 @@ export function repairStaleTraktImportRows() {
   return { repaired: result.changes };
 }
 
+// General-purpose version of the repair above, for any code path (not just
+// the Trakt play-history importer) that pushes a canonical watched/unwatched
+// replay without writing the result back onto the row it replayed - e.g.
+// propagateWatchDateRemoval/propagateCorrectedWatchDate in routes/media.js,
+// which call syncCanonicalPlaystate to re-dispatch an *existing* row's state
+// but never call updateWatchTelemetry afterward. A row like that can be left
+// with telemetry that never reflects a completed dispatch, which the
+// scheduler's manual-dispatch retry sweep (syncPendingManualDispatches in
+// scheduled.js) either sees as "pending" forever or eventually gives up on
+// after SYNC_RETRY_MAX_ATTEMPTS - at which point nothing retries it again
+// without a manual "Retry Sync" click.
+//
+// This targets exactly those two unambiguous signatures rather than a fuzzy
+// "does this look synced" check: NULL/empty telemetry (nothing legitimate
+// leaves it blank past the very first write) and a retry count that has
+// already hit the scheduler's own give-up threshold (10 - see
+// SYNC_RETRY_MAX_ATTEMPTS in scheduled.js; duplicated here rather than
+// imported, since scheduled.js imports heavily from this module and importing
+// back would create a cycle). The repair does not fabricate a "settled"
+// telemetry the way the Trakt-specific repair above does - it only resets the
+// retry bookkeeping so the row becomes eligible again, and lets the existing,
+// already-tested manual-dispatch sweep perform a real dispatch and record
+// what actually happened.
+const STALE_PENDING_WATCH_RETRY_MAX_ATTEMPTS = 10;
+const selectStalePendingWatchRowsStmt = db.prepare(
+  `SELECT id, title, source, watched_at, sync_retry_count, sync_dispatch_telemetry, created_at FROM watch_history
+   WHERE sync_action = 'watched'
+     AND (sync_dispatch_telemetry IS NULL OR TRIM(sync_dispatch_telemetry) = '' OR sync_retry_count >= ?)
+   ORDER BY created_at ASC`,
+);
+const repairStalePendingWatchRowsStmt = db.prepare(
+  `UPDATE watch_history SET sync_retry_count = 0, sync_next_retry_at = 0, updated_at = ?
+   WHERE sync_action = 'watched'
+     AND (sync_dispatch_telemetry IS NULL OR TRIM(sync_dispatch_telemetry) = '' OR sync_retry_count >= ?)`,
+);
+
+export function auditStalePendingWatchRows({ sampleSize = 25 } = {}) {
+  const rows = selectStalePendingWatchRowsStmt.all(STALE_PENDING_WATCH_RETRY_MAX_ATTEMPTS);
+  return {
+    count: rows.length,
+    sample: rows.slice(0, sampleSize).map((row) => ({
+      id: row.id,
+      title: row.title,
+      source: row.source,
+      watchedAt: row.watched_at,
+      retryCount: row.sync_retry_count,
+      telemetry: row.sync_dispatch_telemetry || null,
+      createdAt: row.created_at,
+    })),
+  };
+}
+
+export function repairStalePendingWatchRows() {
+  const result = repairStalePendingWatchRowsStmt.run(Date.now(), STALE_PENDING_WATCH_RETRY_MAX_ATTEMPTS);
+  return { repaired: result.changes };
+}
+
+// Read-only detector for a different aftermath of the same deleteWatchDates
+// media_key-split bug: before that fix, deleting a "duplicate" could wrongly
+// decide nothing remained for an episode and push a *real* mark-unplayed to
+// Plex/Emby/Jellyfin, even though a genuine earlier watch (stored under a
+// different media_key for the same show/season/episode) still existed. The
+// automatic Emby/Jellyfin/Plex unwatched-fallback polls then correctly - by
+// their own logic - observed that real external unplayed state and recorded
+// it as Plembfin's own canonical unwatched row, faithfully copying the
+// corruption back in rather than causing it.
+//
+// The fingerprint: for one show/season/episode, an older row exists with
+// sync_action='watched' under media_key A, and a newer row exists with
+// sync_action='unwatched' under a *different* media_key B. A genuine user
+// unwatch would have found and superseded the existing watched row (via
+// findWatchedByAnyMediaKey in applyUnwatchedTransition) rather than leaving
+// it behind under its own key - so a split like this, with the unwatch
+// strictly newer than the watch it shadows, is a strong signal of this
+// specific chain of events rather than an intentional unwatch.
+//
+// Deliberately audit-only: reverting an unwatch that really was intentional
+// would itself be a phantom watch, so this surfaces candidates for review
+// rather than restoring anything automatically.
+export function auditSplitIdentityUnwatches({ sampleSize = 50 } = {}) {
+  const rows = selectAllEpisodesStmt.all().filter(isPlembfinTrackedEpisodeRow);
+  const groups = new Map();
+  for (const row of rows) {
+    const showKey = canonicalTitleKey(showTitleFrom(row.show_title || row.title));
+    const season = row.season == null ? null : Number(row.season);
+    const episode = row.episode == null ? null : Number(row.episode);
+    if (!showKey || season == null || episode == null) continue;
+    const groupKey = `${showKey}|s${season}e${episode}`;
+    if (!groups.has(groupKey)) groups.set(groupKey, []);
+    groups.get(groupKey).push(row);
+  }
+
+  const findings = [];
+  for (const groupRows of groups.values()) {
+    const distinctKeys = new Set(groupRows.map((row) => row.media_key).filter(Boolean));
+    if (distinctKeys.size < 2) continue;
+
+    const watchedRows = groupRows.filter((row) => (row.sync_action || "watched") === "watched");
+    const unwatchedRows = groupRows.filter((row) => row.sync_action === "unwatched");
+    if (!watchedRows.length || !unwatchedRows.length) continue;
+
+    const newest = (list) => list.reduce((best, row) => (Number(row.updated_at || 0) > Number(best.updated_at || 0) ? row : best));
+    const newestWatched = newest(watchedRows);
+    const newestUnwatched = newest(unwatchedRows);
+    if (newestWatched.media_key === newestUnwatched.media_key) continue;
+    if (Number(newestUnwatched.updated_at || 0) <= Number(newestWatched.updated_at || 0)) continue;
+
+    findings.push({
+      show: groupRows[0].show_title || showTitleFrom(groupRows[0].title),
+      season: groupRows[0].season,
+      episode: groupRows[0].episode,
+      watchedRow: {
+        id: newestWatched.id, mediaKey: newestWatched.media_key, watchedAt: newestWatched.watched_at,
+        source: newestWatched.source, updatedAt: newestWatched.updated_at,
+      },
+      unwatchedRow: {
+        id: newestUnwatched.id, mediaKey: newestUnwatched.media_key, watchedAt: newestUnwatched.watched_at,
+        source: newestUnwatched.source, updatedAt: newestUnwatched.updated_at, telemetry: newestUnwatched.sync_dispatch_telemetry || null,
+      },
+    });
+  }
+
+  return { count: findings.length, sample: findings.slice(0, sampleSize) };
+}
+
 // --- Maintenance helpers (used by index.js admin endpoints) ----------------
 export async function findExistingWatch(mediaKey, watchedAt) {
   return rowToWatch(findExistingStmt.get(mediaKey, watchedAt));

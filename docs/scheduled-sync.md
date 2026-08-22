@@ -125,6 +125,36 @@ repaired. `GET /api/stale-trakt-import-audit` reports how many such rows remain 
 state or re-dispatching them anywhere (`auditStaleTraktImportRows`/
 `repairStaleTraktImportRows` in `dataRepo.js`).
 
+The same failure shape can happen from any code path that replays canonical state for an
+*existing* watch_history row without writing the result back onto it - for example
+`propagateWatchDateRemoval`/`propagateCorrectedWatchDate` in `routes/media.js`, which call
+`syncCanonicalPlaystate` to re-push a row's state but never call `updateWatchTelemetry`
+afterward. A row like that can be left with `sync_dispatch_telemetry IS NULL`, or with a
+retry count the manual-dispatch sweep already gave up on (`sync_retry_count` at or past its
+own `SYNC_RETRY_MAX_ATTEMPTS`), and nothing retries it again without a manual Retry Sync.
+`GET /api/stale-pending-watch-audit` reports how many `sync_action = 'watched'` rows across
+any source currently match either signature (read-only); `POST /api/stale-pending-watch-repair`
+resets their retry bookkeeping so the existing manual-dispatch sweep picks them up and
+performs a real dispatch on its next tick, rather than fabricating a "settled" telemetry the
+way the Trakt-specific repair above does (`auditStalePendingWatchRows`/
+`repairStalePendingWatchRows` in `dataRepo.js`).
+
+A related but more serious aftermath of the same pre-fix `deleteWatchDates` bug: before it
+was fixed, deleting a duplicate could wrongly
+decide nothing remained for an episode and push a *real* mark-unplayed to Plex/Emby/Jellyfin,
+even though a genuine earlier watch (stored under a different `media_key` for the same
+show/season/episode) still existed there. The Emby/Jellyfin/Plex unwatched-fallback polls then
+correctly - by their own logic - observed that now-genuinely-unplayed state on the external
+server and recorded it as Plembfin's own canonical unwatched row, copying the corruption back
+in rather than causing it. The result: a show/season/episode with an older `watched` row under
+one `media_key` and a newer `unwatched` row under a different one, so the item now reads as
+unwatched despite real watch history existing for it - and marking it watched again inserts a
+second row alongside the shadowed one instead of recognizing it, since the shadowed row's
+current state genuinely is unwatched. `GET /api/split-identity-unwatch-audit` finds candidates
+matching this exact fingerprint (read-only; `auditSplitIdentityUnwatches` in `dataRepo.js`).
+There is deliberately no repair endpoint yet - reverting an unwatch that was actually intentional
+would itself be a phantom watch, so candidates need manual review before anything is restored.
+
 An explicit unplayed webhook/notification or Trakt snapshot removal changes the canonical
 state to unwatched and propagates it. Plex show and season notifications are expanded into
 their episodes so bulk library actions follow the same transition path. Polling remains
