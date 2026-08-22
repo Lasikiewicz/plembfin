@@ -1,7 +1,18 @@
 {
-  "build": 18,
-  "updatedAt": "2026-08-22T09:09:26+01:00",
+  "build": 19,
+  "updatedAt": "2026-08-22T17:26:01+01:00",
   "entries": [
+    {
+      "build": 19,
+      "date": "2026-08-22T17:26:01+01:00",
+      "commit": "78dd90d8f7ed66ae72309f90a430371e8687fee8",
+      "message": "Fix - Prioritize manual watch actions",
+      "author": "Lasikiewicz",
+      "details": [
+        "Manual watched marks now use the release date when no threshold-reaching playback was detected, while explicit actions can proceed through the interactive sync lane.",
+        "Movies without provider IDs receive TMDB lookup before tracker dispatch."
+      ]
+    },
     {
       "build": 18,
       "date": "2026-08-22T09:09:26+01:00",
