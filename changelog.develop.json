@@ -1,7 +1,18 @@
 {
-  "build": 12,
-  "updatedAt": "2026-08-23T15:23:08+01:00",
+  "build": 13,
+  "updatedAt": "2026-08-23T19:45:11+01:00",
   "entries": [
+    {
+      "build": 13,
+      "date": "2026-08-23T19:45:11+01:00",
+      "commit": "9af5ecfcddc2eb8ce979a1a285195c549809a26a",
+      "message": "Fix - Protect resume progress and malformed imports",
+      "author": "Lasikiewicz",
+      "details": [
+        "Keep Part Watched entries when Jellyfin acknowledges an outbound resume update with Played=false.",
+        "Block and repair malformed automatic episode imports, including uncertain titles that still carry series provider IDs."
+      ]
+    },
     {
       "build": 12,
       "date": "2026-08-23T15:23:08+01:00",
