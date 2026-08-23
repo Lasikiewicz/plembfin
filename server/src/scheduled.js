@@ -214,6 +214,13 @@ function resumePositionUnchanged(existingProgress = {}, media = {}) {
   );
 }
 
+export function resumeProgressAuthorityTimestamp(existingProgress = null, media = {}) {
+  const incomingUpdatedAt = Number(media.updatedAt || 0);
+  if (incomingUpdatedAt > 0) return incomingUpdatedAt;
+  if (!existingProgress || !resumePositionUnchanged(existingProgress, media)) return 0;
+  return Number(existingProgress.updated_at || 0);
+}
+
 export function mediaFromPlexResumableItem(item = {}) {
   const type = item.type === "episode" ? "episode" : "movie";
   const positionMs = millisecondsFrom(item.viewOffset);
@@ -827,13 +834,17 @@ async function syncResumableMedia(media, config, loopStore, logger = console.log
     return false;
   }
 
-  const existingPlaystate = await getPlaystateForMedia(media).catch(() => null);
-  const resumeUpdatedAt = Number(media.updatedAt || 0);
+  const [existingPlaystate, existingProgress] = await Promise.all([
+    getPlaystateForMedia(media).catch(() => null),
+    getPlaybackProgressForMedia(media).catch(() => null),
+  ]);
+  const incomingResumeUpdatedAt = Number(media.updatedAt || 0);
+  const resumeUpdatedAt = resumeProgressAuthorityTimestamp(existingProgress, media);
 
   // After an authoritative restore, ignore resume positions whose app-side timestamp predates
   // the restore â€” they are pre-restore state the backup has already superseded.
   const lastRestoreAt = Number(loadWatchBackupRuntime().lastRestoreAt || 0);
-  if (lastRestoreAt && resumeUpdatedAt > 0 && resumeUpdatedAt <= lastRestoreAt) {
+  if (lastRestoreAt && incomingResumeUpdatedAt > 0 && incomingResumeUpdatedAt <= lastRestoreAt) {
     logResumeSkip(logger, media, "pre-restore resume position");
     return false;
   }
@@ -846,16 +857,15 @@ async function syncResumableMedia(media, config, loopStore, logger = console.log
     return false;
   }
 
-  const existingProgress = await getPlaybackProgressForMedia(media).catch(() => null);
   const progressUpdatedAt = Number(existingProgress?.updated_at || 0);
 
 
-  if (existingProgress && resumeUpdatedAt <= 0 && resumePositionUnchanged(existingProgress, media)) {
+  if (existingProgress && incomingResumeUpdatedAt <= 0 && resumePositionUnchanged(existingProgress, media)) {
     logResumeSkip(logger, media, "unchanged resume progress without timestamp");
     return false;
   }
 
-  if (existingProgress && resumeUpdatedAt > 0 && progressUpdatedAt >= resumeUpdatedAt) {
+  if (existingProgress && incomingResumeUpdatedAt > 0 && progressUpdatedAt >= incomingResumeUpdatedAt) {
     logResumeSkip(logger, media, "stale resume progress");
     return false;
   }
