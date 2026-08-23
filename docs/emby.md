@@ -110,7 +110,7 @@ platform that reported them.
 | --- | --- |
 | `findEmbyItems` | Locates library items by provider ID (`AnyProviderIdEquals` with `imdb.` / `tmdb.` / `tvdb.` terms), falling back to title/year search; episodes resolved through the series |
 | `markEmbyPlayed` / `markEmbyUnplayed` | `POST` / `DELETE` on `/Users/<userId>/PlayedItems/<itemId>` |
-| `setEmbyProgress` | Writes a resume position via the item's UserData |
+| `setEmbyProgress` | Writes a resume position via the item's UserData, retaining the source progress date so Emby's Continue Watching feed can order and include it |
 | `markEmbyUnplayedById` | Unplay by item ID (used by unwatch propagation) |
 | `fetchEmbySeriesEpisodes` / `fetchEmbyEpisodes` | Episode lists for season-level operations |
 | `fetchEmbyWatchedItems` / `fetchEmbyResumableItems` | Feeds for catch-up sync |

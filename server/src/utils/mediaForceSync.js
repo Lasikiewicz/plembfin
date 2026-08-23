@@ -290,23 +290,31 @@ function modeLabel(mode = "push") {
   return mode === "pull" ? "Import Watched Status" : "Set Plembfin as Source of Truth";
 }
 
+export function canonicalStateForShowHistoryRow(row = {}) {
+  const action = clean(row.sync_action || row.syncAction).toLowerCase();
+  return ["unwatched", "unplayed"].includes(action) ? "unwatched" : "watched";
+}
+
 async function collectLocalCanonicalItems(requested, { logger = () => {} } = {}) {
   if (requested.type === "show") {
-    logger(`[push] Plembfin: loading canonical watched episodes for "${requested.title}".`);
+    logger(`[push] Plembfin: loading canonical episode states for "${requested.title}".`);
     const show = await queryShowDetail({ title: requested.title });
     const items = (show?.episodes || [])
       .map((row) => ({
         ...watchRowToMedia(row, "manual"),
         show_title: row.show_title || undefined,
         episode_title: row.episode_title || undefined,
-        canonicalState: "watched",
+        canonicalRecordId: row.id || "",
+        canonicalState: canonicalStateForShowHistoryRow(row),
         isValid: true,
       }))
       .filter((media) => mediaMatchesRequest(media, requested));
-    logger(`[push] Plembfin: found ${items.length} canonical watched episode${items.length === 1 ? "" : "s"}.`);
+    const watchedCount = items.filter((item) => item.canonicalState === "watched").length;
+    const unwatchedCount = items.length - watchedCount;
+    logger(`[push] Plembfin: found ${items.length} canonical episode state${items.length === 1 ? "" : "s"} (${watchedCount} watched, ${unwatchedCount} unwatched).`);
     return {
       items,
-      sourceResults: [{ source: "plembfin", status: items.length ? "success" : "not_watched", watchedCount: items.length }],
+      sourceResults: [{ source: "plembfin", status: items.length ? "success" : "not_watched", watchedCount }],
     };
   }
 
@@ -456,7 +464,24 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
       return;
     }
     const canonicalState = media.canonicalState || "watched";
-    let record = await findWatchedByAnyMediaKey(media).catch(() => null);
+    // A show push is built from queryShowDetail's representative rows, which
+    // include explicit unwatched bookkeeping rows. Keep telemetry attached to
+    // that exact representative: falling back to findWatchedByAnyMediaKey for
+    // an unwatched item finds its older watched row and touching that row's
+    // updated_at can make it outrank the unwatch in the next detail query.
+    let record;
+    if (requested.mode === "push" && media.canonicalRecordId) {
+      record = await getWatchRecordById(media.canonicalRecordId).catch(() => null);
+    } else if (requested.mode === "push" && canonicalState === "unwatched") {
+      // A movie can have an unwatched canonical playstate without a matching
+      // unwatched history row. Its only discoverable history row is then an
+      // older watch; attaching this push's telemetry to that row would bump
+      // its updated_at and let it supersede the unwatch. The operation still
+      // runs and reports normally, but there is no safe history row to touch.
+      record = null;
+    } else {
+      record = await findWatchedByAnyMediaKey(media).catch(() => null);
+    }
     let inserted = false;
     if (requested.mode !== "push" && canonicalState !== "unwatched") {
       // A watched row can exist in history yet no longer be the episode's
@@ -514,8 +539,11 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
 
     if (record?.id) {
       await updateWatchTelemetry(record.id, completedTelemetry(media, summary, requested), { skipInvalidate: true });
-      await appendForceSyncHistory(media, summary, requested);
     }
+    // Force Sync activity is an operation-level audit trail, not history-row
+    // telemetry. Record it even when an authoritative unwatched movie has no
+    // safe unwatched history row to attach telemetry to.
+    await appendForceSyncHistory(media, summary, requested);
 
     const freshRecord = record?.id ? await getWatchRecordById(record.id).catch(() => null) : null;
     if (freshRecord) records.push(freshRecord);

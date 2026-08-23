@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  canonicalStateForShowHistoryRow,
   normalizeMediaForceSyncRequest,
   remoteItemIsWatched,
   remoteItemToMedia,
@@ -96,6 +97,13 @@ test("normalizes a season subset for a show detail Force Sync request", () => {
     [1, 2],
   );
   assert.deepEqual(normalizeMediaForceSyncRequest({ title: "The Acolyte", type: "show", mode: "push" }).seasons, []);
+});
+
+test("show source-of-truth push preserves each episode's canonical watched state", () => {
+  assert.equal(canonicalStateForShowHistoryRow({ sync_action: "watched" }), "watched");
+  assert.equal(canonicalStateForShowHistoryRow({ sync_action: "unwatched" }), "unwatched");
+  assert.equal(canonicalStateForShowHistoryRow({ sync_action: "unplayed" }), "unwatched");
+  assert.equal(canonicalStateForShowHistoryRow({}), "watched");
 });
 
 test("normalizes the Settings library Force Sync options", () => {

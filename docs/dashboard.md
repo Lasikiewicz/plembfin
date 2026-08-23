@@ -69,6 +69,11 @@ watch/unwatch, anything. The indicator is driven by the `sync-progress` events o
 [scheduled-sync.md](scheduled-sync.md#what-it-does-each-run) for where the underlying
 `{ total, completed }` snapshot comes from.
 
+Active dispatch bursts publish a heartbeat every 15 seconds. An incomplete snapshot
+whose heartbeat is more than 90 seconds old is treated as orphaned and reset to Idle;
+every live-update connection receives the current value, including an explicit zero,
+so a browser cannot retain stale progress after a server restart.
+
 Clicking the line opens the Sync Activity page at `/sync-activity`.
 
 ### Sync Activity page

@@ -16,7 +16,7 @@ import {
   updateWatchTelemetry,
   upsertPlaystateForMedia,
 } from "./dataRepo.js";
-import { completeDispatchTracking, getTargetsForSource, syncMediaPlaystate, syncMediaUnplayedPlaystate } from "./syncOrchestrator.js";
+import { getTargetsForSource, syncMediaPlaystate, syncMediaUnplayedPlaystate } from "./syncOrchestrator.js";
 
 // Cross-platform mass-false-unwatch circuit breaker. applyUnwatchedTransition
 // below is the single choke point every *automatic* (non-manual) unwatch path
@@ -91,9 +91,6 @@ function automaticUnwatchBurstDetected(media) {
 export async function applyWatchedTransition(media, config, loopStore, { trackDispatch = true, lane = "sync" } = {}) {
   const existing = await getPlaystateForMedia(media).catch(() => null);
   if (existing?.state === "watched") {
-    // A pre-reserved batch slot (trackDispatch: false) skips syncMediaPlaystate
-    // entirely on this path, so nothing would otherwise mark it complete.
-    if (!trackDispatch) completeDispatchTracking();
     return { inserted: false, alreadyWatched: true, summary: { skipped: true, status: "skipped", details: "Already watched; no change to propagate", targetStates: [] } };
   }
   // getPlaystateForMedia can still miss an already-recorded watch stored
@@ -105,7 +102,6 @@ export async function applyWatchedTransition(media, config, loopStore, { trackDi
   const existingByAnyKey = await findWatchedByAnyMediaKey(media).catch(() => null);
   if (existingByAnyKey) {
     await upsertPlaystateForMedia(media, "watched", existingByAnyKey.watched_at, { skipInvalidate: true });
-    if (!trackDispatch) completeDispatchTracking();
     return { inserted: false, alreadyWatched: true, summary: { skipped: true, status: "skipped", details: "Already recorded under a different media key; no change to propagate", targetStates: [] } };
   }
   const record = mediaToWatchRecord({ ...media, syncAction: "watched" }, media.source);
@@ -191,10 +187,6 @@ export async function applyUnwatchedTransition(media, config, loopStore, {
     // exist (e.g. a re-watch in progress after an earlier unwatch) - always clear
     // it so "Clear Progress" removes the item from the Part Watched list.
     await deletePlaybackProgress(media).catch(() => null);
-    // See the matching comment in applyWatchedTransition - this path never
-    // reaches syncMediaUnplayedPlaystate, so a pre-reserved slot needs its
-    // own completion signal here.
-    if (!trackDispatch) completeDispatchTracking();
     return {
       wasDeleted: false,
       id: existingRecord?.id || "",

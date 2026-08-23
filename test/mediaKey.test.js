@@ -7,7 +7,7 @@ import path from "node:path";
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "plembfin-key-test-"));
 process.env.DATA_DIR = dataDir;
 
-const { canonicalTitleKey, mediaKeyFor, normalizeWatchRecord } = await import(`../server/src/utils/dataRepo.js?test=${Date.now()}`);
+const { canonicalTitleKey, mediaKeyFor, normalizeWatchRecord, progressRowToMedia } = await import(`../server/src/utils/dataRepo.js?test=${Date.now()}`);
 const { db } = await import("../server/src/db.js");
 
 test.after(() => {
@@ -54,6 +54,22 @@ test("normalizeWatchRecord preserves specials season zero", () => {
   assert.equal(normalized.season, 0);
   assert.equal(normalized.episode, 2);
   assert.equal(normalized.title, "Example Show - S00E02");
+});
+
+test("progressRowToMedia preserves the resume update timestamp for outbound replay", () => {
+  assert.equal(
+    progressRowToMedia({
+      title: "Ted Lasso - S04E01",
+      media_type: "episode",
+      season: 4,
+      episode: 1,
+      position_ms: 970_000,
+      duration_ms: 2_492_490,
+      progress: 38.9169,
+      updated_at: 1_777_000_000_000,
+    }, "manual").updatedAt,
+    1_777_000_000_000,
+  );
 });
 
 test("normalizeWatchRecord recovers specials coordinates from title", () => {

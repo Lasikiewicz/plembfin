@@ -5,7 +5,12 @@ import { watchedPlayedSyncEnabled } from "./syncFlags.js";
 import { minResumePositionMs, watchedThresholdPercent } from "./tuning.js";
 import { canReceiveState, canSendState } from "./syncRoles.js";
 import { dispatchTrackerWatchState } from "./trackerDispatcher.js";
-import { setRuntimeState } from "./configStore.js";
+import {
+  BACKGROUND_SYNC_PROGRESS_MAX_OWNER_MS,
+  releaseBackgroundSyncProgressOwner,
+  startBackgroundSyncProgressOwner,
+  updateBackgroundSyncProgressOwner,
+} from "./configStore.js";
 import { canonicalShowTitleKey, canonicalTitleKey, showTitleFrom } from "./dataRepo.js";
 
 const LOOP_CACHE_TTL_SECONDS = 60;
@@ -23,33 +28,88 @@ const LOOP_WINDOW_MS = 15_000;
 // near-simultaneous fire-and-forget calls share one window instead of each
 // flashing the indicator open and shut on its own.
 const DISPATCH_PROGRESS_IDLE_MS = 2_000;
+const DISPATCH_PROGRESS_HEARTBEAT_MS = 15_000;
+const DISPATCH_PROGRESS_INSTANCE_ID = process.env.PLEMBFIN_INSTANCE_ID
+  || `${process.env.ROLE || "process"}:${process.pid}:${Date.now()}`;
 let dispatchBurstTotal = 0;
 let dispatchBurstCompleted = 0;
 let dispatchBurstActive = false;
+let dispatchBurstOwnerId = "";
+let dispatchBurstExpiresAt = 0;
+let dispatchBurstSequence = 0;
+let dispatchReservationSequence = 0;
+const dispatchReservations = new Map();
 let dispatchIdleTimer = null;
+let dispatchHeartbeatTimer = null;
 
-function reportDispatchProgress() {
-  setRuntimeState({
-    backgroundSyncProgress: { total: dispatchBurstTotal, completed: dispatchBurstCompleted, updatedAt: Date.now() },
-  }).catch(() => null);
+function resetLocalDispatchBurst(ownerId) {
+  if (ownerId && ownerId !== dispatchBurstOwnerId) return;
+  if (dispatchIdleTimer) clearTimeout(dispatchIdleTimer);
+  if (dispatchHeartbeatTimer) clearInterval(dispatchHeartbeatTimer);
+  dispatchIdleTimer = null;
+  dispatchHeartbeatTimer = null;
+  dispatchBurstActive = false;
+  dispatchBurstTotal = 0;
+  dispatchBurstCompleted = 0;
+  dispatchBurstOwnerId = "";
+  dispatchBurstExpiresAt = 0;
+  dispatchReservations.clear();
+}
+
+function reportDispatchProgress({ start = false } = {}) {
+  const now = Date.now();
+  const ownerId = dispatchBurstOwnerId;
+  if (!dispatchBurstActive || !ownerId) return;
+  const update = start
+    ? startBackgroundSyncProgressOwner({ ownerId, total: dispatchBurstTotal, completed: dispatchBurstCompleted, now })
+    : updateBackgroundSyncProgressOwner({ ownerId, total: dispatchBurstTotal, completed: dispatchBurstCompleted, now });
+  update
+    .then((result) => {
+      // A hard owner lease is never extended by heartbeats. Once SQLite has
+      // expired this generation, stop its local timer too so it cannot
+      // resurrect a leaked burst; a later dispatch opens a fresh generation.
+      if (!start && !result.updated) resetLocalDispatchBurst(ownerId);
+    })
+    .catch(() => null);
+}
+
+function startDispatchHeartbeat() {
+  if (dispatchHeartbeatTimer) return;
+  dispatchHeartbeatTimer = setInterval(() => {
+    if (dispatchBurstActive) reportDispatchProgress();
+  }, DISPATCH_PROGRESS_HEARTBEAT_MS);
+  dispatchHeartbeatTimer.unref?.();
 }
 
 function openDispatchBurstIfIdle() {
+  if (dispatchBurstActive && dispatchBurstExpiresAt <= Date.now()) {
+    const expiredOwnerId = dispatchBurstOwnerId;
+    resetLocalDispatchBurst(expiredOwnerId);
+    releaseBackgroundSyncProgressOwner({ ownerId: expiredOwnerId }).catch(() => null);
+  }
   if (dispatchIdleTimer) {
     clearTimeout(dispatchIdleTimer);
     dispatchIdleTimer = null;
   }
+  let started = false;
   if (!dispatchBurstActive) {
     dispatchBurstActive = true;
     dispatchBurstTotal = 0;
     dispatchBurstCompleted = 0;
+    dispatchBurstSequence += 1;
+    dispatchBurstOwnerId = `${DISPATCH_PROGRESS_INSTANCE_ID}:dispatch:${Date.now()}:${dispatchBurstSequence}`;
+    dispatchBurstExpiresAt = Date.now() + BACKGROUND_SYNC_PROGRESS_MAX_OWNER_MS;
+    startDispatchHeartbeat();
+    started = true;
   }
+  return started;
 }
 
 function beginDispatchTracking() {
-  openDispatchBurstIfIdle();
+  const started = openDispatchBurstIfIdle();
   dispatchBurstTotal += 1;
-  reportDispatchProgress();
+  reportDispatchProgress({ start: started });
+  return dispatchBurstOwnerId;
 }
 
 // For a caller that already knows how many items it is about to dispatch
@@ -61,10 +121,18 @@ function beginDispatchTracking() {
 // batch's own syncMediaPlaystate/syncMediaUnplayedPlaystate calls so those
 // items aren't counted a second time when they individually start.
 export function reserveDispatchBatch(size) {
-  if (!(size > 0)) return;
-  openDispatchBurstIfIdle();
-  dispatchBurstTotal += size;
-  reportDispatchProgress();
+  const reservedSize = Math.max(0, Math.floor(Number(size) || 0));
+  if (!(reservedSize > 0)) return null;
+  const started = openDispatchBurstIfIdle();
+  dispatchBurstTotal += reservedSize;
+  dispatchReservationSequence += 1;
+  const reservation = {
+    ownerId: dispatchBurstOwnerId,
+    reservationId: `${dispatchBurstOwnerId}:reservation:${dispatchReservationSequence}`,
+  };
+  dispatchReservations.set(reservation.reservationId, { total: reservedSize, completed: 0 });
+  reportDispatchProgress({ start: started });
+  return reservation;
 }
 
 // Exported for callers that pre-reserve a batch slot (trackDispatch: false)
@@ -73,18 +141,46 @@ export function reserveDispatchBatch(size) {
 // syncMediaUnplayedPlaystate (e.g. "already watched" / "already unwatched") -
 // that reserved slot must still be marked complete or the indicator gets
 // stuck short of its total and the burst never closes.
-export function completeDispatchTracking() {
-  dispatchBurstCompleted += 1;
-  reportDispatchProgress();
-  if (dispatchBurstCompleted >= dispatchBurstTotal) {
-    dispatchIdleTimer = setTimeout(() => {
-      dispatchIdleTimer = null;
-      dispatchBurstActive = false;
-      dispatchBurstTotal = 0;
-      dispatchBurstCompleted = 0;
-      reportDispatchProgress();
-    }, DISPATCH_PROGRESS_IDLE_MS);
+function scheduleDispatchIdleIfComplete() {
+  if (dispatchBurstCompleted < dispatchBurstTotal || dispatchIdleTimer) return;
+  const completedOwnerId = dispatchBurstOwnerId;
+  dispatchIdleTimer = setTimeout(() => {
+    if (completedOwnerId !== dispatchBurstOwnerId) return;
+    resetLocalDispatchBurst(completedOwnerId);
+    releaseBackgroundSyncProgressOwner({ ownerId: completedOwnerId }).catch(() => null);
+  }, DISPATCH_PROGRESS_IDLE_MS);
+}
+
+export function completeDispatchTracking(tracking = dispatchBurstOwnerId) {
+  const ownerId = typeof tracking === "object" ? tracking?.ownerId : tracking;
+  if (!dispatchBurstActive || !ownerId || ownerId !== dispatchBurstOwnerId) return;
+  if (tracking && typeof tracking === "object") {
+    const reservation = dispatchReservations.get(tracking.reservationId);
+    if (!reservation || reservation.completed >= reservation.total) return;
+    reservation.completed += 1;
+    if (reservation.completed >= reservation.total) dispatchReservations.delete(tracking.reservationId);
   }
+  dispatchBurstCompleted = Math.min(dispatchBurstTotal, dispatchBurstCompleted + 1);
+  reportDispatchProgress();
+  scheduleDispatchIdleIfComplete();
+}
+
+// A reserved batch owns its cardinality up front. If its worker pool aborts
+// before starting every item, the outer caller closes the remaining slots in
+// one finally block. Reservation-scoped accounting prevents one overlapping
+// batch from prematurely completing another batch in the same local burst.
+export function finishDispatchTracking(tracking) {
+  const ownerId = tracking?.ownerId;
+  if (!dispatchBurstActive || !ownerId || ownerId !== dispatchBurstOwnerId) return;
+  const reservation = dispatchReservations.get(tracking.reservationId);
+  if (!reservation) return;
+  const remaining = Math.max(0, reservation.total - reservation.completed);
+  dispatchReservations.delete(tracking.reservationId);
+  if (remaining > 0) {
+    dispatchBurstCompleted = Math.min(dispatchBurstTotal, dispatchBurstCompleted + remaining);
+    reportDispatchProgress();
+  }
+  scheduleDispatchIdleIfComplete();
 }
 
 const TARGETS_BY_SOURCE = {
@@ -516,6 +612,13 @@ function formatTargets(targets) {
 }
 
 async function includeTrackerDispatch(summary, media, state, lane = "sync") {
+  // An explicit target list is authoritative. Detail-page Force Sync uses it
+  // for destination-specific repairs, which must not also mutate Trakt as an
+  // unadvertised side effect.
+  if (Array.isArray(media?.syncTargets)) {
+    const requested = new Set(media.syncTargets.map((target) => String(target).trim().toLowerCase()).filter(Boolean));
+    if (!requested.has("trakt")) return summary;
+  }
   const trackerStates = (await dispatchTrackerWatchState(media, state, { lane })).filter((entry) => entry.status !== "skipped");
   if (!trackerStates.length) return summary;
   const normalized = trackerStates.map((entry) => ({ ...entry, status: entry.status === "failed" ? "error" : entry.status === "not_found" ? "skipped" : entry.status }));
@@ -568,7 +671,7 @@ export async function syncMediaPlaystate(media, config, kv, { trackDispatch = tr
     ids: media.ids,
   });
 
-  if (trackDispatch) beginDispatchTracking();
+  const trackingOwnerId = trackDispatch ? beginDispatchTracking() : "";
   try {
     // Prime the echo ledger before making any remote calls. Plex can emit its
     // played notification while the request is still in flight; recording only
@@ -606,7 +709,7 @@ export async function syncMediaPlaystate(media, config, kv, { trackDispatch = tr
     summary = await includeTrackerDispatch(summary, media, "watched", lane);
     return { ...summary, skipped: summary.status === "skipped", results };
   } finally {
-    completeDispatchTracking();
+    if (trackDispatch) completeDispatchTracking(trackingOwnerId);
   }
 }
 
@@ -659,7 +762,7 @@ export async function syncMediaUnplayedPlaystate(media, config, kv, { trackDispa
     ids: media.ids,
   });
 
-  if (trackDispatch) beginDispatchTracking();
+  const trackingOwnerId = trackDispatch ? beginDispatchTracking() : "";
   try {
     // Prime before the DELETE/unscrobble requests because some servers emit the
     // callback before the outbound request resolves.
@@ -700,7 +803,7 @@ export async function syncMediaUnplayedPlaystate(media, config, kv, { trackDispa
     summary = await includeTrackerDispatch(summary, media, "unwatched", lane);
     return { ...summary, skipped: summary.status === "skipped", results };
   } finally {
-    completeDispatchTracking();
+    if (trackDispatch) completeDispatchTracking(trackingOwnerId);
   }
 }
 

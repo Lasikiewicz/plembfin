@@ -242,14 +242,17 @@ Implementation lives in `server/src/scheduled.js`.
      snapshot poll, a bulk mark-watched/unwatched) reports the whole total up front with
      `reserveDispatchBatch(size)` instead of letting the total climb one item at a time as
      bounded-concurrency workers pick up new items - the indicator shows the true total
-     immediately rather than rising toward an unknown ceiling. Each start/finish writes
-     `{ total, completed }` to `runtime_state.backgroundSyncProgress`. `GET /api/live-updates` polls that field once a
-     second (separately from its 250ms history-version poll, since this is a DB read) and emits
-     a `sync-progress` SSE event whenever it changes; `renderSyncProgress` in `app.js` shows the
-     indicator while `total > 0` and hides it once the burst closes. Reading `runtime_state`
-     rather than in-process state keeps this correct across a split web/worker deployment, the
-     same reason the history-version stream itself reads shared SQLite instead of an in-process
-     emitter.
+     immediately rather than rising toward an unknown ceiling. Each process gives its burst a
+     unique owner and updates that owner's counters inside an atomic SQLite transaction;
+     `runtime_state.backgroundSyncProgress` is the aggregate of every live owner, so one
+     process finishing cannot erase another process's work. Owners heartbeat every 15 seconds,
+     expire 90 seconds after a process disappears, and have a 30-minute hard lease so a leaked
+     local timer cannot hold the UI busy forever. `GET /api/live-updates` reads and repairs that
+     shared state every 250ms. Its initial `ready` event includes the current counters before
+     the browser reacts to a changed history version, then later changes use `sync-progress`
+     events. `renderSyncProgress` in `app.js` shows the indicator while `total > 0` and
+     `completed < total`. Keeping the owner map in `runtime_state` rather than process memory
+     makes the aggregate safe across a split web/worker deployment.
 3. **Trakt snapshot sync** - **runs every minute when connected**:
    - Refreshes OAuth tokens when required and reads every watched movie and episode page.
    - Applies additions, removals, and rewatch timestamp changes with bounded concurrency.

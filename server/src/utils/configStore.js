@@ -7,6 +7,13 @@ import { getValidPlexServerToken, getValidPlexToken } from "./plexTokenManager.j
 
 const SETTINGS_ID = "mediaConfig";
 const RUNTIME_ID = "main";
+export const BACKGROUND_SYNC_PROGRESS_STALE_MS = 90_000;
+export const BACKGROUND_SYNC_PROGRESS_MAX_OWNER_MS = 30 * 60_000;
+// Local owners normally remove themselves after the 2s UI settle window. Give
+// that timer ample room before a reader repairs a completed owner left behind
+// by a crash, otherwise a polling web process could prune it just before the
+// owning process reopens the same burst.
+const BACKGROUND_SYNC_PROGRESS_COMPLETED_TTL_MS = 10_000;
 
 function trimTrailingSlash(value = "") {
   return String(value || "").trim().replace(/\/+$/, "");
@@ -620,6 +627,242 @@ export async function setRuntimeState(values = {}) {
 
 export async function loadRuntimeState() {
   return parseJson(selectRuntimeStmt.get(RUNTIME_ID)?.data, {}) || {};
+}
+
+function normalizedBackgroundSyncProgress(value = {}) {
+  const progress = value && typeof value === "object" ? value : {};
+  return {
+    ...progress,
+    total: Math.max(0, Number(progress.total) || 0),
+    completed: Math.max(0, Number(progress.completed) || 0),
+  };
+}
+
+function backgroundSyncProgressIsStale(progress, now, staleMs) {
+  if (!(progress.total > 0 && progress.completed < progress.total)) return false;
+  const heartbeatAt = Number(progress.heartbeatAt || progress.updatedAt || 0);
+  return !heartbeatAt || heartbeatAt <= now - staleMs;
+}
+
+function normalizedBackgroundSyncProgressOwners(value = {}) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
+  const owners = {};
+  for (const [ownerId, raw] of Object.entries(value)) {
+    if (!ownerId || !raw || typeof raw !== "object" || Array.isArray(raw)) continue;
+    const total = Math.max(0, Number(raw.total) || 0);
+    const completed = Math.max(0, Number(raw.completed) || 0);
+    if (!(total > 0)) continue;
+    owners[ownerId] = {
+      total,
+      completed,
+      startedAt: Math.max(0, Number(raw.startedAt) || Number(raw.updatedAt) || 0),
+      heartbeatAt: Math.max(0, Number(raw.heartbeatAt) || Number(raw.updatedAt) || 0),
+      expiresAt: Math.max(0, Number(raw.expiresAt) || 0),
+      updatedAt: Math.max(0, Number(raw.updatedAt) || 0),
+    };
+  }
+  return owners;
+}
+
+function aggregateBackgroundSyncProgress(owners = {}, now = Date.now(), recoveredAt = 0) {
+  const values = Object.values(owners);
+  return {
+    total: values.reduce((sum, owner) => sum + owner.total, 0),
+    completed: values.reduce((sum, owner) => sum + Math.min(owner.completed, owner.total), 0),
+    ownerCount: values.length,
+    updatedAt: values.reduce((latest, owner) => Math.max(latest, owner.updatedAt), now),
+    ...(recoveredAt ? { recoveredAt } : {}),
+  };
+}
+
+function backgroundSyncOwnerExpired(owner, now, staleMs, maxOwnerMs) {
+  if (owner.completed >= owner.total) {
+    return (owner.updatedAt || owner.heartbeatAt || 0) <= now - BACKGROUND_SYNC_PROGRESS_COMPLETED_TTL_MS;
+  }
+  const heartbeatExpired = !(owner.heartbeatAt > now - staleMs);
+  const leaseExpiresAt = owner.expiresAt || ((owner.startedAt || 0) + maxOwnerMs);
+  return heartbeatExpired || !(leaseExpiresAt > now);
+}
+
+function pruneBackgroundSyncOwners(owners, now, staleMs, maxOwnerMs) {
+  const active = {};
+  let changed = false;
+  let recovered = false;
+  for (const [ownerId, owner] of Object.entries(owners)) {
+    if (backgroundSyncOwnerExpired(owner, now, staleMs, maxOwnerMs)) {
+      changed = true;
+      if (owner.completed < owner.total) recovered = true;
+      continue;
+    }
+    active[ownerId] = owner;
+  }
+  return { owners: active, changed, recovered };
+}
+
+function writeBackgroundSyncOwners(current, owners, now, { recovered = false } = {}) {
+  const progress = aggregateBackgroundSyncProgress(owners, now, recovered ? now : 0);
+  const merged = {
+    ...current,
+    backgroundSyncProgressOwners: owners,
+    backgroundSyncProgress: progress,
+    updatedAt: now,
+  };
+  upsertRuntimeStmt.run(RUNTIME_ID, toJson(merged), now);
+  return progress;
+}
+
+function legacyOwnerFromRuntime(runtime, now, staleMs, maxOwnerMs) {
+  if (runtime.backgroundSyncProgressOwners && typeof runtime.backgroundSyncProgressOwners === "object") return {};
+  const progress = normalizedBackgroundSyncProgress(runtime.backgroundSyncProgress);
+  if (!(progress.total > 0 && progress.completed < progress.total)) return {};
+  if (backgroundSyncProgressIsStale(progress, now, staleMs)) return {};
+  const ownerId = String(progress.ownerId || `legacy:${progress.updatedAt || now}`);
+  const startedAt = Number(progress.startedAt || progress.updatedAt || now);
+  return {
+    [ownerId]: {
+      total: progress.total,
+      completed: progress.completed,
+      startedAt,
+      heartbeatAt: Number(progress.heartbeatAt || progress.updatedAt || now),
+      expiresAt: Number(progress.expiresAt || (startedAt + maxOwnerMs)),
+      updatedAt: Number(progress.updatedAt || now),
+    },
+  };
+}
+
+function ownersForRuntime(runtime, now, staleMs, maxOwnerMs) {
+  const stored = normalizedBackgroundSyncProgressOwners(runtime.backgroundSyncProgressOwners);
+  return Object.keys(stored).length ? stored : legacyOwnerFromRuntime(runtime, now, staleMs, maxOwnerMs);
+}
+
+export async function startBackgroundSyncProgressOwner({
+  ownerId,
+  total,
+  completed = 0,
+  now = Date.now(),
+  maxOwnerMs = BACKGROUND_SYNC_PROGRESS_MAX_OWNER_MS,
+} = {}) {
+  const key = String(ownerId || "").trim();
+  if (!key) throw new Error("ownerId is required");
+  let progress;
+  db.transaction(() => {
+    const current = parseJson(selectRuntimeStmt.get(RUNTIME_ID)?.data, {}) || {};
+    const existing = ownersForRuntime(current, now, BACKGROUND_SYNC_PROGRESS_STALE_MS, maxOwnerMs);
+    const pruned = pruneBackgroundSyncOwners(existing, now, BACKGROUND_SYNC_PROGRESS_STALE_MS, maxOwnerMs);
+    const normalizedTotal = Math.max(0, Number(total) || 0);
+    pruned.owners[key] = {
+      total: normalizedTotal,
+      completed: Math.max(0, Number(completed) || 0),
+      startedAt: now,
+      heartbeatAt: now,
+      expiresAt: now + Math.max(1, Number(maxOwnerMs) || BACKGROUND_SYNC_PROGRESS_MAX_OWNER_MS),
+      updatedAt: now,
+    };
+    progress = writeBackgroundSyncOwners(current, pruned.owners, now, { recovered: pruned.recovered });
+  }).immediate();
+  return { updated: true, progress };
+}
+
+export async function updateBackgroundSyncProgressOwner({
+  ownerId,
+  total,
+  completed,
+  now = Date.now(),
+  staleMs = BACKGROUND_SYNC_PROGRESS_STALE_MS,
+  maxOwnerMs = BACKGROUND_SYNC_PROGRESS_MAX_OWNER_MS,
+} = {}) {
+  const key = String(ownerId || "").trim();
+  if (!key) return { updated: false, progress: normalizedBackgroundSyncProgress({}) };
+  let updated = false;
+  let progress;
+  db.transaction(() => {
+    const current = parseJson(selectRuntimeStmt.get(RUNTIME_ID)?.data, {}) || {};
+    const existing = ownersForRuntime(current, now, staleMs, maxOwnerMs);
+    const pruned = pruneBackgroundSyncOwners(existing, now, staleMs, maxOwnerMs);
+    const owner = pruned.owners[key];
+    if (owner) {
+      pruned.owners[key] = {
+        ...owner,
+        total: Math.max(0, Number(total) || 0),
+        completed: Math.max(0, Number(completed) || 0),
+        heartbeatAt: now,
+        updatedAt: now,
+      };
+      updated = true;
+    }
+    progress = writeBackgroundSyncOwners(current, pruned.owners, now, { recovered: pruned.recovered });
+  }).immediate();
+  return { updated, progress };
+}
+
+export async function releaseBackgroundSyncProgressOwner({
+  ownerId,
+  now = Date.now(),
+  staleMs = BACKGROUND_SYNC_PROGRESS_STALE_MS,
+  maxOwnerMs = BACKGROUND_SYNC_PROGRESS_MAX_OWNER_MS,
+} = {}) {
+  const key = String(ownerId || "").trim();
+  if (!key) return { released: false, progress: normalizedBackgroundSyncProgress({}) };
+  let released = false;
+  let progress;
+  db.transaction(() => {
+    const current = parseJson(selectRuntimeStmt.get(RUNTIME_ID)?.data, {}) || {};
+    const existing = ownersForRuntime(current, now, staleMs, maxOwnerMs);
+    const pruned = pruneBackgroundSyncOwners(existing, now, staleMs, maxOwnerMs);
+    if (pruned.owners[key]) {
+      delete pruned.owners[key];
+      released = true;
+    }
+    progress = writeBackgroundSyncOwners(current, pruned.owners, now, { recovered: pruned.recovered });
+  }).immediate();
+  return { released, progress };
+}
+
+// The sidebar progress burst is driven by in-process dispatch promises, while
+// its latest counts live in SQLite so split web/worker deployments can see it.
+// If the owning process exits mid-burst those promises cannot finish and reset
+// the persisted counts. Recover that orphan only after its heartbeat expires;
+// the second check inside the transaction avoids clearing a burst another
+// process refreshed between the initial read and the write lock.
+export async function loadBackgroundSyncProgress({
+  now = Date.now(),
+  staleMs = BACKGROUND_SYNC_PROGRESS_STALE_MS,
+  maxOwnerMs = BACKGROUND_SYNC_PROGRESS_MAX_OWNER_MS,
+} = {}) {
+  const current = parseJson(selectRuntimeStmt.get(RUNTIME_ID)?.data, {}) || {};
+  const hasOwnerState = current.backgroundSyncProgressOwners && typeof current.backgroundSyncProgressOwners === "object";
+  if (!hasOwnerState) {
+    const legacy = normalizedBackgroundSyncProgress(current.backgroundSyncProgress);
+    if (!backgroundSyncProgressIsStale(legacy, now, staleMs)) return legacy;
+  }
+  const initialOwners = ownersForRuntime(current, now, staleMs, maxOwnerMs);
+  const initialPruned = pruneBackgroundSyncOwners(initialOwners, now, staleMs, maxOwnerMs);
+  if (hasOwnerState && !initialPruned.changed) {
+    return aggregateBackgroundSyncProgress(initialPruned.owners, now);
+  }
+
+  let resolved;
+  db.transaction(() => {
+    const latest = parseJson(selectRuntimeStmt.get(RUNTIME_ID)?.data, {}) || {};
+    const latestHasOwnerState = latest.backgroundSyncProgressOwners && typeof latest.backgroundSyncProgressOwners === "object";
+    let legacyRecovered = false;
+    if (!latestHasOwnerState) {
+      const latestLegacy = normalizedBackgroundSyncProgress(latest.backgroundSyncProgress);
+      if (!backgroundSyncProgressIsStale(latestLegacy, now, staleMs)) {
+        resolved = latestLegacy;
+        return;
+      }
+      legacyRecovered = latestLegacy.total > 0 && latestLegacy.completed < latestLegacy.total;
+    }
+    const latestOwners = ownersForRuntime(latest, now, staleMs, maxOwnerMs);
+    const pruned = pruneBackgroundSyncOwners(latestOwners, now, staleMs, maxOwnerMs);
+    if (latestHasOwnerState && !pruned.changed) {
+      resolved = aggregateBackgroundSyncProgress(pruned.owners, now);
+      return;
+    }
+    resolved = writeBackgroundSyncOwners(latest, pruned.owners, now, { recovered: legacyRecovered || pruned.recovered });
+  }).immediate();
+  return resolved;
 }
 
 // Clear a restore guard after the owning process has stopped or an administrator

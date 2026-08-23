@@ -11,7 +11,7 @@ import {
 } from "./trackerConnectionRepo.js";
 import { withFreshTraktConnection } from "./trackerDispatcher.js";
 import { applyUnwatchedTransition, applyWatchedTransition } from "./watchStateTransitions.js";
-import { reserveDispatchBatch } from "./syncOrchestrator.js";
+import { completeDispatchTracking, finishDispatchTracking, reserveDispatchBatch } from "./syncOrchestrator.js";
 
 const OUTBOUND_ECHO_WINDOW_MS = 30 * 60_000;
 const TRACKER_TRANSITION_CONCURRENCY = 8;
@@ -113,7 +113,14 @@ async function runTransitionBatch(items, handler, concurrency = TRACKER_TRANSITI
       await handler(item);
     }
   });
-  await Promise.all(workers);
+  // Promise.all rejects as soon as one worker fails even though the other
+  // workers remain in flight. Wait for every worker to settle before the
+  // caller closes its progress reservation, then preserve the original
+  // failure semantics by rethrowing the first error. This keeps the outer
+  // reservation cleanup limited to items no worker ever started.
+  const outcomes = await Promise.allSettled(workers);
+  const failed = outcomes.find((outcome) => outcome.status === "rejected");
+  if (failed) throw failed.reason;
 }
 
 // Imports every individual Trakt play (rewatches included) as its own
@@ -288,17 +295,29 @@ async function pollTrakt({ reconcile = false } = {}) {
   // up front, instead of letting it climb one item at a time as the bounded-
   // concurrency workers below pick up new items over the life of the batch -
   // see reserveDispatchBatch in syncOrchestrator.js.
-  reserveDispatchBatch(watched.length + unwatched.length);
-  await runTransitionBatch(watched, async (item) => {
-    const media = { ...item.media, source: "trakt", watched_at: new Date(item.watchedAt || Date.now()).toISOString() };
-    await applyWatchedTransition(media, config, loopStore, { trackDispatch: false });
-    signalHistoryDataChanged();
-  });
-  await runTransitionBatch(unwatched, async (item) => {
-    const media = { ...item.media, source: "trakt", isValid: true };
-    await applyUnwatchedTransition(media, config, loopStore, { trackDispatch: false });
-    signalHistoryDataChanged();
-  });
+  const trackingReservation = reserveDispatchBatch(watched.length + unwatched.length);
+  try {
+    await runTransitionBatch(watched, async (item) => {
+      try {
+        const media = { ...item.media, source: "trakt", watched_at: new Date(item.watchedAt || Date.now()).toISOString() };
+        await applyWatchedTransition(media, config, loopStore, { trackDispatch: false });
+        signalHistoryDataChanged();
+      } finally {
+        completeDispatchTracking(trackingReservation);
+      }
+    });
+    await runTransitionBatch(unwatched, async (item) => {
+      try {
+        const media = { ...item.media, source: "trakt", isValid: true };
+        await applyUnwatchedTransition(media, config, loopStore, { trackDispatch: false });
+        signalHistoryDataChanged();
+      } finally {
+        completeDispatchTracking(trackingReservation);
+      }
+    });
+  } finally {
+    finishDispatchTracking(trackingReservation);
+  }
 
   // Tracker transitions deliberately skip per-item invalidation so a whole
   // show does not rebuild the same derived data dozens of times. Flush once

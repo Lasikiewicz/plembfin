@@ -8,7 +8,7 @@ makeTempDataDir("plembfin-live-updates-");
 
 const { db, getDataVersion, bumpDataVersion } = await import("../server/src/db.js");
 const { AUTH } = await import("../server/src/appConfig.js");
-const { setRuntimeState } = await import("../server/src/utils/configStore.js");
+const { BACKGROUND_SYNC_PROGRESS_STALE_MS, loadRuntimeState, setRuntimeState } = await import("../server/src/utils/configStore.js");
 const { handleLiveUpdates } = await import("../server/src/routes/liveUpdates.js");
 const { startLiveUpdates, stopLiveUpdates } = await import("../public/modules/live-updates.js");
 
@@ -126,6 +126,8 @@ test("liveUpdates establishes SSE stream and sends ready event", async () => {
   const output = getOutput();
   assert.ok(output.includes(`"type":"ready"`));
   assert.ok(output.includes(`"version":${initialVersion}`));
+  assert.ok(output.includes('"syncTotal":0'));
+  assert.ok(output.includes('"syncCompleted":0'));
 
   res.close();
 });
@@ -160,7 +162,7 @@ test("liveUpdates broadcasts background sync progress", async () => {
   await handleLiveUpdates(req, res);
 
   // Update runtime state with sync progress
-  await setRuntimeState({ backgroundSyncProgress: { total: 50, completed: 25 } });
+  await setRuntimeState({ backgroundSyncProgressOwners: null, backgroundSyncProgress: { total: 50, completed: 25, updatedAt: Date.now() } });
 
   // Allow the sync progress interval check (1000ms) to trigger
   await new Promise((resolve) => setTimeout(resolve, 1300));
@@ -173,13 +175,44 @@ test("liveUpdates broadcasts background sync progress", async () => {
   res.close();
 });
 
+test("liveUpdates recovers and broadcasts idle after an interrupted sync heartbeat expires", async () => {
+  await setRuntimeState({
+    backgroundSyncProgressOwners: null,
+    backgroundSyncProgress: {
+      total: 37,
+      completed: 31,
+      ownerId: "all:old-process",
+      heartbeatAt: Date.now() - BACKGROUND_SYNC_PROGRESS_STALE_MS - 1,
+      updatedAt: Date.now() - BACKGROUND_SYNC_PROGRESS_STALE_MS - 1,
+    },
+  });
+  const { req, res, getOutput } = createMockReqRes({
+    method: "GET",
+    headers: { "x-api-key": AUTH.apiKey },
+  });
+
+  await handleLiveUpdates(req, res);
+  await new Promise((resolve) => setTimeout(resolve, 600));
+
+  const output = getOutput();
+  assert.ok(output.includes('"type":"ready"'));
+  assert.ok(output.includes('"syncTotal":0'));
+  assert.ok(output.includes('"syncCompleted":0'));
+  const runtime = await loadRuntimeState();
+  assert.equal(runtime.backgroundSyncProgress.total, 0);
+  assert.equal(runtime.backgroundSyncProgress.completed, 0);
+  assert.ok(runtime.backgroundSyncProgress.recoveredAt > 0);
+
+  res.close();
+});
+
 test("client live-updates parses SSE stream and invokes callbacks", async () => {
   let receivedVersion = null;
   let receivedProgress = null;
 
   const mockStream = new ReadableStream({
     start(controller) {
-      controller.enqueue(new TextEncoder().encode('data: {"type":"ready","version":1}\n\n'));
+      controller.enqueue(new TextEncoder().encode('data: {"type":"ready","version":1,"syncTotal":0,"syncCompleted":0}\n\n'));
       controller.enqueue(new TextEncoder().encode('data: {"type":"history-version","version":2}\n\n'));
       controller.enqueue(new TextEncoder().encode('data: {"type":"sync-progress","total":10,"completed":4}\n\n'));
       controller.close();
@@ -204,6 +237,32 @@ test("client live-updates parses SSE stream and invokes callbacks", async () => 
 
     assert.equal(receivedVersion, 2);
     assert.deepEqual(receivedProgress, { total: 10, completed: 4 });
+  } finally {
+    stopLiveUpdates();
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("client applies reconnect progress before reacting to its newer version", async () => {
+  const calls = [];
+  const mockStream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('data: {"type":"ready","version":1,"syncTotal":0,"syncCompleted":0}\n\n'));
+      controller.enqueue(new TextEncoder().encode('data: {"type":"ready","version":2,"syncTotal":12,"syncCompleted":4}\n\n'));
+      controller.close();
+    },
+  });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: true, status: 200, body: mockStream });
+
+  try {
+    startLiveUpdates({
+      authHeaders: () => ({}),
+      onSyncProgress: (progress) => calls.push(`progress:${progress.completed}/${progress.total}`),
+      onHistoryVersion: (version) => calls.push(`version:${version}`),
+    });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.deepEqual(calls, ["progress:0/0", "progress:4/12", "version:2"]);
   } finally {
     stopLiveUpdates();
     globalThis.fetch = originalFetch;

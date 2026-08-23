@@ -17,6 +17,16 @@ function authHeaders(config) {
   };
 }
 
+export function embyResumeLastPlayedDate(media = {}, now = Date.now()) {
+  const sourceValue = media.updatedAt ?? media.updated_at ?? media.progressUpdatedAt ?? media.playedAt;
+  const numericValue = sourceValue === "" || sourceValue == null ? NaN : Number(sourceValue);
+  const sourceTime = Number.isFinite(numericValue)
+    ? numericValue
+    : Date.parse(String(sourceValue || ""));
+  const fallbackTime = Number.isFinite(Number(now)) ? Number(now) : Date.now();
+  return new Date(Number.isFinite(sourceTime) && sourceTime > 0 ? sourceTime : fallbackTime).toISOString();
+}
+
 function providerTerms(ids = {}) {
   return [
     ids.imdb ? `imdb.${ids.imdb}` : undefined,
@@ -307,6 +317,18 @@ export async function setEmbyProgress(config, media) {
     const progressJobs = items.map(async (item) => {
       const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${config.userId}/Items/${item.Id}/UserData`);
       url.searchParams.set("api_key", config.apiKey);
+      const userData = {
+        PlaybackPositionTicks: positionMs * 10000,
+        Played: false,
+      };
+      if (positionMs > 0) {
+        // Emby's Resume feed is ordered by LastPlayedDate. A position without
+        // that date works on the item detail page but can be absent from
+        // Continue Watching, especially when the feed is limited to recent
+        // items. Preserve the source progress time instead of making a replay
+        // look like fresh playback; position clears deliberately omit it.
+        userData.LastPlayedDate = embyResumeLastPlayedDate(media);
+      }
 
       const response = await fetchWithTimeout(url, {
         method: "POST",
@@ -315,10 +337,7 @@ export async function setEmbyProgress(config, media) {
           "Content-Type": "application/json",
         },
         lane: media?.lane || "sync",
-        body: JSON.stringify({
-          PlaybackPositionTicks: positionMs * 10000,
-          Played: false,
-        }),
+        body: JSON.stringify(userData),
       });
       if (!response.ok) {
         throw new Error(`Emby progress update failed with status ${response.status} for item ${item.Id}`);

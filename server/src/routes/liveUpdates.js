@@ -1,7 +1,7 @@
 import { getDataVersion } from "../db.js";
 import { requireAdmin } from "../utils/auth.js";
 import { methodNotAllowed } from "../utils/http.js";
-import { loadRuntimeState } from "../utils/configStore.js";
+import { loadBackgroundSyncProgress } from "../utils/configStore.js";
 
 const POLL_MS = 250;
 const HEARTBEAT_MS = 15_000;
@@ -17,6 +17,14 @@ export async function handleLiveUpdates(req, res) {
   if (req.method !== "GET") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
 
+  // Send a complete progress snapshot in `ready`, before the browser is
+  // allowed to react to a version change. This matters on reconnect: the tab
+  // still holds its previous sync-busy flag until this new stream corrects it.
+  const initialProgress = await loadBackgroundSyncProgress();
+  const initialSyncTotal = Number(initialProgress.total) || 0;
+  const initialSyncCompleted = Number(initialProgress.completed) || 0;
+  const initialVersion = getDataVersion();
+
   res.status(200).set({
     "Content-Type": "text/event-stream; charset=utf-8",
     "Cache-Control": "no-cache, no-transform",
@@ -25,11 +33,16 @@ export async function handleLiveUpdates(req, res) {
   });
   res.flushHeaders?.();
 
-  let lastVersion = getDataVersion();
+  let lastVersion = initialVersion;
   let lastWriteAt = Date.now();
-  let lastSyncProgress = { total: 0, completed: 0 };
+  let lastSyncProgress = { total: initialSyncTotal, completed: initialSyncCompleted };
   let pollInFlight = false;
-  writeEvent(res, { type: "ready", version: lastVersion });
+  writeEvent(res, {
+    type: "ready",
+    version: lastVersion,
+    syncTotal: initialSyncTotal,
+    syncCompleted: initialSyncCompleted,
+  });
 
   // Single poll loop: checks both history version and sync-progress every
   // POLL_MS in one pass. When a version bump is detected, the current
@@ -41,12 +54,11 @@ export async function handleLiveUpdates(req, res) {
   const timer = setInterval(() => {
     if (res.writableEnded || res.destroyed || pollInFlight) return;
     pollInFlight = true;
-    loadRuntimeState()
-      .then((runtime) => {
+    loadBackgroundSyncProgress()
+      .then((progress) => {
         if (res.writableEnded || res.destroyed) return;
 
         // --- Sync progress ---
-        const progress = runtime?.backgroundSyncProgress || { total: 0, completed: 0 };
         const syncTotal = Number(progress.total) || 0;
         const syncCompleted = Number(progress.completed) || 0;
         const syncProgressChanged =

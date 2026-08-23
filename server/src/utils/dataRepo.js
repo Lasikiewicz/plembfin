@@ -1345,7 +1345,8 @@ const updatePlaystateWatchedAtStmt = db.prepare("UPDATE playstate SET watched_at
 const updateWatchRowWatchedAtStmt = db.prepare("UPDATE watch_history SET watched_at = ?, updated_at = ? WHERE id = ?");
 const promoteRowToWatchedStmt = db.prepare(
   `UPDATE watch_history
-   SET sync_action = 'watched', sync_dispatch_telemetry = ?, sync_retry_count = 0, sync_next_retry_at = 0, updated_at = ?
+   SET sync_action = 'watched', sync_dispatch_telemetry = ?, sync_retry_count = 0, sync_next_retry_at = 0,
+       created_at = ?, updated_at = ?
    WHERE id = ?`,
 );
 
@@ -1548,8 +1549,14 @@ function remainingWatchRowFor(deletedRow) {
       "Dispatch status: pending",
       "Details: Promoted to watched - the last recorded watch left standing after a duplicate-watch removal.",
     ].join("\n");
-    promoteRowToWatchedStmt.run(telemetry, now, newest.id);
+    // This is a real canonical state transition performed in place. Advance
+    // created_at as the transition clock as well as updated_at; ordinary
+    // metadata/telemetry writes only advance updated_at and must not reorder
+    // watched versus unwatched intent in dedupeHistory.
+    promoteRowToWatchedStmt.run(telemetry, now, now, newest.id);
     newest.sync_action = "watched";
+    newest.created_at = now;
+    newest.updated_at = now;
   }
   return newest;
 }
@@ -1709,8 +1716,7 @@ const upsertProgressStmt = db.prepare(
      sync_dispatch_telemetry=excluded.sync_dispatch_telemetry`,
 );
 const updateProgressTelemetryStmt = db.prepare(
-  `INSERT INTO playback_progress (media_key, sync_dispatch_telemetry, updated_at) VALUES (?, ?, ?)
-   ON CONFLICT(media_key) DO UPDATE SET sync_dispatch_telemetry=excluded.sync_dispatch_telemetry, updated_at=excluded.updated_at`,
+  "UPDATE playback_progress SET sync_dispatch_telemetry = ? WHERE media_key = ?",
 );
 const deleteProgressStmt = db.prepare("DELETE FROM playback_progress WHERE media_key = ?");
 const selectProgressStmt = db.prepare("SELECT * FROM playback_progress WHERE media_key = ?");
@@ -1865,7 +1871,11 @@ function progressRowsForIdentity(record = {}) {
 export async function updatePlaybackProgressTelemetry(mediaOrRecord, telemetry) {
   const normalized = normalizePlaybackProgressRecord(mediaOrRecord, mediaOrRecord?.source);
   const mediaKey = progressRowsForIdentity(normalized)[0]?.media_key || normalized.media_key;
-  updateProgressTelemetryStmt.run(mediaKey, String(telemetry || ""), Date.now());
+  // `updated_at` is the source playback-progress timestamp. Replay ordering,
+  // authority comparisons, backups, and Emby's LastPlayedDate all depend on
+  // it remaining stable until the position itself changes. Dispatch telemetry
+  // is metadata only and must not make old resume state look newly played.
+  updateProgressTelemetryStmt.run(String(telemetry || ""), mediaKey);
 }
 
 export async function getPlaybackProgressForMedia(mediaOrRecord) {
@@ -2228,42 +2238,70 @@ function playHistoryEntry(row = {}) {
   return { id: row.id, watched_at: row.watched_at, source: row.source, syncAction: row.sync_action || "watched" };
 }
 
+function canonicalTransitionTime(row = {}) {
+  const createdAt = Number(row.created_at ?? row.createdAt);
+  if (Number.isFinite(createdAt) && createdAt > 0) return createdAt;
+  // Pre-created_at databases still need a stable best-effort order. Only
+  // those legacy rows fall back to updated_at; for current rows updated_at is
+  // deliberately metadata time and cannot express watched/unwatched intent.
+  const updatedAt = Number(row.updated_at ?? row.updatedAt);
+  return Number.isFinite(updatedAt) && updatedAt > 0 ? updatedAt : 0;
+}
+
+function canonicalTransitionIsNewer(row = {}, existing = {}) {
+  const rowTime = canonicalTransitionTime(row);
+  const existingTime = canonicalTransitionTime(existing);
+  if (rowTime !== existingTime) return rowTime > existingTime;
+  // Millisecond timestamps can tie during a rapid transition. Keep the result
+  // independent of query/iteration order even when neither row is provably
+  // newer; the id is only a deterministic final tie-breaker.
+  return String(row.id || "").localeCompare(String(existing.id || "")) > 0;
+}
+
 export function dedupeHistory(rows) {
-  const map = new Map();
+  const transitionGroups = new Map();
+  for (const row of rows) {
+    const key = historyDedupeKey(row);
+    if (!transitionGroups.has(key)) transitionGroups.set(key, []);
+    transitionGroups.get(key).push(row);
+  }
+  const displayGroups = new Map();
   for (const row of filterSameEventDuplicateRows(rows)) {
     const key = historyDedupeKey(row);
-    if (map.has(key)) {
-      const existing = map.get(key);
-      if (!existing.playHistory) existing.playHistory = [playHistoryEntry(existing)];
-      existing.playHistory.push(playHistoryEntry(row));
-      if (!existing.poster_url && row.poster_url) existing.poster_url = row.poster_url;
-
-      const existingWatched = isWatchedAction(existing);
-      const rowWatched = isWatchedAction(row);
-
-      // If one row is watched and the other is an unwatched bookkeeping row, the
-      // more recently created/updated transition represents the user's latest intent
-      // (a historical watch date like 'Day of release' shouldn't lose to an older unwatch).
-      let useRow = false;
-      if (existingWatched !== rowWatched) {
-        const existingTime = Math.max(Number(existing.updated_at || 0), Number(existing.created_at || 0));
-        const rowTime = Math.max(Number(row.updated_at || 0), Number(row.created_at || 0));
-        useRow = rowTime >= existingTime ? rowWatched : !existingWatched;
-      } else {
-        useRow = String(row.watched_at || "") > String(existing.watched_at || "");
-      }
-
-      if (useRow) {
-        const playHistory = existing.playHistory;
-        map.set(key, { ...row, playHistory });
-      }
-    } else {
-      map.set(key, { ...row, playHistory: [playHistoryEntry(row)] });
-    }
+    if (!displayGroups.has(key)) displayGroups.set(key, []);
+    displayGroups.get(key).push(row);
   }
-  const result = [...map.values()];
-  for (const row of result) {
-    if (row.playHistory) row.playHistory.sort((a, b) => String(a.watched_at).localeCompare(String(b.watched_at)));
+
+  const result = [];
+  for (const [key, transitionRows] of transitionGroups) {
+    // Resolve canonical watched/unwatched intent across the entire identity
+    // group before choosing its display row. A pairwise fold is not safe here:
+    // an older same-state row with a later historical watched_at can otherwise
+    // hide the actual newest transition before an opposite-state row is seen.
+    // Same-event filtering is display/count cleanup only: a rapid unwatch then
+    // rewatch can produce a legitimate newer watched transition within ten
+    // minutes of an earlier watch, and dropping it here would leave the
+    // intervening unwatch falsely canonical.
+    let latestTransition = transitionRows[0];
+    for (const row of transitionRows.slice(1)) {
+      if (canonicalTransitionIsNewer(row, latestTransition)) latestTransition = row;
+    }
+    const canonicalWatched = isWatchedAction(latestTransition);
+    const displayRows = displayGroups.get(key) || transitionRows;
+    const canonicalRows = displayRows.filter((row) => isWatchedAction(row) === canonicalWatched);
+
+    // Within the winning state, retain the existing display behavior: the
+    // latest historical watch date is the representative row.
+    let representative = canonicalRows[0] || latestTransition;
+    for (const row of canonicalRows.slice(1)) {
+      if (String(row.watched_at || "") > String(representative.watched_at || "")) representative = row;
+    }
+
+    const playHistory = displayRows
+      .map(playHistoryEntry)
+      .sort((a, b) => String(a.watched_at).localeCompare(String(b.watched_at)));
+    const posterUrl = representative.poster_url || displayRows.find((row) => row.poster_url)?.poster_url || null;
+    result.push({ ...representative, ...(posterUrl ? { poster_url: posterUrl } : {}), playHistory });
   }
   return result;
 }
@@ -4313,6 +4351,7 @@ export function progressRowToMedia(row = {}, source = "plex") {
     positionMs: Number(row.position_ms || 0),
     durationMs: row.duration_ms == null ? undefined : Number(row.duration_ms),
     progress: playbackProgressPercent(row.position_ms, row.duration_ms, row.progress),
+    updatedAt: Number(row.updated_at || 0),
   };
 }
 

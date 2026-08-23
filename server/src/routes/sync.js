@@ -27,7 +27,7 @@ import { probePlexNotificationSocket } from "../utils/plexNotificationListener.j
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes, listEmbyLibraries } from "../utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes, listJellyfinLibraries } from "../utils/jellyfinClient.js";
 import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook } from "../utils/parsers.js";
-import { completeDispatchTracking, getTargetsForSource, isRecentOutboundPlayedFlagEcho, isRecentOutboundProgressEcho, isRecentOutboundUnplayedFlagEcho, recordOutboundPlayedMarks, reserveDispatchBatch, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
+import { completeDispatchTracking, finishDispatchTracking, getTargetsForSource, isRecentOutboundPlayedFlagEcho, isRecentOutboundProgressEcho, isRecentOutboundUnplayedFlagEcho, recordOutboundPlayedMarks, reserveDispatchBatch, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
 import { canReceiveState } from "../utils/syncRoles.js";
 import { watchedPlayedSyncEnabled } from "../utils/syncFlags.js";
 import { forceSyncMediaState, normalizeMediaForceSyncRequest } from "../utils/mediaForceSync.js";
@@ -940,8 +940,8 @@ export async function handleManualUnwatch(req, res) {
   let succeeded = 0;
   let failed = 0;
 
+  const trackingReservation = reserveDispatchBatch(ids.length);
   try {
-    reserveDispatchBatch(ids.length);
     await runWithConcurrency(ids, async (id, index) => {
       try {
         const record = await getWatchRecordById(id);
@@ -956,14 +956,14 @@ export async function handleManualUnwatch(req, res) {
         succeeded += 1;
         results[index] = { id, unwatchedId, status: summary.status, targetStates: summary.targetStates || [] };
       } catch (error) {
-        // Failed before reaching applyManualUnwatch (e.g. record lookup),
-        // so nothing else will settle this reserved dispatch-batch slot.
-        completeDispatchTracking();
         failed += 1;
         results[index] = { id, error: error.message || String(error) };
+      } finally {
+        completeDispatchTracking(trackingReservation);
       }
     }, MANUAL_SYNC_ITEM_CONCURRENCY);
   } finally {
+    finishDispatchTracking(trackingReservation);
     await invalidateHistoryDerivedCaches().catch(() => null);
   }
 
@@ -1044,26 +1044,32 @@ export async function handleManualWatch(req, res) {
   // needs the real per-target outcome, not just "a watch record was queued".
   let propagated = 0;
   if (syncTasks.length > 0) {
-    reserveDispatchBatch(syncTasks.length);
-    await runWithConcurrency(syncTasks, async (task) => {
-      try {
-        const summary = await syncMediaPlaystate(task.media, config, loopStore, {
-          trackDispatch: false,
-          lane: records.length === 1 ? "interactive" : "sync",
-        }).catch((error) => ({
-          skipped: false,
-          status: "error",
-          details: `Manual watch propagation failed: ${error.message || String(error)}`,
-          targetStates: [],
-        }));
-        if (summary.status === "success" || summary.status === "partial") propagated += 1;
+    const trackingReservation = reserveDispatchBatch(syncTasks.length);
+    try {
+      await runWithConcurrency(syncTasks, async (task) => {
+        try {
+          const summary = await syncMediaPlaystate(task.media, config, loopStore, {
+            trackDispatch: false,
+            lane: records.length === 1 ? "interactive" : "sync",
+          }).catch((error) => ({
+            skipped: false,
+            status: "error",
+            details: `Manual watch propagation failed: ${error.message || String(error)}`,
+            targetStates: [],
+          }));
+          if (summary.status === "success" || summary.status === "partial") propagated += 1;
 
-        await updateWatchTelemetry(task.id, formatDispatchTelemetry(summary, task.media, "watched"), { skipInvalidate: true });
-        await recordSyncHistory(task.media, summary, "watched");
-      } catch (error) {
-        console.error("Manual watch sync failed:", error);
-      }
-    }, MANUAL_SYNC_ITEM_CONCURRENCY);
+          await updateWatchTelemetry(task.id, formatDispatchTelemetry(summary, task.media, "watched"), { skipInvalidate: true });
+          await recordSyncHistory(task.media, summary, "watched");
+        } catch (error) {
+          console.error("Manual watch sync failed:", error);
+        } finally {
+          completeDispatchTracking(trackingReservation);
+        }
+      }, MANUAL_SYNC_ITEM_CONCURRENCY);
+    } finally {
+      finishDispatchTracking(trackingReservation);
+    }
     await invalidateHistoryDerivedCaches().catch(() => null);
   }
 

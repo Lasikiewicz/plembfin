@@ -40,6 +40,13 @@ export function startLiveUpdates({ authHeaders, onHistoryVersion, onSyncProgress
       return;
     }
 
+    // `ready` carries the authoritative progress snapshot. Apply it before
+    // comparing versions so a reconnect cannot start a history refresh using
+    // the stale sync-busy state left by the previous stream.
+    if ("syncTotal" in event) {
+      onSyncProgress?.({ total: Number(event.syncTotal) || 0, completed: Number(event.syncCompleted) || 0 });
+    }
+
     const version = Number(event.version);
     if (!Number.isFinite(version)) return;
     if (lastVersion === null) {
@@ -51,9 +58,6 @@ export function startLiveUpdates({ authHeaders, onHistoryVersion, onSyncProgress
     // If the server piggybacked sync-progress onto this version bump, apply it
     // first so the client's sync-busy flag is current before onHistoryVersion
     // decides whether to queue a dashboard refresh.
-    if ("syncTotal" in event) {
-      onSyncProgress?.({ total: Number(event.syncTotal) || 0, completed: Number(event.syncCompleted) || 0 });
-    }
     onHistoryVersion?.(version);
   };
 
