@@ -311,6 +311,34 @@ test("a title lookup finds every episode regardless of a trailing year on some r
   }
 });
 
+test("dashboard history reuses show artwork and trusted show identity for sparse episode rows", async () => {
+  await insert({
+    title: "Preview Enrichment Show - S01E01 - Pilot",
+    show_title: "Preview Enrichment Show",
+    media_type: "episode",
+    watched_at: "2026-07-01T12:00:00.000Z",
+    source: "plex",
+    tmdb_id: "808080",
+    season: 1,
+    episode: 1,
+    poster_url: "https://example.test/preview-show.jpg",
+  });
+  const sparseId = await insert({
+    title: "Preview Enrichment Show - S01E02",
+    show_title: "Preview Enrichment Show",
+    media_type: "episode",
+    watched_at: "2026-07-02T12:00:00.000Z",
+    source: "emby",
+    season: 1,
+    episode: 2,
+  });
+
+  const preview = await repo.queryWatchHistoryPreview({ limit: 20 });
+  const sparse = preview.find((row) => row.id === sparseId);
+  assert.equal(sparse.poster_url, "https://example.test/preview-show.jpg");
+  assert.equal(sparse.show_tmdb_id, "808080");
+});
+
 test("the watch-date editor finds every play of an episode despite a year-suffix mismatch", async () => {
   // Mirrors a real report: the same episode's two watch events were inserted
   // with differently-formatted show_title text, so the page correctly showed

@@ -2418,11 +2418,26 @@ function compactHistoryPreviewRow(row = {}) {
 
 export async function queryWatchHistoryPreview({ limit = 120 } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 120, 1), 300);
-  const all = await getCachedHistory();
+  const [all, shows] = await Promise.all([getCachedHistory(), getCachedShows()]);
+  const showByTitle = new Map(shows.map((show) => [canonicalTitleKey(show.title), show]));
   const tvRows = all.filter((row) => row.media_type === "episode" && isPlembfinTrackedWatchRow(row)).slice(0, HISTORY_PREVIEW_SCAN_LIMIT);
   const movieRows = all.filter((row) => row.media_type === "movie" && isPlembfinTrackedWatchRow(row)).slice(0, HISTORY_PREVIEW_SCAN_LIMIT);
 
-  const tvDeduped = dedupeHistory(tvRows).slice(0, safeLimit).map(compactHistoryPreviewRow);
+  const tvDeduped = dedupeHistory(tvRows).slice(0, safeLimit).map((row) => {
+    const compact = compactHistoryPreviewRow(row);
+    const show = showByTitle.get(canonicalTitleKey(row.show_title || showTitleFrom(row.title)));
+    if (!show) return compact;
+    return {
+      ...compact,
+      // Sparse episode rows can reuse series artwork without changing their
+      // watch identity. Keep explicit show ids separate because an episode's
+      // tmdb_id/tvdb_id may identify the episode rather than the series.
+      poster_url: compact.poster_url || show.poster_url || null,
+      show_imdb_id: show.imdb_id || null,
+      show_tmdb_id: show.tmdb_id || null,
+      show_tvdb_id: show.tvdb_id || null,
+    };
+  });
   const movieDeduped = dedupeHistory(movieRows).slice(0, safeLimit).map(compactHistoryPreviewRow);
 
   const combined = [...tvDeduped, ...movieDeduped];

@@ -68,6 +68,28 @@ export function parsePlexGuids(metadata = {}) {
   return ids;
 }
 
+function preferProviderIds(fallback = {}, preferred = {}) {
+  const result = { ...EMPTY_IDS, ...fallback };
+  for (const key of Object.keys(EMPTY_IDS)) {
+    if (preferred?.[key]) result[key] = preferred[key];
+  }
+  return result;
+}
+
+function parsePlexMediaIds(metadata = {}, type = "") {
+  const itemIds = parsePlexGuids(metadata);
+  if (type !== "episode") return itemIds;
+
+  // Plex episode GUIDs can identify the episode itself. When the webhook also
+  // includes the grandparent (series) GUID, prefer that identity because every
+  // outbound client resolves a series first and then selects SxxExx.
+  const seriesIds = parsePlexGuids({
+    guid: metadata.grandparentGuid || metadata.grandparentGUID,
+    Guid: metadata.GrandparentGuid || metadata.GrandparentGUID || [],
+  });
+  return preferProviderIds(itemIds, seriesIds);
+}
+
 function extractTitle(type, metadata, source) {
   const season = seasonNumberFrom(metadata);
   const episode = episodeNumberFrom(metadata);
@@ -113,6 +135,13 @@ function episodeNumberFrom(item = {}) {
 
 function providerIdsFrom(item = {}, json = {}) {
   return item.ProviderIds || item.providerIds || json.ProviderIds || json.providerIds || {};
+}
+
+function mediaProviderIdsFrom(item = {}, json = {}, type = "") {
+  const itemIds = normalizeProviderIds(providerIdsFrom(item, json));
+  if (type !== "episode") return itemIds;
+  const seriesProviderIds = item.SeriesProviderIds || item.seriesProviderIds || json.SeriesProviderIds || json.seriesProviderIds || {};
+  return preferProviderIds(itemIds, normalizeProviderIds(seriesProviderIds));
 }
 
 function embyLikeTypeFrom(item = {}, json = {}) {
@@ -468,7 +497,7 @@ export async function parsePlexWebhook(formData) {
     const progress = progressPercentFrom(metadata);
     const offsetMs = positionMillisecondsFrom(metadata);
     const durationMs = durationMillisecondsFrom(metadata);
-    const ids = parsePlexGuids(metadata);
+    const ids = parsePlexMediaIds(metadata, type);
     const releaseDate = releaseDateForPlexItem(metadata);
     const user = payload.Account?.title || "";
     const client = plexClientFrom(payload);
@@ -548,7 +577,7 @@ export async function parsePlexWebhook(formData) {
 // lets the Emby and Jellyfin clients match the item the same way they do for any sync.
 export function buildPlexMediaFromMetadata(metadata = {}, { phase = "unplayed" } = {}) {
   const type = normalizeType(metadata.type);
-  const ids = parsePlexGuids(metadata);
+  const ids = parsePlexMediaIds(metadata, type);
   const title = extractTitle(type, metadata, "plex");
   const releaseDate = releaseDateForPlexItem(metadata);
   return buildPayload({
@@ -585,7 +614,7 @@ export function parseJellyfinWebhook(json) {
     const offsetMs = positionMillisecondsFrom({ ...json, ...item });
     const durationMs = durationMillisecondsFrom({ ...json, ...item });
     const user = embyLikeUserFrom(json);
-    const providerIds = providerIdsFrom(item, json);
+    const providerIds = mediaProviderIdsFrom(item, json, type);
     const season = seasonNumberFrom(item);
     const episode = episodeNumberFrom(item);
     const episodeTitle = type === "episode" ? itemTitleFrom(item) : null;
@@ -596,7 +625,7 @@ export function parseJellyfinWebhook(json) {
       return buildPayload({
         type,
         source: "jellyfin",
-        ids: normalizeProviderIds(providerIds),
+        ids: providerIds,
         title: `Jellyfin Raw Event: ${event} - ${title}`,
         season,
         episode,
@@ -628,7 +657,7 @@ export function parseJellyfinWebhook(json) {
       type,
       source: "jellyfin",
       title,
-      ids: normalizeProviderIds(providerIds),
+      ids: providerIds,
       season,
       episode,
       event,
@@ -680,7 +709,7 @@ export function parseEmbyWebhook(json) {
     const offsetMs = positionMillisecondsFrom({ ...json, ...item });
     const durationMs = durationMillisecondsFrom({ ...json, ...item });
     const user = embyLikeUserFrom(json);
-    const providerIds = providerIdsFrom(item, json);
+    const providerIds = mediaProviderIdsFrom(item, json, type);
     const season = seasonNumberFrom(item);
     const episode = episodeNumberFrom(item);
     const episodeTitle = type === "episode" ? itemTitleFrom(item) : null;
@@ -691,7 +720,7 @@ export function parseEmbyWebhook(json) {
       return buildPayload({
         type,
         source: "emby",
-        ids: normalizeProviderIds(providerIds),
+        ids: providerIds,
         title: `Emby Raw Event: ${event} - ${title}`,
         season,
         episode,
@@ -723,7 +752,7 @@ export function parseEmbyWebhook(json) {
       type,
       source: "emby",
       title,
-      ids: normalizeProviderIds(providerIds),
+      ids: providerIds,
       season,
       episode,
       event,

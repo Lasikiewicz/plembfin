@@ -83,6 +83,38 @@ test("parseJellyfinWebhook derives phase boundaries", () => {
   assert.equal(parseJellyfinWebhook({ NotificationType: "SomethingElse", ...base }).phase, "ignored");
 });
 
+test("episode webhooks prefer series provider ids for cross-app matching", async () => {
+  const plex = await parsePlexWebhook(plexForm("media.scrobble", {
+    type: "episode",
+    title: "Picture Says a Thousand Words",
+    grandparentTitle: "Reacher",
+    parentIndex: 2,
+    index: 3,
+    guid: "tmdb://999999",
+    grandparentGuid: "tmdb://108978",
+  }));
+  assert.equal(plex.ids.tmdb, "108978");
+
+  const item = {
+    Type: "Episode",
+    Name: "Picture Says a Thousand Words",
+    SeriesName: "Reacher",
+    ParentIndexNumber: 2,
+    IndexNumber: 3,
+    ProviderIds: { Tvdb: "episode-123" },
+    SeriesProviderIds: { Tmdb: "108978", Tvdb: "366924" },
+  };
+  const emby = parseEmbyWebhook({ Event: "playback.stop", Progress: 100, Item: item });
+  const jellyfin = parseJellyfinWebhook({ NotificationType: "PlaybackStop", Progress: 100, Item: item });
+
+  for (const parsed of [emby, jellyfin]) {
+    assert.equal(parsed.ids.tmdb, "108978");
+    assert.equal(parsed.ids.tvdb, "366924");
+    assert.equal(parsed.season, 2);
+    assert.equal(parsed.episode, 3);
+  }
+});
+
 test("parsePlexGuids supports modern and legacy agent formats", () => {
   assert.deepEqual(parsePlexGuids({
     guid: "plex://movie/abc",

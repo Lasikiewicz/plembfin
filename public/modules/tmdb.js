@@ -1,6 +1,6 @@
 import { buildAuthHeaders } from "./auth.js";
 import { state } from "./state.js";
-import { showTitleFrom } from "./utils.js";
+import { showTitleFrom, slug } from "./utils.js";
 
 let _tmdbBatchQueue = [];
 let _tmdbBatchTimer = null;
@@ -144,10 +144,22 @@ export async function fetchTmdbSeasonDetails(showId, seasonNumber) {
 }
 
 export async function resolveEpisodeTitleFromTmdb(entry, element) {
-  if (!entry || entry.media_type !== "episode" || !entry.tmdb_id || !entry.season || !entry.episode) return;
+  if (!entry || entry.media_type !== "episode" || !entry.season || !entry.episode) return;
   try {
     const showTitle = entry.show_title || showTitleFrom(entry.title);
-    const tmdbData = await fetchTmdbDetails("tv", entry.tmdb_id, showTitle);
+    if (!showTitle || showTitle === "Unknown Show") return;
+
+    // Watch events are allowed to arrive with only a show title and episode
+    // coordinates. Requiring a TMDB id here made otherwise valid rows keep the
+    // generic "Episode N" label until somebody used Fix Match. Prefer a
+    // trusted show-level identity when the explorer already knows one, but let
+    // the metadata gateway resolve by title when it does not.
+    const knownShow = state.showsRaw.find((show) => slug(show.title) === slug(showTitle));
+    const showTmdbId = knownShow?.tmdb_id || entry.show_tmdb_id || "";
+    const tmdbData = await fetchTmdbDetails("tv", showTmdbId, showTitle, {
+      imdbId: knownShow?.imdb_id || entry.show_imdb_id || "",
+      tvdbId: knownShow?.tvdb_id || entry.show_tvdb_id || "",
+    });
     if (!tmdbData?.id) return;
     const seasonData = await fetchTmdbSeasonDetails(tmdbData.id, entry.season);
     const tmdbEpisode = seasonData?.episodes?.find(

@@ -2,7 +2,7 @@ import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute, slug, movieHref, movieTmdbHref, tvShowTmdbHref, showTitleFrom, showEpisodeKey } from "./utils.js";
 import { tmdbProfile, tmdbPoster, hydratePosters } from "./images.js";
 import { isWatchedHistoryAction } from "./sync.js";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=20260803";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=20260823";
 import { movieBySlugOrId, clearMediaDetailState, mediaDetailRoot, mediaDetailLoaderHtml } from "./media-detail.js?v=20260810";
 import { FILMOGRAPHY_PAGE_SIZE, resolvedTmdbCache } from "./explorer.js";
 
