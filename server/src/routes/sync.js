@@ -29,6 +29,14 @@ import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetc
 import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook } from "../utils/parsers.js";
 import { completeDispatchTracking, finishDispatchTracking, getTargetsForSource, isRecentOutboundPlayedFlagEcho, isRecentOutboundProgressEcho, isRecentOutboundUnplayedFlagEcho, recordOutboundPlayedMarks, reserveDispatchBatch, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
 import { canReceiveState } from "../utils/syncRoles.js";
+import {
+  playstateBlocksStoredResumeProgress,
+  resumePositionUnchanged,
+  resumeProgressAuthorityTimestamp,
+  resumeProgressBlockedByPlaystate,
+  resumeProgressEventTimestamp,
+  resumeWebhookPhaseForPlaystate,
+} from "../utils/resumeAuthority.js";
 import { watchedPlayedSyncEnabled } from "../utils/syncFlags.js";
 import { forceSyncMediaState, normalizeMediaForceSyncRequest } from "../utils/mediaForceSync.js";
 import { forceSyncLibraryState, normalizeLibraryForceSyncRequest } from "../utils/libraryForceSync.js";
@@ -90,6 +98,7 @@ import {
   findExistingWatch,
   findWatchedByAnyMediaKey,
   getCanonicalWatchState,
+  getPlaybackProgressForMedia,
   getPlaystateForMedia,
   countMissingPosterTraktRows,
   listMissingPosterTraktRows,
@@ -1737,13 +1746,25 @@ export async function handleWebhook(req, res) {
     }
   }
 
-  if (media.phase === "unplayed") {
+  const embyLikeUserDataState = (
+    ["emby", "jellyfin"].includes(String(media.source || "").toLowerCase())
+    && ["ended", "unplayed"].includes(media.phase)
+    && media.playedFlagOnly === true
+  );
+  if (
+    embyLikeUserDataState
+  ) {
+    // An outbound progress acknowledgement can arrive after a completed
+    // webhook has already made the item watched. Suppress that known echo
+    // before consulting the newer canonical state, or the stale Played=false
+    // payload would be reinterpreted as a fresh watched -> unwatched action.
     const ownProgressEcho = await isRecentOutboundProgressEcho(media, media.source, loopStore).catch(() => false);
     if (ownProgressEcho) {
-      console.log("Webhook: skipped unplayed callback caused by outbound resume update", {
+      console.log("Webhook: skipped callback caused by outbound resume update", {
         source: media.source,
         title: media.title,
         event: media.event,
+        phase: media.phase,
       });
       await deleteActiveSession(media).catch(() => null);
       await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
@@ -1751,10 +1772,17 @@ export async function handleWebhook(req, res) {
         ok: true,
         inserted: false,
         skipped: true,
-        reason: "Unplayed callback followed Plembfin outbound resume update",
+        reason: "Callback followed Plembfin outbound resume update",
       });
     }
+  }
 
+  if (embyLikeUserDataState && media.phase === "ended") {
+    const currentPlaystate = await getPlaystateForMedia(media).catch(() => null);
+    media.phase = resumeWebhookPhaseForPlaystate(media, currentPlaystate);
+  }
+
+  if (media.phase === "unplayed") {
     const ownUnplayedEcho = await isRecentOutboundUnplayedFlagEcho(media, media.source, loopStore).catch(() => false);
     if (ownUnplayedEcho) {
       console.log("Webhook: skipped outbound unplayed echo", {
@@ -1923,19 +1951,68 @@ export async function handleWebhook(req, res) {
     await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
     let progressSummary = { skipped: true, status: "skipped", details: "Resume progress is not actionable", targetStates: [] };
     if (shouldSyncResumeProgress(media)) {
-      const progressRecord = mediaToPlaybackProgressRecord(media, media.source);
-      await upsertPlaybackProgress({
-        ...progressRecord,
-        sync_dispatch_telemetry: formatProgressTelemetry({ skipped: false, status: "pending", details: "Resume propagation queued", targetStates: [] }, media),
-      }).catch((error) => console.error("Failed to store resume progress", error));
-      progressSummary = await syncMediaProgress(media, config, loopStore).catch((error) => ({
-        skipped: false,
-        status: "error",
-        details: `Resume propagation failed: ${error.message || String(error)}`,
-        targetStates: [],
-      }));
-      await updatePlaybackProgressTelemetry(progressRecord, formatProgressTelemetry(progressSummary, media)).catch(() => null);
-      await recordSyncHistory(media, progressSummary, "progress");
+      const [existingPlaystate, existingProgress] = await Promise.all([
+        getPlaystateForMedia(media).catch(() => null),
+        getPlaybackProgressForMedia(media).catch(() => null),
+      ]);
+      const incomingUpdatedAt = resumeProgressEventTimestamp(media, Date.now());
+      const progressUpdatedAt = resumeProgressAuthorityTimestamp(existingProgress, {
+        ...media,
+        updatedAt: incomingUpdatedAt,
+      });
+      const playstateBlockReason = resumeProgressBlockedByPlaystate(existingPlaystate, progressUpdatedAt);
+      const unchangedWithoutTimestamp = Boolean(
+        existingProgress
+        && incomingUpdatedAt <= 0
+        && resumePositionUnchanged(existingProgress, media),
+      );
+      const staleDatedCandidate = Boolean(
+        existingProgress
+        && incomingUpdatedAt > 0
+        && Number(existingProgress.updated_at || 0) >= incomingUpdatedAt,
+      );
+      const missingAuthority = incomingUpdatedAt <= 0;
+
+      if (playstateBlockReason) {
+        if (playstateBlocksStoredResumeProgress(existingPlaystate, existingProgress)) {
+          await deletePlaybackProgress(media).catch(() => null);
+        }
+        progressSummary = {
+          skipped: true,
+          status: "skipped",
+          details: `Resume progress ignored because ${playstateBlockReason}`,
+          targetStates: [],
+        };
+      } else if (unchangedWithoutTimestamp || staleDatedCandidate || missingAuthority) {
+        progressSummary = {
+          skipped: true,
+          status: "skipped",
+          details: unchangedWithoutTimestamp
+            ? "Resume progress acknowledgement was unchanged and had no source timestamp"
+            : staleDatedCandidate
+              ? "Resume progress acknowledgement was older than Plembfin's stored position"
+              : "Resume progress callback had no authoritative source timestamp",
+          targetStates: [],
+        };
+      } else {
+        // Use one authority timestamp for persistence and every outbound write.
+        // Direct stop events without a source date use their receipt time;
+        // delayed generic UserData callbacks never receive fresh authority.
+        media.updatedAt = progressUpdatedAt;
+        const progressRecord = mediaToPlaybackProgressRecord(media, media.source);
+        await upsertPlaybackProgress({
+          ...progressRecord,
+          sync_dispatch_telemetry: formatProgressTelemetry({ skipped: false, status: "pending", details: "Resume propagation queued", targetStates: [] }, media),
+        }).catch((error) => console.error("Failed to store resume progress", error));
+        progressSummary = await syncMediaProgress(media, config, loopStore).catch((error) => ({
+          skipped: false,
+          status: "error",
+          details: `Resume propagation failed: ${error.message || String(error)}`,
+          targetStates: [],
+        }));
+        await updatePlaybackProgressTelemetry(progressRecord, formatProgressTelemetry(progressSummary, media)).catch(() => null);
+        await recordSyncHistory(media, progressSummary, "progress");
+      }
     }
     return sendJson(res, {
       ok: true,

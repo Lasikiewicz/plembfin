@@ -220,7 +220,14 @@ first complete render.
   `runWithConcurrency` in `concurrency.js`) rather than one at a time, so a show with
   many seasons syncs significantly faster; outbound calls to each media server are still
   throttled per host by the outbound governor regardless of how many episodes are in
-  flight.
+  flight. An all-destinations **Set Plembfin as Source of Truth** run uses two awaited
+  phases: it finishes every Plex/Emby/Jellyfin write first, then drains Trakt through its
+  own two-item queue. The activity stays open until both phases finish and records one
+  combined result per item, with slow cloud history writes kept outside the six-item
+  local-server worker pool. A cancellation stops new Trakt items while allowing an
+  in-flight canonical remove/add pair to finish, so Trakt cannot be left between the two
+  halves of a watched-state replay. Selecting one explicit media-server destination
+  remains destination-only and never queues Trakt.
   For a TV show, the dialog also lists its seasons as checkboxes; leaving all of them
   unchecked scopes the operation to every season (the previous, only behavior), while
   checking one or more limits it to just those seasons. This reuses the same season

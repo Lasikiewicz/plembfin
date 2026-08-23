@@ -186,6 +186,14 @@ from those timing fields instead of trusting a conflicting percentage supplied b
 webhook. This keeps stop-phase classification, stored progress, and the dashboard in
 agreement with the resume position written to each media server.
 
+Emby and Jellyfin include `Played: false` in ordinary positive resume-position
+`UserData` writes. Plembfin classifies that combination as partial playback (`ended`),
+not as an explicit unwatch; named mark-unplayed events and zero-position unwatch writes
+remain authoritative. A repeated server acknowledgement of the same position retains
+the newer stored progress timestamp even when the server returns an older
+`LastPlayedDate`, while a later explicit unwatch still clears it. Generic item metadata
+dates such as `DateCreated` and `DateLastSaved` are not treated as playback authority.
+
 ## Plex specifics worth remembering
 
 - Native Plex webhooks only fire on **state changes** (play/pause/resume/stop/

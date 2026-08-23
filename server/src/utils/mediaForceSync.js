@@ -15,7 +15,7 @@ import { remoteEpisodeImportError } from "./episodeImportGuard.js";
 import { appendSyncHistory, loadMediaConfig } from "./configStore.js";
 import { createLoopStore } from "./loopStore.js";
 import { runWithConcurrency } from "./concurrency.js";
-import { syncCanonicalPlaystate } from "./syncOrchestrator.js";
+import { appendCanonicalTrackerDispatch, syncCanonicalPlaystate } from "./syncOrchestrator.js";
 import {
   getCanonicalWatchState,
   findWatchedByAnyMediaKey,
@@ -35,6 +35,9 @@ const FORCE_SYNC_MODES = ["push", "pull"];
 // so processing several episodes at once only shortens wall-clock time on a
 // large show - it does not add outbound pressure beyond what's already safe.
 const FORCE_SYNC_ITEM_CONCURRENCY = 6;
+// Trakt is an internet service rather than a LAN destination. Keep its phase
+// deliberately conservative even when Fast Local-Network Sync is enabled.
+const TRACKER_FORCE_SYNC_ITEM_CONCURRENCY = 2;
 
 function clean(value) {
   return String(value ?? "").trim();
@@ -420,6 +423,19 @@ async function appendForceSyncHistory(media, summary, requested) {
   }).catch(() => null);
 }
 
+function summaryWithDeferredTrackerState(summary, status, detail) {
+  const trackerState = { target: "trakt", status, detail };
+  const targetStates = [...(summary?.targetStates || []), trackerState];
+  const hasSuccess = targetStates.some((target) => target.status === "success");
+  return {
+    ...(summary || {}),
+    skipped: false,
+    status: status === "cancelled" ? "cancelled" : hasSuccess ? "partial" : "error",
+    details: [summary?.details, detail].filter(Boolean).join(" "),
+    targetStates,
+  };
+}
+
 export async function forceSyncMediaState(input, { config = null, now = Date.now(), logger = () => {}, isCancelled = () => false } = {}) {
   const requested = normalizeMediaForceSyncRequest(input);
   const resolvedConfig = config || await loadMediaConfig();
@@ -431,6 +447,7 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
   const loopStore = createLoopStore();
   const results = [];
   const records = [];
+  const preparedItems = new Array(collection.items.length);
   let cancelled = Boolean(isCancelled());
   let cancellationLogged = false;
 
@@ -454,7 +471,7 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
     }
   }
 
-  await runWithConcurrency(collection.items, async (media) => {
+  await runWithConcurrency(collection.items, async (media, index) => {
     if (isCancelled()) {
       cancelled = true;
       if (!cancellationLogged) {
@@ -514,6 +531,7 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
     await upsertPlaystateForMedia(media, canonicalState, media.watched_at, { skipInvalidate: true });
 
     let summary;
+    let trackerEligible = false;
     if (requested.mode === "pull") {
       summary = {
         skipped: false,
@@ -523,26 +541,75 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
       };
       logger(`[pull] ${media.title}: imported ${canonicalState} state into Plembfin.`);
     } else {
-      const syncMedia = requested.target ? { ...media, syncTargets: [requested.target] } : media;
-      logger(`[${requested.mode}] ${media.title}: sending ${canonicalState} state to ${sourceLabel(requested.target)}.`);
-      summary = await syncCanonicalPlaystate(syncMedia, resolvedConfig, loopStore, canonicalState).catch((error) => ({
-        skipped: false,
-        status: "error",
-        details: `Canonical propagation failed: ${error.message || String(error)}`,
-        targetStates: [],
-      }));
+      const localTargets = requested.target ? [requested.target] : MEDIA_SERVERS;
+      const syncMedia = { ...media, syncTargets: localTargets };
+      const destination = requested.target ? sourceLabel(requested.target) : "local media servers";
+      logger(`[${requested.mode}] ${media.title}: sending ${canonicalState} state to ${destination}.`);
+      try {
+        summary = await syncCanonicalPlaystate(syncMedia, resolvedConfig, loopStore, canonicalState, { includeTrackers: false });
+        trackerEligible = !requested.target;
+      } catch (error) {
+        summary = {
+          skipped: false,
+          status: "error",
+          details: `Canonical propagation failed: ${error.message || String(error)}`,
+          targetStates: [],
+        };
+      }
     }
 
     for (const target of summary.targetStates || []) {
       logger(`[${requested.mode}] ${media.title}: ${target.target || "target"} -> ${target.status}${target.detail ? ` (${target.detail})` : ""}.`);
     }
 
+    preparedItems[index] = { media, record, inserted, canonicalState, summary, trackerEligible };
+  }, FORCE_SYNC_ITEM_CONCURRENCY);
+
+  const completedLocalItems = preparedItems.filter(Boolean);
+  const trackerItems = requested.mode === "push" && !requested.target
+    ? completedLocalItems.filter((item) => item.trackerEligible)
+    : [];
+  if (trackerItems.length) {
+    logger(`[push] Local media-server phase complete for ${completedLocalItems.length} item${completedLocalItems.length === 1 ? "" : "s"}; syncing Trakt.`);
+    let trackerCancellationLogged = false;
+    await runWithConcurrency(trackerItems, async (item) => {
+      if (isCancelled()) {
+        cancelled = true;
+        item.summary = summaryWithDeferredTrackerState(
+          item.summary,
+          "cancelled",
+          "Trakt dispatch was cancelled before it started.",
+        );
+        if (!trackerCancellationLogged) {
+          trackerCancellationLogged = true;
+          logger("[push] Cancellation acknowledged; stopping before remaining Trakt items.");
+        }
+        return;
+      }
+      try {
+        item.summary = await appendCanonicalTrackerDispatch(item.summary, item.media, item.canonicalState);
+      } catch (error) {
+        item.summary = summaryWithDeferredTrackerState(
+          item.summary,
+          "error",
+          `Trakt dispatch failed: ${error.message || String(error)}`,
+        );
+      }
+      const trackerState = item.summary.targetStates?.find((target) => target.target === "trakt");
+      if (trackerState) {
+        logger(`[push] ${item.media.title}: trakt -> ${trackerState.status}${trackerState.detail ? ` (${trackerState.detail})` : ""}.`);
+      }
+    }, TRACKER_FORCE_SYNC_ITEM_CONCURRENCY);
+  }
+
+  // Persist one truthful, combined outcome per item only after both phases.
+  // This also keeps the operation audit separate from history-row telemetry
+  // for canonical unwatched movies that have no safe representative row.
+  for (const item of completedLocalItems) {
+    const { media, record, inserted, canonicalState, summary } = item;
     if (record?.id) {
       await updateWatchTelemetry(record.id, completedTelemetry(media, summary, requested), { skipInvalidate: true });
     }
-    // Force Sync activity is an operation-level audit trail, not history-row
-    // telemetry. Record it even when an authoritative unwatched movie has no
-    // safe unwatched history row to attach telemetry to.
     await appendForceSyncHistory(media, summary, requested);
 
     const freshRecord = record?.id ? await getWatchRecordById(record.id).catch(() => null) : null;
@@ -561,7 +628,7 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
       canonicalState,
       targetStates: summary.targetStates || [],
     });
-  }, FORCE_SYNC_ITEM_CONCURRENCY);
+  }
 
   cancelled = cancelled || Boolean(isCancelled());
   await invalidateHistoryDerivedCaches().catch(() => null);

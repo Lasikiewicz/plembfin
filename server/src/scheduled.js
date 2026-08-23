@@ -18,7 +18,17 @@ import { isVerboseLogging } from "./utils/logVerbose.js";
 import { buildWatchProvenance, provenanceTelemetryLines } from "./utils/watchProvenance.js";
 import { recordWatchAuditEvent, recordWatchAuditEvents } from "./utils/watchAudit.js";
 import { canReceiveState } from "./utils/syncRoles.js";
+import {
+  playstateBlocksStoredResumeProgress,
+  resumePositionUnchanged,
+  resumeProgressAuthorityTimestamp,
+  resumeProgressBlockedByPlaystate,
+} from "./utils/resumeAuthority.js";
 export { executeForceSyncPlan } from "./utils/forceSyncExecutor.js";
+export {
+  resumeProgressAuthorityTimestamp,
+  resumeProgressBlockedByPlaystate,
+} from "./utils/resumeAuthority.js";
 import {
   deleteLiveTrackingCacheRows,
   deletePlaybackProgress,
@@ -55,21 +65,6 @@ export function recentUnwatchBlocksLibraryImport(playstate = null, now = Date.no
   return playstate?.state === "unwatched"
     && Number(playstate.updated_at || 0) > 0
     && now - Number(playstate.updated_at) <= RECENT_UNWATCH_IMPORT_GUARD_MS;
-}
-
-export function resumeProgressBlockedByPlaystate(playstate = null, resumeUpdatedAt = 0) {
-  const state = String(playstate?.state || "").toLowerCase();
-  const progressUpdatedAt = Number(resumeUpdatedAt || 0);
-  const playstateUpdatedAt = Number(playstate?.updated_at || 0);
-
-  if (state === "watched") return "item is watched";
-  if (state === "unwatched" && (progressUpdatedAt <= 0 || playstateUpdatedAt >= progressUpdatedAt)) {
-    return "item is unwatched";
-  }
-  if (state && progressUpdatedAt > 0 && playstateUpdatedAt >= progressUpdatedAt) {
-    return "newer playstate";
-  }
-  return "";
 }
 
 function scheduledMediaInScope(config, media) {
@@ -199,28 +194,6 @@ function progressPercent(positionMs = 0, durationMs = 0) {
   return Math.max(0, Math.min(100, (Number(positionMs || 0) / Number(durationMs || 1)) * 100));
 }
 
-function resumePositionUnchanged(existingProgress = {}, media = {}) {
-  const existingPosition = Number(existingProgress.position_ms || 0);
-  const incomingPosition = Number(media.positionMs ?? media.offsetMs ?? 0);
-  const existingDuration = Number(existingProgress.duration_ms || 0);
-  const incomingDuration = Number(media.durationMs || 0);
-  const existingPercent = Number(existingProgress.progress || 0);
-  const incomingPercent = Number(media.progress || 0);
-
-  return (
-    Math.abs(existingPosition - incomingPosition) <= 2000 &&
-    (!existingDuration || !incomingDuration || Math.abs(existingDuration - incomingDuration) <= 2000) &&
-    Math.abs(existingPercent - incomingPercent) <= 0.25
-  );
-}
-
-export function resumeProgressAuthorityTimestamp(existingProgress = null, media = {}) {
-  const incomingUpdatedAt = Number(media.updatedAt || 0);
-  if (incomingUpdatedAt > 0) return incomingUpdatedAt;
-  if (!existingProgress || !resumePositionUnchanged(existingProgress, media)) return 0;
-  return Number(existingProgress.updated_at || 0);
-}
-
 export function mediaFromPlexResumableItem(item = {}) {
   const type = item.type === "episode" ? "episode" : "movie";
   const positionMs = millisecondsFrom(item.viewOffset);
@@ -253,9 +226,7 @@ function embyLikeResumeUpdatedAt(item = {}) {
       item.UserData?.DatePlayed ||
       item.LastPlayedDate ||
       item.PlayedDate ||
-      item.DatePlayed ||
-      item.DateLastSaved ||
-      item.DateCreated,
+      item.DatePlayed,
   );
 }
 
@@ -735,10 +706,15 @@ async function processStoppedSessionProgress(row, config, loopStore) {
   const media = cachedRowToMedia(row);
   if (!shouldSyncResumeProgress(media)) return null;
 
-  const existingPlaystate = await getPlaystateForMedia(media).catch(() => null);
+  const [existingPlaystate, existingProgress] = await Promise.all([
+    getPlaystateForMedia(media).catch(() => null),
+    getPlaybackProgressForMedia(media).catch(() => null),
+  ]);
   const playstateBlockReason = resumeProgressBlockedByPlaystate(existingPlaystate, row.updated_at);
   if (playstateBlockReason) {
-    await deletePlaybackProgress(media).catch(() => null);
+    if (playstateBlocksStoredResumeProgress(existingPlaystate, existingProgress)) {
+      await deletePlaybackProgress(media).catch(() => null);
+    }
     console.log("Live tracking resume skipped because playstate is authoritative", {
       title: media.title,
       source: media.source,
@@ -852,7 +828,12 @@ async function syncResumableMedia(media, config, loopStore, logger = console.log
 
   const playstateBlockReason = resumeProgressBlockedByPlaystate(existingPlaystate, resumeUpdatedAt);
   if (playstateBlockReason) {
-    await deletePlaybackProgress(media).catch(() => null);
+    // Reject this stale candidate, but do not let it erase a newer position
+    // already stored in Plembfin. Only canonical state that also outranks the
+    // stored row is allowed to clear that row.
+    if (playstateBlocksStoredResumeProgress(existingPlaystate, existingProgress)) {
+      await deletePlaybackProgress(media).catch(() => null);
+    }
     logResumeSkip(logger, media, playstateBlockReason);
     return false;
   }

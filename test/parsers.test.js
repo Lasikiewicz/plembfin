@@ -83,6 +83,62 @@ test("parseJellyfinWebhook derives phase boundaries", () => {
   assert.equal(parseJellyfinWebhook({ NotificationType: "SomethingElse", ...base }).phase, "ignored");
 });
 
+test("Emby and Jellyfin UserData Played=false with positive progress is partial playback, not an unwatch", () => {
+  const item = {
+    Type: "Episode",
+    Name: "Episode 1",
+    SeriesName: "Ted Lasso",
+    ParentIndexNumber: 4,
+    IndexNumber: 1,
+    RunTimeTicks: 24_924_900_000,
+    ProviderIds: { Tvdb: "11766070" },
+    UserData: {
+      Played: false,
+      PlaybackPositionTicks: 9_870_000_000,
+    },
+  };
+
+  const emby = parseEmbyWebhook({ Event: "user.dataSaved", Item: item });
+  const jellyfin = parseJellyfinWebhook({ NotificationType: "UserDataSaved", Item: item });
+
+  for (const parsed of [emby, jellyfin]) {
+    assert.equal(parsed.phase, "ended");
+    assert.equal(parsed.offsetMs, 987_000);
+    assert.ok(parsed.progress > 39 && parsed.progress < 40);
+  }
+});
+
+test("explicit Emby and Jellyfin unwatch events remain authoritative even if stale progress is present", () => {
+  const item = {
+    Type: "Episode",
+    Name: "Episode 1",
+    SeriesName: "Ted Lasso",
+    ParentIndexNumber: 4,
+    IndexNumber: 1,
+    RunTimeTicks: 24_924_900_000,
+    ProviderIds: { Tvdb: "11766070" },
+    UserData: { Played: false, PlaybackPositionTicks: 9_870_000_000 },
+  };
+
+  assert.equal(parseEmbyWebhook({ Event: "item.markUnplayed", Item: item }).phase, "unplayed");
+  assert.equal(parseJellyfinWebhook({ NotificationType: "ItemMarkUnplayed", Item: item }).phase, "unplayed");
+});
+
+test("zero-position UserData Played=false remains an unwatch", () => {
+  const item = {
+    Type: "Episode",
+    Name: "Episode 1",
+    SeriesName: "Ted Lasso",
+    ParentIndexNumber: 4,
+    IndexNumber: 1,
+    ProviderIds: { Tvdb: "11766070" },
+    UserData: { Played: false, PlaybackPositionTicks: 0 },
+  };
+
+  assert.equal(parseEmbyWebhook({ Event: "user.dataSaved", Item: item }).phase, "unplayed");
+  assert.equal(parseJellyfinWebhook({ NotificationType: "UserDataSaved", Item: item }).phase, "unplayed");
+});
+
 test("episode webhooks prefer series provider ids for cross-app matching", async () => {
   const plex = await parsePlexWebhook(plexForm("media.scrobble", {
     type: "episode",

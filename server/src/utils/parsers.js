@@ -345,14 +345,23 @@ function phaseFromPlexEvent(event, metadata) {
 
 function phaseFromEmbyEvent(event, json, item) {
   const progress = progressPercentFrom({ ...json, ...item });
+  const positionMs = positionMillisecondsFrom({ ...json, ...item });
   const eventKey = String(event || "").toLowerCase();
   const compactEventKey = eventKey.replace(/[^a-z0-9]/g, "");
   const played = readPlayedState(json, item);
+  const userDataEvent = ["userdatasaved", "userdatachanged", "itemuserdatachanged"].includes(compactEventKey);
   if (isAddedEvent(event)) return "added";
   if (["itemmarkplayed", "itemmarkedplayed", "itemmarkedasplayed", "itemplayed"].includes(compactEventKey)) return "completed";
   if (["itemmarkunplayed", "itemmarkedunplayed", "itemmarkedasunplayed", "itemunplayed"].includes(compactEventKey)) return "unplayed";
-  if (["userdatasaved", "userdatachanged", "itemuserdatachanged"].includes(compactEventKey) && played === true) return "completed";
-  if (["userdatasaved", "userdatachanged", "itemuserdatachanged"].includes(compactEventKey) && played === false) return "unplayed";
+  if (userDataEvent && played === true) return "completed";
+  // Emby writes Played=false as part of every positive resume-position
+  // update. That flag means "not completed", not "the user explicitly
+  // marked this item unwatched". Treat the accompanying positive position
+  // as stopped/partial playback so it can refresh Continue Watching without
+  // creating a newer unwatched playstate that immediately deletes the same
+  // progress on the next scheduled scan. Explicit mark-unplayed event names
+  // above, and zero-position UserData changes, remain real unwatches.
+  if (userDataEvent && played === false) return positionMs > 0 ? "ended" : "unplayed";
   if (compactEventKey === "playbackstop") return progress >= watchedThresholdPercent() ? "completed" : "ended";
   if (EMBY_ACTIVE_EVENTS.map((activeEvent) => activeEvent.replace(/[^a-z0-9]/g, "")).includes(compactEventKey)) return "active";
   return "ignored";
@@ -360,14 +369,19 @@ function phaseFromEmbyEvent(event, json, item) {
 
 function phaseFromJellyfinEvent(event, json, item) {
   const progress = progressPercentFrom({ ...json, ...item });
+  const positionMs = positionMillisecondsFrom({ ...json, ...item });
   const eventKey = String(event || "").toLowerCase();
   const compactEventKey = eventKey.replace(/[^a-z0-9]/g, "");
   const played = readPlayedState(json, item);
+  const userDataEvent = ["userdatasaved", "userdatachanged", "itemuserdatachanged"].includes(compactEventKey);
   if (isAddedEvent(event)) return "added";
   if (["itemmarkplayed", "itemmarkedplayed", "itemmarkedasplayed", "itemplayed"].includes(compactEventKey)) return "completed";
   if (["itemmarkunplayed", "itemmarkedunplayed", "itemmarkedasunplayed", "itemunplayed"].includes(compactEventKey)) return "unplayed";
-  if (["userdatasaved", "userdatachanged", "itemuserdatachanged"].includes(compactEventKey) && played === true) return "completed";
-  if (["userdatasaved", "userdatachanged", "itemuserdatachanged"].includes(compactEventKey) && played === false) return "unplayed";
+  if (userDataEvent && played === true) return "completed";
+  // Jellyfin uses the same UserData shape as Emby: positive progress is
+  // persisted together with Played=false. Do not turn that ordinary partial
+  // play into an explicit canonical unwatch.
+  if (userDataEvent && played === false) return positionMs > 0 ? "ended" : "unplayed";
   if (compactEventKey === "playbackstop") return progress >= watchedThresholdPercent() ? "completed" : "ended";
   if (JELLYFIN_ACTIVE_EVENTS.map((activeEvent) => activeEvent.toLowerCase()).includes(eventKey)) return "active";
   return "ignored";

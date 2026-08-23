@@ -296,7 +296,7 @@ Implementation lives in `server/src/scheduled.js`.
    - A recently-watched row counts in Plembfin's visible history and show progress only
      when it carries the configured source user and an explicit server played timestamp.
      Unscoped library scans remain diagnostic evidence rather than asserted watches.
-   - Emby/Jellyfin episode resume rows retain series provider IDs so the corresponding SxxExx item can be found on another server. Resume and playstate records sharing any IMDb, TMDB, or TVDB ID are treated as one media item even when app titles differ.
+   - Emby/Jellyfin episode resume rows retain series provider IDs so the corresponding SxxExx item can be found on another server. Resume and playstate records sharing any IMDb, TMDB, or TVDB ID are treated as one media item even when app titles differ. When a server reads back the same position with a stale or missing `LastPlayedDate`, Plembfin retains the newer timestamp already stored for that position; generic item-save/create dates never outrank an explicit watch-state change, and a genuinely newer unwatch still clears older progress.
    - Propagates playstate changes that were missed by webhooks. A server-side unwatch
      that conflicts with Plembfin's watched state is repaired instead of imported as a
      local unwatch. Each platform check is wrapped in try/catch so one failure doesn't

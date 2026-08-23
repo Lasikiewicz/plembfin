@@ -636,7 +636,11 @@ async function includeTrackerDispatch(summary, media, state, lane = "sync") {
   };
 }
 
-export async function syncMediaPlaystate(media, config, kv, { trackDispatch = true, lane = "sync" } = {}) {
+export async function syncMediaPlaystate(media, config, kv, {
+  trackDispatch = true,
+  lane = "sync",
+  includeTrackers = true,
+} = {}) {
   if (!watchedPlayedSyncEnabled()) {
     console.log("Sync playstate skipped: watched/played syncing is disabled");
     return { skipped: true, status: "skipped", details: "Watched/played syncing is disabled.", targetStates: [], results: [] };
@@ -706,7 +710,7 @@ export async function syncMediaPlaystate(media, config, kv, { trackDispatch = tr
       })),
     });
 
-    summary = await includeTrackerDispatch(summary, media, "watched", lane);
+    if (includeTrackers) summary = await includeTrackerDispatch(summary, media, "watched", lane);
     return { ...summary, skipped: summary.status === "skipped", results };
   } finally {
     if (trackDispatch) completeDispatchTracking(trackingOwnerId);
@@ -719,19 +723,42 @@ export async function syncMediaPlaystate(media, config, kv, { trackDispatch = tr
 // This is intentionally separate from syncMediaPlaystate: normal inbound
 // events still fan out only to the other platforms, while canonical repair
 // must be able to put the reporting platform back into agreement too.
-export async function syncCanonicalPlaystate(media, config, kv, state = "watched", { lane = "sync" } = {}) {
+export async function syncCanonicalPlaystate(media, config, kv, state = "watched", {
+  lane = "sync",
+  trackDispatch = true,
+  includeTrackers = true,
+} = {}) {
   const canonicalMedia = {
     ...media,
     source: "manual",
     isValid: media?.isValid !== false,
   };
   if (String(state).toLowerCase() === "unwatched" || String(state).toLowerCase() === "unplayed") {
-    return syncMediaUnplayedPlaystate(canonicalMedia, config, kv, { lane });
+    return syncMediaUnplayedPlaystate(canonicalMedia, config, kv, { lane, trackDispatch, includeTrackers });
   }
-  return syncMediaPlaystate(canonicalMedia, config, kv, { lane });
+  return syncMediaPlaystate(canonicalMedia, config, kv, { lane, trackDispatch, includeTrackers });
 }
 
-export async function syncMediaUnplayedPlaystate(media, config, kv, { trackDispatch = true, lane = "sync" } = {}) {
+// Force Sync can defer this cloud dispatch until every local media-server
+// write has finished. Feeding the local summary back through the same merger
+// preserves the exact combined success/partial/error semantics used by the
+// normal inline path without counting slow Trakt work in local sync progress.
+export async function appendCanonicalTrackerDispatch(summary, media, state = "watched", { lane = "sync" } = {}) {
+  if (!watchedPlayedSyncEnabled() || media?.isValid === false) return summary;
+  const canonicalMedia = {
+    ...media,
+    source: "manual",
+    isValid: media?.isValid !== false,
+    syncTargets: ["trakt"],
+  };
+  return includeTrackerDispatch(summary, canonicalMedia, state, lane);
+}
+
+export async function syncMediaUnplayedPlaystate(media, config, kv, {
+  trackDispatch = true,
+  lane = "sync",
+  includeTrackers = true,
+} = {}) {
   if (!watchedPlayedSyncEnabled()) {
     return { skipped: true, status: "skipped", details: "Watched/played syncing is disabled.", targetStates: [], results: [] };
   }
@@ -800,7 +827,7 @@ export async function syncMediaUnplayedPlaystate(media, config, kv, { trackDispa
       })),
     });
 
-    summary = await includeTrackerDispatch(summary, media, "unwatched", lane);
+    if (includeTrackers) summary = await includeTrackerDispatch(summary, media, "unwatched", lane);
     return { ...summary, skipped: summary.status === "skipped", results };
   } finally {
     if (trackDispatch) completeDispatchTracking(trackingOwnerId);
