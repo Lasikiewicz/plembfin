@@ -57,6 +57,21 @@ export function recentUnwatchBlocksLibraryImport(playstate = null, now = Date.no
     && now - Number(playstate.updated_at) <= RECENT_UNWATCH_IMPORT_GUARD_MS;
 }
 
+export function resumeProgressBlockedByPlaystate(playstate = null, resumeUpdatedAt = 0) {
+  const state = String(playstate?.state || "").toLowerCase();
+  const progressUpdatedAt = Number(resumeUpdatedAt || 0);
+  const playstateUpdatedAt = Number(playstate?.updated_at || 0);
+
+  if (state === "watched") return "item is watched";
+  if (state === "unwatched" && (progressUpdatedAt <= 0 || playstateUpdatedAt >= progressUpdatedAt)) {
+    return "item is unwatched";
+  }
+  if (state && progressUpdatedAt > 0 && playstateUpdatedAt >= progressUpdatedAt) {
+    return "newer playstate";
+  }
+  return "";
+}
+
 function scheduledMediaInScope(config, media) {
   const scope = config?.syncScope || {};
   if (Array.isArray(scope.servers) && scope.servers.length && !scope.servers.includes(String(media.source || "").replace(/_initial_sync$/, ""))) return false;
@@ -714,7 +729,8 @@ async function processStoppedSessionProgress(row, config, loopStore) {
   if (!shouldSyncResumeProgress(media)) return null;
 
   const existingPlaystate = await getPlaystateForMedia(media).catch(() => null);
-  if (existingPlaystate?.state === "watched" || existingPlaystate?.state === "unwatched") {
+  const playstateBlockReason = resumeProgressBlockedByPlaystate(existingPlaystate, row.updated_at);
+  if (playstateBlockReason) {
     await deletePlaybackProgress(media).catch(() => null);
     console.log("Live tracking resume skipped because playstate is authoritative", {
       title: media.title,
@@ -722,6 +738,7 @@ async function processStoppedSessionProgress(row, config, loopStore) {
       playstateState: existingPlaystate.state,
       playstateUpdatedAt: existingPlaystate.updated_at,
       liveUpdatedAt: row.updated_at,
+      reason: playstateBlockReason,
     });
     return null;
   }
@@ -812,7 +829,6 @@ async function syncResumableMedia(media, config, loopStore, logger = console.log
 
   const existingPlaystate = await getPlaystateForMedia(media).catch(() => null);
   const resumeUpdatedAt = Number(media.updatedAt || 0);
-  const playstateUpdatedAt = Number(existingPlaystate?.updated_at || 0);
 
   // After an authoritative restore, ignore resume positions whose app-side timestamp predates
   // the restore â€” they are pre-restore state the backup has already superseded.
@@ -823,15 +839,10 @@ async function syncResumableMedia(media, config, loopStore, logger = console.log
   }
 
 
-  if (existingPlaystate?.state === "unwatched" && (resumeUpdatedAt <= 0 || playstateUpdatedAt >= resumeUpdatedAt)) {
+  const playstateBlockReason = resumeProgressBlockedByPlaystate(existingPlaystate, resumeUpdatedAt);
+  if (playstateBlockReason) {
     await deletePlaybackProgress(media).catch(() => null);
-    logResumeSkip(logger, media, "item is unwatched");
-    return false;
-  }
-
-  if (existingPlaystate && (existingPlaystate.state === "watched" || (resumeUpdatedAt > 0 && playstateUpdatedAt >= resumeUpdatedAt))) {
-    await deletePlaybackProgress(media).catch(() => null);
-    logResumeSkip(logger, media, existingPlaystate.state === "watched" ? "item is watched" : "newer playstate");
+    logResumeSkip(logger, media, playstateBlockReason);
     return false;
   }
 
