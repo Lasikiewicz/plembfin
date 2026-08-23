@@ -4,6 +4,13 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v0.10.3 - 23 August 2026
+
+Fix - Align episode history identities
+
+- Hide unwatched episode artwork and synopses by default, and add live Sync Activity search, numbered pagination, clearer disabled-state reporting, and neutral activity borders.
+- Episode history now prefers series-level provider IDs, reuses canonical show artwork, and resolves missing titles without requiring Fix Match.
+
 ## v0.10.2 - 22 August 2026
 
 Fix - Recognize BUILD_CHANNEL=latest and stable as release channel
