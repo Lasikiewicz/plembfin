@@ -94,14 +94,15 @@ test("importing Trakt play history never pushes those plays back out to Trakt or
 // one. That underlying push-date bug is now fixed separately, but this is
 // defense-in-depth against any future bug (or plain clock skew) doing the
 // same thing again.
-test("a Trakt play arriving right after our own outbound push is treated as an echo, not a new play", async () => {
+test("an IMDb-rich Trakt play arriving after our TMDB-only push is treated as an echo", async () => {
   // baselineComplete stays false here so pollTrakt's watched/unwatched
   // snapshot diff (which also reads tracker_item_state) is a no-op; only the
   // play-history import path below is under test, not the unrelated
   // snapshot-diff reconciliation for this synthetic media.
   connectTrakt({ baselineComplete: false });
-  const media = { type: "movie", ids: { imdb: "tt9999999" } };
-  trackerConnectionRepo.recordTrackerOutbound("trakt", trackerMediaKey(media), media, "watched");
+  const media = { type: "movie", ids: { imdb: "tt9999999", tmdb: "999999" } };
+  const outboundMedia = { type: "movie", ids: { tmdb: "999999" } };
+  trackerConnectionRepo.recordTrackerOutbound("trakt", trackerMediaKey(outboundMedia), outboundMedia, "watched");
   const echoWatchedAtIso = new Date(Date.now() + 5000).toISOString(); // 5s after our own push, well inside the echo window
 
   let historyWriteCalls = 0;
@@ -118,7 +119,7 @@ test("a Trakt play arriving right after our own outbound push is treated as an e
     if (href.includes("/sync/history/movies")) {
       return new Response(JSON.stringify([{
         id: 777001, watched_at: echoWatchedAtIso, action: "watch", type: "movie",
-        movie: { title: "Echo Movie", ids: { imdb: "tt9999999" } },
+        movie: { title: "Echo Movie", ids: { imdb: "tt9999999", tmdb: 999999 } },
       }]), { status: 200, headers: { "content-type": "application/json" } });
     }
     if (href.includes("/sync/history/episodes")) {

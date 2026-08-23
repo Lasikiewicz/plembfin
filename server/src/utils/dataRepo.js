@@ -927,7 +927,7 @@ export function playstateRecordFromMedia(media = {}, state = media?.syncAction |
   return record;
 }
 
-export async function upsertPlaystate(record, stateOverride = undefined, { skipInvalidate = false } = {}) {
+export function upsertPlaystateSync(record, stateOverride = undefined) {
   const normalized = normalizeWatchRecord(record, record.source || "webhook");
   const errors = validateWatchRecord(normalized);
   if (errors.length) throw new Error(errors.join(", "));
@@ -972,8 +972,17 @@ export async function upsertPlaystate(record, stateOverride = undefined, { skipI
     payload: { state, watchedAt: normalized.watched_at, sources: [...sources].sort() },
   });
 
-  if (!skipInvalidate) await invalidateHistoryDerivedCaches();
   return { mediaKey, state, record: normalized };
+}
+
+export async function upsertPlaystate(record, stateOverride = undefined, { skipInvalidate = false } = {}) {
+  const result = upsertPlaystateSync(record, stateOverride);
+  if (!skipInvalidate) await invalidateHistoryDerivedCaches();
+  return result;
+}
+
+export function upsertPlaystateForMediaSync(media, state = "watched", watchedAt = undefined) {
+  return upsertPlaystateSync(playstateRecordFromMedia(media, state, watchedAt), state);
 }
 
 export async function upsertPlaystateForMedia(media, state = "watched", watchedAt = undefined, options = {}) {
@@ -1011,7 +1020,7 @@ function playstateRowsForIdentity(record = {}) {
   });
 }
 
-export async function getPlaystateForMedia(media) {
+export function getPlaystateForMediaSync(media) {
   const record = playstateRecordFromMedia(media, media?.syncAction || "watched");
   const exact = selectPlaystateStmt.get(mediaKeyFor(record));
   if (exact) return playstateFromRow(exact);
@@ -1029,6 +1038,10 @@ export async function getPlaystateForMedia(media) {
     : [];
   const row = newestByUpdatedAt([...playstateRowsForIdentity(record), ...related, ...byShowTitle]);
   return row ? playstateFromRow(row) : null;
+}
+
+export async function getPlaystateForMedia(media) {
+  return getPlaystateForMediaSync(media);
 }
 
 // The playstate table is the current canonical pointer.  The history fallback
@@ -1133,7 +1146,7 @@ async function invalidateAfterRowMetaWrite(id, oldRow, changed) {
 // `id` lets a caller that is replacing a row keep that row's identity - see
 // applyManualUnwatch, where a superseding unwatched record stands in for the
 // watched one it replaced. It must name a row that no longer exists.
-export async function insertWatchRecord(record, { skipInvalidate = false, id: presetId = "" } = {}) {
+export function insertWatchRecordSync(record, { id: presetId = "" } = {}) {
   const normalized = normalizeWatchRecord(record, record.source);
   const errors = validateWatchRecord(normalized);
   if (errors.length) throw new Error(errors.join(", "));
@@ -1205,15 +1218,24 @@ export async function insertWatchRecord(record, { skipInvalidate = false, id: pr
       details: "Outbound synchronization queued after the Plembfin history write.",
     });
   }
+  return { id, record: normalized };
+}
+
+export function prefetchWatchRecordAssets({ id = "", record = null } = {}) {
+  if (!record || !((record.media_type === "movie" || isWatchedAction(record)) && (record.tmdb_id || record.title))) {
+    return Promise.resolve(null);
+  }
+  return prefetchTmdbMetadataBackground(record.media_type, record.tmdb_id, record.title, id, record).catch(() => null);
+}
+
+export async function insertWatchRecord(record, { skipInvalidate = false, id: presetId = "" } = {}) {
+  const result = insertWatchRecordSync(record, { id: presetId });
   if (!skipInvalidate) await invalidateHistoryDerivedCaches();
 
   // Eagerly pull + store TMDB metadata/artwork at ingest (fire-and-forget;
   // returned so the webhook can await it before responding if it wants to).
-  let assetPrefetch = Promise.resolve(null);
-  if ((normalized.media_type === "movie" || isWatchedAction(normalized)) && (normalized.tmdb_id || normalized.title)) {
-    assetPrefetch = prefetchTmdbMetadataBackground(normalized.media_type, normalized.tmdb_id, normalized.title, id, normalized).catch(() => null);
-  }
-  return { id, record: normalized, assetPrefetch };
+  const assetPrefetch = prefetchWatchRecordAssets(result);
+  return { ...result, assetPrefetch };
 }
 
 function defaultTelemetry(record) {
@@ -1888,7 +1910,7 @@ export async function getPlaybackProgressForMedia(mediaOrRecord) {
   return row ? playbackProgressFromRow(row) : null;
 }
 
-export async function deletePlaybackProgress(mediaOrRecord) {
+export function deletePlaybackProgressSync(mediaOrRecord) {
   const normalized = normalizePlaybackProgressRecord(mediaOrRecord, mediaOrRecord?.source);
   if (!normalized.media_key) return false;
   const related = normalized.title
@@ -1918,6 +1940,10 @@ export async function deletePlaybackProgress(mediaOrRecord) {
     });
   }
   return keys.size > 0;
+}
+
+export async function deletePlaybackProgress(mediaOrRecord) {
+  return deletePlaybackProgressSync(mediaOrRecord);
 }
 
 export async function listPlaybackProgressRowsForReplay({ limit = 25, offset = 0, snapshotAt = undefined } = {}) {
@@ -3275,7 +3301,7 @@ export async function backfillUnknownShowTitles() {
   return fixed;
 }
 
-export async function deleteWatchRecordById(id, { skipInvalidate = false } = {}) {
+export function deleteWatchRecordByIdSync(id) {
   if (!id) return false;
   const row = selectByIdStmt.get(String(id));
   if (row) {
@@ -3314,11 +3340,16 @@ export async function deleteWatchRecordById(id, { skipInvalidate = false } = {})
       deletePlaystateByKeyStmt.run(row.media_key);
     }
   }
-  if (!skipInvalidate) await invalidateHistoryDerivedCaches();
   return true;
 }
 
-export async function deleteWatchRecord(media, { skipInvalidate = false } = {}) {
+export async function deleteWatchRecordById(id, { skipInvalidate = false } = {}) {
+  const deleted = deleteWatchRecordByIdSync(id);
+  if (deleted && !skipInvalidate) await invalidateHistoryDerivedCaches();
+  return deleted;
+}
+
+export function deleteWatchRecordSync(media) {
   const key = mediaKeyFor({
     title: media.title,
     type: media.type,
@@ -3355,8 +3386,13 @@ export async function deleteWatchRecord(media, { skipInvalidate = false } = {}) 
       });
     }
   });
-  if (!skipInvalidate) await invalidateHistoryDerivedCaches();
   return true;
+}
+
+export async function deleteWatchRecord(media, { skipInvalidate = false } = {}) {
+  const deleted = deleteWatchRecordSync(media);
+  if (deleted && !skipInvalidate) await invalidateHistoryDerivedCaches();
+  return deleted;
 }
 
 export function requireDb() {

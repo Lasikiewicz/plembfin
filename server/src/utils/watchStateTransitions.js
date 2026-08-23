@@ -1,22 +1,20 @@
-import { setEmbyProgress } from "./embyClient.js";
-import { setJellyfinProgress } from "./jellyfinClient.js";
-import { setPlexProgress } from "./plexClient.js";
 import { db } from "../db.js";
 import {
-  deletePlaybackProgress,
-  deleteWatchRecord,
-  deleteWatchRecordById,
+  deletePlaybackProgressSync,
+  deleteWatchRecordByIdSync,
+  deleteWatchRecordSync,
   findWatchedByAnyMediaKey,
   getPlaystateForMedia,
   getWatchRecordByIdLight,
   getWatchRecordByMediaKey,
-  insertWatchRecord,
+  insertWatchRecordSync,
   mediaKeyFor,
   mediaToWatchRecord,
+  prefetchWatchRecordAssets,
   updateWatchTelemetry,
-  upsertPlaystateForMedia,
+  upsertPlaystateForMediaSync,
 } from "./dataRepo.js";
-import { getTargetsForSource, syncMediaPlaystate, syncMediaUnplayedPlaystate } from "./syncOrchestrator.js";
+import { syncMediaPlaystate, syncMediaUnplayedPlaystate } from "./syncOrchestrator.js";
 
 // Cross-platform mass-false-unwatch circuit breaker. applyUnwatchedTransition
 // below is the single choke point every *automatic* (non-manual) unwatch path
@@ -57,6 +55,7 @@ const countRecentAutomaticUnwatchesStmt = db.prepare(
 const recordAutomaticUnwatchStmt = db.prepare(
   "INSERT INTO loop_keys (id, key, value, created_at, expire_at) VALUES (@id, @key, @value, @created_at, @expire_at)",
 );
+const hasWatchRecordIdStmt = db.prepare("SELECT 1 FROM watch_history WHERE id=?");
 
 function isAutomaticUnwatchSource(source) {
   return AUTOMATIC_UNWATCH_SOURCES.has(String(source || "").toLowerCase());
@@ -88,10 +87,45 @@ function automaticUnwatchBurstDetected(media) {
   return false;
 }
 
-export async function applyWatchedTransition(media, config, loopStore, { trackDispatch = true, lane = "sync" } = {}) {
+function runGuardedLocalTransaction(shouldDefer, mutate) {
+  let deferred = false;
+  let result;
+  // The guard and every local mutation are synchronous while an IMMEDIATE
+  // transaction owns the cross-process write lock. A web action can therefore
+  // land before this transaction (and be seen by shouldDefer) or after it (and
+  // win), never in the middle of a stale tracker mutation. A thrown mutation
+  // error reaches better-sqlite3 directly, so all earlier writes roll back.
+  db.transaction(() => {
+    if (shouldDefer?.()) {
+      deferred = true;
+      return;
+    }
+    result = mutate();
+  }).immediate();
+  return { deferred, result };
+}
+
+function deferredWatchedResult() {
+  return { inserted: false, deferred: true, summary: { skipped: true, status: "skipped", details: "Deferred because a newer local/outbound state appeared during the tracker poll", targetStates: [] } };
+}
+
+function deferredUnwatchedResult(existingRecord = null) {
+  return {
+    wasDeleted: false,
+    id: existingRecord?.id || "",
+    alreadyUnwatched: false,
+    deferred: true,
+    summary: { skipped: true, status: "skipped", details: "Deferred because a newer local/outbound state appeared during the tracker poll", targetStates: [] },
+  };
+}
+
+export async function applyWatchedTransition(media, config, loopStore, { trackDispatch = true, lane = "sync", shouldDefer = null } = {}) {
   const existing = await getPlaystateForMedia(media).catch(() => null);
   if (existing?.state === "watched") {
     return { inserted: false, alreadyWatched: true, summary: { skipped: true, status: "skipped", details: "Already watched; no change to propagate", targetStates: [] } };
+  }
+  if (shouldDefer?.()) {
+    return deferredWatchedResult();
   }
   // getPlaystateForMedia can still miss an already-recorded watch stored
   // under a media_key from a different source (e.g. a Trakt-sourced entry
@@ -101,17 +135,30 @@ export async function applyWatchedTransition(media, config, loopStore, { trackDi
   // this; a hit there is conclusive too, not just an exact playstate match.
   const existingByAnyKey = await findWatchedByAnyMediaKey(media).catch(() => null);
   if (existingByAnyKey) {
-    await upsertPlaystateForMedia(media, "watched", existingByAnyKey.watched_at, { skipInvalidate: true });
+    const local = runGuardedLocalTransaction(shouldDefer, () => (
+      upsertPlaystateForMediaSync(media, "watched", existingByAnyKey.watched_at)
+    ));
+    if (local.deferred) return deferredWatchedResult();
     return { inserted: false, alreadyWatched: true, summary: { skipped: true, status: "skipped", details: "Already recorded under a different media key; no change to propagate", targetStates: [] } };
   }
   const record = mediaToWatchRecord({ ...media, syncAction: "watched" }, media.source);
   record.sync_action = "watched";
-  const result = await insertWatchRecord(record, { skipInvalidate: true });
-  await upsertPlaystateForMedia(media, "watched", result.record.watched_at, { skipInvalidate: true });
-  await deletePlaybackProgress(media).catch(() => null);
-  const summary = await syncMediaPlaystate(media, config, loopStore, { trackDispatch, lane }).catch((error) => ({
+  const local = runGuardedLocalTransaction(shouldDefer, () => {
+    const inserted = insertWatchRecordSync(record);
+    deletePlaybackProgressSync(media);
+    upsertPlaystateForMediaSync(media, "watched", record.watched_at);
+    return inserted;
+  });
+  if (local.deferred) return deferredWatchedResult();
+  const result = local.result;
+  void prefetchWatchRecordAssets(result);
+  // A newer action can legitimately commit after our atomic local section.
+  // Re-check before any network work so the later action owns outbound order.
+  if (shouldDefer?.()) return { ...deferredWatchedResult(), id: result.id };
+  const summary = await syncMediaPlaystate(media, config, loopStore, { trackDispatch, lane, shouldDefer }).catch((error) => ({
     skipped: false, status: "error", details: `Watched propagation failed: ${error.message || String(error)}`, targetStates: [],
   }));
+  if (summary.deferred) return { ...deferredWatchedResult(), id: result.id, summary };
   await updateWatchTelemetry(result.id, [
     `Origin: ${media.source || "unknown"}`, "Action: Marked Watched", `Media: ${media.title || "unknown"}`,
     `Dispatch status: ${summary.status || "unknown"}`, `Details: ${summary.details || "Watched state processed."}`,
@@ -151,6 +198,7 @@ export async function applyUnwatchedTransition(media, config, loopStore, {
   trackDispatch = true,
   force = false,
   lane = "sync",
+  shouldDefer = null,
 } = {}) {
   const existingWatched = await findWatchedByAnyMediaKey(media).catch(() => null);
   const existingRecord = recordId
@@ -162,20 +210,13 @@ export async function applyUnwatchedTransition(media, config, loopStore, {
   if (alreadyUnwatchedLocally && force) {
     // Nothing to insert/delete - plembfin already has this as unwatched - but
     // still clear progress and push "unplayed" live to every connected target.
-    await deletePlaybackProgress(media).catch(() => null);
+    const local = runGuardedLocalTransaction(shouldDefer, () => deletePlaybackProgressSync(media));
+    if (local.deferred) return deferredUnwatchedResult(existingRecord);
     const syncMedia = { ...(includeSourcePlatform ? { ...media, source: "manual" } : media), lane };
-    for (const target of getTargetsForSource(syncMedia.source, config)) {
-      try {
-        if (target === "plex") await setPlexProgress(config.plex, { ...syncMedia, positionMs: 0 });
-        if (target === "emby") await setEmbyProgress(config.emby, { ...syncMedia, positionMs: 0 });
-        if (target === "jellyfin") await setJellyfinProgress(config.jellyfin, { ...syncMedia, positionMs: 0 });
-      } catch (error) {
-        console.log(`Resume progress clear on ${target} during unwatch failed (non-fatal)`, error.message);
-      }
-    }
-    const summary = await syncMediaUnplayedPlaystate(syncMedia, config, loopStore, { trackDispatch, lane }).catch((error) => ({
+    const summary = await syncMediaUnplayedPlaystate(syncMedia, config, loopStore, { trackDispatch, lane, shouldDefer }).catch((error) => ({
       skipped: false, status: "error", details: `Unwatched propagation failed: ${error.message || String(error)}`, targetStates: [],
     }));
+    if (summary.deferred) return { ...deferredUnwatchedResult(existingRecord), summary };
     if (existingRecord?.id) {
       await updateWatchTelemetry(existingRecord.id, unwatchedTelemetry(summary, syncMedia), { skipInvalidate: true }).catch(() => null);
     }
@@ -186,7 +227,8 @@ export async function applyUnwatchedTransition(media, config, loopStore, {
     // Canonical state is already unwatched, but a partial-progress row can still
     // exist (e.g. a re-watch in progress after an earlier unwatch) - always clear
     // it so "Clear Progress" removes the item from the Part Watched list.
-    await deletePlaybackProgress(media).catch(() => null);
+    const local = runGuardedLocalTransaction(shouldDefer, () => deletePlaybackProgressSync(media));
+    if (local.deferred) return deferredUnwatchedResult(existingRecord);
     return {
       wasDeleted: false,
       id: existingRecord?.id || "",
@@ -195,7 +237,33 @@ export async function applyUnwatchedTransition(media, config, loopStore, {
     };
   }
 
-  if (automaticUnwatchBurstDetected(media)) {
+  const supersededId = existingWatched?.id || existingRecord?.id || "";
+  const pendingSummary = { skipped: false, status: "pending", details: "Unwatched propagation queued", targetStates: [] };
+  const unplayedRecord = mediaToWatchRecord({ ...media, syncAction: "unwatched" }, media.source);
+  unplayedRecord.sync_action = "unwatched";
+  unplayedRecord.sync_dispatch_telemetry = unwatchedTelemetry(pendingSummary, media);
+
+  let heldBackSuspiciousBurst = false;
+  let deletedById = false;
+  let deletedByKey = false;
+  const local = runGuardedLocalTransaction(shouldDefer, () => {
+    if (automaticUnwatchBurstDetected(media)) {
+      heldBackSuspiciousBurst = true;
+      return null;
+    }
+    if (recordId) {
+      deletedById = deleteWatchRecordByIdSync(recordId);
+    }
+    deletedByKey = deleteWatchRecordSync(media);
+    const reusableId = supersededId && !hasWatchRecordIdStmt.get(supersededId) ? supersededId : "";
+    const inserted = insertWatchRecordSync(unplayedRecord, { id: reusableId });
+    deletePlaybackProgressSync(media);
+    upsertPlaystateForMediaSync(media, "unwatched", unplayedRecord.watched_at);
+    return inserted;
+  });
+
+  if (local.deferred) return deferredUnwatchedResult(existingRecord);
+  if (heldBackSuspiciousBurst) {
     return {
       wasDeleted: false,
       id: existingRecord?.id || "",
@@ -204,47 +272,22 @@ export async function applyUnwatchedTransition(media, config, loopStore, {
       summary: { skipped: true, status: "skipped", details: "Held back: looks like a mass false-unwatch burst (see server logs).", targetStates: [] },
     };
   }
+  const result = local.result;
+  void prefetchWatchRecordAssets(result);
+  const wasDeleted = Boolean(deletedById || deletedByKey);
 
-  const supersededId = existingWatched?.id || existingRecord?.id || "";
-  let wasDeleted = false;
-  if (recordId) {
-    wasDeleted = await deleteWatchRecordById(recordId, { skipInvalidate: true }).catch((error) => {
-      console.error("Failed to delete watch record by id", error);
-      return false;
-    });
-  }
-  const deletedByKey = await deleteWatchRecord(media, { skipInvalidate: true }).catch((error) => {
-    console.error("Failed to delete watch record", error);
-    return false;
-  });
-  wasDeleted = wasDeleted || deletedByKey;
-  await deletePlaybackProgress(media).catch(() => null);
-
-  const pending = { skipped: false, status: "pending", details: "Unwatched propagation queued", targetStates: [] };
-  const unplayedRecord = mediaToWatchRecord({ ...media, syncAction: "unwatched" }, media.source);
-  unplayedRecord.sync_action = "unwatched";
-  unplayedRecord.sync_dispatch_telemetry = unwatchedTelemetry(pending, media);
-  const reusableId = supersededId && !(await getWatchRecordByIdLight(supersededId).catch(() => null)) ? supersededId : "";
-  const result = await insertWatchRecord(unplayedRecord, { skipInvalidate: true, id: reusableId });
-  await upsertPlaystateForMedia(media, "unwatched", result.record.watched_at, { skipInvalidate: true });
+  if (shouldDefer?.()) return { ...deferredUnwatchedResult(existingRecord), wasDeleted, id: result.id };
 
   const syncMedia = { ...(includeSourcePlatform ? { ...media, source: "manual" } : media), lane };
-  for (const target of getTargetsForSource(syncMedia.source, config)) {
-    try {
-      if (target === "plex") await setPlexProgress(config.plex, { ...syncMedia, positionMs: 0 });
-      if (target === "emby") await setEmbyProgress(config.emby, { ...syncMedia, positionMs: 0 });
-      if (target === "jellyfin") await setJellyfinProgress(config.jellyfin, { ...syncMedia, positionMs: 0 });
-    } catch (error) {
-      console.log(`Resume progress clear on ${target} during unwatch failed (non-fatal)`, error.message);
-    }
-  }
-
-  const summary = await syncMediaUnplayedPlaystate(syncMedia, config, loopStore, { trackDispatch, lane }).catch((error) => ({
+  const summary = await syncMediaUnplayedPlaystate(syncMedia, config, loopStore, { trackDispatch, lane, shouldDefer }).catch((error) => ({
     skipped: false,
     status: "error",
     details: `Unwatched propagation failed: ${error.message || String(error)}`,
     targetStates: [],
   }));
+  if (summary.deferred) {
+    return { ...deferredUnwatchedResult(existingRecord), wasDeleted, id: result.id, summary };
+  }
   await updateWatchTelemetry(result.id, unwatchedTelemetry(summary, syncMedia), { skipInvalidate: true });
   return { wasDeleted, id: result.id, alreadyUnwatched: false, summary };
 }

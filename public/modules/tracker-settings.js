@@ -26,9 +26,13 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 export function traktSyncCompletionMessage(result = {}) {
   const watched = Number(result.watched || 0);
   const unwatched = Number(result.unwatched || 0);
+  const deferred = Number(result.deferredWatched || 0) + Number(result.deferredUnwatched || 0);
   const remoteItems = Number(result.remoteItems || 0);
   const changes = watched + unwatched;
-  return `Trakt sync complete: ${remoteItems.toLocaleString()} item${remoteItems === 1 ? "" : "s"} checked; ${watched} watched and ${unwatched} unwatched change${changes === 1 ? "" : "s"} applied.`;
+  const deferredCopy = deferred
+    ? ` ${deferred} change${deferred === 1 ? "" : "s"} held for re-check.`
+    : "";
+  return `Trakt sync complete: ${remoteItems.toLocaleString()} item${remoteItems === 1 ? "" : "s"} checked; ${watched} watched and ${unwatched} unwatched change${changes === 1 ? "" : "s"} applied.${deferredCopy}`;
 }
 
 function renderConnection(connection) {

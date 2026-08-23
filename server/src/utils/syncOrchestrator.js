@@ -4,14 +4,19 @@ import { markJellyfinPlayed, markJellyfinUnplayed, setJellyfinProgress } from ".
 import { watchedPlayedSyncEnabled } from "./syncFlags.js";
 import { minResumePositionMs, watchedThresholdPercent } from "./tuning.js";
 import { canReceiveState, canSendState } from "./syncRoles.js";
-import { dispatchTrackerWatchState } from "./trackerDispatcher.js";
+import { dispatchTrackerWatchState, primeTrackerWatchStateIntents } from "./trackerDispatcher.js";
 import {
   BACKGROUND_SYNC_PROGRESS_MAX_OWNER_MS,
   releaseBackgroundSyncProgressOwner,
   startBackgroundSyncProgressOwner,
   updateBackgroundSyncProgressOwner,
 } from "./configStore.js";
-import { canonicalShowTitleKey, canonicalTitleKey, showTitleFrom } from "./dataRepo.js";
+import {
+  canonicalShowTitleKey,
+  canonicalTitleKey,
+  showTitleFrom,
+} from "./dataRepo.js";
+import { runWithOutboundStateLease } from "./outboundStateLease.js";
 
 const LOOP_CACHE_TTL_SECONDS = 60;
 const LOOP_WINDOW_MS = 15_000;
@@ -211,6 +216,65 @@ function targetsForMedia(media, config, stateType) {
   if (!Array.isArray(media.syncTargets)) return targets;
   const requested = new Set(media.syncTargets.map((target) => String(target).trim().toLowerCase()).filter(Boolean));
   return targets.filter((target) => requested.has(target));
+}
+
+function normalizedCoordinate(value) {
+  const coordinate = Number(value);
+  return Number.isInteger(coordinate) && coordinate >= 0 ? coordinate : null;
+}
+
+function episodeCoordinates(media = {}) {
+  const titleMatch = String(media.title || "").match(/\bS(\d{1,3})E(\d{1,3})\b/i);
+  return {
+    season: normalizedCoordinate(media.season) ?? normalizedCoordinate(titleMatch?.[1]),
+    episode: normalizedCoordinate(media.episode) ?? normalizedCoordinate(titleMatch?.[2]),
+  };
+}
+
+// Provider IDs are deliberately absent from this mutex identity. A metadata
+// rematch can replace every ID, and a stale Trakt poll can carry the old IDs
+// while Force Sync carries the new ones. Both operations still address the
+// same server item, so title + episode coordinates (or coarse movie title)
+// must serialize them. Coarse fallbacks are safe: an occasional extra wait is
+// preferable to letting two aliases write contradictory states concurrently.
+function outboundStateLeaseIdentity(media = {}) {
+  const type = String(media.type || media.mediaType || media.media_type || "unknown").trim().toLowerCase();
+  if (type === "episode") {
+    const { season, episode } = episodeCoordinates(media);
+    const rawShowTitle = media.showTitle
+      || media.show_title
+      || media.seriesTitle
+      || media.grandparentTitle
+      || (media.title ? showTitleFrom(media.title) : "");
+    const showKey = canonicalShowTitleKey(rawShowTitle);
+    if (showKey && season !== null && episode !== null) {
+      return `episode:title:${showKey}:s:${season}:e:${episode}`;
+    }
+    const fullTitleKey = canonicalTitleKey(media.title || rawShowTitle);
+    if (fullTitleKey) {
+      return `episode:full-title:${fullTitleKey}:s:${season ?? "unknown"}:e:${episode ?? "unknown"}`;
+    }
+    if (season !== null || episode !== null) {
+      return `episode:coordinates:s:${season ?? "unknown"}:e:${episode ?? "unknown"}`;
+    }
+    return "episode:unknown";
+  }
+
+  if (type === "movie") {
+    const rawTitle = String(media.title || "").trim();
+    const titleKey = canonicalTitleKey(rawTitle.replace(/\s*\(\d{4}\)\s*$/, ""));
+    // Release-year data is not consistently present across Trakt and Force
+    // payloads. Title-only locking can serialize unrelated remakes briefly,
+    // but it cannot let two aliases of the same movie pass each other.
+    return titleKey ? `movie:title:${titleKey}` : "movie:unknown";
+  }
+
+  const titleKey = canonicalTitleKey(media.title || media.showTitle || media.show_title || "");
+  return titleKey ? `${type}:title:${titleKey}` : `${type}:unknown`;
+}
+
+function outboundStateLeaseKey(media, target) {
+  return `played-state:${String(target || "unknown").toLowerCase()}:${outboundStateLeaseIdentity(media)}`;
 }
 
 function mediaWithLane(media, lane = "sync") {
@@ -476,6 +540,7 @@ function summarizeResults(targets, results) {
   const successfulTargets = [];
   const failedTargets = [];
   const missingTargets = [];
+  const deferredTargets = [];
   const targetStates = [];
 
   if (!targets.length) {
@@ -500,6 +565,12 @@ function summarizeResults(targets, results) {
       return;
     }
 
+    if (result.value?.deferred || result.value?.status === "deferred") {
+      deferredTargets.push(target);
+      targetStates.push({ target, status: "skipped", detail: result.value?.detail || "A newer state took precedence" });
+      return;
+    }
+
     successfulTargets.push(target);
     targetStates.push({
       target,
@@ -516,14 +587,19 @@ function summarizeResults(targets, results) {
       status: successfulTargets.length ? "partial" : "error",
       details: `Synced to ${formatTargets(successfulTargets)}; failed ${formatTargets(failedTargets)}`,
       targetStates,
+      deferred: deferredTargets.length > 0,
     };
   }
 
-  if (missingTargets.length) {
+  if (missingTargets.length || deferredTargets.length) {
+    const skippedTargets = [...missingTargets, ...deferredTargets];
     return {
       status: successfulTargets.length ? "partial" : "skipped",
-      details: `Synced to ${formatTargets(successfulTargets)}; no match on ${formatTargets(missingTargets)}`,
+      details: deferredTargets.length
+        ? `Synced to ${formatTargets(successfulTargets)}; held ${formatTargets(skippedTargets)} for a newer state`
+        : `Synced to ${formatTargets(successfulTargets)}; no match on ${formatTargets(missingTargets)}`,
       targetStates,
+      deferred: deferredTargets.length > 0,
     };
   }
 
@@ -611,6 +687,17 @@ function formatTargets(targets) {
   return `${labels.slice(0, -1).join(", ")} & ${labels.at(-1)}`;
 }
 
+function deferredDispatchSummary(details = "A newer local/outbound state took precedence") {
+  return {
+    skipped: true,
+    deferred: true,
+    status: "skipped",
+    details,
+    targetStates: [],
+    results: [],
+  };
+}
+
 async function includeTrackerDispatch(summary, media, state, lane = "sync") {
   // An explicit target list is authoritative. Detail-page Force Sync uses it
   // for destination-specific repairs, which must not also mutate Trakt as an
@@ -640,6 +727,7 @@ export async function syncMediaPlaystate(media, config, kv, {
   trackDispatch = true,
   lane = "sync",
   includeTrackers = true,
+  shouldDefer = null,
 } = {}) {
   if (!watchedPlayedSyncEnabled()) {
     console.log("Sync playstate skipped: watched/played syncing is disabled");
@@ -654,6 +742,8 @@ export async function syncMediaPlaystate(media, config, kv, {
   if (!["manual", "force_sync", "trakt", "trakt_import", "trakt_current"].includes(String(media.source || "").toLowerCase()) && !canSendState(config, String(media.source || "").toLowerCase(), "watched")) {
     return { skipped: true, status: "skipped", details: "Source is not allowed to send watched state", targetStates: [], results: [] };
   }
+
+  if (shouldDefer?.()) return deferredDispatchSummary("A newer unwatched state took precedence before watched dispatch");
 
   const targets = targetsForMedia(media, config, "watched");
   if (checkAndClaimLoop(media, media.source, targets, kv)) {
@@ -677,27 +767,27 @@ export async function syncMediaPlaystate(media, config, kv, {
 
   const trackingOwnerId = trackDispatch ? beginDispatchTracking() : "";
   try {
-    // Prime the echo ledger before making any remote calls. Plex can emit its
-    // played notification while the request is still in flight; recording only
-    // after the calls complete leaves a small window where our own write could
-    // be mistaken for a new watch.
-    await recordOutboundPlayedMarks(media, targets, kv);
-
     const jobs = targets.map((target) => {
-      const run = clientFor(target, config, media, lane);
-      return run();
+      const leaseKey = outboundStateLeaseKey(media, target);
+      return runWithOutboundStateLease(leaseKey, "watched", async ({ shouldDefer: leaseShouldDefer }) => {
+        // Prime the echo ledger inside the same target lease and immediately
+        // before its write. Plex can emit the played notification while the
+        // request is still in flight.
+        await recordOutboundPlayedMarks(media, [target], kv);
+        if (leaseShouldDefer()) {
+          return { status: "deferred", deferred: true, detail: "A newer unwatched state took precedence" };
+        }
+        const result = await clientFor(target, config, media, lane)();
+        if (leaseShouldDefer()) {
+          return { status: "deferred", deferred: true, detail: "A newer unwatched state took precedence" };
+        }
+        if (result?.status !== "not_found") await recordOutboundPlayedMarks(media, [target], kv);
+        return result;
+      }, { shouldDefer });
     });
 
     const results = await Promise.allSettled(jobs);
     let summary = summarizeResults(targets, results);
-
-    // Remember which servers we just stamped so a played flag read back from them
-    // later is recognised as our own write rather than a fresh play.
-    await recordOutboundPlayedMarks(
-      media,
-      summary.targetStates.filter((state) => state.status === "success").map((state) => state.target),
-      kv,
-    );
 
     console.log("Sync playstate dispatch completed", {
       source: media.source,
@@ -710,7 +800,11 @@ export async function syncMediaPlaystate(media, config, kv, {
       })),
     });
 
-    if (includeTrackers) summary = await includeTrackerDispatch(summary, media, "watched", lane);
+    if (shouldDefer?.()) summary = { ...summary, ...deferredDispatchSummary("A newer unwatched state took precedence during watched dispatch"), targetStates: summary.targetStates || [], results };
+
+    // A deferred LAN target means this whole inbound state was superseded.
+    // Never let its older tracker write escape after the newer action.
+    if (includeTrackers && !summary.deferred) summary = await includeTrackerDispatch(summary, media, "watched", lane);
     return { ...summary, skipped: summary.status === "skipped", results };
   } finally {
     if (trackDispatch) completeDispatchTracking(trackingOwnerId);
@@ -754,10 +848,26 @@ export async function appendCanonicalTrackerDispatch(summary, media, state = "wa
   return includeTrackerDispatch(summary, canonicalMedia, state, lane);
 }
 
+export async function primeCanonicalTrackerDispatchIntents(items = []) {
+  if (!watchedPlayedSyncEnabled()) return 0;
+  return primeTrackerWatchStateIntents(items
+    .filter(({ media }) => media?.isValid !== false)
+    .map(({ media, state = "watched" }) => ({
+      state,
+      media: {
+        ...media,
+        source: "manual",
+        isValid: true,
+        syncTargets: ["trakt"],
+      },
+    })));
+}
+
 export async function syncMediaUnplayedPlaystate(media, config, kv, {
   trackDispatch = true,
   lane = "sync",
   includeTrackers = true,
+  shouldDefer = null,
 } = {}) {
   if (!watchedPlayedSyncEnabled()) {
     return { skipped: true, status: "skipped", details: "Watched/played syncing is disabled.", targetStates: [], results: [] };
@@ -771,6 +881,7 @@ export async function syncMediaUnplayedPlaystate(media, config, kv, {
   if (!["manual", "force_sync", "trakt", "trakt_import", "trakt_current"].includes(String(media.source || "").toLowerCase()) && !canSendState(config, String(media.source || "").toLowerCase(), "unwatched")) {
     return { skipped: true, status: "skipped", details: "Source is not allowed to send unwatched state", targetStates: [], results: [] };
   }
+  if (shouldDefer?.()) return deferredDispatchSummary("A newer watched state took precedence before unplayed dispatch");
   const targets = targetsForMedia(media, config, "unwatched");
   if (checkAndClaimLoop(media, media.source, targets, kv, "unplayed_loop")) {
     return {
@@ -791,33 +902,40 @@ export async function syncMediaUnplayedPlaystate(media, config, kv, {
 
   const trackingOwnerId = trackDispatch ? beginDispatchTracking() : "";
   try {
-    // Prime before the DELETE/unscrobble requests because some servers emit the
-    // callback before the outbound request resolves.
-    await recordOutboundUnplayedMarks(media, targets, kv);
-
-    // "Mark unplayed" and "resume position" are separate fields on Emby/Jellyfin/
-    // Plex - clearing the played flag alone leaves a stale progress bar in
-    // Continue Watching. Best-effort and non-fatal: a target that rejects this
-    // still gets the unplayed mark below.
-    await Promise.all(targets.map(async (target) => {
-      try {
-        await clientProgressFor(target, config, { ...media, positionMs: 0 }, lane)();
-      } catch (error) {
-        console.log(`Resume progress clear on ${target} during unwatch failed (non-fatal)`, error.message);
-      }
-    }));
-
     const jobs = targets.map((target) => {
-      const run = clientUnplayedFor(target, config, media, lane);
-      return run();
+      const leaseKey = outboundStateLeaseKey(media, target);
+      return runWithOutboundStateLease(leaseKey, "unwatched", async ({ shouldDefer: leaseShouldDefer }) => {
+        // Prime before the DELETE/unscrobble request because some servers emit
+        // their callback before the outbound request resolves.
+        await recordOutboundUnplayedMarks(media, [target], kv);
+
+        // Progress clear and mark-unplayed are one indivisible remote state
+        // operation under this lease. A newer watched write cannot slip between
+        // them and then be overwritten by this older unplayed request.
+        if (leaseShouldDefer()) {
+          return { status: "deferred", deferred: true, detail: "A newer watched state took precedence" };
+        }
+        try {
+          await clientProgressFor(target, config, { ...media, positionMs: 0 }, lane)();
+        } catch (error) {
+          console.log(`Resume progress clear on ${target} during unwatch failed (non-fatal)`, error.message);
+        }
+        if (leaseShouldDefer()) {
+          return { status: "deferred", deferred: true, detail: "A newer watched state took precedence" };
+        }
+
+        const result = await clientUnplayedFor(target, config, media, lane)();
+        if (leaseShouldDefer()) {
+          return { status: "deferred", deferred: true, detail: "A newer watched state took precedence" };
+        }
+        if (result?.status !== "not_found") await recordOutboundUnplayedMarks(media, [target], kv);
+        return result;
+      }, { shouldDefer });
     });
 
     const results = await Promise.allSettled(jobs);
     let summary = summarizeResults(targets, results);
-    const successfulTargets = summary.targetStates
-      .filter((state) => state.status === "success")
-      .map((state) => state.target);
-    await recordOutboundUnplayedMarks(media, successfulTargets, kv);
+    if (shouldDefer?.()) summary = { ...summary, ...deferredDispatchSummary("A newer watched state took precedence during unplayed dispatch"), targetStates: summary.targetStates || [], results };
     console.log("Sync unplayed dispatch completed", {
       source: media.source,
       results: results.map((result, index) => ({
@@ -827,7 +945,7 @@ export async function syncMediaUnplayedPlaystate(media, config, kv, {
       })),
     });
 
-    if (includeTrackers) summary = await includeTrackerDispatch(summary, media, "unwatched", lane);
+    if (includeTrackers && !summary.deferred) summary = await includeTrackerDispatch(summary, media, "unwatched", lane);
     return { ...summary, skipped: summary.status === "skipped", results };
   } finally {
     if (trackDispatch) completeDispatchTracking(trackingOwnerId);

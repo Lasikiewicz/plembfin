@@ -15,7 +15,7 @@ import { remoteEpisodeImportError } from "./episodeImportGuard.js";
 import { appendSyncHistory, loadMediaConfig } from "./configStore.js";
 import { createLoopStore } from "./loopStore.js";
 import { runWithConcurrency } from "./concurrency.js";
-import { appendCanonicalTrackerDispatch, syncCanonicalPlaystate } from "./syncOrchestrator.js";
+import { appendCanonicalTrackerDispatch, primeCanonicalTrackerDispatchIntents, syncCanonicalPlaystate } from "./syncOrchestrator.js";
 import {
   getCanonicalWatchState,
   findWatchedByAnyMediaKey,
@@ -468,6 +468,23 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
       currentEpisodeStateByCoordinate = new Map(
         (currentShow.episodes || []).map((row) => [`${row.season}:${row.episode}`, row.sync_action || "watched"]),
       );
+    }
+  }
+
+  // Detail Force Sync deliberately keeps slow Trakt calls out of the fast
+  // local-server worker pool. Prime every eventual Trakt intent before any
+  // local state or LAN destination is touched, though: otherwise a poll can
+  // fetch an old Trakt snapshot during the local phase, commit its opposite
+  // transition before the deferred tracker phase starts, and undo the Force
+  // Sync that is still in progress. The poll worker's transactional guard
+  // re-reads this persistent marker immediately before mutating local state.
+  if (requested.mode === "push" && !requested.target && !cancelled) {
+    const primedTrackerIntents = await primeCanonicalTrackerDispatchIntents(collection.items.map((media) => ({
+      media,
+      state: media.canonicalState || "watched",
+    })));
+    if (primedTrackerIntents) {
+      logger(`[push] Primed ${primedTrackerIntents} Trakt intent${primedTrackerIntents === 1 ? "" : "s"} before local media-server sync.`);
     }
   }
 

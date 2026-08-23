@@ -1,5 +1,5 @@
-import { getTrackerConnection, recordTrackerOutbound, updateTrackerConnectionStatus, updateTrackerTokens } from "./trackerConnectionRepo.js";
-import { refreshTraktToken, setTraktWatchState, trackerMediaKey } from "./traktClient.js";
+import { getTrackerConnection, recordTrackerOutbound, recordTrackerOutboundBatch, updateTrackerConnectionStatus, updateTrackerTokens } from "./trackerConnectionRepo.js";
+import { refreshTraktToken, setTraktWatchState, trackerMediaIdentityKeys, trackerMediaKey } from "./traktClient.js";
 import { hydrateTraktAppCredentials } from "./traktAppConfig.js";
 import { getTmdbDetails } from "./tmdbGateway.js";
 
@@ -61,24 +61,40 @@ export function trackerMediaWithMovieIds(media = {}, details = {}) {
   };
 }
 
-// Hydrates any missing provider ids even when the item already carries one:
-// TMDB's details response carries the other external ids, and existing ids
-// remain authoritative; this only fills gaps.
-async function hydrateTrackerMedia(media) {
+function primaryHydrationCacheKey(media = {}) {
+  const type = media.type || media.mediaType;
+  const title = type === "episode" ? trackerShowTitle(media) : String(media.title || "").trim();
+  return `${type}:${title.toLowerCase().replace(/\s+/g, " ").trim()}:${String(media.year || "")}`;
+}
+
+// Trakt accepts any one provider id, so a sparse item already has a reliable
+// primary payload and does not need a series metadata lookup merely to enrich
+// it. This is especially important for legacy shows with hundreds of episode
+// rows. Title-only items still need hydration; callers can share their
+// series-level details promise across the whole Force batch.
+async function hydrateTrackerMedia(media, {
+  primaryHydrationCache = null,
+  detailsResolver = getTmdbDetails,
+} = {}) {
   const type = media.type || media.mediaType;
   if (type !== "episode" && type !== "movie") return media;
-  const existingIds = media.ids || {};
-  const hasAllIds = Boolean(existingIds.imdb && existingIds.tmdb && existingIds.tvdb);
-  if (hasAllIds) return media;
+  if (trackerMediaIdentityKeys(media).length) return media;
+  const resolveDetails = (args) => {
+    const resolve = () => Promise.resolve().then(() => detailsResolver(args));
+    if (!primaryHydrationCache) return resolve();
+    const key = primaryHydrationCacheKey(media);
+    if (!primaryHydrationCache.has(key)) primaryHydrationCache.set(key, resolve());
+    return primaryHydrationCache.get(key);
+  };
   if (type === "episode") {
     const title = trackerShowTitle(media);
     if (!title) return media;
     try {
-      const details = await getTmdbDetails({
+      const details = await resolveDetails({
         mediaType: "tv",
-        tmdbId: existingIds.tmdb || "",
+        tmdbId: "",
         title,
-        ids: { imdbId: existingIds.imdb, tvdbId: existingIds.tvdb },
+        ids: {},
         light: true,
       });
       return trackerMediaWithSeriesIds(media, details);
@@ -89,11 +105,11 @@ async function hydrateTrackerMedia(media) {
   const title = String(media.title || "").trim();
   if (!title) return media;
   try {
-    const details = await getTmdbDetails({
+    const details = await resolveDetails({
       mediaType: "movie",
-      tmdbId: existingIds.tmdb || "",
+      tmdbId: "",
       title,
-      ids: { imdbId: existingIds.imdb, tvdbId: existingIds.tvdb },
+      ids: {},
       light: true,
     });
     return trackerMediaWithMovieIds(media, details);
@@ -158,26 +174,67 @@ async function performTraktDispatch(connection, trackerMedia, state, isCanonical
   return { removeResult, result };
 }
 
-// hydrateTrackerMedia deliberately never overrides an episode's own stored
-// id, since that id normally must win over a title-based guess (see its own
-// comment). But Trakt rejecting the add outright is a much stronger signal
-// than "no id was ever recorded" - it means the specific id we sent doesn't
-// correspond to anything Trakt recognizes, which is exactly what happens
-// when a media server's own metadata match is wrong for one episode (its
-// webhook still reports *an* id, just the wrong one). One retry against the
-// show's own known series ids, only once Trakt has explicitly said the
-// episode's own id doesn't work, recovers this without ever silently
-// replacing a genuinely-working id the way the title-search bug used to.
-async function seriesIdsForRetry(media) {
-  const title = trackerShowTitle(media);
+// A stored provider id remains the primary payload. Trakt rejecting it is a
+// stronger signal than a title guess, though, so both episodes and movies get
+// one title-derived retry candidate. Force preflight resolves the same
+// candidate early to cover its LAN gap; a shared promise keeps that lookup
+// O(1) for repeated items in a Force batch.
+function titleRetryCacheKey(media = {}) {
+  const type = media.type || media.mediaType;
+  const title = type === "episode" ? trackerShowTitle(media) : String(media.title || "").trim();
+  return `${type}:${title.toLowerCase().replace(/\s+/g, " ").trim()}:${String(media.year || "")}`;
+}
+
+async function titleIdsForRetry(media, cache = null, detailsResolver = getTmdbDetails) {
+  const type = media.type || media.mediaType;
+  const title = type === "episode" ? trackerShowTitle(media) : String(media.title || "").trim();
   if (!title) return null;
-  const details = await getTmdbDetails({ mediaType: "tv", title, light: true }).catch(() => null);
-  const ids = {
-    imdb: String(details?.external_ids?.imdb_id || "").trim(),
-    tmdb: String(details?.id || details?.external_ids?.tmdb_id || "").trim(),
-    tvdb: String(details?.external_ids?.tvdb_id || "").trim(),
+  const resolve = async () => {
+    const details = await Promise.resolve()
+      .then(() => detailsResolver({ mediaType: type === "episode" ? "tv" : "movie", title, light: true }))
+      .catch(() => null);
+    const ids = {
+      imdb: String(details?.external_ids?.imdb_id || "").trim(),
+      tmdb: String(details?.id || details?.external_ids?.tmdb_id || "").trim(),
+      tvdb: String(details?.external_ids?.tvdb_id || "").trim(),
+    };
+    return ids.imdb || ids.tmdb || ids.tvdb ? ids : null;
   };
-  return ids.imdb || ids.tmdb || ids.tvdb ? ids : null;
+  if (!cache) return resolve();
+  const key = titleRetryCacheKey(media);
+  if (!key) return null;
+  if (!cache.has(key)) cache.set(key, resolve());
+  return cache.get(key);
+}
+
+// Resolve the identities the real Trakt dispatch can use before it mutates
+// anything remotely. `hydrateTrackerMedia` fills title-only Force items while
+// raw sparse IDs remain authoritative primaries. Either an episode or a movie
+// can carry a wrong provider ID; dispatchTrakt retries that case with the
+// title-derived identity after Trakt returns not_found. Force Sync asks for
+// that candidate up front too, so its preflight marker covers the same item
+// during the earlier LAN phase.
+export async function trackerDispatchMediaCandidates(media = {}, {
+  includeTitleFallback = false,
+  primaryHydrationCache = null,
+  titleFallbackCache = null,
+  detailsResolver = getTmdbDetails,
+} = {}) {
+  const hadPrimaryIdentity = trackerMediaIdentityKeys(media).length > 0;
+  const primary = await hydrateTrackerMedia(media, { primaryHydrationCache, detailsResolver });
+  const candidates = trackerMediaIdentityKeys(primary).length ? [primary] : [];
+  // A title-only item's hydrated primary already *is* its title-derived
+  // candidate. Only raw-ID primaries need the separate not_found retry.
+  if (includeTitleFallback && hadPrimaryIdentity) {
+    const titleIds = await titleIdsForRetry(primary, titleFallbackCache, detailsResolver).catch(() => null);
+    if (titleIds) {
+      const fallback = { ...primary, ids: titleIds };
+      const primaryIds = JSON.stringify(Object.entries(primary.ids || {}).filter(([, value]) => value != null && String(value) !== "").sort());
+      const fallbackIds = JSON.stringify(Object.entries(titleIds).filter(([, value]) => value != null && String(value) !== "").sort());
+      if (fallbackIds !== primaryIds && trackerMediaIdentityKeys(fallback).length) candidates.push(fallback);
+    }
+  }
+  return candidates;
 }
 
 async function dispatchTrakt(media, state, lane = "sync") {
@@ -188,8 +245,20 @@ async function dispatchTrakt(media, state, lane = "sync") {
   // the play-history backfill) - already exists on Trakt. Echoing it back
   // via /sync/history would create a duplicate play there every time.
   if (String(media.source || "").toLowerCase().includes("trakt")) return { target: "trakt", status: "skipped", detail: "Source tracker echo suppressed" };
-  const trackerMedia = await hydrateTrackerMedia(media);
+  let [trackerMedia] = await trackerDispatchMediaCandidates(media);
+  if (!trackerMedia) {
+    [trackerMedia] = await trackerDispatchMediaCandidates(media, { includeTitleFallback: true });
+  }
+  if (!trackerMedia) {
+    throw Object.assign(new Error("Trakt needs a Trakt, IMDb, TMDB, or TVDB ID for this item"), { code: "not_found" });
+  }
   const isCanonicalReplay = state === "watched" && String(media.source || "").toLowerCase() === "manual";
+  const mediaKey = trackerMediaKey(trackerMedia);
+  // Prime the persistent echo ledger before touching Trakt. A canonical
+  // replay is a non-atomic remove -> add pair; without this intent marker a
+  // concurrent watched-state poll can observe the temporary gap and fan a
+  // false unwatch back out to Plex/Emby/Jellyfin before the add completes.
+  recordTrackerOutbound("trakt", mediaKey, trackerMedia, state);
   let dispatch;
   try {
     dispatch = await performTraktDispatch(connection, trackerMedia, state, isCanonicalReplay, lane);
@@ -198,21 +267,22 @@ async function dispatchTrakt(media, state, lane = "sync") {
     connection = await withFreshTraktConnection(true);
     dispatch = await performTraktDispatch(connection, trackerMedia, state, isCanonicalReplay, lane);
   }
-  const mediaKey = trackerMediaKey(trackerMedia);
+  // Refresh the marker on confirmed completion so the normal Trakt
+  // read-after-write consistency window is protected as well.
   recordTrackerOutbound("trakt", mediaKey, trackerMedia, state);
 
   let addNotFound = traktNotFoundCount(dispatch.result);
-  let usedSeriesIdFallback = false;
-  if (addNotFound > 0 && trackerMedia.type === "episode") {
-    const seriesIds = await seriesIdsForRetry(trackerMedia).catch(() => null);
-    const changed = seriesIds && JSON.stringify(seriesIds) !== JSON.stringify(trackerMedia.ids || {});
-    if (changed) {
-      const retryMedia = { ...trackerMedia, ids: seriesIds };
+  let usedTitleIdFallback = false;
+  if (addNotFound > 0) {
+    const candidates = await trackerDispatchMediaCandidates(trackerMedia, { includeTitleFallback: true });
+    const retryMedia = candidates[1] || null;
+    if (retryMedia) {
+      recordTrackerOutbound("trakt", trackerMediaKey(retryMedia), retryMedia, state);
       const retryDispatch = await performTraktDispatch(connection, retryMedia, state, isCanonicalReplay, lane).catch(() => null);
       if (retryDispatch && traktNotFoundCount(retryDispatch.result) === 0) {
         dispatch = retryDispatch;
         addNotFound = 0;
-        usedSeriesIdFallback = true;
+        usedTitleIdFallback = true;
         recordTrackerOutbound("trakt", trackerMediaKey(retryMedia), retryMedia, state);
       }
     }
@@ -225,8 +295,10 @@ async function dispatchTrakt(media, state, lane = "sync") {
     };
   }
 
-  let detail = usedSeriesIdFallback
-    ? `Marked ${state} on Trakt (this episode's own stored id didn't match; used the show's series id instead)`
+  let detail = usedTitleIdFallback
+    ? trackerMedia.type === "episode"
+      ? `Marked ${state} on Trakt (this episode's own stored id didn't match; used the show's series id instead)`
+      : `Marked ${state} on Trakt (the stored movie id didn't match; used the title-derived movie id instead)`
     : `Marked ${state} on Trakt`;
   if (isCanonicalReplay && dispatch.removeResult) {
     const deleted = dispatch.removeResult.deleted || {};
@@ -236,6 +308,50 @@ async function dispatchTrakt(media, state, lane = "sync") {
     detail += removeNotFound ? `, ${removeNotFound} not recognized: ${JSON.stringify(dispatch.removeResult.not_found)})` : ")";
   }
   return { target: "trakt", status: "success", detail };
+}
+
+// A multi-phase canonical replay may update Plembfin and the LAN media
+// servers before its deliberately slower Trakt phase begins. Publish that
+// final Trakt intent before the first local mutation so a poll that already
+// fetched a stale snapshot can see it in its last-responsible-moment guard,
+// rather than committing the opposite state in the gap between phases.
+//
+// The real dispatch records the same intent again immediately before and
+// after its Trakt request. This early marker is therefore only a phase-order
+// barrier; it does not replace the normal request-level echo protection.
+export async function primeTrackerWatchStateIntents(entries = [], {
+  detailsResolver = getTmdbDetails,
+} = {}) {
+  const connection = getTrackerConnection("trakt");
+  if (!connection || connection.status !== "connected") return 0;
+  const eligible = entries.filter(({ media }) => !String(media?.source || "").toLowerCase().includes("trakt"));
+  // Resolve every item first, then publish the entire title under one SQLite
+  // transaction. A poll in another process must never observe only the first
+  // few hydrated markers while the remaining Force Sync items are still being
+  // prepared.
+  const primaryHydrationCache = new Map();
+  const titleFallbackCache = new Map();
+  const resolved = await Promise.all(eligible.map(async ({ media, state }) => ({
+    state,
+    candidates: await trackerDispatchMediaCandidates(media, {
+      includeTitleFallback: true,
+      primaryHydrationCache,
+      titleFallbackCache,
+      detailsResolver,
+    }),
+  })));
+  const outboundByKey = new Map();
+  for (const { state, candidates } of resolved) {
+    for (const candidate of candidates) {
+      const mediaKey = trackerMediaKey(candidate);
+      // If primary and fallback prefer the same storage key, retain the
+      // title-derived fallback (it is last) while still publishing both when
+      // their IDs are wholly non-overlapping.
+      outboundByKey.set(mediaKey, { mediaKey, media: candidate, state });
+    }
+  }
+  const outbound = [...outboundByKey.values()];
+  return recordTrackerOutboundBatch("trakt", outbound);
 }
 
 export async function dispatchTrackerWatchState(media, state, { lane = "sync" } = {}) {

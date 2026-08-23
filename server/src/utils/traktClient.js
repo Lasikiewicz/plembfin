@@ -81,6 +81,35 @@ function normalizedMediaKey(type, ids, season, episode) {
   return type === "episode" ? `episode:${identity}:s${Number(season)}e${Number(episode)}` : `movie:${identity}`;
 }
 
+// trackerMediaKey deliberately chooses one stable, preferred provider id for
+// storage. The preferred id can still change when one side has richer metadata
+// than the other (for example, a Trakt snapshot has IMDb+TMDB while an outbound
+// item only had TMDB). Expose every safe provider-specific identity as well so
+// the outbound echo ledger can recognise those two keys as the same real item.
+export function trackerMediaIdentityKeys(media = {}) {
+  const type = media.type || media.mediaType;
+  if (type !== "episode" && type !== "movie") return [];
+  const ids = cleanIds(media.ids);
+  return Object.entries(ids).map(([provider, value]) => normalizedMediaKey(
+    type,
+    { [provider]: value },
+    media.season,
+    media.episode,
+  ));
+}
+
+export function trackerMediaMatches(left = {}, right = {}) {
+  const leftType = left.type || left.mediaType;
+  const rightType = right.type || right.mediaType;
+  if (!leftType || leftType !== rightType) return false;
+  if (leftType === "episode" && (
+    Number(left.season) !== Number(right.season)
+    || Number(left.episode) !== Number(right.episode)
+  )) return false;
+  const rightKeys = new Set(trackerMediaIdentityKeys(right));
+  return trackerMediaIdentityKeys(left).some((key) => rightKeys.has(key));
+}
+
 function normalizeMovie(entry) {
   const movie = entry.movie || entry;
   const ids = cleanIds(movie.ids);

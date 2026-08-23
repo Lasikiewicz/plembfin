@@ -12,4 +12,8 @@ test("Trakt Sync Now completion copy reports checked items and applied changes",
     traktSyncCompletionMessage({ remoteItems: 1, watched: 1, unwatched: 0 }),
     "Trakt sync complete: 1 item checked; 1 watched and 0 unwatched change applied.",
   );
+  assert.equal(
+    traktSyncCompletionMessage({ remoteItems: 8, watched: 0, unwatched: 0, deferredWatched: 1, deferredUnwatched: 2 }),
+    "Trakt sync complete: 8 items checked; 0 watched and 0 unwatched changes applied. 3 changes held for re-check.",
+  );
 });

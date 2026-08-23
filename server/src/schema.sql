@@ -75,6 +75,20 @@ CREATE TABLE IF NOT EXISTS playback_progress (
 );
 CREATE INDEX IF NOT EXISTS idx_playback_progress_updated ON playback_progress(updated_at DESC);
 
+-- Cross-process mutex for writes that change a media server's played state.
+-- A watched write and the corresponding progress-clear + unplayed pair must
+-- never pass each other on the wire: whichever operation acquires this lease
+-- first finishes first, and the newer operation writes the final state.
+CREATE TABLE IF NOT EXISTS outbound_state_leases (
+  lease_key TEXT PRIMARY KEY,
+  owner_id TEXT,
+  generation INTEGER NOT NULL DEFAULT 0,
+  state TEXT,
+  acquired_at INTEGER,
+  expires_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_outbound_state_leases_expiry ON outbound_state_leases(expires_at);
+
 CREATE TABLE IF NOT EXISTS active_sessions (
   id TEXT PRIMARY KEY,
   title TEXT,

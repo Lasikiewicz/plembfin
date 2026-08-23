@@ -1,12 +1,12 @@
 import { loadMediaConfig } from "./configStore.js";
 import {
-  findExistingWatch, getCanonicalWatchState, getPlaystateForMedia, insertWatchRecord,
+  findExistingWatch, getCanonicalWatchState, getPlaystateForMedia, getPlaystateForMediaSync, insertWatchRecord,
   invalidateHistoryDerivedCaches, mediaKeyFor, mediaToWatchRecord, signalHistoryDataChanged, upsertPlaystateForMedia,
 } from "./dataRepo.js";
 import { createLoopStore } from "./loopStore.js";
-import { fetchTraktPlayHistory, fetchTraktWatchedSnapshot, trackerMediaKey } from "./traktClient.js";
+import { fetchTraktPlayHistory, fetchTraktWatchedSnapshot, trackerMediaIdentityKeys, trackerMediaKey } from "./traktClient.js";
 import {
-  getTrackerConnection, listTrackerItemStates, listUnrecordedTrackerPlayIds,
+  findLatestTrackerOutboundSince, getTrackerConnection, listTrackerItemStates, listUnrecordedTrackerPlayIds,
   recordTrackerPlay, replaceTrackerSnapshot, updateTrackerConnectionStatus,
 } from "./trackerConnectionRepo.js";
 import { withFreshTraktConnection } from "./trackerDispatcher.js";
@@ -20,6 +20,69 @@ let pollInFlightReconcile = false;
 
 function isOutboundEcho(item, state, now = Date.now()) {
   return item?.lastOutboundState === state && Number(item.lastOutboundAt || 0) > 0 && now - Number(item.lastOutboundAt) <= OUTBOUND_ECHO_WINDOW_MS;
+}
+
+function trackerItemIdentities(item = {}) {
+  return [...new Set([String(item.mediaKey || ""), ...trackerMediaIdentityKeys(item.media)].filter(Boolean))];
+}
+
+// Old snapshots and outbound intents can temporarily coexist under different
+// preferred keys (IMDb-rich vs TMDB-only) for the same episode. Collapse that
+// identity graph before diffing so one real episode can never be retained or
+// unwatched twice.
+export function dedupeTrackerItemsByIdentity(items = []) {
+  const groups = [];
+  const groupByIdentity = new Map();
+  for (const item of items) {
+    const identities = trackerItemIdentities(item);
+    const matches = [...new Set(identities.map((identity) => groupByIdentity.get(identity)).filter(Boolean))];
+    let group = matches[0];
+    if (!group) {
+      group = { items: [], identities: new Set() };
+      groups.push(group);
+    }
+    for (const other of matches.slice(1)) {
+      if (other === group) continue;
+      group.items.push(...other.items);
+      for (const identity of other.identities) {
+        group.identities.add(identity);
+        groupByIdentity.set(identity, group);
+      }
+      const index = groups.indexOf(other);
+      if (index >= 0) groups.splice(index, 1);
+    }
+    group.items.push(item);
+    for (const identity of identities) {
+      group.identities.add(identity);
+      groupByIdentity.set(identity, group);
+    }
+  }
+  return groups.map((group) => group.items.slice().sort((left, right) => {
+    const observed = Number(Boolean(right.remoteWatchedAt)) - Number(Boolean(left.remoteWatchedAt));
+    if (observed) return observed;
+    const richness = trackerItemIdentities(right).length - trackerItemIdentities(left).length;
+    if (richness) return richness;
+    return Number(right.lastOutboundAt || 0) - Number(left.lastOutboundAt || 0);
+  })[0]);
+}
+
+function buildRecentOutboundIndex(states, since) {
+  const index = new Map();
+  for (const state of states) {
+    if (!state.lastOutboundState || Number(state.lastOutboundAt || 0) < since) continue;
+    for (const identity of trackerItemIdentities(state)) {
+      const current = index.get(identity);
+      if (!current || Number(state.lastOutboundAt || 0) >= Number(current.lastOutboundAt || 0)) index.set(identity, state);
+    }
+  }
+  return index;
+}
+
+function latestOutboundFromIndex(index, item) {
+  return trackerItemIdentities(item)
+    .map((identity) => index.get(identity))
+    .filter(Boolean)
+    .sort((a, b) => Number(b.lastOutboundAt || 0) - Number(a.lastOutboundAt || 0))[0] || null;
 }
 
 // Trakt's watched-progress endpoint occasionally comes back with fewer
@@ -131,7 +194,7 @@ async function runTransitionBatch(items, handler, concurrency = TRACKER_TRANSITI
 // (via tracker_play_history) and nudges playstate's timestamp forward when
 // a newer rewatch is found. It never propagates to sync targets itself -
 // these are historical facts, not new events for Plex/Emby/Jellyfin to act on.
-async function importTraktPlayHistory(connection, publicConnection, previousOutboundByKey) {
+async function importTraktPlayHistory(connection, publicConnection, previousStates) {
   const watermarkMs = publicConnection.baselineComplete ? Number(publicConnection.historySyncedAt || 0) : 0;
   // A minute of overlap tolerates clock skew; tracker_play_history dedup
   // means re-seeing already-imported plays here is a harmless no-op.
@@ -145,6 +208,7 @@ async function importTraktPlayHistory(connection, publicConnection, previousOutb
   // window forever instead of narrowing to genuinely new plays next time.
   let latestWatchedAt = entries.reduce((max, entry) => Math.max(max, entry.watchedAt), watermarkMs);
   const touchedKeys = new Map();
+  const recentOutbound = buildRecentOutboundIndex(previousStates, Date.now() - OUTBOUND_ECHO_WINDOW_MS);
 
   for (const entry of entries.filter((entry) => pendingIds.has(entry.historyId)).sort((a, b) => a.watchedAt - b.watchedAt)) {
     const watchedAtIso = new Date(entry.watchedAt).toISOString();
@@ -157,13 +221,16 @@ async function importTraktPlayHistory(connection, publicConnection, previousOutb
     // create a second local watch alongside the correct one. Uses Trakt's
     // own mediaKey shape here (not dataRepo's mediaKeyFor below) because
     // that's what recordTrackerOutbound in trackerDispatcher.js keys by.
-    // Reads from the previous-snapshot map captured in pollTrakt before
+    // Reads from the previous snapshot captured in pollTrakt before
     // replaceTrackerSnapshot() ran, rather than querying tracker_item_state
     // fresh here - replaceTrackerSnapshot rebuilds that table from the
     // just-fetched watched snapshot, and a just-pushed item that hasn't
     // shown up there yet would otherwise have its outbound-echo state wiped
     // out from under this check before it ever ran.
-    const outboundState = previousOutboundByKey.get(trackerMediaKey(entry.media));
+    // Match by every provider identity, not just the preferred key: an
+    // outbound TMDB-only item and IMDb-rich history response are the same
+    // play and must not create a duplicate local watch.
+    const outboundState = latestOutboundFromIndex(recentOutbound, entry);
     if (
       outboundState?.lastOutboundState === "watched"
       && Number(outboundState.lastOutboundAt || 0) > 0
@@ -252,12 +319,14 @@ export function selectTraktWatchedTransitions({ snapshot = [], previous = [], ba
 }
 
 async function pollTrakt({ reconcile = false } = {}) {
+  const pollStartedAt = Date.now();
   const publicConnection = getTrackerConnection("trakt");
   if (!publicConnection || publicConnection.status !== "connected") return { skipped: true, reason: "not-connected", watched: 0, unwatched: 0 };
   const { connection, snapshot } = await readSnapshot();
   const previous = listTrackerItemStates("trakt");
-  const previousByKey = new Map(previous.map((item) => [item.mediaKey, item]));
+  const previousForDiff = dedupeTrackerItemsByIdentity(previous);
   const currentByKey = new Map(snapshot.map((item) => [item.mediaKey, item]));
+  const currentIdentityKeys = new Set(snapshot.flatMap((item) => [item.mediaKey, ...trackerMediaIdentityKeys(item.media)]));
   const baseline = publicConnection.baselineComplete;
   const reconcileKeys = new Set();
   if (baseline && reconcile) {
@@ -278,13 +347,33 @@ async function pollTrakt({ reconcile = false } = {}) {
   // write for several seconds. Without this guard, that stale snapshot looks
   // identical to a genuine remote unwatch (the item is simply missing), so a
   // poll landing in that window would delete the watch it just created.
-  // isOutboundEcho(item, "unwatched") only catches the item echoing back the
-  // same state we just pushed; a missing item after a recent "watched" push
-  // needs its own guard here.
-  const unwatchedCandidates = baseline
-    ? previous.filter((item) => !currentByKey.has(item.mediaKey) && !isOutboundEcho(item, "unwatched") && !isOutboundEcho(item, "watched"))
-    : [];
-  const { unwatched, heldBack } = partitionSuspiciousUnwatches(unwatchedCandidates, previous, currentByKey);
+  // A missing item after a recent "watched" push needs its own guard here.
+  // Resolve the newest intent across every provider-id alias so an older
+  // unwatch cannot hide a newer watch (or vice versa).
+  const protectedMissing = new Map();
+  const unwatchedCandidates = [];
+  if (baseline) {
+    const echoCutoff = Date.now() - OUTBOUND_ECHO_WINDOW_MS;
+    const recentOutbound = buildRecentOutboundIndex(previous, echoCutoff);
+    for (const item of previousForDiff) {
+      const identities = [item.mediaKey, ...trackerMediaIdentityKeys(item.media)];
+      if (identities.some((identity) => currentIdentityKeys.has(identity))) continue;
+      // Rows created solely to protect an outbound write are not proof that
+      // Trakt ever reported the item watched. Only an observed snapshot row
+      // can become a future inbound unwatch candidate.
+      if (!Number(item.remoteWatchedAt || 0)) continue;
+      // Match the single newest intent across watched/unwatched and every
+      // provider-key alias. An older unwatch must not mask a newer watch.
+      const latestOutbound = latestOutboundFromIndex(recentOutbound, item);
+      if (latestOutbound?.lastOutboundState === "unwatched") continue;
+      if (latestOutbound?.lastOutboundState === "watched") {
+        protectedMissing.set(item.mediaKey, item);
+        continue;
+      }
+      unwatchedCandidates.push(item);
+    }
+  }
+  const { unwatched, heldBack } = partitionSuspiciousUnwatches(unwatchedCandidates, previousForDiff, currentByKey);
   if (heldBack.length) {
     console.error(`[trackerSync] Held back ${heldBack.length} suspiciously large Trakt unwatch(es) from propagating - will re-check on the next poll instead of trusting a possibly incomplete response.`);
   }
@@ -296,11 +385,29 @@ async function pollTrakt({ reconcile = false } = {}) {
   // concurrency workers below pick up new items over the life of the batch -
   // see reserveDispatchBatch in syncOrchestrator.js.
   const trackingReservation = reserveDispatchBatch(watched.length + unwatched.length);
+  const deferredWatchedKeys = new Set();
+  let deferredWatched = 0;
+  let appliedUnwatched = 0;
   try {
     await runTransitionBatch(watched, async (item) => {
       try {
         const media = { ...item.media, source: "trakt", watched_at: new Date(item.watchedAt || Date.now()).toISOString() };
-        await applyWatchedTransition(media, config, loopStore, { trackDispatch: false });
+        const shouldDefer = () => {
+          const latestOutbound = findLatestTrackerOutboundSince(
+            "trakt",
+            item,
+            Date.now() - OUTBOUND_ECHO_WINDOW_MS,
+          );
+          if (latestOutbound?.lastOutboundState === "unwatched") return true;
+          const latestPlaystate = getPlaystateForMediaSync(item.media);
+          return latestPlaystate?.state === "unwatched" && Number(latestPlaystate.updated_at || 0) >= pollStartedAt;
+        };
+        const transition = await applyWatchedTransition(media, config, loopStore, { trackDispatch: false, shouldDefer });
+        if (transition.deferred) {
+          deferredWatchedKeys.add(item.mediaKey);
+          deferredWatched += 1;
+          return;
+        }
         signalHistoryDataChanged();
       } finally {
         completeDispatchTracking(trackingReservation);
@@ -308,8 +415,27 @@ async function pollTrakt({ reconcile = false } = {}) {
     });
     await runTransitionBatch(unwatched, async (item) => {
       try {
+        // The poll's snapshot/diff is not atomic with outbound Trakt writes.
+        // Re-read the persistent ledger at the last responsible moment: a
+        // canonical replay may have primed its watched intent after this poll
+        // fetched its snapshot but before this worker reached the item.
+        const shouldDefer = () => {
+          const latestOutbound = findLatestTrackerOutboundSince(
+            "trakt",
+            item,
+            Date.now() - OUTBOUND_ECHO_WINDOW_MS,
+          );
+          if (latestOutbound?.lastOutboundState === "watched") return true;
+          const latestPlaystate = getPlaystateForMediaSync(item.media);
+          return latestPlaystate?.state === "watched" && Number(latestPlaystate.updated_at || 0) >= pollStartedAt;
+        };
         const media = { ...item.media, source: "trakt", isValid: true };
-        await applyUnwatchedTransition(media, config, loopStore, { trackDispatch: false });
+        const transition = await applyUnwatchedTransition(media, config, loopStore, { trackDispatch: false, shouldDefer });
+        if (transition.deferred || transition.heldBackSuspiciousBurst) {
+          protectedMissing.set(item.mediaKey, item);
+          return;
+        }
+        appliedUnwatched += 1;
         signalHistoryDataChanged();
       } finally {
         completeDispatchTracking(trackingReservation);
@@ -319,15 +445,31 @@ async function pollTrakt({ reconcile = false } = {}) {
     finishDispatchTracking(trackingReservation);
   }
 
+  if (deferredWatched || protectedMissing.size) {
+    console.log(
+      `[trackerSync] Held ${deferredWatched} watched and ${protectedMissing.size} unwatched Trakt change(s) for re-check because a newer local/outbound intent or safety guard took precedence.`,
+    );
+  }
+
   // Tracker transitions deliberately skip per-item invalidation so a whole
   // show does not rebuild the same derived data dozens of times. Flush once
   // after the batch or the TV detail page can continue showing stale progress.
-  if (watched.length || unwatched.length) await invalidateHistoryDerivedCaches();
+  if (watched.length - deferredWatched || appliedUnwatched) await invalidateHistoryDerivedCaches();
 
   // Held-back items must stay recorded as watched in tracker_item_state (not
   // wiped out by the fresh snapshot) or the next poll would lose the "still
   // missing?" comparison point and never be able to confirm or clear them.
   const heldBackAsSnapshotItems = heldBack.map((item) => ({ mediaKey: item.mediaKey, media: item.media, watchedAt: item.remoteWatchedAt }));
+  // The same retention is required for a recent outbound watched marker. If
+  // a stale snapshot suppresses the unwatch but then deletes the ledger row,
+  // the item can never be reconsidered after the echo window. Carry it for
+  // now; if it is genuinely still absent after the window, a later poll will
+  // propagate that real remote unwatch.
+  const protectedAsSnapshotItems = [...protectedMissing.values()].map((item) => ({
+    mediaKey: item.mediaKey,
+    media: item.media,
+    watchedAt: item.remoteWatchedAt,
+  }));
   // tracker_item_state has a UNIQUE(provider, media_key) constraint, but
   // Trakt's watched snapshot can contain more than one entry for the same
   // media_key (e.g. a rewatch reported as a separate play rather than folded
@@ -335,19 +477,34 @@ async function pollTrakt({ reconcile = false } = {}) {
   // the whole snapshot replace on the first repeat, which then keeps failing
   // every poll. Keep the last entry per media_key instead of the first, so a
   // duplicate resolves to its most recently reported watched_at.
+  // A watched transition deferred because of a newer local/outbound unwatch
+  // must remain a candidate on the next poll. Store a null remote timestamp
+  // for that row instead of accepting the stale snapshot's watched_at; once
+  // the grace marker expires, an item still reported watched is reconsidered.
+  const snapshotForStorage = snapshot.map((item) => deferredWatchedKeys.has(item.mediaKey)
+    ? { ...item, watchedAt: null }
+    : item);
   const dedupedSnapshotItems = [...new Map(
-    [...snapshot, ...heldBackAsSnapshotItems].map((item) => [item.mediaKey, item]),
+    [...snapshotForStorage, ...heldBackAsSnapshotItems, ...protectedAsSnapshotItems].map((item) => [item.mediaKey, item]),
   ).values()];
   replaceTrackerSnapshot("trakt", dedupedSnapshotItems);
   updateTrackerConnectionStatus("trakt", { baselineComplete: true, lastPolledAt: Date.now(), lastValidatedAt: Date.now(), lastError: null });
 
   try {
-    await importTraktPlayHistory(connection, publicConnection, previousByKey);
+    await importTraktPlayHistory(connection, publicConnection, previous);
   } catch (error) {
     console.error("[trackerSync] Trakt play-history import failed (non-fatal)", error);
   }
 
-  return { skipped: false, baselineEstablished: !baseline, watched: watched.length, unwatched: unwatched.length, remoteItems: snapshot.length };
+  return {
+    skipped: false,
+    baselineEstablished: !baseline,
+    watched: watched.length - deferredWatched,
+    unwatched: appliedUnwatched,
+    deferredWatched,
+    deferredUnwatched: heldBack.length + protectedMissing.size,
+    remoteItems: snapshot.length,
+  };
 }
 
 export async function pollConnectedTrackers(options = {}) {
