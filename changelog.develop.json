@@ -1,7 +1,22 @@
 {
-  "build": 17,
-  "updatedAt": "2026-08-23T21:38:47+01:00",
+  "build": 18,
+  "updatedAt": "2026-08-24T00:39:35+01:00",
   "entries": [
+    {
+      "build": 18,
+      "date": "2026-08-24T00:39:35+01:00",
+      "commit": "357e516566fdc8c12699fe3e2a4f38101ccc05f3",
+      "message": "Fix - Prevent tracker polls reversing force sync",
+      "author": "Lasikiewicz",
+      "details": [
+        "Publish hydrated Trakt intents before local Force Sync work and retry wrong provider IDs with cached title-derived identities",
+        "Keep tracker snapshots and outbound aliases ordered without treating failed writes as observed remote baselines",
+        "Apply watched and unwatched local mutations atomically, with rollback-safe synchronous repository primitives",
+        "Serialize cross-process media-server state writes by canonical title identity and fence expired lease owners",
+        "Hold stale Trakt changes for re-check while allowing genuine changes after the protection window expires",
+        "Cover remove-add gaps, split processes, wrong-ID aliases, sparse metadata, lease theft, rollback, and safety holds"
+      ]
+    },
     {
       "build": 17,
       "date": "2026-08-23T21:38:47+01:00",
