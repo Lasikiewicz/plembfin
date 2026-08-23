@@ -1,7 +1,17 @@
 {
-  "build": 10,
-  "updatedAt": "2026-08-22T22:18:03+01:00",
+  "build": 11,
+  "updatedAt": "2026-08-23T13:28:39+01:00",
   "entries": [
+    {
+      "build": 11,
+      "date": "2026-08-23T13:28:39+01:00",
+      "commit": "95b927c25a7e5945dae33da7fc0492284b47e290",
+      "message": "Feature - Add spoiler controls and searchable sync activity",
+      "author": "Lasikiewicz",
+      "details": [
+        "Hide unwatched episode artwork and synopses by default, and add live Sync Activity search, numbered pagination, clearer disabled-state reporting, and neutral activity borders."
+      ]
+    },
     {
       "build": 10,
       "date": "2026-08-22T22:18:03+01:00",
