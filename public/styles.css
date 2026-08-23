@@ -8699,6 +8699,29 @@ html.light-mode .progress-bar-fill {
   background: #070b0e;
 }
 
+.episode-spoiler-placeholder {
+  object-fit: cover;
+}
+
+.media-spoiler-toggle {
+  cursor: pointer;
+  user-select: none;
+}
+
+.media-spoiler-toggle input {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--blue);
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
+.media-spoiler-toggle:has(input:checked) {
+  background: color-mix(in srgb, var(--blue), transparent 80%);
+  border-color: color-mix(in srgb, var(--blue), transparent 40%);
+}
+
 .immersive-episode-copy {
   display: grid;
   min-width: 0;
@@ -19433,6 +19456,74 @@ body.bio-media-layout .media-detail-page {
   gap: var(--space-2);
 }
 
+.sync-activity-search {
+  flex: 1 1 18rem;
+  max-width: 28rem;
+}
+
+.sync-activity-search .field {
+  width: 100%;
+  min-height: 2.2rem;
+}
+
+.sync-activity-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.sync-activity-page-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.sync-activity-page-numbers {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.sync-activity-page-number {
+  min-width: 2rem;
+  padding-inline: var(--space-2);
+}
+
+.sync-activity-page-number.is-current {
+  border-color: var(--blue);
+  background: color-mix(in srgb, var(--blue), transparent 84%);
+  color: var(--blue);
+  opacity: 1;
+}
+
+.sync-activity-page-ellipsis {
+  color: var(--muted);
+  padding-inline: var(--space-1);
+}
+
+.sync-activity-page-label {
+  min-width: 5.5rem;
+  text-align: center;
+  color: var(--soft);
+  font-weight: 700;
+}
+
+.sync-activity-page-controls button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+.sync-activity-page-controls .sync-activity-page-number.is-current:disabled {
+  cursor: default;
+  opacity: 1;
+}
+
 .sync-activity-rows {
   display: grid;
   gap: var(--space-2);
@@ -19452,14 +19543,6 @@ body.bio-media-layout .media-detail-page {
 
 .sync-activity-row:hover {
   border-color: var(--line-strong);
-}
-
-.sync-activity-row[data-tone="error"] {
-  border-left: 3px solid var(--red);
-}
-
-.sync-activity-row[data-tone="pending"] {
-  border-left: 3px solid var(--yellow);
 }
 
 .sync-activity-row-main {
@@ -19603,6 +19686,22 @@ body.bio-media-layout .media-detail-page {
 }
 
 @media (max-width: 760px) {
+  .sync-activity-search {
+    flex-basis: 100%;
+    max-width: none;
+    order: 3;
+  }
+
+  .sync-activity-pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .sync-activity-page-controls {
+    justify-content: space-between;
+    overflow-x: auto;
+  }
+
   .sync-activity-row {
     grid-template-columns: auto minmax(0, 1fr);
     align-items: start;

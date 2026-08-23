@@ -10,7 +10,7 @@ import { createLoopStore } from "../utils/loopStore.js";
 import { runWithConcurrency } from "../utils/concurrency.js";
 import { listActiveSessions, deleteActiveSession, upsertActiveSession } from "../utils/activeSessions.js";
 import { hydrateCachedSession, loadLiveTrackingCache } from "../utils/liveSessions.js";
-import { activeSyncOperation, appendSyncHistory, clearSyncOperation, loadMediaConfig, mergeIncomingConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistory, loadRuntimeState, setRuntimeState, appendRuntimeLog, SYNC_OPERATION_FORCE, SYNC_OPERATION_SCHEDULED } from "../utils/configStore.js";
+import { activeSyncOperation, appendSyncHistory, clearSyncOperation, loadMediaConfig, mergeIncomingConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistoryPage, loadRuntimeState, setRuntimeState, appendRuntimeLog, SYNC_OPERATION_FORCE, SYNC_OPERATION_SCHEDULED } from "../utils/configStore.js";
 import { forceSyncStopAction } from "../utils/forceSyncControl.js";
 import { getSyncPlanActionsPage, getSyncPlanSummary, confirmSyncPlan } from "../utils/syncPlans.js";
 import {
@@ -726,20 +726,72 @@ export async function handleSyncHistory(req, res) {
   if (req.method !== "GET") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
   const requestedLimit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 200);
-  const [history, queuedRows] = await Promise.all([
-    getSyncHistory(requestedLimit),
+  const requestedPage = Math.max(Math.floor(Number(req.query.page) || 1), 1);
+  const search = String(req.query.search || "").trim().slice(0, 120);
+  const [historyHead, queuedRows, searchedHistory] = await Promise.all([
+    // Keep the queue de-duplication probe bounded. The durable page query
+    // below is the only query whose size is controlled by the requested page.
+    getSyncHistoryPage({ limit: 200, offset: 0 }),
     // This endpoint is deliberately fresh: most ingest paths defer their
     // derived-cache invalidation until after outbound dispatch, while the
     // Activity page should show the queue during that dispatch window.
     querySyncJobs({ limit: 500, status: "outstanding", fresh: true }),
+    search ? getSyncHistoryPage({ limit: 1, offset: 0, search }) : Promise.resolve(null),
   ]);
   const queued = queuedRows
-    .filter((row) => !queuedActivityAlreadyRecorded(row, history))
-    .map(queuedWatchRecordToSyncActivity);
-  const merged = [...history, ...queued]
-    .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0))
-    .slice(0, requestedLimit);
-  return sendJson(res, { history: merged }, 200, { "Cache-Control": "private, max-age=15, stale-while-revalidate=60", Vary: "Authorization" });
+    .filter((row) => !queuedActivityAlreadyRecorded(row, historyHead.history))
+    .map(queuedWatchRecordToSyncActivity)
+    .filter((entry) => {
+      if (!search) return true;
+      const source = String(entry.source || "").toLowerCase();
+      const sourceLabel = source.startsWith("manual") || source.startsWith("force_sync") || source.startsWith("plembfin") ? "Plembfin" : source;
+      const haystack = [
+        entry.mediaType,
+        entry.title,
+        entry.source,
+        sourceLabel,
+        entry.status,
+        entry.details,
+        entry.action,
+        JSON.stringify(entry.targetStates || []),
+        JSON.stringify(entry.rawPayloadDebug || {}),
+      ].join(" ").toLowerCase();
+      return haystack.includes(search.toLowerCase());
+    })
+    .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0) || String(b.id).localeCompare(String(a.id)));
+
+  // Pending queue entries are treated as a short-lived prefix of the feed.
+  // This keeps them visible without changing the offsets of the durable rows
+  // every time a dispatch finishes. The durable store remains the source for
+  // every subsequent page.
+  const total = (searchedHistory?.total ?? historyHead.total) + queued.length;
+  const totalPages = Math.max(1, Math.ceil(total / requestedLimit));
+  const page = Math.min(requestedPage, totalPages);
+  const pageOffset = (page - 1) * requestedLimit;
+  const queuedStart = Math.min(pageOffset, queued.length);
+  const queuedPage = queued.slice(queuedStart, queuedStart + requestedLimit);
+  const storedOffset = Math.max(0, pageOffset - queued.length);
+  const storedLimit = Math.max(0, requestedLimit - queuedPage.length);
+  const storedPage = storedLimit
+    ? await getSyncHistoryPage({ limit: storedLimit, offset: storedOffset, search })
+    : { history: [] };
+  const merged = [...queuedPage, ...storedPage.history];
+  const from = total ? pageOffset + 1 : 0;
+  const to = total ? Math.min(pageOffset + merged.length, total) : 0;
+
+  return sendJson(res, {
+    history: merged,
+    pagination: {
+      page,
+      limit: requestedLimit,
+      total,
+      totalPages,
+      from,
+      to,
+      hasPrevious: page > 1,
+      hasNext: page < totalPages,
+    },
+  }, 200, { "Cache-Control": "private, max-age=15, stale-while-revalidate=60", Vary: "Authorization" });
 }
 
 // Explicit detail-page repair. This is intentionally separate from the

@@ -1,4 +1,4 @@
-import { state } from "./state.js";
+import { HIDE_EPISODE_SPOILERS_KEY, state } from "./state.js";
 import { escapeAttribute, formatDate, showTitleFrom, showName, slug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js";
 import { isCachedStorageImageUrl, proxiedArtworkUrl, rememberPosterLookup } from "./images.js";
 import {
@@ -534,6 +534,21 @@ async function refreshMediaAfterForceSync(payload, body) {
 // ~520-line addEventListener callback) to keep app-events.js under the
 // module size limit; behavior is unchanged.
 export function attachMediaDetailEvents() {
+  document.addEventListener("change", (event) => {
+    const spoilerToggle = event.target.closest("[data-hide-episode-spoilers]");
+    if (!spoilerToggle) return;
+    state.hideEpisodeSpoilers = spoilerToggle.checked;
+    localStorage.setItem(HIDE_EPISODE_SPOILERS_KEY, String(spoilerToggle.checked));
+    const ctx = state.activeShowRenderContext;
+    if (ctx?.show) {
+      renderShowModalContent(ctx.show, {
+        ...ctx,
+        activeSeasonNum: state.activeShowModalSeason,
+        activeEpisodeNum: state.activeShowModalEpisode,
+      });
+    }
+  });
+
   document.addEventListener("click", async (event) => {
     // Only dropdowns inside a "collapsed" actions bar are real popup menus.
     // When the bar isn't collapsed, its dropdown is forced open so its

@@ -13,6 +13,7 @@ export const EXPLORER_VIEW_KEY_MOVIES = "plembfin:explorerView:movies";
 export const EXPLORER_VIEW_KEY_SHOWS = "plembfin:explorerView:shows";
 export const HIDE_WATCHED_KEY_SHOWS = "plembfin:hideWatched:shows";
 export const HIDE_ENDED_KEY_SHOWS = "plembfin:hideEnded:shows";
+export const HIDE_EPISODE_SPOILERS_KEY = "plembfin:hideEpisodeSpoilers";
 export const HISTORY_VIEW_KEY = "plembfin:historyView";
 export const HISTORY_FILTER_KEY = "plembfin:historyFilter";
 export const HISTORY_VIEW_MODES = ["grid", "list", "cards"];
@@ -60,6 +61,8 @@ export const state = {
   syncActivity: [],
   syncActivityLoaded: false,
   syncActivityLoading: false,
+  syncActivitySearch: "",
+  syncActivityPagination: { page: 1, limit: 25, total: 0, totalPages: 1, from: 0, to: 0, hasPrevious: false, hasNext: false },
   syncActivityProgress: { total: 0, completed: 0 },
   changelog: null,
   savedConfig: {},
@@ -154,6 +157,7 @@ export const state = {
   // later re-render of the same modal (e.g. toggling an episode watched).
   pendingSeasonScrollTarget: null,
   showModalAllSeasonsExpanded: false,
+  hideEpisodeSpoilers: localStorage.getItem(HIDE_EPISODE_SPOILERS_KEY) !== "false",
   showModalRequestToken: 0,
   showModalEpisodes: [],
   showModalEpisodeIndex: new Map(),

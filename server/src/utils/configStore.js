@@ -674,30 +674,55 @@ const insertSyncHistoryStmt = db.prepare(
   `INSERT INTO sync_history (timestamp, media_type, title, source, status, details, action, target_states, raw_payload_debug, created_at)
    VALUES (@timestamp, @media_type, @title, @source, @status, @details, @action, @target_states, @raw_payload_debug, @created_at)`,
 );
-const selectSyncHistoryStmt = db.prepare("SELECT * FROM sync_history ORDER BY timestamp DESC LIMIT ?");
+const selectSyncHistoryPageStmt = db.prepare("SELECT * FROM sync_history ORDER BY timestamp DESC, id DESC LIMIT ? OFFSET ?");
+const countSyncHistoryStmt = db.prepare("SELECT COUNT(*) AS count FROM sync_history");
+const syncHistorySearchExpression = `LOWER(
+  COALESCE(media_type, '') || ' ' ||
+  COALESCE(title, '') || ' ' ||
+  COALESCE(source, '') || ' ' ||
+  CASE
+    WHEN LOWER(COALESCE(source, '')) LIKE 'manual%' OR LOWER(COALESCE(source, '')) LIKE 'force_sync%' OR LOWER(COALESCE(source, '')) LIKE 'plembfin%' THEN 'plembfin '
+    ELSE ''
+  END ||
+  COALESCE(status, '') || ' ' ||
+  COALESCE(details, '') || ' ' ||
+  COALESCE(action, '') || ' ' ||
+  COALESCE(target_states, '') || ' ' ||
+  COALESCE(raw_payload_debug, '')
+) LIKE ? ESCAPE '\\'`;
+const selectSyncHistorySearchPageStmt = db.prepare(`SELECT * FROM sync_history WHERE ${syncHistorySearchExpression} ORDER BY timestamp DESC, id DESC LIMIT ? OFFSET ?`);
+const countSyncHistorySearchStmt = db.prepare(`SELECT COUNT(*) AS count FROM sync_history WHERE ${syncHistorySearchExpression}`);
 
-// Retention: sync_history is a diagnostic log, not canonical data (the UI reads
-// at most 200 rows). Keep 90 days / 10,000 rows, pruned at most once per hour
-// so the per-write cost stays negligible.
-const SYNC_HISTORY_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000;
-const SYNC_HISTORY_MAX_ROWS = 10_000;
-const SYNC_HISTORY_PRUNE_INTERVAL_MS = 60 * 60 * 1000;
-let lastSyncHistoryPruneAt = 0;
-const pruneSyncHistoryByAgeStmt = db.prepare("DELETE FROM sync_history WHERE timestamp < ?");
-const pruneSyncHistoryByCountStmt = db.prepare(
-  "DELETE FROM sync_history WHERE id NOT IN (SELECT id FROM sync_history ORDER BY timestamp DESC LIMIT ?)",
-);
+const SYNC_HISTORY_MAX_PAGE_SIZE = 200;
 
-export function pruneSyncHistory({ force = false, now = Date.now() } = {}) {
-  if (!force && now - lastSyncHistoryPruneAt < SYNC_HISTORY_PRUNE_INTERVAL_MS) return false;
-  lastSyncHistoryPruneAt = now;
-  try {
-    pruneSyncHistoryByAgeStmt.run(now - SYNC_HISTORY_MAX_AGE_MS);
-    pruneSyncHistoryByCountStmt.run(SYNC_HISTORY_MAX_ROWS);
-  } catch (error) {
-    console.error("Failed to prune sync history", error);
-  }
-  return true;
+function safeSyncHistoryPageSize(value, fallback = 50) {
+  return Math.min(Math.max(Number(value) || fallback, 1), SYNC_HISTORY_MAX_PAGE_SIZE);
+}
+
+function safeSyncHistoryOffset(value) {
+  return Math.max(Math.floor(Number(value) || 0), 0);
+}
+
+function syncHistorySearchPattern(value) {
+  const normalized = String(value || "").trim().toLowerCase().slice(0, 120);
+  if (!normalized) return "";
+  return `%${normalized.replace(/[\\%_]/g, "\\$&")}%`;
+}
+
+function syncHistoryRow(row) {
+  return {
+    id: String(row.id),
+    timestamp: row.timestamp,
+    mediaType: row.media_type,
+    title: row.title,
+    source: row.source,
+    status: row.status,
+    details: row.details,
+    action: row.action,
+    targetStates: parseJson(row.target_states, []),
+    rawPayloadDebug: parseJson(row.raw_payload_debug, {}),
+    createdAt: row.created_at,
+  };
 }
 
 export async function appendSyncHistory(record) {
@@ -713,22 +738,31 @@ export async function appendSyncHistory(record) {
     raw_payload_debug: toJson(record.rawPayloadDebug || {}),
     created_at: Date.now(),
   });
-  pruneSyncHistory();
+}
+
+// Sync activity is an audit trail. It intentionally has no age or row-count
+// retention policy; pagination keeps the browser response bounded instead.
+export function pruneSyncHistory() {
+  return false;
+}
+
+export async function getSyncHistoryPage({ limit = 50, offset = 0, search = "" } = {}) {
+  const safeLimit = safeSyncHistoryPageSize(limit);
+  const safeOffset = safeSyncHistoryOffset(offset);
+  const searchPattern = syncHistorySearchPattern(search);
+  const total = Number(searchPattern ? countSyncHistorySearchStmt.get(searchPattern)?.count : countSyncHistoryStmt.get()?.count) || 0;
+  const history = (searchPattern
+    ? selectSyncHistorySearchPageStmt.all(searchPattern, safeLimit, safeOffset)
+    : selectSyncHistoryPageStmt.all(safeLimit, safeOffset)
+  ).map(syncHistoryRow);
+  return { history, total, limit: safeLimit, offset: safeOffset };
+}
+
+export async function getSyncHistoryCount() {
+  return Number(countSyncHistoryStmt.get()?.count) || 0;
 }
 
 export async function getSyncHistory(limit = 50) {
-  const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 200);
-  return selectSyncHistoryStmt.all(safeLimit).map((row) => ({
-    id: String(row.id),
-    timestamp: row.timestamp,
-    mediaType: row.media_type,
-    title: row.title,
-    source: row.source,
-    status: row.status,
-    details: row.details,
-    action: row.action,
-    targetStates: parseJson(row.target_states, []),
-    rawPayloadDebug: parseJson(row.raw_payload_debug, {}),
-    createdAt: row.created_at,
-  }));
+  const page = await getSyncHistoryPage({ limit, offset: 0 });
+  return page.history;
 }

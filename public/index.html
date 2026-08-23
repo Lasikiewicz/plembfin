@@ -415,12 +415,25 @@
                 <span class="sync-progress-dot" aria-hidden="true"></span>
                 <span id="syncActivityStatusText">Sync - Idle</span>
               </div>
+              <label class="sync-activity-search">
+                <span class="sr-only">Search sync activity</span>
+                <input id="syncActivitySearch" class="field" type="search" placeholder="Search sync activity..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+              </label>
               <div class="sync-activity-header-actions">
                 <span id="syncActivitySummary" class="status-pill status-muted">No activity</span>
                 <button id="syncActivityRefresh" class="button-ghost" type="button">Refresh</button>
               </div>
             </div>
             <div id="syncActivityRows" class="sync-activity-rows"></div>
+            <div id="syncActivityPagination" class="sync-activity-pagination hidden" aria-label="Sync activity pages">
+              <span id="syncActivityPageRange" class="sync-activity-page-range">Showing 0-0 of 0</span>
+              <div class="sync-activity-page-controls">
+                <button id="syncActivityPrevious" class="button-ghost" type="button" aria-label="Previous sync activity page">Previous</button>
+                <div id="syncActivityPageNumbers" class="sync-activity-page-numbers" aria-label="Choose a sync activity page"></div>
+                <span id="syncActivityPageLabel" class="sr-only">Page 1 of 1</span>
+                <button id="syncActivityNext" class="button-ghost" type="button" aria-label="Next sync activity page">Next</button>
+              </div>
+            </div>
           </section>
         </section>
 

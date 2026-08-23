@@ -293,7 +293,7 @@ function connectionBadges(config = {}) {
         ? [{ label: "Legacy credentials", tone: "warning" }]
         : [{ label: "Not configured", tone: "warning" }];
   if (manualMode && verified) badges.push({ label: "Account available", tone: "muted" });
-  if (config.disabled) badges.push({ label: "Disabled", tone: "muted" });
+  if (config.disabled) badges.push({ label: "Sync disabled", tone: "muted" });
   const roleLabels = { bidirectional: "Source + Destination", source_only: "Source only", destination_only: "Destination only", monitor: "Monitor only" };
   const role = roleLabels[config.sync?.preset];
   if (role) badges.push({ label: role, tone: role === "Monitor only" ? "muted" : "ready" });

@@ -122,8 +122,8 @@ CREATE TABLE IF NOT EXISTS sync_history (
 CREATE INDEX IF NOT EXISTS idx_sync_history_timestamp ON sync_history(timestamp DESC);
 
 -- Durable, per-media history of every ingest, local state change, and outbound
--- dispatch. Unlike sync_history this is not a diagnostic ring buffer: it is the
--- provenance record shown by the media Info page and retained with backups.
+-- dispatch. Both this provenance record and sync_history are retained with
+-- backups; the Activity UI paginates sync_history instead of truncating it.
 CREATE TABLE IF NOT EXISTS watch_audit_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   timestamp INTEGER NOT NULL,

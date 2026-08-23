@@ -454,6 +454,28 @@ function attachEvents() {
     _cb.loadSyncActivity?.({ force: true })?.catch?.(() => { });
   });
 
+  elements.syncActivitySearch?.addEventListener("input", (event) => {
+    _cb.setSyncActivitySearch?.(event.target.value);
+  });
+
+  const changeSyncActivityPage = (delta) => {
+    const pagination = state.syncActivityPagination || {};
+    const page = Math.max(Number(pagination.page) || 1, 1) + delta;
+    if (page < 1 || (pagination.totalPages && page > Number(pagination.totalPages))) return;
+    _cb.loadSyncActivity?.({ page })?.catch?.(() => { });
+  };
+
+  elements.syncActivityPrevious?.addEventListener("click", () => changeSyncActivityPage(-1));
+  elements.syncActivityNext?.addEventListener("click", () => changeSyncActivityPage(1));
+
+  elements.syncActivityPagination?.addEventListener("click", (event) => {
+    const pageButton = event.target.closest("[data-sync-activity-page]");
+    if (!pageButton) return;
+    const page = Number(pageButton.dataset.syncActivityPage);
+    if (!Number.isFinite(page) || page < 1 || page === Number(state.syncActivityPagination?.page)) return;
+    _cb.loadSyncActivity?.({ page })?.catch?.(() => { });
+  });
+
   elements.syncActivityRows?.addEventListener("click", (event) => {
     const download = event.target.closest("[data-sync-activity-download]");
     if (download) {

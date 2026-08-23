@@ -338,6 +338,14 @@ function summarizeResults(targets, results) {
   const missingTargets = [];
   const targetStates = [];
 
+  if (!targets.length) {
+    return {
+      status: "skipped",
+      details: "No enabled sync destinations.",
+      targetStates,
+    };
+  }
+
   results.forEach((result, index) => {
     const target = targets[index];
     if (result.status === "rejected") {
@@ -392,6 +400,14 @@ function summarizeProgressResults(targets, results) {
   const missingTargets = [];
   const skippedTargets = [];
   const targetStates = [];
+
+  if (!targets.length) {
+    return {
+      status: "skipped",
+      details: "No enabled sync destinations for resume progress.",
+      targetStates,
+    };
+  }
 
   results.forEach((result, index) => {
     const target = targets[index];
@@ -544,7 +560,7 @@ export async function syncMediaPlaystate(media, config, kv, { trackDispatch = tr
     });
 
     summary = await includeTrackerDispatch(summary, media, "watched", lane);
-    return { ...summary, skipped: false, results };
+    return { ...summary, skipped: summary.status === "skipped", results };
   } finally {
     completeDispatchTracking();
   }
@@ -638,7 +654,7 @@ export async function syncMediaUnplayedPlaystate(media, config, kv, { trackDispa
     });
 
     summary = await includeTrackerDispatch(summary, media, "unwatched", lane);
-    return { ...summary, skipped: false, results };
+    return { ...summary, skipped: summary.status === "skipped", results };
   } finally {
     completeDispatchTracking();
   }
@@ -700,5 +716,5 @@ export async function syncMediaProgress(media, config, kv, { lane = "sync" } = {
     })),
   });
 
-  return { ...summary, skipped: false, results };
+  return { ...summary, skipped: summary.status === "skipped", results };
 }

@@ -18,7 +18,7 @@ const {
   syncRetryEligible,
   SYNC_RETRY_MAX_ATTEMPTS,
 } = await import("../server/src/scheduled.js");
-const { appendSyncHistory, pruneSyncHistory, getSyncHistory } = await import("../server/src/utils/configStore.js");
+const { appendSyncHistory, pruneSyncHistory, getSyncHistory, getSyncHistoryPage } = await import("../server/src/utils/configStore.js");
 const {
   findWatchedByAnyMediaKey,
   getPlaybackProgressForMedia,
@@ -216,7 +216,12 @@ test("playstate merges title aliases that share any provider ID", async () => {
   assert.equal(row.imdb_id, "tt123");
 });
 
-test("pruneSyncHistory drops rows older than the retention window", async () => {
+test("sync history keeps older rows and supports bounded pages", async () => {
+  db.prepare("DELETE FROM sync_history").run();
+  const emptyPage = await getSyncHistoryPage({ limit: 1, offset: 0 });
+  assert.equal(emptyPage.total, 0);
+  assert.deepEqual(emptyPage.history, []);
+
   const insert = db.prepare(
     `INSERT INTO sync_history (timestamp, media_type, title, source, status, details, action, target_states, raw_payload_debug, created_at)
      VALUES (?, 'movie', ?, 'plex', 'error', '', 'watched', '[]', '{}', ?)`,
@@ -226,14 +231,23 @@ test("pruneSyncHistory drops rows older than the retention window", async () => 
   insert.run(ancient, "Ancient Row", ancient);
   await appendSyncHistory({ mediaType: "movie", title: "Fresh Row", source: "plex", status: "success" });
 
-  pruneSyncHistory({ force: true });
+  assert.equal(pruneSyncHistory({ force: true }), false);
 
-  const titles = (await getSyncHistory(200)).map((row) => row.title);
-  assert.ok(titles.includes("Fresh Row"));
-  assert.ok(!titles.includes("Ancient Row"));
+  const firstPage = await getSyncHistoryPage({ limit: 1, offset: 0 });
+  const secondPage = await getSyncHistoryPage({ limit: 1, offset: 1 });
+  assert.equal(firstPage.total, 2);
+  assert.deepEqual(firstPage.history.map((row) => row.title), ["Fresh Row"]);
+  assert.deepEqual(secondPage.history.map((row) => row.title), ["Ancient Row"]);
+  assert.deepEqual((await getSyncHistory(200)).map((row) => row.title), ["Fresh Row", "Ancient Row"]);
+
+  const titleSearch = await getSyncHistoryPage({ limit: 10, search: "ancient" });
+  assert.equal(titleSearch.total, 1);
+  assert.deepEqual(titleSearch.history.map((row) => row.title), ["Ancient Row"]);
+  const platformSearch = await getSyncHistoryPage({ limit: 10, search: "plex" });
+  assert.equal(platformSearch.total, 2);
 });
 
-test("pruneSyncHistory caps the table at the row limit, keeping the newest rows", () => {
+test("sync history has no artificial row-count retention cap", () => {
   db.prepare("DELETE FROM sync_history").run();
   const insert = db.prepare(
     `INSERT INTO sync_history (timestamp, media_type, title, source, status, details, action, target_states, raw_payload_debug, created_at)
@@ -250,7 +264,7 @@ test("pruneSyncHistory caps the table at the row limit, keeping the newest rows"
   pruneSyncHistory({ force: true });
 
   const count = db.prepare("SELECT COUNT(*) AS n FROM sync_history").get().n;
-  assert.equal(count, 10_000);
+  assert.equal(count, total);
   const newest = db.prepare("SELECT title FROM sync_history ORDER BY timestamp DESC LIMIT 1").get();
   assert.equal(newest.title, `Row ${total - 1}`);
 });

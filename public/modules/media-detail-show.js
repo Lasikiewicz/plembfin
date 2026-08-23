@@ -719,7 +719,10 @@ function buildShowEpisodeRows(show, seasonsList, seasonDetailsByNumber, resolved
   return rows.sort((a, b) => b.seasonNumber - a.seasonNumber || b.episodeNumber - a.episodeNumber);
 }
 
-function episodeThumbMarkup(episode) {
+function episodeThumbMarkup(episode, hideSpoilers = false) {
+  if (hideSpoilers && !episode.watched) {
+    return `<img class="episode-thumb episode-spoiler-placeholder" src="/spoiler-placeholder.svg" alt="Episode artwork hidden" />`;
+  }
   const stillUrl = safeImageUrl(episode.stillUrl);
   const posterUrl = safeImageUrl(episode.posterUrl) || episode.posterUrl || "";
   const url = stillUrl || posterUrl;
@@ -826,7 +829,7 @@ function showSeasonSummary(seasonNumber, seasonEpisodes, season, showTitle = "",
   return { ...watchSummary, watchedInSeason, seasonTotal, nextAiring, nextAiringText };
 }
 
-function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitle, tmdbData, seasonDetailsByNumber, tvSeerrTmdbId, tvSeerrStatus, savingEpisodeKeys, isUnreleased, loading) {
+function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitle, tmdbData, seasonDetailsByNumber, tvSeerrTmdbId, tvSeerrStatus, savingEpisodeKeys, isUnreleased, loading, hideSpoilers) {
   if (!seasonRecord) return "";
   const seasonEpisodes = episodeRows
     .filter((episode) => episode.seasonNumber === seasonNumber)
@@ -867,7 +870,7 @@ function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitl
     const episodeUnwatching = Boolean(episode.watched && state.savingUnwatchIds.has(episode.watched.id));
     return `
             <article class="immersive-episode-row ${episode.watched ? "is-watched" : ""} ${episodeIsUnreleased ? "is-unreleased" : ""} ${isHighlighted ? "is-highlighted" : ""}" ${isHighlighted ? 'id="highlightedEpisode"' : ""} data-immersive-episode-num="${episode.episodeNumber}" data-immersive-season-num="${episode.seasonNumber}">
-              ${episodeThumbMarkup(episode)}
+              ${episodeThumbMarkup(episode, hideSpoilers)}
               <div class="immersive-episode-copy">
                 <div class="immersive-episode-title-row">
                   <b style="display: inline-flex; align-items: center; gap: 0.35rem;">
@@ -877,7 +880,7 @@ function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitl
                     ${episodeResolutionPillHtml(tvSeerrStatus, episode.seasonNumber, episode.episodeNumber)}
                   </b>
                 </div>
-                <div class="immersive-episode-copy-wrap"><p>${escapeHtml(episode.overview)}</p></div>
+                <div class="immersive-episode-copy-wrap"><p>${escapeHtml(hideSpoilers && !episode.watched ? "Synopsis hidden to avoid spoilers." : episode.overview)}</p></div>
                 ${episodeProgressBarHtml(episode)}
                 <div class="immersive-episode-meta-row">
                   <span class="immersive-episode-dates">
@@ -1022,6 +1025,7 @@ export function renderShowModalContent(show, {
     return !Number.isNaN(air.getTime()) && air > new Date();
   };
   const unwatchedRows = episodeRows.filter((episode) => !episode.watched && !isUnreleased(episode));
+  const hideSpoilers = state.hideEpisodeSpoilers;
 
   setMediaInfoContext({
     mediaType: "tv",
@@ -1041,10 +1045,10 @@ export function renderShowModalContent(show, {
   if (allSeasonsExpanded) {
     for (const season of seasonsList) {
       const seasonNumber = Number(season.season_number);
-      seasonPanelsByNumber.set(seasonNumber, renderSeasonPanelHtml(seasonNumber, season, episodeRows, showTitle, tmdbData, seasonDetailsByNumber, tvSeerrTmdbId, tvSeerrStatus, savingEpisodeKeys, isUnreleased, loading));
+      seasonPanelsByNumber.set(seasonNumber, renderSeasonPanelHtml(seasonNumber, season, episodeRows, showTitle, tmdbData, seasonDetailsByNumber, tvSeerrTmdbId, tvSeerrStatus, savingEpisodeKeys, isUnreleased, loading, hideSpoilers));
     }
   } else if (selectedSeasonRecord) {
-    seasonPanelsByNumber.set(selectedSeasonNumber, renderSeasonPanelHtml(selectedSeasonNumber, selectedSeasonRecord, episodeRows, showTitle, tmdbData, seasonDetailsByNumber, tvSeerrTmdbId, tvSeerrStatus, savingEpisodeKeys, isUnreleased, loading));
+    seasonPanelsByNumber.set(selectedSeasonNumber, renderSeasonPanelHtml(selectedSeasonNumber, selectedSeasonRecord, episodeRows, showTitle, tmdbData, seasonDetailsByNumber, tvSeerrTmdbId, tvSeerrStatus, savingEpisodeKeys, isUnreleased, loading, hideSpoilers));
   }
 
   if (allSeasonsExpanded) {
@@ -1109,6 +1113,10 @@ export function renderShowModalContent(show, {
   ` : "";
 
   setMediaDetailActions(`
+    <label class="action-pill media-spoiler-toggle" title="Hide synopsis and artwork for unwatched episodes">
+      <input type="checkbox" data-hide-episode-spoilers ${hideSpoilers ? "checked" : ""} />
+      <span>Hide <br>Spoilers</span>
+    </label>
     ${mediaForceSyncActionHtml({
       type: "show",
       title: showTitle,

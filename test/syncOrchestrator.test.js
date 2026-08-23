@@ -19,6 +19,26 @@ test("getTargetsForSource routes to every other enabled platform", () => {
   assert.deepEqual(getTargetsForSource("plex_custom"), ["emby", "jellyfin"]);
 });
 
+test("a dispatch with every destination disabled is skipped, not successful", async () => {
+  const kv = { checkAndClaim: () => false, async put() {}, async get() { return null; } };
+  const result = await syncMediaPlaystate({
+    isValid: true,
+    type: "movie",
+    source: "manual",
+    title: "Arrival",
+    ids: { tmdb: "329865" },
+  }, {
+    plex: { disabled: true },
+    emby: { disabled: true },
+    jellyfin: { disabled: true },
+  }, kv);
+
+  assert.equal(result.status, "skipped");
+  assert.equal(result.skipped, true);
+  assert.deepEqual(result.targetStates, []);
+  assert.match(result.details, /No enabled sync destinations/);
+});
+
 test("shouldSyncResumeProgress enforces actionability boundaries", () => {
   assert.equal(shouldSyncResumeProgress({ isValid: true, type: "movie", offsetMs: 59_999, progress: 20 }), false);
   assert.equal(shouldSyncResumeProgress({ isValid: true, type: "movie", offsetMs: 60_000, progress: 89.9 }), true);

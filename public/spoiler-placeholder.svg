@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360" role="img" aria-labelledby="title desc">
+  <title id="title">Episode artwork hidden</title>
+  <desc id="desc">A crossed-out eye indicating hidden spoiler artwork.</desc>
+  <rect width="640" height="360" fill="#10171c"/>
+  <path d="M0 0h640v360H0z" fill="url(#grain)" opacity=".24"/>
+  <g fill="none" stroke="#7f919d" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M176 180s54-72 144-72 144 72 144 72-54 72-144 72-144-72-144-72Z" stroke-width="18"/>
+    <circle cx="320" cy="180" r="39" stroke-width="18"/>
+    <path d="m204 64 232 232" stroke="#b7c4cb" stroke-width="24"/>
+  </g>
+  <defs>
+    <pattern id="grain" width="32" height="32" patternUnits="userSpaceOnUse">
+      <path d="M0 32 32 0M-8 8 8-8M24 40l16-16" stroke="#d5dce0" stroke-width="1"/>
+    </pattern>
+  </defs>
+</svg>

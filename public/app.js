@@ -8,7 +8,7 @@ import { buildWebhookUrl, renderSettingsInlineHelp } from "./modules/help-conten
 import { isCachedStorageImageUrl, compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, rememberPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, tmdbProfile, proxiedArtworkUrl } from "./modules/images.js";
 import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runPhantomWatchAudit, runPhantomWatchRepair, runTraktBackfill, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, loadPlembfinBackups, renderPlembfinBackups, runDuplicateWatchCleanup } from "./modules/tools.js?v=20260810";
 import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, showAvailIssuePopup, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerRetrySync, triggerCronSync, triggerStopSync, triggerForceSync, isSyncProgressActive } from "./modules/sync.js";
-import { renderSyncActivity, renderSyncActivityStatus, setSyncActivityProgress, loadSyncActivity, downloadSyncActivityLog, toggleSyncActivityRowLog, startSyncActivityRefresh, stopSyncActivityRefresh } from "./modules/sync-activity.js";
+import { renderSyncActivity, renderSyncActivityStatus, setSyncActivityProgress, setSyncActivitySearch, loadSyncActivity, downloadSyncActivityLog, toggleSyncActivityRowLog, startSyncActivityRefresh, stopSyncActivityRefresh } from "./modules/sync-activity.js";
 import { initSyncPreview } from "./modules/sync-preview.js";
 import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched, loadPartWatched } from "./modules/dashboard.js";
 import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, loadStats, renderRankingTable } from "./modules/stats.js";
@@ -117,7 +117,14 @@ function bindElements() {
     syncActivityStatusText: document.querySelector("#syncActivityStatusText"),
     syncActivitySummary: document.querySelector("#syncActivitySummary"),
     syncActivityRefresh: document.querySelector("#syncActivityRefresh"),
+    syncActivitySearch: document.querySelector("#syncActivitySearch"),
     syncActivityRows: document.querySelector("#syncActivityRows"),
+    syncActivityPagination: document.querySelector("#syncActivityPagination"),
+    syncActivityPrevious: document.querySelector("#syncActivityPrevious"),
+    syncActivityNext: document.querySelector("#syncActivityNext"),
+    syncActivityPageLabel: document.querySelector("#syncActivityPageLabel"),
+    syncActivityPageNumbers: document.querySelector("#syncActivityPageNumbers"),
+    syncActivityPageRange: document.querySelector("#syncActivityPageRange"),
     changelogPanel: document.querySelector("#changelogPanel"),
     changelogRefreshButton: document.querySelector("#changelogRefreshButton"),
     authForm: document.querySelector("#authForm"),
@@ -2221,6 +2228,12 @@ async function lockDashboard() {
   state.syncJobsLoaded = false;
   state.syncHistory = [];
   state.syncHistoryLoaded = false;
+  state.syncActivity = [];
+  state.syncActivityLoaded = false;
+  state.syncActivityLoading = false;
+  state.syncActivitySearch = "";
+  if (elements.syncActivitySearch) elements.syncActivitySearch.value = "";
+  state.syncActivityPagination = { page: 1, limit: 25, total: 0, totalPages: 1, from: 0, to: 0, hasPrevious: false, hasNext: false };
   state.importRecords = [];
   state.importFileNames = [];
   state.importLogs = ["[idle] Waiting for files."];
@@ -2240,6 +2253,7 @@ async function lockDashboard() {
   renderDashboard();
   renderActiveSessions();
   renderSyncHistory();
+  renderSyncActivity();
   renderStats();
   renderImportPreview();
   renderDbStatus(false);
@@ -2551,6 +2565,7 @@ function initialize() {
     runPhantomWatchRepair,
     runDuplicateWatchCleanup,
     loadSyncActivity,
+    setSyncActivitySearch,
     downloadSyncActivityLog,
     toggleSyncActivityRowLog,
   });
