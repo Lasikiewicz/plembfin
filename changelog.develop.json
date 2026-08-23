@@ -1,7 +1,17 @@
 {
-  "build": 11,
-  "updatedAt": "2026-08-23T13:28:39+01:00",
+  "build": 12,
+  "updatedAt": "2026-08-23T15:23:08+01:00",
   "entries": [
+    {
+      "build": 12,
+      "date": "2026-08-23T15:23:08+01:00",
+      "commit": "8583e2f20eed6331cf4444fe6f6e9db449740be7",
+      "message": "Fix - Align episode history identities",
+      "author": "Lasikiewicz",
+      "details": [
+        "Episode history now prefers series-level provider IDs, reuses canonical show artwork, and resolves missing titles without requiring Fix Match."
+      ]
+    },
     {
       "build": 11,
       "date": "2026-08-23T13:28:39+01:00",
