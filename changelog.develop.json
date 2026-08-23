@@ -1,7 +1,18 @@
 {
-  "build": 14,
-  "updatedAt": "2026-08-23T19:55:59+01:00",
+  "build": 15,
+  "updatedAt": "2026-08-23T20:03:17+01:00",
   "entries": [
+    {
+      "build": 15,
+      "date": "2026-08-23T20:03:17+01:00",
+      "commit": "491650dfcf0eab9e51f58004872ef46eec68f8c3",
+      "message": "Fix - Preserve matching resume acknowledgements",
+      "author": "Lasikiewicz",
+      "details": [
+        "Keep shared Part Watched progress when Emby or Jellyfin reports the same propagated position without a timestamp.",
+        "Continue honoring newer explicit unwatched decisions and reject mismatched timestamp-less positions."
+      ]
+    },
     {
       "build": 14,
       "date": "2026-08-23T19:55:59+01:00",
