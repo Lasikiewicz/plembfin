@@ -1,7 +1,18 @@
 {
-  "build": 13,
-  "updatedAt": "2026-08-23T19:45:11+01:00",
+  "build": 14,
+  "updatedAt": "2026-08-23T19:55:59+01:00",
   "entries": [
+    {
+      "build": 14,
+      "date": "2026-08-23T19:55:59+01:00",
+      "commit": "47c140a4e42cf57bd1aa23f650276e044f5aefe1",
+      "message": "Fix - Retain newer resume progress",
+      "author": "Lasikiewicz",
+      "details": [
+        "Let a newer partial-play position supersede an older unwatched marker when a live session stops.",
+        "Preserve explicit newer unwatched and watched decisions, with regression coverage for timestamp precedence."
+      ]
+    },
     {
       "build": 13,
       "date": "2026-08-23T19:45:11+01:00",
