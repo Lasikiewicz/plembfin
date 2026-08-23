@@ -3,6 +3,8 @@
 // (which has meaningful gaps between episodes). Explicit manual watch actions
 // are protected so a user can still bulk-mark a set of items intentionally.
 
+import { remoteEpisodeImportError } from "./episodeImportGuard.js";
+
 const PLATFORM_SOURCES = new Set(["plex", "emby", "jellyfin"]);
 const BURST_GAP_MS = 3 * 60 * 1000;
 const MIN_BURST_ITEMS = 8;
@@ -14,6 +16,46 @@ const MIN_BURST_ITEMS = 8;
 const CROSS_GROUP_MAX_SPAN_MS = 10 * 60 * 1000;
 const SAME_GROUP_MIN_ITEMS = 6;
 const SAME_GROUP_MAX_SPAN_MS = 60 * 1000;
+
+function parseJson(value) {
+  if (!value) return null;
+  if (typeof value === "object") return value;
+  try { return JSON.parse(value); } catch { return null; }
+}
+
+function rowAsMedia(row = {}) {
+  return {
+    title: row.title,
+    type: row.media_type,
+    source: row.source,
+    season: row.season,
+    episode: row.episode,
+    episode_title: row.episode_title,
+    show_title: row.show_title,
+    ids: {
+      imdb: row.imdb_id,
+      tmdb: row.tmdb_id,
+      tvdb: row.tvdb_id,
+    },
+    watch_provenance: parseJson(row.watch_provenance),
+  };
+}
+
+function compactMalformedRow(row, rejection) {
+  return {
+    id: row.id,
+    title: row.title,
+    show_title: row.show_title || null,
+    season: row.season ?? null,
+    episode: row.episode ?? null,
+    episode_title: row.episode_title || null,
+    source: row.source || null,
+    watched_at: row.watched_at || null,
+    media_key: row.media_key || null,
+    reason: rejection.code,
+    details: rejection.message,
+  };
+}
 
 function timestampMs(value) {
   const time = Date.parse(String(value || ""));
@@ -184,4 +226,64 @@ export function repairPhantomWatchBursts(database, options = {}) {
 
   const deleted = options.transaction === false ? repair() : database.transaction(repair)();
   return { deleted, bursts: detected.bursts };
+}
+
+// Finds rows already persisted by an automatic library-history import whose
+// episode identity is visibly synthetic or otherwise invalid. This is kept
+// separate from burst detection because malformed rows can be spread across
+// several days, as happens when a media server replays stale library state.
+export function findMalformedScheduledEpisodeRows(database) {
+  const rows = database.prepare(`
+    SELECT * FROM watch_history
+    WHERE media_type = 'episode'
+      AND watched_at IS NOT NULL
+      AND (sync_action IS NULL OR LOWER(sync_action) NOT IN ('unwatched', 'unplayed'))
+  `).all();
+
+  const findings = rows
+    .map((row) => {
+      const rejection = remoteEpisodeImportError(rowAsMedia(row));
+      return rejection ? compactMalformedRow(row, rejection) : null;
+    })
+    .filter(Boolean);
+
+  return {
+    scanned: rows.length,
+    count: findings.length,
+    ids: findings.map((row) => row.id),
+    rows: findings,
+  };
+}
+
+export function repairMalformedScheduledEpisodeRows(database, { transaction = true } = {}) {
+  const detected = findMalformedScheduledEpisodeRows(database);
+  if (!detected.ids.length) return { deleted: 0, rows: detected.rows };
+
+  const placeholders = detected.ids.map(() => "?").join(",");
+  const deleteRows = database.prepare(`DELETE FROM watch_history WHERE id IN (${placeholders})`);
+  const repair = () => {
+    database.exec("DROP TABLE IF EXISTS watch_history_repair_keys");
+    database.exec("CREATE TEMP TABLE watch_history_repair_keys (media_key TEXT PRIMARY KEY)");
+    const deleteOrphanedPlaystates = database.prepare(`
+      DELETE FROM playstate
+      WHERE media_key IN (
+        SELECT media_key FROM watch_history_repair_keys
+      )
+        AND NOT EXISTS (
+          SELECT 1 FROM watch_history
+          WHERE watch_history.media_key = playstate.media_key
+            AND (watch_history.sync_action IS NULL OR LOWER(watch_history.sync_action) NOT IN ('unwatched', 'unplayed'))
+        )
+    `);
+    const keys = database.prepare(`SELECT media_key FROM watch_history WHERE id IN (${placeholders}) AND media_key IS NOT NULL`).all(...detected.ids);
+    const insertKey = database.prepare("INSERT OR IGNORE INTO watch_history_repair_keys (media_key) VALUES (?)");
+    keys.forEach((row) => insertKey.run(row.media_key));
+    const deleted = deleteRows.run(...detected.ids).changes;
+    deleteOrphanedPlaystates.run();
+    database.exec("DROP TABLE watch_history_repair_keys");
+    return deleted;
+  };
+
+  const deleted = transaction === false ? repair() : database.transaction(repair)();
+  return { deleted, rows: detected.rows };
 }

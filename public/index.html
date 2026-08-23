@@ -1143,13 +1143,13 @@
                               <b>Audit Phantom Watches</b>
                               <span id="phantomAuditStatus" class="status-pill status-muted">Idle</span>
                             </div>
-                            <span>Finds suspicious platform duplicates across media keys and provider IDs</span>
+                            <span>Finds suspicious duplicates and malformed imported episode rows</span>
                           </summary>
                           <div class="tool-item-row">
                             <div id="phantomAuditLog" class="import-terminal compact-terminal hidden" style="margin-top: var(--space-2);">Audit results will appear here.</div>
                             <div class="settings-actions" style="margin-top: var(--space-2);">
                               <button id="phantomAuditButton" class="button-ghost sync-action-btn sync-tool-button" type="button">Run Phantom Audit</button>
-                              <button id="phantomRepairButton" class="button-danger sync-tools-cancel-button" type="button">Remove Confirmed Batches</button>
+                              <button id="phantomRepairButton" class="button-danger sync-tools-cancel-button" type="button">Remove Confirmed Phantom Rows</button>
                             </div>
                           </div>
                         </details>
@@ -1188,7 +1188,7 @@
                       </div>
                       <div style="margin-bottom: var(--space-2);">
                         <b style="display: block; margin-bottom: 2px;">Audit Phantom Watches</b>
-                        <p style="margin: 0; line-height: 1.4;">Runs a read-only scan of all watch-history rows for suspicious platform duplicates across media keys, provider IDs, and title or episode identities. Results are labelled high-confidence or review-only; the audit never changes or deletes records.</p>
+                        <p style="margin: 0; line-height: 1.4;">Runs a read-only scan of all watch-history rows for suspicious platform duplicates and malformed imported episode metadata. Results are labelled high-confidence or review-only; the audit never changes or deletes records.</p>
                       </div>
                       <div style="margin-top: var(--space-2);">
                         <b style="display: block; margin-bottom: 2px;">Remove Duplicate Watches</b>

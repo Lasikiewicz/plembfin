@@ -189,3 +189,41 @@ test("unplayed echoes are tracked separately from played marks", async () => {
   assert.equal(await isRecentOutboundUnplayedFlagEcho({ ...media, itemId: "plex-1" }, "plex", kv, { now: Date.now() + 11 * 60 * 1000 }), false);
   assert.equal(await isRecentOutboundUnplayedFlagEcho({ ...media, itemId: "different", title: "Other Movie" }, "plex", kv), false);
 });
+
+test("resume updates suppress immediate played=false webhook echoes", async () => {
+  const {
+    isRecentOutboundProgressEcho,
+    lastOutboundProgressMarkAt,
+    recordOutboundProgressMarks,
+  } = await import("../server/src/utils/syncOrchestrator.js");
+  const store = new Map();
+  const kv = {
+    async get(key) {
+      return store.has(key) ? store.get(key) : null;
+    },
+    async put(key, value) {
+      store.set(key, String(value));
+    },
+  };
+  const outbound = {
+    isValid: true,
+    type: "episode",
+    source: "plex",
+    title: "Ted Lasso - S04E01",
+    season: 4,
+    episode: 1,
+    ids: { tvdb: "11766070" },
+  };
+
+  await recordOutboundProgressMarks(outbound, ["emby", "jellyfin"], kv);
+  assert.ok(await lastOutboundProgressMarkAt(outbound, "jellyfin", kv) > 0);
+
+  // Jellyfin's UserDataSaved callback can omit provider ids and use a different
+  // native item id. The canonical title plus episode coordinates still identify
+  // it as the acknowledgement of our progress write.
+  const callback = { ...outbound, source: "jellyfin", ids: {}, itemId: "jellyfin-episode-id" };
+  assert.equal(await isRecentOutboundProgressEcho(callback, "jellyfin", kv, { now: Date.now() + 1_000 }), true);
+  assert.equal(await isRecentOutboundProgressEcho(callback, "jellyfin", kv, { now: Date.now() + 16_000 }), false);
+  assert.equal(await isRecentOutboundProgressEcho({ ...callback, episode: 2 }, "jellyfin", kv), false);
+  assert.equal(await isRecentOutboundProgressEcho(callback, "plex", kv), false);
+});

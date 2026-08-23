@@ -211,7 +211,7 @@ const SECTIONS = {
     subPanels: ["tools-repairs"],
     subSections: [
       { id: "repair-history-rows", label: "Repair History Rows", description: "Fill in missing media types and backfill missing posters" },
-      { id: "phantom-watch-audit", label: "Audit Phantom Watches", description: "Finds suspicious platform duplicates" },
+      { id: "phantom-watch-audit", label: "Audit Phantom Watches", description: "Finds suspicious duplicates and malformed imported episode rows" },
       { id: "remove-duplicate-watches", label: "Remove Duplicate Watches", description: "Keeps the oldest watch date for each TV episode or movie library-wide" },
     ],
     isDisplayOnly: true,

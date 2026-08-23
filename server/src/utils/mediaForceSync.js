@@ -11,6 +11,7 @@ import { fetchEmbySeriesEpisodes, fetchEmbyWatchedItems } from "./embyClient.js"
 import { fetchJellyfinSeriesEpisodes, fetchJellyfinWatchedItems } from "./jellyfinClient.js";
 import { normalizeProviderIds, parsePlexGuids } from "./parsers.js";
 import { isEmbyLikePlayed, releaseDateForItem, releaseDateForPlexItem, watchedAtForEmbyLikeItem, watchedAtForPlexItem } from "./watchDates.js";
+import { remoteEpisodeImportError } from "./episodeImportGuard.js";
 import { appendSyncHistory, loadMediaConfig } from "./configStore.js";
 import { createLoopStore } from "./loopStore.js";
 import { runWithConcurrency } from "./concurrency.js";
@@ -187,7 +188,7 @@ export function remoteItemToMedia(item = {}, source = "", requested = {}, now = 
     : itemTitle(item, source) || requested.title;
   const itemId = itemNativeId(item, source);
 
-  return {
+  const media = {
     title,
     show_title: type === "episode" ? showTitle : undefined,
     episode_title: type === "episode" ? itemTitle(item, source) : undefined,
@@ -211,6 +212,9 @@ export function remoteItemToMedia(item = {}, source = "", requested = {}, now = 
         : "Watched state explicitly imported from a connected media server from the media detail page.",
     },
   };
+
+  if (remoteEpisodeImportError(media, { context: "library_scan" })) return null;
+  return media;
 }
 
 function mediaMatchesRequest(media, requested) {

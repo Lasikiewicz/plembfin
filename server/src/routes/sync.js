@@ -27,7 +27,7 @@ import { probePlexNotificationSocket } from "../utils/plexNotificationListener.j
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes, listEmbyLibraries } from "../utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes, listJellyfinLibraries } from "../utils/jellyfinClient.js";
 import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook } from "../utils/parsers.js";
-import { completeDispatchTracking, getTargetsForSource, isRecentOutboundPlayedFlagEcho, isRecentOutboundUnplayedFlagEcho, recordOutboundPlayedMarks, reserveDispatchBatch, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
+import { completeDispatchTracking, getTargetsForSource, isRecentOutboundPlayedFlagEcho, isRecentOutboundProgressEcho, isRecentOutboundUnplayedFlagEcho, recordOutboundPlayedMarks, reserveDispatchBatch, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
 import { canReceiveState } from "../utils/syncRoles.js";
 import { watchedPlayedSyncEnabled } from "../utils/syncFlags.js";
 import { forceSyncMediaState, normalizeMediaForceSyncRequest } from "../utils/mediaForceSync.js";
@@ -1732,6 +1732,23 @@ export async function handleWebhook(req, res) {
   }
 
   if (media.phase === "unplayed") {
+    const ownProgressEcho = await isRecentOutboundProgressEcho(media, media.source, loopStore).catch(() => false);
+    if (ownProgressEcho) {
+      console.log("Webhook: skipped unplayed callback caused by outbound resume update", {
+        source: media.source,
+        title: media.title,
+        event: media.event,
+      });
+      await deleteActiveSession(media).catch(() => null);
+      await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
+      return sendJson(res, {
+        ok: true,
+        inserted: false,
+        skipped: true,
+        reason: "Unplayed callback followed Plembfin outbound resume update",
+      });
+    }
+
     const ownUnplayedEcho = await isRecentOutboundUnplayedFlagEcho(media, media.source, loopStore).catch(() => false);
     if (ownUnplayedEcho) {
       console.log("Webhook: skipped outbound unplayed echo", {

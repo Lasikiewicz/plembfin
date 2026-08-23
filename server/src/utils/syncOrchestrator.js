@@ -258,6 +258,7 @@ export async function recordOutboundPlayedMarks(media, targets = [], kv) {
 // prevents a target's acknowledgement from being interpreted as a new source
 // event and also covers the direct Force Sync path.
 const OUTBOUND_UNPLAYED_MARK_PREFIX = "unmark";
+const OUTBOUND_PROGRESS_MARK_PREFIX = "progress_loop";
 
 export async function recordOutboundUnplayedMarks(media, targets = [], kv) {
   if (!kv || !targets.length) return;
@@ -268,6 +269,25 @@ export async function recordOutboundUnplayedMarks(media, targets = [], kv) {
         await kv.put(key, now, { expirationTtl: OUTBOUND_MARK_TTL_SECONDS });
       } catch (error) {
         console.error("Failed to record outbound unplayed mark", { target, error });
+      }
+    }
+  }
+}
+
+// Updating resume position on Emby/Jellyfin writes Played=false as part of the
+// same UserData payload. Both servers can immediately echo that write as an
+// "unplayed" webhook even though the user did not clear the watched flag. Keep
+// a short-lived marker so the webhook path can distinguish that acknowledgement
+// from a genuine Mark Unplayed action.
+export async function recordOutboundProgressMarks(media, targets = [], kv) {
+  if (!kv || !targets.length) return;
+  const now = Date.now();
+  for (const target of targets) {
+    for (const key of targetCacheKeys(media, target, OUTBOUND_PROGRESS_MARK_PREFIX)) {
+      try {
+        await kv.put(key, now, { expirationTtl: LOOP_CACHE_TTL_SECONDS });
+      } catch (error) {
+        console.error("Failed to record outbound progress mark", { target, error });
       }
     }
   }
@@ -302,11 +322,35 @@ export async function lastOutboundUnplayedMarkAt(media, target, kv) {
   return newest;
 }
 
+export async function lastOutboundProgressMarkAt(media, target, kv) {
+  if (!kv) return 0;
+  let newest = 0;
+  for (const key of targetCacheKeys(media, target, OUTBOUND_PROGRESS_MARK_PREFIX)) {
+    try {
+      const value = Number(await kv.get(key));
+      if (Number.isFinite(value) && value > newest) newest = value;
+    } catch (error) {
+      console.error("Failed to read outbound progress mark", { target, error });
+    }
+  }
+  return newest;
+}
+
 export async function isRecentOutboundUnplayedFlagEcho(media, target, kv, {
   now = Date.now(),
   windowMs = 10 * 60 * 1000,
 } = {}) {
   const ownMarkAt = await lastOutboundUnplayedMarkAt(media, target, kv);
+  if (!ownMarkAt) return false;
+  const receivedAt = Number(now);
+  return Number.isFinite(receivedAt) && receivedAt >= ownMarkAt && receivedAt - ownMarkAt <= windowMs;
+}
+
+export async function isRecentOutboundProgressEcho(media, target, kv, {
+  now = Date.now(),
+  windowMs = LOOP_WINDOW_MS,
+} = {}) {
+  const ownMarkAt = await lastOutboundProgressMarkAt(media, target, kv);
   if (!ownMarkAt) return false;
   const receivedAt = Number(now);
   return Number.isFinite(receivedAt) && receivedAt >= ownMarkAt && receivedAt - ownMarkAt <= windowMs;
@@ -697,6 +741,12 @@ export async function syncMediaProgress(media, config, kv, { lane = "sync" } = {
     progress: media.progress,
     ids: media.ids,
   });
+
+  // Prime a readable marker as well as the atomic loop claim above. Some
+  // Emby/Jellyfin progress acknowledgements are parsed as unplayed events, so
+  // the webhook handler needs to recognize the write before it clears local
+  // playback_progress.
+  await recordOutboundProgressMarks(media, targets, kv);
 
   const jobs = targets.map((target) => {
     const run = clientProgressFor(target, config, media, lane);

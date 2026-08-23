@@ -95,7 +95,7 @@ import {
   clearWatchArtworkUrls,
 } from "../utils/dataRepo.js";
 import { auditPhantomWatchHistory } from "../utils/phantomWatchAudit.js";
-import { repairPhantomWatchBursts } from "../utils/phantomWatchRepair.js";
+import { findMalformedScheduledEpisodeRows, repairMalformedScheduledEpisodeRows, repairPhantomWatchBursts } from "../utils/phantomWatchRepair.js";
 
 function imagePath(path, params = {}) {
   const cleanPath = String(path || "").trim();
@@ -379,7 +379,13 @@ export async function handlePhantomWatchAudit(req, res) {
   if (req.method !== "GET") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
   const result = auditPhantomWatchHistory(db);
-  return sendJson(res, { ok: true, ...result }, 200, { "Cache-Control": "no-store" });
+  const malformed = findMalformedScheduledEpisodeRows(db);
+  return sendJson(res, {
+    ok: true,
+    ...result,
+    malformed_episode_count: malformed.count,
+    malformed_episode_rows: malformed.rows,
+  }, 200, { "Cache-Control": "no-store" });
 }
 
 export async function handlePhantomWatchRepair(req, res) {
@@ -390,12 +396,21 @@ export async function handlePhantomWatchRepair(req, res) {
     const config = await loadMediaConfig().catch(() => ({}));
     const activeTargets = getActiveTargetsForConfig(config);
     const result = repairPhantomWatchBursts(db, { activeTargets });
-    if (result.deleted) await invalidateHistoryDerivedCaches().catch(() => null);
+    const malformed = repairMalformedScheduledEpisodeRows(db);
+    const deleted = result.deleted + malformed.deleted;
+    if (deleted) await invalidateHistoryDerivedCaches().catch(() => null);
     writeAuditLog("history.phantom_burst_repair", {
       ip: req.ip || req.socket?.remoteAddress,
-      detail: { deleted: result.deleted, bursts: result.bursts },
+      detail: { deleted, burstDeleted: result.deleted, malformedEpisodeDeleted: malformed.deleted, bursts: result.bursts, malformedRows: malformed.rows },
     });
-    return sendJson(res, { ok: true, ...result }, 200, { "Cache-Control": "no-store" });
+    return sendJson(res, {
+      ok: true,
+      ...result,
+      deleted,
+      burst_deleted: result.deleted,
+      malformed_episode_deleted: malformed.deleted,
+      malformed_episode_rows: malformed.rows,
+    }, 200, { "Cache-Control": "no-store" });
   } catch (error) {
     console.error("Phantom watch repair failed", error);
     return sendJson(res, { error: "Phantom watch repair failed" }, 500);

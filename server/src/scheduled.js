@@ -13,6 +13,7 @@ import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
 import { isCronSyncPaused, loadWatchBackupRuntime } from "./utils/watchHistoryBackups.js";
 import { executeForceSyncPlan } from "./utils/forceSyncExecutor.js";
 import { isEmbyLikePlayed, resolvePlexWatchDate, watchedAtForEmbyLikeItem, watchedAtForPlexItem } from "./utils/watchDates.js";
+import { remoteEpisodeImportError } from "./utils/episodeImportGuard.js";
 import { isVerboseLogging } from "./utils/logVerbose.js";
 import { buildWatchProvenance, provenanceTelemetryLines } from "./utils/watchProvenance.js";
 import { recordWatchAuditEvent, recordWatchAuditEvents } from "./utils/watchAudit.js";
@@ -311,6 +312,15 @@ function summariseTitles(titles, max = 3) {
   const unique = [...new Set(titles.filter(Boolean))];
   if (unique.length <= max) return unique.join(", ");
   return `${unique.slice(0, max).join(", ")} and ${unique.length - max} more`;
+}
+
+function skipMalformedLibraryHistoryItem(media, source, logger, skipped = []) {
+  const rejection = remoteEpisodeImportError(media, { context: "library_history" });
+  if (!rejection) return false;
+  const label = `${media.title || "unknown"} (${rejection.code})`;
+  skipped.push(label);
+  logger(`${source}: skipped malformed watched item ${media.title || "unknown"}: ${rejection.message}.`);
+  return true;
 }
 
 // Delegates to the memoized resolver in plexClient.js so the per-minute
@@ -946,6 +956,7 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
   const baseUrl = config.plex.baseUrl.replace(/\/+$/, "");
   const username = configuredPlexUsername(config);
   let syncedCount = 0;
+  const skippedMalformed = [];
 
   const targetAccountId = await resolvePlexTargetAccountId(config.plex, username, logger);
   if (username && targetAccountId == null) {
@@ -1082,6 +1093,7 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
         { source: "plex", event: "library_history", phase: "completed", itemId: item.ratingKey, user: username },
         { ingestPath: "plex_scheduled_library_history", sourceTimestamp: watchDate.sourceTimestamp, note: watchDate.note },
       );
+      if (skipMalformedLibraryHistoryItem(media, "Plex", logger, skippedMalformed)) continue;
       if (!scheduledMediaInScope(config, media)) continue;
 
       const playstate = await getPlaystateForMedia(media).catch(() => null);
@@ -1147,6 +1159,9 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
     logger(`Plex sync recently watched failed: ${error.message}`);
   }
 
+  if (skippedMalformed.length) {
+    logger(`Plex: skipped ${skippedMalformed.length} malformed watched item(s) (${summariseTitles(skippedMalformed)}).`);
+  }
   if (syncedCount) await invalidateHistoryDerivedCaches().catch(() => null);
   return syncedCount;
 }
@@ -1159,6 +1174,7 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
   if (!config.emby?.baseUrl || !config.emby?.apiKey || !config.emby?.userId) return 0;
   let syncedCount = 0;
   const skippedNoPlayedDate = [];
+  const skippedMalformed = [];
   let skippedApiMarked = 0;
   try {
     const { fetchEmbyWatchedItems } = await import("./utils/embyClient.js");
@@ -1185,14 +1201,14 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
         source: "emby",
         isValid: true,
       };
-      if (!scheduledMediaInScope(config, media)) continue;
-
       const { watchedAt, reason: watchedAtReason } = watchedAtForEmbyLikeItem(item);
 
       media.watchProvenance = buildWatchProvenance(
         { source: "emby", event: "library_history", phase: "completed", itemId: item.Id, user: config.emby.userId },
         { ingestPath: "emby_scheduled_library_history", sourceTimestamp: watchedAt },
       );
+      if (skipMalformedLibraryHistoryItem(media, "Emby", logger, skippedMalformed)) continue;
+      if (!scheduledMediaInScope(config, media)) continue;
 
       if (!watchedAt) {
         // "marked without playback" means we (or another tool) set the played
@@ -1261,6 +1277,9 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
   if (skippedApiMarked && isVerboseLogging()) {
     logger(`Emby: ignored ${skippedApiMarked} item(s) flagged played without playback (marked over the API, nothing to ingest).`);
   }
+  if (skippedMalformed.length) {
+    logger(`Emby: skipped ${skippedMalformed.length} malformed watched item(s) (${summariseTitles(skippedMalformed)}).`);
+  }
   if (syncedCount) await invalidateHistoryDerivedCaches().catch(() => null);
   return syncedCount;
 }
@@ -1273,6 +1292,7 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
   if (!config.jellyfin?.baseUrl || !config.jellyfin?.apiKey || !config.jellyfin?.userId) return 0;
   let syncedCount = 0;
   const skippedNoPlayedDate = [];
+  const skippedMalformed = [];
   let skippedApiMarked = 0;
   try {
     const { fetchJellyfinWatchedItems } = await import("./utils/jellyfinClient.js");
@@ -1299,14 +1319,14 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
         source: "jellyfin",
         isValid: true,
       };
-      if (!scheduledMediaInScope(config, media)) continue;
-
       const { watchedAt, reason: watchedAtReason } = watchedAtForEmbyLikeItem(item);
 
       media.watchProvenance = buildWatchProvenance(
         { source: "jellyfin", event: "library_history", phase: "completed", itemId: item.Id, user: config.jellyfin.userId },
         { ingestPath: "jellyfin_scheduled_library_history", sourceTimestamp: watchedAt },
       );
+      if (skipMalformedLibraryHistoryItem(media, "Jellyfin", logger, skippedMalformed)) continue;
+      if (!scheduledMediaInScope(config, media)) continue;
 
       if (!watchedAt) {
         if (watchedAtReason === "marked without playback") skippedApiMarked++;
@@ -1371,6 +1391,9 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
   }
   if (skippedApiMarked && isVerboseLogging()) {
     logger(`Jellyfin: ignored ${skippedApiMarked} item(s) flagged played without playback (marked over the API, nothing to ingest).`);
+  }
+  if (skippedMalformed.length) {
+    logger(`Jellyfin: skipped ${skippedMalformed.length} malformed watched item(s) (${summariseTitles(skippedMalformed)}).`);
   }
   if (syncedCount) await invalidateHistoryDerivedCaches().catch(() => null);
   return syncedCount;

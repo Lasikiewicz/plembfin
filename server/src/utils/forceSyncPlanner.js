@@ -11,6 +11,7 @@
 // dataRepo write helpers. Tests assert this stays true.
 
 import { mediaKeyFor } from "./dataRepo.js";
+import { remoteEpisodeImportError } from "./episodeImportGuard.js";
 import { normalizeProviderIds } from "./parsers.js";
 import { watchedAtForEmbyLikeItem, watchedAtForPlexItem } from "./watchDates.js";
 import {
@@ -184,7 +185,11 @@ export function mapPlexWatchedItem(item = {}) {
 }
 
 export function mapEmbyLikeWatchedItem(item = {}, source = "emby") {
-  const ids = normalizeProviderIds(item.ProviderIds);
+  const ids = normalizeProviderIds(
+    item.Type === "Episode"
+      ? { ...(item.ProviderIds || {}), ...(item.SeriesProviderIds || {}) }
+      : (item.ProviderIds || {}),
+  );
   const { watchedAt } = watchedAtForEmbyLikeItem(item);
   return {
     title:
@@ -302,7 +307,14 @@ export async function collectServerWatchedItems(config, { scope: rawScope, logge
           mapped = rawItems.map((item) => mapEmbyLikeWatchedItem(item, server));
         }
 
-        const scoped = mapped.filter((media) => itemInScope(scope, media));
+        const scoped = mapped.filter((media) => {
+          const rejection = remoteEpisodeImportError(media, { context: "library_scan" });
+          if (rejection) {
+            logger(`${server}: skipped malformed watched item ${media.title || "unknown"}: ${rejection.message}.`);
+            return false;
+          }
+          return itemInScope(scope, media);
+        });
         itemsByServer[server] = scoped;
         fingerprints[server] = { rawCount: rawItems.length, itemCount: scoped.length, ...fingerprintFor(mapped) };
         scannedServers.push(server);

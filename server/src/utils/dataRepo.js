@@ -6,6 +6,7 @@ import { getTmdbDetails, getTmdbSeason } from "./tmdbGateway.js";
 import { cachedNextAiringFor, readNextAiringCache } from "./nextAiringCache.js";
 import { buildWatchProvenance, normalizeWatchProvenance } from "./watchProvenance.js";
 import { recordWatchAuditEvent, recordWatchAuditEvents } from "./watchAudit.js";
+import { remoteEpisodeImportError } from "./episodeImportGuard.js";
 import {
   initShowProgressCache,
   getCachedShowProgress,
@@ -430,6 +431,8 @@ function validateWatchRecord(record) {
   if (!["movie", "episode"].includes(record.media_type)) errors.push("media_type must be movie or episode");
   if (!record.watched_at) errors.push("watched_at is required");
   if (!record.source) errors.push("source is required");
+  const remoteEpisodeError = remoteEpisodeImportError(record);
+  if (remoteEpisodeError) errors.push(remoteEpisodeError.message);
   return errors;
 }
 

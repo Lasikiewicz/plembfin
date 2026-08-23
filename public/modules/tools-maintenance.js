@@ -958,13 +958,19 @@ export async function runPhantomWatchAudit() {
     const response = await fetch("/api/phantom-watch-audit", { headers: authHeaders(), cache: "no-store" });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
-    const summary = `Scanned ${Number(body.scanned || 0).toLocaleString()} rows. Found ${Number(body.candidate_groups || 0)} suspicious group(s): ${Number(body.high_confidence_groups || 0)} high-confidence, ${Number(body.review_groups || 0)} review. No records changed.`;
-    setStatusPill(status, body.candidate_groups ? `${body.candidate_groups} candidate(s)` : "No candidates", body.candidate_groups ? "warning" : "ready");
+    const malformedCount = Number(body.malformed_episode_count || 0);
+    const candidateCount = Number(body.candidate_groups || 0);
+    const totalFindings = candidateCount + malformedCount;
+    const summary = `Scanned ${Number(body.scanned || 0).toLocaleString()} rows. Found ${candidateCount} suspicious group(s): ${Number(body.high_confidence_groups || 0)} high-confidence, ${Number(body.review_groups || 0)} review, and ${malformedCount} malformed imported episode row(s). No records changed.`;
+    setStatusPill(status, totalFindings ? `${totalFindings} finding(s)` : "No findings", totalFindings ? "warning" : "ready");
     if (log) {
+      const malformedLog = (body.malformed_episode_rows || []).slice(0, 20).map((row) =>
+        `\n[malformed episode] ${row.title || row.show_title || "Unknown"} — ${row.reason}: ${row.details}`
+      ).join("");
       log.textContent = summary + (body.candidates || []).slice(0, 20).map((item) => {
         const first = item.records?.[0] || {}; const last = item.records?.at(-1) || {};
         return `\n[${item.confidence}] ${first.title || first.show_title || "Unknown"} - ${first.watched_at} → ${last.watched_at} (${item.reason}, ${item.gap_seconds}s)`;
-      }).join("");
+      }).join("") + malformedLog;
     }
     return body;
   } catch (error) {
@@ -981,7 +987,7 @@ export async function runPhantomWatchRepair() {
   const button = elements.phantomRepairButton;
   if (!button) return;
   button.disabled = true;
-  button.textContent = "Removing batches...";
+  button.textContent = "Removing confirmed rows...";
   try {
     const response = await fetch("/api/phantom-watch-repair", {
       method: "POST",
@@ -991,19 +997,20 @@ export async function runPhantomWatchRepair() {
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
     const deleted = Number(body.deleted || 0);
-    setStatusPill(elements.phantomAuditStatus, deleted ? `${deleted} batch row(s) removed` : "No batches found", deleted ? "ready" : "muted");
+    const malformedDeleted = Number(body.malformed_episode_deleted || 0);
+    setStatusPill(elements.phantomAuditStatus, deleted ? `${deleted} row(s) removed` : "No confirmed rows", deleted ? "ready" : "muted");
     if (elements.phantomAuditLog) {
       elements.phantomAuditLog.classList.remove("hidden");
       elements.phantomAuditLog.textContent = deleted
-        ? `Removed ${deleted} high-confidence phantom row(s) from ${(body.bursts || []).length} batch(es). Explicit manual watches and spaced-out rewatches were preserved.`
-        : "No high-confidence phantom batches were found.";
+        ? `Removed ${deleted} confirmed row(s): ${Number(body.burst_deleted || 0)} burst duplicate(s) and ${malformedDeleted} malformed imported episode row(s). Explicit manual watches and spaced-out rewatches were preserved.`
+        : "No confirmed phantom or malformed imported episode rows were found.";
     }
     await clearDerivedUiCaches();
     await loadHistory();
     return body;
   } finally {
     button.disabled = false;
-    button.textContent = "Remove Confirmed Batches";
+    button.textContent = "Remove Confirmed Phantom Rows";
   }
 }
 
