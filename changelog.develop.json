@@ -1,7 +1,21 @@
 {
-  "build": 15,
-  "updatedAt": "2026-08-23T20:03:17+01:00",
+  "build": 16,
+  "updatedAt": "2026-08-23T20:52:17+01:00",
   "entries": [
+    {
+      "build": 16,
+      "date": "2026-08-23T20:52:17+01:00",
+      "commit": "1bb0ded190ab704e4fa5a788e866597b4a65f35f",
+      "message": "Fix - Make resume and source-of-truth sync reliable",
+      "author": "Lasikiewicz",
+      "details": [
+        "Keep Plex-sourced resume items visible and correctly ordered in Emby Continue Watching without making old progress look newly played",
+        "Recover interrupted sync counters, aggregate overlapping process activity safely, and clear orphaned progress after restart",
+        "Preserve each episode's real watched or unwatched Plembfin state during show-level source-of-truth sync",
+        "Prevent metadata or telemetry updates from reviving an older watched state over a newer unwatch",
+        "Keep destination-specific Force Sync operations from changing unselected Trakt history"
+      ]
+    },
     {
       "build": 15,
       "date": "2026-08-23T20:03:17+01:00",
