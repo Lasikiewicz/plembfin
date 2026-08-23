@@ -1,7 +1,21 @@
 {
-  "build": 16,
-  "updatedAt": "2026-08-23T20:52:17+01:00",
+  "build": 17,
+  "updatedAt": "2026-08-23T21:38:47+01:00",
   "entries": [
+    {
+      "build": 17,
+      "date": "2026-08-23T21:38:47+01:00",
+      "commit": "13267acd0342f08266e716e26e33e71ef6b23d5e",
+      "message": "Fix - Preserve resume progress and prioritize local sync",
+      "author": "Lasikiewicz",
+      "details": [
+        "Keep fresh partial playback in Plembfin when Emby or Jellyfin return Played false or stale dates, while preserving newer explicit unwatches",
+        "Complete Plex, Emby, and Jellyfin detail Force Sync writes before a separate two-worker Trakt phase so cloud history cannot hold the local worker pool",
+        "Keep explicit destination pushes Trakt-free and persist one truthful combined result after both phases",
+        "Stop queued Trakt items on cancellation while allowing active canonical remove/add replays to finish safely",
+        "Cover stale acknowledgements, delayed echoes, local-first ordering, partial outcomes, and cancellation with regressions"
+      ]
+    },
     {
       "build": 16,
       "date": "2026-08-23T20:52:17+01:00",
