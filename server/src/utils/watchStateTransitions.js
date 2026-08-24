@@ -134,7 +134,16 @@ export async function applyWatchedTransition(media, config, loopStore, { trackDi
   // provider-id fallback matching every other ingest path relies on for
   // this; a hit there is conclusive too, not just an exact playstate match.
   const existingByAnyKey = await findWatchedByAnyMediaKey(media).catch(() => null);
-  if (existingByAnyKey) {
+  // A watched row under an alias is only a no-op when the current canonical
+  // pointer is not explicitly unwatched. After a Fix Match/provider-id change
+  // it is possible to have an older watched row under identity A and a newer
+  // unwatched row/playstate under identity B for the same episode. Treating
+  // the older row as conclusive here merely flips the playstate cache while
+  // leaving the newer unwatched history transition canonical; the next cache
+  // rebuild (notably at the end of a Trakt poll) then makes the episode appear
+  // unwatched again. A new inbound watched fact must record a fresh watched
+  // transition so both history and playstate agree.
+  if (existingByAnyKey && existing?.state !== "unwatched") {
     const local = runGuardedLocalTransaction(shouldDefer, () => (
       upsertPlaystateForMediaSync(media, "watched", existingByAnyKey.watched_at)
     ));

@@ -71,3 +71,62 @@ test("a synchronous local mutation failure rolls back the entire watched transit
     db.exec("DROP TRIGGER IF EXISTS reject_atomic_transition_playstate");
   }
 });
+
+test("a watched tracker transition supersedes a newer unwatched provider-id alias", async () => {
+  const media = {
+    title: "Silo - S03E03",
+    showTitle: "Silo",
+    type: "episode",
+    mediaType: "episode",
+    ids: { tmdb: "125988", tvdb: "403245" },
+    season: 3,
+    episode: 3,
+    source: "trakt",
+    watched_at: "2026-07-17T12:00:00.000Z",
+  };
+  const insert = db.prepare(`INSERT INTO watch_history
+    (id, title, title_lower, media_type, watched_at, source, tmdb_id, tvdb_id,
+     season, episode, sync_action, media_key, show_title, show_title_lower,
+     created_at, updated_at)
+    VALUES (@id, @title, @title_lower, 'episode', @watched_at, @source,
+            @tmdb_id, @tvdb_id, 3, 3, @sync_action, @media_key,
+            'Silo', 'silo', @created_at, @updated_at)`);
+  insert.run({
+    id: "silo-old-watched-alias",
+    title: media.title,
+    title_lower: media.title.toLowerCase(),
+    watched_at: media.watched_at,
+    source: "manual",
+    tmdb_id: "legacy-silo-id",
+    tvdb_id: null,
+    sync_action: "watched",
+    media_key: "episode:3:3:tmdb:legacy-silo-id",
+    created_at: 1_000,
+    updated_at: 1_000,
+  });
+  insert.run({
+    id: "silo-newer-unwatched-alias",
+    title: media.title,
+    title_lower: media.title.toLowerCase(),
+    watched_at: "2026-08-24T06:43:33.000Z",
+    source: "trakt",
+    tmdb_id: media.ids.tmdb,
+    tvdb_id: media.ids.tvdb,
+    sync_action: "unwatched",
+    media_key: repo.mediaKeyFor(media),
+    created_at: 2_000,
+    updated_at: 2_000,
+  });
+  await repo.upsertPlaystateForMedia(media, "unwatched", "2026-08-24T06:43:33.000Z");
+
+  const before = await repo.queryShowDetail({ title: "Silo" });
+  assert.equal(before.episodes[0].sync_action, "unwatched");
+
+  const transition = await applyWatchedTransition(media, config, createLoopStore(), { trackDispatch: false });
+
+  assert.equal(transition.inserted, true, "the watched fact must be recorded instead of short-circuiting on the older alias");
+  assert.equal((await repo.getPlaystateForMedia(media)).state, "watched");
+  await repo.invalidateHistoryDerivedCaches();
+  const after = await repo.queryShowDetail({ title: "Silo" });
+  assert.equal(after.episodes[0].sync_action, "watched");
+});
