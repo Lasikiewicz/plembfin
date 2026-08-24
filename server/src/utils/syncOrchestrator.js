@@ -520,12 +520,10 @@ export async function isRecentOutboundProgressEcho(media, target, kv, {
 // Jellyfin emits after Plembfin marks a newly re-added item watched. The
 // callback can arrive with stale LastPlayedDate data, so use its arrival time
 // as a short-window fallback after checking the persisted outbound marker.
-export async function isRecentOutboundPlayedFlagEcho(media, target, kv, {
+export async function isRecentOutboundPlayedEcho(media, target, kv, {
   now = Date.now(),
   windowMs = 10 * 60 * 1000,
 } = {}) {
-  if (!media?.playedFlagOnly) return false;
-
   const ownMarkAt = await lastOutboundPlayedMarkAt(media, target, kv);
   if (!ownMarkAt) return false;
 
@@ -534,6 +532,11 @@ export async function isRecentOutboundPlayedFlagEcho(media, target, kv, {
   if (Number.isFinite(playedAt) && Math.abs(playedAt - ownMarkAt) <= windowMs) return true;
 
   return Number.isFinite(receivedAt) && receivedAt >= ownMarkAt && receivedAt - ownMarkAt <= windowMs;
+}
+
+export async function isRecentOutboundPlayedFlagEcho(media, target, kv, options = {}) {
+  if (!media?.playedFlagOnly) return false;
+  return isRecentOutboundPlayedEcho(media, target, kv, options);
 }
 
 function summarizeResults(targets, results) {

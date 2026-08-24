@@ -27,7 +27,7 @@ import { probePlexNotificationSocket } from "../utils/plexNotificationListener.j
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes, listEmbyLibraries } from "../utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes, listJellyfinLibraries } from "../utils/jellyfinClient.js";
 import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook } from "../utils/parsers.js";
-import { completeDispatchTracking, finishDispatchTracking, getTargetsForSource, isRecentOutboundPlayedFlagEcho, isRecentOutboundProgressEcho, isRecentOutboundUnplayedFlagEcho, recordOutboundPlayedMarks, reserveDispatchBatch, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
+import { completeDispatchTracking, finishDispatchTracking, getTargetsForSource, isRecentOutboundPlayedEcho, isRecentOutboundPlayedFlagEcho, isRecentOutboundProgressEcho, isRecentOutboundUnplayedFlagEcho, recordOutboundPlayedMarks, reserveDispatchBatch, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
 import { canReceiveState } from "../utils/syncRoles.js";
 import {
   playstateBlocksStoredResumeProgress,
@@ -2139,8 +2139,16 @@ export async function handleWebhook(req, res) {
     // write. The item may have no provider IDs and its LastPlayedDate may be
     // stale, so the normal playstate lookup is not sufficient to identify the
     // callback as our own outbound action.
-    if (["emby", "jellyfin"].includes(String(media.source || "").toLowerCase())) {
-      const ownPlayedEcho = await isRecentOutboundPlayedFlagEcho(media, media.source, loopStore).catch(() => false);
+    if (["plex", "emby", "jellyfin"].includes(String(media.source || "").toLowerCase())) {
+      const source = String(media.source || "").toLowerCase();
+      // Plex reports Plembfin's own mark-played API call as a completed
+      // scrobble rather than a flag-only event. Detect that persisted outbound
+      // marker before inserting history; the downstream loop detector is too
+      // late because the deleted provider date has already been recreated by
+      // then. Emby/Jellyfin retain the stricter flag-only check so genuine
+      // completed playback remains a rewatch.
+      const echoCheck = source === "plex" ? isRecentOutboundPlayedEcho : isRecentOutboundPlayedFlagEcho;
+      const ownPlayedEcho = await echoCheck(media, media.source, loopStore).catch(() => false);
       if (ownPlayedEcho) {
         console.log("Webhook: skipped outbound played echo", {
           source: media.source,

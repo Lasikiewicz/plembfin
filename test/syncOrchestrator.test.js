@@ -167,6 +167,35 @@ test("played-flag echoes match Jellyfin item ids even when provider ids are abse
   assert.equal(await isRecentOutboundPlayedFlagEcho({ ...callback, itemId: "different-item", title: "Other Show - S01E04" }, "jellyfin", kv), false);
 });
 
+test("Plex completed callbacks match Plembfin's own recent outbound played mark", async () => {
+  const { isRecentOutboundPlayedEcho, recordOutboundPlayedMarks } = await import(
+    "../server/src/utils/syncOrchestrator.js"
+  );
+  const store = new Map();
+  const kv = {
+    async get(key) {
+      return store.has(key) ? store.get(key) : null;
+    },
+    async put(key, value) {
+      store.set(key, String(value));
+    },
+  };
+  const media = {
+    isValid: true,
+    type: "episode",
+    source: "plex",
+    title: "G'wed - S02E02",
+    showTitle: "G'wed",
+    season: 2,
+    episode: 2,
+    ids: { tmdb: "245412", tvdb: "434702" },
+  };
+  await recordOutboundPlayedMarks(media, ["plex"], kv);
+
+  assert.equal(await isRecentOutboundPlayedEcho({ ...media, event: "media.scrobble", playedFlagOnly: false }, "plex", kv), true);
+  assert.equal(await isRecentOutboundPlayedEcho({ ...media, episode: 3 }, "plex", kv), false);
+});
+
 test("unplayed echoes are tracked separately from played marks", async () => {
   const { isRecentOutboundUnplayedFlagEcho, lastOutboundUnplayedMarkAt, recordOutboundUnplayedMarks } = await import(
     "../server/src/utils/syncOrchestrator.js"
