@@ -1751,6 +1751,40 @@ a.media-fact-chip:hover {
   flex: 0 0 auto;
 }
 
+.theme-aware-icon-set {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+}
+
+.theme-aware-icon-set .theme-aware-icon--light {
+  display: none;
+}
+
+.theme-aware-icon-set .theme-aware-icon--dark {
+  display: block;
+}
+
+html.light-mode .theme-aware-icon-set .theme-aware-icon--light {
+  display: block;
+}
+
+html.light-mode .theme-aware-icon-set .theme-aware-icon--dark {
+  display: none;
+}
+
+.source-badge-icon-set {
+  width: 1.35rem;
+  height: 0.72rem;
+}
+
+.source-badge-icon-set .source-badge-icon {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
 .part-watched-app-badge {
   cursor: pointer;
   font: inherit;

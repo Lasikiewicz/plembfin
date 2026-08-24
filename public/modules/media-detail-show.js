@@ -1,5 +1,5 @@
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel, formatSeasonTitle, sourceBadgeHtml, actualWatchHistory } from "./utils.js?v=20260824e";
+import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel, formatSeasonTitle, sourceBadgeHtml, actualWatchHistory } from "./utils.js?v=20260824f";
 import { posterUrlFor, isCachedStorageImageUrl, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js";
 import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js";
 import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading } from "./explorer.js";

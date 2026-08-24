@@ -231,14 +231,27 @@ export function sourceClass(value) {
 
 export function platformIconUrl(value) {
   const normalized = normalizePlatformSource(value);
-  if (normalized === "plembfin") return "/icons/plembfin.png?v=20260824e";
-  const extension = normalized === "plembfin" ? "png" : "svg";
+  if (normalized === "plembfin") return "/icons/plembfin.png?v=20260824f";
+  const extension = "svg";
   return `/icons/${normalized}.${extension}`;
+}
+
+export function platformIconMarkup(value, className = "source-badge-icon", wrapperClass = "source-badge-icon-set") {
+  const safeClassName = escapeAttribute(className);
+  const normalized = normalizePlatformSource(value);
+  if (normalized !== "plembfin") {
+    return `<img class="${safeClassName}" src="${escapeAttribute(platformIconUrl(value))}" alt="" loading="lazy" />`;
+  }
+
+  return `<span class="${escapeAttribute(wrapperClass)} theme-aware-icon-set" aria-hidden="true">
+    <img class="${safeClassName} theme-aware-icon--light" src="/icons/plembfin-light.png?v=20260824f" alt="" loading="lazy" />
+    <img class="${safeClassName} theme-aware-icon--dark" src="/icons/plembfin.png?v=20260824f" alt="" loading="lazy" />
+  </span>`;
 }
 
 export function sourceBadgeHtml(value) {
   if (!value) return "";
-  return `<span class="source-badge source-badge--icon ${sourceClass(value)}"><img class="source-badge-icon" src="${platformIconUrl(value)}" alt="" loading="lazy" /><span>${escapeHtml(platformBadge(value))}</span></span>`;
+  return `<span class="source-badge source-badge--icon ${sourceClass(value)}">${platformIconMarkup(value)}<span>${escapeHtml(platformBadge(value))}</span></span>`;
 }
 
 export function computeProgress(offsetMs = 0, durationMs = 0) {

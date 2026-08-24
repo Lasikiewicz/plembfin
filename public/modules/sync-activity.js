@@ -1,6 +1,6 @@
 import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, formatDate, slug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, showTitleFrom } from "./utils.js";
+import { escapeHtml, escapeAttribute, formatDate, slug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, showTitleFrom, platformIconMarkup } from "./utils.js?v=20260824f";
 import { syncHistoryTone, syncHistoryActionLabel } from "./sync.js";
 
 const REFRESH_MS = 15000;
@@ -46,7 +46,7 @@ const PLATFORMS = {
   emby: { name: "Emby", icon: "/icons/emby.svg" },
   jellyfin: { name: "Jellyfin", icon: "/icons/jellyfin.svg" },
   trakt: { name: "Trakt", icon: "/icons/trakt.svg" },
-  plembfin: { name: "Plembfin", icon: "/icons/plembfin.png?v=20260824e" },
+  plembfin: { name: "Plembfin", icon: "" },
 };
 
 export function activityPlatform(value) {
@@ -62,6 +62,7 @@ export function activityPlatform(value) {
 }
 
 function platformIcon(platform, className = "sync-activity-icon") {
+  if (platform.key === "plembfin") return platformIconMarkup("plembfin", className, "sync-activity-icon-set");
   if (!platform.icon) return "";
   return `<img class="${className}" src="${escapeAttribute(platform.icon)}" alt="${escapeAttribute(platform.name)}" loading="lazy" />`;
 }

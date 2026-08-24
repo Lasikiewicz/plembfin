@@ -1,6 +1,6 @@
 import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, sourceBadgeHtml, formatDate, resolveEpisodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconUrl, computeProgress } from "./utils.js?v=20260824e";
+import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, sourceBadgeHtml, formatDate, resolveEpisodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, computeProgress } from "./utils.js?v=20260824f";
 import { posterMarkup, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, tmdbPoster } from "./images.js";
 
 const PART_WATCHED_DASHBOARD_LIMIT = 30;
@@ -637,7 +637,7 @@ function renderPartWatchedAppBadge(source, entry, mediaTitle) {
       data-part-watched-app-tvdb="${escapeAttribute(entry.tvdb_id || "")}"
       aria-label="Open ${escapeAttribute(label)}"
       title="Open in ${escapeAttribute(label)}">
-      <img class="source-badge-icon" src="${platformIconUrl(source)}" alt="" loading="lazy" />
+      ${platformIconMarkup(source)}
       <span>${escapeHtml(label)}</span>
     </button>
   `;

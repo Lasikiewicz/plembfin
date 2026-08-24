@@ -1,5 +1,5 @@
 import { state } from "./state.js";
-import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, formatDate, actualWatchHistory, sourceBadgeHtml } from "./utils.js?v=20260824e";
+import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, formatDate, actualWatchHistory, sourceBadgeHtml } from "./utils.js?v=20260824f";
 import { buildAuthHeaders } from "./auth.js";
 import { isWatchedHistoryAction } from "./sync.js";
 import { tmdbPoster, tmdbImage, proxiedArtworkUrl } from "./images.js";
