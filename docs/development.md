@@ -11,6 +11,7 @@ npm start         # serve UI + API + scheduler on http://localhost:5055
 npm run dev       # same, with --watch auto-reload
 npm test          # focused node:test suite for parser/sync/key behavior
 npm run test:multiprocess # real isolated web/worker replica test
+npm run docs:check # verify README setup guidance matches package/runtime requirements
 npm run build     # syntax check + npm test + server boot gate
 npm run seed:demo # insert fictional demo movies/shows with generated posters
 ```
@@ -29,13 +30,15 @@ completed work changes user-visible behavior.
 
 1. runs `node --check` over every `.js` file in `public/`, `server/`, `scripts/`
 2. runs the `node:test` suite (the same tests exposed by `npm test`)
-3. parses `package.json`, `package-lock.json`, `changelog.json`
-4. verifies every routed API handler is either intentionally public or calls
+3. runs `scripts/docs-check.js` to keep the README's Node.js and password setup guidance
+   aligned with the enforced package/runtime configuration
+4. parses `package.json`, `package-lock.json`, `changelog.json`
+5. verifies every routed API handler is either intentionally public or calls
    `requireAdmin`, `resolveAdminPrincipal`, or `verifyWebhookToken`
-5. **rejects any bare `fetch(` outside `server/src/utils/outbound.js`** - outbound
+6. **rejects any bare `fetch(` outside `server/src/utils/outbound.js`** - outbound
    calls must use `fetchWithTimeout`, which enforces timeouts and validates both
    initial and redirected URLs
-6. boots the real server once against a temp `DATA_DIR` with
+7. boots the real server once against a temp `DATA_DIR` with
    `PLEMBFIN_BUILD_CHECK=1` (the server exits immediately after `listening`)
 
 ## Git hooks
@@ -54,6 +57,12 @@ contains a real merge commit folding a changelog-bump commit back in from `main`
 drops merge commits and replays both sides' commits individually instead of leaving the
 already-resolved merge alone.
 
+A failed pre-push test run leaves the remote branch unchanged. For the known transient
+test-run failure, rerun `npm test` once. If it passes, retry the original push normally;
+the hook runs the complete `npm run build` gate again and that full rerun must pass. If
+the focused rerun or the second full gate fails, treat it as repeatable and investigate
+it. Do not use `--no-verify` to promote any branch.
+
 ## Branching model (`develop` → `alpha` → `main`)
 
 Day-to-day work lands on `develop`. `alpha` only moves when `develop` is deliberately
@@ -61,7 +70,7 @@ promoted to it, and `main` only moves when `alpha` is deliberately promoted to i
 each promotion to `main` becomes exactly one release.
 
 - **"Push to git"** commits and pushes to `develop`. `docker-publish-develop.yml`
-  builds, verifies, and publishes a rolling image to `ghcr.io/lasikiewicz/plembfin:develop`
+  checks README consistency, then builds, verifies, and publishes a rolling image to `ghcr.io/lasikiewicz/plembfin:develop`
   (also tagged `develop-<build>`) on every push. `develop` never touches
   `changelog.json`/`changelog.alpha.json` or the package version. It bumps its own
   standalone `changelog.develop.json` build counter via `scripts/update-develop-changelog.js`,
@@ -72,7 +81,8 @@ each promotion to `main` becomes exactly one release.
   `main` and `alpha` alongside scheduled scans).
 - **"Force to alpha"** force-pushes `develop`'s current state onto `alpha`
   (`git push origin develop:alpha --force`; merge `origin/main` into `develop` first if
-  it has moved on, to avoid clobbering a pending main changelog commit). This is where
+  it has moved on, to avoid clobbering a pending main changelog commit). The alpha
+  publish workflow checks README consistency before building and publishing. This is where
   secret/vulnerability scanning first applies. `docker-publish-alpha.yml` then builds,
   verifies, and publishes to `ghcr.io/lasikiewicz/plembfin:alpha` (also tagged
   `alpha-<build>`), bumping `changelog.alpha.json`'s build counter via
@@ -86,7 +96,9 @@ each promotion to `main` becomes exactly one release.
   (`git push origin alpha:main --force`), which triggers the release pipeline below.
   Every commit queued on `alpha` since the last release rides in on that one push, so
   the generated changelog entry combines the bullet points from all of them (see step 2
-  below) rather than only the most recent commit.
+  below) rather than only the most recent commit. A first pre-push test failure follows
+  the bounded retry procedure above instead of bypassing the gate or prematurely ending
+  the promotion.
 - After the release pipeline commits its changelog-bump commit back to `main`, both
   `alpha` and `develop` merge `origin/main` back in and push, so the next round of work
   starts from a matching base instead of immediately diverging.
@@ -148,8 +160,8 @@ on GitHub - see the changelog section of [architecture.md](architecture.md).
 | --- | --- |
 | `security.yml` | `npm audit --audit-level=high` + CodeQL, on push to `main`/`alpha`, PRs targeting `main`, and daily. CodeQL loads `.github/codeql/codeql-config.yml`, which excludes the `js/request-forgery` query repo-wide - every outbound request funnels through the centralized, validated fetch guard in `server/src/utils/outbound.js`, and admin-configured LAN media server URLs make that query permanently false-positive for this app |
 | `secret-scan.yml` | TruffleHog verified-secret scan on push to `main`/`alpha`/`develop` and PRs targeting `main`/`develop` |
-| `docker-build-check.yml` | Builds the image on every PR targeting `main`, without pushing anything, then runs `better-sqlite3` and `sharp` inside it, so a broken Dockerfile or dependency install is caught before a PR merges. The runtime probe matters because production dependencies install with `--ignore-scripts`: a native module with no usable binary for the platform still builds cleanly and would fail on first database open |
-| `docker-publish-alpha.yml` | On every push to `alpha`: bumps `changelog.alpha.json`'s build counter and commits it back to `alpha`, builds the image, runs the same native-module probe as `docker-build-check.yml`, then pushes it to `ghcr.io/lasikiewicz/plembfin:alpha` and `ghcr.io/lasikiewicz/plembfin:alpha-<build>`. Never touches `changelog.json`, the package version, or the `:latest` tag |
+| `docker-build-check.yml` | Checks README consistency, then builds the image on every PR targeting `main`, without pushing anything, and runs `better-sqlite3` and `sharp` inside it, so a broken Dockerfile or dependency install is caught before a PR merges. The runtime probe matters because production dependencies install with `--ignore-scripts`: a native module with no usable binary for the platform still builds cleanly and would fail on first database open |
+| `docker-publish-alpha.yml` | On every push to `alpha`: checks README consistency, bumps `changelog.alpha.json`'s build counter and commits it back to `alpha`, builds the image, runs the same native-module probe as `docker-build-check.yml`, then pushes it to `ghcr.io/lasikiewicz/plembfin:alpha` and `ghcr.io/lasikiewicz/plembfin:alpha-<build>`. Never touches `changelog.json`, the package version, or the `:latest` tag |
 | `dependabot.yml` | Dependency update PRs |
 
 ## Docker

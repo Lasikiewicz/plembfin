@@ -1,6 +1,6 @@
 import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, sourceBadgeHtml, formatDate, resolveEpisodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconUrl, computeProgress } from "./utils.js";
+import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, sourceBadgeHtml, formatDate, resolveEpisodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconUrl, computeProgress } from "./utils.js";
 import { posterMarkup, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, tmdbPoster } from "./images.js";
 
 const PART_WATCHED_DASHBOARD_LIMIT = 30;
@@ -50,6 +50,12 @@ function stablePosterIdentity(value = "") {
 export function mediaRecordIdentity(record = {}, mode = "") {
   if (mode === "shows" || record.media_type === "episode") {
     const title = record.show_title || record.title || "";
+    const tmdbId = record.show_tmdb_id || (mode === "shows" ? record.tmdb_id : "");
+    const tvdbId = record.show_tvdb_id || (mode === "shows" ? record.tvdb_id : "");
+    const imdbId = record.show_imdb_id || (mode === "shows" ? record.imdb_id : "");
+    if (tmdbId) return `show:tmdb:${String(tmdbId).toLowerCase()}`;
+    if (tvdbId) return `show:tvdb:${String(tvdbId).toLowerCase()}`;
+    if (imdbId) return `show:imdb:${String(imdbId).toLowerCase()}`;
     return `show:${slug(title)}`;
   }
   const poster = stablePosterIdentity(record.poster_url || record.posterUrl || record.imageUrl || record.thumb || "");
@@ -150,8 +156,12 @@ function prefetchDashboardHistoryTmdb(tvEntries, movieEntries) {
   for (const entry of tvEntries) {
     const showTitle = entry.show_title || showTitleFrom(entry.title);
     const showKeySlug = slug(showTitle);
-    const show = state.showsRaw.find((s) => slug(s.title) === showKeySlug);
-    const tmdbId = show?.tmdb_id || entry.tmdb_id;
+    const show = state.showsRaw.find((s) => (
+      (entry.show_tmdb_id && String(s.tmdb_id || "") === String(entry.show_tmdb_id))
+      || (entry.show_tvdb_id && String(s.tvdb_id || "") === String(entry.show_tvdb_id))
+      || (!entry.show_tmdb_id && !entry.show_tvdb_id && slug(s.title) === showKeySlug)
+    ));
+    const tmdbId = show?.tmdb_id || entry.show_tmdb_id || entry.tmdb_id;
     const key = `tv|${tmdbId || ""}|${String(showTitle || "").toLowerCase()}`;
     if (!seen.has(key)) {
       seen.add(key);
@@ -193,8 +203,7 @@ export function renderHistoryCard(entry) {
     }
 
     const canonicalShowName = entry.show_title || showName(entry.title);
-    const showKeySlug = slug(canonicalShowName);
-    const href = `/tvshow/${showKeySlug}`;
+    const href = tvShowHrefFromHistoryEntry(entry, canonicalShowName);
 
     return `
       <a class="history-mini-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(showTitle || "")}">
@@ -224,6 +233,14 @@ export function renderHistoryCard(entry) {
   }
 }
 
+function tvShowHrefFromHistoryEntry(entry = {}, title = "") {
+  if (entry.show_tmdb_id) return tvShowTmdbHref(entry.show_tmdb_id, title);
+  if (entry.show_tvdb_id) return tvShowTvdbHref(entry.show_tvdb_id, title);
+  if (entry.tmdb_id) return tvShowTmdbHref(entry.tmdb_id, title);
+  if (entry.tvdb_id) return tvShowTvdbHref(entry.tvdb_id, title);
+  return `/tvshow/${slug(title || entry.show_title || showTitleFrom(entry.title))}`;
+}
+
 function renderDashboardHistoryPageCard(entry) {
   const isEpisode = entry.media_type === "episode";
   let displayTitle = entry.title;
@@ -243,7 +260,7 @@ function renderDashboardHistoryPageCard(entry) {
     }
 
     const canonicalShowName = entry.show_title || showName(entry.title);
-    href = `/tvshow/${slug(canonicalShowName)}`;
+    href = tvShowHrefFromHistoryEntry(entry, canonicalShowName);
   } else {
     href = entry.tmdb_id ? movieTmdbHref(entry.tmdb_id, entry.title) : movieHref(entry);
   }

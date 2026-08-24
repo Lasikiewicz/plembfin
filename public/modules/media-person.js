@@ -1,5 +1,5 @@
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, slug, movieHref, movieTmdbHref, tvShowTmdbHref, showTitleFrom, showEpisodeKey } from "./utils.js";
+import { escapeHtml, escapeAttribute, slug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, showTitleFrom, showEpisodeKey } from "./utils.js";
 import { tmdbProfile, tmdbPoster, hydratePosters } from "./images.js";
 import { isWatchedHistoryAction } from "./sync.js";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=20260823";
@@ -84,6 +84,8 @@ function personCreditYear(credit = {}) {
 
 function personCreditLibraryHref(libItem, title) {
   if (libItem?.type === "show" || libItem?.type === "tvshow") {
+    if (libItem.item?.tmdb_id) return tvShowTmdbHref(libItem.item.tmdb_id, libItem.item.title || title);
+    if (libItem.item?.tvdb_id) return tvShowTvdbHref(libItem.item.tvdb_id, libItem.item.title || title);
     return `/tvshow/${encodeURIComponent(libItem.key)}`;
   }
   return movieHref(movieBySlugOrId(libItem?.id) || { id: libItem?.id, title });
@@ -646,16 +648,19 @@ export function findLibraryItem(mediaType, tmdbId, title, filmographyLookup = nu
   if (mediaType === "tv" || mediaType === "show") {
     // Check the full server-fetched list first (filmography page), then fall back
     // to the in-memory explorer state which may be only partially loaded.
-    let found = (filmographyLookup?.allWatchedShows || []).find(
-      s => String(s.tmdb_id || "") === String(tmdbId) || slug(s.title) === cleanTitle
-    );
+    let found = (filmographyLookup?.allWatchedShows || []).find(s => String(s.tmdb_id || "") === String(tmdbId));
+    if (!found) found = (filmographyLookup?.allWatchedShows || []).find(s => slug(s.title) === cleanTitle);
     if (!found) {
-      found = state.showsRaw.find(s => String(s.tmdb_id || "") === String(tmdbId) || slug(s.title) === cleanTitle);
+      found = state.showsRaw.find(s => String(s.tmdb_id || "") === String(tmdbId));
     }
     if (!found) {
-      const historyRows = state.history.filter(h => h.media_type === "episode" && isWatchedHistoryAction(h) && (
-        String(h.tmdb_id || "") === String(tmdbId) || slug(h.show_title || showTitleFrom(h.title)) === cleanTitle
-      ));
+      found = state.showsRaw.find(s => slug(s.title) === cleanTitle);
+    }
+    if (!found) {
+      const matchingProviderRows = state.history.filter(h => h.media_type === "episode" && isWatchedHistoryAction(h) && String(h.tmdb_id || "") === String(tmdbId));
+      const historyRows = matchingProviderRows.length
+        ? matchingProviderRows
+        : state.history.filter(h => h.media_type === "episode" && isWatchedHistoryAction(h) && slug(h.show_title || showTitleFrom(h.title)) === cleanTitle);
       if (historyRows.length) {
         const histRow = historyRows[0];
         found = {

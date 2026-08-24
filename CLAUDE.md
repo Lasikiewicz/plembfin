@@ -237,6 +237,14 @@ match `origin/alpha`:
 git push origin origin/alpha:main --force
 ```
 
+The pre-push hook runs the complete build gate before changing `main`. If that gate
+reports a test failure, do not bypass the hook and do not report the promotion as
+blocked after the first failure. Run `npm test` once to check for the known transient
+test-run failure. If that rerun passes, retry the exact same force-push command; its
+pre-push hook must then run and pass the complete `npm run build` gate before the push
+can proceed. If the focused rerun fails, or the retried full gate fails again, stop the
+promotion and investigate the repeatable failure. Never use `--no-verify`.
+
 ### 2 - Let CI build the combined changelog entry
 This push carries every commit that was queued on `alpha` since the last release, all
 in one push event. `update-changelog.yml` triggers on the push to `main`, and

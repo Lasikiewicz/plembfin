@@ -135,7 +135,7 @@ first complete render.
   Plembfin's own state already says unwatched - so the UI can show a row as busy
   for the duration of the request and only flip it to watched/unwatched once the
   response confirms the push actually completed, instead of updating optimistically
-  on click. Mark-watched/resync busy rows read "Syncing..." while mark-unwatched
+  on click. Mark-watched/resync busy rows read "Saving..." while mark-unwatched
   busy rows read "Unwatching..." - the two states are tracked in separate sets
   (`state.savingWatchActions` for mark-watched/resync, `state.savingUnwatchIds` for
   mark-unwatched, keyed by watch-record id) so a season/show sync in one direction

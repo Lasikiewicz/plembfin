@@ -33,6 +33,9 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Check README consistency
+        run: npm run docs:check
+
       - name: Bump develop build counter and changelog
         id: develop
         env:

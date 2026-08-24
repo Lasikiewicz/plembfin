@@ -81,7 +81,7 @@ Every tracked file in the repository, by directory.
 | `CLAUDE.md` | Agent instructions: guardrails, the "Push to git" workflow, frontend module discipline, and a condensed architecture summary. |
 | `README.md` | User-facing GitHub readme: features, setup guide, configuration reference, screenshots. |
 | `changelog.json` | Bundled release history. CI appends an entry per push and bumps the version; served verbatim at `GET /changelog.json` and consumed by the in-app changelog/update check. |
-| `package.json` | Dependencies and npm scripts (`start`, `dev`, `build`, `seed:demo`, `prepare`, `changelog:update`). Version is CI-managed. |
+| `package.json` | Dependencies and npm scripts (`start`, `dev`, `test`, `build`, `docs:check`, `seed:demo`, `prepare`, `changelog:update`). Version is CI-managed. |
 | `package-lock.json` | Locked dependency tree. Version field is CI-managed alongside `package.json`. |
 | `Dockerfile` | `node:22-slim` image: installs prod deps, copies `server/`, `public/`, `changelog.json`, creates the non-root `plembfin` user, healthcheck against `/api/ping`, entrypoint drops privileges. |
 | `docker-compose.yml` | Base compose file: port 5055, `./data:/data` volume, admin env vars, `no-new-privileges`, resource limits. |
@@ -261,7 +261,8 @@ including this file (`architecture.md`), the per-feature docs, and the
 
 | File | What it is |
 | --- | --- |
-| `build-check.js` | The `npm run build` gate: syntax-checks every JS file, validates the JSON manifests, rejects bare `fetch(` in `server/` (must be `fetchWithTimeout`), then boots the server once against a temp DATA_DIR (`PLEMBFIN_BUILD_CHECK=1`). |
+| `build-check.js` | The `npm run build` gate: syntax-checks every JS file, runs `docs-check.js`, validates the JSON manifests, rejects bare `fetch(` in `server/` (must be `fetchWithTimeout`), then boots the server once against a temp DATA_DIR (`PLEMBFIN_BUILD_CHECK=1`). |
+| `docs-check.js` | `npm run docs:check` - derives the required Node.js version from `package.json`, checks the README badge and setup text, and rejects weak/default Docker password examples. |
 | `changelog-message.js` | Shared changelog-message formatting, bullet extraction, and release-detail validation used by local hooks, tests, and CI. |
 | `validate-commit-message.js` | CLI used by the commit-message hook to reject user-visible release commits with missing or title-repeating details. |
 | `update-changelog.js` | CI helper: validates release details, bumps the patch version (honouring a manually-set higher version), converts the pushed commits' messages + bullet points into a `changelog.json` entry, and syncs `package.json`/`package-lock.json`. |

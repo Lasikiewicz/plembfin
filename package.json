@@ -13,6 +13,7 @@
     "test": "node --test",
     "test:multiprocess": "node --test test/multiprocess.test.js",
     "build": "node scripts/build-check.js",
+    "docs:check": "node scripts/docs-check.js",
     "seed:demo": "node scripts/seed-demo-content.js",
     "prepare": "node scripts/install-git-hooks.js",
     "changelog:update": "node scripts/update-changelog.js"

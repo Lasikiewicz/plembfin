@@ -154,7 +154,12 @@ export async function resolveEpisodeTitleFromTmdb(entry, element) {
     // generic "Episode N" label until somebody used Fix Match. Prefer a
     // trusted show-level identity when the explorer already knows one, but let
     // the metadata gateway resolve by title when it does not.
-    const knownShow = state.showsRaw.find((show) => slug(show.title) === slug(showTitle));
+    const knownShow = state.showsRaw.find((show) => (
+      (entry.show_tmdb_id && String(show.tmdb_id || "") === String(entry.show_tmdb_id))
+      || (entry.show_tvdb_id && String(show.tvdb_id || "") === String(entry.show_tvdb_id))
+    )) || ((!entry.show_tmdb_id && !entry.show_tvdb_id)
+      ? state.showsRaw.find((show) => slug(show.title) === slug(showTitle))
+      : null);
     const showTmdbId = knownShow?.tmdb_id || entry.show_tmdb_id || "";
     const tmdbData = await fetchTmdbDetails("tv", showTmdbId, showTitle, {
       imdbId: knownShow?.imdb_id || entry.show_imdb_id || "",

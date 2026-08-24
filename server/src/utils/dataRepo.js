@@ -851,6 +851,7 @@ export async function getCachedShows({ includeScheduledLibraryHistory = false } 
     // tvdb_id here, that's exactly the unverified episode-level id it exists
     // to filter out.
     const tvdbId = group.tvdb_id || "";
+    const imdbId = cleanString(group.imdb_id);
     let posterUrl = group.poster_url || group.representative_episode?.poster_url || "";
     let status = "";
     if (tmdbId) {
@@ -865,8 +866,13 @@ export async function getCachedShows({ includeScheduledLibraryHistory = false } 
       }
     }
     shows.push({
-      id: showKey,
+      // Title-only ids were safe while the library collapsed every same-title
+      // series into one row. Keep that fallback for metadata-less shows, but
+      // use a provider identity whenever one is known so reboots such as The
+      // Office (UK) and The Office (US) remain separate records and routes.
+      id: showSummaryIdentityKey({ title: group.title, tmdb_id: tmdbId, tvdb_id: tvdbId, imdb_id: imdbId }),
       title: group.title,
+      imdb_id: imdbId,
       tmdb_id: tmdbId,
       tvdb_id: tvdbId,
       status,
@@ -1654,7 +1660,10 @@ export async function addWatchDate(id, watchedAtInput) {
 // so later duplicate/false-unwatch audits don't re-flag it.
 function remainingWatchRowFor(deletedRow) {
   const byExactKey = deletedRow.media_key ? selectByMediaKeyStmt.all(deletedRow.media_key) : [];
-  const bySameIdentity = siblingWatchRowsFor(deletedRow);
+  const bySameIdentity = [
+    ...siblingWatchRowsFor(deletedRow),
+    ...titleOnlyMovieSurvivorsFor(deletedRow),
+  ];
   const byId = new Map();
   for (const row of [...byExactKey, ...bySameIdentity]) {
     if (row?.id) byId.set(row.id, row);
@@ -1682,6 +1691,216 @@ function remainingWatchRowFor(deletedRow) {
     newest.updated_at = now;
   }
   return newest;
+}
+
+function providerIdentityTokens(row = {}) {
+  return [
+    cleanString(row.imdb_id) ? `imdb:${cleanString(row.imdb_id)}` : "",
+    cleanString(row.tmdb_id) ? `tmdb:${cleanString(row.tmdb_id)}` : "",
+    cleanString(row.tvdb_id) ? `tvdb:${cleanString(row.tvdb_id)}` : "",
+  ].filter(Boolean);
+}
+
+function sameRemovalCoordinates(left = {}, right = {}) {
+  const leftType = normalizeMediaType(left.media_type || left.mediaType || left.type);
+  const rightType = normalizeMediaType(right.media_type || right.mediaType || right.type);
+  if (!leftType || leftType !== rightType) return false;
+  if (leftType !== "episode") return true;
+  const leftShow = canonicalTitleKey(showTitleFrom(left.show_title || left.showTitle || left.title));
+  const rightShow = canonicalTitleKey(showTitleFrom(right.show_title || right.showTitle || right.title));
+  return Boolean(leftShow && leftShow === rightShow
+    && Number(left.season ?? -1) === Number(right.season ?? -1)
+    && Number(left.episode ?? -1) === Number(right.episode ?? -1));
+}
+
+function providerClusterCount(rows = []) {
+  const parent = new Map();
+  const find = (value) => {
+    let current = value;
+    while (parent.get(current) !== current) {
+      parent.set(current, parent.get(parent.get(current)));
+      current = parent.get(current);
+    }
+    return current;
+  };
+  const ensure = (value) => { if (!parent.has(value)) parent.set(value, value); };
+  const union = (left, right) => {
+    const leftRoot = find(left);
+    const rightRoot = find(right);
+    if (leftRoot !== rightRoot) parent.set(leftRoot, rightRoot);
+  };
+
+  for (const row of rows) {
+    const ids = providerIdentityTokens(row);
+    ids.forEach(ensure);
+    for (let index = 1; index < ids.length; index += 1) union(ids[0], ids[index]);
+  }
+  return new Set([...parent.keys()].map(find)).size;
+}
+
+function providerClusterCountForTitle(rows = [], titleKey = "") {
+  return providerClusterCount(rows.filter((row) => canonicalTitleKey(row.title) === titleKey));
+}
+
+function titleOnlyMovieSurvivorsFor(deletedRow = {}) {
+  const type = normalizeMediaType(deletedRow.media_type || deletedRow.mediaType || deletedRow.type);
+  if (type !== "movie") return [];
+  const titleKey = canonicalTitleKey(deletedRow.title);
+  if (!titleKey) return [];
+  const titleRows = selectMoviesStmt.all().filter((row) => canonicalTitleKey(row.title) === titleKey);
+  const providerClusters = providerClusterCountForTitle([deletedRow, ...titleRows], titleKey);
+  if (providerClusters > 1) return [];
+  return titleRows.filter((row) => !providerIdentityTokens(row).length);
+}
+
+function removalRowsHaveDirectIdentity(left = {}, right = {}) {
+  if (!sameRemovalCoordinates(left, right)) return false;
+  if (left.media_key && right.media_key && left.media_key === right.media_key) return true;
+  const rightIds = new Set(providerIdentityTokens(right));
+  return providerIdentityTokens(left).some((id) => rightIds.has(id));
+}
+
+function removalRowsHaveSafeMovieTitleIdentity(left = {}, right = {}, allRows = [], allMovieRows = []) {
+  if (!sameRemovalCoordinates(left, right)) return false;
+  const type = normalizeMediaType(left.media_type || left.mediaType || left.type);
+  if (type !== "movie") return false;
+  if (canonicalTitleKey(left.title) !== canonicalTitleKey(right.title)) return false;
+  // A title-only row can safely join an ID cluster only when this removal
+  // group contains one provider cluster. Two same-title films with unrelated
+  // IDs remain separate rather than being guessed into one transition.
+  const leftIds = providerIdentityTokens(left);
+  const rightIds = providerIdentityTokens(right);
+  const titleKey = canonicalTitleKey(left.title);
+  const allTitleRows = [...allMovieRows, ...allRows];
+  return (!leftIds.length || !rightIds.length) && providerClusterCountForTitle(allTitleRows, titleKey) <= 1;
+}
+
+function removalRowsForEntry(entry = {}) {
+  const rows = [
+    ...(Array.isArray(entry.deletedRows) ? entry.deletedRows : []),
+    entry.deletedRow,
+    entry.remainingRow,
+  ].filter(Boolean);
+  const seen = new Set();
+  return rows.filter((row) => {
+    const key = row.id || `${row.media_key || ""}|${row.watched_at || ""}|${row.title || ""}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function removalGroupCanInclude(groupEntries = [], entry = {}, allMovieRows = []) {
+  const groupRows = groupEntries.flatMap(removalRowsForEntry);
+  const entryRows = removalRowsForEntry(entry);
+  if (!groupRows.length || !entryRows.length) return false;
+
+  for (const groupRow of groupRows) {
+    for (const entryRow of entryRows) {
+      if (removalRowsHaveDirectIdentity(groupRow, entryRow)) return true;
+    }
+  }
+
+  const combinedRows = [...groupRows, ...entryRows];
+  return groupRows.some((groupRow) => entryRows.some((entryRow) => (
+    removalRowsHaveSafeMovieTitleIdentity(groupRow, entryRow, combinedRows, allMovieRows)
+  )));
+}
+
+// Bulk deletion can touch several media_keys that are really one movie: for
+// example, a provider-ID row and a title-only row can both be selected as
+// duplicate watches. Each raw media_key calculation can see a different
+// survivor and would otherwise dispatch contradictory watched/unwatched states.
+// Keep ambiguous same-title remakes separate, but collapse rows that share a
+// provider identity or have one unambiguous title-only side of the cluster.
+export function coalesceWatchDateRemovals(entries = []) {
+  const allMovieRows = selectMoviesStmt.all();
+  const groups = [];
+  for (const entry of entries || []) {
+    if (!entry) continue;
+    const candidates = groups.filter((group) => removalGroupCanInclude(group.entries, entry, allMovieRows));
+    const directCandidates = candidates.filter((group) => {
+      const groupRows = group.entries.flatMap(removalRowsForEntry);
+      const entryRows = removalRowsForEntry(entry);
+      return groupRows.some((groupRow) => entryRows.some((entryRow) => removalRowsHaveDirectIdentity(groupRow, entryRow)));
+    });
+    const target = directCandidates.length === 1
+      ? directCandidates[0]
+      : candidates.length === 1
+        ? candidates[0]
+        : null;
+    if (target) target.entries.push(entry);
+    else groups.push({ entries: [entry] });
+  }
+
+  return groups.map((group) => {
+    const deletedRows = [];
+    const deletedIds = new Set();
+    for (const entry of group.entries) {
+      for (const row of removalRowsForEntry({ deletedRows: entry.deletedRows, deletedRow: entry.deletedRow })) {
+        if (deletedIds.has(row.id)) continue;
+        deletedIds.add(row.id);
+        deletedRows.push(row);
+      }
+    }
+    const survivors = group.entries.map((entry) => entry.remainingRow).filter(Boolean);
+    const remainingRow = survivors
+      .slice()
+      .sort((left, right) => String(right.watched_at || "").localeCompare(String(left.watched_at || "")))[0] || null;
+    const deletedRow = deletedRows[0] || group.entries.find((entry) => entry.deletedRow)?.deletedRow || null;
+    return {
+      mediaKey: remainingRow?.media_key || deletedRow?.media_key || group.entries[0].mediaKey,
+      remainingRow,
+      deletedRow,
+      deletedRows,
+    };
+  });
+}
+
+function mergedWatchRecordForRows(rows = [], watchedAt = undefined) {
+  const validRows = rows.filter(Boolean);
+  const primary = validRows.slice().sort((left, right) => {
+    const leftIds = providerIdentityTokens(left).length;
+    const rightIds = providerIdentityTokens(right).length;
+    return rightIds - leftIds;
+  })[0] || {};
+  const firstValue = (field) => validRows.map((row) => cleanString(row[field])).find(Boolean) || null;
+  return {
+    title: primary.title,
+    media_type: normalizeMediaType(primary.media_type || primary.mediaType || primary.type),
+    watched_at: watchedAt || primary.watched_at,
+    source: "manual",
+    sync_action: "watched",
+    imdb_id: firstValue("imdb_id"),
+    tmdb_id: firstValue("tmdb_id"),
+    tvdb_id: firstValue("tvdb_id"),
+    season: primary.season == null ? null : Number(primary.season),
+    episode: primary.episode == null ? null : Number(primary.episode),
+    poster_url: firstValue("poster_url"),
+  };
+}
+
+function clearPlaystateForWatchRows(rows = []) {
+  const record = mergedWatchRecordForRows(rows);
+  const keys = new Set(rows.map((row) => row?.media_key).filter(Boolean));
+  if (record.title && record.media_type) keys.add(mediaKeyFor(record));
+  for (const row of playstateRowsForIdentity(record)) keys.add(row.media_key);
+  for (const key of keys) deletePlaystateByKeyStmt.run(key);
+}
+
+// Rebuild the playstate pointer after a watch-date removal from the complete
+// identity set, not only the deleted row's media_key. This preserves a
+// survivor's state when the deleted and remaining rows use IMDb/TMDB/title
+// aliases, and removes all known aliases when the final watch is gone.
+export function reconcilePlaystateAfterWatchDateRemovalSync(remainingRow, deletedRows = []) {
+  const rows = [remainingRow, ...(deletedRows || [])].filter(Boolean);
+  if (!rows.length) return null;
+  if (!remainingRow) {
+    clearPlaystateForWatchRows(rows);
+    return null;
+  }
+  const record = mergedWatchRecordForRows(rows, remainingRow.watched_at);
+  return upsertPlaystateSync(record, "watched");
 }
 
 function deletedWatchSuppressionKeys(row = {}) {
@@ -1765,15 +1984,11 @@ export async function deleteWatchDate(id) {
   let remainingRow = null;
   if (mediaKey) {
     remainingRow = remainingWatchRowFor(existing);
-    if (remainingRow) {
-      updatePlaystateWatchedAtStmt.run(remainingRow.watched_at, Date.now(), mediaKey);
-    } else {
-      deletePlaystateByKeyStmt.run(mediaKey);
-    }
   }
+  reconcilePlaystateAfterWatchDateRemovalSync(remainingRow, rowsToDelete);
 
   await invalidateHistoryDerivedCaches();
-  return { ok: true, remainingRow, deletedRow: existing };
+  return { ok: true, remainingRow, deletedRow: existing, deletedRows: rowsToDelete };
 }
 
 // Bulk form of deleteWatchDate - used by the season/show "remove duplicate
@@ -1801,6 +2016,7 @@ export async function deleteWatchDates(ids = []) {
   const notFound = [];
   const affectedMediaKeys = new Set();
   const representativeRowByMediaKey = new Map();
+  const deletedRowsByMediaKey = new Map();
 
   for (const id of uniqueIds) {
     const existing = selectByIdStmt.get(id);
@@ -1833,18 +2049,24 @@ export async function deleteWatchDates(ids = []) {
     if (existing.media_key) {
       affectedMediaKeys.add(existing.media_key);
       if (!representativeRowByMediaKey.has(existing.media_key)) representativeRowByMediaKey.set(existing.media_key, existing);
+      if (!deletedRowsByMediaKey.has(existing.media_key)) deletedRowsByMediaKey.set(existing.media_key, []);
+      deletedRowsByMediaKey.get(existing.media_key).push(existing);
     }
   }
 
-  const affectedMedia = [];
+  const rawAffectedMedia = [];
   for (const mediaKey of affectedMediaKeys) {
     const remainingRow = remainingWatchRowFor(representativeRowByMediaKey.get(mediaKey));
-    if (remainingRow) {
-      updatePlaystateWatchedAtStmt.run(remainingRow.watched_at, Date.now(), mediaKey);
-    } else {
-      deletePlaystateByKeyStmt.run(mediaKey);
-    }
-    affectedMedia.push({ mediaKey, remainingRow, deletedRow: representativeRowByMediaKey.get(mediaKey) });
+    rawAffectedMedia.push({
+      mediaKey,
+      remainingRow,
+      deletedRow: representativeRowByMediaKey.get(mediaKey),
+      deletedRows: deletedRowsByMediaKey.get(mediaKey) || [],
+    });
+  }
+  const affectedMedia = coalesceWatchDateRemovals(rawAffectedMedia);
+  for (const media of affectedMedia) {
+    reconcilePlaystateAfterWatchDateRemovalSync(media.remainingRow, media.deletedRows);
   }
 
   if (deleted.length) await invalidateHistoryDerivedCaches();
@@ -2171,7 +2393,11 @@ export function sameEventDuplicateIds(windowMs = SAME_EVENT_WINDOW_MS) {
   return sameEventDuplicateIdsForRows(selectWatchedStampsStmt.all().filter(isPlembfinTrackedWatchRow), windowMs);
 }
 
-function sameEventKey(row = {}) {
+function episodeProviderGroupKeys(rows = []) {
+  return showGroupKeys(rows.filter((row) => normalizeMediaType(row.media_type) === "episode"));
+}
+
+function sameEventKey(row = {}, providerGroupKey = "") {
   const type = normalizeMediaType(row.media_type);
   // Episodes are the important cross-key case: Plex, Emby, Jellyfin, and
   // imports can use different provider IDs for the same show episode. The
@@ -2179,7 +2405,7 @@ function sameEventKey(row = {}) {
   // Movies intentionally remain provider-ID-first so two films with the
   // same title are never collapsed merely because their titles match.
   if (type === "episode") {
-    const show = canonicalTitleKey(row.show_title || showTitleFrom(row.title));
+    const show = providerGroupKey || canonicalTitleKey(row.show_title || showTitleFrom(row.title));
     const season = row.season ?? "unknown";
     const episode = row.episode ?? "unknown";
     return show && season !== "unknown" && episode !== "unknown"
@@ -2198,11 +2424,12 @@ function sameEventKey(row = {}) {
   return mediaKeyFor(row);
 }
 
-function sameEventDuplicateIdsForRows(rows = [], windowMs = SAME_EVENT_WINDOW_MS) {
+function sameEventDuplicateIdsForRows(rows = [], windowMs = SAME_EVENT_WINDOW_MS, providerGroupKeys = null) {
   const allWatched = rows.filter((row) => row?.watched_at && isWatchedAction(row));
+  const groupKeys = providerGroupKeys || episodeProviderGroupKeys(rows);
   const byKey = new Map();
   for (const row of allWatched) {
-    const key = sameEventKey(row);
+    const key = sameEventKey(row, groupKeys.get(row));
     if (!byKey.has(key)) byKey.set(key, []);
     byKey.get(key).push(row);
   }
@@ -2231,9 +2458,10 @@ function sameEventDuplicateIdsForRows(rows = [], windowMs = SAME_EVENT_WINDOW_MS
 function sameEventChainIdsFor(targetIds, rows = [], windowMs = SAME_EVENT_WINDOW_MS) {
   const targets = new Set(targetIds);
   const allWatched = rows.filter((row) => row?.id && row.watched_at && isWatchedAction(row));
+  const groupKeys = episodeProviderGroupKeys(rows);
   const byKey = new Map();
   for (const row of allWatched) {
-    const key = sameEventKey(row);
+    const key = sameEventKey(row, groupKeys.get(row));
     if (!byKey.has(key)) byKey.set(key, []);
     byKey.get(key).push(row);
   }
@@ -2265,7 +2493,8 @@ function sameEventChainIdsFor(targetIds, rows = [], windowMs = SAME_EVENT_WINDOW
 // viewing window; those rows must not become phantom rewatches in cards,
 // details, or playHistory.
 function filterSameEventDuplicateRows(rows = []) {
-  const duplicateIds = new Set(sameEventDuplicateIdsForRows(rows));
+  const groupKeys = episodeProviderGroupKeys(rows);
+  const duplicateIds = new Set(sameEventDuplicateIdsForRows(rows, SAME_EVENT_WINDOW_MS, groupKeys));
   return rows.filter((row) => !row?.id || !duplicateIds.has(row.id));
 }
 const countNullSeasonEpisodesStmt = db.prepare(
@@ -2435,15 +2664,16 @@ function canonicalTransitionIsNewer(row = {}, existing = {}) {
 }
 
 export function dedupeHistory(rows) {
+  const groupKeys = episodeProviderGroupKeys(rows);
   const transitionGroups = new Map();
   for (const row of rows) {
-    const key = historyDedupeKey(row);
+    const key = historyDedupeKey(row, groupKeys.get(row));
     if (!transitionGroups.has(key)) transitionGroups.set(key, []);
     transitionGroups.get(key).push(row);
   }
   const displayGroups = new Map();
   for (const row of filterSameEventDuplicateRows(rows)) {
-    const key = historyDedupeKey(row);
+    const key = historyDedupeKey(row, groupKeys.get(row));
     if (!displayGroups.has(key)) displayGroups.set(key, []);
     displayGroups.get(key).push(row);
   }
@@ -2496,7 +2726,7 @@ export function dedupeHistory(rows) {
   return result;
 }
 
-function historyDedupeKey(row = {}) {
+function historyDedupeKey(row = {}, providerGroupKey = "") {
   const mediaType = normalizeMediaType(row.media_type);
   const imdb = cleanString(row.imdb_id);
   const tmdb = cleanString(row.tmdb_id);
@@ -2505,7 +2735,7 @@ function historyDedupeKey(row = {}) {
   if (mediaType === "episode") {
     const season = row.season ?? "unknown";
     const episode = row.episode ?? "unknown";
-    const showTitle = canonicalTitleKey(row.show_title || showTitleFrom(row.title));
+    const showTitle = providerGroupKey || canonicalTitleKey(row.show_title || showTitleFrom(row.title));
     if (showTitle && season !== "unknown" && episode !== "unknown") {
       return `episode|show:${showTitle}|s:${season}|e:${episode}`;
     }
@@ -2649,14 +2879,24 @@ function compactHistoryPreviewRow(row = {}) {
 
 export async function queryWatchHistoryPreview({ limit = 120 } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 120, 1), 300);
-  const [all, shows] = await Promise.all([getCachedHistory(), getCachedShows()]);
-  const showByTitle = new Map(shows.map((show) => [canonicalTitleKey(show.title), show]));
+  const [all] = await Promise.all([getCachedHistory(), getCachedShows()]);
+  // Same-title series must be enriched from the provider-aware episode group,
+  // not a title map whose last entry wins. The resulting show_* fields let
+  // dashboard history links use the same unambiguous route as the TV Shows
+  // library cards.
+  const showByEpisodeId = new Map();
+  const previewShowRows = all.filter((row) => row.media_type === "episode" && isPlembfinTrackedWatchRow(row));
+  for (const group of groupShowRows(dedupeHistory(previewShowRows))) {
+    for (const episode of group.episodes || []) {
+      if (episode.id) showByEpisodeId.set(String(episode.id), group);
+    }
+  }
   const tvRows = all.filter((row) => row.media_type === "episode" && isPlembfinTrackedWatchRow(row)).slice(0, HISTORY_PREVIEW_SCAN_LIMIT);
   const movieRows = all.filter((row) => row.media_type === "movie" && isPlembfinTrackedWatchRow(row)).slice(0, HISTORY_PREVIEW_SCAN_LIMIT);
 
   const tvDeduped = dedupeHistory(tvRows).slice(0, safeLimit).map((row) => {
     const compact = compactHistoryPreviewRow(row);
-    const show = showByTitle.get(canonicalTitleKey(row.show_title || showTitleFrom(row.title)));
+    const show = showByEpisodeId.get(String(row.id));
     if (!show) return compact;
     return {
       ...compact,
@@ -4467,10 +4707,20 @@ function groupShowRows(rows = []) {
   });
 }
 
+function showSummaryIdentityKey(show = {}) {
+  const tmdbId = cleanString(show.tmdb_id);
+  if (tmdbId) return `tmdb:${tmdbId}`;
+  const tvdbId = cleanString(show.tvdb_id);
+  if (tvdbId) return `tvdb:${tvdbId}`;
+  const imdbId = cleanString(show.imdb_id);
+  if (imdbId) return `imdb:${imdbId.toLowerCase()}`;
+  return canonicalTitleKey(show.title) || normalizeKeyPart(show.title) || "unknown-show";
+}
+
 function dedupeShowSummaries(shows = []) {
   const map = new Map();
   for (const show of shows) {
-    const key = canonicalTitleKey(show.title) || normalizeKeyPart(show.title);
+    const key = showSummaryIdentityKey(show);
     const existing = map.get(key);
     if (!existing) {
       map.set(key, show);
@@ -4559,16 +4809,31 @@ export async function queryShows({ search = "", sort = "title_asc", limit = 6, o
   return sorted.slice(safeOffset, safeOffset + safeLimit);
 }
 
-export async function queryShowDetail({ id = "", title = "" } = {}) {
+export async function queryShowDetail({ id = "", title = "", tmdbId = "", tvdbId = "", imdbId = "" } = {}) {
+  const requestedId = cleanString(id);
+  const requestedTmdbId = cleanString(tmdbId);
+  const requestedTvdbId = cleanString(tvdbId);
+  const requestedImdbId = cleanString(imdbId);
+  const providerIdFromKey = requestedId.match(/^(tmdb|tvdb|imdb):(.+)$/i);
+  const summaries = requestedId || requestedTmdbId || requestedTvdbId || requestedImdbId
+    ? await getCachedShows()
+    : [];
+  const summary = summaries.find((show) => requestedId && String(show.id) === requestedId)
+    || summaries.find((show) => (
+      (requestedTmdbId && String(show.tmdb_id || "") === requestedTmdbId)
+      || (requestedTvdbId && String(show.tvdb_id || "") === requestedTvdbId)
+      || (requestedImdbId && String(show.imdb_id || "").toLowerCase() === requestedImdbId.toLowerCase())
+      || (providerIdFromKey && String(show[`${providerIdFromKey[1].toLowerCase()}_id`] || "") === providerIdFromKey[2])
+    ));
+  const selectedTmdbId = requestedTmdbId || (providerIdFromKey?.[1].toLowerCase() === "tmdb" ? providerIdFromKey[2] : "") || cleanString(summary?.tmdb_id);
+  const selectedTvdbId = requestedTvdbId || (providerIdFromKey?.[1].toLowerCase() === "tvdb" ? providerIdFromKey[2] : "") || cleanString(summary?.tvdb_id);
+  const selectedImdbId = requestedImdbId || (providerIdFromKey?.[1].toLowerCase() === "imdb" ? providerIdFromKey[2] : "") || cleanString(summary?.imdb_id);
+  const hasSelectedIdentity = Boolean(selectedTmdbId || selectedTvdbId || selectedImdbId);
   const requestedTitle = cleanString(title);
-  let resolvedTitle = requestedTitle;
-  if (!resolvedTitle && id) {
-    const shows = await getCachedShows();
-    resolvedTitle = shows.find((show) => show.id === String(id))?.title || "";
-  }
+  let resolvedTitle = requestedTitle || cleanString(summary?.title);
   // Some legacy episode rows have no usable show_title; fall back to the
   // derived title even when the caller supplied a title.
-  if (!resolvedTitle && id) resolvedTitle = String(id).replace(/-/g, " ");
+  if (!resolvedTitle && requestedId && !hasSelectedIdentity) resolvedTitle = requestedId.replace(/-/g, " ");
 
   // A show's own episode rows can carry different exact show_title text over
   // time - Plex/Emby/Jellyfin's own title for a show is rarely year-suffixed
@@ -4581,7 +4846,7 @@ export async function queryShowDetail({ id = "", title = "" } = {}) {
   // the query and every row's title the same way (showTitleFrom strips the
   // year) and scan by that canonical key instead, so every row for this show
   // is found regardless of which exact text it happens to carry.
-  const key = canonicalTitleKey(showTitleFrom(resolvedTitle));
+  const key = resolvedTitle ? canonicalTitleKey(showTitleFrom(resolvedTitle)) : "";
   // Not loadHistoryRowsByType/isPlembfinTrackedWatchRow: a show whose every
   // episode is currently unwatched (e.g. right after "Mark unwatched" on its
   // last watched episode) still needs to resolve here with its real episode
@@ -4595,13 +4860,28 @@ export async function queryShowDetail({ id = "", title = "" } = {}) {
   // making the button immediately revert despite the correct stored row.
   const currentEpisodeRows = selectAllEpisodesStmt.all().map(rowToWatch);
   const rows = dedupeHistory(currentEpisodeRows.filter(isPlembfinTrackedEpisodeRow))
-    .filter((row) => canonicalTitleKey(showTitleFrom(row.show_title || row.title)) === key);
+    .filter((row) => {
+      const titleMatches = key && canonicalTitleKey(showTitleFrom(row.show_title || row.title)) === key;
+      if (titleMatches) return true;
+      if (!hasSelectedIdentity) return false;
+      return (selectedTmdbId && String(row.show_tmdb_id || row.tmdb_id || "") === selectedTmdbId)
+        || (selectedTvdbId && String(row.show_tvdb_id || row.tvdb_id || "") === selectedTvdbId)
+        || (selectedImdbId && String(row.show_imdb_id || row.imdb_id || "").toLowerCase() === selectedImdbId.toLowerCase());
+    });
   // A canonical-title match can still span two distinct real shows sharing a
   // title (a reboot/revival) now that groupShowRows splits them by provider
   // id instead of blending them - the most substantial (or, failing that,
   // most recently active) cluster is the more likely match for a lookup with
   // no id to disambiguate by.
-  const [show] = mostRecentShowFirst(groupShowRows(rows));
+  const candidateShows = groupShowRows(rows);
+  const matchesSelectedIdentity = (candidate) => (
+    (selectedTmdbId && String(candidate.tmdb_id || "") === selectedTmdbId)
+    || (selectedTvdbId && String(candidate.tvdb_id || "") === selectedTvdbId)
+    || (selectedImdbId && String(candidate.imdb_id || "").toLowerCase() === selectedImdbId.toLowerCase())
+  );
+  const [show] = hasSelectedIdentity
+    ? [candidateShows.find(matchesSelectedIdentity)]
+    : mostRecentShowFirst(candidateShows);
   if (show) {
     const showKey = canonicalTitleKey(show.title) || normalizeKeyPart(show.title);
     const rawShowKey = canonicalTitleKey(show.raw_title) || normalizeKeyPart(show.raw_title);
@@ -4689,6 +4969,28 @@ export function watchRowToMedia(row = {}, source = "plex") {
     posterUrl: row.poster_url || undefined,
     watched_at: row.watched_at || undefined,
     isValid: Boolean(row.title && ["movie", "episode"].includes(row.media_type)),
+  };
+}
+
+// Build one outbound media object from a surviving row plus any deleted alias
+// rows. A surviving title-only row must not discard provider IDs carried by a
+// deleted IMDb/TMDB row: the replay needs those IDs to find the real library
+// item on Plex, Emby, or Jellyfin.
+export function watchRowsToMedia(rows = [], source = "manual") {
+  const validRows = (rows || []).filter(Boolean);
+  const primary = validRows[0] || {};
+  const media = watchRowToMedia(primary, source);
+  const ids = { ...media.ids };
+  for (const row of validRows) {
+    for (const field of ["imdb", "tmdb", "tvdb"]) {
+      if (!ids[field] && row[`${field}_id`]) ids[field] = row[`${field}_id`];
+    }
+  }
+  return {
+    ...media,
+    ids,
+    watchRecordId: primary.id || undefined,
+    watched_at: primary.watched_at || undefined,
   };
 }
 

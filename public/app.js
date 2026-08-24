@@ -15,7 +15,7 @@ import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringD
 import { initUpcoming, openUpcomingToToday } from "./modules/upcoming.js";
 import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, triggerSearchPage, renderSearchPage, renderExplorer, explorerQueryKey, updateAlphaFilter, handleAlphaFilterClick, resetMovieExplorer, resetShowExplorer, renderExplorerSentinel, observeExplorerSentinel, observeExplorerTmdbPrefetch, scheduleNextAirResort, currentExplorerView, currentExplorerSort, currentPosterWidthKey, setCurrentExplorerSort, applyExplorerPosterWidth, applyListHeaderSort, renderMovieCard, renderMovieExplorer, loadExplorerMovies, applyHistoryPosterWidth, resetHistoryView, renderHistoryItems, renderHistoryView, loadHistoryView, observeHistorySentinel, renderShowExplorer, loadExplorerShows, mergeShowDetail, loadShowDetail, matchesExplorerSearch, sortExplorerItems, renderShowRecord, renderShowFolder, renderSeasonFolder, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, emptyExplorer, FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver } from "./modules/explorer.js";
 import { initEditDialogs, openEditDateDialog, openEditShowDateDialog, openEditSeasonDateDialog, openEditImageDialog, openFixMatchDialog, openMergeShowDialog, applyWatchedAtToLocalWatchRecord, editDateOptionsFromButton } from "./modules/edit-dialogs.js?v=20260810";
-import { initWatchAction, openWatchDatePrompt, closeWatchDatePrompt, submitSeerrRequest, markMovieWatched, refreshShowAfterManualWatch, applyWatchDateChoice, confirmAndMarkUnwatched, confirmAndDeleteMedia } from "./modules/watch-action.js?v=20260824";
+import { initWatchAction, openWatchDatePrompt, closeWatchDatePrompt, submitSeerrRequest, markMovieWatched, refreshShowAfterManualWatch, applyWatchDateChoice, confirmAndMarkUnwatched, confirmAndDeleteMedia } from "./modules/watch-action.js?v=20260824c";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails, resolveEpisodeTitleFromTmdb } from "./modules/tmdb.js?v=20260823";
 import { initMediaDetail, movieBySlugOrId, nowPlayingHref, openMovieInlineDetail, openShowInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, renderImmersiveShowModal, renderShowModalContent, renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus, patchMovieWatchedState } from "./modules/media-detail.js?v=20260810";
 import { initMediaPerson, closePersonProfile, loadCastMemberDetails } from "./modules/media-person.js?v=20260810";
@@ -687,17 +687,20 @@ function renderGlobalSearchDropdown(query) {
   // crowd out a closer match that happened to come from TVDB.
   const COLLECT_LIMIT = 50;
 
-  // 1. Local TV shows (deduplicated by title)
+  // 1. Local TV shows. Provider identity is the primary key: two series can
+  // legitimately share a title, and a title-only key sends both to the same
+  // legacy /tvshow/<slug> route.
   for (const s of (state.showsRaw || [])) {
     if (shows.length >= COLLECT_LIMIT) break;
     if (!(s.title || "").toLowerCase().includes(q)) continue;
-    if (seenShows.has(comparableTitle(s.title))) continue;
-    seenShows.add(comparableTitle(s.title));
+    const identity = showSearchIdentity(s);
+    if (seenShows.has(identity)) continue;
+    seenShows.add(identity);
     shows.push({
       _type: "show",
       title: s.title,
       poster: s.poster_url || s.posterUrl || "",
-      href: `/tvshow/${slug(s.title)}`,
+      href: s.tmdb_id ? tvShowTmdbHref(s.tmdb_id, s.title) : s.tvdb_id ? tvShowTvdbHref(s.tvdb_id, s.title) : `/tvshow/${slug(s.title)}`,
       sub: "TV Show",
       overview: "",
       isLocal: true
@@ -751,12 +754,13 @@ function renderGlobalSearchDropdown(query) {
       });
     } else if (mediaType === "tv") {
       if (shows.length >= COLLECT_LIMIT) continue;
-      if (seenShows.has(comparableTitle(title))) {
-        const existing = shows.find(s => comparableTitle(s.title) === comparableTitle(title));
+      const identity = showSearchIdentity({ tmdb_id: item.id, title });
+      if (seenShows.has(identity)) {
+        const existing = shows.find(s => showSearchIdentity(s) === identity);
         if (existing && !existing.overview && overview) existing.overview = overview;
         continue;
       }
-      seenShows.add(comparableTitle(title));
+      seenShows.add(identity);
       shows.push({
         _type: "show",
         title,
@@ -786,8 +790,9 @@ function renderGlobalSearchDropdown(query) {
   for (const item of (discoveryState?.tvdbShows || [])) {
     if (shows.length >= COLLECT_LIMIT) break;
     const title = item.name || "";
-    if (!title || seenShows.has(comparableTitle(title))) continue;
-    seenShows.add(comparableTitle(title));
+    const identity = showSearchIdentity({ tvdb_id: item.tvdb_id, title });
+    if (!title || seenShows.has(identity)) continue;
+    seenShows.add(identity);
     shows.push({
       _type: "show",
       title,
@@ -876,6 +881,13 @@ function renderGlobalSearchDropdown(query) {
 
 function comparableTitle(value) {
   return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function showSearchIdentity(show = {}) {
+  if (show.tmdb_id) return `tmdb:${String(show.tmdb_id)}`;
+  if (show.tvdb_id) return `tvdb:${String(show.tvdb_id)}`;
+  if (show.imdb_id) return `imdb:${String(show.imdb_id).toLowerCase()}`;
+  return `title:${comparableTitle(show.title)}`;
 }
 
 // How closely a title answers the query. An exact title beats a prefix, which
@@ -2458,6 +2470,7 @@ function initialize() {
     fetchSeerrMediaStatus,
     refreshActiveMediaDetailAfterSeerrStatus,
     renderImmersiveShowModal,
+    renderShowModalContent,
     openShowImmersiveModalByTmdbId,
     openShowImmersiveModalByTvdbId,
     openMovieImmersiveModalByTmdbId,

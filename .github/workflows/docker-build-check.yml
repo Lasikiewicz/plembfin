@@ -27,6 +27,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      - name: Check README consistency
+        run: npm run docs:check
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 

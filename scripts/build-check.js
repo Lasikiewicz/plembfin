@@ -111,6 +111,8 @@ for (const file of sourceRoots.flatMap(javascriptFiles)) {
   run(process.execPath, ["--check", file]);
 }
 
+run(process.execPath, ["scripts/docs-check.js"]);
+
 run(process.execPath, ["--test"]);
 
 for (const file of ["package.json", "package-lock.json", "changelog.json"]) {

@@ -4,7 +4,7 @@ import { posterUrlFor, isCachedStorageImageUrl, tmdbImage, tmdbPoster, bestTmdbL
 import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js";
 import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading } from "./explorer.js";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=20260823";
-import { renderWatchDatePrompt, seasonUnwatchButtonHtml, showUnwatchButtonHtml, savingEpisodeKeysForShow } from "./watch-action.js?v=20260824";
+import { renderWatchDatePrompt, seasonUnwatchButtonHtml, showUnwatchButtonHtml, savingEpisodeKeysForShow } from "./watch-action.js?v=20260824c";
 import { authHeaders, setMessage, syncPageTopbar, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, setMediaInfoContext, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=20260810";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderRelatedShowsSection,
@@ -323,6 +323,7 @@ async function renderShowDetailFromMetadata(tmdbData, renderToken) {
   const lookupId = showSeasonLookupId(tmdbData);
 
   const showTitle = tmdbData.name || "Untitled TV Show";
+  const tvdbIdCandidate = String(tmdbData.external_ids?.tvdb_id || state.activeShowTvdbId || "");
   state.activeShowModalTitle = showTitle;
   syncPageTopbar();
   const seasons = [...(tmdbData.seasons || [])]
@@ -330,11 +331,20 @@ async function renderShowDetailFromMetadata(tmdbData, renderToken) {
     .sort((a, b) => Number(b.season_number) - Number(a.season_number));
 
   const seasonDetailsByNumber = new Map();
+  const localShow = state.showsRaw.find((show) => (
+    (tmdbData.id && String(show.tmdb_id || "") === String(tmdbData.id))
+    || (tvdbIdCandidate && String(show.tvdb_id || "") === tvdbIdCandidate)
+  ));
   await Promise.all([
     // Pull persisted watched state from the server so a fresh page load - where
     // state.showsRaw/state.history aren't populated yet - still reflects what is
     // already marked watched (otherwise the show looks unwatched after a refresh).
-    loadShowDetail({ title: showTitle }).catch(() => null),
+    loadShowDetail({
+      id: localShow?.id || "",
+      title: showTitle,
+      tmdb_id: tmdbData.id ? String(tmdbData.id) : "",
+      tvdb_id: tvdbIdCandidate,
+    }).catch(() => null),
     ensurePlaybackProgressLoaded(),
     ...seasons.map(async (season) => {
       const seasonNumber = Number(season.season_number);
@@ -353,12 +363,12 @@ async function renderShowDetailFromMetadata(tmdbData, renderToken) {
   // id too, when the provider returned one, keeps this from silently falling
   // back to an empty placeholder (and rendering 0 watched episodes) right
   // when a repaired show's identity is still catching up.
-  const tvdbIdCandidate = String(tmdbData.external_ids?.tvdb_id || "");
   const existingShow = state.showsRaw.find((show) => (
     (tmdbData.id && String(show.tmdb_id || "") === String(tmdbData.id))
     || (tvdbIdCandidate && String(show.tvdb_id || "") === tvdbIdCandidate)
-    || slug(show.title) === slug(showTitle)
-  ));
+  )) || (!tmdbData.id && !tvdbIdCandidate
+    ? state.showsRaw.find((show) => slug(show.title) === slug(showTitle))
+    : null);
   const show = mergeShowWithLoadedHistory(existingShow || {
     title: showTitle,
     tmdb_id: tmdbData.id ? String(tmdbData.id) : "",
@@ -859,7 +869,7 @@ function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitl
           ${seasonSummary.watchedInSeason ? `<button class="action-pill" type="button" data-edit-season-date="${seasonNumber}" ${(seasonBusy || seasonRemoving) ? "disabled" : ""}>Edit season date</button>` : ""}
           <button class="action-pill" type="button" data-watch-scope="season" data-season-number="${seasonNumber}" ${(seasonEpisodes.length && !seasonBusy && !seasonRemoving) ? "" : "disabled"}
             title="${seasonUnwatched.length ? "" : "Re-push this season's watched state to Plex, Emby, Jellyfin & Trakt"}">
-            ${seasonBusy ? "Syncing…" : seasonUnwatched.length ? "Mark season watched" : "Resync season"}
+            ${seasonBusy ? "Saving…" : seasonUnwatched.length ? "Mark season watched" : "Resync season"}
           </button>${seasonUnwatchButtonHtml(seasonEpisodes.filter((episode) => episode.watched).map((episode) => episode.watched.id), seasonNumber, showTitle, seasonBusy, seasonRemoving)}
         </div>
       </div>
@@ -895,7 +905,7 @@ function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitl
         ? `<span class="unreleased-pill">Not yet released</span>`
         : !episode.watched
           ? episodeBusy
-            ? `<button class="action-pill" type="button" disabled>Syncing…</button>`
+            ? `<button class="action-pill" type="button" disabled>Saving…</button>`
             : `<button class="action-pill" type="button" data-watch-scope="episode" data-episode-key="${escapeAttribute(episode.key)}">Mark watched</button>`
           : episodeUnwatching
             ? `<button class="action-pill action-pill-ghost" type="button" disabled>Unwatching…</button>`
@@ -1135,7 +1145,7 @@ export function renderShowModalContent(show, {
     ${unwatchedRows.length ? `
       <button class="action-pill" type="button" data-watch-scope="show" ${(episodeRows.length && !isShowBusy && !showRemoving) ? "" : "disabled"}>
         ${checkIcon}
-        <span>${isShowBusy ? "Syncing..." : "Mark <br>Watched"}</span>
+        <span>${isShowBusy ? "Saving..." : "Mark <br>Watched"}</span>
       </button>` : ""}
     ${showUnwatchButtonHtml(watchedRows.map((episode) => episode.watched.id), showTitle, isShowBusy, showRemoving)}
     ${tmdbOnly ? "" : `

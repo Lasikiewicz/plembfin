@@ -115,7 +115,12 @@ export function mediaHrefFor(entry = {}) {
   }
 
   const showTitle = showTitleFrom(rawTitle);
-  const knownShow = (state.showsRaw || []).find((show) => slug(show.title) === slug(showTitle));
+  const knownShow = (state.showsRaw || []).find((show) => (
+    (tmdbId && String(show.tmdb_id || "") === tmdbId)
+    || (tvdbId && String(show.tvdb_id || "") === tvdbId)
+  )) || ((!tmdbId && !tvdbId) ? (state.showsRaw || []).find((show) => slug(show.title) === slug(showTitle)) : null);
+  if (knownShow?.tmdb_id) return tvShowTmdbHref(knownShow.tmdb_id, knownShow.title);
+  if (knownShow?.tvdb_id) return tvShowTvdbHref(knownShow.tvdb_id, knownShow.title);
   if (knownShow) return `/tvshow/${slug(knownShow.title)}`;
   if (tmdbId) return tvShowTmdbHref(tmdbId, showTitle);
   if (tvdbId) return tvShowTvdbHref(tvdbId, showTitle);

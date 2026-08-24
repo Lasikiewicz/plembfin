@@ -26,10 +26,11 @@ import { searchTvdbSeriesList, resolveTvdbSeriesId, getTvdbSeriesArtwork } from 
 import { getFanartMovieArt, getFanartTvArt, getAllFanartMovieImages, getAllFanartTvImages } from "../utils/fanartGateway.js";
 import { getOmdbRating } from "../utils/omdbGateway.js";
 import { POSTERS_DIR, BACKDROPS_DIR, PROFILES_DIR, PUBLIC_DIR } from "../paths.js";
-import { formatDispatchTelemetry } from "./sync.js";
+import { formatDispatchTelemetry, recordSyncHistory } from "./sync.js";
 import {
   countPlaybackProgressRows,
   countWatchedPlaystateRows,
+  coalesceWatchDateRemovals,
   dedupeHistory,
   deletePlaybackProgress,
   deleteWatchRecord,
@@ -75,6 +76,7 @@ import {
   upsertPlaystateForMedia,
   normalizeWatchRecordForInsert,
   watchRowToMedia,
+  watchRowsToMedia,
   getCachedShows,
   getCachedMovies,
   getCachedHistory,
@@ -352,8 +354,11 @@ export async function handleShow(req, res) {
   if (!(await requireAdmin(req, res))) return;
   const id = String(req.query.id || "").trim();
   const title = String(req.query.title || "").trim();
-  if (!id && !title) return sendJson(res, { error: "id or title is required" }, 400);
-  const show = await queryShowDetail({ id, title });
+  const tmdbId = String(req.query.tmdbId || "").trim();
+  const tvdbId = String(req.query.tvdbId || "").trim();
+  const imdbId = String(req.query.imdbId || "").trim();
+  if (!id && !title && !tmdbId && !tvdbId && !imdbId) return sendJson(res, { error: "id, title, or provider id is required" }, 400);
+  const show = await queryShowDetail({ id, title, tmdbId, tvdbId, imdbId });
   if (!show) return sendJson(res, { error: "not found" }, 404);
   // Unlike the show explorer summary, detail includes mutable per-episode
   // watched state. A cached response can overwrite a just-completed manual
@@ -809,23 +814,42 @@ function propagateCorrectedWatchDate(recordId, { lane = "interactive" } = {}) {
 // platform's own catch-up scan runs. Reuses the same loop-safe canonical
 // replay as propagateCorrectedWatchDate and Force Sync's "Set Plembfin as
 // Source of Truth". Fire-and-forget, same reasoning as above.
-function propagateWatchDateRemoval(remainingRow, deletedRow, { lane = "interactive" } = {}) {
-  const row = remainingRow || deletedRow;
-  if (!row) return;
-  const media = watchRowToMedia(row, "manual");
-  if (!media?.isValid) return;
+export function propagateWatchDateRemoval(remainingRow, deletedRow, { lane = "interactive", deletedRows = [] } = {}) {
+  const allDeletedRows = [];
+  const seenDeletedIds = new Set();
+  for (const row of [...(deletedRows || []), deletedRow]) {
+    if (!row) continue;
+    const key = row.id || `${row.media_key || ""}|${row.watched_at || ""}|${row.title || ""}`;
+    if (seenDeletedIds.has(key)) continue;
+    seenDeletedIds.add(key);
+    allDeletedRows.push(row);
+  }
+  const mediaRows = remainingRow
+    ? [remainingRow, ...allDeletedRows]
+    : allDeletedRows.slice().sort((left, right) => {
+      const leftIds = [left.imdb_id, left.tmdb_id, left.tvdb_id].filter(Boolean).length;
+      const rightIds = [right.imdb_id, right.tmdb_id, right.tvdb_id].filter(Boolean).length;
+      return rightIds - leftIds;
+    });
+  const row = remainingRow || mediaRows[0];
+  if (!row) return Promise.resolve(null);
+  const media = watchRowsToMedia(mediaRows, "manual");
+  if (!media?.isValid) return Promise.resolve(null);
   const action = remainingRow ? "watched" : "unwatched";
   const loopStore = createLoopStore();
-  const deletedSource = String(deletedRow?.source || "").toLowerCase();
-  const deletedMedia = deletedRow ? watchRowToMedia(deletedRow, deletedSource || "manual") : null;
-  loadMediaConfig()
+  return loadMediaConfig()
     .then(async (config) => {
       // The surviving canonical row can predate a Fix Match and carry a
       // different provider identity. Preserve the deleted provider row's
       // native item id in the echo ledger before replaying the survivor so a
       // synchronous viewstate acknowledgement cannot recreate that date.
-      if (["plex", "emby", "jellyfin"].includes(deletedSource) && deletedMedia?.isValid) {
-        await recordOutboundPlayedMarks(deletedMedia, [deletedSource], loopStore).catch(() => null);
+      for (const deleted of allDeletedRows) {
+        const deletedSource = String(deleted.source || "").toLowerCase();
+        if (!["plex", "emby", "jellyfin"].includes(deletedSource)) continue;
+        const deletedMedia = watchRowToMedia(deleted, deletedSource);
+        if (deletedMedia?.isValid) {
+          await recordOutboundPlayedMarks(deletedMedia, [deletedSource], loopStore).catch(() => null);
+        }
       }
       return syncCanonicalPlaystate(media, config, loopStore, action, { lane });
     })
@@ -839,8 +863,13 @@ function propagateWatchDateRemoval(remainingRow, deletedRow, { lane = "interacti
       // which does not carry this row's watched_at, sending Trakt today's
       // date instead of the real one this replay just correctly sent.
       if (remainingRow) await updateWatchTelemetry(remainingRow.id, formatDispatchTelemetry(summary, media, action));
+      await recordSyncHistory(media, summary, action);
+      return summary;
     })
-    .catch((error) => console.error("Failed to propagate watch date removal for record", row.id, error?.message || error));
+    .catch((error) => {
+      console.error("Failed to propagate watch date removal for record", row.id, error?.message || error);
+      return null;
+    });
 }
 
 // Adds another watch date for the same movie/episode as `id` (the "Add another
@@ -875,7 +904,7 @@ export async function handleDeleteWatchDate(req, res) {
 
   const result = await deleteWatchDate(id);
   if (!result.ok) return sendJson(res, { error: result.error }, 400);
-  propagateWatchDateRemoval(result.remainingRow, result.deletedRow);
+  propagateWatchDateRemoval(result.remainingRow, result.deletedRow, { deletedRows: result.deletedRows });
   writeAuditLog("media.watch_date_deleted", { ip: req.ip || req.socket?.remoteAddress, detail: { id } });
   return sendJson(res, { ok: true });
 }
@@ -894,8 +923,8 @@ export async function handleDeleteWatchDates(req, res) {
   if (ids.length > 500) return sendJson(res, { error: "Batch size must be 500 ids or fewer" }, 413);
 
   const { affectedMedia, ...result } = await deleteWatchDates(ids);
-  for (const media of affectedMedia || []) {
-    propagateWatchDateRemoval(media.remainingRow, media.deletedRow, { lane: "sync" });
+  for (const media of coalesceWatchDateRemovals(affectedMedia || [])) {
+    propagateWatchDateRemoval(media.remainingRow, media.deletedRow, { lane: "sync", deletedRows: media.deletedRows });
   }
   writeAuditLog("media.watch_dates_bulk_deleted", {
     ip: req.ip || req.socket?.remoteAddress,
@@ -984,8 +1013,8 @@ export async function handleDuplicateWatchCleanup(req, res) {
     const batch = removableIds.slice(i, i + DUPLICATE_WATCH_BATCH_SIZE);
     const { affectedMedia, deleted } = await deleteWatchDates(batch);
     removed += deleted.length;
-    for (const media of affectedMedia || []) {
-      propagateWatchDateRemoval(media.remainingRow, media.deletedRow, { lane: "sync" });
+    for (const media of coalesceWatchDateRemovals(affectedMedia || [])) {
+      propagateWatchDateRemoval(media.remainingRow, media.deletedRow, { lane: "sync", deletedRows: media.deletedRows });
     }
   }
 

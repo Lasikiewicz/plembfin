@@ -1065,8 +1065,15 @@ function historyEntryDisplay(entry) {
       }, 50);
     }
     const canonicalShowName = entry.show_title || showName(entry.title);
-    const showKeySlug = slug(canonicalShowName);
-    href = `/tvshow/${showKeySlug}`;
+    href = entry.show_tmdb_id
+      ? tvShowTmdbHref(entry.show_tmdb_id, canonicalShowName)
+      : entry.show_tvdb_id
+        ? tvShowTvdbHref(entry.show_tvdb_id, canonicalShowName)
+        : entry.tmdb_id
+          ? tvShowTmdbHref(entry.tmdb_id, canonicalShowName)
+          : entry.tvdb_id
+            ? tvShowTvdbHref(entry.tvdb_id, canonicalShowName)
+            : `/tvshow/${slug(canonicalShowName)}`;
   } else {
     href = entry.tmdb_id ? movieTmdbHref(entry.tmdb_id, entry.title) : movieHref(entry);
   }
@@ -1295,8 +1302,15 @@ export async function loadExplorerShows() {
 }
 export function mergeShowDetail(show = {}) {
   if (!show?.title) return null;
-  const showKey = slug(show.title);
-  const existingIndex = state.showsRaw.findIndex((item) => slug(item.title) === showKey);
+  const showIds = providerIdentityTokens(show);
+  const existingIndex = state.showsRaw.findIndex((item) => {
+    const itemIds = providerIdentityTokens(item);
+    if (showIds.length && itemIds.length) return showIds.some((id) => itemIds.includes(id));
+    // A provider-identified record must not absorb a title-only record: doing
+    // so would make two same-title series share the first record's history.
+    if (showIds.length || itemIds.length) return false;
+    return slug(item.title) === slug(show.title);
+  });
   if (existingIndex >= 0) {
     state.showsRaw[existingIndex] = { ...state.showsRaw[existingIndex], ...show };
     return state.showsRaw[existingIndex];
@@ -1304,16 +1318,32 @@ export function mergeShowDetail(show = {}) {
   state.showsRaw.push(show);
   return show;
 }
+
+function providerIdentityTokens(show = {}) {
+  const ids = [];
+  const imdbId = show.show_imdb_id || show.imdb_id;
+  const tmdbId = show.show_tmdb_id || show.tmdb_id;
+  const tvdbId = show.show_tvdb_id || show.tvdb_id;
+  if (imdbId) ids.push(`imdb:${String(imdbId).toLowerCase()}`);
+  if (tmdbId) ids.push(`tmdb:${String(tmdbId).toLowerCase()}`);
+  if (tvdbId) ids.push(`tvdb:${String(tvdbId).toLowerCase()}`);
+  return ids;
+}
+
 export async function loadShowDetail(show = {}) {
   const showTitle = show.title || "";
   const showKey = slug(showTitle);
-  const cacheKey = show.id || showKey || showTitle;
+  const identityKey = providerIdentityTokens(show)[0] || "";
+  const cacheKey = identityKey || show.id || showKey || showTitle;
   if (!cacheKey) return null;
   if (state.showDetailInflight.has(cacheKey)) return state.showDetailInflight.get(cacheKey);
   const request = (async () => {
     const url = new URL("/api/show", window.location.origin);
     if (show.id) url.searchParams.set("id", show.id);
     if (showTitle) url.searchParams.set("title", showTitle);
+    if (show.tmdb_id) url.searchParams.set("tmdbId", show.tmdb_id);
+    if (show.tvdb_id) url.searchParams.set("tvdbId", show.tvdb_id);
+    if (show.imdb_id) url.searchParams.set("imdbId", show.imdb_id);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
     try {
@@ -1465,6 +1495,8 @@ export function renderShowRecord(show = {}) {
   const actualWatchText = totalWatches > episodeCount ? ` · ${totalWatches} actual watches` : "";
   const latestEpisode = seasons ? representativeEpisode(seasons) : representative;
   const tmdbId = show.tmdb_id || "";
+  const historyId = latestEpisode?.id || "";
+  const detailHref = showDetailHref(show, displayTitle, showKey, historyId);
   if (currentExplorerView() === "list") {
     const tmdbShow = resolvedTmdbCache("tv", tmdbId, displayTitle);
     const year = tmdbShow?.first_air_date?.slice(0, 4) || "";
@@ -1476,7 +1508,7 @@ export function renderShowRecord(show = {}) {
       : `<span class="list-card-col" data-list-eps data-watched="${episodeCount}" data-total="0">${episodeCount}${actualWatchText}</span>`;
     const sourceEl = latestEpisode?.source ? `<span class="source-badge ${sourceClass(latestEpisode.source)}">${escapeHtml(platformBadge(latestEpisode.source))}</span>` : "";
     return `
-      <article class="explorer-list-card explorer-list-show-card" data-show-key="${escapeAttribute(showKey)}" data-alpha-letter="${firstAlphaLetter(displayTitle)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId)}" data-prefetch-title="${escapeAttribute(displayTitle)}">
+      <article class="explorer-list-card explorer-list-show-card" data-show-key="${escapeAttribute(showKey)}" data-show-href="${escapeAttribute(detailHref)}" data-alpha-letter="${firstAlphaLetter(displayTitle)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId)}" data-prefetch-title="${escapeAttribute(displayTitle)}">
         ${posterMarkup(latestEpisode, "list-thumb-poster")}
         <span class="list-card-title">${escapeHtml(displayTitle)}</span>
         <span class="list-card-col${nextAiring.isStatus && nextAiring.text ? " list-next-air-status" : ""}" data-list-next-air>${escapeHtml(nextAiring.text)}</span>
@@ -1493,13 +1525,13 @@ export function renderShowRecord(show = {}) {
     const overview = tmdb?.overview || "";
     const firstYear = tmdb?.first_air_date?.slice(0, 4) || "";
     return `
-      <article class="explorer-overview-card explorer-overview-show-card" data-alpha-letter="${firstAlphaLetter(displayTitle)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId)}" data-prefetch-title="${escapeAttribute(displayTitle)}">
-        <button class="folder-trigger overview-show-poster-btn" type="button" data-show-key="${escapeAttribute(showKey)}" style="border:0;background:transparent;padding:0;display:block;">
+      <article class="explorer-overview-card explorer-overview-show-card" data-show-key="${escapeAttribute(showKey)}" data-show-href="${escapeAttribute(detailHref)}" data-alpha-letter="${firstAlphaLetter(displayTitle)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId)}" data-prefetch-title="${escapeAttribute(displayTitle)}">
+        <button class="folder-trigger overview-show-poster-btn" type="button" data-show-key="${escapeAttribute(showKey)}" data-show-href="${escapeAttribute(detailHref)}" style="border:0;background:transparent;padding:0;display:block;">
           ${posterMarkup(latestEpisode, "overview-thumb-poster")}
         </button>
         <div class="overview-card-meta">
           <div class="overview-card-header">
-            <button class="folder-trigger overview-show-title-btn" type="button" data-show-key="${escapeAttribute(showKey)}" style="border:0;background:transparent;padding:0;text-align:left;cursor:pointer;"><b>${escapeHtml(displayTitle)}</b></button>
+            <button class="folder-trigger overview-show-title-btn" type="button" data-show-key="${escapeAttribute(showKey)}" data-show-href="${escapeAttribute(detailHref)}" style="border:0;background:transparent;padding:0;text-align:left;cursor:pointer;"><b>${escapeHtml(displayTitle)}</b></button>
           </div>
           <div class="overview-card-attrs" data-overview-attrs>${[firstYear, genres].filter(Boolean).join(" &middot; ")}${episodeCount ? `${firstYear || genres ? " &middot; " : ""}${episodeCount} ep${episodeCount !== 1 ? "s" : ""}` : ""}${actualWatchText}</div>
           <div class="overview-card-text-wrap"><p class="overview-card-text" data-overview-text>${escapeHtml(overview)}</p></div>
@@ -1510,11 +1542,9 @@ export function renderShowRecord(show = {}) {
   const tmdbShow = resolvedTmdbCache("tv", tmdbId, displayTitle);
   const totalEps = show.total_episodes || tmdbShow?.number_of_episodes || 0;
   const latestWatchedAt = latestEpisode?.watched_at || show.latest_watched_at || "";
-  const historyId = latestEpisode?.id || "";
-  const detailHref = `/tvshow/${showKey}${historyId ? `?historyId=${encodeURIComponent(historyId)}` : ""}`;
   return `
     <article class="folder-card" data-alpha-letter="${firstAlphaLetter(displayTitle)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId)}" data-prefetch-title="${escapeAttribute(displayTitle)}">
-      <a class="folder-trigger" href="${escapeAttribute(detailHref)}" data-show-key="${escapeAttribute(showKey)}"${historyId ? ` data-show-record-id="${escapeAttribute(historyId)}"` : ""} style="border: 0; background: transparent; padding: 0; width: 100%; text-align: left; display: block; text-decoration: none; color: inherit;">
+      <a class="folder-trigger" href="${escapeAttribute(detailHref)}" data-show-key="${escapeAttribute(showKey)}" data-show-href="${escapeAttribute(detailHref)}"${historyId ? ` data-show-record-id="${escapeAttribute(historyId)}"` : ""} style="border: 0; background: transparent; padding: 0; width: 100%; text-align: left; display: block; text-decoration: none; color: inherit;">
         ${posterMarkup(latestEpisode, "explorer-folder-poster")}
         <div class="movie-card-body" style="margin-top: 0.5rem;">
           <b>${escapeHtml(displayTitle)}</b>
@@ -1525,12 +1555,23 @@ export function renderShowRecord(show = {}) {
     </article>
   `;
 }
-export function renderShowFolder(showTitle, seasons, tmdbId) {
+function showDetailHref(show = {}, displayTitle = "", showKey = "", historyId = "") {
+  if (show.tmdb_id) return tvShowTmdbHref(show.tmdb_id, displayTitle);
+  if (show.tvdb_id) return tvShowTvdbHref(show.tvdb_id, displayTitle);
+  return `/tvshow/${showKey}${historyId ? `?historyId=${encodeURIComponent(historyId)}` : ""}`;
+}
+
+export function renderShowFolder(showTitle, seasons, tmdbId, tvdbId = "") {
   const showKey = slug(showTitle);
   const latestEpisode = representativeEpisode(seasons);
+  const detailHref = tmdbId
+    ? tvShowTmdbHref(tmdbId, showTitle)
+    : tvdbId
+      ? tvShowTvdbHref(tvdbId, showTitle)
+      : `/tvshow/${showKey}`;
   return `
     <article class="folder-card" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId || "")}" data-prefetch-title="${escapeAttribute(showTitle)}">
-      <button class="folder-trigger" type="button" data-show-key="${showKey}" style="border: 0; background: transparent; padding: 0; width: 100%; text-align: left; display: block;">
+      <button class="folder-trigger" type="button" data-show-key="${showKey}" data-show-href="${escapeAttribute(detailHref)}" style="border: 0; background: transparent; padding: 0; width: 100%; text-align: left; display: block;">
         ${posterMarkup(latestEpisode, "explorer-folder-poster")}
         <div class="movie-card-body" style="margin-top: 0.5rem;">
           <b>${escapeHtml(showTitle)}</b>

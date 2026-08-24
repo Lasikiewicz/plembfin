@@ -306,7 +306,7 @@ function recordPlaybackEndedAudit(media = {}, { status = "completed", details = 
   });
 }
 
-async function recordSyncHistory(media = {}, summary = {}, action = "watched") {
+export async function recordSyncHistory(media = {}, summary = {}, action = "watched") {
   const timestamp = Date.now();
   const targetStates = Array.isArray(summary.targetStates) ? summary.targetStates : [];
   const auditBase = {

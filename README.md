@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Node.js-%3E%3D20-blue?style=flat-square&logo=node.js" alt="Node version" />
+  <img src="https://img.shields.io/badge/Node.js-%3E%3D22.19.0-blue?style=flat-square&logo=node.js" alt="Node version" />
   <img src="https://img.shields.io/badge/Database-SQLite-orange?style=flat-square&logo=sqlite" alt="SQLite" />
   <img src="https://img.shields.io/badge/Docker-Compatible-blue?style=flat-square&logo=docker" alt="Docker support" />
   <img src="https://img.shields.io/badge/Frontend-Vanilla_JS_/_CSS-ff69b4?style=flat-square" alt="Frontend Tech" />
@@ -146,7 +146,13 @@ everything else about setup is identical.
 
 ### Method A: Docker Compose (recommended)
 
-1. Create a `docker-compose.yml`. This pulls the published `:latest` image directly -
+1. Create a `.env` file beside the Compose file and fill in a unique admin password.
+   Never commit this file:
+   ```dotenv
+   ADMIN_PASSWORD=
+   ```
+   The value must be filled in before starting the container.
+2. Create a `docker-compose.yml`. This pulls the published `:latest` image directly -
    no local clone needed:
    ```yaml
    services:
@@ -158,12 +164,16 @@ everything else about setup is identical.
        volumes:
          - ./data:/data
        environment:
-         - ADMIN_USERNAME=admin
-         - ADMIN_PASSWORD=changeme # Change this before starting the container
+         ADMIN_USERNAME: admin
+         ADMIN_PASSWORD: "${ADMIN_PASSWORD:?Set ADMIN_PASSWORD in .env before starting}"
        restart: unless-stopped
    ```
-2. Start it: `docker compose up -d`
-3. Open `http://localhost:5055` and log in.
+3. Start it: `docker compose up -d`
+4. Open `http://localhost:5055` and log in.
+
+This base example is intended for a local or trusted network. For a remotely reachable
+tester instance, use the secure overlay below behind an HTTPS reverse proxy or VPN, and
+give each tester an isolated `data/` volume.
 
 > [!TIP]
 > Building from a local clone instead (for contributing changes)? Swap the `image:`
@@ -180,7 +190,7 @@ everything else about setup is identical.
 
 ### Method B: Bare metal (Node.js)
 
-Requires Node.js 20+, and native build tools if prebuilt binaries for
+Requires Node.js 22.19.0+, and native build tools if prebuilt binaries for
 `better-sqlite3`/`sharp` fail to install (VS Build Tools on Windows, `gcc`/`g++`/`make`
 on Linux/macOS).
 
@@ -366,6 +376,10 @@ user, and [`docs/development.md`](docs/development.md) for the full workflow.
 Every push to `develop`/`alpha` builds and publishes a rolling image
 (`:develop`/`:alpha`, plus a build-numbered tag); PRs to `main` build and verify without
 publishing - a breaking change is caught before release, not after.
+
+The local pre-push gate is never bypassed during promotion. If its test run hits the
+known transient failure, the workflow reruns the tests once and retries the push only
+after they pass; the retried push must still pass the complete build gate.
 
 ---
 

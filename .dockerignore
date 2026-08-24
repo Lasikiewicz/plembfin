@@ -3,6 +3,9 @@ data
 .git
 .gitignore
 .claude
+.env
+.env.*
+!.env.example
 scripts
 !scripts/
 !scripts/install-git-hooks.js

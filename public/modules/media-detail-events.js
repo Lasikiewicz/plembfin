@@ -23,7 +23,7 @@ import {
   applyWatchDateChoice,
   confirmAndMarkUnwatched,
   confirmAndDeleteMedia,
-} from "./watch-action.js?v=20260824";
+} from "./watch-action.js?v=20260824c";
 import { triggerRetrySync, loadSyncJobs, loadSyncHistory, showAvailIssuePopup } from "./sync.js";
 import { renderExplorer, renderHistoryView } from "./explorer.js";
 import {
@@ -55,6 +55,20 @@ const copyToClipboard = (...args) => _cb.copyToClipboard?.(...args);
 const toggleSet = (...args) => _cb.toggleSet?.(...args);
 const openConfirmDialog = (...args) => _cb.openConfirmDialog?.(...args);
 
+function activeShowRecord() {
+  if (state.activeShowTmdbId) {
+    const byTmdb = state.showsRaw.find((show) => String(show.tmdb_id || "") === String(state.activeShowTmdbId));
+    if (byTmdb) return byTmdb;
+  }
+  if (state.activeShowTvdbId) {
+    const byTvdb = state.showsRaw.find((show) => String(show.tvdb_id || "") === String(state.activeShowTvdbId));
+    if (byTvdb) return byTvdb;
+  }
+  return state.activeShowModalKey
+    ? state.showsRaw.find((show) => slug(show.title) === state.activeShowModalKey)
+    : null;
+}
+
 async function refreshActiveMovieAfterDateEdit(entry = null) {
   if (!state.activeMovieModalId) return;
   if (entry?.media_type && entry.media_type !== "movie") return;
@@ -66,7 +80,7 @@ async function refreshActiveMovieAfterDateEdit(entry = null) {
 async function refreshActiveShowAfterDateEdit(entry = null) {
   if (!state.activeShowModalKey) return;
   if (entry?.media_type && entry.media_type !== "episode") return;
-  const activeShow = state.showsRaw.find((show) => slug(show.title) === state.activeShowModalKey);
+  const activeShow = activeShowRecord();
   const showTitle = entry?.show_title || (entry?.title ? showTitleFrom(entry.title) : "") || activeShow?.title || "";
   if (!showTitle) return;
   await refreshShowAfterManualWatch(showTitle);
@@ -713,7 +727,7 @@ export function attachMediaDetailEvents() {
         }
       }
       if (!tmdbData && state.activeShowModalKey) {
-        const show = state.showsRaw.find((s) => slug(s.title) === state.activeShowModalKey);
+        const show = activeShowRecord();
         if (show) {
           const tvKey = `tv|${show.tmdb_id || ""}|${String(show.title || "").toLowerCase()}`;
           const cached = state.tmdbDetailsCache.get(tvKey);
@@ -838,7 +852,7 @@ export function attachMediaDetailEvents() {
           }
         } else if (state.activeShowModalKey) {
           const showTitle = fixMatchBtn.dataset.title || title || "";
-          const show = state.showsRaw.find((s) => slug(s.title) === state.activeShowModalKey);
+          const show = activeShowRecord();
           if (show) {
             show.tmdb_id = tmdb_id;
             show.tvdb_id = tvdb_id || show.tvdb_id;
@@ -1234,13 +1248,21 @@ export function attachMediaDetailEvents() {
         if (entry) {
           const canonicalShowName = entry.show_title || showName(entry.title);
           const showKeySlug = slug(canonicalShowName);
-          let showObj = state.showsRaw.find(s => slug(s.title) === showKeySlug);
+          let showObj = state.showsRaw.find(s => (
+            (entry.show_tmdb_id && String(s.tmdb_id || "") === String(entry.show_tmdb_id))
+            || (entry.show_tvdb_id && String(s.tvdb_id || "") === String(entry.show_tvdb_id))
+            || (!entry.show_tmdb_id && !entry.show_tvdb_id && slug(s.title) === showKeySlug)
+          ));
           if (!showObj) {
-            showObj = { title: canonicalShowName, id: entry.tvdb_id || entry.tmdb_id || canonicalShowName };
+            showObj = { title: canonicalShowName, tmdb_id: entry.show_tmdb_id || "", tvdb_id: entry.show_tvdb_id || "" };
             state.showsRaw.push(showObj);
           }
 
-          navigateTo(`/tvshow/${showKeySlug}`);
+          navigateTo(showObj.tmdb_id
+            ? tvShowTmdbHref(showObj.tmdb_id, canonicalShowName)
+            : showObj.tvdb_id
+              ? tvShowTvdbHref(showObj.tvdb_id, canonicalShowName)
+              : `/tvshow/${showKeySlug}`);
         }
       } else if (event.target.closest(".movie-card") && event.button === 0 && !event.ctrlKey && !event.metaKey) {
         event.preventDefault();
@@ -1274,7 +1296,9 @@ export function attachMediaDetailEvents() {
         state.pendingShowHistoryId = recordId;
         state.activeShowHistoryId = recordId;
       }
-      navigateTo(`/tvshow/${showTrigger.dataset.showKey}${recordId ? `?historyId=${encodeURIComponent(recordId)}` : ""}`);
+      const explicitShowHref = showTrigger.dataset.showHref || (showTrigger.tagName === "A" ? showTrigger.getAttribute("href") : "");
+      const fallbackShowHref = `/tvshow/${showTrigger.dataset.showKey}${recordId ? `?historyId=${encodeURIComponent(recordId)}` : ""}`;
+      navigateTo(explicitShowHref || fallbackShowHref);
       return;
     }
 

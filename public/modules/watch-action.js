@@ -18,6 +18,7 @@ let _showErrorExplainModal = () => {};
 let _fetchSeerrMediaStatus = async () => null;
 let _refreshActiveMediaDetailAfterSeerrStatus = () => {};
 let _renderImmersiveShowModal = async () => {};
+let _renderShowModalContent = () => {};
 let _openShowImmersiveModalByTmdbId = async () => {};
 let _openShowImmersiveModalByTvdbId = async () => {};
 let _openMovieImmersiveModalByTmdbId = async () => {};
@@ -34,6 +35,7 @@ export function initWatchAction(callbacks) {
   if (callbacks.fetchSeerrMediaStatus) _fetchSeerrMediaStatus = callbacks.fetchSeerrMediaStatus;
   if (callbacks.refreshActiveMediaDetailAfterSeerrStatus) _refreshActiveMediaDetailAfterSeerrStatus = callbacks.refreshActiveMediaDetailAfterSeerrStatus;
   if (callbacks.renderImmersiveShowModal) _renderImmersiveShowModal = callbacks.renderImmersiveShowModal;
+  if (callbacks.renderShowModalContent) _renderShowModalContent = callbacks.renderShowModalContent;
   if (callbacks.openShowImmersiveModalByTmdbId) _openShowImmersiveModalByTmdbId = callbacks.openShowImmersiveModalByTmdbId;
   if (callbacks.openShowImmersiveModalByTvdbId) _openShowImmersiveModalByTvdbId = callbacks.openShowImmersiveModalByTvdbId;
   if (callbacks.openMovieImmersiveModalByTmdbId) _openMovieImmersiveModalByTmdbId = callbacks.openMovieImmersiveModalByTmdbId;
@@ -323,7 +325,11 @@ export async function runResyncWatchAction(action) {
   const total = records.length;
 
   state.savingWatchActions.add(action);
-  if (state.activeShowModalKey) {
+  if (renderActiveShowSavingState()) {
+    // Paint the busy state synchronously when the current modal can be
+    // refreshed in place; this keeps the action responsive before the
+    // propagation request resolves.
+  } else if (state.activeShowModalKey) {
     _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
   } else if (state.activeShowTmdbId) {
     await _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
@@ -379,7 +385,20 @@ export function openWatchDatePrompt(action) {
 
 export function closeWatchDatePrompt() {
   state.pendingWatchAction = null;
-  document.querySelector(".watch-date-overlay")?.remove();
+  // A show refresh can render a second copy inside the current detail root
+  // while the body-mounted prompt is open. Remove every copy so a stale
+  // dialog cannot remain over the page after a date choice is submitted.
+  document.querySelectorAll?.(".watch-date-overlay")?.forEach((overlay) => overlay.remove());
+}
+
+function renderActiveShowSavingState() {
+  const context = state.activeShowRenderContext;
+  if (!context?.show || typeof _renderShowModalContent !== "function") return false;
+  _renderShowModalContent(context.show, {
+    ...context,
+    activeSeasonNum: state.activeShowModalSeason,
+  });
+  return true;
 }
 
 // ── Date/time helpers ──────────────────────────────────────────────────────
@@ -695,7 +714,7 @@ async function applyMovieWatchDateChoice(choice) {
   const markWatchedBtn = root.querySelector("[data-movie-mark-watched]");
   if (markWatchedBtn) {
     markWatchedBtn.disabled = true;
-    markWatchedBtn.textContent = "Syncing…";
+    markWatchedBtn.textContent = "Saving…";
   }
 
   _setMessage(`Syncing "${movie.title}" to your media apps…`, "muted");
@@ -849,14 +868,17 @@ export async function applyWatchDateChoice(choice) {
     button.disabled = true;
   });
 
-  // Rows in `action.episodes` show a "Syncing..." state (driven by
+  // Rows in `action.episodes` show a "Saving..." state (driven by
   // state.savingWatchActions) instead of flipping to watched right away - the
   // optimistic update only runs below once postManualWatchRecords resolves,
   // i.e. once the live sync to every target has actually finished, not just
   // once the click was registered.
   state.savingWatchActions.add(action);
   closeWatchDatePrompt();
-  if (state.activeShowModalKey) {
+  if (renderActiveShowSavingState()) {
+    // Paint the saving state synchronously before the request starts so the
+    // episode action never sits on "Mark watched" with no feedback.
+  } else if (state.activeShowModalKey) {
     _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
   } else if (state.activeShowTmdbId) {
     await _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);

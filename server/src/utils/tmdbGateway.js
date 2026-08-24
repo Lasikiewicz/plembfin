@@ -9,7 +9,7 @@ import { resolveTvdbSeriesId, getTvdbSeriesExtended, getTvdbSeasonEpisodes, shap
 const API_ROOT = "https://api.themoviedb.org/3";
 const IMAGE_ROOT = "https://image.tmdb.org/t/p";
 const DAY_MS = 24 * 60 * 60 * 1000;
-const DETAILS_SCHEMA_VERSION = 13; // bumped: TV show cast now comes from aggregate_credits (whole-series regulars) instead of the sparse single-season /credits list
+const DETAILS_SCHEMA_VERSION = 14; // bumped: preserve TMDB network logo data when TVDB supplies the structural show record
 const PERSON_SCHEMA_VERSION = 5;
 const SEARCH_TTL_MS = 15 * 60 * 1000;
 const MISSING_TTL_MS = DAY_MS;
@@ -524,6 +524,10 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
         images: raw.images,
         poster_path: raw.poster_path,
         backdrop_path: raw.backdrop_path,
+        // TVDB supplies the canonical network name, while TMDB supplies the
+        // logo_path used by the detail-page network chips. Keep the TVDB
+        // fallback when TMDB has no network data for the show.
+        networks: Array.isArray(raw.networks) && raw.networks.length ? raw.networks : shaped.networks,
       } : {};
 
       const details = {

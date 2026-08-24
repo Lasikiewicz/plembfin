@@ -146,6 +146,56 @@ test("deleteWatchDates reports affected media with surviving/deleted rows per me
   assert.equal(bEntry.remainingRow, null);
 });
 
+// A movie can have provider-backed rows and title-only rows with different
+// media_keys. Bulk duplicate cleanup must resolve those aliases as one final
+// watched transition, otherwise one raw entry can dispatch unwatched while a
+// second raw entry dispatches watched for the same film.
+test("deleteWatchDates coalesces split movie aliases around a surviving watch", async () => {
+  const providerRow = await repo.insertWatchRecord({
+    title: "Bar Fight", media_type: "movie", imdb_id: "tt15250656", tmdb_id: "862553",
+    watched_at: "2026-08-20T12:00:00.000Z", source: "plex",
+  });
+  const deletedTitleRow = await repo.insertWatchRecord({
+    title: "Bar Fight!", media_type: "movie",
+    watched_at: "2026-08-21T12:00:00.000Z", source: "emby",
+  });
+  const survivor = await repo.insertWatchRecord({
+    title: "Bar Fight!", media_type: "movie",
+    watched_at: "2026-08-22T12:00:00.000Z", source: "manual",
+  });
+  const media = { title: "Bar Fight", type: "movie", ids: { imdb: "tt15250656", tmdb: "862553" }, isValid: true };
+  await repo.upsertPlaystateForMedia(media, "watched", survivor.record.watched_at);
+
+  const result = await repo.deleteWatchDates([providerRow.id, deletedTitleRow.id]);
+  assert.deepEqual(result.deleted.sort(), [providerRow.id, deletedTitleRow.id].sort());
+  assert.equal(result.affectedMedia.length, 1);
+  assert.equal(result.affectedMedia[0].remainingRow?.id, survivor.id);
+  assert.deepEqual(result.affectedMedia[0].deletedRows.map((row) => row.id).sort(), [providerRow.id, deletedTitleRow.id].sort());
+
+  const state = await repo.getPlaystateForMedia(media);
+  assert.equal(state?.state, "watched");
+  assert.equal(state?.watched_at, survivor.record.watched_at);
+});
+
+test("deleteWatchDate keeps an unambiguous title-only movie survivor", async () => {
+  const providerRow = await repo.insertWatchRecord({
+    title: "Single Alias Movie", media_type: "movie", imdb_id: "tt-single-alias", tmdb_id: "single-alias-tmdb",
+    watched_at: "2026-08-20T12:00:00.000Z", source: "plex",
+  });
+  const survivor = await repo.insertWatchRecord({
+    title: "Single Alias Movie!", media_type: "movie",
+    watched_at: "2026-08-21T12:00:00.000Z", source: "manual",
+  });
+  const media = { title: "Single Alias Movie", type: "movie", ids: { imdb: "tt-single-alias", tmdb: "single-alias-tmdb" }, isValid: true };
+  await repo.upsertPlaystateForMedia(media, "watched", survivor.record.watched_at);
+
+  const result = await repo.deleteWatchDate(providerRow.id);
+  assert.equal(result.remainingRow?.id, survivor.id);
+  const state = await repo.getPlaystateForMedia(media);
+  assert.equal(state?.state, "watched");
+  assert.equal(state?.watched_at, survivor.record.watched_at);
+});
+
 // Real production bug: marking an episode watched at the same time as another
 // episode, then using the duplicate-watch cleanup to remove a genuine extra
 // duplicate, wrongly deleted the just-added watched row too. deleteWatchDate
