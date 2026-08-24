@@ -1,7 +1,17 @@
 {
-  "build": 34,
-  "updatedAt": "2026-08-24T11:14:23+01:00",
+  "build": 35,
+  "updatedAt": "2026-08-24T11:23:14+01:00",
   "entries": [
+    {
+      "build": 35,
+      "date": "2026-08-24T11:23:14+01:00",
+      "commit": "dcf94ca99e41b38afb29d4574fa6f5046e9a1517",
+      "message": "Fix - Preserve deleted provider identity during replay",
+      "author": "Lasikiewicz",
+      "details": [
+        "Use the removed watch row's native Plex, Emby, or Jellyfin item ID to suppress synchronous played acknowledgements while retaining the user's oldest Plembfin date."
+      ]
+    },
     {
       "build": 34,
       "date": "2026-08-24T11:14:23+01:00",
