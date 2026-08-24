@@ -1,7 +1,20 @@
 {
-  "build": 24,
-  "updatedAt": "2026-08-24T09:22:33+01:00",
+  "build": 25,
+  "updatedAt": "2026-08-24T09:44:08+01:00",
   "entries": [
+    {
+      "build": 25,
+      "date": "2026-08-24T09:44:08+01:00",
+      "commit": "dc56858d6af86ca52b0197db019c58626660f4c1",
+      "message": "Fix - Align dashboard and TV history behavior",
+      "author": "Lasikiewicz",
+      "details": [
+        "Hide zero-watched TV groups from the watched-history library while preserving their canonical detail state.",
+        "Make Now Playing episode and progress accents follow the selected appearance theme.",
+        "Restore Part Watched cards when an unchanged refresh replaces the loading placeholder.",
+        "Add regression coverage and document the dashboard, TV library, and planned first-run onboarding flow."
+      ]
+    },
     {
       "build": 24,
       "date": "2026-08-24T09:22:33+01:00",
