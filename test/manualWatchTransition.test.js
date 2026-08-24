@@ -241,3 +241,23 @@ test("a delayed provider unwatch cannot overrule an explicit Plembfin watch", as
   assert.equal(show?.episodes?.[0]?.sync_action, "watched");
   assert.equal(show?.episodes?.[0]?.id, manual.id);
 });
+
+test("same-date display dedupe retains the newest Fix Match identity bridge", async () => {
+  const showTitle = "Identity Bridge Show";
+  const title = `${showTitle} - S02E02`;
+  const watchedAt = "2025-02-13T12:00:00.000Z";
+  await repo.insertWatchRecord({
+    title, media_type: "episode", watched_at: watchedAt, source: "manual",
+    season: 2, episode: 2, tmdb_id: "bridge-tmdb",
+  });
+  const bridge = await repo.insertWatchRecord({
+    title, media_type: "episode", watched_at: watchedAt, source: "manual",
+    season: 2, episode: 2, tmdb_id: "bridge-tmdb", tvdb_id: "bridge-tvdb",
+  });
+  repo.reassertWatchRecordAuthoritySync(bridge.id);
+  await repo.invalidateHistoryDerivedCaches();
+
+  const episode = (await repo.queryShowDetail({ title: showTitle }))?.episodes?.[0];
+  assert.equal(episode?.tmdb_id, "bridge-tmdb");
+  assert.equal(episode?.tvdb_id, "bridge-tvdb");
+});

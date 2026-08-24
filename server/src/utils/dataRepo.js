@@ -2423,6 +2423,20 @@ export function dedupeHistory(rows) {
       if (String(row.watched_at || "") > String(representative.watched_at || "")) representative = row;
     }
 
+    // Same-event display cleanup deliberately keeps the earliest copy of an
+    // echoed watch. Its provider ids can be stale or incomplete, however: a
+    // later explicit Plembfin transition may carry the corrected Fix Match
+    // bridge while sharing the exact historical watch date. Preserve the
+    // visible event but take identity from the canonical newest transition.
+    representative = { ...representative };
+    for (const field of ["imdb_id", "tmdb_id", "tvdb_id"]) {
+      if (latestTransition?.[field]) representative[field] = latestTransition[field];
+      if (!representative[field]) {
+        representative[field] = transitionRows.find((row) => row?.[field])?.[field] || null;
+      }
+    }
+    if (latestTransition?.media_key) representative.media_key = latestTransition.media_key;
+
     const playHistory = displayRows
       .map(playHistoryEntry)
       .sort((a, b) => String(a.watched_at).localeCompare(String(b.watched_at)));
