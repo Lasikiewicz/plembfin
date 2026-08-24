@@ -1,7 +1,18 @@
 {
-  "build": 29,
-  "updatedAt": "2026-08-24T10:27:54+01:00",
+  "build": 30,
+  "updatedAt": "2026-08-24T10:37:11+01:00",
   "entries": [
+    {
+      "build": 30,
+      "date": "2026-08-24T10:37:11+01:00",
+      "commit": "baaf7d46d9a3d71476d94eef9ae74eff72fd4eed",
+      "message": "Fix - Keep show details current and merges reversible",
+      "author": "Lasikiewicz",
+      "details": [
+        "Show detail pages now read committed episode rows directly after manual watch actions.",
+        "The Merge menu lists recorded merges and can restore a wrongly merged show."
+      ]
+    },
     {
       "build": 29,
       "date": "2026-08-24T10:27:54+01:00",
