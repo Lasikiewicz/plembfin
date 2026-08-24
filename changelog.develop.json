@@ -1,7 +1,17 @@
 {
-  "build": 12,
-  "updatedAt": "2026-08-24T22:39:18+01:00",
+  "build": 13,
+  "updatedAt": "2026-08-24T22:50:59+01:00",
   "entries": [
+    {
+      "build": 13,
+      "date": "2026-08-24T22:50:59+01:00",
+      "commit": "1ef3ec72b4edf2e034a0ac630994e9b9f68f1790",
+      "message": "Fix - Show all watch source badges on episode details",
+      "author": "Lasikiewicz",
+      "details": [
+        "Match episode watch badges to the dashboard's aggregated app sources."
+      ]
+    },
     {
       "build": 12,
       "date": "2026-08-24T22:39:18+01:00",
