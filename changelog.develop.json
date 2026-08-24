@@ -1,7 +1,17 @@
 {
-  "build": 27,
-  "updatedAt": "2026-08-24T10:12:02+01:00",
+  "build": 28,
+  "updatedAt": "2026-08-24T10:20:16+01:00",
   "entries": [
+    {
+      "build": 28,
+      "date": "2026-08-24T10:20:16+01:00",
+      "commit": "723268233b3f58f9426fccbea0ff9af53bc70550",
+      "message": "Fix - Keep manual watch state authoritative",
+      "author": "Lasikiewicz",
+      "details": [
+        "Prevent delayed provider callbacks from reversing a watched or unwatched choice made in Plembfin."
+      ]
+    },
     {
       "build": 27,
       "date": "2026-08-24T10:12:02+01:00",
