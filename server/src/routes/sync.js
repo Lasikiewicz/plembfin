@@ -83,6 +83,7 @@ import {
   queryShows,
   queryWatchHistory,
   queryWatchHistoryPreview,
+  showTitleFrom,
   requireDb,
   updateWatchPosterUrl,
   updatePlaybackProgressTelemetry,
@@ -97,6 +98,7 @@ import {
   getCachedShows,
   getCachedMovies,
   getCachedHistory,
+  getKnownShowIdentityForTitle,
   findExistingWatch,
   findWatchedByAnyMediaKey,
   getCanonicalWatchState,
@@ -1003,16 +1005,54 @@ export async function handleManualWatch(req, res) {
   let inserted = 0;
   let skipped = 0;
   let rejected = 0;
+  const canonicalShowByTitle = new Map();
 
   for (const [index, rawRecord] of records.entries()) {
     try {
-      const pending = {
+      let pending = {
         ...rawRecord,
         source: rawRecord.source || "manual",
         sync_action: "watched",
         sync_dispatch_telemetry: "Origin: manual\nLoop-check: Passed\nDispatch status: pending\nDetails: Manual watch propagation queued.",
       };
-      const { data, record } = normalizeWatchRecordForInsert(pending, "manual");
+      let normalized = normalizeWatchRecordForInsert(pending, "manual");
+
+      // The detail page can know a show's TMDB id while older history rows
+      // carry only its TVDB id. A manual episode inserted with just the TMDB
+      // id then forms a second same-title identity cluster; once that cluster
+      // contains several episodes, the conservative show grouper keeps it
+      // separate and the larger legacy cluster hides the user's new watch.
+      // Bridge the two known series identities on the authoritative manual
+      // row. Existing ids from the request are never replaced.
+      if (normalized.record.media_type === "episode") {
+        const showTitle = showTitleFrom(normalized.record.title);
+        if (showTitle) {
+          let canonicalIdentity = canonicalShowByTitle.get(showTitle);
+          if (canonicalIdentity === undefined) {
+            const [canonicalShow, knownIdentity] = await Promise.all([
+              queryShowDetail({ title: showTitle }).catch(() => null),
+              getKnownShowIdentityForTitle(showTitle).catch(() => null),
+            ]);
+            canonicalIdentity = {
+              imdb_id: knownIdentity?.imdb_id || canonicalShow?.imdb_id || null,
+              tmdb_id: knownIdentity?.tmdb_id || canonicalShow?.tmdb_id || null,
+              tvdb_id: knownIdentity?.tvdb_id || canonicalShow?.tvdb_id || null,
+            };
+            canonicalShowByTitle.set(showTitle, canonicalIdentity);
+          }
+          if (canonicalIdentity) {
+            pending = {
+              ...pending,
+              imdb_id: normalized.record.imdb_id || canonicalIdentity.imdb_id || undefined,
+              tmdb_id: normalized.record.tmdb_id || canonicalIdentity.tmdb_id || undefined,
+              tvdb_id: normalized.record.tvdb_id || canonicalIdentity.tvdb_id || undefined,
+            };
+            normalized = normalizeWatchRecordForInsert(pending, "manual");
+          }
+        }
+      }
+
+      const { data, record } = normalized;
       const existing = await findExistingWatch(data.mediaKey || mediaKeyFor(record), data.watchedAt);
       const media = manualWatchMediaFromRecord(record);
 

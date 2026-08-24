@@ -4427,6 +4427,32 @@ export async function queryShowDetail({ id = "", title = "" } = {}) {
   return show || null;
 }
 
+// Return the provider identities already established on this show's stored
+// rows. Fix Match writes its chosen TVDB series id across those rows, making
+// the most frequently stored value the durable local match even when a
+// metadata cache cannot currently translate it.
+export async function getKnownShowIdentityForTitle(title = "") {
+  const key = canonicalTitleKey(showTitleFrom(title));
+  if (!key) return { imdb_id: null, tmdb_id: null, tvdb_id: null };
+  const rows = (await getCachedHistory()).filter((row) => (
+    row.media_type === "episode"
+    && canonicalTitleKey(showTitleFrom(row.show_title || row.title)) === key
+  ));
+  const mostCommon = (field) => {
+    const counts = new Map();
+    for (const row of rows) {
+      const value = cleanString(row[field]);
+      if (value) counts.set(value, (counts.get(value) || 0) + 1);
+    }
+    return [...counts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+  };
+  return {
+    imdb_id: mostCommon("imdb_id"),
+    tmdb_id: mostCommon("tmdb_id"),
+    tvdb_id: mostCommon("tvdb_id"),
+  };
+}
+
 export async function listWatchRowsForReplay({ limit = 25, offset = 0 } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 25, 1), 100);
   return loadHistoryRows({ limit: safeLimit, offset: Math.max(Number(offset) || 0, 0) });

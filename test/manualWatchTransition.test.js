@@ -133,6 +133,11 @@ test("manual release-day watch records a fresh transition over a newer rematched
     "SELECT sync_action, created_at FROM watch_history WHERE season=3 AND episode=3 ORDER BY created_at",
   ).all();
   assert.deepEqual(transitions.map((row) => row.sync_action), ["watched", "watched", "watched"]);
+  const insertedManual = db.prepare(
+    "SELECT tmdb_id, tvdb_id FROM watch_history WHERE season=3 AND episode=3 AND source='manual' ORDER BY created_at DESC LIMIT 1",
+  ).get();
+  assert.equal(insertedManual.tmdb_id, currentMedia.ids.tmdb);
+  assert.equal(insertedManual.tvdb_id, aliasMedia.ids.tvdb, "manual row bridges the show's known provider identities");
 
   const resyncHttp = requestResponse({ records: [{
     media_type: "episode",
