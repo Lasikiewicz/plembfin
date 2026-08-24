@@ -21,7 +21,11 @@ window.playTrailer = function (el, videoKey, videoName) {
     });
   }
   el.style.overflow = "visible";
-  el.innerHTML = `<iframe src="https://www.youtube.com/embed/${videoKey}?autoplay=1" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen" allowfullscreen style="position:absolute; top:0; left:0; width:100%; height:100%; border:0;"></iframe>`;
+  const embedUrl = new URL(`https://www.youtube.com/embed/${encodeURIComponent(String(videoKey || ""))}`);
+  embedUrl.searchParams.set("autoplay", "1");
+  embedUrl.searchParams.set("origin", window.location.origin);
+  embedUrl.searchParams.set("widget_referrer", window.location.href);
+  el.innerHTML = `<iframe src="${escapeAttribute(embedUrl.toString())}" frameborder="0" referrerpolicy="strict-origin-when-cross-origin" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share; fullscreen" allowfullscreen style="position:absolute; top:0; left:0; width:100%; height:100%; border:0;"></iframe>`;
 };
 
 // Photo lightbox

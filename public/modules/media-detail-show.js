@@ -89,12 +89,17 @@ export function showSeasonLookupId(tmdbData) {
 
 function identifiableShowTitleFromRow(row, historyId = "") {
   const parsed = showTitleFrom(row?.show_title || row?.grandparent_title || row?.series_title || row?.title || "");
-  if (parsed && !/^plex:\/\//i.test(parsed)) return parsed;
+  if (parsed && !/^plex:\/\//i.test(parsed) && !/^unknown show$/i.test(parsed)) return parsed;
   const raw = String(row?.show_title || row?.title || "").trim();
   const plexSeason = raw.match(/^plex:\/\/season\/([^/?#]+)/i);
   if (plexSeason) return `Unmatched Plex show (${plexSeason[1]})`;
-  if (raw && !/^plex:\/\//i.test(raw)) return raw;
+  if (raw && !/^plex:\/\//i.test(raw) && !/^unknown show$/i.test(raw)) return raw;
   return historyId ? `Unmatched show (${historyId.slice(0, 8)})` : "Unmatched show";
+}
+
+function isUnmatchedShowTitle(title = "") {
+  const value = String(title || "").trim();
+  return !value || /^unknown show$/i.test(value) || /^unmatched(?:\s+plex)?\s+show\b/i.test(value);
 }
 
 // A history row only needs the orphan shell treatment when its own show
@@ -107,7 +112,7 @@ function identifiableShowTitleFromRow(row, historyId = "") {
 // stale id and loading the requested show normally.
 function historyRowShowIsUnresolved(row) {
   const parsed = showTitleFrom(row?.show_title || row?.grandparent_title || row?.series_title || row?.title || "");
-  return !parsed || /^plex:\/\//i.test(parsed);
+  return isUnmatchedShowTitle(parsed) || /^plex:\/\//i.test(parsed);
 }
 
 export async function openShowImmersiveModalByTitle(showTitle, seedEpisode = null, requestedSeason = null) {
@@ -737,28 +742,27 @@ function episodeReleaseLabel(airDate) {
   return airDate ? `Released ${formatTmdbDate(airDate)}` : "Release date unknown";
 }
 
-// Full watch history list (each play's date + source app) shown in place of
-// the single "Watched on ..." line once an episode has more than one
-// recorded watch - see playHistory ({ id, watched_at, source }[]) built
-// server-side in dedupeHistory (server/src/utils/dataRepo.js).
+// Full watch history list (each play's date + source app) shown below the
+// release metadata for every watched episode - see playHistory
+// ({ id, watched_at, source }[]) built server-side in dedupeHistory
+// (server/src/utils/dataRepo.js).
 function episodeWatchHistoryHtml(watched) {
   const history = actualWatchHistory(watched);
-  if (history.length < 2) return "";
+  if (!history.length) return "";
   const rows = [...history]
     .sort((a, b) => String(b.watched_at).localeCompare(String(a.watched_at)))
-    .map((entry) => `
+    .map((entry, index) => `
       <li class="episode-watch-history-row">
-        <span class="episode-watch-history-date">${escapeHtml(formatDate(entry.watched_at))}</span>
+        <span class="episode-watch-history-date">Watched - ${escapeHtml(formatDate(entry.watched_at))}</span>
         ${sourceBadgeHtml(entry.source)}
+        ${index === 0
+        ? `<button class="edit-date-icon-btn episode-edit-date-btn" type="button" title="Edit watch date" data-edit-id="${escapeAttribute(entry.id || watched.id || "")}" data-watched-at="${escapeAttribute(entry.watched_at || "")}">✎</button>`
+        : ""}
       </li>
     `)
     .join("");
   return `
     <div class="episode-watch-history">
-      <div class="episode-watch-history-head">
-        <span class="rewatch-badge" title="${history.length} actual watches">&#8635; Watch History &times;${history.length}</span>
-        <button class="edit-date-icon-btn episode-edit-date-btn" type="button" title="Edit watch dates" data-edit-id="${escapeAttribute(watched.id)}" data-watched-at="${escapeAttribute(watched.watched_at || "")}">✎</button>
-      </div>
       <ul class="episode-watch-history-list">${rows}</ul>
     </div>
   `;
@@ -865,7 +869,7 @@ function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitl
     const syncStatusDotHtml = episode.watched ? renderSyncStatusDot(episode.watched) : "";
     const episodeIsUnreleased = isUnreleased(episode);
     const playHistory = actualWatchHistory(episode.watched);
-    const hasWatchHistory = playHistory.length > 1;
+    const hasWatchHistory = playHistory.length > 0;
     const episodeBusy = savingEpisodeKeys.has(episode.key);
     const episodeUnwatching = Boolean(episode.watched && state.savingUnwatchIds.has(episode.watched.id));
     return `
@@ -885,7 +889,6 @@ function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitl
                 <div class="immersive-episode-meta-row">
                   <span class="immersive-episode-dates">
                     <time datetime="${escapeAttribute(episode.airDate || "")}">${escapeHtml(episodeReleaseLabel(episode.airDate))}</time>
-                    ${episode.watched && !hasWatchHistory ? `<time>Watched ${formatDate(episode.watched.watched_at)} <button class="edit-date-icon-btn episode-edit-date-btn" type="button" title="Edit watch date" data-edit-id="${escapeAttribute(episode.watched.id)}" data-watched-at="${escapeAttribute(episode.watched.watched_at || "")}">✎</button></time>` : ""}
                   </span>
                   <span class="immersive-episode-actions">
                     ${episodeIsUnreleased
@@ -929,7 +932,7 @@ export function renderShowModalContent(show, {
   // and per-episode buttons narrow it further inside renderSeasonPanelHtml.
   const savingEpisodeKeys = savingEpisodeKeysForShow(showTitle);
   const isShowBusy = savingEpisodeKeys.size > 0;
-  const isUnmatchedShow = showTitle === "Unknown Show";
+  const isUnmatchedShow = isUnmatchedShowTitle(showTitle);
   const orphanHistoryId = show.unmatched_history_id || "";
   // Specials (season 0) are kept in the list so they're still browsable, but
   // are excluded from the progress totals below - a "100 of 100" show isn't
@@ -1068,7 +1071,7 @@ export function renderShowModalContent(show, {
     const watchedText = watchedInSeason
       ? `${watchedInSeason} watched${totalWatches > watchedInSeason ? ` · ${totalWatches} plays` : ""}`
       : "";
-    const seasonAvailabilityHtml = tvSeasonAvailabilityHtml(tvSeerrStatus, seasonNumber, watchedInSeason);
+    const seasonAvailabilityHtml = tvSeasonAvailabilityHtml(tvSeerrStatus, seasonNumber);
     return `
       <article class="season-accordion ${isActive ? "is-open" : ""}">
         <button class="season-accordion-trigger" type="button" data-season-accordion="${seasonNumber}" aria-expanded="${isActive}" aria-controls="${panelId}">
@@ -1090,6 +1093,7 @@ export function renderShowModalContent(show, {
   const imageIcon = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"/><path d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2h-12zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1h12z"/></svg>`;
   const searchIcon = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>`;
   const mergeIcon = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M6.5 3a.5.5 0 0 1 .5.5V6h4a2.5 2.5 0 0 1 2.5 2.5v3.793a1.5 1.5 0 1 1-1 0V8.5A1.5 1.5 0 0 0 11 7H7v2.5a.5.5 0 0 1-1 0v-6a.5.5 0 0 1 .5-.5zM2 13.5a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0zm10 0a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0z"/></svg>`;
+  const trashIcon = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M5.5 5.5A.5.5 0 0 1 6 6v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm2.5 0a.5.5 0 0 1 .5.5v6a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5zm3 .5a.5.5 0 0 0-1 0v6a.5.5 0 0 0 1 0V6z"/><path fill-rule="evenodd" d="M14.5 3a1 1 0 0 1-1 1H13v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V4h-.5a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1H6a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1h3.5a1 1 0 0 1 1 1v1zM4.118 4 4 4.059V13a1 1 0 0 0 1 1h6a1 1 0 0 0 1-1V4.059L11.882 4H4.118zM2.5 3h11V2h-11v1z"/></svg>`;
   const expandAllIcon = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M3.646 9.646a.5.5 0 0 1 .708 0L8 13.293l3.646-3.647a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 0-.708zm0-3.292a.5.5 0 0 0 .708 0L8 2.707l3.646 3.647a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 0 0 0 .708z"/></svg>`;
   const collapseAllIcon = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M8 3a.5.5 0 0 1 .5.5v3.793l1.146-1.147a.5.5 0 0 1 .708.708l-2 2a.5.5 0 0 1-.708 0l-2-2a.5.5 0 1 1 .708-.708L7.5 7.293V3.5A.5.5 0 0 1 8 3zm-.5 9.5V8.707L6.354 9.854a.5.5 0 1 1-.708-.708l2-2a.5.5 0 0 1 .708 0l2 2a.5.5 0 0 1-.708.708L8.5 8.707v3.793a.5.5 0 0 1-1 0z"/></svg>`;
   const allSeasonsExpandedNow = state.showModalAllSeasonsExpanded;
@@ -1163,6 +1167,11 @@ export function renderShowModalContent(show, {
             ${mergeIcon}
             <span>Merge</span>
           </button>
+          ${representative?.id || show.id ? `
+            <button class="action-pill action-pill-danger" type="button" ${isShowBusy ? "disabled" : ""} data-delete-media-id="${escapeAttribute(representative?.id || show.id)}" data-delete-media-type="show" data-delete-media-title="${escapeAttribute(showTitle || "this TV show")}">
+              ${trashIcon}
+              <span>Delete</span>
+            </button>` : ""}
         </div>
       </details>
     `}

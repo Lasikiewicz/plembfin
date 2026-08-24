@@ -2856,14 +2856,19 @@ export async function clearRelatedWatchArtworkUrls(id) {
   return true;
 }
 
-export async function updateWatchPosterUrl(id, posterUrl) {
+export async function updateWatchPosterUrl(id, posterUrl, { invalidate = true } = {}) {
   const cleanUrl = cleanString(posterUrl);
   if (!id || !cleanUrl) return false;
   const row = selectByIdStmt.get(String(id));
   if (!row) return false;
   if ((row.poster_url || "") === cleanUrl) return false;
   updatePosterStmt.run(cleanUrl, Date.now(), String(id));
-  await invalidateAfterRowMetaWrite(id, row, "artwork");
+  // Automatic poster hydration is a cache warm-up, not a watch-history
+  // mutation. Let callers that make an intentional artwork change keep the
+  // normal derived-cache invalidation, while background poster lookups can
+  // persist their result without causing the live-update stream to reload
+  // every open library view once per poster.
+  if (invalidate) await invalidateAfterRowMetaWrite(id, row, "artwork");
   return true;
 }
 
@@ -4083,6 +4088,57 @@ export async function deleteMovieByWatchId(id, { skipInvalidate = false } = {}) 
 
   if (!skipInvalidate) await invalidateHistoryDerivedCaches();
   return { found: true, deleted: matches.length, title: anchor.title };
+}
+
+// Permanently delete a TV show and every stored episode row belonging to the
+// same show cluster. The cluster logic keeps a reboot with the same title
+// separate when provider identities are available, while still removing all
+// plays for the selected show. Unmatched rows have no safe show identity, so
+// only the selected media key is removed in that case.
+export async function deleteShowByWatchId(id, { skipInvalidate = false } = {}) {
+  const anchor = selectByIdStmt.get(String(id || ""));
+  if (!anchor || normalizeMediaType(anchor.media_type) !== "episode") return { found: false, deleted: 0 };
+
+  const episodeRows = selectAllEpisodesStmt.all();
+  const anchorRow = episodeRows.find((row) => String(row.id) === String(anchor.id)) || anchor;
+  const showTitle = showTitleFrom(anchor.show_title || anchor.title);
+  const isUnmatched = !showTitle || /^unknown show$/i.test(showTitle);
+  let matches = [];
+
+  if (isUnmatched) {
+    matches = episodeRows.filter((row) => row.media_key && row.media_key === anchor.media_key);
+  } else {
+    const groupKeys = showGroupKeys(episodeRows);
+    const anchorGroupKey = groupKeys.get(anchorRow);
+    matches = anchorGroupKey == null
+      ? episodeRows.filter((row) => canonicalTitleKey(showTitleFrom(row.show_title || row.title)) === canonicalTitleKey(showTitle))
+      : episodeRows.filter((row) => groupKeys.get(row) === anchorGroupKey);
+  }
+  if (!matches.some((row) => String(row.id) === String(anchor.id))) matches.push(anchor);
+
+  const mediaKeys = new Set();
+  transaction(() => {
+    for (const row of matches) {
+      deleteByIdStmt.run(row.id);
+      if (row.media_key) mediaKeys.add(row.media_key);
+    }
+    for (const key of mediaKeys) {
+      deletePlaystateByKeyStmt.run(key);
+      deleteProgressStmt.run(key);
+    }
+  });
+
+  if (!skipInvalidate) await invalidateHistoryDerivedCaches();
+  return { found: true, deleted: matches.length, title: showTitle || anchor.title };
+}
+
+export async function deleteMediaByWatchId(id, { mediaType = "", skipInvalidate = false } = {}) {
+  const anchor = selectByIdStmt.get(String(id || ""));
+  if (!anchor) return { found: false, deleted: 0 };
+  const type = normalizeMediaType(anchor.media_type || mediaType);
+  if (type === "movie") return deleteMovieByWatchId(id, { skipInvalidate });
+  if (type === "episode") return deleteShowByWatchId(id, { skipInvalidate });
+  return { found: false, deleted: 0 };
 }
 
 export function deleteWatchRecordsByIds(ids = []) {

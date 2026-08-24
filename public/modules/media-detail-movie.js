@@ -288,7 +288,7 @@ function _renderWatchedMovieContent(root, movie, {
           ${searchIcon}
           <span>Fix Match</span>
         </button>
-        <button class="action-pill action-pill-danger" type="button" ${isSaving ? "disabled" : ""} data-delete-media-id="${escapeAttribute(movie.id)}" data-delete-media-title="${escapeAttribute(movie.title || "this movie")}">
+        <button class="action-pill action-pill-danger" type="button" ${isSaving ? "disabled" : ""} data-delete-media-id="${escapeAttribute(movie.id)}" data-delete-media-type="movie" data-delete-media-title="${escapeAttribute(movie.title || "this movie")}">
           ${trashIcon}
           <span>Delete</span>
         </button>
@@ -465,7 +465,7 @@ export function patchMovieWatchedState(movie) {
           ${searchIcon}
           <span>Fix Match</span>
         </button>
-        <button class="action-pill action-pill-danger" type="button" data-delete-media-id="${escapeAttribute(movie.id)}" data-delete-media-title="${escapeAttribute(movie.title || "this movie")}">
+        <button class="action-pill action-pill-danger" type="button" data-delete-media-id="${escapeAttribute(movie.id)}" data-delete-media-type="movie" data-delete-media-title="${escapeAttribute(movie.title || "this movie")}">
           ${trashIcon}
           <span>Delete</span>
         </button>

@@ -1024,10 +1024,14 @@ export async function confirmAndDeleteMedia(button) {
   const id = button.dataset.deleteMediaId;
   if (!id) return;
   const label = button.dataset.deleteMediaTitle || "this item";
+  const mediaType = String(button.dataset.deleteMediaType || "movie").toLowerCase();
+  const isShow = ["episode", "show", "tv", "tvshow", "series"].includes(mediaType);
+  const mediaLabel = isShow ? "TV show" : "movie";
+  const historyLabel = isShow ? "all watched episode history" : "its entire watch history";
 
   const first = await _openConfirmDialog({
     title: "Delete from library?",
-    body: `This permanently deletes "${label}" and its entire watch history from Plembfin. This does NOT affect Plex, Emby or Jellyfin - it only removes the local record.`,
+    body: `This permanently deletes the ${mediaLabel} "${label}" and ${historyLabel} from Plembfin. This does NOT affect Plex, Emby or Jellyfin - it only removes the local record.`,
     confirmLabel: "Continue",
     cancelLabel: "Keep it",
     danger: true,
@@ -1060,7 +1064,7 @@ export async function confirmAndDeleteMedia(button) {
     const response = await fetch("/api/delete-media", {
       method: "POST",
       headers: { ...authHeaders(), "Content-Type": "application/json" },
-      body: JSON.stringify({ id, confirm: "DELETE" }),
+      body: JSON.stringify({ id, media_type: mediaType, confirm: "DELETE" }),
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || `Delete failed (${response.status})`);

@@ -113,10 +113,14 @@ test("owners started concurrently by separate processes are both preserved", asy
   await resetProgressState();
   const root = path.resolve(import.meta.dirname, "..");
   const run = (ownerId, total, completed) => new Promise((resolve, reject) => {
-    const source = `import('./server/src/utils/configStore.js').then(async (store) => { await store.startBackgroundSyncProgressOwner(${JSON.stringify({ ownerId, total, completed })}); const { db } = await import('./server/src/db.js'); db.close(); })`;
+    const source = "import('./server/src/utils/configStore.js').then(async (store) => { const owner = JSON.parse(process.env.PLEMBFIN_TEST_PROGRESS_OWNER); await store.startBackgroundSyncProgressOwner(owner); const { db } = await import('./server/src/db.js'); db.close(); })";
     const child = spawn(process.execPath, ["-e", source], {
       cwd: root,
-      env: { ...process.env, DATA_DIR: dataDir },
+      env: {
+        ...process.env,
+        DATA_DIR: dataDir,
+        PLEMBFIN_TEST_PROGRESS_OWNER: JSON.stringify({ ownerId, total, completed }),
+      },
       stdio: ["ignore", "pipe", "pipe"],
     });
     let output = "";

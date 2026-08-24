@@ -118,13 +118,40 @@ export function renderTrailersSection(tmdbData) {
   `;
 }
 
+function reviewSourceLabel(review = {}) {
+  const explicitSource = String(review.source || review.site || "").trim();
+  if (explicitSource) {
+    if (/^imdb(?:\.com)?$/i.test(explicitSource)) return "IMDb";
+    return explicitSource;
+  }
+
+  const rawUrl = String(review.url || "").trim();
+  if (!rawUrl) return "";
+  try {
+    const hostname = new URL(rawUrl).hostname.toLowerCase().replace(/^www\./, "");
+    const knownSources = {
+      "imdb.com": "IMDb",
+      "letterboxd.com": "Letterboxd",
+      "metacritic.com": "Metacritic",
+      "rogerebert.com": "Roger Ebert",
+      "rottentomatoes.com": "Rotten Tomatoes",
+    };
+    if (knownSources[hostname]) return knownSources[hostname];
+    return hostname.split(".")[0].replace(/[-_]+/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+  } catch {
+    return "";
+  }
+}
+
 export function renderReviewsSection(tmdbData) {
   if (!tmdbData) return "";
   const reviews = tmdbData.reviews?.results || [];
   if (reviews.length === 0) return "";
+  const reviewSources = [...new Set(reviews.map(reviewSourceLabel).filter(Boolean))];
+  const reviewHeading = reviewSources.length ? `Reviews - ${reviewSources.join(", ")}` : "Reviews";
   return `
     <section class="seasons-section reviews-section">
-      <div class="show-section-title"><h3>Reviews</h3><span>${reviews.length} reviews</span></div>
+      <div class="show-section-title"><h3>${escapeHtml(reviewHeading)}</h3><span>${reviews.length} reviews</span></div>
       <div class="review-list" style="margin-top: 0.5rem;">
         ${reviews.slice(0, 3).map((review) => {
     const hasLong = review.content?.length > 300;
@@ -373,11 +400,21 @@ function providerChipsHtml(items = [], watchLink = "") {
 // under a slightly different name (e.g. "Amazon Prime Video") - match
 // loosely (either name containing the other) rather than requiring an exact
 // match, so that still counts as the same service.
+function normalizeProviderNameForMatch(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\+/g, " plus ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 function findProviderLogoForNetwork(networkName, providers) {
-  const normalized = String(networkName || "").trim().toLowerCase();
+  const normalized = normalizeProviderNameForMatch(networkName);
   if (!normalized) return "";
   const match = providers.find((provider) => {
-    const providerName = String(provider.provider_name || "").trim().toLowerCase();
+    const providerName = normalizeProviderNameForMatch(provider.provider_name);
     return providerName === normalized || providerName.includes(normalized) || normalized.includes(providerName);
   });
   return match?.logo_path || "";
@@ -614,20 +651,15 @@ export function episodeResolutionPillHtml(status = {}, seasonNumber, episodeNumb
   if (!label) return "";
   return `<span class="season-availability-pill episode-resolution-pill ${label === "4K" ? "is-4k" : ""}">${escapeHtml(label)}</span>`;
 }
-export function tvSeasonAvailabilityHtml(status = {}, seasonNumber, watchedInSeason = 0) {
+export function tvSeasonAvailabilityHtml(status = {}, seasonNumber) {
   if (!Array.isArray(status.seasons)) return "";
   const season = tvSeasonAvailability(status, seasonNumber);
   if (!season || !Number(season.released || season.total || 0)) return "";
   const total = Number(season.released || season.total || 0);
   const available = Number(season.available || 0);
   const available4k = Number(season.available4k || 0);
-  // Episodes already watched clearly weren't "missing" to the user, even if the
-  // library/Seerr status hasn't caught up - count them as available for both the
-  // badge color and the printed count, so the two can never contradict each other
-  // (e.g. a green pill that reads "0/20 available").
-  const effectiveAvailable = Math.min(total, Math.max(available, Number(watchedInSeason) || 0));
-  const availabilityText = effectiveAvailable >= total ? `All ${total} available` : `${effectiveAvailable}/${total} available`;
-  const availabilityClass = effectiveAvailable >= total ? "is-complete" : effectiveAvailable > 0 ? "is-partial" : "is-missing";
+  const availabilityText = available >= total ? `All ${total} available` : `${available}/${total} available`;
+  const availabilityClass = available >= total ? "is-complete" : available > 0 ? "is-partial" : "is-missing";
   const fourKTitle = available4k >= total ? `All ${total} episodes available in 4K` : `${available4k}/${total} episodes available in 4K`;
   return `
     <span class="season-availability-pill ${availabilityClass}">

@@ -1432,9 +1432,31 @@ export function tmdbLookupIdsFromShow(show = {}, seasons = null) {
 // ---------------------------------------------------------------------------
 // Show record / folder rendering
 // ---------------------------------------------------------------------------
+function unresolvedShowTitle(value = "") {
+  const raw = String(value || "").trim();
+  return !raw || /^unknown show$/i.test(raw) || /^[a-z][a-z0-9+.-]*:\/\//i.test(raw);
+}
+
+function showRecordDisplayTitle(show = {}) {
+  const rawTitle = String(show.title || "").trim();
+  if (!unresolvedShowTitle(rawTitle)) return sanitizeTitle(rawTitle) || "Unknown Show";
+
+  const opaqueId = rawTitle.match(/^[a-z][a-z0-9+.-]*:\/\/(?:[^/?#]+\/)?([^/?#]+)/i)?.[1];
+  if (opaqueId) {
+    const provider = rawTitle.match(/^([a-z][a-z0-9+.-]*):\/\//i)?.[1] || "media";
+    return `Unmatched ${provider.charAt(0).toUpperCase()}${provider.slice(1).toLowerCase()} show (${opaqueId})`;
+  }
+
+  const historyId = show.representative_episode?.id || show.representativeEpisode?.id || "";
+  return historyId ? `Unmatched show (${String(historyId).slice(0, 8)})` : "Unknown Show";
+}
+
 export function renderShowRecord(show = {}) {
-  const displayTitle = sanitizeTitle(show.title) || "Unknown Show";
-  const showKey = slug(displayTitle);
+  const displayTitle = showRecordDisplayTitle(show);
+  // Keep unresolved records on the existing history-linked shell. The label is
+  // now distinct, but the history id remains the authoritative record that can
+  // be inspected or repaired.
+  const showKey = unresolvedShowTitle(show.title) ? "unknown-show" : slug(displayTitle);
   const representative = summaryEpisodeFromShow(show);
   const seasons = Array.isArray(show.episodes) && show.episodes.length ? seasonsFromShowRecord(show) : null;
   const episodeCount = show.episode_count || (seasons ? allSeasonEpisodes(seasons).length : 0);

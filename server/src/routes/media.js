@@ -89,7 +89,7 @@ import {
   setWatchMediaType,
   loadWatchKeyGroupsForDedup,
   deleteWatchRecordsByIds,
-  deleteMovieByWatchId,
+  deleteMediaByWatchId,
   deletePosterCacheByMediaKey,
   backfillUnknownShowTitles,
   clearRelatedWatchArtworkUrls,
@@ -321,7 +321,7 @@ export async function handleDeleteMedia(req, res) {
   }
 
   try {
-    const result = await deleteMovieByWatchId(id);
+    const result = await deleteMediaByWatchId(id, { mediaType: body.media_type });
     if (!result.found) return sendJson(res, { error: "Media item not found" }, 404);
     writeAuditLog("media.deleted", { ip: req.ip || req.socket?.remoteAddress, detail: { id, title: result.title } });
     return sendJson(res, { ok: true, deleted: result.deleted, title: result.title }, 200, { "Cache-Control": "no-store" });

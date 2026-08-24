@@ -287,7 +287,7 @@ export async function handlePoster(req, res) {
 
           // If the URL is already a cached storage image, return it directly
           if (isCachedStorageUrl(candidate.url)) {
-            await updateWatchPosterUrl(posterUpdateId, candidate.url).catch((error) => {
+            await updateWatchPosterUrl(posterUpdateId, candidate.url, { invalidate: false }).catch((error) => {
               console.error("Failed to persist poster URL", { id: row.id, title: row.title, error: error.message || String(error) });
             });
             return { url: candidate.url, cached: true, source: candidate.source };
@@ -295,7 +295,7 @@ export async function handlePoster(req, res) {
 
           const cachedPoster = await cachePosterFromUrl(mediaKey, candidate.url, candidate.source);
           if (cachedPoster?.url) {
-            await updateWatchPosterUrl(posterUpdateId, cachedPoster.url).catch((error) => {
+            await updateWatchPosterUrl(posterUpdateId, cachedPoster.url, { invalidate: false }).catch((error) => {
               console.error("Failed to persist cached poster URL", { id: row.id, title: row.title, error: error.message || String(error) });
             });
             return cachedPoster;
