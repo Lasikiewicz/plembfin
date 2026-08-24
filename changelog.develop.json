@@ -1,7 +1,17 @@
 {
-  "build": 20,
-  "updatedAt": "2026-08-24T08:13:34+01:00",
+  "build": 21,
+  "updatedAt": "2026-08-24T08:23:05+01:00",
   "entries": [
+    {
+      "build": 21,
+      "date": "2026-08-24T08:23:05+01:00",
+      "commit": "c94228c0e7a8c4c6a88fe35c7cda9104fdc4ccb6",
+      "message": "Fix - Repair stale manual watch history",
+      "author": "Lasikiewicz",
+      "details": [
+        "Manual release-day watch marks now remain watched after reloads when an older build left playstate and history out of sync."
+      ]
+    },
     {
       "build": 20,
       "date": "2026-08-24T08:13:34+01:00",
