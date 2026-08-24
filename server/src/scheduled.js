@@ -18,6 +18,13 @@ import { isVerboseLogging } from "./utils/logVerbose.js";
 import { buildWatchProvenance, provenanceTelemetryLines } from "./utils/watchProvenance.js";
 import { recordWatchAuditEvent, recordWatchAuditEvents } from "./utils/watchAudit.js";
 import { canReceiveState } from "./utils/syncRoles.js";
+
+// A library-history endpoint exposes the server's current played snapshot; it
+// does not prove another viewing occurred. A canonical Plembfin playstate can
+// outlive the provider history row the user deliberately removed.
+export function shouldSkipLibraryHistoryImport(existing, playstate) {
+  return !existing && playstate?.state === "watched";
+}
 import {
   playstateBlocksStoredResumeProgress,
   resumePositionUnchanged,
@@ -1105,6 +1112,19 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
       }
       const existing = await findWatchedByAnyMediaKey(media);
 
+      // A library-history poll is a snapshot of the server's current played
+      // flag, not evidence of another viewing. Plembfin may deliberately keep
+      // an older local watch date after the user removes newer duplicates;
+      // Plex cannot roll its lastViewedAt timestamp back when we reassert the
+      // watched flag. In that case an identity-rematched Plex row can evade
+      // the history lookup above, but the broader playstate lookup still says
+      // the episode is canonically watched. Never let that stale snapshot
+      // recreate the watch date the user just removed.
+      if (shouldSkipLibraryHistoryImport(existing, playstate)) {
+        logger(`Plex: ignored library-history date for an item already watched in Plembfin: ${media.title}`);
+        continue;
+      }
+
       // Marking an item played on Plex bumps its lastViewedAt, so plembfin's own
       // outbound sync makes an already-recorded watch look freshly viewed on the
       // next poll. Only an item with no watch record at all counts as a new watch
@@ -1229,6 +1249,11 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
 
       const existing = await findWatchedByAnyMediaKey(media);
 
+      if (shouldSkipLibraryHistoryImport(existing, playstate)) {
+        logger(`Emby: ignored library-history date for an item already watched in Plembfin: ${media.title}`);
+        continue;
+      }
+
       if (!existing) {
         const lastRestoreAt = Number(loadWatchBackupRuntime().lastRestoreAt || 0);
         if (lastRestoreAt && new Date(watchedAt).getTime() <= lastRestoreAt) {
@@ -1343,6 +1368,11 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
       }
 
       const existing = await findWatchedByAnyMediaKey(media);
+
+      if (shouldSkipLibraryHistoryImport(existing, playstate)) {
+        logger(`Jellyfin: ignored library-history date for an item already watched in Plembfin: ${media.title}`);
+        continue;
+      }
 
       if (!existing) {
         const lastRestoreAt = Number(loadWatchBackupRuntime().lastRestoreAt || 0);
