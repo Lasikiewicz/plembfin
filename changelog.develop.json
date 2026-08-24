@@ -1,7 +1,18 @@
 {
-  "build": 22,
-  "updatedAt": "2026-08-24T08:37:59+01:00",
+  "build": 23,
+  "updatedAt": "2026-08-24T08:57:48+01:00",
   "entries": [
+    {
+      "build": 23,
+      "date": "2026-08-24T08:57:48+01:00",
+      "commit": "0f8af8e2dabb18f4527d81e6e7d6b5bd88a9a308",
+      "message": "Fix - Stabilize watched state and dashboard reloads",
+      "author": "Lasikiewicz",
+      "details": [
+        "Manual watched changes now persist across rematched episode aliases and fresh show reloads.",
+        "Part Watched reloads now cancel stale requests and recover cleanly from timeouts or failures."
+      ]
+    },
     {
       "build": 22,
       "date": "2026-08-24T08:37:59+01:00",
