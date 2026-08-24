@@ -1,7 +1,17 @@
 {
-  "build": 10,
-  "updatedAt": "2026-08-24T21:30:35+01:00",
+  "build": 11,
+  "updatedAt": "2026-08-24T21:39:04+01:00",
   "entries": [
+    {
+      "build": 11,
+      "date": "2026-08-24T21:39:04+01:00",
+      "commit": "8799e43ed68d58fc404b4238aa6d8bf6e704e086",
+      "message": "Fix - Use white plembfin badge icon",
+      "author": "Lasikiewicz",
+      "details": [
+        "Replace the legacy dark badge artwork with the trimmed white Plembfin mark and refresh its browser cache key."
+      ]
+    },
     {
       "build": 10,
       "date": "2026-08-24T21:30:35+01:00",
