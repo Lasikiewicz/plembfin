@@ -1,7 +1,17 @@
 {
-  "build": 26,
-  "updatedAt": "2026-08-24T10:03:27+01:00",
+  "build": 27,
+  "updatedAt": "2026-08-24T10:12:02+01:00",
   "entries": [
+    {
+      "build": 27,
+      "date": "2026-08-24T10:12:02+01:00",
+      "commit": "ac50df9a635e957b8636b2db2c2fcb71766672d0",
+      "message": "Fix - Finalize manual watch authority after sync",
+      "author": "Lasikiewicz",
+      "details": [
+        "Keep explicit Plembfin watched actions canonical after remote callbacks complete."
+      ]
+    },
     {
       "build": 26,
       "date": "2026-08-24T10:03:27+01:00",
