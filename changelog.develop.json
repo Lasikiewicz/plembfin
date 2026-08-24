@@ -1,7 +1,18 @@
 {
-  "build": 8,
-  "updatedAt": "2026-08-24T16:35:24+01:00",
+  "build": 9,
+  "updatedAt": "2026-08-24T17:06:02+01:00",
   "entries": [
+    {
+      "build": 9,
+      "date": "2026-08-24T17:06:02+01:00",
+      "commit": "562a35c50f363f6c0bd8ad3f8c562c41c0ccd172",
+      "message": "Fix - Correct plembfin badges and app icons",
+      "author": "Lasikiewicz",
+      "details": [
+        "Keep Plembfin-marked watches distinct from Plex in dashboard badges.",
+        "Use transparent trimmed Plembfin app icons with a white-P dark variant."
+      ]
+    },
     {
       "build": 8,
       "date": "2026-08-24T16:35:24+01:00",
