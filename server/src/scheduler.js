@@ -26,6 +26,7 @@ import {
   getPlaystateForMedia,
   insertWatchRecord,
   invalidateHistoryDerivedCaches,
+  isDeletedWatchSuppressed,
   listRecentTrackedWatchRows,
   mediaToWatchRecord,
   updateWatchTelemetry,
@@ -297,6 +298,20 @@ async function handlePlexLibraryItemChange(ratingKey, metadataOverride = null) {
       { source: "plex", event: "notification.viewstate", phase: "completed", itemId: ratingKey },
       { ingestPath: "plex_notification", sourceTimestamp: watchDate.sourceTimestamp, note: watchDate.note },
     );
+
+    // Plembfin is authoritative when an administrator explicitly removes a
+    // provider watch date. Plex library notifications bypass the HTTP webhook
+    // route, so enforce the same durable deletion tombstone here before this
+    // path can recreate the release-date fallback as a new history row.
+    if (isDeletedWatchSuppressed(media, watchedAt)) {
+      console.log("Plex notifications: skipped a watch date explicitly deleted in Plembfin", {
+        title: media.title,
+        ratingKey,
+        watchedAt,
+      });
+      await deletePlaybackProgress(media).catch(() => null);
+      return;
+    }
 
     const loopStore = createLoopStore();
     const isNewerWatch = playstate?.watched_at && new Date(watchedAt).getTime() > new Date(playstate.watched_at).getTime() + 10000;
