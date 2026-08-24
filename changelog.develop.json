@@ -1,7 +1,17 @@
 {
-  "build": 37,
-  "updatedAt": "2026-08-24T11:37:41+01:00",
+  "build": 38,
+  "updatedAt": "2026-08-24T11:43:30+01:00",
   "entries": [
+    {
+      "build": 38,
+      "date": "2026-08-24T11:43:30+01:00",
+      "commit": "823acb55cd75bbf578ef2a0e075629b1e4913095",
+      "message": "Fix - Match deleted watches by provenance item",
+      "author": "Lasikiewicz",
+      "details": [
+        "Read the provider item ID from normalized callback provenance when suppressing an explicitly deleted watch date."
+      ]
+    },
     {
       "build": 37,
       "date": "2026-08-24T11:37:41+01:00",
