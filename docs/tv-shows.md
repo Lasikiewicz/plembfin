@@ -40,7 +40,7 @@ wrong TMDB/TVDB show for one play) sitting alongside the real, well-established 
 `mostRecentShowFirst()` picks between them by recency, but only after checking size
 first: a cluster with far fewer watched episodes than another loses even if it was
 touched more recently, so one stray recent row can't outrank dozens of correctly
-identified ones. Two comparably-sized clusters still resolve by recency, same as before.
+identified ones. Two comparably-sized clusters resolve by recency.
 
 A show stays groupable once every one of its episodes is marked unwatched:
 `getCachedShows()` and `queryShowDetail()` group episode rows regardless of each row's

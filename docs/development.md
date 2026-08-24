@@ -80,7 +80,7 @@ each promotion to `main` becomes exactly one release.
   to regress. **`develop` is covered by `secret-scan.yml`** (while `security.yml` runs on
   `main` and `alpha` alongside scheduled scans).
 - **"Force to alpha"** force-pushes `develop`'s current state onto `alpha`
-  (`git push origin develop:alpha --force`; merge `origin/main` into `develop` first if
+  (`git push origin HEAD:alpha --force`; merge `origin/main` into `develop` first if
   it has moved on, to avoid clobbering a pending main changelog commit). The alpha
   publish workflow checks README consistency before building and publishing. This is where
   secret/vulnerability scanning first applies. `docker-publish-alpha.yml` then builds,
@@ -93,7 +93,7 @@ each promotion to `main` becomes exactly one release.
   [`architecture.md`](architecture.md#changelog--update-check) for how both surface in
   the UI.
 - **"Force to main"** pushes `alpha`'s actual tip (not `develop`) to `main`
-  (`git push origin alpha:main --force`), which triggers the release pipeline below.
+  (`git push origin origin/alpha:main --force`), which triggers the release pipeline below.
   Every commit queued on `alpha` since the last release rides in on that one push, so
   the generated changelog entry combines the bullet points from all of them (see step 2
   below) rather than only the most recent commit. A first pre-push test failure follows
@@ -103,7 +103,33 @@ each promotion to `main` becomes exactly one release.
   `alpha` and `develop` merge `origin/main` back in and push, so the next round of work
   starts from a matching base instead of immediately diverging.
 
-Full step-by-step commands for all three workflows live in [`../CLAUDE.md`](../CLAUDE.md).
+### Promotion commands
+
+Use the following refspecs for the supported branch promotions. Review the commit range
+before each force-push and wait for the corresponding GitHub Actions workflow to finish.
+
+```bash
+# Push work to develop
+git push origin develop
+
+# Promote develop to alpha
+git fetch origin
+git checkout develop
+git merge --ff-only origin/develop
+git merge origin/main --no-edit
+git log origin/alpha..HEAD --oneline
+git push origin HEAD:alpha --force
+
+# Promote alpha to main after alpha validation
+git fetch origin
+git log origin/main..origin/alpha --oneline
+git push origin origin/alpha:main --force
+```
+
+The alpha workflow records the alpha build metadata and publishes `:alpha` plus an
+`alpha-<build>` tag. The main workflow creates the release changelog/version commit and
+publishes `:latest` plus the version tag. After that commit lands, merge `origin/main`
+into both `alpha` and `develop` so all branches share the released base.
 
 ## Release pipeline (push to `main`)
 
@@ -144,7 +170,7 @@ this means every "Merge alpha with main" run, not every individual commit:
 3. commits `changelog.json` + `package.json` + `package-lock.json` back to `main` as
    `chore: update changelog for <sha>` - the "Merge alpha with main" workflow folds
    this bump commit back into `alpha` afterward (see the "Merge alpha with main"
-   section of [`../CLAUDE.md`](../CLAUDE.md))
+   branch synchronization step above)
 4. builds and pushes the Docker image to GHCR tagged `latest` + the new version
 
 A second job in the same workflow re-publishes the image when the triggering push *is*
@@ -196,9 +222,9 @@ on GitHub - see the changelog section of [architecture.md](architecture.md).
 
 ## Conventions that CI enforces or assumes
 
-- Commit messages follow `type: summary` with `- ` bullet bodies - the commit hook
-  and changelog generator both reject user-visible release messages with missing or
-  title-repeating details (full workflow in [`../CLAUDE.md`](../CLAUDE.md)).
+- Commit messages follow `type: summary` with `- ` bullet bodies. The commit hook and
+  changelog generator reject user-visible release messages with missing or
+  title-repeating details.
 - The version in `package.json`/`changelog.json` is CI-managed; only set it manually
   for a deliberate major/minor bump.
 - `data/` is never committed and never in the image; all state must live under

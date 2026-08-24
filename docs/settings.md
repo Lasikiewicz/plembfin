@@ -110,8 +110,8 @@ itself never scrolls.
 
 ## Card and modal workflows
 
-Media servers and metadata providers use card grids. Configured or previously touched
-services appear as cards with status badges; the trailing **+** card opens a provider
+Media servers and metadata providers use card grids. Configured services appear as cards
+with status badges; the trailing **+** card opens a provider
 picker. Selecting a card opens an edit dialog with aligned label/control rows, inline
 help, and Save/Cancel actions. Media-server dialogs also provide **Test** and an Enable
 switch. Fixed services can be disabled but not deleted because the config API has no

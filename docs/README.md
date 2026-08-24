@@ -1,65 +1,64 @@
 # Plembfin Documentation
 
-Reference docs for how Plembfin works under the hood. These exist so that when
-something breaks - or when an AI agent is asked to change something - you can be
-pointed at the relevant file instead of re-deriving the architecture from the source.
+This directory contains the technical reference for Plembfin's current architecture,
+behavior, configuration, operations, and integration contracts.
 
-> **Start with [architecture.md](architecture.md).** It is the master guide: the big
-> picture, a complete map of every file in the repository, and a task router that
-> points to the right feature doc for whatever you're changing.
+> **System map:** [architecture.md](architecture.md) describes the application flow,
+> configuration, data model, and repository file map. The topic documents below define
+> the detailed behavior for each subsystem.
 
 ## Map
 
 ### Core
 
-| Doc | Read it when… |
+| Document | Scope |
 | --- | --- |
-| [architecture.md](architecture.md) | **Always read first.** Big picture, full file map, task router, request flow, env vars. |
-| [frontend.md](frontend.md) | Working on the SPA: routing, state, module layout, data-loading conventions. |
-| [sqlite-schema.md](sqlite-schema.md) | Reading the database directly and need to know what a table or field means. |
-| [development.md](development.md) | Build check, git hooks, CI workflows, Docker, the release/changelog pipeline. |
-| [troubleshooting.md](troubleshooting.md) | Symptom-first index: "X is broken → look here." Start here if you don't know which doc you need. |
+| [architecture.md](architecture.md) | Application flow, repository file map, request flow, configuration, and data model. |
+| [frontend.md](frontend.md) | SPA routing, state, module ownership, and data-loading conventions. |
+| [sqlite-schema.md](sqlite-schema.md) | SQLite tables, columns, indexes, and migration behavior. |
+| [development.md](development.md) | Build checks, Git hooks, CI workflows, Docker, and release/versioning. |
+| [troubleshooting.md](troubleshooting.md) | Symptom-based diagnosis and operational remedies. |
 
 ### Sync engine
 
-| Doc | Read it when… |
+| Document | Scope |
 | --- | --- |
-| [webhooks.md](webhooks.md) | A watched/unwatched event didn't record or didn't propagate; webhook phases and auth. |
-| [scheduled-sync.md](scheduled-sync.md) | The every-minute in-process background worker: catch-up sync and live-session polling. |
-| [now-playing.md](now-playing.md) | "Now Playing" is wrong, empty, or stale. **This is the one that bit us before.** |
+| [webhooks.md](webhooks.md) | Webhook phases, authentication, event normalization, and propagation. |
+| [scheduled-sync.md](scheduled-sync.md) | The minute-by-minute worker, catch-up sync, safeguards, and live-session polling. |
+| [now-playing.md](now-playing.md) | Now Playing data sources, polling, poster resolution, and diagnostics. |
 
 ### Platform integrations
 
-| Doc | Read it when… |
+| Document | Scope |
 | --- | --- |
-| [plex.md](plex.md) | Anything Plex: client, webhook parsing, the WebSocket unwatch listener, account resolution. |
-| [emby.md](emby.md) | Anything Emby: client, webhook parsing, catch-up polling. |
-| [jellyfin.md](jellyfin.md) | Anything Jellyfin: client, webhook plugin, catch-up polling. |
-| [metadata.md](metadata.md) | TMDB/TVDB/Fanart/OMDb/YouTube: who provides what, API keys, cache tables and TTLs. |
+| [plex.md](plex.md) | Plex client, webhook parsing, WebSocket listener, and account resolution. |
+| [emby.md](emby.md) | Emby client, webhook parsing, and catch-up polling. |
+| [jellyfin.md](jellyfin.md) | Jellyfin client, webhook plugin, and catch-up polling. |
+| [metadata.md](metadata.md) | TMDB, TVDB, Fanart, OMDb, and YouTube data ownership, keys, caches, and TTLs. |
 
 ### Pages & features
 
-| Doc | Read it when… |
+| Document | Scope |
 | --- | --- |
-| [dashboard.md](dashboard.md) | The home view: Now Playing, recent history rows, part-watched rail. |
-| [movies.md](movies.md) | The Movies library page. |
-| [tv-shows.md](tv-shows.md) | The TV Shows library page: progress, next-airing, show identity tools. |
-| [upcoming.md](upcoming.md) | The Upcoming page: scrolling month calendar, search, and future episode air dates. |
-| [media-detail.md](media-detail.md) | Movie/show/person detail pages: metadata, watch actions, Seerr, edit dialogs. |
-| [history-search.md](history-search.md) | The History page and global Search. |
-| [stats.md](stats.md) | The Stats page and its report payload. |
-| [posters-artwork.md](posters-artwork.md) | Posters, backdrops, logos: the fetch-resize-cache pipeline end to end. |
-| [settings.md](settings.md) | Settings task routes, overview status, connection config persistence, maintenance tools, and in-app help. |
-| [backups.md](backups.md) | All three backup subsystems and the remote destination adapters. |
-| [watch-history-backups.md](watch-history-backups.md) | The original design/delivery plan for the watch-history backup subsystem. |
+| [dashboard.md](dashboard.md) | Home view, Now Playing, recent history, and part-watched media. |
+| [movies.md](movies.md) | Movies library behavior and API payloads. |
+| [tv-shows.md](tv-shows.md) | TV Shows library, progress, next airing, and show identity. |
+| [upcoming.md](upcoming.md) | Upcoming calendar, search, and episode air dates. |
+| [media-detail.md](media-detail.md) | Movie, show, and person detail pages, watch actions, Seerr, and edit dialogs. |
+| [history-search.md](history-search.md) | History page, duplicate handling, and global Search. |
+| [stats.md](stats.md) | Stats page and report payload. |
+| [posters-artwork.md](posters-artwork.md) | Poster, backdrop, logo, and artwork fetch/cache behavior. |
+| [settings.md](settings.md) | Settings routes, connection persistence, maintenance tools, and in-app help. |
+| [backups.md](backups.md) | Backup subsystems, restore workflows, and remote destinations. |
+| [watch-history-backups.md](watch-history-backups.md) | Watch-history backup format, scheduling, storage, remote copies, and restore behavior. |
 
 ### Security
 
-| Doc | Read it when… |
+| Document | Scope |
 | --- | --- |
-| [auth.md](auth.md) | Login, sessions, API key, webhook secret, audit log. |
-| [hardening.md](hardening.md) | Production checklist: credentials, HTTPS/reverse-proxy, Docker hardening, secret rotation. |
-| [security-checklist.md](security-checklist.md) | The completed 2026-06 security remediation checklist (what was fixed and where). |
+| [auth.md](auth.md) | Login, sessions, API key, webhook secret, and audit log. |
+| [hardening.md](hardening.md) | Production deployment: credentials, HTTPS/reverse proxy, Docker hardening, and rotation. |
+| [security-checklist.md](security-checklist.md) | Current authentication, network, container, and secret-handling controls. |
 
 `screenshots/` holds the images embedded in the root README.
 

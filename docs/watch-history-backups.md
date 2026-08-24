@@ -1,130 +1,70 @@
-# Watch History Backup Plan
+# Watch-History Backups
 
-## Goal
+Plembfin's watch-history backup subsystem stores the minimum data required to restore
+watched state and resume progress. It is separate from the encrypted full-backup and
+plain portable export/import systems described in [backups.md](backups.md).
 
-Create small, automatic backups containing only the data needed to restore watch
-state. Artwork, TMDB caches, active sessions, logs, credentials, and media-server
-configuration are deliberately excluded.
+## Backup document
 
-The first release should back up:
+Each backup is a gzip-compressed JSON document named
+`plembfin-watch-history-<YYYYMMDDTHHMMSSZ>.json.gz`.
 
-- `watch_history`
-- `playstate`
-- `playback_progress`
-- A manifest containing schema version, app version, creation time, row counts,
-  checksum, and source instance ID
+The document contains:
 
-## Backup Format
+- `watchHistory`: rows from `watch_history`.
+- `playstate`: canonical watched/unwatched rows.
+- `playbackProgress`: resume positions.
+- `format`, `version`, `createdAt`, row `counts`, and a SHA-256 `dataChecksum`.
 
-Use a versioned JSON document compressed with gzip:
+Poster URLs, artwork binaries, metadata caches, sessions, logs, credentials, and
+media-server configuration are excluded.
 
-`plembfin-watch-history-2026-06-15T120000Z.json.gz`
+## Local scheduling and storage
 
-The export should use the existing portable field names from
-`server/src/utils/backup.js`, but expose a separate watch-history-only format.
-Do not include poster URLs because they are derived data and may contain expired
-remote tokens.
+- Configure the feature in **Settings → Backup / restore → Backup settings**
+  (`/settings/backup-restore#backups`).
+- The elected scheduler runs the local backup once per day after the configured local
+  time. The default time is 03:00.
+- Local files are written under `data/backups/watch-history/` using a temporary file
+  followed by an atomic rename.
+- Local retention defaults to 14 files and accepts values from 1 through 365.
+- Recovery snapshots referenced by a recent sync plan are protected from retention
+  deletion while that plan remains active.
 
-Restores should support:
+## Restore
 
-- **Merge**: add missing records and keep the newest state for conflicts.
-- **Replace**: clear the three watch-state tables before importing.
-- **Dry run**: validate format, checksum, schema compatibility, and report the
-  expected inserts/updates without writing.
+Restore is available from **Settings → Backup / restore → Restore**
+(`/settings/backup-restore#restore`). The restore modes are:
 
-## Local Scheduling
+- **Merge**: add missing records and apply the newest state for conflicts.
+- **Replace**: clear `watch_history`, `playstate`, and `playback_progress` before import.
+- **Dry run**: validate the document and report expected changes without writing.
 
-Add backup work to the elected scheduler rather than creating a
-second timer. Store its configuration and last-run state in `settings` and
-`runtime_state`.
+Uploaded files use the same format and validation as local files. Restore pauses cron
+sync while the authoritative restore operation runs, increments the data version after
+the transaction, and records the restore result in runtime state.
 
-Recommended defaults:
+## Remote copies
 
-- Disabled until configured
-- Daily at 03:00 in the configured local timezone
-- Run once after startup if the scheduled time was missed
-- Keep 7 daily, 4 weekly, and 12 monthly backups
-- Always write to `data/backups/watch-history/` first
-- Write to a temporary file, verify its checksum, then rename atomically
-- Never delete the last known-good backup
+Remote mirroring has an independent daily schedule, time, and retention count. A fresh
+local backup is verified and durable before it is uploaded. Remote failures are recorded
+per destination and do not invalidate or delete the local file.
 
-## Destination Adapters
+Supported destination adapters are listed in [backups.md](backups.md): local folder,
+WebDAV, S3-compatible storage, Backblaze B2, OneDrive, and Dropbox. Destination secrets
+remain server-side and are redacted from API responses. Remote retention applies only
+to files of the same backup type.
 
-Use one internal interface for every destination:
+## API and runtime state
 
-```text
-upload(localPath, remoteName)
-list(prefix)
-delete(remoteName)
-testConnection()
-```
+`GET/POST /api/watch-backups` provides status, list, create, download, upload, restore,
+destination management, destination tests, and remote list/pull operations.
+Configuration is stored in the `watchHistoryBackups` settings row; scheduler state is
+stored in the `watchHistoryBackups` runtime-state record.
 
-Implement destinations incrementally:
+Watch-history backups do not contain provider credentials. Use the encrypted full-backup
+subsystem for portable snapshots that include settings and secrets, or copy the complete
+`data/` directory while the application is stopped for a filesystem-level recovery.
 
-1. **Local folder**: required baseline and useful for mounted NAS storage.
-2. **WebDAV**: covers many self-hosted and hosted storage services with one
-   adapter.
-3. **Dropbox**: OAuth connection and an app-specific Plembfin folder.
-4. **OneDrive**: OAuth connection and an app-specific Plembfin folder.
-5. **S3-compatible storage**: optional adapter for AWS S3, Backblaze B2, MinIO,
-   and similar services.
-
-Each remote upload happens after the verified local backup is complete. A remote
-failure must not invalidate or delete the local backup. Record per-destination
-status, duration, uploaded bytes, and error detail.
-
-## Credentials And Encryption
-
-- Store OAuth refresh tokens or storage credentials in `data/config.json`, never
-  in the backup file or browser storage.
-- Redact credentials from logs and API responses.
-- Request the narrowest provider permissions available for the configured app
-  folder.
-- Offer optional AES-256-GCM encryption before upload. The encryption password
-  must not be stored unless the user explicitly chooses to persist it.
-- A restore must authenticate, decrypt if needed, verify the checksum, and
-  validate the schema before changing SQLite.
-
-## Settings UI
-
-Use **Settings → Backup / restore → Backup settings** (`/settings/backup-restore#backups`)
-for automatic watch-history backups:
-
-- Enable automatic backups
-- Schedule and timezone
-- Local retention policy
-- Destination type and connection controls
-- Optional encryption
-- Test connection
-- Back up now
-- Last successful backup, next run, file size, and destination status
-- Restore browser with dry-run, merge, and replace actions
-
-## Delivery Stages
-
-1. Add watch-history-only export/import services and local scheduled backups.
-2. Add retention, status history, manual backup, and restore UI.
-3. Add WebDAV and S3-compatible adapters.
-4. Add Dropbox and OneDrive OAuth adapters.
-5. Add optional encryption and restore disaster-recovery documentation.
-
-The local-only stage should ship first. It proves the backup and restore format
-before OAuth, remote retention, and provider failure modes are introduced.
-
-## Implementation Status
-
-Stage 1 is implemented under **Settings → Backup / restore**, with local gzip
-files, daily scheduling, retention, authenticated downloads, checksum validation,
-and dry-run, merge, or replace restores.
-
-Remote destination adapters are now implemented under
-`server/src/utils/backupDestinations/` (WebDAV, S3-compatible, OneDrive, Dropbox),
-all sharing the `testConnection / upload / list / delete` contract. The local backup
-is always written and verified first; each enabled remote is then mirrored
-best-effort, with per-destination status recorded in the backup runtime and remote
-retention ordered by the sortable backup filename. A remote failure never
-invalidates or deletes the local backup. Credentials live server-side in the
-`watchBackupDestinations` settings row and are redacted to "is-set" flags in every
-API response. OneDrive uses the Microsoft device-code flow (user supplies an Azure
-app client ID); Dropbox uses the manual no-redirect OAuth code flow; both store a
-refresh token. Optional AES-256-GCM encryption (stage 5) is still pending.
+Implementation: `server/src/utils/watchHistoryBackups.js` and
+`public/modules/tools-backups.js`.

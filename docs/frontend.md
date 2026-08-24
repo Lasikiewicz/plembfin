@@ -19,9 +19,8 @@ the module rules. Feature-specific behavior lives in the per-feature docs
   import from `app.js` - dependencies flow one way, and cross-module calls that would
   point "upward" go through those init callbacks instead.
 - **`public/modules/*.js`** - feature modules with named ES exports (soft limit 1,200
-  lines, hard limit 1,500). The authoritative "which module owns what" table plus the
-  dependency rules live in [`../CLAUDE.md`](../CLAUDE.md); the file map in
-  [architecture.md](architecture.md) has a one-line description of each.
+  lines, hard limit 1,500). The module ownership rules in this document and the file map
+  in [architecture.md](architecture.md) are authoritative.
 - **`public/modules/settings-ui.js`** - reusable settings card-grid, picker, and edit
   dialog primitives. `settings-services.js` owns media-server/metadata behavior, while
   `tools-backups.js` consumes the same primitives for remote destinations.
@@ -177,8 +176,8 @@ All of the following must stay consistent - do not change one without updating t
 2. Add `<link rel="modulepreload" href="/modules/<feature>.js" />` to `index.html`.
 3. Import it in `app.js` (or the owning module) and, if it needs app-level functions,
    give it an `init<Feature>(callbacks)` entry point.
-4. Update the module table in [`../CLAUDE.md`](../CLAUDE.md) and the file map in
-   [architecture.md](architecture.md).
+4. Add the module to the file map in [architecture.md](architecture.md) and the relevant
+   feature documentation.
 
 ### Cache-busting version strings
 

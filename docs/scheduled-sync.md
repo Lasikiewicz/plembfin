@@ -63,24 +63,10 @@ It does not change the behavior or safety guarantees of the library-wide `/api/f
 planner and executor. Jellyfin episode lookups return every matching season/episode item so
 duplicate quality copies are marked consistently.
 
-A combined "pull everything, reconcile, then push the result everywhere" mode existed
-previously and was removed: it silently inserted duplicate, today-dated watch records when
-a server's metadata rematch changed an item's provider IDs mid-flight (the pull step no
-longer recognized it as an item Plembfin already had), and then immediately propagated that
-bad state to every destination including Trakt. Import alone can still create a duplicate
-local record when an item's provider IDs genuinely change (a metadata rematch on the source
-server) - that case isn't fixed - but with the combined mode gone, a bad import is no longer
-automatically pushed out anywhere; it stays a local, visible discrepancy until Push is run
-deliberately. A narrower identity mismatch - the same movie title reaching Plembfin with a
-different whitespace variant (Trakt imports often carry a non-breaking space after a colon
-where Plex/Emby/Jellyfin report a plain space) - previously wasn't caught by the "already
-watched?" lookup and produced this same kind of duplicate on its own, with no rematch
-involved. `findWatchedByAnyMediaKey` now falls back to the same whitespace-normalizing
-`canonicalTitleKey` comparison the edit-date dialog's row-merging already relies on
-(`dataRepo.js`), so that specific case no longer creates a duplicate. Fix Match
-(`PATCH /api/update-watch`) also now recomputes `media_key` and merges playstate when a
-correction changes a row's identity, so an existing duplicate like this can be repaired by
-hand instead of staying permanently split.
+Provider-ID changes can create a distinct local record. Fix Match
+(`PATCH /api/update-watch`) recomputes `media_key` and merges playstate when a correction
+changes a record's identity. Title comparisons normalize whitespace, so title variants from
+Trakt and media servers can resolve to the same watched item when provider IDs are absent.
 
 ## One canonical state, input from every connected service
 
@@ -115,61 +101,34 @@ a wrongly-dated outbound push (or plain clock skew) round-tripping back in as a 
 second local watch, on top of whatever caused the wrong date reaching Trakt in the first
 place.
 
-An earlier version of this feature (before 2026-08-19) inserted these rows without any
-`sync_dispatch_telemetry`, which the manual-dispatch retry sweep below reads as pending
-work - it kept re-sending every backfilled play to every connected target, including back
-out to Trakt, in a loop. Any row inserted during that window still has
-`sync_dispatch_telemetry IS NULL` and keeps getting swept up on every scheduler tick until
-repaired. `GET /api/stale-trakt-import-audit` reports how many such rows remain (read-only);
-`POST /api/stale-trakt-import-repair` marks them settled without touching their watched
-state or re-dispatching them anywhere (`auditStaleTraktImportRows`/
-`repairStaleTraktImportRows` in `dataRepo.js`).
+Backfilled Trakt plays are recorded without outbound propagation. The stale-import audit
+and repair endpoints expose rows with missing dispatch telemetry and mark them settled
+without changing watched state or sending another dispatch:
+`GET /api/stale-trakt-import-audit` and `POST /api/stale-trakt-import-repair`
+(`auditStaleTraktImportRows`/`repairStaleTraktImportRows` in `dataRepo.js`).
 
-The same failure shape can happen from any code path that replays canonical state for an
-*existing* watch_history row without writing the result back onto it - for example
-`propagateWatchDateRemoval`/`propagateCorrectedWatchDate` in `routes/media.js`, which call
-`syncCanonicalPlaystate` to re-push a row's state but never call `updateWatchTelemetry`
-afterward. A row like that can be left with `sync_dispatch_telemetry IS NULL`, or with a
-retry count the manual-dispatch sweep already gave up on (`sync_retry_count` at or past its
-own `SYNC_RETRY_MAX_ATTEMPTS`), and nothing retries it again without a manual Retry Sync.
-`GET /api/stale-pending-watch-audit` reports how many `sync_action = 'watched'` rows across
-any source currently match either signature (read-only); `POST /api/stale-pending-watch-repair`
-resets their retry bookkeeping so the existing manual-dispatch sweep picks them up and
-performs a real dispatch on its next tick, rather than fabricating a "settled" telemetry the
-way the Trakt-specific repair above does (`auditStalePendingWatchRows`/
+Canonical replays for an existing `watch_history` row record dispatch telemetry so the
+manual-dispatch queue can retry failures. `GET /api/stale-pending-watch-audit` reports
+watched rows with missing or exhausted retry telemetry (read-only).
+`POST /api/stale-pending-watch-repair` resets their retry bookkeeping so the next
+scheduler tick performs a real dispatch (`auditStalePendingWatchRows`/
 `repairStalePendingWatchRows` in `dataRepo.js`).
 
-A related but more serious failure mode produces the same shape of corruption from a source
-outside Plembfin's own code: one connected media server having a bad moment - a library
-rescan, a metadata refresh, a rate-limited or truncated API response - can make it report a
-burst of items as suddenly unplayed that were never genuinely unwatched. Each one
-individually looks like a normal single unwatch (a webhook, a notification, an unwatched-
-fallback poll result), so nothing distinguished it from real activity until the volume did.
-Real incident (2026-08-21): a single Jellyfin burst produced 264+ falsely-unwatched episodes
-across dozens of unrelated shows within about seven minutes, each one propagated on to Plex
-and Emby before anyone noticed. The result in each case: a show/season/episode with an older
-`watched` row under one `media_key` and a newer `unwatched` row under a different one, so the
-item reads as unwatched despite real watch history existing for it - and marking it watched
-again inserts a second row alongside the shadowed one instead of recognizing it, since the
-shadowed row's current state genuinely is unwatched.
+An incomplete or rate-limited media-server scan can report a burst of items as unplayed.
+The resulting automatic unwatch events may leave a watched row under one `media_key` and
+an unwatched row under another, which makes the item appear unwatched despite existing
+watch history.
 
-**Prevention**: `applyUnwatchedTransition` in `watchStateTransitions.js` is the single choke
-point every automatic (non-manual) unwatch path already funnels through - Plex/Emby/Jellyfin
-webhooks, the Plex notification listener and adaptive poller, the Emby/Jellyfin unwatched-
-fallback polls, and the Trakt poller. It now tracks a shared, `loop_keys`-backed sliding-
-window count of automatic unwatches (sourced `plex`/`emby`/`jellyfin`/`trakt`) and holds back
-any single unwatch once more than a threshold have been recorded within a short window,
-logging a loud warning instead of propagating it. This works correctly across a split
-web/worker deployment (the counter lives in SQLite, not process memory) and never affects
-manual/explicit sources (a person unwatching things in Plembfin itself, Force Sync, Set
-Plembfin as Source of Truth, Trakt import) - only automatic, inbound-from-a-server decisions
-are rate-limited. It is deliberately coarser than the per-show guard Trakt's own poller
-already has (`partitionSuspiciousUnwatches` in `trackerSync.js`, which only trips when *one
-show* loses a large share of its episodes at once): it catches a burst spread thin across many
-different shows, which that guard misses.
+`applyUnwatchedTransition` in `watchStateTransitions.js` is the choke point for automatic
+unwatch events from Plex, Emby, Jellyfin, and Trakt. It tracks a shared `loop_keys`-
+backed sliding-window count in SQLite and holds back an automatic unwatch when the burst
+threshold is exceeded. The guard applies across split web/worker deployments and does
+not affect explicit actions from Plembfin, Force Sync, Set Plembfin as Source of Truth,
+or Trakt import. Trakt also has a per-show suspicious-drop guard; the shared guard covers
+bursts distributed across multiple shows.
 
-**Repair**: `GET /api/split-identity-unwatch-audit` finds already-affected episodes matching
-the fingerprint above (read-only; `auditSplitIdentityUnwatches` in `dataRepo.js`).
+`GET /api/split-identity-unwatch-audit` finds episodes whose watched and unwatched rows
+use different identities (read-only; `auditSplitIdentityUnwatches` in `dataRepo.js`).
 `POST /api/split-identity-unwatch-repair` restores each one - deletes the shadowing unwatched
 row, restores playstate to the shadowed watch's own date, and re-pushes the corrected
 "watched" state to every connected platform (`repairSplitIdentityUnwatches` in `dataRepo.js`,
@@ -177,20 +136,14 @@ propagated the same way `propagateWatchDateRemoval` in `routes/media.js` replays
 date). This is an explicit admin action, not wired to any automatic trigger - review the audit
 output first.
 
-Some affected episodes lost the shadowed watched row entirely rather than just having it
-shadowed, so every remaining row reads unwatched and there is nothing for the split-identity
-audit to shadow-match against (real incidents: The 'Burbs S01E01, Silo S03E02). The fingerprint
-there is broader and less certain: no row in the group currently reads watched, but at least
-one of the unwatched rows came from an automatic source (`plex`/`emby`/`jellyfin`, never
-`manual`) - a genuine intentional unwatch normally converges to one clean row, so an automatic-
-sourced unwatched row with no surviving watched sibling anywhere is the same cascade signature,
-just missing its watched half. `GET /api/likely-false-unwatch-audit` finds these (read-only;
-`auditLikelyFalseUnwatches` in `dataRepo.js`); `POST /api/likely-false-unwatch-repair`
+`GET /api/likely-false-unwatch-audit` finds lower-confidence candidates where no row in a
+group is watched and at least one unwatched row came from an automatic source
+(`plex`/`emby`/`jellyfin`, never `manual`).
+`auditLikelyFalseUnwatches` in `dataRepo.js`; `POST /api/likely-false-unwatch-repair`
 consolidates every stale row for the episode into one fresh watched record using the oldest
 row's own date as the best evidence of when it was genuinely watched, then re-pushes it to
-every connected platform (`repairLikelyFalseUnwatches`). Being less certain than the split-
-identity fingerprint - an automatic source is also what a genuine unwatch performed directly on
-a media server looks like - review real candidates even more carefully before repairing.
+every connected platform (`repairLikelyFalseUnwatches`). Review candidates before repairing:
+an automatic source can also represent a genuine unwatch performed directly on a media server.
 
 An explicit unplayed webhook/notification or Trakt snapshot removal changes the canonical
 state to unwatched and propagates it. Plex show and season notifications are expanded into
@@ -206,7 +159,7 @@ Implementation lives in `server/src/scheduled.js`.
    - `fetchLiveSessions(config)` polls the configured servers for what's playing now.
    - `buildCacheRow()` shapes each session; `upsertLiveTrackingCache()` writes them
      to the `live_tracking_cache` SQLite table.
-   - Reconciles against the previously-cached rows: a cached session that is **no
+   - Reconciles against cached rows: a cached session that is **no
      longer playing** and had `last_progress >= 90` is treated as a **completed
      watch** (`processCompletedSession` → inserts history + propagates). Sessions
      that vanish below the threshold are marked/cleared as stale.

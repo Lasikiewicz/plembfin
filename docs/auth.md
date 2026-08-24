@@ -103,6 +103,5 @@ exposed via the API - query SQLite directly (see
 
 ## Hardening
 
-Production checklist (HTTPS, `COOKIE_SECURE`, pinned secrets, Docker overlay):
-[hardening.md](hardening.md). Completed remediation history:
-[security-checklist.md](security-checklist.md).
+Production deployment controls (HTTPS, `COOKIE_SECURE`, pinned secrets, Docker overlay):
+[hardening.md](hardening.md) and [security-checklist.md](security-checklist.md).

@@ -165,5 +165,5 @@ by the boot-time prune, so deleting those files by hand is safe while the app is
 | Database inspection | `sqlite3 data/plembfin.db` |
 | Run the background worker on demand | `POST /api/cron-sync` (streams a log) |
 | Frontend debug logs | `logDebug(...)` calls throughout `public/app.js` (and the in-app Logs panel) |
-| Which file owns a feature | The file map and task router in [architecture.md](architecture.md) |
-| Security remediation history | [security-checklist.md](security-checklist.md) |
+| Which file owns a feature | The file map in [architecture.md](architecture.md) |
+| Security controls | [security-checklist.md](security-checklist.md) |

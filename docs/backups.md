@@ -15,9 +15,9 @@ Schedules and destinations are managed from **Settings → Backup / restore → 
 Artwork binaries, poster cache rows, and TMDB metadata cache rows are never included -
 they are derived data that rebuilds itself.
 
-The original design document for the watch-history subsystem is
-[watch-history-backups.md](watch-history-backups.md); this doc describes the current
-implementation.
+The focused watch-history subsystem reference is
+[watch-history-backups.md](watch-history-backups.md); this doc covers all backup
+subsystems and their shared destination adapters.
 
 ## Watch-history backups (`watchHistoryBackups.js`)
 

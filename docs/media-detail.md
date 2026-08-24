@@ -8,8 +8,8 @@ images), watch state, sync status, Seerr request controls, and the edit tools.
 
 ## Module family
 
-The detail system is split across eight modules; respect this split when adding code
-(see the module table in [`../CLAUDE.md`](../CLAUDE.md)):
+The detail system is split across eight modules; the ownership table below is the
+authoritative module boundary:
 
 | Module | Owns |
 | --- | --- |
@@ -362,8 +362,8 @@ first complete render.
   exactly which ids are duplicates to remove and which one to keep, and two
   genuinely separate watches for the same episode can land within that 10-
   minute window of each other (e.g. marking an episode watched "using the same
-  time as another"); expanding the delete set there previously swept the kept
-  row away too, wrongly leaving the episode fully unwatched. The show-level date editor (`openEditShowDateDialog`
+  time as another"); the bulk delete set contains only the ids selected by the
+  caller, so a separate watch inside the echo window remains intact. The show-level date editor (`openEditShowDateDialog`
   in `edit-dialogs.js`) shows one row per season instead of a single date for
   the whole show - each season defaults to its own latest watched date and can
   be changed independently before saving, so Season 1 and Season 2 don't have

@@ -1,7 +1,7 @@
 # Now Playing
 
-The dashboard's "Now Playing" row. This has caused a real production outage (June
-2026), so the failure mode is documented in detail here.
+The dashboard's "Now Playing" row is backed by the current live-session and scheduler
+data described below.
 
 ## What feeds it
 
@@ -72,24 +72,12 @@ exists in none of the watch tables, so `/api/poster` returns **404** and the
 poster never loads. The cache is keyed by `media_key`, so once the episode becomes
 a real watch record it reuses the same cached artwork.
 
-## Why the SSE approach broke (historical)
+## Transport contract
 
-**Symptom (June 2026):** all three apps playing; local dev showed Now Playing; the
-live site showed "Entire media ecosystem is idle." Identical code, data confirmed
-present in the database.
-
-**Root cause:** the dashboard previously consumed Now Playing as a **Server-Sent
-Events stream**: `startNowPlayingStream()` fetched `/api/now-playing?stream=1` and
-read a long-lived `text/event-stream` response. The server had a streaming branch
-that wrote `data:` frames and kept the connection open with change listeners
-and a heartbeat.
-
-**Fix (current design):** SSE dropped entirely for Now Playing. `handleNowPlaying`
-returns a plain JSON array, and the dashboard polls it every 10s via
-`loadActiveSessions()`.
-
-> Don't reintroduce an SSE consumer for Now Playing. The streaming server branch and
-> its heartbeat machinery were deleted. Polling is the right design for this use case.
+`GET /api/now-playing` returns a JSON array. The client calls it every 10 seconds while
+the document is visible and the user is authenticated. The endpoint does not use an
+SSE stream; it reads the local SQLite sources described above and performs no outbound
+media-server requests.
 
 ## Diagnosing "Now Playing is wrong"
 

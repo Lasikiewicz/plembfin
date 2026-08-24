@@ -1,8 +1,7 @@
-# Architecture - Start Here
+# Architecture
 
-**This is the first document to read before changing anything in this repo.** It maps
-every file in the project, explains how the pieces fit together, and routes you to the
-feature doc that covers the area you are touching. If you only read one doc, read this one.
+This document maps the application, explains how its components fit together, and links
+each subsystem to its detailed source of truth.
 
 ## The big picture
 
@@ -35,11 +34,11 @@ history retain complete source data for export and refresh, but render a bounded
 initial view. Preserve these loading, stale-request, and retry guards when adding
 new metadata requests.
 
-## Task router - "I need to change X, where do I go?"
+## Subsystem map
 
-| Task | Files | Doc |
+| Area | Files | Source |
 | --- | --- | --- |
-| Add/change an API route | `server/src/index.js` (`dispatch()` route table) plus the owning `server/src/routes/*.js` module | this doc |
+| API routing | `server/src/index.js` (`dispatch()` route table) plus the owning `server/src/routes/*.js` module | this doc |
 | Webhook parsing or phases | `server/src/utils/parsers.js`, `handleWebhook` in `server/src/routes/sync.js` | [webhooks.md](webhooks.md) |
 | Watched/unwatched propagation between platforms | `server/src/utils/syncOrchestrator.js`, platform clients | [webhooks.md](webhooks.md) |
 | Plex API calls, Plex WebSocket listener | `server/src/utils/plexClient.js`, `plexNotificationListener.js` | [plex.md](plex.md) |
@@ -66,19 +65,17 @@ new metadata requests.
 | Production security posture | - | [hardening.md](hardening.md), [security-checklist.md](security-checklist.md) |
 | "Something is broken, where do I look?" | - | [troubleshooting.md](troubleshooting.md) |
 
-Frontend module placement rules (file size limits, which module owns which feature,
-dependency rules) live in [`../CLAUDE.md`](../CLAUDE.md) and are mirrored in
-[frontend.md](frontend.md).
+Frontend module placement rules, file-size limits, module ownership, and dependency
+direction are defined in [frontend.md](frontend.md).
 
 ## Complete file map
 
-Every tracked file in the repository, by directory.
+Repository files relevant to the application, build, and operations, grouped by directory.
 
 ### Repository root
 
 | File | What it is |
 | --- | --- |
-| `CLAUDE.md` | Agent instructions: guardrails, the "Push to git" workflow, frontend module discipline, and a condensed architecture summary. |
 | `README.md` | User-facing GitHub readme: features, setup guide, configuration reference, screenshots. |
 | `changelog.json` | Bundled release history. CI appends an entry per push and bumps the version; served verbatim at `GET /changelog.json` and consumed by the in-app changelog/update check. |
 | `package.json` | Dependencies and npm scripts (`start`, `dev`, `test`, `build`, `docs:check`, `seed:demo`, `prepare`, `changelog:update`). Version is CI-managed. |
@@ -111,9 +108,8 @@ Every tracked file in the repository, by directory.
 
 ### `docs/`
 
-See [README.md](README.md) for the full doc index with "read it when…" guidance -
-including this file (`architecture.md`), the per-feature docs, and the
-[watch-history-backups.md](watch-history-backups.md) design document.
+See [README.md](README.md) for the documentation index, including this file
+(`architecture.md`) and the per-feature sources of truth.
 `docs/screenshots/` holds the PNG screenshots embedded in the root README (`bio.png`,
 `history.png`, `media.png`, `movies.png`, `now-playing.png`, `part-watched.png`,
 `search.png`, `stats.png`, `tvshows.png`).
@@ -453,7 +449,7 @@ and reset on the next "Merge alpha with main". `scripts/update-alpha-changelog.j
 this file - bumping `build`, recording an entry with the same commit-bullet rules as
 `scripts/update-changelog.js` (both share `scripts/changelog-git-helpers.js`), and
 resetting to build 0 with an empty entry list whenever `changelog.alpha.json`'s
-`baseVersion` no longer matches `changelog.json`'s version (i.e. main moved forward since
+`baseVersion` differs from `changelog.json`'s version (i.e. main moved forward since
 the last alpha push). `docker-publish-alpha.yml` runs it on every push to `alpha`,
 committing the result back as `chore: bump alpha build for <sha>` and tagging the
 published image `alpha-<build>` alongside the rolling `alpha` tag.
@@ -668,5 +664,5 @@ in `dataRepo.js`:
 | `nullSeasonEpisodeRows` | Episode rows with no season number, which cannot match reliably for sync or count toward show progress |
 | `opaqueShowTitleRows` | Rows storing a provider URI (`plex://…`) in `show_title`, so episode totals cannot be resolved |
 
-Each non-zero count adds a plain-language entry to `recommendations`. These conditions were
-previously visible only by reading the server log.
+Each non-zero count adds a plain-language entry to `recommendations`, so the data-quality
+conditions are available in the application response as well as the server log.

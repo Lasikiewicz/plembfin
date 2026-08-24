@@ -29,7 +29,7 @@ Reference for `data/plembfin.db`. The full authoritative schema is in
 | `poster_cache` | Cached artwork metadata (binaries in `data/media/`) | poster handler | poster resolution |
 | `tmdb_metadata_cache` | Movie details (pure TMDB) or TV show details (TVDB structure + TMDB extras merged), key `${mediaType}_${tmdbId}` (or `tv_tvdb_${tvdbId}` if no TMDB match) | tmdb-details handler | detail pages, prefetch |
 | `tmdb_search_cache` | TMDB search results | tmdb-search handler | TMDB search |
-| `tmdb_season_cache` | Legacy TMDB season cache - no longer written; season data now comes from `tvdb_season_cache` | - (unused) | - |
+| `tmdb_season_cache` | Unused compatibility table; season data is stored in `tvdb_season_cache` | - (unused) | - |
 | `tmdb_person_cache` | TMDB person details, key `person_${personId}` | tmdb-person handler | cast pages |
 | `tvdb_metadata_cache` | Raw TheTVDB series/extended response, key `series_${tvdbId}` (also holds title-search results, key `search_${hash}`) | tvdbGateway | tv show detail resolution |
 | `tvdb_season_cache` | Raw TheTVDB season/extended episode list, key `${tvdbId}_${seasonNumber}` | tvdbGateway | tmdb-season handler |
