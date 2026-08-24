@@ -46,7 +46,7 @@ const PLATFORMS = {
   emby: { name: "Emby", icon: "/icons/emby.svg" },
   jellyfin: { name: "Jellyfin", icon: "/icons/jellyfin.svg" },
   trakt: { name: "Trakt", icon: "/icons/trakt.svg" },
-  plembfin: { name: "Plembfin", icon: "/icons/plembfin.png" },
+  plembfin: { name: "Plembfin", icon: "/icons/plembfin.png?v=20260824e" },
 };
 
 export function activityPlatform(value) {

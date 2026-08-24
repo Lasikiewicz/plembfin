@@ -8,6 +8,7 @@ import {
   formatPlaybackClock,
   computeProgress,
   normalizePlatformSource,
+  platformIconUrl,
   sourceBadgeHtml,
   platformName,
   showName,
@@ -37,6 +38,7 @@ test("frontend platform and title helpers normalize user-facing labels", () => {
   assert.equal(normalizePlatformSource("unknown"), "plex");
   assert.match(sourceBadgeHtml("plembfin"), /source-plembfin/);
   assert.match(sourceBadgeHtml("plembfin"), />Plembfin<\/span>/);
+  assert.equal(platformIconUrl("manual"), "/icons/plembfin.png?v=20260824e");
   assert.equal(platformName("jellyfin_webhook"), "Jellyfin");
   assert.equal(showName("Harbor Nine - S02E03 - Low Tide"), "Harbor Nine");
   assert.equal(episodeCode(2, 3), "S02E03");

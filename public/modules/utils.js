@@ -231,6 +231,7 @@ export function sourceClass(value) {
 
 export function platformIconUrl(value) {
   const normalized = normalizePlatformSource(value);
+  if (normalized === "plembfin") return "/icons/plembfin.png?v=20260824e";
   const extension = normalized === "plembfin" ? "png" : "svg";
   return `/icons/${normalized}.${extension}`;
 }
