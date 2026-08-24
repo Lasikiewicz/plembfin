@@ -1057,7 +1057,7 @@ export async function handleManualWatch(req, res) {
         tvdb: storedRecord.tvdb_id || undefined,
       };
       await upsertPlaystateForMedia(media, "watched", record.watched_at, { skipInvalidate: true });
-      syncTasks.push({ media, id, record });
+      syncTasks.push({ media, id, record: { ...storedRecord, id } });
 
       results.push({ index, id, title: record.title, inserted: insertedTransition, status: "pending", targetStates: [] });
     } catch (error) {
@@ -1087,6 +1087,18 @@ export async function handleManualWatch(req, res) {
             targetStates: [],
           }));
           if (summary.status === "success" || summary.status === "partial") propagated += 1;
+
+          // Remote watched-state APIs can synchronously echo a temporary
+          // unwatch while replacing their existing play (Trakt in
+          // particular removes the old history entry before adding the new
+          // one).  That echo is newer than the row inserted above and used
+          // to win the next /api/show canonical-state read, so the UI said
+          // success and immediately rendered "Mark watched" again.  Reassert
+          // the explicit Plembfin decision only after every remote call has
+          // settled: Plembfin is the authority, and transport side effects
+          // must never overrule the user's click.
+          supersedeUnwatchedTransitionsForRecordSync(task.record);
+          await upsertPlaystateForMedia(task.media, "watched", task.record.watched_at, { skipInvalidate: true });
 
           await updateWatchTelemetry(task.id, formatDispatchTelemetry(summary, task.media, "watched"), { skipInvalidate: true });
           await recordSyncHistory(task.media, summary, "watched");

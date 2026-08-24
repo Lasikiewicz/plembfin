@@ -155,3 +155,44 @@ test("manual release-day watch records a fresh transition over a newer rematched
   ).all();
   assert.deepEqual(transitionsAfterResync.map((row) => row.sync_action), ["watched", "watched", "watched"]);
 });
+
+test("Plembfin can reassert a manual watch after a newer remote replacement echo", async () => {
+  const db = repo.requireDb();
+  const showTitle = "Remote Echo Show";
+  const title = `${showTitle} - S02E03`;
+  const manual = await repo.insertWatchRecord({
+    title,
+    show_title: showTitle,
+    media_type: "episode",
+    season: 2,
+    episode: 3,
+    tvdb_id: "remote-echo-show",
+    watched_at: "2025-02-20T12:00:00.000Z",
+    source: "manual",
+    sync_action: "watched",
+  });
+  const echo = await repo.insertWatchRecord({
+    title,
+    show_title: showTitle,
+    media_type: "episode",
+    season: 2,
+    episode: 3,
+    tvdb_id: "remote-echo-show",
+    watched_at: "2026-08-24T09:55:00.000Z",
+    source: "trakt",
+    sync_action: "unwatched",
+  });
+
+  const now = Date.now();
+  db.prepare("UPDATE watch_history SET created_at=?, updated_at=? WHERE id=?").run(now + 60_000, now + 60_000, echo.id);
+  await repo.invalidateHistoryDerivedCaches();
+  assert.equal((await repo.queryShowDetail({ title: showTitle }))?.episodes?.[0]?.sync_action, "unwatched");
+
+  assert.equal(repo.supersedeUnwatchedTransitionsForRecordSync({ ...manual.record, id: manual.id }), 1);
+  await repo.invalidateHistoryDerivedCaches();
+
+  const show = await repo.queryShowDetail({ title: showTitle });
+  assert.equal(show?.episode_count, 1);
+  assert.equal(show?.episodes?.[0]?.sync_action, "watched");
+  assert.equal(show?.episodes?.[0]?.watched_at, manual.record.watched_at);
+});
