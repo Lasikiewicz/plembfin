@@ -1,7 +1,17 @@
 {
-  "build": 38,
-  "updatedAt": "2026-08-24T11:43:30+01:00",
+  "build": 39,
+  "updatedAt": "2026-08-24T11:50:29+01:00",
   "entries": [
+    {
+      "build": 39,
+      "date": "2026-08-24T11:50:29+01:00",
+      "commit": "9fd0c76be4d2d62cbb9884eae8ecce78f8e950e8",
+      "message": "Fix - Suppress deleted Plex notification watches",
+      "author": "Lasikiewicz",
+      "details": [
+        "Apply Plembfin deletion tombstones in the direct Plex library notification scheduler before history insertion."
+      ]
+    },
     {
       "build": 38,
       "date": "2026-08-24T11:43:30+01:00",
