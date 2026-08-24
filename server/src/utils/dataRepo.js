@@ -1695,7 +1695,7 @@ function deletedWatchSuppressionKeys(row = {}) {
 
 export function recordDeletedWatchSuppression(row = {}) {
   const source = String(row.source || "").toLowerCase();
-  const watchedAt = String(row.watched_at || row.watchedAt || "");
+  const watchedAt = normalizeDeletedWatchSuppressionDate(row.watched_at || row.watchedAt);
   if (!source || !watchedAt || !["plex", "emby", "jellyfin"].includes(source)) return 0;
   const keys = deletedWatchSuppressionKeys(row);
   for (const key of keys) insertDeletedWatchSuppressionStmt.run(source, key, watchedAt, Date.now());
@@ -1704,13 +1704,20 @@ export function recordDeletedWatchSuppression(row = {}) {
 
 export function isDeletedWatchSuppressed(media = {}, watchedAt = media.watched_at) {
   const source = String(media.source || "").toLowerCase();
-  const stamp = String(watchedAt || "");
+  const stamp = normalizeDeletedWatchSuppressionDate(watchedAt);
   if (!source || !stamp) return false;
   const keys = [];
   if (media.itemId) keys.push(`item:${media.itemId}`);
   const mediaKey = mediaKeyFor(media);
   if (mediaKey) keys.push(`media:${mediaKey}`);
   return [...new Set(keys)].some((key) => Boolean(selectDeletedWatchSuppressionStmt.get(source, key, stamp)));
+}
+
+function normalizeDeletedWatchSuppressionDate(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const parsed = new Date(raw);
+  return Number.isNaN(parsed.getTime()) ? raw : parsed.toISOString();
 }
 
 // Removes a single watch date (one row) added via addWatchDate/the edit-date
