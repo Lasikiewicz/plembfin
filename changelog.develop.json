@@ -1,7 +1,17 @@
 {
-  "build": 36,
-  "updatedAt": "2026-08-24T11:30:08+01:00",
+  "build": 37,
+  "updatedAt": "2026-08-24T11:37:41+01:00",
   "entries": [
+    {
+      "build": 37,
+      "date": "2026-08-24T11:37:41+01:00",
+      "commit": "294e7cd6450945553fb8aa3ccaa53c66c8fcb501",
+      "message": "Fix - Normalize deleted watch suppression dates",
+      "author": "Lasikiewicz",
+      "details": [
+        "Compare provider release-date flags and stored ISO watch timestamps using the same canonical UTC value."
+      ]
+    },
     {
       "build": 36,
       "date": "2026-08-24T11:30:08+01:00",
