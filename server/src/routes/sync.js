@@ -1015,19 +1015,34 @@ export async function handleManualWatch(req, res) {
       const media = manualWatchMediaFromRecord(record);
 
       const exactExistingWatched = existing?.sync_action === "watched";
+      const canonicalPlaystate = await getPlaystateForMedia(media).catch(() => null);
+      // Reusing a historical date is common for a manual release-day mark.
+      // An older watched row can therefore match this exact key+date even
+      // though a later unwatch under a rematched provider-id alias is the
+      // current canonical transition. In that case this click is a genuine
+      // rewatch transition, not a duplicate: insert a fresh row so a cache
+      // rebuild cannot restore the newer unwatch after the optimistic UI and
+      // playstate pointer have been updated.
+      const supersedesCanonicalUnwatch = exactExistingWatched && canonicalPlaystate?.state === "unwatched";
       let id = "";
       let storedRecord = existing || record;
-      if (exactExistingWatched) {
+      let insertedTransition = false;
+      if (exactExistingWatched && !supersedesCanonicalUnwatch) {
         id = existing.id;
         skipped += 1;
       } else {
         // Clear any prior row (e.g. an unwatched placeholder) at this slot before inserting
-        if (existing) await deleteWatchRecordById(existing.id, { skipInvalidate: true }).catch(() => null);
-        const insertResult = await insertWatchRecord(record, { skipInvalidate: true, id: existing?.id || "" });
+        // but retain an older watched row when this is a real watched-after-
+        // unwatched transition. Its new sibling records the transition order
+        // while same-event display dedupe keeps the history UI tidy.
+        const replaceExisting = existing && !exactExistingWatched;
+        if (replaceExisting) await deleteWatchRecordById(existing.id, { skipInvalidate: true }).catch(() => null);
+        const insertResult = await insertWatchRecord(record, { skipInvalidate: true, id: replaceExisting ? existing.id : "" });
         id = insertResult.id;
         storedRecord = insertResult.record;
         await insertResult.assetPrefetch?.catch(() => null);
         inserted += 1;
+        insertedTransition = true;
       }
 
       media.watchRecordId = id;
@@ -1039,7 +1054,7 @@ export async function handleManualWatch(req, res) {
       await upsertPlaystateForMedia(media, "watched", record.watched_at, { skipInvalidate: true });
       syncTasks.push({ media, id, record });
 
-      results.push({ index, id, title: record.title, inserted: !existing, status: "pending", targetStates: [] });
+      results.push({ index, id, title: record.title, inserted: insertedTransition, status: "pending", targetStates: [] });
     } catch (error) {
       rejected += 1;
       results.push({ index, rejected: true, error: error.message || String(error) });

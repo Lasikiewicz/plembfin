@@ -74,6 +74,49 @@ test("playstate lookup also survives the same legacy show-title mismatch", async
   assert.equal(state?.media_key, mediaKey);
 });
 
+test("newer rematched playstate aliases override an older exact-key pointer", async () => {
+  const db = repo.requireDb();
+  const exactMedia = {
+    title: "Alias Pointer Show - S03E03",
+    showTitle: "Alias Pointer Show",
+    type: "episode",
+    season: 3,
+    episode: 3,
+    ids: { tmdb: "alias-pointer-current" },
+    isValid: true,
+  };
+  const aliasMedia = {
+    ...exactMedia,
+    ids: { tvdb: "alias-pointer-rematch" },
+  };
+  const exactKey = repo.mediaKeyFor(exactMedia);
+  const aliasKey = repo.mediaKeyFor(aliasMedia);
+
+  db.prepare(`INSERT INTO playstate
+    (media_key, title, title_lower, media_type, state, watched_at, last_source, sources, tmdb_id, season, episode, updated_at)
+    VALUES (?, ?, ?, 'episode', 'watched', ?, 'manual', '["manual"]', ?, 3, 3, 1000)`).run(
+      exactKey,
+      exactMedia.title,
+      exactMedia.title.toLowerCase(),
+      "2026-07-17T12:00:00.000Z",
+      exactMedia.ids.tmdb,
+    );
+  db.prepare(`INSERT INTO playstate
+    (media_key, title, title_lower, media_type, state, watched_at, last_source, sources, tvdb_id, season, episode, updated_at)
+    VALUES (?, ?, ?, 'episode', 'unwatched', ?, 'trakt', '["trakt"]', ?, 3, 3, 2000)`).run(
+      aliasKey,
+      aliasMedia.title,
+      aliasMedia.title.toLowerCase(),
+      "2026-07-18T12:00:00.000Z",
+      aliasMedia.ids.tvdb,
+    );
+
+  const state = await repo.getPlaystateForMedia(exactMedia);
+  assert.equal(state?.state, "unwatched");
+  assert.equal(state?.media_key, aliasKey);
+  assert.equal(await repo.getCanonicalWatchState(exactMedia), "unwatched");
+});
+
 test("two unrelated shows sharing a season/episode number are not conflated", async () => {
   const inserted = await repo.insertWatchRecord({
     title: "Show One - S01E01",

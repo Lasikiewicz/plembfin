@@ -1023,7 +1023,6 @@ function playstateRowsForIdentity(record = {}) {
 export function getPlaystateForMediaSync(media) {
   const record = playstateRecordFromMedia(media, media?.syncAction || "watched");
   const exact = selectPlaystateStmt.get(mediaKeyFor(record));
-  if (exact) return playstateFromRow(exact);
   const related = selectPlaystateByTitleStmt
     .all(record.media_type, record.title.toLowerCase())
     .filter((row) => sameEpisodeCoordinates(record, row));
@@ -1036,7 +1035,13 @@ export function getPlaystateForMediaSync(media) {
     ? selectPlaystateBySeasonEpisodeStmt.all(record.season, record.episode)
       .filter((row) => canonicalShowTitleKey(showTitleFrom(row.title)) === canonicalShowTitleKey(showTitleFrom(record.title)))
     : [];
-  const row = newestByUpdatedAt([...playstateRowsForIdentity(record), ...related, ...byShowTitle]);
+  // A rematch can leave more than one playstate row for the same real item.
+  // The exact key is not automatically canonical: it can be an older watched
+  // pointer while a newer unwatched decision lives under a provider-id alias
+  // (or the reverse). Compare it with every related identity and title row so
+  // the latest transition wins across the whole item, not merely within the
+  // key shape supplied by the current caller.
+  const row = newestByUpdatedAt([exact, ...playstateRowsForIdentity(record), ...related, ...byShowTitle]);
   return row ? playstateFromRow(row) : null;
 }
 
