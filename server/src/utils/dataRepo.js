@@ -65,6 +65,19 @@ const selectByIdStmt = db.prepare("SELECT * FROM watch_history WHERE id = ?");
 const selectByMediaKeyStmt = db.prepare("SELECT * FROM watch_history WHERE media_key = ?");
 const selectEpisodesByShowLowerStmt = db.prepare("SELECT * FROM watch_history WHERE media_type = 'episode' AND show_title_lower = ?");
 const selectAllEpisodesStmt = db.prepare("SELECT * FROM watch_history WHERE media_type = 'episode'");
+db.exec(`CREATE TABLE IF NOT EXISTS show_merge_history (
+  id TEXT PRIMARY KEY,
+  source_title TEXT NOT NULL,
+  target_title TEXT NOT NULL,
+  rows_json TEXT NOT NULL,
+  merged_at INTEGER NOT NULL,
+  reverted_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_show_merge_history_target ON show_merge_history(target_title, merged_at DESC);`);
+const insertShowMergeStmt = db.prepare("INSERT INTO show_merge_history (id, source_title, target_title, rows_json, merged_at) VALUES (?, ?, ?, ?, ?)");
+const listShowMergesStmt = db.prepare("SELECT id, source_title, target_title, merged_at, reverted_at FROM show_merge_history ORDER BY merged_at DESC");
+const selectShowMergeStmt = db.prepare("SELECT * FROM show_merge_history WHERE id = ?");
+const revertShowMergeStmt = db.prepare("UPDATE show_merge_history SET reverted_at = ? WHERE id = ? AND reverted_at IS NULL");
 const deleteByIdStmt = db.prepare("DELETE FROM watch_history WHERE id = ?");
 const deleteByMediaKeyStmt = db.prepare("DELETE FROM watch_history WHERE media_key = ?");
 const findExistingStmt = db.prepare("SELECT * FROM watch_history WHERE media_key = ? AND watched_at = ? LIMIT 1");
@@ -3286,7 +3299,17 @@ export async function mergeShows(sourceTitle, targetTitle) {
   }
 
   const escaped = sourceTitle.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const mergeId = crypto.randomUUID();
+  const mergedAt = Date.now();
+  const snapshot = docs.map((row) => ({
+    id: row.id,
+    title: row.title,
+    title_lower: row.title_lower,
+    show_title: row.show_title,
+    show_title_lower: row.show_title_lower,
+  }));
   transaction(() => {
+    insertShowMergeStmt.run(mergeId, sourceTitle, targetTitle, toJson(snapshot), mergedAt);
     for (const row of docs) {
       const oldTitle = row.title || "";
       const newTitle = oldTitle.replace(new RegExp(`^${escaped}`, "i"), targetTitle);
@@ -3294,7 +3317,45 @@ export async function mergeShows(sourceTitle, targetTitle) {
     }
   });
   await invalidateHistoryDerivedCaches();
-  return { merged: docs.length };
+  return { id: mergeId, merged: docs.length };
+}
+
+export function listShowMerges({ targetTitle = "" } = {}) {
+  const targetKey = canonicalTitleKey(targetTitle);
+  return listShowMergesStmt.all()
+    .filter((row) => !targetKey || canonicalTitleKey(row.target_title) === targetKey)
+    .map((row) => ({
+      id: row.id,
+      sourceTitle: row.source_title,
+      targetTitle: row.target_title,
+      mergedAt: Number(row.merged_at || 0),
+      revertedAt: Number(row.reverted_at || 0),
+      active: !row.reverted_at,
+    }));
+}
+
+export async function unmergeShow(mergeId = "") {
+  const merge = selectShowMergeStmt.get(String(mergeId || ""));
+  if (!merge) throw new Error("Merge record not found");
+  if (merge.reverted_at) throw new Error("Merge has already been undone");
+  const rows = parseJson(merge.rows_json, []);
+  if (!Array.isArray(rows) || !rows.length) throw new Error("Merge record has no restorable rows");
+  const restoreStmt = db.prepare(`UPDATE watch_history
+    SET title = ?, title_lower = ?, show_title = ?, show_title_lower = ?, updated_at = ?
+    WHERE id = ?`);
+  const now = Date.now();
+  let restored = 0;
+  transaction(() => {
+    for (const row of rows) {
+      const result = restoreStmt.run(row.title, row.title_lower, row.show_title, row.show_title_lower, now, row.id);
+      restored += Number(result.changes || 0);
+    }
+    revertShowMergeStmt.run(now, merge.id);
+  });
+  queueShowProgressUpdate(merge.source_title);
+  queueShowProgressUpdate(merge.target_title);
+  await invalidateHistoryDerivedCaches();
+  return { restored, sourceTitle: merge.source_title, targetTitle: merge.target_title };
 }
 
 const selectNullSeasonEpisodeRowsStmt = db.prepare(
@@ -4407,7 +4468,13 @@ export async function queryShowDetail({ id = "", title = "" } = {}) {
   // rows (each carrying its own sync_action) - otherwise the show disappears
   // from lookup entirely instead of rendering as 0 watched. Untrusted scan
   // rows stay excluded via isPlembfinTrackedEpisodeRow.
-  const rows = dedupeHistory((await getCachedHistory()).filter((row) => row.media_type === "episode" && isPlembfinTrackedEpisodeRow(row)))
+  // Detail pages are the interactive source-of-truth surface. Read their
+  // episode rows directly from SQLite instead of the process-wide full-history
+  // cache: a manual watch can be committed and visible through /api/history
+  // while another request still holds the previous aggregate generation,
+  // making the button immediately revert despite the correct stored row.
+  const currentEpisodeRows = selectAllEpisodesStmt.all().map(rowToWatch);
+  const rows = dedupeHistory(currentEpisodeRows.filter(isPlembfinTrackedEpisodeRow))
     .filter((row) => canonicalTitleKey(showTitleFrom(row.show_title || row.title)) === key);
   // A canonical-title match can still span two distinct real shows sharing a
   // title (a reboot/revival) now that groupShowRows splits them by provider

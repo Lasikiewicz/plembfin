@@ -38,6 +38,16 @@ CREATE INDEX IF NOT EXISTS idx_watch_history_type_watched ON watch_history(media
 CREATE INDEX IF NOT EXISTS idx_watch_history_media_key ON watch_history(media_key);
 CREATE INDEX IF NOT EXISTS idx_watch_history_show_lower ON watch_history(show_title_lower);
 
+CREATE TABLE IF NOT EXISTS show_merge_history (
+  id TEXT PRIMARY KEY,
+  source_title TEXT NOT NULL,
+  target_title TEXT NOT NULL,
+  rows_json TEXT NOT NULL,
+  merged_at INTEGER NOT NULL,
+  reverted_at INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_show_merge_history_target ON show_merge_history(target_title, merged_at DESC);
+
 CREATE TABLE IF NOT EXISTS playstate (
   media_key TEXT PRIMARY KEY,
   title TEXT,

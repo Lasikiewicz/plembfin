@@ -1528,6 +1528,7 @@ export function openMergeShowDialog(targetTitle) {
     <div class="edit-dialog edit-dialog--wide glass-panel">
       <h3>Merge Into "${escapeHtml(targetTitle)}"</h3>
       <p class="muted-copy" style="margin-bottom: 0.75rem;">Select a duplicate show to merge into this one. Its episodes will be moved here and the duplicate removed.</p>
+      <div class="merge-show-history" style="margin-bottom: 1rem;"></div>
       <div style="display: flex; gap: 0.5rem;">
         <input type="search" class="field merge-show-input" placeholder="Search shows…" value="${escapeAttribute(targetTitle)}" style="flex: 1;" />
         <button class="button-primary merge-show-search-btn" type="button">Search</button>
@@ -1543,6 +1544,53 @@ export function openMergeShowDialog(targetTitle) {
   const resultsEl = overlay.querySelector(".merge-show-results");
   const status = overlay.querySelector(".edit-dialog-status");
   const input = overlay.querySelector(".merge-show-input");
+  const historyEl = overlay.querySelector(".merge-show-history");
+
+  const loadMergeHistory = async () => {
+    try {
+      const response = await fetch(`/api/merge-shows?target_title=${encodeURIComponent(targetTitle)}`, { headers: authHeaders() });
+      const body = await response.json().catch(() => ({}));
+      const merges = (body.merges || []).filter((merge) => merge.active);
+      if (!merges.length) {
+        historyEl.innerHTML = `<p class="muted-copy">No recorded merges into this show.</p>`;
+        return;
+      }
+      historyEl.innerHTML = `
+        <p class="muted-copy" style="margin-bottom: 0.5rem;"><strong>Merged shows</strong></p>
+        <div class="fix-match-results">
+          ${merges.map((merge) => `
+            <div class="fix-match-result" style="display:flex; justify-content:space-between; gap:0.75rem; align-items:center;">
+              <span>${escapeHtml(merge.sourceTitle)}</span>
+              <button class="button-ghost merge-show-undo" type="button" data-merge-id="${escapeAttribute(merge.id)}" data-source-title="${escapeAttribute(merge.sourceTitle)}">Undo merge</button>
+            </div>
+          `).join("")}
+        </div>`;
+      historyEl.querySelectorAll(".merge-show-undo").forEach((button) => {
+        button.addEventListener("click", async () => {
+          const sourceTitle = button.dataset.sourceTitle;
+          if (!confirm(`Restore "${sourceTitle}" as a separate show?`)) return;
+          button.disabled = true;
+          status.textContent = "Undoing merge…";
+          try {
+            const resultResponse = await fetch("/api/merge-shows", {
+              method: "POST",
+              headers: { ...authHeaders(), "Content-Type": "application/json" },
+              body: JSON.stringify({ action: "unmerge", id: button.dataset.mergeId }),
+            });
+            const result = await resultResponse.json().catch(() => ({}));
+            if (!resultResponse.ok) throw new Error(result.error || "Could not undo merge");
+            status.textContent = `Restored "${sourceTitle}" as a separate show.`;
+            await loadMergeHistory();
+          } catch (err) {
+            button.disabled = false;
+            status.textContent = `Error: ${err.message}`;
+          }
+        });
+      });
+    } catch (err) {
+      historyEl.innerHTML = `<p class="muted-copy">Could not load merge history: ${escapeHtml(err.message)}</p>`;
+    }
+  };
 
   const doSearch = async () => {
     const query = input.value.trim();
@@ -1569,7 +1617,7 @@ export function openMergeShowDialog(targetTitle) {
       resultsEl.querySelectorAll(".fix-match-result").forEach((btn) => {
         btn.addEventListener("click", async () => {
           const sourceTitle = btn.dataset.sourceTitle;
-          if (!confirm(`Merge "${sourceTitle}" into "${targetTitle}"? This cannot be undone.`)) return;
+          if (!confirm(`Merge "${sourceTitle}" into "${targetTitle}"? You can undo this later from the Merge menu.`)) return;
           status.textContent = "Merging…";
           try {
             const r = await fetch("/api/merge-shows", {
@@ -1598,5 +1646,6 @@ export function openMergeShowDialog(targetTitle) {
   overlay.querySelector(".edit-dialog-cancel").addEventListener("click", () => overlay.remove());
 
   document.body.appendChild(overlay);
+  loadMergeHistory();
   doSearch();
 }

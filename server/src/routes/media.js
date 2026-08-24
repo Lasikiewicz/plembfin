@@ -41,6 +41,8 @@ import {
   deleteWatchDates,
   updateWatchDates,
   mergeShows,
+  listShowMerges,
+  unmergeShow,
   getWatchRecordById,
   getWatchRecordByIdLight,
   getWatchRecordByMediaKey,
@@ -1163,17 +1165,29 @@ export async function handleRematchShow(req, res) {
 
 export async function handleMergeShows(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
-  if (req.method !== "POST") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
 
+  if (req.method === "GET") {
+    return sendJson(res, { merges: listShowMerges({ targetTitle: String(req.query.target_title || "").trim() }) });
+  }
+  if (req.method !== "POST") return methodNotAllowed(res);
+
   const body = await readJson(req);
+  if (String(body.action || "").toLowerCase() === "unmerge") {
+    try {
+      const result = await unmergeShow(String(body.id || "").trim());
+      return sendJson(res, { ok: true, ...result });
+    } catch (err) {
+      return sendJson(res, { error: err.message }, 400);
+    }
+  }
   const sourceTitle = String(body.source_title || "").trim();
   const targetTitle = String(body.target_title || "").trim();
   if (!sourceTitle || !targetTitle) return sendJson(res, { error: "source_title and target_title are required" }, 400);
 
   try {
     const result = await mergeShows(sourceTitle, targetTitle);
-    return sendJson(res, { ok: true, merged: result.merged });
+    return sendJson(res, { ok: true, id: result.id, merged: result.merged });
   } catch (err) {
     return sendJson(res, { error: err.message }, 400);
   }
