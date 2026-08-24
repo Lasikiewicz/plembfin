@@ -1,7 +1,24 @@
 {
-  "version": "0.11.0",
-  "updatedAt": "2026-08-24T10:58:44Z",
+  "version": "0.11.1",
+  "updatedAt": "2026-08-24T14:46:42Z",
   "entries": [
+    {
+      "version": "0.11.1",
+      "date": "2026-08-24T14:46:42Z",
+      "commit": "47f96eaad881612e35d7c4aac816eaa84d271f5b",
+      "message": "Docs - Make technical references current-state",
+      "author": "github-actions[bot]",
+      "details": [
+        "Align media info panels with the detail-page layout and harden local watch-history handling.",
+        "Preserve separate histories and routes for TV series that share a title",
+        "Keep provider IDs and watched state when duplicate watch dates are merged or removed",
+        "Keep metadata and watch-action UI behavior consistent across provider-backed records",
+        "Enforce safe Docker setup and README/runtime documentation consistency",
+        "Turn the documentation index and architecture map into direct scope and subsystem references",
+        "Document current Now Playing, sync safeguards, security controls, and backup behavior",
+        "Keep deployment and promotion commands in the development guide without internal-only links"
+      ]
+    },
     {
       "version": "0.11.0",
       "date": "2026-08-24T10:58:44Z",
