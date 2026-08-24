@@ -1,7 +1,17 @@
 {
-  "build": 25,
-  "updatedAt": "2026-08-24T09:44:08+01:00",
+  "build": 26,
+  "updatedAt": "2026-08-24T10:03:27+01:00",
   "entries": [
+    {
+      "build": 26,
+      "date": "2026-08-24T10:03:27+01:00",
+      "commit": "44bc8edbd837899a667f3a0a9d2724adc76e993a",
+      "message": "Fix - Preserve manual watched authority",
+      "author": "Lasikiewicz",
+      "details": [
+        "Keep Plembfin manual watched actions authoritative after remote sync replacement echoes."
+      ]
+    },
     {
       "build": 25,
       "date": "2026-08-24T09:44:08+01:00",
