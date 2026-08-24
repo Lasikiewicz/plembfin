@@ -1,7 +1,18 @@
 {
-  "build": 21,
-  "updatedAt": "2026-08-24T08:23:05+01:00",
+  "build": 22,
+  "updatedAt": "2026-08-24T08:37:59+01:00",
   "entries": [
+    {
+      "build": 22,
+      "date": "2026-08-24T08:37:59+01:00",
+      "commit": "b02b0ca0a070ec05e5e30670075753624c42dbb2",
+      "message": "Fix - Record explicit manual watch transitions",
+      "author": "Lasikiewicz",
+      "details": [
+        "Manual episode watches now survive reloads while resync-only records remain idempotent.",
+        "Refresh the watched-action browser module and stabilize identity test setup."
+      ]
+    },
     {
       "build": 21,
       "date": "2026-08-24T08:23:05+01:00",
