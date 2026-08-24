@@ -1,7 +1,18 @@
 {
-  "build": 23,
-  "updatedAt": "2026-08-24T08:57:48+01:00",
+  "build": 24,
+  "updatedAt": "2026-08-24T09:22:33+01:00",
   "entries": [
+    {
+      "build": 24,
+      "date": "2026-08-24T09:22:33+01:00",
+      "commit": "be93c1c53fd9280eb7863704279a0a7d7919e331",
+      "message": "Fix - Prevent Plex watched-state rollbacks",
+      "author": "Lasikiewicz",
+      "details": [
+        "Part Watched episode labels and progress now follow the active theme accent.",
+        "Recent positive-offset Plex watch rollbacks are repaired without hiding later deliberate unwatches."
+      ]
+    },
     {
       "build": 23,
       "date": "2026-08-24T08:57:48+01:00",
