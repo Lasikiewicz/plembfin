@@ -1,7 +1,19 @@
 {
-  "build": 18,
-  "updatedAt": "2026-08-24T00:39:35+01:00",
+  "build": 19,
+  "updatedAt": "2026-08-24T07:59:54+01:00",
   "entries": [
+    {
+      "build": 19,
+      "date": "2026-08-24T07:59:54+01:00",
+      "commit": "847f2446f9dd197488c571566320984b345da483",
+      "message": "Fix - Keep tracker rewatches canonical after rematch",
+      "author": "Lasikiewicz",
+      "details": [
+        "Record a fresh watched transition when an older watched alias coexists with a newer unwatched canonical pointer",
+        "Prevent Trakt reconciliation cache rebuilds from reverting manually restored episodes",
+        "Add the Silo S03E03 provider-id rematch regression"
+      ]
+    },
     {
       "build": 18,
       "date": "2026-08-24T00:39:35+01:00",
