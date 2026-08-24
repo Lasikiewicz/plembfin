@@ -1,7 +1,17 @@
 {
-  "build": 39,
-  "updatedAt": "2026-08-24T11:50:29+01:00",
+  "build": 40,
+  "updatedAt": "2026-08-24T11:57:25+01:00",
   "entries": [
+    {
+      "build": 40,
+      "date": "2026-08-24T11:57:25+01:00",
+      "commit": "cac6413b88dad8c069c5e1a40a38bcaa0c795137",
+      "message": "Chore - Bump release version to 0.11.0",
+      "author": "Lasikiewicz",
+      "details": [
+        "Prepare the tested watch-history and synchronization changes for the v0.11.0 main release."
+      ]
+    },
     {
       "build": 39,
       "date": "2026-08-24T11:50:29+01:00",
