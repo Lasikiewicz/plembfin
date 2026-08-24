@@ -1,18 +1,18 @@
 {
-  "baseVersion": "0.10.3",
+  "baseVersion": "0.11.0",
   "build": 1,
   "entries": [
     {
       "build": 1,
-      "version": "0.10.3.1",
-      "date": "2026-08-24T11:57:25+01:00",
-      "commit": "cac6413b88dad8c069c5e1a40a38bcaa0c795137",
-      "message": "Chore - Bump release version to 0.11.0",
+      "version": "0.11.0.1",
+      "date": "2026-08-24T15:44:30+01:00",
+      "commit": "0d03cfd138a01ca7e8bb663532f52aa6e71b7d42",
+      "message": "Merge remote-tracking branch 'origin/develop' into develop",
       "author": "Lasikiewicz",
       "details": [
-        "Prepare the tested watch-history and synchronization changes for the v0.11.0 main release."
+        "Merge remote-tracking branch 'origin/develop' into develop"
       ]
     }
   ],
-  "updatedAt": "2026-08-24T11:57:25+01:00"
+  "updatedAt": "2026-08-24T15:44:30+01:00"
 }
