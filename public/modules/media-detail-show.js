@@ -154,7 +154,7 @@ export async function openShowImmersiveModalByTitle(showTitle, seedEpisode = nul
   `;
 
   try {
-    const response = await fetch(`/api/show?title=${encodeURIComponent(normalizedTitle)}`, { headers: authHeaders() });
+    const response = await fetch(`/api/show?title=${encodeURIComponent(normalizedTitle)}`, { headers: authHeaders(), cache: "no-store" });
     const body = await response.json().catch(() => ({}));
     if (response.ok && body.show) {
       mergeShowDetail(body.show);

@@ -353,7 +353,10 @@ export async function handleShow(req, res) {
   if (!id && !title) return sendJson(res, { error: "id or title is required" }, 400);
   const show = await queryShowDetail({ id, title });
   if (!show) return sendJson(res, { error: "not found" }, 404);
-  return sendJson(res, { show }, 200, { "Cache-Control": "private, max-age=60, stale-while-revalidate=300", Vary: "Authorization" });
+  // Unlike the show explorer summary, detail includes mutable per-episode
+  // watched state. A cached response can overwrite a just-completed manual
+  // watch on the next page reload, so detail must always be revalidated.
+  return sendJson(res, { show }, 200, { "Cache-Control": "private, no-store", Vary: "Authorization" });
 }
 
 function configuredRestoreTargets(config = {}, stateType = "watched") {

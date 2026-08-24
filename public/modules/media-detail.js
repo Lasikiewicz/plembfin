@@ -11,7 +11,7 @@ import {
 import {
   openShowImmersiveModalByTitle, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openShowInlineDetail,
   renderImmersiveShowModal, renderShowModalContent, scrollSeasonAccordionIntoView,
-} from "./media-detail-show.js?v=20260821";
+} from "./media-detail-show.js?v=20260824b";
 import {
   renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, patchMovieWatchedState,
 } from "./media-detail-movie.js?v=20260821";

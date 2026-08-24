@@ -90,6 +90,7 @@ import {
   updateWatchTelemetry,
   upsertPlaybackProgress,
   upsertPlaystateForMedia,
+  supersedeUnwatchedTransitionsForRecordSync,
   normalizeWatchRecordForInsert,
   watchRowToMedia,
   getCachedShows,
@@ -1043,6 +1044,11 @@ export async function handleManualWatch(req, res) {
         inserted += 1;
         insertedTransition = true;
       }
+
+      // An explicit manual watch supersedes stale unwatched rows left under
+      // any rematched provider-id alias. Resync-only records deliberately do
+      // not rewrite history state.
+      if (!resyncOnly) supersedeUnwatchedTransitionsForRecordSync({ ...storedRecord, id });
 
       media.watchRecordId = id;
       media.ids = {

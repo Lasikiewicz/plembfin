@@ -109,6 +109,8 @@ export const state = {
   partWatchedHasMore: true,
   partWatchedLoading: false,
   partWatchedQueryKey: "",
+  partWatchedRequestVersion: 0,
+  partWatchedAbortController: null,
   explorerViewMovies: localStorage.getItem(EXPLORER_VIEW_KEY_MOVIES) || "posters",
   explorerViewShows: localStorage.getItem(EXPLORER_VIEW_KEY_SHOWS) || "posters",
   posterLookupCache: new Map(),

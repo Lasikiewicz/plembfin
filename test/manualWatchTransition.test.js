@@ -89,6 +89,14 @@ test("manual release-day watch records a fresh transition over a newer rematched
       aliasMedia.ids.tvdb,
     );
 
+  // Production contained a stale alias whose transition clock could still
+  // outrank a newly inserted row. Make that shape explicit: merely appending a
+  // watched sibling is insufficient unless the manual action also supersedes
+  // every related unwatched marker.
+  const futureTransitionClock = Date.now() + 60_000;
+  db.prepare("UPDATE watch_history SET created_at=?, updated_at=? WHERE id='newer-unwatch'")
+    .run(futureTransitionClock, futureTransitionClock);
+
   // Reproduce the upgrade state left by Build 19: its optimistic/manual
   // playstate write was newer than the rematched unwatch pointer, but it
   // skipped the corresponding history transition.  A fresh show-detail read
@@ -125,7 +133,7 @@ test("manual release-day watch records a fresh transition over a newer rematched
   const transitions = db.prepare(
     "SELECT sync_action, created_at FROM watch_history WHERE season=3 AND episode=3 ORDER BY created_at",
   ).all();
-  assert.deepEqual(transitions.map((row) => row.sync_action), ["watched", "unwatched", "watched"]);
+  assert.deepEqual(transitions.map((row) => row.sync_action), ["watched", "watched", "watched"]);
 
   const resyncHttp = requestResponse({ records: [{
     media_type: "episode",
@@ -145,5 +153,5 @@ test("manual release-day watch records a fresh transition over a newer rematched
   const transitionsAfterResync = db.prepare(
     "SELECT sync_action FROM watch_history WHERE season=3 AND episode=3 ORDER BY created_at",
   ).all();
-  assert.deepEqual(transitionsAfterResync.map((row) => row.sync_action), ["watched", "unwatched", "watched"]);
+  assert.deepEqual(transitionsAfterResync.map((row) => row.sync_action), ["watched", "watched", "watched"]);
 });

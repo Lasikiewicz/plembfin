@@ -1376,6 +1376,56 @@ const promoteRowToWatchedStmt = db.prepare(
        created_at = ?, updated_at = ?
    WHERE id = ?`,
 );
+const supersedeRowToWatchedStmt = db.prepare(
+  `UPDATE watch_history
+   SET sync_action = 'watched', watched_at = ?, sync_dispatch_telemetry = ?,
+       sync_retry_count = 0, sync_next_retry_at = 0, created_at = ?, updated_at = ?
+   WHERE id = ?`,
+);
+
+// An explicit Plembfin "Mark watched" is the newest user decision for the
+// whole real item, not just for whichever provider-id key the browser happens
+// to send. Older rematches can leave unwatched markers under sibling keys; if
+// even one remains unwatched, history dedupe can restore it on the next fresh
+// show read despite the new watched row and canonical playstate. Promote every
+// related marker in place so watch_history is unambiguous across all aliases.
+// The append-only audit log still retains the original unwatch event.
+export function supersedeUnwatchedTransitionsForRecordSync(existing = {}) {
+  if (!existing?.id) return 0;
+  const related = [existing, ...siblingWatchRowsFor(existing)];
+  const unwatched = related.filter((row) => ["unwatched", "unplayed"].includes(String(row?.sync_action || "").toLowerCase()));
+  if (!unwatched.length) return 0;
+
+  const now = Date.now();
+  const watchedAt = normalizeWatchedAt(existing.watched_at || existing.watchedAt) || new Date(now).toISOString();
+  const telemetry = [
+    "Origin: manual",
+    "Loop-check: Passed",
+    "Dispatch status: pending",
+    "Details: Superseded by an explicit Plembfin Mark watched action.",
+  ].join("\n");
+  for (const row of unwatched) {
+    queueProgressUpdateForRecord(row);
+    supersedeRowToWatchedStmt.run(watchedAt, telemetry, now, now, row.id);
+    recordWatchAuditEvent({
+      eventType: "history_state_recorded",
+      timestamp: now,
+      action: "watched",
+      watchRecordId: row.id,
+      mediaKey: row.media_key,
+      mediaType: row.media_type,
+      title: row.title,
+      showTitle: row.show_title,
+      source: "manual",
+      ids: { imdb: row.imdb_id, tmdb: row.tmdb_id, tvdb: row.tvdb_id },
+      season: row.season,
+      episode: row.episode,
+      details: "A stale unwatched alias was superseded by an explicit Plembfin Mark watched action.",
+      payload: { previousAction: row.sync_action || "unwatched" },
+    });
+  }
+  return unwatched.length;
+}
 
 // All other tracked watch_history rows describing the same movie (by media_key)
 // or the same episode (by show+season+episode), regardless of date. Used both

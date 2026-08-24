@@ -5,6 +5,7 @@ import { posterMarkup, hydratePosters, lookupPosterUrl, bindPosterImageErrorHand
 
 const PART_WATCHED_DASHBOARD_LIMIT = 30;
 const EXPLORER_PAGE_SIZE = 240;
+const PART_WATCHED_REQUEST_TIMEOUT_MS = 15000;
 
 let _cb = {};
 
@@ -440,6 +441,13 @@ function applyPartWatchedPosterWidth() {
 }
 
 export function resetPartWatchedView(key = "") {
+  // A dashboard live refresh can reset this view while its previous request is
+  // still pending. Abort and invalidate that request before clearing loading;
+  // otherwise its late finally block can own the new generation and leave the
+  // panel stuck on "Loading partly watched items…" indefinitely.
+  state.partWatchedRequestVersion += 1;
+  state.partWatchedAbortController?.abort();
+  state.partWatchedAbortController = null;
   state.partWatchedRaw = [];
   state.partWatchedOffset = 0;
   state.partWatchedHasMore = true;
@@ -609,23 +617,40 @@ export function renderPartWatched() {
 
 export async function loadPartWatched() {
   if (state.partWatchedLoading || !state.partWatchedHasMore) return;
+  const requestVersion = state.partWatchedRequestVersion + 1;
+  state.partWatchedRequestVersion = requestVersion;
+  const controller = new AbortController();
+  state.partWatchedAbortController = controller;
   state.partWatchedLoading = true;
+  const timeout = setTimeout(() => controller.abort(), PART_WATCHED_REQUEST_TIMEOUT_MS);
 
   try {
     const url = new URL("/api/playback-progress", window.location.origin);
     url.searchParams.set("limit", String(EXPLORER_PAGE_SIZE));
     url.searchParams.set("offset", String(state.partWatchedOffset));
 
-    const res = await fetch(url, { headers: authHeaders() });
+    const res = await fetch(url, { headers: authHeaders(), cache: "no-store", signal: controller.signal });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || `Progress load failed ${res.status}`);
+    if (requestVersion !== state.partWatchedRequestVersion) return;
 
     const items = Array.isArray(body.progress) ? body.progress : [];
     state.partWatchedRaw = dedupePlaybackProgress([...state.partWatchedRaw, ...items]);
     state.partWatchedOffset += items.length;
     state.partWatchedHasMore = false;
+  } catch (error) {
+    // A reset intentionally aborts the old generation; it must not change or
+    // render the replacement request's state.
+    if (requestVersion !== state.partWatchedRequestVersion) return;
+    state.partWatchedHasMore = false;
+    if (error?.name === "AbortError") throw new Error("Part Watched request timed out");
+    throw error;
   } finally {
-    state.partWatchedLoading = false;
-    renderPartWatched();
+    clearTimeout(timeout);
+    if (requestVersion === state.partWatchedRequestVersion) {
+      state.partWatchedAbortController = null;
+      state.partWatchedLoading = false;
+      renderPartWatched();
+    }
   }
 }
