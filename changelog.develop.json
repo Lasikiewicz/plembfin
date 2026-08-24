@@ -1,7 +1,20 @@
 {
-  "build": 3,
-  "updatedAt": "2026-08-24T13:46:45+01:00",
+  "build": 4,
+  "updatedAt": "2026-08-24T15:23:57+01:00",
   "entries": [
+    {
+      "build": 4,
+      "date": "2026-08-24T15:23:57+01:00",
+      "commit": "0fc444f8244c031b550488e818251888ed0e5ced",
+      "message": "Fix - Keep same-title shows and watch history separate",
+      "author": "Lasikiewicz",
+      "details": [
+        "Preserve separate histories and routes for TV series that share a title",
+        "Keep provider IDs and watched state when duplicate watch dates are merged or removed",
+        "Keep metadata and watch-action UI behavior consistent across provider-backed records",
+        "Enforce safe Docker setup and README/runtime documentation consistency"
+      ]
+    },
     {
       "build": 3,
       "date": "2026-08-24T13:46:45+01:00",
