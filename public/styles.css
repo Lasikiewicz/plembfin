@@ -16279,7 +16279,7 @@ html.light-mode .review-card {
 .part-watched-card-episode {
   font-size: 0.9rem;
   font-weight: 700;
-  color: #e5a00d;
+  color: var(--accent);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -16317,7 +16317,11 @@ html.light-mode .review-card {
 
 .part-watched-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #e5a00d, #f59e0b);
+  background: linear-gradient(
+    90deg,
+    var(--accent),
+    color-mix(in srgb, var(--accent) 72%, white)
+  );
   border-radius: 3px;
   transition: width 0.3s ease;
 }
@@ -16325,7 +16329,7 @@ html.light-mode .review-card {
 .part-watched-progress-text {
   font-size: 0.72rem;
   font-weight: 800;
-  color: #e5a00d;
+  color: var(--accent);
 }
 
 /* Actions */

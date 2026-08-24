@@ -9,8 +9,9 @@ import { listActiveSessions } from "./utils/activeSessions.js";
 import { runScheduledSync } from "./scheduled.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
 import { watchedThresholdPercent } from "./utils/tuning.js";
-import { isRecentOutboundUnplayedFlagEcho, lastOutboundPlayedMarkAt, syncMediaPlaystate } from "./utils/syncOrchestrator.js";
+import { isRecentOutboundUnplayedFlagEcho, lastOutboundPlayedMarkAt, syncCanonicalPlaystate, syncMediaPlaystate } from "./utils/syncOrchestrator.js";
 import { applyUnwatchedTransition } from "./utils/watchStateTransitions.js";
+import { shouldRepairRecentPlexUnwatch } from "./utils/plexWatchstate.js";
 import { pollConnectedTrackers } from "./utils/trackerSync.js";
 import { getTmdbDetails, prewarmTmdbLibrary } from "./utils/tmdbGateway.js";
 import { cachedNextAiringFor, mergeNextAiringCacheEntries, nextAiringCacheEntryStale, nextAiringCacheKey, readNextAiringCache } from "./utils/nextAiringCache.js";
@@ -395,6 +396,26 @@ async function handlePlexLibraryItemChange(ratingKey, metadataOverride = null) {
     // this item ever being watched - otherwise treat it as a real unwatch.
     const priorPlaystate = await getPlaystateForMedia(media).catch(() => null);
     if (priorPlaystate?.state !== "watched") return;
+    const hasPlaybackEvidence = await hasRecentPlexThresholdPlayback(media);
+    if (shouldRepairRecentPlexUnwatch({ playstate: priorPlaystate, viewOffset, hasPlaybackEvidence })) {
+      console.log("Plex notifications: held back transient unwatch after threshold playback; restoring watched state", {
+        title: media.title,
+        ratingKey,
+        viewOffset,
+      });
+      const repairLoopStore = createLoopStore();
+      await syncCanonicalPlaystate({ ...media, itemId: ratingKey }, config, repairLoopStore, "watched", {
+        includeTrackers: false,
+      }).catch((error) => {
+        console.error("Plex notifications: failed to restore watched state after transient unwatch", {
+          title: media.title,
+          ratingKey,
+          error,
+        });
+      });
+      await deletePlaybackProgress(media).catch(() => null);
+      return;
+    }
     console.log("Plex notifications: unwatch detected despite lingering viewOffset", {
       title: media.title,
       ratingKey,
@@ -505,13 +526,35 @@ async function checkPlexUnwatchedFast(plexConfig) {
         const isWatched = Boolean(plexItem.viewCount && Number(plexItem.viewCount) > 0);
         if (!isWatched) {
           const plexMedia = { ...media, itemId: plexItem.ratingKey || plexItem.key || undefined };
+          const config = await loadMediaConfig().catch(() => null);
+          const priorPlaystate = await getPlaystateForMedia(plexMedia).catch(() => null);
+          const hasPlaybackEvidence = await hasRecentPlexThresholdPlayback(plexMedia);
+          if (shouldRepairRecentPlexUnwatch({
+            playstate: priorPlaystate,
+            viewOffset: plexItem.viewOffset,
+            hasPlaybackEvidence,
+          })) {
+            console.log("Plex adaptive poller: held back transient unwatch after threshold playback; restoring watched state", {
+              title: record.title,
+              ratingKey: plexMedia.itemId,
+              viewOffset: Number(plexItem.viewOffset || 0),
+            });
+            await syncCanonicalPlaystate(plexMedia, config, loopStore, "watched", { includeTrackers: false }).catch((error) => {
+              console.error("Plex adaptive poller: failed to restore watched state after transient unwatch", {
+                title: record.title,
+                ratingKey: plexMedia.itemId,
+                error,
+              });
+            });
+            await deletePlaybackProgress(plexMedia).catch(() => null);
+            continue;
+          }
           const ownPlayedMarkAt = await lastOutboundPlayedMarkAt(plexMedia, "plex", loopStore).catch(() => 0);
           if (ownPlayedMarkAt > 0 && Date.now() - ownPlayedMarkAt <= 10 * 60 * 1000) {
             continue;
           }
 
           console.log("Plex adaptive poller: item marked unwatched, storing and propagating", { title: record.title });
-          const config = await loadMediaConfig().catch(() => null);
           const result = await applyUnwatchedTransition(plexMedia, config, loopStore, { recordId: record.id });
           if (!result.alreadyUnwatched) {
             await appendSyncHistory({
