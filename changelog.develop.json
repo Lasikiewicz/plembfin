@@ -1,7 +1,17 @@
 {
-  "build": 32,
-  "updatedAt": "2026-08-24T11:02:14+01:00",
+  "build": 33,
+  "updatedAt": "2026-08-24T11:07:46+01:00",
   "entries": [
+    {
+      "build": 33,
+      "date": "2026-08-24T11:07:46+01:00",
+      "commit": "7af71e08e473e5c599d5992e7d20fe8a90eb8e1e",
+      "message": "Fix - Suppress Plex played echoes before history insert",
+      "author": "Lasikiewicz",
+      "details": [
+        "Keep removed Plex watch dates from returning when Plex acknowledges Plembfin's own canonical watched-state write."
+      ]
+    },
     {
       "build": 32,
       "date": "2026-08-24T11:02:14+01:00",
