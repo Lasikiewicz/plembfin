@@ -8,6 +8,7 @@ import {
   formatPlaybackClock,
   computeProgress,
   normalizePlatformSource,
+  platformSourceValues,
   platformIconUrl,
   platformIconMarkup,
   sourceBadgeHtml,
@@ -37,12 +38,16 @@ test("frontend platform and title helpers normalize user-facing labels", () => {
   assert.equal(normalizePlatformSource("force_sync"), "plembfin");
   assert.equal(normalizePlatformSource("plembfin"), "plembfin");
   assert.equal(normalizePlatformSource("unknown"), "plex");
+  assert.deepEqual(
+    platformSourceValues({ sources: ["jellyfin", "plex"], source: "manual", playHistory: [{ source: "plex_webhook" }] }),
+    ["jellyfin", "plex", "plembfin"],
+  );
   assert.match(sourceBadgeHtml("plembfin"), /source-plembfin/);
   assert.match(platformIconMarkup("plembfin"), /source-badge-icon-set/);
-  assert.match(platformIconMarkup("plembfin"), /plembfin-light\.png\?v=20260824f/);
-  assert.match(platformIconMarkup("plembfin"), /plembfin\.png\?v=20260824f/);
+  assert.match(platformIconMarkup("plembfin"), /plembfin-light\.png\?v=20260824g/);
+  assert.match(platformIconMarkup("plembfin"), /plembfin\.png\?v=20260824g/);
   assert.match(sourceBadgeHtml("plembfin"), />Plembfin<\/span>/);
-  assert.equal(platformIconUrl("manual"), "/icons/plembfin.png?v=20260824f");
+  assert.equal(platformIconUrl("manual"), "/icons/plembfin.png?v=20260824g");
   assert.equal(platformName("jellyfin_webhook"), "Jellyfin");
   assert.equal(showName("Harbor Nine - S02E03 - Low Tide"), "Harbor Nine");
   assert.equal(episodeCode(2, 3), "S02E03");

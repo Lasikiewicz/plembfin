@@ -1,6 +1,6 @@
 import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, sourceBadgeHtml, formatDate, resolveEpisodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, computeProgress } from "./utils.js?v=20260824f";
+import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, sourceBadgeHtml, formatDate, resolveEpisodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress } from "./utils.js?v=20260824g";
 import { posterMarkup, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, tmdbPoster } from "./images.js";
 
 const PART_WATCHED_DASHBOARD_LIMIT = 30;
@@ -188,23 +188,6 @@ function actualWatchLabel(entry = {}) {
   return count === 2 ? "Watched Twice" : `Watched ${count} Times`;
 }
 
-function historySourceValues(entry = {}) {
-  const rawSources = [
-    ...(Array.isArray(entry.sources) ? entry.sources : (entry.sources ? [entry.sources] : [])),
-    entry.source,
-    ...(Array.isArray(entry.playHistory) ? entry.playHistory.map((play) => play?.source) : []),
-  ];
-  const seen = new Set();
-  return rawSources
-    .filter((source) => String(source || "").trim())
-    .map((source) => normalizePlatformSource(source))
-    .filter((source) => {
-      if (!source || seen.has(source)) return false;
-      seen.add(source);
-      return true;
-    });
-}
-
 function showProviderIds(entry = {}) {
   return new Map([
     ["imdb", entry.show_imdb_id],
@@ -237,17 +220,17 @@ export function mergeDashboardHistoryEntries(entries = []) {
   const groups = [];
   for (const entry of entries) {
     if (!entry || entry.media_type !== "episode") {
-      groups.push({ entry: { ...entry }, sources: new Set(historySourceValues(entry)), watchCount: actualWatchCount(entry) });
+      groups.push({ entry: { ...entry }, sources: new Set(platformSourceValues(entry)), watchCount: actualWatchCount(entry) });
       continue;
     }
 
     const group = groups.find((candidate) => sameDashboardEpisode(candidate.entry, entry));
     if (!group) {
-      groups.push({ entry: { ...entry }, sources: new Set(historySourceValues(entry)), watchCount: actualWatchCount(entry) });
+      groups.push({ entry: { ...entry }, sources: new Set(platformSourceValues(entry)), watchCount: actualWatchCount(entry) });
       continue;
     }
 
-    for (const source of historySourceValues(entry)) group.sources.add(source);
+    for (const source of platformSourceValues(entry)) group.sources.add(source);
     group.watchCount = Math.max(group.watchCount, actualWatchCount(entry));
 
     const currentTime = String(group.entry.watched_at || "");
@@ -270,7 +253,7 @@ export function mergeDashboardHistoryEntries(entries = []) {
 }
 
 function historySourceBadges(entry = {}) {
-  return historySourceValues(entry).map((source) => sourceBadgeHtml(source)).join(" ") || "None";
+  return platformSourceValues(entry).map((source) => sourceBadgeHtml(source)).join(" ") || "None";
 }
 
 export function renderHistoryCard(entry) {
@@ -350,7 +333,7 @@ function renderDashboardHistoryPageCard(entry) {
     href = entry.tmdb_id ? movieTmdbHref(entry.tmdb_id, entry.title) : movieHref(entry);
   }
 
-  const sources = historySourceValues(entry);
+  const sources = platformSourceValues(entry);
   const sourceBadge = historySourceBadges(entry);
   return `
     <a class="history-page-card dashboard-history-page-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="${isEpisode ? "tv" : "movie"}" data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(displayTitle || "")}">

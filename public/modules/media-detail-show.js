@@ -1,5 +1,5 @@
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel, formatSeasonTitle, sourceBadgeHtml, actualWatchHistory } from "./utils.js?v=20260824f";
+import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel, formatSeasonTitle, sourceBadgeHtml, platformSourceValues, actualWatchHistory } from "./utils.js?v=20260824g";
 import { posterUrlFor, isCachedStorageImageUrl, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js";
 import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js";
 import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading } from "./explorer.js";
@@ -759,12 +759,13 @@ function episodeReleaseLabel(airDate) {
 function episodeWatchHistoryHtml(watched) {
   const history = actualWatchHistory(watched);
   if (!history.length) return "";
+  const aggregateSources = platformSourceValues(watched);
   const rows = [...history]
     .sort((a, b) => String(b.watched_at).localeCompare(String(a.watched_at)))
     .map((entry, index) => `
       <li class="episode-watch-history-row">
         <span class="episode-watch-history-date">Watched - ${escapeHtml(formatDate(entry.watched_at))}</span>
-        ${sourceBadgeHtml(entry.source)}
+        ${(index === 0 ? aggregateSources : platformSourceValues(entry)).map((source) => sourceBadgeHtml(source)).join(" ")}
         ${index === 0
         ? `<button class="edit-date-icon-btn episode-edit-date-btn" type="button" title="Edit watch date" data-edit-id="${escapeAttribute(entry.id || watched.id || "")}" data-watched-at="${escapeAttribute(entry.watched_at || "")}">✎</button>`
         : ""}

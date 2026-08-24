@@ -11,14 +11,14 @@ import {
   escapeHtml, escapeAttribute, slug, showTitleFrom, showName,
   movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, platformBadge, sourceClass, sourceBadgeHtml, formatDate,
   computeProgress, sanitizeTitle, episodeTitle, episodeCode,
-} from "./utils.js?v=20260824f";
+} from "./utils.js?v=20260824g";
 import { posterMarkup, hydratePosters, bindPosterImageErrorHandler, tmdbPoster, tmdbProfile, proxiedArtworkUrl } from "./images.js";
 import {
   historySyncPill, renderSyncStatusDot, renderMediaSyncPills,
   renderAvailabilityPills, renderShowAvailabilityPills, showAvailIssuePopup,
   isWatchedHistoryAction,
 } from "./sync.js";
-import { dedupeMediaRecords, renderHistoryCard } from "./dashboard.js?v=20260824f";
+import { dedupeMediaRecords, renderHistoryCard } from "./dashboard.js?v=20260824g";
 import { nextAiringCell, nextAiringDateValue, formatListDate, futureListDate } from "./stats.js";
 // ---------------------------------------------------------------------------
 // Callback injection - functions defined outside the 2636-4016 range in app.js
