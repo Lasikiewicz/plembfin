@@ -8,6 +8,7 @@ import {
   formatPlaybackClock,
   computeProgress,
   normalizePlatformSource,
+  sourceBadgeHtml,
   platformName,
   showName,
   episodeCode,
@@ -31,7 +32,11 @@ test("frontend playback formatting clamps progress and renders clocks", () => {
 test("frontend platform and title helpers normalize user-facing labels", () => {
   assert.equal(normalizePlatformSource("Emby webhook"), "emby");
   assert.equal(normalizePlatformSource("Jellyfin_scheduler"), "jellyfin");
+  assert.equal(normalizePlatformSource("force_sync"), "plembfin");
+  assert.equal(normalizePlatformSource("plembfin"), "plembfin");
   assert.equal(normalizePlatformSource("unknown"), "plex");
+  assert.match(sourceBadgeHtml("plembfin"), /source-plembfin/);
+  assert.match(sourceBadgeHtml("plembfin"), />Plembfin<\/span>/);
   assert.equal(platformName("jellyfin_webhook"), "Jellyfin");
   assert.equal(showName("Harbor Nine - S02E03 - Low Tide"), "Harbor Nine");
   assert.equal(episodeCode(2, 3), "S02E03");

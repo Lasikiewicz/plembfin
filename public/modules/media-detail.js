@@ -1,6 +1,6 @@
 import { state, elements } from "./state.js";
 import { slug, movieSlug, movieHref, movieTmdbHref, tvShowTmdbHref, showName, showTitleFrom } from "./utils.js";
-import { dedupeMediaRecords } from "./dashboard.js";
+import { dedupeMediaRecords } from "./dashboard.js?v=20260824d";
 import { isWatchedHistoryAction } from "./sync.js";
 import {
   initMediaDetail, authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions,

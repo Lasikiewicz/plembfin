@@ -18,7 +18,7 @@ import {
   renderAvailabilityPills, renderShowAvailabilityPills, showAvailIssuePopup,
   isWatchedHistoryAction,
 } from "./sync.js";
-import { dedupeMediaRecords, renderHistoryCard } from "./dashboard.js";
+import { dedupeMediaRecords, renderHistoryCard } from "./dashboard.js?v=20260824d";
 import { nextAiringCell, nextAiringDateValue, formatListDate, futureListDate } from "./stats.js";
 // ---------------------------------------------------------------------------
 // Callback injection - functions defined outside the 2636-4016 range in app.js

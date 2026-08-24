@@ -210,7 +210,7 @@ export function normalizePlatformSource(value) {
   const source = String(value || "").trim().toLowerCase();
   if (source.startsWith("emby")) return "emby";
   if (source.startsWith("jellyfin")) return "jellyfin";
-  if (source.startsWith("manual")) return "plembfin";
+  if (source.startsWith("manual") || source.startsWith("force_sync") || source.startsWith("plembfin")) return "plembfin";
   return "plex";
 }
 
