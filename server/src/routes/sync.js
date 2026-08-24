@@ -2199,6 +2199,32 @@ export async function handleWebhook(req, res) {
           note: existingProvenance.note || "The source reported a manual played flag without playback evidence; the release date was used as the watch date.",
         },
       );
+
+      // A viewstate/played-flag notification contains no playback evidence.
+      // If Plembfin already has any watched history for this real item, the
+      // notification is only acknowledging a played bit (often our own
+      // canonical replay after the user deleted a newer provider date). The
+      // ordinary recent-record check below intentionally looks at a one-hour
+      // watch window and therefore cannot catch an older retained watch date.
+      // Use the full identity-aware history lookup before persistence so the
+      // removed provider date cannot be recreated from its release date.
+      const existingWatchedHistory = await findWatchedByAnyMediaKey(media).catch(() => null);
+      if (existingWatchedHistory) {
+        console.log("Webhook: skipped played flag for an item already present in watched history", {
+          source: media.source,
+          title: media.title,
+          event: media.event,
+          existingWatchId: existingWatchedHistory.id,
+        });
+        await deletePlaybackProgress(media).catch(() => null);
+        await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
+        return sendJson(res, {
+          ok: true,
+          inserted: false,
+          id: existingWatchedHistory.id,
+          reason: "Played flag event for an item already present in watched history",
+        });
+      }
     }
 
     // Check if a recent watch record already exists (e.g., from full sync)
