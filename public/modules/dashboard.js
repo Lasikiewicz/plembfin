@@ -190,7 +190,7 @@ function actualWatchLabel(entry = {}) {
 
 function historySourceValues(entry = {}) {
   const rawSources = [
-    ...(Array.isArray(entry.sources) ? entry.sources : []),
+    ...(Array.isArray(entry.sources) ? entry.sources : (entry.sources ? [entry.sources] : [])),
     entry.source,
     ...(Array.isArray(entry.playHistory) ? entry.playHistory.map((play) => play?.source) : []),
   ];

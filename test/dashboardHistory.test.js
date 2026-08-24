@@ -30,6 +30,19 @@ test("dashboard history merges one episode across apps and keeps every source ba
   assert.equal(merged[0].watch_count, 1, "cross-app copies of one viewing are not counted as a rewatch");
 });
 
+test("dashboard history collapses provider-specific source aliases into one badge", () => {
+  const merged = mergeDashboardHistoryEntries([
+    episode({
+      id: "plex-aliases",
+      source: "plex_webhook",
+      sources: ["plex", "Plex webhook"],
+      playHistory: [{ source: "plex_import" }],
+    }),
+  ]);
+
+  assert.deepEqual(merged[0].sources, ["plex"]);
+});
+
 test("dashboard history does not merge same-title episodes with conflicting provider identities", () => {
   const merged = mergeDashboardHistoryEntries([
     episode({ id: "original", show_tmdb_id: "100" }),

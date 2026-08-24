@@ -92,6 +92,37 @@ test("deduped dashboard history retains every app that recorded one episode", ()
   assert.deepEqual(new Set(row.sources), new Set(["plex", "jellyfin"]));
 });
 
+test("deduped dashboard history collapses source aliases for one app", () => {
+  const [row] = repo.dedupeHistory([
+    {
+      id: "same-platform-plain",
+      title: "Same Platform Show - S01E01 - Episode",
+      show_title: "Same Platform Show",
+      media_type: "episode",
+      season: 1,
+      episode: 1,
+      tmdb_id: "same-platform-show",
+      watched_at: "2026-08-23T22:50:00.000Z",
+      source: "plex",
+      sync_action: "watched",
+    },
+    {
+      id: "same-platform-webhook",
+      title: "Same Platform Show - S01E01 - Episode",
+      show_title: "Same Platform Show",
+      media_type: "episode",
+      season: 1,
+      episode: 1,
+      tmdb_id: "same-platform-show",
+      watched_at: "2026-08-23T22:50:02.000Z",
+      source: "plex_webhook",
+      sync_action: "watched",
+    },
+  ]);
+
+  assert.deepEqual(row.sources, ["plex"]);
+});
+
 test("handleDuplicateWatchScan detects TV episode duplicates and normalizes mediaType aliases", async () => {
   const { handleDuplicateWatchScan, handleDuplicateWatchCleanup } = await import("../server/src/routes/media.js");
   const { AUTH } = await import("../server/src/appConfig.js");
