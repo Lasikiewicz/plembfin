@@ -1,7 +1,17 @@
 {
-  "build": 11,
-  "updatedAt": "2026-08-24T21:39:04+01:00",
+  "build": 12,
+  "updatedAt": "2026-08-24T22:39:18+01:00",
   "entries": [
+    {
+      "build": 12,
+      "date": "2026-08-24T22:39:18+01:00",
+      "commit": "d28dd1ff34b2bf58a8a40816ae48c82438b8a3c7",
+      "message": "Fix - Size theme-aware plembfin badges",
+      "author": "Lasikiewicz",
+      "details": [
+        "Use cropped dark-P and white-P badge assets for light and dark themes."
+      ]
+    },
     {
       "build": 11,
       "date": "2026-08-24T21:39:04+01:00",
