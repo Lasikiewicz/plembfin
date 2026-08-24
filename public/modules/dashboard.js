@@ -1,6 +1,6 @@
 import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, sourceBadgeHtml, formatDate, resolveEpisodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress } from "./utils.js?v=20260824g";
+import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, sourceBadgeHtml, formatDate, resolveEpisodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress } from "./utils.js?v=20260824h";
 import { posterMarkup, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, tmdbPoster } from "./images.js";
 
 const PART_WATCHED_DASHBOARD_LIMIT = 30;
@@ -244,11 +244,14 @@ export function mergeDashboardHistoryEntries(entries = []) {
   }
 
   return groups
-    .map(({ entry, sources, watchCount }) => ({
-      ...entry,
-      sources: [...sources],
-      watch_count: Math.max(Number(entry.watch_count) || 0, watchCount),
-    }))
+    .map(({ entry, sources, watchCount }) => {
+      const sourceValues = platformSourceValues({ ...entry, sources: [...sources] });
+      return {
+        ...entry,
+        sources: sourceValues,
+        watch_count: Math.max(Number(entry.watch_count) || 0, watchCount),
+      };
+    })
     .sort((left, right) => String(right.watched_at || "").localeCompare(String(left.watched_at || "")));
 }
 

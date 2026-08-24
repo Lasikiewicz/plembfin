@@ -3,7 +3,7 @@ import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeC
 import { buildAuthHeaders } from "./auth.js";
 import { isWatchedHistoryAction } from "./sync.js";
 import { mergeShowDetail } from "./explorer.js";
-import { dedupeMediaRecords, resetPartWatchedView, renderPartWatched } from "./dashboard.js?v=20260824g";
+import { dedupeMediaRecords, resetPartWatchedView, renderPartWatched } from "./dashboard.js?v=20260824h";
 import { tvSeasonAvailability } from "./media-detail-shared.js";
 import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js";
 
