@@ -91,6 +91,7 @@ import {
   upsertPlaybackProgress,
   upsertPlaystateForMedia,
   supersedeUnwatchedTransitionsForRecordSync,
+  reassertWatchRecordAuthoritySync,
   normalizeWatchRecordForInsert,
   watchRowToMedia,
   getCachedShows,
@@ -1097,7 +1098,8 @@ export async function handleManualWatch(req, res) {
           // the explicit Plembfin decision only after every remote call has
           // settled: Plembfin is the authority, and transport side effects
           // must never overrule the user's click.
-          supersedeUnwatchedTransitionsForRecordSync(task.record);
+          const authoritativeRecord = reassertWatchRecordAuthoritySync(task.id) || task.record;
+          supersedeUnwatchedTransitionsForRecordSync(authoritativeRecord);
           await upsertPlaystateForMedia(task.media, "watched", task.record.watched_at, { skipInvalidate: true });
 
           await updateWatchTelemetry(task.id, formatDispatchTelemetry(summary, task.media, "watched"), { skipInvalidate: true });

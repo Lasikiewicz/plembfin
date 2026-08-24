@@ -1382,6 +1382,29 @@ const supersedeRowToWatchedStmt = db.prepare(
        sync_retry_count = 0, sync_next_retry_at = 0, created_at = ?, updated_at = ?
    WHERE id = ?`,
 );
+const reassertWatchRowAuthorityStmt = db.prepare(
+  `UPDATE watch_history
+   SET sync_action = 'watched', sync_retry_count = 0, sync_next_retry_at = 0,
+       created_at = ?, updated_at = ?
+   WHERE id = ?`,
+);
+
+// Move the exact row created by an explicit Plembfin Mark watched action to
+// the end of the canonical transition timeline. Remote callbacks can be
+// accepted while outbound dispatch is still running; merely promoting their
+// sibling rows is not sufficient because an older manual row can then lose
+// the deterministic latest-transition comparison. Returning the persisted
+// DB shape also gives the sibling pass its derived show_title/media_key,
+// rather than the slimmer normalized request object.
+export function reassertWatchRecordAuthoritySync(id) {
+  const recordId = String(id || "").trim();
+  if (!recordId) return null;
+  const existing = selectByIdStmt.get(recordId);
+  if (!existing) return null;
+  const now = Date.now();
+  reassertWatchRowAuthorityStmt.run(now, now, recordId);
+  return selectByIdStmt.get(recordId) || null;
+}
 
 // An explicit Plembfin "Mark watched" is the newest user decision for the
 // whole real item, not just for whichever provider-id key the browser happens

@@ -188,7 +188,9 @@ test("Plembfin can reassert a manual watch after a newer remote replacement echo
   await repo.invalidateHistoryDerivedCaches();
   assert.equal((await repo.queryShowDetail({ title: showTitle }))?.episodes?.[0]?.sync_action, "unwatched");
 
-  assert.equal(repo.supersedeUnwatchedTransitionsForRecordSync({ ...manual.record, id: manual.id }), 1);
+  const authoritativeRecord = repo.reassertWatchRecordAuthoritySync(manual.id);
+  assert.equal(authoritativeRecord?.id, manual.id);
+  assert.equal(repo.supersedeUnwatchedTransitionsForRecordSync(authoritativeRecord), 1);
   await repo.invalidateHistoryDerivedCaches();
 
   const show = await repo.queryShowDetail({ title: showTitle });
