@@ -101,6 +101,7 @@ import {
   getKnownShowIdentityForTitle,
   findExistingWatch,
   findWatchedByAnyMediaKey,
+  isDeletedWatchSuppressed,
   getCanonicalWatchState,
   getPlaybackProgressForMedia,
   getPlaystateForMedia,
@@ -2199,6 +2200,24 @@ export async function handleWebhook(req, res) {
           note: existingProvenance.note || "The source reported a manual played flag without playback evidence; the release date was used as the watch date.",
         },
       );
+
+      if (isDeletedWatchSuppressed(media, media.watched_at)) {
+        console.log("Webhook: skipped a provider watch date explicitly deleted in Plembfin", {
+          source: media.source,
+          title: media.title,
+          event: media.event,
+          itemId: media.itemId,
+          watchedAt: media.watched_at,
+        });
+        await deletePlaybackProgress(media).catch(() => null);
+        await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
+        return sendJson(res, {
+          ok: true,
+          inserted: false,
+          skipped: true,
+          reason: "Provider watch date was explicitly deleted in Plembfin",
+        });
+      }
 
       // A viewstate/played-flag notification contains no playback evidence.
       // If Plembfin already has any watched history for this real item, the

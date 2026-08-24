@@ -74,11 +74,21 @@ db.exec(`CREATE TABLE IF NOT EXISTS show_merge_history (
   reverted_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_show_merge_history_target ON show_merge_history(target_title, merged_at DESC);`);
+db.exec(`CREATE TABLE IF NOT EXISTS deleted_watch_suppressions (
+  source TEXT NOT NULL,
+  identity_key TEXT NOT NULL,
+  watched_at TEXT NOT NULL,
+  deleted_at INTEGER NOT NULL,
+  PRIMARY KEY (source, identity_key, watched_at)
+);
+CREATE INDEX IF NOT EXISTS idx_deleted_watch_suppressions_date ON deleted_watch_suppressions(watched_at);`);
 const insertShowMergeStmt = db.prepare("INSERT INTO show_merge_history (id, source_title, target_title, rows_json, merged_at) VALUES (?, ?, ?, ?, ?)");
 const listShowMergesStmt = db.prepare("SELECT id, source_title, target_title, merged_at, reverted_at FROM show_merge_history ORDER BY merged_at DESC");
 const selectShowMergeStmt = db.prepare("SELECT * FROM show_merge_history WHERE id = ?");
 const revertShowMergeStmt = db.prepare("UPDATE show_merge_history SET reverted_at = ? WHERE id = ? AND reverted_at IS NULL");
 const deleteByIdStmt = db.prepare("DELETE FROM watch_history WHERE id = ?");
+const insertDeletedWatchSuppressionStmt = db.prepare("INSERT OR REPLACE INTO deleted_watch_suppressions (source, identity_key, watched_at, deleted_at) VALUES (?, ?, ?, ?)");
+const selectDeletedWatchSuppressionStmt = db.prepare("SELECT 1 FROM deleted_watch_suppressions WHERE source = ? AND identity_key = ? AND watched_at = ? LIMIT 1");
 const deleteByMediaKeyStmt = db.prepare("DELETE FROM watch_history WHERE media_key = ?");
 const findExistingStmt = db.prepare("SELECT * FROM watch_history WHERE media_key = ? AND watched_at = ? LIMIT 1");
 const findWatchedBySeasonEpisodeStmt = db.prepare("SELECT * FROM watch_history WHERE media_type = 'episode' AND season = ? AND episode = ? AND sync_action = 'watched'");
@@ -1674,6 +1684,35 @@ function remainingWatchRowFor(deletedRow) {
   return newest;
 }
 
+function deletedWatchSuppressionKeys(row = {}) {
+  const provenance = normalizeWatchProvenance(row.watch_provenance || row.watchProvenance);
+  const keys = [];
+  if (provenance?.item_id) keys.push(`item:${provenance.item_id}`);
+  const mediaKey = row.media_key || row.mediaKey;
+  if (mediaKey) keys.push(`media:${mediaKey}`);
+  return [...new Set(keys)];
+}
+
+export function recordDeletedWatchSuppression(row = {}) {
+  const source = String(row.source || "").toLowerCase();
+  const watchedAt = String(row.watched_at || row.watchedAt || "");
+  if (!source || !watchedAt || !["plex", "emby", "jellyfin"].includes(source)) return 0;
+  const keys = deletedWatchSuppressionKeys(row);
+  for (const key of keys) insertDeletedWatchSuppressionStmt.run(source, key, watchedAt, Date.now());
+  return keys.length;
+}
+
+export function isDeletedWatchSuppressed(media = {}, watchedAt = media.watched_at) {
+  const source = String(media.source || "").toLowerCase();
+  const stamp = String(watchedAt || "");
+  if (!source || !stamp) return false;
+  const keys = [];
+  if (media.itemId) keys.push(`item:${media.itemId}`);
+  const mediaKey = mediaKeyFor(media);
+  if (mediaKey) keys.push(`media:${mediaKey}`);
+  return [...new Set(keys)].some((key) => Boolean(selectDeletedWatchSuppressionStmt.get(source, key, stamp)));
+}
+
 // Removes a single watch date (one row) added via addWatchDate/the edit-date
 // dialog, without touching any other watch of the same movie/episode. If the
 // deleted row was the current playstate pointer, playstate is rolled back to
@@ -1690,6 +1729,7 @@ export async function deleteWatchDate(id) {
     .filter(Boolean);
 
   for (const row of rowsToDelete) {
+    recordDeletedWatchSuppression(row);
     queueProgressUpdateForRecord(row);
     deleteByIdStmt.run(String(row.id));
     recordWatchAuditEvent({
@@ -1760,6 +1800,7 @@ export async function deleteWatchDates(ids = []) {
       continue;
     }
 
+    recordDeletedWatchSuppression(existing);
     queueProgressUpdateForRecord(existing);
     deleteByIdStmt.run(existing.id);
     recordWatchAuditEvent({
