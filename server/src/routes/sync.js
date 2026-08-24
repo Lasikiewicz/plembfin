@@ -100,6 +100,7 @@ import {
   getCanonicalWatchState,
   getPlaybackProgressForMedia,
   getPlaystateForMedia,
+  getLatestHistoryTransitionForRecordSync,
   countMissingPosterTraktRows,
   listMissingPosterTraktRows,
   stampWatchPoster,
@@ -1016,6 +1017,9 @@ export async function handleManualWatch(req, res) {
 
       const exactExistingWatched = existing?.sync_action === "watched";
       const canonicalPlaystate = await getPlaystateForMedia(media).catch(() => null);
+      const canonicalHistoryTransition = exactExistingWatched
+        ? getLatestHistoryTransitionForRecordSync(existing)
+        : null;
       // Reusing a historical date is common for a manual release-day mark.
       // An older watched row can therefore match this exact key+date even
       // though a later unwatch under a rematched provider-id alias is the
@@ -1023,7 +1027,10 @@ export async function handleManualWatch(req, res) {
       // rewatch transition, not a duplicate: insert a fresh row so a cache
       // rebuild cannot restore the newer unwatch after the optimistic UI and
       // playstate pointer have been updated.
-      const supersedesCanonicalUnwatch = exactExistingWatched && canonicalPlaystate?.state === "unwatched";
+      const supersedesCanonicalUnwatch = exactExistingWatched && (
+        canonicalPlaystate?.state === "unwatched"
+        || canonicalHistoryTransition?.state === "unwatched"
+      );
       let id = "";
       let storedRecord = existing || record;
       let insertedTransition = false;

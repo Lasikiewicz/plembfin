@@ -89,6 +89,16 @@ test("manual release-day watch records a fresh transition over a newer rematched
       aliasMedia.ids.tvdb,
     );
 
+  // Reproduce the upgrade state left by Build 19: its optimistic/manual
+  // playstate write was newer than the rematched unwatch pointer, but it
+  // skipped the corresponding history transition.  A fresh show-detail read
+  // therefore still resolves unwatched even though playstate says watched.
+  db.prepare("UPDATE playstate SET state='watched', updated_at=3000 WHERE media_key=?")
+    .run(currentKey);
+  assert.equal((await repo.getPlaystateForMedia(currentMedia))?.state, "watched");
+  const before = await repo.queryShowDetail({ title: showTitle });
+  assert.equal(before?.episodes?.[0]?.sync_action, "unwatched");
+
   const http = requestResponse({ records: [{
     media_type: "episode",
     title,
