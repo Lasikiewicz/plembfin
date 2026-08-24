@@ -1,7 +1,17 @@
 {
-  "build": 6,
-  "updatedAt": "2026-08-24T15:54:01+01:00",
+  "build": 7,
+  "updatedAt": "2026-08-24T16:23:07+01:00",
   "entries": [
+    {
+      "build": 7,
+      "date": "2026-08-24T16:23:07+01:00",
+      "commit": "f64507ca8cff197ff0e2220b42c464f483fc494b",
+      "message": "Fix - Merge cross-app episode history cards",
+      "author": "Lasikiewicz",
+      "details": [
+        "Merge same-episode history records across apps into one dashboard card and show every contributing source."
+      ]
+    },
     {
       "build": 6,
       "date": "2026-08-24T15:54:01+01:00",
