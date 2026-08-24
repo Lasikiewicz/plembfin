@@ -1,7 +1,19 @@
 {
-  "build": 19,
-  "updatedAt": "2026-08-24T07:59:54+01:00",
+  "build": 20,
+  "updatedAt": "2026-08-24T08:13:34+01:00",
   "entries": [
+    {
+      "build": 20,
+      "date": "2026-08-24T08:13:34+01:00",
+      "commit": "a86baa9fbf85ce3866029ea13e9dec6134275bee",
+      "message": "Fix - Preserve manual watches across rematched aliases",
+      "author": "Lasikiewicz",
+      "details": [
+        "Resolve canonical playstate from the newest related provider-id alias instead of trusting an older exact key",
+        "Record a fresh manual watched transition when a release-day watch supersedes a newer canonical unwatch",
+        "Cover the Silo S03E03 rematch and manual-watch regression paths"
+      ]
+    },
     {
       "build": 19,
       "date": "2026-08-24T07:59:54+01:00",
