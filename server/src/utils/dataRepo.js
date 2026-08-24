@@ -4323,6 +4323,14 @@ export async function queryShows({ search = "", sort = "title_asc", limit = 6, o
   });
   const needle = cleanString(search).toLowerCase();
   const filtered = dedupeShowSummaries(showsWithNextAiring).filter((show) => {
+    // The TV Shows page is a watched-history library, so a group with no
+    // currently watched episodes has nothing to represent in this listing.
+    // Keep those rows in getCachedShows/queryShowDetail: that preserves
+    // canonical unwatch state and lets an already-open detail page refresh to
+    // 0 watched without disappearing mid-action. Excluding them only at this
+    // listing boundary also prevents metadata-less 0/? orphan groups from
+    // producing title-only links that can resolve to an unrelated series.
+    if (Number(show.episode_count || 0) <= 0) return false;
     if (needle && !titleContainsSearch(show.title, needle)) return false;
     if (hideWatched) {
       const isWatched = show.total_episodes > 0 && show.episode_count >= show.total_episodes;

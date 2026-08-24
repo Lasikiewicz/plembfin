@@ -587,6 +587,11 @@ export function renderPartWatched() {
   applyPartWatchedPosterWidth();
 
   if (!state.partWatchedRaw.length) {
+    // The placeholder/empty state replaces the card DOM. Invalidate the HTML
+    // memo at the same time: a refresh can legitimately return the exact same
+    // cards as before, and retaining their old memo would make the renderer
+    // skip restoring them, leaving this loading message on screen forever.
+    delete elements.partWatchedPanel.dataset.renderedHtml;
     if (state.partWatchedLoading) {
       if (elements.partWatchedSection) elements.partWatchedSection.classList.remove("hidden");
       elements.partWatchedPanel.innerHTML = `<div class="empty-log"><b>Loading partly watched items…</b></div>`;

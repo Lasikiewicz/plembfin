@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import "./domStubs.js";
 
-const { state } = await import("../public/modules/state.js");
-const { loadPartWatched, resetPartWatchedView } = await import("../public/modules/dashboard.js");
+const { state, elements } = await import("../public/modules/state.js");
+const { loadPartWatched, renderPartWatched, resetPartWatchedView } = await import("../public/modules/dashboard.js");
 
 function response(body, ok = true, status = 200) {
   return { ok, status, async json() { return body; } };
@@ -41,4 +41,35 @@ test("a failed Part Watched request clears loading instead of leaving the dashbo
   await assert.rejects(loadPartWatched(), /backend unavailable/);
   assert.equal(state.partWatchedLoading, false);
   assert.equal(state.partWatchedHasMore, false);
+});
+
+test("the loading placeholder is replaced when a refresh returns the same cards", () => {
+  const panel = {
+    dataset: {},
+    innerHTML: "",
+    querySelectorAll() { return []; },
+  };
+  elements.partWatchedPanel = panel;
+  elements.partWatchedSection = { classList: { add() {}, remove() {} } };
+  document.documentElement = { style: { setProperty() {} } };
+
+  const item = { id: "same", media_key: "movie:same", media_type: "movie", title: "Same Item" };
+  state.partWatchedRaw = [item];
+  state.partWatchedHasMore = false;
+  state.partWatchedLoading = false;
+  state.partWatchedQueryKey = "default";
+  renderPartWatched();
+  const cardHtml = panel.innerHTML;
+  assert.match(cardHtml, /Same Item/);
+
+  state.partWatchedRaw = [];
+  state.partWatchedLoading = true;
+  renderPartWatched();
+  assert.match(panel.innerHTML, /Loading partly watched items/);
+
+  state.partWatchedRaw = [item];
+  state.partWatchedLoading = false;
+  renderPartWatched();
+  assert.equal(panel.innerHTML, cardHtml);
+  assert.doesNotMatch(panel.innerHTML, /Loading partly watched items/);
 });

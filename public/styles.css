@@ -2362,7 +2362,7 @@ a.media-fact-chip:hover {
 .now-card-episode {
   font-size: 0.9rem;
   font-weight: 700;
-  color: #e5a00d;
+  color: var(--accent);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2399,7 +2399,11 @@ a.media-fact-chip:hover {
 
 .now-card-progress-fill {
   height: 100%;
-  background: linear-gradient(90deg, #22c55e, #4ade80);
+  background: linear-gradient(
+    90deg,
+    var(--accent),
+    color-mix(in srgb, var(--accent) 72%, white)
+  );
   border-radius: 3px;
   transition: width 0.3s ease;
 }
@@ -2407,7 +2411,7 @@ a.media-fact-chip:hover {
 .now-card-progress-text {
   font-size: 0.72rem;
   font-weight: 800;
-  color: #22c55e;
+  color: var(--accent);
 }
 
 .now-meta {

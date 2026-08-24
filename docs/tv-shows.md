@@ -42,13 +42,14 @@ first: a cluster with far fewer watched episodes than another loses even if it w
 touched more recently, so one stray recent row can't outrank dozens of correctly
 identified ones. Two comparably-sized clusters still resolve by recency, same as before.
 
-A show stays groupable and visible even once every one of its episodes is marked
-unwatched: `getCachedShows()` and `queryShowDetail()` group episode rows regardless of
-each row's current watched/unwatched `sync_action` (only genuinely untrustworthy rows -
-an unscoped library-scan row with no confirming user/timestamp - are excluded). Only the
-watched-episode *count* is state-sensitive, not whether the show exists at all; a show
-with 0 watched episodes still renders as "0 of N watched" rather than disappearing from
-the library grid, dashboard, or its own detail page.
+A show stays groupable once every one of its episodes is marked unwatched:
+`getCachedShows()` and `queryShowDetail()` group episode rows regardless of each row's
+current watched/unwatched `sync_action` (only genuinely untrustworthy rows - an unscoped
+library-scan row with no confirming user/timestamp - are excluded). This lets an open
+detail page refresh to the correct 0-watched state after its last episode is unwatched.
+`queryShows()` excludes groups with no currently watched episodes from `/tvshows`, which
+is a watched-history library; this also keeps metadata-less `0/?` orphan groups from
+creating ambiguous title-only detail links.
 
 A show's displayed `tmdb_id` (`getCachedShows()`, `queryShowDetail()`) always trusts the
 id already recorded on its own watch_history rows over `getCachedShowProgress()`'s

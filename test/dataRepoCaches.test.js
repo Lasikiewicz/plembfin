@@ -247,6 +247,26 @@ test("a show's tvdb_id is never surfaced from an unverified episode-tagged id", 
   assert.equal(afterMatch.tvdb_id, "9999999", "a genuinely cached series id must be trusted");
 });
 
+test("TV Shows listing excludes groups with no currently watched episodes", async () => {
+  await insert({
+    title: "Zero Watch Listing Show - S01E01 - Pilot",
+    show_title: "Zero Watch Listing Show",
+    media_type: "episode",
+    watched_at: "2026-04-02T12:00:00.000Z",
+    source: "emby",
+    sync_action: "unwatched",
+    season: 1,
+    episode: 1,
+  });
+
+  const listed = await repo.queryShows({ search: "Zero Watch Listing Show", limit: 10 });
+  assert.equal(listed.length, 0, "0-watched groups must not appear in the watched-history library");
+
+  const detail = await repo.queryShowDetail({ title: "Zero Watch Listing Show" });
+  assert.ok(detail, "canonical unwatched state must remain available to an already-open detail page");
+  assert.equal(detail.episode_count, 0);
+});
+
 test("a title lookup prefers a well-established show over a fresher single-row mismatch", async () => {
   // Mirrors a real incident: Trakt import resolved one ambiguous "Collision
   // Show" play to a completely unrelated TMDB id, inserting a lone row dated

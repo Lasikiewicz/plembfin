@@ -19,6 +19,8 @@ The home view (`/`): Now Playing, the recent-history rows, and the part-watched
 Fully documented in [now-playing.md](now-playing.md): the merge of
 `live_tracking_cache` (scheduler polling) and `active_sessions` (webhook `active`
 events), polled by the browser every 10 seconds with visibility gating.
+The episode label and playback progress use the active appearance accent, matching
+Part Watched, while the green Live indicator remains a semantic playback-status color.
 
 ### Recent history
 
@@ -51,6 +53,9 @@ The displayed percentage is derived from the saved playback position and duratio
 both are available, so an incomplete percentage field from a webhook cannot show `0%`
 for an item with real resume progress. The Now Playing refresh token also invalidates and
 reloads this rail, keeping it aligned with playback changes without a full page reload.
+Replacing its cards with a loading or empty state also invalidates the rendered-markup
+memo, so an unchanged refresh result always restores the cards instead of leaving the
+loading message visible.
 
 ### Version badge / update check
 
