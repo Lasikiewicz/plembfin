@@ -1,7 +1,17 @@
 {
-  "build": 28,
-  "updatedAt": "2026-08-24T10:20:16+01:00",
+  "build": 29,
+  "updatedAt": "2026-08-24T10:27:54+01:00",
   "entries": [
+    {
+      "build": 29,
+      "date": "2026-08-24T10:27:54+01:00",
+      "commit": "0ba97ef735747d439876ef358e0df8b674dbcc3f",
+      "message": "Fix - Preserve matched show identity on manual watches",
+      "author": "Lasikiewicz",
+      "details": [
+        "Manual episode watches now inherit the provider IDs established by Fix Match, preventing watched episodes from being hidden in a parallel show cluster."
+      ]
+    },
     {
       "build": 28,
       "date": "2026-08-24T10:20:16+01:00",
