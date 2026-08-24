@@ -1,7 +1,17 @@
 {
-  "build": 9,
-  "updatedAt": "2026-08-24T17:06:02+01:00",
+  "build": 10,
+  "updatedAt": "2026-08-24T21:30:35+01:00",
   "entries": [
+    {
+      "build": 10,
+      "date": "2026-08-24T21:30:35+01:00",
+      "commit": "bebbfb99e79f3df655b669bacc2c0b8b273044c0",
+      "message": "Fix - Use white logo in PWA icons",
+      "author": "Lasikiewicz",
+      "details": [
+        "Use the white Plembfin mark in the 512px and maskable app icons, with cache-busted manifest URLs."
+      ]
+    },
     {
       "build": 9,
       "date": "2026-08-24T17:06:02+01:00",
