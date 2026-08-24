@@ -815,8 +815,20 @@ function propagateWatchDateRemoval(remainingRow, deletedRow, { lane = "interacti
   const media = watchRowToMedia(row, "manual");
   if (!media?.isValid) return;
   const action = remainingRow ? "watched" : "unwatched";
+  const loopStore = createLoopStore();
+  const deletedSource = String(deletedRow?.source || "").toLowerCase();
+  const deletedMedia = deletedRow ? watchRowToMedia(deletedRow, deletedSource || "manual") : null;
   loadMediaConfig()
-    .then((config) => syncCanonicalPlaystate(media, config, createLoopStore(), action, { lane }))
+    .then(async (config) => {
+      // The surviving canonical row can predate a Fix Match and carry a
+      // different provider identity. Preserve the deleted provider row's
+      // native item id in the echo ledger before replaying the survivor so a
+      // synchronous viewstate acknowledgement cannot recreate that date.
+      if (["plex", "emby", "jellyfin"].includes(deletedSource) && deletedMedia?.isValid) {
+        await recordOutboundPlayedMarks(deletedMedia, [deletedSource], loopStore).catch(() => null);
+      }
+      return syncCanonicalPlaystate(media, config, loopStore, action, { lane });
+    })
     .then(async (summary) => {
       // Persist the real outcome (and the historical watched_at it was sent
       // with) onto the surviving row's own telemetry. Left at whatever it was

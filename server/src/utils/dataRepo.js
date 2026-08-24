@@ -4566,10 +4566,13 @@ function sortShowRows(rows, sort) {
 }
 
 export function watchRowToMedia(row = {}, source = "plex") {
+  const provenance = normalizeWatchProvenance(row.watch_provenance || row.watchProvenance);
   return {
     title: row.title,
+    showTitle: row.show_title || row.showTitle || undefined,
     type: row.media_type,
     source,
+    itemId: provenance?.item_id || undefined,
     ids: {
       imdb: row.imdb_id || undefined,
       tmdb: row.tmdb_id || undefined,
