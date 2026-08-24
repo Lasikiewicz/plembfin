@@ -1,7 +1,17 @@
 {
-  "build": 30,
-  "updatedAt": "2026-08-24T10:37:11+01:00",
+  "build": 31,
+  "updatedAt": "2026-08-24T10:48:02+01:00",
   "entries": [
+    {
+      "build": 31,
+      "date": "2026-08-24T10:48:02+01:00",
+      "commit": "7facbcf503ec0f5d30c1283ee3ea3699b557395f",
+      "message": "Fix - Retain matched identity through watch dedupe",
+      "author": "Lasikiewicz",
+      "details": [
+        "Same-date watch cleanup now preserves the newest Plembfin provider IDs so correctly watched episodes remain in their show."
+      ]
+    },
     {
       "build": 30,
       "date": "2026-08-24T10:37:11+01:00",
