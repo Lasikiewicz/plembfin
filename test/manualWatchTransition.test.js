@@ -126,4 +126,24 @@ test("manual release-day watch records a fresh transition over a newer rematched
     "SELECT sync_action, created_at FROM watch_history WHERE season=3 AND episode=3 ORDER BY created_at",
   ).all();
   assert.deepEqual(transitions.map((row) => row.sync_action), ["watched", "unwatched", "watched"]);
+
+  const resyncHttp = requestResponse({ records: [{
+    media_type: "episode",
+    title,
+    watched_at: watchedAt,
+    source: "manual",
+    tmdb_id: currentMedia.ids.tmdb,
+    season: 3,
+    episode: 3,
+    resync_only: true,
+  }] });
+  await handleManualWatch(resyncHttp.req, resyncHttp.res);
+
+  assert.equal(resyncHttp.status(), 200);
+  assert.equal(resyncHttp.body().inserted, 0);
+  assert.equal(resyncHttp.body().skipped, 1);
+  const transitionsAfterResync = db.prepare(
+    "SELECT sync_action FROM watch_history WHERE season=3 AND episode=3 ORDER BY created_at",
+  ).all();
+  assert.deepEqual(transitionsAfterResync.map((row) => row.sync_action), ["watched", "unwatched", "watched"]);
 });

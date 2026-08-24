@@ -18,6 +18,7 @@ test("updateWatchRecord moves the row's media_key when its identity changes and 
 
   const correctRow = await repo.insertWatchRecord({ title: correct.title, media_type: "movie", imdb_id: "tt13433802", tmdb_id: "762441", watched_at: "2026-06-05T15:50:00.000Z", source: "trakt_import" });
   const orphanRow = await repo.insertWatchRecord({ title: orphan.title, media_type: "movie", watched_at: "2026-08-19T14:14:48.000Z", source: "plex" });
+  await Promise.all([correctRow.assetPrefetch, orphanRow.assetPrefetch]);
   await repo.upsertPlaystateForMedia(correct, "watched", correctRow.record.watched_at);
   await repo.upsertPlaystateForMedia(orphan, "watched", orphanRow.record.watched_at);
 
@@ -52,6 +53,7 @@ test("updateWatchRecord rolls the old media_key's playstate back to a survivor i
   const correctRow = await repo.insertWatchRecord({ title: correct.title, media_type: "movie", imdb_id: "tt99900011", watched_at: "2026-01-01T00:00:00.000Z", source: "trakt_import" });
   const orphanOlder = await repo.insertWatchRecord({ title: orphan.title, media_type: "movie", watched_at: "2026-02-01T00:00:00.000Z", source: "plex" });
   const orphanNewer = await repo.insertWatchRecord({ title: orphan.title, media_type: "movie", watched_at: "2026-03-01T00:00:00.000Z", source: "plex" });
+  await Promise.all([correctRow.assetPrefetch, orphanOlder.assetPrefetch, orphanNewer.assetPrefetch]);
   await repo.upsertPlaystateForMedia(orphan, "watched", orphanNewer.record.watched_at);
 
   // Only the newer orphan row gets corrected; the older one is left behind

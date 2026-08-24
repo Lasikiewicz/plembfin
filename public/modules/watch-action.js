@@ -316,7 +316,10 @@ export function watchActionFromButton(button) {
 // after the original push.
 export async function runResyncWatchAction(action) {
   if (!action?.resyncEpisodes?.length) return;
-  const records = action.resyncEpisodes.map((episode) => watchRecordFromEpisode(episode, episode.watched?.watched_at || new Date().toISOString()));
+  const records = action.resyncEpisodes.map((episode) => ({
+    ...watchRecordFromEpisode(episode, episode.watched?.watched_at || new Date().toISOString()),
+    resync_only: true,
+  }));
   const total = records.length;
 
   state.savingWatchActions.add(action);
@@ -835,7 +838,10 @@ export async function applyWatchDateChoice(choice) {
   // Episodes plembfin already has as watched ride along in the same batch so a
   // season/show "mark watched" always re-pushes them too, without touching
   // their existing watched_at.
-  const resyncRecords = (action.resyncEpisodes || []).map((episode) => watchRecordFromEpisode(episode, episode.watched?.watched_at || new Date().toISOString()));
+  const resyncRecords = (action.resyncEpisodes || []).map((episode) => ({
+    ...watchRecordFromEpisode(episode, episode.watched?.watched_at || new Date().toISOString()),
+    resync_only: true,
+  }));
   const allRecords = [...records, ...resyncRecords];
   const overlay = document.querySelector(".watch-date-overlay");
   const buttons = [...(overlay?.querySelectorAll("[data-watch-date-choice], [data-watch-date-cancel]") ?? [])];

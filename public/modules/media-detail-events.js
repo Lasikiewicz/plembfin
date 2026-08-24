@@ -23,7 +23,7 @@ import {
   applyWatchDateChoice,
   confirmAndMarkUnwatched,
   confirmAndDeleteMedia,
-} from "./watch-action.js?v=20260810";
+} from "./watch-action.js?v=20260824";
 import { triggerRetrySync, loadSyncJobs, loadSyncHistory, showAvailIssuePopup } from "./sync.js";
 import { renderExplorer, renderHistoryView } from "./explorer.js";
 import {

@@ -2337,31 +2337,6 @@ export function dedupeHistory(rows) {
   return result;
 }
 
-// Return the newest real watched/unwatched transition for the identity group
-// containing `existing`.  Playstate is normally the fast canonical pointer,
-// but older builds could advance that pointer without recording a matching
-// history transition when a release-day watch duplicated an older row.  The
-// manual-watch path uses this history clock as an independent check so an
-// upgrade can repair that split state with one genuine rewatch transition.
-export function getLatestHistoryTransitionForRecordSync(existing = {}) {
-  if (!existing?.id) return null;
-  const exactRows = existing.media_key ? selectByMediaKeyStmt.all(existing.media_key) : [];
-  const byId = new Map();
-  for (const row of [existing, ...exactRows, ...siblingWatchRowsFor(existing)]) {
-    if (row?.id) byId.set(String(row.id), row);
-  }
-  const rows = [...byId.values()];
-  if (!rows.length) return null;
-  let latest = rows[0];
-  for (const row of rows.slice(1)) {
-    if (canonicalTransitionIsNewer(row, latest)) latest = row;
-  }
-  return {
-    ...rowToWatch(latest),
-    state: isWatchedAction(latest) ? "watched" : "unwatched",
-  };
-}
-
 function historyDedupeKey(row = {}) {
   const mediaType = normalizeMediaType(row.media_type);
   const imdb = cleanString(row.imdb_id);
