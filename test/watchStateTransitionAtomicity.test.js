@@ -120,7 +120,7 @@ test("a watched tracker transition supersedes a newer unwatched provider-id alia
   await repo.upsertPlaystateForMedia(media, "unwatched", "2026-08-24T06:43:33.000Z");
 
   const before = await repo.queryShowDetail({ title: "Silo" });
-  assert.equal(before.episodes[0].sync_action, "unwatched");
+  assert.equal(before.episodes[0].sync_action, "watched", "the earlier Plembfin decision outranks a provider alias echo");
 
   const transition = await applyWatchedTransition(media, config, createLoopStore(), { trackDispatch: false });
 

@@ -2353,6 +2353,15 @@ function canonicalTransitionTime(row = {}) {
 }
 
 function canonicalTransitionIsNewer(row = {}, existing = {}) {
+  // Plembfin is the authority for explicit user decisions. Provider callbacks
+  // can arrive after the interactive request has completed (and therefore
+  // carry a later transition clock), but they must not reverse a manual
+  // watched/unwatched choice. When both transitions are manual, the normal
+  // clock comparison below still selects the user's newest Plembfin action.
+  const rowIsManual = String(row.source || "").toLowerCase() === "manual";
+  const existingIsManual = String(existing.source || "").toLowerCase() === "manual";
+  if (rowIsManual !== existingIsManual) return rowIsManual;
+
   const rowTime = canonicalTransitionTime(row);
   const existingTime = canonicalTransitionTime(existing);
   if (rowTime !== existingTime) return rowTime > existingTime;

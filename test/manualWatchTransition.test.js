@@ -97,15 +97,14 @@ test("manual release-day watch records a fresh transition over a newer rematched
   db.prepare("UPDATE watch_history SET created_at=?, updated_at=? WHERE id='newer-unwatch'")
     .run(futureTransitionClock, futureTransitionClock);
 
-  // Reproduce the upgrade state left by Build 19: its optimistic/manual
-  // playstate write was newer than the rematched unwatch pointer, but it
-  // skipped the corresponding history transition.  A fresh show-detail read
-  // therefore still resolves unwatched even though playstate says watched.
+  // Plembfin's earlier explicit decision remains canonical even though a
+  // provider alias carries a later clock. The new click must still append a
+  // fresh user transition and clean up the stale provider marker.
   db.prepare("UPDATE playstate SET state='watched', updated_at=3000 WHERE media_key=?")
     .run(currentKey);
   assert.equal((await repo.getPlaystateForMedia(currentMedia))?.state, "watched");
   const before = await repo.queryShowDetail({ title: showTitle });
-  assert.equal(before?.episodes?.[0]?.sync_action, "unwatched");
+  assert.equal(before?.episodes?.[0]?.sync_action, "watched");
 
   const http = requestResponse({ records: [{
     media_type: "episode",
@@ -186,7 +185,7 @@ test("Plembfin can reassert a manual watch after a newer remote replacement echo
   const now = Date.now();
   db.prepare("UPDATE watch_history SET created_at=?, updated_at=? WHERE id=?").run(now + 60_000, now + 60_000, echo.id);
   await repo.invalidateHistoryDerivedCaches();
-  assert.equal((await repo.queryShowDetail({ title: showTitle }))?.episodes?.[0]?.sync_action, "unwatched");
+  assert.equal((await repo.queryShowDetail({ title: showTitle }))?.episodes?.[0]?.sync_action, "watched");
 
   const authoritativeRecord = repo.reassertWatchRecordAuthoritySync(manual.id);
   assert.equal(authoritativeRecord?.id, manual.id);
@@ -197,4 +196,43 @@ test("Plembfin can reassert a manual watch after a newer remote replacement echo
   assert.equal(show?.episode_count, 1);
   assert.equal(show?.episodes?.[0]?.sync_action, "watched");
   assert.equal(show?.episodes?.[0]?.watched_at, manual.record.watched_at);
+});
+
+test("a delayed provider unwatch cannot overrule an explicit Plembfin watch", async () => {
+  const showTitle = "Delayed Echo Show";
+  const title = `${showTitle} - S02E02`;
+  const manual = await repo.insertWatchRecord({
+    title,
+    show_title: showTitle,
+    media_type: "episode",
+    season: 2,
+    episode: 2,
+    tvdb_id: "delayed-echo-show",
+    watched_at: "2025-02-13T12:00:00.000Z",
+    source: "manual",
+    sync_action: "watched",
+  });
+
+  // This reproduces the live ordering: the outbound request finishes and is
+  // reasserted, then a provider webhook records its replacement echo later.
+  const echo = await repo.insertWatchRecord({
+    title,
+    show_title: showTitle,
+    media_type: "episode",
+    season: 2,
+    episode: 2,
+    tvdb_id: "delayed-echo-show",
+    watched_at: "2026-08-24T12:00:00.000Z",
+    source: "trakt",
+    sync_action: "unwatched",
+  });
+  const db = repo.requireDb();
+  const later = Date.now() + 60_000;
+  db.prepare("UPDATE watch_history SET created_at=?, updated_at=? WHERE id=?").run(later, later, echo.id);
+  await repo.invalidateHistoryDerivedCaches();
+
+  const show = await repo.queryShowDetail({ title: showTitle });
+  assert.equal(show?.episode_count, 1);
+  assert.equal(show?.episodes?.[0]?.sync_action, "watched");
+  assert.equal(show?.episodes?.[0]?.id, manual.id);
 });
