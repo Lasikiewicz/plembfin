@@ -188,6 +188,91 @@ function actualWatchLabel(entry = {}) {
   return count === 2 ? "Watched Twice" : `Watched ${count} Times`;
 }
 
+function historySourceValues(entry = {}) {
+  const rawSources = [
+    ...(Array.isArray(entry.sources) ? entry.sources : []),
+    entry.source,
+    ...(Array.isArray(entry.playHistory) ? entry.playHistory.map((play) => play?.source) : []),
+  ];
+  const seen = new Set();
+  return rawSources
+    .filter((source) => String(source || "").trim())
+    .map((source) => normalizePlatformSource(source))
+    .filter((source) => {
+      if (!source || seen.has(source)) return false;
+      seen.add(source);
+      return true;
+    });
+}
+
+function showProviderIds(entry = {}) {
+  return new Map([
+    ["imdb", entry.show_imdb_id],
+    ["tmdb", entry.show_tmdb_id],
+    ["tvdb", entry.show_tvdb_id],
+  ].filter(([, value]) => String(value || "").trim()).map(([kind, value]) => [kind, String(value).trim().toLowerCase()]));
+}
+
+function sameDashboardEpisode(left = {}, right = {}) {
+  if (left.media_type !== "episode" || right.media_type !== "episode") return false;
+  if (String(left.season ?? "") !== String(right.season ?? "")) return false;
+  if (String(left.episode ?? "") !== String(right.episode ?? "")) return false;
+
+  const leftTitle = slug(left.show_title || showTitleFrom(left.title));
+  const rightTitle = slug(right.show_title || showTitleFrom(right.title));
+  if (!leftTitle || leftTitle !== rightTitle) return false;
+
+  const leftIds = showProviderIds(left);
+  const rightIds = showProviderIds(right);
+  if (!leftIds.size || !rightIds.size) return true;
+  if ([...leftIds].some(([kind, value]) => rightIds.get(kind) === value)) return true;
+
+  // A TMDB-only row and a TVDB-only row can still be the same series. Keep
+  // same-title episodes together unless both rows disagree within the same
+  // provider namespace, which is the signal for a genuine reboot/remake.
+  return ![...leftIds.keys()].some((kind) => leftIds.has(kind) && rightIds.has(kind));
+}
+
+export function mergeDashboardHistoryEntries(entries = []) {
+  const groups = [];
+  for (const entry of entries) {
+    if (!entry || entry.media_type !== "episode") {
+      groups.push({ entry: { ...entry }, sources: new Set(historySourceValues(entry)), watchCount: actualWatchCount(entry) });
+      continue;
+    }
+
+    const group = groups.find((candidate) => sameDashboardEpisode(candidate.entry, entry));
+    if (!group) {
+      groups.push({ entry: { ...entry }, sources: new Set(historySourceValues(entry)), watchCount: actualWatchCount(entry) });
+      continue;
+    }
+
+    for (const source of historySourceValues(entry)) group.sources.add(source);
+    group.watchCount = Math.max(group.watchCount, actualWatchCount(entry));
+
+    const currentTime = String(group.entry.watched_at || "");
+    const entryTime = String(entry.watched_at || "");
+    if (entryTime > currentTime) group.entry = { ...entry };
+
+    // Keep useful metadata when the newest source row is sparse.
+    for (const field of ["show_title", "show_imdb_id", "show_tmdb_id", "show_tvdb_id", "episode_title", "poster_url", "imdb_id", "tmdb_id", "tvdb_id"]) {
+      if (!group.entry[field] && entry[field]) group.entry[field] = entry[field];
+    }
+  }
+
+  return groups
+    .map(({ entry, sources, watchCount }) => ({
+      ...entry,
+      sources: [...sources],
+      watch_count: Math.max(Number(entry.watch_count) || 0, watchCount),
+    }))
+    .sort((left, right) => String(right.watched_at || "").localeCompare(String(left.watched_at || "")));
+}
+
+function historySourceBadges(entry = {}) {
+  return historySourceValues(entry).map((source) => sourceBadgeHtml(source)).join(" ") || "None";
+}
+
 export function renderHistoryCard(entry) {
   const isEpisode = entry.media_type === "episode";
 
@@ -265,7 +350,8 @@ function renderDashboardHistoryPageCard(entry) {
     href = entry.tmdb_id ? movieTmdbHref(entry.tmdb_id, entry.title) : movieHref(entry);
   }
 
-  const sourceBadge = entry.source ? sourceBadgeHtml(entry.source) : "None";
+  const sources = historySourceValues(entry);
+  const sourceBadge = historySourceBadges(entry);
   return `
     <a class="history-page-card dashboard-history-page-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="${isEpisode ? "tv" : "movie"}" data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(displayTitle || "")}">
       <div class="history-card-poster-wrapper">
@@ -294,8 +380,8 @@ function renderDashboardHistoryPageCard(entry) {
           ` : ""}
         </div>
         <div class="history-card-footer">
-          <span class="meta-label">App Used:</span>
-          ${sourceBadge}
+          <span class="meta-label">${sources.length > 1 ? "Apps Used:" : "App Used:"}</span>
+          <span class="history-card-apps">${sourceBadge}</span>
         </div>
       </div>
     </a>
@@ -387,7 +473,7 @@ export function renderDashboard() {
     return;
   }
 
-  const tvHistory = state.history.filter((entry) => entry.media_type === "episode");
+  const tvHistory = mergeDashboardHistoryEntries(state.history.filter((entry) => entry.media_type === "episode"));
   const movieHistory = dedupeMediaRecords(state.history.filter((entry) => entry.media_type === "movie"), "movies");
 
   let visibleTv = [];

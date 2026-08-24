@@ -61,6 +61,37 @@ test("queryWatchHistory does not report a single watch as a duplicate group", as
   assert.equal(row.playHistory.length, 1);
 });
 
+test("deduped dashboard history retains every app that recorded one episode", () => {
+  const [row] = repo.dedupeHistory([
+    {
+      id: "cross-app-plex",
+      title: "Cross App Show - S03E04 - Episode",
+      show_title: "Cross App Show",
+      media_type: "episode",
+      season: 3,
+      episode: 4,
+      tmdb_id: "cross-app-show",
+      watched_at: "2026-08-23T22:50:00.000Z",
+      source: "plex",
+      sync_action: "watched",
+    },
+    {
+      id: "cross-app-jellyfin",
+      title: "Cross App Show - S03E04 - Episode",
+      show_title: "Cross App Show",
+      media_type: "episode",
+      season: 3,
+      episode: 4,
+      tmdb_id: "cross-app-show",
+      watched_at: "2026-08-23T22:50:02.000Z",
+      source: "jellyfin",
+      sync_action: "watched",
+    },
+  ]);
+
+  assert.deepEqual(new Set(row.sources), new Set(["plex", "jellyfin"]));
+});
+
 test("handleDuplicateWatchScan detects TV episode duplicates and normalizes mediaType aliases", async () => {
   const { handleDuplicateWatchScan, handleDuplicateWatchCleanup } = await import("../server/src/routes/media.js");
   const { AUTH } = await import("../server/src/appConfig.js");

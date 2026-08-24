@@ -15426,8 +15426,17 @@ details[open] > .tool-section-summary::before {
 .history-card-footer {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.35rem;
   font-size: 0.76rem;
+}
+
+.history-card-apps {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  min-width: 0;
 }
 
 .meta-label {

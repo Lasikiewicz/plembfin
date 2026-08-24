@@ -2634,6 +2634,13 @@ function playHistoryEntry(row = {}) {
   return { id: row.id, watched_at: row.watched_at, source: row.source, syncAction: row.sync_action || "watched" };
 }
 
+function watchSourcesFromRows(rows = []) {
+  return [...new Set(rows
+    .filter(isWatchedAction)
+    .map((row) => String(row.source || "").trim())
+    .filter(Boolean))];
+}
+
 function canonicalTransitionTime(row = {}) {
   const createdAt = Number(row.created_at ?? row.createdAt);
   if (Number.isFinite(createdAt) && createdAt > 0) return createdAt;
@@ -2721,7 +2728,8 @@ export function dedupeHistory(rows) {
       .map(playHistoryEntry)
       .sort((a, b) => String(a.watched_at).localeCompare(String(b.watched_at)));
     const posterUrl = representative.poster_url || displayRows.find((row) => row.poster_url)?.poster_url || null;
-    result.push({ ...representative, ...(posterUrl ? { poster_url: posterUrl } : {}), playHistory });
+    const sources = watchSourcesFromRows(transitionRows);
+    result.push({ ...representative, ...(posterUrl ? { poster_url: posterUrl } : {}), playHistory, sources });
   }
   return result;
 }
@@ -2869,6 +2877,7 @@ function compactHistoryPreviewRow(row = {}) {
     sync_dispatch_telemetry: row.sync_dispatch_telemetry,
     watch_provenance: row.watch_provenance,
     watch_count: Array.isArray(row.playHistory) && row.playHistory.length ? row.playHistory.length : 1,
+    sources: Array.isArray(row.sources) && row.sources.length ? row.sources : (row.source ? [row.source] : []),
     media_key: row.media_key,
     show_title: row.show_title,
     episode_title: row.episode_title,
