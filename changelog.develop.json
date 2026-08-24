@@ -1,7 +1,17 @@
 {
-  "build": 13,
-  "updatedAt": "2026-08-24T22:50:59+01:00",
+  "build": 14,
+  "updatedAt": "2026-08-24T23:12:04+01:00",
   "entries": [
+    {
+      "build": 14,
+      "date": "2026-08-24T23:12:04+01:00",
+      "commit": "2deae81d7c502f5bb8e413fce37b22833eb63132",
+      "message": "Fix - Hide manual badge beside app sources",
+      "author": "Lasikiewicz",
+      "details": [
+        "Keep Plembfin visible only for standalone manual watch records."
+      ]
+    },
     {
       "build": 13,
       "date": "2026-08-24T22:50:59+01:00",
