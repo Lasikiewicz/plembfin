@@ -1707,7 +1707,9 @@ export function isDeletedWatchSuppressed(media = {}, watchedAt = media.watched_a
   const stamp = normalizeDeletedWatchSuppressionDate(watchedAt);
   if (!source || !stamp) return false;
   const keys = [];
-  if (media.itemId) keys.push(`item:${media.itemId}`);
+  const provenance = normalizeWatchProvenance(media.watch_provenance || media.watchProvenance);
+  const itemId = media.itemId || media.item_id || provenance?.item_id;
+  if (itemId) keys.push(`item:${itemId}`);
   const mediaKey = mediaKeyFor(media);
   if (mediaKey) keys.push(`media:${mediaKey}`);
   return [...new Set(keys)].some((key) => Boolean(selectDeletedWatchSuppressionStmt.get(source, key, stamp)));

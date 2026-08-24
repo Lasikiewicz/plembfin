@@ -47,7 +47,7 @@ test("a deleted provider date is tombstoned by native item identity", () => {
     type: "episode",
     season: 2,
     episode: 2,
-    itemId: "41780",
+    watchProvenance: { version: 1, source: "plex", item_id: "41780" },
     ids: { tmdb: "245412" },
   }, "2025-02-13"), true);
   assert.equal(isDeletedWatchSuppressed({ ...row, source: "emby", itemId: "41780", type: "episode" }, watchedAt), false);
