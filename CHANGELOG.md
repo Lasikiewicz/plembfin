@@ -4,6 +4,19 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v0.11.1 - 24 August 2026
+
+Docs - Make technical references current-state
+
+- Align media info panels with the detail-page layout and harden local watch-history handling.
+- Preserve separate histories and routes for TV series that share a title
+- Keep provider IDs and watched state when duplicate watch dates are merged or removed
+- Keep metadata and watch-action UI behavior consistent across provider-backed records
+- Enforce safe Docker setup and README/runtime documentation consistency
+- Turn the documentation index and architecture map into direct scope and subsystem references
+- Document current Now Playing, sync safeguards, security controls, and backup behavior
+- Keep deployment and promotion commands in the development guide without internal-only links
+
 ## v0.11.0 - 24 August 2026
 
 Fix - Suppress deleted Plex notification watches
