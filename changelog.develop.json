@@ -1,7 +1,17 @@
 {
-  "build": 7,
-  "updatedAt": "2026-08-24T16:23:07+01:00",
+  "build": 8,
+  "updatedAt": "2026-08-24T16:35:24+01:00",
   "entries": [
+    {
+      "build": 8,
+      "date": "2026-08-24T16:35:24+01:00",
+      "commit": "ade57618803d1473c138330e3ce2ab43c25dc502",
+      "message": "Fix - Dedupe platform source badges",
+      "author": "Lasikiewicz",
+      "details": [
+        "Collapse Plex aliases to one app badge and refresh cached dashboard assets."
+      ]
+    },
     {
       "build": 7,
       "date": "2026-08-24T16:23:07+01:00",
