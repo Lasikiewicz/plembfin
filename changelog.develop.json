@@ -1,7 +1,17 @@
 {
-  "build": 35,
-  "updatedAt": "2026-08-24T11:23:14+01:00",
+  "build": 36,
+  "updatedAt": "2026-08-24T11:30:08+01:00",
   "entries": [
+    {
+      "build": 36,
+      "date": "2026-08-24T11:30:08+01:00",
+      "commit": "082d74289a7f2abe03b6f0771c7d1eab94537016",
+      "message": "Fix - Tombstone deleted provider watch dates",
+      "author": "Lasikiewicz",
+      "details": [
+        "Persist explicit Plembfin watch-date deletions by provider item identity so played-flag callbacks cannot recreate them."
+      ]
+    },
     {
       "build": 35,
       "date": "2026-08-24T11:23:14+01:00",
