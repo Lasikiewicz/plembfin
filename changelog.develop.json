@@ -1,7 +1,17 @@
 {
-  "build": 31,
-  "updatedAt": "2026-08-24T10:48:02+01:00",
+  "build": 32,
+  "updatedAt": "2026-08-24T11:02:14+01:00",
   "entries": [
+    {
+      "build": 32,
+      "date": "2026-08-24T11:02:14+01:00",
+      "commit": "3f339258c8c42b1dcddbdb6ee8ad81e6315c95ac",
+      "message": "Fix - Keep deleted provider watch dates removed",
+      "author": "Lasikiewicz",
+      "details": [
+        "Prevent Plex, Emby, and Jellyfin library snapshots from recreating a watch date the user removed while an older Plembfin watch remains canonical."
+      ]
+    },
     {
       "build": 31,
       "date": "2026-08-24T10:48:02+01:00",
