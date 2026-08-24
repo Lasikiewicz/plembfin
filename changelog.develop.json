@@ -1,7 +1,17 @@
 {
-  "build": 33,
-  "updatedAt": "2026-08-24T11:07:46+01:00",
+  "build": 34,
+  "updatedAt": "2026-08-24T11:14:23+01:00",
   "entries": [
+    {
+      "build": 34,
+      "date": "2026-08-24T11:14:23+01:00",
+      "commit": "2de7443189137f32cc41945a1388ff863aade769",
+      "message": "Fix - Reject duplicate played-flag history",
+      "author": "Lasikiewicz",
+      "details": [
+        "Treat Plex, Emby, and Jellyfin played-flag notifications as acknowledgements when Plembfin already has watched history for the item."
+      ]
+    },
     {
       "build": 33,
       "date": "2026-08-24T11:07:46+01:00",
