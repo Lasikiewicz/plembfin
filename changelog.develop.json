@@ -1,7 +1,17 @@
 {
-  "build": 14,
-  "updatedAt": "2026-08-24T23:12:04+01:00",
+  "build": 15,
+  "updatedAt": "2026-08-25T08:35:00+01:00",
   "entries": [
+    {
+      "build": 15,
+      "date": "2026-08-25T08:35:00+01:00",
+      "commit": "06e5f307a1835cb5655a24bd48e633a3e7c9f552",
+      "message": "Docs - Update onboarding plan with architectural and security recommendations",
+      "author": "Lasikiewicz",
+      "details": [
+        "Refine onboarding plan with pristine account claiming, concurrent background import coordination, and push sync guardrails."
+      ]
+    },
     {
       "build": 14,
       "date": "2026-08-24T23:12:04+01:00",
