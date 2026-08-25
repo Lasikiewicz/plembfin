@@ -17,13 +17,15 @@ npm install
 npm run dev   # auto-reload dev server on http://localhost:5055
 ```
 
-There are no automated tests or linters configured in this project - verify changes by
-running the app locally and exercising the affected feature in the browser.
+Automated checks are available: `npm test` runs the test suite, while `npm run build`
+runs the syntax, documentation, route-guard, and clean-startup checks. There is no
+separate linter configured, so also verify changes by running the app locally and
+exercising the affected feature in the browser.
 
 ## Project structure
 
-See [CLAUDE.md](CLAUDE.md) and [docs/architecture.md](docs/architecture.md) for a full
-breakdown of the server and frontend architecture, including:
+See [docs/architecture.md](docs/architecture.md) for a full breakdown of the server
+and frontend architecture, including:
 
 - Frontend module boundaries (`public/modules/*.js`) and where new UI code belongs
 - The webhook → sync data flow

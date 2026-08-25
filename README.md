@@ -356,7 +356,7 @@ crontab needed) handles sync reconciliation, cache maintenance, and nightly back
 exponential backoff for offline targets. Every push runs `npm run build` - a syntax
 check plus a clean-directory boot test - before it ships.
 
-For the full picture - file map, task router, and per-feature deep dives - start at
+For the full picture - file map, subsystem map, and per-feature references - start at
 [`docs/architecture.md`](docs/architecture.md) and the [docs index](docs/README.md).
 
 ---

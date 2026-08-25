@@ -31,7 +31,7 @@ Webhooks from Plex, Emby, and Jellyfin should be pointed at:
 http(s)://<host>/api/webhook?token=<WEBHOOK_SECRET>
 ```
 
-`WEBHOOK_SECRET` is auto-generated on first boot and shown in **Settings → Integrations**.
+`WEBHOOK_SECRET` is auto-generated on first boot and shown in **Settings → Media servers → Webhooks**.
 Keep it secret - anyone with this URL can inject watch events.
 
 ## Reporting a Vulnerability
