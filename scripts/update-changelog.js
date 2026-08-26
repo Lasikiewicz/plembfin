@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { bulletPointsFrom, formatChangelogMessage, isNoiseCommitMessage, isReleaseTypeCommitMessage, validateReleaseMessage } from "./changelog-message.js";
 import { changeAreaDetails, changedFilesForCommit, commitsSinceLastEntry } from "./changelog-git-helpers.js";
 import { generateChangelogMarkdown } from "./generate-changelog-md.js";
+import { categorizeEntries } from "./promote-develop-to-alpha.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const changelogPath = path.join(root, "changelog.json");
@@ -76,17 +77,17 @@ if (messageErrors.length > 0) {
 
 const sourceDetails = bulletPointsFrom(effectiveMessage);
 
-let backfilledDetails = [];
-for (const commit of otherCommits) {
+const backfilledEntries = otherCommits.map((commit) => {
   const bullets = bulletPointsFrom(commit.message);
-  if (bullets.length) backfilledDetails.push(...bullets);
-  else {
-    const generatedDetails = changeAreaDetails(changedFilesForCommit(root, commit.id));
-    backfilledDetails.push(...(generatedDetails.length
-      ? generatedDetails
-      : [String(commit.message || "").split(/\r?\n/, 1)[0].trim()]));
-  }
-}
+  const details = bullets.length
+    ? bullets
+    : (() => {
+        const generatedDetails = changeAreaDetails(changedFilesForCommit(root, commit.id));
+        return generatedDetails.length ? generatedDetails : [String(commit.message || "").split(/\r?\n/, 1)[0].trim()];
+      })();
+  return { message: formatChangelogMessage(String(commit.message || "").split(/\r?\n/, 1)[0]), details };
+});
+const backfilledDetails = backfilledEntries.flatMap((entry) => entry.details);
 
 // Do not allow a subject-only head commit to create a release with no details.
 // Commit bodies remain the preferred source, but changed files provide a useful
@@ -123,6 +124,8 @@ function semverGt(a, b) {
 }
 const nextVersion = semverGt(packageJson.version, patchBumped) ? packageJson.version : patchBumped;
 
+const sections = categorizeEntries([{ message: sourceMessage, details: sourceDetails }, ...backfilledEntries]);
+
 changelog.version = nextVersion;
 changelog.updatedAt = sourceDate;
 const entry = {
@@ -131,6 +134,7 @@ const entry = {
   commit: sourceCommit,
   message: sourceMessage,
   author: sourceAuthor,
+  sections,
 };
 if (allDetails.length > 0) entry.details = allDetails;
 changelog.entries.unshift(entry);

@@ -249,10 +249,14 @@ promotion and investigate the repeatable failure. Never use `--no-verify`.
 This push carries every commit that was queued on `alpha` since the last release, all
 in one push event. `update-changelog.yml` triggers on the push to `main`, and
 `scripts/update-changelog.js` already aggregates bullet points from **every** commit in
-a multi-commit push - not just the last one - into a single changelog entry. No extra
-step is needed to combine them; it happens automatically. CI then commits
-`chore: update changelog for <sha>` back onto `main` and builds/publishes the Docker
-image. Wait for it (`gh run list --branch main`) before continuing.
+a multi-commit push - not just the last one - into a single changelog entry, then runs
+them through `categorizeEntries()` (shared with `promote-develop-to-alpha.js`) to sort
+them into `entry.sections` - New Features, Major Bug Fixes, and Tweaks - which is what
+`public/app.js` and `generate-changelog-md.js` render as distinct headed groups in
+Settings -> Changelog and `CHANGELOG.md`. No extra step is needed to combine or group
+them; it happens automatically. CI then commits `chore: update changelog for <sha>` back
+onto `main` and builds/publishes the Docker image. Wait for it
+(`gh run list --branch main`) before continuing.
 
 ### 3 - Sync main's changelog-bump commit back into alpha and develop
 ```bash

@@ -268,7 +268,7 @@ See [README.md](README.md) for the documentation index, including this file
 | `docs-check.js` | `npm run docs:check` - derives the required Node.js version from `package.json`, checks the README badge and setup text, and rejects weak/default Docker password examples. |
 | `changelog-message.js` | Shared changelog-message formatting, bullet extraction, and release-detail validation used by local hooks, tests, and CI. |
 | `validate-commit-message.js` | CLI used by the commit-message hook to reject user-visible release commits with missing or title-repeating details. |
-| `update-changelog.js` | CI helper: validates release details, bumps the patch version (honouring a manually-set higher version), converts the pushed commits' messages + bullet points into a `changelog.json` entry, and syncs `package.json`/`package-lock.json`. |
+| `update-changelog.js` | CI helper: validates release details, bumps the patch version (honouring a manually-set higher version), converts the pushed commits' messages + bullet points into a `changelog.json` entry (grouped into `entry.sections` - New Features/Major Bug Fixes/Tweaks - via `categorizeEntries()`), and syncs `package.json`/`package-lock.json`. |
 | `install-git-hooks.js` | Sets `core.hooksPath` to `.githooks` (runs automatically via npm `prepare`). |
 | `docker-entrypoint.sh` | Container entrypoint: chowns `/data` when starting as root, then drops to the `plembfin` user via gosu. |
 | `exportPlexHistory.js` | Standalone one-shot importer: reads a Plex server's watch history over its API and posts it to `/api/import` in chunks. Driven by env vars (`PLEX_URL`, `PLEX_TOKEN`, `API_KEY`). |
@@ -432,6 +432,15 @@ reads the bundled `changelog.json` for the current version and fetches the publi
 minute (8-second fetch timeout). `?refresh=1` from an admin session bypasses that cache and
 re-fetches immediately. The browser cannot reach GitHub directly because the CSP is
 `connect-src 'self'`, so the server proxies and caches it.
+
+Each main-release entry also carries `sections` (`newFeatures`/`majorBugFixes`/`tweaks`),
+produced by `categorizeEntries()` in `scripts/promote-develop-to-alpha.js` and populated by
+`scripts/update-changelog.js` from that push's commit headlines and bullet points. Settings
+→ Changelog (`renderChangelogDetails()` in `public/app.js`) and the generated `CHANGELOG.md`
+(`scripts/generate-changelog-md.js`) render `sections` as separate headed groups whenever
+any of the three is non-empty, falling back to the flat `entry.details` list otherwise -
+per-build alpha/develop entries stay flat since they cover a single push, not a consolidated
+release.
 
 The two entry lists are merged rather than one replacing the other: entries are keyed by
 commit (falling back to version + message), remote copies win on conflict except that a

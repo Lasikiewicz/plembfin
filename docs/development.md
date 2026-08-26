@@ -148,7 +148,14 @@ this means every "Merge alpha with main" run, not every individual commit:
    user-facing (`isReleaseTypeCommitMessage`: only `feat`, `fix`, `security`,
    `enhance`, `perf`, and `docs` commits contribute bullets - a `test:`, `chore:`,
    `refactor:`, `style:`, or `ci:` commit bundled into the same push never surfaces
-   its own bullets, even when it isn't otherwise noise). When the head commit itself
+   its own bullets, even when it isn't otherwise noise). Every commit's headline and
+   bullets are also run through `categorizeEntries()` (shared with
+   `promote-develop-to-alpha.js`) and stored as `entry.sections` -
+   `newFeatures`/`majorBugFixes`/`tweaks`, keyed off each commit's conventional-commit
+   type and per-line keywords. `public/app.js` and `generate-changelog-md.js` render
+   `entry.sections` as separate "New Features" / "Major Bug Fixes" / "Tweaks" headed
+   groups in Settings → Changelog and `CHANGELOG.md` whenever any section is populated,
+   falling back to the flat `entry.details` list otherwise. When the head commit itself
    is a plumbing commit - routine for a "Merge alpha with main" force-push, since
    GitHub reports the range's last commit as the trigger - the headline falls back to
    the most recent real commit in the push instead of the plumbing commit's subject
