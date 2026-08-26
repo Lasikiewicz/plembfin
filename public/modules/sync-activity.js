@@ -397,6 +397,15 @@ export function setSyncActivitySearch(value) {
   }, SEARCH_DEBOUNCE_MS);
 }
 
+// Filters the currently loaded page down to failed entries only - scoped to
+// "on page" (matching the summary pill's own wording) rather than querying the
+// server, since syncHistoryTone can flag a target-level failure that a plain
+// text search wouldn't reliably match.
+export function toggleSyncActivityFailedOnly() {
+  state.syncActivityFailedOnly = !state.syncActivityFailedOnly;
+  renderSyncActivity();
+}
+
 function renderTraktDispatchProgress() {
   const el = elements.syncActivityTraktProgress;
   if (!el) return;
@@ -432,20 +441,30 @@ export function renderSyncActivity() {
   }
 
   const query = state.syncActivitySearch || "";
-  const rows = [...state.syncActivity]
+  const pageRows = [...state.syncActivity]
     .filter((entry) => syncActivityMatchesSearch(entry, query))
     .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
-  const failed = rows.filter((entry) => syncHistoryTone(entry) === "error").length;
+  const failed = pageRows.filter((entry) => syncHistoryTone(entry) === "error").length;
+  const failedOnly = Boolean(state.syncActivityFailedOnly) && failed > 0;
+  const rows = failedOnly ? pageRows.filter((entry) => syncHistoryTone(entry) === "error") : pageRows;
   const pagination = { ...DEFAULT_PAGINATION, ...(state.syncActivityPagination || {}) };
-  const total = Math.max(Number(pagination.total) || 0, rows.length);
+  const total = Math.max(Number(pagination.total) || 0, pageRows.length);
   const from = total ? Math.max(Number(pagination.from) || 1, 1) : 0;
-  const to = total ? Math.max(Number(pagination.to) || rows.length, from) : 0;
+  const to = total ? Math.max(Number(pagination.to) || pageRows.length, from) : 0;
 
   if (elements.syncActivitySummary) {
-    elements.syncActivitySummary.textContent = rows.length
-      ? `Showing ${from}-${to} of ${total} / ${failed} failed on page`
-      : query ? "No matches" : "No activity";
-    elements.syncActivitySummary.className = `status-pill ${failed ? "status-error" : rows.length ? "status-ready" : "status-muted"}`;
+    if (!pageRows.length) {
+      elements.syncActivitySummary.textContent = query ? "No matches" : "No activity";
+      elements.syncActivitySummary.className = "status-pill status-muted";
+      elements.syncActivitySummary.removeAttribute("data-sync-activity-failed-toggle");
+    } else {
+      elements.syncActivitySummary.textContent = failedOnly
+        ? `Showing failed only: ${failed} on page - click to show all`
+        : `Showing ${from}-${to} of ${total} / ${failed} failed on page${failed ? " - click to show only failed" : ""}`;
+      elements.syncActivitySummary.className = `status-pill ${failed ? "status-error" : "status-ready"}${failed ? " is-clickable" : ""}`;
+      if (failed) elements.syncActivitySummary.setAttribute("data-sync-activity-failed-toggle", "1");
+      else elements.syncActivitySummary.removeAttribute("data-sync-activity-failed-toggle");
+    }
   }
 
   if (!rows.length) {

@@ -1591,7 +1591,7 @@ export async function syncPendingManualDispatches(config, loopStore, logger = co
         `Origin: ${media.source}`,
         `Loop-check: Passed`,
         `Dispatch status: ${summary.status}`,
-        `Details: Manual watch state propagated; sync completed.`,
+        `Details: ${summary.details || "Manual watch state propagated; sync completed."}`,
         ...provenanceTelemetryLines(media.watchProvenance || media.watch_provenance),
         ...carriedForwardLines,
         ...(summary.targetStates || []).map(

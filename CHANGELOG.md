@@ -20,25 +20,19 @@ Chore - Retrigger release CI after GitHub Actions incident
 
 ## v0.11.2 - 26 August 2026
 
-Fix - Remove broken bio media layout
+Feature - Guided onboarding and faster in-place media management
 
-- Merge same-episode history records across apps into one dashboard card and show every contributing source.
-- Collapse Plex aliases to one app badge and refresh cached dashboard assets.
-- Keep Plembfin-marked watches distinct from Plex in dashboard badges.
-- Use transparent trimmed Plembfin app icons with a white-P dark variant.
-- Use the white Plembfin mark in the 512px and maskable app icons, with cache-busted manifest URLs.
-- Replace the legacy dark badge artwork with the trimmed white Plembfin mark and refresh its browser cache key.
-- Use cropped dark-P and white-P badge assets for light and dark themes.
-- Match episode watch badges to the dashboard's aggregated app sources.
-- Keep Plembfin visible only for standalone manual watch records.
-- Refine onboarding plan with pristine account claiming, concurrent background import coordination, and push sync guardrails.
-- add one-time administrator claim and a resumable guided setup flow for pristine installs
-- add safe background library imports, setup status UI, and managed connection recovery
-- keep movie pages responsive across large multi-tab batches and preserve legacy unwatched links
-- support browser-native middle-click navigation from the sidebar
-- refresh watched dates and unwatch actions immediately after successful changes
-- clarify Trakt import progress and settle terminal partial or skipped dispatches
-- stop tracking the local test directory and add it to gitignore
+### New Features
+
+- Add guided setup and harden media sync
+- Add one-time administrator claim and a resumable guided setup flow for pristine installs
+- Add safe background library imports, setup status UI, and managed connection recovery
+- Keep movie pages responsive across large multi-tab batches and preserve legacy unwatched links
+- Support browser-native middle-click navigation from the sidebar
+- Refresh watched dates and unwatch actions immediately after successful changes
+- Clarify Trakt import progress and settle terminal partial or skipped dispatches
+- Stop tracking the local test directory and add it to gitignore
+- Add poster three-dot overflow menu and fix live-update scroll resets
 - Added a three-dot overflow button on hover for every poster card outside the media detail pages, offering Edit watch date, Fix match, and Mark unwatched
 - Marking an item unwatched from the grid now dims the card with a Removing animation and removes it in place instead of reloading the whole page and jumping back to the top
 - Fixing a match from the grid menu now updates the card in place instead of opening the media detail page
@@ -47,13 +41,42 @@ Fix - Remove broken bio media layout
 - Movies page data now always bypasses the browser cache so a mutation is reflected immediately instead of for up to five minutes
 - Failed or skipped sync destinations in the Sync Activity list can now be retried individually
 - Unwatch detection during scheduled sync now tracks when Plembfin last learned about a watch record instead of relying on the media's reported watched date, so newly received watches are not missed by the safety net
-- Documentation updated for the new poster overflow menu, in-place grid refresh behavior, sync activity retry, and the Plex WebSocket metadata merge behind unwatch detection
-- Group Backblaze bucket and application-key inputs beside their matching setup instructions, with responsive stacking on narrow screens.
-- Document the eight-stage onboarding flow, including Trakt-first imports, webhook setup, encrypted backups, and inline Backblaze fields.
+- Group release notes by impact
 - Show New Features, Major Bug Fixes, and Tweaks as distinct sections in the app and generated changelog.
 - Preserve maintenance and documentation notes during branch promotion instead of dropping them when features or fixes are present.
+
+### Major Bug Fixes
+
+- Merge cross-app episode history cards
+- Merge same-episode history records across apps into one dashboard card and show every contributing source.
+- Dedupe platform source badges
+- Collapse Plex aliases to one app badge and refresh cached dashboard assets.
+- Correct plembfin badges and app icons
+- Keep Plembfin-marked watches distinct from Plex in dashboard badges.
+- Use transparent trimmed Plembfin app icons with a white-P dark variant.
+- Use white logo in PWA icons
+- Use the white Plembfin mark in the 512px and maskable app icons, with cache-busted manifest URLs.
+- Use white plembfin badge icon
+- Replace the legacy dark badge artwork with the trimmed white Plembfin mark and refresh its browser cache key.
+- Size theme-aware plembfin badges
+- Use cropped dark-P and white-P badge assets for light and dark themes.
+- Show all watch source badges on episode details
+- Match episode watch badges to the dashboard's aggregated app sources.
+- Hide manual badge beside app sources
+- Keep Plembfin visible only for standalone manual watch records.
+- Align backup setup fields with guide
+- Group Backblaze bucket and application-key inputs beside their matching setup instructions, with responsive stacking on narrow screens.
+- Remove broken bio media layout
 - Remove the Bio Layout appearance option and always use the stable standard media detail layout.
 - Expand media backdrops to cover the full viewport without fading completely away at the edges.
+
+### Tweaks
+
+- Update onboarding plan with architectural and security recommendations
+- Refine onboarding plan with pristine account claiming, concurrent background import coordination, and push sync guardrails.
+- Documentation updated for the new poster overflow menu, in-place grid refresh behavior, sync activity retry, and the Plex WebSocket metadata merge behind unwatch detection
+- Update full setup guide
+- Document the eight-stage onboarding flow, including Trakt-first imports, webhook setup, encrypted backups, and inline Backblaze fields.
 
 ## v0.11.1 - 24 August 2026
 
@@ -738,7 +761,7 @@ Fix - Update settings shell route handling and test suite for General group aggr
 - Update test/settingsShell.test.js assertions for storage panel and advanced legacy redirect
 - Pass all 177 automated unit tests
 
-## v0.6.77 - 5 August 2026
+## v0.6.77 - 6 August 2026
 
 Feature - Standardize settings page layouts
 

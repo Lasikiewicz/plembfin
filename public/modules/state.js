@@ -62,6 +62,7 @@ export const state = {
   syncActivityLoaded: false,
   syncActivityLoading: false,
   syncActivitySearch: "",
+  syncActivityFailedOnly: false,
   syncActivityPagination: { page: 1, limit: 25, total: 0, totalPages: 1, from: 0, to: 0, hasPrevious: false, hasNext: false },
   syncActivityProgress: { total: 0, completed: 0 },
   changelog: null,

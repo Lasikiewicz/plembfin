@@ -1775,6 +1775,14 @@ a.media-fact-chip:hover {
   white-space: nowrap;
 }
 
+.status-pill.is-clickable {
+  cursor: pointer;
+}
+
+.status-pill.is-clickable:hover {
+  border-color: var(--accent, var(--line-strong));
+}
+
 .source-badge {
   border: 0;
 }

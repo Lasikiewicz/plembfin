@@ -470,6 +470,11 @@ function attachEvents() {
     _cb.loadSyncActivity?.({ force: true })?.catch?.(() => { });
   });
 
+  elements.syncActivitySummary?.addEventListener("click", () => {
+    if (!elements.syncActivitySummary.hasAttribute("data-sync-activity-failed-toggle")) return;
+    _cb.toggleSyncActivityFailedOnly?.();
+  });
+
   elements.syncActivitySearch?.addEventListener("input", (event) => {
     _cb.setSyncActivitySearch?.(event.target.value);
   });

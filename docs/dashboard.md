@@ -98,6 +98,13 @@ the event details at narrower widths. Pending rows use "Awaiting dispatch" and "
 for dispatch" rather than presenting missing target results as an error. Failed rows
 carry a red edge and pending ones a yellow edge.
 
+The summary pill above the list ("Showing 1-25 of 26 / 11 failed on page") is clickable
+whenever the current page has at least one failed row: clicking it filters the page down
+to failed rows only, and clicking it again (it now reads "Showing failed only") restores
+the full page. This filters within the loaded page's rows client-side rather than
+querying the server, since a row's failed status can come from a target-level result
+that a text search would not reliably match.
+
 Partial, failed, and skipped rows with an actionable destination include a Retry
 button. `POST /api/sync-history/retry` reconstructs the media identity from the
 activity record (including a fresh Plex metadata lookup when a native rating key is

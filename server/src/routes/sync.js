@@ -671,7 +671,7 @@ function syncTelemetryLineValue(telemetry = "", label = "") {
 function syncTelemetryTargetStates(telemetry = "") {
   return String(telemetry || "")
     .split(/\r?\n/)
-    .map((line) => line.trim().match(/^(plex|emby|jellyfin|trakt)\s+(?:progress\s+)?status:\s*(.+)$/i))
+    .map((line) => line.trim().match(/^(?:target\s+)?(plex|emby|jellyfin|trakt)\s+(?:progress\s+)?status:\s*(.+)$/i))
     .filter(Boolean)
     .map(([, target, result]) => {
       const separator = result.indexOf(" - ");
