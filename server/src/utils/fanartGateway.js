@@ -12,6 +12,11 @@ import { fetchWithTimeout } from "./outbound.js";
 // serialized throttle, in-flight request dedupe, and a SQLite response cache
 // (7 days for hits, 24 hours for "fanart has nothing for this item").
 const PROJECT_KEY = String(process.env.FANART_PROJECT_KEY || "").trim() || "bab936b0927ec594f22c16cef458f742";
+
+// Never exposes the key itself - just whether a built-in one is available.
+export function fanartBuiltInAvailable() {
+  return Boolean(PROJECT_KEY);
+}
 const API_ROOT = "https://webservice.fanart.tv/v3";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const HIT_TTL_MS = 7 * DAY_MS;

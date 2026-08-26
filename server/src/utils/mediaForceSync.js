@@ -10,6 +10,8 @@ import { fetchPlexMetadataItem, fetchPlexSeriesEpisodes, findPlexItem } from "./
 import { fetchEmbySeriesEpisodes, fetchEmbyWatchedItems } from "./embyClient.js";
 import { fetchJellyfinSeriesEpisodes, fetchJellyfinWatchedItems } from "./jellyfinClient.js";
 import { normalizeProviderIds, parsePlexGuids } from "./parsers.js";
+import { fetchTraktWatchedSnapshot, trackerMediaIdentityKeys } from "./traktClient.js";
+import { withFreshTraktConnection } from "./trackerDispatcher.js";
 import { isEmbyLikePlayed, releaseDateForItem, releaseDateForPlexItem, watchedAtForEmbyLikeItem, watchedAtForPlexItem } from "./watchDates.js";
 import { remoteEpisodeImportError } from "./episodeImportGuard.js";
 import { appendSyncHistory, loadMediaConfig } from "./configStore.js";
@@ -123,7 +125,13 @@ function itemCoordinates(item = {}, source = "") {
 
 function itemIds(item = {}, source = "") {
   if (source === "plex") return parsePlexGuids(item);
-  return normalizeProviderIds({ ...(item.SeriesProviderIds || {}), ...(item.ProviderIds || {}) });
+  // For an episode, ProviderIds is the EPISODE's own tmdb/tvdb id (Emby/
+  // Jellyfin assign episodes ids separate from their series), while
+  // SeriesProviderIds is the show's - it must win when both carry the same
+  // key, or the show/episode gets tagged with the wrong-scoped id (see the
+  // showScopedKeys override below, and the identical Plex bug fixed in
+  // forceSyncPlanner.js/scheduled.js via parsePlexMediaIds).
+  return normalizeProviderIds({ ...(item.ProviderIds || {}), ...(item.SeriesProviderIds || {}) });
 }
 
 function itemNativeId(item = {}, source = "") {
@@ -436,6 +444,70 @@ function summaryWithDeferredTrackerState(summary, status, detail) {
   };
 }
 
+// A media server's own "last watched" date can be wrong - rebuilt/re-added
+// libraries, a fresh re-scan, or a bulk "mark watched" pass can all reset it
+// to whenever that happened, discarding the real historical date. A connected
+// Trakt account is a much more durable record of when something was actually
+// watched, so a pulled item's date is corrected to Trakt's if Trakt already
+// has an earlier one for the same item. Fetched once per Force Sync run
+// (not per item) to avoid a Trakt API call per episode on a large show pull.
+export async function loadTraktWatchedDateIndex(logger = () => {}) {
+  let connection = await withFreshTraktConnection().catch(() => null);
+  if (!connection || connection.preferEarlierWatchedDate === false) return null;
+  let snapshot;
+  try {
+    snapshot = await fetchTraktWatchedSnapshot(connection);
+  } catch (error) {
+    if (error.status !== 401) {
+      logger(`[pull] Trakt watched-date check skipped: ${error.message || String(error)}`);
+      return null;
+    }
+    connection = await withFreshTraktConnection(true).catch(() => null);
+    if (!connection) return null;
+    try {
+      snapshot = await fetchTraktWatchedSnapshot(connection);
+    } catch (retryError) {
+      logger(`[pull] Trakt watched-date check skipped: ${retryError.message || String(retryError)}`);
+      return null;
+    }
+  }
+  const index = new Map();
+  for (const entry of snapshot) {
+    for (const key of trackerMediaIdentityKeys(entry.media)) {
+      const existing = index.get(key);
+      if (existing == null || entry.watchedAt < existing) index.set(key, entry.watchedAt);
+    }
+  }
+  return index;
+}
+
+function lookupTraktWatchedAt(index, media) {
+  const keys = trackerMediaIdentityKeys({ type: media.type, ids: media.ids, season: media.season, episode: media.episode });
+  let best = null;
+  for (const key of keys) {
+    const value = index.get(key);
+    if (value != null && (best == null || value < best)) best = value;
+  }
+  return best;
+}
+
+export function earliestTraktWatchedAt(index, media) {
+  if (!index) return null;
+  const direct = lookupTraktWatchedAt(index, media);
+  if (direct != null) return direct;
+  // Trakt sometimes records a multi-part episode (e.g. a double-length
+  // season finale) as a single entry under the first part's episode number,
+  // while Plembfin (via TMDB/TVDB) keeps the parts as separate episodes. If
+  // this exact episode has no Trakt entry of its own but the immediately
+  // preceding episode in the same season does, treat it as the second half
+  // of that combined watch and use its date too.
+  const episode = Number(media.episode);
+  if (media.type === "episode" && Number.isFinite(episode) && episode > 1) {
+    return lookupTraktWatchedAt(index, { ...media, episode: episode - 1 });
+  }
+  return null;
+}
+
 export async function forceSyncMediaState(input, { config = null, now = Date.now(), logger = () => {}, isCancelled = () => false } = {}) {
   const requested = normalizeMediaForceSyncRequest(input);
   const resolvedConfig = config || await loadMediaConfig();
@@ -468,6 +540,20 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
       currentEpisodeStateByCoordinate = new Map(
         (currentShow.episodes || []).map((row) => [`${row.season}:${row.episode}`, row.sync_action || "watched"]),
       );
+    }
+  }
+
+  if (requested.mode === "pull") {
+    const traktWatchedDateIndex = await loadTraktWatchedDateIndex(logger);
+    if (traktWatchedDateIndex) {
+      for (const media of collection.items) {
+        if (!media.watched_at) continue;
+        const traktWatchedAt = earliestTraktWatchedAt(traktWatchedDateIndex, media);
+        if (traktWatchedAt != null && traktWatchedAt < Date.parse(media.watched_at)) {
+          logger(`[pull] ${media.title}: ${media.source} reported ${media.watched_at}, but Trakt has an earlier watch - using Trakt's date instead.`);
+          media.watched_at = new Date(traktWatchedAt).toISOString();
+        }
+      }
     }
   }
 

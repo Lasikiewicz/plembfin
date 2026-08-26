@@ -78,6 +78,7 @@ function checkRoutedHandlersAuthenticate() {
     "handleLogin",
     "handleLogout",
     "handleAuthStatus",
+    "handleAuthClaim",
   ]);
   const allowedChecks = ["requireAdmin(", "resolveAdminPrincipal(", "verifyWebhookToken("];
   const offenders = [];

@@ -379,10 +379,11 @@ Items are hidden once their condition is met. The checklist section on the dashb
 - `server/src/routes/trackerAuth.js` — Trakt device-authorization flow reused by onboarding.
 - `server/src/utils/trackerConnectionRepo.js` — tracker connection persistence used to derive Trakt status.
 - `server/src/routes/admin.js` — persisted test-result and metadata-test integration.
+- `scripts/build-check.js` — register `handleAuthClaim` in `publicHandlers` so route-guard verification passes in `npm run build`.
 
 ### Frontend
 
-- `public/index.html` — account-claim UI and setup shell entry.
+- `public/index.html` — account-claim UI, setup shell entry, and `<link rel="modulepreload" href="/modules/onboarding.js" />`.
 - `public/app.js` — `/setup` routing, guarded navigation, and Settings resume banner.
 - `public/modules/onboarding.js` — setup state, step rendering, save/resume behavior, and review.
 - `public/modules/auth.js` — claim flow and lazy webhook-secret retrieval (`fetchAndCacheWebhookToken`).

@@ -318,6 +318,9 @@ async function reloadSettingsConfig() {
   clearDerivedUiCaches();
   renderDashboard();
   renderActiveSessions();
+  // Lets other pages (e.g. the /setup wizard) know a connection changed
+  // without settings-services.js importing them directly.
+  document.dispatchEvent(new CustomEvent("plembfin:config-changed"));
   return state.savedConfig;
 }
 
@@ -329,6 +332,7 @@ function renderPlexServerPicker(ui, flowId, account, servers = []) {
       <b>${escapeHtml(account?.username || "Plex account")}</b>
       <span>Choose the server Plembfin should synchronize.</span>
     </div>
+    <p class="message" data-tone="success">Plex account verified. Choose a server.</p>
     <div class="settings-card-grid plex-server-picker">
       ${servers.map((server) => `
         <button class="service-card" type="button" data-plex-machine="${escapeAttribute(server.machineIdentifier)}">
@@ -339,7 +343,6 @@ function renderPlexServerPicker(ui, flowId, account, servers = []) {
     </div>
   `;
   if (!servers.length) throw new Error("This Plex account has no accessible media servers.");
-  ui.setStatus("Plex account verified. Choose a server.", "success");
   fields.querySelectorAll("[data-plex-machine]").forEach((button) => {
     button.addEventListener("click", async () => {
       ui.setBusy(true);
@@ -534,6 +537,10 @@ async function saveServiceConfig(section, sectionPayload) {
   renderMediaServerCards();
   renderMetadataCards();
   renderSyncTuningCard();
+  // The setup wizard keeps its own server-derived status snapshot. Notify it
+  // after every successful section save so metadata badges and completed-step
+  // state refresh immediately instead of remaining stale until a page reload.
+  document.dispatchEvent(new CustomEvent("plembfin:config-changed"));
   setMessage(`Saved ${SERVICE_DEFS[section]?.name || EXTRA_SERVICE_NAMES[section] || section} settings successfully.`, "success");
   return body;
 }

@@ -89,11 +89,22 @@ function plexPinToken(payload) {
   return element ? decodeXml(element[1]) : "";
 }
 
-export async function createPlexPin(device, { fetchImpl = fetchWithTimeout, strong = true } = {}) {
+export async function createPlexPin(device, { fetchImpl = fetchWithTimeout, strong = true, includeJwk = strong, originUrl = "" } = {}) {
+  const headers = plexClientHeaders(device);
+  // The hosted auth page (app.plex.tv/auth) validates that the PIN's `origin`
+  // field matches forwardUrl's host; that field is only populated when the
+  // PIN-creation request itself carries a matching Origin header. Without it
+  // the page fails with "We were unable to complete this request" even
+  // though the PIN and forwardUrl are both otherwise valid.
+  if (originUrl) {
+    try { headers.Origin = new URL(originUrl).origin; } catch { /* leave unset if publicBaseUrl is malformed */ }
+  }
   const response = await fetchImpl(`${PLEX_CLIENTS_ORIGIN}/api/v2/pins`, {
     method: "POST",
-    headers: plexClientHeaders(device),
-    body: JSON.stringify(strong ? { strong: true, jwk: device.publicJwk } : { strong: false }),
+    headers,
+    body: JSON.stringify(strong
+      ? { strong: true, ...(includeJwk ? { jwk: device.publicJwk } : {}) }
+      : { strong: false }),
   });
   const body = await plexJson(response, "Plex PIN creation");
   const id = String(body.id || "");

@@ -361,8 +361,27 @@ export function setSyncActivitySearch(value) {
   }, SEARCH_DEBOUNCE_MS);
 }
 
+function renderTraktDispatchProgress() {
+  const el = elements.syncActivityTraktProgress;
+  if (!el) return;
+  const progress = state.traktDispatchProgress;
+  if (!progress || !progress.pending) {
+    el.classList.add("hidden");
+    el.textContent = "";
+    return;
+  }
+  // A stable, whole-backlog figure - separate from the "Sync - X of Y"
+  // indicator above, whose Y is only the current small dispatch burst and
+  // resets between bursts (see countTraktImportPendingDispatch in
+  // dataRepo.js). This number only ever counts down.
+  const processed = Math.max(0, progress.total - progress.pending);
+  el.classList.remove("hidden");
+  el.textContent = `Propagating your imported Trakt history to your media servers: ${processed} of ${progress.total} processed so far.`;
+}
+
 export function renderSyncActivity() {
   renderSyncActivityStatus();
+  renderTraktDispatchProgress();
   if (!elements.syncActivityRows) return;
   renderSyncActivityPagination();
 
@@ -434,6 +453,7 @@ export async function loadSyncActivity({ force = false, page } = {}) {
     if (!response.ok) throw new Error(body.error || `Sync activity load failed with ${response.status}`);
     if (requestToken !== loadRequestToken || requestedSearch !== state.syncActivitySearch) return state.syncActivity;
     state.syncActivity = Array.isArray(body.history) ? body.history : [];
+    state.traktDispatchProgress = body.traktDispatchProgress || null;
     const rawPagination = body.pagination && typeof body.pagination === "object" ? body.pagination : {};
     const limit = Math.min(Math.max(Number(rawPagination.limit) || ACTIVITY_PAGE_SIZE, 1), 200);
     const total = Math.max(Number(rawPagination.total) || state.syncActivity.length, 0);

@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import crypto from "node:crypto";
 import { CONFIG_PATH, ensureDataDirs } from "./paths.js";
+import { detectAndMarkPristineInstall, isAccountClaimed } from "./utils/onboardingStore.js";
 
 ensureDataDirs();
 
@@ -63,15 +64,22 @@ function resolveAuthConfig() {
   let changed = false;
   const authManagedInApp = stored.authManagedInApp === true;
 
+  // Existing/upgraded installs (a managed credential, a media connection, watch
+  // history, or configured metadata keys) are marked as already-claimed so they
+  // never see the pristine-install account-claim screen.
+  const onboarding = detectAndMarkPristineInstall({ authManagedInApp });
+  const claimRequired = !authManagedInApp && !process.env.ADMIN_PASSWORD && onboarding.accountClaimed !== true;
+
   const username = String(authManagedInApp ? stored.username || "admin" : process.env.ADMIN_USERNAME || stored.username || "admin");
   if (stored.username !== username) { stored.username = username; changed = true; }
 
-  // Password: an env override (re)hashes; otherwise keep the stored hash, or
-  // generate a random one on a brand-new install (printed once at startup).
+  // Password: an env override (re)hashes; otherwise keep the stored hash. A
+  // pristine, unclaimed install gets no password hash at all - the one-time
+  // /api/auth/claim endpoint sets it once an administrator claims the account.
   if (!authManagedInApp && process.env.ADMIN_PASSWORD) {
     stored.passwordHash = hashPassword(process.env.ADMIN_PASSWORD);
     changed = true;
-  } else if (!stored.passwordHash) {
+  } else if (!stored.passwordHash && !claimRequired) {
     generatedInitialPassword = crypto.randomBytes(12).toString("base64url");
     stored.passwordHash = hashPassword(generatedInitialPassword);
     changed = true;
@@ -127,6 +135,9 @@ function logSecuritySummary() {
   if (generatedInitialPassword) {
     console.warn("⚠️  An initial admin password was generated. Set ADMIN_PASSWORD before first start or use the in-app recovery flow.");
   }
+  if (isClaimRequired()) {
+    console.log("[security] Pristine install detected - open the app to claim the administrator account. No password was generated.");
+  }
 }
 
 logSecuritySummary();
@@ -140,6 +151,16 @@ export const AUTH = {
 
 export function isDefaultPassword() {
   return isDefaultPasswordHash(config.passwordHash);
+}
+
+// True while a pristine install has no path to sign in yet: no in-app
+// credentials have been claimed, and no ADMIN_PASSWORD env override exists.
+// Re-checked live (not cached) so a successful claim clears it without a
+// restart.
+export function isClaimRequired() {
+  if (config.authManagedInApp === true) return false;
+  if (process.env.ADMIN_PASSWORD) return false;
+  return !isAccountClaimed();
 }
 
 export function verifyWebhookToken(token) {

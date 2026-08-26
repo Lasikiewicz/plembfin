@@ -87,9 +87,14 @@ export async function handlePlexAuth(req, res, path) {
       return sendJson(res, { flowId: reusable.id, status: "authorised", resumed: true, expiresAt: reusable.expiresAt });
     }
     const config = await loadMediaConfig({ resolveConnections: false });
-    const device = getOrCreatePlexAuthDevice({ deviceName: "Plembfin" });
-    const pin = await createPlexPin(device);
-    const flow = createAuthFlow({ provider: "plex", authDeviceId: device.id, remoteFlowId: pin.id, secret: pin.code, flowKind: "plex_strong_pin", adminSessionFingerprint: fingerprint, expiresAt: pin.expiresAt });
+    // app.plex.tv/auth requires a strong, long-form PIN. Omitting the JWK keeps
+    // the returned account credential in Plex's opaque-token format, which is
+    // accepted by both older and newer Plex Media Server releases. A weak
+    // four-character PIN is only valid for the manual plex.tv/link page and is
+    // rejected by the hosted auth app after the user clicks Sign In.
+    const device = getPlexLegacyAuthDevice();
+    const pin = await createPlexPin(device, { strong: true, includeJwk: false, originUrl: config.publicBaseUrl });
+    const flow = createAuthFlow({ provider: "plex", authDeviceId: device.id, remoteFlowId: pin.id, secret: pin.code, flowKind: "plex_legacy_pin", adminSessionFingerprint: fingerprint, expiresAt: pin.expiresAt });
     writeAuditLog("media-auth.plex.started", { ip: req.ip || req.socket?.remoteAddress, detail: { flowId: flow.id } });
     return sendJson(res, { flowId: flow.id, authUrl: plexAuthUrl({ device, code: pin.code, publicBaseUrl: config.publicBaseUrl }), expiresAt: pin.expiresAt });
   }

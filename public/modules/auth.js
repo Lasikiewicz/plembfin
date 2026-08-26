@@ -67,14 +67,14 @@ export function onAuthChange(callback) {
       if (data.authenticated) {
         setSession(data.username);
         await Promise.all([fetchAndCacheApiKey(), fetchAndCacheWebhookToken()]);
-        callback(cachedUser, "session", data.mustChangePassword === true);
+        callback(cachedUser, "session", data.mustChangePassword === true, false);
       } else {
         clearSession();
-        callback(null, "");
+        callback(null, "", false, data.claimRequired === true);
       }
     } catch {
       clearSession();
-      callback(null, "");
+      callback(null, "", false, false);
     }
   })();
   return () => {};
@@ -90,6 +90,26 @@ export async function signInAdmin(username, password) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
     throw new Error(data.error || "Invalid username or password");
+  }
+  setSession(data.username);
+  await Promise.all([fetchAndCacheApiKey(), fetchAndCacheWebhookToken()]);
+  return { user: cachedUser, token: "session" };
+}
+
+// One-time administrator account claim for a pristine install. Reuses the
+// session established by /api/auth/claim exactly like signInAdmin does.
+export async function claimAdminAccount(username, password, confirmPassword) {
+  const res = await fetch("/api/auth/claim", {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ username: String(username || "").trim(), password: String(password || ""), confirmPassword: String(confirmPassword || "") }),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const error = new Error(data.error || "Could not claim this instance");
+    error.code = data.code || "";
+    throw error;
   }
   setSession(data.username);
   await Promise.all([fetchAndCacheApiKey(), fetchAndCacheWebhookToken()]);

@@ -2,6 +2,7 @@ import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, sourceBadgeHtml, formatDate, resolveEpisodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress } from "./utils.js?v=20260824h";
 import { posterMarkup, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, tmdbPoster } from "./images.js";
+import { renderDashboardChecklist } from "./onboarding.js";
 
 const PART_WATCHED_DASHBOARD_LIMIT = 30;
 const EXPLORER_PAGE_SIZE = 240;
@@ -439,6 +440,7 @@ function setDashboardHistoryRowMode(row) {
 }
 
 export function renderDashboard() {
+  renderDashboardChecklist();
   renderPartWatched();
   syncDashboardHistoryViewButtons();
   setDashboardHistoryRowMode(elements.tvHistoryRow);

@@ -988,6 +988,10 @@ export async function confirmAndMarkUnwatched(button) {
     if (!response.ok) throw new Error(result.error || `Mark unwatched failed (${response.status})`);
 
     for (const id of ids) state.savingUnwatchIds.delete(id);
+    // The server has committed the unwatch at this point. Reflect that success
+    // immediately instead of leaving the control on "Removing…" while the
+    // detail page performs its comparatively expensive metadata refresh.
+    button.textContent = "Removed";
     _clearDerivedUiCaches({ resetExplorer: kind === "movie" });
     _setMessage(
       bulk
@@ -995,9 +999,10 @@ export async function confirmAndMarkUnwatched(button) {
         : `Marked "${label}" unwatched; pushed unplayed to media apps.`,
       result.failed ? "error" : "success",
     );
-    await _loadHistory({ force: true }).catch(() => null);
+    const historyRefresh = _loadHistory({ force: true }).catch(() => null);
 
     if ((kind === "episode" || kind === "season" || kind === "show") && (state.activeShowModalKey || state.activeShowTmdbId || state.activeShowTvdbId)) {
+      await historyRefresh;
       if (showTitle) await refreshShowAfterManualWatch(showTitle).catch(() => null);
       if (state.activeShowModalKey) {
         _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
@@ -1012,8 +1017,16 @@ export async function confirmAndMarkUnwatched(button) {
       // instead of closing the modal back to whatever page was behind it.
       // A title without a TMDB id has no alternate detail loader, so leave its
       // already-mounted page in place rather than navigating away from it.
-      if (movieTmdbId) await _openMovieImmersiveModalByTmdbId(movieTmdbId);
+      // Do not keep the completed action pending on TMDB/OMDb/recommendation
+      // hydration. Multiple movie tabs can make that refresh take noticeably
+      // longer, but it is no longer part of the unwatch transaction.
+      if (movieTmdbId) {
+        Promise.allSettled([historyRefresh]).then(() => {
+          _openMovieImmersiveModalByTmdbId(movieTmdbId).catch(() => null);
+        });
+      }
     } else {
+      await historyRefresh;
       _closeMediaDetail();
       _renderActiveView();
     }

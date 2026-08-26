@@ -3,7 +3,7 @@ import { fetchWithTimeout } from "./utils/outbound.js";
 import { watchedThresholdPercent } from "./utils/tuning.js";
 import { lastOutboundPlayedMarkAt, recordOutboundPlayedMarks, recordOutboundUnplayedMarks, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
 import { applyUnwatchedTransition } from "./utils/watchStateTransitions.js";
-import { parsePlexGuids } from "./utils/parsers.js";
+import { parsePlexMediaIds } from "./utils/parsers.js";
 import { findPlexItem, resolvePlexAccountId } from "./utils/plexClient.js";
 import { fetchPlexWithRefresh } from "./utils/plexFetch.js";
 import { buildCacheRow, fetchLiveSessions, hydrateCachedSession } from "./utils/liveSessions.js";
@@ -18,6 +18,7 @@ import { isVerboseLogging } from "./utils/logVerbose.js";
 import { buildWatchProvenance, provenanceTelemetryLines } from "./utils/watchProvenance.js";
 import { recordWatchAuditEvent, recordWatchAuditEvents } from "./utils/watchAudit.js";
 import { canReceiveState } from "./utils/syncRoles.js";
+import { earliestTraktWatchedAt, loadTraktWatchedDateIndex } from "./utils/mediaForceSync.js";
 
 // A library-history endpoint exposes the server's current played snapshot; it
 // does not prove another viewing occurred. A canonical Plembfin playstate can
@@ -215,7 +216,10 @@ export function mediaFromPlexResumableItem(item = {}) {
     source: "plex",
     season,
     episode,
-    ids: parsePlexGuids(item),
+    // Episodes carry their own tmdb/tvdb guid, distinct from the show's -
+    // prefer the grandparent (series) guid so resume progress keys on the
+    // same show identity every other ingestion path resolves.
+    ids: parsePlexMediaIds(item, type),
     episodeTitle: type === "episode" ? item.title : null,
     positionMs,
     offsetMs: positionMs,
@@ -955,7 +959,7 @@ async function syncRecentlyResumableFromJellyfin(config, loopStore, logger = con
   return syncedCount;
 }
 
-async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.log) {
+async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.log, traktWatchedDateIndex = null) {
   if (!watchedPlayedSyncEnabled()) {
     logger("Plex watched library sync is disabled.");
     return 0;
@@ -1078,17 +1082,11 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
         type: item.type,
         source: "plex",
         isValid: true,
-        ids: {},
+        // Episodes carry their own tmdb/tvdb guid, distinct from the show's -
+        // prefer the grandparent (series) guid so a library-history import
+        // keys on the same show identity every other ingestion path resolves.
+        ids: parsePlexMediaIds(item, item.type),
       };
-
-      const guids = [item.guid, ...(item.Guid || []).map((g) => g.id || g)].filter(Boolean);
-      for (const guid of guids) {
-        const guidStr = String(guid);
-        const value = guidStr.split(/:\/\/|\//).pop();
-        if (guidStr.includes("imdb")) media.ids.imdb = value;
-        if (guidStr.includes("tmdb") || guidStr.includes("themoviedb")) media.ids.tmdb = value;
-        if (guidStr.includes("tvdb") || guidStr.includes("thetvdb")) media.ids.tvdb = value;
-      }
 
       if (item.type === "episode") {
         media.season = Number(item.parentIndex);
@@ -1143,8 +1141,15 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
           continue;
         }
         logger(`Plex: detected new watched item: ${media.title} (watched at ${watchedAt}${watchDate.manualMark ? "; manual flag anchored to release date" : ""})`);
+        const traktWatchedAt = earliestTraktWatchedAt(traktWatchedDateIndex, media);
+        const effectiveWatchedAt = traktWatchedAt != null && traktWatchedAt < Date.parse(watchedAt)
+          ? new Date(traktWatchedAt).toISOString()
+          : watchedAt;
+        if (effectiveWatchedAt !== watchedAt) {
+          logger(`Plex: ${media.title} reported ${watchedAt}, but Trakt has an earlier watch - using Trakt's date instead.`);
+        }
         const watchRecord = mediaToWatchRecord(media, "plex");
-        watchRecord.watched_at = watchedAt;
+        watchRecord.watched_at = effectiveWatchedAt;
         watchRecord.sync_action = "watched";
         watchRecord.sync_dispatch_telemetry = [
           `Origin: plex`,
@@ -1188,7 +1193,7 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
   return syncedCount;
 }
 
-async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.log) {
+async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.log, traktWatchedDateIndex = null) {
   if (!watchedPlayedSyncEnabled()) {
     logger("Emby watched library sync is disabled.");
     return 0;
@@ -1261,8 +1266,15 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
           continue;
         }
         logger(`Emby: detected new watched item: ${media.title} (${watchedAtReason} ${watchedAt})`);
+        const traktWatchedAt = earliestTraktWatchedAt(traktWatchedDateIndex, media);
+        const effectiveWatchedAt = traktWatchedAt != null && traktWatchedAt < Date.parse(watchedAt)
+          ? new Date(traktWatchedAt).toISOString()
+          : watchedAt;
+        if (effectiveWatchedAt !== watchedAt) {
+          logger(`Emby: ${media.title} reported ${watchedAt}, but Trakt has an earlier watch - using Trakt's date instead.`);
+        }
         const watchRecord = mediaToWatchRecord(media, "emby");
-        watchRecord.watched_at = watchedAt;
+        watchRecord.watched_at = effectiveWatchedAt;
         watchRecord.sync_action = "watched";
         watchRecord.sync_dispatch_telemetry = [
           `Origin: emby`,
@@ -1311,7 +1323,7 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
   return syncedCount;
 }
 
-async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = console.log) {
+async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = console.log, traktWatchedDateIndex = null) {
   if (!watchedPlayedSyncEnabled()) {
     logger("Jellyfin watched library sync is disabled.");
     return 0;
@@ -1381,8 +1393,15 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
           continue;
         }
         logger(`Jellyfin: detected new watched item: ${media.title} (${watchedAtReason} ${watchedAt})`);
+        const traktWatchedAt = earliestTraktWatchedAt(traktWatchedDateIndex, media);
+        const effectiveWatchedAt = traktWatchedAt != null && traktWatchedAt < Date.parse(watchedAt)
+          ? new Date(traktWatchedAt).toISOString()
+          : watchedAt;
+        if (effectiveWatchedAt !== watchedAt) {
+          logger(`Jellyfin: ${media.title} reported ${watchedAt}, but Trakt has an earlier watch - using Trakt's date instead.`);
+        }
         const watchRecord = mediaToWatchRecord(media, "jellyfin");
-        watchRecord.watched_at = watchedAt;
+        watchRecord.watched_at = effectiveWatchedAt;
         watchRecord.sync_action = "watched";
         watchRecord.sync_dispatch_telemetry = [
           `Origin: jellyfin`,
@@ -1497,6 +1516,17 @@ export async function syncPendingManualDispatches(config, loopStore, logger = co
         toRetry.push(row);
       }
     }
+
+    // A bulk historical import (e.g. the onboarding Trakt reconcile) can queue
+    // thousands of rows needing outbound dispatch at once, and this batch is
+    // capped at 15/tick - a fresh edit made directly on Trakt (or any other
+    // non-bulk change) would otherwise land at the back of that queue and
+    // wait behind the whole backlog before it ever reaches Plex/Emby/Jellyfin.
+    // Bulk-imported rows are the only ones tagged "Ingest path:
+    // historical_import" in their own telemetry, so sort them after
+    // everything else while keeping each group's original order stable.
+    const isBulkHistoricalImport = (row) => (row.sync_dispatch_telemetry || "").includes("Ingest path: historical_import");
+    toRetry.sort((a, b) => Number(isBulkHistoricalImport(a)) - Number(isBulkHistoricalImport(b)));
 
     const maxRetries = 15;
     const batchToRetry = toRetry.slice(0, maxRetries);
@@ -1690,10 +1720,15 @@ async function runScheduledSyncCore(logger = console.log, { forceCatchup = false
     if (forceCatchup) logger("Scheduled Sync: running requested recent-item repair...");
     else trace(`Scheduled Sync: running catch-up library checks (interval: ${CATCHUP_SYNC_INTERVAL_MS / 60000}m)...`);
 
+    // A media server's own "last watched" date can be wrong (see the identical
+    // comment in mediaForceSync.js) - fetched once per catch-up pass, not per
+    // item, and shared across all three servers below.
+    const traktWatchedDateIndex = await loadTraktWatchedDateIndex(logger).catch(() => null);
+
     if (plexActive) {
       try {
         trace("Scheduled Sync: checking Plex recently watched...");
-        plexSynced = await syncRecentlyWatchedFromPlex(config, loopStore, logger);
+        plexSynced = await syncRecentlyWatchedFromPlex(config, loopStore, logger, traktWatchedDateIndex);
       } catch (error) {
         logger(`Scheduled Sync ERROR: Plex sync failed: ${error.message}`);
       }
@@ -1702,7 +1737,7 @@ async function runScheduledSyncCore(logger = console.log, { forceCatchup = false
     if (embyActive) {
       try {
         trace("Scheduled Sync: checking Emby recently watched...");
-        embySynced = await syncRecentlyWatchedFromEmby(config, loopStore, logger);
+        embySynced = await syncRecentlyWatchedFromEmby(config, loopStore, logger, traktWatchedDateIndex);
       } catch (error) {
         logger(`Scheduled Sync ERROR: Emby sync failed: ${error.message}`);
       }
@@ -1711,7 +1746,7 @@ async function runScheduledSyncCore(logger = console.log, { forceCatchup = false
     if (jellyfinActive) {
       try {
         trace("Scheduled Sync: checking Jellyfin recently watched...");
-        jellyfinSynced = await syncRecentlyWatchedFromJellyfin(config, loopStore, logger);
+        jellyfinSynced = await syncRecentlyWatchedFromJellyfin(config, loopStore, logger, traktWatchedDateIndex);
       } catch (error) {
         logger(`Scheduled Sync ERROR: Jellyfin sync failed: ${error.message}`);
       }

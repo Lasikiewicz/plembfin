@@ -11,11 +11,12 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#05080c" />
     <link rel="preconnect" href="https://image.tmdb.org" />
-    <link rel="modulepreload" href="/app.js?v=20260824h" />
+    <link rel="modulepreload" href="/app.js?v=20260825b" />
     <link rel="modulepreload" href="/modules/auth.js" />
     <link rel="modulepreload" href="/modules/logs.js" />
     <link rel="modulepreload" href="/modules/settings.js" />
     <link rel="modulepreload" href="/modules/settings-shell.js" />
+    <link rel="modulepreload" href="/modules/onboarding.js" />
     <link rel="modulepreload" href="/modules/settings-ui.js" />
     <link rel="modulepreload" href="/modules/settings-services.js" />
     <link rel="modulepreload" href="/modules/state.js" />
@@ -35,7 +36,7 @@
     <link rel="modulepreload" href="/modules/upcoming.js" />
     <link rel="modulepreload" href="/modules/explorer.js" />
     <link rel="modulepreload" href="/modules/calendar-picker.js" />
-    <link rel="modulepreload" href="/modules/edit-dialogs.js?v=20260810" />
+    <link rel="modulepreload" href="/modules/edit-dialogs.js?v=20260826b" />
     <link rel="modulepreload" href="/modules/watch-action.js?v=20260824c" />
     <link rel="modulepreload" href="/modules/tmdb.js?v=20260823" />
     <link rel="modulepreload" href="/modules/media-detail-context.js?v=20260810" />
@@ -46,11 +47,12 @@
     <link rel="modulepreload" href="/modules/media-detail.js?v=20260810" />
     <link rel="modulepreload" href="/modules/media-person.js?v=20260810" />
     <link rel="modulepreload" href="/modules/media-lightbox.js" />
-    <link rel="modulepreload" href="/modules/media-detail-events.js?v=20260821" />
+    <link rel="modulepreload" href="/modules/media-detail-events.js?v=20260826" />
     <link rel="modulepreload" href="/modules/app-events.js?v=20260812" />
     <link rel="stylesheet" href="/styles.css?v=20260824c" />
   </head>
   <body>
+    <div id="setupFooterBar" class="setup-footer-bar hidden"></div>
     <div class="app-chassis">
       <nav class="topnav nav-closed" aria-label="Primary navigation">
         <div class="brand-search">
@@ -190,23 +192,50 @@
 
       <main class="page-shell">
       <section id="authPanel" class="auth-panel glass-panel hidden">
-        <div>
-          <p class="eyebrow">Admin access</p>
-          <h2>Unlock your archive</h2>
-          <p class="muted-copy">Sign in with your admin username and password to browse your library, import Trakt history, and review webhook appends.</p>
+        <img class="auth-panel-logo" src="/plembfin_header_logo_dark.png" alt="Plembfin" />
+        <div id="authPanelSignIn">
+          <div>
+            <p class="eyebrow">Admin access</p>
+            <h2>Unlock your archive</h2>
+            <p class="muted-copy">Sign in with your admin username and password to browse your library, import Trakt history, and review webhook appends.</p>
+          </div>
+          <form id="authForm" class="auth-form" method="post" autocomplete="off" data-lpignore="true" data-1p-ignore="true">
+            <label class="field-label" for="adminEmail">
+              Admin email or username
+              <input id="adminEmail" name="adminEmail" type="text" autocomplete="off" data-lpignore="true" data-1p-ignore="true" class="field" />
+            </label>
+            <label class="field-label" for="adminToken">
+              Password
+              <input id="adminToken" name="adminToken" type="password" autocomplete="off" data-lpignore="true" data-1p-ignore="true" class="field" />
+            </label>
+            <button class="button-primary" type="submit">Sign In</button>
+          </form>
+          <p id="message" class="message" role="status" aria-live="polite"></p>
         </div>
-        <form id="authForm" class="auth-form" method="post" autocomplete="off" data-lpignore="true" data-1p-ignore="true">
-          <label class="field-label" for="adminEmail">
-            Admin email or username
-            <input id="adminEmail" name="adminEmail" type="text" autocomplete="off" data-lpignore="true" data-1p-ignore="true" class="field" />
-          </label>
-          <label class="field-label" for="adminToken">
-            Password
-            <input id="adminToken" name="adminToken" type="password" autocomplete="off" data-lpignore="true" data-1p-ignore="true" class="field" />
-          </label>
-          <button class="button-primary" type="submit">Sign In</button>
-        </form>
-        <p id="message" class="message" role="status" aria-live="polite"></p>
+        <div id="claimPanel" class="hidden">
+          <div>
+            <p class="eyebrow">First-time setup</p>
+            <h2>Claim this Plembfin instance</h2>
+            <p class="muted-copy">Create the administrator account that will control this instance. This can only be done once, by whoever gets here first.</p>
+          </div>
+          <form id="claimForm" class="auth-form" method="post" autocomplete="off">
+            <label class="field-label" for="claimUsername">
+              Administrator username
+              <input id="claimUsername" name="claimUsername" type="text" autocomplete="username" class="field" />
+            </label>
+            <label class="field-label" for="claimPassword">
+              Password
+              <input id="claimPassword" name="claimPassword" type="password" autocomplete="new-password" class="field" />
+            </label>
+            <label class="field-label" for="claimPasswordConfirm">
+              Confirm password
+              <input id="claimPasswordConfirm" name="claimPasswordConfirm" type="password" autocomplete="new-password" class="field" />
+            </label>
+            <p class="muted-copy" style="font-size:0.85em;">At least 8 characters. Store this password somewhere safe - it controls the entire instance.</p>
+            <button class="button-primary" type="submit">Create administrator account</button>
+          </form>
+          <p id="claimMessage" class="message" role="status" aria-live="polite"></p>
+        </div>
       </section>
 
       <section id="appShell" class="app-shell hidden">
@@ -229,6 +258,7 @@
 
         <section id="timeline-view" class="view-panel" data-view-panel="dashboard">
           <h1 class="sr-only">Dashboard</h1>
+          <div id="dashboardChecklist"></div>
           <section class="glass-panel p-section live-panel">
             <div class="section-heading">
               <div>
@@ -425,6 +455,7 @@
                 <button id="syncActivityRefresh" class="button-ghost" type="button">Refresh</button>
               </div>
             </div>
+            <div id="syncActivityTraktProgress" class="guide-callout sync-activity-trakt-progress hidden"></div>
             <div id="syncActivityRows" class="sync-activity-rows"></div>
             <div id="syncActivityPagination" class="sync-activity-pagination hidden" aria-label="Sync activity pages">
               <span id="syncActivityPageRange" class="sync-activity-page-range">Showing 0-0 of 0</span>
@@ -510,6 +541,10 @@
           </section>
         </section>
 
+        <section id="setup-view" class="view-panel hidden" data-view-panel="setup">
+          <div id="setupPageRoot" class="settings-hub"></div>
+        </section>
+
         <section id="settings-view" class="view-panel hidden" data-view-panel="settings">
           <section class="settings-hub">
             <div class="settings-content">
@@ -558,6 +593,16 @@
                           <button id="saveAdminCredentialsButton" class="button-primary sync-action-btn sync-tool-button" type="submit">Save Login</button>
                         </div>
                       </form>
+                    </article>
+                    <article class="glass-panel p-section settings-card tool-section-card">
+                      <div class="section-heading sync-heading sync-static-heading">
+                        <div class="sync-heading-title">
+                          <p style="margin: 0;">Guided setup</p>
+                        </div>
+                        <span>Reopen the first-run setup wizard</span>
+                      </div>
+                      <p class="muted-copy" style="font-size: 0.85rem;">Revisit media server connections, metadata, webhooks, and Trakt using the same guided flow shown on first run.</p>
+                      <a class="button-ghost" href="/setup">Run setup guide</a>
                     </article>
                   </div>
 
@@ -2237,6 +2282,6 @@
 
     <div id="copyToast" class="copy-toast hidden" role="status" aria-live="polite">Copied!</div>
 
-    <script type="module" src="/app.js?v=20260824h"></script>
+    <script type="module" src="/app.js?v=20260825b"></script>
   </body>
 </html>

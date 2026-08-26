@@ -8,6 +8,11 @@ import { loadMediaConfig, loadRuntimeState, setRuntimeState } from "./configStor
 // in their own via TVDB_PROJECT_KEY (or a personal key in Settings, which takes
 // precedence over both) if this one is revoked or exhausted.
 const PROJECT_KEY = String(process.env.TVDB_PROJECT_KEY || "").trim() || "94a93e8a-7ab8-4708-b6b7-a9fae1bc6ac2";
+
+// Never exposes the key itself - just whether a built-in one is available.
+export function tvdbBuiltInAvailable() {
+  return Boolean(PROJECT_KEY);
+}
 const API_ROOT = "https://api4.thetvdb.com/v4";
 const DAY_MS = 24 * 60 * 60 * 1000;
 const SEARCH_TTL_MS = 180 * DAY_MS;
@@ -164,6 +169,10 @@ function tvdbEndpointUrl(endpoint, params = {}) {
     const id = normalizeTvdbId(endpoint.id);
     if (!id) throw Object.assign(new Error("Valid TVDB season id is required"), { status: 400 });
     url.pathname = `/v4/seasons/${id}/extended`;
+  } else if (endpoint?.type === "episode") {
+    const id = normalizeTvdbId(endpoint.id);
+    if (!id) throw Object.assign(new Error("Valid TVDB episode id is required"), { status: 400 });
+    url.pathname = `/v4/episodes/${id}`;
   } else {
     throw Object.assign(new Error("Unsupported TVDB endpoint"), { status: 500 });
   }
@@ -209,6 +218,25 @@ async function upstream(endpoint, params = {}, attempt = 0) {
   }
   const body = await response.json();
   return body?.data;
+}
+
+// A stored "series" id can actually be one of its own episode's ids - TVDB
+// assigns episodes their own ids, separate from the series, and several
+// ingestion paths (Plex/Emby/Jellyfin) can end up storing the episode's id
+// instead of the show's. Rather than guess the right show from a title search
+// (ambiguous when two real shows share a name - see getTvShowDetails), ask
+// TVDB directly what show this id's episode actually belongs to. Safe to try
+// on any id: if it genuinely is a series id, the episode lookup 404s quickly
+// and the caller's existing series lookup already succeeded anyway.
+export async function resolveTvdbSeriesIdFromEpisodeId(tvdbEpisodeId) {
+  const id = normalizeTvdbId(tvdbEpisodeId);
+  if (!id) return "";
+  try {
+    const episode = await upstream({ type: "episode", id });
+    return episode?.seriesId ? String(episode.seriesId) : "";
+  } catch {
+    return "";
+  }
 }
 
 export async function resolveTvdbSeriesId({ tvdbId = "", title = "" } = {}) {

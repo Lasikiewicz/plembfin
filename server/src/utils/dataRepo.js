@@ -4429,6 +4429,39 @@ export async function countWatchHistoryRows() {
   return db.prepare("SELECT COUNT(*) AS c FROM watch_history").get().c || 0;
 }
 
+export function countWatchHistoryRowsBySource(source) {
+  return db.prepare("SELECT COUNT(*) AS c FROM watch_history WHERE source = ?").get(String(source || "")).c || 0;
+}
+
+// A stable, monotonically-shrinking backlog figure for a large Trakt import's
+// outbound propagation. Only work that has not run yet, is currently pending,
+// or has a scheduled retry belongs in `pending`. Partial/no-match, skipped,
+// exhausted-error, and successful outcomes are terminal and must not leave the
+// UI claiming that propagation is still active.
+//
+// importTraktPlayHistory (trackerSync.js) backfills every individual Trakt
+// play - rewatches included - as its own row, explicitly marked "skipped -
+// Historical import; not re-propagated": those are deliberately terminal,
+// never meant to reach Plex/Emby/Jellyfin (only the current watched *state*
+// needs pushing once, not every past play), and must be excluded from both
+// sides of this count or a large play-history backfill reads as a stuck
+// backlog when it's actually already finished. Echo-loop skips are the same
+// kind of intentional terminal state.
+const NOT_PENDING_TELEMETRY_SQL = `(sync_dispatch_telemetry NOT LIKE '%Historical import%' AND sync_dispatch_telemetry NOT LIKE '%Echo loop caught%')`;
+export function countTraktImportPendingDispatch() {
+  const row = db.prepare(
+    `SELECT
+       SUM(CASE WHEN sync_dispatch_telemetry IS NULL OR ${NOT_PENDING_TELEMETRY_SQL} THEN 1 ELSE 0 END) AS total,
+       SUM(CASE WHEN (sync_dispatch_telemetry IS NULL
+                       OR sync_dispatch_telemetry LIKE '%Dispatch status: pending%'
+                       OR sync_next_retry_at > 0)
+                 AND (sync_dispatch_telemetry IS NULL OR ${NOT_PENDING_TELEMETRY_SQL})
+            THEN 1 ELSE 0 END) AS pending
+     FROM watch_history WHERE source = 'trakt_import'`,
+  ).get();
+  return { total: row?.total || 0, pending: row?.pending || 0 };
+}
+
 // --- Movies / shows queries ------------------------------------------------
 export async function queryMovies({ search = "", sort = "title_asc", limit = 100, offset = 0 } = {}) {
   const safeLimit = Math.min(Number(limit) || 100, 5000);

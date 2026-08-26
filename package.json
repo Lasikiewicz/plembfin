@@ -9,7 +9,7 @@
   },
   "scripts": {
     "start": "node server/server.js",
-    "dev": "node --watch server/server.js",
+    "dev": "node --watch-path=server server/server.js",
     "test": "node --test",
     "test:multiprocess": "node --test test/multiprocess.test.js",
     "build": "node scripts/build-check.js",

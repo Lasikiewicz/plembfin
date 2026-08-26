@@ -226,7 +226,65 @@ app.get("/changelog.json", (_req, res) => {
 });
 
 app.get("/auth/plex/return", (_req, res) => {
-  res.type("html").send("<!doctype html><html><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Plex connected</title></head><body><main><h1>Return to Plembfin</h1><p>Plembfin is verifying the connection in the original tab. You can close this tab.</p></main></body></html>");
+  res.type("html").send(`<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Plex connected</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    padding: 24px;
+    background: #05080c;
+    color: #f8fafc;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Outfit, Arial, sans-serif;
+  }
+  main {
+    display: grid;
+    justify-items: center;
+    gap: 14px;
+    max-width: 26rem;
+    padding: 2.5rem 2rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    background: rgba(18, 22, 28, 0.55);
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+  }
+  .icon {
+    display: grid;
+    place-items: center;
+    width: 3.25rem;
+    height: 3.25rem;
+    border-radius: 50%;
+    background: color-mix(in srgb, #10b981, transparent 85%);
+    color: #10b981;
+  }
+  .icon svg { width: 1.75rem; height: 1.75rem; }
+  h1 { margin: 0; font-size: 1.25rem; }
+  p { margin: 0; color: #94a3b8; font-size: 0.95rem; line-height: 1.5; }
+  .closing { font-size: 0.85rem; color: #64748b; }
+</style>
+</head>
+<body>
+<main>
+  <div class="icon" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+  </div>
+  <h1>Plex connected</h1>
+  <p>Plembfin is verifying the connection in the original tab.</p>
+  <p class="closing">You may close this tab.</p>
+</main>
+</body>
+</html>`);
 });
 
 // Health check - must be above the SPA fallback.

@@ -115,6 +115,7 @@ import {
   deletePosterCacheByMediaKey,
   backfillUnknownShowTitles,
   clearWatchArtworkUrls,
+  countTraktImportPendingDispatch,
 } from "../utils/dataRepo.js";
 
 import { shouldSkipPostRestoreCompletedWebhook } from "./backups.js";
@@ -793,6 +794,11 @@ export async function handleSyncHistory(req, res) {
   const from = total ? pageOffset + 1 : 0;
   const to = total ? Math.min(pageOffset + merged.length, total) : 0;
 
+  // A stable, whole-backlog figure for a large Trakt import's outbound
+  // propagation - see countTraktImportPendingDispatch in dataRepo.js for why
+  // this exists alongside the live per-burst "Sync - X of Y" indicator.
+  const traktDispatchProgress = countTraktImportPendingDispatch();
+
   return sendJson(res, {
     history: merged,
     pagination: {
@@ -805,6 +811,7 @@ export async function handleSyncHistory(req, res) {
       hasPrevious: page > 1,
       hasNext: page < totalPages,
     },
+    ...(traktDispatchProgress.pending > 0 ? { traktDispatchProgress } : {}),
   }, 200, { "Cache-Control": "private, max-age=15, stale-while-revalidate=60", Vary: "Authorization" });
 }
 

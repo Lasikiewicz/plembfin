@@ -59,6 +59,7 @@ new metadata requests.
 | Backups (all three subsystems) | `server/src/routes/backups.js`, `server/src/utils/backup.js`, `watchHistoryBackups.js`, `plembfinBackups.js`, `backupDestinations/`, `public/modules/tools-backups.js` | [backups.md](backups.md) |
 | Settings pages, connection config | `server/src/routes/admin.js`, `server/src/utils/configStore.js`, `public/modules/settings-shell.js`, `public/modules/settings-ui.js`, `public/modules/settings-services.js`, `public/modules/tools-backups.js` | [settings.md](settings.md) |
 | Login, sessions, API key, webhook secret | `server/src/utils/auth.js`, `server/src/appConfig.js`, `public/modules/auth.js` | [auth.md](auth.md) |
+| Pristine-install account claim, guided `/setup` wizard, dashboard checklist | `server/src/routes/onboarding.js`, `server/src/utils/onboardingStore.js`, `onboardingImportCoordinator.js`, `public/modules/onboarding.js` | [onboarding.md](onboarding.md) |
 | SPA routing, view switching, module layout | `public/app.js`, `public/modules/state.js`, `app-events.js` | [frontend.md](frontend.md) |
 | Database tables and their meaning | `server/src/schema.sql`, `server/src/db.js` | [sqlite-schema.md](sqlite-schema.md) |
 | Build check, CI, Docker, release/changelog pipeline | `scripts/`, `.github/workflows/`, `Dockerfile` | [development.md](development.md) |
@@ -141,6 +142,7 @@ See [README.md](README.md) for the documentation index, including this file
 | `mediaAuth.js` | Browser-session-only Plex account, Emby account, and Jellyfin Quick Connect/account flows; verifies identities and persists encrypted managed connections. |
 | `trackerAuth.js` | Trakt device authorization, initial-state policy, connection status/disconnect, and manual tracker synchronization. |
 | `liveUpdates.js` | Authenticated streaming endpoint that emits shared history-version changes so open pages refresh as watch-state commits land. |
+| `onboarding.js` | Guided-setup API: aggregated `/api/setup/status`, step/acknowledgement persistence, background-import start/cancel, completion, restart, and checklist dismissal. |
 
 ### `server/src/utils/`
 
@@ -158,6 +160,9 @@ See [README.md](README.md) for the documentation index, including this file
 | `plexFetch.js` | Plex-account HTTP boundary with Plex client identity headers and structured failures. |
 | `plexTokenManager.js` | Managed Plex account/server-token validity checks and refresh/recovery. |
 | `trackerConnectionRepo.js` | Encrypted tracker connection and expiring device-flow persistence. |
+| `onboardingStore.js` | `accountClaimed`/onboarding progress persisted in its own `settings` row; the atomic (SQLite immediate-transaction) account-claim check-and-write; pristine-vs-upgraded install detection. |
+| `onboardingImportCoordinator.js` | Starts/cancels the safe, additive background pulls onboarding offers per media server (`forceSyncLibraryState({mode:"pull"})`) and for Trakt (`pollConnectedTrackers`), tracking progress in the onboarding state without taking the global force-sync lock. |
+| `rateLimit.js` | Minimal in-memory sliding-window rate limiter shared by `/api/login` and `/api/auth/claim`. |
 | `trackerDispatcher.js` | Sends canonical watched/unwatched/rewatch changes to active trackers with echo suppression. Trakt's history is a play log with no update semantics - `POST /sync/history` only ever adds a play - so a canonical replay (`source: "manual"`, e.g. Force Sync or a watched-date correction) first removes any existing Trakt plays for that item before adding the corrected one, instead of stacking a duplicate. A genuine watch reported by a media server still just adds. |
 | `trackerSync.js` | Compares complete Trakt watched snapshots with stored tracker state and feeds additions, removals, and changed timestamps into canonical transitions. A large, simultaneous drop in one show's episodes (Trakt returning a rate-limited or truncated but still well-formed watched-progress response) is held back rather than trusted as a real unwatch - it only propagates once the same episodes are still missing on a second consecutive poll (`partitionSuspiciousUnwatches`, `SUSPICIOUS_SHOW_DROP_MIN_COUNT`/`_FRACTION`). |
 | `traktClient.js` | Trakt device OAuth, refresh, paged watched-history reads, and watched-history write client. |
@@ -219,7 +224,8 @@ See [README.md](README.md) for the documentation index, including this file
 | --- | --- |
 | `state.js` | The single shared `state` object, the `elements` registry, localStorage keys, view/tab constants. No logic. |
 | `utils.js` | Formatting/escaping/date helpers (`escapeHtml`, `formatDate`, `platformBadge`, `slug`, show/episode title parsing, duration/progress formatting…). |
-| `auth.js` | Login/logout/status against `/api/auth/*`, `onAuthChange`, credential updates, webhook-secret rotation, auth header building. See [auth.md](auth.md). |
+| `auth.js` | Login/logout/status against `/api/auth/*`, `onAuthChange`, credential updates, webhook-secret rotation, auth header building, one-time account claim. See [auth.md](auth.md). |
+| `onboarding.js` | The `/setup` page (steps, status polling, background-import toggles, Trakt connect), the account-claim form handlers, the Settings resume banner, and the dashboard checklist. See [onboarding.md](onboarding.md). |
 | `settings.js` | Shared connection-label formatting. |
 | `settings-ui.js` | Reusable settings edit dialog, provider picker, and status-card grid primitives. |
 | `settings-services.js` | Media-server and metadata-provider card grids, edit dialogs, config saves, connection tests, and the inline Sync Tuning form. |

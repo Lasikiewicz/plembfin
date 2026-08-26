@@ -1,4 +1,5 @@
 import { buildAuthHeaders, buildNowPlayingUrl, currentUser, getWebhookToken, onAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./modules/auth.js";
+import { initOnboarding, loadSetupStatus, renderSetupPage, setClaimRequired, renderSetupResumeBanner } from "./modules/onboarding.js";
 import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs, formatLogLineToHtml } from "./modules/logs.js";
 import { applySettingsRoute, focusSettingsRoute, parseSettingsRoute, prepareSettingsShell, scrollToSettingsSection, settingsPathForLegacy } from "./modules/settings-shell.js";
 import { initSettingsServices, applyConfigToSettingsUi, refreshSeerrCapabilities, renderMediaServerCards, renderMetadataCards } from "./modules/settings-services.js";
@@ -14,7 +15,7 @@ import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords,
 import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, loadStats, renderRankingTable } from "./modules/stats.js";
 import { initUpcoming, openUpcomingToToday } from "./modules/upcoming.js";
 import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, triggerSearchPage, renderSearchPage, renderExplorer, explorerQueryKey, updateAlphaFilter, handleAlphaFilterClick, resetMovieExplorer, resetShowExplorer, renderExplorerSentinel, observeExplorerSentinel, observeExplorerTmdbPrefetch, scheduleNextAirResort, currentExplorerView, currentExplorerSort, currentPosterWidthKey, setCurrentExplorerSort, applyExplorerPosterWidth, applyListHeaderSort, renderMovieCard, renderMovieExplorer, loadExplorerMovies, applyHistoryPosterWidth, resetHistoryView, renderHistoryItems, renderHistoryView, loadHistoryView, observeHistorySentinel, renderShowExplorer, loadExplorerShows, mergeShowDetail, loadShowDetail, matchesExplorerSearch, sortExplorerItems, renderShowRecord, renderShowFolder, renderSeasonFolder, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, emptyExplorer, FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver } from "./modules/explorer.js";
-import { initEditDialogs, openEditDateDialog, openEditShowDateDialog, openEditSeasonDateDialog, openEditImageDialog, openFixMatchDialog, openMergeShowDialog, applyWatchedAtToLocalWatchRecord, editDateOptionsFromButton } from "./modules/edit-dialogs.js?v=20260810";
+import { initEditDialogs, openEditDateDialog, openEditShowDateDialog, openEditSeasonDateDialog, openEditImageDialog, openFixMatchDialog, openMergeShowDialog, applyWatchedAtToLocalWatchRecord, editDateOptionsFromButton } from "./modules/edit-dialogs.js?v=20260826b";
 import { initWatchAction, openWatchDatePrompt, closeWatchDatePrompt, submitSeerrRequest, markMovieWatched, refreshShowAfterManualWatch, applyWatchDateChoice, confirmAndMarkUnwatched, confirmAndDeleteMedia } from "./modules/watch-action.js?v=20260824c";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails, resolveEpisodeTitleFromTmdb } from "./modules/tmdb.js?v=20260823";
 import { initMediaDetail, movieBySlugOrId, nowPlayingHref, openMovieInlineDetail, openShowInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, renderImmersiveShowModal, renderShowModalContent, renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus, patchMovieWatchedState } from "./modules/media-detail.js?v=20260810";
@@ -50,9 +51,11 @@ const THEME_KEY = "plembfin:theme";
 
 function updateThemeIcon() {
   const isLightMode = document.documentElement.classList.contains("light-mode");
-  const logo = document.querySelector(".brand-logo");
-  if (logo) {
-    logo.src = isLightMode ? "/plembfin_header_logo_light.png" : "/plembfin_header_logo_dark.png";
+  const src = isLightMode ? "/plembfin_header_logo_light.png" : "/plembfin_header_logo_dark.png";
+  // Two logos can exist at once - the (hidden) sidebar's and the setup
+  // wizard's own copy above its steps - both need to track the theme.
+  for (const logo of document.querySelectorAll(".brand-logo")) {
+    logo.src = src;
   }
 }
 
@@ -119,6 +122,7 @@ function bindElements() {
     syncActivityRefresh: document.querySelector("#syncActivityRefresh"),
     syncActivitySearch: document.querySelector("#syncActivitySearch"),
     syncActivityRows: document.querySelector("#syncActivityRows"),
+    syncActivityTraktProgress: document.querySelector("#syncActivityTraktProgress"),
     syncActivityPagination: document.querySelector("#syncActivityPagination"),
     syncActivityPrevious: document.querySelector("#syncActivityPrevious"),
     syncActivityNext: document.querySelector("#syncActivityNext"),
@@ -129,6 +133,15 @@ function bindElements() {
     changelogRefreshButton: document.querySelector("#changelogRefreshButton"),
     authForm: document.querySelector("#authForm"),
     authPanel: document.querySelector("#authPanel"),
+    authPanelSignIn: document.querySelector("#authPanelSignIn"),
+    claimPanel: document.querySelector("#claimPanel"),
+    claimForm: document.querySelector("#claimForm"),
+    claimUsername: document.querySelector("#claimUsername"),
+    claimPassword: document.querySelector("#claimPassword"),
+    claimPasswordConfirm: document.querySelector("#claimPasswordConfirm"),
+    claimMessage: document.querySelector("#claimMessage"),
+    setupPageRoot: document.querySelector("#setupPageRoot"),
+    dashboardChecklist: document.querySelector("#dashboardChecklist"),
     adminToken: document.querySelector("#adminToken"),
     adminEmail: document.querySelector("#adminEmail"),
     adminCredentialsForm: document.querySelector("#adminCredentialsForm"),
@@ -1198,7 +1211,8 @@ function isConfigSensitiveRoute(path = "") {
     || path.startsWith("/search")
     || path.startsWith("/settings")
     || path.startsWith("/sync")
-    || path.startsWith("/logs");
+    || path.startsWith("/logs")
+    || path.startsWith("/setup");
 }
 
 function handleRouting(path) {
@@ -1410,6 +1424,11 @@ function handleRouting(path) {
       query = searchParams.get("q") || searchParams.get("query") || "";
     }
     triggerSearchPage(query);
+  } else if (pathname === "/setup") {
+    state.activeView = "setup";
+    state.mediaDetailInline = false;
+    clearMediaDetailState();
+    loadSetupStatus().catch((error) => setMessage(error.message, "error"));
   } else if (pathname === "/sync" || pathname === "/logs" || pathname.startsWith("/settings")) {
     state.activeView = "settings";
     state.mediaDetailInline = false;
@@ -1636,6 +1655,10 @@ function syncPageTopbar() {
     title = searchQuery ? `Search Results for "${searchQuery}"` : "Search Results";
     subtitle = "Local and global database search results";
     activeControls = elements.searchTopbarControls;
+  } else if (state.activeView === "setup") {
+    title = "Initial Setup";
+    subtitle = "";
+    activeControls = null;
   }
 
   if (isPersonDetail && state.personProfileName) {
@@ -1696,6 +1719,34 @@ function restoreTopbarControlGroup(group) {
 function applyActiveView() {
   localStorage.setItem(ACTIVE_VIEW_KEY, state.activeView);
   document.querySelector(".page-shell")?.setAttribute("data-active-view", state.activeView);
+  // The setup wizard is a full-page flow - the sidebar and page topbar are
+  // not meant to be reachable mid-onboarding, so hide both entirely rather
+  // than let someone click away before finishing (the wizard has its own
+  // "Exit to Settings" action for that, plus its own step heading in place of
+  // the topbar's title). The theme toggle and version move into a small
+  // bottom-center bar so they stay reachable without the rest of the sidebar.
+  const isSetupView = state.activeView === "setup";
+  document.querySelector(".topnav")?.classList.toggle("hidden", isSetupView);
+  document.querySelector("#pageTopbar")?.classList.toggle("hidden", isSetupView);
+  const setupFooterBar = document.querySelector("#setupFooterBar");
+  setupFooterBar?.classList.toggle("hidden", !isSetupView);
+  if (elements.appVersion && elements.themeToggleButton) {
+    if (isSetupView && setupFooterBar) {
+      setupFooterBar.appendChild(elements.appVersion);
+      setupFooterBar.appendChild(elements.themeToggleButton);
+      // The changelog it links to isn't relevant mid-onboarding; keep the
+      // version number visible but not clickable there.
+      elements.appVersion.disabled = true;
+    } else if (!isSetupView) {
+      const sidebarFooter = document.querySelector(".sidebar-footer");
+      const appearanceWrap = document.querySelector("#sidebarAppearanceWrap");
+      if (sidebarFooter) {
+        sidebarFooter.insertBefore(elements.appVersion, appearanceWrap || null);
+        sidebarFooter.appendChild(elements.themeToggleButton);
+      }
+      elements.appVersion.disabled = false;
+    }
+  }
 
   for (const button of elements.tabButtons || []) {
     const explorerMode = button.dataset.explorerNav;
@@ -1712,6 +1763,7 @@ function applyActiveView() {
   if (settingsSubMenu) {
     settingsSubMenu.classList.toggle("hidden", state.activeView !== "settings");
   }
+  if (state.activeView === "settings") renderSetupResumeBanner();
   if (state.activeView === "dashboard") {
     applyCachedDashboardHistory();
     renderDashboard();
@@ -1726,6 +1778,7 @@ function applyActiveView() {
   }
   if (state.activeView === "explorer" && !state.mediaDetailInline) renderExplorer();
   if (state.activeView === "search") renderSearchPage();
+  if (state.activeView === "setup") renderSetupPage();
   if (state.activeView === "history") renderHistoryView();
   if (state.activeView === "syncActivity") {
     renderSyncActivity();
@@ -1989,6 +2042,9 @@ function clearDerivedUiCaches({ resetExplorer = true } = {}) {
 }
 
 let isBackgroundSyncing = false;
+let syncActivityRefreshTimer = null;
+let syncIdleGraceTimer = null;
+const SYNC_IDLE_GRACE_MS = 3000;
 
 function isAnySyncRunning() {
   return isBackgroundSyncing || Boolean(state.fullSyncActive) || isSyncProgressActive();
@@ -1996,20 +2052,42 @@ function isAnySyncRunning() {
 
 function renderSyncProgress({ total = 0, completed = 0 } = {}) {
   const syncing = total > 0 && completed < total;
-  const wasSyncing = isBackgroundSyncing;
-  isBackgroundSyncing = syncing;
+
+  // A long sync runs as a sequence of small batches with brief idle gaps
+  // between them (one batch finishes, completed>=total, before the next
+  // batch's progress event arrives). Flipping isBackgroundSyncing false
+  // during those gaps let queueLiveHistoryRefresh's guard miss them, so a
+  // continuous multi-batch sync could still rebuild the explorer grid (full
+  // reset + refetch, not an in-place patch) close to once a second for its
+  // whole duration - visible as ongoing flicker even after the 1s debounce.
+  // Keep isBackgroundSyncing true through a short grace window after the
+  // last "still going" event so a same-sync follow-up batch doesn't reopen
+  // the gap; only treat it as genuinely finished once nothing has reported
+  // progress for the whole window.
+  if (syncing) {
+    isBackgroundSyncing = true;
+    if (syncIdleGraceTimer) { window.clearTimeout(syncIdleGraceTimer); syncIdleGraceTimer = null; }
+  } else if (isBackgroundSyncing && !syncIdleGraceTimer) {
+    syncIdleGraceTimer = window.setTimeout(() => {
+      syncIdleGraceTimer = null;
+      isBackgroundSyncing = false;
+      queueLiveHistoryRefresh({ immediate: true });
+    }, SYNC_IDLE_GRACE_MS);
+  }
 
   // The sidebar indicator is permanent: it reads "Sync - Idle" when nothing is
   // running and "Sync - <completed> of <total>" while a sync is in flight.
   setSyncActivityProgress({ total, completed });
 
-  if (state.activeView === "syncActivity") {
-    loadSyncActivity({ force: true }).catch(() => null);
-  }
-
-  // When background sync transitions from running to finished, perform an immediate settle refresh
-  if (wasSyncing && !syncing) {
-    queueLiveHistoryRefresh({ immediate: true });
+  // A live-update sync-progress event can arrive several times a second while
+  // a batch is in flight. Reloading the whole Sync Activity list on every tick
+  // re-rendered the page that often, which is what caused the visible
+  // flickering during an active sync - throttle it to at most once a second.
+  if (state.activeView === "syncActivity" && !syncActivityRefreshTimer) {
+    syncActivityRefreshTimer = window.setTimeout(() => {
+      syncActivityRefreshTimer = null;
+      if (state.activeView === "syncActivity") loadSyncActivity({ force: true }).catch(() => null);
+    }, 1000);
   }
 }
 
@@ -2035,7 +2113,15 @@ function queueLiveHistoryRefresh({ immediate = false } = {}) {
     return;
   }
 
-  const delayMs = immediate ? 50 : 350;
+  // A background sync dispatches items in small bursts with brief gaps
+  // between them, during which isAnySyncRunning() momentarily reads false -
+  // the early-return guard above only catches calls that land while it's
+  // true, so calls landing in those gaps still fall through to here and each
+  // sets its own timer. At the old 350ms that let the explorer grid (full
+  // reset + refetch) rebuild several times a second during a sync, which is
+  // the flicker - 1000ms settles it to about once a second, matching the
+  // Sync Activity page's fix for the same class of issue above.
+  const delayMs = immediate ? 50 : 1000;
 
   liveHistoryRefreshTimer = window.setTimeout(() => {
     liveHistoryRefreshTimer = null;
@@ -2369,6 +2455,10 @@ function primeSensitiveRouteState(path = "") {
     state.activeSettingsTab = state.activeSettingsRoute.group;
     return true;
   }
+  if (pathname === "/setup") {
+    state.activeView = "setup";
+    return true;
+  }
   // These branches mark the detail as already open, which means the matching
   // handleRouting branch skips its own "where did I come from" capture. Record
   // the return context here too, or Back falls through to the defaults in
@@ -2412,6 +2502,7 @@ function initialize() {
     renderActiveSessions,
   });
   initTrackerSettings({ authHeaders });
+  initOnboarding({ authHeaders, navigateTo, setMessage, setUnlocked, loadHistory, loadSavedConfig, startHistoryPolling });
   initTools({
     setMessage,
     openConfirmDialog,
@@ -2605,7 +2696,7 @@ function initialize() {
   renderDbStatus(false);
   renderSettingsStatus("Configuration not loaded yet.");
 
-  onAuthChange((user, token, mustChangePassword) => {
+  onAuthChange((user, token, mustChangePassword, claimRequired) => {
     state.authReady = true;
     state.mustChangePassword = mustChangePassword === true;
     state.currentUser = user || undefined;
@@ -2644,6 +2735,13 @@ function initialize() {
       localStorage.setItem("adminUsername", user.email || "");
       setUnlocked(true);
       applyMustChangePassword();
+      if (!state.mustChangePassword && fullPath !== "/setup") {
+        loadSetupStatus().then((status) => {
+          if (status.onboarding.runState !== "completed" && fullPath === "/") {
+            navigateTo("/setup");
+          }
+        }).catch(() => {});
+      }
       if (isConfigSensitiveRoute(fullPath) && !state.mustChangePassword) {
         primeSensitiveRouteState(fullPath);
         applyActiveView();
@@ -2681,6 +2779,7 @@ function initialize() {
     } else if (!user) {
       stopLiveUpdates();
       renderSyncProgress({ total: 0, completed: 0 });
+      setClaimRequired(claimRequired === true);
       setUnlocked(false);
     }
   });

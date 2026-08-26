@@ -338,6 +338,7 @@ When adding frontend code, place it in the most specific existing module that ow
 | Maintenance diagnostics, cache tools, sync repair tools, and sync health | `modules/tools-maintenance.js`, `modules/tools-health.js` |
 | Library-wide duplicate-watch cleanup (Settings → Tools → Database Repairs) | `modules/tools-duplicates.js` |
 | Auth, session, tokens | `modules/auth.js` |
+| Guided first-run setup (`/setup`), account-claim form wiring, dashboard checklist, Settings resume banner | `modules/onboarding.js` |
 | Debug/diagnostic logs & telemetry export | `modules/logs.js` (categorization, local time formatting, export) |
 | Connection label formatting | `modules/settings.js` |
 | Shared settings modal, picker, and card-grid primitives | `modules/settings-ui.js` |
@@ -380,6 +381,7 @@ If a new feature area doesn't fit any existing module and would exceed 150 lines
 | Config, appearance, Seerr/app links, connection tests | `server/src/routes/admin.js` |
 | Plex, Emby, and Jellyfin account connection flows | `server/src/routes/mediaAuth.js` |
 | Trakt device authorization and connection management | `server/src/routes/trackerAuth.js` |
+| Guided first-run setup status/step/import/complete/restart/checklist API | `server/src/routes/onboarding.js` |
 | Authenticated browser watch-state update stream | `server/src/routes/liveUpdates.js` |
 | Portable, watch-history, and encrypted backup APIs | `server/src/routes/backups.js` |
 | History, library, and watch-record edits | `server/src/routes/media.js` |

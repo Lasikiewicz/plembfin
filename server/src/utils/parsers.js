@@ -76,7 +76,7 @@ function preferProviderIds(fallback = {}, preferred = {}) {
   return result;
 }
 
-function parsePlexMediaIds(metadata = {}, type = "") {
+export function parsePlexMediaIds(metadata = {}, type = "") {
   const itemIds = parsePlexGuids(metadata);
   if (type !== "episode") return itemIds;
 

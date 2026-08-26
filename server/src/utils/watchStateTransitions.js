@@ -11,6 +11,7 @@ import {
   mediaKeyFor,
   mediaToWatchRecord,
   prefetchWatchRecordAssets,
+  updateWatchRecord,
   updateWatchTelemetry,
   upsertPlaystateForMediaSync,
 } from "./dataRepo.js";
@@ -119,9 +120,51 @@ function deferredUnwatchedResult(existingRecord = null) {
   };
 }
 
+// Trakt is the only automatic source whose reported watched date can change
+// after the fact - a user editing a play's date on trakt.tv reports back
+// through the same poll as any other "watched" transition, for an item
+// Plembfin already has watched. The generic already-watched short-circuit
+// below would otherwise silently discard that correction forever, since it
+// only distinguishes unwatched->watched, not "watched but the date moved".
+// Plex/Emby/Jellyfin have no equivalent editable date to catch here - their
+// watched flag is binary - so this stays scoped to source === "trakt".
+async function applyTraktWatchedDateCorrection(media, config, loopStore, { lane, shouldDefer }) {
+  const existingRow = await findWatchedByAnyMediaKey(media).catch(() => null);
+  if (!existingRow) return null;
+  // updateWatchRecord does its own DB writes (and awaits an invalidation at
+  // the end), so it does not fit runGuardedLocalTransaction's synchronous
+  // IMMEDIATE-transaction pattern above - a single shouldDefer check right
+  // before starting is the same race-safety every other low-frequency
+  // correction path in this app relies on.
+  if (shouldDefer?.()) return deferredWatchedResult();
+  const updateResult = await updateWatchRecord(existingRow.id, { watched_at: media.watched_at });
+  if (!updateResult.ok) return null;
+  upsertPlaystateForMediaSync(media, "watched", media.watched_at);
+  const id = existingRow.id;
+  if (shouldDefer?.()) return { ...deferredWatchedResult(), id };
+  const summary = await syncMediaPlaystate(media, config, loopStore, { trackDispatch: false, lane, shouldDefer }).catch((error) => ({
+    skipped: false, status: "error", details: `Watched-date correction propagation failed: ${error.message || String(error)}`, targetStates: [],
+  }));
+  if (summary.deferred) return { ...deferredWatchedResult(), id, summary };
+  await updateWatchTelemetry(id, [
+    `Origin: ${media.source || "unknown"}`, "Action: Watched date corrected on Trakt", `Media: ${media.title || "unknown"}`,
+    `Dispatch status: ${summary.status || "unknown"}`, `Details: ${summary.details || "Watched date correction processed."}`,
+    ...(summary.targetStates || []).map((state) => `Target ${state.target} status: ${state.status}${state.detail ? ` - ${state.detail}` : ""}`),
+  ].join("\n"), { skipInvalidate: true });
+  return { inserted: false, dateCorrected: true, id, alreadyWatched: false, summary };
+}
+
 export async function applyWatchedTransition(media, config, loopStore, { trackDispatch = true, lane = "sync", shouldDefer = null } = {}) {
   const existing = await getPlaystateForMedia(media).catch(() => null);
   if (existing?.state === "watched") {
+    if (String(media.source || "").toLowerCase() === "trakt") {
+      const incomingIso = media.watched_at ? new Date(media.watched_at).toISOString() : "";
+      const currentIso = existing.watched_at ? new Date(existing.watched_at).toISOString() : "";
+      if (incomingIso && incomingIso !== currentIso) {
+        const corrected = await applyTraktWatchedDateCorrection(media, config, loopStore, { lane, shouldDefer });
+        if (corrected) return corrected;
+      }
+    }
     return { inserted: false, alreadyWatched: true, summary: { skipped: true, status: "skipped", details: "Already watched; no change to propagate", targetStates: [] } };
   }
   if (shouldDefer?.()) {

@@ -248,6 +248,19 @@ const migrations = [
       `);
     },
   },
+  {
+    id: 13,
+    up(database) {
+      const connectionColumns = database.pragma("table_info(tracker_connections)").map((column) => column.name);
+      if (!connectionColumns.includes("prefer_earlier_watched_date")) {
+        database.exec("ALTER TABLE tracker_connections ADD COLUMN prefer_earlier_watched_date INTEGER NOT NULL DEFAULT 1");
+      }
+      const flowColumns = database.pragma("table_info(tracker_auth_flows)").map((column) => column.name);
+      if (!flowColumns.includes("prefer_earlier_watched_date")) {
+        database.exec("ALTER TABLE tracker_auth_flows ADD COLUMN prefer_earlier_watched_date INTEGER NOT NULL DEFAULT 1");
+      }
+    },
+  },
 ];
 
 function runSchemaMigrations() {

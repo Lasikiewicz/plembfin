@@ -10,7 +10,7 @@ import {
   openEditSeasonDateDialog,
   applyWatchedAtToLocalWatchRecord,
   editDateOptionsFromButton,
-} from "./edit-dialogs.js?v=20260810";
+} from "./edit-dialogs.js?v=20260826b";
 import {
   openWatchDatePrompt,
   closeWatchDatePrompt,
@@ -25,7 +25,7 @@ import {
   confirmAndDeleteMedia,
 } from "./watch-action.js?v=20260824c";
 import { triggerRetrySync, loadSyncJobs, loadSyncHistory, showAvailIssuePopup } from "./sync.js";
-import { renderExplorer, renderHistoryView } from "./explorer.js";
+import { renderExplorer, renderHistoryView, resolvedTmdbCache } from "./explorer.js";
 import {
   movieBySlugOrId,
   openShowInlineDetail,
@@ -691,7 +691,7 @@ export function attachMediaDetailEvents() {
         if (state.activeView === "history") {
           renderHistoryView();
         }
-      }, editDateOptionsFromButton(editDateBtn, currentEntry));
+      }, editDateOptionsFromButton(editDateBtn, currentEntry, resolvedTmdbCache));
       return;
     }
 
@@ -965,7 +965,7 @@ export function attachMediaDetailEvents() {
         if (state.activeView === "history") {
           renderHistoryView();
         }
-      }, editDateOptionsFromButton(editDateIconBtn, currentEntry));
+      }, editDateOptionsFromButton(editDateIconBtn, currentEntry, resolvedTmdbCache));
       return;
     }
 

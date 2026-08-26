@@ -24,14 +24,14 @@ function decryptedToken(row, vaultOptions) {
   return decryptCredential({ ciphertext: row.credential_ciphertext, iv: row.credential_iv, tag: row.credential_tag, version: row.token_version }, vaultOptions);
 }
 
+// Plex Media Server itself does not accept JWT-format access tokens today -
+// confirmed as a known, currently-unresolved gap on Plex's side (their own
+// /devices.xml token-exchange endpoint that used to return a usable legacy
+// token for these accounts has been removed, with no replacement). Sending
+// one anyway just produces a 401 on every PMS request instead of one clear
+// message, so this is rejected up front.
 function looksLikeJwt(token) {
   return String(token || "").split(".").length === 3;
-}
-
-function encryptedLegacyPmsFallback(activeRow, vaultOptions) {
-  const row = db.prepare(`SELECT * FROM media_connections WHERE provider='plex' AND id<>? AND status='disabled'
-    AND auth_kind IN ('legacy','plex_legacy') AND credential_ciphertext<>'' ORDER BY updated_at DESC LIMIT 1`).get(activeRow.id);
-  return row ? decryptedToken(row, vaultOptions) : "";
 }
 
 function storeServerToken(connectionId, token, vaultOptions) {
@@ -116,11 +116,6 @@ export async function getValidPlexServerToken({ force = false, fetchImpl = fetch
     const stored = decryptCredential({ ciphertext: current.server_credential_ciphertext, iv: current.server_credential_iv, tag: current.server_credential_tag, version: current.server_token_version }, vaultOptions);
     if (!looksLikeJwt(stored)) return stored;
   }
-  const legacyFallback = encryptedLegacyPmsFallback(current, vaultOptions);
-  if (legacyFallback) {
-    storeServerToken(current.id, legacyFallback, vaultOptions);
-    return legacyFallback;
-  }
   if (serverTokenRefreshPromise) return serverTokenRefreshPromise;
   serverTokenRefreshPromise = (async () => {
     let accountToken = await getValidPlexToken({ vaultOptions });
@@ -136,8 +131,15 @@ export async function getValidPlexServerToken({ force = false, fetchImpl = fetch
     const resources = Array.isArray(body) ? body : body?.MediaContainer?.Device || [];
     const server = resources.find((item) => String(item.clientIdentifier || item.machineIdentifier || "") === String(current.server_id));
     const token = String(server?.accessToken || server?.access_token || "");
-    if (!token) throw new Error("Selected Plex server did not provide an access token");
-    if (looksLikeJwt(token)) throw Object.assign(new Error("Plex returned an account JWT instead of a PMS-compatible token; reconnect the Plex account to obtain a compatibility token"), { status: 409 });
+    // The per-server accessToken /resources returns can itself be a JWT that
+    // Plex Media Server rejects - a known Plex-side gap. The plain account
+    // token is confirmed to work directly against the PMS (the same token
+    // already verifies successfully against /identity during server
+    // selection - see verifyPlexServer in routes/mediaAuth.js), so fall back
+    // to it instead of failing outright. It's short-lived like any account
+    // JWT, so it's returned fresh each time rather than cached long-term the
+    // way a genuine (non-JWT) per-server token is.
+    if (!token || looksLikeJwt(token)) return accountToken;
     storeServerToken(current.id, token, vaultOptions);
     return token;
   })();

@@ -884,7 +884,7 @@ export function renderMovieCard(movie) {
   if (currentExplorerView() === "list") return renderMovieListCard(movie);
   if (currentExplorerView() === "overview") return renderMovieOverviewCard(movie);
   return `
-    <div class="movie-card" data-history-id="${movie.id}" data-alpha-letter="${firstAlphaLetter(movie.title)}" data-prefetch-type="movie" data-prefetch-tmdb="${escapeAttribute(movie.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(movie.title || "")}">
+    <a class="movie-card" href="${escapeAttribute(movieHref(movie))}" data-history-id="${movie.id}" data-alpha-letter="${firstAlphaLetter(movie.title)}" data-prefetch-type="movie" data-prefetch-tmdb="${escapeAttribute(movie.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(movie.title || "")}" style="text-decoration: none; color: inherit;">
       ${posterMarkup(movie, "movie-poster")}
       <div class="movie-card-body">
         <div class="movie-card-title-row" style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; min-width: 0; width: 100%;">
@@ -893,7 +893,7 @@ export function renderMovieCard(movie) {
         </div>
         <span>${formatDate(movie.watched_at)} ${rewatchBadge(movie)}</span>
       </div>
-    </div>
+    </a>
   `;
 }
 function renderListHeader(isShows) {
@@ -930,7 +930,7 @@ function renderMovieListCard(movie) {
   const runtime = tmdb?.runtime ? `${tmdb.runtime} min` : "";
   const year = tmdb?.release_date?.slice(0, 4) || "";
   return `
-    <div class="movie-card explorer-list-card" data-history-id="${movie.id}" data-alpha-letter="${firstAlphaLetter(movie.title)}" data-prefetch-type="movie" data-prefetch-tmdb="${escapeAttribute(movie.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(movie.title || "")}">
+    <a class="movie-card explorer-list-card" href="${escapeAttribute(movieHref(movie))}" data-history-id="${movie.id}" data-alpha-letter="${firstAlphaLetter(movie.title)}" data-prefetch-type="movie" data-prefetch-tmdb="${escapeAttribute(movie.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(movie.title || "")}" style="text-decoration: none; color: inherit;">
       ${posterMarkup(movie, "list-thumb-poster")}
       <span class="list-card-title" title="${escapeAttribute(movie.title)}">${escapeHtml(movie.title)}</span>
       <div class="list-card-col list-card-platform">${sourceBadge}</div>
@@ -939,7 +939,7 @@ function renderMovieListCard(movie) {
       <span class="list-card-col list-card-year" data-list-year>${escapeHtml(year)}</span>
       <span class="list-card-col" data-list-runtime>${escapeHtml(runtime)}</span>
       <div class="list-card-col list-card-sync">${renderSyncStatusDot(movie)}</div>
-    </div>
+    </a>
   `;
 }
 function renderMovieOverviewCard(movie) {
@@ -949,7 +949,7 @@ function renderMovieOverviewCard(movie) {
   const overview = tmdb?.overview || "";
   const sourceBadge = movie.source ? `<span class="source-badge ${sourceClass(movie.source)}">${escapeHtml(platformBadge(movie.source))}</span>` : "";
   return `
-    <div class="movie-card explorer-overview-card" data-history-id="${movie.id}" data-alpha-letter="${firstAlphaLetter(movie.title)}" data-prefetch-type="movie" data-prefetch-tmdb="${escapeAttribute(movie.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(movie.title || "")}">
+    <a class="movie-card explorer-overview-card" href="${escapeAttribute(movieHref(movie))}" data-history-id="${movie.id}" data-alpha-letter="${firstAlphaLetter(movie.title)}" data-prefetch-type="movie" data-prefetch-tmdb="${escapeAttribute(movie.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(movie.title || "")}" style="text-decoration: none; color: inherit;">
       ${posterMarkup(movie, "overview-thumb-poster")}
       <div class="overview-card-meta">
         <div class="overview-card-header">
@@ -960,7 +960,7 @@ function renderMovieOverviewCard(movie) {
         <div class="overview-card-text-wrap"><p class="overview-card-text" data-overview-text>${escapeHtml(overview)}</p></div>
         <span class="overview-card-date">${formatDate(movie.watched_at)} ${rewatchBadge(movie)}</span>
       </div>
-    </div>
+    </a>
   `;
 }
 // ---------------------------------------------------------------------------

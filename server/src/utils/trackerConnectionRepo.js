@@ -23,6 +23,7 @@ function publicConnection(row) {
     remoteUserId: row.remote_user_id || "", remoteUsername: row.remote_username || "",
     accessTokenExpiresAt: row.access_token_expires_at,
     initialSyncMode: row.initial_sync_mode, baselineComplete: Boolean(row.baseline_complete),
+    preferEarlierWatchedDate: row.prefer_earlier_watched_date == null ? true : Boolean(row.prefer_earlier_watched_date),
     lastPolledAt: row.last_polled_at, lastValidatedAt: row.last_validated_at,
     lastError: row.last_error || "", historySyncedAt: row.history_synced_at || 0,
     createdAt: row.created_at, updatedAt: row.updated_at,
@@ -61,6 +62,7 @@ export function saveTrackerConnection(input) {
     refresh_token_ciphertext: refreshToken.ciphertext, refresh_token_iv: refreshToken.iv, refresh_token_tag: refreshToken.tag,
     token_version: accessToken.version, access_token_expires_at: Number(input.accessTokenExpiresAt || 0) || null,
     initial_sync_mode: input.initialSyncMode === "import" ? "import" : "baseline", baseline_complete: input.baselineComplete ? 1 : 0,
+    prefer_earlier_watched_date: input.preferEarlierWatchedDate === false ? 0 : 1,
     last_polled_at: input.lastPolledAt || null, last_validated_at: input.lastValidatedAt || timestamp,
     last_error: input.lastError || null, created_at: existing?.created_at || timestamp, updated_at: timestamp,
   };
@@ -70,6 +72,7 @@ export function saveTrackerConnection(input) {
     access_token_ciphertext=excluded.access_token_ciphertext,access_token_iv=excluded.access_token_iv,access_token_tag=excluded.access_token_tag,
     refresh_token_ciphertext=excluded.refresh_token_ciphertext,refresh_token_iv=excluded.refresh_token_iv,refresh_token_tag=excluded.refresh_token_tag,
     token_version=excluded.token_version,access_token_expires_at=excluded.access_token_expires_at,initial_sync_mode=excluded.initial_sync_mode,
+    prefer_earlier_watched_date=excluded.prefer_earlier_watched_date,
     baseline_complete=excluded.baseline_complete,last_validated_at=excluded.last_validated_at,last_error=excluded.last_error,updated_at=excluded.updated_at`).run(row);
   return getTrackerConnection(provider);
 }
@@ -110,6 +113,7 @@ export function createTrackerAuthFlow(input) {
     device_code_ciphertext: device.ciphertext, device_code_iv: device.iv, device_code_tag: device.tag,
     key_version: secret.version, user_code: String(input.userCode), verification_url: String(input.verificationUrl),
     interval_seconds: Math.max(1, Number(input.intervalSeconds || 5)), initial_sync_mode: input.initialSyncMode === "import" ? "import" : "baseline",
+    prefer_earlier_watched_date: input.preferEarlierWatchedDate === false ? 0 : 1,
     status: "pending", expires_at: Number(input.expiresAt), last_polled_at: null, created_at: timestamp, updated_at: timestamp,
   };
   db.prepare(`INSERT INTO tracker_auth_flows (${Object.keys(row).join(",")}) VALUES (${Object.keys(row).map((key) => `@${key}`).join(",")})`).run(row);
@@ -119,7 +123,7 @@ export function createTrackerAuthFlow(input) {
 export function getTrackerAuthFlow(id, { includeCredentials = false } = {}) {
   const row = db.prepare("SELECT * FROM tracker_auth_flows WHERE id=?").get(String(id || ""));
   if (!row) return null;
-  const result = { id: row.id, provider: row.provider, clientId: row.client_id, userCode: row.user_code, verificationUrl: row.verification_url, intervalSeconds: row.interval_seconds, initialSyncMode: row.initial_sync_mode, status: row.status, expiresAt: row.expires_at, lastPolledAt: row.last_polled_at };
+  const result = { id: row.id, provider: row.provider, clientId: row.client_id, userCode: row.user_code, verificationUrl: row.verification_url, intervalSeconds: row.interval_seconds, initialSyncMode: row.initial_sync_mode, preferEarlierWatchedDate: Boolean(row.prefer_earlier_watched_date), status: row.status, expiresAt: row.expires_at, lastPolledAt: row.last_polled_at };
   if (includeCredentials) {
     const clientSecret = decrypted(row, "client_secret");
     result.clientSecret = clientSecret === SERVER_CREDENTIAL_SENTINEL ? "" : clientSecret;
@@ -165,6 +169,14 @@ function nextTrackerOutboundTimestamp(provider) {
 
 export function listTrackerItemStates(provider) {
   return db.prepare("SELECT * FROM tracker_item_state WHERE provider=?").all(providerName(provider)).map(trackerItemStateFromRow);
+}
+
+// Ground truth for "how many items has this provider's snapshot resolved
+// against local state" - an in-memory counter accumulated across a reconcile
+// run is lost if the process restarts mid-import (see onboardingImportCoordinator.js),
+// so a status report needs a source that survives that.
+export function countTrackerItemStates(provider) {
+  return db.prepare("SELECT COUNT(*) AS count FROM tracker_item_state WHERE provider=?").get(providerName(provider))?.count || 0;
 }
 
 export function getTrackerItemState(provider, mediaKey) {

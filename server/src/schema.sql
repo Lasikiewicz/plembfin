@@ -450,6 +450,7 @@ CREATE TABLE IF NOT EXISTS tracker_connections (
   last_validated_at INTEGER,
   last_error TEXT,
   history_synced_at INTEGER,
+  prefer_earlier_watched_date INTEGER NOT NULL DEFAULT 1,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
@@ -469,6 +470,7 @@ CREATE TABLE IF NOT EXISTS tracker_auth_flows (
   verification_url TEXT NOT NULL,
   interval_seconds INTEGER NOT NULL,
   initial_sync_mode TEXT NOT NULL DEFAULT 'baseline',
+  prefer_earlier_watched_date INTEGER NOT NULL DEFAULT 1,
   status TEXT NOT NULL CHECK (status IN ('pending', 'completed', 'expired', 'denied')),
   expires_at INTEGER NOT NULL,
   last_polled_at INTEGER,

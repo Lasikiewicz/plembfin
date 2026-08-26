@@ -1,5 +1,6 @@
 import { sendJson, notFound } from "./utils/http.js";
-import { handleLogin, handleLogout, handleAuthStatus, handleAuthApiKey, handleAuthWebhookSecret, handleAuthCredentials, handleRevokeAllSessions } from "./utils/auth.js";
+import { isClaimRequired } from "./appConfig.js";
+import { handleLogin, handleLogout, handleAuthStatus, handleAuthApiKey, handleAuthWebhookSecret, handleAuthCredentials, handleAuthClaim, handleRevokeAllSessions } from "./utils/auth.js";
 import { backfillUnknownShowTitles } from "./utils/dataRepo.js";
 import { runScheduledTick, startPlexNotificationListener, stopPlexNotificationListener } from "./scheduler.js";
 import { handleBackupExport, handleBackupImport, handleImport, handlePlembfinBackups, handleWatchBackups } from "./routes/backups.js";
@@ -11,15 +12,24 @@ import { handleAdminFixHistory, handleBackfillStatus, handleBackfillTrakt, handl
 import { handleEmbyLikeAuth, handleEmbyLikeConnection, handlePlexAuth, handlePlexConnection } from "./routes/mediaAuth.js";
 import { handleTrackerAuth, handleTrackerConnections } from "./routes/trackerAuth.js";
 import { handleLiveUpdates } from "./routes/liveUpdates.js";
+import { handleSetupStatus, handleSetupStep, handleSetupImport, handleSetupComplete, handleSetupRestart, handleSetupChecklistDismiss } from "./routes/onboarding.js";
 
 function routePath(req) {
   const path = req.path || new URL(req.originalUrl || req.url, "https://local").pathname;
   return path.replace(/^\/api\/?/, "").replace(/^\/+/, "") || "";
 }
 
+// Reachable before a pristine install's administrator account is claimed.
+// Everything else returns 403 CLAIM_REQUIRED so an unclaimed instance can't
+// be driven through any other API surface.
+const CLAIM_GATE_WHITELIST = new Set(["ping", "changelog", "login", "logout", "auth/status", "auth-status", "auth/claim"]);
+
 async function dispatch(req, res) {
   try {
     const path = routePath(req);
+    if (isClaimRequired() && !CLAIM_GATE_WHITELIST.has(path)) {
+      return sendJson(res, { error: "This instance has not been claimed yet", code: "CLAIM_REQUIRED", retryable: false }, 403);
+    }
     if (path === "ping") return handlePing(req, res);
     if (path === "live-updates") return handleLiveUpdates(req, res);
     if (path === "changelog") return handleChangelog(req, res);
@@ -28,6 +38,13 @@ async function dispatch(req, res) {
     if (path === "login") return handleLogin(req, res);
     if (path === "logout") return handleLogout(req, res);
     if (path === "auth/status" || path === "auth-status") return handleAuthStatus(req, res);
+    if (path === "auth/claim") return handleAuthClaim(req, res);
+    if (path === "setup/status") return handleSetupStatus(req, res);
+    if (path === "setup/step") return handleSetupStep(req, res);
+    if (path === "setup/import") return handleSetupImport(req, res);
+    if (path === "setup/complete") return handleSetupComplete(req, res);
+    if (path === "setup/restart") return handleSetupRestart(req, res);
+    if (path === "setup/checklist/dismiss") return handleSetupChecklistDismiss(req, res);
     if (path === "auth/apikey") return handleAuthApiKey(req, res);
     if (path === "auth/webhook-secret") return handleAuthWebhookSecret(req, res);
     if (path === "auth/sessions/revoke-all") return handleRevokeAllSessions(req, res);

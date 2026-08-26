@@ -15,6 +15,8 @@ outbound authorizations managed by that administrator; they do not replace Plemb
 | `server/src/utils/credentialVault.js` | AES-256-GCM encryption for media-server and tracker tokens |
 | `server/src/routes/mediaAuth.js` | Plex, Emby, and Jellyfin account authorization routes |
 | `server/src/routes/trackerAuth.js` | Trakt device authorization and token lifecycle routes |
+| `server/src/utils/onboardingStore.js` | `accountClaimed` state, atomic claim transaction, pristine-install detection |
+| `server/src/utils/rateLimit.js` | Shared in-memory rate limiter used by `/api/login` and `/api/auth/claim` |
 
 ## The four credentials
 
@@ -25,9 +27,26 @@ outbound authorizations managed by that administrator; they do not replace Plemb
 | API key | Integrations/automation: `X-Api-Key` or `Authorization: Bearer` | `data/config.json` (`API_KEY` pins it) | Set a new `API_KEY` and restart |
 | Webhook secret | Authorizes `/api/webhook` only | `data/config.json` (`WEBHOOK_SECRET` pins it) | Settings → Media servers → Webhooks → Rotate Secret (`POST /api/auth/webhook-secret`) - independent of everything else |
 
-First boot: if `ADMIN_PASSWORD` is unset, a random password is generated and printed
-**once** to the server console; only the scrypt hash is stored. Secrets shorter than 32
-chars fail startup (`assertMinSecretLength`); a default `admin` password triggers a
+First boot: if `ADMIN_PASSWORD` is unset and the instance has no prior in-app credentials,
+media connection, watch history, or configured metadata key, it's treated as pristine and
+**no password is generated at all**. The app shows a one-time **Claim this Plembfin
+instance** screen instead of sign-in; `POST /api/auth/claim` sets the administrator
+username/password atomically (inside a SQLite immediate transaction guarding
+`accountClaimed`, so two simultaneous claims can't both win) and behaves like
+`updateAdminCredentials` below - `authManagedInApp: true`, a fresh session secret, and an
+immediate session for the winner. A losing concurrent request gets a neutral
+`CLAIM_CONFLICT` with no indication of what the winning credentials were. While unclaimed,
+`isClaimRequired()` gates every API route except `GET /api/ping`, `GET /api/changelog`,
+`POST /api/login`, `POST /api/logout`, `GET /api/auth/status`, and `POST /api/auth/claim`
+behind a `403 CLAIM_REQUIRED` response (`server/src/index.js`). See
+[onboarding.md](onboarding.md) for the full claim and setup-wizard flow.
+
+Existing or upgraded installs, and any deployment with `ADMIN_USERNAME`/`ADMIN_PASSWORD`
+set, are unaffected and never see the claim screen. For those, if `ADMIN_PASSWORD` is
+unset and no password hash is stored yet, a random password is generated and only its
+scrypt hash is stored - only a startup warning is logged, not the plaintext password;
+recover with `ADMIN_PASSWORD` or in-app credential reset. Secrets shorter than 32 chars
+fail startup (`assertMinSecretLength`); a default `admin` password triggers a
 forced-change flow (`mustChangePassword` in `/api/auth/status` pins the UI to Settings →
 General → Account).
 
@@ -79,7 +98,8 @@ The webhook endpoint authenticates separately with `verifyWebhookToken` - see
 | --- | --- | --- |
 | `POST /api/login` | `handleLogin` | Rate-limited 10/15min per IP; audit-logged success/failure |
 | `POST /api/logout` | `handleLogout` | Clears the cookie |
-| `GET /api/auth/status` | `handleAuthStatus` | `{ authenticated, username, mustChangePassword }` - never 401s |
+| `GET /api/auth/status` | `handleAuthStatus` | `{ authenticated, username, mustChangePassword, claimRequired }` - never 401s |
+| `POST /api/auth/claim` | `handleAuthClaim` | One-time pristine-install account claim; public route, rate-limited and origin-checked like login, with an artificial delay |
 | `GET /api/auth/apikey` | `handleAuthApiKey` | Returns the API key; admin-only, fetched on demand by the UI |
 | `GET/POST /api/auth/webhook-secret` | `handleAuthWebhookSecret` | GET returns it, POST rotates it |
 | `POST /api/auth/credentials` | `handleAuthCredentials` | Requires current password; rotates session secret; re-issues cookie |

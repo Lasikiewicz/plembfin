@@ -112,6 +112,17 @@ export function openSettingsEditModal({
   optionalFieldsLabel = "",
 } = {}) {
   closeSettingsModals();
+
+  // The account-connect leading action (e.g. "Connect Plex account") reads as
+  // a step in the form, not a footer action - it renders directly under the
+  // last always-visible field (after any manual username/password fields)
+  // rather than alongside Test/Cancel/Save.
+  const leadingActionHtml = leadingAction
+    ? `<div class="settings-modal-leading-action-row"><button class="button-primary settings-modal-leading-action" type="button">${escapeHtml(leadingAction.label || "Continue")}</button></div>`
+    : "";
+  const nonOptionalFields = fields.filter((field) => !field.optionalGroup);
+  const nonOptionalFieldsHtml = nonOptionalFields.map(renderFieldRow).join("") + leadingActionHtml;
+
   const overlay = document.createElement("div");
   overlay.className = "edit-dialog-overlay settings-modal-overlay";
   overlay.innerHTML = `
@@ -122,7 +133,7 @@ export function openSettingsEditModal({
       </header>
       <div class="settings-modal-body">
         <div class="settings-modal-fields">
-          ${fields.filter((field) => !field.optionalGroup).map(renderFieldRow).join("")}
+          ${nonOptionalFieldsHtml}
           ${optionalFieldsLabel ? `<details class="sync-tool-details settings-modal-optional-fields">
             <summary class="accordion-header"><div class="sync-tool-summary-title"><svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg><b>${escapeHtml(optionalFieldsLabel)}</b></div></summary>
             <div class="settings-modal-optional-fields-body">${fields.filter((field) => field.optionalGroup).map(renderFieldRow).join("")}</div>
@@ -142,7 +153,6 @@ export function openSettingsEditModal({
       <footer class="settings-modal-foot">
         ${onDelete ? `<button class="button-danger settings-modal-delete" type="button">${escapeHtml(deleteLabel)}</button>` : ""}
         <div class="settings-modal-actions">
-          ${leadingAction ? `<button class="button-primary settings-modal-leading-action" type="button">${escapeHtml(leadingAction.label || "Continue")}</button>` : ""}
           ${onTest ? `<button class="button-ghost settings-modal-test" type="button">${escapeHtml(testLabel)}</button>` : ""}
           <button class="button-ghost settings-modal-cancel" type="button">Cancel</button>
           <button class="button-primary settings-modal-save" type="button">${escapeHtml(saveLabel)}</button>

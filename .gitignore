@@ -5,6 +5,7 @@ node_modules/
 .random
 scratch/
 plan/
+test/
 
 # Local runtime data: SQLite database, cached artwork, generated config.json
 data/

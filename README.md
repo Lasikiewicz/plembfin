@@ -63,6 +63,7 @@ None of these talk to each other - they all talk to Plembfin.
 - **Movie collections** - Explore related franchise entries, sequels, prequels, and spin-offs directly from movie detail pages
 - **Direct server deep links** - Quick one-click links to jump directly to any title in Plex, Emby, or Jellyfin
 - **Automated backups** - Built-in daily local backups with optional scheduled offsite backups to Backblaze B2
+- **Guided first-run setup** - A one-time account claim replaces the old generated-password dead end, followed by a resumable `/setup` wizard that connects media servers, adds metadata, configures webhooks, and optionally connects Trakt
 - **Self-hosted & private** - Runs entirely on your own hardware with dedicated SQLite storage and full data ownership
 - **Enterprise-grade security** - Hardened with strict Content Security Policy (CSP), scrypt password hashing, rate limiting, and HMAC session signing
 - **High-performance artwork cache** - Fast local caching for high-resolution posters, backdrops, and logos from TMDB, TheTVDB, and Fanart.tv
@@ -199,8 +200,9 @@ npm install
 npm start        # or: npm run dev, for auto-reload
 ```
 
-Open `http://localhost:5055`. The default username is `admin`; if you didn't set
-`ADMIN_PASSWORD`, check the server console for the generated password.
+Open `http://localhost:5055`. If you didn't set `ADMIN_PASSWORD`, the app shows a
+one-time **Claim this Plembfin instance** screen - create the administrator username and
+password there instead of looking for a generated password anywhere.
 
 > [!TIP]
 > Port `5055` taken? `PORT=5056 npm start` (bash) or `$env:PORT=5056; npm start` (PowerShell).
@@ -209,8 +211,11 @@ Open `http://localhost:5055`. The default username is `admin`; if you didn't set
 
 ## Full Setup Guide
 
-**1. Sign in.** Use `admin` and your `ADMIN_PASSWORD`, or the generated password from
-the console. If it's still the default `admin`, you'll be sent to Settings to change it.
+**1. Sign in or claim the instance.** If you set `ADMIN_PASSWORD`, sign in with `admin`
+and that password (if it's still the default `admin`, you'll be sent to Settings to
+change it). Otherwise, claim the instance on first load by creating an administrator
+username and password - this can only be done once. Either path continues into the guided
+`/setup` wizard, which is also reachable later from Settings → **Run setup guide**.
 
 **2. Connect your media apps.** Settings → Media Servers → **+** to add Plex, Emby,
 Jellyfin, or Seerr.

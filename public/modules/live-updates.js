@@ -2,6 +2,8 @@ let activeController = null;
 let reconnectTimer = null;
 let connectionGeneration = 0;
 let lastVersion = null;
+let visibilityHandler = null;
+let lockAbortController = null;
 
 const RECONNECT_MS = 1_000;
 
@@ -9,8 +11,12 @@ export function stopLiveUpdates() {
   connectionGeneration += 1;
   activeController?.abort();
   activeController = null;
+  lockAbortController?.abort();
+  lockAbortController = null;
   if (reconnectTimer) window.clearTimeout(reconnectTimer);
   reconnectTimer = null;
+  if (visibilityHandler) document.removeEventListener("visibilitychange", visibilityHandler);
+  visibilityHandler = null;
   lastVersion = null;
 }
 
@@ -18,11 +24,19 @@ export function startLiveUpdates({ authHeaders, onHistoryVersion, onSyncProgress
   stopLiveUpdates();
   const generation = connectionGeneration;
 
+  // A streaming fetch occupies one HTTP/1.1 connection for the lifetime of
+  // the page. Edge/Chromium only permits a small number of connections to one
+  // origin, so a handful of background tabs could consume the whole pool and
+  // leave their normal API requests queued forever. Keep the stream only in a
+  // visible tab; a newly visible tab reconnects and receives the current
+  // authoritative version/progress snapshot immediately.
+  const isVisible = () => document.visibilityState !== "hidden";
+
   const scheduleReconnect = () => {
-    if (generation !== connectionGeneration || reconnectTimer) return;
+    if (generation !== connectionGeneration || reconnectTimer || !isVisible()) return;
     reconnectTimer = window.setTimeout(() => {
       reconnectTimer = null;
-      connect();
+      requestConnection();
     }, RECONNECT_MS);
   };
 
@@ -62,7 +76,7 @@ export function startLiveUpdates({ authHeaders, onHistoryVersion, onSyncProgress
   };
 
   const connect = async () => {
-    if (generation !== connectionGeneration) return;
+    if (generation !== connectionGeneration || !isVisible() || activeController) return;
     const controller = new AbortController();
     activeController = controller;
     try {
@@ -95,5 +109,41 @@ export function startLiveUpdates({ authHeaders, onHistoryVersion, onSyncProgress
     }
   };
 
-  connect();
+  const requestConnection = () => {
+    if (generation !== connectionGeneration || !isVisible() || activeController || lockAbortController) return;
+    if (!globalThis.navigator?.locks?.request) {
+      connect();
+      return;
+    }
+
+    // Coordinate across every Plembfin tab. Exactly one document owns the
+    // long-lived stream; waiting lock requests consume no HTTP connection.
+    const controller = new AbortController();
+    lockAbortController = controller;
+    navigator.locks.request("plembfin-live-updates", { mode: "exclusive", signal: controller.signal }, async () => {
+      if (lockAbortController === controller) lockAbortController = null;
+      if (generation !== connectionGeneration || !isVisible()) return;
+      await connect();
+    }).catch((error) => {
+      if (error?.name !== "AbortError") onError?.(error);
+    }).finally(() => {
+      if (lockAbortController === controller) lockAbortController = null;
+    });
+  };
+
+  visibilityHandler = () => {
+    if (generation !== connectionGeneration) return;
+    if (!isVisible()) {
+      activeController?.abort();
+      activeController = null;
+      lockAbortController?.abort();
+      lockAbortController = null;
+      if (reconnectTimer) window.clearTimeout(reconnectTimer);
+      reconnectTimer = null;
+      return;
+    }
+    requestConnection();
+  };
+  document.addEventListener("visibilitychange", visibilityHandler);
+  requestConnection();
 }

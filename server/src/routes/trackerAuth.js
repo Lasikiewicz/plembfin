@@ -34,6 +34,7 @@ export async function handleTrackerAuth(req, res, path) {
       deviceCode: device.device_code, userCode: device.user_code,
       verificationUrl: device.verification_url || "https://auth.trakt.tv/activate", intervalSeconds: device.interval,
       expiresAt: Date.now() + Number(device.expires_in || 600) * 1000, initialSyncMode: body.initialSyncMode,
+      preferEarlierWatchedDate: body.preferEarlierWatchedDate,
     });
     writeAuditLog("tracker-auth.trakt.started", { ip: req.ip || req.socket?.remoteAddress, detail: { flowId: flow.id } });
     return sendJson(res, { flowId: flow.id, userCode: flow.userCode, verificationUrl: flow.verificationUrl, intervalSeconds: flow.intervalSeconds, expiresAt: flow.expiresAt });
@@ -68,7 +69,7 @@ export async function handleTrackerAuth(req, res, path) {
     provider: "trakt", clientId: flow.clientId, clientSecret: flow.clientSecret,
     accessToken: tokens.access_token, refreshToken: tokens.refresh_token, accessTokenExpiresAt: traktTokenExpiry(tokens),
     remoteUserId: user.ids?.slug || user.ids?.uuid || user.username || "trakt-user", remoteUsername: user.username || user.name || "Trakt user",
-    initialSyncMode: flow.initialSyncMode, baselineComplete: false, lastValidatedAt: Date.now(),
+    initialSyncMode: flow.initialSyncMode, preferEarlierWatchedDate: flow.preferEarlierWatchedDate, baselineComplete: false, lastValidatedAt: Date.now(),
   });
   markTrackerAuthFlow(flow.id, "completed");
   writeAuditLog("tracker-auth.trakt.connected", { ip: req.ip || req.socket?.remoteAddress, detail: { connectionId: connection.id, remoteUserId: connection.remoteUserId } });

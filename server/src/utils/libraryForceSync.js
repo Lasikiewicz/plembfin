@@ -10,6 +10,7 @@ import {
   collectServerWatchedItems,
   configuredSyncServers,
 } from "./forceSyncPlanner.js";
+import { earliestTraktWatchedAt, loadTraktWatchedDateIndex } from "./mediaForceSync.js";
 import { syncCanonicalPlaystate, syncMediaProgress } from "./syncOrchestrator.js";
 import {
   countWatchedPlaystateRows,
@@ -62,14 +63,20 @@ export function normalizeLibraryForceSyncRequest(input = {}) {
   return { title: "All media", type: "library", mode, source, target };
 }
 
-function timestampValue(value, now) {
+function timestampValue(value) {
   const date = value ? new Date(value) : null;
-  return date && !Number.isNaN(date.getTime()) ? date.toISOString() : new Date(now).toISOString();
+  return date && !Number.isNaN(date.getTime()) ? date.toISOString() : "";
 }
 
-function plannerMediaToSyncMedia(item = {}, now = Date.now(), sourceOverride = "") {
+export function plannerMediaToSyncMedia(item = {}, _now = Date.now(), sourceOverride = "") {
   const source = sourceOverride || item.source || "force_sync";
   const type = item.type === "movie" ? "movie" : "episode";
+  const watchedAt = timestampValue(item.timestamp);
+  const inferredFromRelease = Boolean(item.timestampInferredFromRelease);
+  // A historical played flag is not evidence that playback occurred when the
+  // import ran. If a server cannot supply its original play time, leave the
+  // item out instead of manufacturing a recent watch-history entry.
+  if (!watchedAt) return null;
   return {
     title: clean(item.title),
     type,
@@ -82,15 +89,18 @@ function plannerMediaToSyncMedia(item = {}, now = Date.now(), sourceOverride = "
     season: item.season == null ? undefined : Number(item.season),
     episode: item.episode == null ? undefined : Number(item.episode),
     episode_title: clean(item.episodeTitle) || undefined,
-    watched_at: timestampValue(item.timestamp, now),
+    watched_at: watchedAt,
     isValid: Boolean(clean(item.title)),
     watchProvenance: {
       source,
       ingest_path: "force_sync",
       event: "library_force_sync",
       phase: "completed",
-      source_timestamp: timestampValue(item.timestamp, now),
-      note: "Watched state explicitly imported from a connected media server from Settings Force Sync.",
+      source_timestamp: inferredFromRelease ? "" : watchedAt,
+      confidence: inferredFromRelease ? "inferred" : "exact",
+      note: inferredFromRelease
+        ? "Watched state imported from a connected media server; the server supplied no played date, so the media release date was used."
+        : "Watched state explicitly imported from a connected media server from Settings Force Sync.",
     },
   };
 }
@@ -175,13 +185,17 @@ function mergeLibraryItems(items = []) {
         tmdb: item.tmdb || null,
         tvdb: item.tvdb || null,
         timestamp: item.timestamp || null,
+        timestampInferredFromRelease: Boolean(item.timestampInferredFromRelease),
         episodeTitle: item.episodeTitle || null,
         watchedOn: new Set([item.source]),
       });
       continue;
     }
     group.watchedOn.add(item.source);
-    if (item.timestamp && (!group.timestamp || item.timestamp > group.timestamp)) group.timestamp = item.timestamp;
+    if (item.timestamp && (!group.timestamp || item.timestamp > group.timestamp)) {
+      group.timestamp = item.timestamp;
+      group.timestampInferredFromRelease = Boolean(item.timestampInferredFromRelease);
+    }
     if (!group.imdb && item.imdb) group.imdb = item.imdb;
     if (!group.tmdb && item.tmdb) group.tmdb = item.tmdb;
     if (!group.tvdb && item.tvdb) group.tvdb = item.tvdb;
@@ -210,7 +224,21 @@ async function collectLibraryItems(config, requested, now, logger) {
     group,
     now,
     sourcePriority([...group.watchedOn]),
-  ));
+  )).filter(Boolean);
+
+  // See the identical comment in mediaForceSync.js - a media server's own
+  // "last watched" date can be reset by a library rebuild/rescan; prefer an
+  // earlier date already on file with a connected Trakt account.
+  const traktWatchedDateIndex = await loadTraktWatchedDateIndex(logger);
+  if (traktWatchedDateIndex) {
+    for (const media of items) {
+      const traktWatchedAt = earliestTraktWatchedAt(traktWatchedDateIndex, media);
+      if (traktWatchedAt != null && traktWatchedAt < Date.parse(media.watched_at)) {
+        logger(`[pull] ${media.title}: ${media.source} reported ${media.watched_at}, but Trakt has an earlier watch - using Trakt's date instead.`);
+        media.watched_at = new Date(traktWatchedAt).toISOString();
+      }
+    }
+  }
 
   return {
     items,

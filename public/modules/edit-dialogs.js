@@ -132,6 +132,25 @@ export function applyWatchedAtToLocalWatchRecord(id, watchedAt) {
   state.history.forEach(updateRow);
   state.historyViewRaw.forEach(updateRow);
 
+  for (const movie of state.moviesRaw || []) {
+    let movieUpdated = false;
+    if (String(movie.id) === String(id)) {
+      movie.watched_at = watchedAt;
+      updated = movie;
+      movieUpdated = true;
+    }
+    for (const watch of movie.playHistory || []) {
+      if (String(watch.id) !== String(id)) continue;
+      watch.watched_at = watchedAt;
+      updated = movie;
+      movieUpdated = true;
+    }
+    if (movieUpdated && Array.isArray(movie.playHistory) && movie.playHistory.length) {
+      const dates = movie.playHistory.map((watch) => watch.watched_at).filter(Boolean).sort();
+      if (dates.length) movie.watched_at = dates.at(-1);
+    }
+  }
+
   for (const show of state.showsRaw || []) {
     let showUpdated = false;
     for (const episode of show.episodes || []) {
@@ -167,8 +186,26 @@ export function editDateOptionsFromButton(button, entry = null, resolvedTmdbCach
   const releaseDateFromRow = button?.closest(".immersive-episode-row")?.querySelector(".immersive-episode-dates time[datetime]")?.getAttribute("datetime");
   if (releaseDateFromRow) return { releaseDate: releaseDateFromRow };
 
-  if (entry?.media_type === "movie" && resolvedTmdbCacheFn) {
-    const tmdbData = resolvedTmdbCacheFn("movie", entry.tmdb_id, entry.title);
+  // A movie's detail page can be opened directly (deep link, refresh) without
+  // ever populating state.history, so `entry` may be missing even though the
+  // click happened on the currently open movie modal - fall back to the
+  // modal's own tmdb id in that case instead of reporting no release date.
+  const editId = button?.dataset?.editId;
+  const isActiveMovieModal = state.activeMovieModalId && editId && String(state.activeMovieModalId) === String(editId);
+
+  if ((entry?.media_type === "movie" || isActiveMovieModal) && resolvedTmdbCacheFn) {
+    const tmdbId = entry?.tmdb_id || state.activeMovieTmdbId || "";
+    const title = entry?.title || "";
+    let tmdbData = resolvedTmdbCacheFn("movie", tmdbId, title);
+    if (!tmdbData?.release_date && tmdbId) {
+      const prefix = `movie|${tmdbId}|`;
+      for (const [key, cached] of state.tmdbDetailsCache.entries()) {
+        if (key.startsWith(prefix) && cached && typeof cached.then !== "function" && cached.release_date) {
+          tmdbData = cached;
+          break;
+        }
+      }
+    }
     if (tmdbData?.release_date) return { releaseDate: tmdbData.release_date };
   }
 
@@ -395,6 +432,10 @@ export function openEditDateDialog(_container, id, currentWatchedAt, onSaved, op
         }
         overlay.remove();
         await onSaved?.({ watched_at: latestIso });
+        // The Movies page is retained in memory while its detail view is open.
+        // Discard cached API pages after a date edit so a later reload cannot
+        // restore the pre-edit watched date over the locally patched record.
+        _clearDerivedUiCaches({ resetExplorer: false });
       } catch (err) {
         status.textContent = `Error: ${err.message}`;
       }

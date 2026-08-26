@@ -16,6 +16,7 @@ import {
   renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, patchMovieWatchedState,
 } from "./media-detail-movie.js?v=20260821";
 import { fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail-shared.js";
+import { fetchTmdbDetails } from "./tmdb.js?v=20260823";
 
 export {
   initMediaDetail,
@@ -57,7 +58,7 @@ export function movieBySlugOrId(value) {
     state.history.find((entry) => entry.media_type === "movie" && movieSlug(entry) === keySlug) ||
     null;
 }
-function movieSearchFromRouteValue(value) {
+export function movieSearchFromRouteValue(value) {
   return decodeURIComponent(String(value || ""))
     .replace(/^tmdb\/\d+$/i, "")
     .replace(/[-_]+/g, " ")
@@ -179,6 +180,19 @@ export async function openMovieInlineDetail(id) {
   if (movie) {
     await renderMovieImmersiveModalContent(movie);
     return;
+  }
+
+  // Title-only links predate canonical /movie/tmdb/:id routes. Once a movie
+  // is marked unwatched it disappears from /api/movies and the in-memory
+  // watched lists, but the old URL must remain useful. Resolve its slug via
+  // metadata and render the same unwatched detail used by canonical routes.
+  const legacyTitle = movieSearchFromRouteValue(id);
+  if (legacyTitle) {
+    const details = await fetchTmdbDetails("movie", null, legacyTitle, {}, { immediate: true }).catch(() => null);
+    if (details?.id) {
+      await openMovieImmersiveModalByTmdbId(details.id);
+      return;
+    }
   }
   await openImmersiveModal(id);
 }

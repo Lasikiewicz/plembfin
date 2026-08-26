@@ -92,6 +92,10 @@ stays set to the slug throughout, so the address bar keeps the `/tvshow/:key` fo
   focused panel visibility.
 - `popstate` re-runs `handleRouting` for browser back/forward; direct URL loads hydrate
   the same UI (the server falls back to `index.html` for any non-API path).
+- `modules/live-updates.js` coordinates its streaming `/api/live-updates` request with
+  the browser Web Locks API, so only one Plembfin tab holds the long-lived HTTP
+  connection. Other tabs load through the normal connection pool and automatically
+  take ownership when the stream-owning tab closes or becomes unavailable.
 
 ## Startup sequence (`app.js` bottom + `init` functions)
 

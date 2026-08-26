@@ -4,7 +4,7 @@ import { fetchWithTimeout } from "./outbound.js";
 import { loadMediaConfig, loadRuntimeState, setRuntimeState } from "./configStore.js";
 import { cacheBackdropFromUrl, cacheLogoFromUrl, cachePosterFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "./posterCache.js";
 import { getFanartMovieArt, getFanartTvArt } from "./fanartGateway.js";
-import { resolveTvdbSeriesId, getTvdbSeriesExtended, getTvdbSeasonEpisodes, shapeTvdbSeriesAsTmdb } from "./tvdbGateway.js";
+import { resolveTvdbSeriesId, resolveTvdbSeriesIdFromEpisodeId, getTvdbSeriesExtended, getTvdbSeasonEpisodes, shapeTvdbSeriesAsTmdb } from "./tvdbGateway.js";
 
 const API_ROOT = "https://api.themoviedb.org/3";
 const IMAGE_ROOT = "https://image.tmdb.org/t/p";
@@ -323,7 +323,13 @@ async function resolveTmdbExternalId(type, source, externalId) {
   try {
     const result = await upstream(`find/${encodeURIComponent(cleaned)}`, { external_source: source });
     const list = type === "movie" ? result.movie_results : result.tv_results;
-    const resolved = String(list?.[0]?.id || "");
+    // The given id can belong to an episode rather than its series (TMDB
+    // assigns episodes their own ids) - `find` still resolves it, just under
+    // tv_episode_results instead of tv_results, with a show_id pointing at
+    // the real parent series. Falling through to a title search instead
+    // would risk landing on a different, wrongly-matched show entirely when
+    // two real shows share a title.
+    const resolved = String(list?.[0]?.id || (type === "tv" ? result.tv_episode_results?.[0]?.show_id : "") || "");
     if (resolved) {
       metaSet(key, { tmdbId: resolved, mediaType: type, title: cleaned, updatedAtMs: Date.now() });
     }
@@ -465,15 +471,19 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
     if (!force && cacheSatisfies(cached, { light })) return cached.details;
     try {
       // Older library records can carry a TVDB episode ID rather than the
-      // series ID. If that ID cannot be loaded as a series, resolve the series
-      // from the title so calendar/season lookups still work (for example,
-      // Silo's stored episode IDs are 11751879+ while its series ID is 403245).
+      // series ID. If that ID cannot be loaded as a series, first ask TVDB
+      // what show that episode id actually belongs to (deterministic - no
+      // guessing) before falling back to an ambiguous title search, which can
+      // pick the wrong show entirely when two real shows share a title
+      // (for example, Silo's stored episode IDs are 11751879+ while its
+      // series ID is 403245).
       let seriesTvdbId = tvdbId;
       let extended;
       try {
         extended = await getTvdbSeriesExtended(seriesTvdbId, { force: forceTvdb });
       } catch (error) {
-        const fallbackSeriesId = title && await resolveTvdbSeriesId({ title });
+        const fallbackSeriesId = await resolveTvdbSeriesIdFromEpisodeId(seriesTvdbId)
+          || (title && await resolveTvdbSeriesId({ title }));
         if (!fallbackSeriesId || fallbackSeriesId === seriesTvdbId) throw error;
         seriesTvdbId = fallbackSeriesId;
         extended = await getTvdbSeriesExtended(seriesTvdbId, { force: forceTvdb });

@@ -12,8 +12,13 @@
 
 import { mediaKeyFor } from "./dataRepo.js";
 import { remoteEpisodeImportError } from "./episodeImportGuard.js";
-import { normalizeProviderIds } from "./parsers.js";
-import { watchedAtForEmbyLikeItem, watchedAtForPlexItem } from "./watchDates.js";
+import { normalizeProviderIds, parsePlexMediaIds } from "./parsers.js";
+import {
+  releaseDateForItem,
+  releaseDateForPlexItem,
+  watchedAtForEmbyLikeItem,
+  watchedAtForPlexItem,
+} from "./watchDates.js";
 import {
   countPlexWatchedItems,
   fetchPlexWatchedItems,
@@ -156,27 +161,25 @@ function historyRowInScope(scope, row) {
 
 export function mapPlexWatchedItem(item = {}) {
   const { watchedAt } = watchedAtForPlexItem(item);
+  const releaseDate = watchedAt ? "" : releaseDateForPlexItem(item);
+  // Episodes carry their own tmdb/tvdb guid, distinct from the show's - prefer
+  // the grandparent (series) guid so imported episodes key on the same show
+  // identity every other ingestion path and outbound client resolves.
+  const ids = parsePlexMediaIds(item, item.type);
   const media = {
     title: item.title,
     type: item.type,
     season: item.parentIndex != null ? Number(item.parentIndex) : null,
     episode: item.index != null ? Number(item.index) : null,
-    imdb: null,
-    tmdb: null,
-    tvdb: null,
+    imdb: ids.imdb || null,
+    tmdb: ids.tmdb || null,
+    tvdb: ids.tvdb || null,
     source: "plex",
-    timestamp: watchedAt
-      ? new Date(watchedAt)
+    timestamp: watchedAt || releaseDate
+      ? new Date(watchedAt || releaseDate)
       : null,
+    timestampInferredFromRelease: Boolean(!watchedAt && releaseDate),
   };
-  const guids = [item.guid, ...(item.Guid || []).map((g) => g.id || g)].filter(Boolean);
-  for (const guid of guids) {
-    const guidStr = String(guid);
-    const value = guidStr.split(/:\/\/|\//).pop();
-    if (guidStr.includes("imdb")) media.imdb = value;
-    if (guidStr.includes("tmdb") || guidStr.includes("themoviedb")) media.tmdb = value;
-    if (guidStr.includes("tvdb") || guidStr.includes("thetvdb")) media.tvdb = value;
-  }
   if (item.type === "episode") {
     media.title = `${item.grandparentTitle} - S${String(media.season ?? "?").padStart(2, "0")}E${String(media.episode ?? "?").padStart(2, "0")}`;
     media.episodeTitle = item.title;
@@ -191,6 +194,7 @@ export function mapEmbyLikeWatchedItem(item = {}, source = "emby") {
       : (item.ProviderIds || {}),
   );
   const { watchedAt } = watchedAtForEmbyLikeItem(item);
+  const releaseDate = watchedAt ? "" : releaseDateForItem(item);
   return {
     title:
       item.Type === "Episode"
@@ -204,7 +208,8 @@ export function mapEmbyLikeWatchedItem(item = {}, source = "emby") {
     tvdb: ids.tvdb || null,
     episodeTitle: item.Type === "Episode" ? item.Name : null,
     source,
-    timestamp: watchedAt ? new Date(watchedAt) : null,
+    timestamp: watchedAt || releaseDate ? new Date(watchedAt || releaseDate) : null,
+    timestampInferredFromRelease: Boolean(!watchedAt && releaseDate),
   };
 }
 

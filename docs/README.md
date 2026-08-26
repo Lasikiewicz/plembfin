@@ -57,6 +57,7 @@ behavior, configuration, operations, and integration contracts.
 | Document | Scope |
 | --- | --- |
 | [auth.md](auth.md) | Login, sessions, API key, webhook secret, and audit log. |
+| [onboarding.md](onboarding.md) | Pristine-install account claim and the guided `/setup` wizard. |
 | [hardening.md](hardening.md) | Production deployment: credentials, HTTPS/reverse proxy, Docker hardening, and rotation. |
 | [security-checklist.md](security-checklist.md) | Current authentication, network, container, and secret-handling controls. |
 
