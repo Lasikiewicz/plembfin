@@ -696,23 +696,64 @@ function renderBackup() {
         <div class="setup-backup-security">
           <label class="field-label setup-backup-passphrase"><span class="setup-backup-label-line">Encryption passphrase <span class="muted-copy">(at least 12 characters)</span></span><input class="field" type="password" autocomplete="new-password" data-setup-backup-field="passphrase" placeholder="${config.passphraseStored ? "Saved - leave blank to keep" : ""}" /></label>
           <label class="checkbox-label setup-backup-remember"><input type="checkbox" data-setup-backup-field="rememberPassphrase" ${config.rememberPassphrase || config.passphraseStored ? "checked" : ""} /><span>Remember the passphrase for scheduled backups</span></label>
+          <p class="muted-copy setup-backup-passphrase-help">This passphrase encrypts every backup, local or remote. It has to be entered and "remembered" here before daily or remote backups can be scheduled, since a scheduled backup runs unattended with nobody there to type it in.</p>
         </div>
       </div>
     </section>
     <details class="settings-card setup-backup-card setup-backup-remote" ${destination ? "open" : ""}>
       <summary class="setup-backup-heading"><b>Backblaze B2</b>${destination ? `<span class="badge ${destination.enabled ? "badge-success" : ""}">${destination.enabled ? "Configured" : "Disabled"}</span>` : `<span class="badge">Not configured</span>`}</summary>
       <div class="setup-backup-remote-body">
-        <p class="muted-copy setup-backblaze-signup"><a href="https://www.backblaze.com/sign-up/cloud-storage" target="_blank" rel="noopener noreferrer">Create a free Backblaze B2 account</a>.</p>
-        <label class="checkbox-label"><input type="checkbox" data-setup-backblaze-field="enabled" ${destination?.enabled ? "checked" : ""} /><span>Enable this Backblaze destination</span></label>
-        <label class="checkbox-label"><input type="checkbox" data-setup-backup-field="remoteEnabled" ${config.remoteEnabled ? "checked" : ""} /><span>Upload scheduled encrypted Plembfin backups to Backblaze</span></label>
-        <div class="setup-backblaze-fields">
-          <label class="field-label">Region or S3 endpoint<input class="field" data-setup-backblaze-field="region" value="${escapeAttribute(settings.region || "")}" placeholder="eu-central-003" /></label>
-          <label class="field-label">Bucket name<input class="field" data-setup-backblaze-field="bucket" value="${escapeAttribute(settings.bucket || "")}" /></label>
-          <label class="field-label">Key ID<input class="field" data-setup-backblaze-field="accessKeyId" value="${escapeAttribute(settings.accessKeyId || "")}" /></label>
-          <label class="field-label">Application key<input class="field" type="password" autocomplete="new-password" data-setup-backblaze-field="secretAccessKey" placeholder="${secretConfigured ? "Configured - leave blank to keep" : ""}" /></label>
-          <label class="field-label"><span class="setup-backup-label-line">Key prefix <span class="muted-copy">(optional)</span></span><input class="field" data-setup-backblaze-field="prefix" value="${escapeAttribute(settings.prefix || "plembfin/")}" /></label>
+        <p class="muted-copy setup-backblaze-signup"><a href="https://www.backblaze.com/sign-up/cloud-storage" target="_blank" rel="noopener noreferrer">Create a free Backblaze B2 account</a>, then set up a bucket and key for Plembfin:</p>
+        <div class="setup-backblaze-workflow">
+          <section class="setup-backblaze-stage">
+            <div class="setup-backblaze-guide">
+              <h3>Create a private bucket</h3>
+              <ol class="muted-copy setup-backblaze-steps">
+                <li>Click <b>Create a Bucket</b>.</li>
+                <li>Choose a unique name.</li>
+                <li>Set the bucket to <b>Private</b>.</li>
+                <li>Leave Default Encryption disabled.</li>
+                <li>Leave Object Lock disabled.</li>
+                <li>Click <b>Create a Bucket</b> to confirm.</li>
+                <li>Copy the bucket name and paste it into <b>Bucket name</b> on the right.</li>
+                <li>Copy the endpoint and paste it into <b>Region or S3 endpoint</b> on the right.</li>
+              </ol>
+            </div>
+            <div class="setup-backblaze-stage-fields">
+              <label class="field-label">Bucket name<input class="field" data-setup-backblaze-field="bucket" value="${escapeAttribute(settings.bucket || "")}" /></label>
+              <label class="field-label">Region or S3 endpoint<input class="field" data-setup-backblaze-field="region" value="${escapeAttribute(settings.region || "")}" placeholder="eu-central-003" /></label>
+            </div>
+          </section>
+          <section class="setup-backblaze-stage">
+            <div class="setup-backblaze-guide">
+              <h3>Create a restricted application key</h3>
+              <ol class="muted-copy setup-backblaze-steps" start="9">
+                <li>Click <b>App Keys</b> in the left menu.</li>
+                <li>Click <b>Add a New Application Key</b> (not "Generate a New Master Application Key").</li>
+                <li>Name the key.</li>
+                <li>Allow access to the bucket you just created.</li>
+                <li>Leave Read and Write access selected.</li>
+                <li>Click <b>Create New Key</b>.</li>
+                <li>Copy the keyID and paste it into <b>Key ID</b> on the right.</li>
+                <li>Copy the applicationKey and paste it into <b>Application key</b> on the right.</li>
+              </ol>
+            </div>
+            <div class="setup-backblaze-stage-fields">
+              <label class="field-label">Key ID <span class="muted-copy">(Application Key ID, not the master Account ID)</span><input class="field" data-setup-backblaze-field="accessKeyId" value="${escapeAttribute(settings.accessKeyId || "")}" /></label>
+              <label class="field-label">Application key<input class="field" type="password" autocomplete="new-password" data-setup-backblaze-field="secretAccessKey" placeholder="${secretConfigured ? "Configured - leave blank to keep" : ""}" /></label>
+              <label class="field-label"><span class="setup-backup-label-line">Key prefix <span class="muted-copy">(optional)</span></span><input class="field" data-setup-backblaze-field="prefix" value="${escapeAttribute(settings.prefix || "plembfin/")}" /></label>
+              <p class="muted-copy setup-backblaze-key-note">Backblaze shows the Application Key only once. Copy it when the key is created.</p>
+            </div>
+          </section>
         </div>
-        <p class="muted-copy setup-backblaze-help">Use a private bucket and an application key restricted to that bucket with read and write access.</p>
+        <div class="setup-backblaze-toggles">
+          <label class="checkbox-label"><input type="checkbox" data-setup-backblaze-field="enabled" ${destination?.enabled ? "checked" : ""} /><span>Enable this Backblaze destination</span></label>
+          <label class="checkbox-label"><input type="checkbox" data-setup-backup-field="remoteEnabled" ${config.remoteEnabled ? "checked" : ""} /><span>Upload scheduled encrypted Plembfin backups to Backblaze</span></label>
+        </div>
+        <div class="setup-backblaze-actions">
+          <button type="button" class="button-ghost" data-setup-action="backblaze-save">Save</button>
+          <button type="button" class="button-ghost" data-setup-action="backblaze-test">Test</button>
+        </div>
       </div>
     </details>`;
 }
@@ -736,6 +777,71 @@ function setupFieldChecked(selector) {
   return Boolean(elements.setupPageRoot?.querySelector(selector)?.checked);
 }
 
+function setPassphraseError(active) {
+  elements.setupPageRoot?.querySelector(".setup-backup-security")?.classList.toggle("setup-field-error", Boolean(active));
+}
+
+function passphraseSatisfied(previous, rememberPassphrase, passphrase) {
+  return rememberPassphrase && (previous.passphraseStored || passphrase.length >= 12);
+}
+
+async function saveBackblazeDestinationFromFields({ requireComplete } = {}) {
+  const destination = backblazeDestination();
+  const destinationEnabled = setupFieldChecked('[data-setup-backblaze-field="enabled"]');
+  const shouldValidate = requireComplete ?? destinationEnabled;
+  const region = setupFieldValue('[data-setup-backblaze-field="region"]');
+  const bucket = setupFieldValue('[data-setup-backblaze-field="bucket"]');
+  const accessKeyId = setupFieldValue('[data-setup-backblaze-field="accessKeyId"]');
+  const secretAccessKey = setupFieldValue('[data-setup-backblaze-field="secretAccessKey"]');
+  if (shouldValidate && (!region || !bucket || !accessKeyId || (!destination?.secretFlags?.secretAccessKey && !secretAccessKey))) {
+    setMessage("Complete the Backblaze region, bucket, Key ID, and application key.", "error");
+    return null;
+  }
+  if (!shouldValidate && !destination?.id) return null;
+  const body = await api("/api/watch-backups", {
+    method: "POST",
+    body: JSON.stringify({
+      action: "save-destination",
+      destination: shouldValidate
+        ? {
+            ...(destination?.id ? { id: destination.id } : {}), type: "backblaze", label: "Backblaze B2", enabled: destinationEnabled,
+            settings: { region, bucket, accessKeyId, prefix: setupFieldValue('[data-setup-backblaze-field="prefix"]') },
+            secrets: secretAccessKey ? { secretAccessKey } : {},
+          }
+        : {
+            id: destination.id, type: "backblaze", label: destination.label || "Backblaze B2", enabled: false,
+            settings: { ...destination.settings }, secrets: {},
+          },
+    }),
+  });
+  return body.destination;
+}
+
+async function saveBackblazeAction() {
+  const saved = await saveBackblazeDestinationFromFields({ requireComplete: true }).catch((error) => {
+    setMessage(error.message, "error");
+    return null;
+  });
+  if (!saved) return;
+  await loadBackupSetupData({ force: true });
+  setMessage("Backblaze destination saved.", "success");
+}
+
+async function testBackblazeAction() {
+  try {
+    const saved = await saveBackblazeDestinationFromFields({ requireComplete: true });
+    if (!saved) return;
+    const result = await api("/api/watch-backups", {
+      method: "POST",
+      body: JSON.stringify({ action: "test-destination", destinationId: saved.id }),
+    });
+    await loadBackupSetupData({ force: true });
+    setMessage(`Connection OK - ${result.result?.detail || "reachable"}.`, "success");
+  } catch (error) {
+    setMessage(error.message, "error");
+  }
+}
+
 async function saveBackupSetup() {
   if (!backupSetupData) return false;
   const previous = backupSetupData.plembfin?.config || {};
@@ -744,12 +850,14 @@ async function saveBackupSetup() {
   const rememberPassphrase = setupFieldChecked('[data-setup-backup-field="rememberPassphrase"]');
   const passphrase = setupFieldValue('[data-setup-backup-field="passphrase"]');
   const destinationEnabled = setupFieldChecked('[data-setup-backblaze-field="enabled"]');
-  const destination = backblazeDestination();
-  if (enabled && (!rememberPassphrase || (!previous.passphraseStored && passphrase.length < 12))) {
+  setPassphraseError(false);
+  if (enabled && !passphraseSatisfied(previous, rememberPassphrase, passphrase)) {
+    setPassphraseError(true);
     setMessage("Enter and remember an encryption passphrase of at least 12 characters before enabling scheduled backups.", "error");
     return false;
   }
-  if (remoteEnabled && !previous.remotePassphraseStored && (!rememberPassphrase || (!previous.passphraseStored && passphrase.length < 12))) {
+  if (remoteEnabled && !previous.remotePassphraseStored && !passphraseSatisfied(previous, rememberPassphrase, passphrase)) {
+    setPassphraseError(true);
     setMessage("Enter and remember an encryption passphrase of at least 12 characters before enabling scheduled remote backups.", "error");
     return false;
   }
@@ -757,37 +865,9 @@ async function saveBackupSetup() {
     setMessage("Enable and configure the Backblaze destination before turning on remote backups.", "error");
     return false;
   }
-  if (destinationEnabled) {
-    const region = setupFieldValue('[data-setup-backblaze-field="region"]');
-    const bucket = setupFieldValue('[data-setup-backblaze-field="bucket"]');
-    const accessKeyId = setupFieldValue('[data-setup-backblaze-field="accessKeyId"]');
-    const secretAccessKey = setupFieldValue('[data-setup-backblaze-field="secretAccessKey"]');
-    if (!region || !bucket || !accessKeyId || (!destination?.secretFlags?.secretAccessKey && !secretAccessKey)) {
-      setMessage("Complete the Backblaze region, bucket, Key ID, and application key.", "error");
-      return false;
-    }
-    await api("/api/watch-backups", {
-      method: "POST",
-      body: JSON.stringify({
-        action: "save-destination",
-        destination: {
-          ...(destination?.id ? { id: destination.id } : {}), type: "backblaze", label: "Backblaze B2", enabled: true,
-          settings: { region, bucket, accessKeyId, prefix: setupFieldValue('[data-setup-backblaze-field="prefix"]') },
-          secrets: secretAccessKey ? { secretAccessKey } : {},
-        },
-      }),
-    });
-  } else if (destination?.id) {
-    await api("/api/watch-backups", {
-      method: "POST",
-      body: JSON.stringify({
-        action: "save-destination",
-        destination: {
-          id: destination.id, type: "backblaze", label: destination.label || "Backblaze B2", enabled: false,
-          settings: { ...destination.settings }, secrets: {},
-        },
-      }),
-    });
+  if (destinationEnabled || backblazeDestination()?.id) {
+    const saved = await saveBackblazeDestinationFromFields();
+    if (!saved) return false;
   }
   await api("/api/plembfin-backups", {
     method: "POST",
@@ -928,6 +1008,7 @@ async function toggleImport(target, enabled) {
 function handleSetupChange(event) {
   if (!elements.setupPageRoot?.contains(event.target)) return;
   if (event.target.matches("[data-setup-backup-field], [data-setup-backblaze-field]")) {
+    if (event.target.matches('[data-setup-backup-field="passphrase"], [data-setup-backup-field="rememberPassphrase"]')) setPassphraseError(false);
     updateBackupContinueAction();
     return;
   }
@@ -1017,6 +1098,10 @@ async function handleSetupClick(event) {
     navigateTo("/settings");
   } else if (action === "trakt-connect") {
     startTraktConnect();
+  } else if (action === "backblaze-save") {
+    saveBackblazeAction();
+  } else if (action === "backblaze-test") {
+    testBackblazeAction();
   } else if (action === "trakt-skip") {
     api("/api/setup/step", { method: "POST", body: JSON.stringify({ traktSkipped: true }) })
       .then(() => { setCurrentStep(stepNeighbor(1)); })

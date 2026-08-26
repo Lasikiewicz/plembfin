@@ -18463,10 +18463,19 @@ details.sync-match-report > summary {
 .setup-step-body details.settings-card.setup-backup-remote { display: block; min-height: 0; padding: var(--space-4) !important; }
 .setup-backup-remote > summary { padding: 0 !important; cursor: pointer; list-style: none; }
 .setup-backup-remote > summary::-webkit-details-marker { display: none; }
-.setup-backup-remote-body { display: grid; gap: var(--space-2); padding-top: 0; margin-top: var(--space-3); }
-.setup-backblaze-fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
+.setup-backup-remote-body { display: grid; gap: var(--space-3); padding-top: 0; margin-top: var(--space-3); }
 .setup-backblaze-signup { margin: 0; font-size: 0.88rem; }
-.setup-backblaze-help { margin: 0; }
+.setup-backblaze-workflow { display: grid; border-block: 1px solid var(--line-subtle); }
+.setup-backblaze-stage { display: grid; grid-template-columns: minmax(16rem, 1.2fr) minmax(18rem, 1fr); gap: clamp(var(--space-4), 4vw, var(--space-6)); padding: var(--space-4) 0; align-items: start; }
+.setup-backblaze-stage + .setup-backblaze-stage { border-top: 1px solid var(--line-subtle); }
+.setup-backblaze-guide { display: grid; gap: var(--space-2); }
+.setup-backblaze-guide h3 { margin: 0; font-size: 0.95rem; }
+.setup-backblaze-steps { margin: 0; padding-left: 1.25rem; display: grid; gap: 0.35em; font-size: 0.85rem; }
+.setup-backblaze-stage-fields { display: grid; gap: var(--space-3); }
+.setup-backblaze-key-note { margin: calc(var(--space-1) * -1) 0 0; font-size: 0.8rem; line-height: 1.5; }
+.setup-backblaze-toggles { display: flex; justify-content: space-between; align-items: center; gap: var(--space-3); flex-wrap: wrap; }
+.setup-backblaze-actions { display: flex; gap: var(--space-2); padding-top: var(--space-2); }
+.setup-field-error { padding: var(--space-2); margin: calc(var(--space-2) * -1); border-radius: var(--radius); border: 1px solid var(--red); background: color-mix(in srgb, var(--red), transparent 92%); }
 .setup-review-lead { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel-2); }
 .setup-review-mark { display: inline-grid; place-items: center; flex: 0 0 2.25rem; width: 2.25rem; height: 2.25rem; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--muted); font-size: 1.15rem; font-weight: 800; }
 .setup-review-lead.is-ready .setup-review-mark { color: var(--green); border-color: color-mix(in srgb, var(--green), transparent 45%); background: color-mix(in srgb, var(--green), transparent 92%); }
@@ -18497,7 +18506,8 @@ details.sync-match-report > summary {
   .setup-import-result { width: 100%; min-width: 0; text-align: left; }
   .setup-import-result-head { justify-content: flex-start; flex-wrap: wrap; }
   .setup-backup-heading { align-items: flex-start; }
-  .setup-backup-fields, .setup-backblaze-fields { grid-template-columns: minmax(0, 1fr); }
+  .setup-backup-fields, .setup-backblaze-stage { grid-template-columns: minmax(0, 1fr); }
+  .setup-backblaze-stage { gap: var(--space-3); }
   .setup-review-row { align-items: flex-start; }
   .setup-review-copy { grid-template-columns: minmax(0, 1fr); gap: var(--space-1); }
 }
