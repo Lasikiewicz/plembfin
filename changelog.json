@@ -1,7 +1,32 @@
 {
-  "version": "0.11.3",
-  "updatedAt": "2026-08-26T19:23:03+01:00",
+  "version": "0.12.0",
+  "updatedAt": "2026-08-26T18:44:05Z",
   "entries": [
+    {
+      "version": "0.12.0",
+      "date": "2026-08-26T18:44:05Z",
+      "commit": "6c6b5e0baf7400a34ac1adb94f732f870f73a805",
+      "message": "Feature - Filter Sync Activity to failed items and fix dispatch telemetry accuracy",
+      "author": "github-actions[bot]",
+      "sections": {
+        "newFeatures": [
+          "Filter Sync Activity to failed items and fix dispatch telemetry accuracy",
+          "Add a click-to-filter toggle on the Sync Activity failed-count pill so it shows only failed rows on the current page, click again to restore the full page",
+          "Show the real dispatch outcome in a background-queue retry's telemetry instead of a generic \"sync completed\" message regardless of what actually happened",
+          "Correct the published v0.11.2 changelog entry to describe the guided onboarding release and use the New Features / Major Bug Fixes / Tweaks grouped layout instead of a flat, mistitled bullet list"
+        ],
+        "majorBugFixes": [
+          "Fix target-status telemetry lines prefixed with \"Target \" (written by the scheduled background queue) that the Sync Activity parser was silently failing to match, leaving target results blank"
+        ],
+        "tweaks": []
+      },
+      "details": [
+        "Add a click-to-filter toggle on the Sync Activity failed-count pill so it shows only failed rows on the current page, click again to restore the full page",
+        "Fix target-status telemetry lines prefixed with \"Target \" (written by the scheduled background queue) that the Sync Activity parser was silently failing to match, leaving target results blank",
+        "Show the real dispatch outcome in a background-queue retry's telemetry instead of a generic \"sync completed\" message regardless of what actually happened",
+        "Correct the published v0.11.2 changelog entry to describe the guided onboarding release and use the New Features / Major Bug Fixes / Tweaks grouped layout instead of a flat, mistitled bullet list"
+      ]
+    },
     {
       "version": "0.11.3",
       "date": "2026-08-26T19:23:03+01:00",

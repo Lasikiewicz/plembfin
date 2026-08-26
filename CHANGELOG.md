@@ -4,6 +4,21 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v0.12.0 - 26 August 2026
+
+Feature - Filter Sync Activity to failed items and fix dispatch telemetry accuracy
+
+### New Features
+
+- Filter Sync Activity to failed items and fix dispatch telemetry accuracy
+- Add a click-to-filter toggle on the Sync Activity failed-count pill so it shows only failed rows on the current page, click again to restore the full page
+- Show the real dispatch outcome in a background-queue retry's telemetry instead of a generic "sync completed" message regardless of what actually happened
+- Correct the published v0.11.2 changelog entry to describe the guided onboarding release and use the New Features / Major Bug Fixes / Tweaks grouped layout instead of a flat, mistitled bullet list
+
+### Major Bug Fixes
+
+- Fix target-status telemetry lines prefixed with "Target " (written by the scheduled background queue) that the Sync Activity parser was silently failing to match, leaving target results blank
+
 ## v0.11.3 - 26 August 2026
 
 Chore - Retrigger release CI after GitHub Actions incident
@@ -761,7 +776,7 @@ Fix - Update settings shell route handling and test suite for General group aggr
 - Update test/settingsShell.test.js assertions for storage panel and advanced legacy redirect
 - Pass all 177 automated unit tests
 
-## v0.6.77 - 6 August 2026
+## v0.6.77 - 5 August 2026
 
 Feature - Standardize settings page layouts
 
