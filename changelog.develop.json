@@ -1,5 +1,16 @@
 {
-  "build": 0,
-  "updatedAt": "2026-08-26T18:44:00.000Z",
-  "entries": []
+  "build": 1,
+  "updatedAt": "2026-08-26T19:41:42+01:00",
+  "entries": [
+    {
+      "build": 1,
+      "date": "2026-08-26T19:41:42+01:00",
+      "commit": "2529bafef9cf4a8135c624c9de2c6b066f24c83f",
+      "message": "Chore - Reset develop build counter after promotion to alpha",
+      "author": "Lasikiewicz",
+      "details": [
+        "Start the next develop cycle at Build 1 after the successful Alpha promotion."
+      ]
+    }
+  ]
 }
