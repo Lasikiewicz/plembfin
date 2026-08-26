@@ -12,10 +12,10 @@ const changelogPath = path.join(root, "changelog.json");
 const alphaChangelogPath = path.join(root, "changelog.alpha.json");
 const developChangelogPath = path.join(root, "changelog.develop.json");
 
-export function simplifyEntries(entries = []) {
-  const features = [];
-  const fixes = [];
-  const other = [];
+export function categorizeEntries(entries = []) {
+  const newFeatures = [];
+  const majorBugFixes = [];
+  const tweaks = [];
 
   for (const entry of entries) {
     const lines = [
@@ -30,8 +30,12 @@ export function simplifyEntries(entries = []) {
       // Strip all emoji/icon characters
       line = line.replace(/[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}]/gu, "").trim();
 
-      let isFeat = /^(feat|feature|add)\b/i.test(line);
-      let isFix = /^(fix|bug|repair|patch)\b/i.test(line);
+      const entryType = String(entry.message || "").match(/^([a-zA-Z]+)(?:\([^)]*\))?\s*(?::|\s+-)/)?.[1]?.toLowerCase() || "";
+      const isTweak = /^(internal|docs?|documentation|test|refactor|chore|style)\b/i.test(line);
+      const explicitFeat = /^(feat|feature|add)\b/i.test(line);
+      const explicitFix = /^(fix|bug|repair|patch|security)\b/i.test(line);
+      let isFeat = explicitFeat || (!explicitFix && !isTweak && ["feat", "feature"].includes(entryType));
+      let isFix = explicitFix || (!explicitFeat && !isTweak && ["fix", "security"].includes(entryType));
 
       while (/^(feat|feature|enhancement|enhance|add|fix|bug|repair|patch)\s*[:-]\s*/i.test(line)) {
         if (/^(feat|feature|enhancement|enhance|add)\b/i.test(line)) isFeat = true;
@@ -39,34 +43,42 @@ export function simplifyEntries(entries = []) {
         line = line.replace(/^(feat|feature|enhancement|enhance|add|fix|bug|repair|patch)\s*[:-]\s*/i, "").trim();
       }
 
+      line = line.replace(/^(docs?|documentation|test|refactor|chore|style|perf|performance)\s*[:-]\s*/i, "").trim();
+
       if (!line) continue;
       line = line.charAt(0).toUpperCase() + line.slice(1);
 
       if (isFeat) {
-        features.push(line);
+        newFeatures.push(line);
       } else if (isFix) {
-        fixes.push(line);
+        majorBugFixes.push(line);
       } else {
-        other.push(line);
+        tweaks.push(line);
       }
     }
   }
 
   // Deduplicate and simplify
   const dedup = (arr) => Array.from(new Set(arr.map((s) => s.trim()))).filter(Boolean);
-  const cleanFeatures = dedup(features);
-  const cleanFixes = dedup(fixes);
-  const cleanOther = dedup(other).filter((o) => !cleanFeatures.includes(o) && !cleanFixes.includes(o));
+  const cleanFeatures = dedup(newFeatures);
+  const cleanFixes = dedup(majorBugFixes).filter((item) => !cleanFeatures.includes(item));
+  const cleanTweaks = dedup(tweaks).filter((item) => !cleanFeatures.includes(item) && !cleanFixes.includes(item));
+
+  return { newFeatures: cleanFeatures, majorBugFixes: cleanFixes, tweaks: cleanTweaks };
+}
+
+export function simplifyEntries(entries = []) {
+  const { newFeatures, majorBugFixes, tweaks } = categorizeEntries(entries);
 
   const result = [];
-  if (cleanFeatures.length) {
-    result.push(...cleanFeatures.map((f) => `Feature: ${f}`));
+  if (newFeatures.length) {
+    result.push(...newFeatures.map((item) => `Feature: ${item}`));
   }
-  if (cleanFixes.length) {
-    result.push(...cleanFixes.map((f) => `Fix: ${f}`));
+  if (majorBugFixes.length) {
+    result.push(...majorBugFixes.map((item) => `Fix: ${item}`));
   }
-  if (cleanOther.length && result.length === 0) {
-    result.push(...cleanOther);
+  if (tweaks.length) {
+    result.push(...tweaks.map((item) => `Tweak: ${item}`));
   }
 
   return result.length ? result : ["Consolidated updates and improvements from develop"];
@@ -103,6 +115,7 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
   const alphaVersion5Digit = `${alpha.baseVersion || mainVersion}.${nextAlphaBuild}.0`;
   const alphaVersionShort = `${alpha.baseVersion || mainVersion}.${nextAlphaBuild}`;
 
+  const sections = categorizeEntries(develop.entries);
   const simplifiedDetails = simplifyEntries(develop.entries);
   const mainMessage = develop.entries[0]?.message || "Consolidated develop updates";
 
@@ -115,6 +128,7 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
     message: mainMessage,
     author: sourceAuthor,
     details: simplifiedDetails,
+    sections,
   };
 
   alpha.build = nextAlphaBuild;

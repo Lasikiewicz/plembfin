@@ -38,7 +38,20 @@ export function generateChangelogMarkdown() {
     lines.push("");
     lines.push(entry.message || "Release update");
     lines.push("");
-    if (Array.isArray(entry.details) && entry.details.length) {
+    const sections = entry.sections && typeof entry.sections === "object" ? entry.sections : null;
+    const sectionGroups = sections ? [
+      ["New Features", sections.newFeatures],
+      ["Major Bug Fixes", sections.majorBugFixes],
+      ["Tweaks", sections.tweaks],
+    ] : [];
+    if (sectionGroups.some(([, details]) => Array.isArray(details) && details.length)) {
+      for (const [heading, details] of sectionGroups) {
+        if (!Array.isArray(details) || !details.length) continue;
+        lines.push(`### ${heading}`, "");
+        for (const detail of details) lines.push(`- ${detail}`);
+        lines.push("");
+      }
+    } else if (Array.isArray(entry.details) && entry.details.length) {
       for (const detail of entry.details) lines.push(`- ${detail}`);
       lines.push("");
     }

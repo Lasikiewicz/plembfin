@@ -7017,6 +7017,10 @@ html.light-mode .changelog-tag-current {
   line-height: 1.5;
 }
 
+.changelog-detail-groups { display: grid; gap: var(--space-3); }
+.changelog-detail-group { display: grid; gap: var(--space-2); }
+.changelog-detail-group h5 { margin: 0; color: var(--text); font-size: 0.78rem; font-weight: 700; }
+
 .help-doc-body ol,
 .credential-guide ul {
   display: grid;

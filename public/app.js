@@ -543,8 +543,25 @@ async function renderChangelog(force = false) {
       return;
     }
 
-    const renderEntry = (entry) => {
+    const renderChangelogDetails = (entry) => {
+      const sections = entry.sections && typeof entry.sections === "object" ? [
+        ["New Features", entry.sections.newFeatures],
+        ["Major Bug Fixes", entry.sections.majorBugFixes],
+        ["Tweaks", entry.sections.tweaks],
+      ] : [];
+      const populated = sections.filter(([, details]) => Array.isArray(details) && details.filter(Boolean).length);
+      if (populated.length) {
+        return `<div class="changelog-detail-groups">${populated.map(([heading, details]) => `
+          <section class="changelog-detail-group">
+            <h5>${heading}</h5>
+            <ul>${details.filter(Boolean).map((detail) => `<li>${escapeHtml(detail)}</li>`).join("")}</ul>
+          </section>`).join("")}</div>`;
+      }
       const details = Array.isArray(entry.details) ? entry.details.filter(Boolean) : [];
+      return details.length ? `<ul>${details.map((detail) => `<li>${escapeHtml(detail)}</li>`).join("")}</ul>` : "";
+    };
+
+    const renderEntry = (entry) => {
       const isCurrent = current && entry.version === current;
       const isNewer = current && compareChangelogVersions(entry.version, current) > 0;
       const tag = isNewer
@@ -560,13 +577,12 @@ async function renderChangelog(force = false) {
             <time>${escapeHtml(formatListDate(entry.date) || entry.date || "")}</time>
           </div>
           <p>${escapeHtml(entry.message || "Release update")}</p>
-          ${details.length ? `<ul>${details.map((detail) => `<li>${escapeHtml(detail)}</li>`).join("")}</ul>` : ""}
+          ${renderChangelogDetails(entry)}
         </article>
       `;
     };
 
     const renderDevelopBuildEntry = (entry, { pending = false } = {}) => {
-      const details = Array.isArray(entry.details) ? entry.details.filter(Boolean) : [];
       const isCurrent = !pending && Number(entry.build) === Number(data.developBuild?.build);
       const tag = pending
         ? `<span class="changelog-tag changelog-tag-new">Not pulled yet</span>`
@@ -581,13 +597,12 @@ async function renderChangelog(force = false) {
             <time>${escapeHtml(formatListDate(entry.date) || entry.date || "")}</time>
           </div>
           <p>${escapeHtml(entry.message || "Develop build update")}</p>
-          ${details.length ? `<ul>${details.map((detail) => `<li>${escapeHtml(detail)}</li>`).join("")}</ul>` : ""}
+          ${renderChangelogDetails(entry)}
         </article>
       `;
     };
 
     const renderAlphaBuildEntry = (entry, { pending = false } = {}) => {
-      const details = Array.isArray(entry.details) ? entry.details.filter(Boolean) : [];
       const isCurrent = !pending && Number(entry.build) === Number(data.alphaBuild?.build) && data.channel === "alpha";
       const tag = pending
         ? `<span class="changelog-tag changelog-tag-new">Not pulled yet</span>`
@@ -602,7 +617,7 @@ async function renderChangelog(force = false) {
             <time>${escapeHtml(formatListDate(entry.date) || entry.date || "")}</time>
           </div>
           <p>${escapeHtml(entry.message || "Alpha build update")}</p>
-          ${details.length ? `<ul>${details.map((detail) => `<li>${escapeHtml(detail)}</li>`).join("")}</ul>` : ""}
+          ${renderChangelogDetails(entry)}
         </article>
       `;
     };
