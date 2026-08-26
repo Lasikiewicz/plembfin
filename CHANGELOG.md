@@ -4,6 +4,43 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v0.11.2 - 26 August 2026
+
+Fix - Remove broken bio media layout
+
+- Merge same-episode history records across apps into one dashboard card and show every contributing source.
+- Collapse Plex aliases to one app badge and refresh cached dashboard assets.
+- Keep Plembfin-marked watches distinct from Plex in dashboard badges.
+- Use transparent trimmed Plembfin app icons with a white-P dark variant.
+- Use the white Plembfin mark in the 512px and maskable app icons, with cache-busted manifest URLs.
+- Replace the legacy dark badge artwork with the trimmed white Plembfin mark and refresh its browser cache key.
+- Use cropped dark-P and white-P badge assets for light and dark themes.
+- Match episode watch badges to the dashboard's aggregated app sources.
+- Keep Plembfin visible only for standalone manual watch records.
+- Refine onboarding plan with pristine account claiming, concurrent background import coordination, and push sync guardrails.
+- add one-time administrator claim and a resumable guided setup flow for pristine installs
+- add safe background library imports, setup status UI, and managed connection recovery
+- keep movie pages responsive across large multi-tab batches and preserve legacy unwatched links
+- support browser-native middle-click navigation from the sidebar
+- refresh watched dates and unwatch actions immediately after successful changes
+- clarify Trakt import progress and settle terminal partial or skipped dispatches
+- stop tracking the local test directory and add it to gitignore
+- Added a three-dot overflow button on hover for every poster card outside the media detail pages, offering Edit watch date, Fix match, and Mark unwatched
+- Marking an item unwatched from the grid now dims the card with a Removing animation and removes it in place instead of reloading the whole page and jumping back to the top
+- Fixing a match from the grid menu now updates the card in place instead of opening the media detail page
+- Live updates from Trakt, other devices, or background syncs now refresh the Movies and History grids in place instead of resetting them to the top
+- Fixed posters that could get stuck on their loading placeholder if their card scrolled into view after the page's data had already loaded
+- Movies page data now always bypasses the browser cache so a mutation is reflected immediately instead of for up to five minutes
+- Failed or skipped sync destinations in the Sync Activity list can now be retried individually
+- Unwatch detection during scheduled sync now tracks when Plembfin last learned about a watch record instead of relying on the media's reported watched date, so newly received watches are not missed by the safety net
+- Documentation updated for the new poster overflow menu, in-place grid refresh behavior, sync activity retry, and the Plex WebSocket metadata merge behind unwatch detection
+- Group Backblaze bucket and application-key inputs beside their matching setup instructions, with responsive stacking on narrow screens.
+- Document the eight-stage onboarding flow, including Trakt-first imports, webhook setup, encrypted backups, and inline Backblaze fields.
+- Show New Features, Major Bug Fixes, and Tweaks as distinct sections in the app and generated changelog.
+- Preserve maintenance and documentation notes during branch promotion instead of dropping them when features or fixes are present.
+- Remove the Bio Layout appearance option and always use the stable standard media detail layout.
+- Expand media backdrops to cover the full viewport without fading completely away at the edges.
+
 ## v0.11.1 - 24 August 2026
 
 Docs - Make technical references current-state
