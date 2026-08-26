@@ -347,6 +347,7 @@ When adding frontend code, place it in the most specific existing module that ow
 | Shared `state` and `elements` objects | `modules/state.js` |
 | App event wiring | `modules/app-events.js` |
 | Media-detail modal click delegation (cast/trailers/poster edit/watch actions/card navigation) | `modules/media-detail-events.js` |
+| Poster-card three-dot overflow menu (Mark Unwatched / Edit watch date / Fix match) outside the media detail pages | `modules/poster-menu.js` |
 | App startup, routing, `bindElements` | `app.js` |
 
 ### Creating a new module

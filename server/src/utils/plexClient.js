@@ -530,6 +530,18 @@ export async function fetchPlexMetadataItem(config, ratingKey, { lane = "sync" }
   return body?.MediaContainer?.Metadata?.[0] || null;
 }
 
+// Adaptive history rows contain the current user watch state but can omit the
+// provider Guid collection. Keep those state fields authoritative while
+// retaining the richer identity returned by /library/metadata/{ratingKey}.
+export function mergePlexMetadataItem(authoritative = null, stateOverride = null) {
+  if (!authoritative) return stateOverride || null;
+  if (!stateOverride) return authoritative;
+  const merged = { ...authoritative, ...stateOverride };
+  if (Array.isArray(authoritative.Guid) && authoritative.Guid.length) merged.Guid = authoritative.Guid;
+  if (authoritative.guid) merged.guid = authoritative.guid;
+  return merged;
+}
+
 // Expands a show/season notification into the episodes whose user state Plex changed.
 // Plex emits container timeline entries for bulk "mark watched/unwatched" actions, so
 // listening only for episode entries leaves those actions invisible until fallback polling.

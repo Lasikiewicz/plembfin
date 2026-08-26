@@ -1,7 +1,7 @@
 import { buildAuthHeaders, buildNowPlayingUrl } from "./auth.js";
 import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute, platformBadge, sourceClass, sourceBadgeHtml, computeProgress, formatDate, formatPlaybackClock, showName } from "./utils.js?v=20260824h";
-import { hydratePosters, posterMarkup } from "./images.js";
+import { hydratePosters, posterMarkup } from "./images.js?v=20260826b";
 
 const NOW_PLAYING_POLL_MS = 10000;
 

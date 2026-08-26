@@ -258,7 +258,14 @@ Implementation lives in `server/src/scheduled.js`.
      recently-tracked, platform-confirmed-watched records per minute against Plex's current
      played state (a single cheap lookup per item), repairing an unwatch that the
      notification WebSocket missed - Plex's webhook cannot report unwatch at all, so this
-     poll is a primary detection path, not just a backstop. `checkEmbyUnwatchedStatus` and
+     poll is a primary detection path, not just a backstop. "Recently-tracked" here means
+     Plembfin last *learned about* the record (`listRecentlyUpdatedTrackedWatchRows`,
+     ordered by `updated_at`), not the media's own reported watched date - Plex can
+     legitimately report an old watch date (and sparse notifications have historically
+     fallen back to release dates), which otherwise made a newly inserted watched item
+     invisible to this safety net right after it was added. `checkPlexUnwatchedFast`
+     (`scheduler.js`, a smaller batch of 10 checked every minute alongside the WebSocket
+     listener) uses the same helper. `checkEmbyUnwatchedStatus` and
      `checkJellyfinUnwatchedStatus` do the same for a smaller batch (5 records, checked
      sequentially rather than concurrently) every 5 minutes instead of every 1, since their
      webhooks natively report unwatch and these polls only ever backstop a missed or

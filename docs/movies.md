@@ -11,7 +11,8 @@ the movie detail page ([media-detail.md](media-detail.md)).
 | `public/modules/explorer.js` | All Movies-page rendering and data loading (`renderMovieExplorer`, `loadExplorerMovies`, `renderMovieCard`, sort/search/paging helpers) |
 | `server/src/index.js` | `handleMovies` - `GET /api/movies` |
 | `server/src/utils/dataRepo.js` | `queryMovies` + `getCachedMovies` - the derived movie list |
-| `public/modules/images.js` | Poster markup + hydration for the grid |
+| `public/modules/images.js` | Poster markup + hydration for the grid, `posterOverflowMenu` (the three-dot button) |
+| `public/modules/poster-menu.js` | Builds/positions the three-dot dropdown (Edit watch date / Fix match / Mark unwatched) on demand |
 | `public/app.js` | Route `/movies` → explorer view in `movies` mode |
 
 ## Data model
@@ -53,6 +54,25 @@ rewatch gets recorded instead of dropped as a duplicate webhook echo).
 - **Sync pills** - each card can show sync/availability status derived from the watch
   record's `sync_dispatch_telemetry` (`renderMediaSyncPills` and friends in
   `public/modules/sync.js`).
+- **Poster overflow menu** - hovering a card reveals a three-dot button
+  (`posterOverflowMenu` in `images.js`); clicking it builds and positions a dropdown
+  (`poster-menu.js`, portaled to `<body>` so it isn't clipped by the card's own
+  `overflow: hidden`) offering Edit watch date, Fix match, and Mark unwatched. These
+  reuse the same delegated handlers the movie detail page uses
+  (`media-detail-events.js`), but every button carries `data-grid-origin="1"` so those
+  handlers patch the card and the in-memory list in place and refresh the current view
+  instead of opening the detail page. A confirmed unwatch dims the card, then animates
+  it out and removes it from `state.moviesRaw` without a full page reload.
+- **Live-update refresh** - a live-update poll's history-version change (a watch or
+  unwatch on Trakt, another device, or a background sync) refreshes the grid via
+  `refreshMovieExplorerInPlace()` (`explorer.js`) rather than
+  `resetMovieExplorer()` + `renderExplorer()`: it refetches the currently-loaded pages
+  and swaps `state.moviesRaw` directly without ever emptying it first, so the grid
+  never collapses to a "Loading movies…" placeholder and the scroll position is
+  preserved. `loadExplorerMovies()`'s own pagination fetch also always bypasses the
+  browser's HTTP cache (`cache: "reload"`) for the same reason - `/api/movies` is
+  served with `stale-while-revalidate`, which could otherwise hand back a
+  pre-mutation response for minutes after a change.
 
 ## Related endpoints
 

@@ -918,6 +918,7 @@ const insertSyncHistoryStmt = db.prepare(
    VALUES (@timestamp, @media_type, @title, @source, @status, @details, @action, @target_states, @raw_payload_debug, @created_at)`,
 );
 const selectSyncHistoryPageStmt = db.prepare("SELECT * FROM sync_history ORDER BY timestamp DESC, id DESC LIMIT ? OFFSET ?");
+const selectSyncHistoryByIdStmt = db.prepare("SELECT * FROM sync_history WHERE id = ?");
 const countSyncHistoryStmt = db.prepare("SELECT COUNT(*) AS count FROM sync_history");
 const syncHistorySearchExpression = `LOWER(
   COALESCE(media_type, '') || ' ' ||
@@ -999,6 +1000,11 @@ export async function getSyncHistoryPage({ limit = 50, offset = 0, search = "" }
     : selectSyncHistoryPageStmt.all(safeLimit, safeOffset)
   ).map(syncHistoryRow);
   return { history, total, limit: safeLimit, offset: safeOffset };
+}
+
+export async function getSyncHistoryById(id) {
+  const row = selectSyncHistoryByIdStmt.get(id);
+  return row ? syncHistoryRow(row) : null;
 }
 
 export async function getSyncHistoryCount() {

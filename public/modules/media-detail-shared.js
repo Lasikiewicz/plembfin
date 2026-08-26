@@ -1,7 +1,7 @@
 import { state } from "./state.js";
 import { buildAuthHeaders } from "./auth.js";
 import { escapeHtml, escapeAttribute, slug, formatTmdbDate, tvShowTmdbHref, movieTmdbHref } from "./utils.js";
-import { tmdbImage, tmdbPoster, tmdbProfile } from "./images.js";
+import { tmdbImage, tmdbPoster, tmdbProfile } from "./images.js?v=20260826b";
 import { fetchTmdbDetails } from "./tmdb.js?v=20260823";
 
 function authHeaders() {

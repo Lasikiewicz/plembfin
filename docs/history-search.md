@@ -26,7 +26,11 @@ Behavior:
   (`plembfin:historyFilter`), search box (server-side `?search=`), adjustable poster
   width (`applyHistoryPosterWidth`).
 - **Row actions** - each entry links to its detail page; sync pills, edit-date, and
-  debug modal are available per row (see [media-detail.md](media-detail.md)).
+  debug modal are available per row (see [media-detail.md](media-detail.md)). Grid and
+  page card views also get the poster three-dot overflow menu (Edit watch date / Fix
+  match / Mark unwatched) described in [movies.md](movies.md#frontend-behavior); a
+  history-page action refreshes the list in place via `refreshHistoryViewInPlace()`
+  (`explorer.js`) rather than a full reset, the same reasoning as the Movies grid.
 
 ## Clean Duplicate History Rows
 

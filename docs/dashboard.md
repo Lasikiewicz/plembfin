@@ -92,7 +92,18 @@ Each row shows the title, media type, source, action (Marked Watched, Marked Unw
 or Resume Progress), timestamp, a "From <source> -> To <targets>" route line naming the
 app that reported the play and the apps it was dispatched to, one result per target as
 that app's icon followed by its status (hover for the failure detail), and the overall
-status. Failed rows carry a red edge and pending ones a yellow edge.
+status. Event details occupy the main column while target results, overall status, and
+row actions are grouped in a separate outcome column; that outcome section stacks below
+the event details at narrower widths. Pending rows use "Awaiting dispatch" and "Waiting
+for dispatch" rather than presenting missing target results as an error. Failed rows
+carry a red edge and pending ones a yellow edge.
+
+Partial, failed, and skipped rows with an actionable destination include a Retry
+button. `POST /api/sync-history/retry` reconstructs the media identity from the
+activity record (including a fresh Plex metadata lookup when a native rating key is
+available) and retries only the failed or skipped destinations. The result is written
+as a new activity row linked to the original record, preserving the audit trail and
+avoiding duplicate writes to destinations that already succeeded.
 
 Sync Activity resolves platform names itself (`activityPlatform`) rather than through
 `normalizePlatformSource`, which knows only the three media servers and folds anything

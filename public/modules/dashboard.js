@@ -1,7 +1,7 @@
 import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, sourceBadgeHtml, formatDate, resolveEpisodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress } from "./utils.js?v=20260824h";
-import { posterMarkup, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, tmdbPoster } from "./images.js";
+import { posterMarkup, posterOverflowMenu, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, tmdbPoster } from "./images.js?v=20260826b";
 import { renderDashboardChecklist } from "./onboarding.js";
 
 const PART_WATCHED_DASHBOARD_LIMIT = 30;
@@ -281,6 +281,7 @@ export function renderHistoryCard(entry) {
       <a class="history-mini-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(showTitle || "")}">
         <span class="history-mini-card-poster-wrapper">
           ${posterMarkup(entry, "history-mini-poster")}
+          ${posterOverflowMenu(entry, { showTitle, label: showTitle })}
         </span>
         <div class="history-mini-card-details">
           <b class="history-mini-card-title" title="${escapeAttribute(showTitle)}">${escapeHtml(showTitle)}</b>
@@ -295,6 +296,7 @@ export function renderHistoryCard(entry) {
       <a class="history-mini-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="movie" data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(entry.title || "")}">
         <span class="history-mini-card-poster-wrapper">
           ${posterMarkup(entry, "history-mini-poster")}
+          ${posterOverflowMenu(entry)}
         </span>
         <div class="history-mini-card-details">
           <b class="history-mini-card-title" title="${escapeAttribute(entry.title)}">${escapeHtml(entry.title)}</b>
@@ -343,6 +345,7 @@ function renderDashboardHistoryPageCard(entry) {
     <a class="history-page-card dashboard-history-page-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="${isEpisode ? "tv" : "movie"}" data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(displayTitle || "")}">
       <div class="history-card-poster-wrapper">
         ${posterMarkup(entry, "history-page-poster")}
+        ${posterOverflowMenu(entry, isEpisode ? { showTitle: displayTitle, label: displayTitle } : {})}
       </div>
       <div class="history-card-details">
         <div class="history-card-header">

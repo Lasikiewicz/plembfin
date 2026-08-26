@@ -207,6 +207,58 @@ export function posterMarkup(item = {}, className = "media-poster") {
   return `<img class="${className} poster-img"${posterId} src="${escapeAttribute(url)}" alt="${escapeAttribute(label)} poster" loading="${loading}" decoding="async" fetchpriority="${item.eager_poster ? "high" : "auto"}" referrerpolicy="no-referrer" />`;
 }
 
+// Three-dot overflow button rendered on hover over a poster card outside the
+// media detail pages, offering Mark Unwatched / Edit watch date / Fix match.
+// It carries the item's identity as data-poster-menu-* attributes only - the
+// dropdown itself is built and positioned on demand by poster-menu.js and
+// portaled to <body>, because several poster wrappers this renders inside
+// (e.g. `.history-mini-card-poster-wrapper`) use `overflow: hidden` and are
+// far narrower than the menu. The dropdown's buttons reuse the same classes
+// the media detail modal's delegated handlers already act on
+// (`.media-edit-date-btn`, `.media-fix-match-btn`, `[data-unwatch-id]` in
+// media-detail-events.js / watch-action.js), so no separate action-wiring is
+// needed - those handlers already fall back to `document.body` for their
+// container and refresh the active view afterward.
+export function posterOverflowMenu(item = {}, options = {}) {
+  const id = item.id;
+  if (!id) return "";
+  const isEpisode = item.media_type === "episode";
+  const mediaType = options.mediaType || (isEpisode ? "tv" : "movie");
+  const kind = options.kind || (isEpisode ? "episode" : "movie");
+  const title = options.title || item.title || "";
+  const label = options.label || (isEpisode ? (item.show_title || title) : title);
+  const showTitle = options.showTitle || (isEpisode ? (item.show_title || "") : "");
+  // Deliberately no movie tmdb id attribute here: confirmAndMarkUnwatched()
+  // in watch-action.js treats a present unwatch-tmdb-id as proof the movie's
+  // detail page was already open and re-opens it after unwatching. These
+  // menus live on grid/list cards where no detail page is open, so omitting
+  // it keeps that action on the "just refresh the current view" branch.
+  //
+  // data-poster-menu-grid marks the unwatch action as grid-triggered so
+  // confirmAndMarkUnwatched can skip its "was a detail modal open?" checks
+  // outright, rather than trust state flags that can go stale (e.g. after a
+  // browser back-navigation away from a detail page that didn't fully reset
+  // them) and misroute a grid unwatch into a no-op "reopen the modal" branch.
+  const showTitleAttr = showTitle ? ` data-poster-menu-show-title="${escapeAttribute(showTitle)}"` : "";
+  return `
+    <button
+      type="button"
+      class="poster-overflow-btn"
+      aria-haspopup="true"
+      aria-expanded="false"
+      aria-label="More options"
+      title="More options"
+      data-poster-menu-id="${escapeAttribute(id)}"
+      data-poster-menu-watched-at="${escapeAttribute(item.watched_at || "")}"
+      data-poster-menu-title="${escapeAttribute(title)}"
+      data-poster-menu-media-type="${escapeAttribute(mediaType)}"
+      data-poster-menu-kind="${escapeAttribute(kind)}"
+      data-poster-menu-label="${escapeAttribute(label)}"
+      data-poster-menu-grid="1"${showTitleAttr}
+    >&#8942;</button>
+  `;
+}
+
 export function posterFallbackElement(className = "media-poster", posterId = "") {
   const fallback = document.createElement("span");
   fallback.className = `${className} poster-fallback`.trim();

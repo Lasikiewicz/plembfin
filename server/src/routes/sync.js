@@ -10,7 +10,7 @@ import { createLoopStore } from "../utils/loopStore.js";
 import { runWithConcurrency } from "../utils/concurrency.js";
 import { listActiveSessions, deleteActiveSession, upsertActiveSession } from "../utils/activeSessions.js";
 import { hydrateCachedSession, loadLiveTrackingCache } from "../utils/liveSessions.js";
-import { activeSyncOperation, appendSyncHistory, clearSyncOperation, loadMediaConfig, mergeIncomingConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistoryPage, loadRuntimeState, setRuntimeState, appendRuntimeLog, SYNC_OPERATION_FORCE, SYNC_OPERATION_SCHEDULED } from "../utils/configStore.js";
+import { activeSyncOperation, appendSyncHistory, clearSyncOperation, loadMediaConfig, mergeIncomingConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistoryById, getSyncHistoryPage, loadRuntimeState, setRuntimeState, appendRuntimeLog, SYNC_OPERATION_FORCE, SYNC_OPERATION_SCHEDULED } from "../utils/configStore.js";
 import { forceSyncStopAction } from "../utils/forceSyncControl.js";
 import { getSyncPlanActionsPage, getSyncPlanSummary, confirmSyncPlan } from "../utils/syncPlans.js";
 import {
@@ -26,7 +26,7 @@ import { findPlexItem, markPlexPlayed, setPlexProgress, markPlexUnplayedByRating
 import { probePlexNotificationSocket } from "../utils/plexNotificationListener.js";
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes, listEmbyLibraries } from "../utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes, listJellyfinLibraries } from "../utils/jellyfinClient.js";
-import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook } from "../utils/parsers.js";
+import { buildPlexMediaFromMetadata, normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook } from "../utils/parsers.js";
 import { completeDispatchTracking, finishDispatchTracking, getTargetsForSource, isRecentOutboundPlayedEcho, isRecentOutboundPlayedFlagEcho, isRecentOutboundProgressEcho, isRecentOutboundUnplayedFlagEcho, recordOutboundPlayedMarks, reserveDispatchBatch, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
 import { canReceiveState } from "../utils/syncRoles.js";
 import {
@@ -813,6 +813,83 @@ export async function handleSyncHistory(req, res) {
     },
     ...(traktDispatchProgress.pending > 0 ? { traktDispatchProgress } : {}),
   }, 200, { "Cache-Control": "private, max-age=15, stale-while-revalidate=60", Vary: "Authorization" });
+}
+
+function retryableSyncActivityTargets(entry = {}) {
+  return [...new Set((entry.targetStates || [])
+    .filter((target) => ["error", "failed", "skipped", "not_found"].includes(String(target.status || "").toLowerCase()))
+    .map((target) => String(target.target || "").trim().toLowerCase())
+    .filter((target) => ["plex", "emby", "jellyfin", "trakt"].includes(target)))];
+}
+
+async function mediaFromSyncActivity(entry, config) {
+  const debug = entry.rawPayloadDebug || {};
+  const recordId = debug.watchRecordId || debug.watch_record_id;
+  const record = recordId ? await getWatchRecordById(recordId) : null;
+  if (record) return mediaFromWatchRecord(record);
+
+  const ratingKey = debug.ratingKey || debug.rating_key;
+  if (String(entry.source || "").toLowerCase().startsWith("plex") && ratingKey && config?.plex) {
+    const metadata = await fetchPlexMetadataItem(config.plex, ratingKey).catch(() => null);
+    if (metadata) return buildPlexMediaFromMetadata(metadata, { phase: String(entry.action || "watched").toLowerCase().startsWith("un") ? "unplayed" : "completed" });
+  }
+
+  const ids = debug.ids || debug.media?.ids || {};
+  return {
+    title: entry.title,
+    type: String(entry.mediaType || "").toLowerCase(),
+    source: entry.source || "manual",
+    ids: {
+      imdb: ids.imdb || ids.imdb_id || undefined,
+      tmdb: ids.tmdb || ids.tmdb_id || undefined,
+      tvdb: ids.tvdb || ids.tvdb_id || undefined,
+    },
+    season: debug.season ?? debug.media?.season,
+    episode: debug.episode ?? debug.media?.episode,
+    isValid: Boolean(entry.title && ["movie", "episode"].includes(String(entry.mediaType || "").toLowerCase())),
+  };
+}
+
+export async function handleRetrySyncHistory(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const body = await readJson(req);
+  if (body.id == null || String(body.id).trim() === "") return sendJson(res, { error: "Missing required field: id" }, 400);
+  const entry = await getSyncHistoryById(body.id);
+  if (!entry) return sendJson(res, { error: "Sync activity entry not found" }, 404);
+  const targets = retryableSyncActivityTargets(entry);
+  if (!targets.length) return sendJson(res, { error: "This sync activity entry has no failed or skipped targets to retry" }, 409);
+
+  const config = await loadMediaConfig();
+  const media = await mediaFromSyncActivity(entry, config);
+  if (!media?.isValid) return sendJson(res, { error: "The media identity for this activity entry could not be resolved" }, 422);
+  const existing = await findWatchedByAnyMediaKey(media).catch(() => null);
+  if (existing?.watched_at) media.watched_at = existing.watched_at;
+  media.syncTargets = targets;
+
+  const action = String(entry.action || "watched").toLowerCase();
+  const loopStore = createLoopStore();
+  let summary;
+  try {
+    summary = action === "unwatched" || action === "unplayed"
+      ? await syncMediaUnplayedPlaystate(media, config, loopStore, { lane: "interactive" })
+      : await syncMediaPlaystate(media, config, loopStore, { lane: "interactive" });
+  } catch (error) {
+    summary = { skipped: false, status: "error", details: `Retry failed: ${error.message || String(error)}`, targetStates: [] };
+  }
+  await appendSyncHistory({
+    mediaType: media.type,
+    title: media.title,
+    source: media.source,
+    status: summary.status,
+    details: `Retry of activity ${entry.id}: ${summary.details || "Sync retry completed"}`,
+    action,
+    targetStates: summary.targetStates || [],
+    rawPayloadDebug: { ...entry.rawPayloadDebug, retryOfActivityId: entry.id, ids: media.ids || {} },
+  });
+  return sendJson(res, { ok: true, status: summary.status, details: summary.details, targetStates: summary.targetStates || [] });
 }
 
 // Explicit detail-page repair. This is intentionally separate from the

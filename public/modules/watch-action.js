@@ -2,8 +2,8 @@ import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeCode, seasonLabel, formatSeasonTitle, formatTmdbDate, showEpisodeKey } from "./utils.js";
 import { buildAuthHeaders } from "./auth.js";
 import { isWatchedHistoryAction } from "./sync.js";
-import { mergeShowDetail } from "./explorer.js";
-import { dedupeMediaRecords, resetPartWatchedView, renderPartWatched } from "./dashboard.js?v=20260824h";
+import { mergeShowDetail } from "./explorer.js?v=20260826d";
+import { dedupeMediaRecords, resetPartWatchedView, renderPartWatched } from "./dashboard.js?v=20260826b";
 import { tvSeasonAvailability } from "./media-detail-shared.js";
 import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js";
 
@@ -925,6 +925,46 @@ export async function applyWatchDateChoice(choice) {
 
 // ── Confirm dialogs ────────────────────────────────────────────────────────
 
+// Poster-grid cards (dashboard/explorer) aren't part of the immersive show
+// modal's "Removing…" label swap above, and the grid they live in doesn't
+// re-render until the history refresh round-trip completes. Toggling this
+// class gives an immediate visual response the moment the unwatch is
+// confirmed, on every card for that id across every currently-mounted view.
+function setGridCardsRemoving(ids, removing) {
+  for (const id of ids) {
+    for (const card of document.querySelectorAll(`[data-history-id="${CSS.escape(String(id))}"]`)) {
+      card.classList.toggle("card-removing", removing);
+    }
+  }
+}
+
+// Animates out and removes the poster card(s) for these ids in place, and
+// keeps state.moviesRaw/state.historyViewRaw in sync by hand so no full
+// explorer refetch is needed. Used instead of the fallback
+// closeMediaDetail()+renderActiveView() path below, which rebuilds the whole
+// explorer grid from scratch and resets scroll position - jarring when the
+// action was a poster-grid card unwatch rather than a page-level navigation.
+// Returns false (doing nothing) when no matching card is mounted, so the
+// caller can fall back to that full re-render for any other trigger site.
+function removeGridCards(ids) {
+  const idSet = new Set(ids.map(String));
+  let removedAny = false;
+  for (const id of ids) {
+    for (const card of document.querySelectorAll(`[data-history-id="${CSS.escape(String(id))}"]`)) {
+      if (!card.matches(".movie-card, .history-grid-card, .history-mini-card, .history-page-card")) continue;
+      removedAny = true;
+      card.classList.remove("card-removing");
+      card.classList.add("card-removed");
+      window.setTimeout(() => card.remove(), 260);
+    }
+  }
+  if (removedAny) {
+    if (Array.isArray(state.moviesRaw)) state.moviesRaw = state.moviesRaw.filter((m) => !idSet.has(String(m?.id)));
+    if (Array.isArray(state.historyViewRaw)) state.historyViewRaw = state.historyViewRaw.filter((h) => !idSet.has(String(h?.id)));
+  }
+  return removedAny;
+}
+
 export async function confirmAndMarkUnwatched(button) {
   const idsJson = button.dataset.unwatchIds;
   const ids = idsJson ? JSON.parse(idsJson) : button.dataset.unwatchId ? [button.dataset.unwatchId] : [];
@@ -933,6 +973,13 @@ export async function confirmAndMarkUnwatched(button) {
   const label = button.dataset.unwatchLabel || "this item";
   const showTitle = button.dataset.showTitle || "";
   const bulk = ids.length > 1;
+  // Set on every poster-grid overflow menu's unwatch item (posterOverflowMenu
+  // in images.js). Take it at face value and skip the "was a detail modal
+  // open?" checks below entirely, rather than trust state flags that can go
+  // stale - e.g. after a browser back-navigation away from a detail page
+  // that didn't fully reset them - and misroute a grid unwatch into a no-op
+  // "reopen the modal" branch that never touches the grid.
+  const gridOrigin = button.dataset.gridOrigin === "1";
 
   const confirmed = await _openConfirmDialog({
     title: "Mark unwatched",
@@ -974,7 +1021,8 @@ export async function confirmAndMarkUnwatched(button) {
   // "Removing…" immediately instead of the stale watched count until the
   // request resolves and the page re-renders.
   for (const id of ids) state.savingUnwatchIds.add(id);
-  if ((kind === "episode" || kind === "season" || kind === "show") && state.activeShowModalKey) {
+  setGridCardsRemoving(ids, true);
+  if (!gridOrigin && (kind === "episode" || kind === "season" || kind === "show") && state.activeShowModalKey) {
     _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
   }
 
@@ -992,7 +1040,6 @@ export async function confirmAndMarkUnwatched(button) {
     // immediately instead of leaving the control on "Removing…" while the
     // detail page performs its comparatively expensive metadata refresh.
     button.textContent = "Removed";
-    _clearDerivedUiCaches({ resetExplorer: kind === "movie" });
     _setMessage(
       bulk
         ? `Marked ${result.succeeded ?? ids.length} episode${ids.length === 1 ? "" : "s"} of "${label}" unwatched; pushed unplayed to media apps.${result.failed ? ` ${result.failed} failed.` : ""}`
@@ -1001,7 +1048,8 @@ export async function confirmAndMarkUnwatched(button) {
     );
     const historyRefresh = _loadHistory({ force: true }).catch(() => null);
 
-    if ((kind === "episode" || kind === "season" || kind === "show") && (state.activeShowModalKey || state.activeShowTmdbId || state.activeShowTvdbId)) {
+    if (!gridOrigin && (kind === "episode" || kind === "season" || kind === "show") && (state.activeShowModalKey || state.activeShowTmdbId || state.activeShowTvdbId)) {
+      _clearDerivedUiCaches({ resetExplorer: kind === "movie" });
       await historyRefresh;
       if (showTitle) await refreshShowAfterManualWatch(showTitle).catch(() => null);
       if (state.activeShowModalKey) {
@@ -1011,7 +1059,8 @@ export async function confirmAndMarkUnwatched(button) {
       } else {
         await _openShowImmersiveModalByTvdbId(state.activeShowTvdbId);
       }
-    } else if (movieDetailWasOpen) {
+    } else if (!gridOrigin && movieDetailWasOpen) {
+      _clearDerivedUiCaches({ resetExplorer: kind === "movie" });
       // Stay on the movie's own detail page and re-render it showing the new
       // unwatched status, matching the show/episode/season branch above,
       // instead of closing the modal back to whatever page was behind it.
@@ -1025,16 +1074,34 @@ export async function confirmAndMarkUnwatched(button) {
           _openMovieImmersiveModalByTmdbId(movieTmdbId).catch(() => null);
         });
       }
+    } else if (removeGridCards(ids)) {
+      // A poster-grid card for this id is mounted (dashboard and/or explorer)
+      // - animate it out in place and leave the rest of the page exactly
+      // where the user was, instead of the full closeMediaDetail() +
+      // renderActiveView() rebuild below, which resets scroll position.
+      // Only the pagination cache needs invalidating for a later fresh
+      // explorer visit; state.moviesRaw/historyViewRaw were already kept in
+      // sync by removeGridCards, so nothing needs refetching right now.
+      _clearDerivedUiCaches({ resetExplorer: false });
+      // The live-update poll's own history-version bump for this same
+      // mutation lands ~1s later (see queueLiveHistoryRefresh/
+      // refreshLiveHistoryView in app.js) and would otherwise immediately
+      // undo the in-place removal above with a full reset + refetch that
+      // resets scroll to the top - suppress that one redundant follow-up
+      // since state is already current.
+      state.suppressExplorerLiveResetUntil = Date.now() + 4000;
     } else {
+      _clearDerivedUiCaches({ resetExplorer: kind === "movie" });
       await historyRefresh;
       _closeMediaDetail();
       _renderActiveView();
     }
   } catch (error) {
     for (const id of ids) state.savingUnwatchIds.delete(id);
+    setGridCardsRemoving(ids, false);
     button.disabled = false;
     button.textContent = originalText;
-    if ((kind === "episode" || kind === "season" || kind === "show") && state.activeShowModalKey) {
+    if (!gridOrigin && (kind === "episode" || kind === "season" || kind === "show") && state.activeShowModalKey) {
       _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
     }
     _setMessage(`Mark unwatched failed: ${error.message}`, "error");

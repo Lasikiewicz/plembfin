@@ -1,6 +1,6 @@
 import { HIDE_EPISODE_SPOILERS_KEY, state } from "./state.js";
 import { escapeAttribute, formatDate, showTitleFrom, showName, slug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js";
-import { isCachedStorageImageUrl, proxiedArtworkUrl, rememberPosterLookup } from "./images.js";
+import { isCachedStorageImageUrl, proxiedArtworkUrl, rememberPosterLookup } from "./images.js?v=20260826b";
 import {
   openEditDateDialog,
   openEditShowDateDialog,
@@ -23,9 +23,9 @@ import {
   applyWatchDateChoice,
   confirmAndMarkUnwatched,
   confirmAndDeleteMedia,
-} from "./watch-action.js?v=20260824c";
+} from "./watch-action.js?v=20260826c";
 import { triggerRetrySync, loadSyncJobs, loadSyncHistory, showAvailIssuePopup } from "./sync.js";
-import { renderExplorer, renderHistoryView, resolvedTmdbCache } from "./explorer.js";
+import { renderExplorer, renderHistoryView, resolvedTmdbCache, refreshMovieExplorerInPlace, refreshHistoryViewInPlace } from "./explorer.js?v=20260826d";
 import {
   movieBySlugOrId,
   openShowInlineDetail,
@@ -564,6 +564,13 @@ export function attachMediaDetailEvents() {
   });
 
   document.addEventListener("click", async (event) => {
+    // The poster overflow button (poster-menu.js) sits inside card anchors
+    // like [data-history-id]/.movie-card so it can be positioned over the
+    // poster. Bail out before the card-navigation logic below fires, or
+    // clicking the three dots would navigate to the media page instead of
+    // opening the menu.
+    if (event.target.closest(".poster-overflow-btn")) return;
+
     // Only dropdowns inside a "collapsed" actions bar are real popup menus.
     // When the bar isn't collapsed, its dropdown is forced open so its
     // contents render flattened inline (see syncMediaActionsMenuState) and
@@ -818,6 +825,12 @@ export function attachMediaDetailEvents() {
     if (fixMatchBtn) {
       const container = fixMatchBtn.closest(".immersive-container, .modal-body") || document.body;
       const mediaType = fixMatchBtn.dataset.mediaType;
+      // Set on every poster-grid overflow menu's fix-match item (posterOverflowMenu
+      // in images.js) - no detail modal is open there, so the movie/show render
+      // branches below must not open one; the grid card just needs its cached
+      // identity patched before the in-place refresh at the end picks up the
+      // new poster/metadata.
+      const gridOrigin = fixMatchBtn.dataset.gridOrigin === "1";
       openFixMatchDialog(container, fixMatchBtn.dataset.editId, fixMatchBtn.dataset.title, mediaType, async ({ tmdb_id, tvdb_id, title }) => {
         state.tmdbDetailsCache.clear();
         state.tmdbSeasonCache.clear();
@@ -831,6 +844,19 @@ export function attachMediaDetailEvents() {
           }).then(() => {
             if (inSyncIssues) window.dispatchEvent(new Event("sync-match-report-refresh"));
           });
+        } else if (gridOrigin) {
+          if (mediaType === "movie") {
+            const movie = state.history.find((h) => h.id === fixMatchBtn.dataset.editId);
+            if (movie) {
+              movie.tmdb_id = tmdb_id;
+              movie.poster_url = "";
+              movie.logo_url = "";
+              movie.backdrop_url = "";
+            }
+          } else {
+            const showTitle = fixMatchBtn.dataset.title || title || "";
+            if (showTitle) await refreshShowAfterManualWatch(showTitle).catch(() => null);
+          }
         } else if (mediaType === "movie") {
           const movie = state.history.find((h) => h.id === fixMatchBtn.dataset.editId);
           if (movie) {
@@ -862,6 +888,23 @@ export function attachMediaDetailEvents() {
           }
           if (showTitle) await refreshShowAfterManualWatch(showTitle).catch(() => null);
           await openShowInlineDetail(state.activeShowModalKey, state.activeShowModalSeason, state.activeShowModalEpisode).catch(() => { });
+        }
+
+        if (gridOrigin) {
+          // Same reasoning as removeGridCards()/refreshMovieExplorerInPlace()
+          // for unwatch: refresh the data in place instead of the destructive
+          // resetExplorer()+renderExplorer() below, which empties the grid
+          // before repopulating and resets scroll to the top.
+          clearDerivedUiCaches({ resetExplorer: false });
+          if (state.activeView === "explorer" && !state.mediaDetailInline) {
+            if (state.explorerMode === "shows") renderExplorer();
+            else await refreshMovieExplorerInPlace();
+          } else if (state.activeView === "history") {
+            await refreshHistoryViewInPlace();
+          } else if (state.activeView === "dashboard") {
+            loadHistory({ force: true }).catch(() => null);
+          }
+          return;
         }
 
         // The match response updates the detail view, but the explorer and

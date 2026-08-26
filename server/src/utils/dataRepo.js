@@ -61,6 +61,7 @@ const insertWatchStmt = db.prepare(
 const selectAllHistoryStmt = db.prepare(`SELECT * FROM watch_history ORDER BY watched_at DESC LIMIT ${MAX_HISTORY_LIMIT}`);
 const selectMoviesStmt = db.prepare("SELECT * FROM watch_history WHERE media_type = 'movie'");
 const selectRecentStmt = db.prepare("SELECT * FROM watch_history ORDER BY watched_at DESC LIMIT ?");
+const selectRecentlyUpdatedStmt = db.prepare("SELECT * FROM watch_history ORDER BY updated_at DESC, created_at DESC LIMIT ?");
 const selectByIdStmt = db.prepare("SELECT * FROM watch_history WHERE id = ?");
 const selectByMediaKeyStmt = db.prepare("SELECT * FROM watch_history WHERE media_key = ?");
 const selectEpisodesByShowLowerStmt = db.prepare("SELECT * FROM watch_history WHERE media_type = 'episode' AND show_title_lower = ?");
@@ -2776,6 +2777,21 @@ export async function listRecentTrackedWatchRows({ limit = 100, scanLimit = 400,
   const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
   const safeScanLimit = Math.min(Math.max(Number(scanLimit) || safeLimit * 4, safeLimit), 2000);
   const rows = selectRecentStmt
+    .all(safeScanLimit)
+    .map(rowToWatch)
+    .filter((row) => isWatchedAction(row) && (includeScheduled || isPlembfinTrackedWatchRow(row)));
+  return dedupeHistory(rows).slice(0, safeLimit);
+}
+
+// Unwatch detection must follow when Plembfin last learned about a record, not
+// the media's watched_at value. Plex can legitimately report an old watch date
+// (and sparse notifications have historically fallen back to release dates),
+// which otherwise makes a newly received watched item invisible to the polling
+// safety net immediately after it is inserted.
+export async function listRecentlyUpdatedTrackedWatchRows({ limit = 100, scanLimit = 400, includeScheduled = false } = {}) {
+  const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
+  const safeScanLimit = Math.min(Math.max(Number(scanLimit) || safeLimit * 4, safeLimit), 2000);
+  const rows = selectRecentlyUpdatedStmt
     .all(safeScanLimit)
     .map(rowToWatch)
     .filter((row) => isWatchedAction(row) && (includeScheduled || isPlembfinTrackedWatchRow(row)));

@@ -12,13 +12,13 @@ import {
   movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, platformBadge, sourceClass, sourceBadgeHtml, formatDate,
   computeProgress, sanitizeTitle, episodeTitle, episodeCode,
 } from "./utils.js?v=20260824h";
-import { posterMarkup, hydratePosters, bindPosterImageErrorHandler, tmdbPoster, tmdbProfile, proxiedArtworkUrl } from "./images.js";
+import { posterMarkup, posterOverflowMenu, hydratePosters, bindPosterImageErrorHandler, tmdbPoster, tmdbProfile, proxiedArtworkUrl } from "./images.js?v=20260826b";
 import {
   historySyncPill, renderSyncStatusDot, renderMediaSyncPills,
   renderAvailabilityPills, renderShowAvailabilityPills, showAvailIssuePopup,
   isWatchedHistoryAction,
 } from "./sync.js";
-import { dedupeMediaRecords, renderHistoryCard } from "./dashboard.js?v=20260824h";
+import { dedupeMediaRecords, renderHistoryCard } from "./dashboard.js?v=20260826b";
 import { nextAiringCell, nextAiringDateValue, formatListDate, futureListDate } from "./stats.js";
 // ---------------------------------------------------------------------------
 // Callback injection - functions defined outside the 2636-4016 range in app.js
@@ -29,6 +29,31 @@ let searchRequestId = 0;
 let searchPeopleRequestId = 0;
 export function initExplorer(callbacks) {
   _cb = callbacks;
+  initExplorerPosterScrollHydration();
+}
+
+// hydratePosters() and observeExplorerTmdbPrefetch() both only look at the
+// state of the DOM at render/pagination time, so a poster whose card was
+// off-screen at that moment relies entirely on the TMDB-prefetch
+// IntersectionObserver noticing it cross into view later. On a large,
+// already-fully-rendered page that observer can miss cards during a fast or
+// large scroll jump, leaving their poster stuck on the fallback placeholder
+// indefinitely with no retry. A cheap debounced re-hydration pass on every
+// scroll is a robust catch-all: hydratePosters() already skips anything not
+// currently near the viewport and anything already resolved, so calling it
+// repeatedly costs nothing beyond the DOM query when there's nothing to do.
+let explorerScrollHydrationTimer = null;
+function initExplorerPosterScrollHydration() {
+  const scrollContainer = document.querySelector(".page-shell");
+  if (!scrollContainer) return;
+  scrollContainer.addEventListener("scroll", () => {
+    if (explorerScrollHydrationTimer) return;
+    explorerScrollHydrationTimer = window.setTimeout(() => {
+      explorerScrollHydrationTimer = null;
+      if (elements.explorerPanel?.isConnected) hydratePosters(elements.explorerPanel);
+      if (elements.historyPanel?.isConnected) hydratePosters(elements.historyPanel);
+    }, 150);
+  }, { passive: true });
 }
 // ---------------------------------------------------------------------------
 // Local auth helper
@@ -885,7 +910,10 @@ export function renderMovieCard(movie) {
   if (currentExplorerView() === "overview") return renderMovieOverviewCard(movie);
   return `
     <a class="movie-card" href="${escapeAttribute(movieHref(movie))}" data-history-id="${movie.id}" data-alpha-letter="${firstAlphaLetter(movie.title)}" data-prefetch-type="movie" data-prefetch-tmdb="${escapeAttribute(movie.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(movie.title || "")}" style="text-decoration: none; color: inherit;">
-      ${posterMarkup(movie, "movie-poster")}
+      <div class="poster-media-wrap">
+        ${posterMarkup(movie, "movie-poster")}
+        ${posterOverflowMenu(movie)}
+      </div>
       <div class="movie-card-body">
         <div class="movie-card-title-row" style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; min-width: 0; width: 100%;">
           <b style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeAttribute(movie.title)}">${escapeHtml(movie.title)}</b>
@@ -895,6 +923,41 @@ export function renderMovieCard(movie) {
       </div>
     </a>
   `;
+}
+
+function commitMovieExplorerHtml(html) {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  const nextGrid = template.content.firstElementChild;
+  const currentGrid = elements.explorerPanel.firstElementChild;
+
+  // Preserve mounted cards (and therefore decoded poster images) across data
+  // refreshes. Replacing the entire panel made every visible poster disappear
+  // briefly while the browser rebuilt and repainted an otherwise identical
+  // grid. A different view/layout still takes the normal full-render path.
+  if (
+    nextGrid
+    && currentGrid
+    && nextGrid.className === currentGrid.className
+    && (nextGrid.matches(".movie-grid, .explorer-list-view, .explorer-overview-view"))
+  ) {
+    const currentCards = new Map(
+      [...currentGrid.querySelectorAll(":scope > .movie-card[data-history-id]")]
+        .map((card) => [card.dataset.historyId, card]),
+    );
+    for (const nextCard of [...nextGrid.querySelectorAll(":scope > .movie-card[data-history-id]")]) {
+      const currentCard = currentCards.get(nextCard.dataset.historyId);
+      const currentPoster = currentCard?.querySelector("img");
+      const nextPoster = nextCard.querySelector("img");
+      if (currentPoster && nextPoster) nextPoster.replaceWith(currentPoster);
+    }
+    currentGrid.replaceChildren(...nextGrid.childNodes);
+    nextGrid.remove();
+    elements.explorerPanel.replaceChildren(currentGrid, ...template.content.childNodes);
+    return;
+  }
+
+  elements.explorerPanel.replaceChildren(...template.content.childNodes);
 }
 function renderListHeader(isShows) {
   if (isShows) {
@@ -980,7 +1043,7 @@ export function renderMovieExplorer() {
   const movieGrid = state.moviesRaw.length
     ? `<div class="${explorerGridClass()}">${currentExplorerView() === "list" ? renderListHeader(false) : ""}${state.moviesRaw.map(renderMovieCard).join("")}</div>${renderExplorerSentinel("movies", state.moviesHasMore, state.moviesLoading)}`
     : emptyExplorer("No movies logged yet");
-  elements.explorerPanel.innerHTML = movieGrid;
+  commitMovieExplorerHtml(movieGrid);
   hydratePosters(elements.explorerPanel);
   observeExplorerSentinel("movies");
   observeExplorerTmdbPrefetch(elements.explorerPanel);
@@ -999,7 +1062,15 @@ export async function loadExplorerMovies() {
     const cacheKey = url.toString();
     let body = cachedExplorerPage(cacheKey);
     if (!body) {
-      const res = await fetch(url, { headers: authHeaders() });
+      // /api/movies is served with Cache-Control: max-age=60,
+      // stale-while-revalidate=300 so routine pagination can reuse the
+      // browser's HTTP cache. This fetch only runs once the app's own
+      // explorerPageCache has already ruled out a fast-path hit - including
+      // right after a mutation (unwatch, fix match, edit date) clears that
+      // cache via clearDerivedUiCaches(). "reload" bypasses the HTTP cache so
+      // that refresh can't still hand back a pre-mutation response for up to
+      // 5 minutes; it also re-populates the cache with this fresh response.
+      const res = await fetch(url, { headers: authHeaders(), cache: "reload" });
       body = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(body.error || `Movies load failed ${res.status}`);
       rememberExplorerPage(cacheKey, body);
@@ -1013,6 +1084,69 @@ export async function loadExplorerMovies() {
     state.moviesLoading = false;
     renderMovieExplorer();
   }
+}
+
+// Re-fetches every movie page already loaded and replaces state.moviesRaw in
+// one shot, WITHOUT ever setting it to empty first - unlike resetMovieExplorer()
+// + renderMovieExplorer(), which clears the array, briefly renders the
+// "Loading movies..." placeholder while the refetch is in flight, and only
+// then repopulates. That empty middle step collapses the grid's height, which
+// clamps the scroll container back to the top and can never restore the
+// original position afterward. Used for live updates (a remote watch/unwatch
+// on Trakt or another device) where the on-screen list needs to reflect a
+// change nobody local caused, so there is no specific card to animate out the
+// way removeGridCards() does for a local action - but the refresh still
+// shouldn't be more disruptive than it has to be. commitMovieExplorerHtml()'s
+// existing <img> preservation keeps already-loaded posters from reloading for
+// every id present in both the old and new list.
+export async function refreshMovieExplorerInPlace() {
+  if (state.mediaDetailInline || state.moviesLoading) return;
+  const loadedCount = Math.max(state.moviesOffset, EXPLORER_PAGE_SIZE);
+  const url = new URL("/api/movies", window.location.origin);
+  url.searchParams.set("limit", String(loadedCount));
+  url.searchParams.set("offset", "0");
+  url.searchParams.set("sort", currentExplorerSort());
+  if (state.explorerSearch) url.searchParams.set("search", state.explorerSearch);
+  let body;
+  try {
+    const res = await fetch(url, { headers: authHeaders(), cache: "reload" });
+    body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Movies load failed ${res.status}`);
+  } catch {
+    return; // Leave the current list showing rather than clobber it on a failed refresh.
+  }
+  const movies = Array.isArray(body.movies) ? body.movies : [];
+  state.moviesRaw = dedupeMediaRecords(movies, "movies");
+  state.moviesOffset = movies.length;
+  state.moviesHasMore = movies.length === loadedCount;
+  renderMovieExplorer();
+}
+
+// Same idea as refreshMovieExplorerInPlace(), for the flat History page/grid.
+export async function refreshHistoryViewInPlace() {
+  if (state.historyViewLoading) return;
+  const loadedCount = Math.max(state.historyViewOffset, EXPLORER_PAGE_SIZE);
+  const url = new URL("/api/history", window.location.origin);
+  url.searchParams.set("limit", String(loadedCount));
+  url.searchParams.set("offset", "0");
+  url.searchParams.set("stats", "0");
+  url.searchParams.set("dedupe", "false");
+  if (state.historyViewSearch) url.searchParams.set("search", state.historyViewSearch);
+  const mediaType = historyMediaFilterParam();
+  if (mediaType) url.searchParams.set("mediaType", mediaType);
+  let body;
+  try {
+    const res = await fetch(url, { headers: authHeaders(), cache: "reload" });
+    body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `History load failed ${res.status}`);
+  } catch {
+    return;
+  }
+  const historyItems = Array.isArray(body.history) ? body.history : [];
+  state.historyViewRaw = historyItems;
+  state.historyViewOffset = historyItems.length;
+  state.historyViewHasMore = typeof body.hasMore === "boolean" ? body.hasMore : historyItems.length === loadedCount;
+  renderHistoryView();
 }
 // ---------------------------------------------------------------------------
 // History view
@@ -1086,7 +1220,10 @@ function renderHistoryGridCard(entry) {
   const { isEpisode, displayTitle, epTitle, href, mediaLabel } = historyEntryDisplay(entry);
   return `
     <a class="history-grid-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="${isEpisode ? "tv" : "movie"}" data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(displayTitle || "")}">
-      ${posterMarkup(entry, "history-grid-poster")}
+      <div class="poster-media-wrap">
+        ${posterMarkup(entry, "history-grid-poster")}
+        ${posterOverflowMenu(entry, isEpisode ? { showTitle: displayTitle, label: displayTitle } : {})}
+      </div>
       <div class="history-grid-copy">
         <b title="${escapeAttribute(displayTitle)}">${escapeHtml(displayTitle)}</b>
         <span>${escapeHtml(isEpisode ? epTitle : mediaLabel)}</span>
@@ -1126,6 +1263,7 @@ function renderHistoryPageCard(entry) {
     <a class="history-page-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="${isEpisode ? "tv" : "movie"}" data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(displayTitle || "")}">
       <div class="history-card-poster-wrapper">
         ${posterMarkup(entry, "history-page-poster")}
+        ${posterOverflowMenu(entry, isEpisode ? { showTitle: displayTitle, label: displayTitle } : {})}
       </div>
       <div class="history-card-details">
         <div class="history-card-header">

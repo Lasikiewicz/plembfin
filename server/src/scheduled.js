@@ -50,6 +50,7 @@ import {
   insertWatchRecord,
   invalidateHistoryDerivedCaches,
   listRecentTrackedWatchRows,
+  listRecentlyUpdatedTrackedWatchRows,
   loadLiveTrackingCache,
   markLiveTrackingComplete,
   mediaKeyFor,
@@ -431,7 +432,7 @@ async function checkPlexUnwatchedStatus(config, loopStore) {
     const telemetry = String(record.sync_dispatch_telemetry || "").toLowerCase();
     return /target plex status:\s*(fulfilled|success)/.test(telemetry);
   };
-  const records = (await listRecentTrackedWatchRows({ limit: 100, includeScheduled: true })).filter(
+  const records = (await listRecentlyUpdatedTrackedWatchRows({ limit: 100, includeScheduled: true })).filter(
     (record) => record.watched_at < threeMinutesAgo && plexWasConfirmedWatched(record),
   ).slice(0, 30);
 

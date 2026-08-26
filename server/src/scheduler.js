@@ -2,7 +2,7 @@ import { createLoopStore } from "./utils/loopStore.js";
 import { activeSyncOperation, appendSyncHistory, loadMediaConfig, loadRuntimeState, setRuntimeState, SYNC_OPERATION_SCHEDULED } from "./utils/configStore.js";
 import { createPlexNotificationListener } from "./utils/plexNotificationListener.js";
 import { createPlexAdaptivePoller } from "./utils/plexAdaptivePoller.js";
-import { fetchPlexContainerEpisodes, fetchPlexMetadataItem, findPlexItem } from "./utils/plexClient.js";
+import { fetchPlexContainerEpisodes, fetchPlexMetadataItem, findPlexItem, mergePlexMetadataItem } from "./utils/plexClient.js";
 import { buildPlexMediaFromMetadata } from "./utils/parsers.js";
 import { buildWatchProvenance, provenanceTelemetryLines } from "./utils/watchProvenance.js";
 import { listActiveSessions } from "./utils/activeSessions.js";
@@ -28,6 +28,7 @@ import {
   invalidateHistoryDerivedCaches,
   isDeletedWatchSuppressed,
   listRecentTrackedWatchRows,
+  listRecentlyUpdatedTrackedWatchRows,
   mediaToWatchRecord,
   updateWatchTelemetry,
   upsertPlaystateForMedia,
@@ -244,10 +245,11 @@ async function handlePlexLibraryItemChange(ratingKey, metadataOverride = null) {
   const config = await loadMediaConfig().catch(() => null);
   if (!config?.plex?.baseUrl || !config.plex.token || config.plex.disabled) return;
 
-  const metadata = metadataOverride || await fetchPlexMetadataItem(config.plex, ratingKey).catch((error) => {
+  const authoritativeMetadata = await fetchPlexMetadataItem(config.plex, ratingKey).catch((error) => {
     console.error(`Plex notification: metadata lookup failed for ratingKey ${ratingKey}: ${error.message}`);
     return null;
   });
+  const metadata = mergePlexMetadataItem(authoritativeMetadata, metadataOverride);
   if (!metadata) return;
 
   if (["show", "season"].includes(String(metadata.type || "").toLowerCase())) {
@@ -515,7 +517,7 @@ async function checkPlexUnwatchedFast(plexConfig) {
     const telemetry = String(record.sync_dispatch_telemetry || "").toLowerCase();
     return /target plex status:\s*(fulfilled|success)/.test(telemetry);
   };
-  const records = (await listRecentTrackedWatchRows({ limit: 50, includeScheduled: true })).filter(
+  const records = (await listRecentlyUpdatedTrackedWatchRows({ limit: 50, includeScheduled: true })).filter(
     (record) => plexWasConfirmedWatched(record),
   ).slice(0, 10);
 

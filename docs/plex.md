@@ -95,7 +95,11 @@ has arrived for 5 minutes, self-healing a silently-dead connection instead of le
 stuck indefinitely.
 
 The callback (`handlePlexLibraryItemChange` in `server/src/scheduler.js`) fetches the
-item's metadata and checks its actual view state. A watched transition is recorded in
+item's metadata via `fetchPlexMetadataItem` and merges it with the notification's own
+state fields through `mergePlexMetadataItem` (`plexClient.js`): the notification payload
+can arrive without the item's provider `Guid` collection, so the fresher metadata fetch's
+identity data is kept while the notification's own live watch-state fields still win.
+The result is checked for its actual view state. A watched transition is recorded in
 Plembfin history and propagated to Emby/Jellyfin. An unwatched transition supersedes the
 watched state in Plembfin and propagates to the other eligible destinations. This channel
 covers library UI changes that Plex webhooks do not reliably report, including unwatching.
@@ -142,6 +146,7 @@ Used by the sync orchestrator and manual watch actions:
 | `setPlexProgress` | `/:/progress` to set a resume position |
 | `markPlexUnplayedByRatingKey` | Unscrobble by ratingKey (used by unwatch propagation) |
 | `fetchPlexMetadataItem` | `/library/metadata/<ratingKey>` lookup (used by the WebSocket callback) |
+| `mergePlexMetadataItem` | Merges a `fetchPlexMetadataItem` result with a notification's state override, keeping the fetch's provider `Guid` identity but the override's live state fields |
 | `fetchPlexSeriesEpisodes` | All episodes of a series (season-level operations) |
 | `fetchPlexWatchedItems` / `fetchPlexResumableItems` | History and on-deck feeds for catch-up sync |
 

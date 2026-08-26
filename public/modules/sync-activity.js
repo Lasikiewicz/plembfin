@@ -20,6 +20,7 @@ const DEFAULT_PAGINATION = {
 let refreshTimer = null;
 let searchTimer = null;
 let loadRequestToken = 0;
+const retryingActivityIds = new Set();
 
 function authHeaders() {
   return buildAuthHeaders(state.token);
@@ -70,8 +71,10 @@ function platformIcon(platform, className = "sync-activity-icon") {
 function targetResults(entry = {}) {
   const targets = Array.isArray(entry.targetStates) ? entry.targetStates : [];
   if (!targets.length) {
-    const noTargets = String(entry.status || "").toLowerCase() === "skipped" || /no enabled sync destinations/i.test(entry.details || "");
-    return `<span class="sync-activity-target" data-status="pending">${noTargets ? "No enabled targets" : "No target detail"}</span>`;
+    const status = String(entry.status || "").toLowerCase();
+    const noTargets = status === "skipped" || /no enabled sync destinations/i.test(entry.details || "");
+    const label = status === "pending" ? "Waiting for dispatch" : noTargets ? "No eligible destinations" : "No target response recorded";
+    return `<span class="sync-activity-target sync-activity-target--empty" data-status="pending">${label}</span>`;
   }
   return targets
     .map((target) => {
@@ -133,12 +136,13 @@ export function mediaHrefFor(entry = {}) {
 function routeLine(entry = {}) {
   const source = activityPlatform(entry.source).name;
   const targets = routeTargetNames(entry);
-  const to = targets.length ? targets.map((name) => escapeHtml(name)).join(", ") : "No targets recorded";
+  const pending = String(entry.status || "").toLowerCase() === "pending";
+  const to = targets.length ? targets.map((name) => escapeHtml(name)).join(", ") : pending ? "Awaiting dispatch" : "None recorded";
   return `
     <div class="sync-activity-row-route">
-      <span class="sync-activity-route-leg"><span>From</span><b>${escapeHtml(source)}</b></span>
+      <span class="sync-activity-route-leg"><span>Source</span><b>${escapeHtml(source)}</b></span>
       <span class="sync-activity-route-arrow" aria-hidden="true">-&gt;</span>
-      <span class="sync-activity-route-leg"><span>To</span><b>${to}</b></span>
+      <span class="sync-activity-route-leg"><span>Destinations</span><b>${to}</b></span>
     </div>
   `;
 }
@@ -151,28 +155,60 @@ function activityRow(entry = {}) {
   const statusClass = tone === "error" ? "status-error" : tone === "pending" ? "status-warning" : "status-ready";
   const id = entry.id != null ? String(entry.id) : "";
   const title = entry.title || "Unknown media";
+  const retryable = ["partial", "error", "failed", "skipped"].includes(String(entry.status || "").toLowerCase())
+    && (entry.targetStates || []).some((target) => ["error", "failed", "skipped", "not_found"].includes(String(target.status || "").toLowerCase()));
+  const retrying = retryingActivityIds.has(id);
   return `
     <article class="sync-activity-row" data-tone="${tone}" data-activity-id="${escapeAttribute(id)}" aria-expanded="false" title="Show this item's log">
       <span class="sync-status-dot sync-status-dot--${tone}" aria-hidden="true"></span>
       <div class="sync-activity-row-main">
-        <button class="sync-activity-row-title" type="button" data-media-href="${escapeAttribute(mediaHrefFor(entry))}" title="Open ${escapeAttribute(title)}">${escapeHtml(title)}</button>
+        <div class="sync-activity-row-heading">
+          <button class="sync-activity-row-title" type="button" data-media-href="${escapeAttribute(mediaHrefFor(entry))}" title="Open ${escapeAttribute(title)}">${escapeHtml(title)}</button>
+          <span class="sync-activity-action">${escapeHtml(syncHistoryActionLabel(entry))}</span>
+        </div>
         <div class="sync-activity-row-meta">
           <span class="sync-activity-type">${escapeHtml(mediaType)}</span>
           <span class="sync-activity-source">${platformIcon(source)}<span>${escapeHtml(source.name)}</span></span>
-          <span>${escapeHtml(syncHistoryActionLabel(entry))}</span>
           <span>${escapeHtml(formatDate(entry.timestamp))}</span>
         </div>
         ${routeLine(entry)}
         ${entry.details ? `<div class="sync-activity-row-detail">${escapeHtml(entry.details)}</div>` : ""}
       </div>
-      <div class="sync-activity-row-results">
-        ${targetResults(entry)}
-        <button class="button-ghost sync-activity-download" type="button" data-sync-activity-download="${escapeAttribute(id)}" title="Download this item's sync log">Download log</button>
+      <div class="sync-activity-row-outcome">
+        <div class="sync-activity-outcome-heading">
+          <span>Target results</span>
+          <span class="status-pill ${statusClass} sync-activity-row-status">${escapeHtml(statusLabel)}</span>
+        </div>
+        <div class="sync-activity-row-results">${targetResults(entry)}</div>
+        <div class="sync-activity-row-actions">
+          ${retryable ? `<button class="button-ghost sync-activity-retry" type="button" data-sync-activity-retry="${escapeAttribute(id)}" ${retrying ? "disabled" : ""} title="Retry only the failed or skipped destinations">${retrying ? "Retrying..." : "Retry failed"}</button>` : ""}
+          <button class="button-ghost sync-activity-download" type="button" data-sync-activity-download="${escapeAttribute(id)}" title="Download this item's sync log">Download log</button>
+        </div>
       </div>
-      <span class="status-pill ${statusClass} sync-activity-row-status">${escapeHtml(statusLabel)}</span>
       <pre class="sync-activity-log hidden"></pre>
     </article>
   `;
+}
+
+export async function retrySyncActivity(id) {
+  const key = String(id || "");
+  if (!key || retryingActivityIds.has(key)) return null;
+  retryingActivityIds.add(key);
+  renderSyncActivity();
+  try {
+    const response = await fetch("/api/sync-history/retry", {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ id: key }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `Retry failed with ${response.status}`);
+    await loadSyncActivity({ force: true, page: 1 });
+    return body;
+  } finally {
+    retryingActivityIds.delete(key);
+    renderSyncActivity();
+  }
 }
 
 function logTimestamp(value) {
