@@ -1,7 +1,17 @@
 {
-  "build": 18,
-  "updatedAt": "2026-08-26T14:03:46+01:00",
+  "build": 19,
+  "updatedAt": "2026-08-26T14:29:35+01:00",
   "entries": [
+    {
+      "build": 19,
+      "date": "2026-08-26T14:29:35+01:00",
+      "commit": "ff9805697b99923503a2d13beca35966e77f2ca6",
+      "message": "Docs - Update full setup guide",
+      "author": "Lasikiewicz",
+      "details": [
+        "Document the eight-stage onboarding flow, including Trakt-first imports, webhook setup, encrypted backups, and inline Backblaze fields."
+      ]
+    },
     {
       "build": 18,
       "date": "2026-08-26T14:03:46+01:00",
