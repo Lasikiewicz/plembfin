@@ -1,18 +1,18 @@
 {
-  "baseVersion": "0.11.2",
+  "baseVersion": "0.11.3",
   "build": 1,
   "entries": [
     {
       "build": 1,
-      "version": "0.11.2.1",
-      "date": "2026-08-26T15:57:00+01:00",
-      "commit": "f25c766e98eb1c78e09aef02589dbe09d026588d",
-      "message": "Merge remote-tracking branch 'origin/main' into develop",
-      "author": "Lasikiewicz",
+      "version": "0.11.3.1",
+      "date": "2026-08-26T18:35:54Z",
+      "commit": "85c25feb0d76a0c8101ed1a1791fa7200a77935f",
+      "message": "Chore - Bump develop build for d3fd6eb",
+      "author": "github-actions[bot]",
       "details": [
-        "Merge remote-tracking branch 'origin/main' into develop"
+        "Chore - Bump develop build for d3fd6eb"
       ]
     }
   ],
-  "updatedAt": "2026-08-26T15:57:00+01:00"
+  "updatedAt": "2026-08-26T18:35:54Z"
 }
