@@ -1,7 +1,18 @@
 {
-  "build": 19,
-  "updatedAt": "2026-08-26T14:29:35+01:00",
+  "build": 20,
+  "updatedAt": "2026-08-26T14:40:23+01:00",
   "entries": [
+    {
+      "build": 20,
+      "date": "2026-08-26T14:40:23+01:00",
+      "commit": "0058a1d075f283fec37b3f1d7c2ed40f838004f2",
+      "message": "Feature - Group release notes by impact",
+      "author": "Lasikiewicz",
+      "details": [
+        "Show New Features, Major Bug Fixes, and Tweaks as distinct sections in the app and generated changelog.",
+        "Preserve maintenance and documentation notes during branch promotion instead of dropping them when features or fixes are present."
+      ]
+    },
     {
       "build": 19,
       "date": "2026-08-26T14:29:35+01:00",
