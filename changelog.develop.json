@@ -1,7 +1,20 @@
 {
-  "build": 2,
-  "updatedAt": "2026-08-26T19:26:24+01:00",
+  "build": 3,
+  "updatedAt": "2026-08-26T19:35:06+01:00",
   "entries": [
+    {
+      "build": 3,
+      "date": "2026-08-26T19:35:06+01:00",
+      "commit": "d3fd6eb8341423d03d3c4f1b29d2a10d70cd14e8",
+      "message": "Feature - Filter Sync Activity to failed items and fix dispatch telemetry accuracy",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add a click-to-filter toggle on the Sync Activity failed-count pill so it shows only failed rows on the current page, click again to restore the full page",
+        "Fix target-status telemetry lines prefixed with \"Target \" (written by the scheduled background queue) that the Sync Activity parser was silently failing to match, leaving target results blank",
+        "Show the real dispatch outcome in a background-queue retry's telemetry instead of a generic \"sync completed\" message regardless of what actually happened",
+        "Correct the published v0.11.2 changelog entry to describe the guided onboarding release and use the New Features / Major Bug Fixes / Tweaks grouped layout instead of a flat, mistitled bullet list"
+      ]
+    },
     {
       "build": 2,
       "date": "2026-08-26T19:26:24+01:00",
