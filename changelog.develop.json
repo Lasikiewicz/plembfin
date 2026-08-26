@@ -1,7 +1,17 @@
 {
-  "build": 17,
-  "updatedAt": "2026-08-26T11:38:31+01:00",
+  "build": 18,
+  "updatedAt": "2026-08-26T14:03:46+01:00",
   "entries": [
+    {
+      "build": 18,
+      "date": "2026-08-26T14:03:46+01:00",
+      "commit": "89864948519289c2c81e6f276eb51bbcb8c789ca",
+      "message": "Fix - Align backup setup fields with guide",
+      "author": "Lasikiewicz",
+      "details": [
+        "Group Backblaze bucket and application-key inputs beside their matching setup instructions, with responsive stacking on narrow screens."
+      ]
+    },
     {
       "build": 17,
       "date": "2026-08-26T11:38:31+01:00",
