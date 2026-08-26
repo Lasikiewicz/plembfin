@@ -1,7 +1,18 @@
 {
-  "build": 20,
-  "updatedAt": "2026-08-26T14:40:23+01:00",
+  "build": 21,
+  "updatedAt": "2026-08-26T15:27:54+01:00",
   "entries": [
+    {
+      "build": 21,
+      "date": "2026-08-26T15:27:54+01:00",
+      "commit": "73f1ddf9d32be8ab8d48542a4e424734d25890a9",
+      "message": "Fix - Remove broken bio media layout",
+      "author": "Lasikiewicz",
+      "details": [
+        "Remove the Bio Layout appearance option and always use the stable standard media detail layout.",
+        "Expand media backdrops to cover the full viewport without fading completely away at the edges."
+      ]
+    },
     {
       "build": 20,
       "date": "2026-08-26T14:40:23+01:00",
