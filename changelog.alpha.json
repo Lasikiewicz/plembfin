@@ -1,7 +1,18 @@
 {
   "baseVersion": "0.11.3",
-  "build": 1,
+  "build": 2,
   "entries": [
+    {
+      "build": 2,
+      "version": "0.11.3.2",
+      "date": "2026-08-26T19:43:05+01:00",
+      "commit": "377b11a39364463b450fc493312e3edd696f352f",
+      "message": "Chore - Bump version to v0.12.0 for next release",
+      "author": "Lasikiewicz",
+      "details": [
+        "Prepare a minor version bump to v0.12.0 for the upcoming main release."
+      ]
+    },
     {
       "build": 1,
       "version": "0.11.3.1",
@@ -14,5 +25,5 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-26T18:35:54Z"
+  "updatedAt": "2026-08-26T19:43:05+01:00"
 }
