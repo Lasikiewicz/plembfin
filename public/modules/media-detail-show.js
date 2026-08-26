@@ -1189,54 +1189,7 @@ export function renderShowModalContent(show, {
     ${mediaInfoActionHtml()}
   `);
 
-  const isBioLayout = document.body.classList.contains("bio-media-layout") || localStorage.getItem("plembfin_bio_media_layout") === "1";
-
-  if (isBioLayout) {
-    root.innerHTML = `
-      <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(backdropUrl || posterUrl || "")}');"></div>
-      <div class="immersive-container media-detail-page bio-layout">
-        <div class="media-detail-bio-left">
-          <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || "/favicon.svg")}" alt="${escapeAttribute(showTitle)} poster" data-err="fav" loading="eager" fetchpriority="high" decoding="async" ${posterUrl ? `data-lightbox-src="${escapeAttribute(posterUrl)}"` : ""} />
-          <div class="media-detail-meta-below-poster">
-            <p class="immersive-overview">${escapeHtml(overview)}</p>
-          </div>
-        </div>
-
-        <div class="media-detail-bio-right">
-          <div class="media-detail-right-header">
-            <div class="media-detail-logo-wrap">
-              ${logoUrl ? `<img class="immersive-logo" data-err="logo-title" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(showTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(showTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(showTitle)}</h2>`}
-              <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                ${showModalStatus(loading, Boolean(tmdbData))}
-              </div>
-              ${localEvidence}
-              <section class="progress-section" style="border: 0; padding: 0; margin-top: 0.5rem; width: 100%;">
-                <div class="progress-label-row">
-                  <span>${watchProgressLabel}</span>
-                  <span>${progressPercent}% complete</span>
-                </div>
-                <div class="progress-bar-track">
-                  <div class="progress-bar-fill" style="width: ${progressPercent}%;"></div>
-                </div>
-              </section>
-            </div>
-            <div class="media-detail-facts-wrap">
-              ${renderMediaFacts(tmdbData, "tv", "sidebar", { ratingsHtml: ratingsFactHtml, appLinksHtml: appLinksFactHtml })}
-            </div>
-          </div>
-
-          ${seasonsSectionHtml}
-          ${renderCastSection(tmdbData)}
-          ${renderMediaImagesSection(tmdbData)}
-          ${renderTrailersSection(tmdbData)}
-          ${renderReviewsSection(tmdbData)}
-          ${renderRelatedShowsSection(tmdbData)}
-        </div>
-      </div>
-      ${renderWatchDatePrompt(state.pendingWatchAction)}
-    `;
-  } else {
-    root.innerHTML = `
+  root.innerHTML = `
       <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(backdropUrl || posterUrl || "")}');"></div>
       <div class="immersive-container media-detail-page">
 
@@ -1278,7 +1231,6 @@ export function renderShowModalContent(show, {
       </div>
       ${renderWatchDatePrompt(state.pendingWatchAction)}
     `;
-  }
   // A season named in the URL on navigation (path segment or #seasonN hash)
   // scrolls into view once, here - not via the click handler, since no click
   // happened. The flag is consumed and cleared immediately so a later

@@ -959,7 +959,6 @@ export async function restorePlembfinBackupFromServer(filename) {
 }
 // ── Appearance settings ────────────────────────────────────────────────────
 export const APPEARANCE_DEFAULTS = {
-  bioMediaLayout: false,
   showLogoArt: true,
   showCast: true,
   showTrailers: true,
@@ -968,10 +967,8 @@ export const APPEARANCE_DEFAULTS = {
   showRelated: true,
 };
 export function applyAppearanceToBody(prefs) {
-  const bioEnabled = Boolean(prefs.bioMediaLayout);
-  document.body.classList.toggle("bio-media-layout", bioEnabled);
   try {
-    localStorage.setItem("plembfin_bio_media_layout", bioEnabled ? "1" : "0");
+    localStorage.removeItem("plembfin_bio_media_layout");
   } catch {}
   document.body.classList.toggle("hide-logo-art", !prefs.showLogoArt);
   document.body.classList.toggle("hide-cast", !prefs.showCast);
@@ -981,7 +978,6 @@ export function applyAppearanceToBody(prefs) {
   document.body.classList.toggle("hide-related", !prefs.showRelated);
 }
 function populateAppearanceForm(prefs) {
-  if (elements.appearBioMediaLayout) elements.appearBioMediaLayout.checked = Boolean(prefs.bioMediaLayout);
   if (elements.appearShowLogoArt) elements.appearShowLogoArt.checked = prefs.showLogoArt;
   if (elements.appearShowCast) elements.appearShowCast.checked = prefs.showCast;
   if (elements.appearShowTrailers) elements.appearShowTrailers.checked = prefs.showTrailers;
@@ -999,7 +995,6 @@ export async function loadAppearanceSettings() {
 }
 export async function saveAppearanceSettings() {
   const prefs = {
-    bioMediaLayout: elements.appearBioMediaLayout?.checked ?? false,
     showLogoArt: elements.appearShowLogoArt?.checked ?? true,
     showCast: elements.appearShowCast?.checked ?? true,
     showTrailers: elements.appearShowTrailers?.checked ?? true,

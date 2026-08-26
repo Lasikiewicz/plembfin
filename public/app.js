@@ -25,10 +25,6 @@ import { initAppEvents, closeMobileMenu } from "./modules/app-events.js?v=202608
 import { initTrackerSettings, refreshTrackerSettings } from "./modules/tracker-settings.js?v=20260817";
 import { startLiveUpdates, stopLiveUpdates } from "./modules/live-updates.js?v=20260816";
 
-if (localStorage.getItem("plembfin_bio_media_layout") === "1") {
-  document.body.classList.add("bio-media-layout");
-}
-
 // Ping the backend the moment the app loads (no auth needed), so the server's
 // caches and upstream connections are warm by the time the user clicks into
 // anything. A light keep-alive repeats the ping while the tab is visible.
@@ -249,7 +245,6 @@ function bindElements() {
     remoteWatchBackupTime: document.querySelector("#remoteWatchBackupTime"),
     remoteWatchBackupRetention: document.querySelector("#remoteWatchBackupRetention"),
     saveRemoteWatchBackupConfigButton: document.querySelector("#saveRemoteWatchBackupConfigButton"),
-    appearBioMediaLayout: document.querySelector("#appearBioMediaLayout"),
     appearShowLogoArt: document.querySelector("#appearShowLogoArt"),
     appearShowCast: document.querySelector("#appearShowCast"),
     appearShowTrailers: document.querySelector("#appearShowTrailers"),
