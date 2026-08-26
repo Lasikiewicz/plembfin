@@ -1,7 +1,18 @@
 {
-  "build": 21,
-  "updatedAt": "2026-08-26T15:27:54+01:00",
+  "build": 22,
+  "updatedAt": "2026-08-26T15:50:30+01:00",
   "entries": [
+    {
+      "build": 22,
+      "date": "2026-08-26T15:50:30+01:00",
+      "commit": "437f03a24a809165e36983905e8100dc6edbffde",
+      "message": "Fix - Group main release changelog entries by impact",
+      "author": "Lasikiewicz",
+      "details": [
+        "Settings -> Changelog and the generated CHANGELOG.md now sort a new main release's bullet points into New Features, Major Bug Fixes, and Tweaks sections instead of one flat list",
+        "Documented the section-grouping behavior in the release pipeline and architecture docs"
+      ]
+    },
     {
       "build": 21,
       "date": "2026-08-26T15:27:54+01:00",
