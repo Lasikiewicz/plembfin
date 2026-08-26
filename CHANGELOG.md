@@ -4,6 +4,20 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v0.11.3 - 26 August 2026
+
+Chore - Retrigger release CI after GitHub Actions incident
+
+### Major Bug Fixes
+
+- Group main release changelog entries by impact
+- Settings -> Changelog and the generated CHANGELOG.md now sort a new main release's bullet points into New Features, Major Bug Fixes, and Tweaks sections instead of one flat list
+- Documented the section-grouping behavior in the release pipeline and architecture docs
+
+### Tweaks
+
+- Retrigger release CI after GitHub Actions incident
+
 ## v0.11.2 - 26 August 2026
 
 Fix - Remove broken bio media layout

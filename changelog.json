@@ -1,7 +1,30 @@
 {
-  "version": "0.11.2",
-  "updatedAt": "2026-08-26T15:27:54+01:00",
+  "version": "0.11.3",
+  "updatedAt": "2026-08-26T19:23:03+01:00",
   "entries": [
+    {
+      "version": "0.11.3",
+      "date": "2026-08-26T19:23:03+01:00",
+      "commit": "bb0326b8a955c1659dd090f1e4e4b2966dabc4e4",
+      "message": "Chore - Retrigger release CI after GitHub Actions incident",
+      "author": "Lasikiewicz",
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Group main release changelog entries by impact",
+          "Settings -> Changelog and the generated CHANGELOG.md now sort a new main release's bullet points into New Features, Major Bug Fixes, and Tweaks sections instead of one flat list",
+          "Documented the section-grouping behavior in the release pipeline and architecture docs"
+        ],
+        "tweaks": [
+          "Retrigger release CI after GitHub Actions incident"
+        ]
+      },
+      "details": [
+        "Settings -> Changelog and the generated CHANGELOG.md now sort a new main release's bullet points into New Features, Major Bug Fixes, and Tweaks sections instead of one flat list",
+        "Documented the section-grouping behavior in the release pipeline and architecture docs",
+        "Chore - Retrigger release CI after GitHub Actions incident"
+      ]
+    },
     {
       "version": "0.11.2",
       "date": "2026-08-26T15:27:54+01:00",
