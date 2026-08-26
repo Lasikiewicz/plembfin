@@ -1,7 +1,23 @@
 {
-  "build": 15,
-  "updatedAt": "2026-08-25T08:35:00+01:00",
+  "build": 16,
+  "updatedAt": "2026-08-26T08:16:03+01:00",
   "entries": [
+    {
+      "build": 16,
+      "date": "2026-08-26T08:16:03+01:00",
+      "commit": "9e0a8bf869b933743780510a5b4607efe02cd7c7",
+      "message": "Feature - Add guided setup and harden media sync",
+      "author": "Lasikiewicz",
+      "details": [
+        "add one-time administrator claim and a resumable guided setup flow for pristine installs",
+        "add safe background library imports, setup status UI, and managed connection recovery",
+        "keep movie pages responsive across large multi-tab batches and preserve legacy unwatched links",
+        "support browser-native middle-click navigation from the sidebar",
+        "refresh watched dates and unwatch actions immediately after successful changes",
+        "clarify Trakt import progress and settle terminal partial or skipped dispatches",
+        "stop tracking the local test directory and add it to gitignore"
+      ]
+    },
     {
       "build": 15,
       "date": "2026-08-25T08:35:00+01:00",
