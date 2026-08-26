@@ -211,36 +211,76 @@ password there instead of looking for a generated password anywhere.
 
 ## Full Setup Guide
 
-**1. Sign in or claim the instance.** If you set `ADMIN_PASSWORD`, sign in with `admin`
-and that password (if it's still the default `admin`, you'll be sent to Settings to
-change it). Otherwise, claim the instance on first load by creating an administrator
-username and password - this can only be done once. Either path continues into the guided
-`/setup` wizard, which is also reachable later from Settings → **Run setup guide**.
+Sign in with the administrator credentials from your installation, or claim a fresh
+instance by creating its administrator username and password. Claiming can only be done
+once. Plembfin then opens the guided `/setup` wizard. You can return to it later from
+Settings → **Run setup guide**, and your progress is saved as you go.
 
-**2. Connect your media apps.** Settings → Media Servers → **+** to add Plex, Emby,
-Jellyfin, or Seerr.
+The wizard has eight stages:
 
-- **Plex** - Connect Plex account and pick your server (recommended), or enter a URL/token/username manually.
-- **Emby** - Enter server URL, username, and password once to obtain a token (the password itself isn't stored), or use a manual API key + user ID.
-- **Jellyfin** - Use Quick Connect to authorize from a signed-in client, or username/password, or a manual API key + user ID.
+**1. Overview.** Review what the wizard configures. Only a tested Plex, Emby, or
+Jellyfin connection is required to finish; Trakt, extra metadata providers, webhooks,
+and backups can be skipped and configured later.
 
-Only one connection mode is active per server at a time.
+**2. Trakt (optional).** Select **Connect Trakt**, open the displayed activation page,
+and enter the device code. Plembfin uses its built-in Trakt app credentials, so no
+personal API key or Trakt VIP subscription is required. Leave **Import watch history
+from Trakt** selected if you want existing plays imported. Connecting Trakt before the
+media servers lets Plembfin prefer its earlier watched dates when server dates were
+reset by a library rebuild or rescan.
 
-**3. Add metadata providers** (Settings → Metadata):
+**3. Metadata.** Add a free TMDB key from
+[themoviedb.org](https://www.themoviedb.org/settings/api). TMDB supplies posters,
+backdrops, cast, episode details, and search. TheTVDB and Fanart.tv work immediately
+with built-in shared access; personal keys can be added for higher limits. OMDb and
+YouTube remain optional and disabled until you add their keys.
 
-| Provider | Setup | Provides |
-|---|---|---|
-| TMDB | Free key from [themoviedb.org](https://www.themoviedb.org/documentation/api) - **required** | Movies, cast, trailers, recommendations |
-| TheTVDB | Built-in key works out of the box; personal key optional for your own quota | TV episode titles/numbers/air dates |
-| Fanart.tv | Built-in key works out of the box; personal key optional for higher limits | Poster/backdrop/logo fallback art |
-| OMDb | Free key from [omdbapi.com](https://www.omdbapi.com/apikey.aspx), optional | IMDb rating badges |
-| Seerr | Overseerr/Jellyseerr URL + API key, optional | Request buttons on detail pages |
+**4. Media servers.** Set up and test at least one supported server. You can connect
+more than one:
 
-**4. Tune sync behavior** (Settings → Sync): thresholds and timeouts under **Sync
-Tuning**; a match report for anything Plembfin couldn't identify under **Sync Issues**.
-New media that arrives already-watched in Plembfin is marked watched on the server
-automatically - this needs the library-add webhook enabled per server (see
-[webhooks.md](docs/webhooks.md#catching-up-newly-added-media)).
+- **Plex** - connect your Plex account and select a server, or enter its URL, token,
+  and username manually.
+- **Emby** - sign in with the server URL, username, and password to obtain a token, or
+  enter an API key and user ID manually. The password is not stored.
+- **Jellyfin** - use Quick Connect, sign in with a username and password, or enter an
+  API key and user ID manually.
+
+For each tested server, leave **Import watched status** selected to bring its existing
+history into Plembfin. Those imports wait for the Trakt import when necessary so the
+best available watched dates are retained. Only one connection mode is active for each
+server at a time.
+
+**5. Webhooks.** Plex watch-state updates are received automatically and need no manual
+webhook. For each connected Emby or Jellyfin server, expand its setup card, follow the
+provider-specific instructions, then confirm that the webhook is configured. Scheduled
+polling continues as a backstop. See the [Webhook Setup](#webhook-setup) section for the
+full provider instructions.
+
+**6. Backup (optional).** To schedule encrypted local backups, choose a backup time and
+retention count, enter an encryption passphrase of at least 12 characters, and select
+**Remember the passphrase for scheduled backups**. Scheduled jobs cannot run unless the
+passphrase is remembered because nobody is present to enter it.
+
+To add an off-server Backblaze B2 mirror, create a private bucket and a restricted
+application key with read/write access to that bucket. The wizard places the matching
+fields beside each part of the guide: paste the bucket name and endpoint into **Bucket
+name** and **Region or S3 endpoint**, then paste `keyID` and `applicationKey` into **Key
+ID** and **Application key**. Save and test the destination before enabling scheduled
+uploads. Backblaze displays `applicationKey` only once, so copy it when the key is
+created.
+
+**7. Import & sync.** Review the Trakt and media-server imports you selected. Imports
+continue in the background, so you do not need to wait on this page. Trakt runs first;
+selected server imports may show **Waiting** until it finishes.
+
+**8. Review.** Confirm the connection, metadata, webhook, backup, and import statuses,
+then select **Open dashboard**. At least one tested media server is required. Any skipped
+item can be completed later from Settings or the dashboard setup checklist.
+
+After onboarding, tune thresholds and timeouts under Settings → Sync → **Sync Tuning**.
+Items Plembfin could not identify appear under **Sync Issues**. New media that arrives
+already watched in Plembfin can be marked watched on the server automatically; see
+[webhooks.md](docs/webhooks.md#catching-up-newly-added-media) for the library-add flow.
 
 ---
 
