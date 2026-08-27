@@ -4,6 +4,23 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v0.12.6 - 27 August 2026
+
+Docs - Check GHCR Cleanup isn't running before any push
+
+### Major Bug Fixes
+
+- Stop updateWatchRecord's playstate rollback timing from racing
+- The known-flaky test (updateWatchRecord rolls the old media_key's playstate back to a survivor) was exposing a real bug, not just test noise: getPlaystateForMediaSync's title-based fallback can surface either an old or a migrated media_key's playstate row for a shared title, and updateWatchRecord picked between them with fresh Date.now() calls a few statements apart
+- When enough intervening work crossed a millisecond boundary, the newer write's timestamp would non-deterministically outrank the correct rolled-back row, so a Fix Match correction on a title-duplicate item could report the wrong watched state for the leftover, uncorrected identity
+- Reused the single updatedAt timestamp already captured for the row update across every playstate write in the same updateWatchRecord call (both the watched_at date-edit path and the identity-change rollback path), removing the timing dependency entirely
+- Verified with 40 back-to-back isolated runs of the previously-flaky test (0 failures, versus roughly 1-in-10 before) plus a full clean test suite run
+
+### Tweaks
+
+- Check GHCR Cleanup isn't running before any push
+- Added a precondition to Push to git, Force to alpha, and Force to main: verify ghcr-cleanup.yml isn't mid-run first, since it deletes images from the same GHCR package every push publishes new tags to and its own docs warn against running it in parallel against the same package
+
 ## v0.12.5 - 27 August 2026
 
 Chore - Bump alpha build for f3f3d9b
