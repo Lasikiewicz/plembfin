@@ -1,7 +1,24 @@
 {
-  "version": "0.12.6",
-  "updatedAt": "2026-08-27T14:29:03Z",
+  "version": "0.12.7",
+  "updatedAt": "2026-08-27T15:39:02+01:00",
   "entries": [
+    {
+      "version": "0.12.7",
+      "date": "2026-08-27T15:39:02+01:00",
+      "commit": "1cafdc408cbad1c91941d5d0b0049502d0f41072",
+      "message": "Merge pull request #23 from Lasikiewicz/dependabot/github_actions/github/codeql-action-4.37.8",
+      "author": "Lasikiewicz",
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [],
+        "tweaks": [
+          "Merge pull request #23 from Lasikiewicz/dependabot/github_actions/github/codeql-action-4.37.8"
+        ]
+      },
+      "details": [
+        "Merge pull request #23 from Lasikiewicz/dependabot/github_actions/github/codeql-action-4.37.8"
+      ]
+    },
     {
       "version": "0.12.6",
       "date": "2026-08-27T14:29:03Z",
