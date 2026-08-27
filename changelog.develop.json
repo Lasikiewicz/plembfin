@@ -1,7 +1,21 @@
 {
-  "build": 2,
-  "updatedAt": "2026-08-27T09:38:09+01:00",
+  "build": 3,
+  "updatedAt": "2026-08-27T10:48:34+01:00",
   "entries": [
+    {
+      "build": 3,
+      "date": "2026-08-27T10:48:34+01:00",
+      "commit": "c29c3b3cabc969d61689d195b02fc4c662bf85f8",
+      "message": "Feature - Post release and alpha-build changelogs to a Discord channel",
+      "author": "Lasikiewicz",
+      "details": [
+        "New scripts/notify-discord-release.js posts a Discord embed built from the newest changelog.json (main releases) or changelog.alpha.json (alpha builds) entry",
+        "update-changelog.yml and docker-publish-alpha.yml each call the script as their final step, using a DISCORD_RELEASES_WEBHOOK repo secret",
+        "No-ops quietly with no failing build when the secret isn't set, so forks and clones without it configured are unaffected",
+        "Supports a --dry-run flag that prints the embed instead of posting, for checking formatting without a webhook",
+        "Documented the new step and the required secret in docs/development.md"
+      ]
+    },
     {
       "build": 2,
       "date": "2026-08-27T09:38:09+01:00",
