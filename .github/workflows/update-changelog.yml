@@ -95,6 +95,11 @@ jobs:
           provenance: true
           sbom: true
 
+      - name: Notify Discord releases channel
+        env:
+          DISCORD_RELEASES_WEBHOOK: ${{ secrets.DISCORD_RELEASES_WEBHOOK }}
+        run: node scripts/notify-discord-release.js main
+
   publish-current:
     if: >-
       github.actor != 'github-actions[bot]' &&
