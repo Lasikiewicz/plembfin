@@ -1,7 +1,20 @@
 {
-  "build": 1,
-  "updatedAt": "2026-08-27T14:09:39+01:00",
+  "build": 2,
+  "updatedAt": "2026-08-27T14:25:19+01:00",
   "entries": [
+    {
+      "build": 2,
+      "date": "2026-08-27T14:25:19+01:00",
+      "commit": "d269c795e0fb76fe41b41ba3e23e5b9f6219082c",
+      "message": "Fix - Publish the release image in the same job that commits the changelog",
+      "author": "Lasikiewicz",
+      "details": [
+        "The prior split (a separate publish-current job gated on the changelog-bump commit re-arriving as a trigger) never actually ran: a commit pushed with the default GITHUB_TOKEN doesn't trigger another workflow run, so this release's 0.12.3 image was never built or pushed to GHCR at all",
+        "Moved the Docker build/push and Discord notification back into the same job that writes and commits the changelog, so every push to main reliably publishes exactly one image",
+        "Manually published 0.12.3 as a one-off stopgap via the existing workflow_dispatch build so the current release isn't left without an image",
+        "Corrected docs/development.md to describe the single-job flow"
+      ]
+    },
     {
       "build": 1,
       "date": "2026-08-27T14:09:39+01:00",
