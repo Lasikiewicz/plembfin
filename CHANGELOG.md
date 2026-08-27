@@ -4,6 +4,14 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v0.12.7 - 27 August 2026
+
+Merge pull request #23 from Lasikiewicz/dependabot/github_actions/github/codeql-action-4.37.8
+
+### Tweaks
+
+- Merge pull request #23 from Lasikiewicz/dependabot/github_actions/github/codeql-action-4.37.8
+
 ## v0.12.6 - 27 August 2026
 
 Docs - Check GHCR Cleanup isn't running before any push
