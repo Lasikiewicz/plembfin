@@ -1,7 +1,18 @@
 {
-  "build": 3,
-  "updatedAt": "2026-08-27T10:48:34+01:00",
+  "build": 4,
+  "updatedAt": "2026-08-27T13:10:41+01:00",
   "entries": [
+    {
+      "build": 4,
+      "date": "2026-08-27T13:10:41+01:00",
+      "commit": "049624ed12d90ca3e37eb63a7057126b0c081044",
+      "message": "Docs - Link Discord and Reddit communities in README",
+      "author": "Lasikiewicz",
+      "details": [
+        "Added Discord and Reddit links to the top navigation row",
+        "Added a Community section linking to the Discord server and r/plembfin subreddit"
+      ]
+    },
     {
       "build": 3,
       "date": "2026-08-27T10:48:34+01:00",
