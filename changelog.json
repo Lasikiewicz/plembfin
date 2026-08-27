@@ -1,7 +1,39 @@
 {
-  "version": "0.12.1",
-  "updatedAt": "2026-08-27T08:19:42Z",
+  "version": "0.12.2",
+  "updatedAt": "2026-08-27T12:12:12Z",
   "entries": [
+    {
+      "version": "0.12.2",
+      "date": "2026-08-27T12:12:12Z",
+      "commit": "031364d8824184e4899c16c9caab832c8db5c7eb",
+      "message": "Docs - Link Discord and Reddit communities in README",
+      "author": "github-actions[bot]",
+      "sections": {
+        "newFeatures": [
+          "Post release and alpha-build changelogs to a Discord channel",
+          "New scripts/notify-discord-release.js posts a Discord embed built from the newest changelog.json (main releases) or changelog.alpha.json (alpha builds) entry",
+          "Update-changelog.yml and docker-publish-alpha.yml each call the script as their final step, using a DISCORD_RELEASES_WEBHOOK repo secret",
+          "No-ops quietly with no failing build when the secret isn't set, so forks and clones without it configured are unaffected",
+          "Supports a --dry-run flag that prints the embed instead of posting, for checking formatting without a webhook",
+          "Documented the new step and the required secret in docs/development.md"
+        ],
+        "majorBugFixes": [],
+        "tweaks": [
+          "Link Discord and Reddit communities in README",
+          "Added Discord and Reddit links to the top navigation row",
+          "Added a Community section linking to the Discord server and r/plembfin subreddit"
+        ]
+      },
+      "details": [
+        "New scripts/notify-discord-release.js posts a Discord embed built from the newest changelog.json (main releases) or changelog.alpha.json (alpha builds) entry",
+        "update-changelog.yml and docker-publish-alpha.yml each call the script as their final step, using a DISCORD_RELEASES_WEBHOOK repo secret",
+        "No-ops quietly with no failing build when the secret isn't set, so forks and clones without it configured are unaffected",
+        "Supports a --dry-run flag that prints the embed instead of posting, for checking formatting without a webhook",
+        "Documented the new step and the required secret in docs/development.md",
+        "Added Discord and Reddit links to the top navigation row",
+        "Added a Community section linking to the Discord server and r/plembfin subreddit"
+      ]
+    },
     {
       "version": "0.12.1",
       "date": "2026-08-27T08:19:42Z",

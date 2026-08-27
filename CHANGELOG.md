@@ -4,6 +4,25 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v0.12.2 - 27 August 2026
+
+Docs - Link Discord and Reddit communities in README
+
+### New Features
+
+- Post release and alpha-build changelogs to a Discord channel
+- New scripts/notify-discord-release.js posts a Discord embed built from the newest changelog.json (main releases) or changelog.alpha.json (alpha builds) entry
+- Update-changelog.yml and docker-publish-alpha.yml each call the script as their final step, using a DISCORD_RELEASES_WEBHOOK repo secret
+- No-ops quietly with no failing build when the secret isn't set, so forks and clones without it configured are unaffected
+- Supports a --dry-run flag that prints the embed instead of posting, for checking formatting without a webhook
+- Documented the new step and the required secret in docs/development.md
+
+### Tweaks
+
+- Link Discord and Reddit communities in README
+- Added Discord and Reddit links to the top navigation row
+- Added a Community section linking to the Discord server and r/plembfin subreddit
+
 ## v0.12.1 - 27 August 2026
 
 Fix - Correct rewatch and Plex echo sync bugs, clarify webhook setup
