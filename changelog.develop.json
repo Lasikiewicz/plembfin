@@ -1,54 +1,5 @@
 {
-  "build": 4,
-  "updatedAt": "2026-08-27T14:05:01+01:00",
-  "entries": [
-    {
-      "build": 4,
-      "date": "2026-08-27T14:05:01+01:00",
-      "commit": "f1945d284ec73ee79d07c099c97215f7200918e4",
-      "message": "Docs - Refresh dashboard, media, and stats screenshots; add Sync Activity",
-      "author": "Lasikiewicz",
-      "details": [
-        "Removed test/ from .gitignore; it was added in commit 3d5b85b4 at the same time all 89 test files were deleted from git tracking, so the suite has existed only on local machines since - a fresh clone or CI checkout had zero test files, and npm run build's node --test step was silently running against nothing while still reporting success",
-        "Re-added all 93 files currently under test/ (91 test files plus shared helpers) so the suite ships with the repo again and CI actually exercises it",
-        "Moved the orphaned root-level 'layout defaults.md' into docs/frontend.md as a new Settings Card Shell section, since it wasn't linked from any doc index",
-        "Corrected docs/frontend.md's settings-card padding claim while merging: the base .settings-card padding: 1.5rem rule only applies to help-column cards, since a more specific selector overrides it to 0 for any card inside the main column (which is what layout defaults.md was actually describing)",
-        "Replaced the now-playing, media, and stats screenshots with current captures of the app",
-        "Added a new Sync Activity screenshot and README entry, matching the existing Sync Activity hub feature"
-      ]
-    },
-    {
-      "build": 3,
-      "date": "2026-08-27T13:37:35+01:00",
-      "commit": "e3cfe82d72f5d85990c0aa38b4b48a9ea969f214",
-      "message": "Fix - Stop duplicate release image builds and add GHCR tag cleanup",
-      "author": "Lasikiewicz",
-      "details": [
-        "Fixed the release pipeline building and pushing the Docker image to GHCR twice per push to main; only the final job (which runs against the already-committed changelog/version bump) now builds and publishes it",
-        "Added a weekly scheduled workflow that prunes old numbered develop-* and alpha-* image tags (keeping the newest 15 of each) and deletes dangling untagged images left behind when the latest/develop/alpha tags move",
-        "The cleanup workflow starts in dry-run mode so nothing is deleted until a run has been reviewed",
-        "Documented both changes in docs/development.md"
-      ]
-    },
-    {
-      "build": 2,
-      "date": "2026-08-27T13:19:38+01:00",
-      "commit": "84b5710ee6535f0b38ad588a7483c2464653c60a",
-      "message": "Merge remote-tracking branch 'origin/main' into develop",
-      "author": "Lasikiewicz",
-      "details": [
-        "Merge remote-tracking branch 'origin/main' into develop"
-      ]
-    },
-    {
-      "build": 1,
-      "date": "2026-08-27T13:15:54+01:00",
-      "commit": "307dcc2a4d66ad2c40c14a51976a1788be985c2f",
-      "message": "Chore - Reset develop build counter after promotion to alpha",
-      "author": "Lasikiewicz",
-      "details": [
-        "Chore - Reset develop build counter after promotion to alpha"
-      ]
-    }
-  ]
+  "build": 0,
+  "updatedAt": "2026-08-27T13:09:28.000Z",
+  "entries": []
 }
