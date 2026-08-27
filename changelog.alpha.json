@@ -1,18 +1,24 @@
 {
-  "baseVersion": "0.12.0",
+  "baseVersion": "0.12.1",
   "build": 1,
   "entries": [
     {
       "build": 1,
-      "version": "0.12.0.1",
-      "date": "2026-08-27T09:17:54+01:00",
-      "commit": "1632c8abb44234043f9d357cdcfc32330a4360c0",
-      "message": "Merge remote-tracking branch 'origin/develop' into develop",
+      "version": "0.12.1.1",
+      "date": "2026-08-27T13:10:41+01:00",
+      "commit": "049624ed12d90ca3e37eb63a7057126b0c081044",
+      "message": "Docs - Link Discord and Reddit communities in README",
       "author": "Lasikiewicz",
       "details": [
-        "Merge remote-tracking branch 'origin/develop' into develop"
+        "New scripts/notify-discord-release.js posts a Discord embed built from the newest changelog.json (main releases) or changelog.alpha.json (alpha builds) entry",
+        "update-changelog.yml and docker-publish-alpha.yml each call the script as their final step, using a DISCORD_RELEASES_WEBHOOK repo secret",
+        "No-ops quietly with no failing build when the secret isn't set, so forks and clones without it configured are unaffected",
+        "Supports a --dry-run flag that prints the embed instead of posting, for checking formatting without a webhook",
+        "Documented the new step and the required secret in docs/development.md",
+        "Added Discord and Reddit links to the top navigation row",
+        "Added a Community section linking to the Discord server and r/plembfin subreddit"
       ]
     }
   ],
-  "updatedAt": "2026-08-27T09:17:54+01:00"
+  "updatedAt": "2026-08-27T13:10:41+01:00"
 }
