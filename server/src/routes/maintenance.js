@@ -96,6 +96,7 @@ import {
 } from "../utils/dataRepo.js";
 import { auditPhantomWatchHistory } from "../utils/phantomWatchAudit.js";
 import { findMalformedScheduledEpisodeRows, repairMalformedScheduledEpisodeRows, repairPhantomWatchBursts } from "../utils/phantomWatchRepair.js";
+import { enqueueBackgroundJob, getLatestBackgroundJob, getBackgroundJobLogs, workerAvailable } from "../utils/backgroundJobs.js";
 
 function imagePath(path, params = {}) {
   const cleanPath = String(path || "").trim();
@@ -698,36 +699,29 @@ export async function handleDebugPlexMatch(req, res) {
 }
 
 
-// Paginated bulk refresh of the whole library's TMDB metadata + artwork. Mirrors
-// the ingest prefetch (full details cached to tmdbMetadataCache + poster/backdrop
-// to Storage) AND stamps the canonical poster back onto every watch record, so
-// EXISTING media reaches full parity with newly-added media. Paginated so a large
-// library never hits the request timeout; the client loops until hasMore is false.
-export async function handleRefreshTmdbMetadata(req, res) {
-  if (req.method === "OPTIONS") return sendOptions(res);
-  if (req.method !== "POST") return methodNotAllowed(res);
-  if (!(await requireAdmin(req, res))) return;
-
-  const body = await readJson(req).catch(() => ({}));
-  const offset = Math.max(Number(body.offset || 0), 0);
-  const limit = Math.min(Math.max(Number(body.limit || 12), 1), 30);
-
-  // TV items are slow (deriveNextAiring fetches multiple seasons). Time-box each
-  // page so it always returns promptly; the client just resumes from nextOffset.
-  const PAGE_BUDGET_MS = 25000;
-  const startedAt = Date.now();
-
+// Runs the whole-library TMDB metadata + artwork refresh to completion as a
+// background job (see workerCoordinator.js's executeJob) so progress survives
+// the requesting browser tab closing, reloading, or navigating away - status
+// lives in the job's own log/result (read back by handleRefreshTmdbMetadata's
+// GET branch) instead of a client-held loop. Mirrors the ingest prefetch (full
+// details cached to tmdbMetadataCache + poster/backdrop to Storage) AND stamps
+// the canonical poster back onto every watch record, so EXISTING media reaches
+// full parity with newly-added media.
+export async function runTmdbMetadataRefreshJob(log, { isCancelled } = {}) {
   const items = await listLibraryItemsForRefresh();
   const total = items.length;
+  log(`Found ${total} item${total === 1 ? "" : "s"} to refresh.`);
 
   let success = 0;
   let failed = 0;
-  let processed = 0;
-  const posterUpdates = [];
-  const log = [];
+  let postersWritten = 0;
+  let posterUpdates = [];
 
-  for (let i = offset; i < items.length && processed < limit; i++) {
-    if (processed > 0 && Date.now() - startedAt > PAGE_BUDGET_MS) break;
+  for (let i = 0; i < items.length; i++) {
+    if (isCancelled && await isCancelled()) {
+      if (posterUpdates.length) postersWritten += await setWatchPosterUrls(posterUpdates).catch(() => 0);
+      return { success: false, aborted: true, cancelled: true, total, refreshed: success, failed, postersWritten, reason: "TMDB metadata refresh was cancelled." };
+    }
     const item = items[i];
     const label = `${item.mediaType === "movie" ? "Movie" : "Show"}: ${item.title}`;
     try {
@@ -739,59 +733,83 @@ export async function handleRefreshTmdbMetadata(req, res) {
         }
       }
       success += 1;
-      log.push(`OK - ${label}`);
+      log(`OK - ${label} (${i + 1}/${total})`);
     } catch (error) {
       failed += 1;
-      log.push(`FAILED - ${label} (${error.message || "error"})`);
+      log(`FAILED - ${label} (${error.message || "error"}) (${i + 1}/${total})`);
     }
-    processed += 1;
+    // Flush poster updates periodically so a later failure or cancellation
+    // doesn't discard artwork already resolved for earlier items.
+    if (posterUpdates.length >= 25) {
+      postersWritten += await setWatchPosterUrls(posterUpdates).catch(() => 0);
+      posterUpdates = [];
+    }
   }
 
-  let postersWritten = 0;
-  if (posterUpdates.length) {
-    postersWritten = await setWatchPosterUrls(posterUpdates).catch(() => 0);
-  }
+  if (posterUpdates.length) postersWritten += await setWatchPosterUrls(posterUpdates).catch(() => 0);
+  await invalidateHistoryDerivedCaches().catch(() => null);
 
-  const nextOffset = offset + processed;
-  const hasMore = nextOffset < total;
-  // Invalidate derived caches ONCE, on the final page. Doing it per page forced a
-  // full watchHistory re-scan on every subsequent page's list build.
-  if (!hasMore) await invalidateHistoryDerivedCaches().catch(() => null);
-
-  return sendJson(res, {
-    ok: true,
-    total,
-    processed,
-    nextOffset,
-    hasMore,
-    success,
-    failed,
-    postersWritten,
-    log,
-  });
+  return { success: true, total, refreshed: success, failed, postersWritten };
 }
 
-export async function handleRefreshTvdbMetadata(req, res) {
+export async function handleRefreshTmdbMetadata(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
-  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!["GET", "POST"].includes(req.method)) return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
 
-  const body = await readJson(req).catch(() => ({}));
-  const offset = Math.max(Number(body.offset || 0), 0);
-  const limit = Math.min(Math.max(Number(body.limit || 8), 1), 20);
+  // GET: poll for current status and log lines, same shape as /api/force-sync.
+  if (req.method === "GET") {
+    const job = getLatestBackgroundJob("refresh_tmdb_metadata");
+    if (!job) {
+      return sendJson(res, { active: false, log: [], result: null, status: "idle", jobId: null, workerAvailable: workerAvailable() }, 200, { "Cache-Control": "no-store" });
+    }
+    return sendJson(res, {
+      active: ["queued", "running"].includes(job.status),
+      log: getBackgroundJobLogs(job.id).map((entry) => entry.message),
+      result: job.result || (job.error ? { success: false, error: job.error } : null),
+      startedAt: job.startedAt || job.requestedAt,
+      jobId: job.id,
+      status: job.status,
+      workerAvailable: workerAvailable(),
+    }, 200, { "Cache-Control": "no-store" });
+  }
 
+  // POST: fire-and-forget - return 202 immediately, run in background.
+  if (!workerAvailable()) return sendJson(res, { ok: false, error: "No background worker is available." }, 503);
+  const existingJob = getLatestBackgroundJob("refresh_tmdb_metadata");
+  if (existingJob && ["queued", "running"].includes(existingJob.status)) {
+    return sendJson(res, { ok: false, error: "A TMDB metadata refresh is already running.", jobId: existingJob.id }, 409);
+  }
+  let queuedJob;
+  try {
+    queuedJob = enqueueBackgroundJob("refresh_tmdb_metadata", {});
+  } catch (error) {
+    if (error?.code === "JOB_ACTIVE") return sendJson(res, { ok: false, error: error.message }, 409);
+    throw error;
+  }
+  return sendJson(res, {
+    ok: true,
+    started: true,
+    jobId: queuedJob.id,
+    status: queuedJob.status,
+    message: "TMDB metadata refresh queued. Poll GET /api/refresh-tmdb-metadata for status.",
+  }, 202);
+}
+
+// Same background-job pattern as runTmdbMetadataRefreshJob, scoped to TV shows
+// and TVDB series data (episode ordering, air dates, artwork).
+export async function runTvdbMetadataRefreshJob(log, { isCancelled } = {}) {
   const items = (await listLibraryItemsForRefresh()).filter((item) => item.mediaType === "tv");
   const total = items.length;
-  const PAGE_BUDGET_MS = 25000;
-  const startedAt = Date.now();
+  log(`Found ${total} show${total === 1 ? "" : "s"} to refresh.`);
 
   let success = 0;
   let failed = 0;
-  let processed = 0;
-  const log = [];
 
-  for (let i = offset; i < items.length && processed < limit; i++) {
-    if (processed > 0 && Date.now() - startedAt > PAGE_BUDGET_MS) break;
+  for (let i = 0; i < items.length; i++) {
+    if (isCancelled && await isCancelled()) {
+      return { success: false, aborted: true, cancelled: true, total, refreshed: success, failed, reason: "TVDB metadata refresh was cancelled." };
+    }
     const item = items[i];
     const label = `Show: ${item.title}`;
     try {
@@ -803,31 +821,60 @@ export async function handleRefreshTvdbMetadata(req, res) {
         await getTvdbSeriesExtended(tvdbId, { force: true });
         await getTvdbSeriesArtwork(tvdbId).catch(() => null);
         success += 1;
-        log.push(`OK - ${label} (TVDB #${tvdbId})`);
+        log(`OK - ${label} (TVDB #${tvdbId}) (${i + 1}/${total})`);
       } else {
         failed += 1;
-        log.push(`SKIP - ${label} (No TVDB match found)`);
+        log(`SKIP - ${label} (No TVDB match found) (${i + 1}/${total})`);
       }
     } catch (error) {
       failed += 1;
-      log.push(`FAILED - ${label} (${error.message || "error"})`);
+      log(`FAILED - ${label} (${error.message || "error"}) (${i + 1}/${total})`);
     }
-    processed += 1;
   }
 
-  const nextOffset = offset + processed;
-  const hasMore = nextOffset < total;
+  return { success: true, total, refreshed: success, failed };
+}
 
+export async function handleRefreshTvdbMetadata(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (!["GET", "POST"].includes(req.method)) return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  if (req.method === "GET") {
+    const job = getLatestBackgroundJob("refresh_tvdb_metadata");
+    if (!job) {
+      return sendJson(res, { active: false, log: [], result: null, status: "idle", jobId: null, workerAvailable: workerAvailable() }, 200, { "Cache-Control": "no-store" });
+    }
+    return sendJson(res, {
+      active: ["queued", "running"].includes(job.status),
+      log: getBackgroundJobLogs(job.id).map((entry) => entry.message),
+      result: job.result || (job.error ? { success: false, error: job.error } : null),
+      startedAt: job.startedAt || job.requestedAt,
+      jobId: job.id,
+      status: job.status,
+      workerAvailable: workerAvailable(),
+    }, 200, { "Cache-Control": "no-store" });
+  }
+
+  if (!workerAvailable()) return sendJson(res, { ok: false, error: "No background worker is available." }, 503);
+  const existingJob = getLatestBackgroundJob("refresh_tvdb_metadata");
+  if (existingJob && ["queued", "running"].includes(existingJob.status)) {
+    return sendJson(res, { ok: false, error: "A TVDB metadata refresh is already running.", jobId: existingJob.id }, 409);
+  }
+  let queuedJob;
+  try {
+    queuedJob = enqueueBackgroundJob("refresh_tvdb_metadata", {});
+  } catch (error) {
+    if (error?.code === "JOB_ACTIVE") return sendJson(res, { ok: false, error: error.message }, 409);
+    throw error;
+  }
   return sendJson(res, {
     ok: true,
-    total,
-    processed,
-    nextOffset,
-    hasMore,
-    success,
-    failed,
-    log,
-  });
+    started: true,
+    jobId: queuedJob.id,
+    status: queuedJob.status,
+    message: "TVDB metadata refresh queued. Poll GET /api/refresh-tvdb-metadata for status.",
+  }, 202);
 }
 
 export async function handleRematchTvShows(req, res) {

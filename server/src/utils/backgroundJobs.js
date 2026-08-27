@@ -33,14 +33,20 @@ export function workerAvailable(now = Date.now()) {
   return schedulerLeaseStatus(now).available;
 }
 
+const SUPPORTED_JOB_TYPES = ["cron_sync", "force_sync", "force_sync_plan", "refresh_tmdb_metadata", "refresh_tvdb_metadata"];
+// Job types that may only have one queued/running instance at a time - a
+// second enqueue attempt is rejected with JOB_ACTIVE rather than piling up
+// duplicate work against the same library scan.
+const SINGLETON_JOB_TYPES = new Set(["force_sync", "force_sync_plan", "refresh_tmdb_metadata", "refresh_tvdb_metadata"]);
+
 export function enqueueBackgroundJob(type, payload = {}, now = Date.now()) {
-  if (!["cron_sync", "force_sync", "force_sync_plan"].includes(type)) throw new Error(`Unsupported background job type: ${type}`);
+  if (!SUPPORTED_JOB_TYPES.includes(type)) throw new Error(`Unsupported background job type: ${type}`);
   const job = { id: crypto.randomUUID(), type, requestedAt: now, payload: toJson(payload || {}) };
   return db.transaction(() => {
-    if (type === "force_sync" || type === "force_sync_plan") {
+    if (SINGLETON_JOB_TYPES.has(type)) {
       const active = db.prepare("SELECT id FROM background_jobs WHERE type=? AND status IN ('queued','running') LIMIT 1").get(type);
       if (active) {
-        const error = new Error("Another force sync job is already running.");
+        const error = new Error("Another job of this type is already running.");
         error.code = "JOB_ACTIVE";
         throw error;
       }

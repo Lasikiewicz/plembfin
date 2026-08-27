@@ -12,7 +12,7 @@ import { handleAdminFixHistory, handleBackfillStatus, handleBackfillTrakt, handl
 import { handleEmbyLikeAuth, handleEmbyLikeConnection, handlePlexAuth, handlePlexConnection } from "./routes/mediaAuth.js";
 import { handleTrackerAuth, handleTrackerConnections } from "./routes/trackerAuth.js";
 import { handleLiveUpdates } from "./routes/liveUpdates.js";
-import { handleSetupStatus, handleSetupStep, handleSetupImport, handleSetupComplete, handleSetupRestart, handleSetupChecklistDismiss } from "./routes/onboarding.js";
+import { handleSetupStatus, handleSetupStep, handleSetupImport, handleSetupComplete, handleSetupRestart, handleSetupChecklistDismiss, handleSetupCtaDismiss } from "./routes/onboarding.js";
 
 function routePath(req) {
   const path = req.path || new URL(req.originalUrl || req.url, "https://local").pathname;
@@ -45,6 +45,7 @@ async function dispatch(req, res) {
     if (path === "setup/complete") return handleSetupComplete(req, res);
     if (path === "setup/restart") return handleSetupRestart(req, res);
     if (path === "setup/checklist/dismiss") return handleSetupChecklistDismiss(req, res);
+    if (path === "setup/cta-dismiss") return handleSetupCtaDismiss(req, res);
     if (path === "auth/apikey") return handleAuthApiKey(req, res);
     if (path === "auth/webhook-secret") return handleAuthWebhookSecret(req, res);
     if (path === "auth/sessions/revoke-all") return handleRevokeAllSessions(req, res);

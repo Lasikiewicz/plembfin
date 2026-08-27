@@ -74,7 +74,11 @@ the same failing lookups on every start. See [tv-shows.md](tv-shows.md).
 `prewarmTmdbLibrary` (driven by the scheduler) warms details for recently watched items
 so detail pages open hot. Settings → Advanced → Storage & cache (`/settings/advanced#storage`, `GET /api/cache-stats`,
 `POST /api/clear-cache`, handlers in `index.js`) reports and clears the caches;
-`POST /api/refresh-tmdb-metadata` force-refreshes items.
+`POST /api/refresh-tmdb-metadata` (and the TVDB-scoped `POST /api/refresh-tvdb-metadata`)
+queue a whole-library refresh as a cancellable background job and return immediately
+(`202`); `GET` on either endpoint polls the same job's live log and result. Running the
+whole pass server-side means it survives closing the settings panel, navigating away, or
+reloading the page - the poll just re-attaches to whatever job is already running.
 
 ## API endpoints (all admin-authenticated, all in `server/src/index.js`)
 

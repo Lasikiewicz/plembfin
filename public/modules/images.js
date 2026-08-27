@@ -225,9 +225,12 @@ export function posterOverflowMenu(item = {}, options = {}) {
   const isEpisode = item.media_type === "episode";
   const mediaType = options.mediaType || (isEpisode ? "tv" : "movie");
   const kind = options.kind || (isEpisode ? "episode" : "movie");
-  const title = options.title || item.title || "";
-  const label = options.label || (isEpisode ? (item.show_title || title) : title);
   const showTitle = options.showTitle || (isEpisode ? (item.show_title || "") : "");
+  // Fix Match rematches the whole show, not one episode, so an episode card's
+  // default title (used to prefill the search box and to scope the rematch)
+  // must be the show title, not the episode's own title/label.
+  const title = options.title || (isEpisode ? (showTitle || item.title || "") : (item.title || ""));
+  const label = options.label || (isEpisode ? (showTitle || title) : title);
   // Deliberately no movie tmdb id attribute here: confirmAndMarkUnwatched()
   // in watch-action.js treats a present unwatch-tmdb-id as proof the movie's
   // detail page was already open and re-opens it after unwatching. These

@@ -69,11 +69,21 @@ setup-only configuration path.
 - Leaving the wizard early (**Exit to Settings**) doesn't mark it complete. Settings shows
   a persistent **Setup is in progress** banner with a **Resume Setup Guide** link until it
   is finished.
+- The sidebar also shows a **Complete onboarding** entry point on every page while setup
+  isn't finished, alongside its own **×** control to dismiss it permanently. It disappears
+  on its own once at least one media server has been connected and tested, whether that
+  happened by finishing the wizard or by connecting a server directly from Settings.
+  Dismissing it or finishing setup is independent of the Settings resume banner above -
+  only actually finishing the wizard clears both.
 - Settings → Account → **Run setup guide** reopens `/setup` at any time, including after
   it's been completed - useful for revisiting a step (e.g. adding a second server) without
   touching anything already configured.
 - Progress is stored server-side (a `settings` row keyed `onboarding`, not browser storage
   or cookies), so it survives a refresh, a different browser, or a different admin session.
+- The wizard's overview step offers a **Restore from backup** shortcut for migrating an
+  existing install onto a fresh one, before connecting anything. It reuses the exact same
+  local-upload/server-stored and Backblaze B2 restore tools as Settings → Backups → Restore
+  (see [`docs/backups.md`](backups.md)) rather than a separate implementation.
 
 ### Dashboard checklist
 

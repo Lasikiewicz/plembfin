@@ -110,6 +110,9 @@ function bindElements() {
   Object.assign(elements, {
     appShell: document.querySelector("#appShell"),
     appVersion: document.querySelector("#appVersion"),
+    sidebarOnboardingCta: document.querySelector("#sidebarOnboardingCta"),
+    sidebarOnboardingButton: document.querySelector("#sidebarOnboardingButton"),
+    sidebarOnboardingDismiss: document.querySelector("#sidebarOnboardingDismiss"),
     syncProgressIndicator: document.querySelector("#syncProgressIndicator"),
     syncProgressText: document.querySelector("#syncProgressText"),
     syncActivityStatus: document.querySelector("#syncActivityStatus"),
@@ -137,6 +140,8 @@ function bindElements() {
     claimPasswordConfirm: document.querySelector("#claimPasswordConfirm"),
     claimMessage: document.querySelector("#claimMessage"),
     setupPageRoot: document.querySelector("#setupPageRoot"),
+    setupFooterBarMeta: document.querySelector("#setupFooterBarMeta"),
+    setupRestoreBackupButton: document.querySelector("#setupRestoreBackupButton"),
     dashboardChecklist: document.querySelector("#dashboardChecklist"),
     adminToken: document.querySelector("#adminToken"),
     adminEmail: document.querySelector("#adminEmail"),
@@ -1740,8 +1745,9 @@ function applyActiveView() {
   setupFooterBar?.classList.toggle("hidden", !isSetupView);
   if (elements.appVersion && elements.themeToggleButton) {
     if (isSetupView && setupFooterBar) {
-      setupFooterBar.appendChild(elements.appVersion);
-      setupFooterBar.appendChild(elements.themeToggleButton);
+      const meta = elements.setupFooterBarMeta || setupFooterBar;
+      meta.appendChild(elements.appVersion);
+      meta.appendChild(elements.themeToggleButton);
       // The changelog it links to isn't relevant mid-onboarding; keep the
       // version number visible but not clickable there.
       elements.appVersion.disabled = true;
@@ -2529,7 +2535,7 @@ function initialize() {
     renderActiveSessions,
   });
   initTrackerSettings({ authHeaders });
-  initOnboarding({ authHeaders, navigateTo, setMessage, setUnlocked, loadHistory, loadSavedConfig, startHistoryPolling });
+  initOnboarding({ authHeaders, navigateTo, setMessage, setUnlocked, loadHistory, loadSavedConfig, startHistoryPolling, openConfirmDialog });
   initTools({
     setMessage,
     openConfirmDialog,
@@ -2682,6 +2688,7 @@ function initialize() {
     renderDbStatus,
     showErrorExplainModal,
     runRefreshMetadataWorkflow,
+    runRefreshTvdbMetadataWorkflow,
     showToast,
     logDebug,
     syncPageTopbar,
@@ -2734,6 +2741,7 @@ function initialize() {
         onError: (error) => logDebug(`Live update connection interrupted: ${error.message}`),
       });
       refreshTrackerSettings().catch(() => { });
+      resumeActiveRefreshJobs();
       for (const [key, value] of state.posterLookupCache.entries()) {
         if (!value) state.posterLookupCache.delete(key);
       }
@@ -2761,11 +2769,12 @@ function initialize() {
       setUnlocked(true);
       applyMustChangePassword();
       if (!state.mustChangePassword && fullPath !== "/setup") {
-        loadSetupStatus().then((status) => {
-          if (status.onboarding.runState !== "completed" && fullPath === "/") {
-            navigateTo("/setup");
-          }
-        }).catch(() => {});
+        // Onboarding no longer force-navigates here on every load/refresh - it
+        // only redirected once and left no way back except finishing the whole
+        // wizard. loadSetupStatus() renders the persistent, dismissible
+        // "Complete onboarding" sidebar entry point instead (see
+        // renderSidebarOnboardingCta() in onboarding.js).
+        loadSetupStatus().catch(() => {});
       }
       if (isConfigSensitiveRoute(fullPath) && !state.mustChangePassword) {
         primeSensitiveRouteState(fullPath);
@@ -2844,183 +2853,153 @@ function showCopyToast() {
   showToast("Copied!");
 }
 
-async function runRefreshMetadataWorkflow() {
-  const button = elements.refreshMetadataButton;
-  const status = elements.refreshMetadataStatus;
-  const logEl = elements.refreshMetadataLog;
-  if (!button) return;
+// Both refresh workflows run as server-side background jobs (see
+// workerCoordinator.js's runTmdbMetadataRefreshJob/runTvdbMetadataRefreshJob)
+// instead of a client-driven paging loop, so progress survives navigating away
+// from this settings panel, closing the tab, or reloading the page - the
+// button click just enqueues the job, and pollRefreshJob() polls its status
+// until it finishes. resumeActiveRefreshJobs() (called once after login)
+// re-attaches polling to a job that was already running before this page load.
+const REFRESH_JOB_POLL_MS = 2000;
+const refreshJobPolling = { tmdb: false, tvdb: false };
 
-  button.disabled = true;
-  button.textContent = "Refreshing Metadata...";
-  if (status) status.textContent = "Starting...";
-  if (status) status.className = "status-pill status-warning";
-  if (logEl) logEl.textContent = "Refreshing TMDB metadata, cast, artwork and posters for your whole library...\n";
+const REFRESH_JOB_UI = {
+  tmdb: {
+    url: "/api/refresh-tmdb-metadata",
+    button: () => elements.refreshMetadataButton,
+    status: () => elements.refreshMetadataStatus,
+    log: () => elements.refreshMetadataLog,
+    idleLabel: "Refresh Metadata Now",
+    activeLabel: "Refreshing Metadata...",
+    noun: "items",
+  },
+  tvdb: {
+    url: "/api/refresh-tvdb-metadata",
+    button: () => elements.refreshTvdbButton,
+    status: () => elements.refreshTvdbStatus,
+    log: () => elements.refreshTvdbLog,
+    idleLabel: "Refresh TVDB Metadata Now",
+    activeLabel: "Refreshing TVDB Metadata...",
+    noun: "shows",
+  },
+};
+
+function lastRefreshProgress(lines) {
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const match = lines[i].match(/\((\d+)\/(\d+)\)\s*$/);
+    if (match) return { done: Number(match[1]), total: Number(match[2]) };
+  }
+  return null;
+}
+
+function summarizeRefreshResult(kind, result) {
+  const { noun } = REFRESH_JOB_UI[kind];
+  if (!result) return "";
+  if (result.cancelled) return `Cancelled after ${result.refreshed || 0} of ${result.total || 0} ${noun}.`;
+  if (result.success === false) return `Error: ${result.error || "refresh failed"}`;
+  const postersLine = kind === "tmdb" && result.postersWritten ? `, ${result.postersWritten} posters stored` : "";
+  return `Done! Refreshed ${result.refreshed || 0} ${noun} (failed: ${result.failed || 0})${postersLine}.`;
+}
+
+async function pollRefreshJob(kind) {
+  if (refreshJobPolling[kind]) return;
+  refreshJobPolling[kind] = true;
+  const ui = REFRESH_JOB_UI[kind];
+  const button = ui.button();
+  const status = ui.status();
+  const logEl = ui.log();
 
   try {
-    let offset = 0;
-    let total = 0;
-    let success = 0;
-    let failed = 0;
-    let posters = 0;
-    let hasMore = true;
+    for (;;) {
+      const res = await fetch(ui.url, { headers: authHeaders(), cache: "no-store" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
 
-    // The backend processes the library in time-boxed pages (metadata + artwork
-    // cached, and the canonical poster stamped back onto every record). We just
-    // drive the pages, retrying transient 503/504s (cold start / scaling).
-    const fetchPage = async () => {
-      let lastErr;
-      for (let attempt = 0; attempt < 4; attempt++) {
-        try {
-          const res = await fetch("/api/refresh-tmdb-metadata", {
-            method: "POST",
-            headers: { ...authHeaders(), "Content-Type": "application/json" },
-            body: JSON.stringify({ offset, limit: 8 }),
-          });
-          if (res.ok) return await res.json();
-          if (res.status === 503 || res.status === 504 || res.status === 429) {
-            lastErr = new Error(`HTTP ${res.status}`);
-            if (logEl) { logEl.textContent += `(server busy, retrying...)\n`; logEl.scrollTop = logEl.scrollHeight; }
-            await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
-            continue;
-          }
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || `HTTP ${res.status}`);
-        } catch (err) {
-          lastErr = err;
-          await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
-        }
-      }
-      throw lastErr || new Error("Refresh page failed");
-    };
-
-    while (hasMore) {
-      const data = await fetchPage();
-      total = data.total || total;
-      success += data.success || 0;
-      failed += data.failed || 0;
-      posters += data.postersWritten || 0;
-      offset = data.nextOffset != null ? data.nextOffset : offset + 12;
-      hasMore = !!data.hasMore;
-
-      const percent = total ? Math.round((Math.min(offset, total) / total) * 100) : 100;
-      if (status) status.textContent = `Progress: ${Math.min(offset, total)} of ${total} (${percent}%)`;
-      if (status) status.className = "status-pill status-warning";
-      if (logEl && Array.isArray(data.log)) {
-        for (const line of data.log) logEl.textContent += line + "\n";
+      const lines = Array.isArray(data.log) ? data.log : [];
+      if (logEl && lines.length) {
+        logEl.classList.remove("hidden");
+        logEl.textContent = lines.join("\n") + "\n";
         logEl.scrollTop = logEl.scrollHeight;
       }
-    }
 
-    const summaryMsg = `Done! Refreshed ${success} items (failed: ${failed}), ${posters} posters stored.`;
-    clearDerivedUiCaches();
-    state.historyVersion = "";
-    await loadHistory({ force: true });
-    if (status) status.textContent = summaryMsg;
-    if (status) status.className = "status-pill status-ready";
-    if (logEl) {
-      logEl.textContent += summaryMsg + "\n";
-      logEl.scrollTop = logEl.scrollHeight;
+      if (data.active) {
+        if (button) { button.disabled = true; button.textContent = ui.activeLabel; }
+        if (status) {
+          const progress = lastRefreshProgress(lines);
+          status.textContent = progress
+            ? `Progress: ${progress.done} of ${progress.total} (${Math.round((progress.done / Math.max(progress.total, 1)) * 100)}%)`
+            : "Starting...";
+          status.className = "status-pill status-warning";
+        }
+        await new Promise((resolve) => setTimeout(resolve, REFRESH_JOB_POLL_MS));
+        continue;
+      }
+
+      if (button) { button.disabled = false; button.textContent = ui.idleLabel; }
+      if (data.result) {
+        const summary = summarizeRefreshResult(kind, data.result);
+        const isError = data.result.success === false && !data.result.cancelled;
+        if (status) {
+          status.textContent = summary || "Idle";
+          status.className = isError ? "status-pill status-error" : "status-pill status-ready";
+        }
+        if (logEl && summary) {
+          logEl.textContent += summary + "\n";
+          logEl.scrollTop = logEl.scrollHeight;
+        }
+        if (!isError) {
+          clearDerivedUiCaches();
+          state.historyVersion = "";
+          await loadHistory({ force: true }).catch(() => {});
+        }
+      }
+      break;
     }
   } catch (err) {
-    const msg = `Error: ${err.message}`;
-    if (status) status.textContent = msg;
-    if (status) status.className = "status-pill status-error";
-    if (logEl) {
-      logEl.textContent += msg + "\n";
-      logEl.scrollTop = logEl.scrollHeight;
-    }
+    if (status) { status.textContent = `Error: ${err.message}`; status.className = "status-pill status-error"; }
+    if (button) { button.disabled = false; button.textContent = ui.idleLabel; }
   } finally {
-    button.disabled = false;
-    button.textContent = "Refresh Metadata Now";
+    refreshJobPolling[kind] = false;
   }
 }
 
-async function runRefreshTvdbMetadataWorkflow() {
-  const button = elements.refreshTvdbButton;
-  const status = elements.refreshTvdbStatus;
-  const logEl = elements.refreshTvdbLog;
+async function startRefreshJob(kind) {
+  const ui = REFRESH_JOB_UI[kind];
+  const button = ui.button();
+  const status = ui.status();
   if (!button) return;
-
-  button.disabled = true;
-  button.textContent = "Refreshing TVDB Metadata...";
-  if (status) status.textContent = "Starting...";
-  if (status) status.className = "status-pill status-warning";
-  if (logEl) {
-    logEl.classList.remove("hidden");
-    logEl.textContent = "Fetching series details, episode lists, and artwork from TVDB for TV shows...\n";
-  }
-
   try {
-    let offset = 0;
-    let total = 0;
-    let success = 0;
-    let failed = 0;
-    let hasMore = true;
-
-    const fetchPage = async () => {
-      let lastErr;
-      for (let attempt = 0; attempt < 4; attempt++) {
-        try {
-          const res = await fetch("/api/refresh-tvdb-metadata", {
-            method: "POST",
-            headers: { ...authHeaders(), "Content-Type": "application/json" },
-            body: JSON.stringify({ offset, limit: 6 }),
-          });
-          if (res.ok) return await res.json();
-          if (res.status === 503 || res.status === 504 || res.status === 429) {
-            lastErr = new Error(`HTTP ${res.status}`);
-            if (logEl) { logEl.textContent += `(server busy, retrying...)\n`; logEl.scrollTop = logEl.scrollHeight; }
-            await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
-            continue;
-          }
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.error || `HTTP ${res.status}`);
-        } catch (err) {
-          lastErr = err;
-          await new Promise((r) => setTimeout(r, 2000 * (attempt + 1)));
-        }
-      }
-      throw lastErr || new Error("Refresh page failed");
-    };
-
-    while (hasMore) {
-      const data = await fetchPage();
-      total = data.total || total;
-      success += data.success || 0;
-      failed += data.failed || 0;
-      offset = data.nextOffset || (offset + (data.processed || 1));
-      hasMore = Boolean(data.hasMore);
-
-      if (Array.isArray(data.log) && data.log.length) {
-        if (logEl) {
-          logEl.textContent += data.log.join("\n") + "\n";
-          logEl.scrollTop = logEl.scrollHeight;
-        }
-      }
-
-      if (status) {
-        status.textContent = `Progress: ${offset}/${total} (${success} ok, ${failed} failed)`;
-      }
-    }
-
-    const summaryMsg = `Done! Refreshed TVDB metadata for ${success} shows (failed: ${failed}).`;
-    if (status) status.textContent = summaryMsg;
-    if (status) status.className = "status-pill status-ready";
-    if (logEl) {
-      logEl.textContent += summaryMsg + "\n";
-      logEl.scrollTop = logEl.scrollHeight;
+    const res = await fetch(ui.url, { method: "POST", headers: { ...authHeaders(), "Content-Type": "application/json" } });
+    // A 409 means a matching job is already running (e.g. resumed from another
+    // tab) - fall through to polling instead of treating it as a failure.
+    if (!res.ok && res.status !== 409) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || `HTTP ${res.status}`);
     }
   } catch (err) {
-    const msg = `Error: ${err.message}`;
-    if (status) status.textContent = msg;
-    if (status) status.className = "status-pill status-error";
-    if (logEl) {
-      logEl.textContent += msg + "\n";
-      logEl.scrollTop = logEl.scrollHeight;
-    }
-  } finally {
-    button.disabled = false;
-    button.textContent = "Refresh TVDB Metadata Now";
+    if (status) { status.textContent = `Error: ${err.message}`; status.className = "status-pill status-error"; }
+    return;
+  }
+  pollRefreshJob(kind);
+}
+
+function runRefreshMetadataWorkflow() {
+  return startRefreshJob("tmdb");
+}
+
+function runRefreshTvdbMetadataWorkflow() {
+  return startRefreshJob("tvdb");
+}
+
+// Re-attaches status polling to a TMDB/TVDB refresh job that was already
+// running before this page loaded, so a reload or a return visit shows live
+// progress instead of the static "Idle" markup.
+function resumeActiveRefreshJobs() {
+  for (const kind of Object.keys(REFRESH_JOB_UI)) {
+    fetch(REFRESH_JOB_UI[kind].url, { headers: authHeaders(), cache: "no-store" })
+      .then((res) => res.json().catch(() => ({})))
+      .then((data) => { if (data?.active) pollRefreshJob(kind); })
+      .catch(() => {});
   }
 }
 

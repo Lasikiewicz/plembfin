@@ -32,6 +32,7 @@ const DEFAULT_STATE = {
     completedAt: null,
   },
   checklistDismissedAt: null,
+  ctaDismissedAt: null,
 };
 
 const selectStmt = db.prepare("SELECT data FROM settings WHERE id = ?");
@@ -162,5 +163,6 @@ export function restartOnboarding() {
     currentStep: "overview",
     acknowledgements: { webhooks: {}, traktSkipped: false },
     checklistDismissedAt: null,
+    ctaDismissedAt: null,
   });
 }

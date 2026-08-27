@@ -269,6 +269,7 @@ See [README.md](README.md) for the documentation index, including this file
 | `changelog-message.js` | Shared changelog-message formatting, bullet extraction, and release-detail validation used by local hooks, tests, and CI. |
 | `validate-commit-message.js` | CLI used by the commit-message hook to reject user-visible release commits with missing or title-repeating details. |
 | `update-changelog.js` | CI helper: validates release details, bumps the patch version (honouring a manually-set higher version), converts the pushed commits' messages + bullet points into a `changelog.json` entry (grouped into `entry.sections` - New Features/Major Bug Fixes/Tweaks - via `categorizeEntries()`), and syncs `package.json`/`package-lock.json`. |
+| `notify-discord-release.js` | CI helper called by `update-changelog.yml` (`main`) and `docker-publish-alpha.yml` (`alpha`): builds a Discord embed from the newest `changelog.json`/`changelog.alpha.json` entry and posts it to the `DISCORD_RELEASES_WEBHOOK` secret. No-ops if the secret isn't set; supports `--dry-run` to print the embed instead of posting. |
 | `install-git-hooks.js` | Sets `core.hooksPath` to `.githooks` (runs automatically via npm `prepare`). |
 | `docker-entrypoint.sh` | Container entrypoint: chowns `/data` when starting as root, then drops to the `plembfin` user via gosu. |
 | `exportPlexHistory.js` | Standalone one-shot importer: reads a Plex server's watch history over its API and posts it to `/api/import` in chunks. Driven by env vars (`PLEX_URL`, `PLEX_TOKEN`, `API_KEY`). |
@@ -280,6 +281,17 @@ See [README.md](README.md) for the documentation index, including this file
 The focused `node:test` suite run by `npm test` and the build check. Each file runs in
 its own process; DB-backed tests point `DATA_DIR` at a temp directory before importing
 server modules.
+
+### `reddit-app/`
+
+A separate deployable, not part of the main app's build/test/CI - see
+[`reddit-app/README.md`](../reddit-app/README.md). A [Devvit](https://developers.reddit.com)
+app installed only in r/plembfin: a scheduled job polls this repository's public
+`changelog.json` and, when a new release appears, posts and pins an announcement to
+r/plembfin (un-pinning whichever release post it had pinned before). It has its own
+`package.json`, builds with `vite`/`devvit` rather than this repo's Node tooling, and is
+deployed with the `devvit` CLI, not Docker/GHCR. `PRIVACY.md`/`TERMS.md` in that
+directory are linked from the app's Reddit developer-platform listing.
 
 | File | What it covers |
 | --- | --- |

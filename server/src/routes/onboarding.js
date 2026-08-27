@@ -114,6 +114,7 @@ export async function handleSetupStatus(req, res) {
       backgroundImports,
       pushSync: state.pushSync,
       checklistDismissedAt: state.checklistDismissedAt,
+      ctaDismissedAt: state.ctaDismissedAt,
     },
     servers,
     trakt,
@@ -212,5 +213,18 @@ export async function handleSetupChecklistDismiss(req, res) {
   if (!(await requireAdmin(req, res))) return;
 
   const next = saveOnboardingState({ checklistDismissedAt: Date.now() });
+  return sendJson(res, { ok: true, onboarding: next });
+}
+
+// Permanently dismisses the sidebar "Complete onboarding" entry point. Unlike
+// the checklist dismiss above (which only hides the dashboard task card),
+// this is the sidebar-wide reminder shown while setup isn't finished -
+// restartOnboarding() clears this flag if onboarding is ever restarted.
+export async function handleSetupCtaDismiss(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const next = saveOnboardingState({ ctaDismissedAt: Date.now() });
   return sendJson(res, { ok: true, onboarding: next });
 }

@@ -8,6 +8,7 @@ import { escapeHtml, escapeAttribute } from "./utils.js";
 import { openServiceEditModal } from "./settings-services.js";
 import { embyWebhookSetup, jellyfinWebhookSetup, buildWebhookUrl } from "./help-content.js";
 import { claimAdminAccount } from "./auth.js";
+import { loadWatchBackups, loadPlembfinBackups } from "./tools-backups.js";
 
 let _cb = {};
 export function initOnboarding(callbacks = {}) {
@@ -18,7 +19,10 @@ export function initOnboarding(callbacks = {}) {
   // state while the wizard is open behind it - refresh so the step reflects
   // it as soon as the modal closes, without polling.
   document.addEventListener("plembfin:config-changed", () => {
-    if (state.activeView === "setup") loadSetupStatus().catch(() => {});
+    // A connection can be finished from Settings directly, outside the wizard
+    // - always refresh so the sidebar onboarding CTA (and the wizard itself,
+    // if it happens to be open behind a Settings modal) reflect it.
+    loadSetupStatus().catch(() => {});
   });
   // See checkTraktFlow() - re-check immediately when the user switches back
   // from the trakt.tv activation tab instead of waiting on a throttled timer.
@@ -32,6 +36,7 @@ export function initOnboarding(callbacks = {}) {
 const authHeaders = (...args) => _cb.authHeaders?.(...args) || {};
 const navigateTo = (...args) => _cb.navigateTo?.(...args);
 const setMessage = (...args) => _cb.setMessage?.(...args);
+const openConfirmDialog = (...args) => _cb.openConfirmDialog?.(...args) || Promise.resolve(true);
 const setUnlocked = (...args) => _cb.setUnlocked?.(...args);
 const loadHistory = (...args) => _cb.loadHistory?.(...args) || Promise.resolve();
 const loadSavedConfig = (...args) => _cb.loadSavedConfig?.(...args) || Promise.resolve();
@@ -146,6 +151,9 @@ let traktPollTimer = null;
 let importStatusPollTimer = null;
 let backupSetupData = null;
 let backupSetupLoading = null;
+// null (normal wizard steps) | "choice" | "local" | "remote" - see
+// renderRestoreView() and the overview step's "Restore from backup" button.
+let restoreView = null;
 
 async function api(url, options = {}) {
   const res = await fetch(url, {
@@ -168,10 +176,25 @@ export async function loadSetupStatus() {
     .then((data) => {
       cachedStatus = data;
       renderSetupPage();
+      renderSidebarOnboardingCta();
       return data;
     })
     .finally(() => { statusLoading = null; });
   return statusLoading;
+}
+
+// Persistent sidebar entry point for unfinished onboarding, shown in place of
+// the old behavior of force-navigating to /setup on every load while setup
+// wasn't done. Hidden once at least one media server is connected and tested
+// (the same bar the wizard's own "Open dashboard" button gates on - reached
+// either by finishing the wizard or by connecting a server directly from
+// Settings), or once permanently dismissed via its own "x" control.
+export function renderSidebarOnboardingCta() {
+  const container = elements.sidebarOnboardingCta;
+  if (!container || !cachedStatus) return;
+  const canFinish = cachedStatus.servers.some((s) => s.tested);
+  const dismissed = Boolean(cachedStatus.onboarding.ctaDismissedAt);
+  container.classList.toggle("hidden", canFinish || dismissed);
 }
 
 async function loadBackupSetupData({ force = false } = {}) {
@@ -180,7 +203,7 @@ async function loadBackupSetupData({ force = false } = {}) {
   backupSetupLoading = Promise.all([api("/api/plembfin-backups"), api("/api/watch-backups")])
     .then(([plembfin, watch]) => {
       backupSetupData = { plembfin, watch };
-      if (currentStep() === "backup") renderSetupPage();
+      if (currentStep() === "backup" || restoreView === "remote") renderSetupPage();
       return backupSetupData;
     })
     .catch((error) => {
@@ -267,13 +290,24 @@ export function renderSetupPage() {
   if (!root) return;
   clearTimeout(importStatusPollTimer);
   importStatusPollTimer = null;
+  // #restore-local/#restore-remote are the exact same DOM Settings' own
+  // Restore tab uses (see renderRestoreView() below) - every root.innerHTML
+  // assignment past this point would otherwise destroy them outright if they
+  // were still parented inside root from a previous render, so always send
+  // them home first; the restoreView branch re-borrows whichever one it needs
+  // once the new markup exists.
+  homeRestoreSections();
   if (!cachedStatus) {
     root.innerHTML = `<div class="settings-content"><p class="muted-copy">Loading setup...</p></div>`;
     return;
   }
+  const logoSrc = document.documentElement.classList.contains("light-mode") ? "/plembfin_header_logo_light.png" : "/plembfin_header_logo_dark.png";
+  if (restoreView) {
+    renderRestoreView(root, logoSrc);
+    return;
+  }
   const step = currentStep();
   const canFinish = cachedStatus.servers.some((s) => s.tested);
-  const logoSrc = document.documentElement.classList.contains("light-mode") ? "/plembfin_header_logo_light.png" : "/plembfin_header_logo_dark.png";
   root.innerHTML = `
     <div class="setup-brand">
       <img class="setup-brand-logo brand-logo" src="${logoSrc}" alt="Plembfin" />
@@ -309,6 +343,87 @@ export function renderSetupPage() {
   if (step === "backup") updateBackupContinueAction();
   scheduleImportStatusRefresh(step);
   if (step === "backup" && !backupSetupData && !backupSetupLoading) loadBackupSetupData().catch(() => {});
+  // Migrating an existing install onto a fresh one starts from the overview
+  // step, before any server/metadata setup - offer the shortcut there only.
+  elements.setupRestoreBackupButton?.classList.toggle("hidden", step !== "overview");
+}
+
+// Sends #restore-local/#restore-remote back to their home in Settings' own
+// Restore tab (see settings-shell.js's applySettingsRoute(), which does the
+// same reclaim whenever that tab is actually opened) if they aren't already
+// there. Always safe to call even when nothing was borrowed.
+function homeRestoreSections() {
+  const home = document.getElementById("restoreSectionsHome");
+  if (!home) return;
+  const local = document.getElementById("restore-local");
+  const remote = document.getElementById("restore-remote");
+  if (local && local.parentElement !== home) home.appendChild(local);
+  if (remote && remote.parentElement !== home) home.appendChild(remote);
+}
+
+function renderRestoreChoice() {
+  return `
+    <p class="muted-copy setup-step-intro">Already have a Plembfin backup? Restore it now instead of connecting everything from scratch.</p>
+    <div class="settings-card-grid setup-overview-list">
+      <button type="button" class="settings-card setup-overview-item setup-restore-choice" data-setup-restore-view="local">
+        <div class="setup-overview-item-heading"><b>Restore from a local backup</b></div>
+        <p class="muted-copy">Upload a backup file from your computer, or restore one already stored on this server.</p>
+      </button>
+      <button type="button" class="settings-card setup-overview-item setup-restore-choice" data-setup-restore-view="remote">
+        <div class="setup-overview-item-heading"><b>Restore from a remote backup</b></div>
+        <p class="muted-copy">Connect a Backblaze B2 destination, then choose a backup stored there.</p>
+      </button>
+    </div>`;
+}
+
+function renderRestoreRemoteIntro() {
+  if (!backupSetupData) return `<p class="muted-copy">Loading remote destinations...</p>`;
+  const destination = backblazeDestination();
+  const config = backupSetupData.plembfin?.config || {};
+  return `
+    <p class="muted-copy setup-step-intro">Enter the Backblaze B2 destination your old Plembfin server was backing up to, then test the connection to pull its backup list below.</p>
+    ${renderBackblazeCard({ destination, config, showScheduleToggle: false, mode: "connect" })}`;
+}
+
+// Renders the "Restore from backup" flow, entered from the overview step's
+// footer button. This does not reimplement restore - #restore-local and
+// #restore-remote are the very same elements Settings' Restore tab uses
+// (upload/list/restore logic and all), temporarily reparented in here for the
+// duration of this view and returned home by homeRestoreSections() the
+// moment the user leaves (see renderSetupPage()).
+function renderRestoreView(root, logoSrc) {
+  elements.setupRestoreBackupButton?.classList.add("hidden");
+  const backLabel = restoreView === "choice" ? "Back to setup" : "Back";
+  root.innerHTML = `
+    <div class="setup-brand">
+      <img class="setup-brand-logo brand-logo" src="${logoSrc}" alt="Plembfin" />
+    </div>
+    <section class="glass-panel p-section setup-shell">
+      <div class="section-heading">
+        <div><h2>Restore from backup</h2></div>
+        <div class="setup-header-actions">
+          <button type="button" class="button-ghost" data-setup-restore-back="1">${backLabel}</button>
+        </div>
+      </div>
+      <div class="setup-step-body" id="setupRestoreBody">
+        ${restoreView === "choice" ? renderRestoreChoice() : ""}
+        ${restoreView === "local" ? `<p class="muted-copy setup-step-intro">Restore from a backup already stored on this server, or upload one from your computer. Watch-history and full Plembfin backups restore from separate sections below.</p>` : ""}
+        ${restoreView === "remote" ? `<div id="setupRestoreRemoteIntro">${renderRestoreRemoteIntro()}</div>` : ""}
+      </div>
+    </section>`;
+  const body = document.getElementById("setupRestoreBody");
+  if (!body) return;
+  if (restoreView === "local") {
+    const local = document.getElementById("restore-local");
+    if (local) body.appendChild(local);
+    loadWatchBackups().catch(() => {});
+    loadPlembfinBackups().catch(() => {});
+  } else if (restoreView === "remote") {
+    if (!backupSetupData && !backupSetupLoading) loadBackupSetupData().catch(() => {});
+    const remote = document.getElementById("restore-remote");
+    if (remote) body.appendChild(remote);
+    loadWatchBackups().catch(() => {});
+  }
 }
 
 function scheduleImportStatusRefresh(step) {
@@ -706,12 +821,93 @@ function backblazeDestination() {
   return backupSetupData?.watch?.destinations?.find((destination) => destination.type === "backblaze") || null;
 }
 
+// Shared by the wizard's own "backup" step (configuring a destination for
+// future scheduled backups, mode "setup") and the restore flow's "remote"
+// view (connecting to an existing destination to read backups back out of
+// it, mode "connect") - same fields, same save/test actions, so a
+// destination entered from either place is immediately usable from the
+// other. "setup" walks through creating a new bucket/key on Backblaze;
+// "connect" assumes that already exists and just asks for its details.
+// showScheduleToggle hides the "upload scheduled backups here" checkbox in
+// the restore context, where it isn't relevant.
+function renderBackblazeCard({ destination, config, showScheduleToggle = true, mode = "setup" } = {}) {
+  const settings = destination?.settings || {};
+  const secretConfigured = Boolean(destination?.secretFlags?.secretAccessKey);
+  const isConnect = mode === "connect";
+  const fields = `
+    <label class="field-label">Bucket name<input class="field" data-setup-backblaze-field="bucket" value="${escapeAttribute(settings.bucket || "")}" /></label>
+    <label class="field-label">Region or S3 endpoint<input class="field" data-setup-backblaze-field="region" value="${escapeAttribute(settings.region || "")}" placeholder="eu-central-003" /></label>
+    <label class="field-label">Key ID <span class="muted-copy">(Application Key ID, not the master Account ID)</span><input class="field" data-setup-backblaze-field="accessKeyId" value="${escapeAttribute(settings.accessKeyId || "")}" /></label>
+    <label class="field-label">Application key<input class="field" type="password" autocomplete="new-password" data-setup-backblaze-field="secretAccessKey" placeholder="${secretConfigured ? "Configured - leave blank to keep" : ""}" /></label>
+    <label class="field-label"><span class="setup-backup-label-line">Key prefix <span class="muted-copy">(optional)</span></span><input class="field" data-setup-backblaze-field="prefix" value="${escapeAttribute(settings.prefix || "plembfin/")}" /></label>`;
+  const body = isConnect
+    ? `<p class="muted-copy">Enter the bucket and application key from your existing Backblaze B2 account.</p>
+       <div class="setup-backblaze-stage-fields setup-backblaze-connect-fields">${fields}</div>`
+    : `
+      <p class="muted-copy setup-backblaze-signup"><a href="https://www.backblaze.com/sign-up/cloud-storage" target="_blank" rel="noopener noreferrer">Create a free Backblaze B2 account</a>, then set up a bucket and key for Plembfin:</p>
+      <div class="setup-backblaze-workflow">
+        <section class="setup-backblaze-stage">
+          <div class="setup-backblaze-guide">
+            <h3>Create a private bucket</h3>
+            <ol class="muted-copy setup-backblaze-steps">
+              <li>Click <b>Create a Bucket</b>.</li>
+              <li>Choose a unique name.</li>
+              <li>Set the bucket to <b>Private</b>.</li>
+              <li>Leave Default Encryption disabled.</li>
+              <li>Leave Object Lock disabled.</li>
+              <li>Click <b>Create a Bucket</b> to confirm.</li>
+              <li>Copy the bucket name and paste it into <b>Bucket name</b> on the right.</li>
+              <li>Copy the endpoint and paste it into <b>Region or S3 endpoint</b> on the right.</li>
+            </ol>
+          </div>
+          <div class="setup-backblaze-stage-fields">
+            <label class="field-label">Bucket name<input class="field" data-setup-backblaze-field="bucket" value="${escapeAttribute(settings.bucket || "")}" /></label>
+            <label class="field-label">Region or S3 endpoint<input class="field" data-setup-backblaze-field="region" value="${escapeAttribute(settings.region || "")}" placeholder="eu-central-003" /></label>
+          </div>
+        </section>
+        <section class="setup-backblaze-stage">
+          <div class="setup-backblaze-guide">
+            <h3>Create a restricted application key</h3>
+            <ol class="muted-copy setup-backblaze-steps" start="9">
+              <li>Click <b>App Keys</b> in the left menu.</li>
+              <li>Click <b>Add a New Application Key</b> (not "Generate a New Master Application Key").</li>
+              <li>Name the key.</li>
+              <li>Allow access to the bucket you just created.</li>
+              <li>Leave Read and Write access selected.</li>
+              <li>Click <b>Create New Key</b>.</li>
+              <li>Copy the keyID and paste it into <b>Key ID</b> on the right.</li>
+              <li>Copy the applicationKey and paste it into <b>Application key</b> on the right.</li>
+            </ol>
+          </div>
+          <div class="setup-backblaze-stage-fields">
+            <label class="field-label">Key ID <span class="muted-copy">(Application Key ID, not the master Account ID)</span><input class="field" data-setup-backblaze-field="accessKeyId" value="${escapeAttribute(settings.accessKeyId || "")}" /></label>
+            <label class="field-label">Application key<input class="field" type="password" autocomplete="new-password" data-setup-backblaze-field="secretAccessKey" placeholder="${secretConfigured ? "Configured - leave blank to keep" : ""}" /></label>
+            <label class="field-label"><span class="setup-backup-label-line">Key prefix <span class="muted-copy">(optional)</span></span><input class="field" data-setup-backblaze-field="prefix" value="${escapeAttribute(settings.prefix || "plembfin/")}" /></label>
+            <p class="muted-copy setup-backblaze-key-note">Backblaze shows the Application Key only once. Copy it when the key is created.</p>
+          </div>
+        </section>
+      </div>`;
+  return `
+    <details class="settings-card setup-backup-card setup-backup-remote" ${destination ? "open" : ""}>
+      <summary class="setup-backup-heading"><b>Backblaze B2</b>${destination ? `<span class="badge ${destination.enabled ? "badge-success" : ""}">${destination.enabled ? "Configured" : "Disabled"}</span>` : `<span class="badge">Not configured</span>`}</summary>
+      <div class="setup-backup-remote-body">
+        ${body}
+        <div class="setup-backblaze-toggles">
+          <label class="checkbox-label"><input type="checkbox" data-setup-backblaze-field="enabled" ${destination?.enabled ? "checked" : ""} /><span>${isConnect ? "Enable this connection" : "Enable this Backblaze destination"}</span></label>
+          ${showScheduleToggle ? `<label class="checkbox-label"><input type="checkbox" data-setup-backup-field="remoteEnabled" ${config?.remoteEnabled ? "checked" : ""} /><span>Upload scheduled encrypted Plembfin backups to Backblaze</span></label>` : ""}
+        </div>
+        <div class="setup-backblaze-actions">
+          <button type="button" class="button-ghost" data-setup-action="backblaze-save">Save</button>
+          <button type="button" class="button-ghost" data-setup-action="backblaze-test">Test</button>
+        </div>
+      </div>
+    </details>`;
+}
+
 function renderBackup() {
   if (!backupSetupData) return `<p class="muted-copy">Loading backup settings...</p>`;
   const config = backupSetupData.plembfin?.config || {};
   const destination = backblazeDestination();
-  const settings = destination?.settings || {};
-  const secretConfigured = Boolean(destination?.secretFlags?.secretAccessKey);
   return `
     <p class="muted-copy setup-step-intro">Schedule encrypted local backups so Plembfin's settings, connections, and watch data can be recovered. Remote storage is optional.</p>
     <section class="settings-card setup-backup-card setup-backup-section">
@@ -730,62 +926,7 @@ function renderBackup() {
         </div>
       </div>
     </section>
-    <details class="settings-card setup-backup-card setup-backup-remote" ${destination ? "open" : ""}>
-      <summary class="setup-backup-heading"><b>Backblaze B2</b>${destination ? `<span class="badge ${destination.enabled ? "badge-success" : ""}">${destination.enabled ? "Configured" : "Disabled"}</span>` : `<span class="badge">Not configured</span>`}</summary>
-      <div class="setup-backup-remote-body">
-        <p class="muted-copy setup-backblaze-signup"><a href="https://www.backblaze.com/sign-up/cloud-storage" target="_blank" rel="noopener noreferrer">Create a free Backblaze B2 account</a>, then set up a bucket and key for Plembfin:</p>
-        <div class="setup-backblaze-workflow">
-          <section class="setup-backblaze-stage">
-            <div class="setup-backblaze-guide">
-              <h3>Create a private bucket</h3>
-              <ol class="muted-copy setup-backblaze-steps">
-                <li>Click <b>Create a Bucket</b>.</li>
-                <li>Choose a unique name.</li>
-                <li>Set the bucket to <b>Private</b>.</li>
-                <li>Leave Default Encryption disabled.</li>
-                <li>Leave Object Lock disabled.</li>
-                <li>Click <b>Create a Bucket</b> to confirm.</li>
-                <li>Copy the bucket name and paste it into <b>Bucket name</b> on the right.</li>
-                <li>Copy the endpoint and paste it into <b>Region or S3 endpoint</b> on the right.</li>
-              </ol>
-            </div>
-            <div class="setup-backblaze-stage-fields">
-              <label class="field-label">Bucket name<input class="field" data-setup-backblaze-field="bucket" value="${escapeAttribute(settings.bucket || "")}" /></label>
-              <label class="field-label">Region or S3 endpoint<input class="field" data-setup-backblaze-field="region" value="${escapeAttribute(settings.region || "")}" placeholder="eu-central-003" /></label>
-            </div>
-          </section>
-          <section class="setup-backblaze-stage">
-            <div class="setup-backblaze-guide">
-              <h3>Create a restricted application key</h3>
-              <ol class="muted-copy setup-backblaze-steps" start="9">
-                <li>Click <b>App Keys</b> in the left menu.</li>
-                <li>Click <b>Add a New Application Key</b> (not "Generate a New Master Application Key").</li>
-                <li>Name the key.</li>
-                <li>Allow access to the bucket you just created.</li>
-                <li>Leave Read and Write access selected.</li>
-                <li>Click <b>Create New Key</b>.</li>
-                <li>Copy the keyID and paste it into <b>Key ID</b> on the right.</li>
-                <li>Copy the applicationKey and paste it into <b>Application key</b> on the right.</li>
-              </ol>
-            </div>
-            <div class="setup-backblaze-stage-fields">
-              <label class="field-label">Key ID <span class="muted-copy">(Application Key ID, not the master Account ID)</span><input class="field" data-setup-backblaze-field="accessKeyId" value="${escapeAttribute(settings.accessKeyId || "")}" /></label>
-              <label class="field-label">Application key<input class="field" type="password" autocomplete="new-password" data-setup-backblaze-field="secretAccessKey" placeholder="${secretConfigured ? "Configured - leave blank to keep" : ""}" /></label>
-              <label class="field-label"><span class="setup-backup-label-line">Key prefix <span class="muted-copy">(optional)</span></span><input class="field" data-setup-backblaze-field="prefix" value="${escapeAttribute(settings.prefix || "plembfin/")}" /></label>
-              <p class="muted-copy setup-backblaze-key-note">Backblaze shows the Application Key only once. Copy it when the key is created.</p>
-            </div>
-          </section>
-        </div>
-        <div class="setup-backblaze-toggles">
-          <label class="checkbox-label"><input type="checkbox" data-setup-backblaze-field="enabled" ${destination?.enabled ? "checked" : ""} /><span>Enable this Backblaze destination</span></label>
-          <label class="checkbox-label"><input type="checkbox" data-setup-backup-field="remoteEnabled" ${config.remoteEnabled ? "checked" : ""} /><span>Upload scheduled encrypted Plembfin backups to Backblaze</span></label>
-        </div>
-        <div class="setup-backblaze-actions">
-          <button type="button" class="button-ghost" data-setup-action="backblaze-save">Save</button>
-          <button type="button" class="button-ghost" data-setup-action="backblaze-test">Test</button>
-        </div>
-      </div>
-    </details>`;
+    ${renderBackblazeCard({ destination, config, showScheduleToggle: true })}`;
 }
 
 function updateBackupContinueAction() {
@@ -1079,6 +1220,27 @@ async function handleSetupClick(event) {
     api("/api/setup/checklist/dismiss", { method: "POST" }).then(() => loadSetupStatus()).then(() => renderDashboardChecklist()).catch(() => {});
     return;
   }
+  const onboardingCtaButton = event.target.closest("#sidebarOnboardingButton");
+  if (onboardingCtaButton) {
+    navigateTo("/setup");
+    return;
+  }
+  const restoreBackupButton = event.target.closest("#setupRestoreBackupButton");
+  if (restoreBackupButton) {
+    restoreView = "choice";
+    renderSetupPage();
+    return;
+  }
+  const onboardingCtaDismiss = event.target.closest("#sidebarOnboardingDismiss");
+  if (onboardingCtaDismiss) {
+    const confirmed = await openConfirmDialog({
+      title: "Dismiss onboarding reminder?",
+      body: "This hides the \"Complete onboarding\" reminder for good. You can still finish setup any time from Settings.",
+      confirmLabel: "Dismiss permanently",
+    });
+    if (confirmed) api("/api/setup/cta-dismiss", { method: "POST" }).then(() => loadSetupStatus()).catch(() => {});
+    return;
+  }
   if (!elements.setupPageRoot?.contains(event.target)) return;
   const stepButton = event.target.closest("[data-setup-step]");
   if (stepButton) {
@@ -1096,6 +1258,18 @@ async function handleSetupClick(event) {
     const card = retryButton.closest("[data-setup-server]");
     const provider = card?.dataset.setupServer;
     if (provider) toggleImport(provider, true);
+    return;
+  }
+  const restoreViewChoice = event.target.closest("[data-setup-restore-view]");
+  if (restoreViewChoice) {
+    restoreView = restoreViewChoice.dataset.setupRestoreView;
+    renderSetupPage();
+    return;
+  }
+  const restoreBack = event.target.closest("[data-setup-restore-back]");
+  if (restoreBack) {
+    restoreView = restoreView === "choice" ? null : "choice";
+    renderSetupPage();
     return;
   }
   const action = event.target.closest("[data-setup-action]")?.dataset.setupAction;
@@ -1125,6 +1299,7 @@ async function handleSetupClick(event) {
   } else if (action === "back") {
     setCurrentStep(stepNeighbor(-1));
   } else if (action === "exit") {
+    restoreView = null;
     navigateTo("/settings");
   } else if (action === "trakt-connect") {
     startTraktConnect();
@@ -1138,7 +1313,7 @@ async function handleSetupClick(event) {
       .catch((error) => setMessage(error.message, "error"));
   } else if (action === "complete") {
     api("/api/setup/complete", { method: "POST" })
-      .then(() => navigateTo("/"))
+      .then(() => { restoreView = null; navigateTo("/"); })
       .catch((error) => setMessage(error.message, "error"));
   }
 }

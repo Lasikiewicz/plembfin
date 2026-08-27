@@ -1,0 +1,107 @@
+import { reddit, redis } from "@devvit/web/server";
+
+const SUBREDDIT = "plembfin";
+const CHANGELOG_URL =
+  "https://raw.githubusercontent.com/Lasikiewicz/plembfin/main/changelog.json";
+const LAST_ANNOUNCED_KEY = "lastAnnouncedVersion";
+
+type ChangelogSections = {
+  newFeatures?: string[];
+  majorBugFixes?: string[];
+  tweaks?: string[];
+};
+
+type ChangelogEntry = {
+  version: string;
+  message: string;
+  sections?: ChangelogSections;
+  details?: string[];
+};
+
+const SECTION_LABELS: [keyof ChangelogSections, string][] = [
+  ["newFeatures", "New Features"],
+  ["majorBugFixes", "Major Bug Fixes"],
+  ["tweaks", "Tweaks"],
+];
+
+function bulletList(items: string[] | undefined): string | null {
+  if (!items || items.length === 0) return null;
+  const lines: string[] = [];
+  let used = 0;
+  let shown = 0;
+  for (const item of items) {
+    const line = `- ${item}`;
+    if (used + line.length + 1 > 3000) break;
+    lines.push(line);
+    used += line.length + 1;
+    shown += 1;
+  }
+  if (shown < items.length) lines.push(`- …and ${items.length - shown} more`);
+  return lines.join("\n");
+}
+
+function buildPost(entry: ChangelogEntry): { title: string; text: string } {
+  const sections: string[] = [];
+  for (const [key, label] of SECTION_LABELS) {
+    const list = bulletList(entry.sections?.[key]);
+    if (list) sections.push(`**${label}**\n\n${list}`);
+  }
+  if (sections.length === 0) {
+    const list = bulletList(entry.details);
+    if (list) sections.push(list);
+  }
+
+  const bodyParts = [entry.message];
+  if (sections.length) bodyParts.push(sections.join("\n\n"));
+  bodyParts.push(
+    "[View the full changelog](https://github.com/Lasikiewicz/plembfin/blob/main/CHANGELOG.md)",
+  );
+
+  return {
+    title: `Plembfin v${entry.version} released`.slice(0, 300),
+    text: bodyParts.join("\n\n"),
+  };
+}
+
+async function fetchLatestEntry(): Promise<ChangelogEntry | undefined> {
+  const response = await fetch(CHANGELOG_URL);
+  if (!response.ok) {
+    console.error(`Failed to fetch changelog: ${response.status}`);
+    return undefined;
+  }
+  const changelog = (await response.json()) as { entries?: ChangelogEntry[] };
+  return changelog.entries?.[0];
+}
+
+async function unstickPreviousPosts(appUsername: string | undefined): Promise<void> {
+  if (!appUsername) return;
+  const hot = await reddit.getHotPosts({ subredditName: SUBREDDIT, limit: 5 }).all();
+  for (const post of hot) {
+    if (post.stickied && post.authorName === appUsername) {
+      await post.unsticky();
+    }
+  }
+}
+
+export async function checkAndAnnounceNewRelease(): Promise<void> {
+  const entry = await fetchLatestEntry();
+  if (!entry) return;
+
+  const lastAnnounced = await redis.get(LAST_ANNOUNCED_KEY);
+  if (lastAnnounced === entry.version) return;
+
+  const appUser = await reddit.getAppUser();
+  await unstickPreviousPosts(appUser?.username);
+
+  const { title, text } = buildPost(entry);
+  const post = await reddit.submitPost({
+    subredditName: SUBREDDIT,
+    title,
+    text,
+    runAs: "APP",
+  });
+  await post.sticky(1);
+
+  await redis.set(LAST_ANNOUNCED_KEY, entry.version);
+  console.log(`Posted and stickied release v${entry.version} to r/${SUBREDDIT}.`);
+}

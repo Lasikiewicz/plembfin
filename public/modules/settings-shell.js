@@ -676,6 +676,20 @@ export function applySettingsRoute(route) {
         panel.classList.toggle("hidden", !requestedBackupTabs.has(panel.dataset.backupsPanel));
       });
     }
+    // The onboarding wizard's "Restore from backup" flow borrows #restore-local
+    // /#restore-remote (see onboarding.js) rather than duplicating their
+    // upload/list/restore logic - reclaim them here whenever this Restore tab
+    // is actually opened, so a user who left the wizard mid-flow (browser
+    // back, a different tab) never finds this tab empty.
+    if (requestedBackupTabs.has("restore")) {
+      const home = document.getElementById("restoreSectionsHome");
+      if (home) {
+        const local = document.getElementById("restore-local");
+        const remote = document.getElementById("restore-remote");
+        if (local && local.parentElement !== home) home.appendChild(local);
+        if (remote && remote.parentElement !== home) home.appendChild(remote);
+      }
+    }
   }
 
   // Handle parent/child active and visibility states

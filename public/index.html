@@ -53,7 +53,10 @@
     <link rel="stylesheet" href="/styles.css?v=20260826b" />
   </head>
   <body>
-    <div id="setupFooterBar" class="setup-footer-bar hidden"></div>
+    <div id="setupFooterBar" class="setup-footer-bar hidden">
+      <button id="setupRestoreBackupButton" type="button" class="button-ghost setup-restore-backup-button hidden">Restore from backup</button>
+      <div id="setupFooterBarMeta" class="setup-footer-bar-meta"></div>
+    </div>
     <div class="app-chassis">
       <nav class="topnav nav-closed" aria-label="Primary navigation">
         <div class="brand-search">
@@ -88,6 +91,10 @@
             </div>
           </div>
           <div class="sidebar-footer">
+            <div id="sidebarOnboardingCta" class="sidebar-onboarding-cta hidden">
+              <button id="sidebarOnboardingButton" type="button" class="sidebar-onboarding-cta-button">Complete onboarding</button>
+              <button id="sidebarOnboardingDismiss" type="button" class="sidebar-onboarding-cta-dismiss" title="Dismiss permanently" aria-label="Dismiss onboarding reminder permanently">&times;</button>
+            </div>
             <button id="syncProgressIndicator" class="sync-progress-indicator" type="button" data-sync-state="idle" title="Open sync activity">
               <span class="sync-progress-dot" aria-hidden="true"></span>
               <span id="syncProgressText" class="sync-progress-text" role="status">Sync - Idle</span>
@@ -1541,7 +1548,7 @@
                         <span>Local and remote backup restore tools</span>
                       </div>
 
-                      <div style="margin-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-3);">
+                      <div id="restoreSectionsHome" style="margin-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-3);">
                         <!-- Nested Section Box 1: Local Restore -->
                         <div id="restore-local" style="display: flex; flex-direction: column; gap: var(--space-3);">
                           <details class="sync-tool-details">

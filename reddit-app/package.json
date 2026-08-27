@@ -1,0 +1,30 @@
+{
+  "private": true,
+  "name": "plembfin",
+  "version": "0.0.0",
+  "license": "BSD-3-Clause",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "dev": "devvit playtest",
+    "deploy": "npm run test:types && devvit upload",
+    "launch": "npm run deploy && devvit publish",
+    "login": "devvit login",
+    "test:types": "tsc --build"
+  },
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "dependencies": {
+    "@devvit/start": "0.14.1",
+    "@devvit/web": "0.14.1",
+    "@hono/node-server": "^2.0.3",
+    "devvit": "0.14.1",
+    "hono": "4.13.4"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "typescript": "6.0.3",
+    "vite": "8.2.2"
+  }
+}

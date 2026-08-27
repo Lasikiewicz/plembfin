@@ -209,6 +209,18 @@ side (Server Settings → the target channel → Integrations → Webhooks); pas
 into the GitHub repository secret to wire it up, or omit the secret to leave the
 channel silent.
 
+### Reddit release announcements
+
+r/plembfin gets release announcements too, but not via this repo's CI - Reddit's Data
+API now requires manual review to grant script-app access, and that path was declined
+for this use case with a recommendation to build on Reddit's own Devvit platform
+instead, which has no mechanism for an external system to push a trigger in. Instead,
+[`reddit-app/`](../reddit-app) is a separate Devvit app, installed only in r/plembfin,
+that polls this repo's public `changelog.json` on a schedule and posts + pins an
+announcement when a new release appears (un-pinning whichever post it pinned before).
+It has its own build/deploy tooling independent of this repo's CI - see
+[`reddit-app/README.md`](../reddit-app/README.md).
+
 ## Other CI
 
 | Workflow | What it does |
