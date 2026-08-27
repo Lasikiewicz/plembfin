@@ -46,6 +46,18 @@ main" lands. The running alpha build shows this as `v<version>.<build> alpha` (e
 `v0.8.0.7 alpha`) in the sidebar and Settings → About, which also lists the alpha build
 history separately from published releases.
 
+### Before pushing anything: make sure GHCR Cleanup isn't running
+
+`ghcr-cleanup.yml` deletes images from the same `ghcr.io/lasikiewicz/plembfin`
+package that every push described below (`Push to git`, `Force to alpha`, `Force
+to main`) publishes new tags to. The cleanup action's own docs warn it isn't safe
+to run in parallel against the same package it targets, so before starting any of
+the three commands below, check it isn't mid-run:
+```bash
+gh run list --workflow ghcr-cleanup.yml --limit 1
+```
+If the latest run shows `in_progress`, wait for it to complete before pushing.
+
 ## "Push to git" command
 
 When the user says **"Push to git"** (exactly), run this full pre-push workflow before committing to `develop`:
