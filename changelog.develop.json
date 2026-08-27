@@ -1,7 +1,22 @@
 {
-  "build": 3,
-  "updatedAt": "2026-08-27T13:37:35+01:00",
+  "build": 4,
+  "updatedAt": "2026-08-27T14:05:01+01:00",
   "entries": [
+    {
+      "build": 4,
+      "date": "2026-08-27T14:05:01+01:00",
+      "commit": "f1945d284ec73ee79d07c099c97215f7200918e4",
+      "message": "Docs - Refresh dashboard, media, and stats screenshots; add Sync Activity",
+      "author": "Lasikiewicz",
+      "details": [
+        "Removed test/ from .gitignore; it was added in commit 3d5b85b4 at the same time all 89 test files were deleted from git tracking, so the suite has existed only on local machines since - a fresh clone or CI checkout had zero test files, and npm run build's node --test step was silently running against nothing while still reporting success",
+        "Re-added all 93 files currently under test/ (91 test files plus shared helpers) so the suite ships with the repo again and CI actually exercises it",
+        "Moved the orphaned root-level 'layout defaults.md' into docs/frontend.md as a new Settings Card Shell section, since it wasn't linked from any doc index",
+        "Corrected docs/frontend.md's settings-card padding claim while merging: the base .settings-card padding: 1.5rem rule only applies to help-column cards, since a more specific selector overrides it to 0 for any card inside the main column (which is what layout defaults.md was actually describing)",
+        "Replaced the now-playing, media, and stats screenshots with current captures of the app",
+        "Added a new Sync Activity screenshot and README entry, matching the existing Sync Activity hub feature"
+      ]
+    },
     {
       "build": 3,
       "date": "2026-08-27T13:37:35+01:00",
