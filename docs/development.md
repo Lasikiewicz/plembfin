@@ -180,12 +180,13 @@ this means every "Merge alpha with main" run, not every individual commit:
    this bump commit back into `alpha` afterward (see the "Merge alpha with main"
    branch synchronization step above)
 
-That commit re-triggers the workflow. A second job, `publish-current`, is the only one
-that builds and pushes the Docker image (tagged `latest` + the new version) and posts
-the new `changelog.json` entry to Discord via `scripts/notify-discord-release.js main`
-(see "Discord release notifications" below) - it runs against the commit that actually
-ships, with `changelog.json`/`CHANGELOG.md`/`package.json` already bumped, so the
-release image is built exactly once per push to `main` instead of twice.
+4. builds and pushes the Docker image to GHCR tagged `latest` + the new version, then
+   posts the new `changelog.json` entry to Discord via `scripts/notify-discord-release.js main`
+   (see "Discord release notifications" below) - all in the same job, against the
+   working tree that was just committed. This has to happen in the same job: a commit
+   pushed with the default `GITHUB_TOKEN` never triggers another workflow run (GitHub's
+   own recursion guard against infinite loops), so a separate job gated on that commit
+   arriving as a fresh trigger would never actually run.
 `docker-publish.yml` is a manual (`workflow_dispatch`) image build that skips the
 changelog step.
 

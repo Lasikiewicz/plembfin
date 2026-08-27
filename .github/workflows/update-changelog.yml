@@ -21,6 +21,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      packages: write
 
     steps:
       - name: Checkout repository
@@ -65,36 +66,13 @@ jobs:
           git commit -m "chore: update changelog for ${SOURCE_COMMIT::7}"
           git push origin main
 
-  # This job's own commit above re-triggers the workflow; publish-current is the
-  # sole builder/publisher, so the release image is built once, from the commit
-  # that actually ships (changelog.json/CHANGELOG.md/package.json already bumped)
-  # instead of building twice - once pre-commit here and once again below.
-  publish-current:
-    if: >-
-      github.actor != 'github-actions[bot]' &&
-      startsWith(github.event.head_commit.message, 'chore: update changelog for ')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-
-      - name: Install dependencies
-        run: npm ci --ignore-scripts
-
-      - name: Rebuild native modules
-        run: npm rebuild better-sqlite3 sharp
-
-      - name: Run build check
-        run: npm run build
-
-      - name: Read application version
-        id: version
-        run: node -e "const fs=require('fs'); fs.appendFileSync(process.env.GITHUB_OUTPUT, 'version=' + require('./changelog.json').version + '\n')"
-
+      # A commit pushed with the default GITHUB_TOKEN never triggers another
+      # workflow run (GitHub's own recursion guard), so a separate job gated on
+      # that commit re-arriving as a trigger would simply never run. The build
+      # and push happen here instead, in the same job, against the working tree
+      # that was just committed (changelog.json/CHANGELOG.md/package.json
+      # already bumped) - one build per push to main, no reliance on a
+      # self-retrigger that can't happen.
       - name: Log in to the Container registry
         uses: docker/login-action@v4
         with:
@@ -112,7 +90,7 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=raw,value=latest
-            type=raw,value=${{ steps.version.outputs.version }}
+            type=raw,value=${{ steps.release.outputs.version }}
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v7
