@@ -4,6 +4,30 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v0.12.3 - 27 August 2026
+
+Docs - Refresh dashboard, media, and stats screenshots; add Sync Activity
+
+### Major Bug Fixes
+
+- Stop duplicate release image builds and add GHCR tag cleanup
+- Fixed the release pipeline building and pushing the Docker image to GHCR twice per push to main; only the final job (which runs against the already-committed changelog/version bump) now builds and publishes it
+- Added a weekly scheduled workflow that prunes old numbered develop-* and alpha-* image tags (keeping the newest 15 of each) and deletes dangling untagged images left behind when the latest/develop/alpha tags move
+- The cleanup workflow starts in dry-run mode so nothing is deleted until a run has been reviewed
+- Documented both changes in docs/development.md
+- Restore the test suite to git tracking
+- Removed test/ from .gitignore; it was added in commit 3d5b85b4 at the same time all 89 test files were deleted from git tracking, so the suite has existed only on local machines since - a fresh clone or CI checkout had zero test files, and npm run build's node --test step was silently running against nothing while still reporting success
+- Re-added all 93 files currently under test/ (91 test files plus shared helpers) so the suite ships with the repo again and CI actually exercises it
+
+### Tweaks
+
+- Refresh dashboard, media, and stats screenshots; add Sync Activity
+- Replaced the now-playing, media, and stats screenshots with current captures of the app
+- Added a new Sync Activity screenshot and README entry, matching the existing Sync Activity hub feature
+- Move settings layout conventions into docs/frontend.md
+- Moved the orphaned root-level 'layout defaults.md' into docs/frontend.md as a new Settings Card Shell section, since it wasn't linked from any doc index
+- Corrected docs/frontend.md's settings-card padding claim while merging: the base .settings-card padding: 1.5rem rule only applies to help-column cards, since a more specific selector overrides it to 0 for any card inside the main column (which is what layout defaults.md was actually describing)
+
 ## v0.12.2 - 27 August 2026
 
 Docs - Link Discord and Reddit communities in README
