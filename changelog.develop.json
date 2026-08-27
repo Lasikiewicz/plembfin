@@ -1,7 +1,23 @@
 {
-  "build": 2,
-  "updatedAt": "2026-08-26T19:50:44+01:00",
+  "build": 3,
+  "updatedAt": "2026-08-27T09:17:54+01:00",
   "entries": [
+    {
+      "build": 3,
+      "date": "2026-08-27T09:17:54+01:00",
+      "commit": "1632c8abb44234043f9d357cdcfc32330a4360c0",
+      "message": "Fix - Correct rewatch and Plex echo sync bugs, clarify webhook setup",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fixed a bug where rewatching a show on a new day could be silently discarded and left showing a stale watch date instead of recording the new watch",
+        "Fixed a bug where marking an item unwatched in Plembfin could be immediately overwritten by a delayed \"still watched\" signal echoed back from Plex",
+        "Settings and onboarding now correctly show Plex needs no manual webhook setup, and add a warning to disable Plex's \"Refresh library metadata periodically\" scheduled task, which can otherwise reset watched state during its own maintenance window",
+        "Fixed the Emby webhook setup instructions, which pointed to the wrong menu path",
+        "Onboarding now shows the Emby and Jellyfin webhook setup guides even before those servers are connected, and shows the same Trakt \"sole bridge\" warning already shown in Settings",
+        "Added a \"Required\" badge to the TMDB metadata card during onboarding",
+        "Removed the raw webhook URL and background scheduler endpoint displays from Settings; the webhook URL is now shown inline within each platform's own setup guide"
+      ]
+    },
     {
       "build": 2,
       "date": "2026-08-26T19:50:44+01:00",
