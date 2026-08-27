@@ -85,6 +85,11 @@ See [`docs/architecture.md`](docs/architecture.md) for how each feature is actua
 </p>
 
 <p align="center">
+  <img src="docs/screenshots/sync-activity.png" alt="Sync Activity view" width="100%" />
+  <em>Live sync status and activity stream detailing sync origins, destinations, and delivery results</em>
+</p>
+
+<p align="center">
   <img src="docs/screenshots/movies.png" alt="Movies library view" width="100%" />
   <em>Full poster grid with search, filters, and sort options</em>
 </p>
