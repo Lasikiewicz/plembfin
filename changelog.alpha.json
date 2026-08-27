@@ -1,23 +1,23 @@
 {
-  "baseVersion": "0.12.5",
+  "baseVersion": "0.12.7",
   "build": 1,
   "entries": [
     {
       "build": 1,
-      "version": "0.12.5.1",
-      "date": "2026-08-27T14:27:49Z",
-      "commit": "91c05095fb3647c6f3839c5965558f8891b9628b",
-      "message": "Chore - Bump develop build for bba9807",
-      "author": "github-actions[bot]",
+      "version": "0.12.7.1",
+      "date": "2026-08-27T16:51:04+01:00",
+      "commit": "0208251d190e270c9e99b21c6a9a063a13f890c0",
+      "message": "Feature - Background metadata refresh jobs, onboarding sidebar reminder, and Reddit release bot",
+      "author": "Lasikiewicz",
       "details": [
-        "The known-flaky test (updateWatchRecord rolls the old media_key's playstate back to a survivor) was exposing a real bug, not just test noise: getPlaystateForMediaSync's title-based fallback can surface either an old or a migrated media_key's playstate row for a shared title, and updateWatchRecord picked between them with fresh Date.now() calls a few statements apart",
-        "When enough intervening work crossed a millisecond boundary, the newer write's timestamp would non-deterministically outrank the correct rolled-back row, so a Fix Match correction on a title-duplicate item could report the wrong watched state for the leftover, uncorrected identity",
-        "Reused the single updatedAt timestamp already captured for the row update across every playstate write in the same updateWatchRecord call (both the watched_at date-edit path and the identity-change rollback path), removing the timing dependency entirely",
-        "Verified with 40 back-to-back isolated runs of the previously-flaky test (0 failures, versus roughly 1-in-10 before) plus a full clean test suite run",
-        "Added a precondition to Push to git, Force to alpha, and Force to main: verify ghcr-cleanup.yml isn't mid-run first, since it deletes images from the same GHCR package every push publishes new tags to and its own docs warn against running it in parallel against the same package",
-        "Chore - Bump develop build for bba9807"
+        "TMDB and TVDB Refresh Metadata now run as cancellable background jobs that survive closing Settings, navigating away, or reloading the page, instead of a client-driven paginated loop",
+        "Replaced onboarding's forced redirect to /setup with a persistent, dismissible \"Complete onboarding\" sidebar reminder shown until a media server is connected and tested",
+        "Added a \"Restore from backup\" shortcut to the setup wizard's overview step, reusing the same local-upload and Backblaze B2 restore tools already in Settings -> Backups",
+        "Fixed Fix Match on an episode's poster menu prefilling the episode's own title instead of the show's title in the rematch search box",
+        "Fixed the Settings -> Backups -> Restore tab appearing empty after leaving the onboarding wizard's restore flow partway through",
+        "Added a Devvit app (reddit-app/) that posts and pins a release announcement to r/plembfin on a schedule, since Reddit declined script-app Data API access for this use case and recommended Devvit instead"
       ]
     }
   ],
-  "updatedAt": "2026-08-27T14:27:49Z"
+  "updatedAt": "2026-08-27T16:51:04+01:00"
 }
