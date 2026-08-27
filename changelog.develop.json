@@ -1,41 +1,5 @@
 {
-  "build": 3,
-  "updatedAt": "2026-08-27T16:50:14+01:00",
-  "entries": [
-    {
-      "build": 3,
-      "date": "2026-08-27T16:50:14+01:00",
-      "commit": "4fbabfee0f7ecce9ca61f22db1386cf2d61336c5",
-      "message": "Feature - Background metadata refresh jobs, onboarding sidebar reminder, and Reddit release bot",
-      "author": "Lasikiewicz",
-      "details": [
-        "TMDB and TVDB Refresh Metadata now run as cancellable background jobs that survive closing Settings, navigating away, or reloading the page, instead of a client-driven paginated loop",
-        "Replaced onboarding's forced redirect to /setup with a persistent, dismissible \"Complete onboarding\" sidebar reminder shown until a media server is connected and tested",
-        "Added a \"Restore from backup\" shortcut to the setup wizard's overview step, reusing the same local-upload and Backblaze B2 restore tools already in Settings -> Backups",
-        "Fixed Fix Match on an episode's poster menu prefilling the episode's own title instead of the show's title in the rematch search box",
-        "Fixed the Settings -> Backups -> Restore tab appearing empty after leaving the onboarding wizard's restore flow partway through",
-        "Added a Devvit app (reddit-app/) that posts and pins a release announcement to r/plembfin on a schedule, since Reddit declined script-app Data API access for this use case and recommended Devvit instead"
-      ]
-    },
-    {
-      "build": 2,
-      "date": "2026-08-27T15:35:22+01:00",
-      "commit": "41209fd5100f63270356d2a20379fd12209a460b",
-      "message": "Merge remote-tracking branch 'origin/main' into develop",
-      "author": "Lasikiewicz",
-      "details": [
-        "Merge remote-tracking branch 'origin/main' into develop"
-      ]
-    },
-    {
-      "build": 1,
-      "date": "2026-08-27T15:30:55+01:00",
-      "commit": "6c37b3225630a98e5ddfe78d377852c57f7d66aa",
-      "message": "Chore - Reset develop build counter after promotion to alpha",
-      "author": "Lasikiewicz",
-      "details": [
-        "Chore - Reset develop build counter after promotion to alpha"
-      ]
-    }
-  ]
+  "build": 0,
+  "updatedAt": "2026-08-27T15:54:08.959Z",
+  "entries": []
 }
