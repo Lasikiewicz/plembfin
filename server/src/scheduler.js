@@ -9,7 +9,7 @@ import { listActiveSessions } from "./utils/activeSessions.js";
 import { runScheduledSync } from "./scheduled.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
 import { watchedThresholdPercent } from "./utils/tuning.js";
-import { isRecentOutboundUnplayedFlagEcho, lastOutboundPlayedMarkAt, syncCanonicalPlaystate, syncMediaPlaystate } from "./utils/syncOrchestrator.js";
+import { isRecentOutboundPlayedEcho, isRecentOutboundUnplayedFlagEcho, lastOutboundPlayedMarkAt, syncCanonicalPlaystate, syncMediaPlaystate } from "./utils/syncOrchestrator.js";
 import { applyUnwatchedTransition } from "./utils/watchStateTransitions.js";
 import { shouldRepairRecentPlexUnwatch } from "./utils/plexWatchstate.js";
 import { pollConnectedTrackers } from "./utils/trackerSync.js";
@@ -323,9 +323,15 @@ async function handlePlexLibraryItemChange(ratingKey, metadataOverride = null) {
     // that lines up with our own write is our echo, not a new play. The window
     // is wide enough to absorb clock skew between plembfin and the Plex server
     // while staying shorter than any real playthrough.
-    const ownMarkAt = await lastOutboundPlayedMarkAt(media, "plex", loopStore);
-    const isOwnMarkEcho =
-      ownMarkAt > 0 && Math.abs(new Date(watchedAt).getTime() - ownMarkAt) <= 10 * 60 * 1000;
+    //
+    // watchedAt above is resolvePlexNotificationWatchDate()'s result, which for a
+    // flag-only echo with no playback evidence deliberately falls back to the
+    // release date rather than "now" - so it almost never lines up with ownMarkAt
+    // when the outbound mark used a historical watched date (e.g. "Mark Watched"
+    // with a specific date, or a bulk season backfill). isRecentOutboundPlayedEcho
+    // also falls back to comparing this notification's *arrival* time against
+    // ownMarkAt, which is what actually catches that case.
+    const isOwnMarkEcho = await isRecentOutboundPlayedEcho(media, "plex", loopStore);
 
     if (isOwnMarkEcho || (playstate?.state === "watched" && !isNewerWatch)) {
       if (isOwnMarkEcho) {

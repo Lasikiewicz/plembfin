@@ -258,21 +258,19 @@ them; it happens automatically. CI then commits `chore: update changelog for <sh
 onto `main` and builds/publishes the Docker image. Wait for it
 (`gh run list --branch main`) before continuing.
 
-### 3 - Sync main's changelog-bump commit back into alpha and develop
+### 3 - Sync main's changelog-bump commit back into develop
 ```bash
 git fetch origin
-git checkout -B alpha origin/alpha
-git merge origin/main --no-edit
-git push origin alpha
-
 git checkout develop
 git merge --ff-only origin/develop
 git merge origin/main --no-edit
 git push origin develop
 ```
-This folds the changelog-bump commit CI just added into both branches, so the next
-"Push to git" / "Force to alpha" run starts from a clean, matching base instead of
-immediately diverging. Each push may trigger its own routine build-bump commit
+This folds the changelog-bump commit CI just added into develop, so the next
+"Push to git" run starts from a clean, matching base instead of immediately diverging.
+Don't bother folding it into `alpha` too - the next "Force to alpha" force-pushes
+develop's tip onto alpha regardless, so anything synced there now is simply overwritten
+rather than built on. Each push may trigger its own routine build-bump commit
 (`chore: bump alpha/develop build for <sha>`) - that's expected, not a conflict.
 
 ## Commands

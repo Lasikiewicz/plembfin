@@ -90,8 +90,7 @@ const SECTIONS = {
     panel: "general",
     subPanels: ["general-endpoints"],
     subSections: [
-      { id: "webhook-listener-endpoint", label: "Webhook Listener Endpoint", description: "URL and secret token for Plex, Emby, and Jellyfin webhooks" },
-      { id: "background-scheduler-endpoint", label: "Background Scheduler Endpoint", description: "Endpoint polled by the background worker for periodic sync loops" },
+      { id: "webhook-listener-endpoint", label: "Webhook Secret", description: "Secret token used by Plex, Emby, and Jellyfin webhooks" },
     ],
     isDisplayOnly: true,
   },

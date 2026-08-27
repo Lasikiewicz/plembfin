@@ -810,44 +810,21 @@
                           <summary class="accordion-header" tabindex="-1">
                             <div class="sync-tool-summary-title">
                               <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
-                              <b>Webhook Listener Endpoint</b>
+                              <b>Webhook Secret</b>
                             </div>
-                            <span>URL and secret token for Plex, Emby, and Jellyfin webhooks</span>
+                            <span>Secret token used by Plex, Emby, and Jellyfin webhooks</span>
                           </summary>
                           <div class="tool-item-row" style="padding: var(--space-3); width: 100%; display: flex; flex-direction: column; gap: var(--space-2);">
-                            <div class="copy-block">
-                              <button class="copy-button" type="button" aria-label="Copy Webhook URL">Copy</button>
-                              <pre><code id="webhookUrl">/api/webhook</code></pre>
-                            </div>
                             <div class="webhook-secret-line" style="margin-top: 2px;">
                               <span>Secret token:</span>
                               <code id="webhookSecret">Not available</code>
                             </div>
                             <p style="font-size: 0.78rem; color: var(--muted); margin-top: 2px; line-height: 1.45;">
-                              Point Plex, Emby, and Jellyfin webhooks here. The URL contains the secret token. Automation clients can also pass the secret in an <code>X-Plembfin-Webhook-Secret</code> or <code>Authorization: Bearer</code> header.
+                              Each platform's setup guide below includes the full webhook URL with this secret already in it. Automation clients can also pass the secret in an <code>X-Plembfin-Webhook-Secret</code> or <code>Authorization: Bearer</code> header.
                             </p>
                             <div class="settings-actions" style="margin-top: var(--space-1);">
                               <button id="rotateWebhookButton" class="button-ghost sync-action-btn sync-tool-button" type="button" title="Generate a new webhook secret - update the URL in all media servers after rotating">Rotate Secret</button>
                             </div>
-                          </div>
-                        </details>
-
-                        <details id="background-scheduler-endpoint" class="sync-tool-details settings-static-details" open>
-                          <summary class="accordion-header" tabindex="-1">
-                            <div class="sync-tool-summary-title">
-                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
-                              <b>Background Scheduler Endpoint</b>
-                            </div>
-                            <span>Endpoint polled by the background worker for periodic sync loops</span>
-                          </summary>
-                          <div class="tool-item-row" style="padding: var(--space-3); width: 100%; display: flex; flex-direction: column; gap: var(--space-2);">
-                            <div class="copy-block">
-                              <button class="copy-button" type="button" aria-label="Copy Cron Sync URL">Copy</button>
-                              <pre><code id="cronSyncUrl">/api/cron-sync</code></pre>
-                            </div>
-                            <p style="font-size: 0.78rem; color: var(--muted); margin-top: 2px; line-height: 1.45;">
-                              Endpoint polled by the background worker to execute periodic synchronization loops between media servers.
-                            </p>
                           </div>
                         </details>
 
@@ -877,7 +854,7 @@
                         </div>
                         <div>
                           <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Platform Setup Guides</b>
-                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">Expand the Plex, Emby, or Jellyfin setup dropdowns on the left card to view provider-specific instructions and event settings for each media server.</p>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.82rem; color: var(--muted);">Plex needs no setup - it's automatic. Expand the Emby or Jellyfin setup dropdowns on the left card to view provider-specific instructions and event settings for each media server.</p>
                         </div>
                       </div>
                     </article>

@@ -287,7 +287,6 @@ function bindElements() {
     syncToolsToggle: document.querySelector("#syncToolsToggle"),
     syncToolsContent: document.querySelector("#syncToolsContent"),
     syncToolsToggleIcon: document.querySelector("#syncToolsToggleIcon"),
-    cronSyncUrl: document.querySelector("#cronSyncUrl"),
     runRepairButton: document.querySelector("#runRepairButton"),
     repairStatus: document.querySelector("#repairStatus"),
     repairLog: document.querySelector("#repairLog"),
@@ -347,7 +346,6 @@ function bindElements() {
     dbSize: document.querySelector("#dbSize"),
     trackingSpan: document.querySelector("#trackingSpan"),
     saveAdminCredentialsButton: document.querySelector("#saveAdminCredentialsButton"),
-    webhookUrl: document.querySelector("#webhookUrl"),
     rotateWebhookButton: document.querySelector("#rotateWebhookButton"),
     runCompleteCheckButton: document.querySelector("#runCompleteCheckButton"),
     previewForceSyncButton: document.querySelector("#previewForceSyncButton"),
@@ -2710,10 +2708,6 @@ function initialize() {
   elements.adminEmail.value = localStorage.getItem("adminUsername") || "";
   elements.adminToken.value = "";
   elements.settingsUsername.value = elements.adminEmail.value;
-  elements.webhookUrl.textContent = buildWebhookUrl();
-  if (elements.cronSyncUrl) {
-    elements.cronSyncUrl.textContent = `${window.location.origin}/api/cron-sync`;
-  }
   applyActiveView();
   applyConfigToSettingsUi({});
   renderDashboard();

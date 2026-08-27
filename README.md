@@ -239,7 +239,10 @@ YouTube remain optional and disabled until you add their keys.
 more than one:
 
 - **Plex** - connect your Plex account and select a server, or enter its URL, token,
-  and username manually.
+  and username manually. This step also flags disabling Plex's "Refresh library
+  metadata periodically" scheduled task (Plex → Settings → Scheduled Tasks) - it can
+  occasionally re-match library items during its own maintenance window and reset
+  their watched state.
 - **Emby** - sign in with the server URL, username, and password to obtain a token, or
   enter an API key and user ID manually. The password is not stored.
 - **Jellyfin** - use Quick Connect, sign in with a username and password, or enter an
@@ -251,10 +254,13 @@ best available watched dates are retained. Only one connection mode is active fo
 server at a time.
 
 **5. Webhooks.** Plex watch-state updates are received automatically and need no manual
-webhook. For each connected Emby or Jellyfin server, expand its setup card, follow the
-provider-specific instructions, then confirm that the webhook is configured. Scheduled
-polling continues as a backstop. See the [Webhook Setup](#webhook-setup) section for the
-full provider instructions.
+webhook - this step also flags disabling Plex's "Refresh library metadata periodically"
+scheduled task, which can otherwise reset watched state during its own maintenance
+window. For Emby or Jellyfin, expand its setup card, follow the provider-specific
+instructions, then confirm that the webhook is configured; cards for servers you
+haven't connected yet are shown too, so you can read what's involved before deciding.
+Scheduled polling continues as a backstop. See the [Webhook Setup](#webhook-setup)
+section for the full provider instructions.
 
 **6. Backup (optional).** To schedule encrypted local backups, choose a backup time and
 retention count, enter an encryption passphrase of at least 12 characters, and select
@@ -286,8 +292,9 @@ already watched in Plembfin can be marked watched on the server automatically; s
 
 ## Webhook Setup
 
-Playback events reach Plembfin via webhooks. Copy your webhook URL from
-**Settings → Media servers → Webhooks** - it looks like:
+Playback events reach Plembfin via webhooks. Each platform's setup guide under
+**Settings → Media servers → Webhooks** includes a ready-to-copy URL with your secret
+already in it - it looks like:
 
 ```
 http://<YOUR_HOST>:5055/api/webhook?token=<your-secret>
@@ -297,14 +304,13 @@ http://<YOUR_HOST>:5055/api/webhook?token=<your-secret>
 > Use the full URL with `?token=` for servers that can't set custom headers. Rotating
 > the secret means updating it everywhere it's used.
 
-**Plex** - Account Settings → Webhooks → Add Webhook → paste the URL → enable `media.play`,
-`media.resume`, `media.pause`, `media.stop`, `media.scrobble`.
-Plex doesn't reliably send webhooks for library-UI watch changes, so Plembfin also
-listens over WebSocket for those directly, and polls every 60 seconds as a backstop.
+**Plex** - no setup required. Plembfin connects to your Plex Media Server's WebSocket
+notification channel automatically to capture watched and unwatched changes in real
+time, and checks playback progress every minute as a backstop.
 
-**Emby** - Server Settings → Webhooks → add one, paste the URL, enable **Playback**:
-`Start`/`Pause`/`Unpause`/`Stop` and **Users**: `Mark Played`/`Mark Unplayed`. Leave
-everything else unticked, and enable **Send All Properties**.
+**Emby** - Preferences → Notifications → Webhooks → add one, paste the URL, enable
+**Playback**: `Start`/`Pause`/`Unpause`/`Stop` and **Users**: `Mark Played`/`Mark
+Unplayed`. Leave everything else unticked, and enable **Send All Properties**.
 
 **Jellyfin** - Install the **Webhooks** plugin → add a **Generic Webhook** named
 `plembfin` → paste the URL → enable `Playback Start/Progress/Stop` and `User Data

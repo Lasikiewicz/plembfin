@@ -6,7 +6,7 @@
 import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute } from "./utils.js";
 import { openServiceEditModal } from "./settings-services.js";
-import { plexWebhookSetup, embyWebhookSetup, jellyfinWebhookSetup, buildWebhookUrl } from "./help-content.js";
+import { embyWebhookSetup, jellyfinWebhookSetup, buildWebhookUrl } from "./help-content.js";
 import { claimAdminAccount } from "./auth.js";
 
 let _cb = {};
@@ -441,6 +441,16 @@ function renderServers() {
           </div>
           <button type="button" class="button-primary" data-setup-connect="${provider}">${server.connected ? "Edit connection" : "Set up"}</button>
         </div>
+        ${provider === "plex" ? `
+          <div class="guide-callout warning-callout" style="gap: var(--space-1); border-color: rgba(234, 179, 8, 0.45); background: rgba(234, 179, 8, 0.08); margin-top: var(--space-3);">
+            <b style="color: var(--yellow); font-size: 0.85rem; display: block;">
+              Turn off "Refresh library metadata periodically"
+            </b>
+            <p style="margin: 0; font-size: 0.82rem; line-height: 1.4; color: var(--text-muted, var(--muted));">
+              In Plex, under Settings &rarr; Scheduled Tasks, disable "Refresh library metadata periodically". This task can occasionally re-match and re-identify library items during its nightly maintenance window, which resets their viewed state to unwatched on Plex itself - and Plembfin will propagate that as a real unwatch to Emby, Jellyfin, and Trakt. Turning it off removes the most common trigger for a mass false-unwatch event.
+            </p>
+          </div>
+        ` : ""}
         ${server.tested ? `
           <label class="field-label setup-import-toggle-label">
             <input type="checkbox" data-setup-import-toggle="${provider}" ${checked ? "checked" : ""} />
@@ -464,6 +474,7 @@ function renderMetadata() {
     <div class="settings-card setup-metadata-card">
       <div class="setup-metadata-heading">
         <b>TMDB</b>
+        <span class="badge badge-warning">Required</span>
         ${tmdbConfigured ? `<span class="badge badge-success">Configured</span>` : `<span class="badge">Not configured</span>`}
       </div>
       <div class="setup-metadata-actions">
@@ -502,7 +513,6 @@ function renderMetadata() {
 }
 
 function webhookGuideFor(provider) {
-  if (provider === "plex") return plexWebhookSetup();
   if (provider === "emby") return embyWebhookSetup();
   return jellyfinWebhookSetup();
 }
@@ -519,13 +529,17 @@ function webhookProviderName(provider) {
 
 function renderWebhooks() {
   const testedServers = cachedStatus.servers.filter((s) => s.tested);
-  if (!testedServers.length) {
-    return `<p class="muted-copy">Connect and test a media server first, then come back here to set up its webhook.</p>`;
-  }
-  const cards = testedServers.map((server) => {
+  // Show every provider's guide up front rather than gating it behind an
+  // actual connection - people want to read what a webhook setup involves
+  // (or learn Plex needs none at all) while they're still deciding which
+  // servers to connect, not only after coming back to this step later.
+  const rowServers = MEDIA_SERVERS.map((provider) => (
+    testedServers.find((s) => s.provider === provider) || { provider, tested: false, serverName: "" }
+  ));
+  const cards = rowServers.map((server) => {
     const requiresSetup = webhookSetupRequired(server.provider);
     const acked = Boolean(cachedStatus.onboarding.acknowledgements.webhooks?.[server.provider]);
-    const title = `<span class="setup-webhook-title"><b>${escapeHtml(webhookProviderName(server.provider))}</b><span>&nbsp;- ${escapeHtml(server.serverName || `${webhookProviderName(server.provider)} server`)}</span></span>`;
+    const title = `<span class="setup-webhook-title"><b>${escapeHtml(webhookProviderName(server.provider))}</b>${server.tested ? `<span>&nbsp;- ${escapeHtml(server.serverName || `${webhookProviderName(server.provider)} server`)}</span>` : ""}</span>`;
     if (!requiresSetup) {
       return `
         <section class="settings-card setup-webhook-row setup-webhook-row--automatic" data-setup-webhook-provider="${escapeHtml(server.provider)}">
@@ -534,6 +548,14 @@ function renderWebhooks() {
             <span class="badge badge-success">Automatic</span>
           </div>
           <p class="setup-webhook-automatic-copy"><b>No webhook setup required.</b> Plembfin receives Plex watch-state changes directly and checks playback progress every minute.</p>
+          <div class="guide-callout warning-callout" style="gap: var(--space-1); border-color: rgba(234, 179, 8, 0.45); background: rgba(234, 179, 8, 0.08); margin-top: var(--space-3);">
+            <b style="color: var(--yellow); font-size: 0.85rem; display: block;">
+              Turn off "Refresh library metadata periodically"
+            </b>
+            <p style="margin: 0; font-size: 0.82rem; line-height: 1.4; color: var(--text-muted, var(--muted));">
+              In Plex, under Settings &rarr; Scheduled Tasks, disable "Refresh library metadata periodically". This task can occasionally re-match and re-identify library items during its nightly maintenance window, which resets their viewed state to unwatched on Plex itself - and Plembfin will propagate that as a real unwatch to Emby, Jellyfin, and Trakt. Turning it off removes the most common trigger for a mass false-unwatch event.
+            </p>
+          </div>
         </section>`;
     }
     return `
@@ -543,7 +565,7 @@ function renderWebhooks() {
             <span class="setup-webhook-chevron" aria-hidden="true">›</span>
             ${title}
           </span>
-          ${acked ? `<span class="badge badge-success">Configured</span>` : `<span class="badge badge-warning">Setup needed</span>`}
+          ${acked ? `<span class="badge badge-success">Configured</span>` : server.tested ? `<span class="badge badge-warning">Setup needed</span>` : `<span class="badge">Not connected yet</span>`}
         </summary>
         <div class="setup-webhook-accordion-body">
           ${webhookGuideFor(server.provider)}
@@ -587,6 +609,14 @@ function renderTrakt() {
   return `
     <div class="settings-card setup-trakt-card">
       <p class="muted-copy">Trakt keeps watch state in sync both ways, including individual rewatches, using Plembfin's built-in app credentials - no personal API key or VIP required.</p>
+      <div class="guide-callout warning-callout" style="gap: var(--space-1); border-color: rgba(234, 179, 8, 0.45); background: rgba(234, 179, 8, 0.08); margin-bottom: var(--space-3);">
+        <b style="color: var(--yellow); font-size: 0.85rem; display: block;">
+          Disable Existing Trakt Plugins
+        </b>
+        <p style="margin: 0; font-size: 0.82rem; line-height: 1.4; color: var(--text-muted, var(--muted));">
+          Disable any Trakt plugins or scheduled tasks in Emby and Jellyfin before connecting. Plembfin must be the sole Trakt bridge to prevent duplicate writers and sync loops.
+        </p>
+      </div>
       <label class="checkbox-label setup-trakt-date-pref">
         <input type="checkbox" data-setup-trakt-date-pref="1" ${preferEarlierTraktDateChoice ? "checked" : ""} />
         <span>Prefer Trakt's watched date when it is earlier than a media server's</span>

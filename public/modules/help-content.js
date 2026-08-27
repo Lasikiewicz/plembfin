@@ -163,25 +163,6 @@ export function buildWebhookUrl() {
   return token ? `${base}?token=${encodeURIComponent(token)}` : base;
 }
 
-export function plexWebhookSetup() {
-  const url = buildWebhookUrl();
-  return `
-    <div class="webhook-guide-content" style="display: grid; gap: var(--space-2); padding-top: var(--space-1);">
-      <div class="copy-block">
-        <button class="copy-button" type="button" data-copy="${escapeAttribute(url)}" aria-label="Copy Webhook URL">Copy</button>
-        <pre><code>${escapeHtml(url)}</code></pre>
-      </div>
-      <p style="font-size: 0.78rem; color: var(--muted); margin: 0;">Automation clients can also call <code>/api/webhook</code> with an <code>X-Plembfin-Webhook-Secret</code> or <code>Authorization: Bearer</code> header.</p>
-      <ul style="padding-left: 1.2rem; margin: var(--space-1) 0 0; display: grid; gap: 4px; font-size: 0.82rem; color: var(--text);">
-        <li>Go to Plex Web ➔ <b>Account Settings ➔ Webhooks</b> and click <b>Add Webhook</b>. Paste the URL above (requires Plex Pass).</li>
-        <li><b>Automatic Event Delivery:</b> Plex automatically sends all playback events (play, pause, resume, stop, scrobble) to the webhook URL - no individual event selection is required.</li>
-        <li><b>Library Watch-State Sync (built-in):</b> Plembfin automatically connects to your Plex Media Server via its WebSocket notification channel to capture watched and unwatched library changes in real time. Plex-side movie, episode, season, and show changes are applied to Plembfin and propagated to your other eligible servers.</li>
-        <li><b>Per-Minute Synchronization:</b> The internal scheduler runs every minute to evaluate playback progress against your watched threshold (90%) and dispatch cross-platform sync.</li>
-      </ul>
-    </div>
-  `;
-}
-
 export function embyWebhookSetup() {
   const url = buildWebhookUrl();
   return `
@@ -192,7 +173,7 @@ export function embyWebhookSetup() {
       </div>
       <p style="font-size: 0.78rem; color: var(--muted); margin: 0;">Automation clients can also call <code>/api/webhook</code> with an <code>X-Plembfin-Webhook-Secret</code> or <code>Authorization: Bearer</code> header.</p>
       <ul class="webhook-instruction-list">
-        <li>Go to Emby Server Settings ➔ <b>Webhooks</b> and add a new webhook pointing to the URL above.</li>
+        <li>Go to Emby Preferences ➔ <b>Notifications</b> ➔ <b>Webhooks</b> and add a new webhook pointing to the URL above.</li>
         <li>Under <b>Events → Playback</b>, check:
           <ul class="webhook-option-list">
             <li><code>Start</code> <span>Detects when playback begins.</span></li>
@@ -470,16 +451,21 @@ export function renderSettingsInlineHelp() {
   const webhookSetupGuides = document.getElementById("webhookSetupGuides");
   if (webhookSetupGuides) {
     webhookSetupGuides.innerHTML = `
-      <details class="sync-tool-details">
-        <summary class="accordion-header">
-          <div class="sync-tool-summary-title">
-            <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
-            <b>Plex Webhook Setup Guide</b>
-          </div>
-          <span>Instructions for adding webhooks in Plex Media Server</span>
-        </summary>
-        <div class="tool-item-row" style="padding: var(--space-3); width: 100%;">${plexWebhookSetup()}</div>
-      </details>
+      <div class="sync-tool-details" style="padding: var(--space-3);">
+        <div class="sync-tool-summary-title" style="justify-content: space-between; display: flex; align-items: center;">
+          <b>Plex</b>
+          <span class="badge badge-success">Automatic</span>
+        </div>
+        <p style="font-size: 0.82rem; color: var(--muted); margin: var(--space-1) 0 0;"><b style="color: var(--text);">No webhook setup required.</b> Plembfin connects to your Plex Media Server's WebSocket notification channel automatically to capture watched and unwatched changes in real time, and checks playback progress every minute. Plex-side movie, episode, season, and show changes are applied to Plembfin and propagated to your other eligible servers.</p>
+        <div class="guide-callout warning-callout" style="gap: var(--space-1); border-color: rgba(234, 179, 8, 0.45); background: rgba(234, 179, 8, 0.08); margin-top: var(--space-3);">
+          <b style="color: var(--yellow); font-size: 0.85rem; display: block;">
+            Turn off "Refresh library metadata periodically"
+          </b>
+          <p style="margin: 0; font-size: 0.82rem; line-height: 1.4; color: var(--text-muted, var(--muted));">
+            In Plex, under Settings &rarr; Scheduled Tasks, disable "Refresh library metadata periodically". This task can occasionally re-match and re-identify library items during its nightly maintenance window, which resets their viewed state to unwatched on Plex itself - and Plembfin will propagate that as a real unwatch to Emby, Jellyfin, and Trakt. Turning it off removes the most common trigger for a mass false-unwatch event.
+          </p>
+        </div>
+      </div>
       <details class="sync-tool-details">
         <summary class="accordion-header">
           <div class="sync-tool-summary-title">

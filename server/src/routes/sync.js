@@ -2343,6 +2343,7 @@ export async function handleWebhook(req, res) {
       return sendJson(res, { ok: true, inserted: false, id: existingRecord.id, reason: "Watch record already exists from recent full sync" });
     }
 
+    let isRewatchOnNewDay = false;
     const existingPlaystate = await getPlaystateForMedia(media).catch(() => null);
     if (existingPlaystate?.state === "watched") {
       // Emby and Jellyfin emit a played-flag event whenever anything sets the
@@ -2382,6 +2383,7 @@ export async function handleWebhook(req, res) {
         lastWatchedDay,
         today,
       });
+      isRewatchOnNewDay = true;
     }
 
     if (await shouldSkipPostRestoreCompletedWebhook(media)) {
@@ -2407,7 +2409,12 @@ export async function handleWebhook(req, res) {
     // findWatchedByAnyMediaKey has the broader coordinate/provider-id
     // fallback matching every other ingest path relies on for this; treat a
     // hit there as conclusive too instead of only trusting the exact checks.
-    const existingByAnyKey = await findWatchedByAnyMediaKey(media).catch(() => null);
+    // Skip this when the block above already approved a rewatch on a new day:
+    // findWatchedByAnyMediaKey's first candidate is this notification's own
+    // media_key, so it re-finds the very record that "watched on <old day>"
+    // was compared against, and would otherwise repair playstate back to that
+    // stale date instead of recording tonight's real rewatch.
+    const existingByAnyKey = isRewatchOnNewDay ? null : await findWatchedByAnyMediaKey(media).catch(() => null);
     if (existingByAnyKey) {
       console.log("Webhook: already recorded under a different key; repairing playstate instead of logging a new watch", {
         source: media.source,
