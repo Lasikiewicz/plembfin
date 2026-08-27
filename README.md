@@ -16,7 +16,9 @@
 <p align="center">
   <a href="CHANGELOG.md">Changelog</a> ·
   <a href="#which-version-should-i-run">Which version should I run?</a> ·
-  <a href="docs/README.md">Full documentation</a>
+  <a href="docs/README.md">Full documentation</a> ·
+  <a href="https://discord.gg/7ZmEGKcRC5">Discord</a> ·
+  <a href="https://www.reddit.com/r/plembfin/">Reddit</a>
 </p>
 
 ---
@@ -431,6 +433,13 @@ publishing - a breaking change is caught before release, not after.
 The local pre-push gate is never bypassed during promotion. If its test run hits the
 known transient failure, the workflow reruns the tests once and retries the push only
 after they pass; the retried push must still pass the complete build gate.
+
+---
+
+## Community
+
+- **[Discord](https://discord.gg/7ZmEGKcRC5)** - chat with other users, get help, and follow along with development.
+- **[r/plembfin](https://www.reddit.com/r/plembfin/)** - discussions, feature requests, and release announcements on Reddit.
 
 ---
 
