@@ -1,7 +1,31 @@
 {
-  "version": "0.12.3",
-  "updatedAt": "2026-08-27T13:07:48Z",
+  "version": "0.12.4",
+  "updatedAt": "2026-08-27T13:27:03Z",
   "entries": [
+    {
+      "version": "0.12.4",
+      "date": "2026-08-27T13:27:03Z",
+      "commit": "a1bf56443092053b8c1d59d396d9c03fcf46e2d3",
+      "message": "Fix - Publish the release image in the same job that commits the changelog",
+      "author": "github-actions[bot]",
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Publish the release image in the same job that commits the changelog",
+          "The prior split (a separate publish-current job gated on the changelog-bump commit re-arriving as a trigger) never actually ran: a commit pushed with the default GITHUB_TOKEN doesn't trigger another workflow run, so this release's 0.12.3 image was never built or pushed to GHCR at all",
+          "Moved the Docker build/push and Discord notification back into the same job that writes and commits the changelog, so every push to main reliably publishes exactly one image",
+          "Manually published 0.12.3 as a one-off stopgap via the existing workflow_dispatch build so the current release isn't left without an image",
+          "Corrected docs/development.md to describe the single-job flow"
+        ],
+        "tweaks": []
+      },
+      "details": [
+        "The prior split (a separate publish-current job gated on the changelog-bump commit re-arriving as a trigger) never actually ran: a commit pushed with the default GITHUB_TOKEN doesn't trigger another workflow run, so this release's 0.12.3 image was never built or pushed to GHCR at all",
+        "Moved the Docker build/push and Discord notification back into the same job that writes and commits the changelog, so every push to main reliably publishes exactly one image",
+        "Manually published 0.12.3 as a one-off stopgap via the existing workflow_dispatch build so the current release isn't left without an image",
+        "Corrected docs/development.md to describe the single-job flow"
+      ]
+    },
     {
       "version": "0.12.3",
       "date": "2026-08-27T13:07:48Z",

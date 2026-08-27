@@ -4,6 +4,18 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v0.12.4 - 27 August 2026
+
+Fix - Publish the release image in the same job that commits the changelog
+
+### Major Bug Fixes
+
+- Publish the release image in the same job that commits the changelog
+- The prior split (a separate publish-current job gated on the changelog-bump commit re-arriving as a trigger) never actually ran: a commit pushed with the default GITHUB_TOKEN doesn't trigger another workflow run, so this release's 0.12.3 image was never built or pushed to GHCR at all
+- Moved the Docker build/push and Discord notification back into the same job that writes and commits the changelog, so every push to main reliably publishes exactly one image
+- Manually published 0.12.3 as a one-off stopgap via the existing workflow_dispatch build so the current release isn't left without an image
+- Corrected docs/development.md to describe the single-job flow
+
 ## v0.12.3 - 27 August 2026
 
 Docs - Refresh dashboard, media, and stats screenshots; add Sync Activity
