@@ -1,40 +1,5 @@
 {
-  "build": 3,
-  "updatedAt": "2026-08-27T15:27:01+01:00",
-  "entries": [
-    {
-      "build": 3,
-      "date": "2026-08-27T15:27:01+01:00",
-      "commit": "bba98074c80fcccce090d477aae93de84794ebdb",
-      "message": "Docs - Check GHCR Cleanup isn't running before any push",
-      "author": "Lasikiewicz",
-      "details": [
-        "The known-flaky test (updateWatchRecord rolls the old media_key's playstate back to a survivor) was exposing a real bug, not just test noise: getPlaystateForMediaSync's title-based fallback can surface either an old or a migrated media_key's playstate row for a shared title, and updateWatchRecord picked between them with fresh Date.now() calls a few statements apart",
-        "When enough intervening work crossed a millisecond boundary, the newer write's timestamp would non-deterministically outrank the correct rolled-back row, so a Fix Match correction on a title-duplicate item could report the wrong watched state for the leftover, uncorrected identity",
-        "Reused the single updatedAt timestamp already captured for the row update across every playstate write in the same updateWatchRecord call (both the watched_at date-edit path and the identity-change rollback path), removing the timing dependency entirely",
-        "Verified with 40 back-to-back isolated runs of the previously-flaky test (0 failures, versus roughly 1-in-10 before) plus a full clean test suite run",
-        "Added a precondition to Push to git, Force to alpha, and Force to main: verify ghcr-cleanup.yml isn't mid-run first, since it deletes images from the same GHCR package every push publishes new tags to and its own docs warn against running it in parallel against the same package"
-      ]
-    },
-    {
-      "build": 2,
-      "date": "2026-08-27T14:47:49+01:00",
-      "commit": "cf305384e03448ae3c0f6a60e7470bc3bc0a0680",
-      "message": "Merge remote-tracking branch 'origin/main' into develop",
-      "author": "Lasikiewicz",
-      "details": [
-        "Merge remote-tracking branch 'origin/main' into develop"
-      ]
-    },
-    {
-      "build": 1,
-      "date": "2026-08-27T14:44:12+01:00",
-      "commit": "5f0c288c439eb6cadeab06da2814ce9d1b8899fc",
-      "message": "Chore - Reset develop build counter after promotion to alpha",
-      "author": "Lasikiewicz",
-      "details": [
-        "Chore - Reset develop build counter after promotion to alpha"
-      ]
-    }
-  ]
+  "build": 0,
+  "updatedAt": "2026-08-27T14:30:34.000Z",
+  "entries": []
 }
