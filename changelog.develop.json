@@ -1,51 +1,5 @@
 {
-  "build": 4,
-  "updatedAt": "2026-08-27T13:10:41+01:00",
-  "entries": [
-    {
-      "build": 4,
-      "date": "2026-08-27T13:10:41+01:00",
-      "commit": "049624ed12d90ca3e37eb63a7057126b0c081044",
-      "message": "Docs - Link Discord and Reddit communities in README",
-      "author": "Lasikiewicz",
-      "details": [
-        "Added Discord and Reddit links to the top navigation row",
-        "Added a Community section linking to the Discord server and r/plembfin subreddit"
-      ]
-    },
-    {
-      "build": 3,
-      "date": "2026-08-27T10:48:34+01:00",
-      "commit": "c29c3b3cabc969d61689d195b02fc4c662bf85f8",
-      "message": "Feature - Post release and alpha-build changelogs to a Discord channel",
-      "author": "Lasikiewicz",
-      "details": [
-        "New scripts/notify-discord-release.js posts a Discord embed built from the newest changelog.json (main releases) or changelog.alpha.json (alpha builds) entry",
-        "update-changelog.yml and docker-publish-alpha.yml each call the script as their final step, using a DISCORD_RELEASES_WEBHOOK repo secret",
-        "No-ops quietly with no failing build when the secret isn't set, so forks and clones without it configured are unaffected",
-        "Supports a --dry-run flag that prints the embed instead of posting, for checking formatting without a webhook",
-        "Documented the new step and the required secret in docs/development.md"
-      ]
-    },
-    {
-      "build": 2,
-      "date": "2026-08-27T09:38:09+01:00",
-      "commit": "c8b5eaf5098fb7e1799090110e02793cfa3c9efa",
-      "message": "Merge remote-tracking branch 'origin/main' into develop",
-      "author": "Lasikiewicz",
-      "details": [
-        "Merge remote-tracking branch 'origin/main' into develop"
-      ]
-    },
-    {
-      "build": 1,
-      "date": "2026-08-27T09:22:49+01:00",
-      "commit": "e369cd54f0d55f59a6cf5c1f70e37e1a7fbfe7c0",
-      "message": "Chore - Reset develop build counter after promotion to alpha",
-      "author": "Lasikiewicz",
-      "details": [
-        "Chore - Reset develop build counter after promotion to alpha"
-      ]
-    }
-  ]
+  "build": 0,
+  "updatedAt": "2026-08-27T12:15:26.000Z",
+  "entries": []
 }
