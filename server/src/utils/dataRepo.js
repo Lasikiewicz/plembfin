@@ -3346,27 +3346,32 @@ export async function updateWatchRecord(id, fields = {}, { preserveDispatchState
     const relatedRows = relatedTrackedWatchRowsForDateEdit(existing);
     transaction(() => {
       for (const row of relatedRows) {
-        updateWatchRowWatchedAtStmt.run(normalizedWatchedAt, Date.now(), row.id);
+        updateWatchRowWatchedAtStmt.run(normalizedWatchedAt, updatedAt, row.id);
       }
     });
     for (const mediaKey of new Set(relatedRows.map((row) => row.media_key).filter(Boolean))) {
-      updatePlaystateWatchedAtStmt.run(normalizedWatchedAt, Date.now(), mediaKey);
+      updatePlaystateWatchedAtStmt.run(normalizedWatchedAt, updatedAt, mediaKey);
     }
   }
   if (normalizedWatchedAt && existing.media_key) {
-    updatePlaystateWatchedAtStmt.run(normalizedWatchedAt, Date.now(), existing.media_key);
+    updatePlaystateWatchedAtStmt.run(normalizedWatchedAt, updatedAt, existing.media_key);
   }
 
   // The row just moved to newMediaKey - roll the old key's playstate back to
   // whatever else still lives there (or drop it if nothing does), and fold
   // this row into whatever the new key's playstate already reflects, the same
-  // reconciliation deleteWatchDate does when a row leaves a media_key.
+  // reconciliation deleteWatchDate does when a row leaves a media_key. Both
+  // writes below share the single `updatedAt` captured above rather than
+  // taking fresh Date.now() calls: getPlaystateForMediaSync's title-based
+  // fallback can surface either key's playstate row for a shared title, and
+  // choosing between them by millisecond-resolution updated_at would make the
+  // outcome depend on how much work happens between the two writes here.
   if (identityChanged && newMediaKey !== oldMediaKey) {
     if (oldMediaKey) {
       const oldRemaining = selectByMediaKeyStmt.all(oldMediaKey).filter(isPlembfinTrackedWatchRow);
       if (oldRemaining.length) {
         const oldLatest = oldRemaining.reduce((best, row) => (String(row.watched_at || "") > String(best.watched_at || "") ? row : best));
-        updatePlaystateWatchedAtStmt.run(oldLatest.watched_at, Date.now(), oldMediaKey);
+        updatePlaystateWatchedAtStmt.run(oldLatest.watched_at, updatedAt, oldMediaKey);
       } else {
         deletePlaystateByKeyStmt.run(oldMediaKey);
       }
@@ -3392,7 +3397,7 @@ export async function updateWatchRecord(id, fields = {}, { preserveDispatchState
         season: newLatest.season,
         episode: newLatest.episode,
         poster_url: newLatest.poster_url || existingNewPlaystate?.poster_url || null,
-        updated_at: Date.now(),
+        updated_at: updatedAt,
       });
     }
   }
