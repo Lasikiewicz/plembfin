@@ -1,7 +1,35 @@
 {
-  "version": "0.12.7",
-  "updatedAt": "2026-08-27T15:39:02+01:00",
+  "version": "0.12.8",
+  "updatedAt": "2026-08-27T15:52:07Z",
   "entries": [
+    {
+      "version": "0.12.8",
+      "date": "2026-08-27T15:52:07Z",
+      "commit": "1879fbc7202ca1c67943f1052902b069c6acc749",
+      "message": "Feature - Background metadata refresh jobs, onboarding sidebar reminder, and Reddit release bot",
+      "author": "github-actions[bot]",
+      "sections": {
+        "newFeatures": [
+          "Background metadata refresh jobs, onboarding sidebar reminder, and Reddit release bot",
+          "TMDB and TVDB Refresh Metadata now run as cancellable background jobs that survive closing Settings, navigating away, or reloading the page, instead of a client-driven paginated loop",
+          "Replaced onboarding's forced redirect to /setup with a persistent, dismissible \"Complete onboarding\" sidebar reminder shown until a media server is connected and tested",
+          "Added a \"Restore from backup\" shortcut to the setup wizard's overview step, reusing the same local-upload and Backblaze B2 restore tools already in Settings -> Backups",
+          "Fixed Fix Match on an episode's poster menu prefilling the episode's own title instead of the show's title in the rematch search box",
+          "Fixed the Settings -> Backups -> Restore tab appearing empty after leaving the onboarding wizard's restore flow partway through",
+          "Added a Devvit app (reddit-app/) that posts and pins a release announcement to r/plembfin on a schedule, since Reddit declined script-app Data API access for this use case and recommended Devvit instead"
+        ],
+        "majorBugFixes": [],
+        "tweaks": []
+      },
+      "details": [
+        "TMDB and TVDB Refresh Metadata now run as cancellable background jobs that survive closing Settings, navigating away, or reloading the page, instead of a client-driven paginated loop",
+        "Replaced onboarding's forced redirect to /setup with a persistent, dismissible \"Complete onboarding\" sidebar reminder shown until a media server is connected and tested",
+        "Added a \"Restore from backup\" shortcut to the setup wizard's overview step, reusing the same local-upload and Backblaze B2 restore tools already in Settings -> Backups",
+        "Fixed Fix Match on an episode's poster menu prefilling the episode's own title instead of the show's title in the rematch search box",
+        "Fixed the Settings -> Backups -> Restore tab appearing empty after leaving the onboarding wizard's restore flow partway through",
+        "Added a Devvit app (reddit-app/) that posts and pins a release announcement to r/plembfin on a schedule, since Reddit declined script-app Data API access for this use case and recommended Devvit instead"
+      ]
+    },
     {
       "version": "0.12.7",
       "date": "2026-08-27T15:39:02+01:00",

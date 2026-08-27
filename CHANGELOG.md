@@ -4,6 +4,20 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v0.12.8 - 27 August 2026
+
+Feature - Background metadata refresh jobs, onboarding sidebar reminder, and Reddit release bot
+
+### New Features
+
+- Background metadata refresh jobs, onboarding sidebar reminder, and Reddit release bot
+- TMDB and TVDB Refresh Metadata now run as cancellable background jobs that survive closing Settings, navigating away, or reloading the page, instead of a client-driven paginated loop
+- Replaced onboarding's forced redirect to /setup with a persistent, dismissible "Complete onboarding" sidebar reminder shown until a media server is connected and tested
+- Added a "Restore from backup" shortcut to the setup wizard's overview step, reusing the same local-upload and Backblaze B2 restore tools already in Settings -> Backups
+- Fixed Fix Match on an episode's poster menu prefilling the episode's own title instead of the show's title in the rematch search box
+- Fixed the Settings -> Backups -> Restore tab appearing empty after leaving the onboarding wizard's restore flow partway through
+- Added a Devvit app (reddit-app/) that posts and pins a release announcement to r/plembfin on a schedule, since Reddit declined script-app Data API access for this use case and recommended Devvit instead
+
 ## v0.12.7 - 27 August 2026
 
 Merge pull request #23 from Lasikiewicz/dependabot/github_actions/github/codeql-action-4.37.8
