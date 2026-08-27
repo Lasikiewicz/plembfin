@@ -1,28 +1,21 @@
 {
-  "baseVersion": "0.12.2",
+  "baseVersion": "0.12.3",
   "build": 1,
   "entries": [
     {
       "build": 1,
-      "version": "0.12.2.1",
-      "date": "2026-08-27T13:05:51Z",
-      "commit": "92e1116a9826c5cb67b9a08a7b8889c4ff012c1e",
-      "message": "Chore - Bump develop build for f1945d2",
-      "author": "github-actions[bot]",
+      "version": "0.12.3.1",
+      "date": "2026-08-27T14:26:07+01:00",
+      "commit": "0305fe5d47cedca5becc0352b76ca2d5a901fd96",
+      "message": "Fix - Publish the release image in the same job that commits the changelog",
+      "author": "Lasikiewicz",
       "details": [
-        "Fixed the release pipeline building and pushing the Docker image to GHCR twice per push to main; only the final job (which runs against the already-committed changelog/version bump) now builds and publishes it",
-        "Added a weekly scheduled workflow that prunes old numbered develop-* and alpha-* image tags (keeping the newest 15 of each) and deletes dangling untagged images left behind when the latest/develop/alpha tags move",
-        "The cleanup workflow starts in dry-run mode so nothing is deleted until a run has been reviewed",
-        "Documented both changes in docs/development.md",
-        "Removed test/ from .gitignore; it was added in commit 3d5b85b4 at the same time all 89 test files were deleted from git tracking, so the suite has existed only on local machines since - a fresh clone or CI checkout had zero test files, and npm run build's node --test step was silently running against nothing while still reporting success",
-        "Re-added all 93 files currently under test/ (91 test files plus shared helpers) so the suite ships with the repo again and CI actually exercises it",
-        "Moved the orphaned root-level 'layout defaults.md' into docs/frontend.md as a new Settings Card Shell section, since it wasn't linked from any doc index",
-        "Corrected docs/frontend.md's settings-card padding claim while merging: the base .settings-card padding: 1.5rem rule only applies to help-column cards, since a more specific selector overrides it to 0 for any card inside the main column (which is what layout defaults.md was actually describing)",
-        "Replaced the now-playing, media, and stats screenshots with current captures of the app",
-        "Added a new Sync Activity screenshot and README entry, matching the existing Sync Activity hub feature",
-        "Chore - Bump develop build for f1945d2"
+        "The prior split (a separate publish-current job gated on the changelog-bump commit re-arriving as a trigger) never actually ran: a commit pushed with the default GITHUB_TOKEN doesn't trigger another workflow run, so this release's 0.12.3 image was never built or pushed to GHCR at all",
+        "Moved the Docker build/push and Discord notification back into the same job that writes and commits the changelog, so every push to main reliably publishes exactly one image",
+        "Manually published 0.12.3 as a one-off stopgap via the existing workflow_dispatch build so the current release isn't left without an image",
+        "Corrected docs/development.md to describe the single-job flow"
       ]
     }
   ],
-  "updatedAt": "2026-08-27T13:05:51Z"
+  "updatedAt": "2026-08-27T14:26:07+01:00"
 }
