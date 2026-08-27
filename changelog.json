@@ -1,7 +1,24 @@
 {
-  "version": "0.12.4",
-  "updatedAt": "2026-08-27T13:27:03Z",
+  "version": "0.12.5",
+  "updatedAt": "2026-08-27T13:42:25Z",
   "entries": [
+    {
+      "version": "0.12.5",
+      "date": "2026-08-27T13:42:25Z",
+      "commit": "84b83978d784519e6043b40002d01ada8f4eea98",
+      "message": "Chore - Bump alpha build for f3f3d9b",
+      "author": "github-actions[bot]",
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [],
+        "tweaks": [
+          "Bump alpha build for f3f3d9b"
+        ]
+      },
+      "details": [
+        "Chore - Bump alpha build for f3f3d9b"
+      ]
+    },
     {
       "version": "0.12.4",
       "date": "2026-08-27T13:27:03Z",

@@ -4,6 +4,14 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v0.12.5 - 27 August 2026
+
+Chore - Bump alpha build for f3f3d9b
+
+### Tweaks
+
+- Bump alpha build for f3f3d9b
+
 ## v0.12.4 - 27 August 2026
 
 Fix - Publish the release image in the same job that commits the changelog
