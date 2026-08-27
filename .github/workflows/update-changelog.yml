@@ -21,7 +21,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      packages: write
 
     steps:
       - name: Checkout repository
@@ -66,40 +65,10 @@ jobs:
           git commit -m "chore: update changelog for ${SOURCE_COMMIT::7}"
           git push origin main
 
-      - name: Log in to the Container registry
-        uses: docker/login-action@v4
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v4
-
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@v6
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=raw,value=latest
-            type=raw,value=${{ steps.release.outputs.version }}
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v7
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-          provenance: true
-          sbom: true
-
-      - name: Notify Discord releases channel
-        env:
-          DISCORD_RELEASES_WEBHOOK: ${{ secrets.DISCORD_RELEASES_WEBHOOK }}
-        run: node scripts/notify-discord-release.js main
-
+  # This job's own commit above re-triggers the workflow; publish-current is the
+  # sole builder/publisher, so the release image is built once, from the commit
+  # that actually ships (changelog.json/CHANGELOG.md/package.json already bumped)
+  # instead of building twice - once pre-commit here and once again below.
   publish-current:
     if: >-
       github.actor != 'github-actions[bot]' &&
@@ -154,3 +123,8 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           provenance: true
           sbom: true
+
+      - name: Notify Discord releases channel
+        env:
+          DISCORD_RELEASES_WEBHOOK: ${{ secrets.DISCORD_RELEASES_WEBHOOK }}
+        run: node scripts/notify-discord-release.js main

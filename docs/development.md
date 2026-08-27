@@ -179,13 +179,15 @@ this means every "Merge alpha with main" run, not every individual commit:
    `chore: update changelog for <sha>` - the "Merge alpha with main" workflow folds
    this bump commit back into `alpha` afterward (see the "Merge alpha with main"
    branch synchronization step above)
-4. builds and pushes the Docker image to GHCR tagged `latest` + the new version
-5. posts the new `changelog.json` entry to Discord via `scripts/notify-discord-release.js main`
-   (see "Discord release notifications" below)
 
-A second job in the same workflow re-publishes the image when the triggering push *is*
-the changelog commit. `docker-publish.yml` is a manual (`workflow_dispatch`) image
-build that skips the changelog step.
+That commit re-triggers the workflow. A second job, `publish-current`, is the only one
+that builds and pushes the Docker image (tagged `latest` + the new version) and posts
+the new `changelog.json` entry to Discord via `scripts/notify-discord-release.js main`
+(see "Discord release notifications" below) - it runs against the commit that actually
+ships, with `changelog.json`/`CHANGELOG.md`/`package.json` already bumped, so the
+release image is built exactly once per push to `main` instead of twice.
+`docker-publish.yml` is a manual (`workflow_dispatch`) image build that skips the
+changelog step.
 
 The in-app update check compares the bundled `changelog.json` against the published one
 on GitHub - see the changelog section of [architecture.md](architecture.md).
@@ -214,6 +216,7 @@ channel silent.
 | `secret-scan.yml` | TruffleHog verified-secret scan on push to `main`/`alpha`/`develop` and PRs targeting `main`/`develop` |
 | `docker-build-check.yml` | Checks README consistency, then builds the image on every PR targeting `main`, without pushing anything, and runs `better-sqlite3` and `sharp` inside it, so a broken Dockerfile or dependency install is caught before a PR merges. The runtime probe matters because production dependencies install with `--ignore-scripts`: a native module with no usable binary for the platform still builds cleanly and would fail on first database open |
 | `docker-publish-alpha.yml` | On every push to `alpha`: checks README consistency, bumps `changelog.alpha.json`'s build counter and commits it back to `alpha`, builds the image, runs the same native-module probe as `docker-build-check.yml`, then pushes it to `ghcr.io/lasikiewicz/plembfin:alpha` and `ghcr.io/lasikiewicz/plembfin:alpha-<build>`, and posts the new build's changelog entry to Discord (see "Discord release notifications"). Never touches `changelog.json`, the package version, or the `:latest` tag |
+| `ghcr-cleanup.yml` | Weekly (and on manual dispatch): prunes numbered `develop-<n>`/`alpha-<n>` tags beyond the newest 15 of each, and deletes untagged images older than a day left behind whenever a mutable tag (`latest`/`develop`/`alpha`) moves to a new manifest. Never touches those mutable tags or a semantic-version release tag. Starts in `dry-run: true` - flip it off per step once a scheduled run's log has been reviewed |
 | `dependabot.yml` | Dependency update PRs |
 
 ## Docker

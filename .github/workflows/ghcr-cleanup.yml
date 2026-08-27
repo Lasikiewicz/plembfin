@@ -1,0 +1,50 @@
+name: GHCR Cleanup
+
+# Every push to develop/alpha publishes a brand-new image tag (develop-<n>,
+# alpha-<n>) that nothing ever deletes, and every mutable tag (latest, develop,
+# alpha) that gets reassigned leaves its previous manifest dangling as an
+# untagged image. This prunes both on a weekly schedule. Release tags
+# (semantic versions) and the latest/develop/alpha pointer tags are always
+# excluded - only old numbered pre-release tags and truly untagged manifests
+# are removed.
+#
+# Starts in dry-run mode: it only logs what it would delete. Flip dry-run to
+# false once a scheduled run's log has been reviewed.
+
+on:
+  schedule:
+    - cron: '0 3 * * 0'
+  workflow_dispatch:
+
+concurrency:
+  group: ghcr-cleanup
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - name: Prune old numbered develop tags
+        uses: dataaxiom/ghcr-cleanup-action@v1
+        with:
+          dry-run: true
+          delete-tags: 'develop-*'
+          exclude-tags: 'develop,alpha,latest'
+          keep-n-tagged: 15
+
+      - name: Prune old numbered alpha tags
+        uses: dataaxiom/ghcr-cleanup-action@v1
+        with:
+          dry-run: true
+          delete-tags: 'alpha-*'
+          exclude-tags: 'develop,alpha,latest'
+          keep-n-tagged: 15
+
+      - name: Prune dangling untagged images
+        uses: dataaxiom/ghcr-cleanup-action@v1
+        with:
+          dry-run: true
+          delete-untagged: true
+          older-than: '1 day'
