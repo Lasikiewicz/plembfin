@@ -4,6 +4,21 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v0.12.1 - 27 August 2026
+
+Fix - Correct rewatch and Plex echo sync bugs, clarify webhook setup
+
+### Major Bug Fixes
+
+- Correct rewatch and Plex echo sync bugs, clarify webhook setup
+- Fixed a bug where rewatching a show on a new day could be silently discarded and left showing a stale watch date instead of recording the new watch
+- Fixed a bug where marking an item unwatched in Plembfin could be immediately overwritten by a delayed "still watched" signal echoed back from Plex
+- Settings and onboarding now correctly show Plex needs no manual webhook setup, and add a warning to disable Plex's "Refresh library metadata periodically" scheduled task, which can otherwise reset watched state during its own maintenance window
+- Fixed the Emby webhook setup instructions, which pointed to the wrong menu path
+- Onboarding now shows the Emby and Jellyfin webhook setup guides even before those servers are connected, and shows the same Trakt "sole bridge" warning already shown in Settings
+- Added a "Required" badge to the TMDB metadata card during onboarding
+- Removed the raw webhook URL and background scheduler endpoint displays from Settings; the webhook URL is now shown inline within each platform's own setup guide
+
 ## v0.12.0 - 26 August 2026
 
 Feature - Filter Sync Activity to failed items and fix dispatch telemetry accuracy
