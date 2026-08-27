@@ -160,14 +160,116 @@ All of the following must stay consistent - do not change one without updating t
 | `.settings-row` | `gap` | `var(--space-3)` | Gap between left (main) and right (help) columns - **must equal the topbar gap** |
 | `.settings-row-main` | `gap` | `var(--space-3)` | Gap between stacked cards inside main column |
 | `.settings-row-help` | `gap` | `var(--space-3)` | Gap between stacked cards inside help column |
-| `.settings-card` | `padding` | `1.5rem` | Internal card padding (all sides) |
+| `.settings-card` | `padding` | `1.5rem` (help column) / `0` (main column) | See "Settings Card Shell" below - the main-column value comes from a more specific override |
 
 ### Spacing Rules
 
 1. **Every structural layout gap in the settings shell uses `var(--space-3)` = 0.75rem.** This applies to `.settings-content`, `.settings-pane`, `.settings-row`, `.settings-row-main`, and `.settings-row-help` - all must use the same token so topbar gap, horizontal gap, and vertical section gaps are visually identical.
-2. **Card internal padding is `1.5rem` on all sides**, set via `padding: 1.5rem !important` on `.settings-card` (the `!important` exists to override the base `.glass-panel` / `.p-section` rules). This is content padding, not layout spacing - do not equate it with the layout gap.
+2. **Card internal padding differs by column.** The base `.settings-card { padding: 1.5rem !important }` rule applies as written to help-column cards (`.settings-row-help > .settings-card`). Inside the main column, `.settings-pane .settings-row-main > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel)` is more specific and overrides it to `padding: 0 !important`, moving the padding onto the child `.section-heading` and content wrapper instead - see "Settings Card Shell" below for the full structure.
 3. **Never add per-panel margin or gap overrides** (e.g. `margin-top` on a specific `settings-pane[data-settings-panel]` selector). All spacing must come from the flex gap alone.
 4. **Do not merge `.app-shell` into a shared selector with `.view-panel`** - `.app-shell` needs `gap: var(--space-3)` while `.view-panel` needs `gap: 0`. Merging them collapses the topbar into the page content.
+
+### Settings Card Shell
+
+The Sync Tools section is the reference implementation for the primary settings card
+shell in the main column. Sync Tuning, Sync Issues, and Sync History share the exact
+same layout system, spacing, and styling rules, and the same shell applies across every
+settings panel: Account, Media Servers, Seerr, Webhooks, Metadata Providers, Refresh
+Metadata, System Integrity, Trakt, Database Repairs, Rebuilds, Backups, Restore, Sync
+Tuning, Sync Tools, Sync Issues, Sync History, Server Logs, Changelog, and Image Cache.
+
+Each settings page uses this canonical DOM hierarchy:
+
+```html
+<div class="settings-pane">
+  <div class="settings-row" data-sub-panel="[panel-id]">
+    <div class="settings-row-main">
+      <article class="glass-panel p-section settings-card tool-section-card">
+        <div class="section-heading sync-heading sync-static-heading">
+          <div class="sync-heading-title">
+            <p style="margin: 0;">[Title]</p>
+            <!-- Optional status pill -->
+            <span class="status-pill status-muted">Ready</span>
+          </div>
+          <span>[Description / Subtitle]</span>
+        </div>
+        <div class="media-force-sync-options sync-tools-content">
+          <!-- Content rows / forms / action items -->
+        </div>
+      </article>
+    </div>
+    <div class="settings-row-help">
+      <article class="glass-panel p-section settings-card">
+        <div class="section-heading">
+          <p>[Help Title]</p>
+          <span>[Help Subtitle]</span>
+        </div>
+        <!-- Help sections -->
+      </article>
+    </div>
+  </div>
+</div>
+```
+
+The main column (`.settings-row-main`) is the primary working area (~2.2fr flex ratio).
+The help column (`.settings-row-help`) explains the working area (~1fr flex ratio,
+~320px fixed reference) and collapses below `900px`.
+
+**Main settings card** - the primary card follows the canonical Sync Tools shell:
+
+- Full-width `<article class="glass-panel p-section settings-card tool-section-card">` inside `.settings-row-main`.
+- Outer card padding removed (`padding: 0 !important`) and `gap: 0 !important` so the heading and content form one continuous panel.
+- `overflow: hidden` so the header border and rounded corners stay clean.
+- `border: 1px solid var(--line-strong)` and `background: var(--panel)` for the outer card surface.
+- `border-radius: var(--radius)` (8px default).
+
+**Card heading** - the first direct child is the section heading:
+
+- `<div class="section-heading sync-heading sync-static-heading">`.
+- Title and optional status pill grouped on the left inside `<div class="sync-heading-title">`; supporting description `<span>` on the right.
+- `padding: var(--space-3) !important` (16px / `1rem`), `margin: 0 !important`, bottom border `1px solid var(--line) !important`.
+- Title text: `<p style="margin: 0;">` with `font-weight: 700`.
+- Supporting subtitle `<span>`: `var(--muted)`, `0.78rem` (`font-weight: 500`), right-aligned on wide screens.
+- Accordion header toggles (e.g. Sync History) use `<button class="section-heading sync-heading sync-static-heading accordion-header" type="button">` with `background: transparent; border: none; width: 100%; cursor: pointer;`.
+
+**Card content** - every content wrapper immediately following the heading:
+
+- `<div class="media-force-sync-options sync-tools-content">`.
+- `padding: var(--space-3) !important` (16px); child rows use `gap: var(--space-2) !important` (12px).
+- Content elements have `margin-top: 0 !important` to avoid doubling the flex gap.
+
+**Action rows, fields, and controls** - action rows, tuning fields, issue items, match reports, and history cards use the standard Sync Tools treatment:
+
+- Full border `1px solid var(--line)`, `border-radius: var(--radius)` (8px), `background: var(--panel-2)`, `padding: var(--space-3)` (16px).
+- `:hover` and `:focus-within` change border to `var(--blue)` and background to `var(--panel-3)` with `transition: border-color 160ms ease, background 160ms ease`.
+- Descriptions stay left-aligned and use the available width before wrapping.
+
+Field layout and multi-line help formatting (Sync Tuning):
+
+- Settings input fields use a 2-column CSS Grid: `display: grid; grid-template-columns: minmax(0, 1fr) minmax(10rem, 13rem); align-items: center; gap: var(--space-3);`, collapsing to a single column below `760px`.
+- Field title: `color: var(--text)`, `font-weight: 700`.
+- Field help text with a default/range uses explicit `<br>` line breaks and `helpIsHtml: true`:
+  ```html
+  <span class="settings-field-help">
+    [Description].<br>
+    Default: [default value]. Valid range: [min]-[max].
+  </span>
+  ```
+  Color `var(--muted)`, `font-size: inherit`, `line-height: 1.45`, `max-width: none`.
+
+Buttons (`.sync-tool-button`, `.button-primary`, `.button-ghost`, `.sync-action-btn`):
+
+- `min-height: 2.05rem !important` (~33px), `padding: 0.45rem 0.72rem !important`.
+- `font-size: 0.78rem !important`, `font-weight: 800 !important`, `letter-spacing: 0 !important`, `border-radius: 4px !important`, `box-shadow: none !important`.
+- Primary actions use `.button-primary` (blue accent). Cancel/stop actions use `.sync-tools-cancel-button` or `.button-danger` with red OKLCH tinting: border `color-mix(in oklch, var(--red) 55%, var(--line-strong))`, background `color-mix(in oklch, var(--red) 14%, var(--panel-2))`, color `var(--red)`.
+
+Responsive behavior:
+
+- Below `900px`, `.settings-row-main` stacks above `.settings-row-help` at full width.
+- Below `760px`: section headings stack (`flex-direction: column`, `align-items: flex-start`) with left-aligned subtitle text; action buttons stack full-width; grid rows (target rows, tuning fields) collapse to a single column.
+- The same heading, border, background, and padding hierarchy is preserved in both dark and light themes.
+
+**Implementation rule**: when adding or updating a settings page, use the shared main-card shell (`article.glass-panel.p-section.settings-card.tool-section-card`) and the Sync Tools structure first. Add a component-specific rule only when the content cannot fit the standard heading/content/action-row pattern, and document the exception beside the component styles.
 
 ### Settings Navigation Rules
 
