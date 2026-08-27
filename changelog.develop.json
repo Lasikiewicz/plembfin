@@ -1,7 +1,20 @@
 {
-  "build": 2,
-  "updatedAt": "2026-08-27T13:19:38+01:00",
+  "build": 3,
+  "updatedAt": "2026-08-27T13:37:35+01:00",
   "entries": [
+    {
+      "build": 3,
+      "date": "2026-08-27T13:37:35+01:00",
+      "commit": "e3cfe82d72f5d85990c0aa38b4b48a9ea969f214",
+      "message": "Fix - Stop duplicate release image builds and add GHCR tag cleanup",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fixed the release pipeline building and pushing the Docker image to GHCR twice per push to main; only the final job (which runs against the already-committed changelog/version bump) now builds and publishes it",
+        "Added a weekly scheduled workflow that prunes old numbered develop-* and alpha-* image tags (keeping the newest 15 of each) and deletes dangling untagged images left behind when the latest/develop/alpha tags move",
+        "The cleanup workflow starts in dry-run mode so nothing is deleted until a run has been reviewed",
+        "Documented both changes in docs/development.md"
+      ]
+    },
     {
       "build": 2,
       "date": "2026-08-27T13:19:38+01:00",
