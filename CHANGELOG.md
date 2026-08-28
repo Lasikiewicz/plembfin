@@ -10,7 +10,6 @@ Fix - TV show detail and grid bulk-watch fixes
 
 ### Major Bug Fixes
 
-- TV show detail and grid bulk-watch fixes
 - Restore the missing three-dot overflow menu on TV Shows grid cards
 - Season list rows now show Saving while a bulk watch action is in progress instead of a stale watched count
 - Marking a season or whole show as watched no longer marks episodes that haven't aired yet
@@ -945,7 +944,7 @@ Fix - Update settings shell route handling and test suite for General group aggr
 - Update test/settingsShell.test.js assertions for storage panel and advanced legacy redirect
 - Pass all 177 automated unit tests
 
-## v0.6.77 - 5 August 2026
+## v0.6.77 - 6 August 2026
 
 Feature - Standardize settings page layouts
 

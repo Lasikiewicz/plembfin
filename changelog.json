@@ -11,7 +11,6 @@
       "sections": {
         "newFeatures": [],
         "majorBugFixes": [
-          "TV show detail and grid bulk-watch fixes",
           "Restore the missing three-dot overflow menu on TV Shows grid cards",
           "Season list rows now show Saving while a bulk watch action is in progress instead of a stale watched count",
           "Marking a season or whole show as watched no longer marks episodes that haven't aired yet"
