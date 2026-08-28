@@ -19753,6 +19753,83 @@ html.light-mode .settings-pane .settings-row-main > :is(.settings-card, .sync-pa
   min-width: 0;
 }
 
+/* #restore-local/#restore-remote are card shells too, but they sit one level
+   deeper than the rule above expects - inside #restoreSectionsHome, kept there
+   because the onboarding wizard's "Restore from backup" step reparents them
+   (see settings-shell.js and docs/settings.md). Restate the same card shell
+   directly by id so the extra nesting level doesn't fall through to the
+   generic 1.5rem .settings-card padding. */
+#restore-local,
+#restore-remote {
+  display: flex !important;
+  flex-direction: column !important;
+  min-width: 0;
+  width: 100%;
+  padding: 0 !important;
+  gap: 0 !important;
+  overflow: hidden;
+  border: 1px solid var(--line-strong) !important;
+  border-radius: var(--radius) !important;
+  background: #1a1a1a !important;
+  box-shadow: none !important;
+}
+
+html.light-mode #restore-local,
+html.light-mode #restore-remote {
+  background: var(--panel-2) !important;
+}
+
+#restore-local > .section-heading,
+#restore-remote > .section-heading {
+  display: flex !important;
+  flex: 0 0 auto;
+  align-items: center !important;
+  justify-content: space-between !important;
+  flex-wrap: wrap;
+  min-width: 0;
+  gap: var(--space-3) !important;
+  margin: 0 !important;
+  padding: var(--space-3) !important;
+  border-bottom: 1px solid var(--line) !important;
+  background: transparent !important;
+}
+
+#restore-local > .section-heading > div,
+#restore-local > .section-heading > .sync-heading-title,
+#restore-remote > .section-heading > div,
+#restore-remote > .section-heading > .sync-heading-title {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
+#restore-local > .section-heading.sync-static-heading > div:first-child,
+#restore-remote > .section-heading.sync-static-heading > div:first-child {
+  width: auto !important;
+}
+
+#restore-local > .section-heading > span,
+#restore-local > .section-heading > div > span,
+#restore-remote > .section-heading > span,
+#restore-remote > .section-heading > div > span {
+  min-width: 0;
+  max-width: none !important;
+  color: var(--muted) !important;
+  font-size: 0.9rem !important;
+  font-weight: 400;
+  line-height: 1.45;
+  text-align: right;
+}
+
+#restore-local > :not(.section-heading),
+#restore-remote > :not(.section-heading) {
+  box-sizing: border-box;
+  min-width: 0;
+  width: 100%;
+  margin-top: 0 !important;
+  padding: var(--space-3) !important;
+  gap: var(--space-2) !important;
+}
+
 /* Help cards use the same heading boundary and panel tokens, but retain a
    normal content inset because their prose is not an action-row list. */
 .settings-pane .settings-row-help > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) {
