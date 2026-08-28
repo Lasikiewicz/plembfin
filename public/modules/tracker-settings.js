@@ -39,12 +39,10 @@ function renderConnection(connection) {
   const connected = connection?.status === "connected" || connection?.status === "reauth_required";
   const summary = el("traktConnectedSummary");
   const fields = el("traktConnectForm")?.querySelector(".sync-tuning-fields");
-  const connectHint = el("traktConnectHint");
   el("traktConnectButton")?.classList.toggle("hidden", connected);
   el("traktSyncNowButton")?.classList.toggle("hidden", !connected);
   el("traktDisconnectButton")?.classList.toggle("hidden", !connected);
   fields?.classList.toggle("hidden", connected);
-  connectHint?.classList.toggle("hidden", connected);
   el("traktPersonalAppFields")?.classList.toggle("hidden", connected);
   summary?.classList.toggle("hidden", !connected);
   if (!connected) {
@@ -60,7 +58,7 @@ function renderProvider() {
   const status = el("traktAppStatus");
   const personal = el("traktPersonalAppFields");
   if (traktProvider.appConfigured) {
-    if (status) status.textContent = "The Plembfin Trakt app is ready. Connect and approve the displayed device code.";
+    if (status) status.textContent = "";
     personal?.removeAttribute("open");
     return;
   }

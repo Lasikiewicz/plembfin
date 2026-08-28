@@ -7,21 +7,44 @@ separate screen. `/settings` itself shows a plain overview list grouped the same
 Desktop renders the grouped sidebar; mobile uses the **Settings section** select control
 (a flat list of options under `<optgroup>` headings matching the sidebar groups).
 
-| Group (parent) | Child sections | Navigation route(s) |
-| --- | --- | --- |
-| General | Account, System Integrity Check, Storage & Cache | `/settings/general#account`, `/settings/general#health`, `/settings/general#storage` |
-| Media Servers | Media Servers, Seerr, Webhooks | `/settings/media-servers#media-servers`, `/settings/media-servers#seerr`, `/settings/media-servers#webhooks` |
-| Connections | Trakt | `/settings/import` |
-| Metadata | Metadata Providers, Refresh Metadata (TMDB, TVDB) | `/settings/metadata#metadata-providers`, `/settings/metadata#refresh-metadata` |
-| Sync | Sync Tuning, Sync Tools (Repair Recent Items, Full Sync Watchstates, Force Sync), Sync Issues, Sync History | `/settings/sync#sync-tuning`, `/settings/sync#sync-tools`, `/settings/sync#sync-issues`, `/settings/sync#sync-history` |
-| Backup / Restore | Backup Settings (Local, Remote), Restore (Local, Remote) | `/settings/backup-restore#backups`, `/settings/backup-restore#restore` |
-| Tools | Database Repairs, Library Rebuilds and Backfills | `/settings/tools#database-repairs`, `/settings/tools#library-rebuilds` |
-| Logs | Logs | `/settings/logs` |
-| About | About | `/settings/about` |
+| Group (parent) | Parent route | Child sections | Child routes |
+| --- | --- | --- | --- |
+| General | `/settings/general` | Account, System Integrity Check, Storage & Cache | `/settings/general#account`, `/settings/general#system-integrity`, `/settings/general#storage` |
+| Media servers | `/settings/media-servers` | Plex, Emby, Jellyfin | `/settings/media-servers#plex`, `/settings/media-servers#emby`, `/settings/media-servers#jellyfin` |
+| Webhooks | `/settings/webhooks` | Setup Guides, Webhook Secret | `/settings/webhooks#setup-guides`, `/settings/webhooks#webhook-secret` |
+| Connections | `/settings/connections` | Trakt, Seerr | `/settings/connections#trakt`, `/settings/connections#seerr` |
+| Metadata | `/settings/metadata` | Metadata Providers, Refresh Metadata (TMDB, TVDB) | `/settings/metadata#metadata-providers`, `/settings/metadata#refresh-metadata` |
+| Sync | `/settings/sync` | Sync Tuning, Sync Tools (Repair Recent Items, Full Sync Watchstates, Force Sync), Sync Issues, Sync History | `/settings/sync#sync-tuning`, `/settings/sync#sync-tools`, `/settings/sync#sync-issues`, `/settings/sync#sync-history` |
+| Backup / restore | `/settings/backup-restore` | Backup Settings (Local, Remote), Restore (Local, Remote) | `/settings/backup-restore#backup-settings`, `/settings/backup-restore#restore` |
+| Tools | `/settings/tools` | Guided Setup, Database Repairs, Library Rebuilds and Backfills | `/settings/tools#guided-setup`, `/settings/tools#database-repairs`, `/settings/tools#library-rebuilds` |
+| Logs | `/settings/logs` | (none - single-page group) | - |
+| About | `/settings/about` | (none - single-page group) | - |
 
-The left sidebar navigation displays parent menu groups by default, collapsing child sections and sub-sections until that parent section page is active. Every child section is display-only: its sidebar button navigates to the parent group's path with the section id appended as a URL hash (`#health`), then scrolls that specific section into view. The parent's page always renders every child's content stacked together - clicking a child is a same-page jump, not a different screen. Logs is a single-child group of its own (promoted to a top-level sidebar entry, since its content shares no panel with Health or Storage & Cache). Use the parent-and-hash routes above when documenting or linking to a child tool; for example, Full Sync Watchstates is `/settings/sync#full-sync-watchstates`.
+The left sidebar navigation displays parent menu groups by default, collapsing child sections and sub-sections until that parent section page is active. Every child section is display-only: its sidebar button navigates to the parent group's path with the section id appended as a URL hash (`#system-integrity`), then scrolls that specific section into view. The parent's page always renders every child's content stacked together - clicking a child is a same-page jump, not a different screen. Logs and About are single-child groups of their own (each promoted to a top-level sidebar entry, with an empty `sections` array, since neither has independent child sections). Use the parent-and-hash routes above when documenting or linking to a child tool; for example, Full Sync Watchstates is `/settings/sync#full-sync-watchstates`.
 
-The Import page also owns the live bidirectional Trakt connection. Plembfin ships a
+### Section ID naming rule
+
+**A section's `SECTIONS` key in `settings-shell.js` must be a kebab-case slug of its
+`label`**, and the URL hash is always that same key (`/settings/<group>#<section-key>`).
+This is what keeps a child's URL predictable from its sidebar text - `Account` is
+`#account`, `System Integrity Check` is `#system-integrity`, `Backup Settings` is
+`#backup-settings`. Do not reuse an old internal name, an implementation detail, or a
+panel id as a section key (`import`, `health`, and `backups` were all fixed for this
+reason - the ids referred to internal plumbing, not what the sidebar displayed). When
+renaming a section's `label` or moving it between groups:
+
+1. Rename its `SECTIONS` key to match the new label's slug.
+2. Update every `sections`/`displayOnly` array in `SECTION_GROUPS` that lists the old key.
+3. Update the `LEGACY_TABS`/`LEGACY_PATHS` value if the old key is a legacy-redirect target.
+4. Add a `LEGACY_PATHS` entry redirecting the *old* key's bare path (`/settings/<old-key>`)
+   to the new one, so an existing bookmark still resolves.
+5. Update the tables in this document and re-check the route-compatibility table below.
+
+`data-sub-panel` values (the DOM attribute a section's `subPanels` entries point at) are
+a separate namespace from `SECTIONS` keys and must stay unique across the whole page,
+since `applySettingsRoute()` reveals them with a first-match `querySelector`.
+
+The Trakt page also owns the live bidirectional Trakt connection. Plembfin ships a
 device application in the same model as the Jellyfin Trakt plugin, so the normal flow
 asks only for the initial-sync policy and then displays a Trakt authorization code.
 `TRAKT_CLIENT_ID` and `TRAKT_CLIENT_SECRET` can override the bundled application for
@@ -73,8 +96,10 @@ wraps into a one-item `views` array automatically):
 | Group | Views |
 | --- | --- |
 | General | `general` panel's Account, System Integrity (`tools-diagnostics`), and Image Cache (`cache`) rows |
-| Media Servers | `apps` panel's Media Servers and Seerr sections, then the `general` panel's `general-endpoints` row (Webhooks) |
-| Backup / Restore | `backups` panel's `settings` tab, then its `restore` tab |
+| Media servers | `apps` panel's Plex, Emby, and Jellyfin rows |
+| Webhooks | `general` panel's Setup Guides (`general-endpoints-guides`) and Webhook Secret (`general-endpoints`) rows |
+| Connections | `tools` panel's Trakt (`tools-migration`) and Seerr rows |
+| Backup / restore | `backups` panel's `settings` tab, then its `restore` tab |
 
 `applySettingsRoute()` iterates every view in the route and reveals each one's panel,
 sub-panel rows, and (for the backups panel) accumulates every requested `backupTab`
@@ -159,13 +184,15 @@ Old bookmarks are normalized with `history.replaceState`:
 | Previous route | Canonical route |
 | --- | --- |
 | `/settings/account/login` | `/settings/account` (UI: `/settings/general#account`) |
-| `/settings/apps`, `/settings/connections`, `/settings/connections/:provider` | `/settings/media-servers` |
+| `/settings/apps`, `/settings/connections/:provider` (plex/emby/jellyfin) | `/settings/media-servers` |
 | `/settings/api-keys`, `/settings/metadata/:provider` | `/settings/metadata` |
-| `/settings/connections/webhooks` | `/settings/webhooks` (UI: `/settings/media-servers#webhooks`) |
-| `/settings/data`, `/settings/data/backups` | `/settings/backups` (UI: `/settings/backup-restore#backups`) |
+| `/settings/connections/webhooks` | `/settings/webhooks` |
+| `/settings/connections/seerr` | `/settings/seerr` (UI: `/settings/connections#seerr`) |
+| `/settings/data`, `/settings/data/backups`, `/settings/backups` | `/settings/backup-settings` (UI: `/settings/backup-restore#backup-settings`) |
 | `/settings/data/restore` | `/settings/restore` (UI: `/settings/backup-restore#restore`) |
-| `/settings/data/import` | `/settings/import` |
-| `/settings/system`, `/settings/system/health` | `/settings/health` (UI: `/settings/advanced#health`) |
+| `/settings/data/import`, `/settings/import` | `/settings/trakt` (UI: `/settings/connections#trakt`) |
+| `/settings/system`, `/settings/system/health`, `/settings/health` | `/settings/system-integrity` (UI: `/settings/general#system-integrity`) |
+| `/settings/webhook-guides` | `/settings/setup-guides` (UI: `/settings/webhooks#setup-guides`) |
 | `/settings/system/advanced` | `/settings/database-repairs` (UI: `/settings/tools#database-repairs`) |
 | `/sync`, `/settings/sync/issues`, `/settings/system/sync` | `/settings/sync-issues` (UI: `/settings/sync#sync-issues`) |
 | `/settings/sync/history` | `/settings/sync-history` (UI: `/settings/sync#sync-history`) |
@@ -219,7 +246,7 @@ server reached over the public internet from being overwhelmed by a large sync.
 - Tools retains history repair, deduplication, full watch-state sync, metadata refresh,
   TV rematching, and Trakt poster backfill with their confirmations and logs, split
   across the Database Repairs and Library Rebuilds and Backfills accordions.
-- Import owns the Trakt/CSV importer; Backup Settings and Restore own their respective workflows.
+- Trakt owns the Trakt/CSV importer; Backup Settings and Restore own their respective workflows.
 
 No maintenance API or stored media configuration format changes are introduced by the
 settings shell.

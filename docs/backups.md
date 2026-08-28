@@ -2,7 +2,7 @@
 
 Plembfin has **three backup subsystems** plus a set of pluggable remote destinations.
 Schedules and destinations are managed from **Settings → Backup / restore → Backup settings**
-(`/settings/backup-restore#backups`); recovery workflows live under
+(`/settings/backup-restore#backup-settings`); recovery workflows live under
 **Settings → Backup / restore → Restore** (`/settings/backup-restore#restore`) (UI in
 `public/modules/tools-backups.js`).
 

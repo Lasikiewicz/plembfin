@@ -460,13 +460,17 @@ export function renderSettingsInlineHelp() {
           <span>No webhook setup required</span>
         </summary>
         <div class="tool-item-row" style="padding: var(--space-3); width: 100%;">
-          <p style="font-size: 0.9rem; color: var(--muted); margin: 0;">Plembfin connects to your Plex Media Server's WebSocket notification channel automatically to capture watched and unwatched changes in real time, and checks playback progress every minute. Plex-side movie, episode, season, and show changes are applied to Plembfin and propagated to your other eligible servers.</p>
+          <p style="font-size: 0.9rem; color: var(--muted); margin: 0;">Plembfin connects to Plex's WebSocket channel automatically, capturing watched and unwatched changes in real time, and also checks playback progress every minute.<br>Changes are applied to Plembfin and propagated to your other servers.</p>
           <div class="guide-callout warning-callout" style="gap: var(--space-1); border-color: rgba(234, 179, 8, 0.45); background: rgba(234, 179, 8, 0.08); margin-top: var(--space-3);">
             <b style="color: var(--yellow); font-size: 0.85rem; display: block;">
               Turn off "Refresh library metadata periodically"
             </b>
-            <p style="margin: 0; font-size: 0.82rem; line-height: 1.4; color: var(--text-muted, var(--muted));">
-              In Plex, under Settings &rarr; Scheduled Tasks, disable "Refresh library metadata periodically". This task can occasionally re-match and re-identify library items during its nightly maintenance window, which resets their viewed state to unwatched on Plex itself - and Plembfin will propagate that as a real unwatch to Emby, Jellyfin, and Trakt. Turning it off removes the most common trigger for a mass false-unwatch event.
+            <ol style="margin: var(--space-1) 0 0; padding-left: 1.1rem; font-size: 0.82rem; line-height: 1.5; color: var(--text-muted, var(--muted));">
+              <li>In Plex, go to <b>Settings &rarr; Scheduled Tasks</b>.</li>
+              <li>Disable <b>"Refresh library metadata periodically"</b>.</li>
+            </ol>
+            <p style="margin: var(--space-1) 0 0; font-size: 0.82rem; line-height: 1.4; color: var(--text-muted, var(--muted));">
+              That task can reset viewed items to unwatched on Plex during its nightly run, and Plembfin would propagate that as a real unwatch to Emby, Jellyfin, and Trakt. Turning it off prevents that.
             </p>
           </div>
         </div>

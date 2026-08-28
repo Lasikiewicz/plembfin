@@ -102,7 +102,7 @@ const SECTIONS = {
   seerr: {
     label: "Seerr",
     description: "Optional movie and TV request integration",
-    panel: "apps",
+    panel: "tools",
     subPanels: ["seerr"],
     isDisplayOnly: true,
   },
@@ -112,7 +112,7 @@ const SECTIONS = {
     panel: "general",
     subPanels: ["general-endpoints-guides", "general-endpoints"],
   },
-  "webhook-guides": {
+  "setup-guides": {
     label: "Setup Guides",
     description: "Platform setup guides",
     panel: "general",
@@ -182,7 +182,7 @@ const SECTIONS = {
     subPanels: ["sync-history"],
     isDisplayOnly: true,
   },
-  backups: {
+  "backup-settings": {
     label: "Backup settings",
     description: "Backup schedules and remote destinations",
     panel: "backups",
@@ -204,14 +204,20 @@ const SECTIONS = {
     ],
     isDisplayOnly: true,
   },
-  import: {
+  connections: {
+    label: "Connections",
+    description: "Connect Trakt or Seerr, or import watch history",
+    panel: "tools",
+    subPanels: ["tools-migration", "seerr"],
+  },
+  trakt: {
     label: "Trakt",
     description: "Connect live two-way watched sync or import Trakt exports",
     panel: "tools",
     subPanels: ["tools-migration"],
     isDisplayOnly: true,
   },
-  health: {
+  "system-integrity": {
     label: "System integrity check",
     description: "Connection diagnostics and system integrity checks",
     panel: "general",
@@ -286,8 +292,8 @@ const SECTION_GROUPS = [
   {
     id: "general",
     label: "General",
-    sections: ["account", "health", "storage"],
-    displayOnly: ["account", "health", "storage"],
+    sections: ["account", "system-integrity", "storage"],
+    displayOnly: ["account", "system-integrity", "storage"],
   },
   {
     id: "media-servers",
@@ -298,14 +304,14 @@ const SECTION_GROUPS = [
   {
     id: "webhooks",
     label: "Webhooks",
-    sections: ["webhook-guides", "webhook-secret"],
-    displayOnly: ["webhook-guides", "webhook-secret"],
+    sections: ["setup-guides", "webhook-secret"],
+    displayOnly: ["setup-guides", "webhook-secret"],
   },
   {
     id: "connections",
     label: "Connections",
-    sections: ["import", "seerr"],
-    displayOnly: ["import", "seerr"],
+    sections: ["trakt", "seerr"],
+    displayOnly: ["trakt", "seerr"],
   },
   {
     id: "metadata",
@@ -322,8 +328,8 @@ const SECTION_GROUPS = [
   {
     id: "backup-restore",
     label: "Backup / restore",
-    sections: ["backups", "restore"],
-    displayOnly: ["backups", "restore"],
+    sections: ["backup-settings", "restore"],
+    displayOnly: ["backup-settings", "restore"],
   },
   {
     id: "tools",
@@ -373,7 +379,6 @@ const LEGACY_PATHS = {
   "/settings/cache": "/settings/storage",
   "/settings/changelog": "/settings/about",
   "/settings/account/login": "/settings/account",
-  "/settings/connections": "/settings/media-servers",
   "/settings/connections/plex": "/settings/media-servers",
   "/settings/connections/emby": "/settings/media-servers",
   "/settings/connections/jellyfin": "/settings/media-servers",
@@ -384,12 +389,16 @@ const LEGACY_PATHS = {
   "/settings/metadata/fanart": "/settings/metadata",
   "/settings/metadata/tvdb": "/settings/metadata",
   "/settings/metadata/omdb": "/settings/metadata",
-  "/settings/data": "/settings/backups",
-  "/settings/data/backups": "/settings/backups",
+  "/settings/data": "/settings/backup-settings",
+  "/settings/data/backups": "/settings/backup-settings",
   "/settings/data/restore": "/settings/restore",
-  "/settings/data/import": "/settings/import",
-  "/settings/system": "/settings/health",
-  "/settings/system/health": "/settings/health",
+  "/settings/data/import": "/settings/trakt",
+  "/settings/import": "/settings/trakt",
+  "/settings/health": "/settings/system-integrity",
+  "/settings/system": "/settings/system-integrity",
+  "/settings/system/health": "/settings/system-integrity",
+  "/settings/backups": "/settings/backup-settings",
+  "/settings/webhook-guides": "/settings/setup-guides",
   "/settings/system/sync": "/settings/sync-issues",
   "/settings/system/logs": "/settings/logs",
   "/settings/system/storage": "/settings/storage",
@@ -403,7 +412,7 @@ const LEGACY_PATHS = {
 const LEGACY_TABS = {
   apps: "/settings/media-servers",
   "api-keys": "/settings/metadata",
-  backups: "/settings/backups",
+  backups: "/settings/backup-settings",
   tools: "/settings/database-repairs",
   sync: "/settings/sync-issues",
   logs: "/settings/logs",

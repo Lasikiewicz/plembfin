@@ -4363,6 +4363,12 @@ details[open] .tool-accordion-chevron::before {
   margin: 0 !important;
 }
 
+/* This form's own gap is smaller than the shared tool-section-card default
+   above, so the action row doesn't sit unusually far from the field group. */
+#traktConnectForm {
+  gap: var(--space-3) !important;
+}
+
 #syncTuningForm > .settings-actions,
 .sync-panel .settings-actions {
   margin-top: 0 !important;
@@ -4624,7 +4630,9 @@ details.sync-tool-details {
   gap: var(--space-2) !important;
 }
 
-#syncTuningFields > .settings-modal-field,
+/* Diagnostics rows (Refresh Sync Health, Run System Diagnostic) keep the
+   stacked title/description-then-button layout, since each has a bottom-right
+   action button. */
 #diagnosticsContent > .settings-modal-field {
   display: flex !important;
   flex-direction: column !important;
@@ -4636,46 +4644,101 @@ details.sync-tool-details {
   transition: border-color 160ms ease, background 160ms ease !important;
 }
 
-#syncTuningFields > .settings-modal-field:hover,
-#syncTuningFields > .settings-modal-field:focus-within,
 #diagnosticsContent > .settings-modal-field:hover,
 #diagnosticsContent > .settings-modal-field:focus-within {
   border-color: var(--blue) !important;
   background: color-mix(in srgb, #1a1a1a, white 16%) !important;
 }
 
-html.light-mode #syncTuningFields > .settings-modal-field,
 html.light-mode #diagnosticsContent > .settings-modal-field {
   background: var(--panel) !important;
 }
 
-html.light-mode #syncTuningFields > .settings-modal-field:hover,
-html.light-mode #syncTuningFields > .settings-modal-field:focus-within,
 html.light-mode #diagnosticsContent > .settings-modal-field:hover,
 html.light-mode #diagnosticsContent > .settings-modal-field:focus-within {
   background: var(--panel-2) !important;
 }
 
-#syncTuningFields > .settings-modal-field .settings-modal-field-title,
 #diagnosticsContent > .settings-modal-field .settings-modal-field-title {
   color: var(--text) !important;
   font-size: inherit !important;
 }
 
-#syncTuningFields > .settings-modal-field .settings-field-help,
 #diagnosticsContent > .settings-modal-field .settings-field-help {
   color: var(--muted) !important;
   font-size: inherit !important;
   line-height: 1.45 !important;
 }
 
-/* Buttons (Refresh Sync Health, Run System Diagnostic) sit bottom-right,
-   below the title/description row - not stretched full width like a text
-   input control would be. */
-#syncTuningFields > .settings-modal-field .settings-modal-field-control:has(button),
 #diagnosticsContent > .settings-modal-field .settings-modal-field-control:has(button) {
   display: flex;
   align-items: flex-end;
+}
+
+/* Sync Tuning rows are plain fields (a number input or a checkbox) - a
+   single compact row per field: label + description on the left, a small
+   fixed-width control on the right, instead of the taller stacked layout
+   used for the diagnostics action rows above. */
+#syncTuningFields > .settings-modal-field {
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  grid-template-areas: "title title" "desc control" !important;
+  align-items: center !important;
+  gap: 2px var(--space-4) !important;
+  padding: var(--space-2) var(--space-3) !important;
+  border: 1px solid var(--line) !important;
+  border-radius: var(--radius) !important;
+  background: color-mix(in srgb, #1a1a1a, white 10%) !important;
+  transition: border-color 160ms ease, background 160ms ease !important;
+}
+
+#syncTuningFields > .settings-modal-field:hover,
+#syncTuningFields > .settings-modal-field:focus-within {
+  border-color: var(--blue) !important;
+  background: color-mix(in srgb, #1a1a1a, white 16%) !important;
+}
+
+html.light-mode #syncTuningFields > .settings-modal-field {
+  background: var(--panel) !important;
+}
+
+html.light-mode #syncTuningFields > .settings-modal-field:hover,
+html.light-mode #syncTuningFields > .settings-modal-field:focus-within {
+  background: var(--panel-2) !important;
+}
+
+/* `display: contents` drops the wrapper out of layout so its title/help
+   children become direct grid items of .settings-modal-field, placeable by
+   grid-area independently (title spanning the row, help beside the input). */
+#syncTuningFields > .settings-modal-field .settings-modal-field-label {
+  display: contents !important;
+}
+
+#syncTuningFields > .settings-modal-field .settings-modal-field-title {
+  grid-area: title;
+  color: var(--text) !important;
+  font-size: inherit !important;
+}
+
+#syncTuningFields > .settings-modal-field .settings-field-help {
+  grid-area: desc;
+  align-self: center;
+  color: var(--muted) !important;
+  font-size: 0.78rem !important;
+  line-height: 1.4 !important;
+  text-align: left !important;
+  margin-left: 0 !important;
+}
+
+#syncTuningFields > .settings-modal-field .settings-modal-field-control {
+  grid-area: control;
+  width: auto !important;
+  flex: 0 0 auto;
+}
+
+#syncTuningFields > .settings-modal-field .settings-modal-field-control .field {
+  width: 7rem !important;
+  text-align: center;
 }
 
 .sync-health-metric,

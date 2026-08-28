@@ -200,7 +200,8 @@ const PACING_FIELD = {
   key: "fastLocalPacing",
   type: "checkbox",
   label: "Fast Local-Network Sync",
-  help: "Speeds up Force Sync, Full Sync Watchstates, and other bulk sync operations by removing most outbound pacing delays. Only enable this when Plex, Emby, and Jellyfin are all self-hosted on the same trusted local network as Plembfin - it is not safe to enable if any of them is reached over the public internet.",
+  help: "Speeds up Force Sync, Full Sync Watchstates, and other bulk sync operations by removing most outbound pacing delays.<br>Only enable this when Plex, Emby, and Jellyfin are all self-hosted on the same trusted local network as Plembfin.<br>It is not safe to enable if any of them is reached over the public internet.",
+  helpIsHtml: true,
 };
 
 function tuningBadges(tuning = {}) {

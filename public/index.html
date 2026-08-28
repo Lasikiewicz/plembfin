@@ -829,37 +829,6 @@
                   </div>
                 </div>
 
-                <div class="settings-row" id="seerr" data-sub-panel="seerr">
-                  <div class="settings-row-main">
-                    <article class="glass-panel p-section settings-card tool-section-card">
-                      <div class="section-heading sync-heading sync-static-heading">
-                        <div class="sync-heading-title">
-                          <p style="margin: 0;">Seerr</p>
-                        </div>
-                        <span>Optional request integration for movie and TV detail pages</span>
-                      </div>
-                      <div id="seerrCards" class="settings-card-grid media-force-sync-options sync-tools-content"></div>
-                    </article>
-                  </div>
-                  <div class="settings-row-help">
-                    <article class="glass-panel p-section settings-card">
-                      <div class="section-heading">
-                        <p>Seerr Setup</p>
-                        <span>Request Integration</span>
-                      </div>
-                      <div style="display: flex; flex-direction: column; gap: var(--space-3);">
-                        <div>
-                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Overseerr / Jellyseerr</b>
-                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Connects your Seerr instance to display live request status pills and <b>"Request on Seerr"</b> action buttons directly on movie and TV show detail pages.</p>
-                        </div>
-                        <div>
-                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">API Integration</b>
-                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Requires your Seerr base URL and an API key from Overseerr/Jellyseerr Settings ➔ General. Enables one-click requesting without leaving Plembfin.</p>
-                        </div>
-                      </div>
-                    </article>
-                  </div>
-                </div>
               </section>
 
               <section class="settings-pane hidden" data-settings-panel="general">
@@ -1089,7 +1058,7 @@
                                 Disable Existing Trakt Plugins
                               </b>
                               <p style="margin: 0; font-size: 0.85rem; line-height: 1.4; color: var(--text-muted, var(--muted));">
-                                Disable any Trakt plugins or scheduled tasks in Emby and Jellyfin before connecting. Plembfin must be the sole Trakt bridge to prevent duplicate writers and sync loops.
+                                Disable Trakt plugins/tasks in Plex, Emby, and Jellyfin first - Plembfin must be the sole Trakt bridge.
                               </p>
                             </div>
                             <form id="traktConnectForm" class="sync-tuning-form">
@@ -1102,7 +1071,6 @@
                                 </label>
                                 <p id="traktAppStatus" class="muted-copy" style="margin: 0;">Checking the Plembfin Trakt app…</p>
                               </div>
-                              <p id="traktConnectHint" class="muted-copy" style="margin: var(--space-2) 0 0;">Plembfin will show a device code. OAuth tokens are encrypted at rest.</p>
                               <div id="traktDeviceCode" class="plex-account-summary hidden"></div>
                               <div id="traktConnectedSummary" class="plex-account-summary trakt-connected-summary hidden"></div>
                               <p id="traktConnectMessage" class="message" role="status" aria-live="polite" style="display:none;"></p>
@@ -1115,7 +1083,7 @@
                                   <span></span>
                                 </div>
                               </div>
-                              <div class="settings-actions" style="margin-top: var(--space-3);">
+                              <div class="settings-actions">
                                 <button id="traktConnectButton" class="button-primary sync-action-btn sync-tool-button" type="submit">Connect Trakt</button>
                                 <button id="traktSyncNowButton" class="button-ghost sync-action-btn sync-tool-button hidden" type="button">Sync Now</button>
                                 <button id="traktDisconnectButton" class="button-danger sync-tools-cancel-button hidden" type="button">Disconnect</button>
@@ -1206,6 +1174,38 @@
                         <div>
                           <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Single Bridge Rule</b>
                           <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Let Plembfin be the sole Trakt bridge. Disable the Emby or Jellyfin Trakt plugins and their scheduled tasks so secondary writers do not overwrite recent state or introduce loops.</p>
+                        </div>
+                      </div>
+                    </article>
+                  </div>
+                </div>
+
+                <div class="settings-row hidden" id="seerr" data-sub-panel="seerr">
+                  <div class="settings-row-main">
+                    <article class="glass-panel p-section settings-card tool-section-card">
+                      <div class="section-heading sync-heading sync-static-heading">
+                        <div class="sync-heading-title">
+                          <p style="margin: 0;">Seerr</p>
+                        </div>
+                        <span>Optional request integration for movie and TV detail pages</span>
+                      </div>
+                      <div id="seerrCards" class="settings-card-grid media-force-sync-options sync-tools-content"></div>
+                    </article>
+                  </div>
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Seerr Setup</p>
+                        <span>Request Integration</span>
+                      </div>
+                      <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Overseerr / Jellyseerr</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Connects your Seerr instance to display live request status pills and <b>"Request on Seerr"</b> action buttons directly on movie and TV show detail pages.</p>
+                        </div>
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">API Integration</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Requires your Seerr base URL and an API key from Overseerr/Jellyseerr Settings ➔ General. Enables one-click requesting without leaving Plembfin.</p>
                         </div>
                       </div>
                     </article>
