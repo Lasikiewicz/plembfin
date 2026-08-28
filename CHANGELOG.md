@@ -4,6 +4,24 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v0.12.11 - 28 August 2026
+
+Fix - TV show detail and grid bulk-watch fixes
+
+### Major Bug Fixes
+
+- TV show detail and grid bulk-watch fixes
+- Restore the missing three-dot overflow menu on TV Shows grid cards
+- Season list rows now show Saving while a bulk watch action is in progress instead of a stale watched count
+- Marking a season or whole show as watched no longer marks episodes that haven't aired yet
+
+### Tweaks
+
+- Consolidate changelog entries at every promotion stage
+- Push to git now squashes any pending local commits into one clean commit before pushing, so bloat never enters changelog.develop.json in the first place
+- Force to alpha now reviews the CI-merged alpha changelog entry and tightens it if redundant, since it does not deduplicate bullets on its own
+- Force to main now reviews the freshly generated release changelog entry the same way before syncing back to develop, formalizing the correction v0.12.9 needed by hand
+
 ## v0.12.10 - 28 August 2026
 
 Docs - Consolidate v0.12.9 changelog entry into higher-level bullets
