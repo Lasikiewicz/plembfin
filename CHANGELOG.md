@@ -10,62 +10,21 @@ Feature - Add Wipe Data tools section and simplify settings help text
 
 ### New Features
 
-- Add Wipe Data tools section and simplify settings help text
-- Add a Wipe Data section under Settings - Tools with four scopes: Watch History, Sync History & Logs, Everything Tracked, and Wipe All / Fresh Start (full factory reset)
-- Every wipe action previews live row counts, requires two sequential confirm dialogs, and links to the Backup page first
-- Wipe All / Fresh Start also clears settings, media server and Trakt connections, and cached artwork, then resets the admin login back to a pristine unclaimed install
-- Rewrote the help text on every Settings page into shorter, simpler sentences instead of dense paragraphs, and dropped jargon like bidirectional and heuristics
-- Updated docs/settings.md, docs/architecture.md, and CLAUDE.md's module tables for the new files
-- Streamline settings landing page and remove redundant setup banner
-- Settings overview list rows now show only the section title, with descriptions removed and row spacing tightened to match
-- Settings group cards now use the same solid card background as the onboarding metadata cards
-- Removed the Setup is in progress banner from the Settings page; the sidebar Complete onboarding button already covers this
-- Rework settings page layout, move Guided setup to Tools, and unify text sizing
-- Settings landing page now shows single clickable group boxes (bigger title, brief description) instead of nested link lists, in a single-column layout
-- Settings group and panel backgrounds now use consistent light/dark theme colors, with nested boxes (fields, service cards, tool detail rows) contrasting against their parent card
-- Removed the dismissible Setup is in progress banner; onboarding is reachable via the sidebar and a new Guided setup card under Settings -> Tools
-- Diagnostic and sync tuning rows now show title and description on one line with the action button aligned bottom-right, matching the rest of the settings UI
-- Consolidated text sizing across the app: titles (sidebar nav, dashboard headings, media section titles, upcoming entries) now share one size and weight, and description/secondary text elsewhere is a consistent smaller non-bold size
-- Updated onboarding and architecture docs to match the relocated setup entry point
-- Split media server connections into inline panels and fix settings navigation bugs
-- Media Servers page now lists Plex, Emby, and Jellyfin as separate always-visible inline connection panels (fields, test/save, account connect) instead of a shared modal-based card grid
-- Seerr moved from Media Servers to the Connections group
-- Webhooks page splits into a setup-guides section and a separate Webhook Secret section, reordered with guides first; Plex now renders as a proper boxed panel matching Emby/Jellyfin
-- Fixed several settings sub-panels missing from a CSS padding restore list, which caused nested boxes to touch their parent card's edge with no gap
-- Fixed sidebar/routing bugs where clicking a group's child section would hide its siblings instead of showing the whole group, and where Webhooks, Logs, and About showed a redundant self-named child or an extra-nested grandchild
-- Read more and Rotate Secret buttons now match the styling used by other primary action buttons
-- Redesign Backup/restore page layout and add remote Plembfin restore
-- Reworked the Backup Settings and Restore accordions so title/description sit on one row and enable toggles line up with their Save/Back Up buttons, matching the rest of Settings
-- Made Remote Destinations and all three Restore boxes always expanded (no more collapse toggle), and the add-destination card now says click to add a remote destination
-- Put the passphrase field, input, and remember-passphrase toggle on one line instead of stacking them
-- Renamed the restore clear-mode choices to Merge into existing state and Replace existing state with clearer descriptions of what each does
-- Hid the restore activity log until a restore actually starts, instead of always reserving blank space for it
-- Added a Remote Plembfin Restore section: encrypted Plembfin backups mirrored to a remote destination can now be listed and restored directly, matching the existing Remote Watch History Restore flow
-- Fixed two stale settingsShell tests left over from the Webhooks group split and the Connections section id rename
-- Split Backup / restore settings into separate Backup and Restore groups
-- Split the combined /settings/backup-restore page into two top-level sidebar groups, Settings - Backup and Settings - Restore
-- Local and Remote are now their own children under each, and Watch History / Plembfin are their own grandchildren underneath, matching the same three-level pattern already used by Database Repairs and System Integrity Check
-- Local and Remote each render as their own boxed settings card instead of being stacked inside one shared card, with the correct card padding restored around their accordions
-- Added redirects so every old backup-restore URL (including the previous backup-settings section id) still resolves correctly
-- Updated docs/settings.md, docs/backups.md, and docs/watch-history-backups.md to describe the new routes, and fixed the settingsShell tests that asserted the old combined-group behavior
+- Redesigned the Settings pages: single-column landing groups, consistent card backgrounds, and unified text sizing, with Guided Setup moved under Tools
+- Media Servers now shows Plex, Emby, and Jellyfin as separate always-visible connection panels instead of a shared modal, and Seerr moved into the Connections group
+- Webhooks split into its own group with a Setup Guides section and a separate Webhook Secret section
+- Backup and Restore were redesigned and split into two top-level groups, each with Local and Remote sections, clearer restore-mode names (Merge/Replace into existing state), and a new Remote Plembfin Restore option
+- Every settings section's URL now matches its sidebar label, with redirects kept for old bookmarks
+- Added a Wipe Data section under Settings - Tools with four scopes (Watch History, Sync History & Logs, Everything Tracked, Wipe All / Fresh Start), and simplified the help text across every Settings page
 
 ### Major Bug Fixes
 
-- Settings child section URLs now match their sidebar labels
-- Renamed mismatched section ids so every child URL matches its sidebar label: Connections - Trakt is now /settings/connections#trakt (was #import), General - System Integrity Check is #system-integrity (was #health), Backup / restore - Backup Settings is #backup-settings (was #backups), Webhooks - Setup Guides is #setup-guides (was #webhook-guides)
-- Added redirects so old bookmarked URLs using the previous ids still resolve correctly
-- Documented the full settings hierarchy (every parent and child route) and added a naming rule in docs/settings.md so section ids must match their labels going forward
-- Updated docs/backups.md and docs/watch-history-backups.md to use the corrected Backup Settings URL
-- Restore correct card padding on the Restore page's Local/Remote cards
-- #restore-local and #restore-remote sit one DOM level deeper than #backup-local/#backup-remote (inside #restoreSectionsHome, needed for the onboarding wizard's backup-restore step), so the shared .settings-row-main > .settings-card padding rule never matched them and they fell back to a generic 1.5rem padding on every side
-- Added a small rule block keyed directly by id to restate the same fitted card padding, verified in-browser to now match the Backup page exactly
+- Settings child section URLs now correctly match their sidebar labels, fixing stale internal ids like #import and #health leaking into the address bar
+- Fixed the Restore page's Local/Remote cards falling back to generic padding instead of matching the Backup page's cards
 
 ### Tweaks
 
-- Add backlog items for alternative tracker sync and mdblist metadata
-- Note Letterboxd/Simkl-style two-way tracker sync as a distinct future effort from the Trakt import work already tracked
-- Note mdblist as a candidate additional metadata source
-- Both requested via Reddit (r/jellyfin, 2026-08-27); neither started yet
+- Added backlog items for alternative tracker sync (Letterboxd/Simkl) and an mdblist metadata source, both requested via Reddit
 
 ## v0.12.8 - 27 August 2026
 
@@ -956,7 +915,7 @@ Fix - Update settings shell route handling and test suite for General group aggr
 - Update test/settingsShell.test.js assertions for storage panel and advanced legacy redirect
 - Pass all 177 automated unit tests
 
-## v0.6.77 - 5 August 2026
+## v0.6.77 - 6 August 2026
 
 Feature - Standardize settings page layouts
 
