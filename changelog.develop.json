@@ -1,5 +1,17 @@
 {
-  "build": 0,
-  "updatedAt": "2026-08-28T18:48:36.362Z",
-  "entries": []
+  "build": 1,
+  "updatedAt": "2026-08-28T19:48:38+01:00",
+  "entries": [
+    {
+      "build": 1,
+      "date": "2026-08-28T19:48:38+01:00",
+      "commit": "5e611ddc7a319b1d301bebd0ec243a2ea254e84f",
+      "message": "Chore - Reset develop build counter after promotion to alpha",
+      "author": "Lasikiewicz",
+      "details": [
+        "Trimmed the alpha build 1 changelog entry down to the actual TV show detail and grid bulk-watch fixes, dropping unrelated changelog-process bullets that had been folded in",
+        "Chore - Reset develop build counter after promotion to alpha"
+      ]
+    }
+  ]
 }
