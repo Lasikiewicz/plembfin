@@ -225,7 +225,7 @@ See [README.md](README.md) for the documentation index, including this file
 | `state.js` | The single shared `state` object, the `elements` registry, localStorage keys, view/tab constants. No logic. |
 | `utils.js` | Formatting/escaping/date helpers (`escapeHtml`, `formatDate`, `platformBadge`, `slug`, show/episode title parsing, duration/progress formatting…). |
 | `auth.js` | Login/logout/status against `/api/auth/*`, `onAuthChange`, credential updates, webhook-secret rotation, auth header building, one-time account claim. See [auth.md](auth.md). |
-| `onboarding.js` | The `/setup` page (steps, status polling, background-import toggles, Trakt connect), the account-claim form handlers, the Settings resume banner, and the dashboard checklist. See [onboarding.md](onboarding.md). |
+| `onboarding.js` | The `/setup` page (steps, status polling, background-import toggles, Trakt connect), the account-claim form handlers, and the dashboard checklist. See [onboarding.md](onboarding.md). |
 | `settings.js` | Shared connection-label formatting. |
 | `settings-ui.js` | Reusable settings edit dialog, provider picker, and status-card grid primitives. |
 | `settings-services.js` | Media-server and metadata-provider card grids, edit dialogs, config saves, connection tests, and the inline Sync Tuning form. |

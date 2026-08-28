@@ -33,9 +33,9 @@ const SECTIONS = {
   },
   tools: {
     label: "Tools",
-    description: "Database repairs and library rebuilds",
+    description: "Guided setup, database repairs, and library rebuilds",
     panel: "tools",
-    subPanels: ["tools-repairs", "tools-sync"],
+    subPanels: ["tools-guided-setup", "tools-repairs", "tools-sync"],
   },
   advanced: {
     label: "Advanced",
@@ -203,6 +203,13 @@ const SECTIONS = {
     subPanels: ["cache"],
     isDisplayOnly: true,
   },
+  "guided-setup": {
+    label: "Guided setup",
+    description: "Reopen the first-run setup wizard",
+    panel: "tools",
+    subPanels: ["tools-guided-setup"],
+    isDisplayOnly: true,
+  },
   "database-repairs": {
     label: "Database repairs",
     description: "Correct damaged or duplicated local history records",
@@ -253,8 +260,14 @@ const SECTION_GROUPS = [
   {
     id: "media-servers",
     label: "Media servers",
-    sections: ["media-servers", "seerr", "webhooks"],
-    displayOnly: ["media-servers", "seerr", "webhooks"],
+    sections: ["media-servers", "seerr"],
+    displayOnly: ["media-servers", "seerr"],
+  },
+  {
+    id: "webhooks",
+    label: "Webhooks",
+    sections: ["webhooks"],
+    displayOnly: ["webhooks"],
   },
   {
     id: "connections",
@@ -283,8 +296,8 @@ const SECTION_GROUPS = [
   {
     id: "tools",
     label: "Tools",
-    sections: ["database-repairs", "library-rebuilds"],
-    displayOnly: ["database-repairs", "library-rebuilds"],
+    sections: ["guided-setup", "database-repairs", "library-rebuilds"],
+    displayOnly: ["guided-setup", "database-repairs", "library-rebuilds"],
   },
   {
     id: "logs",
@@ -299,6 +312,20 @@ const SECTION_GROUPS = [
     displayOnly: ["about"],
   },
 ];
+
+// One-line summaries for the group boxes on the settings landing page.
+const GROUP_DESCRIPTIONS = {
+  general: "Account, diagnostics, and cache settings.",
+  "media-servers": "Connect Plex, Emby, Jellyfin, and Seerr.",
+  webhooks: "Webhook listener and background scheduler endpoints.",
+  connections: "Connect Trakt for two-way sync or import watch history.",
+  metadata: "Configure TMDB, TVDB, Fanart.tv, and OMDb, and refresh cached metadata.",
+  sync: "Tune sync behavior, run sync tools, and review sync issues and history.",
+  "backup-restore": "Schedule backups and restore watch history or a full backup.",
+  tools: "Reopen guided setup, repair the database, and rebuild the library.",
+  logs: "Live server and browser diagnostic output.",
+  about: "Version and changelog.",
+};
 
 const LEGACY_PATHS = {
   "/settings/media-servers-group": "/settings/media-servers",
@@ -506,39 +533,25 @@ function renderSettingsOverview() {
   list.replaceChildren();
 
   for (const group of SECTION_GROUPS) {
-    const groupContainer = document.createElement("div");
-    groupContainer.className = "settings-group-section";
+    const firstSectionId = group.sections[0];
+    const targetSectionId = SECTIONS[group.id] ? group.id : firstSectionId;
+    const parentPath = SECTIONS[group.id] ? `/settings/${group.id}` : `/settings/${firstSectionId}`;
+
+    const box = document.createElement("button");
+    box.type = "button";
+    box.className = "settings-group-section";
+    box.dataset.settingsPath = `${parentPath}#${targetSectionId}`;
+
     const groupHeading = document.createElement("h3");
     groupHeading.className = "settings-group-heading";
     groupHeading.textContent = group.label;
-    groupContainer.append(groupHeading);
 
-    const itemsContainer = document.createElement("div");
-    itemsContainer.className = "settings-group-items";
-    for (const sectionId of group.sections) {
-      const definition = SECTIONS[sectionId];
-      const parentPath = SECTIONS[group.id] ? `/settings/${group.id}` : `/settings/${sectionId}`;
-      const row = document.createElement("button");
-      row.type = "button";
-      row.className = "settings-link-row";
-      row.dataset.settingsPath = `${parentPath}#${sectionId}`;
-      const title = document.createElement("strong");
-      title.textContent = definition.label;
-      row.append(title);
-      itemsContainer.append(row);
-      for (const subSection of definition.subSections || []) {
-        const subRow = document.createElement("button");
-        subRow.type = "button";
-        subRow.className = "settings-link-row settings-link-row--nested";
-        subRow.dataset.settingsPath = `${parentPath}#${subSection.id}`;
-        const subTitle = document.createElement("strong");
-        subTitle.textContent = subSection.label;
-        subRow.append(subTitle);
-        itemsContainer.append(subRow);
-      }
-    }
-    groupContainer.append(itemsContainer);
-    list.append(groupContainer);
+    const description = document.createElement("p");
+    description.className = "settings-group-description";
+    description.textContent = GROUP_DESCRIPTIONS[group.id] || "";
+
+    box.append(groupHeading, description);
+    list.append(box);
   }
 }
 
