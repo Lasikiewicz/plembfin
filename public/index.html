@@ -1419,18 +1419,15 @@
               <section class="settings-pane hidden" data-settings-panel="backups" data-backups-panel="settings">
                 <div class="settings-row">
                   <div class="settings-row-main">
-                    <article class="glass-panel p-section settings-card tool-section-card">
+                    <article id="backup-local" class="glass-panel p-section settings-card tool-section-card">
                       <div class="section-heading sync-heading sync-static-heading">
                         <div class="sync-heading-title">
-                          <p style="margin: 0;">Backup Settings</p>
+                          <p style="margin: 0;">Local</p>
                         </div>
-                        <span>Automated local and remote snapshot engine</span>
+                        <span>Local backup schedules and files</span>
                       </div>
-
-                      <div style="margin-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-3);">
-                        <!-- Nested Section Box 1: Local Backups -->
-                        <div id="backup-settings-local" style="display: flex; flex-direction: column; gap: var(--space-3);">
-                          <details class="sync-tool-details settings-static-details" open>
+                      <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                        <details id="local-watch-history-backups" class="sync-tool-details settings-static-details" open>
                             <summary class="accordion-header" tabindex="-1">
                               <div class="sync-tool-summary-title">
                                 <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
@@ -1466,7 +1463,7 @@
                             </div>
                           </details>
 
-                          <details class="sync-tool-details settings-static-details" open>
+                          <details id="local-plembfin-backups" class="sync-tool-details settings-static-details" open>
                             <summary class="accordion-header" tabindex="-1">
                               <div class="sync-tool-summary-title">
                                 <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
@@ -1515,10 +1512,17 @@
                               </div>
                             </div>
                           </details>
-                        </div>
+                      </div>
+                    </article>
 
-                        <!-- Nested Section Box 2: Remote Backups -->
-                        <div id="backup-settings-remote" style="display: flex; flex-direction: column; gap: var(--space-3);">
+                    <article id="backup-remote" class="glass-panel p-section settings-card tool-section-card">
+                      <div class="section-heading sync-heading sync-static-heading">
+                        <div class="sync-heading-title">
+                          <p style="margin: 0;">Remote</p>
+                        </div>
+                        <span>Remote backup destinations and mirroring</span>
+                      </div>
+                      <div style="display: flex; flex-direction: column; gap: var(--space-3);">
                           <details class="sync-tool-details settings-static-details" open>
                             <summary class="accordion-header" tabindex="-1">
                               <div class="sync-tool-summary-title">
@@ -1532,7 +1536,7 @@
                             </div>
                           </details>
 
-                          <details class="sync-tool-details settings-static-details" open>
+                          <details id="remote-watch-history-backups" class="sync-tool-details settings-static-details" open>
                             <summary class="accordion-header" tabindex="-1">
                               <div class="sync-tool-summary-title">
                                 <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
@@ -1568,7 +1572,7 @@
                             </div>
                           </details>
 
-                          <details class="sync-tool-details settings-static-details" open>
+                          <details id="remote-plembfin-backups" class="sync-tool-details settings-static-details" open>
                             <summary class="accordion-header" tabindex="-1">
                               <div class="sync-tool-summary-title">
                                 <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
@@ -1605,7 +1609,6 @@
                               </div>
                             </div>
                           </details>
-                        </div>
                       </div>
                     </article>
                   </div>
@@ -1645,18 +1648,16 @@
               <section class="settings-pane hidden" data-settings-panel="backups" data-backups-panel="restore">
                 <div class="settings-row">
                   <div class="settings-row-main">
-                    <article class="glass-panel p-section settings-card tool-section-card">
-                      <div class="section-heading sync-heading sync-static-heading">
-                        <div class="sync-heading-title">
-                          <p style="margin: 0;">Restore</p>
+                    <div id="restoreSectionsHome" style="display: flex; flex-direction: column; gap: var(--space-3);">
+                      <div id="restore-local" class="glass-panel p-section settings-card tool-section-card">
+                        <div class="section-heading sync-heading sync-static-heading">
+                          <div class="sync-heading-title">
+                            <p style="margin: 0;">Local</p>
+                          </div>
+                          <span>Restore from files on this server or your computer</span>
                         </div>
-                        <span>Local and remote backup restore tools</span>
-                      </div>
-
-                      <div id="restoreSectionsHome" style="margin-top: var(--space-3); display: flex; flex-direction: column; gap: var(--space-3);">
-                        <!-- Nested Section Box 1: Local Restore -->
-                        <div id="restore-local" style="display: flex; flex-direction: column; gap: var(--space-3);">
-                          <details class="sync-tool-details settings-static-details" open>
+                        <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                          <details id="local-watch-history-restore" class="sync-tool-details settings-static-details" open>
                             <summary class="accordion-header" tabindex="-1">
                               <div class="sync-tool-summary-title">
                                 <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
@@ -1674,7 +1675,7 @@
                             </div>
                           </details>
 
-                          <details class="sync-tool-details settings-static-details" open>
+                          <details id="local-plembfin-restore" class="sync-tool-details settings-static-details" open>
                             <summary class="accordion-header" tabindex="-1">
                               <div class="sync-tool-summary-title">
                                 <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
@@ -1705,10 +1706,17 @@
                             </div>
                           </details>
                         </div>
+                      </div>
 
-                        <!-- Nested Section Box 2: Remote Restore -->
-                        <div id="restore-remote" style="display: flex; flex-direction: column; gap: var(--space-3);">
-                          <details class="sync-tool-details settings-static-details" open>
+                      <div id="restore-remote" class="glass-panel p-section settings-card tool-section-card">
+                        <div class="section-heading sync-heading sync-static-heading">
+                          <div class="sync-heading-title">
+                            <p style="margin: 0;">Remote</p>
+                          </div>
+                          <span>Restore from configured remote storage</span>
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                          <details id="remote-watch-history-restore" class="sync-tool-details settings-static-details" open>
                             <summary class="accordion-header" tabindex="-1">
                               <div class="sync-tool-summary-title">
                                 <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
@@ -1721,7 +1729,7 @@
                             </div>
                           </details>
 
-                          <details class="sync-tool-details settings-static-details" open>
+                          <details id="remote-plembfin-restore" class="sync-tool-details settings-static-details" open>
                             <summary class="accordion-header" tabindex="-1">
                               <div class="sync-tool-summary-title">
                                 <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
@@ -1741,7 +1749,7 @@
                           </details>
                         </div>
                       </div>
-                    </article>
+                    </div>
                   </div>
 
                   <div class="settings-row-help">

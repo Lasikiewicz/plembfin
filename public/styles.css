@@ -19656,10 +19656,6 @@ html.light-mode .settings-pane .settings-row-main :is(details.sync-tool-details,
   border-bottom: 0 !important;
 }
 
-.settings-pane .settings-row-main :is(#backup-settings-local, #backup-settings-remote, #restore-local, #restore-remote) {
-  gap: var(--space-2) !important;
-}
-
 .settings-pane .settings-row-main details.settings-static-details > summary {
   pointer-events: none;
   cursor: default !important;

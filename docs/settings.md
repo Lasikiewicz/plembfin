@@ -15,23 +15,37 @@ Desktop renders the grouped sidebar; mobile uses the **Settings section** select
 | Connections | `/settings/connections` | Trakt, Seerr | `/settings/connections#trakt`, `/settings/connections#seerr` |
 | Metadata | `/settings/metadata` | Metadata Providers, Refresh Metadata (TMDB, TVDB) | `/settings/metadata#metadata-providers`, `/settings/metadata#refresh-metadata` |
 | Sync | `/settings/sync` | Sync Tuning, Sync Tools (Repair Recent Items, Full Sync Watchstates, Force Sync), Sync Issues, Sync History | `/settings/sync#sync-tuning`, `/settings/sync#sync-tools`, `/settings/sync#sync-issues`, `/settings/sync#sync-history` |
-| Backup / restore | `/settings/backup-restore` | Backup Settings (Local, Remote), Restore (Local, Remote) | `/settings/backup-restore#backup-settings`, `/settings/backup-restore#restore` |
+| Backup | `/settings/backup` | Local (Watch History, Plembfin), Remote (Watch History, Plembfin) | `/settings/backup#backup-local`, `/settings/backup#backup-remote` |
+| Restore | `/settings/restore` | Local (Watch History, Plembfin), Remote (Watch History, Plembfin) | `/settings/restore#restore-local`, `/settings/restore#restore-remote` |
 | Tools | `/settings/tools` | Guided Setup, Database Repairs, Library Rebuilds and Backfills | `/settings/tools#guided-setup`, `/settings/tools#database-repairs`, `/settings/tools#library-rebuilds` |
 | Logs | `/settings/logs` | (none - single-page group) | - |
 | About | `/settings/about` | (none - single-page group) | - |
 
 The left sidebar navigation displays parent menu groups by default, collapsing child sections and sub-sections until that parent section page is active. Every child section is display-only: its sidebar button navigates to the parent group's path with the section id appended as a URL hash (`#system-integrity`), then scrolls that specific section into view. The parent's page always renders every child's content stacked together - clicking a child is a same-page jump, not a different screen. Logs and About are single-child groups of their own (each promoted to a top-level sidebar entry, with an empty `sections` array, since neither has independent child sections). Use the parent-and-hash routes above when documenting or linking to a child tool; for example, Full Sync Watchstates is `/settings/sync#full-sync-watchstates`.
 
+**The sidebar, the mobile `<select>`, and the `/settings` overview boxes are all generated
+from `SECTION_GROUPS`/`SECTIONS` at render time** (`renderSettingsSidebar()`,
+`renderSettingsSectionSelect()`, `renderSettingsOverview()` in `settings-shell.js`) - none
+of them are hand-written lists elsewhere. Adding, renaming, splitting, or reordering a
+group or section only ever means editing `SECTION_GROUPS`/`SECTIONS`; every nav surface
+picks up the change automatically and does not need a matching edit of its own.
+
+Backup and Restore go one level deeper than most groups: their Local and Remote children each carry their own `subSections` (Watch History, Plembfin), which the sidebar renders as a third-level "grandchild" row and which resolve via the same parent-and-hash pattern - for example, `/settings/backup#local-watch-history-backups` or `/settings/restore#remote-plembfin-restore`. This is the same three-level pattern already used by Database Repairs and System Integrity Check.
+
 ### Section ID naming rule
 
 **A section's `SECTIONS` key in `settings-shell.js` must be a kebab-case slug of its
 `label`**, and the URL hash is always that same key (`/settings/<group>#<section-key>`).
 This is what keeps a child's URL predictable from its sidebar text - `Account` is
-`#account`, `System Integrity Check` is `#system-integrity`, `Backup Settings` is
-`#backup-settings`. Do not reuse an old internal name, an implementation detail, or a
-panel id as a section key (`import`, `health`, and `backups` were all fixed for this
-reason - the ids referred to internal plumbing, not what the sidebar displayed). When
-renaming a section's `label` or moving it between groups:
+`#account`, `System Integrity Check` is `#system-integrity`. A key that lives under more
+than one parent (two different groups both have a "Local" and a "Remote" child) is
+prefixed with its own parent group's id to stay unique in the flat `SECTIONS` namespace,
+the same way `sync-tuning`/`sync-tools` are prefixed under `sync` - Backup's children are
+`backup-local`/`backup-remote`, Restore's are `restore-local`/`restore-remote`. Do not
+reuse an old internal name, an implementation detail, or a panel id as a section key
+(`import`, `health`, and `backups` were all fixed for this reason - the ids referred to
+internal plumbing, not what the sidebar displayed). When renaming a section's `label` or
+moving it between groups:
 
 1. Rename its `SECTIONS` key to match the new label's slug.
 2. Update every `sections`/`displayOnly` array in `SECTION_GROUPS` that lists the old key.
@@ -99,16 +113,16 @@ wraps into a one-item `views` array automatically):
 | Media servers | `apps` panel's Plex, Emby, and Jellyfin rows |
 | Webhooks | `general` panel's Setup Guides (`general-endpoints-guides`) and Webhook Secret (`general-endpoints`) rows |
 | Connections | `tools` panel's Trakt (`tools-migration`) and Seerr rows |
-| Backup / restore | `backups` panel's `settings` tab, then its `restore` tab |
 
-`applySettingsRoute()` iterates every view in the route and reveals each one's panel,
-sub-panel rows, and (for the backups panel) accumulates every requested `backupTab`
-into a set before hiding any backup panel not in that set - so Backup and Restore can
-be shown together without either one clobbering the other's visibility. Post-route
-data loaders in `app.js` (media-server cards, sync jobs/history, watch backups, cache
-stats, logs, changelog) check membership across the whole `route.views` list, not just
-the route's primary panel, so a loader for a panel that only appears as a secondary
-view (e.g. the `cache` panel inside Advanced) still runs.
+`applySettingsRoute()` iterates every view in the route and reveals each one's panel and
+sub-panel rows; for the shared `backups` panel it also accumulates every requested
+`backupTab` into a set before hiding any backup panel not in that set, which is what lets
+the Backup and Restore groups reuse the same physical panel element while each only ever
+reveals its own tab (`settings` or `restore`). Post-route data loaders in `app.js`
+(media-server cards, sync jobs/history, watch backups, cache stats, logs, changelog)
+check membership across the whole `route.views` list, not just the route's primary
+panel, so a loader for a panel that only appears as a secondary view (e.g. the `cache`
+panel inside Advanced) still runs.
 
 ## Section-scoped scrolling
 
@@ -154,6 +168,16 @@ beside the fields on wider screens.
 Webhooks shows the current secret, complete webhook URL, and separate Plex, Emby, and
 Jellyfin setup guides.
 
+Backup and Restore each render their Local and Remote children as their own top-level
+boxed card (`#backup-local`/`#backup-remote` and `#restore-local`/`#restore-remote` in
+`index.html`), not stacked inside one shared "Backup"/"Restore" wrapper card - this is
+what makes each one a real card-level `subSections` grandchild target rather than just a
+plain anchor inside a bigger box. `#restore-local`/`#restore-remote` are additionally
+borrowed by the guided-setup wizard's "Restore from backup" step (`onboarding.js`);
+`applySettingsRoute()` re-parents them back under `#restoreSectionsHome` whenever the
+Restore page is opened directly, so they must stay direct children of that container -
+never wrap them in an intermediate element.
+
 Remote backup destinations use the same card and modal primitives. The Backblaze B2
 dialog edits its name, enabled state, region/endpoint, bucket, key ID, optional prefix,
 and application key. Save and Test persist the destination before refreshing status;
@@ -188,8 +212,9 @@ Old bookmarks are normalized with `history.replaceState`:
 | `/settings/api-keys`, `/settings/metadata/:provider` | `/settings/metadata` |
 | `/settings/connections/webhooks` | `/settings/webhooks` |
 | `/settings/connections/seerr` | `/settings/seerr` (UI: `/settings/connections#seerr`) |
-| `/settings/data`, `/settings/data/backups`, `/settings/backups` | `/settings/backup-settings` (UI: `/settings/backup-restore#backup-settings`) |
-| `/settings/data/restore` | `/settings/restore` (UI: `/settings/backup-restore#restore`) |
+| `/settings/data`, `/settings/data/backups`, `/settings/backups`, `/settings/backup-settings` | `/settings/backup` (UI: `/settings/backup#backup-local`) |
+| `/settings/data/restore` | `/settings/restore` (UI: `/settings/restore#restore-local`) |
+| `/settings/backup-restore`, `/settings/backup-restore-group` | `/settings/backup` |
 | `/settings/data/import`, `/settings/import` | `/settings/trakt` (UI: `/settings/connections#trakt`) |
 | `/settings/system`, `/settings/system/health`, `/settings/health` | `/settings/system-integrity` (UI: `/settings/general#system-integrity`) |
 | `/settings/webhook-guides` | `/settings/setup-guides` (UI: `/settings/webhooks#setup-guides`) |
@@ -246,7 +271,7 @@ server reached over the public internet from being overwhelmed by a large sync.
 - Tools retains history repair, deduplication, full watch-state sync, metadata refresh,
   TV rematching, and Trakt poster backfill with their confirmations and logs, split
   across the Database Repairs and Library Rebuilds and Backfills accordions.
-- Trakt owns the Trakt/CSV importer; Backup Settings and Restore own their respective workflows.
+- Trakt owns the Trakt/CSV importer; Backup and Restore own their respective workflows.
 
 No maintenance API or stored media configuration format changes are introduced by the
 settings shell.

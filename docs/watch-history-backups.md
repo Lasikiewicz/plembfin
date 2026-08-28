@@ -21,8 +21,8 @@ media-server configuration are excluded.
 
 ## Local scheduling and storage
 
-- Configure the feature in **Settings → Backup / restore → Backup settings**
-  (`/settings/backup-restore#backup-settings`).
+- Configure the feature in **Settings → Backup → Local**
+  (`/settings/backup#backup-local`).
 - The elected scheduler runs the local backup once per day after the configured local
   time. The default time is 03:00.
 - Local files are written under `data/backups/watch-history/` using a temporary file
@@ -33,8 +33,8 @@ media-server configuration are excluded.
 
 ## Restore
 
-Restore is available from **Settings → Backup / restore → Restore**
-(`/settings/backup-restore#restore`). The restore modes are:
+Restore is available from **Settings → Restore → Local**
+(`/settings/restore#restore-local`). The restore modes are:
 
 - **Merge**: add missing records and apply the newest state for conflicts.
 - **Replace**: clear `watch_history`, `playstate`, and `playback_progress` before import.

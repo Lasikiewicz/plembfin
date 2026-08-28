@@ -37,20 +37,20 @@ test("every section produces a routable canonical path with visible content", ()
 });
 
 test("parent group routes aggregate every child's panel into one view list", () => {
-  // Media Servers and Backup/Restore fan their children out across
-  // different underlying panels (or backup tabs) - the parent route must
-  // reveal all of them, not just the first.
+  // Media Servers fans its children out across a single underlying panel - the
+  // parent route must reveal all of them, not just the first.
   const mediaServers = parseSettingsRoute("/settings/media-servers");
   assert.deepEqual(
     mediaServers.views.map((v) => v.panel),
     ["apps"],
   );
 
-  const backupRestore = parseSettingsRoute("/settings/backup-restore");
-  assert.deepEqual(
-    backupRestore.views.map((v) => v.backupTab),
-    ["settings", "restore"],
-  );
+  // Backup and Restore are separate top-level groups that each reveal only
+  // their own tab on the shared "backups" panel.
+  const backup = parseSettingsRoute("/settings/backup");
+  assert.deepEqual(backup.views.map((v) => v.backupTab), ["settings"]);
+  const restore = parseSettingsRoute("/settings/restore");
+  assert.deepEqual(restore.views.map((v) => v.backupTab), ["restore"]);
 
   const advanced = parseSettingsRoute("/settings/advanced");
   assert.equal(advanced.path, "/settings/general");
@@ -71,7 +71,9 @@ test("legacy and invalid settings routes normalize safely", () => {
   assert.equal(parseSettingsRoute("/settings/connections/plex").path, "/settings/media-servers");
   assert.equal(parseSettingsRoute("/settings/connections/webhooks").path, "/settings/webhooks");
   assert.equal(parseSettingsRoute("/settings/metadata/tmdb").path, "/settings/metadata");
-  assert.equal(parseSettingsRoute("/settings/data/backups").path, "/settings/backup-settings");
+  assert.equal(parseSettingsRoute("/settings/data/backups").path, "/settings/backup");
+  assert.equal(parseSettingsRoute("/settings/backup-restore").path, "/settings/backup");
+  assert.equal(parseSettingsRoute("/settings/backup-settings").path, "/settings/backup");
   assert.equal(parseSettingsRoute("/settings/data/restore").path, "/settings/restore");
   assert.equal(parseSettingsRoute("/settings/data/import").path, "/settings/trakt");
   assert.equal(parseSettingsRoute("/settings/system/advanced").path, "/settings/database-repairs");
