@@ -1,7 +1,31 @@
 {
-  "version": "0.12.9",
-  "updatedAt": "2026-08-28T17:31:32Z",
+  "version": "0.12.10",
+  "updatedAt": "2026-08-28T18:57:42+01:00",
   "entries": [
+    {
+      "version": "0.12.10",
+      "date": "2026-08-28T18:57:42+01:00",
+      "commit": "10d4713d7bc693593e17199eb8bb5393e61c2521",
+      "message": "Docs - Consolidate v0.12.9 changelog entry into higher-level bullets",
+      "author": "Lasikiewicz",
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [],
+        "tweaks": [
+          "Consolidate v0.12.9 changelog entry into higher-level bullets",
+          "The auto-generated New Features section had 38 near-duplicate bullets (each commit's subject line plus its own detail bullets, all flattened together)",
+          "Consolidated to 6 bullets covering the actual distinct efforts: Settings redesign, Media Servers panels, Webhooks split, Backup/Restore redesign, section URL renames, and Wipe Data",
+          "Trimmed Major Bug Fixes and Tweaks the same way",
+          "Regenerated CHANGELOG.md from the corrected changelog.json"
+        ]
+      },
+      "details": [
+        "The auto-generated New Features section had 38 near-duplicate bullets (each commit's subject line plus its own detail bullets, all flattened together)",
+        "Consolidated to 6 bullets covering the actual distinct efforts: Settings redesign, Media Servers panels, Webhooks split, Backup/Restore redesign, section URL renames, and Wipe Data",
+        "Trimmed Major Bug Fixes and Tweaks the same way",
+        "Regenerated CHANGELOG.md from the corrected changelog.json"
+      ]
+    },
     {
       "version": "0.12.9",
       "date": "2026-08-28T17:31:32Z",
