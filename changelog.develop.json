@@ -1,53 +1,5 @@
 {
-  "build": 4,
-  "updatedAt": "2026-08-28T19:44:54+01:00",
-  "entries": [
-    {
-      "build": 4,
-      "date": "2026-08-28T19:44:54+01:00",
-      "commit": "b48cb60ab931630496ea376b892a278813f6c2f9",
-      "message": "Fix - TV show detail and grid bulk-watch fixes",
-      "author": "Lasikiewicz",
-      "details": [
-        "Restore the missing three-dot overflow menu on TV Shows grid cards",
-        "Season list rows now show Saving while a bulk watch action is in progress instead of a stale watched count",
-        "Marking a season or whole show as watched no longer marks episodes that haven't aired yet"
-      ]
-    },
-    {
-      "build": 3,
-      "date": "2026-08-28T19:23:44+01:00",
-      "commit": "d7ded648381557adb9f9e48f599d6c17fc66ac4a",
-      "message": "Docs - Consolidate changelog entries at every promotion stage",
-      "author": "Lasikiewicz",
-      "details": [
-        "Push to git now squashes any pending local commits into one clean commit before pushing, so bloat never enters changelog.develop.json in the first place",
-        "Force to alpha now reviews the CI-merged alpha changelog entry and tightens it if redundant, since it does not deduplicate bullets on its own",
-        "Force to main now reviews the freshly generated release changelog entry the same way before syncing back to develop, formalizing the correction v0.12.9 needed by hand"
-      ]
-    },
-    {
-      "build": 2,
-      "date": "2026-08-28T18:58:25+01:00",
-      "commit": "59ce269311c972be302430cb43199a438b7aad49",
-      "message": "Docs - Consolidate v0.12.9 changelog entry into higher-level bullets",
-      "author": "Lasikiewicz",
-      "details": [
-        "The auto-generated New Features section had 38 near-duplicate bullets (each commit's subject line plus its own detail bullets, all flattened together)",
-        "Consolidated to 6 bullets covering the actual distinct efforts: Settings redesign, Media Servers panels, Webhooks split, Backup/Restore redesign, section URL renames, and Wipe Data",
-        "Trimmed Major Bug Fixes and Tweaks the same way",
-        "Regenerated CHANGELOG.md from the corrected changelog.json"
-      ]
-    },
-    {
-      "build": 1,
-      "date": "2026-08-28T18:37:58+01:00",
-      "commit": "0be20926d475cc685d0fa948f7ca265fdb19958f",
-      "message": "Chore - Reset develop build counter after promotion to alpha",
-      "author": "Lasikiewicz",
-      "details": [
-        "Chore - Reset develop build counter after promotion to alpha"
-      ]
-    }
-  ]
+  "build": 0,
+  "updatedAt": "2026-08-28T18:48:36.362Z",
+  "entries": []
 }
