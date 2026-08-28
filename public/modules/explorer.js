@@ -1683,7 +1683,10 @@ export function renderShowRecord(show = {}) {
   return `
     <article class="folder-card" data-alpha-letter="${firstAlphaLetter(displayTitle)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId)}" data-prefetch-title="${escapeAttribute(displayTitle)}">
       <a class="folder-trigger" href="${escapeAttribute(detailHref)}" data-show-key="${escapeAttribute(showKey)}" data-show-href="${escapeAttribute(detailHref)}"${historyId ? ` data-show-record-id="${escapeAttribute(historyId)}"` : ""} style="border: 0; background: transparent; padding: 0; width: 100%; text-align: left; display: block; text-decoration: none; color: inherit;">
-        ${posterMarkup(latestEpisode, "explorer-folder-poster")}
+        <div class="poster-media-wrap">
+          ${posterMarkup(latestEpisode, "explorer-folder-poster")}
+          ${posterOverflowMenu(latestEpisode)}
+        </div>
         <div class="movie-card-body" style="margin-top: 0.5rem;">
           <b>${escapeHtml(displayTitle)}</b>
           <span>${episodeCount}/${totalEps || "?"} watched${actualWatchText}</span>

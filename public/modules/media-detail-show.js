@@ -1079,9 +1079,16 @@ export function renderShowModalContent(show, {
     const isActive = allSeasonsExpanded || seasonNumber === selectedSeasonNumber;
     const panelId = `seasonAccordionPanel${seasonNumber}`;
     const episodeCountText = `${seasonTotal || "?"} episode${seasonTotal === 1 ? "" : "s"}`;
-    const watchedText = watchedInSeason
-      ? `${watchedInSeason} watched${totalWatches > watchedInSeason ? ` · ${totalWatches} plays` : ""}`
-      : "";
+    // Mirrors seasonBusy in renderSeasonPanelHtml: a season/show-scope bulk
+    // watch action can take a while for a season this size, so this collapsed
+    // row should say so instead of showing a stale watched count until the
+    // whole thing settles.
+    const seasonSaving = seasonEpisodes.some((episode) => savingEpisodeKeys.has(episode.key));
+    const watchedText = seasonSaving
+      ? "Saving…"
+      : watchedInSeason
+        ? `${watchedInSeason} watched${totalWatches > watchedInSeason ? ` · ${totalWatches} plays` : ""}`
+        : "";
     const seasonAvailabilityHtml = tvSeasonAvailabilityHtml(tvSeerrStatus, seasonNumber);
     return `
       <article class="season-accordion ${isActive ? "is-open" : ""}">

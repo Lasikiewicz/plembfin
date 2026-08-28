@@ -209,6 +209,18 @@ export function renderWatchDatePrompt(action) {
 // target overlaps an in-flight action's targets, instead of every "mark
 // watched" button in the app freezing until one sync finishes.
 
+// Mirrors the `isUnreleased` check media-detail-show.js uses to hide the
+// per-episode "Mark watched" button behind a "Not yet released" pill - a
+// season/show bulk mark must apply the same rule, or it back-dates episodes
+// that haven't aired yet.
+function isEpisodeUnreleased(episode) {
+  if (episode?.watched || !episode?.airDate) return false;
+  const parts = episode.airDate.split("-");
+  if (parts.length !== 3) return false;
+  const air = new Date(parts[0], parts[1] - 1, parts[2]);
+  return !Number.isNaN(air.getTime()) && air > new Date();
+}
+
 function episodeKeysForAction(action) {
   const keys = new Set();
   for (const episode of [...(action?.episodes || []), ...(action?.resyncEpisodes || [])]) {
@@ -277,11 +289,11 @@ export function watchActionFromButton(button) {
   } else if (scope === "season") {
     const seasonNumber = Number(button.dataset.seasonNumber);
     const seasonEpisodes = state.showModalEpisodes.filter((row) => row.seasonNumber === seasonNumber);
-    episodes = seasonEpisodes.filter((episode) => !episode.watched);
+    episodes = seasonEpisodes.filter((episode) => !episode.watched && !isEpisodeUnreleased(episode));
     resyncEpisodes = seasonEpisodes.filter((episode) => episode.watched);
     referenceScope = seasonEpisodes;
   } else if (scope === "show") {
-    episodes = state.showModalEpisodes.filter((episode) => !episode.watched);
+    episodes = state.showModalEpisodes.filter((episode) => !episode.watched && !isEpisodeUnreleased(episode));
     resyncEpisodes = state.showModalEpisodes.filter((episode) => episode.watched);
     referenceScope = state.showModalEpisodes;
   }
