@@ -4,6 +4,15 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v0.12.12 - 28 August 2026
+
+Docs - Consolidate v0.12.11 changelog entry into higher-level bullets
+
+### Tweaks
+
+- Consolidate v0.12.11 changelog entry into higher-level bullets
+- Dropped a redundant Major Bug Fixes bullet that just restated the release's commit subject
+
 ## v0.12.11 - 28 August 2026
 
 Fix - TV show detail and grid bulk-watch fixes
@@ -944,7 +953,7 @@ Fix - Update settings shell route handling and test suite for General group aggr
 - Update test/settingsShell.test.js assertions for storage panel and advanced legacy redirect
 - Pass all 177 automated unit tests
 
-## v0.6.77 - 6 August 2026
+## v0.6.77 - 5 August 2026
 
 Feature - Standardize settings page layouts
 
