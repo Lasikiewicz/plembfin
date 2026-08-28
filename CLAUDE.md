@@ -154,7 +154,31 @@ The `.githooks/commit-msg` hook rejects `feat`, `fix`, `security`, `enhance`, an
 ### 5 - Stage and commit
 Stage all modified files **except** `data/`, `node_modules/`, and any secrets. Commit using the message written in step 4.
 
-### 6 - Push
+### 6 - Consolidate pending local commits
+Check whether more than the commit just created in step 5 is about to be pushed:
+```bash
+git log origin/develop..HEAD --oneline
+```
+If more than one commit is listed, squash them into a single commit before pushing, so
+the changelog entry this push generates is one clean, deduplicated set of bullets instead
+of every intermediate commit's own bullet list concatenated together (this is exactly
+what turned one evening's worth of commits into a 38-bullet release note once - see
+`docs: consolidate v0.12.9 changelog entry into higher-level bullets` for the correction
+this required). Combine the bullet lists from every commit being squashed into one
+consolidated list using the same standard as step 4 (3-8 of the most significant
+user-visible changes; drop a bullet that just restates another one in the group more
+briefly). Squash with:
+```bash
+git reset --soft origin/develop
+git commit -m "<type>: <consolidated summary>" \
+  -m "- consolidated bullet 1
+- consolidated bullet 2"
+```
+This is safe: none of the commits being squashed have been pushed yet, so this
+consolidates pending local work rather than rewriting published history. Skip this step
+if `git log origin/develop..HEAD --oneline` shows only the one commit from step 5.
+
+### 7 - Push
 ```bash
 git push origin develop
 ```
@@ -219,7 +243,20 @@ git fetch origin
 git merge origin/alpha --no-edit       # pulls alpha's fresh changelog.alpha.json bump into develop
 ```
 
-### 4 - Reset develop's build counter
+### 4 - Review the alpha changelog entry for redundancy
+`update-alpha-changelog.js` already combines every develop build since the last alpha
+promotion into one alpha entry, but does not deduplicate bullets within it - if the
+develop pushes behind it were not consolidated (see "Push to git" step 6), the merged
+entry can read as a long list of near-duplicate lines. This only affects what alpha
+builds show in Settings -> About - `update-changelog.js` for "Force to main" re-derives
+its own entry independently from raw git commits, not from this file - but it is still
+worth getting right for anyone testing an alpha build. Read the newest entry in
+`changelog.alpha.json`; if it looks redundant or overly granular, rewrite its
+`sections`/`details` into a smaller set of higher-level bullets (same 3-8-bullet standard
+as "Push to git" step 4), commit as `docs: consolidate alpha build <n> changelog entry`,
+and include it in the push to `develop` in the next step.
+
+### 5 - Reset develop's build counter
 Write `changelog.develop.json` to `{ "build": 0, "updatedAt": "<now>", "entries": [] }`
 (this is what `promoteDevelopToAlpha()` in `scripts/promote-develop-to-alpha.js` does -
 run it directly, or replicate it by hand), commit as
@@ -270,7 +307,22 @@ them; it happens automatically. CI then commits `chore: update changelog for <sh
 onto `main` and builds/publishes the Docker image. Wait for it
 (`gh run list --branch main`) before continuing.
 
-### 3 - Sync main's changelog-bump commit back into develop
+### 3 - Review the generated changelog entry for redundancy
+`update-changelog.js` combines every commit since the last main release into one entry,
+correctly split into New Features / Major Bug Fixes / Tweaks by each commit's own type -
+but it does not deduplicate or shorten bullets within a section. A release built from
+many small local commits (see "Push to git" step 6) can still read as a long list of
+near-duplicate lines even after correct categorization - this happened for v0.12.9's
+initial entry (38 New Features bullets from 7 `feat` commits, corrected by hand
+afterward). After CI's `chore: update changelog for <sha>` commit lands, fetch it and
+read the newest entry in `changelog.json`. If a section looks redundant or overly
+granular, rewrite it into a smaller set of higher-level bullets (same standard as "Push
+to git" step 4 - one idea per line, no bullet that just restates another more briefly),
+regenerate `CHANGELOG.md` with `node scripts/generate-changelog-md.js`, and commit the
+correction directly to `main` as `docs: consolidate v<version> changelog entry into
+higher-level bullets` before continuing to the next step.
+
+### 4 - Sync main's changelog-bump commit back into develop
 ```bash
 git fetch origin
 git checkout develop
