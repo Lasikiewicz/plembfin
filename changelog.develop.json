@@ -1,7 +1,19 @@
 {
-  "build": 2,
-  "updatedAt": "2026-08-28T18:58:25+01:00",
+  "build": 3,
+  "updatedAt": "2026-08-28T19:23:44+01:00",
   "entries": [
+    {
+      "build": 3,
+      "date": "2026-08-28T19:23:44+01:00",
+      "commit": "d7ded648381557adb9f9e48f599d6c17fc66ac4a",
+      "message": "Docs - Consolidate changelog entries at every promotion stage",
+      "author": "Lasikiewicz",
+      "details": [
+        "Push to git now squashes any pending local commits into one clean commit before pushing, so bloat never enters changelog.develop.json in the first place",
+        "Force to alpha now reviews the CI-merged alpha changelog entry and tightens it if redundant, since it does not deduplicate bullets on its own",
+        "Force to main now reviews the freshly generated release changelog entry the same way before syncing back to develop, formalizing the correction v0.12.9 needed by hand"
+      ]
+    },
     {
       "build": 2,
       "date": "2026-08-28T18:58:25+01:00",
