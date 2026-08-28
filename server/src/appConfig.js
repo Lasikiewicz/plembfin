@@ -200,6 +200,26 @@ export function verifyUsername(name) {
   }
 }
 
+// Resets data/config.json to a pristine, unclaimed install: fresh apiKey,
+// webhookSecret, and sessionSecret, and no password hash (so isClaimRequired()
+// is true again). Reuses resolveAuthConfig() so this stays exactly in sync
+// with what a genuinely fresh install resolves on first boot, including any
+// ADMIN_USERNAME/ADMIN_PASSWORD/API_KEY/WEBHOOK_SECRET/SESSION_SECRET env
+// overrides still in effect. Called by the "Wipe All / Fresh Start" data-wipe
+// scope (server/src/routes/maintenance.js) - the caller is responsible for
+// clearing the database first so detectAndMarkPristineInstall() re-detects a
+// clean install rather than an already-claimed one.
+export function resetAdminAccount() {
+  writeConfigFile({});
+  const fresh = resolveAuthConfig();
+  Object.assign(config, fresh);
+  AUTH.username = config.username;
+  AUTH.apiKey = config.apiKey;
+  AUTH.webhookSecret = config.webhookSecret;
+  AUTH.sessionSecret = config.sessionSecret;
+  return { username: config.username };
+}
+
 export function updateAdminCredentials({ username, password = "" }) {
   const nextUsername = String(username || "").trim();
   if (!nextUsername) throw new Error("Username is required");

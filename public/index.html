@@ -659,21 +659,24 @@
                       </div>
                       <div style="margin-bottom: var(--space-2);">
                         <b style="display: block; margin-bottom: 2px;">Run System Diagnostic</b>
-                        <p style="margin: 0; line-height: 1.4;">Runs nine live checks in sequence and reports each as Online, Warnings Detected, Failed, or Not Configured, with a "Fix" tip and a link to the relevant settings page for anything that isn't healthy:</p>
+                        <p style="margin: 0; line-height: 1.4;">Runs nine live checks. Each one is marked Online, Warnings Detected, Failed, or Not Configured.</p>
+                        <p style="margin: 4px 0 0; line-height: 1.4;">Anything unhealthy gets a fix tip and a link to the right settings page.</p>
                         <ul class="tool-accordion-desc" style="margin: 4px 0 0; padding-left: 1.2rem; line-height: 1.6;">
-                          <li><b>Watch History API</b> - confirms the local SQLite database responds.</li>
-                          <li><b>Server Configuration</b> - confirms saved media-server/config settings can be read back.</li>
-                          <li><b>Webhook Listener Endpoint</b> - pings <code>/api/webhook</code> and shows the last event received, if any.</li>
-                          <li><b>Scheduled Cron Job</b> - checks the per-minute background worker fired recently.</li>
-                          <li><b>Outbound Playstate Sync</b> - scans the 5 most recent history rows' dispatch telemetry for failures.</li>
-                          <li><b>Plex / Emby / Jellyfin Media Server</b> - live connection test against each configured server.</li>
-                          <li><b>Plex Realtime Notifications</b> - confirms the WebSocket notification listener can connect (unwatch sync falls back to the periodic poll if this fails).</li>
-                          <li><b>Cross-Platform Library Matching</b> - summarizes current "no matching item found" sync failures per platform.</li>
+                          <li><b>Watch History API</b> - checks the local database responds.</li>
+                          <li><b>Server Configuration</b> - checks saved settings can be read back.</li>
+                          <li><b>Webhook Listener Endpoint</b> - pings the webhook URL and shows the last event received.</li>
+                          <li><b>Scheduled Cron Job</b> - checks the background worker ran recently.</li>
+                          <li><b>Outbound Playstate Sync</b> - checks the 5 most recent watches synced without errors.</li>
+                          <li><b>Plex / Emby / Jellyfin Media Server</b> - tests the connection to each configured server.</li>
+                          <li><b>Plex Realtime Notifications</b> - checks the live Plex connection works (falls back to periodic polling if not).</li>
+                          <li><b>Cross-Platform Library Matching</b> - lists current "no matching item found" failures per platform.</li>
                         </ul>
                       </div>
                       <div>
                         <b style="display: block; margin-bottom: 2px;">Refresh Sync Health</b>
-                        <p style="margin: 0; line-height: 1.4;">Loads a lighter-weight snapshot: watch history/playstate/playback-progress row counts, database size on disk, and outbound request pressure (requests, throttles, and cooldowns) per media-server host - useful for spotting rate-limiting or an oversized database before running a large Force Sync.</p>
+                        <p style="margin: 0; line-height: 1.4;">A quicker, lighter check than the full diagnostic.</p>
+                        <p style="margin: 4px 0 0; line-height: 1.4;">Shows row counts, database size, and how hard Plembfin is hitting each media server.</p>
+                        <p style="margin: 4px 0 0; line-height: 1.4;">Useful before running a large Force Sync, to spot rate-limiting or an oversized database first.</p>
                       </div>
                     </article>
                   </div>
@@ -742,15 +745,15 @@
                       <div style="display: flex; flex-direction: column; gap: var(--space-3);">
                         <div>
                           <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Connected Server</b>
-                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Plembfin connects to your Plex server to read library watchstates, verify media item matches, and push synchronized plays to your other connected servers.</p>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Plembfin connects to your Plex server to read watched status, match media correctly, and push plays to your other connected servers.</p>
                         </div>
                         <div>
                           <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Credentials & Tokens</b>
-                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">The server URL and token are stored securely server-side and hidden from browser display.</p>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">The server URL and token are kept on the server and never shown in the browser.</p>
                         </div>
                         <div>
                           <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Connection Testing</b>
-                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Use <b>Test</b> to verify server reachability, token validity, and user account resolution before saving.</p>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Use <b>Test</b> before saving to check the server is reachable, the token works, and your account is found.</p>
                         </div>
                       </div>
                     </article>
@@ -778,15 +781,15 @@
                       <div style="display: flex; flex-direction: column; gap: var(--space-3);">
                         <div>
                           <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Connected Server</b>
-                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Plembfin connects to your Emby server to read library watchstates, verify media item matches, and push synchronized plays to your other connected servers.</p>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Plembfin connects to your Emby server to read watched status, match media correctly, and push plays to your other connected servers.</p>
                         </div>
                         <div>
                           <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Credentials & Tokens</b>
-                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">The server URL and API key are stored securely server-side and hidden from browser display.</p>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">The server URL and API key are kept on the server and never shown in the browser.</p>
                         </div>
                         <div>
                           <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Connection Testing</b>
-                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Use <b>Test</b> to verify server reachability, key validity, and user account resolution before saving.</p>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Use <b>Test</b> before saving to check the server is reachable, the key works, and your account is found.</p>
                         </div>
                       </div>
                     </article>
@@ -814,15 +817,15 @@
                       <div style="display: flex; flex-direction: column; gap: var(--space-3);">
                         <div>
                           <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Connected Server</b>
-                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Plembfin connects to your Jellyfin server to read library watchstates, verify media item matches, and push synchronized plays to your other connected servers.</p>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Plembfin connects to your Jellyfin server to read watched status, match media correctly, and push plays to your other connected servers.</p>
                         </div>
                         <div>
                           <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Credentials & Tokens</b>
-                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">The server URL and API key are stored securely server-side and hidden from browser display.</p>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">The server URL and API key are kept on the server and never shown in the browser.</p>
                         </div>
                         <div>
                           <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Connection Testing</b>
-                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Use <b>Test</b> to verify server reachability, key validity, and user account resolution before saving.</p>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Use <b>Test</b> before saving to check the server is reachable, the key works, and your account is found.</p>
                         </div>
                       </div>
                     </article>
@@ -1157,11 +1160,14 @@
                       <div style="display: flex; flex-direction: column; gap: var(--space-3);">
                         <div>
                           <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Live Trakt Connection</b>
-                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Enables automatic bidirectional synchronization between Trakt.tv and Plembfin. New watched items, timestamp changes (rewatches), and unwatch removals are synchronized continuously across Plex, Emby, Jellyfin, and Trakt. Sync Now also reconciles unchanged Trakt watches to repair older drift.</p>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Keeps Trakt and Plembfin in sync automatically, both ways.</p>
+                          <p style="margin: 4px 0 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">New watches, rewatches, and unwatches all sync across Plex, Emby, Jellyfin, and Trakt.</p>
+                          <p style="margin: 4px 0 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Sync Now also double-checks older Trakt watches and fixes anything that drifted out of sync.</p>
                         </div>
                         <div>
                           <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">First Connection Mode</b>
-                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">“Start from current state” records a safe baseline without modifying other servers. “Import all existing Trakt watched state” imports all past watches into Plembfin and queues them for synchronization.</p>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);"><b>Start from current state</b> - the safe default. Records where things stand now, without changing anything on your other servers.</p>
+                          <p style="margin: 4px 0 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);"><b>Import all existing Trakt watched state</b> - pulls in your full Trakt history and queues it to sync everywhere.</p>
                         </div>
                         <div>
                           <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Manual Connection</b>
@@ -1236,7 +1242,9 @@
                       </div>
                       <div>
                         <b style="display: block; margin-bottom: 2px;">Reopen Onboarding</b>
-                        <p style="margin: 0; line-height: 1.4;">Reopens the same step-by-step wizard shown on first run, at <code>/setup</code>. Nothing already configured is changed or reset - each step reflects your current connections, so it's a safe way to revisit a single step, such as adding a second media server or connecting Trakt later.</p>
+                        <p style="margin: 0; line-height: 1.4;">Reopens the same step-by-step wizard shown on first run.</p>
+                        <p style="margin: 4px 0 0; line-height: 1.4;">It's safe to run again - nothing already set up gets changed or reset. Each step just shows your current connections.</p>
+                        <p style="margin: 4px 0 0; line-height: 1.4;">Use it to revisit a single step later, like adding a second media server or connecting Trakt.</p>
                       </div>
                     </article>
                   </div>
@@ -1321,15 +1329,20 @@
                       </div>
                       <div style="margin-bottom: var(--space-2);">
                         <b style="display: block; margin-bottom: 2px;">Repair History Rows</b>
-                        <p style="margin: 0; line-height: 1.4;">Scans your 300 most recent history rows for ones missing a media type or an optimized (locally cached) poster. Rows with no type are guessed as an episode or movie from the title pattern (e.g. <code>S01E01</code>), then a poster is resolved from the cache, the configured media server, or TMDB and saved to local storage. Runs in passes of up to 10 rows and stops automatically once a pass makes no changes.</p>
+                        <p style="margin: 0; line-height: 1.4;">Checks your 300 most recent history rows for a missing media type or poster.</p>
+                        <p style="margin: 4px 0 0; line-height: 1.4;">If the type is missing, it's guessed from the title (like <code>S01E01</code> for an episode). A poster is then found from the cache, your media server, or TMDB.</p>
+                        <p style="margin: 4px 0 0; line-height: 1.4;">Works in small batches of 10 rows, and stops on its own once a batch finds nothing left to fix.</p>
                       </div>
                       <div style="margin-bottom: var(--space-2);">
                         <b style="display: block; margin-bottom: 2px;">Audit Phantom Watches</b>
-                        <p style="margin: 0; line-height: 1.4;">Runs a read-only scan of all watch-history rows for suspicious platform duplicates and malformed imported episode metadata. Results are labelled high-confidence or review-only; the audit never changes or deletes records.</p>
+                        <p style="margin: 0; line-height: 1.4;">Read-only scan for suspicious duplicate watches or broken imported episode data.</p>
+                        <p style="margin: 4px 0 0; line-height: 1.4;">Each result is marked high-confidence or review-only. Nothing is changed or deleted - it's just a report.</p>
                       </div>
                       <div style="margin-top: var(--space-2);">
                         <b style="display: block; margin-bottom: 2px;">Remove Duplicate Watches</b>
-                        <p style="margin: 0; line-height: 1.4;">Scans every movie or every TV episode with more than one recorded watch and keeps only the oldest date, permanently deleting the rest and pushing the corrected watch state out to every connected platform. Always shows the exact number of watches and items affected before asking for confirmation - this cannot be undone.</p>
+                        <p style="margin: 0; line-height: 1.4;">Finds every movie or episode with more than one watch recorded, and keeps only the oldest date.</p>
+                        <p style="margin: 4px 0 0; line-height: 1.4;">The rest are deleted for good, and the correction is pushed out to every connected platform.</p>
+                        <p style="margin: 4px 0 0; line-height: 1.4;">You'll always see the exact number of watches affected before confirming. <b>This cannot be undone.</b></p>
                       </div>
                     </article>
                   </div>
@@ -1404,11 +1417,146 @@
                       </div>
                       <div style="margin-bottom: var(--space-2);">
                         <b style="display: block; margin-bottom: 2px;">Rematch All TV Shows</b>
-                        <p style="margin: 0; line-height: 1.4;">Looks up each series title on TVDB first (the primary source for TV matching), then derives the TMDB ID from TVDB's own cross-reference - falling back to a TMDB title search only if that mapping is stale. Stamps the corrected TVDB/TMDB IDs onto local episode rows.</p>
+                        <p style="margin: 0; line-height: 1.4;">Looks up each show on TVDB, the main source for TV matching.</p>
+                        <p style="margin: 4px 0 0; line-height: 1.4;">The matching TMDB ID normally comes from TVDB's own cross-reference. If that's out of date, it falls back to a TMDB title search instead.</p>
+                        <p style="margin: 4px 0 0; line-height: 1.4;">The corrected IDs are then saved onto your local episode rows.</p>
                       </div>
                       <div>
                         <b style="display: block; margin-bottom: 2px;">Backfill Trakt Imports</b>
                         <p style="margin: 0; line-height: 1.4;">Fetches missing posters and metadata for imported Trakt watch history events.</p>
+                      </div>
+                    </article>
+                  </div>
+                </div>
+
+                <!-- Wipe Data Tab -->
+                <div class="settings-row hidden" id="wipe-data" data-sub-panel="tools-wipe-data">
+                  <div class="settings-row-main">
+                    <article class="glass-panel p-section settings-card tool-section-card">
+                      <div class="section-heading sync-heading sync-static-heading">
+                        <div class="sync-heading-title">
+                          <p style="margin: 0;">Wipe Data</p>
+                        </div>
+                        <span>Permanently delete tracked watch history, sync history, or both</span>
+                      </div>
+
+                      <div id="wipeDataContent" style="display: flex; flex-direction: column; gap: var(--space-3);">
+                        <div class="guide-callout warning-callout" style="gap: var(--space-1); border-color: rgba(234, 179, 8, 0.45); background: rgba(234, 179, 8, 0.08);">
+                          <b style="color: var(--yellow); font-size: 0.85rem; display: block;">Back up before you wipe anything</b>
+                          <p style="margin: 0; font-size: 0.85rem; line-height: 1.4; color: var(--text-muted, var(--muted));">These actions delete rows from the local database. There is no undo. Take a <a href="/settings/backup#backup-local" data-settings-path="/settings/backup#backup-local" style="color: #4b96e6; text-decoration: underline;">watch history or Plembfin backup</a> first if you might want this data back.</p>
+                        </div>
+
+                        <!-- Inner Box 1: Wipe Watch History -->
+                        <details id="wipe-watch-history" class="sync-tool-details">
+                          <summary class="accordion-header">
+                            <div class="sync-tool-summary-title">
+                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                              <b>Watch History</b>
+                              <span id="wipeHistoryStatus" class="status-pill status-muted">Idle</span>
+                            </div>
+                            <span>Watch history, playstate, resume progress, and live sessions</span>
+                          </summary>
+                          <div class="tool-item-row">
+                            <p id="wipeHistoryCounts" class="muted-copy" style="margin: 0 0 var(--space-2);">Loading row counts…</p>
+                            <div id="wipeHistoryLog" class="import-terminal compact-terminal hidden" style="margin-top: var(--space-2);">Wipe log will appear here.</div>
+                            <div class="settings-actions" style="margin-top: var(--space-2);">
+                              <button id="wipeHistoryButton" class="button-danger sync-tools-cancel-button sync-tool-button" type="button" data-wipe-scope="history" disabled>Wipe Watch History</button>
+                            </div>
+                          </div>
+                        </details>
+
+                        <!-- Inner Box 2: Wipe Sync History & Logs -->
+                        <details id="wipe-sync-logs" class="sync-tool-details">
+                          <summary class="accordion-header">
+                            <div class="sync-tool-summary-title">
+                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                              <b>Sync History &amp; Logs</b>
+                              <span id="wipeLogsStatus" class="status-pill status-muted">Idle</span>
+                            </div>
+                            <span>Sync history, watch audit events, and diagnostic logs</span>
+                          </summary>
+                          <div class="tool-item-row">
+                            <p id="wipeLogsCounts" class="muted-copy" style="margin: 0 0 var(--space-2);">Loading row counts…</p>
+                            <div id="wipeLogsLog" class="import-terminal compact-terminal hidden" style="margin-top: var(--space-2);">Wipe log will appear here.</div>
+                            <div class="settings-actions" style="margin-top: var(--space-2);">
+                              <button id="wipeLogsButton" class="button-danger sync-tools-cancel-button sync-tool-button" type="button" data-wipe-scope="logs" disabled>Wipe Sync History &amp; Logs</button>
+                            </div>
+                          </div>
+                        </details>
+
+                        <!-- Inner Box 3: Wipe Everything Tracked -->
+                        <details id="wipe-everything-tracked" class="sync-tool-details">
+                          <summary class="accordion-header">
+                            <div class="sync-tool-summary-title">
+                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                              <b>Everything Tracked</b>
+                              <span id="wipeAllStatus" class="status-pill status-muted">Idle</span>
+                            </div>
+                            <span>Watch history and sync history/logs together</span>
+                          </summary>
+                          <div class="tool-item-row">
+                            <p id="wipeAllCounts" class="muted-copy" style="margin: 0 0 var(--space-2);">Loading row counts…</p>
+                            <div id="wipeAllLog" class="import-terminal compact-terminal hidden" style="margin-top: var(--space-2);">Wipe log will appear here.</div>
+                            <div class="settings-actions" style="margin-top: var(--space-2);">
+                              <button id="wipeAllButton" class="button-danger sync-tools-cancel-button sync-tool-button" type="button" data-wipe-scope="all" disabled>Wipe Everything Tracked</button>
+                            </div>
+                          </div>
+                        </details>
+
+                        <!-- Inner Box 4: Wipe All / Fresh Start (factory reset) -->
+                        <details id="wipe-fresh-start" class="sync-tool-details" style="border-color: rgba(239, 68, 68, 0.45);">
+                          <summary class="accordion-header">
+                            <div class="sync-tool-summary-title">
+                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                              <b>Wipe All / Fresh Start</b>
+                              <span id="wipeFactoryStatus" class="status-pill status-muted">Idle</span>
+                            </div>
+                            <span>Resets Plembfin to a brand-new install</span>
+                          </summary>
+                          <div class="tool-item-row">
+                            <div class="guide-callout warning-callout" style="gap: var(--space-1); border-color: rgba(239, 68, 68, 0.5); background: rgba(239, 68, 68, 0.08); margin-bottom: var(--space-3);">
+                              <b style="color: #ef4444; font-size: 0.85rem; display: block;">This is a full factory reset</b>
+                              <p style="margin: 0; font-size: 0.85rem; line-height: 1.4; color: var(--text-muted, var(--muted));">Deletes every table above, plus settings, connections, cached artwork, and the admin login. You'll land back on the first-run setup screen and need to claim the account again. There is no undo.</p>
+                            </div>
+                            <p id="wipeFactoryCounts" class="muted-copy" style="margin: 0 0 var(--space-2);">Loading row counts…</p>
+                            <div id="wipeFactoryLog" class="import-terminal compact-terminal hidden" style="margin-top: var(--space-2);">Wipe log will appear here.</div>
+                            <div class="settings-actions" style="margin-top: var(--space-2);">
+                              <button id="wipeFactoryButton" class="button-danger sync-tools-cancel-button sync-tool-button" type="button" data-wipe-scope="factory" disabled>Wipe All / Fresh Start</button>
+                            </div>
+                          </div>
+                        </details>
+                      </div>
+                    </article>
+                  </div>
+
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading" style="margin-bottom: var(--space-2);">
+                        <p>Wipe Data Help</p>
+                        <span>Irreversible</span>
+                      </div>
+                      <div style="margin-bottom: var(--space-2);">
+                        <b style="display: block; margin-bottom: 2px;">What stays untouched</b>
+                        <p style="margin: 0; line-height: 1.4;">Your settings, media server connections, Trakt connection, API keys, and admin login are never touched by Watch History, Sync History &amp; Logs, or Everything Tracked.</p>
+                        <p style="margin: 4px 0 0; line-height: 1.4;">Wipe All / Fresh Start is the one exception below - it resets those too.</p>
+                        <p style="margin: 4px 0 0; line-height: 1.4;">Wiping local data does not unwatch anything on Plex, Emby, or Jellyfin themselves - it only clears what Plembfin has recorded.</p>
+                      </div>
+                      <div style="margin-bottom: var(--space-2);">
+                        <b style="display: block; margin-bottom: 2px;">Watch History</b>
+                        <p style="margin: 0; line-height: 1.4;">Deletes every watched item, resume position, and live session Plembfin has recorded. This is the same data a watch-history backup restores from - back one up first if you want a way back.</p>
+                      </div>
+                      <div style="margin-bottom: var(--space-2);">
+                        <b style="display: block; margin-bottom: 2px;">Sync History &amp; Logs</b>
+                        <p style="margin: 0; line-height: 1.4;">Deletes the sync history list, audit trail, and diagnostic logs. Lower stakes - your actual watch history is untouched.</p>
+                      </div>
+                      <div style="margin-bottom: var(--space-2);">
+                        <b style="display: block; margin-bottom: 2px;">Everything Tracked</b>
+                        <p style="margin: 0; line-height: 1.4;">Runs Watch History and Sync History &amp; Logs together. Your settings and connections still stay untouched.</p>
+                      </div>
+                      <div>
+                        <b style="display: block; margin-bottom: 2px;">Wipe All / Fresh Start</b>
+                        <p style="margin: 0; line-height: 1.4;">The most destructive option here. Deletes everything above, plus settings, media server and Trakt connections, cached artwork, and the admin login.</p>
+                        <p style="margin: 4px 0 0; line-height: 1.4;">Plembfin ends up exactly like a brand-new install - you'll be signed out and taken to first-run setup to claim the account again. A full Plembfin backup is the only way back.</p>
                       </div>
                     </article>
                   </div>
@@ -1621,23 +1769,30 @@
                       </div>
                       <div style="margin-bottom: var(--space-2);">
                         <b style="display: block; margin-bottom: 2px;">Local Watch History Backups</b>
-                        <p style="margin: 0; line-height: 1.4;">Unencrypted daily snapshots of watched state, playstate, and resume progress, saved to <code id="watchBackupLocalPath">data/backups/watch-history</code> on the server running Plembfin. No passphrase needed - "Save Schedule" and "Back Up Now" work as soon as backups are enabled.</p>
+                        <p style="margin: 0; line-height: 1.4;">Daily snapshots of watched state, playstate, and resume progress. Saved unencrypted to <code id="watchBackupLocalPath">data/backups/watch-history</code> on the server.</p>
+                        <p style="margin: 4px 0 0; line-height: 1.4;">No passphrase needed. "Save Schedule" and "Back Up Now" work as soon as backups are enabled.</p>
                       </div>
                       <div style="margin-bottom: var(--space-2);">
                         <b style="display: block; margin-bottom: 2px;">Local Plembfin Backups</b>
-                        <p style="margin: 0; line-height: 1.4;">A full encrypted export of the database and saved settings (including server credentials and API keys), encrypted in your browser with the passphrase you enter - Plembfin never sees or stores the plaintext backup. You need at least 12 characters. Losing the passphrase means the backup cannot be decrypted; there is no recovery.</p>
+                        <p style="margin: 0; line-height: 1.4;">A full encrypted export of the database and saved settings, including server credentials and API keys.</p>
+                        <p style="margin: 4px 0 0; line-height: 1.4;">Encrypted in your browser with the passphrase you enter - Plembfin never sees or stores the plaintext backup.</p>
+                        <p style="margin: 4px 0 0; line-height: 1.4;">The passphrase needs to be at least 12 characters. <b>Losing it means the backup can't be decrypted - there's no recovery.</b></p>
                       </div>
                       <div style="margin-bottom: var(--space-2);">
                         <b style="display: block; margin-bottom: 2px;">Remember passphrase</b>
-                        <p style="margin: 0; line-height: 1.4;">Scheduled Plembfin backups run on the server with no browser open, so they need the passphrase available server-side. Checking "Remember passphrase" stores it in <code>data/config.json</code> so the schedule can run unattended; leaving it unchecked keeps the passphrase browser-only, but then only "Back Up Now" works (the schedule stays disabled) since there's no passphrase for the server to encrypt with.</p>
+                        <p style="margin: 0; line-height: 1.4;">Scheduled backups run on the server with no browser open, so the server needs the passphrase saved.</p>
+                        <p style="margin: 4px 0 0; line-height: 1.4;">Checked: the passphrase is stored in <code>data/config.json</code> so the schedule can run on its own.</p>
+                        <p style="margin: 4px 0 0; line-height: 1.4;">Unchecked: the passphrase stays browser-only. Only "Back Up Now" works, and the schedule stays off.</p>
                       </div>
                       <div style="margin-bottom: var(--space-2);">
                         <b style="display: block; margin-bottom: 2px;">Remote Destinations</b>
-                        <p style="margin: 0; line-height: 1.4;">Configure a Backblaze B2 bucket (region/endpoint, bucket name, and an application key scoped to it) as an upload target. Every enabled destination receives a copy of each remote backup run.</p>
+                        <p style="margin: 0; line-height: 1.4;">Add a Backblaze B2 bucket as an upload target: region/endpoint, bucket name, and an application key scoped to it.</p>
+                        <p style="margin: 4px 0 0; line-height: 1.4;">Every enabled destination gets a copy of each remote backup run.</p>
                       </div>
                       <div>
                         <b style="display: block; margin-bottom: 2px;">Remote Watch History / Plembfin Backups</b>
-                        <p style="margin: 0; line-height: 1.4;">Mirror the same two backup types to every enabled remote destination on their own schedule and retention. Remote Plembfin backups use the same passphrase and "remember" behavior as the local encrypted backup above.</p>
+                        <p style="margin: 0; line-height: 1.4;">Mirrors the same two backup types to every enabled remote destination, each on its own schedule and retention.</p>
+                        <p style="margin: 4px 0 0; line-height: 1.4;">Remote Plembfin backups use the same passphrase and "remember" setting as the local encrypted backup above.</p>
                       </div>
                     </article>
                   </div>
@@ -1826,7 +1981,10 @@
                       <div style="margin-bottom: var(--space-1);">
                         <b style="display: block; margin-bottom: 2px;">What This Controls</b>
                         <p style="margin: 0; line-height: 1.4;">
-                          These four values drive the heuristics behind watched-state detection and outbound sync. Every field is optional - leaving a field blank keeps the built-in default (or a matching environment variable, if one is set on the server).
+                          These values decide when a play counts as watched and how sync behaves.
+                        </p>
+                        <p style="margin: 4px 0 0; line-height: 1.4;">
+                          Every field is optional. Leave one blank to keep the built-in default (or a matching environment variable, if one is set on the server).
                         </p>
                       </div>
 
@@ -1977,17 +2135,20 @@
 
                       <div style="margin-bottom: var(--space-1);">
                         <b style="display: block; margin-bottom: 2px;">Set Plembfin as Source of Truth</b>
-                        <p style="margin: 0; line-height: 1.4;">Sends Plembfin's currently recorded watched status and saved resume positions to the selected server or all servers, overwriting whatever they currently show. Nothing is checked or pulled in first.</p>
+                        <p style="margin: 0; line-height: 1.4;">Sends Plembfin's watched status and resume positions to the selected server, or all of them, overwriting what they currently show.</p>
+                        <p style="margin: 4px 0 0; line-height: 1.4;">Nothing is checked first - it just pushes Plembfin's record out.</p>
                       </div>
 
                       <div style="margin-bottom: var(--space-1);">
                         <b style="display: block; margin-bottom: 2px;">Import Watched Status</b>
-                        <p style="margin: 0; line-height: 1.4;">Reads watched status from the selected server or all servers and adds anything Plembfin doesn't already have. Never sends anything back out, and never marks anything unwatched or removes existing history.</p>
+                        <p style="margin: 0; line-height: 1.4;">Reads watched status from the selected server, or all of them, and adds anything Plembfin is missing.</p>
+                        <p style="margin: 4px 0 0; line-height: 1.4;">Only adds - never sends anything out, marks anything unwatched, or removes existing history.</p>
                       </div>
 
                       <div>
                         <b style="display: block; margin-bottom: 2px;">Stop / Reset Sync</b>
-                        <p style="margin: 0; line-height: 1.4;">Cancels an in-progress Force Sync background job, marks queued cancellations terminal, or clears an orphaned operation lock if the server restarted mid-sync.</p>
+                        <p style="margin: 0; line-height: 1.4;">Cancels a Force Sync that's currently running.</p>
+                        <p style="margin: 4px 0 0; line-height: 1.4;">If the server restarted mid-sync and left a stuck lock behind, this also clears it so a new sync can start.</p>
                       </div>
                     </article>
                   </div>
@@ -2157,32 +2318,34 @@
                       <div style="display: flex; flex-direction: column; gap: var(--space-3);">
                         <div>
                           <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">All Logs</b>
-                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Unified stream combining both server-side background process activity and browser-side UI telemetry in chronological order.</p>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Everything in one stream, in time order - both server activity and browser activity.</p>
                         </div>
 
                         <div>
                           <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Plex WebSockets</b>
-                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Captures real-time WebSocket events pushed directly from Plex Media Server, including live playback session updates, pause/resume events, and unwatched media detection.</p>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Live events pushed from Plex: playback updates, pause/resume, and unwatched detection.</p>
                         </div>
 
                         <div>
                           <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Outbound Sync</b>
-                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Logs outbound playstate dispatches to Plex, Emby, and Jellyfin. Records mark-played and mark-unplayed calls, resume position syncs, loop-prevention checks, and target API responses.</p>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Everything Plembfin sends to Plex, Emby, and Jellyfin.</p>
+                          <p style="margin: 4px 0 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Mark-played and mark-unplayed calls, resume syncs, loop checks, and each server's response.</p>
                         </div>
 
                         <div>
                           <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Scheduled Polls</b>
-                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Tracks the per-minute background worker ticks that poll connected servers for recent watch history, evaluate 90% watched thresholds, and process periodic sync queues.</p>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">The background worker that runs every minute.</p>
+                          <p style="margin: 4px 0 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Checks connected servers for recent watches, applies the watched threshold, and works through the sync queue.</p>
                         </div>
 
                         <div>
                           <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">System Logs</b>
-                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Records core application lifecycle events, database initialization, configuration changes, scheduled task execution, and system errors or warnings.</p>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">General app events: startup, database setup, config changes, scheduled tasks, and errors or warnings.</p>
                         </div>
 
                         <div style="border-top: 1px solid var(--line); padding-top: var(--space-3);">
                           <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Downloading & Exporting</b>
-                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Use <b>Download Logs</b> to save a full <code>.log</code> file containing complete backend and frontend diagnostic history for bug reporting and troubleshooting.</p>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Use <b>Download Logs</b> to save a full <code>.log</code> file with everything, for bug reports or troubleshooting.</p>
                         </div>
                       </div>
                     </article>

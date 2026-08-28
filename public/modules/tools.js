@@ -5,6 +5,7 @@ import { initBackupTools } from "./tools-backups.js?v=20260810";
 import { initMaintenanceTools } from "./tools-maintenance.js";
 import { initHealthTools } from "./tools-health.js";
 import { initDuplicateWatchTools } from "./tools-duplicates.js";
+import { initWipeDataTools } from "./tools-wipe-data.js";
 // Callbacks injected by app.js at startup to avoid circular imports.
 let _setMessage = () => {};
 let _openConfirmDialog = async () => false;
@@ -31,6 +32,7 @@ export function initTools(callbacks) {
   initMaintenanceTools(callbacks);
   initHealthTools();
   initDuplicateWatchTools(callbacks);
+  initWipeDataTools(callbacks);
 }
 function authHeaders() {
   return buildAuthHeaders(state.token);
@@ -351,3 +353,4 @@ export async function startImport() {
 // keep working unchanged.
 export { runRepairWorkflow, runPhantomWatchAudit, runPhantomWatchRepair, runTraktBackfill, runRematchTvShows, runFullSyncWatchstates, cancelFullSyncWatchstates, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory } from "./tools-maintenance.js";
 export { runDuplicateWatchCleanup } from "./tools-duplicates.js";
+export { loadWipeDataPreview, runWipeData } from "./tools-wipe-data.js";

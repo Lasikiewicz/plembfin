@@ -53,9 +53,9 @@ const SECTIONS = {
   },
   tools: {
     label: "Tools",
-    description: "Guided setup, database repairs, and library rebuilds",
+    description: "Guided setup, database repairs, library rebuilds, and wiping data",
     panel: "tools",
-    subPanels: ["tools-guided-setup", "tools-repairs", "tools-sync"],
+    subPanels: ["tools-guided-setup", "tools-repairs", "tools-sync", "tools-wipe-data"],
   },
   advanced: {
     label: "Advanced",
@@ -297,6 +297,19 @@ const SECTIONS = {
     ],
     isDisplayOnly: true,
   },
+  "wipe-data": {
+    label: "Wipe data",
+    description: "Permanently delete tracked watch history, sync history, or reset Plembfin entirely",
+    panel: "tools",
+    subPanels: ["tools-wipe-data"],
+    subSections: [
+      { id: "wipe-watch-history", label: "Watch History", description: "Deletes local watch history, playstate, resume progress, and live sessions" },
+      { id: "wipe-sync-logs", label: "Sync History & Logs", description: "Deletes sync history, watch audit events, and diagnostic logs" },
+      { id: "wipe-everything-tracked", label: "Everything Tracked", description: "Deletes all of the above in one action" },
+      { id: "wipe-fresh-start", label: "Wipe All / Fresh Start", description: "Full factory reset - also clears settings, connections, cached artwork, and the admin login" },
+    ],
+    isDisplayOnly: true,
+  },
   "force-sync": {
     label: "Force Sync",
     description: "Preview, confirm, and run a safe synchronization plan",
@@ -366,8 +379,8 @@ const SECTION_GROUPS = [
   {
     id: "tools",
     label: "Tools",
-    sections: ["guided-setup", "database-repairs", "library-rebuilds"],
-    displayOnly: ["guided-setup", "database-repairs", "library-rebuilds"],
+    sections: ["guided-setup", "database-repairs", "library-rebuilds", "wipe-data"],
+    displayOnly: ["guided-setup", "database-repairs", "library-rebuilds", "wipe-data"],
   },
   {
     id: "logs",
@@ -393,7 +406,7 @@ const GROUP_DESCRIPTIONS = {
   sync: "Tune sync behavior, run sync tools, and review sync issues and history.",
   backup: "Schedule local and remote backups of watch history and full Plembfin data.",
   restore: "Restore watch history or a full backup from local files or a remote destination.",
-  tools: "Reopen guided setup, repair the database, and rebuild the library.",
+  tools: "Reopen guided setup, repair the database, rebuild the library, and wipe data.",
   logs: "Live server and browser diagnostic output.",
   about: "Version and changelog.",
 };

@@ -7,7 +7,7 @@ import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SOR
 import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, movieSlug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, showName, showTitleFrom, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDate, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel } from "./modules/utils.js?v=20260824h";
 import { buildWebhookUrl, renderSettingsInlineHelp } from "./modules/help-content.js";
 import { isCachedStorageImageUrl, compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, rememberPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, tmdbProfile, proxiedArtworkUrl } from "./modules/images.js?v=20260826b";
-import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, loadRemotePlembfinBackupsForRestoreTab, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runPhantomWatchAudit, runPhantomWatchRepair, runTraktBackfill, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, loadPlembfinBackups, renderPlembfinBackups, runDuplicateWatchCleanup } from "./modules/tools.js?v=20260810";
+import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, loadRemotePlembfinBackupsForRestoreTab, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runPhantomWatchAudit, runPhantomWatchRepair, runTraktBackfill, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, loadPlembfinBackups, renderPlembfinBackups, runDuplicateWatchCleanup, loadWipeDataPreview, runWipeData } from "./modules/tools.js?v=20260810";
 import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, showAvailIssuePopup, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerRetrySync, triggerCronSync, triggerStopSync, triggerForceSync, isSyncProgressActive } from "./modules/sync.js";
 import { renderSyncActivity, renderSyncActivityStatus, setSyncActivityProgress, setSyncActivitySearch, loadSyncActivity, downloadSyncActivityLog, retrySyncActivity, toggleSyncActivityRowLog, toggleSyncActivityFailedOnly, startSyncActivityRefresh, stopSyncActivityRefresh } from "./modules/sync-activity.js";
 import { initSyncPreview } from "./modules/sync-preview.js";
@@ -312,6 +312,7 @@ function bindElements() {
     duplicateWatchMovieButton: document.querySelector("#duplicateWatchMovieButton"),
     duplicateWatchStatus: document.querySelector("#duplicateWatchStatus"),
     duplicateWatchLog: document.querySelector("#duplicateWatchLog"),
+    wipeDataContent: document.querySelector("#wipeDataContent"),
     refreshMetadataButton: document.querySelector("#refreshMetadataButton"),
     refreshMetadataStatus: document.querySelector("#refreshMetadataStatus"),
     refreshMetadataLog: document.querySelector("#refreshMetadataLog"),
@@ -1891,6 +1892,7 @@ function applyActiveView() {
         .catch((error) => setMessage(error.message, "error"));
       loadPlembfinBackups().catch((error) => setMessage(error.message, "error"));
     }
+    if (routePanels.has("tools")) loadWipeDataPreview().catch((error) => setMessage(error.message, "error"));
     if (routePanels.has("logs")) renderLogs().catch(() => { });
     if (routePanels.has("changelog")) renderChangelog().catch(() => { });
     if (routePanels.has("cache")) {
@@ -2712,6 +2714,7 @@ function initialize() {
     runPhantomWatchAudit,
     runPhantomWatchRepair,
     runDuplicateWatchCleanup,
+    runWipeData,
     loadSyncActivity,
     setSyncActivitySearch,
     downloadSyncActivityLog,

@@ -22,10 +22,10 @@ export function adminTokenGuide() {
         The local username and password for this self-hosted instance.
       </p>
       <ol style="display: grid; gap: var(--space-2); margin: 0; padding-left: 1.2rem; line-height: 1.5; font-size: 0.82rem; color: var(--text);">
-        <li><b>Default credentials:</b> Username defaults to <code>admin</code> on first run. If <code>ADMIN_PASSWORD</code> isn't set, a random password is generated and printed once to the server console/logs.</li>
-        <li><b>Environment overrides:</b> Override fresh installs by setting <code>ADMIN_USERNAME</code> and <code>ADMIN_PASSWORD</code> environment variables (e.g. in <code>docker-compose.yml</code>).</li>
-        <li><b>In-app management:</b> After credentials are changed in Settings, Plembfin manages them in-app and ignores <code>ADMIN_USERNAME</code> / <code>ADMIN_PASSWORD</code> until <code>authManagedInApp</code> is removed from <code>data/config.json</code>.</li>
-        <li><b>Webhook secrets:</b> Webhooks use a separate secret token. Media servers can use the token in the webhook URL; automation clients can send it with <code>X-Plembfin-Webhook-Secret</code> or <code>Authorization: Bearer</code>. You can rotate it independently without affecting your admin password or API key.</li>
+        <li><b>Default credentials:</b> Username is <code>admin</code> on first run. If <code>ADMIN_PASSWORD</code> isn't set, a random password is generated and printed once to the server console.</li>
+        <li><b>Environment overrides:</b> Set <code>ADMIN_USERNAME</code> and <code>ADMIN_PASSWORD</code> as environment variables (for example, in <code>docker-compose.yml</code>) to override a fresh install.</li>
+        <li><b>In-app management:</b> Once you change credentials in Settings, Plembfin manages them itself and stops reading the environment variables.</li>
+        <li><b>Webhook secrets:</b> A separate secret token, not this password, is what secures webhooks. Rotate it any time without affecting your admin login.</li>
       </ol>
     </div>
   `;
@@ -436,7 +436,8 @@ export function savedCredentialNote() {
   return `
     <div class="guide-callout credential-guide">
       <b>About saved credentials</b>
-      <p>Saved tokens and API keys are never redisplayed in the browser. A blank field showing a "Configured" placeholder means a credential is stored and in use - leave the field blank to keep it, or enter a new value to replace it.</p>
+      <p>Saved tokens and API keys are never shown again in the browser.</p>
+      <p style="margin-top: 4px;">A blank field with a "Configured" placeholder means one is already saved and in use. Leave it blank to keep it, or enter a new value to replace it.</p>
     </div>
   `;
 }
@@ -460,7 +461,8 @@ export function renderSettingsInlineHelp() {
           <span>No webhook setup required</span>
         </summary>
         <div class="tool-item-row" style="padding: var(--space-3); width: 100%;">
-          <p style="font-size: 0.9rem; color: var(--muted); margin: 0;">Plembfin connects to Plex's WebSocket channel automatically, capturing watched and unwatched changes in real time, and also checks playback progress every minute.<br>Changes are applied to Plembfin and propagated to your other servers.</p>
+          <p style="font-size: 0.9rem; color: var(--muted); margin: 0;">Plembfin watches Plex automatically. It picks up watched and unwatched changes in real time, and also checks playback progress every minute.</p>
+          <p style="font-size: 0.9rem; color: var(--muted); margin: var(--space-2) 0 0;">Changes are saved to Plembfin and passed on to your other servers.</p>
           <div class="guide-callout warning-callout" style="gap: var(--space-1); border-color: rgba(234, 179, 8, 0.45); background: rgba(234, 179, 8, 0.08); margin-top: var(--space-3);">
             <b style="color: var(--yellow); font-size: 0.85rem; display: block;">
               Turn off "Refresh library metadata periodically"
@@ -470,7 +472,7 @@ export function renderSettingsInlineHelp() {
               <li>Disable <b>"Refresh library metadata periodically"</b>.</li>
             </ol>
             <p style="margin: var(--space-1) 0 0; font-size: 0.82rem; line-height: 1.4; color: var(--text-muted, var(--muted));">
-              That task can reset viewed items to unwatched on Plex during its nightly run, and Plembfin would propagate that as a real unwatch to Emby, Jellyfin, and Trakt. Turning it off prevents that.
+              This Plex task can quietly reset watched items back to unwatched overnight. Plembfin would then copy that "unwatch" to Emby, Jellyfin, and Trakt. Turning it off stops that from happening.
             </p>
           </div>
         </div>
@@ -503,7 +505,9 @@ export function renderSettingsInlineHelp() {
   if (syncIssuesHelp) {
     syncIssuesHelp.innerHTML = `
       <b style="display: block; margin-bottom: var(--space-1);">Cross-Platform Match Report</b>
-      <p class="tool-accordion-desc" style="margin: 0;">The expandable report below Sync Issues lists media Plembfin could not identify, grouped by target platform - pick the right title to fix each one. Media that is identified and simply absent from a library is not listed: the watch is recorded correctly, and if the file is added to that server later it is marked watched automatically. <b>Rescan</b> re-runs the sync for every listed item and rebuilds the report; <b>Fix All Matches</b> does the same, then walks through them one at a time.</p>
+      <p class="tool-accordion-desc" style="margin: 0;">Lists media Plembfin couldn't identify, grouped by platform. Pick the right title to fix each one.</p>
+      <p class="tool-accordion-desc" style="margin: 4px 0 0;">Media that's identified but just missing from a library isn't listed - the watch is already recorded correctly, and it's marked watched automatically if the file shows up there later.</p>
+      <p class="tool-accordion-desc" style="margin: 4px 0 0;"><b>Rescan</b> re-runs the sync for every listed item and rebuilds the report. <b>Fix All Matches</b> does the same, then walks you through fixing them one at a time.</p>
     `;
   }
 }

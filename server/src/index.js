@@ -9,6 +9,7 @@ import { handleAddWatchDate, handleClearMissingTelemetry, handleDeleteHistoryRec
 import { handleActiveSessions, handleCronSync, handleCronSyncStatus, handleForceSync, handleForceSyncPlan, handleForceSyncCancellation, handleLibraryForceSync, handleLibraryForceSyncStatus, handleManualUnwatch, handleMediaForceSync, handleMediaForceSyncStatus, handleManualWatch, handleNowPlaying, handlePlaybackProgressList, handlePlaybackProgressUnwatch, handlePlaybackProgressWatch, handleRetrySync, handleRetrySyncHistory, handleStopForceSync, handleSyncHistory, handleSyncJobs, handleSyncLibraries, handleWebhook } from "./routes/sync.js";
 import { handleFanartImages, handleMediaSearch, handleOmdbRating, handlePoster, handleRemoteArtwork, handleTmdbDetails, handleTmdbDetailsBatch, handleTmdbImages, handleTmdbPerson, handleTmdbPoster, handleTmdbProfile, handleTmdbSearch, handleTmdbSeason, handleTvdbImages, handleTvdbSearch, handleUpcoming, handleYoutubeMeta } from "./routes/metadata.js";
 import { handleAdminFixHistory, handleBackfillStatus, handleBackfillTrakt, handleCacheStats, handleChangelog, handleClearCache, handleDebugPlexMatch, handleDiagnosticLogs, handleMaintenanceStub, handlePing, handleRefreshTmdbMetadata, handleRefreshTvdbMetadata, handleRematchTvShows, handleSyncHealth, handleSyncMatchReport, handlePhantomWatchAudit, handlePhantomWatchRepair, handleStaleTraktImportAudit, handleStaleTraktImportRepair, handleStalePendingWatchAudit, handleStalePendingWatchRepair, handleSplitIdentityUnwatchAudit, handleSplitIdentityUnwatchRepair, handleLikelyFalseUnwatchAudit, handleLikelyFalseUnwatchRepair } from "./routes/maintenance.js";
+import { handleWipeDataPreview, handleWipeData } from "./routes/wipeData.js";
 import { handleEmbyLikeAuth, handleEmbyLikeConnection, handlePlexAuth, handlePlexConnection } from "./routes/mediaAuth.js";
 import { handleTrackerAuth, handleTrackerConnections } from "./routes/trackerAuth.js";
 import { handleLiveUpdates } from "./routes/liveUpdates.js";
@@ -147,6 +148,8 @@ async function dispatch(req, res) {
     if (path === "poster") return handlePoster(req, res);
     if (path === "cache-stats") return handleCacheStats(req, res);
     if (path === "clear-cache") return handleClearCache(req, res);
+    if (path === "wipe-data/preview") return handleWipeDataPreview(req, res);
+    if (path === "wipe-data") return handleWipeData(req, res);
     if (path === "admin-backfill-status") return handleBackfillStatus(req, res);
     if (path === "admin-backfill-trakt") return handleBackfillTrakt(req, res);
     if (path === "admin-fix-history") return handleAdminFixHistory(req, res);

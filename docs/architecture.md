@@ -139,6 +139,7 @@ See [README.md](README.md) for the documentation index, including this file
 | `metadata.js` | Poster proxy and metadata/search handlers: TMDB details/search/season/images/person/poster/profile, the remote-artwork caching proxy, TVDB search/images, Fanart images, media search, Upcoming episodes, YouTube metadata, and OMDb ratings. |
 | `sync.js` | Sync/runtime handlers: webhook ingestion, manual watch/unwatch, playback progress, retry sync, sync job/history listing, Now Playing, active sessions, cron sync, library-wide planner Force Sync, Settings library Force Sync modes and status polling, title-scoped detail-page Force Sync modes and status polling, and stop-force-sync. |
 | `maintenance.js` | Maintenance/admin utility handlers: ping, changelog/update check, diagnostic logs, cross-platform match reporting, backfill/repair/dedup/rematch, cache stats, and cache clearing. |
+| `wipeData.js` | Wipe data handlers (`GET /api/wipe-data/preview`, `POST /api/wipe-data`): Watch History, Sync History & Logs, Everything Tracked, and Wipe All / Fresh Start (also clears every remaining table, deletes cached artwork, and resets `data/config.json` via `appConfig.js`'s `resetAdminAccount()`). Kept separate from `maintenance.js`, which is already near its size limit. |
 | `mediaAuth.js` | Browser-session-only Plex account, Emby account, and Jellyfin Quick Connect/account flows; verifies identities and persists encrypted managed connections. |
 | `trackerAuth.js` | Trakt device authorization, initial-state policy, connection status/disconnect, and manual tracker synchronization. |
 | `liveUpdates.js` | Authenticated streaming endpoint that emits shared history-version changes so open pages refresh as watch-state commits land. |
@@ -257,6 +258,7 @@ See [README.md](README.md) for the documentation index, including this file
 | `tools-backups.js` | Settings backup and appearance UI: full export/import, watch-history backups, encrypted backups, Backblaze destination cards/dialogs, backup passphrase controls, and appearance settings. See [backups.md](backups.md). |
 | `tools-maintenance.js` | Maintenance diagnostics: System Integrity Check, repair workflow, dedup history, Trakt backfill, TV re-match, full watchstate sync, cache stats/clear. |
 | `tools-duplicates.js` | Library-wide duplicate-watch cleanup (Settings → Tools → Database Repairs): scans then removes every extra watch beyond the oldest, for TV episodes and movies separately. |
+| `tools-wipe-data.js` | Wipe data (Settings → Tools → Wipe data): Watch History, Sync History & Logs, Everything Tracked, and Wipe All / Fresh Start (full factory reset). Two confirm dialogs per action; row-count previews from `GET /api/wipe-data/preview`. |
 | `help-content.js` | Static help/guide HTML: credential guides, webhook setup per platform, cron guide, settings inline help. |
 | `app-events.js` | Global app event wiring (delegated click/submit/keyboard handlers bound at startup). |
 

@@ -996,6 +996,14 @@ function attachEvents() {
     });
   }
 
+  if (elements.wipeDataContent) {
+    elements.wipeDataContent.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-wipe-scope]");
+      if (!button) return;
+      _cb.runWipeData?.(button.dataset.wipeScope)?.catch?.(() => {});
+    });
+  }
+
   if (elements.refreshMetadataButton) {
     elements.refreshMetadataButton.addEventListener("click", () => {
       runRefreshMetadataWorkflow().catch((error) => {

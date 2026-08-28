@@ -17,7 +17,7 @@ Desktop renders the grouped sidebar; mobile uses the **Settings section** select
 | Sync | `/settings/sync` | Sync Tuning, Sync Tools (Repair Recent Items, Full Sync Watchstates, Force Sync), Sync Issues, Sync History | `/settings/sync#sync-tuning`, `/settings/sync#sync-tools`, `/settings/sync#sync-issues`, `/settings/sync#sync-history` |
 | Backup | `/settings/backup` | Local (Watch History, Plembfin), Remote (Watch History, Plembfin) | `/settings/backup#backup-local`, `/settings/backup#backup-remote` |
 | Restore | `/settings/restore` | Local (Watch History, Plembfin), Remote (Watch History, Plembfin) | `/settings/restore#restore-local`, `/settings/restore#restore-remote` |
-| Tools | `/settings/tools` | Guided Setup, Database Repairs, Library Rebuilds and Backfills | `/settings/tools#guided-setup`, `/settings/tools#database-repairs`, `/settings/tools#library-rebuilds` |
+| Tools | `/settings/tools` | Guided Setup, Database Repairs, Library Rebuilds and Backfills, Wipe data (Watch History, Sync History & Logs, Everything Tracked, Wipe All / Fresh Start) | `/settings/tools#guided-setup`, `/settings/tools#database-repairs`, `/settings/tools#library-rebuilds`, `/settings/tools#wipe-data` |
 | Logs | `/settings/logs` | (none - single-page group) | - |
 | About | `/settings/about` | (none - single-page group) | - |
 
@@ -30,7 +30,7 @@ of them are hand-written lists elsewhere. Adding, renaming, splitting, or reorde
 group or section only ever means editing `SECTION_GROUPS`/`SECTIONS`; every nav surface
 picks up the change automatically and does not need a matching edit of its own.
 
-Backup and Restore go one level deeper than most groups: their Local and Remote children each carry their own `subSections` (Watch History, Plembfin), which the sidebar renders as a third-level "grandchild" row and which resolve via the same parent-and-hash pattern - for example, `/settings/backup#local-watch-history-backups` or `/settings/restore#remote-plembfin-restore`. This is the same three-level pattern already used by Database Repairs and System Integrity Check.
+Backup and Restore go one level deeper than most groups: their Local and Remote children each carry their own `subSections` (Watch History, Plembfin), which the sidebar renders as a third-level "grandchild" row and which resolve via the same parent-and-hash pattern - for example, `/settings/backup#local-watch-history-backups` or `/settings/restore#remote-plembfin-restore`. This is the same three-level pattern already used by Database Repairs, System Integrity Check, and Wipe data.
 
 ### Section ID naming rule
 
@@ -197,6 +197,7 @@ footer visible while the body scrolls, and collapse to stacked fields on mobile.
 | `public/modules/tools.js` | Trakt import and compatibility exports for backup and maintenance behavior |
 | `public/modules/tools-backups.js` | Backup schedules, restore, destination cards/dialogs, and appearance behavior |
 | `public/modules/tools-maintenance.js` | Diagnostics, cross-platform match reporting, repairs, backfills, and cache behavior |
+| `public/modules/tools-wipe-data.js` | Wipe data: Watch History, Sync History & Logs, Everything Tracked, and Wipe All / Fresh Start, each behind two confirm dialogs |
 | `public/modules/help-content.js` | Credential, webhook, migration, and account setup guides |
 | `public/modules/logs.js` / `public/modules/sync.js` | Logs and sync rendering/loaders |
 | `public/app.js` | SPA routing, per-view data-loader gating across `route.views`, element binding, and module callback injection |
@@ -272,6 +273,15 @@ server reached over the public internet from being overwhelmed by a large sync.
   TV rematching, and Trakt poster backfill with their confirmations and logs, split
   across the Database Repairs and Library Rebuilds and Backfills accordions.
 - Trakt owns the Trakt/CSV importer; Backup and Restore own their respective workflows.
+- Wipe data (`server/src/routes/wipeData.js`, `GET/POST /api/wipe-data(/preview)`) offers four
+  destructive scopes: Watch History, Sync History & Logs, Everything Tracked (both together),
+  and Wipe All / Fresh Start. The first three only ever touch tracked watch/sync tables -
+  settings, connections, credentials, and the admin login are untouched. Wipe All / Fresh Start
+  is the one exception: it also clears every remaining table, deletes cached artwork on disk,
+  and calls `resetAdminAccount()` in `server/src/appConfig.js` to reset `data/config.json` back
+  to a pristine, unclaimed install - which signs out every session, including the one that ran
+  it. Every action requires two sequential confirm dialogs in the browser, plus the request body
+  must include `confirm: "DELETE"` as a server-side backstop against a stray or replayed request.
 
 No maintenance API or stored media configuration format changes are introduced by the
 settings shell.

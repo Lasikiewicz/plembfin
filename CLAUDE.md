@@ -351,6 +351,7 @@ When adding frontend code, place it in the most specific existing module that ow
 | Backup and appearance tools | `modules/tools-backups.js` |
 | Maintenance diagnostics, cache tools, sync repair tools, and sync health | `modules/tools-maintenance.js`, `modules/tools-health.js` |
 | Library-wide duplicate-watch cleanup (Settings → Tools → Database Repairs) | `modules/tools-duplicates.js` |
+| Wipe data (Settings → Tools → Wipe data): watch history, sync history/logs, and full factory reset | `modules/tools-wipe-data.js` |
 | Auth, session, tokens | `modules/auth.js` |
 | Guided first-run setup (`/setup`), account-claim form wiring, dashboard checklist, Settings resume banner | `modules/onboarding.js` |
 | Debug/diagnostic logs & telemetry export | `modules/logs.js` (categorization, local time formatting, export) |
@@ -403,6 +404,7 @@ If a new feature area doesn't fit any existing module and would exceed 150 lines
 | TMDB/TVDB/Fanart/OMDb/YouTube metadata and image APIs | `server/src/routes/metadata.js` |
 | Webhooks, manual watch/unwatch, playback progress, sync job/history listing, cron/force sync, preview plans, now playing | `server/src/routes/sync.js` |
 | Backfill, repair, dedup, rematch, cache, logs, changelog, ping | `server/src/routes/maintenance.js` |
+| Wipe data: watch history, sync history/logs, and full factory reset (also resets `data/config.json` via `appConfig.js`'s `resetAdminAccount()`) | `server/src/routes/wipeData.js` |
 | Scheduler tick and Plex notification listener lifecycle | `server/src/scheduler.js` |
 
 ## Architecture
