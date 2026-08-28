@@ -18,7 +18,9 @@ import {
   getBackupDestination,
   importWatchHistoryBackupFile,
   listRemoteBackups,
+  listRemotePlembfinBackups,
   pullRemoteBackupToLocal,
+  pullRemotePlembfinBackupToLocal,
   readWatchBackupFile,
   removeBackupDestination,
   clearRestoreStatus,
@@ -129,6 +131,17 @@ export async function handlePlembfinBackups(req, res) {
       const filename = String(body.filename || "").trim();
       if (!filename) return sendJson(res, { error: "filename is required" }, 400);
       return sendJson(res, { ok: true, ...deletePlembfinBackup(filename) });
+    }
+    if (action === "list-remote-backups") {
+      const id = String(body.destinationId || "").trim();
+      if (!id) return sendJson(res, { error: "destinationId is required" }, 400);
+      return sendJson(res, { ok: true, files: await listRemotePlembfinBackups(id) });
+    }
+    if (action === "pull-remote-backup") {
+      const id = String(body.destinationId || "").trim();
+      const filename = String(body.filename || "").trim();
+      if (!id || !filename) return sendJson(res, { error: "destinationId and filename are required" }, 400);
+      return sendJson(res, { ok: true, pulled: await pullRemotePlembfinBackupToLocal(id, filename) });
     }
     return sendJson(res, { error: `Unsupported action: ${action}` }, 400);
   } catch (error) {

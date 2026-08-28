@@ -44,6 +44,8 @@ export const state = {
   activeBackupsTab: localStorage.getItem("activeBackupsTab") || "settings",
   remoteBackupFiles: [],
   remoteBackupFilesLoading: false,
+  remotePlembfinBackupFiles: [],
+  remotePlembfinBackupFilesLoading: false,
   historyWeekStart: _startOfWeek(new Date()),
   history: [],
   historyVersion: "",

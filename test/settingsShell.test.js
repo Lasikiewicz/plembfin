@@ -43,7 +43,7 @@ test("parent group routes aggregate every child's panel into one view list", () 
   const mediaServers = parseSettingsRoute("/settings/media-servers");
   assert.deepEqual(
     mediaServers.views.map((v) => v.panel),
-    ["apps", "general"],
+    ["apps"],
   );
 
   const backupRestore = parseSettingsRoute("/settings/backup-restore");
@@ -71,9 +71,9 @@ test("legacy and invalid settings routes normalize safely", () => {
   assert.equal(parseSettingsRoute("/settings/connections/plex").path, "/settings/media-servers");
   assert.equal(parseSettingsRoute("/settings/connections/webhooks").path, "/settings/webhooks");
   assert.equal(parseSettingsRoute("/settings/metadata/tmdb").path, "/settings/metadata");
-  assert.equal(parseSettingsRoute("/settings/data/backups").path, "/settings/backups");
+  assert.equal(parseSettingsRoute("/settings/data/backups").path, "/settings/backup-settings");
   assert.equal(parseSettingsRoute("/settings/data/restore").path, "/settings/restore");
-  assert.equal(parseSettingsRoute("/settings/data/import").path, "/settings/import");
+  assert.equal(parseSettingsRoute("/settings/data/import").path, "/settings/trakt");
   assert.equal(parseSettingsRoute("/settings/system/advanced").path, "/settings/database-repairs");
   assert.equal(parseSettingsRoute("/settings/tools").path, "/settings/tools");
   assert.equal(parseSettingsRoute("/sync").path, "/settings/sync-issues");

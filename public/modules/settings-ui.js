@@ -472,7 +472,7 @@ export function openSettingsPickerModal({ title = "Add", intro = "", items = [],
 
 // Renders a Sonarr-style card grid: one card per configured service (name +
 // status badges) and a trailing dashed "+" card when onAdd is provided.
-export function renderServiceCardGrid(container, { items = [], onSelect, onAdd, addLabel = "Add" } = {}) {
+export function renderServiceCardGrid(container, { items = [], onSelect, onAdd, addLabel = "Add", addVisibleLabel = "" } = {}) {
   if (!container) return;
   const badgeMarkup = (badges = []) => badges.map((badge) =>
     `<span class="status-pill status-${escapeAttribute(badge.tone || "muted")}">${escapeHtml(badge.label)}</span>`
@@ -485,7 +485,7 @@ export function renderServiceCardGrid(container, { items = [], onSelect, onAdd, 
         <span class="service-card-badges">${badgeMarkup(item.badges)}</span>
       </button>
     `).join("")}
-    ${onAdd ? `<button class="service-card service-card--add" type="button" aria-label="${escapeAttribute(addLabel)}"><span aria-hidden="true">+</span></button>` : ""}
+    ${onAdd ? `<button class="service-card service-card--add" type="button" aria-label="${escapeAttribute(addLabel)}"><span aria-hidden="true">+</span>${addVisibleLabel ? `<span class="service-card-add-text">${escapeHtml(addVisibleLabel)}</span>` : ""}</button>` : ""}
   `;
   container.querySelectorAll("[data-service-id]").forEach((button) => {
     button.addEventListener("click", () => onSelect?.(button.dataset.serviceId));

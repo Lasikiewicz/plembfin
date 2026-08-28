@@ -3,7 +3,7 @@ import fs from "node:fs";
 import path from "node:path";
 import zlib from "node:zlib";
 import { bumpDataVersion, db, parseJson, toJson } from "../db.js";
-import { WATCH_HISTORY_BACKUPS_DIR } from "../paths.js";
+import { FULL_BACKUPS_DIR, WATCH_HISTORY_BACKUPS_DIR } from "../paths.js";
 import { createAdapter, DESTINATION_TYPES } from "./backupDestinations/index.js";
 import { protectedSnapshotFiles } from "./syncPlans.js";
 
@@ -295,6 +295,41 @@ export async function pullRemoteBackupToLocal(id, filename) {
 
   fs.mkdirSync(WATCH_HISTORY_BACKUPS_DIR, { recursive: true });
   const finalPath = backupPath(name);
+  const temporary = `${finalPath}.tmp-${process.pid}`;
+  fs.writeFileSync(temporary, buffer);
+  fs.renameSync(temporary, finalPath);
+  return { name, sizeBytes: buffer.length };
+}
+
+export async function listRemotePlembfinBackups(id) {
+  const destination = getBackupDestination(id);
+  if (!destination) throw new Error("Destination not found");
+  const files = await adapterFor(destination).list();
+  return files.filter((file) => FULL_BACKUP_FILE_PATTERN.test(file.name));
+}
+
+// Download an encrypted full Plembfin backup from a remote destination and place it in
+// the local store, so the existing local-file restore flow (decrypt in the browser with
+// the passphrase, then import) can use it without any changes.
+export async function pullRemotePlembfinBackupToLocal(id, filename) {
+  const destination = getBackupDestination(id);
+  if (!destination) throw new Error("Destination not found");
+  const name = path.basename(String(filename || ""));
+  if (!FULL_BACKUP_FILE_PATTERN.test(name)) throw new Error("Invalid backup filename");
+
+  const buffer = await adapterFor(destination).download(name);
+  let document;
+  try {
+    document = JSON.parse(buffer.toString("utf8"));
+  } catch {
+    throw new Error("Downloaded file is not a valid Plembfin backup");
+  }
+  if (document?.format !== "plembfin-encrypted-backup" || Number(document?.version) !== 1) {
+    throw new Error("Downloaded file is not an encrypted Plembfin backup");
+  }
+
+  fs.mkdirSync(FULL_BACKUPS_DIR, { recursive: true });
+  const finalPath = path.join(FULL_BACKUPS_DIR, name);
   const temporary = `${finalPath}.tmp-${process.pid}`;
   fs.writeFileSync(temporary, buffer);
   fs.renameSync(temporary, finalPath);

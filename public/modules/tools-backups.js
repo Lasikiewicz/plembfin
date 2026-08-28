@@ -44,6 +44,7 @@ export function setBackupTransferState(label, tone = "muted", log = "", area = "
     status.className = `status-pill status-${tone}`;
   }
   if (log && output) {
+    output.classList.remove("hidden");
     output.textContent = log;
     output.scrollTop = output.scrollHeight;
   }
@@ -398,14 +399,14 @@ export function renderWatchBackups() {
   const clearMode = state.restoreClearMode || "reconcile";
   const clearModeSelector = `
     <div class="restore-clear-mode" style="margin-bottom: var(--space-3);">
-      <div class="restore-clear-intro">Watch-history restore makes the selected backup the source of truth and pushes it to every connected app. Choose how Plembfin should handle existing app state first:</div>
+      <div class="restore-clear-intro">Watch-history restore pushes the selected backup's watched history to every connected app. Choose whether to merge it into each app's existing state or replace that state completely:</div>
       <label>
         <input type="radio" name="restoreClearMode" value="reconcile" ${clearMode === "reconcile" ? "checked" : ""} data-restore-clear-mode>
-        <span><b>Reconcile tracked items</b> - push only items in this backup. Faster, and apps keep watched items that the backup does not know about.</span>
+        <span><b>Merge into existing state</b> - adds this backup's watched items to each app without touching anything else. Faster, but watched items the apps have that this backup does not know about are left as they are.</span>
       </label>
       <label>
         <input type="radio" name="restoreClearMode" value="wipe" ${clearMode === "wipe" ? "checked" : ""} data-restore-clear-mode>
-        <span><b>Full wipe then push</b> - first mark every watched item in each app as unwatched, then re-apply only this backup's watched set. Slower, but the apps end up matching the backup.</span>
+        <span><b>Replace existing state</b> - marks every watched item in each app as unwatched, then re-applies only this backup's watched set, so each app ends up matching the backup exactly. Slower, but this is a true restore.</span>
       </label>
     </div>`;
   const entryRow = (entry) => `
@@ -642,6 +643,7 @@ export function renderBackupDestinationCards() {
     onSelect: (id) => openBackupDestinationModal(destinations.find((destination) => destination.id === id)),
     onAdd: openBackupDestinationPicker,
     addLabel: "Add backup destination",
+    addVisibleLabel: "Click to add a remote destination",
   });
 }
 export async function restoreRemoteBackupFromCard(card, filename, clearMode = "reconcile") {
@@ -823,6 +825,32 @@ export function renderPlembfinBackups() {
     ? plembfinRows.slice(0, 2).join("") + collapseOlderRows(plembfinRows.slice(2))
     : `<div class="empty-log"><b>No scheduled Plembfin backups yet</b><span>Use Back Up Now or enable the daily schedule.</span></div>`;
 
+  if (elements.remotePlembfinBackupList) {
+    const remoteFiles = Array.isArray(state.remotePlembfinBackupFiles) ? state.remotePlembfinBackupFiles : [];
+    const remoteSorted = [...remoteFiles].sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime());
+    const remoteRows = remoteSorted.map((file) => `
+      <article class="watch-backup-row">
+        <div class="watch-backup-copy">
+          <b>${escapeHtml(file.name)}</b>
+          <span>
+            ${escapeHtml(watchBackupDate(file.createdAt))} · ${escapeHtml(formatBytes(file.sizeBytes))}
+            <span class="status-pill status-muted" style="font-size: 0.7rem; padding: 1px 6px; margin-left: 4px;">${escapeHtml(file.destLabel || "Remote")}</span>
+          </span>
+        </div>
+        <div class="watch-backup-actions">
+          <button class="button-primary" type="button" data-plembfin-remote-backup-restore="${escapeAttribute(file.name)}" data-restore-dest-id="${escapeAttribute(file.destId)}">Restore</button>
+        </div>
+      </article>
+    `);
+    if (state.remotePlembfinBackupFilesLoading) {
+      elements.remotePlembfinBackupList.innerHTML = `<div class="empty-log"><b>Checking remote destinations...</b></div>`;
+    } else {
+      elements.remotePlembfinBackupList.innerHTML = remoteRows.length
+        ? remoteRows.slice(0, 2).join("") + collapseOlderRows(remoteRows.slice(2))
+        : `<div class="empty-log"><b>No remote Plembfin backups</b><span>Configure a remote destination on the Backups tab, then create a Plembfin backup with remote mirroring on.</span></div>`;
+    }
+  }
+
   updatePlembfinButtonsState();
 }
 export async function savePlembfinBackupSettings() {
@@ -931,8 +959,8 @@ export async function deletePlembfinBackupFile(filename) {
   await loadPlembfinBackups({ force: true });
   _setMessage("Backup deleted successfully.", "success");
 }
-export async function restorePlembfinBackupFromServer(filename) {
-  const passphrase = elements.backupRestorePassphrase?.value.trim() || "";
+export async function restorePlembfinBackupFromServer(filename, passphraseOverride) {
+  const passphrase = passphraseOverride || elements.backupRestorePassphrase?.value.trim() || "";
   if (passphrase.length < 12) {
     throw new Error("Enter a restore passphrase of at least 12 characters.");
   }
@@ -956,6 +984,48 @@ export async function restorePlembfinBackupFromServer(filename) {
     setBackupTransferState("Failed", "error", `Restore failed: ${error.message}`, "restore");
     _setMessage(error.message, "error");
   }
+}
+// Pulls an encrypted Plembfin backup mirrored to a remote destination into local
+// storage, then restores it with the existing local-file flow (download, decrypt in
+// the browser with the entered passphrase, import).
+export async function restoreRemotePlembfinBackup(destinationId, filename) {
+  const passphrase = elements.backupRestoreRemotePassphrase?.value.trim() || "";
+  if (passphrase.length < 12) {
+    _setMessage("Enter a restore passphrase of at least 12 characters.", "warning");
+    return;
+  }
+  setBackupTransferState("Downloading", "warning", `Downloading ${filename} from remote destination...`, "restore");
+  try {
+    const { pulled } = await postPlembfinBackupAction({ action: "pull-remote-backup", destinationId, filename });
+    await restorePlembfinBackupFromServer(pulled.name, passphrase);
+    await loadPlembfinBackups({ force: true });
+  } catch (error) {
+    setBackupTransferState("Failed", "error", `Restore failed: ${error.message}`, "restore");
+    _setMessage(error.message, "error");
+  }
+}
+export async function loadRemotePlembfinBackupsForRestoreTab() {
+  const data = state.watchBackups;
+  if (!data) return;
+  const destinations = Array.isArray(data.destinations) ? data.destinations : [];
+  if (!destinations.length) return;
+  state.remotePlembfinBackupFilesLoading = true;
+  state.remotePlembfinBackupFiles = [];
+  renderPlembfinBackups();
+  const results = await Promise.allSettled(
+    destinations.map(async (dest) => {
+      try {
+        const result = await postPlembfinBackupAction({ action: "list-remote-backups", destinationId: dest.id });
+        const files = Array.isArray(result.files) ? result.files : [];
+        return files.map((f) => ({ ...f, source: "remote", destId: dest.id, destLabel: dest.label || dest.type || "Remote" }));
+      } catch {
+        return [];
+      }
+    })
+  );
+  state.remotePlembfinBackupFiles = results.flatMap((r) => r.status === "fulfilled" ? r.value : []);
+  state.remotePlembfinBackupFilesLoading = false;
+  renderPlembfinBackups();
 }
 // ── Appearance settings ────────────────────────────────────────────────────
 export const APPEARANCE_DEFAULTS = {
