@@ -172,6 +172,13 @@ export function renderWatchDatePrompt(action) {
           <ul class="watch-date-episode-list">${episodesHtml}</ul>
         </div>
 
+        ${action.scope === "show" && action.hasSpecials ? `
+        <label class="watch-date-specials-toggle">
+          <input type="checkbox" data-watch-date-include-specials ${action.includeSpecials ? "checked" : ""} />
+          <span>Include specials (Season 0)</span>
+        </label>
+        ` : ""}
+
         <div class="watch-date-section-label">Watched date</div>
         <div class="watch-date-options">
           <button class="watch-date-pick" type="button" data-watch-date-choice="release"${hasAirDate ? "" : " disabled"}>
@@ -293,9 +300,38 @@ export function watchActionFromButton(button) {
     resyncEpisodes = seasonEpisodes.filter((episode) => episode.watched);
     referenceScope = seasonEpisodes;
   } else if (scope === "show") {
-    episodes = state.showModalEpisodes.filter((episode) => !episode.watched && !isEpisodeUnreleased(episode));
-    resyncEpisodes = state.showModalEpisodes.filter((episode) => episode.watched);
+    // Specials (season 0) are excluded from a whole-show "Mark watched" by
+    // default - they're usually bonus/behind-the-scenes content the user
+    // hasn't actually seen, so bulk-marking a show shouldn't silently sweep
+    // them in. The dialog offers an opt-in "Include specials" toggle.
+    const allEpisodes = state.showModalEpisodes.filter((episode) => !episode.watched && !isEpisodeUnreleased(episode));
+    const allResyncEpisodes = state.showModalEpisodes.filter((episode) => episode.watched);
+    const isSpecial = (episode) => Number(episode.seasonNumber) === 0;
+    episodes = allEpisodes.filter((episode) => !isSpecial(episode));
+    resyncEpisodes = allResyncEpisodes.filter((episode) => !isSpecial(episode));
     referenceScope = state.showModalEpisodes;
+
+    if (!episodes.length && !resyncEpisodes.length && !allEpisodes.length && !allResyncEpisodes.length) return null;
+
+    const anchor = episodes[0] || resyncEpisodes[0] || allEpisodes[0] || allResyncEpisodes[0];
+    const showTitle = anchor?.showTitle || "Show";
+    const reference = watchedReferenceFor(referenceScope);
+
+    return {
+      scope,
+      showTitle,
+      showTmdbId: anchor?.showTmdbId || "",
+      episodes,
+      resyncEpisodes,
+      allEpisodes,
+      allResyncEpisodes,
+      includeSpecials: false,
+      hasSpecials: allEpisodes.some(isSpecial) || allResyncEpisodes.some(isSpecial),
+      label: `Mark ${showTitle} watched`,
+      countLabel: `${episodes.length} episode${episodes.length === 1 ? "" : "s"}`,
+      referenceWatchedAt: reference?.watchedAt || "",
+      referenceEpisodeLabel: reference?.label || "",
+    };
   }
 
   if (!episodes.length && !resyncEpisodes.length) return null;
@@ -304,9 +340,7 @@ export function watchActionFromButton(button) {
   const showTitle = anchor?.showTitle || "Show";
   const label = scope === "episode"
     ? `Mark ${episodeCode(anchor.seasonNumber, anchor.episodeNumber)} watched`
-    : scope === "season"
-      ? `Mark ${showTitle} ${seasonLabel(anchor.seasonNumber)} watched`
-      : `Mark ${showTitle} watched`;
+    : `Mark ${showTitle} ${seasonLabel(anchor.seasonNumber)} watched`;
   const reference = watchedReferenceFor(referenceScope);
 
   return {
@@ -320,6 +354,20 @@ export function watchActionFromButton(button) {
     referenceWatchedAt: reference?.watchedAt || "",
     referenceEpisodeLabel: reference?.label || "",
   };
+}
+
+// Re-applies (or removes) specials from an in-flight "Mark show watched"
+// action's episode/resync lists when the dialog's "Include specials"
+// checkbox is toggled, then re-renders the dialog to reflect the new scope.
+export function toggleWatchDateIncludeSpecials(checked) {
+  const action = state.pendingWatchAction;
+  if (!action || action.scope !== "show" || !action.hasSpecials) return;
+  const isSpecial = (episode) => Number(episode.seasonNumber) === 0;
+  action.includeSpecials = checked;
+  action.episodes = checked ? action.allEpisodes : action.allEpisodes.filter((episode) => !isSpecial(episode));
+  action.resyncEpisodes = checked ? action.allResyncEpisodes : action.allResyncEpisodes.filter((episode) => !isSpecial(episode));
+  action.countLabel = `${action.episodes.length} episode${action.episodes.length === 1 ? "" : "s"}`;
+  openWatchDatePrompt(action);
 }
 
 // Re-pushes episodes plembfin already has as watched to every connected

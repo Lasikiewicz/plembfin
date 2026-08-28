@@ -9366,6 +9366,23 @@ html.light-mode .progress-bar-fill {
   letter-spacing: 0.03em;
 }
 
+.watch-date-specials-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #080d11;
+  color: var(--muted);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.watch-date-specials-toggle input {
+  cursor: pointer;
+}
+
 .watch-date-options {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -16886,6 +16903,11 @@ html.light-mode .watch-date-section-label {
 }
 
 html.light-mode .watch-date-pick {
+  background: var(--panel-2);
+  border-color: var(--line);
+}
+
+html.light-mode .watch-date-specials-toggle {
   background: var(--panel-2);
   border-color: var(--line);
 }

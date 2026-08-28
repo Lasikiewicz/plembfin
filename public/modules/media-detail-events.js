@@ -23,6 +23,7 @@ import {
   applyWatchDateChoice,
   confirmAndMarkUnwatched,
   confirmAndDeleteMedia,
+  toggleWatchDateIncludeSpecials,
 } from "./watch-action.js?v=20260826c";
 import { triggerRetrySync, loadSyncJobs, loadSyncHistory, showAvailIssuePopup } from "./sync.js";
 import { renderExplorer, renderHistoryView, resolvedTmdbCache, refreshMovieExplorerInPlace, refreshHistoryViewInPlace } from "./explorer.js?v=20260826d";
@@ -549,6 +550,12 @@ async function refreshMediaAfterForceSync(payload, body) {
 // module size limit; behavior is unchanged.
 export function attachMediaDetailEvents() {
   document.addEventListener("change", (event) => {
+    const includeSpecialsToggle = event.target.closest("[data-watch-date-include-specials]");
+    if (includeSpecialsToggle) {
+      toggleWatchDateIncludeSpecials(includeSpecialsToggle.checked);
+      return;
+    }
+
     const spoilerToggle = event.target.closest("[data-hide-episode-spoilers]");
     if (!spoilerToggle) return;
     state.hideEpisodeSpoilers = spoilerToggle.checked;
