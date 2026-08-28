@@ -1,7 +1,19 @@
 {
-  "build": 3,
-  "updatedAt": "2026-08-28T19:23:44+01:00",
+  "build": 4,
+  "updatedAt": "2026-08-28T19:44:54+01:00",
   "entries": [
+    {
+      "build": 4,
+      "date": "2026-08-28T19:44:54+01:00",
+      "commit": "b48cb60ab931630496ea376b892a278813f6c2f9",
+      "message": "Fix - TV show detail and grid bulk-watch fixes",
+      "author": "Lasikiewicz",
+      "details": [
+        "Restore the missing three-dot overflow menu on TV Shows grid cards",
+        "Season list rows now show Saving while a bulk watch action is in progress instead of a stale watched count",
+        "Marking a season or whole show as watched no longer marks episodes that haven't aired yet"
+      ]
+    },
     {
       "build": 3,
       "date": "2026-08-28T19:23:44+01:00",
