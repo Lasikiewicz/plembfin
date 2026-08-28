@@ -1466,8 +1466,8 @@ a.media-fact-chip:hover {
 .page-topbar-copy h1 {
   margin: 0;
   color: var(--text);
-  font-size: 0.95rem;
-  font-weight: 850;
+  font-size: 0.94rem;
+  font-weight: 700;
   line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
@@ -1476,7 +1476,7 @@ a.media-fact-chip:hover {
 
 .page-topbar-copy span {
   color: var(--muted);
-  font-size: 0.9rem;
+  font-size: 0.94rem;
   font-weight: 400;
   line-height: 1.2;
   white-space: nowrap;
@@ -4761,14 +4761,6 @@ details.sync-tool-details[open] > summary {
   align-self: flex-end;
   flex: 0 0 auto !important;
   margin-top: var(--space-2);
-  padding: 0.35rem 0.7rem;
-  border: 1px solid var(--line-strong);
-  border-radius: var(--radius);
-  background: var(--panel-3);
-  color: var(--text);
-  font-size: 0.82rem;
-  font-weight: 750;
-  cursor: pointer;
   z-index: 2;
 }
 
@@ -6877,24 +6869,28 @@ details.sync-tool-details[open] > summary {
   gap: var(--space-3);
 }
 
+/* CSS animations can never override an !important declaration (they sit
+   below "important author" in the cascade), and the settings cards this
+   targets set border/box-shadow with !important - so the pulse animates
+   `outline` instead, which nothing else on those cards touches. */
 @keyframes sectionTargetHighlightPulse {
   0% {
-    box-shadow: 0 0 0 2px var(--blue), 0 0 20px color-mix(in srgb, var(--blue), transparent 65%);
-    border-color: var(--blue) !important;
+    outline-color: var(--blue);
+    outline-offset: 2px;
   }
   50% {
-    box-shadow: 0 0 0 3px var(--blue), 0 0 28px color-mix(in srgb, var(--blue), transparent 50%);
-    border-color: var(--blue) !important;
+    outline-color: color-mix(in srgb, var(--blue), transparent 35%);
+    outline-offset: 4px;
   }
   100% {
-    box-shadow: 0 0 0 2px var(--blue), 0 0 20px color-mix(in srgb, var(--blue), transparent 65%);
-    border-color: var(--blue) !important;
+    outline-color: var(--blue);
+    outline-offset: 2px;
   }
 }
 
 .settings-target-highlight {
+  outline: 2px solid var(--blue) !important;
   animation: sectionTargetHighlightPulse 1.2s ease-in-out infinite;
-  transition: box-shadow 0.6s ease, border-color 0.6s ease !important;
   border-radius: var(--radius);
 }
 
@@ -18812,6 +18808,62 @@ html.light-mode .settings-modal-head {
   width: 100%;
 }
 
+.settings-inline-field-pair {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+@media (max-width: 640px) {
+  .settings-inline-field-pair {
+    grid-template-columns: 1fr;
+  }
+}
+
+.settings-inline-footer {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: nowrap;
+  gap: var(--space-3);
+  width: 100%;
+}
+
+.settings-inline-footer .settings-inline-enabled {
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0;
+}
+
+.settings-inline-buttons {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+@media (max-width: 480px) {
+  .settings-inline-footer {
+    flex-wrap: wrap !important;
+  }
+}
+
+.webhook-secret-box {
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  background: color-mix(in srgb, #1a1a1a, white 10%);
+}
+
+html.light-mode .webhook-secret-box {
+  background: var(--panel);
+}
+
 .settings-modal-status {
   min-height: 1.2rem;
   margin: 0;
@@ -19383,7 +19435,9 @@ html.light-mode .settings-help-body code {
 .settings-pane .settings-row-main #databaseRepairsContent,
 .settings-pane .settings-row-main #rebuildsContent,
 .settings-pane .settings-row-main #syncIssuesContent,
-.settings-pane .settings-row-main #syncHistoryContent {
+.settings-pane .settings-row-main #syncHistoryContent,
+.settings-pane .settings-row-main #webhookSetupGuides,
+.settings-pane .settings-row-main #syncTuningFields {
   margin-top: 0 !important;
   padding: var(--space-3) !important;
   gap: var(--space-2) !important;

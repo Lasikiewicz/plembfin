@@ -721,36 +721,108 @@
               </section>
 
               <section class="settings-pane hidden" data-settings-panel="apps">
-                <div class="settings-row" id="media-servers">
+                <div class="settings-row" data-sub-panel="media-servers-plex">
                   <div class="settings-row-main">
                     <article class="glass-panel p-section settings-card tool-section-card">
                       <div class="section-heading sync-heading sync-static-heading">
                         <div class="sync-heading-title">
-                          <p style="margin: 0;">Media Servers</p>
+                          <p style="margin: 0;">Plex</p>
                         </div>
-                        <span>Connected servers used for watch-state synchronization</span>
+                        <span>Sync watch history with a Plex server</span>
                       </div>
-                      <div id="mediaServerCards" class="settings-card-grid media-force-sync-options sync-tools-content"></div>
+                      <div id="plexServerPanel"></div>
                     </article>
                   </div>
                   <div class="settings-row-help">
                     <article class="glass-panel p-section settings-card">
                       <div class="section-heading">
-                        <p>Media Server Setup</p>
+                        <p>Plex Setup</p>
                         <span>Watchstate Sync Engine</span>
                       </div>
                       <div style="display: flex; flex-direction: column; gap: var(--space-3);">
                         <div>
-                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Connected Servers</b>
-                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Plembfin connects to your Plex, Emby, and Jellyfin servers to read library watchstates, verify media item matches, and push synchronized plays across all target endpoints.</p>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Connected Server</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Plembfin connects to your Plex server to read library watchstates, verify media item matches, and push synchronized plays to your other connected servers.</p>
                         </div>
                         <div>
                           <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Credentials & Tokens</b>
-                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Each card stores the server URL and API token. Saved credentials are stored securely server-side and hidden from browser display.</p>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">The server URL and token are stored securely server-side and hidden from browser display.</p>
                         </div>
                         <div>
                           <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Connection Testing</b>
-                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Click any server card and use <b>Test Connection</b> to verify server reachability, API key validity, and user account resolution before saving.</p>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Use <b>Test</b> to verify server reachability, token validity, and user account resolution before saving.</p>
+                        </div>
+                      </div>
+                    </article>
+                  </div>
+                </div>
+
+                <div class="settings-row" data-sub-panel="media-servers-emby">
+                  <div class="settings-row-main">
+                    <article class="glass-panel p-section settings-card tool-section-card">
+                      <div class="section-heading sync-heading sync-static-heading">
+                        <div class="sync-heading-title">
+                          <p style="margin: 0;">Emby</p>
+                        </div>
+                        <span>Sync watch history with an Emby server</span>
+                      </div>
+                      <div id="embyServerPanel"></div>
+                    </article>
+                  </div>
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Emby Setup</p>
+                        <span>Watchstate Sync Engine</span>
+                      </div>
+                      <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Connected Server</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Plembfin connects to your Emby server to read library watchstates, verify media item matches, and push synchronized plays to your other connected servers.</p>
+                        </div>
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Credentials & Tokens</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">The server URL and API key are stored securely server-side and hidden from browser display.</p>
+                        </div>
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Connection Testing</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Use <b>Test</b> to verify server reachability, key validity, and user account resolution before saving.</p>
+                        </div>
+                      </div>
+                    </article>
+                  </div>
+                </div>
+
+                <div class="settings-row" data-sub-panel="media-servers-jellyfin">
+                  <div class="settings-row-main">
+                    <article class="glass-panel p-section settings-card tool-section-card">
+                      <div class="section-heading sync-heading sync-static-heading">
+                        <div class="sync-heading-title">
+                          <p style="margin: 0;">Jellyfin</p>
+                        </div>
+                        <span>Sync watch history with a Jellyfin server</span>
+                      </div>
+                      <div id="jellyfinServerPanel"></div>
+                    </article>
+                  </div>
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Jellyfin Setup</p>
+                        <span>Watchstate Sync Engine</span>
+                      </div>
+                      <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Connected Server</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Plembfin connects to your Jellyfin server to read library watchstates, verify media item matches, and push synchronized plays to your other connected servers.</p>
+                        </div>
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Credentials & Tokens</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">The server URL and API key are stored securely server-side and hidden from browser display.</p>
+                        </div>
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Connection Testing</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Use <b>Test</b> to verify server reachability, key validity, and user account resolution before saving.</p>
                         </div>
                       </div>
                     </article>
@@ -792,40 +864,66 @@
 
               <section class="settings-pane hidden" data-settings-panel="general">
                 <!-- Webhooks Tab -->
-                <div class="settings-row" id="webhooks" data-sub-panel="general-endpoints">
+                <div class="settings-row" id="webhooks" data-sub-panel="general-endpoints-guides">
                   <div class="settings-row-main">
                     <article class="glass-panel p-section settings-card tool-section-card">
                       <div class="section-heading sync-heading sync-static-heading">
                         <div class="sync-heading-title">
                           <p style="margin: 0;">Webhooks</p>
                         </div>
-                        <span>Webhook listener and background worker</span>
+                        <span>Platform setup guides</span>
                       </div>
 
-                      <div class="media-force-sync-options sync-tools-content" style="display: flex; flex-direction: column; gap: var(--space-3);">
-                        <details id="webhook-listener-endpoint" class="sync-tool-details settings-static-details" open>
-                          <summary class="accordion-header" tabindex="-1">
-                            <div class="sync-tool-summary-title">
-                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
-                              <b>Webhook Secret</b>
-                            </div>
-                            <span>Secret token used by Plex, Emby, and Jellyfin webhooks</span>
-                          </summary>
-                          <div class="tool-item-row" style="padding: var(--space-3); width: 100%; display: flex; flex-direction: column; gap: var(--space-2);">
-                            <div class="webhook-secret-line" style="margin-top: 2px;">
-                              <span>Secret token:</span>
-                              <code id="webhookSecret">Not available</code>
-                            </div>
-                            <p style="font-size: 0.78rem; color: var(--muted); margin-top: 2px; line-height: 1.45;">
-                              Each platform's setup guide below includes the full webhook URL with this secret already in it. Automation clients can also pass the secret in an <code>X-Plembfin-Webhook-Secret</code> or <code>Authorization: Bearer</code> header.
-                            </p>
-                            <div class="settings-actions" style="margin-top: var(--space-1);">
-                              <button id="rotateWebhookButton" class="button-ghost sync-action-btn sync-tool-button" type="button" title="Generate a new webhook secret - update the URL in all media servers after rotating">Rotate Secret</button>
-                            </div>
-                          </div>
-                        </details>
+                      <div id="webhookSetupGuides" class="webhook-setup-guides" style="display: flex; flex-direction: column; gap: var(--space-3);"></div>
+                    </article>
+                  </div>
 
-                        <div id="webhookSetupGuides" class="webhook-setup-guides" style="display: flex; flex-direction: column; gap: var(--space-3);"></div>
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Platform Setup</p>
+                        <span>Per-Server Instructions</span>
+                      </div>
+                      <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Plex</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">No setup required. Plembfin connects to Plex's WebSocket notification channel automatically to capture watched and unwatched changes in real time.</p>
+                        </div>
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Emby & Jellyfin</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Expand the setup dropdowns on the left to view provider-specific instructions for registering the webhook URL and choosing which events to send.</p>
+                        </div>
+                      </div>
+                    </article>
+                  </div>
+                </div>
+
+                <div class="settings-row" id="webhook-secret-row" data-sub-panel="general-endpoints">
+                  <div class="settings-row-main">
+                    <article class="glass-panel p-section settings-card tool-section-card">
+                      <div class="section-heading sync-heading sync-static-heading">
+                        <div class="sync-heading-title">
+                          <p style="margin: 0;">Webhook Secret</p>
+                        </div>
+                        <span>Secret token used by Plex, Emby, and Jellyfin webhooks</span>
+                      </div>
+
+                      <div class="media-force-sync-options sync-tools-content">
+                        <div id="webhook-listener-endpoint" class="webhook-secret-box" style="display: flex; flex-direction: column; gap: var(--space-2);">
+                          <div class="webhook-secret-line" style="margin-top: 2px;">
+                            <span>Secret token:</span>
+                            <code id="webhookSecret">Not available</code>
+                          </div>
+                          <p style="font-size: 0.9rem; color: var(--muted); margin-top: 2px; line-height: 1.45;">
+                            Each platform's setup guide above includes the full webhook URL with this secret already in it.
+                          </p>
+                          <p style="font-size: 0.9rem; color: var(--muted); margin-top: 2px; line-height: 1.45;">
+                            Automation clients can also pass the secret in an <code>X-Plembfin-Webhook-Secret</code> or <code>Authorization: Bearer</code> header.
+                          </p>
+                          <div class="settings-actions" style="margin-top: var(--space-1);">
+                            <button id="rotateWebhookButton" class="button-primary sync-action-btn sync-tool-button" type="button" title="Generate a new webhook secret - update the URL in all media servers after rotating">Rotate Secret</button>
+                          </div>
+                        </div>
                       </div>
                     </article>
                   </div>
@@ -848,10 +946,6 @@
                         <div>
                           <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Background Scheduler</b>
                           <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Executes every minute to evaluate active playback progress against your watched threshold (90%), write completed watches to history, and dispatch cross-platform sync.</p>
-                        </div>
-                        <div>
-                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Platform Setup Guides</b>
-                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Plex needs no setup - it's automatic. Expand the Emby or Jellyfin setup dropdowns on the left card to view provider-specific instructions and event settings for each media server.</p>
                         </div>
                       </div>
                     </article>

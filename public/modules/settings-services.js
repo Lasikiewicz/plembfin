@@ -6,7 +6,7 @@
 // sent when non-empty).
 import { state } from "./state.js";
 import { buildAuthHeaders } from "./auth.js";
-import { openSettingsEditModal, openSettingsPickerModal, renderServiceCardGrid, renderFieldRow, collectFieldValues } from "./settings-ui.js";
+import { openSettingsEditModal, openSettingsPickerModal, renderServiceCardGrid, renderFieldRow, collectFieldValues, renderInlineServicePanel } from "./settings-ui.js";
 import { prepareHelpReadMore } from "./settings-shell.js";
 import { escapeAttribute, escapeHtml } from "./utils.js";
 import {
@@ -300,14 +300,6 @@ function connectionBadges(config = {}) {
   return badges;
 }
 
-function connectionDescription(id, config = {}) {
-  const connection = config.connection;
-  if (!connection || config.authMode === "manual") return CONNECTION_SERVICES[id].description;
-  const identity = connection.remoteUsername || connection.remoteUserId || "Verified user";
-  const server = connection.serverName || connection.serverId || CONNECTION_SERVICES[id].name;
-  return `${server} · ${identity}`;
-}
-
 async function reloadSettingsConfig() {
   const response = await fetch("/api/config", { headers: authHeaders() });
   const body = await response.json().catch(() => ({}));
@@ -581,11 +573,14 @@ async function testServiceConnection(section, values) {
   throw new Error(`${body.error || "Connection failed"} (${statusText})`);
 }
 
-export function openServiceEditModal(serviceId) {
+// Shared by the modal (metadata providers, Seerr) and the always-visible
+// inline panels (Plex/Emby/Jellyfin) - everything about a service's fields,
+// save/test/account-connect behavior except how it's displayed.
+function buildServiceEditOptions(serviceId) {
   const connection = CONNECTION_SERVICES[serviceId];
   const metadata = METADATA_SERVICES[serviceId];
   const def = connection || metadata;
-  if (!def) return;
+  if (!def) return null;
   const config = state.savedConfig?.[serviceId] || {};
 
   const fields = connection
@@ -614,8 +609,11 @@ export function openServiceEditModal(serviceId) {
       ? () => disconnectEmbyLikeAccount(serviceId)
       : undefined;
   const connectLabel = serviceId === "plex" ? "Connect Plex account" : serviceId === "emby" ? "Connect Emby" : "Connect Jellyfin";
-  openSettingsEditModal({
-    title: `${connectionTouched(config) || config.configured ? "Edit" : "Add"} ${def.name}`,
+  return {
+    def,
+    connection,
+    config,
+    accountFlow,
     fields,
     enabledKey: connection ? "enabled" : "",
     saveDisabledLabel: connection ? "Save & disable" : "",
@@ -627,7 +625,28 @@ export function openServiceEditModal(serviceId) {
     saveLabel: "Save",
     optionalFieldsLabel: accountFlow ? "Optional manual credential setup" : "",
     helpHtml: `${accountFlow ? `<p class="tool-accordion-desc"><b>Recommended:</b> Connect ${serviceId === "emby" ? "an" : "a"} ${def.name} account to verify the remote user. Manual credentials below are a legacy compatibility option and do not prove user isolation.</p>` : ""}${def.help?.() || ""}`,
+  };
+}
+
+export function openServiceEditModal(serviceId) {
+  const options = buildServiceEditOptions(serviceId);
+  if (!options) return;
+  openSettingsEditModal({
+    ...options,
+    title: `${connectionTouched(options.config) || options.config.configured ? "Edit" : "Add"} ${options.def.name}`,
   });
+}
+
+// Plex/Emby/Jellyfin render as always-visible inline panels (not a modal) on
+// the Media Servers page - one row per server instead of a mixed card grid.
+export function renderMediaServerPanels() {
+  for (const serviceId of ["plex", "emby", "jellyfin"]) {
+    const container = document.querySelector(`#${serviceId}ServerPanel`);
+    if (!container) continue;
+    const options = buildServiceEditOptions(serviceId);
+    if (!options) continue;
+    renderInlineServicePanel(container, options);
+  }
 }
 
 function openServicePicker(area) {
@@ -647,39 +666,22 @@ function openServicePicker(area) {
 }
 
 export function renderMediaServerCards() {
-  const container = document.querySelector("#mediaServerCards");
+  renderMediaServerPanels();
   const seerrContainer = document.querySelector("#seerrCards");
+  if (!seerrContainer) return;
   const config = state.savedConfig || {};
-  const serverIds = Object.keys(CONNECTION_SERVICES).filter((id) => id !== "seerr");
-  const visible = serverIds.filter((id) => connectionTouched(config[id]));
-  const remaining = serverIds.filter((id) => !connectionTouched(config[id]));
-  if (container) {
-    renderServiceCardGrid(container, {
-      items: visible.map((id) => ({
-        id,
-        name: CONNECTION_SERVICES[id].name,
-        description: connectionDescription(id, config[id]),
-        badges: connectionBadges(config[id]),
-      })),
-      onSelect: openServiceEditModal,
-      onAdd: remaining.length ? () => openServicePicker("connection") : null,
-      addLabel: "Add media server",
-    });
-  }
-  if (seerrContainer) {
-    const seerrConfigured = connectionTouched(config.seerr);
-    renderServiceCardGrid(seerrContainer, {
-      items: seerrConfigured ? [{
-        id: "seerr",
-        name: CONNECTION_SERVICES.seerr.name,
-        description: CONNECTION_SERVICES.seerr.description,
-        badges: connectionBadges(config.seerr),
-      }] : [],
-      onSelect: openServiceEditModal,
-      onAdd: seerrConfigured ? null : () => openServiceEditModal("seerr"),
-      addLabel: "Add Seerr",
-    });
-  }
+  const seerrConfigured = connectionTouched(config.seerr);
+  renderServiceCardGrid(seerrContainer, {
+    items: seerrConfigured ? [{
+      id: "seerr",
+      name: CONNECTION_SERVICES.seerr.name,
+      description: CONNECTION_SERVICES.seerr.description,
+      badges: connectionBadges(config.seerr),
+    }] : [],
+    onSelect: openServiceEditModal,
+    onAdd: seerrConfigured ? null : () => openServiceEditModal("seerr"),
+    addLabel: "Add Seerr",
+  });
 }
 
 export function renderMetadataCards() {

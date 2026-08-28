@@ -265,6 +265,161 @@ export function openSettingsEditModal({
   return ui;
 }
 
+// Same field-rendering and save/test/account-flow wiring as
+// openSettingsEditModal, but mounted directly into a page container instead
+// of an overlay - for connections that should always be visible inline
+// rather than behind an "Edit" click. No header/close/cancel; the caller's
+// section-heading already supplies a title. Re-render (calling this again on
+// the same container) is how a completed save/connect refreshes the panel.
+// Consecutive field pairs that read better side by side than stacked.
+const INLINE_FIELD_PAIRS = [["accountUsername", "accountPassword"]];
+
+function renderInlineFields(fieldList) {
+  let html = "";
+  for (let i = 0; i < fieldList.length; i++) {
+    const field = fieldList[i];
+    const next = fieldList[i + 1];
+    const pair = next && INLINE_FIELD_PAIRS.find(([a, b]) => a === field.key && b === next.key);
+    if (pair) {
+      html += `<div class="settings-inline-field-pair">${renderFieldRow(field)}${renderFieldRow(next)}</div>`;
+      i++;
+    } else {
+      html += renderFieldRow(field);
+    }
+  }
+  return html;
+}
+
+export function renderInlineServicePanel(container, {
+  fields = [],
+  onSave,
+  onTest,
+  onDelete,
+  deleteLabel = "Disconnect account",
+  saveLabel = "Save",
+  saveDisabledLabel = "",
+  testLabel = "Test",
+  leadingAction,
+  enabledKey = "",
+  optionalFieldsLabel = "",
+} = {}) {
+  if (!container) return null;
+
+  // The enable toggle reads as a footer option beside Save/Test, not another
+  // stacked field row above them.
+  const enabledField = enabledKey ? fields.find((field) => field.key === enabledKey) : null;
+  const enabledToggleHtml = enabledField
+    ? `<label class="checkbox-label settings-inline-enabled"><input type="checkbox" data-modal-field="${escapeAttribute(enabledField.key)}" ${enabledField.value ? "checked" : ""} /> ${escapeHtml(enabledField.label)}</label>`
+    : "";
+
+  const leadingActionHtml = leadingAction
+    ? `<div class="settings-modal-leading-action-row"><button class="button-primary settings-modal-leading-action" type="button">${escapeHtml(leadingAction.label || "Continue")}</button></div>`
+    : "";
+  const nonOptionalFields = fields.filter((field) => !field.optionalGroup && field !== enabledField);
+  const nonOptionalFieldsHtml = renderInlineFields(nonOptionalFields) + leadingActionHtml;
+
+  container.innerHTML = `
+    <div class="settings-modal-fields">
+      ${nonOptionalFieldsHtml}
+      ${optionalFieldsLabel ? `<details class="sync-tool-details settings-modal-optional-fields">
+        <summary class="accordion-header"><div class="sync-tool-summary-title"><svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg><b>${escapeHtml(optionalFieldsLabel)}</b></div></summary>
+        <div class="settings-modal-optional-fields-body">${renderInlineFields(fields.filter((field) => field.optionalGroup))}</div>
+      </details>` : renderInlineFields(fields.filter((field) => field.optionalGroup))}
+    </div>
+    <p class="settings-modal-status message" role="status" aria-live="polite" data-tone="muted"></p>
+    <div class="settings-inline-footer">
+      ${enabledToggleHtml}
+      <div class="settings-inline-buttons">
+        ${onDelete ? `<button class="button-danger settings-inline-delete" type="button">${escapeHtml(deleteLabel)}</button>` : ""}
+        ${onTest ? `<button class="button-ghost settings-inline-test" type="button">${escapeHtml(testLabel)}</button>` : ""}
+        <button class="button-primary settings-inline-save" type="button">${escapeHtml(saveLabel)}</button>
+      </div>
+    </div>
+  `;
+
+  const dialog = container;
+  const statusEl = container.querySelector(".settings-modal-status");
+  const saveButton = container.querySelector(".settings-inline-save");
+  const testButton = container.querySelector(".settings-inline-test");
+  const deleteButton = container.querySelector(".settings-inline-delete");
+  const leadingButton = container.querySelector(".settings-modal-leading-action");
+
+  const setStatus = (text, tone = "muted") => {
+    statusEl.textContent = text || "";
+    statusEl.dataset.tone = tone;
+    statusEl.className = `settings-modal-status message ${tone}`;
+  };
+  const setBusy = (busy) => {
+    [saveButton, testButton, deleteButton, leadingButton].forEach((button) => {
+      if (button) button.disabled = busy;
+    });
+  };
+  const ui = { close: () => {}, setStatus, setBusy, dialog, collect: () => collectValues(dialog) };
+
+  const syncEnabledState = () => {
+    if (!enabledKey) return;
+    const master = dialog.querySelector(`[data-modal-field="${enabledKey}"]`);
+    if (!master) return;
+    const active = master.checked;
+    dialog.querySelectorAll("[data-modal-field]").forEach((input) => {
+      if (input.dataset.modalField !== enabledKey) input.disabled = !active;
+    });
+    if (saveDisabledLabel) saveButton.textContent = active ? saveLabel : saveDisabledLabel;
+  };
+
+  if (enabledKey) {
+    dialog.querySelector(`[data-modal-field="${enabledKey}"]`)?.addEventListener("change", syncEnabledState);
+    syncEnabledState();
+  }
+
+  saveButton.addEventListener("click", async () => {
+    if (typeof onSave !== "function") return;
+    setBusy(true);
+    setStatus("Saving...", "muted");
+    try {
+      await onSave(collectValues(dialog), ui);
+    } catch (error) {
+      setStatus(error?.message || "Save failed.", "error");
+      setBusy(false);
+    }
+  });
+
+  testButton?.addEventListener("click", async () => {
+    setBusy(true);
+    setStatus("Testing...", "muted");
+    try {
+      const message = await onTest(collectValues(dialog), ui);
+      setStatus(message || "✔ Connection OK", "success");
+    } catch (error) {
+      setStatus(`✘ ${error?.message || "Connection failed."}`, "error");
+    } finally {
+      setBusy(false);
+    }
+  });
+
+  leadingButton?.addEventListener("click", async () => {
+    setBusy(true);
+    try {
+      await leadingAction.onClick(ui);
+    } catch (error) {
+      setStatus(error?.message || "Action failed.", "error");
+      setBusy(false);
+    }
+  });
+
+  deleteButton?.addEventListener("click", async () => {
+    setBusy(true);
+    try {
+      await onDelete(ui);
+    } catch (error) {
+      setStatus(error?.message || "Delete failed.", "error");
+      setBusy(false);
+    }
+  });
+
+  return ui;
+}
+
 // Opens the "+" picker: a grid of available service types. Picking one closes
 // the picker and calls onPick(id).
 export function openSettingsPickerModal({ title = "Add", intro = "", items = [], onPick } = {}) {

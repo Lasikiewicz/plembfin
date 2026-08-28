@@ -451,21 +451,26 @@ export function renderSettingsInlineHelp() {
   const webhookSetupGuides = document.getElementById("webhookSetupGuides");
   if (webhookSetupGuides) {
     webhookSetupGuides.innerHTML = `
-      <div class="sync-tool-details" style="padding: var(--space-3);">
-        <div class="sync-tool-summary-title" style="justify-content: space-between; display: flex; align-items: center;">
-          <b>Plex</b>
-          <span class="badge badge-success">Automatic</span>
+      <details class="sync-tool-details settings-static-details" open>
+        <summary class="accordion-header" tabindex="-1">
+          <div class="sync-tool-summary-title" style="justify-content: space-between; display: flex; align-items: center;">
+            <b>Plex</b>
+            <span class="badge badge-success">Automatic</span>
+          </div>
+          <span>No webhook setup required</span>
+        </summary>
+        <div class="tool-item-row" style="padding: var(--space-3); width: 100%;">
+          <p style="font-size: 0.9rem; color: var(--muted); margin: 0;">Plembfin connects to your Plex Media Server's WebSocket notification channel automatically to capture watched and unwatched changes in real time, and checks playback progress every minute. Plex-side movie, episode, season, and show changes are applied to Plembfin and propagated to your other eligible servers.</p>
+          <div class="guide-callout warning-callout" style="gap: var(--space-1); border-color: rgba(234, 179, 8, 0.45); background: rgba(234, 179, 8, 0.08); margin-top: var(--space-3);">
+            <b style="color: var(--yellow); font-size: 0.85rem; display: block;">
+              Turn off "Refresh library metadata periodically"
+            </b>
+            <p style="margin: 0; font-size: 0.82rem; line-height: 1.4; color: var(--text-muted, var(--muted));">
+              In Plex, under Settings &rarr; Scheduled Tasks, disable "Refresh library metadata periodically". This task can occasionally re-match and re-identify library items during its nightly maintenance window, which resets their viewed state to unwatched on Plex itself - and Plembfin will propagate that as a real unwatch to Emby, Jellyfin, and Trakt. Turning it off removes the most common trigger for a mass false-unwatch event.
+            </p>
+          </div>
         </div>
-        <p style="font-size: 0.82rem; color: var(--muted); margin: var(--space-1) 0 0;"><b style="color: var(--text);">No webhook setup required.</b> Plembfin connects to your Plex Media Server's WebSocket notification channel automatically to capture watched and unwatched changes in real time, and checks playback progress every minute. Plex-side movie, episode, season, and show changes are applied to Plembfin and propagated to your other eligible servers.</p>
-        <div class="guide-callout warning-callout" style="gap: var(--space-1); border-color: rgba(234, 179, 8, 0.45); background: rgba(234, 179, 8, 0.08); margin-top: var(--space-3);">
-          <b style="color: var(--yellow); font-size: 0.85rem; display: block;">
-            Turn off "Refresh library metadata periodically"
-          </b>
-          <p style="margin: 0; font-size: 0.82rem; line-height: 1.4; color: var(--text-muted, var(--muted));">
-            In Plex, under Settings &rarr; Scheduled Tasks, disable "Refresh library metadata periodically". This task can occasionally re-match and re-identify library items during its nightly maintenance window, which resets their viewed state to unwatched on Plex itself - and Plembfin will propagate that as a real unwatch to Emby, Jellyfin, and Trakt. Turning it off removes the most common trigger for a mass false-unwatch event.
-          </p>
-        </div>
-      </div>
+      </details>
       <details class="sync-tool-details">
         <summary class="accordion-header">
           <div class="sync-tool-summary-title">

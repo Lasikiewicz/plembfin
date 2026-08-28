@@ -1597,9 +1597,10 @@ function selectBackupsTab(tab) {
 }
 
 function settingsTopbarTitle() {
-  return state.activeSettingsRoute?.title === "Settings overview"
-    ? "Settings"
-    : `Settings - ${state.activeSettingsRoute?.title || "Overview"}`;
+  const route = state.activeSettingsRoute;
+  if (route?.title === "Settings overview") return "Settings";
+  const crumbs = ["Settings", route?.groupLabel, route?.title || "Overview"].filter(Boolean);
+  return crumbs.join(" - ");
 }
 
 
@@ -1639,8 +1640,10 @@ function syncPageTopbar() {
           state.moviesRaw?.find(movie => String(movie.id) === String(state.activeMovieModalId));
         if (activeMovie?.title) title = `Movies - ${activeMovie.title}`;
       }
+    } else {
+      title = `${title} - ${state.savedConfig?.plex?.username || "Watched history library"}`;
     }
-    subtitle = isInlineDetail ? "" : (state.savedConfig?.plex?.username || "Watched history library");
+    subtitle = "";
     activeControls = isInlineDetail ? null : elements.explorerTopbarControls;
   } else if (state.activeView === "history") {
     title = "Watch History";
@@ -1665,8 +1668,10 @@ function syncPageTopbar() {
 
   } else if (state.activeView === "search") {
     const searchQuery = state.searchQuery || query.get("q") || "";
-    title = searchQuery ? `Search Results for "${searchQuery}"` : "Search Results";
-    subtitle = "Local and global database search results";
+    title = searchQuery
+      ? `Search Results for "${searchQuery}" - Local and global database search results`
+      : "Search Results - Local and global database search results";
+    subtitle = "";
     activeControls = elements.searchTopbarControls;
   } else if (state.activeView === "setup") {
     title = "Initial Setup";

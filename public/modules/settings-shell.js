@@ -14,8 +14,30 @@ const SECTIONS = {
   },
   "media-servers": {
     label: "Media servers",
-    description: "Media servers and webhook configuration",
-    views: [{ panel: "apps", subPanels: ["seerr"] }, { panel: "general", subPanels: ["general-endpoints"] }],
+    description: "Connect Plex, Emby, and Jellyfin",
+    panel: "apps",
+    subPanels: ["media-servers-plex", "media-servers-emby", "media-servers-jellyfin"],
+  },
+  plex: {
+    label: "Plex",
+    description: "Sync watch history with a Plex server",
+    panel: "apps",
+    subPanels: ["media-servers-plex"],
+    isDisplayOnly: true,
+  },
+  emby: {
+    label: "Emby",
+    description: "Sync watch history with an Emby server",
+    panel: "apps",
+    subPanels: ["media-servers-emby"],
+    isDisplayOnly: true,
+  },
+  jellyfin: {
+    label: "Jellyfin",
+    description: "Sync watch history with a Jellyfin server",
+    panel: "apps",
+    subPanels: ["media-servers-jellyfin"],
+    isDisplayOnly: true,
   },
   sync: {
     label: "Sync",
@@ -88,10 +110,20 @@ const SECTIONS = {
     label: "Webhooks",
     description: "Webhook listener and background scheduler endpoints",
     panel: "general",
+    subPanels: ["general-endpoints-guides", "general-endpoints"],
+  },
+  "webhook-guides": {
+    label: "Setup Guides",
+    description: "Platform setup guides",
+    panel: "general",
+    subPanels: ["general-endpoints-guides"],
+    isDisplayOnly: true,
+  },
+  "webhook-secret": {
+    label: "Webhook Secret",
+    description: "Secret token used by Plex, Emby, and Jellyfin webhooks",
+    panel: "general",
     subPanels: ["general-endpoints"],
-    subSections: [
-      { id: "webhook-listener-endpoint", label: "Webhook Secret", description: "Secret token used by Plex, Emby, and Jellyfin webhooks" },
-    ],
     isDisplayOnly: true,
   },
   metadata: {
@@ -260,20 +292,20 @@ const SECTION_GROUPS = [
   {
     id: "media-servers",
     label: "Media servers",
-    sections: ["media-servers", "seerr"],
-    displayOnly: ["media-servers", "seerr"],
+    sections: ["plex", "emby", "jellyfin"],
+    displayOnly: ["plex", "emby", "jellyfin"],
   },
   {
     id: "webhooks",
     label: "Webhooks",
-    sections: ["webhooks"],
-    displayOnly: ["webhooks"],
+    sections: ["webhook-guides", "webhook-secret"],
+    displayOnly: ["webhook-guides", "webhook-secret"],
   },
   {
     id: "connections",
     label: "Connections",
-    sections: ["import"],
-    displayOnly: ["import"],
+    sections: ["import", "seerr"],
+    displayOnly: ["import", "seerr"],
   },
   {
     id: "metadata",
@@ -302,23 +334,23 @@ const SECTION_GROUPS = [
   {
     id: "logs",
     label: "Logs",
-    sections: ["logs"],
-    displayOnly: ["logs"],
+    sections: [],
+    displayOnly: [],
   },
   {
     id: "about",
     label: "About",
-    sections: ["about"],
-    displayOnly: ["about"],
+    sections: [],
+    displayOnly: [],
   },
 ];
 
 // One-line summaries for the group boxes on the settings landing page.
 const GROUP_DESCRIPTIONS = {
   general: "Account, diagnostics, and cache settings.",
-  "media-servers": "Connect Plex, Emby, Jellyfin, and Seerr.",
+  "media-servers": "Connect Plex, Emby, and Jellyfin.",
   webhooks: "Webhook listener and background scheduler endpoints.",
-  connections: "Connect Trakt for two-way sync or import watch history.",
+  connections: "Connect Trakt or Seerr, or import watch history.",
   metadata: "Configure TMDB, TVDB, Fanart.tv, and OMDb, and refresh cached metadata.",
   sync: "Tune sync behavior, run sync tools, and review sync issues and history.",
   "backup-restore": "Schedule backups and restore watch history or a full backup.",
@@ -408,6 +440,7 @@ function sectionRoute(section, requestedPath) {
   return {
     kind: "task",
     group,
+    groupLabel: section !== group ? groupObj?.label : undefined,
     section,
     task: "",
     path: `/settings/${section}`,
@@ -436,18 +469,38 @@ export function parseSettingsRoute(value = "/settings", { mustChangePassword = f
   const route = sectionRoute(parts[1], requestedPath);
   const hash = String(value || "").split("#")[1]?.split(/[?&]/, 1)[0] || "";
   if (hash) {
-    let targetSection = SECTIONS[hash] ? hash : null;
-    if (!targetSection) {
+    const matchedGroup = SECTION_GROUPS.find((group) => group.id === route.group);
+    if (SECTIONS[hash]) {
+      // The hash names a real section directly (e.g. a sidebar child link
+      // like /settings/media-servers#emby). The page should keep showing
+      // every sibling in the group (all three servers, all three tools rows,
+      // etc.) with this one scrolled to and highlighted - not narrow down to
+      // just the clicked section - so merge the target's view in rather than
+      // replacing the route outright. A merge is only needed when the target
+      // lives in a panel the primary route doesn't already aggregate (e.g.
+      // Seerr's "apps" panel vs. Trakt/import's "tools" panel); same-panel
+      // siblings (Plex/Emby/Jellyfin) are already covered by the primary
+      // "media-servers" route's aggregated views.
+      if (matchedGroup?.sections.includes(hash)) {
+        const targetRoute = sectionRoute(hash, requestedPath);
+        const alreadyCovered = (route.views || []).some((view) => view.panel === targetRoute.panel);
+        if (!alreadyCovered) route.views = [...(route.views || []), ...targetRoute.views];
+        route.section = hash;
+        route.title = SECTIONS[hash].label || route.title;
+        route.groupLabel = hash !== route.group ? matchedGroup.label : undefined;
+      }
+    } else {
+      // The hash names a subsection anchor within the primary section (used
+      // to scroll to a specific field/tool, not to switch pages) - keep the
+      // primary route's panel/views, just reflect the subsection in the title.
       for (const [secId, secDef] of Object.entries(SECTIONS)) {
-        if (secDef.subSections?.some((sub) => sub.id === hash)) {
-          targetSection = secId;
+        if (secDef.subSections?.some((sub) => sub.id === hash) && matchedGroup?.sections.includes(secId)) {
+          route.section = secId;
+          route.title = secDef.label || route.title;
+          route.groupLabel = secId !== route.group ? matchedGroup.label : undefined;
           break;
         }
       }
-    }
-    if (targetSection && SECTION_GROUPS.find((group) => group.id === route.group)?.sections.includes(targetSection)) {
-      route.section = targetSection;
-      route.title = SECTIONS[targetSection]?.label || route.title;
     }
   }
   return route;
@@ -510,6 +563,12 @@ function renderSettingsSectionSelect() {
   for (const group of SECTION_GROUPS) {
     const groupOptgroup = document.createElement("optgroup");
     groupOptgroup.label = group.label;
+    if (!group.sections.length) {
+      const option = document.createElement("option");
+      option.value = `/settings/${group.id}`;
+      option.textContent = group.label;
+      groupOptgroup.append(option);
+    }
     for (const sectionId of group.sections) {
       const definition = SECTIONS[sectionId];
       const option = document.createElement("option");
@@ -585,7 +644,7 @@ export function prepareHelpReadMore() {
     if (!button) {
       button = document.createElement("button");
       button.type = "button";
-      button.className = "help-read-more";
+      button.className = "help-read-more button-primary sync-action-btn sync-tool-button";
       button.textContent = "Read more";
       button.addEventListener("click", () => {
         const isExpanded = article.classList.contains("help-expanded");
@@ -814,13 +873,20 @@ export function scrollToSettingsSection(sectionId) {
   if (!target.matches("button, a, input, select, textarea")) target.setAttribute("tabindex", "-1");
   target.focus({ preventScroll: true });
 
+  // `target` is often the whole `.settings-row` (main card + help card side by
+  // side) so scrolling lands on the full row - but only the main settings box
+  // should get the highlight glow, not the help column beside it.
+  const highlightTarget = target.classList.contains("settings-row")
+    ? target.querySelector(".settings-row-main > article, .settings-row-main > .settings-card") || target
+    : target;
+
   document.querySelectorAll(".settings-target-highlight").forEach((el) => {
     el.classList.remove("settings-target-highlight");
   });
   if (_highlightTimer) clearTimeout(_highlightTimer);
 
-  target.classList.add("settings-target-highlight");
+  highlightTarget.classList.add("settings-target-highlight");
   _highlightTimer = setTimeout(() => {
-    target.classList.remove("settings-target-highlight");
+    highlightTarget.classList.remove("settings-target-highlight");
   }, 2500);
 }
