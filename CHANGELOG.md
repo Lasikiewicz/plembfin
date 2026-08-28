@@ -4,6 +4,28 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v0.12.9 - 28 August 2026
+
+Feature - Add Wipe Data tools section and simplify settings help text
+
+### New Features
+
+- Redesigned the Settings pages: single-column landing groups, consistent card backgrounds, and unified text sizing, with Guided Setup moved under Tools
+- Media Servers now shows Plex, Emby, and Jellyfin as separate always-visible connection panels instead of a shared modal, and Seerr moved into the Connections group
+- Webhooks split into its own group with a Setup Guides section and a separate Webhook Secret section
+- Backup and Restore were redesigned and split into two top-level groups, each with Local and Remote sections, clearer restore-mode names (Merge/Replace into existing state), and a new Remote Plembfin Restore option
+- Every settings section's URL now matches its sidebar label, with redirects kept for old bookmarks
+- Added a Wipe Data section under Settings - Tools with four scopes (Watch History, Sync History & Logs, Everything Tracked, Wipe All / Fresh Start), and simplified the help text across every Settings page
+
+### Major Bug Fixes
+
+- Settings child section URLs now correctly match their sidebar labels, fixing stale internal ids like #import and #health leaking into the address bar
+- Fixed the Restore page's Local/Remote cards falling back to generic padding instead of matching the Backup page's cards
+
+### Tweaks
+
+- Added backlog items for alternative tracker sync (Letterboxd/Simkl) and an mdblist metadata source, both requested via Reddit
+
 ## v0.12.8 - 27 August 2026
 
 Feature - Background metadata refresh jobs, onboarding sidebar reminder, and Reddit release bot
@@ -893,7 +915,7 @@ Fix - Update settings shell route handling and test suite for General group aggr
 - Update test/settingsShell.test.js assertions for storage panel and advanced legacy redirect
 - Pass all 177 automated unit tests
 
-## v0.6.77 - 5 August 2026
+## v0.6.77 - 6 August 2026
 
 Feature - Standardize settings page layouts
 

@@ -1,7 +1,42 @@
 {
-  "version": "0.12.8",
-  "updatedAt": "2026-08-27T15:52:07Z",
+  "version": "0.12.9",
+  "updatedAt": "2026-08-28T17:31:32Z",
   "entries": [
+    {
+      "version": "0.12.9",
+      "date": "2026-08-28T17:31:32Z",
+      "commit": "73cf1c20b0dd25e3f16cb512a864ececd2599afb",
+      "message": "Feature - Add Wipe Data tools section and simplify settings help text",
+      "author": "github-actions[bot]",
+      "sections": {
+        "newFeatures": [
+          "Redesigned the Settings pages: single-column landing groups, consistent card backgrounds, and unified text sizing, with Guided Setup moved under Tools",
+          "Media Servers now shows Plex, Emby, and Jellyfin as separate always-visible connection panels instead of a shared modal, and Seerr moved into the Connections group",
+          "Webhooks split into its own group with a Setup Guides section and a separate Webhook Secret section",
+          "Backup and Restore were redesigned and split into two top-level groups, each with Local and Remote sections, clearer restore-mode names (Merge/Replace into existing state), and a new Remote Plembfin Restore option",
+          "Every settings section's URL now matches its sidebar label, with redirects kept for old bookmarks",
+          "Added a Wipe Data section under Settings - Tools with four scopes (Watch History, Sync History & Logs, Everything Tracked, Wipe All / Fresh Start), and simplified the help text across every Settings page"
+        ],
+        "majorBugFixes": [
+          "Settings child section URLs now correctly match their sidebar labels, fixing stale internal ids like #import and #health leaking into the address bar",
+          "Fixed the Restore page's Local/Remote cards falling back to generic padding instead of matching the Backup page's cards"
+        ],
+        "tweaks": [
+          "Added backlog items for alternative tracker sync (Letterboxd/Simkl) and an mdblist metadata source, both requested via Reddit"
+        ]
+      },
+      "details": [
+        "Redesigned the Settings pages: single-column landing groups, consistent card backgrounds, and unified text sizing, with Guided Setup moved under Tools",
+        "Media Servers now shows Plex, Emby, and Jellyfin as separate always-visible connection panels instead of a shared modal, and Seerr moved into the Connections group",
+        "Webhooks split into its own group with a Setup Guides section and a separate Webhook Secret section",
+        "Backup and Restore were redesigned and split into two top-level groups, each with Local and Remote sections, clearer restore-mode names (Merge/Replace into existing state), and a new Remote Plembfin Restore option",
+        "Every settings section's URL now matches its sidebar label, with redirects kept for old bookmarks",
+        "Added a Wipe Data section under Settings - Tools with four scopes (Watch History, Sync History & Logs, Everything Tracked, Wipe All / Fresh Start), and simplified the help text across every Settings page",
+        "Settings child section URLs now correctly match their sidebar labels, fixing stale internal ids like #import and #health leaking into the address bar",
+        "Fixed the Restore page's Local/Remote cards falling back to generic padding instead of matching the Backup page's cards",
+        "Added backlog items for alternative tracker sync (Letterboxd/Simkl) and an mdblist metadata source, both requested via Reddit"
+      ]
+    },
     {
       "version": "0.12.8",
       "date": "2026-08-27T15:52:07Z",
