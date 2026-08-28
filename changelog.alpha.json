@@ -10,13 +10,6 @@
       "message": "Fix - TV show detail and grid bulk-watch fixes",
       "author": "Lasikiewicz",
       "details": [
-        "The auto-generated New Features section had 38 near-duplicate bullets (each commit's subject line plus its own detail bullets, all flattened together)",
-        "Consolidated to 6 bullets covering the actual distinct efforts: Settings redesign, Media Servers panels, Webhooks split, Backup/Restore redesign, section URL renames, and Wipe Data",
-        "Trimmed Major Bug Fixes and Tweaks the same way",
-        "Regenerated CHANGELOG.md from the corrected changelog.json",
-        "Push to git now squashes any pending local commits into one clean commit before pushing, so bloat never enters changelog.develop.json in the first place",
-        "Force to alpha now reviews the CI-merged alpha changelog entry and tightens it if redundant, since it does not deduplicate bullets on its own",
-        "Force to main now reviews the freshly generated release changelog entry the same way before syncing back to develop, formalizing the correction v0.12.9 needed by hand",
         "Restore the missing three-dot overflow menu on TV Shows grid cards",
         "Season list rows now show Saving while a bulk watch action is in progress instead of a stale watched count",
         "Marking a season or whole show as watched no longer marks episodes that haven't aired yet"
