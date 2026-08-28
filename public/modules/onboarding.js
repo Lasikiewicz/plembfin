@@ -110,16 +110,6 @@ export function renderDashboardChecklist() {
     </section>`;
 }
 
-export function renderSetupResumeBanner() {
-  const container = document.querySelector("#settings-view");
-  if (!container) return;
-  const existing = document.getElementById("setupResumeBanner");
-  const html = setupResumeBannerHtml();
-  if (!html) { existing?.remove(); return; }
-  if (existing) { existing.outerHTML = html; return; }
-  container.insertAdjacentHTML("afterbegin", html);
-}
-
 const MEDIA_SERVERS = ["plex", "emby", "jellyfin"];
 const STEPS = [
   { id: "overview", label: "Overview" },
@@ -1210,11 +1200,6 @@ function handleSetupChange(event) {
 }
 
 async function handleSetupClick(event) {
-  const dismissBanner = event.target.closest("[data-setup-dismiss-banner]");
-  if (dismissBanner) {
-    document.getElementById("setupResumeBanner")?.remove();
-    return;
-  }
   const dismissChecklist = event.target.closest("[data-setup-dismiss-checklist]");
   if (dismissChecklist) {
     api("/api/setup/checklist/dismiss", { method: "POST" }).then(() => loadSetupStatus()).then(() => renderDashboardChecklist()).catch(() => {});
@@ -1318,14 +1303,3 @@ async function handleSetupClick(event) {
   }
 }
 
-export function setupResumeBannerHtml() {
-  if (!cachedStatus || cachedStatus.onboarding.runState !== "in_progress") return "";
-  return `
-    <div id="setupResumeBanner" class="guide-callout" style="display:flex; justify-content:space-between; align-items:center; gap:12px;">
-      <span>Setup is in progress.</span>
-      <span style="display:flex; gap:8px;">
-        <a class="button-ghost" href="/setup">Resume Setup Guide</a>
-        <button type="button" class="button-ghost" data-setup-dismiss-banner="1">Dismiss</button>
-      </span>
-    </div>`;
-}

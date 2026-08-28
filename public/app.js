@@ -1,5 +1,5 @@
 import { buildAuthHeaders, buildNowPlayingUrl, currentUser, getWebhookToken, onAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./modules/auth.js";
-import { initOnboarding, loadSetupStatus, renderSetupPage, setClaimRequired, renderSetupResumeBanner } from "./modules/onboarding.js";
+import { initOnboarding, loadSetupStatus, renderSetupPage, setClaimRequired } from "./modules/onboarding.js";
 import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs, formatLogLineToHtml } from "./modules/logs.js";
 import { applySettingsRoute, focusSettingsRoute, parseSettingsRoute, prepareSettingsShell, scrollToSettingsSection, settingsPathForLegacy } from "./modules/settings-shell.js";
 import { initSettingsServices, applyConfigToSettingsUi, refreshSeerrCapabilities, renderMediaServerCards, renderMetadataCards } from "./modules/settings-services.js";
@@ -1777,7 +1777,6 @@ function applyActiveView() {
   if (settingsSubMenu) {
     settingsSubMenu.classList.toggle("hidden", state.activeView !== "settings");
   }
-  if (state.activeView === "settings") renderSetupResumeBanner();
   if (state.activeView === "dashboard") {
     applyCachedDashboardHistory();
     renderDashboard();

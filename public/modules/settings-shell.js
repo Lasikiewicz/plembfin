@@ -524,9 +524,7 @@ function renderSettingsOverview() {
       row.dataset.settingsPath = `${parentPath}#${sectionId}`;
       const title = document.createElement("strong");
       title.textContent = definition.label;
-      const description = document.createElement("span");
-      description.textContent = definition.description;
-      row.append(title, description);
+      row.append(title);
       itemsContainer.append(row);
       for (const subSection of definition.subSections || []) {
         const subRow = document.createElement("button");
@@ -535,9 +533,7 @@ function renderSettingsOverview() {
         subRow.dataset.settingsPath = `${parentPath}#${subSection.id}`;
         const subTitle = document.createElement("strong");
         subTitle.textContent = subSection.label;
-        const subDescription = document.createElement("span");
-        subDescription.textContent = subSection.description;
-        subRow.append(subTitle, subDescription);
+        subRow.append(subTitle);
         itemsContainer.append(subRow);
       }
     }

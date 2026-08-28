@@ -18314,8 +18314,8 @@ details.sync-match-report > summary {
 .settings-link-row {
   display: grid;
   gap: var(--space-1);
-  min-height: 3.25rem;
-  padding: var(--space-2) 0;
+  min-height: 1.9rem;
+  padding: var(--space-1) 0;
   border: 0;
   border-bottom: 1px solid var(--line);
   background: transparent;
@@ -18347,7 +18347,7 @@ details.sync-match-report > summary {
 }
 
 .settings-link-row--nested {
-  min-height: 2.7rem;
+  min-height: 1.6rem;
   padding-left: var(--space-3);
   background: color-mix(in srgb, var(--panel-2), transparent 35%);
 }
@@ -18358,7 +18358,7 @@ details.sync-match-report > summary {
   padding: var(--space-2) var(--space-3) var(--space-1);
   border: 1px solid var(--line);
   border-radius: var(--radius);
-  background: color-mix(in srgb, var(--panel), transparent 12%);
+  background: var(--panel-2);
 }
 
 .settings-group-heading {
