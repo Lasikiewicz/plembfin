@@ -4,6 +4,18 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v0.12.10 - 28 August 2026
+
+Docs - Consolidate v0.12.9 changelog entry into higher-level bullets
+
+### Tweaks
+
+- Consolidate v0.12.9 changelog entry into higher-level bullets
+- The auto-generated New Features section had 38 near-duplicate bullets (each commit's subject line plus its own detail bullets, all flattened together)
+- Consolidated to 6 bullets covering the actual distinct efforts: Settings redesign, Media Servers panels, Webhooks split, Backup/Restore redesign, section URL renames, and Wipe Data
+- Trimmed Major Bug Fixes and Tweaks the same way
+- Regenerated CHANGELOG.md from the corrected changelog.json
+
 ## v0.12.9 - 28 August 2026
 
 Feature - Add Wipe Data tools section and simplify settings help text
@@ -915,7 +927,7 @@ Fix - Update settings shell route handling and test suite for General group aggr
 - Update test/settingsShell.test.js assertions for storage panel and advanced legacy redirect
 - Pass all 177 automated unit tests
 
-## v0.6.77 - 6 August 2026
+## v0.6.77 - 5 August 2026
 
 Feature - Standardize settings page layouts
 
