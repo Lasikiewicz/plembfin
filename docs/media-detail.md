@@ -101,15 +101,23 @@ first complete render.
 - **Cast** - profile images proxied/cached via `GET /api/tmdb-profile`; clicking opens
   `/person/:id`.
 - **Watch state & actions** - mark watched (with date prompt: today / release date /
-  same as other episodes / custom), mark unwatched, delete; episode- season- and
+  episode-relative date / custom), mark unwatched, delete; episode- season- and
   show-level for TV (`watch-action.js`, `POST /api/manual-watch` in batches of 100,
-  `POST /api/manual-unwatch`, `POST /api/delete-media`). "Same as other episodes"
-  only appears when an episode is already watched in the same season (episode/season
-  scope) or show (show scope), and reuses that episode's watched date/time as the
-  base. Marking more than one episode at once (season or show) always staggers each
-  episode's `watched_at` one second apart in episode order - for "today" and "same as
-  other episodes" alike - so a batch mark sorts correctly instead of every episode
-  landing on the same instant (`watchedAtForChoice`, `WATCH_ORDER_STEP_MS`). A mark-watched
+  `POST /api/manual-unwatch`, `POST /api/delete-media`). For a single episode, an
+  earlier watched episode offers **After last episode**, which bases the new watch
+  date on that episode's watch time plus its runtime and a one-minute gap. If no
+  earlier episode is watched but a later one is, the choice becomes **Before next
+  episode** and subtracts the later episode's runtime plus a one-minute gap. The
+  episode runtime comes from the TVDB-backed season metadata. Season/show batches
+  retain **Same as other episodes**, using the earliest watched episode as their
+  shared base. For shared-date batch choices, episodes are ordered by
+  season/episode and each next episode is placed after the previous episode's
+  runtime plus a one-minute gap; when matching an existing watched reference,
+  the first new episode follows that reference by the same interval. These
+  relative choices only appear when a watched reference exists. Marking more
+  than one episode at once therefore keeps a realistic time between consecutive
+  episodes instead of assigning every episode the same instant
+  (`watchedAtForEpisodeBatch`, `runtimeSeparationMs`). A mark-watched
   request is skipped as a duplicate whenever the item is already watched, regardless of what
   timestamp the request itself used - a page left open for a while, or a season/show batch
   built from a "which episodes are unwatched" list that's gone stale since the page loaded,

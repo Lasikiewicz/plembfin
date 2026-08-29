@@ -365,20 +365,25 @@ in this commit, runs the build gate again in CI, and publishes `:latest` +
 gh run list --branch main --limit 1
 ```
 
-### 4 - Sync main's new commit back into develop
+### 4 - Update local develop to the new main version
 ```bash
 git fetch origin
 git checkout develop
 git merge --ff-only origin/develop
 git merge origin/main --no-edit
-git push origin develop
 ```
-This folds the release commit from step 2 into develop, carrying forward its reset
+Local only - **do not push this to `origin/develop`**. This folds the release commit from
+step 2 into the local `develop` checkout, carrying forward its reset
 `changelog.alpha.json`/`changelog.develop.json` and the new `changelog.json` version, so
-the next "Push to git" run starts from a clean, matching base instead of immediately
-diverging. Don't bother folding it into `alpha` too - the next "Force to alpha" force-pushes
-develop's tip onto alpha regardless, so anything synced there now is simply overwritten
-rather than built on.
+`package.json`/`changelog.json` read back locally as the version just released instead of
+the previous one. It is not required for correctness: the next "Force to alpha" already
+merges `origin/main` into `develop` as its own step 1, so `origin/develop` picks up main's
+new state automatically the next time that command runs, whether or not this step ran
+first - skipping it just means `origin/develop`'s bundled `changelog.json` (what a running
+develop-channel build's Settings → About reads) shows the previous release as latest until
+then, which is cosmetic only. Don't bother folding it into `alpha` either - the next
+"Force to alpha" force-pushes develop's tip onto alpha regardless, so anything synced
+there now is simply overwritten rather than built on.
 
 ## Commands
 

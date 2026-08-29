@@ -142,12 +142,18 @@ git checkout -B alpha origin/alpha
 node scripts/promote-alpha-to-main.js && git add changelog.json changelog.alpha.json changelog.develop.json CHANGELOG.md package.json package-lock.json && git commit -m "chore: promote alpha to main"
 git log origin/main..HEAD --oneline
 git push origin HEAD:main --force
+
+# Update local develop to the new main version (local only - do not push)
+git checkout develop
+git merge --ff-only origin/develop
+git merge origin/main --no-edit
 ```
 
 The alpha workflow reads the alpha build metadata already committed and publishes
 `:alpha` plus an `alpha-<build>` tag. The main workflow reads the version already
-committed and publishes `:latest` plus the version tag. After that commit lands, merge
-`origin/main` into both `alpha` and `develop` so all branches share the released base.
+committed and publishes `:latest` plus the version tag. After that commit lands, merging
+`origin/main` into local `develop` is optional and local-only (not pushed) - see CLAUDE.md's
+"Force to main" step 4 for why it isn't required for correctness.
 
 ## Release pipeline (push to `main`)
 

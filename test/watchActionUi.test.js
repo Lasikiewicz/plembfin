@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import "./domStubs.js";
 
-const { applyWatchDateChoice, closeWatchDatePrompt, initWatchAction, savingEpisodeKeysForShow } = await import("../public/modules/watch-action.js");
+const { applyWatchDateChoice, closeWatchDatePrompt, initWatchAction, renderWatchDatePrompt, savingEpisodeKeysForShow, watchActionFromButton, watchedAtForChoice, watchedAtForEpisodeBatch, watchedReferenceFor } = await import("../public/modules/watch-action.js");
 const { state } = await import("../public/modules/state.js");
 
 test("closeWatchDatePrompt removes every mounted date dialog", () => {
@@ -38,6 +38,108 @@ test("savingEpisodeKeysForShow includes episodes in concurrent watch actions", (
     assert.deepEqual([...savingEpisodeKeysForShow("The Office")].sort(), ["the-office:s04e16", "the-office:s04e17"]);
   } finally {
     state.savingWatchActions.clear();
+  }
+});
+
+test("single episode watch-date reference uses the nearest watched episode before the target", () => {
+  const watchedAt = "2026-08-12T12:00:00.000Z";
+  const reference = watchedReferenceFor([
+    { seasonNumber: 1, episodeNumber: 1, watched: { watched_at: watchedAt }, runtime: 23 },
+    { seasonNumber: 1, episodeNumber: 2 },
+    { seasonNumber: 1, episodeNumber: 3, watched: { watched_at: "2026-08-12T12:30:00.000Z" }, runtime: 24 },
+  ], { seasonNumber: 1, episodeNumber: 2 });
+
+  assert.deepEqual(reference, {
+    watchedAt,
+    label: "S01E01",
+    runtime: 23,
+    direction: "after_last",
+  });
+  assert.equal(
+    watchedAtForChoice("match_watched", {}, "", 0, watchedAt, reference.direction, reference.runtime),
+    "2026-08-12T12:24:00.000Z",
+  );
+});
+
+test("single episode watch-date reference uses the next watched episode when no previous episode is watched", () => {
+  const watchedAt = "2026-08-12T12:00:00.000Z";
+  const reference = watchedReferenceFor([
+    { seasonNumber: 1, episodeNumber: 1 },
+    { seasonNumber: 1, episodeNumber: 2, watched: { watched_at: watchedAt }, runtime: 23 },
+  ], { seasonNumber: 1, episodeNumber: 1 });
+
+  assert.deepEqual(reference, {
+    watchedAt,
+    label: "S01E02",
+    runtime: 23,
+    direction: "before_next",
+  });
+  assert.equal(
+    watchedAtForChoice("match_watched", {}, "", 0, watchedAt, reference.direction, reference.runtime),
+    "2026-08-12T11:36:00.000Z",
+  );
+});
+
+test("single episode watch-date prompt labels the directional reference choices", () => {
+  const html = renderWatchDatePrompt({
+    scope: "episode",
+    label: "Mark S01E01 watched",
+    showTitle: "The Office",
+    countLabel: "1 episode",
+    episodes: [{ seasonNumber: 1, episodeNumber: 1, title: "Pilot", airDate: "2005-03-24" }],
+    referenceWatchedAt: "2026-08-12T12:00:00.000Z",
+    referenceEpisodeLabel: "S01E02",
+    referenceDirection: "before_next",
+  });
+
+  assert.match(html, />Before next episode</);
+  assert.doesNotMatch(html, />Same as other episodes</);
+});
+
+test("season/show watch batches space shared dates by each episode runtime", () => {
+  const entries = watchedAtForEpisodeBatch("custom", [
+    { seasonNumber: 1, episodeNumber: 3, runtime: 41 },
+    { seasonNumber: 1, episodeNumber: 1, runtime: 23 },
+    { seasonNumber: 1, episodeNumber: 2, runtime: 30 },
+  ], "2026-08-12T12:00:00.000Z");
+
+  assert.deepEqual(entries.map(({ episode, watchedAt }) => [episode.episodeNumber, watchedAt]), [
+    [1, "2026-08-12T12:00:00.000Z"],
+    [2, "2026-08-12T12:24:00.000Z"],
+    [3, "2026-08-12T12:55:00.000Z"],
+  ]);
+});
+
+test("season/show watch batches continue after an existing watched episode", () => {
+  const entries = watchedAtForEpisodeBatch("match_watched", [
+    { seasonNumber: 1, episodeNumber: 3, runtime: 41 },
+    { seasonNumber: 1, episodeNumber: 2, runtime: 30 },
+  ], "", "2026-08-12T12:00:00.000Z", 23);
+
+  assert.deepEqual(entries.map(({ watchedAt }) => watchedAt), [
+    "2026-08-12T12:24:00.000Z",
+    "2026-08-12T12:55:00.000Z",
+  ]);
+});
+
+test("episode watch actions carry the directional reference into the prompt", () => {
+  const previousEpisodes = state.showModalEpisodes;
+  const previousIndex = state.showModalEpisodeIndex;
+  const episodes = [
+    { key: "S01E02", seasonNumber: 1, episodeNumber: 2, showTitle: "The Office", title: "Dunder Mifflin Infinity" },
+    { key: "S01E01", seasonNumber: 1, episodeNumber: 1, showTitle: "The Office", title: "Pilot", runtime: 23, watched: { watched_at: "2026-08-12T12:00:00.000Z" } },
+  ];
+  state.showModalEpisodes = episodes;
+  state.showModalEpisodeIndex = new Map(episodes.map((episode) => [episode.key, episode]));
+
+  try {
+    const action = watchActionFromButton({ dataset: { watchScope: "episode", episodeKey: "S01E02" } });
+    assert.equal(action.referenceDirection, "after_last");
+    assert.equal(action.referenceRuntime, 23);
+    assert.equal(action.referenceEpisodeLabel, "S01E01");
+  } finally {
+    state.showModalEpisodes = previousEpisodes;
+    state.showModalEpisodeIndex = previousIndex;
   }
 });
 

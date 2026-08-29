@@ -137,6 +137,11 @@ export function renderWatchDatePrompt(action) {
   if (!action) return "";
   const customValue = new Date().toISOString().slice(0, 10);
   if (action.scope === "movie") return renderMovieWatchDatePrompt(action, customValue);
+  const referenceTitle = action.referenceDirection === "after_last"
+    ? "After last episode"
+    : action.referenceDirection === "before_next"
+      ? "Before next episode"
+      : "Same as other episodes";
   const episodeCount = action.episodes.length;
   const them = episodeCount === 1 ? "this episode" : "these episodes";
   const hasAirDate = action.episodes.some((episode) => episode.airDate);
@@ -187,7 +192,7 @@ export function renderWatchDatePrompt(action) {
           </button>
           ${action.referenceWatchedAt ? `
           <button class="watch-date-pick" type="button" data-watch-date-choice="match_watched">
-            <span class="watch-date-pick-title">Same as other episodes</span>
+            <span class="watch-date-pick-title">${referenceTitle}</span>
             <span class="watch-date-pick-sub">${escapeHtml(action.referenceEpisodeLabel)} was watched ${escapeHtml(formatDate(action.referenceWatchedAt))}</span>
           </button>
           ` : ""}
@@ -259,11 +264,46 @@ export function isMovieSavingWatchAction(tmdbId) {
 
 // ── Watch date prompt open/close ───────────────────────────────────────────
 
-// Finds the earliest-watched episode within `scopeEpisodes` so a batch mark
-// (or a single episode surrounded by already-watched ones) can offer "Same
-// as other episodes" - reusing the date the rest of the season/show was
-// actually watched instead of defaulting to today.
-function watchedReferenceFor(scopeEpisodes) {
+// Finds a watched reference for the date prompt. A single episode uses the
+// nearest watched episode before it when one exists, otherwise the nearest
+// watched episode after it. Batch actions keep the original earliest-watch
+// reference because they need one shared base date for the whole selection.
+export function watchedReferenceFor(scopeEpisodes, targetEpisode = null) {
+  if (targetEpisode) {
+    const targetSeason = Number(targetEpisode.seasonNumber);
+    const targetNumber = Number(targetEpisode.episodeNumber);
+    if (Number.isFinite(targetSeason) && Number.isFinite(targetNumber)) {
+      const watchedInSeason = scopeEpisodes.filter((episode) => (
+        Number(episode?.seasonNumber) === targetSeason
+        && episode?.watched?.watched_at
+        && Number.isFinite(Number(episode.episodeNumber))
+      ));
+      const previous = watchedInSeason
+        .filter((episode) => Number(episode.episodeNumber) < targetNumber)
+        .sort((a, b) => Number(b.episodeNumber) - Number(a.episodeNumber))[0];
+      if (previous) {
+        return {
+          watchedAt: previous.watched.watched_at,
+          label: episodeCode(previous.seasonNumber, previous.episodeNumber),
+          runtime: previous.runtime ?? null,
+          direction: "after_last",
+        };
+      }
+
+      const next = watchedInSeason
+        .filter((episode) => Number(episode.episodeNumber) > targetNumber)
+        .sort((a, b) => Number(a.episodeNumber) - Number(b.episodeNumber))[0];
+      if (next) {
+        return {
+          watchedAt: next.watched.watched_at,
+          label: episodeCode(next.seasonNumber, next.episodeNumber),
+          runtime: next.runtime ?? null,
+          direction: "before_next",
+        };
+      }
+    }
+  }
+
   let best = null;
   for (const episode of scopeEpisodes) {
     const watchedAt = episode?.watched?.watched_at;
@@ -271,7 +311,12 @@ function watchedReferenceFor(scopeEpisodes) {
     if (!best || watchedAt < best.watchedAt) best = { watchedAt, episode };
   }
   if (!best) return null;
-  return { watchedAt: best.watchedAt, label: episodeCode(best.episode.seasonNumber, best.episode.episodeNumber) };
+  return {
+    watchedAt: best.watchedAt,
+    label: episodeCode(best.episode.seasonNumber, best.episode.episodeNumber),
+    runtime: best.episode.runtime ?? null,
+    direction: "",
+  };
 }
 
 export function watchActionFromButton(button) {
@@ -286,8 +331,10 @@ export function watchActionFromButton(button) {
   let episodes = [];
   let resyncEpisodes = [];
   let referenceScope = [];
+  let targetEpisode = null;
   if (scope === "episode") {
     const episode = state.showModalEpisodeIndex.get(button.dataset.episodeKey);
+    targetEpisode = episode;
     if (episode) {
       if (!episode.watched) episodes = [episode];
       else resyncEpisodes = [episode];
@@ -331,6 +378,8 @@ export function watchActionFromButton(button) {
       countLabel: `${episodes.length} episode${episodes.length === 1 ? "" : "s"}`,
       referenceWatchedAt: reference?.watchedAt || "",
       referenceEpisodeLabel: reference?.label || "",
+      referenceRuntime: reference?.runtime ?? null,
+      referenceDirection: reference?.direction || "",
     };
   }
 
@@ -341,7 +390,7 @@ export function watchActionFromButton(button) {
   const label = scope === "episode"
     ? `Mark ${episodeCode(anchor.seasonNumber, anchor.episodeNumber)} watched`
     : `Mark ${showTitle} ${seasonLabel(anchor.seasonNumber)} watched`;
-  const reference = watchedReferenceFor(referenceScope);
+  const reference = watchedReferenceFor(referenceScope, targetEpisode);
 
   return {
     scope,
@@ -353,6 +402,8 @@ export function watchActionFromButton(button) {
     countLabel: `${episodes.length} episode${episodes.length === 1 ? "" : "s"}`,
     referenceWatchedAt: reference?.watchedAt || "",
     referenceEpisodeLabel: reference?.label || "",
+    referenceRuntime: reference?.runtime ?? null,
+    referenceDirection: reference?.direction || "",
   };
 }
 
@@ -479,10 +530,41 @@ function customWatchedAtIso(value) {
   return dateAtMiddayIso(value);
 }
 
-// offsetMs staggers a batch mark-watched (season/show) so every episode gets
-// a distinct, increasing watched_at instead of colliding on the same instant
-// - episodes then sort in the order they were marked instead of tying.
-function watchedAtForChoice(choice, episode, customDate, offsetMs = 0, referenceWatchedAt = "") {
+// Keep adjacent episode watches distinct, with enough time for the episode to
+// have been watched and a one-minute gap before the next episode starts.
+function runtimeSeparationMs(runtimeMinutes) {
+  const runtime = Number(runtimeMinutes);
+  const durationMs = Number.isFinite(runtime) && runtime > 0 ? Math.round(runtime * 60_000) : 0;
+  // Keep adjacent watches distinct even when the metadata has no runtime.
+  return durationMs + 60_000;
+}
+
+function episodeOrderAscending(a, b) {
+  return Number(a?.seasonNumber || 0) - Number(b?.seasonNumber || 0)
+    || Number(a?.episodeNumber || 0) - Number(b?.episodeNumber || 0);
+}
+
+function usesSharedWatchDate(choice) {
+  return choice === "now" || choice === "custom" || choice === "match_watched";
+}
+
+// Build dates for a season/show batch in episode order. Shared-date choices
+// use the previous episode's runtime plus a one-minute gap instead of putting
+// every episode at the exact same instant.
+export function watchedAtForEpisodeBatch(choice, episodes, customDate, referenceWatchedAt = "", referenceRuntime = null) {
+  const orderedEpisodes = [...episodes].sort(episodeOrderAscending);
+  let offsetMs = choice === "match_watched" && referenceWatchedAt
+    ? runtimeSeparationMs(referenceRuntime)
+    : 0;
+
+  return orderedEpisodes.map((episode) => {
+    const watchedAt = watchedAtForChoice(choice, episode, customDate, offsetMs, referenceWatchedAt);
+    if (usesSharedWatchDate(choice)) offsetMs += runtimeSeparationMs(episode.runtime);
+    return { episode, watchedAt };
+  });
+}
+
+export function watchedAtForChoice(choice, episode, customDate, offsetMs = 0, referenceWatchedAt = "", referenceDirection = "", referenceRuntime = null) {
   if (choice === "release") return dateAtMiddayIso(episode.airDate);
   if (choice === "last_played") {
     const value = Number(episode.lastPlayedAt || 0);
@@ -491,13 +573,15 @@ function watchedAtForChoice(choice, episode, customDate, offsetMs = 0, reference
   if (choice === "custom") return new Date(new Date(customWatchedAtIso(customDate)).getTime() + offsetMs).toISOString();
   if (choice === "match_watched" && referenceWatchedAt) {
     const base = Date.parse(referenceWatchedAt);
-    return new Date((Number.isNaN(base) ? Date.now() : base) + offsetMs).toISOString();
+    const referenceOffset = referenceDirection === "after_last"
+      ? runtimeSeparationMs(referenceRuntime)
+      : referenceDirection === "before_next"
+        ? -runtimeSeparationMs(referenceRuntime)
+        : 0;
+    return new Date((Number.isNaN(base) ? Date.now() : base) + referenceOffset + offsetMs).toISOString();
   }
   return new Date(Date.now() + offsetMs).toISOString();
 }
-
-// Gap between consecutive episodes in a batch mark-watched, in milliseconds.
-const WATCH_ORDER_STEP_MS = 1000;
 
 // ── Watch record builders ──────────────────────────────────────────────────
 
@@ -912,8 +996,14 @@ export async function applyWatchDateChoice(choice) {
   if (!action?.episodes?.length) return;
 
   const customDate = getCustomWatchDateValue();
-  const watchedRows = action.episodes.map((episode, index) => localWatchRowFromEpisode(episode, watchedAtForChoice(choice, episode, customDate, index * WATCH_ORDER_STEP_MS, action.referenceWatchedAt)));
-  const records = action.episodes.map((episode, index) => watchRecordFromEpisode(episode, watchedRows[index].watched_at));
+  const watchedEntries = action.scope === "episode"
+    ? action.episodes.map((episode) => ({
+      episode,
+      watchedAt: watchedAtForChoice(choice, episode, customDate, 0, action.referenceWatchedAt, action.referenceDirection, action.referenceRuntime),
+    }))
+    : watchedAtForEpisodeBatch(choice, action.episodes, customDate, action.referenceWatchedAt, action.referenceRuntime);
+  const watchedRows = watchedEntries.map(({ episode, watchedAt }) => localWatchRowFromEpisode(episode, watchedAt));
+  const records = watchedEntries.map(({ episode, watchedAt }) => watchRecordFromEpisode(episode, watchedAt));
   // Episodes plembfin already has as watched ride along in the same batch so a
   // season/show "mark watched" always re-pushes them too, without touching
   // their existing watched_at.
