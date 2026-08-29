@@ -48,14 +48,17 @@ points `core.hooksPath` at `.githooks/`. The `.githooks/commit-msg` hook rejects
 user-visible release commits whose body has no meaningful changelog bullet (a repeat
 of the subject does not count). The `.githooks/pre-push` hook reads the actual push
 refspec from stdin: for a same-name push (e.g. `alpha` → `alpha`) it runs
-`git pull --no-rebase origin <branch>` first, then always runs `npm run build`. A
-cross-ref push (e.g. the alpha-onto-main force-push in "Force to main") skips
-the sync step entirely, since that content has already been deliberately reconciled by
-hand. The sync merges rather than rebases deliberately - `alpha`'s history routinely
-contains a real merge commit folding a release commit back in from `main`, and
-`--rebase` walks full ancestry rather than just the first-parent chain, so it silently
-drops merge commits and replays both sides' commits individually instead of leaving the
-already-resolved merge alone.
+`git pull --no-rebase origin <branch>` first; for every push to `develop` it then
+validates the changelog in the exact commit being pushed with
+`node scripts/rebuild-develop-changelog.js --check`; finally it runs `npm run build`.
+A stale or missing develop changelog blocks the push and prints the local rebuild
+command. A cross-ref push (e.g. the alpha-onto-main force-push in "Force to main")
+skips the sync step entirely, since that content has already been deliberately
+reconciled by hand. The sync merges rather than rebases deliberately - `alpha`'s
+history routinely contains a real merge commit folding a release commit back in from
+`main`, and `--rebase` walks full ancestry rather than just the first-parent chain, so
+it silently drops merge commits and replays both sides' commits individually instead
+of leaving the already-resolved merge alone.
 
 A failed pre-push test run leaves the remote branch unchanged. For the known transient
 test-run failure, rerun `npm test` once. If it passes, retry the original push normally;
@@ -80,7 +83,9 @@ values already committed" - none of them write anything back to their branch.
 
 - **"Push to git"** runs `scripts/rebuild-develop-changelog.js` locally (recomputes
   `changelog.develop.json`'s single entry from git history since its `resetCommit`
-  anchor), commits, and pushes to `develop`. `docker-publish-develop.yml` checks README
+  anchor), commits, and pushes to `develop`; the pre-push hook independently verifies
+  that the committed changelog covers every user-facing commit before allowing the
+  push. `docker-publish-develop.yml` checks README
   consistency, then builds, verifies, and publishes a rolling image to
   `ghcr.io/lasikiewicz/plembfin:develop` (also tagged `develop-<build>`) using the build
   number already in the pushed commit. `develop` never touches

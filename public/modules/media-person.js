@@ -227,16 +227,19 @@ export async function loadCastMemberDetails(personId, personName = null) {
       <div class="person-profile-container">
         <div class="person-profile-sidebar">
           <img class="person-profile-img" src="${escapeAttribute(profileUrl)}" alt="${escapeAttribute(data.name)}" data-err="fav" />
-          <h2 class="person-profile-name">${escapeHtml(data.name)}${(() => {
-            const age = personAge(data.birthday, data.deathday);
-            return age !== null ? ` <span class="person-profile-age">(${age})</span>` : '';
-          })()}</h2>
+          <h2 class="person-profile-name">${escapeHtml(data.name)}</h2>
           <section class="person-profile-meta">
             <div class="person-profile-meta-items">
             ${data.birthday ? `
             <div class="meta-item">
               <span class="meta-label">Born</span>
-              <span class="meta-value">${escapeHtml(data.birthday)}${!data.deathday && personAge(data.birthday) !== null ? ` (age ${personAge(data.birthday)})` : ''}${data.place_of_birth ? ` in ${escapeHtml(data.place_of_birth)}` : ''}</span>
+              <span class="meta-value">${escapeHtml(data.birthday)}${!data.deathday && personAge(data.birthday) !== null ? ` (age ${personAge(data.birthday)})` : ''}</span>
+            </div>
+            ` : ''}
+            ${data.place_of_birth ? `
+            <div class="meta-item">
+              <span class="meta-label">From</span>
+              <span class="meta-value">${escapeHtml(data.place_of_birth)}</span>
             </div>
             ` : ''}
             ${data.deathday ? `

@@ -24,6 +24,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { bulletPointsFrom, filterChangelogDetails, formatChangelogMessage, isChangelogProcessMessage, isNoiseCommitMessage, isReleaseTypeCommitMessage, validateReleaseMessage } from "./changelog-message.js";
 import { changeAreaDetails, changedFilesForCommit, commitsSinceLastEntry, gitHeadAuthor, gitHeadCommit } from "./changelog-git-helpers.js";
@@ -74,7 +75,90 @@ export function buildDevelopEntry({ commits, headCommit, date, author, nextBuild
   return entry;
 }
 
+// Validates the committed changelog content against the user-facing commits
+// since its reset anchor. The entry's generated timestamp and commit pointer
+// are intentionally ignored: the changelog is rebuilt before its own commit,
+// and the final push commit may be a consolidated commit that replaces that
+// intermediate history. Message and details are the durable user-facing data.
+export function validateDevelopChangelog({ changelog, commits, headCommit, changedFilesForCommitFn = () => [] } = {}) {
+  const currentBuild = Number(changelog?.build || 0);
+  const expected = buildDevelopEntry({
+    commits,
+    headCommit,
+    date: "",
+    author: "",
+    nextBuild: Number.isFinite(currentBuild) ? currentBuild : 0,
+    changedFilesForCommitFn,
+  });
+  if (!expected) return null;
+
+  const entries = Array.isArray(changelog?.entries) ? changelog.entries : [];
+  const actual = entries.length === 1 ? entries[0] : null;
+  const failures = [];
+  if (!actual) {
+    failures.push("expected exactly one current entry");
+  } else {
+    if (actual.message !== expected.message) failures.push(`message should be \"${expected.message}\"`);
+    const actualDetails = Array.isArray(actual.details) ? actual.details : [];
+    const expectedDetails = Array.isArray(expected.details) ? expected.details : [];
+    if (JSON.stringify(actualDetails) !== JSON.stringify(expectedDetails)) failures.push("details do not cover the current user-facing commits");
+    if (Number(actual.build) !== currentBuild) failures.push("entry build does not match the changelog build");
+    if (!actual.date || String(changelog.updatedAt || "") !== String(actual.date)) failures.push("updatedAt does not match the entry date");
+  }
+
+  if (failures.length) {
+    throw new Error(`Develop changelog is stale for ${String(headCommit || "HEAD").slice(0, 7)}:\n- ${failures.join("\n- ")}\nRun node scripts/rebuild-develop-changelog.js, commit changelog.develop.json, and retry the push.`);
+  }
+  return expected;
+}
+
+function developChangelogAtCommit(headCommit) {
+  try {
+    const raw = execFileSync("git", ["show", `${headCommit}:changelog.develop.json`], { cwd: root, encoding: "utf8" });
+    return JSON.parse(raw);
+  } catch (error) {
+    throw new Error(`Could not read changelog.develop.json from ${String(headCommit || "HEAD").slice(0, 7)}: ${error.message}`);
+  }
+}
+
+function verifyCommittedDevelopChangelog(headCommit) {
+  const develop = developChangelogAtCommit(headCommit);
+  const anchorCommit = String(develop.resetCommit || "").trim();
+  if (!anchorCommit) throw new Error("changelog.develop.json has no resetCommit anchor.");
+  if (anchorCommit === headCommit) {
+    console.log("Develop changelog check passed: no commits since the reset anchor.");
+    return;
+  }
+
+  try {
+    execFileSync("git", ["merge-base", "--is-ancestor", anchorCommit, headCommit], { cwd: root, stdio: "ignore" });
+  } catch {
+    throw new Error(`changelog.develop.json resetCommit ${anchorCommit.slice(0, 7)} is not an ancestor of ${String(headCommit).slice(0, 7)}.`);
+  }
+
+  const commits = commitsSinceLastEntry(root, anchorCommit, headCommit);
+  const entry = validateDevelopChangelog({
+    changelog: develop,
+    commits,
+    headCommit,
+    changedFilesForCommitFn: (commitId) => changedFilesForCommit(root, commitId),
+  });
+  console.log(entry
+    ? `Develop changelog check passed for ${String(headCommit).slice(0, 7)}.`
+    : "Develop changelog check passed: no user-facing commits since the reset anchor.");
+}
+
 function main() {
+  if (process.argv[2] === "--check") {
+    try {
+      verifyCommittedDevelopChangelog(process.argv[3] || gitHeadCommit(root));
+    } catch (error) {
+      console.error(error.message);
+      process.exit(1);
+    }
+    return;
+  }
+
   let develop;
   try {
     develop = JSON.parse(fs.readFileSync(developChangelogPath, "utf8"));

@@ -467,6 +467,36 @@ h2 {
   }
 }
 
+.empty-log--loading {
+  grid-auto-flow: column;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  text-align: left;
+}
+
+.empty-log-spinner {
+  width: 1.1rem;
+  height: 1.1rem;
+  flex: 0 0 auto;
+  border: 2px solid color-mix(in srgb, var(--line-strong), transparent 18%);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: media-detail-loader-spin 0.72s linear infinite;
+}
+
+.empty-log-spinner--inline {
+  width: 0.8rem;
+  height: 0.8rem;
+  border-width: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .empty-log-spinner {
+    animation: none;
+    border-right-color: var(--accent);
+  }
+}
+
 .sync-preview-panel { display: grid; gap: var(--space-3); padding: var(--space-3); border: 1px solid var(--border-color); border-radius: var(--radius-md); background: color-mix(in srgb, var(--panel-bg) 88%, var(--accent) 12%); }
 .sync-preview-heading, .sync-preview-footer, .sync-preview-metrics { display: flex; gap: var(--space-3); align-items: center; justify-content: space-between; flex-wrap: wrap; }
 .sync-preview-heading span { display: block; color: var(--text-muted); font-size: .82rem; margin-top: 2px; }
@@ -8990,6 +9020,7 @@ html.light-mode .progress-bar-fill {
 .show-load-pill {
   display: inline-flex;
   align-items: center;
+  gap: 0.4rem;
   border: 1px solid var(--line);
   border-radius: 999px;
   background: #101820;
@@ -13941,26 +13972,8 @@ html.light-mode #explorerPanel .media-detail-page {
     width: min(100%, 350px) !important;
   }
 
-  .person-profile-meta-items {
-    flex-wrap: wrap;
-    gap: 0.45rem 0.9rem;
-    max-width: 100%;
-    overflow-x: visible;
-    overflow-y: visible;
-    white-space: normal;
-  }
-
   .person-profile-meta .meta-item {
     min-width: 0;
-    max-width: 100%;
-    flex: 1 1 100%;
-    flex-wrap: wrap;
-  }
-
-  .person-profile-meta .meta-value {
-    min-width: 0;
-    white-space: normal;
-    overflow-wrap: anywhere;
   }
 }
 
@@ -13982,12 +13995,9 @@ html.light-mode #explorerPanel .media-detail-page {
 
 .person-profile-meta-items {
   display: flex;
-  align-items: center;
-  gap: 1rem 1.5rem;
-  overflow-x: auto;
-  overflow-y: hidden;
-  white-space: nowrap;
-  scrollbar-width: thin;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.45rem;
 }
 
 .person-profile-meta h3 {
@@ -14003,8 +14013,10 @@ html.light-mode #explorerPanel .media-detail-page {
   display: flex;
   flex: 0 0 auto;
   flex-direction: row;
-  align-items: center;
+  align-items: baseline;
+  flex-wrap: wrap;
   gap: 0.4rem;
+  max-width: 100%;
 }
 
 .person-profile-meta .meta-label {
@@ -14017,7 +14029,8 @@ html.light-mode #explorerPanel .media-detail-page {
 .person-profile-meta .meta-value {
   font-size: 0.85rem;
   color: var(--text);
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .person-socials .person-socials-links {
@@ -14029,34 +14042,28 @@ html.light-mode #explorerPanel .media-detail-page {
 
 .person-social-link {
   display: inline-flex;
-  width: 1.9rem;
-  height: 1.9rem;
   align-items: center;
   justify-content: center;
-  padding: 0.3rem;
-  border-radius: var(--radius);
-  background: var(--surface-hover);
-  border: 1px solid var(--line);
-  color: var(--soft);
+  min-width: 2.6rem;
+  min-height: 2.6rem;
+  padding: 0.35rem;
+  border-radius: 999px;
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--border), transparent 20%);
+  color: var(--text);
   text-decoration: none;
-  transition: background 120ms ease, border-color 120ms ease, color 120ms ease;
+  transition: border-color 120ms ease, color 120ms ease;
 }
 
 .person-social-link:hover {
-  background: #2a3a4d;
-  color: #fff;
-  border-color: var(--line-strong);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .person-social-icon {
   display: block;
-  width: 1.05rem;
-  height: 1.05rem;
-}
-
-.person-social-icon--imdb,
-.person-social-icon--wikidata {
-  width: 1.35rem;
+  height: 2rem;
+  width: auto;
 }
 
 .person-biography-section h3 {
@@ -16672,17 +16679,6 @@ html.light-mode .person-credit-filter select {
   background: transparent;
   box-shadow: none;
   color: var(--soft);
-}
-
-html.light-mode .person-social-link {
-  background: var(--panel-3);
-  color: var(--soft);
-  border-color: var(--line);
-}
-
-html.light-mode .person-social-link:hover {
-  background: var(--panel-2);
-  color: var(--text);
 }
 
 html.light-mode .live-now-card {

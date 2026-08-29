@@ -1,16 +1,20 @@
 {
-  "build": 3,
+  "build": 5,
   "resetCommit": "91f2e63746b8626f78d12fc7c38971efb3fc636c",
-  "updatedAt": "2026-08-29T11:40:35.105Z",
+  "updatedAt": "2026-08-29T13:54:04.962Z",
   "entries": [
     {
-      "build": 3,
-      "date": "2026-08-29T11:40:35.105Z",
-      "commit": "a0836d6dd41432fe5cebf6533245049160264739",
-      "message": "Fix - Space watched episode timestamps",
+      "build": 5,
+      "date": "2026-08-29T13:54:04.962Z",
+      "commit": "7fd283f9e9075aa01c51f723cd03169cb8f6a5ce",
+      "message": "Fix - Speed up TV show detail loading and clean up bio page layout",
       "author": "Lasikiewicz",
       "details": [
-        "Bulk and single episode watch dates now follow runtime spacing and directional labels."
+        "Bulk and single episode watch dates now follow runtime spacing and directional labels.",
+        "Stopped fetching every season's episode list before a show's detail page could render, which held the loading screen up for 10+ seconds on shows with many seasons; other seasons now load in the background as they're expanded, with a proper loading indicator instead of a misleading \"no episodes found\" message",
+        "Split the Born/From details on the cast bio page into separate lines instead of repeating the person's age twice, and removed the duplicate age next to their name",
+        "Resized the bio page's IMDb/Instagram/X/Facebook/TikTok/Wikidata icons to match the icon size and pill style used elsewhere (Available on / Watch Now rows)",
+        "Pre-push hook now validates the changelog committed in the exact commit being pushed to develop, rejecting the push if it's missing or stale"
       ]
     }
   ]

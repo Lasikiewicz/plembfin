@@ -335,6 +335,13 @@ async function renderShowDetailFromMetadata(tmdbData, renderToken) {
     (tmdbData.id && String(show.tmdb_id || "") === String(tmdbData.id))
     || (tvdbIdCandidate && String(show.tvdb_id || "") === tvdbIdCandidate)
   ));
+  // Only the season about to be expanded (if any) needs its episode data before
+  // first paint. Fetching every season upfront fires one TVDB request per
+  // season, all serialized behind the shared 350ms rate-limit throttle in
+  // tvdbGateway.js - for a long-running show that can hold the loading screen
+  // up for 10+ seconds. renderShowModalContent's own hydrate* calls fill in
+  // every other season lazily, in the background, once it's actually expanded.
+  const initialSeasonNum = state.activeShowModalSeason == null ? null : Number(state.activeShowModalSeason);
   await Promise.all([
     // Pull persisted watched state from the server so a fresh page load - where
     // state.showsRaw/state.history aren't populated yet - still reflects what is
@@ -346,11 +353,11 @@ async function renderShowDetailFromMetadata(tmdbData, renderToken) {
       tvdb_id: tvdbIdCandidate,
     }).catch(() => null),
     ensurePlaybackProgressLoaded(),
-    ...seasons.map(async (season) => {
-      const seasonNumber = Number(season.season_number);
-      const details = await fetchTmdbSeasonDetails(lookupId, seasonNumber);
-      if (details) seasonDetailsByNumber.set(seasonNumber, details);
-    }),
+    Number.isFinite(initialSeasonNum)
+      ? fetchTmdbSeasonDetails(lookupId, initialSeasonNum).then((details) => {
+        if (details) seasonDetailsByNumber.set(initialSeasonNum, details);
+      })
+      : Promise.resolve(),
   ]);
   if (currentMediaRenderToken() !== renderToken) return;
 
@@ -516,9 +523,15 @@ function hydrateMissingSeasonDetails(show, activeSeasonNum, tmdbData, seasonDeta
 
   _seasonDetailsInflight.add(cacheKey);
   fetchTmdbSeasonDetails(lookupId, seasonNumber)
+    .catch((error) => {
+      console.error("Failed to hydrate season episode thumbnails", error);
+      return null;
+    })
     .then((details) => {
-      if (!details) return;
-      seasonDetailsByNumber.set(seasonNumber, details);
+      // Record the attempt either way - a failed/empty fetch still has to
+      // clear the "loading" pending state below, or the season would show a
+      // loading spinner forever instead of settling on "no episodes found".
+      seasonDetailsByNumber.set(seasonNumber, details || { episodes: [] });
       const current = state.activeShowRenderContext;
       const currentLookupId = showSeasonLookupId(current?.tmdbData) || lookupId;
       if (Number(state.activeShowModalSeason) !== seasonNumber || currentLookupId !== lookupId) return;
@@ -530,7 +543,6 @@ function hydrateMissingSeasonDetails(show, activeSeasonNum, tmdbData, seasonDeta
         loading: false,
       });
     })
-    .catch((error) => console.error("Failed to hydrate season episode thumbnails", error))
     .finally(() => _seasonDetailsInflight.delete(cacheKey));
 }
 
@@ -849,6 +861,13 @@ function showSeasonSummary(seasonNumber, seasonEpisodes, season, showTitle = "",
 
 function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitle, tmdbData, seasonDetailsByNumber, tvSeerrTmdbId, tvSeerrStatus, savingEpisodeKeys, isUnreleased, loading, hideSpoilers) {
   if (!seasonRecord) return "";
+  // This season's own episode data hasn't come back yet (it's fetched lazily,
+  // one season at a time, once expanded - see hydrateMissingSeasonDetails).
+  // Distinguishing this from "loading" (the whole show is still bootstrapping)
+  // matters for the empty-state message below: without it, a season with no
+  // locally-watched episodes yet would wrongly claim to have none at all
+  // while its real episode list is still in flight.
+  const seasonDataPending = !loading && Boolean(showSeasonLookupId(tmdbData)) && !seasonDetailsByNumber?.has(Number(seasonNumber));
   const seasonEpisodes = episodeRows
     .filter((episode) => episode.seasonNumber === seasonNumber)
     .sort((a, b) => Number(a.episodeNumber || 0) - Number(b.episodeNumber || 0));
@@ -867,7 +886,10 @@ function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitl
   return `
     <section class="show-season-block" id="showSeason${seasonNumber}">
       <div class="show-season-head">
-        <span class="show-season-label">${seasonRemoving ? "Removing…" : `${seasonSummary.watchedInSeason} of ${seasonSummary.seasonTotal || "?"} episodes watched${seasonWatchCount}`}</span>
+        <span style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+          <span class="show-season-label">${seasonRemoving ? "Removing…" : `${seasonSummary.watchedInSeason} of ${seasonSummary.seasonTotal || "?"} episodes watched${seasonWatchCount}`}</span>
+          ${seasonDataPending && seasonEpisodes.length ? `<span class="show-load-pill"><span class="empty-log-spinner empty-log-spinner--inline" aria-hidden="true"></span>Loading more episodes...</span>` : ""}
+        </span>
         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
           ${seasonSeerrControls}
           ${seasonSummary.watchedInSeason ? `<button class="action-pill" type="button" data-edit-season-date="${seasonNumber}" ${(seasonBusy || seasonRemoving) ? "disabled" : ""}>Edit season date</button>` : ""}
@@ -923,7 +945,9 @@ function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitl
               </div>
             </article>
           `;
-  }).join("") : `<div class="empty-log"><b>No episode rows yet</b><span>${loading ? "Episode metadata is loading." : "No local or TVDB episodes were found for this season."}</span></div>`}
+  }).join("") : (loading || seasonDataPending)
+    ? `<div class="empty-log empty-log--loading"><span class="empty-log-spinner" aria-hidden="true"></span><div><b>Loading episodes…</b><span>Fetching this season's episode details.</span></div></div>`
+    : `<div class="empty-log"><b>No episode rows yet</b><span>No local or TVDB episodes were found for this season.</span></div>`}
       </div>
     </section>
   `;

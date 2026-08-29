@@ -83,9 +83,12 @@ change when the show being navigated to is the one already open, not into a link
 global search result, for instance) that names a different show without supplying its
 own.
 
-The show page paints as soon as the show's own metadata arrives. Season episode lists
-and the IMDb rating pill hydrate into the rendered page rather than holding up the
-first complete render.
+The show page paints as soon as the show's own metadata arrives. Only the season the
+page is about to expand (if any) is fetched before that first render; every other
+season's episode list, along with the IMDb rating pill, hydrates in afterward rather
+than holding up the first complete render. A season expanded before its own episode
+list has arrived shows a loading placeholder instead of a premature "no episodes"
+message.
 
 ## What's on the page
 

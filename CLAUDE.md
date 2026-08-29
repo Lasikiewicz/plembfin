@@ -89,7 +89,9 @@ If the latest run shows `in_progress`, wait for it to complete before pushing.
 
 ## "Push to git" command
 
-When the user says **"Push to git"** (exactly), run this full pre-push workflow before committing to `develop`:
+Any request to push the current work to Git—including lowercase wording or phrases
+such as **"push all to git"**—means this complete workflow; it never means running
+`git push` by itself. Run the full pre-push workflow before committing to `develop`:
 
 ### 1 - Review all pending changes
 ```bash
@@ -230,6 +232,13 @@ this required) - and re-run step 6 afterward so the rebuilt entry reflects the f
 consolidated message rather than the pre-squash one.
 
 ### 8 - Push
+
+The pre-push hook is a second, independent safety gate: for every push whose
+remote branch is `develop`, it validates the changelog stored in the exact
+commit being pushed with `node scripts/rebuild-develop-changelog.js --check`.
+If the changelog rebuild/commit step was skipped or is stale, the push is
+rejected with the repair command. Never bypass this with `--no-verify`.
+
 ```bash
 git push origin develop
 ```

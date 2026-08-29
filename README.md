@@ -437,6 +437,10 @@ Changelog content for every branch is generated locally, before each push, from 
 history - never by CI reading GitHub's push event - which also keeps release-process
 bookkeeping out of what publishes to `alpha` and `main`.
 
+The develop pre-push guard verifies that the changelog committed with the push covers
+the current user-facing commits; a push with a missing or stale local changelog is
+rejected before it reaches the remote.
+
 Every push to `develop`/`alpha` builds and publishes a rolling image
 (`:develop`/`:alpha`, plus a build-numbered tag); PRs to `main` build and verify without
 publishing - a breaking change is caught before release, not after.

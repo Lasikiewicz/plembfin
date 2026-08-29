@@ -11,7 +11,7 @@ makeTempDataDir("plembfin-versioning-");
 
 const { categorizeEntries, simplifyEntries } = await import("../scripts/promote-develop-to-alpha.js");
 const { bumpPatchVersion } = await import("../scripts/promote-alpha-to-main.js");
-const { buildDevelopEntry } = await import("../scripts/rebuild-develop-changelog.js");
+const { buildDevelopEntry, validateDevelopChangelog } = await import("../scripts/rebuild-develop-changelog.js");
 const { describePendingDevelopBuild, describePendingAlphaBuild, handleChangelog } = await import("../server/src/routes/maintenance.js");
 
 test("simplifyEntries classifies and deduplicates features and fixes", () => {
@@ -150,6 +150,38 @@ test("buildDevelopEntry rejects a release-type commit with no bullet body", () =
   assert.throws(
     () => buildDevelopEntry({ commits, headCommit: "c1", date: "2026-01-01T00:00:00.000Z", author: "Someone", nextBuild: 1 }),
     /Refusing to rebuild/,
+  );
+});
+
+test("validateDevelopChangelog accepts a committed entry that covers the release commits", () => {
+  const commits = [
+    { id: "product", message: "fix: keep watch dates in episode order\n\n- Space bulk watch dates by runtime" },
+    { id: "changelog", message: "chore: rebuild develop changelog" },
+  ];
+  const changelog = {
+    build: 7,
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    entries: [{
+      build: 7,
+      date: "2026-01-01T00:00:00.000Z",
+      commit: "product",
+      message: "Fix - Keep watch dates in episode order",
+      details: ["Space bulk watch dates by runtime"],
+    }],
+  };
+
+  assert.doesNotThrow(() => validateDevelopChangelog({ changelog, commits, headCommit: "changelog" }));
+});
+
+test("validateDevelopChangelog rejects a stale or empty committed entry", () => {
+  const commits = [{ id: "product", message: "fix: keep watch dates in episode order\n\n- Space bulk watch dates by runtime" }];
+  assert.throws(
+    () => validateDevelopChangelog({
+      changelog: { build: 7, updatedAt: "2026-01-01T00:00:00.000Z", entries: [] },
+      commits,
+      headCommit: "product",
+    }),
+    /Develop changelog is stale/,
   );
 });
 

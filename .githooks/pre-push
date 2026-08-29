@@ -13,14 +13,28 @@ set -e
 # commits individually, which can conflict with content the merge already
 # resolved. A merge-based pull is a no-op when upstream is already an
 # ancestor and a plain merge commit otherwise - never a replay.
+develop_push_sha=""
+
 while read -r local_ref local_sha remote_ref remote_sha; do
   local_branch="${local_ref#refs/heads/}"
+  remote_branch="${remote_ref#refs/heads/}"
   zero_sha="0000000000000000000000000000000000000000"
   if [ "$local_branch" = "$remote_branch" ] && [ -n "$remote_branch" ] && [ "$remote_sha" != "$zero_sha" ]; then
     echo "Syncing with remote before push..."
     git pull --no-rebase origin "$remote_branch"
   fi
+  if [ "$remote_branch" = "develop" ] && [ "$local_sha" != "$zero_sha" ]; then
+    develop_push_sha="$local_sha"
+  fi
 done
+
+if [ -n "$develop_push_sha" ]; then
+  # Validate the tree being pushed, rather than the working tree. This blocks
+  # a raw push when the local changelog rebuild/commit step was skipped, even
+  # if a staged or uncommitted changelog happens to exist locally.
+  echo "Checking committed develop changelog..."
+  node scripts/rebuild-develop-changelog.js --check "$develop_push_sha"
+fi
 
 echo "Running Plembfin pre-push build check..."
 npm run build
