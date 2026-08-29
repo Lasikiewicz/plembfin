@@ -634,7 +634,7 @@ async function renderChangelog(force = false) {
       ? `<h4 class="changelog-section-heading">New since your alpha build - not pulled yet</h4>${pendingAlphaEntries.map((entry) => renderAlphaBuildEntry(entry, { pending: true })).join("")}`
       : "";
     const alphaSection = alphaBuildEntries.length
-      ? `<h4 class="changelog-section-heading">${data.channel === "develop" ? "Alpha releases" : "Alpha builds since last merge"}</h4>${alphaBuildEntries.map((entry) => renderAlphaBuildEntry(entry)).join("")}`
+      ? `<h4 class="changelog-section-heading">${data.channel === "develop" ? "Alpha releases" : "Current alpha build"}</h4>${alphaBuildEntries.map((entry) => renderAlphaBuildEntry(entry)).join("")}`
       : "";
 
     const visibleEntries = changelogExpanded ? entries : entries.slice(0, 20);

@@ -15,8 +15,7 @@
     "build": "node scripts/build-check.js",
     "docs:check": "node scripts/docs-check.js",
     "seed:demo": "node scripts/seed-demo-content.js",
-    "prepare": "node scripts/install-git-hooks.js",
-    "changelog:update": "node scripts/update-changelog.js"
+    "prepare": "node scripts/install-git-hooks.js"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.1",

@@ -1073,7 +1073,7 @@ function readLocalChangelog() {
 }
 
 // Bundled only on the develop channel build; see docker-publish-develop.yml and
-// scripts/update-develop-changelog.js. Tracks a standalone rolling develop
+// scripts/rebuild-develop-changelog.js. Tracks a standalone rolling develop
 // build counter, deliberately independent of alpha's or main's version - it
 // never borrows a parent version string, so it can never appear to regress
 // relative to a branch it was promoted from.
@@ -1101,8 +1101,9 @@ export function describePendingDevelopBuild(localDevelopBuild, remoteDevelop) {
 }
 
 // Bundled only on the alpha channel build; see docker-publish-alpha.yml and
-// scripts/update-alpha-changelog.js. Tracks a rolling build counter and
-// per-push changelog entries that reset on the next "Merge alpha with main",
+// scripts/promote-develop-to-alpha.js. Tracks a rolling build counter and a
+// single current changelog entry, kept up to date in place across
+// consecutive "Force to alpha" calls and reset on the next "Force to main",
 // independent of changelog.json's real semver.
 function readLocalAlphaChangelog() {
   try {
@@ -1122,7 +1123,7 @@ function readLocalAlphaChangelog() {
 // builds not yet pulled locally, read straight from GitHub's copy of
 // changelog.alpha.json - not the locally-installed build's own history,
 // which never contains commits from a build that hasn't been pulled yet. A
-// changed baseVersion means alpha reset (a "Merge alpha with main" landed
+// changed baseVersion means alpha reset (a "Force to main" landed
 // remotely) and this instance hasn't seen any of the new base's builds yet,
 // so every remote entry is pending; otherwise only builds past the
 // locally-installed one are. Exported standalone (pure, no I/O) so this can

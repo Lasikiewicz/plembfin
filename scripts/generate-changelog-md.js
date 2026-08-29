@@ -3,8 +3,8 @@
 // Renders changelog.json into a plain, human-readable CHANGELOG.md at the repo
 // root, so release history is readable directly on GitHub without needing to
 // log into a running instance. Regenerated automatically by
-// update-changelog.js on every release; safe to re-run manually at any time
-// since it only reads changelog.json and overwrites CHANGELOG.md.
+// promote-alpha-to-main.js on every release; safe to re-run manually at any
+// time since it only reads changelog.json and overwrites CHANGELOG.md.
 
 import fs from "node:fs";
 import path from "node:path";

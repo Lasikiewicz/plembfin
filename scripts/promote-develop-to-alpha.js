@@ -1,12 +1,24 @@
 #!/usr/bin/env node
 
-// Consolidates develop entries into a simplified, user-friendly Alpha changelog entry,
-// bumps the alpha build (4th segment, setting develop 5th segment to 0), and resets develop.
+// Merges develop's current rolling entry (everything since the last "Force
+// to alpha") into alpha's own current rolling entry, bumps the alpha build
+// (4th segment, setting develop 5th segment to 0), and resets develop for the
+// next cycle. Run locally as part of "Force to alpha", before the force-push
+// - the pushed commit already carries the correct, complete alpha entry, so
+// neither branch needs a CI job to generate or fix it up afterward.
+//
+// alpha keeps exactly one current entry, the same "always recompute in
+// place" model changelog.develop.json uses (see rebuild-develop-changelog.js)
+// rather than accumulating one entry per "Force to alpha" call within the
+// same pre-release cycle - those used to need a manual consolidation pass
+// before promoting to main; merging in place means there is never more than
+// one entry to read or clean up.
 
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { filterChangelogEntries } from "./changelog-message.js";
+import { changelogEntryProcessViolations, filterChangelogEntries } from "./changelog-message.js";
+import { gitHeadAuthor, gitHeadCommit } from "./changelog-git-helpers.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const changelogPath = path.join(root, "changelog.json");
@@ -85,7 +97,7 @@ export function simplifyEntries(entries = []) {
   return result.length ? result : ["Consolidated updates and improvements from develop"];
 }
 
-export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), sourceAuthor = "system", commit = "" } = {}) {
+export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), sourceAuthor = "system", commit = "", resetAnchorCommit = "" } = {}) {
   let mainVersion = "0.0.0";
   try {
     mainVersion = JSON.parse(fs.readFileSync(changelogPath, "utf8")).version || "0.0.0";
@@ -99,7 +111,8 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
   }
   if (!Array.isArray(alpha.entries)) alpha.entries = [];
 
-  // Always sync baseVersion with main if main has moved forward
+  // main moved forward since the last promotion (a "Force to main" landed) -
+  // start a fresh alpha cycle instead of merging into now-stale content.
   if (alpha.baseVersion !== mainVersion) {
     alpha = { baseVersion: mainVersion, build: 0, entries: [] };
   }
@@ -108,7 +121,7 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
   try {
     develop = JSON.parse(fs.readFileSync(developChangelogPath, "utf8"));
   } catch {
-    develop = { build: 0, entries: [] };
+    develop = { build: 0, resetCommit: "", entries: [] };
   }
   if (!Array.isArray(develop.entries)) develop.entries = [];
 
@@ -116,9 +129,16 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
   const alphaVersion5Digit = `${alpha.baseVersion || mainVersion}.${nextAlphaBuild}.0`;
   const alphaVersionShort = `${alpha.baseVersion || mainVersion}.${nextAlphaBuild}`;
 
-  const publicEntries = filterChangelogEntries(develop.entries);
-  const sections = categorizeEntries(publicEntries);
-  const simplifiedDetails = simplifyEntries(publicEntries);
+  // Merge develop's new work (since the last reset) with whatever alpha
+  // already has pending from an earlier "Force to alpha" this same cycle -
+  // develop's entry never overlaps alpha's, since develop's own resetCommit
+  // anchor only ever covers commits made after the last reset. Develop's
+  // entry comes first so its most recent commit drives the headline message.
+  const priorAlphaEntry = alpha.entries[0] || null;
+  const sourceEntries = [...develop.entries, ...(priorAlphaEntry ? [priorAlphaEntry] : [])];
+  const publicEntries = filterChangelogEntries(sourceEntries);
+  const sections = categorizeEntries(sourceEntries);
+  const simplifiedDetails = simplifyEntries(sourceEntries);
   const mainMessage = publicEntries[0]?.message || "Consolidated develop updates";
 
   const alphaEntry = {
@@ -133,20 +153,30 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
     sections,
   };
 
+  // Safety net: categorizeEntries/simplifyEntries already filter recognized
+  // release-process text, but check the assembled entry directly before it
+  // is ever written, rather than relying only on a separate step run
+  // afterward that could be skipped.
+  const violations = changelogEntryProcessViolations(alphaEntry);
+  if (violations.length > 0) {
+    throw new Error(`Refusing to promote develop to alpha: the entry contains release-process notes:\n${violations.map((v) => `- ${v}`).join("\n")}`);
+  }
+
   alpha.build = nextAlphaBuild;
   alpha.version = alphaVersion5Digit;
   alpha.updatedAt = sourceDate;
-  alpha.entries.unshift(alphaEntry);
-  alpha.entries = alpha.entries.slice(0, 100);
+  // alpha holds exactly one current entry - see the module comment above for
+  // why this replaces rather than accumulates.
+  alpha.entries = [alphaEntry];
 
-  // Reset develop's build counter now that its work has been consolidated
-  // into the alpha entry above. Unlike the old ${mainVersion}.${alphaBuild}.${developBuild}
-  // scheme, this reset is safe: it's an explicit, deliberate action taken as
-  // part of this promotion itself, not a passive comparison against a parent
-  // version string that could be stale or wrong. It's the same shape as
-  // alpha's own reset-on-promotion-to-main, which already works safely.
+  // Reset develop for the next cycle: build never resets (it counts pushes
+  // for the lifetime of the branch - see rebuild-develop-changelog.js),
+  // but resetCommit moves to this promotion's own commit so the next
+  // rebuild's git-history walk starts counting fresh from here, and entries
+  // is cleared since that work is now folded into the alpha entry above.
   develop = {
-    build: 0,
+    build: develop.build || 0,
+    resetCommit: resetAnchorCommit || commit || develop.resetCommit || "",
     updatedAt: sourceDate,
     entries: [],
   };
@@ -159,8 +189,10 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  const headCommit = gitHeadCommit(root);
   promoteDevelopToAlpha({
-    commit: process.env.SOURCE_COMMIT || "",
-    sourceAuthor: process.env.SOURCE_AUTHOR || "system",
+    commit: headCommit,
+    resetAnchorCommit: headCommit,
+    sourceAuthor: gitHeadAuthor(root),
   });
 }

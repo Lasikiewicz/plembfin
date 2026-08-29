@@ -11,6 +11,7 @@ makeTempDataDir("plembfin-versioning-");
 
 const { categorizeEntries, simplifyEntries } = await import("../scripts/promote-develop-to-alpha.js");
 const { bumpPatchVersion } = await import("../scripts/promote-alpha-to-main.js");
+const { buildDevelopEntry } = await import("../scripts/rebuild-develop-changelog.js");
 const { describePendingDevelopBuild, describePendingAlphaBuild, handleChangelog } = await import("../server/src/routes/maintenance.js");
 
 test("simplifyEntries classifies and deduplicates features and fixes", () => {
@@ -110,6 +111,48 @@ test("bumpPatchVersion increments only the patch (3rd segment)", () => {
   assert.equal(bumpPatchVersion("1.2.9"), "1.2.10");
 });
 
+test("buildDevelopEntry consolidates every real commit since the reset anchor into one entry", () => {
+  const commits = [
+    { id: "c1", message: "feat: add filters\n\n- Filter by watch status" },
+    { id: "c2", message: "chore: bump develop build for c1" }, // noise - excluded
+    { id: "c3", message: "test: cover the new filter" }, // non-release-type - excluded
+    { id: "c4", message: "fix: resolve crash on empty list\n\n- No longer crashes with zero results" },
+  ];
+
+  const entry = buildDevelopEntry({
+    commits,
+    headCommit: "c4",
+    date: "2026-01-01T00:00:00.000Z",
+    author: "Someone",
+    nextBuild: 3,
+  });
+
+  assert.equal(entry.build, 3);
+  assert.equal(entry.commit, "c4");
+  // Headline comes from the most recent (last, since commits are oldest..newest) real commit
+  assert.equal(entry.message, "Fix - Resolve crash on empty list");
+  assert.deepEqual(entry.details, ["Filter by watch status", "No longer crashes with zero results"]);
+});
+
+test("buildDevelopEntry returns null when nothing in range is user-facing", () => {
+  const commits = [
+    { id: "c1", message: "chore: bump alpha build for abc123" },
+    { id: "c2", message: "Merge branch 'main' into develop" },
+    { id: "c3", message: "test: fix flaky assertion" },
+  ];
+
+  const entry = buildDevelopEntry({ commits, headCommit: "c3", date: "2026-01-01T00:00:00.000Z", author: "Someone", nextBuild: 1 });
+  assert.equal(entry, null);
+});
+
+test("buildDevelopEntry rejects a release-type commit with no bullet body", () => {
+  const commits = [{ id: "c1", message: "fix: keep controls visible" }];
+  assert.throws(
+    () => buildDevelopEntry({ commits, headCommit: "c1", date: "2026-01-01T00:00:00.000Z", author: "Someone", nextBuild: 1 }),
+    /Refusing to rebuild/,
+  );
+});
+
 test("describePendingDevelopBuild identifies newer builds", () => {
   const local = { build: 2 };
   const remote = {
@@ -131,7 +174,7 @@ test("describePendingDevelopBuild identifies newer builds", () => {
 
 test("describePendingDevelopBuild never regresses just because entries were cleared after a promotion", () => {
   // develop's build counter is standalone and never reset (see
-  // update-develop-changelog.js) - a promotion only clears the entries list,
+  // rebuild-develop-changelog.js) - a promotion only clears the entries list,
   // so a local build higher than or equal to remote must never report pending.
   const local = { build: 5 };
   const remote = { build: 1, entries: [{ build: 1, message: "New cycle build 1" }] };

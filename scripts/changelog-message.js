@@ -1,11 +1,20 @@
 const RELEASE_TYPES = new Set(["feat", "fix", "security", "enhance", "perf", "docs"]);
 
-// CI plumbing commits (the bot's own build-bump commits, and the merge commits
-// the pre-push hook creates when syncing against a branch another push already
-// advanced) carry no user-visible content of their own - their subject line is
-// noise in a changelog and their absence of bullets shouldn't blank out an
-// otherwise-detailed release. Shared so both generators drop them the same way.
+// Release-pipeline bookkeeping commits (rebuilding/promoting the changelog
+// itself, and the merge commits the pre-push hook creates when syncing
+// against a branch another push already advanced) carry no user-visible
+// content of their own - their subject line is noise in a changelog and their
+// absence of bullets shouldn't blank out an otherwise-detailed release.
+// Shared so every generator drops them the same way. The bump/update patterns
+// below match commit messages from before the changelog pipeline moved to
+// local computation (see CLAUDE.md's branching model section) - they no
+// longer get created, but rebuild-develop-changelog.js's git-history walk can
+// still cross them for any reset anchor that predates the move, so they stay
+// recognized.
 const NOISE_MESSAGE_PATTERNS = [
+  /^chore: rebuild develop changelog\b/,
+  /^chore: promote develop changelog to alpha\b/,
+  /^chore: promote alpha to main\b/,
   /^chore: bump alpha build for /,
   /^chore: bump develop build for /,
   /^chore: update changelog for /,
@@ -67,7 +76,12 @@ export function filterChangelogEntries(entries = []) {
 
 export function changelogEntryProcessViolations(entry = {}) {
   const violations = [];
-  if (isChangelogProcessMessage(entry.message)) {
+  // Belt-and-suspenders alongside the generators' own noise guard: a bare
+  // merge/bump commit message (no real bullets) is never informative to a
+  // user reading Settings -> Changelog, so the target-branch gate refuses it
+  // too, in case a future code path in either generator ever reaches this
+  // check without having applied that guard itself.
+  if (isNoiseCommitMessage(entry.message) || isChangelogProcessMessage(entry.message)) {
     violations.push(`message: ${String(entry.message).split(/\r?\n/, 1)[0].trim()}`);
   }
 

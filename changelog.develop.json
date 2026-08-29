@@ -1,5 +1,20 @@
 {
-  "build": 0,
-  "updatedAt": "2026-08-29T09:44:07.141Z",
-  "entries": []
+  "build": 2,
+  "resetCommit": "33ceb4c08ac3a175da287f828ef3ac802d5c8660",
+  "updatedAt": "2026-08-29T10:55:36.654Z",
+  "entries": [
+    {
+      "build": 2,
+      "date": "2026-08-29T10:55:36.654Z",
+      "commit": "3320ac533f07940efbc6ab1450f967a6a78aed85",
+      "message": "Fix - Compute changelog content locally instead of via unreliable CI push events",
+      "author": "Lasikiewicz",
+      "details": [
+        "Changelog content for develop, alpha, and main is now generated locally as part of running Push to git / Force to alpha / Force to main, using real git history, instead of a CI job reading GitHub's push-event commit list afterward - that list is empty or incomplete for alpha and main, which are always reached by a force-push, and was producing changelog entries with no real content",
+        "Alpha and develop each keep a single current changelog entry that stays up to date automatically, instead of accumulating one entry per push that needed manual editing before release - Settings -> About now shows one current entry instead of a stack of build entries",
+        "Alpha and main changelog generation now refuses to publish an entry whose only available content is a noise commit message (a bot bump or a plain merge commit), so a broken changelog entry can no longer reach Settings -> Changelog or the Discord release notification",
+        "Removed the unused scripts/notify-reddit-release.js - Reddit release announcements are actually posted by a separate scheduled Devvit app (reddit-app/), which was already the real mechanism"
+      ]
+    }
+  ]
 }

@@ -78,8 +78,8 @@ Repository files relevant to the application, build, and operations, grouped by 
 | File | What it is |
 | --- | --- |
 | `README.md` | User-facing GitHub readme: features, setup guide, configuration reference, screenshots. |
-| `changelog.json` | Bundled release history. CI appends an entry per push and bumps the version; served verbatim at `GET /changelog.json` and consumed by the in-app changelog/update check. |
-| `package.json` | Dependencies and npm scripts (`start`, `dev`, `test`, `build`, `docs:check`, `seed:demo`, `prepare`, `changelog:update`). Version is CI-managed. |
+| `changelog.json` | Bundled release history. `scripts/promote-alpha-to-main.js` appends an entry and bumps the version locally, as part of "Force to main"; served verbatim at `GET /changelog.json` and consumed by the in-app changelog/update check. |
+| `package.json` | Dependencies and npm scripts (`start`, `dev`, `test`, `build`, `docs:check`, `seed:demo`, `prepare`). Version is set locally by `scripts/promote-alpha-to-main.js` as part of "Force to main". |
 | `package-lock.json` | Locked dependency tree. Version field is CI-managed alongside `package.json`. |
 | `Dockerfile` | `node:22-slim` image: installs prod deps, copies `server/`, `public/`, `changelog.json`, creates the non-root `plembfin` user, healthcheck against `/api/ping`, entrypoint drops privileges. |
 | `docker-compose.yml` | Base compose file: port 5055, `./data:/data` volume, admin env vars, `no-new-privileges`, resource limits. |
@@ -99,7 +99,8 @@ Repository files relevant to the application, build, and operations, grouped by 
 
 | File | What it is |
 | --- | --- |
-| `workflows/update-changelog.yml` | The release pipeline. On every push to `main`: runs the build check, runs `scripts/update-changelog.js` to bump the patch version and append a changelog entry, commits that back to `main`, and builds/pushes the Docker image to GHCR tagged `latest` + the version. A second job re-publishes when the push itself is the changelog commit. |
+| `workflows/update-changelog.yml` (workflow name "Publish Main Release") | On every push to `main`: runs the full build gate, reads the version already committed by "Force to main" (`scripts/promote-alpha-to-main.js`, run locally before the push), and builds/pushes the Docker image to GHCR tagged `latest` + the version. Does not write anything back to the branch. |
+| `workflows/docker-publish-alpha.yml`, `workflows/docker-publish-develop.yml` | The same shape for `alpha`/`develop`: verify, then build/push a rolling image (`alpha`/`alpha-<build>`, `develop`/`develop-<build>`) using the build number already committed by "Force to alpha" / "Push to git". Neither writes anything back to its branch. |
 | `workflows/docker-publish.yml` | Manual (`workflow_dispatch`) Docker build & push to GHCR, without touching the changelog. |
 | `workflows/security.yml` | `npm audit` (high+) and CodeQL on push/PR/daily schedule. |
 | `workflows/secret-scan.yml` | TruffleHog verified-secret scan on push/PR. |
@@ -268,10 +269,12 @@ See [README.md](README.md) for the documentation index, including this file
 | --- | --- |
 | `build-check.js` | The `npm run build` gate: syntax-checks every JS file, runs `docs-check.js`, validates the JSON manifests, rejects bare `fetch(` in `server/` (must be `fetchWithTimeout`), then boots the server once against a temp DATA_DIR (`PLEMBFIN_BUILD_CHECK=1`). |
 | `docs-check.js` | `npm run docs:check` - derives the required Node.js version from `package.json`, checks the README badge and setup text, and rejects weak/default Docker password examples. |
-| `changelog-message.js` | Shared changelog-message formatting, bullet extraction, release-detail validation, and release-process filtering used by local hooks, tests, promotion scripts, and CI. |
+| `changelog-message.js` | Shared changelog-message formatting, bullet extraction, release-detail validation, noise/release-process detection, and the `changelogEntryProcessViolations` safety check used by the local hooks, tests, and the three changelog scripts below. |
+| `changelog-git-helpers.js` | Shared git plumbing for the changelog scripts: walks real commit history between an anchor and HEAD (`commitsSinceLastEntry`), lists a commit's changed files, and reads the current HEAD commit/author. |
 | `validate-commit-message.js` | CLI used by the commit-message hook to reject user-visible release commits with missing or title-repeating details. |
-| `update-changelog.js` | CI helper: validates release details, filters release-process commits/bullets, bumps the patch version (honouring a manually-set higher version), converts the pushed commits' messages + bullet points into a `changelog.json` entry (grouped into `entry.sections` - New Features/Major Bug Fixes/Tweaks - via `categorizeEntries()`), and syncs `package.json`/`package-lock.json`. |
-| `validate-changelog-entry.js` | Target-branch CI guard: checks the newest generated alpha or main entry for release-process text before the workflow commits it. |
+| `rebuild-develop-changelog.js` | Run locally as part of "Push to git" (CLAUDE.md), before the push: fully recomputes `changelog.develop.json`'s single entry from every real commit between its `resetCommit` anchor and HEAD, replacing it rather than appending. |
+| `promote-develop-to-alpha.js` | Run locally as part of "Force to alpha", before the force-push: merges develop's current entry into alpha's own current entry (`promoteDevelopToAlpha`), bumps the alpha build, and resets develop for the next cycle. Also exports `categorizeEntries`/`simplifyEntries`, shared with the script below. |
+| `promote-alpha-to-main.js` | Run locally as part of "Force to main", before the force-push: takes alpha's current entry directly (`promoteAlphaToMain`), bumps the real semver (honouring a manually-set higher `package.json` version), writes `changelog.json`/`package.json`/`package-lock.json`/`CHANGELOG.md`, and resets alpha and develop for the next cycle. |
 | `notify-discord-release.js` | CI helper called by `update-changelog.yml` (`main`) and `docker-publish-alpha.yml` (`alpha`): builds a Discord embed from the newest `changelog.json`/`changelog.alpha.json` entry and posts it to the `DISCORD_RELEASES_WEBHOOK` secret. No-ops if the secret isn't set; supports `--dry-run` to print the embed instead of posting. |
 | `install-git-hooks.js` | Sets `core.hooksPath` to `.githooks` (runs automatically via npm `prepare`). |
 | `docker-entrypoint.sh` | Container entrypoint: chowns `/data` when starting as root, then drops to the `plembfin` user via gosu. |
@@ -449,22 +452,30 @@ minute (8-second fetch timeout). `?refresh=1` from an admin session bypasses tha
 re-fetches immediately. The browser cannot reach GitHub directly because the CSP is
 `connect-src 'self'`, so the server proxies and caches it.
 
-Each main-release entry also carries `sections` (`newFeatures`/`majorBugFixes`/`tweaks`),
-produced by `categorizeEntries()` in `scripts/promote-develop-to-alpha.js` and populated by
-`scripts/update-changelog.js` from that push's commit headlines and bullet points. Settings
-→ Changelog (`renderChangelogDetails()` in `public/app.js`) and the generated `CHANGELOG.md`
-(`scripts/generate-changelog-md.js`) render `sections` as separate headed groups whenever
-any of the three is non-empty, falling back to the flat `entry.details` list otherwise -
-per-build alpha/develop entries stay flat since they cover a single push, not a consolidated
-release.
+All three of `changelog.develop.json`, `changelog.alpha.json`, and `changelog.json` are
+written locally, as part of running "Push to git" / "Force to alpha" / "Force to main"
+themselves (see CLAUDE.md's branching model section for the full step-by-step) - never by
+a CI job reading GitHub's push-event commit list after the fact, which is only reliable
+for a plain incremental push and unreliable for `alpha`/`main`, both of which are always
+reached by a force-push. None of the three publish workflows write anything back to their
+branch; each only builds, verifies, and publishes the Docker image using values already
+committed.
 
-The alpha and main changelog generators share the release-content filter in
-`scripts/changelog-message.js`. It removes process-only commit entries and bullets such as
-changelog consolidation, folded-in release-note bullets, and branch build-counter resets;
-promotion scripts sanitize queued entries as well. `docker-publish-alpha.yml` and
-`update-changelog.yml` run `scripts/validate-changelog-entry.js` immediately before their
-metadata commit, so recognized release-process text cannot be published to either target
-branch.
+Each main-release entry carries `sections` (`newFeatures`/`majorBugFixes`/`tweaks`),
+produced by `categorizeEntries()` in `scripts/promote-develop-to-alpha.js` (shared with
+`scripts/promote-alpha-to-main.js`) from alpha's current entry's headline and bullet
+points. Settings → Changelog (`renderChangelogDetails()` in `public/app.js`) and the
+generated `CHANGELOG.md` (`scripts/generate-changelog-md.js`) render `sections` as
+separate headed groups whenever any of the three is non-empty, falling back to the flat
+`entry.details` list otherwise - the alpha and develop entries stay flat, since each is
+always a single current entry rather than a consolidated release.
+
+Both promotion scripts run the same release-content check
+(`changelogEntryProcessViolations` in `scripts/changelog-message.js`) on the entry they
+just assembled, and refuse to write it - throwing rather than publishing - if any
+recognized release-process text survives (changelog consolidation, folded-in release-note
+bullets, branch build-counter resets, and similar). This is the only gate; there is no
+separate CI validation step.
 
 The two entry lists are merged rather than one replacing the other: entries are keyed by
 commit (falling back to version + message), remote copies win on conflict except that a
@@ -484,17 +495,16 @@ is unreachable the bundled entries are served on their own.
 
 `alphaBuild` is populated only on the `alpha` channel, read from the bundled
 `changelog.alpha.json` (`readLocalAlphaChangelog()` in `routes/maintenance.js`): a rolling
-build counter and per-push changelog entries, separate from `changelog.json`'s real semver
-and reset on the next "Merge alpha with main". `scripts/update-alpha-changelog.js` writes
-this file - bumping `build`, recording an entry with the same commit-bullet rules as
-`scripts/update-changelog.js` (both share `scripts/changelog-git-helpers.js`), and
-filtering release-process entries/bullets before writing the newest entry, and resetting
-to build 0 with an empty entry list whenever `changelog.alpha.json`'s
-`baseVersion` differs from `changelog.json`'s version (i.e. main moved forward since
-the last alpha push). `docker-publish-alpha.yml` runs it on every push to `alpha`,
-validates the newest entry, commits the result back as `chore: bump alpha build for <sha>`,
-and tags the
-published image `alpha-<build>` alongside the rolling `alpha` tag.
+build counter and a single current changelog entry, separate from `changelog.json`'s real
+semver and reset on the next "Force to main". `scripts/promote-develop-to-alpha.js` writes
+this file, run locally as part of "Force to alpha" (before the force-push): it merges
+develop's current entry into alpha's own current entry - so a fresh "Force to alpha" call
+updates the one entry in place rather than adding another - bumps `build`, and resets to a
+fresh `baseVersion` and build 1 whenever `changelog.alpha.json`'s `baseVersion` differs
+from `changelog.json`'s version (i.e. main moved forward since the last alpha push).
+`docker-publish-alpha.yml` reads the build number already in the pushed commit and tags
+the published image `alpha-<build>` alongside the rolling `alpha` tag; it does not write
+anything back.
 
 `handleChangelog` also fetches `changelog.alpha.json` from the `alpha` branch on GitHub raw
 (`fetchRemoteAlphaChangelog()`, same one-minute cache and `?refresh=1` bypass as the main
@@ -523,27 +533,26 @@ banner states that alpha is a rolling pre-release channel and, if `newer` is non
 notes how many releases have landed on `main` since this build for context. The sidebar/About
 version label itself still distinguishes one alpha build from the next via the build number
 (`v0.8.0.7 alpha`), and the release list shows a separate "New since your build - not pulled
-yet" section (tagged "Not pulled yet", `alphaBuild.pendingEntries`) above the "Alpha builds
-since last merge" section (`alphaBuild.entries`, this instance's own already-installed
-build history) whenever either is non-empty, so a newer build's changes are visible without
+yet" section (tagged "Not pulled yet", `alphaBuild.pendingEntries`) above the "Current alpha
+build" section (`alphaBuild.entries`, this instance's own already-installed single current
+entry) whenever either is non-empty, so a newer build's changes are visible without
 updating first.
 
 `developBuild` (populated only on the `develop` channel, read from `changelog.develop.json`
 via `readLocalDevelopChangelog()`) works the same way but is deliberately **not** derived
 from alpha's or main's version at all - it is a standalone rolling counter,
-`{ build, entries }`, bumped by `scripts/update-develop-changelog.js` on every push to
-`develop`. Earlier this tracked `${mainVersion}.${alphaBuild}.${developBuild}`, which looked
-like a lower version than its parent branch for as long as `develop` went without a push
-after `alpha`/`main` moved forward (their own build files self-heal reactively on their
-next push, but that push never happens to `develop`, so its borrowed version string went
-stale). Dropping the derivation removes that class of bug: with nothing to compare against
-passively, the counter can never appear to regress on its own. It is still reset to 0, but
-only as an explicit, deliberate step of `promoteDevelopToAlpha()` (run as part of the
-"Force to alpha" promotion) - the same safe shape as alpha's own reset-on-promotion-to-main,
-never an inferred reset from comparing against a value that might be stale.
-`describePendingDevelopBuild()` mirrors `describePendingAlphaBuild()` but compares only
-`build` numbers. The sidebar/About label shows this as `Develop Build <n>` rather than a
-version string.
+`{ build, resetCommit, entries }`. `scripts/rebuild-develop-changelog.js`, run locally as
+part of "Push to git" (before the push), fully recomputes the single entry from every real
+commit between `resetCommit` and HEAD, rather than appending one entry per push - there is
+only ever one entry to read, and it is always current. `build` bumps by one on every
+rebuild that finds real content and otherwise counts up for the lifetime of the branch: it
+never compares against a parent branch's version string, so it can't appear to regress.
+`resetCommit` and `entries` are the only fields `promoteDevelopToAlpha()` (run as part of
+the "Force to alpha" promotion) resets - `build` is not, the same safe shape as alpha's own
+reset-on-promotion-to-main, never an inferred reset from comparing against a value that
+might be stale. `describePendingDevelopBuild()` mirrors `describePendingAlphaBuild()` but
+compares only `build` numbers. The sidebar/About label shows this as `Develop Build <n>`
+rather than a version string.
 
 ## Data layer (`server/src/db.js` + `schema.sql`)
 

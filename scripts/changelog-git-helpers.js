@@ -2,16 +2,16 @@
 
 import { execFileSync } from "node:child_process";
 
-// A `git push` can carry several commits, but GitHub's push event only exposes
-// head_commit - everything else would silently vanish from a changelog if a
-// multi-commit push isn't summarized by hand in the final commit message.
-// Worse, if an earlier push's CI run failed before this script ever ran, that
-// push's commit never got an entry at all, and it won't appear in *this*
-// push's event payload either. So the authoritative source of "what's new
-// since the last entry" is git history itself: walk every commit between the
-// last recorded changelog commit and the current one.
-export function commitsSinceLastEntry(root, lastCommit, headCommit) {
-  if (!lastCommit || lastCommit === headCommit) return [];
+// The changelog pipeline computes entries locally (as part of "Push to git" /
+// "Force to alpha" / "Force to main", run against a real local clone with
+// full history) rather than from GitHub's push-event payload - that payload
+// only reliably lists commits for a plain incremental push, and is empty or
+// incomplete for a force-push, which is how develop's tip always reaches
+// alpha and alpha's tip always reaches main. Git history itself is the only
+// authoritative source of "what's new since the anchor commit", inclusive of
+// the head commit itself.
+export function commitsSinceLastEntry(root, anchorCommit, headCommit) {
+  if (!anchorCommit || anchorCommit === headCommit) return [];
   // Real ASCII Unit/Record Separator control characters, not empty strings -
   // a commit body can legitimately contain any printable character (including
   // literal "%H"-looking text), so the split points must be characters git
@@ -21,7 +21,7 @@ export function commitsSinceLastEntry(root, lastCommit, headCommit) {
   try {
     const raw = execFileSync(
       "git",
-      ["log", "--reverse", `--pretty=format:%H${unitSep}%B${recordSep}`, `${lastCommit}..${headCommit}`],
+      ["log", "--reverse", `--pretty=format:%H${unitSep}%B${recordSep}`, `${anchorCommit}..${headCommit}`],
       { cwd: root, encoding: "utf8" },
     );
     return raw
@@ -32,10 +32,22 @@ export function commitsSinceLastEntry(root, lastCommit, headCommit) {
         const [id, ...rest] = chunk.split(unitSep);
         return { id, message: rest.join(unitSep).trim() };
       })
-      .filter((commit) => commit.id && commit.id !== headCommit);
+      .filter((commit) => commit.id);
   } catch (error) {
-    console.error(`Could not walk git history from ${lastCommit} to ${headCommit}: ${error.message}`);
+    console.error(`Could not walk git history from ${anchorCommit} to ${headCommit}: ${error.message}`);
     return [];
+  }
+}
+
+export function gitHeadCommit(root) {
+  return execFileSync("git", ["rev-parse", "HEAD"], { cwd: root, encoding: "utf8" }).trim();
+}
+
+export function gitHeadAuthor(root) {
+  try {
+    return execFileSync("git", ["log", "-1", "--pretty=format:%an"], { cwd: root, encoding: "utf8" }).trim() || "unknown";
+  } catch {
+    return "unknown";
   }
 }
 

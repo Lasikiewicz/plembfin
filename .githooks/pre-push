@@ -2,9 +2,9 @@
 set -e
 
 # Only auto-sync for a same-name push (e.g. "alpha" -> "alpha"). A cross-ref
-# push (e.g. the "Merge alpha with main" force-push of alpha onto main) has
-# already been deliberately reconciled by hand, and syncing the current
-# branch against an unrelated same-named remote branch would be wrong anyway.
+# push (e.g. the "Force to main" force-push of alpha onto main) has already
+# been deliberately reconciled by hand, and syncing the current branch
+# against an unrelated same-named remote branch would be wrong anyway.
 #
 # The sync itself merges rather than rebases. alpha's history routinely
 # contains a real merge commit (folding a changelog-bump commit from main back

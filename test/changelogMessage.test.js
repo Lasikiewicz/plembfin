@@ -42,7 +42,13 @@ test("validateReleaseMessage rejects title-only release commits", () => {
   );
 });
 
-test("isNoiseCommitMessage flags CI plumbing commits", () => {
+test("isNoiseCommitMessage flags release-pipeline bookkeeping commits", () => {
+  assert.equal(isNoiseCommitMessage("chore: rebuild develop changelog"), true);
+  assert.equal(isNoiseCommitMessage("chore: promote develop changelog to alpha"), true);
+  assert.equal(isNoiseCommitMessage("chore: promote alpha to main v0.13.0"), true);
+  // Historical commit shapes from before the changelog pipeline moved to
+  // local computation - no longer created, but a rebuild's git-history walk
+  // can still cross one if its reset anchor predates the move.
   assert.equal(isNoiseCommitMessage("chore: bump alpha build for 2ad814a"), true);
   assert.equal(isNoiseCommitMessage("chore: bump develop build for 2ad814a"), true);
   assert.equal(isNoiseCommitMessage("chore: update changelog for c678878"), true);

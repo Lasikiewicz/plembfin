@@ -1,0 +1,128 @@
+#!/usr/bin/env node
+
+// Rebuilds changelog.develop.json's single rolling entry from scratch, from
+// real local git history, as part of "Push to git" - run locally, before the
+// commit is pushed, so the pushed commit already carries correct changelog
+// content. This replaces the old model of a CI job appending one entry per
+// push (each entry building up alongside the others, later needing manual
+// consolidation before a promotion) with always recomputing the one entry
+// that represents everything since the last "Force to alpha" reset, so there
+// is only ever one develop entry to read and it is always current.
+//
+// changelog.develop.json's `resetCommit` field is the anchor: the commit at
+// which the last reset happened (see promoteDevelopToAlpha in
+// promote-develop-to-alpha.js). Every real, user-facing commit between that
+// anchor and HEAD is folded into the rebuilt entry; noise (bot/merge)
+// commits, changelog-process commits, and non-release-type commits (test:,
+// chore:, refactor:, style:, ci:) are excluded, same rules as before.
+//
+// The `build` counter is unrelated to content and keeps counting up across
+// the whole lifetime of the branch (see the comment on promoteDevelopToAlpha
+// for why it never chases a parent version string) - it bumps by one on every
+// rebuild that finds real content, independent of how many commits that
+// rebuild covers.
+
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import { bulletPointsFrom, filterChangelogDetails, formatChangelogMessage, isChangelogProcessMessage, isNoiseCommitMessage, isReleaseTypeCommitMessage, validateReleaseMessage } from "./changelog-message.js";
+import { changeAreaDetails, changedFilesForCommit, commitsSinceLastEntry, gitHeadAuthor, gitHeadCommit } from "./changelog-git-helpers.js";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const developChangelogPath = path.join(root, "changelog.develop.json");
+
+// Pure and exported for testing: given the full set of commits between the
+// reset anchor and HEAD, builds the single consolidated entry, or returns
+// null when there is nothing user-facing to report (the caller then leaves
+// changelog.develop.json untouched rather than publishing an empty entry).
+export function buildDevelopEntry({ commits, headCommit, date, author, nextBuild, changedFilesForCommitFn = () => [] }) {
+  const releaseCommits = commits.filter((commit) =>
+    !isNoiseCommitMessage(commit.message)
+    && !isChangelogProcessMessage(commit.message)
+    && isReleaseTypeCommitMessage(commit.message));
+
+  if (releaseCommits.length === 0) return null;
+
+  const messageErrors = releaseCommits.flatMap((commit) =>
+    validateReleaseMessage(commit.message).map((error) => `${String(commit.id || "").slice(0, 7)}: ${error}`));
+  if (messageErrors.length > 0) {
+    throw new Error(`Refusing to rebuild the develop changelog:\n${messageErrors.map((e) => `- ${e}`).join("\n")}`);
+  }
+
+  let details = [];
+  for (const commit of releaseCommits) {
+    const bullets = bulletPointsFrom(commit.message);
+    if (bullets.length) {
+      details.push(...filterChangelogDetails(bullets));
+    } else {
+      const generated = changeAreaDetails(changedFilesForCommitFn(commit.id));
+      details.push(...filterChangelogDetails(generated.length
+        ? generated
+        : [formatChangelogMessage(String(commit.message || "").split(/\r?\n/, 1)[0])]));
+    }
+  }
+  details = details.filter((v, i, arr) => v && arr.indexOf(v) === i);
+
+  // commits are oldest..newest (git log --reverse) - the most recent real
+  // commit reads as the entry's headline, same convention the old per-push
+  // generators used for a multi-commit push.
+  const latest = releaseCommits[releaseCommits.length - 1];
+  const message = formatChangelogMessage(String(latest.message || "").split(/\r?\n/, 1)[0]);
+
+  const entry = { build: nextBuild, date, commit: headCommit, message, author };
+  if (details.length > 0) entry.details = details;
+  return entry;
+}
+
+function main() {
+  let develop;
+  try {
+    develop = JSON.parse(fs.readFileSync(developChangelogPath, "utf8"));
+  } catch {
+    develop = { build: 0, resetCommit: "", entries: [] };
+  }
+  if (!Array.isArray(develop.entries)) develop.entries = [];
+
+  const headCommit = gitHeadCommit(root);
+  const anchorCommit = String(develop.resetCommit || "").trim();
+  if (!anchorCommit) {
+    console.error("changelog.develop.json has no resetCommit anchor. Force to alpha sets this on every reset - if this is a fresh repo or a one-time migration, set resetCommit to the current HEAD by hand first.");
+    process.exit(1);
+  }
+  if (anchorCommit === headCommit) {
+    console.log("No new commits since the last reset - leaving changelog.develop.json unchanged.");
+    process.exit(0);
+  }
+
+  const commits = commitsSinceLastEntry(root, anchorCommit, headCommit);
+  let entry;
+  try {
+    entry = buildDevelopEntry({
+      commits,
+      headCommit,
+      date: new Date().toISOString(),
+      author: gitHeadAuthor(root),
+      nextBuild: Number(develop.build || 0) + 1,
+      changedFilesForCommitFn: (commitId) => changedFilesForCommit(root, commitId),
+    });
+  } catch (error) {
+    console.error(error.message);
+    process.exit(1);
+  }
+
+  if (!entry) {
+    console.log("No user-facing commits since the last reset - leaving changelog.develop.json unchanged.");
+    process.exit(0);
+  }
+
+  develop.build = entry.build;
+  develop.entries = [entry];
+  develop.updatedAt = entry.date;
+
+  fs.writeFileSync(developChangelogPath, `${JSON.stringify(develop, null, 2)}\n`);
+  console.log(`Rebuilt develop changelog: build ${entry.build} covering ${commits.length} commit(s) since ${anchorCommit.slice(0, 7)}.`);
+}
+
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  main();
+}

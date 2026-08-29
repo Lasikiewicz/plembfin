@@ -433,8 +433,9 @@ each promotion to `main` becoming one numbered release. See
 [Which version should I run?](#which-version-should-i-run) for what that means as a
 user, and [`docs/development.md`](docs/development.md) for the full workflow.
 
-Changelog generation keeps release-process bookkeeping out of `alpha` and `main`, with
-a target-branch guard before either workflow commits generated metadata.
+Changelog content for every branch is generated locally, before each push, from real git
+history - never by CI reading GitHub's push event - which also keeps release-process
+bookkeeping out of what publishes to `alpha` and `main`.
 
 Every push to `develop`/`alpha` builds and publishes a rolling image
 (`:develop`/`:alpha`, plus a build-numbered tag); PRs to `main` build and verify without
