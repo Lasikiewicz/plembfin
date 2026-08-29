@@ -1,7 +1,25 @@
 {
-  "version": "0.12.11",
-  "updatedAt": "2026-08-28T18:46:22Z",
+  "version": "0.12.12",
+  "updatedAt": "2026-08-28T19:52:20+01:00",
   "entries": [
+    {
+      "version": "0.12.12",
+      "date": "2026-08-28T19:52:20+01:00",
+      "commit": "0535357efa1dcd3c68d035aa17e2d4d464df6e2a",
+      "message": "Docs - Consolidate v0.12.11 changelog entry into higher-level bullets",
+      "author": "Lasikiewicz",
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [],
+        "tweaks": [
+          "Consolidate v0.12.11 changelog entry into higher-level bullets",
+          "Dropped a redundant Major Bug Fixes bullet that just restated the release's commit subject"
+        ]
+      },
+      "details": [
+        "Dropped a redundant Major Bug Fixes bullet that just restated the release's commit subject"
+      ]
+    },
     {
       "version": "0.12.11",
       "date": "2026-08-28T18:46:22Z",
