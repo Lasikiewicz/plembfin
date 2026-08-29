@@ -1,7 +1,19 @@
 {
-  "build": 3,
-  "updatedAt": "2026-08-29T09:55:26+01:00",
+  "build": 4,
+  "updatedAt": "2026-08-29T10:40:24+01:00",
   "entries": [
+    {
+      "build": 4,
+      "date": "2026-08-29T10:40:24+01:00",
+      "commit": "ece953ee8faf1c932efc0fc2b3d2f6383bf182b4",
+      "message": "Feature - Add saving-state feedback for episode watch actions and changelog release-process filtering",
+      "author": "Lasikiewicz",
+      "details": [
+        "Episode tiles pulse with a \"Syncing...\" overlay while marking watched/unwatched is in flight, including collapsed season accordion headers during whole-show or whole-season bulk actions",
+        "Marking unwatched from the show control bar now batches requests in groups of 100, fixing shows with more than 100 watched episodes silently failing with no explanation",
+        "The poster three-dot overflow menu (Mark Unwatched / Edit watch date / Fix match) now appears on TV show library cards and stays legible in light mode instead of rendering as dark-on-dark dots"
+      ]
+    },
     {
       "build": 3,
       "date": "2026-08-29T09:55:26+01:00",
