@@ -4,6 +4,29 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v0.14.0 - 29 August 2026
+
+Fix - Compute changelog content locally instead of via unreliable CI push events
+
+### New Features
+
+- Add saving-state feedback for episode watch actions and changelog release-process filtering
+- Episode tiles pulse with a "Syncing..." overlay while marking watched/unwatched is in flight, including collapsed season accordion headers during whole-show or whole-season bulk actions
+- Marking unwatched from the show control bar now batches requests in groups of 100, fixing shows with more than 100 watched episodes silently failing with no explanation
+- The poster three-dot overflow menu (Mark Unwatched / Edit watch date / Fix match) now appears on TV show library cards and stays legible in light mode instead of rendering as dark-on-dark dots
+
+### Major Bug Fixes
+
+- Compute changelog content locally instead of via unreliable CI push events
+- Changelog content for develop, alpha, and main is now generated locally as part of running Push to git / Force to alpha / Force to main, using real git history, instead of a CI job reading GitHub's push-event commit list afterward - that list is empty or incomplete for alpha and main, which are always reached by a force-push, and was producing changelog entries with no real content
+- Alpha and develop each keep a single current changelog entry that stays up to date automatically, instead of accumulating one entry per push that needed manual editing before release - Settings -> About now shows one current entry instead of a stack of build entries
+- Alpha and main changelog generation now refuses to publish an entry whose only available content is a noise commit message (a bot bump or a plain merge commit), so a broken changelog entry can no longer reach Settings -> Changelog or the Discord release notification
+- Removed the unused scripts/notify-reddit-release.js - Reddit release announcements are actually posted by a separate scheduled Devvit app (reddit-app/), which was already the real mechanism
+- Batch watch-state dispatch by media identity
+- Marking an entire show as watched now excludes Season 0 specials by default
+- The watched-date dialog shows an Include specials (Season 0) checkbox, unchecked by default, to opt them back in
+- Batch related watch-state updates by shared media identity to make large syncs safer and avoid duplicate provider work.
+
 ## v0.12.12 - 28 August 2026
 
 Docs - Consolidate v0.12.11 changelog entry into higher-level bullets
@@ -953,7 +976,7 @@ Fix - Update settings shell route handling and test suite for General group aggr
 - Update test/settingsShell.test.js assertions for storage panel and advanced legacy redirect
 - Pass all 177 automated unit tests
 
-## v0.6.77 - 5 August 2026
+## v0.6.77 - 6 August 2026
 
 Feature - Standardize settings page layouts
 
