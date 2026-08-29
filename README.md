@@ -57,7 +57,7 @@ None of these talk to each other - they all talk to Plembfin.
 - **Cross-platform resume** - Pause playback on one server and pick up right where you left off on another
 - **Rewatch tracking** - Full multi-watch history logging with smart deduplication that preserves authentic repeat viewings
 - **Now Playing dashboard** - Real-time playback monitoring, weekly watch activity trends, and recent history
-- **Sync Activity hub** - Live status indicator and dedicated activity stream detailing sync origins, destinations, delivery results, targeted retry for failed or skipped destinations, and downloadable logs
+- **Sync Activity hub** - Live status indicator and dedicated activity stream detailing sync origins, destinations, delivery results, targeted retry for failed or skipped destinations (individually or all at once as a background job that survives closing the tab), and downloadable logs
 - **Rich analytics & stats** - In-depth all-time and period reports, top shows, and platform playback distribution
 - **Upcoming episodes calendar** - Air date schedule for upcoming and past releases, pre-cached for instant loading
 - **Live Trakt sync** - Two-way Trakt integration with seamless device authorization, per-play history import, and resilient sync protection

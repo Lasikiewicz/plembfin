@@ -591,7 +591,7 @@ export function renderPartWatchedCard(entry) {
         </div>
         <div class="part-watched-card-meta">
           ${isEpisode ? `<span><span class="meta-label">Season/Ep:</span> ${escapeHtml(episodeCode(entry.season, entry.episode))}</span>` : ""}
-          <span><span class="meta-label">Last Played:</span> ${formattedTime}</span>
+          <span><span class="meta-label">Last Played:</span> <span class="part-watched-last-played-value">${formattedTime}</span></span>
           <span><span class="meta-label">App Used:</span> ${sourceBadgeMarkup}</span>
         </div>
 
@@ -669,6 +669,27 @@ function bindPartWatchedAppBadges(root) {
   }
 }
 
+// Patches only the parts of an already-rendered part-watched card that resume
+// progress actually changes (the progress bar and the last-played time),
+// leaving its poster/title/badges DOM nodes completely untouched. The SSE
+// live-update stream only reports "something changed" (a shared history
+// version bump), not which item - and on the dashboard the overwhelmingly
+// common cause while something is playing is this same row's own resume
+// position ticking forward, not a new item starting or its poster changing.
+// Rebuilding the row's whole innerHTML for that recreated every poster
+// <img> in it, which is what looked like posters "refreshing" during
+// playback (see KNOWN_ISSUES.md).
+function patchPartWatchedCardProgress(node, entry) {
+  if (!node) return;
+  const progressPercent = partWatchedProgress(entry);
+  const fill = node.querySelector(".part-watched-progress-fill");
+  if (fill) fill.style.width = `${progressPercent}%`;
+  const text = node.querySelector(".part-watched-progress-text");
+  if (text) text.textContent = `${progressPercent}% watched`;
+  const lastPlayed = node.querySelector(".part-watched-last-played-value");
+  if (lastPlayed) lastPlayed.textContent = entry.updated_at ? formatDate(entry.updated_at) : "";
+}
+
 export function renderPartWatched() {
   if (!elements.partWatchedPanel) return;
   const key = "default";
@@ -680,18 +701,25 @@ export function renderPartWatched() {
 
   applyPartWatchedPosterWidth();
 
+  const panel = elements.partWatchedPanel;
+
   if (!state.partWatchedRaw.length) {
-    // The placeholder/empty state replaces the card DOM. Invalidate the HTML
-    // memo at the same time: a refresh can legitimately return the exact same
-    // cards as before, and retaining their old memo would make the renderer
-    // skip restoring them, leaving this loading message on screen forever.
-    delete elements.partWatchedPanel.dataset.renderedHtml;
     if (state.partWatchedLoading) {
-      if (elements.partWatchedSection) elements.partWatchedSection.classList.remove("hidden");
-      elements.partWatchedPanel.innerHTML = `<div class="empty-log"><b>Loading partly watched items…</b></div>`;
+      // A live refresh resets partWatchedRaw before re-fetching (see
+      // resetPartWatchedView), which lands here every time regardless of
+      // whether anything actually changed. If real cards are still on
+      // screen from before the reset, leave them exactly as they are rather
+      // than flashing a loading placeholder over them - the fresh fetch
+      // reconciles them in place a moment later without ever touching their
+      // poster elements. Only a genuine first load (nothing on screen yet)
+      // shows the placeholder.
+      if (!panel.querySelectorAll("[data-part-watched-card-id]").length) {
+        if (elements.partWatchedSection) elements.partWatchedSection.classList.remove("hidden");
+        panel.innerHTML = `<div class="empty-log"><b>Loading partly watched items…</b></div>`;
+      }
     } else {
       if (elements.partWatchedSection) elements.partWatchedSection.classList.add("hidden");
-      elements.partWatchedPanel.innerHTML = "";
+      panel.innerHTML = "";
     }
     updateDashboardSplitState();
     return;
@@ -699,17 +727,29 @@ export function renderPartWatched() {
 
   if (elements.partWatchedSection) elements.partWatchedSection.classList.remove("hidden");
   const items = state.partWatchedRaw.slice(0, PART_WATCHED_DASHBOARD_LIMIT);
-  const nextHtml = items.map((entry, index) => renderPartWatchedCard({
-    ...entry,
-    eager_poster: index < 6,
-    prefer_raw_poster: true,
-  })).join("");
-  if (elements.partWatchedPanel.dataset.renderedHtml !== nextHtml) {
-    elements.partWatchedPanel.dataset.renderedHtml = nextHtml;
-    elements.partWatchedPanel.innerHTML = nextHtml;
-    bindPartWatchedAppBadges(elements.partWatchedPanel);
-    hydratePosters(elements.partWatchedPanel);
-    _cb.observeExplorerTmdbPrefetch?.(elements.partWatchedPanel);
+  const currentIds = items.map((entry) => String(entry.id));
+  const existingCards = [...panel.querySelectorAll("[data-part-watched-card-id]")];
+  const existingIds = existingCards.map((el) => el.dataset.partWatchedCardId);
+  const sameMembership = existingIds.length === currentIds.length && existingIds.every((id, index) => id === currentIds[index]);
+
+  if (!sameMembership) {
+    // The set or order of partly-watched items actually changed (one started,
+    // finished, or reordered by recency) - nothing to preserve card-for-card,
+    // so rebuild the row normally.
+    const nextHtml = items.map((entry, index) => renderPartWatchedCard({
+      ...entry,
+      eager_poster: index < 6,
+      prefer_raw_poster: true,
+    })).join("");
+    panel.innerHTML = nextHtml;
+    bindPartWatchedAppBadges(panel);
+    hydratePosters(panel);
+    _cb.observeExplorerTmdbPrefetch?.(panel);
+  } else {
+    // Same cards in the same order - patch each one's progress/last-played
+    // text in place instead of touching the DOM node at all.
+    const nodesById = new Map(existingCards.map((el) => [el.dataset.partWatchedCardId, el]));
+    for (const entry of items) patchPartWatchedCardProgress(nodesById.get(String(entry.id)), entry);
   }
   updateDashboardSplitState();
 }

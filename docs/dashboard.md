@@ -53,9 +53,16 @@ The displayed percentage is derived from the saved playback position and duratio
 both are available, so an incomplete percentage field from a webhook cannot show `0%`
 for an item with real resume progress. The Now Playing refresh token also invalidates and
 reloads this rail, keeping it aligned with playback changes without a full page reload.
-Replacing its cards with a loading or empty state also invalidates the rendered-markup
-memo, so an unchanged refresh result always restores the cards instead of leaving the
-loading message visible.
+
+`renderPartWatched` reconciles per card rather than diffing the whole rail as one block:
+if a refresh returns the same set of items in the same order (the common case while
+something is actively playing, since the playing item's `updated_at` keeps it sorted
+first), it patches only each card's progress bar, "% watched" text, and "Last Played"
+timestamp in place (`patchPartWatchedCardProgress`) and never touches the poster `<img>`
+or rebuilds the card's DOM node. A full rebuild only happens when the set or order of
+items actually changes. A live refresh also leaves existing cards on screen untouched
+while it re-fetches rather than clearing the rail to a loading placeholder first, so a
+routine progress-only update while something plays never flashes the posters.
 
 ### Version badge / update check
 
@@ -108,9 +115,26 @@ that a text search would not reliably match.
 Partial, failed, and skipped rows with an actionable destination include a Retry
 button. `POST /api/sync-history/retry` reconstructs the media identity from the
 activity record (including a fresh Plex metadata lookup when a native rating key is
-available) and retries only the failed or skipped destinations. The result is written
-as a new activity row linked to the original record, preserving the audit trail and
-avoiding duplicate writes to destinations that already succeeded.
+available) and retries only the failed or skipped destinations. The retried row is
+updated in place - a target that now succeeds shows success, a target with nowhere to
+dispatch to (no server configured for it) shows skipped rather than a stale error, and a
+target that wasn't retried keeps its prior result - so a resolved item actually drops out
+of the failed count instead of leaving the old error sitting alongside a new row forever.
+The row's prior outcome is folded into its raw debug data before being overwritten, so
+what it looked like before the retry isn't lost. A "queued:" row (a watch recorded
+locally with no durable activity row of its own yet) is retried the same way, but the
+outcome is written back onto the underlying watch record's own telemetry, since that is
+what the queued row is rendered from.
+
+The "Retry all failed" button next to Refresh retries every failed or skipped item
+across the entire sync history, not just the current page. Clicking it discovers the
+real total across every page first and confirms before starting. The retry itself runs
+as a background job (`retry_all_sync_activity`, alongside `force_sync` and the metadata
+refresh jobs - see [scheduled-sync.md](scheduled-sync.md)), so it keeps running - and
+survives navigating away, reloading, or closing the tab - the same way Force Sync does.
+`POST /api/sync-history/retry-all` enqueues the job; `GET /api/sync-history/retry-all`
+polls its status/log/result, which the button label reflects while it runs. Returning to
+the Sync Activity page resumes polling an already-running job automatically.
 
 Sync Activity resolves platform names itself (`activityPlatform`) rather than through
 `normalizePlatformSource`, which knows only the three media servers and folds anything

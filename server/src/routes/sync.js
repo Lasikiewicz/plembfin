@@ -10,7 +10,7 @@ import { createLoopStore } from "../utils/loopStore.js";
 import { runWithConcurrency } from "../utils/concurrency.js";
 import { listActiveSessions, deleteActiveSession, upsertActiveSession } from "../utils/activeSessions.js";
 import { hydrateCachedSession, loadLiveTrackingCache } from "../utils/liveSessions.js";
-import { activeSyncOperation, appendSyncHistory, clearSyncOperation, loadMediaConfig, mergeIncomingConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistoryById, getSyncHistoryPage, loadRuntimeState, setRuntimeState, appendRuntimeLog, SYNC_OPERATION_FORCE, SYNC_OPERATION_SCHEDULED } from "../utils/configStore.js";
+import { activeSyncOperation, appendSyncHistory, clearSyncOperation, loadMediaConfig, mergeIncomingConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistoryById, getSyncHistoryPage, updateSyncHistoryStatus, loadRuntimeState, setRuntimeState, appendRuntimeLog, SYNC_OPERATION_FORCE, SYNC_OPERATION_SCHEDULED } from "../utils/configStore.js";
 import { forceSyncStopAction } from "../utils/forceSyncControl.js";
 import { getSyncPlanActionsPage, getSyncPlanSummary, confirmSyncPlan } from "../utils/syncPlans.js";
 import {
@@ -736,13 +736,17 @@ function queuedActivityAlreadyRecorded(row, history = []) {
   });
 }
 
-export async function handleSyncHistory(req, res) {
-  if (req.method === "OPTIONS") return sendOptions(res);
-  if (req.method !== "GET") return methodNotAllowed(res);
-  if (!(await requireAdmin(req, res))) return;
-  const requestedLimit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 200);
-  const requestedPage = Math.max(Math.floor(Number(req.query.page) || 1), 1);
-  const search = String(req.query.search || "").trim().slice(0, 120);
+// The actual page-building logic behind GET /api/sync-history (queued
+// watch_history rows merged as a prefix ahead of the durable sync_history
+// store - see the comment below), factored out so a caller that isn't an
+// HTTP request - the "retry all failed" background job's own discovery pass
+// - can walk it directly instead of the job calling back into its own HTTP
+// server. requestedLimit is not capped here the way the route handler caps
+// it for response size; a background caller can ask for a much larger page.
+async function getMergedSyncActivityPage({ limit = 100, page = 1, search = "" } = {}) {
+  const requestedLimit = Math.max(Math.floor(Number(limit) || 100), 1);
+  const requestedPage = Math.max(Math.floor(Number(page) || 1), 1);
+  const cleanedSearch = String(search || "").trim().slice(0, 120);
   const [historyHead, queuedRows, searchedHistory] = await Promise.all([
     // Keep the queue de-duplication probe bounded. The durable page query
     // below is the only query whose size is controlled by the requested page.
@@ -751,13 +755,13 @@ export async function handleSyncHistory(req, res) {
     // derived-cache invalidation until after outbound dispatch, while the
     // Activity page should show the queue during that dispatch window.
     querySyncJobs({ limit: 500, status: "outstanding", fresh: true }),
-    search ? getSyncHistoryPage({ limit: 1, offset: 0, search }) : Promise.resolve(null),
+    cleanedSearch ? getSyncHistoryPage({ limit: 1, offset: 0, search: cleanedSearch }) : Promise.resolve(null),
   ]);
   const queued = queuedRows
     .filter((row) => !queuedActivityAlreadyRecorded(row, historyHead.history))
     .map(queuedWatchRecordToSyncActivity)
     .filter((entry) => {
-      if (!search) return true;
+      if (!cleanedSearch) return true;
       const source = String(entry.source || "").toLowerCase();
       const sourceLabel = source.startsWith("manual") || source.startsWith("force_sync") || source.startsWith("plembfin") ? "Plembfin" : source;
       const haystack = [
@@ -771,7 +775,7 @@ export async function handleSyncHistory(req, res) {
         JSON.stringify(entry.targetStates || []),
         JSON.stringify(entry.rawPayloadDebug || {}),
       ].join(" ").toLowerCase();
-      return haystack.includes(search.toLowerCase());
+      return haystack.includes(cleanedSearch.toLowerCase());
     })
     .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0) || String(b.id).localeCompare(String(a.id)));
 
@@ -781,14 +785,14 @@ export async function handleSyncHistory(req, res) {
   // every subsequent page.
   const total = (searchedHistory?.total ?? historyHead.total) + queued.length;
   const totalPages = Math.max(1, Math.ceil(total / requestedLimit));
-  const page = Math.min(requestedPage, totalPages);
-  const pageOffset = (page - 1) * requestedLimit;
+  const resolvedPage = Math.min(requestedPage, totalPages);
+  const pageOffset = (resolvedPage - 1) * requestedLimit;
   const queuedStart = Math.min(pageOffset, queued.length);
   const queuedPage = queued.slice(queuedStart, queuedStart + requestedLimit);
   const storedOffset = Math.max(0, pageOffset - queued.length);
   const storedLimit = Math.max(0, requestedLimit - queuedPage.length);
   const storedPage = storedLimit
-    ? await getSyncHistoryPage({ limit: storedLimit, offset: storedOffset, search })
+    ? await getSyncHistoryPage({ limit: storedLimit, offset: storedOffset, search: cleanedSearch })
     : { history: [] };
   const merged = [...queuedPage, ...storedPage.history];
   const from = total ? pageOffset + 1 : 0;
@@ -799,20 +803,56 @@ export async function handleSyncHistory(req, res) {
   // this exists alongside the live per-burst "Sync - X of Y" indicator.
   const traktDispatchProgress = countTraktImportPendingDispatch();
 
-  return sendJson(res, {
+  return {
     history: merged,
     pagination: {
-      page,
+      page: resolvedPage,
       limit: requestedLimit,
       total,
       totalPages,
       from,
       to,
-      hasPrevious: page > 1,
-      hasNext: page < totalPages,
+      hasPrevious: resolvedPage > 1,
+      hasNext: resolvedPage < totalPages,
     },
     ...(traktDispatchProgress.pending > 0 ? { traktDispatchProgress } : {}),
-  }, 200, { "Cache-Control": "private, max-age=15, stale-while-revalidate=60", Vary: "Authorization" });
+  };
+}
+
+export async function handleSyncHistory(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  const requestedLimit = Math.min(Math.max(Number(req.query.limit) || 100, 1), 200);
+  const requestedPage = Math.max(Math.floor(Number(req.query.page) || 1), 1);
+  const search = String(req.query.search || "").trim().slice(0, 120);
+  const body = await getMergedSyncActivityPage({ limit: requestedLimit, page: requestedPage, search });
+  return sendJson(res, body, 200, { "Cache-Control": "private, max-age=15, stale-while-revalidate=60", Vary: "Authorization" });
+}
+
+function isRetryableSyncActivityEntry(entry = {}) {
+  return retryableSyncActivityTargets(entry).length > 0;
+}
+
+// Walks every page of getMergedSyncActivityPage (not just what the HTTP
+// route's own response-size cap would allow) collecting every retryable
+// entry's id, for the "retry all failed" background job's own discovery
+// pass - no HTTP round trip to itself, and no cap on page size since nothing
+// here goes back over the wire.
+async function listAllRetryableSyncActivityIds() {
+  const ids = [];
+  const limit = 500;
+  let page = 1;
+  for (;;) {
+    const body = await getMergedSyncActivityPage({ limit, page });
+    for (const entry of body.history) {
+      if (isRetryableSyncActivityEntry(entry)) ids.push(String(entry.id));
+    }
+    const totalPages = Math.max(Number(body.pagination?.totalPages) || 1, 1);
+    if (!body.history.length || page >= totalPages) break;
+    page += 1;
+  }
+  return ids;
 }
 
 function retryableSyncActivityTargets(entry = {}) {
@@ -820,6 +860,39 @@ function retryableSyncActivityTargets(entry = {}) {
     .filter((target) => ["error", "failed", "skipped", "not_found"].includes(String(target.status || "").toLowerCase()))
     .map((target) => String(target.target || "").trim().toLowerCase())
     .filter((target) => ["plex", "emby", "jellyfin", "trakt"].includes(target)))];
+}
+
+// Recomputes an entry's overall status from its per-target results, the same
+// success/partial/error/skipped rules syncOrchestrator.js itself uses - kept
+// here in miniature because this is recomputing a MERGED array (original
+// targets untouched by a retry, mixed with the retry's own results), not the
+// single dispatch summary syncOrchestrator already scores.
+function statusFromTargetStates(targetStates = []) {
+  if (!targetStates.length) return "skipped";
+  const successCount = targetStates.filter((t) => String(t.status || "").toLowerCase() === "success").length;
+  const failureCount = targetStates.filter((t) => ["error", "failed"].includes(String(t.status || "").toLowerCase())).length;
+  if (successCount === targetStates.length) return "success";
+  if (failureCount) return successCount ? "partial" : "error";
+  return successCount ? "partial" : "skipped";
+}
+
+// Folds a retry's own target-level results back into the entry's original
+// target list: a target the retry actually reported on takes its new result;
+// a target that was retried (in retriedTargets) but the retry summary never
+// mentioned - because there was nothing to dispatch to at all, e.g. "No
+// enabled sync destinations" - is downgraded from its old "error" to
+// "skipped" rather than left showing a stale error. A target that wasn't
+// part of this retry (already succeeding, or a platform outside
+// plex/emby/jellyfin/trakt) is carried over unchanged.
+function mergeTargetStates(originalTargetStates = [], retrySummaryTargetStates = [], retriedTargets = [], retryDetail = "") {
+  const retriedSet = new Set(retriedTargets);
+  const byTarget = new Map(retrySummaryTargetStates.map((t) => [String(t.target || "").trim().toLowerCase(), t]));
+  return originalTargetStates.map((t) => {
+    const key = String(t.target || "").trim().toLowerCase();
+    if (byTarget.has(key)) return byTarget.get(key);
+    if (retriedSet.has(key)) return { target: key, status: "skipped", detail: retryDetail || "No destination currently configured" };
+    return t;
+  });
 }
 
 async function mediaFromSyncActivity(entry, config) {
@@ -850,21 +923,82 @@ async function mediaFromSyncActivity(entry, config) {
   };
 }
 
-export async function handleRetrySyncHistory(req, res) {
-  if (req.method === "OPTIONS") return sendOptions(res);
-  if (req.method !== "POST") return methodNotAllowed(res);
-  if (!(await requireAdmin(req, res))) return;
+// A "queued:<watch_history id>" activity entry (queuedWatchRecordToSyncActivity
+// below) represents a watch that's been recorded locally but has no
+// sync_history row of its own yet - that's the whole reason it reads
+// "queued" rather than "error"/"partial". There's nothing for
+// getSyncHistoryById to find, so retrying one means dispatching the
+// underlying watch_history row directly, the same way the original write's
+// own deferred dispatch would have, rather than replaying a prior attempt.
+// The appended sync_history record's rawPayloadDebug.watchRecordId lets
+// queuedActivityAlreadyRecorded (below) recognize this queued entry as
+// resolved and stop showing it once the activity list next refreshes.
+async function retryQueuedWatchRecord(watchRecordId) {
+  const id = String(watchRecordId || "").trim();
+  if (!id) throw Object.assign(new Error("Missing watch record id"), { status: 400 });
+  const record = await getWatchRecordById(id);
+  if (!record) throw Object.assign(new Error("The original watch record for this queued item could not be found"), { status: 404 });
 
-  const body = await readJson(req);
-  if (body.id == null || String(body.id).trim() === "") return sendJson(res, { error: "Missing required field: id" }, 400);
-  const entry = await getSyncHistoryById(body.id);
-  if (!entry) return sendJson(res, { error: "Sync activity entry not found" }, 404);
+  const config = await loadMediaConfig();
+  const media = mediaFromWatchRecord(record);
+  media.watched_at = record.watched_at || undefined;
+  if (!media?.isValid) throw Object.assign(new Error("The media identity for this watch record could not be resolved"), { status: 422 });
+
+  const originalTargetStates = syncTelemetryTargetStates(record.sync_dispatch_telemetry);
+  const retriedTargets = retryableSyncActivityTargets({ targetStates: originalTargetStates });
+  const action = String(record.sync_action || "watched").toLowerCase();
+  const loopStore = createLoopStore();
+  let summary;
+  try {
+    summary = action === "unwatched" || action === "unplayed"
+      ? await syncMediaUnplayedPlaystate(media, config, loopStore, { lane: "interactive" })
+      : await syncMediaPlaystate(media, config, loopStore, { lane: "interactive" });
+  } catch (error) {
+    summary = { skipped: false, status: "error", details: `Retry failed: ${error.message || String(error)}`, targetStates: [] };
+  }
+  const mergedTargetStates = mergeTargetStates(originalTargetStates, summary.targetStates || [], retriedTargets, summary.details);
+  const mergedStatus = statusFromTargetStates(mergedTargetStates);
+
+  // The "queued:<id>" pseudo-entry the Activity list renders for this item is
+  // read straight off this row's own telemetry (queuedWatchRecordToSyncActivity
+  // below), not from a durable sync_history row - so unless this write happens,
+  // the pseudo-entry keeps showing the retry's stale pre-retry outcome no
+  // matter how many sync_history rows get appended elsewhere. Rewriting it here
+  // is what actually makes the retry visible, independent of whatever durable
+  // row also gets appended for the audit trail.
+  await updateWatchTelemetry(id, formatDispatchTelemetry({ skipped: mergedStatus === "skipped", status: mergedStatus, details: summary.details, targetStates: mergedTargetStates }, media, action));
+  await appendSyncHistory({
+    mediaType: media.type,
+    title: media.title,
+    source: media.source,
+    status: mergedStatus,
+    details: `Retry of queued watch ${id}: ${summary.details || "Sync retry completed"}`,
+    action,
+    targetStates: mergedTargetStates,
+    rawPayloadDebug: { watchRecordId: id, ids: media.ids || {} },
+  });
+  return { status: mergedStatus, details: summary.details, targetStates: mergedTargetStates, title: media.title };
+}
+
+// Core retry logic for a single sync-activity id - a real sync_history row
+// or a "queued:<watch_history id>" pseudo-entry - shared by the interactive
+// HTTP endpoint below and the "retry all failed" background job, so there is
+// exactly one place that knows how to retry one item. Throws an Error with a
+// `.status` for the HTTP wrapper to translate into a response code; the
+// background job just logs the message and moves on to the next id.
+async function retrySyncActivityEntry(rawId) {
+  const id = String(rawId == null ? "" : rawId).trim();
+  if (!id) throw Object.assign(new Error("Missing required field: id"), { status: 400 });
+  if (id.startsWith("queued:")) return retryQueuedWatchRecord(id.slice("queued:".length));
+
+  const entry = await getSyncHistoryById(id);
+  if (!entry) throw Object.assign(new Error("Sync activity entry not found"), { status: 404 });
   const targets = retryableSyncActivityTargets(entry);
-  if (!targets.length) return sendJson(res, { error: "This sync activity entry has no failed or skipped targets to retry" }, 409);
+  if (!targets.length) throw Object.assign(new Error("This sync activity entry has no failed or skipped targets to retry"), { status: 409 });
 
   const config = await loadMediaConfig();
   const media = await mediaFromSyncActivity(entry, config);
-  if (!media?.isValid) return sendJson(res, { error: "The media identity for this activity entry could not be resolved" }, 422);
+  if (!media?.isValid) throw Object.assign(new Error("The media identity for this activity entry could not be resolved"), { status: 422 });
   const existing = await findWatchedByAnyMediaKey(media).catch(() => null);
   if (existing?.watched_at) media.watched_at = existing.watched_at;
   media.syncTargets = targets;
@@ -879,17 +1013,116 @@ export async function handleRetrySyncHistory(req, res) {
   } catch (error) {
     summary = { skipped: false, status: "error", details: `Retry failed: ${error.message || String(error)}`, targetStates: [] };
   }
-  await appendSyncHistory({
-    mediaType: media.type,
-    title: media.title,
-    source: media.source,
-    status: summary.status,
-    details: `Retry of activity ${entry.id}: ${summary.details || "Sync retry completed"}`,
+  const mergedTargetStates = mergeTargetStates(entry.targetStates || [], summary.targetStates || [], targets, summary.details);
+  const mergedStatus = statusFromTargetStates(mergedTargetStates);
+  await updateSyncHistoryStatus(entry.id, {
+    status: mergedStatus,
+    details: summary.details || entry.details,
     action,
-    targetStates: summary.targetStates || [],
-    rawPayloadDebug: { ...entry.rawPayloadDebug, retryOfActivityId: entry.id, ids: media.ids || {} },
+    targetStates: mergedTargetStates,
+    rawPayloadDebug: { ...entry.rawPayloadDebug, ids: media.ids || {} },
   });
-  return sendJson(res, { ok: true, status: summary.status, details: summary.details, targetStates: summary.targetStates || [] });
+  return { status: mergedStatus, details: summary.details, targetStates: mergedTargetStates, title: media.title };
+}
+
+export async function handleRetrySyncHistory(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const body = await readJson(req);
+  try {
+    const result = await retrySyncActivityEntry(body.id);
+    return sendJson(res, { ok: true, ...result });
+  } catch (error) {
+    return sendJson(res, { error: error.message }, error.status || 500);
+  }
+}
+
+// Runs "retry all failed" to completion as a background job (see
+// workerCoordinator.js's executeJob) so it survives the requesting browser
+// tab closing, reloading, or navigating away - the same reasoning as
+// runTmdbMetadataRefreshJob in maintenance.js. Discovery (which ids are
+// retryable right now) happens once at the start; an id that started failing
+// or succeeding mid-run because of an earlier retry in this same pass is not
+// re-checked.
+export async function runRetryAllSyncActivityJob(log, { isCancelled } = {}) {
+  const ids = await listAllRetryableSyncActivityIds();
+  const total = ids.length;
+  log(`Found ${total} failed or skipped item${total === 1 ? "" : "s"} to retry.`);
+
+  let succeeded = 0;
+  let stillFailed = 0;
+  let skipped = 0;
+  let errored = 0;
+
+  for (let i = 0; i < ids.length; i++) {
+    if (isCancelled && await isCancelled()) {
+      return {
+        success: true, aborted: true, cancelled: true,
+        total, processed: i, succeeded, stillFailed, skipped, errored,
+        reason: "Retry all was cancelled.",
+      };
+    }
+    const id = ids[i];
+    try {
+      const result = await retrySyncActivityEntry(id);
+      if (result.status === "success") succeeded += 1;
+      else if (result.status === "skipped") skipped += 1;
+      else stillFailed += 1;
+      log(`[${i + 1}/${total}] ${result.title || id}: ${result.status}${result.details ? ` - ${result.details}` : ""}`);
+    } catch (error) {
+      errored += 1;
+      log(`[${i + 1}/${total}] ${id}: error - ${error.message}`);
+    }
+  }
+
+  log(`Retry all complete: ${succeeded} succeeded, ${stillFailed} still failed, ${skipped} skipped, ${errored} error${errored === 1 ? "" : "s"}, out of ${total}.`);
+  return { success: true, total, processed: total, succeeded, stillFailed, skipped, errored };
+}
+
+export async function handleRetryAllSyncActivity(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (!["GET", "POST"].includes(req.method)) return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  // GET: poll for current status and log lines, same shape as /api/force-sync.
+  if (req.method === "GET") {
+    const job = getLatestBackgroundJob("retry_all_sync_activity");
+    if (!job) {
+      return sendJson(res, { active: false, log: [], result: null, status: "idle", jobId: null, workerAvailable: workerAvailable() }, 200, { "Cache-Control": "no-store" });
+    }
+    return sendJson(res, {
+      active: ["queued", "running"].includes(job.status),
+      log: getBackgroundJobLogs(job.id).map((entry) => entry.message),
+      result: job.result || (job.error ? { success: false, error: job.error } : null),
+      startedAt: job.startedAt || job.requestedAt,
+      jobId: job.id,
+      status: job.status,
+      workerAvailable: workerAvailable(),
+    }, 200, { "Cache-Control": "no-store" });
+  }
+
+  // POST: fire-and-forget - return 202 immediately, run in background.
+  if (!workerAvailable()) return sendJson(res, { ok: false, error: "No background worker is available." }, 503);
+  const existingJob = getLatestBackgroundJob("retry_all_sync_activity");
+  if (existingJob && ["queued", "running"].includes(existingJob.status)) {
+    return sendJson(res, { ok: false, error: "A retry-all run is already in progress.", jobId: existingJob.id }, 409);
+  }
+  let queuedJob;
+  try {
+    queuedJob = enqueueBackgroundJob("retry_all_sync_activity", {});
+  } catch (error) {
+    if (error?.code === "JOB_ACTIVE") return sendJson(res, { ok: false, error: error.message }, 409);
+    throw error;
+  }
+  return sendJson(res, {
+    ok: true,
+    started: true,
+    jobId: queuedJob.id,
+    status: queuedJob.status,
+    message: "Retry all queued. Poll GET /api/sync-history/retry-all for status.",
+  }, 202);
 }
 
 // Explicit detail-page repair. This is intentionally separate from the

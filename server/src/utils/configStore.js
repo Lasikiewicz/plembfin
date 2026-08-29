@@ -917,6 +917,9 @@ const insertSyncHistoryStmt = db.prepare(
   `INSERT INTO sync_history (timestamp, media_type, title, source, status, details, action, target_states, raw_payload_debug, created_at)
    VALUES (@timestamp, @media_type, @title, @source, @status, @details, @action, @target_states, @raw_payload_debug, @created_at)`,
 );
+const updateSyncHistoryStmt = db.prepare(
+  `UPDATE sync_history SET timestamp=@timestamp, status=@status, details=@details, action=@action, target_states=@target_states, raw_payload_debug=@raw_payload_debug WHERE id=@id`,
+);
 const selectSyncHistoryPageStmt = db.prepare("SELECT * FROM sync_history ORDER BY timestamp DESC, id DESC LIMIT ? OFFSET ?");
 const selectSyncHistoryByIdStmt = db.prepare("SELECT * FROM sync_history WHERE id = ?");
 const countSyncHistoryStmt = db.prepare("SELECT COUNT(*) AS count FROM sync_history");
@@ -988,6 +991,30 @@ export async function appendSyncHistory(record) {
 // retention policy; pagination keeps the browser response bounded instead.
 export function pruneSyncHistory() {
   return false;
+}
+
+// Rewrites an existing sync_history row in place with the outcome of a retry,
+// rather than appending a duplicate entry for the same action - a retried
+// item should read as resolved (success/skipped) or still failing, not sit
+// forever alongside a stale "error" row nobody ever clears. The row's prior
+// outcome is folded into raw_payload_debug.retryHistory (capped) so it isn't
+// lost, just no longer counted as a live failure.
+export async function updateSyncHistoryStatus(id, { status, details, action, targetStates, rawPayloadDebug } = {}) {
+  const existing = selectSyncHistoryByIdStmt.get(id);
+  if (!existing) return false;
+  const previousDebug = parseJson(existing.raw_payload_debug, {});
+  const retryHistory = Array.isArray(previousDebug.retryHistory) ? previousDebug.retryHistory : [];
+  retryHistory.push({ timestamp: Date.now(), previousStatus: existing.status, previousDetails: existing.details });
+  updateSyncHistoryStmt.run({
+    id,
+    timestamp: Date.now(),
+    status: status || existing.status,
+    details: details != null ? details : existing.details,
+    action: action || existing.action,
+    target_states: toJson(Array.isArray(targetStates) ? targetStates : parseJson(existing.target_states, [])),
+    raw_payload_debug: toJson({ ...previousDebug, ...(rawPayloadDebug || {}), retryHistory: retryHistory.slice(-10) }),
+  });
+  return true;
 }
 
 export async function getSyncHistoryPage({ limit = 50, offset = 0, search = "" } = {}) {

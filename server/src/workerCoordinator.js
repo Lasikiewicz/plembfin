@@ -1,5 +1,6 @@
 import { runForceSync, runScheduledSync } from "./scheduled.js";
 import { runTmdbMetadataRefreshJob, runTvdbMetadataRefreshJob } from "./routes/maintenance.js";
+import { runRetryAllSyncActivityJob } from "./routes/sync.js";
 import { collectServerWatchedItems, buildForceSyncPlan } from "./utils/forceSyncPlanner.js";
 import { createSyncPlanRecord } from "./utils/syncPlans.js";
 import { getCachedHistory } from "./utils/dataRepo.js";
@@ -161,6 +162,11 @@ export function createWorkerCoordinator({ holderId, role }) {
       } else if (job.type === "refresh_tvdb_metadata") {
         log("Refresh All TVDB Metadata started...");
         result = await runTvdbMetadataRefreshJob(log, {
+          isCancelled: async () => getBackgroundJob(job.id)?.cancelRequested === true,
+        });
+      } else if (job.type === "retry_all_sync_activity") {
+        log("Retry all failed sync activity started...");
+        result = await runRetryAllSyncActivityJob(log, {
           isCancelled: async () => getBackgroundJob(job.id)?.cancelRequested === true,
         });
       } else {

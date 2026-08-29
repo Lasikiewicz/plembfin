@@ -21,6 +21,36 @@ let refreshTimer = null;
 let searchTimer = null;
 let loadRequestToken = 0;
 const retryingActivityIds = new Set();
+// "Retry all failed" runs one item at a time rather than in parallel, so it
+// doesn't fire a burst of simultaneous requests at Plex/Emby/Jellyfin/Trakt -
+// this tracks progress through that queue for the header button's label.
+let bulkRetryProgress = null;
+// Retry feedback is shown inline on the row it came from, not as a toast -
+// keyed by activity id (not stored on the entry objects themselves) because
+// state.syncActivity is replaced wholesale on every periodic refresh, which
+// would otherwise wipe out feedback the moment the list reloads.
+const activityFeedback = new Map();
+// A durable record of what happened when a row's retry was attempted, folded
+// into that row's own log text (buildSyncActivityLog) so it survives closing
+// and reopening the row, and shows up in a downloaded log too.
+const activityNotes = new Map();
+
+function setActivityFeedback(id, feedback) {
+  const key = String(id || "");
+  if (!key) return;
+  if (feedback) activityFeedback.set(key, feedback);
+  else activityFeedback.delete(key);
+}
+
+function appendActivityNote(id, text) {
+  const key = String(id || "");
+  if (!key || !text) return;
+  const list = activityNotes.get(key) || [];
+  list.push({ timestamp: Date.now(), text });
+  // Caps memory for a row that gets retried many times in one session - the
+  // log only needs recent context, not an unbounded history.
+  activityNotes.set(key, list.slice(-10));
+}
 
 function authHeaders() {
   return buildAuthHeaders(state.token);
@@ -147,6 +177,17 @@ function routeLine(entry = {}) {
   `;
 }
 
+function isRetryableActivity(entry = {}) {
+  return ["partial", "error", "failed", "skipped"].includes(String(entry.status || "").toLowerCase())
+    && (entry.targetStates || []).some((target) => ["error", "failed", "skipped", "not_found"].includes(String(target.status || "").toLowerCase()));
+}
+
+function feedbackHtml(id) {
+  const feedback = activityFeedback.get(String(id || ""));
+  if (!feedback) return "";
+  return `<div class="sync-activity-row-feedback sync-activity-row-feedback--${escapeAttribute(feedback.tone || "muted")}" role="status">${escapeHtml(feedback.text)}</div>`;
+}
+
 function activityRow(entry = {}) {
   const tone = syncHistoryTone(entry);
   const mediaType = String(entry.mediaType || "").toLowerCase() === "movie" ? "Movie" : "TV";
@@ -155,8 +196,7 @@ function activityRow(entry = {}) {
   const statusClass = tone === "error" ? "status-error" : tone === "pending" ? "status-warning" : "status-ready";
   const id = entry.id != null ? String(entry.id) : "";
   const title = entry.title || "Unknown media";
-  const retryable = ["partial", "error", "failed", "skipped"].includes(String(entry.status || "").toLowerCase())
-    && (entry.targetStates || []).some((target) => ["error", "failed", "skipped", "not_found"].includes(String(target.status || "").toLowerCase()));
+  const retryable = isRetryableActivity(entry);
   const retrying = retryingActivityIds.has(id);
   return `
     <article class="sync-activity-row" data-tone="${tone}" data-activity-id="${escapeAttribute(id)}" aria-expanded="false" title="Show this item's log">
@@ -184,17 +224,20 @@ function activityRow(entry = {}) {
           ${retryable ? `<button class="button-ghost sync-activity-retry" type="button" data-sync-activity-retry="${escapeAttribute(id)}" ${retrying ? "disabled" : ""} title="Retry only the failed or skipped destinations">${retrying ? "Retrying..." : "Retry failed"}</button>` : ""}
           <button class="button-ghost sync-activity-download" type="button" data-sync-activity-download="${escapeAttribute(id)}" title="Download this item's sync log">Download log</button>
         </div>
+        ${feedbackHtml(id)}
       </div>
       <pre class="sync-activity-log hidden"></pre>
     </article>
   `;
 }
 
-export async function retrySyncActivity(id) {
-  const key = String(id || "");
-  if (!key || retryingActivityIds.has(key)) return null;
-  retryingActivityIds.add(key);
-  renderSyncActivity();
+// The actual retry call plus outcome-recording, shared by the single-row
+// button and the bulk retry loop below. Never throws - every outcome,
+// including a network failure, is recorded via feedback/notes and returned
+// instead. Deliberately does not touch retryingActivityIds or reload the
+// list - callers own that, since the bulk path needs different bookkeeping
+// (no per-item full-list reload) than a single click does.
+async function dispatchRetry(key) {
   try {
     const response = await fetch("/api/sync-history/retry", {
       method: "POST",
@@ -203,11 +246,158 @@ export async function retrySyncActivity(id) {
     });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || `Retry failed with ${response.status}`);
-    await loadSyncActivity({ force: true, page: 1 });
+    const text = body.status === "success"
+      ? "Retry completed."
+      : body.status === "skipped"
+        ? (body.details || "Nothing to retry - no destination is currently configured for this item.")
+        : `Retry finished: ${body.status}.`;
+    setActivityFeedback(key, { text, tone: body.status === "success" ? "success" : "warning" });
+    appendActivityNote(key, text);
     return body;
+  } catch (error) {
+    const text = error.message || "Sync retry failed.";
+    setActivityFeedback(key, { text, tone: "error" });
+    appendActivityNote(key, text);
+    return { status: "error", details: text };
+  }
+}
+
+// Feedback is shown inline on the row (feedbackHtml) and folded into that
+// row's own log (buildSyncActivityLog) rather than as a toast, so it stays
+// attached to the item it's about instead of a corner notification the user
+// has to catch before it disappears.
+export async function retrySyncActivity(id) {
+  const key = String(id || "");
+  if (!key || retryingActivityIds.has(key)) return null;
+
+  retryingActivityIds.add(key);
+  setActivityFeedback(key, null);
+  renderSyncActivity();
+  try {
+    const result = await dispatchRetry(key);
+    await loadSyncActivity({ force: true, page: 1 });
+    return result;
   } finally {
     retryingActivityIds.delete(key);
     renderSyncActivity();
+  }
+}
+
+// Walks every page of /api/sync-history (not just what's currently loaded/
+// displayed) collecting every retryable entry's id, so "retry all failed"
+// covers the whole library rather than only the ~25 rows on screen. Uses the
+// server's own 200-row page cap to keep this to a handful of requests even
+// for a few thousand entries.
+export async function fetchAllRetryableSyncActivityIds() {
+  const ids = [];
+  const search = (state.syncActivitySearch || "").trim();
+  const limit = 200;
+  let page = 1;
+  for (;;) {
+    const url = new URL("/api/sync-history", window.location.origin);
+    url.searchParams.set("limit", String(limit));
+    url.searchParams.set("page", String(page));
+    if (search) url.searchParams.set("search", search);
+    const response = await fetch(url, { headers: authHeaders(), cache: "no-store" });
+    if (!response.ok) break;
+    const body = await response.json().catch(() => null);
+    const history = Array.isArray(body?.history) ? body.history : [];
+    for (const entry of history) {
+      if (isRetryableActivity(entry)) ids.push(String(entry.id));
+    }
+    const totalPages = Math.max(Number(body?.pagination?.totalPages) || 1, 1);
+    if (!history.length || page >= totalPages) break;
+    page += 1;
+  }
+  return ids;
+}
+
+// "Retry all failed" runs as a server-side background job (see
+// runRetryAllSyncActivityJob in server/src/routes/sync.js) rather than a
+// client-driven loop, so it keeps running - and survives - a closed tab,
+// a page reload, or navigating away, the same way Force Sync does. This
+// module only starts the job and polls its status/log; the actual retries
+// happen entirely on the server.
+let bulkRetryPollTimer = null;
+
+function stopBulkRetryPoll() {
+  if (bulkRetryPollTimer) window.clearTimeout(bulkRetryPollTimer);
+  bulkRetryPollTimer = null;
+}
+
+// The job's log lines are "[i/total] <title>: <status>" once discovery has
+// run, plus a leading "Found N failed or skipped item(s) to retry." line
+// before the first one - parsed back out here instead of carrying a second,
+// separate progress channel.
+function parseBulkRetryProgress(log) {
+  let index = 0;
+  let total = 0;
+  for (const line of log) {
+    const item = /^\[(\d+)\/(\d+)\]/.exec(line);
+    if (item) { index = Number(item[1]); total = Number(item[2]); continue; }
+    const found = /^Found (\d+) failed or skipped/.exec(line);
+    if (found) total = Number(found[1]);
+  }
+  return { index, total };
+}
+
+async function pollRetryAllSyncActivity(onDone) {
+  stopBulkRetryPoll();
+  let body;
+  try {
+    const response = await fetch("/api/sync-history/retry-all", { headers: authHeaders(), cache: "no-store" });
+    body = await response.json();
+  } catch (error) {
+    bulkRetryPollTimer = window.setTimeout(() => pollRetryAllSyncActivity(onDone), 3000);
+    return;
+  }
+
+  const log = Array.isArray(body.log) ? body.log : [];
+  if (body.active) {
+    bulkRetryProgress = parseBulkRetryProgress(log);
+    renderSyncActivity();
+    bulkRetryPollTimer = window.setTimeout(() => pollRetryAllSyncActivity(onDone), 2000);
+    return;
+  }
+
+  bulkRetryProgress = null;
+  await loadSyncActivity({ force: true, page: 1 }).catch(() => {});
+  renderSyncActivity();
+  if (typeof onDone === "function") onDone(body.result || null);
+}
+
+// Starts the background job and begins polling it. `onDone(result)` is
+// called once the job finishes (or is found to have already finished),
+// so the caller can surface a completion message.
+export async function startRetryAllSyncActivity(onDone) {
+  const response = await fetch("/api/sync-history/retry-all", {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok && !(response.status === 409 && body.jobId)) {
+    throw new Error(body.error || `Retry all failed to start with HTTP ${response.status}`);
+  }
+  bulkRetryProgress = { index: 0, total: 0 };
+  renderSyncActivity();
+  pollRetryAllSyncActivity(onDone);
+}
+
+// Called whenever the Sync Activity page becomes visible, so a run started
+// from another tab (or before a reload) picks its polling back up instead of
+// the button silently sitting idle while the job keeps working server-side.
+export async function resumeRetryAllSyncActivityIfRunning() {
+  if (bulkRetryPollTimer) return;
+  try {
+    const response = await fetch("/api/sync-history/retry-all", { headers: authHeaders(), cache: "no-store" });
+    const body = await response.json().catch(() => ({}));
+    if (!body?.active) return;
+    bulkRetryProgress = parseBulkRetryProgress(Array.isArray(body.log) ? body.log : []);
+    renderSyncActivity();
+    pollRetryAllSyncActivity();
+  } catch {
+    // No connectivity yet - the next periodic sync activity refresh will retry.
   }
 }
 
@@ -252,6 +442,12 @@ export function buildSyncActivityLog(entry = {}) {
   const debug = entry.rawPayloadDebug && Object.keys(entry.rawPayloadDebug).length ? entry.rawPayloadDebug : null;
   if (debug) {
     lines.push("", "Raw payload debug:", JSON.stringify(debug, null, 2));
+  }
+
+  const notes = activityNotes.get(entry.id != null ? String(entry.id) : "") || [];
+  if (notes.length) {
+    lines.push("", "Retry attempts (this browser session):");
+    for (const note of notes) lines.push(`  ${logTimestamp(note.timestamp)}: ${note.text}`);
   }
 
   return `${lines.join("\n")}\n`;
@@ -465,6 +661,18 @@ export function renderSyncActivity() {
       if (failed) elements.syncActivitySummary.setAttribute("data-sync-activity-failed-toggle", "1");
       else elements.syncActivitySummary.removeAttribute("data-sync-activity-failed-toggle");
     }
+  }
+
+  if (elements.syncActivityRetryAllFailed) {
+    // Deliberately not a count of retryable rows on this page - that read as
+    // "there are only N to retry" and undersold how many more existed across
+    // the rest of the library. The real total is looked up (and confirmed
+    // with the user) only once the button is actually clicked.
+    const button = elements.syncActivityRetryAllFailed;
+    button.disabled = Boolean(bulkRetryProgress) || total === 0;
+    button.textContent = bulkRetryProgress
+      ? (bulkRetryProgress.total ? `Retrying ${bulkRetryProgress.index} of ${bulkRetryProgress.total}...` : "Retrying...")
+      : "Retry all failed";
   }
 
   if (!rows.length) {

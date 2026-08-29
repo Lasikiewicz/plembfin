@@ -33,11 +33,11 @@ export function workerAvailable(now = Date.now()) {
   return schedulerLeaseStatus(now).available;
 }
 
-const SUPPORTED_JOB_TYPES = ["cron_sync", "force_sync", "force_sync_plan", "refresh_tmdb_metadata", "refresh_tvdb_metadata"];
+const SUPPORTED_JOB_TYPES = ["cron_sync", "force_sync", "force_sync_plan", "refresh_tmdb_metadata", "refresh_tvdb_metadata", "retry_all_sync_activity"];
 // Job types that may only have one queued/running instance at a time - a
 // second enqueue attempt is rejected with JOB_ACTIVE rather than piling up
 // duplicate work against the same library scan.
-const SINGLETON_JOB_TYPES = new Set(["force_sync", "force_sync_plan", "refresh_tmdb_metadata", "refresh_tvdb_metadata"]);
+const SINGLETON_JOB_TYPES = new Set(["force_sync", "force_sync_plan", "refresh_tmdb_metadata", "refresh_tvdb_metadata", "retry_all_sync_activity"]);
 
 export function enqueueBackgroundJob(type, payload = {}, now = Date.now()) {
   if (!SUPPORTED_JOB_TYPES.includes(type)) throw new Error(`Unsupported background job type: ${type}`);

@@ -9,7 +9,7 @@ import { buildWebhookUrl, renderSettingsInlineHelp } from "./modules/help-conten
 import { isCachedStorageImageUrl, compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, rememberPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, tmdbProfile, proxiedArtworkUrl } from "./modules/images.js?v=20260826b";
 import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, loadRemotePlembfinBackupsForRestoreTab, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runPhantomWatchAudit, runPhantomWatchRepair, runTraktBackfill, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, loadPlembfinBackups, renderPlembfinBackups, runDuplicateWatchCleanup, loadWipeDataPreview, runWipeData } from "./modules/tools.js?v=20260810";
 import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, showAvailIssuePopup, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerRetrySync, triggerCronSync, triggerStopSync, triggerForceSync, isSyncProgressActive } from "./modules/sync.js";
-import { renderSyncActivity, renderSyncActivityStatus, setSyncActivityProgress, setSyncActivitySearch, loadSyncActivity, downloadSyncActivityLog, retrySyncActivity, toggleSyncActivityRowLog, toggleSyncActivityFailedOnly, startSyncActivityRefresh, stopSyncActivityRefresh } from "./modules/sync-activity.js";
+import { renderSyncActivity, renderSyncActivityStatus, setSyncActivityProgress, setSyncActivitySearch, loadSyncActivity, downloadSyncActivityLog, retrySyncActivity, startRetryAllSyncActivity, resumeRetryAllSyncActivityIfRunning, fetchAllRetryableSyncActivityIds, toggleSyncActivityRowLog, toggleSyncActivityFailedOnly, startSyncActivityRefresh, stopSyncActivityRefresh } from "./modules/sync-activity.js";
 import { initSyncPreview } from "./modules/sync-preview.js";
 import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched, loadPartWatched } from "./modules/dashboard.js?v=20260826b";
 import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, loadStats, renderRankingTable } from "./modules/stats.js";
@@ -118,6 +118,7 @@ function bindElements() {
     syncActivityStatus: document.querySelector("#syncActivityStatus"),
     syncActivityStatusText: document.querySelector("#syncActivityStatusText"),
     syncActivitySummary: document.querySelector("#syncActivitySummary"),
+    syncActivityRetryAllFailed: document.querySelector("#syncActivityRetryAllFailed"),
     syncActivityRefresh: document.querySelector("#syncActivityRefresh"),
     syncActivitySearch: document.querySelector("#syncActivitySearch"),
     syncActivityRows: document.querySelector("#syncActivityRows"),
@@ -269,6 +270,7 @@ function bindElements() {
     logsTerminal: document.querySelector("#logsTerminal"),
     themeToggleButton: document.querySelector("#themeToggleButton"),
     message: document.querySelector("#message"),
+    copyToast: document.querySelector("#copyToast"),
     modalBody: document.querySelector("#modalBody"),
     monthChart: document.querySelector("#monthChart"),
     nowPlayingGrid: document.querySelector("#nowPlayingGrid"),
@@ -1803,7 +1805,10 @@ function applyActiveView() {
   if (state.activeView === "syncActivity") {
     renderSyncActivity();
     startSyncActivityRefresh();
-    if (state.token) loadSyncActivity({ force: true }).catch((error) => setMessage(error.message, "error"));
+    if (state.token) {
+      loadSyncActivity({ force: true }).catch((error) => setMessage(error.message, "error"));
+      resumeRetryAllSyncActivityIfRunning();
+    }
   } else {
     stopSyncActivityRefresh();
   }
@@ -2718,6 +2723,8 @@ function initialize() {
     setSyncActivitySearch,
     downloadSyncActivityLog,
     retrySyncActivity,
+    startRetryAllSyncActivity,
+    fetchAllRetryableSyncActivityIds,
     toggleSyncActivityRowLog,
     toggleSyncActivityFailedOnly,
   });

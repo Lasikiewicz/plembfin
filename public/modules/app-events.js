@@ -71,7 +71,7 @@ export function initAppEvents(callbacks = {}) {
   attachEvents();
 }
 
-const authHeaders = (...args) => _cb.authHeaders?.(...args), setMessage = (...args) => _cb.setMessage?.(...args), unlockWithToken = (...args) => _cb.unlockWithToken?.(...args), clearSearchInputs = (...args) => _cb.clearSearchInputs?.(...args), selectView = (...args) => _cb.selectView?.(...args), renderLogs = (...args) => _cb.renderLogs?.(...args), logsText = (...args) => _cb.logsText?.(...args), copyToClipboard = (...args) => _cb.copyToClipboard?.(...args), selectBackupsTab = (...args) => _cb.selectBackupsTab?.(...args), navigateTo = (...args) => _cb.navigateTo?.(...args), renderChangelog = (...args) => _cb.renderChangelog?.(...args), lockDashboard = (...args) => _cb.lockDashboard?.(...args), toggleTheme = (...args) => _cb.toggleTheme?.(...args), showConfirmModal = (...args) => _cb.showConfirmModal?.(...args), closeGlobalSearchDropdown = (...args) => _cb.closeGlobalSearchDropdown?.(...args), saveAdminCredentials = (...args) => _cb.saveAdminCredentials?.(...args), applyActiveView = (...args) => _cb.applyActiveView?.(...args), handleRouting = (...args) => _cb.handleRouting?.(...args), loadHistory = (...args) => _cb.loadHistory?.(...args), loadStats = (...args) => _cb.loadStats?.(...args), loadSavedConfig = (...args) => _cb.loadSavedConfig?.(...args), renderHelp = (...args) => _cb.renderHelp?.(...args), renderDbStatus = (...args) => _cb.renderDbStatus?.(...args), showErrorExplainModal = (...args) => _cb.showErrorExplainModal?.(...args), runRefreshMetadataWorkflow = (...args) => _cb.runRefreshMetadataWorkflow?.(...args), runRefreshTvdbMetadataWorkflow = (...args) => _cb.runRefreshTvdbMetadataWorkflow?.(...args), showToast = (...args) => _cb.showToast?.(...args), logDebug = (...args) => _cb.logDebug?.(...args), syncPageTopbar = (...args) => _cb.syncPageTopbar?.(...args), setUnlocked = (...args) => _cb.setUnlocked?.(...args), renderSettingsStatus = (...args) => _cb.renderSettingsStatus?.(...args), renderAdminCredentialsStatus = (...args) => _cb.renderAdminCredentialsStatus?.(...args), toggleSet = (...args) => _cb.toggleSet?.(...args), renderGlobalSearchDropdown = (...args) => _cb.renderGlobalSearchDropdown?.(...args), loadGlobalDiscovery = (...args) => _cb.loadGlobalDiscovery?.(...args);
+const authHeaders = (...args) => _cb.authHeaders?.(...args), setMessage = (...args) => _cb.setMessage?.(...args), unlockWithToken = (...args) => _cb.unlockWithToken?.(...args), clearSearchInputs = (...args) => _cb.clearSearchInputs?.(...args), selectView = (...args) => _cb.selectView?.(...args), renderLogs = (...args) => _cb.renderLogs?.(...args), logsText = (...args) => _cb.logsText?.(...args), copyToClipboard = (...args) => _cb.copyToClipboard?.(...args), selectBackupsTab = (...args) => _cb.selectBackupsTab?.(...args), navigateTo = (...args) => _cb.navigateTo?.(...args), renderChangelog = (...args) => _cb.renderChangelog?.(...args), lockDashboard = (...args) => _cb.lockDashboard?.(...args), toggleTheme = (...args) => _cb.toggleTheme?.(...args), showConfirmModal = (...args) => _cb.showConfirmModal?.(...args), openConfirmDialog = (...args) => _cb.openConfirmDialog?.(...args) || Promise.resolve(true), closeGlobalSearchDropdown = (...args) => _cb.closeGlobalSearchDropdown?.(...args), saveAdminCredentials = (...args) => _cb.saveAdminCredentials?.(...args), applyActiveView = (...args) => _cb.applyActiveView?.(...args), handleRouting = (...args) => _cb.handleRouting?.(...args), loadHistory = (...args) => _cb.loadHistory?.(...args), loadStats = (...args) => _cb.loadStats?.(...args), loadSavedConfig = (...args) => _cb.loadSavedConfig?.(...args), renderHelp = (...args) => _cb.renderHelp?.(...args), renderDbStatus = (...args) => _cb.renderDbStatus?.(...args), showErrorExplainModal = (...args) => _cb.showErrorExplainModal?.(...args), runRefreshMetadataWorkflow = (...args) => _cb.runRefreshMetadataWorkflow?.(...args), runRefreshTvdbMetadataWorkflow = (...args) => _cb.runRefreshTvdbMetadataWorkflow?.(...args), showToast = (...args) => _cb.showToast?.(...args), logDebug = (...args) => _cb.logDebug?.(...args), syncPageTopbar = (...args) => _cb.syncPageTopbar?.(...args), setUnlocked = (...args) => _cb.setUnlocked?.(...args), renderSettingsStatus = (...args) => _cb.renderSettingsStatus?.(...args), renderAdminCredentialsStatus = (...args) => _cb.renderAdminCredentialsStatus?.(...args), toggleSet = (...args) => _cb.toggleSet?.(...args), renderGlobalSearchDropdown = (...args) => _cb.renderGlobalSearchDropdown?.(...args), loadGlobalDiscovery = (...args) => _cb.loadGlobalDiscovery?.(...args);
 
 function attachEvents() {
   attachSidebarMiddleClickNavigation(document.querySelector(".topnav"));
@@ -470,6 +470,51 @@ function attachEvents() {
     _cb.loadSyncActivity?.({ force: true })?.catch?.(() => { });
   });
 
+  elements.syncActivityRetryAllFailed?.addEventListener("click", async () => {
+    const button = elements.syncActivityRetryAllFailed;
+    if (!button || button.disabled) return;
+    const idleLabel = button.textContent;
+    button.disabled = true;
+    button.textContent = "Checking...";
+    let started = false;
+    try {
+      const ids = await _cb.fetchAllRetryableSyncActivityIds?.() || [];
+      if (!ids.length) {
+        setMessage("No failed or skipped sync items to retry.", "muted");
+        return;
+      }
+      const confirmed = await openConfirmDialog({
+        title: "Retry all failed sync items?",
+        body: `This retries ${ids.length} failed or skipped item${ids.length === 1 ? "" : "s"} across your entire sync history, not just this page - one at a time, as a background job that keeps running even if you close this tab. Each one dispatches to your media servers and/or Trakt, so this may take a while.`,
+        confirmLabel: "Retry all",
+      });
+      if (!confirmed) return;
+      started = true;
+      await _cb.startRetryAllSyncActivity?.((result) => {
+        if (!result) return;
+        if (result.cancelled) {
+          setMessage("Retry all was cancelled.", "muted");
+        } else if (result.success) {
+          setMessage(`Retry all complete: ${result.succeeded || 0} succeeded, ${result.stillFailed || 0} still failed, ${result.skipped || 0} skipped, out of ${result.total || 0}.`, (result.stillFailed || result.errored) ? "warning" : "success");
+        } else {
+          setMessage(result.error || "Retry all finished with an error.", "error");
+        }
+      });
+    } catch (error) {
+      setMessage(error.message || "Could not start retry all.", "error");
+    } finally {
+      // Once a run actually starts, the polling loop's own renderSyncActivity
+      // calls own the button's label/disabled state from here on (including
+      // re-disabling it once the job finishes) - only reset it directly for
+      // the paths above that returned before a run ever started (checking
+      // failed, nothing found, cancelled, or the start request itself failed).
+      if (!started) {
+        button.textContent = idleLabel;
+        button.disabled = false;
+      }
+    }
+  });
+
   elements.syncActivitySummary?.addEventListener("click", () => {
     if (!elements.syncActivitySummary.hasAttribute("data-sync-activity-failed-toggle")) return;
     _cb.toggleSyncActivityFailedOnly?.();
@@ -500,11 +545,10 @@ function attachEvents() {
   elements.syncActivityRows?.addEventListener("click", (event) => {
     const retry = event.target.closest("[data-sync-activity-retry]");
     if (retry) {
-      _cb.retrySyncActivity?.(retry.dataset.syncActivityRetry)
-        ?.then?.((result) => {
-          if (result) setMessage(result.status === "success" ? "Sync retry completed." : `Sync retry finished: ${result.status}.`, result.status === "success" ? "success" : "warning");
-        })
-        ?.catch?.((error) => setMessage(error.message || "Sync retry failed.", "error"));
+      // Feedback renders inline on the row itself (and is folded into its log)
+      // rather than as a toast - retrySyncActivity handles every outcome
+      // internally and never throws, so there's nothing to do with the result here.
+      _cb.retrySyncActivity?.(retry.dataset.syncActivityRetry)?.catch?.(() => { });
       return;
     }
 

@@ -7,6 +7,9 @@ dist/
 scratch/
 plan/
 
+# Website prototype stays local while it is being reviewed
+website/
+
 # Local runtime data: SQLite database, cached artwork, generated config.json
 data/
 

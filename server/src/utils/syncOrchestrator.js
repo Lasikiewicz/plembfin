@@ -211,8 +211,26 @@ export function getTargetsForSource(source = "manual", config = {}, stateType = 
   return targets.filter((t) => !config[t]?.disabled && canReceiveState(config, t, stateType));
 }
 
+// A server that has never actually been connected shouldn't be dispatched to
+// at all - canReceiveState only governs sync *direction* for an
+// already-configured server, so without this check an unconfigured target
+// still got attempted and reported as an "error" (the low-level
+// plexClient/embyClient/jellyfinClient throws "Missing <server>
+// baseUrl/token") instead of being excluded the same way a disabled server
+// already is. Mirrors the equivalent presence checks already used by
+// media.js's target list and mediaForceSync.js's sourceConfigured(). This is
+// deliberately not folded into getTargetsForSource itself: that function is
+// pure routing (which platforms exist for this source, with sensible
+// defaults for a missing config) and is used standalone elsewhere; actual
+// dispatch readiness only matters for targetsForMedia's callers below.
+function isServerConfigured(config, server) {
+  const section = config?.[server] || {};
+  if (server === "plex") return Boolean(section.baseUrl && section.token);
+  return Boolean(section.baseUrl && section.apiKey && section.userId);
+}
+
 function targetsForMedia(media, config, stateType) {
-  const targets = getTargetsForSource(media.source, config, stateType);
+  const targets = getTargetsForSource(media.source, config, stateType).filter((t) => isServerConfigured(config, t));
   if (!Array.isArray(media.syncTargets)) return targets;
   const requested = new Set(media.syncTargets.map((target) => String(target).trim().toLowerCase()).filter(Boolean));
   return targets.filter((target) => requested.has(target));
