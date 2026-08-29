@@ -18609,14 +18609,54 @@ html.light-mode .settings-group-section:focus-visible {
 .dashboard-setup-action-arrow { color: var(--muted); font-size: 1rem; transition: transform 150ms ease, color 150ms ease; }
 .dashboard-setup-action:hover .dashboard-setup-action-arrow, .dashboard-setup-action:focus-visible .dashboard-setup-action-arrow { color: var(--text); transform: translateX(2px); }
 
-.setup-brand { display: flex; justify-content: center; width: 100%; max-width: 1100px; margin: 0 auto var(--space-4); padding-top: var(--space-4); }
-.setup-brand-logo { height: 3.5rem; width: auto; object-fit: contain; }
+/* The setup view is a three-row flex column filling the visible page-shell
+   height: logo, the onboarding box, and the footer bar. The logo/footer rows
+   grow to share whatever space is left above/below the box equally
+   (flex: 1 1 0 on both), and each centers its own content within that space -
+   which is what puts the logo and footer bar exactly halfway between the page
+   edge and the box, rather than pinned to a fixed offset. #setupPageRoot is
+   `display: contents` so its two rendered children (.setup-brand and
+   .setup-shell) act as direct flex items here instead of being boxed inside
+   an extra wrapper; #setupFooterBar is a real DOM sibling (not part of that
+   re-rendered innerHTML) so it survives every setup page render untouched.
+   The box itself only grows as tall as its content, so it ends up vertically
+   centered as a side effect of the two flexible rows around it being equal.
+   Each row also has a min-height floor so a tall step's content (many
+   provider/server cards) can't squeeze the logo or footer bar down to no
+   visible gap at all - past that floor the page scrolls, same as any other
+   view here, rather than the box being clipped or the flex rows going to 0. */
+.page-shell[data-active-view="setup"] .app-shell {
+  /* .app-shell is a bare `display: grid` box sized to its content by
+     default, so #setup-view's own `min-height: 100%` below would otherwise
+     resolve against an auto-height ancestor and collapse to content size
+     (percentage heights against an auto-height parent are ignored per the
+     CSS spec) - it needs a real height to measure against, matching the
+     dashboard's identical fix above. */
+  height: 100%;
+}
+
+#setup-view {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+#setupPageRoot {
+  display: contents;
+}
+.setup-brand { display: flex; flex: 1 1 0; min-height: 5rem; align-items: center; justify-content: center; width: 100%; max-width: 1100px; margin: 0 auto; }
+.setup-brand-logo { height: 5.5rem; width: auto; object-fit: contain; }
 .setup-footer-bar {
-  position: fixed;
-  left: 50%;
-  bottom: var(--space-4);
-  transform: translateX(-50%);
-  z-index: 20;
+  /* Transparent spacer/centering region only - flex-grow on an element that
+     also carries the pill's own border/background would stretch the visible
+     card to fill the whole gap instead of just centering it there, which is
+     what the nested .setup-footer-bar-card is for. */
+  flex: 1 1 0;
+  min-height: 5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.setup-footer-bar-card {
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -18633,8 +18673,7 @@ html.light-mode .settings-group-section:focus-visible {
 .setup-footer-bar .app-version:disabled { cursor: default; }
 .setup-footer-bar .app-version:disabled:hover { color: var(--muted); text-decoration: none; }
 .setup-restore-backup-button { width: 100%; text-align: center; justify-content: center; }
-.setup-restore-backup-button.hidden { display: none; }
-.setup-shell { display: grid; width: 100%; gap: var(--space-4); max-width: 1100px; margin: 0 auto; font-size: 1.05rem; }
+.setup-shell { display: grid; flex: 0 0 auto; width: 100%; gap: var(--space-4); max-width: 1100px; margin: 0 auto; font-size: 1.05rem; }
 .setup-shell .section-heading h2 { font-size: 1.3rem; }
 .setup-shell .section-heading span { color: var(--muted); font-size: 0.9rem; font-weight: 700; }
 .setup-header-actions { display: flex; align-items: center; gap: var(--space-3); }

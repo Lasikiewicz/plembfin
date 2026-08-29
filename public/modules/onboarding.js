@@ -333,9 +333,6 @@ export function renderSetupPage() {
   if (step === "backup") updateBackupContinueAction();
   scheduleImportStatusRefresh(step);
   if (step === "backup" && !backupSetupData && !backupSetupLoading) loadBackupSetupData().catch(() => {});
-  // Migrating an existing install onto a fresh one starts from the overview
-  // step, before any server/metadata setup - offer the shortcut there only.
-  elements.setupRestoreBackupButton?.classList.toggle("hidden", step !== "overview");
 }
 
 // Sends #restore-local/#restore-remote back to their home in Settings' own
@@ -376,13 +373,12 @@ function renderRestoreRemoteIntro() {
 }
 
 // Renders the "Restore from backup" flow, entered from the overview step's
-// footer button. This does not reimplement restore - #restore-local and
+// Backup card. This does not reimplement restore - #restore-local and
 // #restore-remote are the very same elements Settings' Restore tab uses
 // (upload/list/restore logic and all), temporarily reparented in here for the
 // duration of this view and returned home by homeRestoreSections() the
 // moment the user leaves (see renderSetupPage()).
 function renderRestoreView(root, logoSrc) {
-  elements.setupRestoreBackupButton?.classList.add("hidden");
   const backLabel = restoreView === "choice" ? "Back to setup" : "Back";
   root.innerHTML = `
     <div class="setup-brand">
@@ -477,6 +473,7 @@ function renderOverview() {
             <span class="badge${item.tag === "Required" ? " badge-warning" : ""}">${escapeHtml(item.tag)}</span>
           </div>
           <p class="muted-copy">${escapeHtml(item.detail)}</p>
+          ${item.title === "Backup" ? `<button type="button" class="button-ghost setup-restore-backup-button" data-setup-restore-backup="1">Restore from backup</button>` : ""}
         </div>`).join("")}
     </div>`;
 }
@@ -1210,7 +1207,7 @@ async function handleSetupClick(event) {
     navigateTo("/setup");
     return;
   }
-  const restoreBackupButton = event.target.closest("#setupRestoreBackupButton");
+  const restoreBackupButton = event.target.closest("[data-setup-restore-backup]");
   if (restoreBackupButton) {
     restoreView = "choice";
     renderSetupPage();

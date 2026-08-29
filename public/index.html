@@ -53,10 +53,6 @@
     <link rel="stylesheet" href="/styles.css?v=20260826b" />
   </head>
   <body>
-    <div id="setupFooterBar" class="setup-footer-bar hidden">
-      <button id="setupRestoreBackupButton" type="button" class="button-ghost setup-restore-backup-button hidden">Restore from backup</button>
-      <div id="setupFooterBarMeta" class="setup-footer-bar-meta"></div>
-    </div>
     <div class="app-chassis">
       <nav class="topnav nav-closed" aria-label="Primary navigation">
         <div class="brand-search">
@@ -543,6 +539,11 @@
 
         <section id="setup-view" class="view-panel hidden" data-view-panel="setup">
           <div id="setupPageRoot" class="settings-hub"></div>
+          <div id="setupFooterBar" class="setup-footer-bar hidden">
+            <div class="setup-footer-bar-card">
+              <div id="setupFooterBarMeta" class="setup-footer-bar-meta"></div>
+            </div>
+          </div>
         </section>
 
         <section id="settings-view" class="view-panel hidden" data-view-panel="settings">

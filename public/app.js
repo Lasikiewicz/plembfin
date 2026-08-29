@@ -141,7 +141,6 @@ function bindElements() {
     claimMessage: document.querySelector("#claimMessage"),
     setupPageRoot: document.querySelector("#setupPageRoot"),
     setupFooterBarMeta: document.querySelector("#setupFooterBarMeta"),
-    setupRestoreBackupButton: document.querySelector("#setupRestoreBackupButton"),
     dashboardChecklist: document.querySelector("#dashboardChecklist"),
     adminToken: document.querySelector("#adminToken"),
     adminEmail: document.querySelector("#adminEmail"),
