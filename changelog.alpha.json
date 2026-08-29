@@ -1,20 +1,18 @@
 {
-  "baseVersion": "0.12.10",
+  "baseVersion": "0.12.12",
   "build": 1,
   "entries": [
     {
       "build": 1,
-      "version": "0.12.10.1",
-      "date": "2026-08-28T19:44:54+01:00",
-      "commit": "b48cb60ab931630496ea376b892a278813f6c2f9",
-      "message": "Fix - TV show detail and grid bulk-watch fixes",
+      "version": "0.12.12.1",
+      "date": "2026-08-29T10:41:15+01:00",
+      "commit": "3a34354e9960ef6f3c357872f50979e0733fd10c",
+      "message": "Merge remote-tracking branch 'origin/main' into develop",
       "author": "Lasikiewicz",
       "details": [
-        "Restore the missing three-dot overflow menu on TV Shows grid cards",
-        "Season list rows now show Saving while a bulk watch action is in progress instead of a stale watched count",
-        "Marking a season or whole show as watched no longer marks episodes that haven't aired yet"
+        "Merge remote-tracking branch 'origin/main' into develop"
       ]
     }
   ],
-  "updatedAt": "2026-08-28T19:44:54+01:00"
+  "updatedAt": "2026-08-29T10:41:15+01:00"
 }
