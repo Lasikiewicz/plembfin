@@ -1,7 +1,19 @@
 {
-  "build": 2,
-  "updatedAt": "2026-08-28T19:52:58+01:00",
+  "build": 3,
+  "updatedAt": "2026-08-29T09:55:26+01:00",
   "entries": [
+    {
+      "build": 3,
+      "date": "2026-08-29T09:55:26+01:00",
+      "commit": "22efedd0beb31ded50feec1a8841949aa446b896",
+      "message": "Fix - Batch watch-state dispatch by media identity",
+      "author": "Lasikiewicz",
+      "details": [
+        "Marking an entire show as watched now excludes Season 0 specials by default",
+        "The watched-date dialog shows an Include specials (Season 0) checkbox, unchecked by default, to opt them back in",
+        "Batch related watch-state updates by shared media identity to make large syncs safer and avoid duplicate provider work."
+      ]
+    },
     {
       "build": 2,
       "date": "2026-08-28T19:52:58+01:00",
