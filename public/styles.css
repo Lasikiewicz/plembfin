@@ -18677,16 +18677,21 @@ html.light-mode .settings-group-section:focus-visible {
 .setup-shell .section-heading h2 { font-size: 1.3rem; }
 .setup-shell .section-heading span { color: var(--muted); font-size: 0.9rem; font-weight: 700; }
 .setup-header-actions { display: flex; align-items: center; gap: var(--space-3); }
-.setup-progress { display: flex; flex-wrap: wrap; gap: var(--space-1); }
-.setup-progress-step { font-size: 0.92rem; }
+.setup-progress { display: flex; flex-wrap: wrap; gap: var(--space-2) var(--space-1); }
+.setup-progress-step { flex: 1 1 0; text-align: center; font-size: 0.92rem; }
 .setup-progress-step.done:not(.active) { color: var(--green); border-color: color-mix(in srgb, var(--green), transparent 55%); }
 .setup-step-body { display: grid; gap: var(--space-3); font-size: 1rem; }
 .setup-step-body .settings-card-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--space-4); }
 .setup-step-body .settings-card { padding: var(--space-4); gap: var(--space-2); border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel-2); }
 .setup-step-body .settings-card b { font-size: 1.05rem; }
-.setup-overview-item { gap: var(--space-2); }
+/* Overrides .settings-card's shared justify-content: space-between, which
+   pushes each card's paragraph down to the bottom of the row's tallest
+   sibling - with these one-line taglines that left a floating gap between
+   the heading and the text on every shorter card in the row. */
+.setup-overview-item { justify-content: flex-start; gap: var(--space-2); }
 .setup-overview-item-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .setup-overview-item p { margin: 0; }
+.setup-overview-intro { text-align: center; }
 .setup-restore-choice {
   width: 100%;
   font: inherit;
@@ -18732,7 +18737,8 @@ html.light-mode .settings-group-section:focus-visible {
 .webhook-option-list li { padding-left: var(--space-1); }
 .webhook-option-list code { font-weight: 700; }
 .setup-metadata-card { display: grid; gap: var(--space-2); }
-.setup-metadata-heading { display: flex; justify-content: space-between; align-items: center; }
+.setup-metadata-heading { display: flex; justify-content: space-between; align-items: center; gap: var(--space-2); }
+.setup-metadata-badges { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
 .setup-metadata-actions { display: flex; gap: var(--space-2); margin-top: var(--space-2); }
 .setup-metadata-optional { margin-top: var(--space-3); }
 .setup-metadata-optional-intro { margin-top: var(--space-2); max-width: 75ch; font-size: 0.92rem; }
@@ -18797,7 +18803,7 @@ html.light-mode .settings-group-section:focus-visible {
 .setup-review-lead { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-4); border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel-2); }
 .setup-review-mark { display: inline-grid; place-items: center; flex: 0 0 2.25rem; width: 2.25rem; height: 2.25rem; border: 1px solid var(--line-strong); border-radius: 50%; color: var(--muted); font-size: 1.15rem; font-weight: 800; }
 .setup-review-lead.is-ready .setup-review-mark { color: var(--green); border-color: color-mix(in srgb, var(--green), transparent 45%); background: color-mix(in srgb, var(--green), transparent 92%); }
-.setup-review-lead.needs-attention .setup-review-mark { color: var(--red); border-color: color-mix(in srgb, var(--red), transparent 45%); }
+.setup-review-lead.is-optional .setup-review-mark { color: var(--yellow); border-color: color-mix(in srgb, var(--yellow), transparent 45%); background: color-mix(in srgb, var(--yellow), transparent 92%); }
 .setup-review-lead b { font-size: 1.08rem; }
 .setup-review-lead p { margin: var(--space-1) 0 0; color: var(--muted); font-size: 0.9rem; }
 .setup-review-list { overflow: hidden; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel-2); }

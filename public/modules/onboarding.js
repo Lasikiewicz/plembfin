@@ -175,16 +175,17 @@ export async function loadSetupStatus() {
 
 // Persistent sidebar entry point for unfinished onboarding, shown in place of
 // the old behavior of force-navigating to /setup on every load while setup
-// wasn't done. Hidden once at least one media server is connected and tested
-// (the same bar the wizard's own "Open dashboard" button gates on - reached
-// either by finishing the wizard or by connecting a server directly from
-// Settings), or once permanently dismissed via its own "x" control.
+// wasn't done. Hidden once onboarding has actually been completed (finishing
+// the wizard - a connected media server isn't required for that anymore) or
+// a media server was connected and tested directly from Settings without
+// ever finishing the wizard, or once permanently dismissed via its own "x"
+// control.
 export function renderSidebarOnboardingCta() {
   const container = elements.sidebarOnboardingCta;
   if (!container || !cachedStatus) return;
-  const canFinish = cachedStatus.servers.some((s) => s.tested);
+  const finished = cachedStatus.onboarding.runState === "completed" || cachedStatus.servers.some((s) => s.tested);
   const dismissed = Boolean(cachedStatus.onboarding.ctaDismissedAt);
-  container.classList.toggle("hidden", canFinish || dismissed);
+  container.classList.toggle("hidden", finished || dismissed);
 }
 
 async function loadBackupSetupData({ force = false } = {}) {
@@ -297,7 +298,11 @@ export function renderSetupPage() {
     return;
   }
   const step = currentStep();
-  const canFinish = cachedStatus.servers.some((s) => s.tested);
+  // No media server is required to finish setup - manually tracking watches
+  // (mark watched from a title's page, reached via search) works on its own.
+  // This only drives the Review step's nudge styling now, not whether
+  // setup can be completed.
+  const hasTestedServer = cachedStatus.servers.some((s) => s.tested);
   root.innerHTML = `
     <div class="setup-brand">
       <img class="setup-brand-logo brand-logo" src="${logoSrc}" alt="Plembfin" />
@@ -313,13 +318,13 @@ export function renderSetupPage() {
       <div class="setup-progress" role="tablist" aria-label="Setup progress">
         ${STEPS.map((s) => `<button type="button" class="segment-button setup-progress-step${s.id === step ? " active" : ""}${stepDone(s.id) ? " done" : ""}" data-setup-step="${s.id}">${escapeHtml(s.label)}</button>`).join("")}
       </div>
-      <div class="setup-step-body">${renderStep(step, canFinish)}</div>
+      <div class="setup-step-body">${renderStep(step, hasTestedServer)}</div>
       <div class="setup-actions">
         <span style="display:flex; gap:8px;">
           ${step !== "overview" ? `<button type="button" class="button-ghost" data-setup-action="back">Back</button>` : ""}
         </span>
         ${step === "review"
-          ? `<button type="button" class="button-primary" data-setup-action="complete" ${canFinish ? "" : "disabled"}>Open dashboard</button>`
+          ? `<button type="button" class="button-primary" data-setup-action="complete">Open dashboard</button>`
           : step === "trakt" && !cachedStatus.trakt.connected && !traktFlow
             ? `<span style="display:flex; gap:8px;">
                 <button type="button" class="button-ghost" data-setup-action="trakt-skip">Skip for now</button>
@@ -423,7 +428,7 @@ function scheduleImportStatusRefresh(step) {
   }, 1500);
 }
 
-function renderStep(step, canFinish) {
+function renderStep(step, hasTestedServer) {
   if (step === "overview") return renderOverview();
   if (step === "servers") return renderServers();
   if (step === "metadata") return renderMetadata();
@@ -431,40 +436,40 @@ function renderStep(step, canFinish) {
   if (step === "trakt") return renderTrakt();
   if (step === "imports") return renderImports();
   if (step === "backup") return renderBackup();
-  if (step === "review") return renderReview(canFinish);
+  if (step === "review") return renderReview(hasTestedServer);
   return "";
 }
 
 const OVERVIEW_STEPS = [
   {
     title: "Trakt", tag: "Optional",
-    detail: "Connect Trakt for two-way watch-state sync, including individual rewatches, using Plembfin's built-in app credentials - no personal API key or VIP required. Connecting here first lets its watch dates take priority when your media servers are imported next.",
+    detail: "Two-way watch-state sync with Plembfin's built-in app credentials - no personal API key needed.",
   },
   {
     title: "Metadata", tag: "Recommended",
-    detail: "Add a free TMDB key for posters, backdrops, cast, and episode details. TheTVDB and Fanart.tv already work out of the box with a shared key for accurate episode numbering and extra artwork.",
+    detail: "A free TMDB key powers posters, cast, and episode details; TheTVDB and Fanart.tv work out of the box.",
   },
   {
-    title: "Media servers", tag: "Required",
-    detail: "Connect and test at least one Plex, Emby, or Jellyfin server so Plembfin can read your library and current watch state. You can connect more than one server at once.",
+    title: "Media servers", tag: "Recommended",
+    detail: "Connect a Plex, Emby, or Jellyfin server for automatic tracking, or skip and mark watches manually.",
   },
   {
     title: "Webhooks", tag: "Recommended",
-    detail: "Plex sends watch-state changes to Plembfin automatically. Emby and Jellyfin need a webhook configured on the server so changes arrive instantly instead of waiting on the next scheduled check.",
+    detail: "Plex updates instantly; Emby and Jellyfin need a quick webhook for the same.",
   },
   {
     title: "Backup", tag: "Optional",
-    detail: "Schedule encrypted local backups of settings, connections, and watch history, with an optional Backblaze B2 mirror for off-server storage.",
+    detail: "Encrypted local backups of your settings and watch history, with an optional off-server mirror.",
   },
   {
     title: "Import & sync", tag: "Optional",
-    detail: "Choose whether to import each server's existing watched history, so Plembfin starts with your full watch history instead of only tracking new activity from today.",
+    detail: "Import each server's existing watch history, or start tracking fresh from today.",
   },
 ];
 
 function renderOverview() {
   return `
-    <p class="muted-copy">Connect the media servers that hold your library, add the metadata that powers artwork and discovery, and choose how Plembfin should stay in sync. Everything here can be revisited later from Settings, and progress saves automatically as you go.</p>
+    <p class="muted-copy setup-overview-intro">Set things up at your own pace. Everything here can be changed later in Settings, and your progress saves automatically.</p>
     <div class="settings-card-grid setup-overview-list">
       ${OVERVIEW_STEPS.map((item) => `
         <div class="settings-card setup-overview-item">
@@ -576,8 +581,10 @@ function renderMetadata() {
     <div class="settings-card setup-metadata-card">
       <div class="setup-metadata-heading">
         <b>TMDB</b>
-        <span class="badge badge-warning">Required</span>
-        ${tmdbConfigured ? `<span class="badge badge-success">Configured</span>` : `<span class="badge">Not configured</span>`}
+        <span class="setup-metadata-badges">
+          <span class="badge badge-warning">Required</span>
+          ${tmdbConfigured ? `<span class="badge badge-success">Configured</span>` : `<span class="badge">Not configured</span>`}
+        </span>
       </div>
       <div class="setup-metadata-actions">
         <button type="button" class="button-ghost" data-setup-connect="tmdb">${tmdbConfigured ? "Edit" : "Add TMDB key"}</button>
@@ -1041,7 +1048,7 @@ async function saveBackupSetup() {
   return true;
 }
 
-function renderReview(canFinish) {
+function renderReview(hasTestedServer) {
   const s = cachedStatus;
   const testedServers = s.servers.filter((server) => server.tested);
   const requiredWebhookServers = testedServers.filter((server) => webhookSetupRequired(server.provider));
@@ -1057,8 +1064,8 @@ function renderReview(canFinish) {
     { label: "Account security", detail: "Administrator account secured", status: "Ready", tone: "success" },
     {
       label: "Media servers",
-      detail: testedServers.map((server) => server.serverName || webhookProviderName(server.provider)).join(", ") || "No tested server",
-      status: `${testedServers.length} connected`, tone: testedServers.length ? "success" : "error",
+      detail: testedServers.map((server) => server.serverName || webhookProviderName(server.provider)).join(", ") || "None connected - tracking will be manual",
+      status: `${testedServers.length} connected`, tone: testedServers.length ? "success" : "warning",
     },
     {
       label: "Metadata", detail: s.metadata.tmdbConfigured ? "TMDB is configured for artwork and discovery" : "TMDB has not been configured",
@@ -1086,9 +1093,9 @@ function renderReview(canFinish) {
     },
   ];
   return `
-    <div class="setup-review-lead ${canFinish ? "is-ready" : "needs-attention"}">
-      <span class="setup-review-mark" aria-hidden="true">${canFinish ? "✓" : "!"}</span>
-      <div><b>${canFinish ? "Plembfin is ready" : "One required step remains"}</b><p>${canFinish ? "Review your connections and open the dashboard when everything looks right." : "Connect and test at least one media server before finishing setup."}</p></div>
+    <div class="setup-review-lead ${hasTestedServer ? "is-ready" : "is-optional"}">
+      <span class="setup-review-mark" aria-hidden="true">${hasTestedServer ? "✓" : "!"}</span>
+      <div><b>${hasTestedServer ? "Plembfin is ready" : "Ready when you are"}</b><p>${hasTestedServer ? "Review your connections and open the dashboard when everything looks right." : "No media server is connected, so watches will need to be marked manually from search. Finish now and connect one anytime from Settings, or go back to add one first."}</p></div>
     </div>
     <div class="setup-review-list">
       ${rows.map((row) => `

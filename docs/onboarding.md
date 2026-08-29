@@ -38,7 +38,9 @@ same endpoints and Settings dialogs used elsewhere in the app - there is no sepa
 setup-only configuration path.
 
 - **Media servers** - reuses the same Plex/Emby/Jellyfin connect-and-test modal shown from
-  Settings → Media Servers. Continuing past this step requires at least one tested server.
+  Settings → Media Servers. No server is actually required - Plembfin also works from
+  manually marking titles watched (via search), so this step can be skipped like any other
+  optional one.
 - **Metadata** - TMDB save/test, plus a note on which providers (TheTVDB, Fanart.tv) are
   already available through Plembfin's built-in project keys.
 - **Webhooks** - the same per-provider setup instructions and webhook URL shown in
@@ -62,15 +64,19 @@ setup-only configuration path.
   even possible yet (disabled with an explanation when local watch history is empty).
 - **Review** - a summary of account security, connected/tested servers, metadata,
   webhook acknowledgements, and Trakt status, each linking back to its Settings section.
-  Finishing requires at least one tested server; optional items can remain incomplete.
+  No item here is required to finish - a build with no tested server shows a neutral
+  "no server connected, tracking will be manual" notice rather than blocking completion,
+  since `POST /api/setup/complete` (`handleSetupComplete` in
+  `server/src/routes/onboarding.js`) doesn't require one either.
 
 ### Resuming and reopening
 
 - Leaving the wizard early (**Exit to Settings**) doesn't mark it complete.
 - The sidebar shows a **Complete onboarding** entry point on every page while setup isn't
   finished, alongside its own **×** control to dismiss it permanently. It disappears on its
-  own once at least one media server has been connected and tested, whether that happened
-  by finishing the wizard or by connecting a server directly from Settings.
+  own once the wizard has actually been finished (a tested server isn't required for that)
+  or once a media server has been connected and tested directly from Settings without ever
+  finishing the wizard.
 - Settings → Tools → **Reopen Onboarding** reopens `/setup` at any time, including after
   it's been completed - useful for revisiting a step (e.g. adding a second server) without
   touching anything already configured.

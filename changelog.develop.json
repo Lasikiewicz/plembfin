@@ -1,6 +1,20 @@
 {
-  "build": 6,
+  "build": 7,
   "resetCommit": "b295626e66aab70e58df3145b4c7abdc41c91643",
-  "updatedAt": "2026-08-29T14:21:47.107Z",
-  "entries": []
+  "updatedAt": "2026-08-29T15:02:51.998Z",
+  "entries": [
+    {
+      "build": 7,
+      "date": "2026-08-29T15:02:51.998Z",
+      "commit": "6295ed2d7278b857fb6a969fd5869f3d10d3ff49",
+      "message": "Fix - Make onboarding less text-heavy and stop requiring a media server",
+      "author": "Lasikiewicz",
+      "details": [
+        "Setup wizard step tabs are now evenly spaced across the full width instead of clustered to the left",
+        "Shortened the overview step's intro text and each card's description, and centered the intro",
+        "Media servers are no longer required to finish setup - manually marking titles watched works without one; the overview card, Review step, and sidebar reminder reflect this instead of blocking completion",
+        "Fixed cramped spacing between the TMDB card's Required and Configured badges on the Metadata step"
+      ]
+    }
+  ]
 }

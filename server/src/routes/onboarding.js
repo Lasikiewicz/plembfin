@@ -181,16 +181,16 @@ export async function handleSetupImport(req, res) {
   return sendJson(res, { error: "target must be plex, emby, jellyfin, or trakt", code: "VALIDATION_FAILED" }, 400);
 }
 
+// No media server is actually required to finish setup - manually marking
+// titles watched from their movie/show page (POST /api/manual-watch),
+// reached via search, works without one, so onboarding can't hard-require a
+// connected server here. The Review step still nudges toward connecting
+// one, since automatic sync is what most of the app's other features depend
+// on, but it can't block completion.
 export async function handleSetupComplete(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
-
-  const config = publicMediaConfig(await loadMediaConfig({ resolveConnections: false }));
-  const hasTestedServer = MEDIA_SERVERS.some((provider) => serverSummary(provider, config).tested);
-  if (!hasTestedServer) {
-    return sendJson(res, { error: "Connect and test at least one media server before finishing setup.", code: "STEP_GATED", retryable: false }, 409);
-  }
 
   const next = completeOnboarding();
   writeAuditLog("onboarding.completed", { ip: req.ip || req.socket?.remoteAddress });
