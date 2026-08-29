@@ -80,21 +80,36 @@ export function categorizeEntries(entries = []) {
   return { newFeatures: cleanFeatures, majorBugFixes: cleanFixes, tweaks: cleanTweaks };
 }
 
-export function simplifyEntries(entries = []) {
-  const { newFeatures, majorBugFixes, tweaks } = categorizeEntries(entries);
-
+// Formats an already-categorized {newFeatures, majorBugFixes, tweaks} section
+// set into the flat "Feature:/Fix:/Tweak:" bullet list stored on a changelog
+// entry. Split out from simplifyEntries so promoteDevelopToAlpha can format a
+// *merged* sections object (see mergeSections) without re-deriving
+// categorization from raw entry text - re-running categorizeEntries over a
+// previously-built alpha entry would treat that entry's own synthesized
+// headline sentence as a new bullet to categorize (it matches none of the
+// feat/fix patterns, so it silently lands in tweaks).
+function formatSections({ newFeatures = [], majorBugFixes = [], tweaks = [] } = {}) {
   const result = [];
-  if (newFeatures.length) {
-    result.push(...newFeatures.map((item) => `Feature: ${item}`));
-  }
-  if (majorBugFixes.length) {
-    result.push(...majorBugFixes.map((item) => `Fix: ${item}`));
-  }
-  if (tweaks.length) {
-    result.push(...tweaks.map((item) => `Tweak: ${item}`));
-  }
-
+  if (newFeatures.length) result.push(...newFeatures.map((item) => `Feature: ${item}`));
+  if (majorBugFixes.length) result.push(...majorBugFixes.map((item) => `Fix: ${item}`));
+  if (tweaks.length) result.push(...tweaks.map((item) => `Tweak: ${item}`));
   return result.length ? result : ["Consolidated updates and improvements from develop"];
+}
+
+// Combines two already-categorized section sets (e.g. this cycle's develop
+// work with a prior "Force to alpha" call's own entry), applying the same
+// dedupe-and-cross-category-exclusion rules categorizeEntries uses so a bullet
+// present in both never appears twice or in two sections at once.
+function mergeSections(a = {}, b = {}) {
+  const dedup = (arr) => Array.from(new Set(arr.filter(Boolean).map((s) => s.trim())));
+  const newFeatures = dedup([...(a.newFeatures || []), ...(b.newFeatures || [])]);
+  const majorBugFixes = dedup([...(a.majorBugFixes || []), ...(b.majorBugFixes || [])]).filter((item) => !newFeatures.includes(item));
+  const tweaks = dedup([...(a.tweaks || []), ...(b.tweaks || [])]).filter((item) => !newFeatures.includes(item) && !majorBugFixes.includes(item));
+  return { newFeatures, majorBugFixes, tweaks };
+}
+
+export function simplifyEntries(entries = []) {
+  return formatSections(categorizeEntries(entries));
 }
 
 export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), sourceAuthor = "system", commit = "", resetAnchorCommit = "" } = {}) {
@@ -134,11 +149,18 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
   // develop's entry never overlaps alpha's, since develop's own resetCommit
   // anchor only ever covers commits made after the last reset. Develop's
   // entry comes first so its headline reads before a prior alpha promotion's.
+  //
+  // The prior alpha entry's own `sections` (already categorized once) are
+  // merged directly rather than re-running categorizeEntries over its raw
+  // `message`/`details` again - that message is a synthesized cross-commit
+  // headline sentence, not a commit-message bullet, and re-categorizing it
+  // matches none of the feat/fix patterns so it would silently land in
+  // tweaks as a garbled duplicate line.
   const priorAlphaEntry = alpha.entries[0] || null;
-  const sourceEntries = [...develop.entries, ...(priorAlphaEntry ? [priorAlphaEntry] : [])];
-  const publicEntries = filterChangelogEntries(sourceEntries);
-  const sections = categorizeEntries(sourceEntries);
-  const simplifiedDetails = simplifyEntries(sourceEntries);
+  const publicEntries = [...filterChangelogEntries(develop.entries), ...(priorAlphaEntry ? [priorAlphaEntry] : [])];
+  const developSections = categorizeEntries(develop.entries);
+  const sections = priorAlphaEntry?.sections ? mergeSections(developSections, priorAlphaEntry.sections) : developSections;
+  const simplifiedDetails = formatSections(sections);
   const mainMessage = synthesizeHeadline(publicEntries.map((entry) => entry.message)) || "Consolidated develop updates";
 
   const alphaEntry = {
