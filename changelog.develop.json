@@ -1,7 +1,17 @@
 {
-  "build": 1,
-  "updatedAt": "2026-08-28T19:48:38+01:00",
+  "build": 2,
+  "updatedAt": "2026-08-28T19:52:58+01:00",
   "entries": [
+    {
+      "build": 2,
+      "date": "2026-08-28T19:52:58+01:00",
+      "commit": "5f0288506ec89bb4ff970489bec12454c56d6319",
+      "message": "Docs - Consolidate v0.12.11 changelog entry into higher-level bullets",
+      "author": "Lasikiewicz",
+      "details": [
+        "Dropped a redundant Major Bug Fixes bullet that just restated the release's commit subject"
+      ]
+    },
     {
       "build": 1,
       "date": "2026-08-28T19:48:38+01:00",
