@@ -1,7 +1,41 @@
 {
   "baseVersion": "0.12.12",
-  "build": 1,
+  "build": 2,
   "entries": [
+    {
+      "build": 2,
+      "version": "0.12.12.2.0",
+      "shortVersion": "0.12.12.2",
+      "date": "2026-08-29T09:44:07.141Z",
+      "commit": "7a7689962b7754ee1dad8cfc55d21fca9b22d140",
+      "message": "Feature - Add saving-state feedback for episode watch actions and changelog release-process filtering",
+      "author": "Lasikiewicz",
+      "details": [
+        "Feature: Add saving-state feedback for episode watch actions and changelog release-process filtering",
+        "Feature: Episode tiles pulse with a \"Syncing...\" overlay while marking watched/unwatched is in flight, including collapsed season accordion headers during whole-show or whole-season bulk actions",
+        "Feature: Marking unwatched from the show control bar now batches requests in groups of 100, fixing shows with more than 100 watched episodes silently failing with no explanation",
+        "Feature: The poster three-dot overflow menu (Mark Unwatched / Edit watch date / Fix match) now appears on TV show library cards and stays legible in light mode instead of rendering as dark-on-dark dots",
+        "Fix: Batch watch-state dispatch by media identity",
+        "Fix: Marking an entire show as watched now excludes Season 0 specials by default",
+        "Fix: The watched-date dialog shows an Include specials (Season 0) checkbox, unchecked by default, to opt them back in",
+        "Fix: Batch related watch-state updates by shared media identity to make large syncs safer and avoid duplicate provider work."
+      ],
+      "sections": {
+        "newFeatures": [
+          "Add saving-state feedback for episode watch actions and changelog release-process filtering",
+          "Episode tiles pulse with a \"Syncing...\" overlay while marking watched/unwatched is in flight, including collapsed season accordion headers during whole-show or whole-season bulk actions",
+          "Marking unwatched from the show control bar now batches requests in groups of 100, fixing shows with more than 100 watched episodes silently failing with no explanation",
+          "The poster three-dot overflow menu (Mark Unwatched / Edit watch date / Fix match) now appears on TV show library cards and stays legible in light mode instead of rendering as dark-on-dark dots"
+        ],
+        "majorBugFixes": [
+          "Batch watch-state dispatch by media identity",
+          "Marking an entire show as watched now excludes Season 0 specials by default",
+          "The watched-date dialog shows an Include specials (Season 0) checkbox, unchecked by default, to opt them back in",
+          "Batch related watch-state updates by shared media identity to make large syncs safer and avoid duplicate provider work."
+        ],
+        "tweaks": []
+      }
+    },
     {
       "build": 1,
       "version": "0.12.12.1",
@@ -14,5 +48,6 @@
       ]
     }
   ],
-  "updatedAt": "2026-08-29T10:41:15+01:00"
+  "updatedAt": "2026-08-29T09:44:07.141Z",
+  "version": "0.12.12.2.0"
 }

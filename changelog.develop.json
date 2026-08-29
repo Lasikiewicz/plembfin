@@ -1,51 +1,5 @@
 {
-  "build": 4,
-  "updatedAt": "2026-08-29T10:40:24+01:00",
-  "entries": [
-    {
-      "build": 4,
-      "date": "2026-08-29T10:40:24+01:00",
-      "commit": "ece953ee8faf1c932efc0fc2b3d2f6383bf182b4",
-      "message": "Feature - Add saving-state feedback for episode watch actions and changelog release-process filtering",
-      "author": "Lasikiewicz",
-      "details": [
-        "Episode tiles pulse with a \"Syncing...\" overlay while marking watched/unwatched is in flight, including collapsed season accordion headers during whole-show or whole-season bulk actions",
-        "Marking unwatched from the show control bar now batches requests in groups of 100, fixing shows with more than 100 watched episodes silently failing with no explanation",
-        "The poster three-dot overflow menu (Mark Unwatched / Edit watch date / Fix match) now appears on TV show library cards and stays legible in light mode instead of rendering as dark-on-dark dots"
-      ]
-    },
-    {
-      "build": 3,
-      "date": "2026-08-29T09:55:26+01:00",
-      "commit": "22efedd0beb31ded50feec1a8841949aa446b896",
-      "message": "Fix - Batch watch-state dispatch by media identity",
-      "author": "Lasikiewicz",
-      "details": [
-        "Marking an entire show as watched now excludes Season 0 specials by default",
-        "The watched-date dialog shows an Include specials (Season 0) checkbox, unchecked by default, to opt them back in",
-        "Batch related watch-state updates by shared media identity to make large syncs safer and avoid duplicate provider work."
-      ]
-    },
-    {
-      "build": 2,
-      "date": "2026-08-28T19:52:58+01:00",
-      "commit": "5f0288506ec89bb4ff970489bec12454c56d6319",
-      "message": "Docs - Consolidate v0.12.11 changelog entry into higher-level bullets",
-      "author": "Lasikiewicz",
-      "details": [
-        "Dropped a redundant Major Bug Fixes bullet that just restated the release's commit subject"
-      ]
-    },
-    {
-      "build": 1,
-      "date": "2026-08-28T19:48:38+01:00",
-      "commit": "5e611ddc7a319b1d301bebd0ec243a2ea254e84f",
-      "message": "Chore - Reset develop build counter after promotion to alpha",
-      "author": "Lasikiewicz",
-      "details": [
-        "Trimmed the alpha build 1 changelog entry down to the actual TV show detail and grid bulk-watch fixes, dropping unrelated changelog-process bullets that had been folded in",
-        "Chore - Reset develop build counter after promotion to alpha"
-      ]
-    }
-  ]
+  "build": 0,
+  "updatedAt": "2026-08-29T09:44:07.141Z",
+  "entries": []
 }
