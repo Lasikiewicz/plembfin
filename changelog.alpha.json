@@ -1,7 +1,45 @@
 {
   "baseVersion": "0.14.0",
-  "build": 0,
-  "version": "0.14.0.0.0",
-  "updatedAt": "2026-08-29T11:03:29.670Z",
-  "entries": []
+  "build": 1,
+  "version": "0.14.0.1.0",
+  "updatedAt": "2026-08-29T14:21:47.107Z",
+  "entries": [
+    {
+      "build": 1,
+      "version": "0.14.0.1.0",
+      "shortVersion": "0.14.0.1",
+      "date": "2026-08-29T14:21:47.107Z",
+      "commit": "b295626e66aab70e58df3145b4c7abdc41c91643",
+      "message": "Fix - Center the setup wizard and move Restore from backup into its own card",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix: Center the setup wizard and move Restore from backup into its own card",
+        "Fix: Bulk and single episode watch dates now follow runtime spacing and directional labels.",
+        "Fix: Stopped fetching every season's episode list before a show's detail page could render, which held the loading screen up for 10+ seconds on shows with many seasons; other seasons now load in the background as they're expanded, with a proper loading indicator instead of a misleading \"no episodes found\" message",
+        "Fix: Split the Born/From details on the cast bio page into separate lines instead of repeating the person's age twice, and removed the duplicate age next to their name",
+        "Fix: Resized the bio page's IMDb/Instagram/X/Facebook/TikTok/Wikidata icons to match the icon size and pill style used elsewhere (Available on / Watch Now rows)",
+        "Fix: Pre-push hook now validates the changelog committed in the exact commit being pushed to develop, rejecting the push if it's missing or stale",
+        "Fix: Setup wizard box now sits vertically centered on the page instead of pinned near the top, with the logo and the version/theme footer each floating halfway between the page edge and the box",
+        "Fix: Fixed the setup page's height calculation so this centering resolves against the real viewport instead of collapsing to the content's own size",
+        "Fix: Enlarged the Plembfin logo on the setup pages",
+        "Fix: Moved the \"Restore from backup\" shortcut out of the footer bar and into the Backup card on the overview step, so the footer only shows the version number and theme toggle"
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Center the setup wizard and move Restore from backup into its own card",
+          "Bulk and single episode watch dates now follow runtime spacing and directional labels.",
+          "Stopped fetching every season's episode list before a show's detail page could render, which held the loading screen up for 10+ seconds on shows with many seasons; other seasons now load in the background as they're expanded, with a proper loading indicator instead of a misleading \"no episodes found\" message",
+          "Split the Born/From details on the cast bio page into separate lines instead of repeating the person's age twice, and removed the duplicate age next to their name",
+          "Resized the bio page's IMDb/Instagram/X/Facebook/TikTok/Wikidata icons to match the icon size and pill style used elsewhere (Available on / Watch Now rows)",
+          "Pre-push hook now validates the changelog committed in the exact commit being pushed to develop, rejecting the push if it's missing or stale",
+          "Setup wizard box now sits vertically centered on the page instead of pinned near the top, with the logo and the version/theme footer each floating halfway between the page edge and the box",
+          "Fixed the setup page's height calculation so this centering resolves against the real viewport instead of collapsing to the content's own size",
+          "Enlarged the Plembfin logo on the setup pages",
+          "Moved the \"Restore from backup\" shortcut out of the footer bar and into the Backup card on the overview step, so the footer only shows the version number and theme toggle"
+        ],
+        "tweaks": []
+      }
+    }
+  ]
 }
