@@ -13,6 +13,8 @@ import {
   startPlexAdaptivePoller,
   stopPlexAdaptivePoller,
   restartPlexAdaptivePoller,
+  startLiveSessionPoller,
+  stopLiveSessionPoller,
 } from "./scheduler.js";
 import { refreshUpcomingCalendarCache } from "./utils/upcomingCalendarCache.js";
 import { backfillUnknownShowTitles, backfillMissingEpisodeSeasons } from "./utils/dataRepo.js";
@@ -74,6 +76,7 @@ export function createWorkerCoordinator({ holderId, role }) {
     console.log(`[worker] scheduler leadership acquired (generation ${lease.generation})`);
     startPlexNotificationListener();
     startPlexAdaptivePoller();
+    startLiveSessionPoller();
     await backfillUnknownShowTitles().catch((error) => console.error("backfillUnknownShowTitles failed", error));
     await backfillMissingEpisodeSeasons().catch((error) => console.error("backfillMissingEpisodeSeasons failed", error));
     // Warm the persisted Upcoming snapshot as soon as this process becomes the
@@ -89,6 +92,7 @@ export function createWorkerCoordinator({ holderId, role }) {
     lease = null;
     stopPlexNotificationListener();
     stopPlexAdaptivePoller();
+    stopLiveSessionPoller();
   }
 
   async function maintainLease() {

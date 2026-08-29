@@ -46,29 +46,44 @@ already committed.
   `build` is not. The running develop build shows this as `Develop Build <n>` in the
   sidebar and Settings → About. `docker-publish-develop.yml` publishes a rolling image to
   `ghcr.io/lasikiewicz/plembfin:develop` (also tagged `develop-<build>`) on every push,
-  reading the build number that's already in the pushed commit.
+  reading the build number that's already in the pushed commit. When more than one
+  commit lands in one entry, it carries `messageFragments` alongside `message` - the true
+  one-fragment-per-commit list, not just the folded sentence - so `promoteDevelopToAlpha`
+  and `promoteAlphaToMain` can later fold everything into one final headline from real
+  atomic fragments instead of re-wrapping an already-composite sentence as if it were one
+  unsplittable piece (see `synthesizeHeadline` in `scripts/changelog-message.js`).
 
 - **`alpha`**: `scripts/promote-develop-to-alpha.js`, run as part of "Force to alpha"
-  (before the force-push), merges develop's current entry into alpha's own current
-  entry - not a separate entry per "Force to alpha" call. alpha also keeps exactly one
-  entry: a fresh "Force to alpha" call folds new develop work into it in place, so the
-  entry a user reads is always the complete, current picture of everything pending for
-  the next release, not one of several stacked build entries. It self-heals to a fresh
-  `baseVersion` and build 1 whenever `main`'s version has moved on since the last alpha
-  build, and resets again on the next "Force to main". Never touches `changelog.json` or
-  the package version. The running alpha build shows this as `v<version>.<build> alpha`
-  (e.g. `v0.8.0.7 alpha`) in the sidebar and Settings → About. `docker-publish-alpha.yml`
+  (before the force-push), packages develop's current entry as its own standalone alpha
+  build entry and prepends it to `changelog.alpha.json`'s `entries` array (newest first,
+  same convention as `changelog.json`'s main entries) - one entry per "Force to alpha"
+  call within the cycle, not a single rolling entry merged in place. A user checking for
+  updates mid-cycle sees exactly what changed in each build they haven't pulled yet
+  (`describePendingAlphaBuild` in `server/src/routes/maintenance.js`), instead of an
+  ever-growing re-merged sentence. Consolidating the whole cycle into one clean release
+  note happens once, in `promoteAlphaToMain`, not speculatively on every intermediate
+  build. It self-heals to a fresh `baseVersion`, build 1, and an empty `entries` array
+  whenever `main`'s version has moved on since the last alpha build, and resets again on
+  the next "Force to main". Never touches `changelog.json` or the package version. A
+  build's version is 4 segments - `baseVersion.build` (e.g. `0.14.0.3`) - a 5th segment
+  was never read by any comparison logic and only ever showed up as visual noise in the
+  changelog UI. The running alpha build shows this as `v<version> alpha` (e.g.
+  `v0.8.0.7 alpha`) in the sidebar and Settings → About. `docker-publish-alpha.yml`
   publishes a rolling pre-release image to `ghcr.io/lasikiewicz/plembfin:alpha` (also
   tagged `alpha-<build>`), reading the build number already in the pushed commit.
   `alpha` gets the same secret-scan and security CI coverage as `main`, so problems
   surface as soon as something is promoted to it.
 
 - **`main`**: `scripts/promote-alpha-to-main.js`, run as part of "Force to main" (before
-  the force-push), takes alpha's current entry directly - already merged and correct -
-  bumps the real semver, and writes `changelog.json`, `package.json`,
-  `package-lock.json`, and `CHANGELOG.md`. `update-changelog.yml` (workflow name
-  "Publish Main Release") runs the full build gate against what was already committed and
-  publishes `:latest` + `:<version>`.
+  the force-push), consolidates every alpha build entry accumulated this cycle into one
+  clean release entry - merging each entry's already-categorized `sections` directly
+  (`mergeSections`, exported from `promote-develop-to-alpha.js`) rather than
+  re-categorizing the entries themselves, and folding their headlines into one sentence
+  in the order the builds actually happened (`synthesizeHeadline` in
+  `scripts/changelog-message.js`) - then bumps the real semver and writes
+  `changelog.json`, `package.json`, `package-lock.json`, and `CHANGELOG.md`.
+  `update-changelog.yml` (workflow name "Publish Main Release") runs the full build gate
+  against what was already committed and publishes `:latest` + `:<version>`.
 
 Both promotion scripts run the same release-content check
 (`changelogEntryProcessViolations` in `scripts/changelog-message.js`) on the entry they
@@ -288,20 +303,20 @@ This folds in main's actual current state, so `develop`'s own copy of `changelog
 (used by `promote-develop-to-alpha.js` to self-heal alpha's base version) stays current.
 Stop and ask the user if this step produces a real conflict.
 
-### 2 - Merge develop's changelog into alpha, locally
+### 2 - Add develop's changelog as a new alpha build entry, locally
 ```bash
 node scripts/promote-develop-to-alpha.js
 git add changelog.alpha.json changelog.develop.json
 git commit -m "chore: promote develop changelog to alpha"
 ```
-This is `promoteDevelopToAlpha()` in `scripts/promote-develop-to-alpha.js`: it merges
-develop's current entry into alpha's own current entry (or starts a fresh alpha entry if
-main has moved on since the last promotion), bumps the alpha build, and resets develop's
-`entries` and `resetCommit` for the next cycle - `build` is not reset (see the branching
-model section above). If it refuses with a release-process violation, that means a commit
-folded into develop's entry still contains recognized process text; fix it on `develop`
-and repeat from step 1. There is nothing to review afterward - the entry this writes is
-what will actually publish.
+This is `promoteDevelopToAlpha()` in `scripts/promote-develop-to-alpha.js`: it packages
+develop's current entry as its own standalone alpha build entry and prepends it to
+alpha's `entries` array (or starts a fresh array if main has moved on since the last
+promotion), bumps the alpha build, and resets develop's `entries` and `resetCommit` for
+the next cycle - `build` is not reset (see the branching model section above). If it
+refuses with a release-process violation, that means a commit folded into develop's entry
+still contains recognized process text; fix it on `develop` and repeat from step 1. There
+is nothing to review afterward - the entry this writes is what will actually publish.
 
 ### 3 - Force alpha to match develop
 Show the user what is about to land before running this - it is a force push to the
@@ -344,15 +359,17 @@ resets the local branch to the remote tip every time.
 ```bash
 node scripts/promote-alpha-to-main.js
 ```
-This is `promoteAlphaToMain()` in `scripts/promote-alpha-to-main.js`: it takes alpha's
-current entry directly (already merged and correct - there is nothing left to
-consolidate), bumps the real semver (honouring a manually-set higher `package.json`
-version instead of overwriting it with a patch increment), and writes `changelog.json`,
-`package.json`, `package-lock.json`, and regenerates `CHANGELOG.md`, then resets
-`changelog.alpha.json` and `changelog.develop.json` for the next cycle. If it refuses
-with a release-process violation, that means alpha's entry still contains recognized
-process text; fix the source commit on `develop`, repeat "Force to alpha", and restart
-this command. Otherwise stage and commit:
+This is `promoteAlphaToMain()` in `scripts/promote-alpha-to-main.js`: it consolidates
+every alpha build entry accumulated this cycle into one clean release entry - merging
+each entry's own already-categorized sections and folding their headlines into one
+sentence in the order the builds happened - bumps the real semver (honouring a
+manually-set higher `package.json` version instead of overwriting it with a patch
+increment), and writes `changelog.json`, `package.json`, `package-lock.json`, and
+regenerates `CHANGELOG.md`, then resets `changelog.alpha.json` and
+`changelog.develop.json` for the next cycle. If it refuses with a release-process
+violation, that means one of alpha's entries still contains recognized process text; fix
+the source commit on `develop`, repeat "Force to alpha", and restart this command.
+Otherwise stage and commit:
 ```bash
 git add changelog.json changelog.alpha.json changelog.develop.json CHANGELOG.md package.json package-lock.json
 git commit -m "chore: promote alpha to main v<version>"

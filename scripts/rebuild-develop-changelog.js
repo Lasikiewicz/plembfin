@@ -68,11 +68,19 @@ export function buildDevelopEntry({ commits, headCommit, date, author, nextBuild
   // not just the most recent one - so a develop entry spanning several
   // separate "Push to git" runs reads as one sentence covering all of them
   // instead of silently showing only the last push's subject line.
-  const message = synthesizeHeadline(releaseCommits.map((commit) =>
-    formatChangelogMessage(String(commit.message || "").split(/\r?\n/, 1)[0])));
+  const messageFragments = releaseCommits.map((commit) =>
+    formatChangelogMessage(String(commit.message || "").split(/\r?\n/, 1)[0]));
+  const message = synthesizeHeadline(messageFragments);
 
   const entry = { build: nextBuild, date, commit: headCommit, message, author };
   if (details.length > 0) entry.details = details;
+  // The true one-fragment-per-commit list, not just the synthesized `message` sentence -
+  // carried through by promoteDevelopToAlpha/promoteAlphaToMain so a later consolidation
+  // step (folding several builds' or several develop pushes' headlines into one final
+  // sentence) always works from atomic fragments instead of re-wrapping an
+  // already-composite sentence as if it were one. See synthesizeHeadline's own doc
+  // comment in changelog-message.js for why that matters.
+  if (messageFragments.length > 1) entry.messageFragments = messageFragments;
   return entry;
 }
 

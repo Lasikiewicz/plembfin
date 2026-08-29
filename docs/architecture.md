@@ -45,7 +45,7 @@ new metadata requests.
 | Emby API calls | `server/src/utils/embyClient.js` | [emby.md](emby.md) |
 | Jellyfin API calls | `server/src/utils/jellyfinClient.js` | [jellyfin.md](jellyfin.md) |
 | Background/scheduled sync, catch-up sync | `server/src/scheduler.js`, `server/src/scheduled.js` | [scheduled-sync.md](scheduled-sync.md) |
-| Now Playing (dashboard live sessions) | `handleNowPlaying` in `server/src/routes/sync.js`, `server/src/utils/liveSessions.js`, `activeSessions.js`, `public/modules/sync.js` | [now-playing.md](now-playing.md) |
+| Now Playing (dashboard live sessions) | `handleNowPlaying` in `server/src/routes/sync.js`, `server/src/utils/liveSessions.js`, `liveSessionPoller.js`, `activeSessions.js`, `public/modules/sync.js` | [now-playing.md](now-playing.md) |
 | Dashboard rendering | `public/modules/dashboard.js` | [dashboard.md](dashboard.md) |
 | Sidebar sync indicator, Sync Activity page | `public/modules/sync-activity.js`, `handleSyncHistory` in `routes/sync.js` | [dashboard.md](dashboard.md) |
 | Movies library page | `public/modules/explorer.js`, `queryMovies` in `dataRepo.js` | [movies.md](movies.md) |
@@ -176,10 +176,11 @@ See [README.md](README.md) for the documentation index, including this file
 | `mediaForceSyncActivity.js` | Bounded in-memory activity ledger used by the detail-page and Settings Force Sync status/cancellation endpoints to stream operation lines, cancellation state, and final results to the UI. |
 | `tuning.js` | Import-free runtime accessors for watched threshold, minimum resume position, active-session TTL, and outbound timeout; reads environment defaults and applies validated Settings overrides. |
 | `plexClient.js` | Plex HTTP client: find items by GUID/title, mark played/unplayed, set resume progress, fetch watched/resumable/metadata/episodes; username→accountID resolution with memoization. Token always sent as `X-Plex-Token` header. See [plex.md](plex.md). |
-| `plexNotificationListener.js` | Plex real-time WebSocket listener (`/:/websockets/notifications`): detects watched/unwatched changes the webhook can never deliver, reconnects with backoff, debounces per ratingKey; plus `probePlexNotificationSocket` for the System Integrity Check. |
+| `plexNotificationListener.js` | Plex real-time WebSocket listener (`/:/websockets/notifications`): detects watched/unwatched changes the webhook can never deliver, reconnects with backoff, debounces per ratingKey; also recognizes the `playing` notification type to poke the live session poller (see `liveSessionPoller.js`) the instant a session's state changes; plus `probePlexNotificationSocket` for the System Integrity Check. |
 | `embyClient.js` | Emby HTTP client (same operation set as Plex client, `X-Emby-Token` auth, provider-ID `AnyProviderIdEquals` lookups). See [emby.md](emby.md). |
 | `jellyfinClient.js` | Jellyfin HTTP client (same shape as Emby client; sends both `X-Emby-Token` and `X-MediaBrowser-Token`); episode coordinate lookups retain duplicate quality copies so all matching items receive playstate. See [jellyfin.md](jellyfin.md). |
-| `liveSessions.js` | Polls Plex/Emby/Jellyfin `sessions` endpoints for what's playing now (`fetchLiveSessions`), normalizes them (`buildCacheRow`, `sessionIdentity`, `hydrateCachedSession`) for `live_tracking_cache`. Feeds Now Playing and completed-session detection. |
+| `liveSessions.js` | Polls Plex/Emby/Jellyfin `sessions` endpoints for what's playing now (`fetchLiveSessions`, reports per-platform fetch failures separately from a genuinely empty result), normalizes them (`buildCacheRow`, `sessionIdentity`, `hydrateCachedSession`) for `live_tracking_cache`. Feeds Now Playing and completed-session detection. |
+| `liveSessionPoller.js` | Independent, activity-adaptive timer (10s while something's playing, 45s while idle) that runs `refreshLiveSessions()` (in `scheduled.js`) outside the once-a-minute scheduler tick, so Now Playing updates in seconds instead of up to a minute. `poke()` lets the Plex notification listener and `handleNowPlaying` trigger an immediate refresh. See [now-playing.md](now-playing.md). |
 | `activeSessions.js` | The `active_sessions` table (webhook `active`-phase sessions, configurable 5-minute TTL by default, enforced on read). |
 | `loopStore.js` | SQLite-backed loop-detection KV (`loop_keys` table) with TTL; `checkAndClaim` runs check+claim in one transaction so concurrent webhooks can't both pass. |
 | `syncFlags.js` | `watchedPlayedSyncEnabled()` - global kill-switch for watched/played propagation via `WATCHED_PLAYED_SYNC_ENABLED`. |
@@ -273,8 +274,8 @@ See [README.md](README.md) for the documentation index, including this file
 | `changelog-git-helpers.js` | Shared git plumbing for the changelog scripts: walks real commit history between an anchor and HEAD (`commitsSinceLastEntry`), lists a commit's changed files, and reads the current HEAD commit/author. |
 | `validate-commit-message.js` | CLI used by the commit-message hook to reject user-visible release commits with missing or title-repeating details. |
 | `rebuild-develop-changelog.js` | Run locally as part of "Push to git" (CLAUDE.md), before the push: fully recomputes `changelog.develop.json`'s single entry from every real commit between its `resetCommit` anchor and HEAD, replacing it rather than appending. Its `--check <commit>` mode validates the committed changelog tree used by the develop pre-push guard without modifying files. |
-| `promote-develop-to-alpha.js` | Run locally as part of "Force to alpha", before the force-push: merges develop's current entry into alpha's own current entry (`promoteDevelopToAlpha`), bumps the alpha build, and resets develop for the next cycle. Also exports `categorizeEntries`/`simplifyEntries`, shared with the script below. |
-| `promote-alpha-to-main.js` | Run locally as part of "Force to main", before the force-push: takes alpha's current entry directly (`promoteAlphaToMain`), bumps the real semver (honouring a manually-set higher `package.json` version), writes `changelog.json`/`package.json`/`package-lock.json`/`CHANGELOG.md`, and resets alpha and develop for the next cycle. |
+| `promote-develop-to-alpha.js` | Run locally as part of "Force to alpha", before the force-push: packages develop's current entry as its own standalone alpha build entry, prepended to alpha's `entries` (`promoteDevelopToAlpha`), bumps the alpha build, and resets develop for the next cycle. Also exports `categorizeEntries`/`simplifyEntries`/`formatSections`/`mergeSections`, shared with the script below. |
+| `promote-alpha-to-main.js` | Run locally as part of "Force to main", before the force-push: consolidates every alpha build entry accumulated this cycle into one release entry (`promoteAlphaToMain`), bumps the real semver (honouring a manually-set higher `package.json` version), writes `changelog.json`/`package.json`/`package-lock.json`/`CHANGELOG.md`, and resets alpha and develop for the next cycle. |
 | `notify-discord-release.js` | CI helper called by `update-changelog.yml` (`main`) and `docker-publish-alpha.yml` (`alpha`): builds a Discord embed from the newest `changelog.json`/`changelog.alpha.json` entry and posts it to the `DISCORD_RELEASES_WEBHOOK` secret. No-ops if the secret isn't set; supports `--dry-run` to print the embed instead of posting. |
 | `install-git-hooks.js` | Sets `core.hooksPath` to `.githooks` (runs automatically via npm `prepare`). |
 | `docker-entrypoint.sh` | Container entrypoint: chowns `/data` when starting as root, then drops to the `plembfin` user via gosu. |
@@ -461,14 +462,18 @@ reached by a force-push. None of the three publish workflows write anything back
 branch; each only builds, verifies, and publishes the Docker image using values already
 committed.
 
-Each main-release entry carries `sections` (`newFeatures`/`majorBugFixes`/`tweaks`),
-produced by `categorizeEntries()` in `scripts/promote-develop-to-alpha.js` (shared with
-`scripts/promote-alpha-to-main.js`) from alpha's current entry's headline and bullet
-points. Settings → Changelog (`renderChangelogDetails()` in `public/app.js`) and the
-generated `CHANGELOG.md` (`scripts/generate-changelog-md.js`) render `sections` as
-separate headed groups whenever any of the three is non-empty, falling back to the flat
-`entry.details` list otherwise - the alpha and develop entries stay flat, since each is
-always a single current entry rather than a consolidated release.
+Each alpha build entry carries `sections` (`newFeatures`/`majorBugFixes`/`tweaks`),
+produced by `categorizeEntries()` in `scripts/promote-develop-to-alpha.js` from that
+build's own develop commits. A main-release entry's `sections` are produced by merging
+every alpha build entry's own `sections` directly (`mergeSections()`, also in
+`promote-develop-to-alpha.js`, used by `scripts/promote-alpha-to-main.js`) rather than
+re-categorizing the entries themselves - an entry's `message` is a synthesized headline
+sentence, not a commit-message bullet, and re-categorizing it would land it in tweaks as
+a garbled duplicate. Settings → Changelog (`renderChangelogDetails()` in `public/app.js`)
+and the generated `CHANGELOG.md` (`scripts/generate-changelog-md.js`) render `sections`
+as separate headed groups whenever any of the three is non-empty, falling back to the
+flat `entry.details` list otherwise - develop's entry stays flat, since it never carries
+`sections` at all (see below).
 
 Both promotion scripts run the same release-content check
 (`changelogEntryProcessViolations` in `scripts/changelog-message.js`) on the entry they
@@ -495,16 +500,20 @@ is unreachable the bundled entries are served on their own.
 
 `alphaBuild` is populated only on the `alpha` channel, read from the bundled
 `changelog.alpha.json` (`readLocalAlphaChangelog()` in `routes/maintenance.js`): a rolling
-build counter and a single current changelog entry, separate from `changelog.json`'s real
-semver and reset on the next "Force to main". `scripts/promote-develop-to-alpha.js` writes
-this file, run locally as part of "Force to alpha" (before the force-push): it merges
-develop's current entry into alpha's own current entry - so a fresh "Force to alpha" call
-updates the one entry in place rather than adding another - bumps `build`, and resets to a
-fresh `baseVersion` and build 1 whenever `changelog.alpha.json`'s `baseVersion` differs
-from `changelog.json`'s version (i.e. main moved forward since the last alpha push).
-`docker-publish-alpha.yml` reads the build number already in the pushed commit and tags
-the published image `alpha-<build>` alongside the rolling `alpha` tag; it does not write
-anything back.
+build counter and one changelog entry per build accumulated so far this cycle, separate
+from `changelog.json`'s real semver and reset on the next "Force to main".
+`scripts/promote-develop-to-alpha.js` writes this file, run locally as part of "Force to
+alpha" (before the force-push): it packages develop's current entry as its own standalone
+alpha build entry and prepends it to `entries` - so a fresh "Force to alpha" call adds
+another entry rather than updating one in place, and a user can see exactly what changed
+in each build they haven't pulled yet - bumps `build`, and resets to a fresh `baseVersion`,
+build 1, and an empty `entries` array whenever `changelog.alpha.json`'s `baseVersion`
+differs from `changelog.json`'s version (i.e. main moved forward since the last alpha
+push). A build's version is 4 segments - `baseVersion.build` (e.g. `0.14.0.3`) - not 5;
+nothing parses past the 4th segment, so a trailing `.0` was only ever visual noise in the
+changelog UI. `docker-publish-alpha.yml` reads the build number already in the pushed
+commit and tags the published image `alpha-<build>` alongside the rolling `alpha` tag; it
+does not write anything back.
 
 `handleChangelog` also fetches `changelog.alpha.json` from the `alpha` branch on GitHub raw
 (`fetchRemoteAlphaChangelog()`, same one-minute cache and `?refresh=1` bypass as the main
@@ -534,9 +543,9 @@ notes how many releases have landed on `main` since this build for context. The 
 version label itself still distinguishes one alpha build from the next via the build number
 (`v0.8.0.7 alpha`), and the release list shows a separate "New since your build - not pulled
 yet" section (tagged "Not pulled yet", `alphaBuild.pendingEntries`) above the "Current alpha
-build" section (`alphaBuild.entries`, this instance's own already-installed single current
-entry) whenever either is non-empty, so a newer build's changes are visible without
-updating first.
+build" section (`alphaBuild.entries` - every build entry accumulated so far this cycle,
+newest first, not just the one this instance has installed) whenever either is non-empty,
+so a newer build's changes are visible without updating first.
 
 `developBuild` (populated only on the `develop` channel, read from `changelog.develop.json`
 via `readLocalDevelopChangelog()`) works the same way but is deliberately **not** derived

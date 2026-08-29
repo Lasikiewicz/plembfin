@@ -24,6 +24,7 @@ import {
 } from "../utils/backgroundJobs.js";
 import { findPlexItem, markPlexPlayed, setPlexProgress, markPlexUnplayedByRatingKey, fetchPlexWatchedItems, fetchPlexMetadataItem, fetchPlexSeriesEpisodes, listPlexLibraries } from "../utils/plexClient.js";
 import { probePlexNotificationSocket } from "../utils/plexNotificationListener.js";
+import { pokeLiveSessionPoller } from "../scheduler.js";
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes, listEmbyLibraries } from "../utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes, listJellyfinLibraries } from "../utils/jellyfinClient.js";
 import { buildPlexMediaFromMetadata, normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook } from "../utils/parsers.js";
@@ -1684,10 +1685,25 @@ export async function handleRetrySync(req, res) {
   return sendJson(res, { ok: true, status: summary.status, targetStates: summary.targetStates || [] });
 }
 
+// If nobody has requested Now Playing in a while, the underlying poller may be sitting
+// on its slow idle interval (or waiting out a normal active-interval wait) with data
+// that's a beat stale. Poking it here means the first request after a page opens - or a
+// backgrounded tab becomes visible again - kicks off a fresh poll immediately instead of
+// waiting for the poller's own timer; the response below still serves current cache data
+// right away, so this never adds latency to the request itself.
+let lastNowPlayingViewerAt = 0;
+const NOW_PLAYING_VIEWER_GAP_MS = 20_000;
+
 export async function handleNowPlaying(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
+
+  const now = Date.now();
+  if (now - lastNowPlayingViewerAt > NOW_PLAYING_VIEWER_GAP_MS) {
+    pokeLiveSessionPoller();
+  }
+  lastNowPlayingViewerAt = now;
 
   const [cacheRows, activeRows, runtime] = await Promise.all([
     loadLiveTrackingCache({ includeCompleted: false }).catch(() => []),

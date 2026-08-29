@@ -1,16 +1,17 @@
 {
   "baseVersion": "0.14.0",
   "build": 3,
-  "version": "0.14.0.3.0",
+  "version": "0.14.0.3",
+  "shortVersion": "0.14.0.3",
   "updatedAt": "2026-08-29T18:16:52.224Z",
   "entries": [
     {
       "build": 3,
-      "version": "0.14.0.3.0",
+      "version": "0.14.0.3",
       "shortVersion": "0.14.0.3",
       "date": "2026-08-29T18:16:52.224Z",
       "commit": "3a782f85401a5059d6d277a170980957d32f9af9",
-      "message": "This update includes sync activity retries resolve in place and dashboard posters stop flickering and make onboarding less text-heavy and stop requiring a media server and center the setup wizard and move Restore from backup into its own card.",
+      "message": "This update includes sync activity retries resolve in place and dashboard posters stop flickering, make onboarding less text-heavy and stop requiring a media server, and center the setup wizard and move Restore from backup into its own card.",
       "author": "Lasikiewicz",
       "details": [
         "Fix: Sync activity retries resolve in place and dashboard posters stop flickering",

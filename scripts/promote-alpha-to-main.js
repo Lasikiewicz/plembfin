@@ -1,17 +1,19 @@
 #!/usr/bin/env node
 
-// Consolidates alpha's current entry into a clean, permanent Main release
-// entry, bumps the real semver, and regenerates every derived file
-// (package.json, package-lock.json, CHANGELOG.md) - then resets alpha and
-// develop for the next cycle. Run locally as part of "Force to main", before
-// the force-push, so the pushed commit already carries the finished release;
-// CI no longer needs to generate or fix up changelog content afterward.
+// Consolidates every alpha build entry accumulated this cycle (see
+// promoteDevelopToAlpha - alpha holds one entry per "Force to alpha" call,
+// not a single rolling entry) into one clean, permanent Main release entry,
+// bumps the real semver, and regenerates every derived file (package.json,
+// package-lock.json, CHANGELOG.md) - then resets alpha and develop for the
+// next cycle. Run locally as part of "Force to main", before the force-push,
+// so the pushed commit already carries the finished release; CI no longer
+// needs to generate or fix up changelog content afterward.
 
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { changelogEntryProcessViolations, filterChangelogEntries } from "./changelog-message.js";
-import { categorizeEntries, simplifyEntries } from "./promote-develop-to-alpha.js";
+import { changelogEntryProcessViolations, filterChangelogEntries, synthesizeHeadline } from "./changelog-message.js";
+import { formatSections, mergeSections } from "./promote-develop-to-alpha.js";
 import { generateChangelogMarkdown } from "./generate-changelog-md.js";
 import { gitHeadAuthor, gitHeadCommit } from "./changelog-git-helpers.js";
 
@@ -65,9 +67,27 @@ export function promoteAlphaToMain({ targetVersion = "", sourceDate = new Date()
   const new5DigitVersion = `${newMainVersion}.0.0`;
 
   const publicEntries = filterChangelogEntries(alpha.entries);
-  const sections = categorizeEntries(publicEntries);
-  const simplifiedDetails = simplifyEntries(publicEntries);
-  const mainMessage = publicEntries[0]?.message || `Release v${newMainVersion}`;
+
+  // Each alpha build entry already carries its own correctly categorized `sections`
+  // (categorizeEntries ran once, in promoteDevelopToAlpha, over that build's own raw
+  // develop commits) - merge those directly rather than re-running categorizeEntries
+  // over the entries themselves, which would treat each entry's synthesized `message`
+  // sentence as an uncategorized bullet and land it in tweaks as a garbled duplicate.
+  const sections = publicEntries.reduce(
+    (acc, entry) => mergeSections(acc, entry.sections || {}),
+    { newFeatures: [], majorBugFixes: [], tweaks: [] },
+  );
+  const simplifiedDetails = formatSections(sections);
+  // alpha.entries is newest-first (see promoteDevelopToAlpha); read oldest-first here so
+  // the release headline narrates the cycle in the order the builds actually happened.
+  // Use each build's own atomic messageFragments when present rather than its single
+  // flattened `message` - a build's message is already a composite whenever that build
+  // bundled more than one develop commit/push - so synthesizeHeadline always gets the
+  // true flat list of every commit's own headline across the whole cycle to join,
+  // instead of treating an already-composite build message as one unsplittable piece.
+  const messageFragments = [...publicEntries].reverse().flatMap((entry) =>
+    Array.isArray(entry.messageFragments) && entry.messageFragments.length ? entry.messageFragments : [entry.message]);
+  const mainMessage = synthesizeHeadline(messageFragments) || `Release v${newMainVersion}`;
 
   const mainEntry = {
     version: newMainVersion,
@@ -80,10 +100,10 @@ export function promoteAlphaToMain({ targetVersion = "", sourceDate = new Date()
     sections,
   };
 
-  // Safety net: categorizeEntries/simplifyEntries already filter recognized
-  // release-process text, but check the assembled entry directly before it
-  // is ever written, rather than relying only on a separate step run
-  // afterward that could be skipped.
+  // Safety net: filterChangelogEntries above, and categorizeEntries when each alpha
+  // build entry was originally built, already filter recognized release-process text,
+  // but check the assembled entry directly before it is ever written, rather than
+  // relying only on a separate step run afterward that could be skipped.
   const violations = changelogEntryProcessViolations(mainEntry);
   if (violations.length > 0) {
     throw new Error(`Refusing to promote alpha to main: the entry contains release-process notes:\n${violations.map((v) => `- ${v}`).join("\n")}`);

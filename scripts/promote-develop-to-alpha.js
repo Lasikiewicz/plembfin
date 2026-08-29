@@ -1,18 +1,22 @@
 #!/usr/bin/env node
 
-// Merges develop's current rolling entry (everything since the last "Force
-// to alpha") into alpha's own current rolling entry, bumps the alpha build
-// (4th segment, setting develop 5th segment to 0), and resets develop for the
-// next cycle. Run locally as part of "Force to alpha", before the force-push
-// - the pushed commit already carries the correct, complete alpha entry, so
-// neither branch needs a CI job to generate or fix it up afterward.
+// Packages develop's current rolling entry (everything since the last "Force
+// to alpha") as its own standalone alpha build entry, bumps the alpha build
+// (4th version segment), and resets develop for the next cycle. Run locally
+// as part of "Force to alpha", before the force-push - the pushed commit
+// already carries the correct, complete alpha entry, so neither branch needs
+// a CI job to generate or fix it up afterward.
 //
-// alpha keeps exactly one current entry, the same "always recompute in
-// place" model changelog.develop.json uses (see rebuild-develop-changelog.js)
-// rather than accumulating one entry per "Force to alpha" call within the
-// same pre-release cycle - those used to need a manual consolidation pass
-// before promoting to main; merging in place means there is never more than
-// one entry to read or clean up.
+// alpha accumulates one entry per "Force to alpha" call within the same
+// pre-release cycle (newest first, same convention as changelog.json's main
+// entries) rather than merging each call into a single rolling entry - a
+// user checking for updates mid-cycle sees exactly what changed in each
+// build they haven't pulled yet (see describePendingAlphaBuild in
+// server/src/routes/maintenance.js), instead of the same re-merged sentence
+// growing a little longer every time. Consolidating the whole cycle into one
+// clean release note happens once, in promoteAlphaToMain, when there is a
+// complete and final set of builds to summarize - not speculatively on every
+// intermediate "Force to alpha" call.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -88,7 +92,7 @@ export function categorizeEntries(entries = []) {
 // previously-built alpha entry would treat that entry's own synthesized
 // headline sentence as a new bullet to categorize (it matches none of the
 // feat/fix patterns, so it silently lands in tweaks).
-function formatSections({ newFeatures = [], majorBugFixes = [], tweaks = [] } = {}) {
+export function formatSections({ newFeatures = [], majorBugFixes = [], tweaks = [] } = {}) {
   const result = [];
   if (newFeatures.length) result.push(...newFeatures.map((item) => `Feature: ${item}`));
   if (majorBugFixes.length) result.push(...majorBugFixes.map((item) => `Fix: ${item}`));
@@ -96,11 +100,16 @@ function formatSections({ newFeatures = [], majorBugFixes = [], tweaks = [] } = 
   return result.length ? result : ["Consolidated updates and improvements from develop"];
 }
 
-// Combines two already-categorized section sets (e.g. this cycle's develop
-// work with a prior "Force to alpha" call's own entry), applying the same
+// Combines two already-categorized section sets, applying the same
 // dedupe-and-cross-category-exclusion rules categorizeEntries uses so a bullet
-// present in both never appears twice or in two sections at once.
-function mergeSections(a = {}, b = {}) {
+// present in both never appears twice or in two sections at once. Used by
+// promoteAlphaToMain to fold every alpha build entry's own sections together
+// at Force-to-main time, since each entry already carries correctly
+// categorized sections from when promoteDevelopToAlpha built it - re-running
+// categorizeEntries over an entry's synthesized `message` sentence instead of
+// merging its `sections` directly would treat that sentence as an uncategorized
+// bullet and land it in tweaks as a garbled duplicate.
+export function mergeSections(a = {}, b = {}) {
   const dedup = (arr) => Array.from(new Set(arr.filter(Boolean).map((s) => s.trim())));
   const newFeatures = dedup([...(a.newFeatures || []), ...(b.newFeatures || [])]);
   const majorBugFixes = dedup([...(a.majorBugFixes || []), ...(b.majorBugFixes || [])]).filter((item) => !newFeatures.includes(item));
@@ -141,39 +150,40 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
   if (!Array.isArray(develop.entries)) develop.entries = [];
 
   const nextAlphaBuild = Number(alpha.build || 0) + 1;
-  const alphaVersion5Digit = `${alpha.baseVersion || mainVersion}.${nextAlphaBuild}.0`;
-  const alphaVersionShort = `${alpha.baseVersion || mainVersion}.${nextAlphaBuild}`;
+  // Four segments (base version + alpha build) is a complete, unambiguous version on
+  // its own - a trailing fifth ".0" segment was never read by anything (no comparison
+  // logic parses past the 4th segment; it only ever showed up in the changelog UI as a
+  // confusing "v0.14.0.3.0").
+  const alphaVersion = `${alpha.baseVersion || mainVersion}.${nextAlphaBuild}`;
 
-  // Merge develop's new work (since the last reset) with whatever alpha
-  // already has pending from an earlier "Force to alpha" this same cycle -
-  // develop's entry never overlaps alpha's, since develop's own resetCommit
-  // anchor only ever covers commits made after the last reset. Develop's
-  // entry comes first so its headline reads before a prior alpha promotion's.
-  //
-  // The prior alpha entry's own `sections` (already categorized once) are
-  // merged directly rather than re-running categorizeEntries over its raw
-  // `message`/`details` again - that message is a synthesized cross-commit
-  // headline sentence, not a commit-message bullet, and re-categorizing it
-  // matches none of the feat/fix patterns so it would silently land in
-  // tweaks as a garbled duplicate line.
-  const priorAlphaEntry = alpha.entries[0] || null;
-  const publicEntries = [...filterChangelogEntries(develop.entries), ...(priorAlphaEntry ? [priorAlphaEntry] : [])];
-  const developSections = categorizeEntries(develop.entries);
-  const sections = priorAlphaEntry?.sections ? mergeSections(developSections, priorAlphaEntry.sections) : developSections;
+  // This is a standalone entry for just this build - only develop's own current work,
+  // not merged with any earlier alpha build this cycle. See the module comment above.
+  const developEntries = filterChangelogEntries(develop.entries);
+  const sections = categorizeEntries(develop.entries);
   const simplifiedDetails = formatSections(sections);
-  const mainMessage = synthesizeHeadline(publicEntries.map((entry) => entry.message)) || "Consolidated develop updates";
+
+  // A develop entry can already be a synthesized composite of several commits or
+  // several "Push to git" runs (rebuild-develop-changelog.js folds all of them into one
+  // entry) - use its own atomic messageFragments when present instead of its single
+  // flattened `message`, so this build's own headline, and later promoteAlphaToMain
+  // folding several builds together, always work from true atomic fragments instead of
+  // re-wrapping an already-composite sentence as if it were one unsplittable piece.
+  const messageFragments = developEntries.flatMap((entry) =>
+    Array.isArray(entry.messageFragments) && entry.messageFragments.length ? entry.messageFragments : [entry.message]);
+  const mainMessage = synthesizeHeadline(messageFragments) || "Consolidated develop updates";
 
   const alphaEntry = {
     build: nextAlphaBuild,
-    version: alphaVersion5Digit,
-    shortVersion: alphaVersionShort,
+    version: alphaVersion,
+    shortVersion: alphaVersion,
     date: sourceDate,
-    commit: commit || publicEntries[0]?.commit || "",
+    commit: commit || developEntries[0]?.commit || "",
     message: mainMessage,
     author: sourceAuthor,
     details: simplifiedDetails,
     sections,
   };
+  if (messageFragments.length > 1) alphaEntry.messageFragments = messageFragments;
 
   // Safety net: categorizeEntries/simplifyEntries already filter recognized
   // release-process text, but check the assembled entry directly before it
@@ -185,11 +195,12 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
   }
 
   alpha.build = nextAlphaBuild;
-  alpha.version = alphaVersion5Digit;
+  alpha.version = alphaVersion;
+  alpha.shortVersion = alphaVersion;
   alpha.updatedAt = sourceDate;
-  // alpha holds exactly one current entry - see the module comment above for
-  // why this replaces rather than accumulates.
-  alpha.entries = [alphaEntry];
+  // Newest first, same convention as changelog.json's main entries - accumulates
+  // across the cycle until promoteAlphaToMain consolidates and resets it.
+  alpha.entries = [alphaEntry, ...alpha.entries];
 
   // Reset develop for the next cycle: build never resets (it counts pushes
   // for the lifetime of the branch - see rebuild-develop-changelog.js),
@@ -206,7 +217,7 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
   fs.writeFileSync(alphaChangelogPath, `${JSON.stringify(alpha, null, 2)}\n`);
   fs.writeFileSync(developChangelogPath, `${JSON.stringify(develop, null, 2)}\n`);
 
-  console.log(`Promoted develop to Alpha build ${nextAlphaBuild} (${alphaVersion5Digit})`);
+  console.log(`Promoted develop to Alpha build ${nextAlphaBuild} (v${alphaVersion})`);
   return { alpha, develop };
 }
 

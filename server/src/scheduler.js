@@ -2,6 +2,7 @@ import { createLoopStore } from "./utils/loopStore.js";
 import { activeSyncOperation, appendSyncHistory, loadBackgroundSyncProgress, loadMediaConfig, loadRuntimeState, setRuntimeState, SYNC_OPERATION_SCHEDULED } from "./utils/configStore.js";
 import { createPlexNotificationListener } from "./utils/plexNotificationListener.js";
 import { createPlexAdaptivePoller } from "./utils/plexAdaptivePoller.js";
+import { createLiveSessionPoller } from "./utils/liveSessionPoller.js";
 import { fetchPlexContainerEpisodes, fetchPlexMetadataItem, findPlexItem, mergePlexMetadataItem } from "./utils/plexClient.js";
 import { buildPlexMediaFromMetadata } from "./utils/parsers.js";
 import { buildWatchProvenance, provenanceTelemetryLines } from "./utils/watchProvenance.js";
@@ -505,6 +506,11 @@ export function startPlexNotificationListener() {
         return config?.plex || null;
       },
       onLibraryItemChange: handlePlexLibraryItemChange,
+      // Plex pushes a "playing" notification over this same socket the instant a
+      // session starts, pauses, resumes, or stops (and periodically while it plays).
+      // Poking the live session poller here means Plex's Now Playing state updates
+      // as soon as that arrives, instead of waiting for the poller's own timer.
+      onPlaySessionActivity: pokeLiveSessionPoller,
       logger: console.log,
     });
   }
@@ -648,4 +654,34 @@ export function stopPlexAdaptivePoller() {
 
 export function pokePlexAdaptivePoller() {
   plexAdaptivePoller?.poke();
+}
+
+// ---------------------------------------------------------------------------
+// Now Playing: independent live-session poller
+//
+// live_tracking_cache used to be refreshed only once a minute, inside the same
+// tick as backups/TMDB prewarm/catch-up sync (see docs/now-playing.md). This
+// runs refreshLiveSessions() on its own faster, activity-adaptive timer instead,
+// so a session starting or ending shows up in Now Playing in seconds rather than
+// up to a minute later, without polling any faster than before while idle.
+// ---------------------------------------------------------------------------
+
+let liveSessionPoller = null;
+
+export function startLiveSessionPoller() {
+  if (!liveSessionPoller) {
+    liveSessionPoller = createLiveSessionPoller({ logger: console.log });
+  }
+  liveSessionPoller.start();
+}
+
+export function stopLiveSessionPoller() {
+  liveSessionPoller?.stop();
+}
+
+// Called by the Plex WebSocket listener on a "playing" notification, and by
+// handleNowPlaying when a viewer shows up after a gap - both mean the cached
+// live-session state is likely stale right now, so re-run the poll immediately.
+export function pokeLiveSessionPoller() {
+  liveSessionPoller?.poke();
 }

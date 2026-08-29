@@ -5,10 +5,11 @@ data described below.
 
 ## What feeds it
 
-`handleNowPlaying` (`server/src/index.js`) merges **two** SQLite sources:
+`handleNowPlaying` (`server/src/routes/sync.js`) merges **two** SQLite sources:
 
-1. **`live_tracking_cache`** - written **only** by the every-minute scheduler
-   (`server/src/scheduled.js`), which polls Plex/Emby/Jellyfin directly and
+1. **`live_tracking_cache`** - written by an independent live-session poller
+   (`server/src/utils/liveSessionPoller.js`, using `refreshLiveSessions()` in
+   `server/src/scheduled.js`), which polls Plex/Emby/Jellyfin directly and
    snapshots whatever is currently playing. Only rows with `completed_at IS NULL`
    are returned.
 2. **`active_sessions`** - written by the **webhook** `active` phase
@@ -17,20 +18,80 @@ data described below.
    session TTL before returning.
 
 The merge de-duplicates by `(source, title, season, episode)` and sorts by
-`updated_at` desc. A session can reach Now Playing via the scheduler, via a
+`updated_at` desc. A session can reach Now Playing via the poller, via a
 webhook, or both.
+
+### Live-session poller cadence
+
+`live_tracking_cache` used to be refreshed only once a minute, inside the same
+scheduler tick as backups, TMDB prewarm, and catch-up sync - a session starting
+or ending could take up to 60s to show up or clear. `liveSessionPoller.js` now
+runs on its own timer instead, independent of that tick, and is
+activity-adaptive: it polls every 10s while a session is currently playing, and
+backs off to 45s while idle (close to the old baseline, so idle-state load on
+Plex/Emby/Jellyfin does not meaningfully increase). The once-a-minute scheduler
+tick no longer calls the same fetch itself - that would just poll the same
+session endpoints a second time for no benefit - it only reads the cache the
+poller already keeps current.
+
+Two things poke the poller to run immediately instead of waiting out its
+current interval:
+
+- Plex's notification WebSocket (`server/src/utils/plexNotificationListener.js`,
+  see [plex.md](plex.md)) also carries a `playing` frame the instant a Plex
+  session starts, pauses, resumes, or stops. That frame carries no more than a
+  ratingKey and playback state - not enough to build a session row from - so it
+  is used purely as a "something changed, refresh now" signal rather than being
+  parsed into session data itself.
+- `handleNowPlaying` pokes the poller whenever a request arrives more than 20s
+  after the last one - i.e. a browser tab was just opened or just became
+  visible again - so the first view after a gap doesn't wait out the poller's
+  own idle interval. The response itself is never delayed by this: it always
+  serves whatever is already cached, and the poke's fresher data lands in time
+  for the next 10s frontend poll.
+- Emby and Jellyfin have no equivalent push channel wired up today, so their
+  Now Playing freshness is bounded by the poller's own interval alone.
+
+### Not mistaking a poll blip for a real stop
+
+`refreshLiveSessions()` (`server/src/scheduled.js`) reconciles the previous
+`live_tracking_cache` rows against whatever the latest poll returned; anything
+previously tracked that isn't in the new result is treated as stopped, and
+either recorded as a completed watch (progress past the watched threshold) or
+a resume/progress update (below it). Two safeguards keep a poll problem from
+being misread as the session actually stopping:
+
+- **A failed fetch to a platform is not treated as "nothing is playing" on
+  it.** `fetchLiveSessions()` (`server/src/utils/liveSessions.js`) reports
+  which of Plex/Emby/Jellyfin it could not reach this call; a cached row from
+  a platform that just failed is left untouched and re-checked next poll,
+  instead of every session on that platform looking like it stopped because
+  of one bad request.
+- **A session has to be missing across two consecutive successful polls of
+  its platform before it's treated as stopped**, not just one
+  (`MISSING_LIVE_SESSION_CONFIRMATION_POLLS`). This absorbs a Plex session-key
+  change - e.g. a transcode/quality switch assigns the still-playing item a
+  new session id - without needing to fix the id matching itself. The poller
+  stays on its fast interval while a confirmation like this is pending, so the
+  worst-case delay before a genuine stop is recorded is about two poll
+  intervals, not one poller cycle plus a fall back to the slow idle interval.
+
+Without these, the symptom looks like: Now Playing (or a title's resume
+position) drops to "partially watched" even though playback never stopped -
+one bad request or one session-id change was enough to make the reconciliation
+think it had.
 
 ```text
 Plex/Emby/Jellyfin
-   |   (scheduler poll, every 1 min)       (webhook "active" events)
-   v                                              |
-scheduled.js -> live_tracking_cache   active_sessions <- handleWebhook (phase=active)
-                        |                    |
-                        `-- handleNowPlaying merges both --'
-                                      |
-                              GET /api/now-playing
-                                      |
-                          app.js loadActiveSessions() (polled every 10s)
+   |  (adaptive poll: 10s active / 45s idle)   (webhook "active" events)
+   v                                                  |
+liveSessionPoller.js -> live_tracking_cache   active_sessions <- handleWebhook (phase=active)
+        ^                       |                     |
+        |                       `-- handleNowPlaying merges both --'
+   poke() from Plex "playing"                   |
+   WebSocket frame, or a                  GET /api/now-playing
+   Now Playing viewer                            |
+   showing up after a gap              app.js loadActiveSessions() (polled every 10s)
 ```
 
 ## Frontend (polling)
@@ -88,9 +149,10 @@ Work outside-in:
    sqlite3 data/plembfin.db "SELECT title, source_platform, last_progress, completed_at FROM live_tracking_cache ORDER BY updated_at DESC LIMIT 10;"
    ```
    With media playing you should see rows with `completed_at` = NULL.
-   - If empty/stale -> the scheduler isn't reaching the servers. Check the server logs
-     for poller errors. Confirm the Plex/Emby/Jellyfin URLs in Settings are reachable
-     from the Plembfin server.
+   - If empty/stale -> the live-session poller isn't reaching the servers. Check the
+     server logs for "Live session poller failed" or "Live session fetch failed".
+     Confirm the Plex/Emby/Jellyfin URLs in Settings are reachable from the Plembfin
+     server.
    - If all rows have `completed_at != NULL` -> they were marked complete after
      reaching the watched threshold (90% by default) and disappearing, so they
      won't show. Expected.

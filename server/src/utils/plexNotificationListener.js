@@ -106,6 +106,22 @@ function decodeFrame(data) {
   }
 }
 
+// Plex's own websocket also emits a "playing" notification the instant a session
+// starts, pauses, resumes, or stops (and periodically while it keeps playing). It
+// carries no more than the session's ratingKey/state, not full item metadata, so
+// it isn't parsed into a session here - it's only used as a signal that something
+// changed right now, to wake up the live session poller instead of waiting for its
+// own timer (see liveSessionPoller.js).
+export function isPlexPlayingNotification(raw) {
+  let payload;
+  try {
+    payload = JSON.parse(decodeFrame(raw));
+  } catch {
+    return false;
+  }
+  return payload?.NotificationContainer?.type === "playing";
+}
+
 export function parsePlexNotificationRatingKeys(raw) {
   let payload;
   try {
@@ -146,7 +162,7 @@ export function parsePlexNotificationRatingKeys(raw) {
 // firing at the same moment.
 const MAX_CONCURRENT_HANDLERS = 3;
 
-export function createPlexNotificationListener({ getPlexConfig, onLibraryItemChange, logger = console.log }) {
+export function createPlexNotificationListener({ getPlexConfig, onLibraryItemChange, onPlaySessionActivity, logger = console.log }) {
   let socket = null;
   let stopped = true;
   let reconnectTimer = null;
@@ -240,8 +256,15 @@ export function createPlexNotificationListener({ getPlexConfig, onLibraryItemCha
 
 
 
-function handleFrame(raw) {
+function handleFrame(raw, onPlaySessionActivity) {
   lastActivityAt = Date.now();
+  if (onPlaySessionActivity && isPlexPlayingNotification(raw)) {
+    try {
+      onPlaySessionActivity();
+    } catch (error) {
+      logger(`Plex notifications: onPlaySessionActivity handler failed: ${error?.message || error}`);
+    }
+  }
   for (const ratingKey of parsePlexNotificationRatingKeys(raw)) {
     debounce(ratingKey);
   }
@@ -284,7 +307,7 @@ function handleFrame(raw) {
       logger("Plex notifications: connected");
     };
     ws.onmessage = (event) => {
-      if (socket === ws) handleFrame(event.data);
+      if (socket === ws) handleFrame(event.data, onPlaySessionActivity);
     };
     ws.onerror = (event) => {
       if (socket !== ws) return;

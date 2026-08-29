@@ -313,7 +313,8 @@ http://<YOUR_HOST>:5055/api/webhook?token=<your-secret>
 
 **Plex** - no setup required. Plembfin connects to your Plex Media Server's WebSocket
 notification channel automatically to capture watched and unwatched changes in real
-time, and checks playback progress every minute as a backstop.
+time, and polls playback progress as a backstop - every 10 seconds while something's
+playing, backing off to every 45 seconds while idle.
 
 **Emby** - Preferences → Notifications → Webhooks → add one, paste the URL, enable
 **Playback**: `Start`/`Pause`/`Unpause`/`Stop` and **Users**: `Mark Played`/`Mark

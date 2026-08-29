@@ -292,37 +292,47 @@ async function fetchJson(url, headers) {
   }
 }
 
+// Each fetcher returns { sessions, ok } rather than a bare array: ok is false only when
+// the request itself failed (timeout, non-2xx, network error) - not configured is a
+// legitimate "nothing to report" state and stays ok:true. This lets the reconciliation
+// in scheduled.js's refreshLiveSessions() tell "the server said nothing is playing" apart
+// from "we couldn't ask the server this time", so a transient network blip can't get
+// mistaken for every in-progress session having stopped.
 async function fetchPlexSessions(config) {
-  if (!config.plex.baseUrl || !config.plex.token) return [];
+  if (!config.plex.baseUrl || !config.plex.token) return { sessions: [], ok: true };
   const url = new URL(`${config.plex.baseUrl}/status/sessions`);
 
   try {
     const response = await fetchPlexWithRefresh(config.plex, url, { headers: { Accept: "application/xml, text/xml, application/json" } });
     if (!response.ok) throw new Error(`Request failed with ${response.status}`);
     const text = await response.text();
-    const sessions = parsePlexSessions(text, config.plex);
-    return sessions.filter((session) => !config.plex.username || String(session.client?.userName || "").toLowerCase() === String(config.plex.username).toLowerCase());
+    const sessions = parsePlexSessions(text, config.plex)
+      .filter((session) => !config.plex.username || String(session.client?.userName || "").toLowerCase() === String(config.plex.username).toLowerCase());
+    return { sessions, ok: true };
   } catch (error) {
     console.error("Plex live session fetch failed", { url: String(url), error: error?.message || String(error) });
-    return [];
+    return { sessions: [], ok: false };
   }
 }
 
 async function fetchEmbySessions(config) {
-  if (!config.emby.baseUrl || !config.emby.apiKey) return [];
+  if (!config.emby.baseUrl || !config.emby.apiKey) return { sessions: [], ok: true };
   const url = new URL(`${config.emby.baseUrl}/Sessions`);
   url.searchParams.set("api_key", config.emby.apiKey);
   const json = await fetchJson(url, { Accept: "application/json", "X-Emby-Token": config.emby.apiKey });
-  if (!json) return [];
+  if (!json) return { sessions: [], ok: false };
   const sessions = Array.isArray(json) ? json : json.Items || json.Sessions || [];
-  return sessions
-    .map((session) => normalizeSessionItem(session, "emby", config.emby))
-    .filter(Boolean)
-    .filter((session) => !config.emby.userId || String(session.raw?.UserId || "").toLowerCase() === String(config.emby.userId).toLowerCase());
+  return {
+    sessions: sessions
+      .map((session) => normalizeSessionItem(session, "emby", config.emby))
+      .filter(Boolean)
+      .filter((session) => !config.emby.userId || String(session.raw?.UserId || "").toLowerCase() === String(config.emby.userId).toLowerCase()),
+    ok: true,
+  };
 }
 
 async function fetchJellyfinSessions(config) {
-  if (!config.jellyfin.baseUrl || !config.jellyfin.apiKey) return [];
+  if (!config.jellyfin.baseUrl || !config.jellyfin.apiKey) return { sessions: [], ok: true };
   const url = new URL(`${config.jellyfin.baseUrl}/Sessions`);
   const headers = {
     Accept: "application/json",
@@ -331,22 +341,36 @@ async function fetchJellyfinSessions(config) {
     "X-MediaBrowser-Token": config.jellyfin.apiKey,
   };
   const json = await fetchJson(url, headers);
-  if (!json) return [];
+  if (!json) return { sessions: [], ok: false };
   const sessions = Array.isArray(json) ? json : json.Items || json.Sessions || [];
-  return sessions
-    .map((session) => normalizeSessionItem(session, "jellyfin", config.jellyfin))
-    .filter(Boolean)
-    .filter((session) => !config.jellyfin.userId || String(session.raw?.UserId || "").toLowerCase() === String(config.jellyfin.userId).toLowerCase());
+  return {
+    sessions: sessions
+      .map((session) => normalizeSessionItem(session, "jellyfin", config.jellyfin))
+      .filter(Boolean)
+      .filter((session) => !config.jellyfin.userId || String(session.raw?.UserId || "").toLowerCase() === String(config.jellyfin.userId).toLowerCase()),
+    ok: true,
+  };
 }
 
+// Returns { sessions, failedSources }: failedSources names which of "plex"/"emby"/
+// "jellyfin" could not be reached this call, so callers can avoid treating that
+// platform's (forced-empty) result as proof nothing is playing on it.
 export async function fetchLiveSessions(config) {
+  const sourceNames = ["plex", "emby", "jellyfin"];
   const results = await Promise.allSettled([fetchPlexSessions(config), fetchEmbySessions(config), fetchJellyfinSessions(config)]);
-  for (const [index, result] of results.entries()) {
-    if (result.status === "rejected") {
-      console.error("Live session resolver failed", { source: ["plex", "emby", "jellyfin"][index], error: result.reason?.message || String(result.reason) });
+  const sessions = [];
+  const failedSources = new Set();
+  results.forEach((result, index) => {
+    const source = sourceNames[index];
+    if (result.status === "fulfilled") {
+      sessions.push(...result.value.sessions);
+      if (!result.value.ok) failedSources.add(source);
+    } else {
+      console.error("Live session resolver failed", { source, error: result.reason?.message || String(result.reason) });
+      failedSources.add(source);
     }
-  }
-  return results.flatMap((result) => (result.status === "fulfilled" ? result.value : []));
+  });
+  return { sessions, failedSources };
 }
 
 export async function loadLiveTrackingCache(db, options = {}) {

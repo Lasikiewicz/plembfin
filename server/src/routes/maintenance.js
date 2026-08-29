@@ -1101,10 +1101,10 @@ export function describePendingDevelopBuild(localDevelopBuild, remoteDevelop) {
 }
 
 // Bundled only on the alpha channel build; see docker-publish-alpha.yml and
-// scripts/promote-develop-to-alpha.js. Tracks a rolling build counter and a
-// single current changelog entry, kept up to date in place across
-// consecutive "Force to alpha" calls and reset on the next "Force to main",
-// independent of changelog.json's real semver.
+// scripts/promote-develop-to-alpha.js. Tracks a rolling build counter and one
+// changelog entry per "Force to alpha" call accumulated this cycle (newest
+// first), reset on the next "Force to main", independent of changelog.json's
+// real semver.
 function readLocalAlphaChangelog() {
   try {
     const raw = fs.readFileSync(nodePath.resolve(PUBLIC_DIR, "..", "changelog.alpha.json"), "utf8");

@@ -95,23 +95,25 @@ values already committed" - none of them write anything back to their branch.
   "Force to alpha" promotion explicitly does so, so it can never appear to regress.
   **`develop` is covered by `secret-scan.yml`** (while `security.yml` runs on `main` and
   `alpha` alongside scheduled scans).
-- **"Force to alpha"** runs `scripts/promote-develop-to-alpha.js` locally (merges
-  develop's current entry into alpha's own current entry, self-healing to a fresh
-  `baseVersion`/build 1 whenever `main`'s version has moved on since the last alpha
-  build, and resets develop for the next cycle), commits, then force-pushes `develop`'s
-  state onto `alpha` (`git push origin HEAD:alpha --force`; merge `origin/main` into
-  `develop` first if it has moved on). The alpha publish workflow checks README
-  consistency before building and publishing. This is where secret/vulnerability
-  scanning first applies. `docker-publish-alpha.yml` builds, verifies, and publishes to
-  `ghcr.io/lasikiewicz/plembfin:alpha` (also tagged `alpha-<build>`) using the build
-  number already in the pushed commit, then posts the alpha build's changelog entry to
-  Discord (see "Discord release notifications" below). Afterward, push develop's own
-  reset state to `origin/develop` too (a plain push, not a force-push).
+- **"Force to alpha"** runs `scripts/promote-develop-to-alpha.js` locally (packages
+  develop's current entry as its own standalone alpha build entry, prepended to alpha's
+  `entries` array - one entry per "Force to alpha" call, not a rolling merge - self-healing
+  to a fresh `baseVersion`/build 1/empty `entries` whenever `main`'s version has moved on
+  since the last alpha build, and resets develop for the next cycle), commits, then
+  force-pushes `develop`'s state onto `alpha` (`git push origin HEAD:alpha --force`; merge
+  `origin/main` into `develop` first if it has moved on). The alpha publish workflow
+  checks README consistency before building and publishing. This is where
+  secret/vulnerability scanning first applies. `docker-publish-alpha.yml` builds,
+  verifies, and publishes to `ghcr.io/lasikiewicz/plembfin:alpha` (also tagged
+  `alpha-<build>`) using the build number already in the pushed commit, then posts that
+  one build's own changelog entry to Discord (see "Discord release notifications"
+  below). Afterward, push develop's own reset state to `origin/develop` too (a plain
+  push, not a force-push).
 - **"Force to main"** checks out `alpha`'s actual tip locally, runs
-  `scripts/promote-alpha-to-main.js` (takes alpha's current entry directly - already
-  merged and correct - bumps the real semver, writes `changelog.json`/`package.json`/
-  `package-lock.json`/`CHANGELOG.md`, and resets alpha and develop for the next cycle),
-  commits, then force-pushes that commit to `main`
+  `scripts/promote-alpha-to-main.js` (consolidates every alpha build entry accumulated
+  this cycle into one clean release entry - bumps the real semver, writes
+  `changelog.json`/`package.json`/`package-lock.json`/`CHANGELOG.md`, and resets alpha
+  and develop for the next cycle), commits, then force-pushes that commit to `main`
   (`git push origin HEAD:main --force`), which triggers the release pipeline below. A
   first pre-push test failure follows the bounded retry procedure above instead of
   bypassing the gate or prematurely ending the promotion.
@@ -166,20 +168,24 @@ Building the release itself happens locally, as part of "Force to main" (see
 [CLAUDE.md](../CLAUDE.md) and the "Promotion commands" above) - `promoteAlphaToMain()`
 in `scripts/promote-alpha-to-main.js`, run before the force-push:
 
-1. Takes alpha's current entry directly - already merged from every "Force to alpha"
-   call since the last release, with a clean headline and bullet-point `details` - there
-   is nothing left to combine or backfill from individual commits at this point, since
-   that already happened locally on `develop` (`scripts/rebuild-develop-changelog.js`)
-   and `alpha` (`scripts/promote-develop-to-alpha.js`).
-2. Bumps the real semver - the patch segment, honouring a manually-set higher
-   `package.json` version instead (a deliberate major/minor bump) - and runs the same
-   `categorizeEntries()` used to build alpha's own entry (shared between both promotion
-   scripts) to sort the headline and bullets into `entry.sections` -
-   `newFeatures`/`majorBugFixes`/`tweaks`, keyed off conventional-commit type and
-   per-line keywords. `public/app.js` and `generate-changelog-md.js` render
-   `entry.sections` as separate "New Features" / "Major Bug Fixes" / "Tweaks" headed
-   groups in Settings → Changelog and `CHANGELOG.md` whenever any section is populated,
-   falling back to the flat `entry.details` list otherwise.
+1. Consolidates every alpha build entry accumulated since the last release - each one
+   already has a clean headline and bullet-point `details` from when
+   `scripts/promote-develop-to-alpha.js` built it, since that already happened locally on
+   `develop` (`scripts/rebuild-develop-changelog.js`) and `alpha` - so there is nothing
+   left to backfill from individual commits at this point, only multiple builds' worth of
+   already-clean entries to fold into one.
+2. Merges each entry's own `entry.sections` directly (`mergeSections`, exported from
+   `promote-develop-to-alpha.js`) rather than re-running `categorizeEntries()` over the
+   entries themselves - an entry's `message` is a synthesized cross-commit headline
+   sentence, not a commit-message bullet, and re-categorizing it would land it in tweaks
+   as a garbled duplicate. Folds every build's headline into one sentence, in the order
+   the builds happened, with `synthesizeHeadline()` (`scripts/changelog-message.js`).
+   Bumps the real semver - the patch segment, honouring a manually-set higher
+   `package.json` version instead (a deliberate major/minor bump). `public/app.js` and
+   `generate-changelog-md.js` render `entry.sections` -
+   `newFeatures`/`majorBugFixes`/`tweaks` - as separate "New Features" / "Major Bug
+   Fixes" / "Tweaks" headed groups in Settings → Changelog and `CHANGELOG.md` whenever
+   any section is populated, falling back to the flat `entry.details` list otherwise.
 3. Runs the same release-content check (`changelogEntryProcessViolations` in
    `scripts/changelog-message.js`) the alpha promotion already ran, and throws instead
    of writing the entry if any recognized release-process text survives (changelog

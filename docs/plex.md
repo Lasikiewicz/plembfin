@@ -119,6 +119,13 @@ Either transition also bumps the
 any open Plembfin browser tab to refresh - see
 [now-playing.md](now-playing.md) for how the frontend consumes that signal.
 
+The same socket also carries a `playing` notification type, separate from `timeline`,
+the instant a session starts, pauses, resumes, or stops (and periodically while it keeps
+playing). It carries only a ratingKey and playback state, not full item metadata, so it
+is not parsed into a session here - `onPlaySessionActivity` (wired in `scheduler.js`)
+just pokes the independent live-session poller to refresh immediately instead of waiting
+out its own interval. See [now-playing.md](now-playing.md) for that poller.
+
 The listener is started by `server.js` at boot (`startPlexNotificationListener`) and
 stopped during graceful shutdown. `probePlexNotificationSocket` runs the same connection
 one-shot for the System Integrity Check (`POST /api/test-plex-notifications`), which
@@ -127,9 +134,12 @@ Plex.
 
 ## Inbound channel 3: scheduler polling
 
-Every minute the scheduler (`scheduled.js`) polls `/status/sessions` via
-`fetchLiveSessions` for Now Playing and completed-session detection. Every 15 minutes
-(configurable via `CATCHUP_SYNC_INTERVAL_MS`) the catch-up sync pulls:
+`/status/sessions` (via `fetchLiveSessions`) is polled for Now Playing and
+completed-session detection by the independent live-session poller
+(`server/src/utils/liveSessionPoller.js`), not the once-a-minute scheduler tick - see
+[now-playing.md](now-playing.md) for its adaptive interval and how the WebSocket above
+pokes it. Every 15 minutes (configurable via `CATCHUP_SYNC_INTERVAL_MS`) the scheduler's
+own catch-up sync separately pulls:
 
 - **Recently watched** (`fetchPlexWatchedItems` → `syncRecentlyWatchedFromPlex`) -
   records watches that never produced a scrobble webhook. History items are filtered to

@@ -1646,6 +1646,90 @@ export async function syncPendingManualDispatches(config, loopStore, logger = co
   return syncedCount;
 }
 
+// A session missing from one successful poll isn't trusted as "stopped" on its own - it
+// takes two consecutive successful polls of that platform with the session still absent.
+// This absorbs a one-off Plex session-key change (e.g. a transcode/quality switch assigns
+// a new session id to the same still-playing item) without needing to fix the id matching
+// itself. Keyed by session_id; cleared as soon as a session is seen again or acted on.
+const missingLiveSessionStreaks = new Map();
+const MISSING_LIVE_SESSION_CONFIRMATION_POLLS = 2;
+
+// Fetches current Plex/Emby/Jellyfin sessions, reconciles them against
+// live_tracking_cache, and processes any session that dropped out (completed
+// or stopped/paused) since the last call. Shared by the once-a-minute
+// scheduled-sync tick and the independent, faster live-session poller
+// (liveSessionPoller.js) so both drive the exact same completion/propagation
+// logic instead of maintaining two copies of it.
+export async function refreshLiveSessions(config, loopStore, { logger = () => {}, trace = () => {} } = {}) {
+  const { sessions: currentSessions, failedSources } = await fetchLiveSessions(config);
+  const currentRows = currentSessions.map(buildCacheRow);
+  const currentIds = new Set(currentRows.map((row) => row.session_id));
+  const cachedRows = await loadLiveTrackingCache({ includeCompleted: true });
+  const completions = [];
+  const progressUpdates = [];
+  const staleIds = [];
+
+  if (currentRows.length || cachedRows.length) {
+    trace(`Live sessions: ${currentRows.length}, cached sessions in tracking: ${cachedRows.length}`);
+  }
+  await upsertLiveTrackingCache(currentRows);
+
+  for (const row of cachedRows) {
+    if (currentIds.has(row.session_id)) {
+      missingLiveSessionStreaks.delete(row.session_id);
+      continue;
+    }
+    if (row.completed_at) continue;
+
+    // This platform's poll just failed, so an empty result is not evidence anything
+    // stopped - it's evidence we couldn't ask. Leave the cached row untouched and try
+    // again next tick rather than counting this as a missed appearance.
+    if (failedSources.has(String(row.source_platform || "").toLowerCase())) continue;
+
+    const missCount = (missingLiveSessionStreaks.get(row.session_id) || 0) + 1;
+    if (missCount < MISSING_LIVE_SESSION_CONFIRMATION_POLLS) {
+      missingLiveSessionStreaks.set(row.session_id, missCount);
+      continue;
+    }
+    missingLiveSessionStreaks.delete(row.session_id);
+
+    if (Number(row.last_progress || 0) >= watchedThresholdPercent()) {
+      logger(`Live session completed playback: ${row.title} (${row.session_id})`);
+      const completion = await processCompletedSession(row, config, loopStore).catch((error) => {
+        logger(`ERROR: processCompletedSession failed for ${row.title}: ${error.message}`);
+        return null;
+      });
+      if (completion) completions.push(completion);
+      else staleIds.push(row.session_id);
+      continue;
+    }
+
+    logger(`Live session stopped/paused playback: ${row.title} (${row.session_id})`);
+    const progressUpdate = await processStoppedSessionProgress(row, config, loopStore).catch((error) => {
+      logger(`ERROR: processStoppedSessionProgress failed for ${row.title}: ${error.message}`);
+      return null;
+    });
+    if (progressUpdate) progressUpdates.push(progressUpdate);
+    staleIds.push(row.session_id);
+  }
+
+  await deleteLiveTrackingCacheRows(staleIds);
+  await purgeCompletedLiveTrackingCache();
+
+  if (currentRows.length || completions.length || progressUpdates.length || staleIds.length) {
+    await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
+  }
+
+  return {
+    currentRows,
+    completions,
+    progressUpdates,
+    staleIds,
+    cachedCount: cachedRows.length,
+    pendingConfirmations: missingLiveSessionStreaks.size,
+  };
+}
+
 async function runScheduledSyncCore(logger = console.log, { forceCatchup = false } = {}) {
   if (isCronSyncPaused()) {
     logger("Scheduled Sync: skipped because cron sync is paused (likely due to restore in progress).");
@@ -1799,51 +1883,18 @@ async function runScheduledSyncCore(logger = console.log, { forceCatchup = false
     logger(`Scheduled Sync ERROR: Manual queue sync failed: ${error.message}`);
   }
 
-  const currentSessions = await fetchLiveSessions(config);
-  const currentRows = currentSessions.map(buildCacheRow);
-  const currentIds = new Set(currentRows.map((row) => row.session_id));
-  const cachedRows = await loadLiveTrackingCache({ includeCompleted: true });
-  const cachedById = new Map(cachedRows.map((row) => [row.session_id, row]));
-  const completions = [];
-  const progressUpdates = [];
-  const staleIds = [];
-
-  if (currentRows.length || cachedRows.length) {
-    trace(`Scheduled Sync: live sessions: ${currentRows.length}, cached sessions in tracking: ${cachedRows.length}`);
-  }
-  await upsertLiveTrackingCache(currentRows);
-
-  for (const row of cachedRows) {
-    if (currentIds.has(row.session_id)) continue;
-    if (row.completed_at) continue;
-
-    if (Number(row.last_progress || 0) >= watchedThresholdPercent()) {
-      logger(`Scheduled Sync: session completed playback: ${row.title} (${row.session_id})`);
-      const completion = await processCompletedSession(row, config, loopStore).catch((error) => {
-        logger(`Scheduled Sync ERROR: processCompletedSession failed for ${row.title}: ${error.message}`);
-        return null;
-      });
-      if (completion) completions.push(completion);
-      else staleIds.push(row.session_id);
-      continue;
-    }
-
-    logger(`Scheduled Sync: session stopped/paused playback: ${row.title} (${row.session_id})`);
-    const progressUpdate = await processStoppedSessionProgress(row, config, loopStore).catch((error) => {
-      logger(`Scheduled Sync ERROR: processStoppedSessionProgress failed for ${row.title}: ${error.message}`);
-      return null;
-    });
-    if (progressUpdate) progressUpdates.push(progressUpdate);
-    staleIds.push(row.session_id);
-  }
-
-  await deleteLiveTrackingCacheRows(staleIds);
-  await purgeCompletedLiveTrackingCache();
+  // Live-session polling itself (fetch Plex/Emby/Jellyfin sessions, reconcile against
+  // live_tracking_cache, process any session that dropped out) now runs continuously on
+  // its own faster, activity-adaptive timer - liveSessionPoller.js, started alongside
+  // this same scheduler's leadership. Calling refreshLiveSessions() again here on top of
+  // that would just poll the same session endpoints a second time every minute for no
+  // benefit, so this tick only reads the cache it already keeps current for bookkeeping.
+  const liveSessionSnapshot = await loadLiveTrackingCache({ includeCompleted: false }).catch(() => []);
 
   const totalSynced = plexSynced + embySynced + jellyfinSynced + plexResumeSynced + embyResumeSynced + jellyfinResumeSynced + manualSynced;
-  const hasActivity = totalSynced > 0 || currentRows.length > 0 || completions.length > 0 || progressUpdates.length > 0 || shouldRunCatchup;
+  const hasActivity = totalSynced > 0 || liveSessionSnapshot.length > 0 || shouldRunCatchup;
 
-  if (currentRows.length || completions.length || progressUpdates.length || staleIds.length || totalSynced > 0) {
+  if (totalSynced > 0) {
     await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
   }
 
@@ -1851,11 +1902,11 @@ async function runScheduledSyncCore(logger = console.log, { forceCatchup = false
     logger(`Scheduled Sync complete! Synced Plex: ${plexSynced}, Emby: ${embySynced}, Jellyfin: ${jellyfinSynced}, Resume Plex: ${plexResumeSynced}, Resume Emby: ${embyResumeSynced}, Resume Jellyfin: ${jellyfinResumeSynced}, Manual: ${manualSynced}`);
   }
   return {
-    sessions: currentRows.length,
-    completions: completions.length,
-    progressUpdates: progressUpdates.length,
-    removed: staleIds.length,
-    cached: cachedById.size,
+    sessions: liveSessionSnapshot.length,
+    completions: 0,
+    progressUpdates: 0,
+    removed: 0,
+    cached: liveSessionSnapshot.length,
     plexHistorySynced: plexSynced,
     embyHistorySynced: embySynced,
     jellyfinHistorySynced: jellyfinSynced,

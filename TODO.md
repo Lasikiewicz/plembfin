@@ -24,5 +24,39 @@ Add mdblist as an additional metadata source alongside TMDB, TheTVDB, Fanart.tv,
 
 - Status: not started
 
+## 4. Faster Now Playing detection
+
+Now Playing used to be bounded by the once-a-minute scheduler poll of `/status/sessions`
+(`fetchLiveSessions`) - a new play or a session ending could take up to 60s to show up
+or clear from the dashboard.
+
+- Status: near-term piece done; Emby/Jellyfin stretch goal below not started
+- Done: `server/src/utils/liveSessionPoller.js` now polls Plex/Emby/Jellyfin sessions on
+  its own timer, independent of the once-a-minute scheduler tick, activity-adaptive (10s
+  while something's playing, 45s while idle - close to the old baseline, so idle load
+  doesn't meaningfully increase). Plex's existing notification WebSocket
+  (`plexNotificationListener.js`) now also parses the `playing` frame type it previously
+  ignored and pokes the poller to refresh immediately on it, giving Plex near-instant
+  detection with no new connections. `handleNowPlaying` also pokes the poller when a
+  viewer request arrives more than 20s after the last one, so a freshly opened or
+  refocused tab doesn't wait out the poller's own interval. Also fixed a pre-existing
+  false-stop bug this faster polling would otherwise have made more likely to trigger: a
+  single failed poll to a platform, or a Plex session-id change on a transcode/quality
+  switch, used to be read as "everything stopped playing" and could drop a still-playing
+  item to a partial-watch/resume record. `fetchLiveSessions()` now reports which platform
+  it couldn't reach so a failed poll isn't treated as an empty result, and a session must
+  be missing across two consecutive successful polls before it's treated as stopped. See
+  [docs/now-playing.md](docs/now-playing.md) and [docs/plex.md](docs/plex.md).
+- Stretch/speculative, larger effort, not started: Emby and Jellyfin both expose a session-push
+  WebSocket (`SessionsStart` subscription) that could replace polling for them the same
+  way, and would also remove the manual webhook-plugin setup step for new users. Before
+  committing to this: confirm it actually reports watched/unwatched changes made *outside*
+  an active session (e.g. "Mark Played" in the UI) - Emby/Jellyfin webhooks already cover
+  that case today, and losing it would recreate the exact gap Plex has without webhooks.
+  Also expect real hardening cost per platform (reconnect/backoff, idle-socket detection
+  behind reverse proxies) similar to what `plexNotificationListener.js` already needed for
+  Plex, and this would not remove the need for backstop polling, only add a faster layer
+  on top of it.
+
 
 
