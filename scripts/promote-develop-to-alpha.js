@@ -17,7 +17,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { changelogEntryProcessViolations, filterChangelogEntries } from "./changelog-message.js";
+import { changelogEntryProcessViolations, filterChangelogEntries, synthesizeHeadline } from "./changelog-message.js";
 import { gitHeadAuthor, gitHeadCommit } from "./changelog-git-helpers.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -133,13 +133,13 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
   // already has pending from an earlier "Force to alpha" this same cycle -
   // develop's entry never overlaps alpha's, since develop's own resetCommit
   // anchor only ever covers commits made after the last reset. Develop's
-  // entry comes first so its most recent commit drives the headline message.
+  // entry comes first so its headline reads before a prior alpha promotion's.
   const priorAlphaEntry = alpha.entries[0] || null;
   const sourceEntries = [...develop.entries, ...(priorAlphaEntry ? [priorAlphaEntry] : [])];
   const publicEntries = filterChangelogEntries(sourceEntries);
   const sections = categorizeEntries(sourceEntries);
   const simplifiedDetails = simplifyEntries(sourceEntries);
-  const mainMessage = publicEntries[0]?.message || "Consolidated develop updates";
+  const mainMessage = synthesizeHeadline(publicEntries.map((entry) => entry.message)) || "Consolidated develop updates";
 
   const alphaEntry = {
     build: nextAlphaBuild,

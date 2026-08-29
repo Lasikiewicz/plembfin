@@ -26,7 +26,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { bulletPointsFrom, filterChangelogDetails, formatChangelogMessage, isChangelogProcessMessage, isNoiseCommitMessage, isReleaseTypeCommitMessage, validateReleaseMessage } from "./changelog-message.js";
+import { bulletPointsFrom, filterChangelogDetails, formatChangelogMessage, isChangelogProcessMessage, isNoiseCommitMessage, isReleaseTypeCommitMessage, synthesizeHeadline, validateReleaseMessage } from "./changelog-message.js";
 import { changeAreaDetails, changedFilesForCommit, commitsSinceLastEntry, gitHeadAuthor, gitHeadCommit } from "./changelog-git-helpers.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -64,11 +64,12 @@ export function buildDevelopEntry({ commits, headCommit, date, author, nextBuild
   }
   details = details.filter((v, i, arr) => v && arr.indexOf(v) === i);
 
-  // commits are oldest..newest (git log --reverse) - the most recent real
-  // commit reads as the entry's headline, same convention the old per-push
-  // generators used for a multi-commit push.
-  const latest = releaseCommits[releaseCommits.length - 1];
-  const message = formatChangelogMessage(String(latest.message || "").split(/\r?\n/, 1)[0]);
+  // Every real commit since the reset anchor contributes its own headline -
+  // not just the most recent one - so a develop entry spanning several
+  // separate "Push to git" runs reads as one sentence covering all of them
+  // instead of silently showing only the last push's subject line.
+  const message = synthesizeHeadline(releaseCommits.map((commit) =>
+    formatChangelogMessage(String(commit.message || "").split(/\r?\n/, 1)[0])));
 
   const entry = { build: nextBuild, date, commit: headCommit, message, author };
   if (details.length > 0) entry.details = details;

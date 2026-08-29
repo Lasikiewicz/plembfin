@@ -46,11 +46,27 @@ export function isChangelogProcessText(value) {
     || (CHANGELOG_ARTIFACT_PATTERN.test(text) && CHANGELOG_PROCESS_ACTION_PATTERN.test(text));
 }
 
+// A bullet can describe the release pipeline's own machinery - git hooks, CI
+// workflows, the promotion scripts themselves - rather than something
+// Plembfin the app actually does. That's real, useful information, but it
+// belongs in CLAUDE.md/docs for whoever maintains the project, not in a
+// changelog an end user reads to find out what changed in the app. This is
+// independent of commit type: a legitimate fix/feat commit's bullet list can
+// still slip in a line like this if a push session bundled dev-tooling work
+// alongside real product changes, so it has to be caught by content, not by
+// trusting the commit was typed "chore:".
+const RELEASE_TOOLING_PATTERN = /\b(?:pre-push hook|commit-msg hook|git hooks?|githooks|ci pipeline|github actions workflow|release pipeline|build gate|force to (?:alpha|main)|push to git|changelog\.(?:develop|alpha)\.json|rebuild-develop-changelog\.js|promote-develop-to-alpha\.js|promote-alpha-to-main\.js|validate-commit-message\.js|changelog-message\.js)\b/i;
+
+export function isReleaseToolingText(value) {
+  return RELEASE_TOOLING_PATTERN.test(String(value || "").trim());
+}
+
 export function isChangelogProcessMessage(message) {
   const subject = String(message || "").split(/\r?\n/, 1)[0].trim();
   if (!subject) return false;
 
   return isChangelogProcessText(subject)
+    || isReleaseToolingText(subject)
     || /^(?:chore|docs?)(?:\([^)]*\))?:\s*(?:reset|bump)\s+(?:the\s+)?(?:develop|alpha)\s+build(?:\s+counter|\s+metadata)?\b/i.test(subject)
     || /^(?:chore|docs?)\s+-\s+(?:reset|bump)\s+(?:the\s+)?(?:develop|alpha)\s+build(?:\s+counter|\s+metadata)?\b/i.test(subject);
 }
@@ -59,7 +75,7 @@ export function filterChangelogDetails(details) {
   const values = Array.isArray(details) ? details : (details == null ? [] : [details]);
   return values
     .map((detail) => String(detail || "").trim())
-    .filter((detail) => detail && !isChangelogProcessText(detail));
+    .filter((detail) => detail && !isChangelogProcessText(detail) && !isReleaseToolingText(detail));
 }
 
 export function filterChangelogEntries(entries = []) {
@@ -92,7 +108,7 @@ export function changelogEntryProcessViolations(entry = {}) {
     ["sections.tweaks", entry.sections?.tweaks],
   ]) {
     for (const value of Array.isArray(values) ? values : []) {
-      if (isChangelogProcessText(value)) violations.push(`${field}: ${String(value).trim()}`);
+      if (isChangelogProcessText(value) || isReleaseToolingText(value)) violations.push(`${field}: ${String(value).trim()}`);
     }
   }
 
@@ -137,6 +153,36 @@ export function formatChangelogMessage(message) {
   rest = rest.replace(/^(feature|feat|fix|security|chore|docs|ci|enhancement|enhance|perf)\s*[:-]\s*/i, "").trim();
   if (!rest) return label;
   return `${label} - ${rest.charAt(0).toUpperCase()}${rest.slice(1)}`;
+}
+
+// A release entry can bundle more than one unrelated push into its one
+// headline - several "Push to git" runs land in the same develop entry
+// before a "Force to alpha", and likewise several "Force to alpha" runs can
+// land in the same alpha entry before a "Force to main". Picking only the
+// most recent one (the old behavior) silently drops every earlier push from
+// the one line most people actually read in Settings -> Changelog, even
+// though their bullets are still listed below it. This instead folds every
+// formatted "Label - description" headline passed in into one sentence
+// naming all of them, unwrapping a headline that's already one of these
+// composite sentences (from an earlier "Force to alpha" this same cycle)
+// rather than nesting "This update includes This update includes ...".
+export function synthesizeHeadline(messages = []) {
+  const cleaned = messages.map((message) => String(message || "").trim()).filter(Boolean);
+  if (cleaned.length === 0) return "";
+  if (cleaned.length === 1) return cleaned[0];
+
+  const fragments = cleaned.map((message) => {
+    let rest = message.replace(/^[A-Za-z]+\s+-\s+/, "").trim();
+    rest = rest.replace(/^this update includes\s+/i, "").replace(/\.$/, "").trim();
+    if (!rest) return message;
+    return rest.charAt(0).toLowerCase() + rest.slice(1);
+  });
+
+  const last = fragments[fragments.length - 1];
+  const joined = fragments.length === 2
+    ? `${fragments[0]} and ${last}`
+    : `${fragments.slice(0, -1).join(", ")}, and ${last}`;
+  return `This update includes ${joined}.`;
 }
 
 export function bulletPointsFrom(message) {

@@ -12,6 +12,7 @@ makeTempDataDir("plembfin-versioning-");
 const { categorizeEntries, simplifyEntries } = await import("../scripts/promote-develop-to-alpha.js");
 const { bumpPatchVersion } = await import("../scripts/promote-alpha-to-main.js");
 const { buildDevelopEntry, validateDevelopChangelog } = await import("../scripts/rebuild-develop-changelog.js");
+const { synthesizeHeadline, isReleaseToolingText, filterChangelogDetails } = await import("../scripts/changelog-message.js");
 const { describePendingDevelopBuild, describePendingAlphaBuild, handleChangelog } = await import("../server/src/routes/maintenance.js");
 
 test("simplifyEntries classifies and deduplicates features and fixes", () => {
@@ -129,9 +130,45 @@ test("buildDevelopEntry consolidates every real commit since the reset anchor in
 
   assert.equal(entry.build, 3);
   assert.equal(entry.commit, "c4");
-  // Headline comes from the most recent (last, since commits are oldest..newest) real commit
-  assert.equal(entry.message, "Fix - Resolve crash on empty list");
+  // The headline covers every real commit in range, not just the most recent one
+  assert.equal(entry.message, "This update includes add filters and resolve crash on empty list.");
   assert.deepEqual(entry.details, ["Filter by watch status", "No longer crashes with zero results"]);
+});
+
+test("synthesizeHeadline covers one, two, and three or more messages", () => {
+  assert.equal(synthesizeHeadline(["Fix - Resolve crash on empty list"]), "Fix - Resolve crash on empty list");
+  assert.equal(
+    synthesizeHeadline(["Fix - Resolve crash on empty list", "Feature - Add filters"]),
+    "This update includes resolve crash on empty list and add filters.",
+  );
+  assert.equal(
+    synthesizeHeadline(["Fix - Speed up TV show detail loading", "Fix - Clean up bio page layout", "Fix - Center the setup wizard"]),
+    "This update includes speed up TV show detail loading, clean up bio page layout, and center the setup wizard.",
+  );
+});
+
+test("synthesizeHeadline unwraps an already-composite headline instead of nesting it", () => {
+  const result = synthesizeHeadline(["This update includes speed up loading and clean up layout.", "Fix - Center the setup wizard"]);
+  assert.equal(result, "This update includes speed up loading and clean up layout and center the setup wizard.");
+});
+
+test("release-tooling bullets are stripped from changelog details regardless of the commit's own type", () => {
+  const bullets = [
+    "Split the Born/From details on the cast bio page into separate lines",
+    "Pre-push hook now validates the changelog committed in the exact commit being pushed to develop, rejecting the push if it's missing or stale",
+    "Added rebuild-develop-changelog.js --check mode used by the new guard",
+  ];
+  assert.equal(isReleaseToolingText(bullets[1]), true);
+  assert.deepEqual(filterChangelogDetails(bullets), ["Split the Born/From details on the cast bio page into separate lines"]);
+});
+
+test("buildDevelopEntry excludes release-tooling bullets even from an otherwise real fix commit", () => {
+  const commits = [{
+    id: "c1",
+    message: "fix: clean up the bio page and guard develop pushes\n\n- Split the Born/From details on the cast bio page into separate lines\n- Pre-push hook now validates the changelog committed in the exact commit being pushed to develop, rejecting the push if it's missing or stale",
+  }];
+  const entry = buildDevelopEntry({ commits, headCommit: "c1", date: "2026-01-01T00:00:00.000Z", author: "Someone", nextBuild: 1 });
+  assert.deepEqual(entry.details, ["Split the Born/From details on the cast bio page into separate lines"]);
 });
 
 test("buildDevelopEntry returns null when nothing in range is user-facing", () => {

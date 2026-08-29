@@ -175,6 +175,16 @@ folded-in bullets, or resetting a branch build counter - out of release bullets.
 shared changelog filter removes recognized process notes at the alpha/main boundary,
 and the target workflow rejects any recognized process text that survives.
 
+The changelog is for changes to the app itself, not to the project's own tooling. When
+a session's work also touched git hooks, CI workflows, or the changelog/promotion
+scripts, never fold a summary of that into a `feat`/`fix` commit's bullet list just
+because it landed in the same push - use a separate `chore:` commit for it instead (see
+"Backend Module Discipline" for where chore work belongs). A `fix`/`feat` commit's own
+bullets should describe only what changed for someone using the app.
+`isReleaseToolingText()` in `scripts/changelog-message.js` strips bullets that describe
+the release pipeline's own machinery by content as a safety net, but it isn't a
+substitute for keeping the two kinds of work in separate commits to begin with.
+
 Do not create single-line commits for user-visible changes. If the change affects behavior, UI, docs, setup, data sources, sync, caching, or settings, the commit body must include bullet-point details. The changelog generator only reads body lines that start with `- ` or `* `; without them, the Settings → Changelog entry will be sparse. If you are about to commit without bullet details, stop and rewrite the commit message before committing.
 
 This is an enforced release requirement, not optional guidance. Before committing, compare the staged diff with the bullet list and make sure every significant user-visible outcome is represented. A bullet that merely repeats the subject is not a detail. Use separate `-m` arguments (or a commit-message file) so the body is actually recorded:
