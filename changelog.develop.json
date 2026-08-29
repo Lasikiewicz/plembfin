@@ -1,21 +1,6 @@
 {
   "build": 10,
-  "resetCommit": "9ca3a5f27450a39dcbc3e52d4f2b12e01ccacdd7",
-  "updatedAt": "2026-08-29T18:10:49.364Z",
-  "entries": [
-    {
-      "build": 10,
-      "date": "2026-08-29T18:10:49.364Z",
-      "commit": "39e04878c155b52dc025311df80eb904cdb07084",
-      "message": "Fix - Sync activity retries resolve in place and dashboard posters stop flickering",
-      "author": "Lasikiewicz",
-      "details": [
-        "Retrying a failed or skipped sync item now updates its status in place instead of leaving a stale duplicate error entry behind - it shows success, or skipped when there's nothing configured to sync to, instead of staying stuck as failed forever",
-        "Added a Retry all failed action on the Sync Activity page that retries every failed or skipped item across the whole history, not just the current page, as a background job that keeps running even if you close the tab or navigate away",
-        "Fixed the Sync Activity Retry failed button giving no visible feedback when a retry finished or failed",
-        "Fixed unconfigured media servers being dispatched to and reported as errors instead of being skipped the same way a disabled server already is",
-        "Fixed dashboard posters flickering and reloading in the Continue Watching row whenever a playing item's resume progress updated"
-      ]
-    }
-  ]
+  "resetCommit": "3a782f85401a5059d6d277a170980957d32f9af9",
+  "updatedAt": "2026-08-29T18:16:52.224Z",
+  "entries": []
 }
