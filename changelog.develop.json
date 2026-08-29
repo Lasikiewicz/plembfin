@@ -1,6 +1,17 @@
 {
-  "build": 2,
+  "build": 3,
   "resetCommit": "91f2e63746b8626f78d12fc7c38971efb3fc636c",
-  "updatedAt": "2026-08-29T11:03:29.670Z",
-  "entries": []
+  "updatedAt": "2026-08-29T11:40:35.105Z",
+  "entries": [
+    {
+      "build": 3,
+      "date": "2026-08-29T11:40:35.105Z",
+      "commit": "a0836d6dd41432fe5cebf6533245049160264739",
+      "message": "Fix - Space watched episode timestamps",
+      "author": "Lasikiewicz",
+      "details": [
+        "Bulk and single episode watch dates now follow runtime spacing and directional labels."
+      ]
+    }
+  ]
 }
