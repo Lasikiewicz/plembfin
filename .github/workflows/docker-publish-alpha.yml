@@ -54,6 +54,7 @@ jobs:
           COMMITS_JSON: ${{ toJson(github.event.commits) }}
         run: |
           node scripts/update-alpha-changelog.js
+          node scripts/validate-changelog-entry.js alpha
           node -e "const fs=require('fs'); fs.appendFileSync(process.env.GITHUB_OUTPUT, 'build=' + require('./changelog.alpha.json').build + '\n')"
 
       - name: Commit alpha build metadata

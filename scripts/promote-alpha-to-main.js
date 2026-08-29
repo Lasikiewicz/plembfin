@@ -7,6 +7,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { filterChangelogEntries } from "./changelog-message.js";
 import { categorizeEntries, simplifyEntries } from "./promote-develop-to-alpha.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -39,15 +40,16 @@ export function promoteAlphaToMain({ targetVersion = "0.9.0", sourceDate = new D
   const newMainVersion = targetVersion || bumpPatchVersion(changelog.version);
   const new5DigitVersion = `${newMainVersion}.0.0`;
 
-  const sections = categorizeEntries(alpha.entries);
-  const simplifiedDetails = simplifyEntries(alpha.entries);
-  const mainMessage = alpha.entries[0]?.message || `Release v${newMainVersion}`;
+  const publicEntries = filterChangelogEntries(alpha.entries);
+  const sections = categorizeEntries(publicEntries);
+  const simplifiedDetails = simplifyEntries(publicEntries);
+  const mainMessage = publicEntries[0]?.message || `Release v${newMainVersion}`;
 
   const mainEntry = {
     version: newMainVersion,
     version5Digit: new5DigitVersion,
     date: sourceDate,
-    commit: commit || alpha.entries[0]?.commit || "",
+    commit: commit || publicEntries[0]?.commit || "",
     message: mainMessage,
     author: sourceAuthor,
     details: simplifiedDetails,

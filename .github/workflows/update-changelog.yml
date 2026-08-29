@@ -54,6 +54,7 @@ jobs:
           COMMITS_JSON: ${{ toJson(github.event.commits) }}
         run: |
           node scripts/update-changelog.js
+          node scripts/validate-changelog-entry.js main
           node -e "const fs=require('fs'); fs.appendFileSync(process.env.GITHUB_OUTPUT, 'version=' + require('./changelog.json').version + '\n')"
 
       - name: Commit generated release metadata

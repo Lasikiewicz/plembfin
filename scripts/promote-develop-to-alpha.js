@@ -6,6 +6,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { filterChangelogEntries } from "./changelog-message.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const changelogPath = path.join(root, "changelog.json");
@@ -17,7 +18,7 @@ export function categorizeEntries(entries = []) {
   const majorBugFixes = [];
   const tweaks = [];
 
-  for (const entry of entries) {
+  for (const entry of filterChangelogEntries(entries)) {
     const lines = [
       entry.message,
       ...(Array.isArray(entry.details) ? entry.details : []),
@@ -115,16 +116,17 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
   const alphaVersion5Digit = `${alpha.baseVersion || mainVersion}.${nextAlphaBuild}.0`;
   const alphaVersionShort = `${alpha.baseVersion || mainVersion}.${nextAlphaBuild}`;
 
-  const sections = categorizeEntries(develop.entries);
-  const simplifiedDetails = simplifyEntries(develop.entries);
-  const mainMessage = develop.entries[0]?.message || "Consolidated develop updates";
+  const publicEntries = filterChangelogEntries(develop.entries);
+  const sections = categorizeEntries(publicEntries);
+  const simplifiedDetails = simplifyEntries(publicEntries);
+  const mainMessage = publicEntries[0]?.message || "Consolidated develop updates";
 
   const alphaEntry = {
     build: nextAlphaBuild,
     version: alphaVersion5Digit,
     shortVersion: alphaVersionShort,
     date: sourceDate,
-    commit: commit || develop.entries[0]?.commit || "",
+    commit: commit || publicEntries[0]?.commit || "",
     message: mainMessage,
     author: sourceAuthor,
     details: simplifiedDetails,

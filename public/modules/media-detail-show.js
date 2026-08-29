@@ -884,8 +884,11 @@ function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitl
     const episodeBusy = savingEpisodeKeys.has(episode.key);
     const episodeUnwatching = Boolean(episode.watched && state.savingUnwatchIds.has(episode.watched.id));
     return `
-            <article class="immersive-episode-row ${episode.watched ? "is-watched" : ""} ${episodeIsUnreleased ? "is-unreleased" : ""} ${isHighlighted ? "is-highlighted" : ""}" ${isHighlighted ? 'id="highlightedEpisode"' : ""} data-immersive-episode-num="${episode.episodeNumber}" data-immersive-season-num="${episode.seasonNumber}">
-              ${episodeThumbMarkup(episode, hideSpoilers)}
+            <article class="immersive-episode-row ${episode.watched ? "is-watched" : ""} ${episodeIsUnreleased ? "is-unreleased" : ""} ${isHighlighted ? "is-highlighted" : ""} ${(episodeBusy || episodeUnwatching) ? "is-saving" : ""}" ${isHighlighted ? 'id="highlightedEpisode"' : ""} data-immersive-episode-num="${episode.episodeNumber}" data-immersive-season-num="${episode.seasonNumber}">
+              <div class="episode-thumb-wrap">
+                ${episodeThumbMarkup(episode, hideSpoilers)}
+                ${(episodeBusy || episodeUnwatching) ? `<span class="episode-thumb-syncing">Syncing…</span>` : ""}
+              </div>
               <div class="immersive-episode-copy">
                 <div class="immersive-episode-title-row">
                   <b style="display: inline-flex; align-items: center; gap: 0.35rem;">
@@ -1084,14 +1087,17 @@ export function renderShowModalContent(show, {
     // row should say so instead of showing a stale watched count until the
     // whole thing settles.
     const seasonSaving = seasonEpisodes.some((episode) => savingEpisodeKeys.has(episode.key));
+    const seasonUnwatching = seasonEpisodes.some((episode) => episode.watched && state.savingUnwatchIds.has(episode.watched.id));
     const watchedText = seasonSaving
       ? "Saving…"
-      : watchedInSeason
-        ? `${watchedInSeason} watched${totalWatches > watchedInSeason ? ` · ${totalWatches} plays` : ""}`
-        : "";
+      : seasonUnwatching
+        ? "Removing…"
+        : watchedInSeason
+          ? `${watchedInSeason} watched${totalWatches > watchedInSeason ? ` · ${totalWatches} plays` : ""}`
+          : "";
     const seasonAvailabilityHtml = tvSeasonAvailabilityHtml(tvSeerrStatus, seasonNumber);
     return `
-      <article class="season-accordion ${isActive ? "is-open" : ""}">
+      <article class="season-accordion ${isActive ? "is-open" : ""} ${(!isActive && (seasonSaving || seasonUnwatching)) ? "is-saving" : ""}">
         <button class="season-accordion-trigger" type="button" data-season-accordion="${seasonNumber}" aria-expanded="${isActive}" aria-controls="${panelId}">
           <span class="season-row-title"><strong>${escapeHtml(formatSeasonTitle(seasonNumber, season.name))}</strong></span>
           <span class="season-row-col season-row-episodes">${escapeHtml(episodeCountText)}</span>

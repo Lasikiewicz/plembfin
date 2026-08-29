@@ -139,6 +139,11 @@ Types: `feat` (new feature), `fix` (bug fix), `security` (security change), `cho
 
 Keep bullet points to the 3-8 most significant user-visible changes. Skip internal refactors that don't affect behaviour.
 
+Keep release-process bookkeeping - such as consolidating changelog entries, trimming
+folded-in bullets, or resetting a branch build counter - out of release bullets. The
+shared changelog filter removes recognized process notes at the alpha/main boundary,
+and the target workflow rejects any recognized process text that survives.
+
 Do not create single-line commits for user-visible changes. If the change affects behavior, UI, docs, setup, data sources, sync, caching, or settings, the commit body must include bullet-point details. The changelog generator only reads body lines that start with `- ` or `* `; without them, the Settings → Changelog entry will be sparse. If you are about to commit without bullet details, stop and rewrite the commit message before committing.
 
 This is an enforced release requirement, not optional guidance. Before committing, compare the staged diff with the bullet list and make sure every significant user-visible outcome is represented. A bullet that merely repeats the subject is not a detail. Use separate `-m` arguments (or a commit-message file) so the body is actually recorded:
@@ -243,18 +248,14 @@ git fetch origin
 git merge origin/alpha --no-edit       # pulls alpha's fresh changelog.alpha.json bump into develop
 ```
 
-### 4 - Review the alpha changelog entry for redundancy
-`update-alpha-changelog.js` already combines every develop build since the last alpha
-promotion into one alpha entry, but does not deduplicate bullets within it - if the
-develop pushes behind it were not consolidated (see "Push to git" step 6), the merged
-entry can read as a long list of near-duplicate lines. This only affects what alpha
-builds show in Settings -> About - `update-changelog.js` for "Force to main" re-derives
-its own entry independently from raw git commits, not from this file - but it is still
-worth getting right for anyone testing an alpha build. Read the newest entry in
-`changelog.alpha.json`; if it looks redundant or overly granular, rewrite its
-`sections`/`details` into a smaller set of higher-level bullets (same 3-8-bullet standard
-as "Push to git" step 4), commit as `docs: consolidate alpha build <n> changelog entry`,
-and include it in the push to `develop` in the next step.
+### 4 - Confirm the alpha changelog content gate
+`update-alpha-changelog.js` combines every develop build since the last alpha promotion
+into one alpha entry. It filters recognized release-process entries and bullets, and
+`validate-changelog-entry.js alpha` checks the newest entry before the alpha workflow
+commits its build metadata. Read the newest entry in `changelog.alpha.json` after CI
+completes; if product bullets are redundant or overly granular, consolidate the source
+product work on `develop` before the next promotion. Do not create a changelog-process
+correction commit on `alpha` or `develop` for target-branch display cleanup.
 
 ### 5 - Reset develop's build counter
 Write `changelog.develop.json` to `{ "build": 0, "updatedAt": "<now>", "entries": [] }`
@@ -265,8 +266,10 @@ run it directly, or replicate it by hand), commit as
 git push origin develop
 ```
 This is safe to do explicitly and unconditionally here (never as a passive comparison
-elsewhere) - see the branching model section above for why. The next "Push to git" run
-starts back at `Develop Build 1`.
+elsewhere) - see the branching model section above for why. The changelog generators
+classify this maintenance commit as promotion noise, so its reset/process details are
+not eligible for alpha or main release content. The next "Push to git" run starts back
+at `Develop Build 1`.
 
 ## "Force to main" command
 
@@ -303,24 +306,21 @@ them through `categorizeEntries()` (shared with `promote-develop-to-alpha.js`) t
 them into `entry.sections` - New Features, Major Bug Fixes, and Tweaks - which is what
 `public/app.js` and `generate-changelog-md.js` render as distinct headed groups in
 Settings -> Changelog and `CHANGELOG.md`. No extra step is needed to combine or group
-them; it happens automatically. CI then commits `chore: update changelog for <sha>` back
-onto `main` and builds/publishes the Docker image. Wait for it
+them; it happens automatically. The generator filters recognized changelog-process
+entries and bullets, and `validate-changelog-entry.js main` blocks the metadata commit
+if any recognized process text remains. CI then commits `chore: update changelog for
+<sha>` back onto `main` and builds/publishes the Docker image. Wait for it
 (`gh run list --branch main`) before continuing.
 
-### 3 - Review the generated changelog entry for redundancy
+### 3 - Review the generated changelog entry for product clarity
 `update-changelog.js` combines every commit since the last main release into one entry,
-correctly split into New Features / Major Bug Fixes / Tweaks by each commit's own type -
-but it does not deduplicate or shorten bullets within a section. A release built from
-many small local commits (see "Push to git" step 6) can still read as a long list of
-near-duplicate lines even after correct categorization - this happened for v0.12.9's
-initial entry (38 New Features bullets from 7 `feat` commits, corrected by hand
-afterward). After CI's `chore: update changelog for <sha>` commit lands, fetch it and
-read the newest entry in `changelog.json`. If a section looks redundant or overly
-granular, rewrite it into a smaller set of higher-level bullets (same standard as "Push
-to git" step 4 - one idea per line, no bullet that just restates another more briefly),
-regenerate `CHANGELOG.md` with `node scripts/generate-changelog-md.js`, and commit the
-correction directly to `main` as `docs: consolidate v<version> changelog entry into
-higher-level bullets` before continuing to the next step.
+correctly split into New Features / Major Bug Fixes / Tweaks by each commit's own type.
+After CI's `chore: update changelog for <sha>` commit lands, fetch it and read the
+newest entry in `changelog.json`. The workflow has already removed recognized
+changelog-process text and its target-branch guard has checked the result. If product
+sections are redundant or overly granular, consolidate the underlying product bullets
+on `develop` and repeat the promotion; do not commit a `docs: consolidate ... changelog
+entry` correction to `main`.
 
 ### 4 - Sync main's changelog-bump commit back into develop
 ```bash

@@ -1083,17 +1083,40 @@ export async function confirmAndMarkUnwatched(button) {
   for (const id of ids) state.savingUnwatchIds.add(id);
   setGridCardsRemoving(ids, true);
   if (!gridOrigin && (kind === "episode" || kind === "season" || kind === "show") && state.activeShowModalKey) {
-    _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+    // Paint the saving state synchronously (same as applyWatchDateChoice)
+    // before the request starts, instead of the full async
+    // _renderImmersiveShowModal reload - that one can re-fetch metadata and
+    // briefly show a loading state, stomping the is-saving pulse it was
+    // meant to show.
+    if (!renderActiveShowSavingState()) {
+      _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+    }
   }
 
   try {
-    const response = await fetch("/api/manual-unwatch", {
-      method: "POST",
-      headers: { ...authHeaders(), "Content-Type": "application/json" },
-      body: JSON.stringify(bulk ? { ids } : { id: ids[0] }),
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || `Mark unwatched failed (${response.status})`);
+    // /api/manual-unwatch caps a single request at 100 ids, so a show/season
+    // whole-scope unwatch (every watched episode's id, which can easily
+    // exceed that for a long-running show) has to go out in chunks instead
+    // of one request - otherwise it 413s, the animation reverts, and every
+    // episode is left showing watched with no indication why.
+    let succeeded = 0;
+    let failed = 0;
+    for (let index = 0; index < ids.length; index += IMPORT_BATCH_SIZE) {
+      const batch = ids.slice(index, index + IMPORT_BATCH_SIZE);
+      const response = await fetch("/api/manual-unwatch", {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify(bulk ? { ids: batch } : { id: batch[0] }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || `Mark unwatched failed (${response.status})`);
+      if (bulk) {
+        succeeded += Number(result.succeeded || 0);
+        failed += Number(result.failed || 0);
+      } else {
+        succeeded += 1;
+      }
+    }
 
     for (const id of ids) state.savingUnwatchIds.delete(id);
     // The server has committed the unwatch at this point. Reflect that success
@@ -1102,9 +1125,9 @@ export async function confirmAndMarkUnwatched(button) {
     button.textContent = "Removed";
     _setMessage(
       bulk
-        ? `Marked ${result.succeeded ?? ids.length} episode${ids.length === 1 ? "" : "s"} of "${label}" unwatched; pushed unplayed to media apps.${result.failed ? ` ${result.failed} failed.` : ""}`
+        ? `Marked ${succeeded} episode${succeeded === 1 ? "" : "s"} of "${label}" unwatched; pushed unplayed to media apps.${failed ? ` ${failed} failed.` : ""}`
         : `Marked "${label}" unwatched; pushed unplayed to media apps.`,
-      result.failed ? "error" : "success",
+      failed ? "error" : "success",
     );
     const historyRefresh = _loadHistory({ force: true }).catch(() => null);
 

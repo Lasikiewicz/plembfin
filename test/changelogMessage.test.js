@@ -3,7 +3,12 @@ import assert from "node:assert/strict";
 
 import {
   bulletPointsFrom,
+  changelogEntryProcessViolations,
+  filterChangelogDetails,
+  filterChangelogEntries,
   formatChangelogMessage,
+  isChangelogProcessMessage,
+  isChangelogProcessText,
   isNoiseCommitMessage,
   isReleaseTypeCommitMessage,
   validateReleaseMessage,
@@ -39,11 +44,45 @@ test("validateReleaseMessage rejects title-only release commits", () => {
 
 test("isNoiseCommitMessage flags CI plumbing commits", () => {
   assert.equal(isNoiseCommitMessage("chore: bump alpha build for 2ad814a"), true);
+  assert.equal(isNoiseCommitMessage("chore: bump develop build for 2ad814a"), true);
   assert.equal(isNoiseCommitMessage("chore: update changelog for c678878"), true);
+  assert.equal(isNoiseCommitMessage("chore: reset develop build counter after promotion to alpha"), true);
   assert.equal(isNoiseCommitMessage("Merge branch 'alpha' of https://github.com/Lasikiewicz/plembfin into alpha"), true);
   assert.equal(isNoiseCommitMessage("Merge pull request #12 from foo/bar"), true);
   assert.equal(isNoiseCommitMessage("fix: keep controls visible"), false);
   assert.equal(isNoiseCommitMessage("chore: bump version to 0.8.0"), false);
+});
+
+test("filters changelog-process notes while retaining user-visible release details", () => {
+  const processNote = "Trimmed the alpha build 1 changelog entry down to the actual TV show detail and grid bulk-watch fixes, dropping unrelated changelog-process bullets that had been folded in";
+  const userDetail = "Season list rows now show Saving while a bulk watch action is in progress";
+
+  assert.equal(isChangelogProcessText(processNote), true);
+  assert.equal(isChangelogProcessText(userDetail), false);
+  assert.equal(isChangelogProcessMessage("docs: consolidate v0.12.11 changelog entry into higher-level bullets"), true);
+  assert.equal(isChangelogProcessMessage("chore: reset develop build counter after promotion to alpha"), true);
+  assert.equal(isChangelogProcessMessage("fix: improve changelog entry rendering in Settings"), false);
+
+  assert.deepEqual(filterChangelogDetails([processNote, userDetail]), [userDetail]);
+  assert.deepEqual(
+    filterChangelogEntries([
+      { message: "chore: reset develop build counter after promotion to alpha", details: [processNote] },
+      { message: "fix: TV show detail and grid bulk-watch fixes", details: [processNote, userDetail] },
+    ]),
+    [{ message: "fix: TV show detail and grid bulk-watch fixes", details: [userDetail] }],
+  );
+});
+
+test("changelog entry guard reports process notes in messages, details, and sections", () => {
+  const violations = changelogEntryProcessViolations({
+    message: "Fix - TV show detail and grid bulk-watch fixes",
+    details: ["Consolidate changelog entries at every promotion stage"],
+    sections: { tweaks: ["Reset develop build counter after promotion to alpha"] },
+  });
+
+  assert.equal(violations.length, 2);
+  assert.ok(violations.some((line) => line.startsWith("details:")));
+  assert.ok(violations.some((line) => line.startsWith("sections.tweaks:")));
 });
 
 test("isReleaseTypeCommitMessage only accepts user-facing commit types", () => {

@@ -7676,8 +7676,19 @@ html.light-mode .copy-button:hover {
   height: 1.6rem;
   border: none;
   border-radius: 50%;
-  background: rgba(0, 0, 0, 0.55);
+  /* Deliberately independent of the app's light/dark theme - the button
+     sits on top of poster art of any brightness, so it needs its own fixed
+     contrast rather than following --text/--panel. The blur softens
+     whatever's in the image behind it, and the light ring + dark shadow
+     combination keeps the circle's edge visible whether that art is a
+     bright poster or a near-black one. */
+  background: rgba(15, 15, 18, 0.72);
   color: #fff;
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.45),
+    0 1px 4px rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
   font-size: 1.05rem;
   line-height: 1;
   cursor: pointer;
@@ -7688,10 +7699,23 @@ html.light-mode .copy-button:hover {
 
 .poster-overflow-btn:hover,
 .poster-overflow-btn:focus-visible {
-  background: rgba(0, 0, 0, 0.8);
+  background: rgba(0, 0, 0, 0.85);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.6),
+    0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+/* html.light-mode button { color: var(--text) } below outranks the plain
+   .poster-overflow-btn class on specificity (element+class beats class
+   alone), which repainted the dots dark in light mode despite the fixed
+   white color set above - restate it here so light mode keeps the same
+   theme-independent white-on-dark look as dark mode. */
+html.light-mode .poster-overflow-btn {
+  color: #fff;
 }
 
 .movie-card:hover .poster-overflow-btn,
+.folder-card:hover .poster-overflow-btn,
 .history-grid-card:hover .poster-overflow-btn,
 .history-mini-card:hover .poster-overflow-btn,
 .history-page-card:hover .poster-overflow-btn,
@@ -9033,6 +9057,30 @@ html.light-mode .progress-bar-fill {
   border-color: rgba(16, 185, 129, 0.15);
 }
 
+/* Episode tile watch/unwatch feedback (media-detail-show.js): pulse the
+   whole tile while the save is in flight, matching the .card-removing
+   convention used for poster-card unwatch. */
+.immersive-episode-row.is-saving {
+  pointer-events: none;
+  animation: episode-row-saving-pulse 1100ms ease-in-out infinite;
+}
+
+@keyframes episode-row-saving-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .immersive-episode-row.is-saving {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+
+.episode-thumb-wrap {
+  position: relative;
+}
+
 .episode-thumb {
   display: block;
   width: 8rem;
@@ -9041,6 +9089,22 @@ html.light-mode .progress-bar-fill {
   border: 1px solid var(--line);
   border-radius: 6px;
   background: #070b0e;
+}
+
+.episode-thumb-syncing {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font-size: 0.85rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-align: center;
+  padding: 0.25rem;
 }
 
 .episode-spoiler-placeholder {
@@ -14926,6 +14990,23 @@ html.light-mode .history-mini-card-title {
   border-color: color-mix(in srgb, var(--text), transparent 24%);
 }
 
+/* Collapsed-season saving feedback (media-detail-show.js): a bulk
+   watch/unwatch triggered from the show-level control bar reaches episodes
+   in seasons whose accordion panel isn't rendered (and so can't show the
+   per-episode .immersive-episode-row.is-saving pulse), so pulse the
+   collapsed header itself instead - same animation, same intent. */
+.season-accordion.is-saving .season-accordion-trigger {
+  pointer-events: none;
+  animation: episode-row-saving-pulse 1100ms ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .season-accordion.is-saving .season-accordion-trigger {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+
 .season-accordion-trigger {
   display: grid;
   grid-template-columns: minmax(110px, 260px) minmax(90px, auto) minmax(84px, auto) minmax(150px, auto) minmax(140px, 1fr) auto;
@@ -15055,11 +15136,16 @@ html.light-mode .history-mini-card-title {
   -webkit-line-clamp: unset;
 }
 
-.season-accordion-panel .episode-thumb {
+.season-accordion-panel .episode-thumb-wrap {
   grid-area: thumb;
   width: 100%;
   max-width: none;
   justify-self: start;
+}
+
+.season-accordion-panel .episode-thumb {
+  width: 100%;
+  max-width: none;
 }
 
 .season-accordion-panel .immersive-episode-copy {

@@ -268,9 +268,10 @@ See [README.md](README.md) for the documentation index, including this file
 | --- | --- |
 | `build-check.js` | The `npm run build` gate: syntax-checks every JS file, runs `docs-check.js`, validates the JSON manifests, rejects bare `fetch(` in `server/` (must be `fetchWithTimeout`), then boots the server once against a temp DATA_DIR (`PLEMBFIN_BUILD_CHECK=1`). |
 | `docs-check.js` | `npm run docs:check` - derives the required Node.js version from `package.json`, checks the README badge and setup text, and rejects weak/default Docker password examples. |
-| `changelog-message.js` | Shared changelog-message formatting, bullet extraction, and release-detail validation used by local hooks, tests, and CI. |
+| `changelog-message.js` | Shared changelog-message formatting, bullet extraction, release-detail validation, and release-process filtering used by local hooks, tests, promotion scripts, and CI. |
 | `validate-commit-message.js` | CLI used by the commit-message hook to reject user-visible release commits with missing or title-repeating details. |
-| `update-changelog.js` | CI helper: validates release details, bumps the patch version (honouring a manually-set higher version), converts the pushed commits' messages + bullet points into a `changelog.json` entry (grouped into `entry.sections` - New Features/Major Bug Fixes/Tweaks - via `categorizeEntries()`), and syncs `package.json`/`package-lock.json`. |
+| `update-changelog.js` | CI helper: validates release details, filters release-process commits/bullets, bumps the patch version (honouring a manually-set higher version), converts the pushed commits' messages + bullet points into a `changelog.json` entry (grouped into `entry.sections` - New Features/Major Bug Fixes/Tweaks - via `categorizeEntries()`), and syncs `package.json`/`package-lock.json`. |
+| `validate-changelog-entry.js` | Target-branch CI guard: checks the newest generated alpha or main entry for release-process text before the workflow commits it. |
 | `notify-discord-release.js` | CI helper called by `update-changelog.yml` (`main`) and `docker-publish-alpha.yml` (`alpha`): builds a Discord embed from the newest `changelog.json`/`changelog.alpha.json` entry and posts it to the `DISCORD_RELEASES_WEBHOOK` secret. No-ops if the secret isn't set; supports `--dry-run` to print the embed instead of posting. |
 | `install-git-hooks.js` | Sets `core.hooksPath` to `.githooks` (runs automatically via npm `prepare`). |
 | `docker-entrypoint.sh` | Container entrypoint: chowns `/data` when starting as root, then drops to the `plembfin` user via gosu. |
@@ -457,6 +458,14 @@ any of the three is non-empty, falling back to the flat `entry.details` list oth
 per-build alpha/develop entries stay flat since they cover a single push, not a consolidated
 release.
 
+The alpha and main changelog generators share the release-content filter in
+`scripts/changelog-message.js`. It removes process-only commit entries and bullets such as
+changelog consolidation, folded-in release-note bullets, and branch build-counter resets;
+promotion scripts sanitize queued entries as well. `docker-publish-alpha.yml` and
+`update-changelog.yml` run `scripts/validate-changelog-entry.js` immediately before their
+metadata commit, so recognized release-process text cannot be published to either target
+branch.
+
 The two entry lists are merged rather than one replacing the other: entries are keyed by
 commit (falling back to version + message), remote copies win on conflict except that a
 local entry's `details` are kept when the remote one has none, and the result is sorted
@@ -479,10 +488,12 @@ build counter and per-push changelog entries, separate from `changelog.json`'s r
 and reset on the next "Merge alpha with main". `scripts/update-alpha-changelog.js` writes
 this file - bumping `build`, recording an entry with the same commit-bullet rules as
 `scripts/update-changelog.js` (both share `scripts/changelog-git-helpers.js`), and
-resetting to build 0 with an empty entry list whenever `changelog.alpha.json`'s
+filtering release-process entries/bullets before writing the newest entry, and resetting
+to build 0 with an empty entry list whenever `changelog.alpha.json`'s
 `baseVersion` differs from `changelog.json`'s version (i.e. main moved forward since
 the last alpha push). `docker-publish-alpha.yml` runs it on every push to `alpha`,
-committing the result back as `chore: bump alpha build for <sha>` and tagging the
+validates the newest entry, commits the result back as `chore: bump alpha build for <sha>`,
+and tags the
 published image `alpha-<build>` alongside the rolling `alpha` tag.
 
 `handleChangelog` also fetches `changelog.alpha.json` from the `alpha` branch on GitHub raw

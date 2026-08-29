@@ -64,6 +64,46 @@ test("categorizeEntries preserves features, major fixes, and tweaks as separate 
   });
 });
 
+test("categorizeEntries drops changelog-process entries and bullets during promotion", () => {
+  const sections = categorizeEntries([
+    {
+      message: "fix: TV show detail and grid bulk-watch fixes",
+      details: [
+        "Restore the missing three-dot overflow menu on TV Shows grid cards",
+        "Trimmed the alpha build 1 changelog entry down to the actual TV show detail and grid bulk-watch fixes, dropping unrelated changelog-process bullets that had been folded in",
+      ],
+    },
+    {
+      message: "docs: consolidate v0.12.11 changelog entry into higher-level bullets",
+      details: ["Consolidate changelog entries at every promotion stage"],
+    },
+    {
+      message: "chore: reset develop build counter after promotion to alpha",
+      details: ["Reset develop build counter after promotion to alpha"],
+    },
+  ]);
+
+  assert.deepEqual(sections, {
+    newFeatures: [],
+    majorBugFixes: ["TV show detail and grid bulk-watch fixes", "Restore the missing three-dot overflow menu on TV Shows grid cards"],
+    tweaks: [],
+  });
+  assert.deepEqual(simplifyEntries([
+    {
+      message: "fix: TV show detail and grid bulk-watch fixes",
+      details: [
+        "Restore the missing three-dot overflow menu on TV Shows grid cards",
+        "Trimmed the alpha build 1 changelog entry down to the actual TV show detail and grid bulk-watch fixes, dropping unrelated changelog-process bullets that had been folded in",
+      ],
+    },
+    { message: "docs: consolidate v0.12.11 changelog entry into higher-level bullets" },
+    { message: "chore: reset develop build counter after promotion to alpha" },
+  ]), [
+    "Fix: TV show detail and grid bulk-watch fixes",
+    "Fix: Restore the missing three-dot overflow menu on TV Shows grid cards",
+  ]);
+});
+
 test("bumpPatchVersion increments only the patch (3rd segment)", () => {
   assert.equal(bumpPatchVersion("0.8.6"), "0.8.7");
   assert.equal(bumpPatchVersion("0.8.6.0.0"), "0.8.7");

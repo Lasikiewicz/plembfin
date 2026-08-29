@@ -144,8 +144,9 @@ this means every "Merge alpha with main" run, not every individual commit:
    become labels: `feat:` → "Feature - …"), and its `details` are backfilled from the
    bullet points of every commit in the push, other than CI plumbing commits
    (`isNoiseCommitMessage` in `scripts/changelog-message.js`: the bot's own
-   `chore: bump alpha build for …` / `chore: update changelog for …` commits and
-   `Merge branch/commit/pull request …` commits) and commits whose own type isn't
+   `chore: bump alpha/develop build for …` / `chore: update changelog for …` commits,
+   explicit branch build-counter reset commits, and `Merge branch/commit/pull request …`
+   commits) and commits whose own type isn't
    user-facing (`isReleaseTypeCommitMessage`: only `feat`, `fix`, `security`,
    `enhance`, `perf`, and `docs` commits contribute bullets - a `test:`, `chore:`,
    `refactor:`, `style:`, or `ci:` commit bundled into the same push never surfaces
@@ -164,17 +165,24 @@ this means every "Merge alpha with main" run, not every individual commit:
    commits are rejected unless they contain at least one meaningful body bullet. If a
    maintenance or legacy commit has no body, the generator derives a user-facing
    summary from its changed file areas instead of publishing only a vague subject
-   line. The type filter only screens out bullets from the *wrong kind* of commit -
-   it can't tell a bullet inside an otherwise legitimate `feat`/`fix` commit apart
+   line. Before the entry is written, `isChangelogProcessMessage()` removes
+   release-bookkeeping commits and `filterChangelogDetails()` removes matching
+   bullets, including changelog consolidation, folded-in or trimmed bullets, and
+   alpha/develop build-counter resets. If a process-only commit is the push head,
+   the generator uses the most recent eligible release commit in the range; if no
+   eligible commit exists, it exits nonzero. `validate-changelog-entry.js` checks
+   the newest generated entry immediately before the alpha or main workflow commits
+   it. The filter targets release bookkeeping, not user-visible changelog UI changes.
+   It cannot tell a bullet inside an otherwise legitimate `feat`/`fix` commit apart
    from one that just narrates an investigation with no resulting product change
    (e.g. "diagnosed a report of X; turned out to be a stale session, no code
    change needed"); avoid writing that kind of bullet in a release commit's body in
    the first place, or keep it as unbulleted prose so `bulletPointsFrom` skips it. A
    release built from many small iterative alpha commits (a feature added, then
    throttled, then disabled, then re-enabled within the same day) can still read as
-   noisy even with plumbing and non-release-type commits excluded, since the
-   generator has no way to know a later commit supersedes an earlier one - that kind
-   of entry may need a manual touch-up to `changelog.json` after the merge.
+   noisy because the generator cannot infer which product bullet supersedes another;
+   consolidate those product bullets on `develop` before promotion rather than
+   creating a changelog-process correction commit on alpha or main.
 3. commits `changelog.json` + `package.json` + `package-lock.json` back to `main` as
    `chore: update changelog for <sha>` - the "Merge alpha with main" workflow folds
    this bump commit back into `alpha` afterward (see the "Merge alpha with main"
@@ -228,7 +236,7 @@ It has its own build/deploy tooling independent of this repo's CI - see
 | `security.yml` | `npm audit --audit-level=high` + CodeQL, on push to `main`/`alpha`, PRs targeting `main`, and daily. CodeQL loads `.github/codeql/codeql-config.yml`, which excludes the `js/request-forgery` query repo-wide - every outbound request funnels through the centralized, validated fetch guard in `server/src/utils/outbound.js`, and admin-configured LAN media server URLs make that query permanently false-positive for this app |
 | `secret-scan.yml` | TruffleHog verified-secret scan on push to `main`/`alpha`/`develop` and PRs targeting `main`/`develop` |
 | `docker-build-check.yml` | Checks README consistency, then builds the image on every PR targeting `main`, without pushing anything, and runs `better-sqlite3` and `sharp` inside it, so a broken Dockerfile or dependency install is caught before a PR merges. The runtime probe matters because production dependencies install with `--ignore-scripts`: a native module with no usable binary for the platform still builds cleanly and would fail on first database open |
-| `docker-publish-alpha.yml` | On every push to `alpha`: checks README consistency, bumps `changelog.alpha.json`'s build counter and commits it back to `alpha`, builds the image, runs the same native-module probe as `docker-build-check.yml`, then pushes it to `ghcr.io/lasikiewicz/plembfin:alpha` and `ghcr.io/lasikiewicz/plembfin:alpha-<build>`, and posts the new build's changelog entry to Discord (see "Discord release notifications"). Never touches `changelog.json`, the package version, or the `:latest` tag |
+| `docker-publish-alpha.yml` | On every push to `alpha`: checks README consistency, updates `changelog.alpha.json`, runs the release-content guard, commits it back to `alpha`, builds the image, runs the same native-module probe as `docker-build-check.yml`, then pushes it to `ghcr.io/lasikiewicz/plembfin:alpha` and `ghcr.io/lasikiewicz/plembfin:alpha-<build>`, and posts the new build's changelog entry to Discord (see "Discord release notifications"). Never touches `changelog.json`, the package version, or the `:latest` tag |
 | `ghcr-cleanup.yml` | Weekly (and on manual dispatch): prunes numbered `develop-<n>`/`alpha-<n>` tags beyond the newest 15 of each, and deletes untagged images older than a day left behind whenever a mutable tag (`latest`/`develop`/`alpha`) moves to a new manifest. Never touches those mutable tags or a semantic-version release tag |
 | `dependabot.yml` | Dependency update PRs |
 
@@ -266,7 +274,9 @@ It has its own build/deploy tooling independent of this repo's CI - see
 
 - Commit messages follow `type: summary` with `- ` bullet bodies. The commit hook and
   changelog generator reject user-visible release messages with missing or
-  title-repeating details.
+  title-repeating details. Release-process notes such as changelog consolidation
+  and branch build-counter resets are filtered from alpha/main and rejected by the
+  target-branch release-content guard.
 - The version in `package.json`/`changelog.json` is CI-managed; only set it manually
   for a deliberate major/minor bump.
 - `data/` is never committed and never in the image; all state must live under

@@ -17,7 +17,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { bulletPointsFrom, formatChangelogMessage, isNoiseCommitMessage, isReleaseTypeCommitMessage, validateReleaseMessage } from "./changelog-message.js";
+import { bulletPointsFrom, filterChangelogDetails, formatChangelogMessage, isChangelogProcessMessage, isNoiseCommitMessage, isReleaseTypeCommitMessage, validateReleaseMessage } from "./changelog-message.js";
 import { changeAreaDetails, changedFilesForCommit, commitsSinceLastEntry } from "./changelog-git-helpers.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -56,11 +56,14 @@ const lastRecordedCommit = develop.entries[0]?.commit || "";
 const gitHistoryCommits = commitsSinceLastEntry(root, lastRecordedCommit, sourceCommit);
 const otherCommitsRaw = gitHistoryCommits.length > 0 ? gitHistoryCommits : pushedCommits;
 const otherCommits = otherCommitsRaw.filter((commit) =>
-  commit.id !== sourceCommit && !isNoiseCommitMessage(commit.message) && isReleaseTypeCommitMessage(commit.message));
+  commit.id !== sourceCommit
+  && !isNoiseCommitMessage(commit.message)
+  && !isChangelogProcessMessage(commit.message)
+  && isReleaseTypeCommitMessage(commit.message));
 
 let effectiveCommit = sourceCommit;
 let effectiveMessage = rawMessage;
-if (isNoiseCommitMessage(rawMessage) && otherCommits.length) {
+if ((isNoiseCommitMessage(rawMessage) || isChangelogProcessMessage(rawMessage)) && otherCommits.length) {
   const latest = otherCommits.pop();
   effectiveCommit = latest.id;
   effectiveMessage = latest.message;
@@ -79,15 +82,15 @@ if (messageErrors.length > 0) {
   process.exit(1);
 }
 
-const sourceDetails = bulletPointsFrom(effectiveMessage);
+const sourceDetails = filterChangelogDetails(bulletPointsFrom(effectiveMessage));
 
 let backfilledDetails = [];
 for (const commit of otherCommits) {
   const bullets = bulletPointsFrom(commit.message);
-  if (bullets.length) backfilledDetails.push(...bullets);
+  if (bullets.length) backfilledDetails.push(...filterChangelogDetails(bullets));
   else {
     const generatedDetails = changeAreaDetails(changedFilesForCommit(root, commit.id));
-    backfilledDetails.push(...(generatedDetails.length
+    backfilledDetails.push(...filterChangelogDetails(generatedDetails.length
       ? generatedDetails
       : [String(commit.message || "").split(/\r?\n/, 1)[0].trim()]));
   }
@@ -105,7 +108,8 @@ if (sourceDetails.length === 0) {
   sourceDetails.push(...(generatedDetails.length ? generatedDetails : [sourceMessage]));
 }
 
-const allDetails = [...backfilledDetails, ...sourceDetails].filter((v, i, arr) => v && arr.indexOf(v) === i);
+const allDetails = filterChangelogDetails([...backfilledDetails, ...sourceDetails])
+  .filter((v, i, arr) => v && arr.indexOf(v) === i);
 
 const nextBuild = Number(develop.build || 0) + 1;
 develop.build = nextBuild;

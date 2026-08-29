@@ -7,13 +7,82 @@ const RELEASE_TYPES = new Set(["feat", "fix", "security", "enhance", "perf", "do
 // otherwise-detailed release. Shared so both generators drop them the same way.
 const NOISE_MESSAGE_PATTERNS = [
   /^chore: bump alpha build for /,
+  /^chore: bump develop build for /,
   /^chore: update changelog for /,
+  /^chore: reset (?:develop|alpha) build counter after promotion to /i,
   /^Merge (branch|commit|pull request|remote-tracking branch)\b/i,
 ];
 
 export function isNoiseCommitMessage(message) {
   const subject = String(message || "").split(/\r?\n/, 1)[0].trim();
   return NOISE_MESSAGE_PATTERNS.some((pattern) => pattern.test(subject));
+}
+
+// Changelog entries are assembled from commit bodies at several branch
+// boundaries. A commit can have a valid release type while its bullets still
+// describe the bookkeeping around the changelog itself (for example,
+// consolidating entries or resetting a build counter). Those notes are useful
+// to the maintainer while working, but they are not release content and must
+// not reach alpha or main.
+const CHANGELOG_ARTIFACT_PATTERN = /\b(?:changelog(?:[-.]|\s|$)|release notes?|release entry|release history)\b/i;
+const CHANGELOG_PROCESS_ACTION_PATTERN = /\b(?:consolidat(?:e|ed|ing|ion)|trim(?:med|ming)?|shorten(?:ed|ing)?|drop(?:ped|ping)|fold(?:ed|ing)?|regenerat(?:e|ed|ing)|rewrit(?:e|ten|ing)|correct(?:ed|ion|ing)|clean(?:ed|up|ing)?|deduplicat(?:e|ed|ing)|tighten(?:ed|ing)?|summariz(?:e|ed|ing))\b/i;
+const BUILD_COUNTER_PATTERN = /\b(?:reset|bump(?:ed|ing)?)\s+(?:the\s+)?(?:develop|alpha)\s+build(?:\s+counter|\s+metadata)?\b/i;
+
+export function isChangelogProcessText(value) {
+  const text = String(value || "").trim();
+  if (!text) return false;
+
+  return BUILD_COUNTER_PATTERN.test(text)
+    || /\bchangelog[- ]process\b/i.test(text)
+    || (CHANGELOG_ARTIFACT_PATTERN.test(text) && CHANGELOG_PROCESS_ACTION_PATTERN.test(text));
+}
+
+export function isChangelogProcessMessage(message) {
+  const subject = String(message || "").split(/\r?\n/, 1)[0].trim();
+  if (!subject) return false;
+
+  return isChangelogProcessText(subject)
+    || /^(?:chore|docs?)(?:\([^)]*\))?:\s*(?:reset|bump)\s+(?:the\s+)?(?:develop|alpha)\s+build(?:\s+counter|\s+metadata)?\b/i.test(subject)
+    || /^(?:chore|docs?)\s+-\s+(?:reset|bump)\s+(?:the\s+)?(?:develop|alpha)\s+build(?:\s+counter|\s+metadata)?\b/i.test(subject);
+}
+
+export function filterChangelogDetails(details) {
+  const values = Array.isArray(details) ? details : (details == null ? [] : [details]);
+  return values
+    .map((detail) => String(detail || "").trim())
+    .filter((detail) => detail && !isChangelogProcessText(detail));
+}
+
+export function filterChangelogEntries(entries = []) {
+  if (!Array.isArray(entries)) return [];
+
+  return entries
+    .filter((entry) => entry && !isChangelogProcessMessage(entry.message))
+    .map((entry) => ({
+      ...entry,
+      details: filterChangelogDetails(entry.details),
+    }))
+    .filter((entry) => String(entry.message || "").trim() || entry.details.length > 0);
+}
+
+export function changelogEntryProcessViolations(entry = {}) {
+  const violations = [];
+  if (isChangelogProcessMessage(entry.message)) {
+    violations.push(`message: ${String(entry.message).split(/\r?\n/, 1)[0].trim()}`);
+  }
+
+  for (const [field, values] of [
+    ["details", entry.details],
+    ["sections.newFeatures", entry.sections?.newFeatures],
+    ["sections.majorBugFixes", entry.sections?.majorBugFixes],
+    ["sections.tweaks", entry.sections?.tweaks],
+  ]) {
+    for (const value of Array.isArray(values) ? values : []) {
+      if (isChangelogProcessText(value)) violations.push(`${field}: ${String(value).trim()}`);
+    }
+  }
+
+  return Array.from(new Set(violations));
 }
 
 // A multi-commit push (routine on alpha, and especially a "Merge alpha with

@@ -3,7 +3,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { bulletPointsFrom, formatChangelogMessage, isNoiseCommitMessage, isReleaseTypeCommitMessage, validateReleaseMessage } from "./changelog-message.js";
+import { bulletPointsFrom, filterChangelogDetails, formatChangelogMessage, isChangelogProcessMessage, isNoiseCommitMessage, isReleaseTypeCommitMessage, validateReleaseMessage } from "./changelog-message.js";
 import { changeAreaDetails, changedFilesForCommit, commitsSinceLastEntry } from "./changelog-git-helpers.js";
 import { generateChangelogMarkdown } from "./generate-changelog-md.js";
 import { categorizeEntries } from "./promote-develop-to-alpha.js";
@@ -46,7 +46,10 @@ const gitHistoryCommits = commitsSinceLastEntry(root, lastRecordedCommit, source
 // (e.g. the changelog has no prior entry to anchor a range from).
 const otherCommitsRaw = gitHistoryCommits.length > 0 ? gitHistoryCommits : pushedCommits;
 const otherCommits = otherCommitsRaw.filter((commit) =>
-  commit.id !== sourceCommit && !isNoiseCommitMessage(commit.message) && isReleaseTypeCommitMessage(commit.message));
+  commit.id !== sourceCommit
+  && !isNoiseCommitMessage(commit.message)
+  && !isChangelogProcessMessage(commit.message)
+  && isReleaseTypeCommitMessage(commit.message));
 
 // A "Merge alpha with main" promotion force-pushes a whole branch's worth of
 // alpha history at once; GitHub reports the range's last commit as the
@@ -56,10 +59,14 @@ const otherCommits = otherCommitsRaw.filter((commit) =>
 // alpha changelog generator already does.
 let effectiveCommit = sourceCommit;
 let effectiveMessage = rawMessage;
-if (isNoiseCommitMessage(rawMessage) && otherCommits.length) {
+if ((isNoiseCommitMessage(rawMessage) || isChangelogProcessMessage(rawMessage)) && otherCommits.length) {
   const latest = otherCommits.pop(); // git log --reverse -> oldest..newest, so the last entry is the most recent
   effectiveCommit = latest.id;
   effectiveMessage = latest.message;
+}
+if (isChangelogProcessMessage(effectiveMessage)) {
+  console.error("Refusing to publish a main changelog entry made only of changelog-process notes.");
+  process.exit(1);
 }
 const sourceMessage = formatChangelogMessage(effectiveMessage.split(/\r?\n/, 1)[0]);
 
@@ -75,15 +82,17 @@ if (messageErrors.length > 0) {
   process.exit(1);
 }
 
-const sourceDetails = bulletPointsFrom(effectiveMessage);
+const sourceDetails = filterChangelogDetails(bulletPointsFrom(effectiveMessage));
 
 const backfilledEntries = otherCommits.map((commit) => {
   const bullets = bulletPointsFrom(commit.message);
   const details = bullets.length
-    ? bullets
+    ? filterChangelogDetails(bullets)
     : (() => {
         const generatedDetails = changeAreaDetails(changedFilesForCommit(root, commit.id));
-        return generatedDetails.length ? generatedDetails : [String(commit.message || "").split(/\r?\n/, 1)[0].trim()];
+        return filterChangelogDetails(generatedDetails.length
+          ? generatedDetails
+          : [String(commit.message || "").split(/\r?\n/, 1)[0].trim()]);
       })();
   return { message: formatChangelogMessage(String(commit.message || "").split(/\r?\n/, 1)[0]), details };
 });
@@ -104,7 +113,8 @@ if (sourceDetails.length === 0) {
   sourceDetails.push(...(generatedDetails.length ? generatedDetails : [sourceMessage]));
 }
 
-const allDetails = [...backfilledDetails, ...sourceDetails].filter((v, i, arr) => v && arr.indexOf(v) === i);
+const allDetails = filterChangelogDetails([...backfilledDetails, ...sourceDetails])
+  .filter((v, i, arr) => v && arr.indexOf(v) === i);
 
 const match = String(changelog.version || "0.0.0").match(/^(\d+)\.(\d+)\.(\d+)$/);
 if (!match) throw new Error(`Invalid changelog version: ${changelog.version}`);
