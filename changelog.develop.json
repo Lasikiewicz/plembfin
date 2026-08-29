@@ -1,21 +1,6 @@
 {
   "build": 12,
-  "resetCommit": "3a782f85401a5059d6d277a170980957d32f9af9",
-  "updatedAt": "2026-08-29T19:51:29.800Z",
-  "entries": [
-    {
-      "build": 12,
-      "date": "2026-08-29T19:51:29.800Z",
-      "commit": "02ad4083675c6af4e5afa429d05d330b551dc15a",
-      "message": "Fix - Make Now Playing update faster and prevent false \"stopped\" readings",
-      "author": "Lasikiewicz",
-      "details": [
-        "Now Playing reflects a session starting or ending within seconds instead of up to a minute later",
-        "Plex sessions update instantly by reusing the existing live connection to Plex, adding no extra load",
-        "Opening the dashboard or returning to a background tab refreshes Now Playing immediately instead of waiting for the next scheduled check",
-        "Fixed a bug where a single failed check against Plex, Emby, or Jellyfin could wrongly mark a still-playing session as stopped and record it as partially watched",
-        "Fixed a bug where Plex switching video quality mid-playback could trigger the same false \"stopped\" misdetection"
-      ]
-    }
-  ]
+  "resetCommit": "244174d4170b2e1d46e484084aaac82c1017cc36",
+  "updatedAt": "2026-08-29T19:53:05.434Z",
+  "entries": []
 }

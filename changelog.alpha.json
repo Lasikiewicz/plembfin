@@ -1,10 +1,39 @@
 {
   "baseVersion": "0.14.0",
-  "build": 3,
-  "version": "0.14.0.3",
-  "shortVersion": "0.14.0.3",
-  "updatedAt": "2026-08-29T18:16:52.224Z",
+  "build": 4,
+  "version": "0.14.0.4",
+  "shortVersion": "0.14.0.4",
+  "updatedAt": "2026-08-29T19:53:05.434Z",
   "entries": [
+    {
+      "build": 4,
+      "version": "0.14.0.4",
+      "shortVersion": "0.14.0.4",
+      "date": "2026-08-29T19:53:05.434Z",
+      "commit": "244174d4170b2e1d46e484084aaac82c1017cc36",
+      "message": "Fix - Make Now Playing update faster and prevent false \"stopped\" readings",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix: Make Now Playing update faster and prevent false \"stopped\" readings",
+        "Fix: Now Playing reflects a session starting or ending within seconds instead of up to a minute later",
+        "Fix: Plex sessions update instantly by reusing the existing live connection to Plex, adding no extra load",
+        "Fix: Opening the dashboard or returning to a background tab refreshes Now Playing immediately instead of waiting for the next scheduled check",
+        "Fix: Fixed a bug where a single failed check against Plex, Emby, or Jellyfin could wrongly mark a still-playing session as stopped and record it as partially watched",
+        "Fix: Fixed a bug where Plex switching video quality mid-playback could trigger the same false \"stopped\" misdetection"
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Make Now Playing update faster and prevent false \"stopped\" readings",
+          "Now Playing reflects a session starting or ending within seconds instead of up to a minute later",
+          "Plex sessions update instantly by reusing the existing live connection to Plex, adding no extra load",
+          "Opening the dashboard or returning to a background tab refreshes Now Playing immediately instead of waiting for the next scheduled check",
+          "Fixed a bug where a single failed check against Plex, Emby, or Jellyfin could wrongly mark a still-playing session as stopped and record it as partially watched",
+          "Fixed a bug where Plex switching video quality mid-playback could trigger the same false \"stopped\" misdetection"
+        ],
+        "tweaks": []
+      }
+    },
     {
       "build": 3,
       "version": "0.14.0.3",
