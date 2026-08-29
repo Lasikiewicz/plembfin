@@ -39,6 +39,7 @@ export {
 } from "./utils/resumeAuthority.js";
 import {
   deleteLiveTrackingCacheRows,
+  dispatchGroupsForRows,
   deletePlaybackProgress,
   deleteWatchRecordById,
   findExistingWatch,
@@ -1532,7 +1533,14 @@ export async function syncPendingManualDispatches(config, loopStore, logger = co
     const maxRetries = 15;
     const batchToRetry = toRetry.slice(0, maxRetries);
 
-    for (const row of batchToRetry) {
+    // Keep the historical row cap: grouping only controls concurrency, so a
+    // tick that contains many aliases still processes the same 15 rows it did
+    // before. Identity is derived from the complete history, ensuring bridge
+    // rows outside this selected batch cannot split one real item.
+    const dispatchGroups = dispatchGroupsForRows(batchToRetry, rows);
+    await runWithConcurrency(dispatchGroups, 6, async (group) => {
+      for (const row of group.rows) {
+        try {
       const id = row.id;
       const media = {
         title: row.title,
@@ -1626,7 +1634,11 @@ export async function syncPendingManualDispatches(config, loopStore, logger = co
         await recordSyncHistory(media, summary, "watched");
       }
       syncedCount++;
-    }
+        } catch (error) {
+          logger(`Background Queue: failed to process ${row.title} (${row.id}): ${error.message || String(error)}`);
+        }
+      }
+    });
   } catch (error) {
     logger(`Pending Queue dispatcher failed: ${error.message}`);
   }

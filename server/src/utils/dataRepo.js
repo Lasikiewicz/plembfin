@@ -1453,9 +1453,12 @@ export function supersedeUnwatchedTransitionsForRecordSync(existing = {}) {
   const watchedAt = normalizeWatchedAt(existing.watched_at || existing.watchedAt) || new Date(now).toISOString();
   const telemetry = [
     "Origin: manual",
-    "Loop-check: Passed",
-    "Dispatch status: pending",
-    "Details: Superseded by an explicit Plembfin Mark watched action.",
+    "Loop-check: Skipped duplicate alias",
+    "Dispatch status: skipped",
+    "Details: Superseded by an explicit Plembfin Mark watched action; the canonical sibling owns outbound dispatch.",
+    "Target plex status: success - Canonical sibling owns outbound dispatch",
+    "Target emby status: success - Canonical sibling owns outbound dispatch",
+    "Target jellyfin status: success - Canonical sibling owns outbound dispatch",
   ].join("\n");
   for (const row of unwatched) {
     queueProgressUpdateForRecord(row);
@@ -4527,7 +4530,7 @@ function collapseMovieCluster(clusterRows = []) {
 // only imports) fold into the unique id cluster sharing their canonical title;
 // when two distinct films share a title (remakes), there is no unique target so
 // the id-less row keeps its own cluster rather than guessing.
-function dedupeMovies(rows = []) {
+function movieGroupKeys(rows = []) {
   const parent = new Map();
   const find = (x) => {
     while (parent.get(x) !== x) {
@@ -4552,15 +4555,11 @@ function dedupeMovies(rows = []) {
     for (let i = 1; i < nodes.length; i += 1) union(nodes[0], nodes[i]);
   }
 
-  const clusters = new Map();
   const titleClusterKeys = new Map();
-  const idless = [];
   for (const row of rows) {
     const nodes = idNodesFor(row);
-    if (!nodes.length) { idless.push(row); continue; }
+    if (!nodes.length) continue;
     const clusterKey = find(nodes[0]);
-    if (!clusters.has(clusterKey)) clusters.set(clusterKey, []);
-    clusters.get(clusterKey).push(row);
     const titleKey = canonicalTitleKey(row.title);
     if (titleKey) {
       if (!titleClusterKeys.has(titleKey)) titleClusterKeys.set(titleKey, new Set());
@@ -4568,16 +4567,28 @@ function dedupeMovies(rows = []) {
     }
   }
 
-  for (const row of idless) {
+  const keys = new Map();
+  for (const row of rows) {
+    const nodes = idNodesFor(row);
+    if (nodes.length) {
+      keys.set(row, find(nodes[0]));
+      continue;
+    }
     const titleKey = canonicalTitleKey(row.title);
     const matches = titleClusterKeys.get(titleKey);
-    if (matches && matches.size === 1) {
-      clusters.get([...matches][0]).push(row);
-    } else {
-      const clusterKey = `title:${titleKey}`;
-      if (!clusters.has(clusterKey)) clusters.set(clusterKey, []);
-      clusters.get(clusterKey).push(row);
-    }
+    keys.set(row, matches?.size === 1 ? [...matches][0] : `title:${titleKey || "unknown-movie"}`);
+  }
+
+  return keys;
+}
+
+function dedupeMovies(rows = []) {
+  const groupKeys = movieGroupKeys(rows);
+  const clusters = new Map();
+  for (const row of rows) {
+    const clusterKey = groupKeys.get(row);
+    if (!clusters.has(clusterKey)) clusters.set(clusterKey, []);
+    clusters.get(clusterKey).push(row);
   }
 
   return [...clusters.values()].map(collapseMovieCluster);
@@ -4658,6 +4669,63 @@ function showGroupKeys(rows = []) {
     keys.set(row, matches?.size === 1 ? [...matches][0] : `title:${titleKey || "unknown-show"}`);
   }
   return keys;
+}
+
+// Classify retry candidates using the complete history as identity context.
+// Rows describing one remote item share a dispatch group and must be serialized
+// to preserve loop-detection semantics; distinct groups may run concurrently.
+// Same-event subgroups retain the repository's existing chained ten-minute
+// duplicate policy, but callers must not inherit outcomes for low-confidence
+// title-only groups.
+export function dispatchGroupsForRows(candidateRows = [], contextRows = candidateRows, windowMs = SAME_EVENT_WINDOW_MS) {
+  const candidates = candidateRows.filter(Boolean);
+  const context = contextRows.filter(Boolean);
+  const episodeContext = context.filter((row) => normalizeMediaType(row.media_type) === "episode");
+  const movieContext = context.filter((row) => normalizeMediaType(row.media_type) === "movie");
+  const episodeKeys = showGroupKeys(episodeContext);
+  const movieKeys = movieGroupKeys(movieContext);
+  const groups = new Map();
+
+  for (const row of candidates) {
+    const type = normalizeMediaType(row.media_type);
+    let identityKey;
+    if (type === "episode") {
+      const showKey = episodeKeys.get(row)
+        || `title:${canonicalTitleKey(row.show_title || showTitleFrom(row.title)) || "unknown-show"}`;
+      identityKey = `episode|${showKey}|s:${row.season ?? "unknown"}|e:${row.episode ?? "unknown"}`;
+    } else if (type === "movie") {
+      identityKey = `movie|${movieKeys.get(row) || `title:${canonicalTitleKey(row.title) || "unknown-movie"}`}`;
+    } else {
+      identityKey = `${type || "media"}|${mediaKeyFor(row)}`;
+    }
+    if (!groups.has(identityKey)) {
+      groups.set(identityKey, {
+        key: identityKey,
+        confidence: identityKey.includes("|title:") ? "low" : "high",
+        rows: [],
+        sameEventGroups: [],
+      });
+    }
+    groups.get(identityKey).rows.push(row);
+  }
+
+  for (const group of groups.values()) {
+    const ordered = [...group.rows].sort((a, b) => (Date.parse(a.watched_at) || 0) - (Date.parse(b.watched_at) || 0));
+    let event = [];
+    let previous = null;
+    for (const row of ordered) {
+      const current = Date.parse(row.watched_at) || 0;
+      if (event.length && current - previous > windowMs) {
+        group.sameEventGroups.push(event);
+        event = [];
+      }
+      event.push(row);
+      previous = current;
+    }
+    if (event.length) group.sameEventGroups.push(event);
+  }
+
+  return [...groups.values()];
 }
 
 // Deterministic tie-break for callers that need a single show out of

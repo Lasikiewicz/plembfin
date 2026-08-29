@@ -196,20 +196,67 @@ async function searchPlexFallback(config, media, targetType) {
 
 // In-memory cache for resolved Plex rating keys to avoid repetitive slow queries/searches.
 const plexRatingKeyCache = new Map();
+const plexSeriesIdentityCache = new Map();
+const plexSeriesInFlight = new Map();
+const PLEX_IDENTITY_TTL_MS = 10 * 60 * 1000;
+const PLEX_IDENTITY_MAX_ENTRIES = 100;
+let plexCacheNow = () => Date.now();
 
-function getCacheKey(media) {
+function plexConnectionScope(config = {}) {
+  return `${trimTrailingSlash(config.baseUrl).toLowerCase()}|${normalizePlexIdentity(config.username || config.userId || "owner")}`;
+}
+
+function getCacheKey(media, config = {}, { series = false } = {}) {
   const type = String(media?.type || "").toLowerCase();
-  const season = media?.season != null ? String(media.season) : "x";
-  const episode = media?.episode != null ? String(media.episode) : "x";
+  const season = series ? "x" : (media?.season != null ? String(media.season) : "x");
+  const episode = series ? "x" : (media?.episode != null ? String(media.episode) : "x");
   const imdb = media?.ids?.imdb || media?.imdb || "";
   const tmdb = media?.ids?.tmdb || media?.tmdb || "";
   const tvdb = media?.ids?.tvdb || media?.tvdb || "";
   const title = String(media?.title || "").toLowerCase().replace(/[^a-z0-9]/g, "");
   
-  if (imdb) return `${type}:${season}:${episode}:imdb:${imdb}`;
-  if (tmdb) return `${type}:${season}:${episode}:tmdb:${tmdb}`;
-  if (tvdb) return `${type}:${season}:${episode}:tvdb:${tvdb}`;
-  return `${type}:${season}:${episode}:title:${title}`;
+  const scope = plexConnectionScope(config);
+  if (imdb) return `${scope}:${type}:${season}:${episode}:imdb:${imdb}`;
+  if (tmdb) return `${scope}:${type}:${season}:${episode}:tmdb:${tmdb}`;
+  if (tvdb) return `${scope}:${type}:${season}:${episode}:tvdb:${tvdb}`;
+  return `${scope}:${type}:${season}:${episode}:title:${title}`;
+}
+
+function plexSeriesAliases(config, media) {
+  const scope = plexConnectionScope(config);
+  const aliases = [];
+  for (const [provider, value] of Object.entries(media.ids || {})) {
+    if (value) aliases.push(`${scope}|${provider}:${String(value).toLowerCase()}`);
+  }
+  const title = removeTrailingYear(parseShowTitle(media.title).title).toLowerCase().replace(/[^a-z0-9]/g, "");
+  const year = extractYear(media.title);
+  if (title) aliases.push(`${scope}|title:${title}${year ? `|year:${year}` : ""}`);
+  return [...new Set(aliases)];
+}
+
+function getRatingKeyCache(key) {
+  const entry = plexRatingKeyCache.get(key);
+  if (!entry) return null;
+  if (entry.expiresAt <= plexCacheNow()) { plexRatingKeyCache.delete(key); return null; }
+  return entry.ratingKey;
+}
+
+function setRatingKeyCache(key, ratingKey) {
+  plexRatingKeyCache.set(key, { ratingKey, expiresAt: plexCacheNow() + PLEX_IDENTITY_TTL_MS });
+  while (plexRatingKeyCache.size > PLEX_IDENTITY_MAX_ENTRIES * 4) {
+    plexRatingKeyCache.delete(plexRatingKeyCache.keys().next().value);
+  }
+}
+
+export function __resetPlexIdentityCache() {
+  plexRatingKeyCache.clear();
+  plexSeriesIdentityCache.clear();
+  plexSeriesInFlight.clear();
+  plexCacheNow = () => Date.now();
+}
+
+export function __setPlexIdentityCacheNow(fn) {
+  plexCacheNow = typeof fn === "function" ? fn : () => Date.now();
 }
 
 async function findPlexSeries(config, media) {
@@ -217,9 +264,9 @@ async function findPlexSeries(config, media) {
   // the same key from `media`, so a shared slot lets the episode's ratingKey
   // overwrite its series' - and a later series lookup then returns the episode,
   // whose /allLeaves is empty, so the episode stops matching.
-  const cacheKey = `series:${getCacheKey(media)}`;
-  if (plexRatingKeyCache.has(cacheKey)) {
-    const ratingKey = plexRatingKeyCache.get(cacheKey);
+  const cacheKey = `series:${getCacheKey(media, config, { series: true })}`;
+  {
+    const ratingKey = getRatingKeyCache(cacheKey);
     if (ratingKey) {
       try {
         const item = await fetchPlexMetadataItem(config, ratingKey, { lane: media?.lane || "sync" });
@@ -268,7 +315,7 @@ async function findPlexSeries(config, media) {
   }
 
   if (series?.ratingKey) {
-    plexRatingKeyCache.set(cacheKey, series.ratingKey);
+    setRatingKeyCache(cacheKey, series.ratingKey);
   }
 
   return series;
@@ -276,9 +323,9 @@ async function findPlexSeries(config, media) {
 
 export { findPlexSeries };
 
-export async function fetchPlexSeriesEpisodes(config, media) {
+export async function fetchPlexSeriesEpisodes(config, media, resolvedSeries = null) {
   requirePlexConfig(config);
-  const series = await findPlexSeries(config, media);
+  const series = resolvedSeries || await findPlexSeries(config, media);
   if (!series?.ratingKey) return [];
 
   const baseUrl = trimTrailingSlash(config.baseUrl);
@@ -325,26 +372,93 @@ async function findPlexMovie(config, media) {
   return searchPlexFallback(config, media, "movie");
 }
 
-async function findPlexEpisode(config, media) {
-  const series = await findPlexSeries(config, media);
-  if (!series?.ratingKey) {
-    return undefined;
+function plexProviderIdsFromSeries(series = {}, fallback = {}) {
+  const ids = { ...fallback };
+  for (const guid of series.Guid || []) {
+    const value = String(guid?.id || guid || "");
+    const match = value.match(/(?:^|\.)(imdb|tmdb|tvdb|themoviedb|thetvdb):\/\/([^/?]+)/i);
+    if (!match) continue;
+    const provider = match[1].toLowerCase().replace("themoviedb", "tmdb").replace("thetvdb", "tvdb");
+    ids[provider] = match[2];
   }
+  return ids;
+}
 
+function plexSeriesEntryCompatible(entry, media) {
+  const requested = media.ids || {};
+  return ["imdb", "tmdb", "tvdb"].every((provider) =>
+    !requested[provider] || !entry.providerIds[provider]
+      || String(requested[provider]).toLowerCase() === String(entry.providerIds[provider]).toLowerCase());
+}
+
+function deletePlexSeriesEntry(entry) {
+  for (const [alias, value] of plexSeriesIdentityCache) if (value === entry) plexSeriesIdentityCache.delete(alias);
+}
+
+function invalidatePlexSeriesIdentity(config, media) {
+  for (const alias of plexSeriesAliases(config, media)) {
+    const entry = plexSeriesIdentityCache.get(alias);
+    if (entry) deletePlexSeriesEntry(entry);
+  }
+  plexRatingKeyCache.delete(getCacheKey(media, config));
+  plexRatingKeyCache.delete(`series:${getCacheKey(media, config, { series: true })}`);
+}
+
+async function resolvePlexSeriesIdentity(config, media) {
+  const aliases = plexSeriesAliases(config, media);
+  const hasProviderIdentity = Boolean(media.ids?.imdb || media.ids?.tmdb || media.ids?.tvdb);
+  const inFlightAliases = hasProviderIdentity ? aliases.filter((alias) => !alias.includes("|title:")) : aliases;
+  for (const alias of aliases) {
+    const entry = plexSeriesIdentityCache.get(alias);
+    if (!entry) continue;
+    if (entry.expiresAt <= plexCacheNow()) { deletePlexSeriesEntry(entry); continue; }
+    if (plexSeriesEntryCompatible(entry, media)) return entry;
+  }
+  for (const alias of inFlightAliases) {
+    const pending = plexSeriesInFlight.get(alias);
+    if (pending) return pending;
+  }
+  const promise = (async () => {
+    const series = await findPlexSeries(config, media);
+    const now = plexCacheNow();
+    if (!series?.ratingKey) {
+      const empty = { series: null, providerIds: media.ids || {}, episodesByCoordinate: new Map(), expiresAt: now + 20_000, createdAt: now };
+      for (const alias of aliases) plexSeriesIdentityCache.set(alias, empty);
+      return empty;
+    }
+    // Pass the already-resolved series so this cold lookup performs exactly
+    // one series resolution and one allLeaves request.
+    const children = await fetchPlexSeriesEpisodes(config, media, series);
+    const episodesByCoordinate = new Map();
+    for (const child of children) {
+      const key = `${Number(child.parentIndex)}:${Number(child.index)}`;
+      if (!episodesByCoordinate.has(key)) episodesByCoordinate.set(key, []);
+      episodesByCoordinate.get(key).push(child);
+    }
+    const providerIds = plexProviderIdsFromSeries(series, media.ids || {});
+    const entry = { series, providerIds, episodesByCoordinate, expiresAt: now + PLEX_IDENTITY_TTL_MS, createdAt: now };
+    const discoveredAliases = [...aliases, ...plexSeriesAliases(config, { ...media, ids: providerIds })];
+    for (const alias of new Set(discoveredAliases)) plexSeriesIdentityCache.set(alias, entry);
+    const entries = [...new Set(plexSeriesIdentityCache.values())].sort((a, b) => a.createdAt - b.createdAt);
+    while (entries.length > PLEX_IDENTITY_MAX_ENTRIES) deletePlexSeriesEntry(entries.shift());
+    return entry;
+  })();
+  for (const alias of inFlightAliases) plexSeriesInFlight.set(alias, promise);
+  try { return await promise; } finally {
+    for (const [alias, pending] of plexSeriesInFlight) if (pending === promise) plexSeriesInFlight.delete(alias);
+  }
+}
+
+async function findPlexEpisode(config, media) {
   const parsed = parseShowTitle(media.title);
   const season = media.season ?? parsed.season;
   const episodeNum = media.episode ?? parsed.episode;
-
-  const children = await fetchPlexSeriesEpisodes(config, media);
-  const episode = children.find(
-    (child) =>
-      Number(child.index) === Number(episodeNum) &&
-      Number(child.parentIndex) === Number(season)
-  );
+  const entry = await resolvePlexSeriesIdentity(config, media);
+  const episode = entry.episodesByCoordinate.get(`${Number(season)}:${Number(episodeNum)}`)?.[0];
 
   if (episode?.ratingKey) {
     traceLog("Plex episode matched from series leaves", {
-      seriesId: series.ratingKey,
+      seriesId: entry.series?.ratingKey,
       itemId: episode.ratingKey,
       season,
       episode: episodeNum,
@@ -356,9 +470,9 @@ async function findPlexEpisode(config, media) {
 }
 
 export async function findPlexItem(config, media) {
-  const cacheKey = getCacheKey(media);
-  if (plexRatingKeyCache.has(cacheKey)) {
-    const ratingKey = plexRatingKeyCache.get(cacheKey);
+  const cacheKey = getCacheKey(media, config);
+  {
+    const ratingKey = getRatingKeyCache(cacheKey);
     if (ratingKey) {
       try {
         const item = await fetchPlexMetadataItem(config, ratingKey, { lane: media?.lane || "sync" });
@@ -382,7 +496,7 @@ export async function findPlexItem(config, media) {
   }
 
   if (item?.ratingKey) {
-    plexRatingKeyCache.set(cacheKey, item.ratingKey);
+    setRatingKeyCache(cacheKey, item.ratingKey);
   }
 
   return item;
@@ -405,12 +519,18 @@ export async function markPlexPlayed(config, media) {
 
     const response = await fetchPlexWithRefresh(config, url, { lane: media?.lane || "sync" });
     if (!response.ok) {
-      throw new Error(`Plex scrobble failed with status ${response.status}`);
+      const error = new Error(`Plex scrobble failed with status ${response.status}`);
+      error.status = response.status;
+      throw error;
     }
 
     console.log("Plex item marked played", { ratingKey: item.ratingKey });
     return { platform: "plex", status: "fulfilled", itemId: item.ratingKey, httpStatus: response.status };
   } catch (error) {
+    if (error?.status === 404 && media.type === "episode" && !media.__identityRetry) {
+      invalidatePlexSeriesIdentity(config, media);
+      return markPlexPlayed(config, { ...media, __identityRetry: true });
+    }
     console.error("Plex client failed", error);
     throw error;
   }
@@ -433,12 +553,18 @@ export async function markPlexUnplayed(config, media) {
 
     const response = await fetchPlexWithRefresh(config, url, { lane: media?.lane || "sync" });
     if (!response.ok) {
-      throw new Error(`Plex unscrobble failed with status ${response.status}`);
+      const error = new Error(`Plex unscrobble failed with status ${response.status}`);
+      error.status = response.status;
+      throw error;
     }
 
     console.log("Plex item marked unplayed", { ratingKey: item.ratingKey });
     return { platform: "plex", status: "fulfilled", itemId: item.ratingKey, httpStatus: response.status };
   } catch (error) {
+    if (error?.status === 404 && media.type === "episode" && !media.__identityRetry) {
+      invalidatePlexSeriesIdentity(config, media);
+      return markPlexUnplayed(config, { ...media, __identityRetry: true });
+    }
     console.error("Plex client failed", error);
     throw error;
   }
@@ -467,7 +593,9 @@ export async function setPlexProgress(config, media) {
 
     const unscrobbleResponse = await fetchPlexWithRefresh(config, unscrobbleUrl, { lane: media?.lane || "sync" });
     if (!unscrobbleResponse.ok) {
-      throw new Error(`Plex progress unscrobble failed with status ${unscrobbleResponse.status}`);
+      const error = new Error(`Plex progress unscrobble failed with status ${unscrobbleResponse.status}`);
+      error.status = unscrobbleResponse.status;
+      throw error;
     }
 
     const url = new URL(`${trimTrailingSlash(config.baseUrl)}/:/progress`);
@@ -479,12 +607,18 @@ export async function setPlexProgress(config, media) {
 
     const response = await fetchPlexWithRefresh(config, url, { lane: media?.lane || "sync" });
     if (!response.ok) {
-      throw new Error(`Plex progress update failed with status ${response.status}`);
+      const error = new Error(`Plex progress update failed with status ${response.status}`);
+      error.status = response.status;
+      throw error;
     }
 
     console.log("Plex item resume progress updated", { ratingKey: item.ratingKey, positionMs });
     return { platform: "plex", status: "fulfilled", itemId: item.ratingKey, positionMs, httpStatus: response.status };
   } catch (error) {
+    if (error?.status === 404 && media.type === "episode" && !media.__identityRetry) {
+      invalidatePlexSeriesIdentity(config, media);
+      return setPlexProgress(config, { ...media, __identityRetry: true });
+    }
     console.error("Plex progress client failed", error);
     throw error;
   }

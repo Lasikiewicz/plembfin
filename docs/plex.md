@@ -61,6 +61,13 @@ Provider IDs come from `parsePlexGuids`, which understands both modern
 (`tmdb://`, `tvdb://`, `imdb://`) and legacy agent (`themoviedb`, `thetvdb`) GUID
 formats.
 
+Outbound episode matching keeps a connection-scoped, ten-minute identity index. One
+series resolution and one `allLeaves` fetch populate the coordinate map for a burst of
+sibling episodes, and concurrent callers join the same in-flight lookup. Exact item keys
+remain coordinate-specific and TTL-bounded. APIs that inspect current `viewCount` or
+container state continue to fetch fresh Plex data instead of treating the identity index
+as watched-state authority.
+
 Two Plex-specific caveats (also in [webhooks.md](webhooks.md)):
 
 - Native Plex webhooks fire only on **state changes** - there is no heartbeat. A single

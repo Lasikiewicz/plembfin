@@ -75,6 +75,117 @@ function parseShowTitle(title) {
   };
 }
 
+const SERIES_CACHE_TTL_MS = 10 * 60 * 1000;
+const SERIES_CACHE_MAX_ENTRIES = 100;
+const jellyfinSeriesCache = new Map();
+const jellyfinSeriesInFlight = new Map();
+let jellyfinCacheNow = () => Date.now();
+
+function jellyfinSeriesAliases(config, media) {
+  const scope = `jellyfin|${trimTrailingSlash(config.baseUrl).toLowerCase()}|${String(config.userId).toLowerCase()}`;
+  const aliases = providerTerms(media.ids).map((term) => `${scope}|${term.toLowerCase()}`);
+  const title = parseShowTitle(media.title).title.toLowerCase().replace(/[^a-z0-9]/g, "");
+  const year = extractYear(media.title);
+  if (title) aliases.push(`${scope}|title:${title}${year ? `|year:${year}` : ""}`);
+  return [...new Set(aliases)];
+}
+
+function jellyfinEntryCompatible(entry, media) {
+  if (!entry.series.length) return true;
+  const requested = media.ids || {};
+  if (!requested.imdb && !requested.tmdb && !requested.tvdb) return true;
+  return entry.series.some((item) => {
+    const ids = item.ProviderIds || {};
+    return (!requested.imdb || !ids.Imdb || String(requested.imdb).toLowerCase() === String(ids.Imdb).toLowerCase())
+      && (!requested.tmdb || !ids.Tmdb || String(requested.tmdb).toLowerCase() === String(ids.Tmdb).toLowerCase())
+      && (!requested.tvdb || !ids.Tvdb || String(requested.tvdb).toLowerCase() === String(ids.Tvdb).toLowerCase());
+  });
+}
+
+function deleteJellyfinEntry(entry) {
+  for (const [alias, value] of jellyfinSeriesCache) if (value === entry) jellyfinSeriesCache.delete(alias);
+}
+
+function getCachedJellyfinEntry(aliases, media) {
+  const now = jellyfinCacheNow();
+  for (const alias of aliases) {
+    const entry = jellyfinSeriesCache.get(alias);
+    if (!entry) continue;
+    if (entry.expiresAt <= now) { deleteJellyfinEntry(entry); continue; }
+    if (jellyfinEntryCompatible(entry, media)) return entry;
+  }
+  return null;
+}
+
+function storeJellyfinEntry(entry, aliases) {
+  for (const alias of aliases) jellyfinSeriesCache.set(alias, entry);
+  const entries = [...new Set(jellyfinSeriesCache.values())].sort((a, b) => a.createdAt - b.createdAt);
+  while (entries.length > SERIES_CACHE_MAX_ENTRIES) deleteJellyfinEntry(entries.shift());
+}
+
+async function resolveJellyfinSeriesIdentity(config, media) {
+  const aliases = jellyfinSeriesAliases(config, media);
+  const hasProviderIdentity = Boolean(media.ids?.imdb || media.ids?.tmdb || media.ids?.tvdb);
+  const inFlightAliases = hasProviderIdentity ? aliases.filter((alias) => !alias.includes("|title:")) : aliases;
+  const cached = getCachedJellyfinEntry(aliases, media);
+  if (cached) return cached;
+  for (const alias of inFlightAliases) {
+    const pending = jellyfinSeriesInFlight.get(alias);
+    if (pending) return pending;
+  }
+  const promise = (async () => {
+    let series = [];
+    try { series = await findByProviderIds(config, media, "Series"); } catch (error) {
+      console.error("Jellyfin provider discovery failed; trying title fallback", error);
+    }
+    if (!series.length) series = await searchJellyfinFallback(config, media, "Series");
+    const now = jellyfinCacheNow();
+    if (!series.length) {
+      const empty = { series: [], episodesByCoordinate: new Map(), expiresAt: now + 20_000, createdAt: now };
+      storeJellyfinEntry(empty, aliases);
+      return empty;
+    }
+    const settled = await Promise.allSettled(series.map((item) => fetchJellyfinEpisodes(config, item.Id, media)));
+    const episodes = settled.flatMap((result) => result.status === "fulfilled" ? result.value : []);
+    if (!episodes.length && settled.every((result) => result.status === "rejected")) throw settled[0].reason;
+    const episodesByCoordinate = new Map();
+    for (const item of episodes) {
+      const key = `${Number(item.ParentIndexNumber)}:${Number(item.IndexNumber)}`;
+      if (!episodesByCoordinate.has(key)) episodesByCoordinate.set(key, []);
+      episodesByCoordinate.get(key).push(item);
+    }
+    const entry = { series, episodesByCoordinate, expiresAt: now + SERIES_CACHE_TTL_MS, createdAt: now };
+    const discoveredAliases = [...aliases];
+    for (const item of series) {
+      const ids = item.ProviderIds || {};
+      discoveredAliases.push(...jellyfinSeriesAliases(config, { ...media, ids: { imdb: ids.Imdb, tmdb: ids.Tmdb, tvdb: ids.Tvdb } }));
+    }
+    storeJellyfinEntry(entry, [...new Set(discoveredAliases)]);
+    return entry;
+  })();
+  for (const alias of inFlightAliases) jellyfinSeriesInFlight.set(alias, promise);
+  try { return await promise; } finally {
+    for (const [alias, pending] of jellyfinSeriesInFlight) if (pending === promise) jellyfinSeriesInFlight.delete(alias);
+  }
+}
+
+export function __resetJellyfinSeriesCache() {
+  jellyfinSeriesCache.clear();
+  jellyfinSeriesInFlight.clear();
+  jellyfinCacheNow = () => Date.now();
+}
+
+export function __setJellyfinSeriesCacheNow(fn) {
+  jellyfinCacheNow = typeof fn === "function" ? fn : () => Date.now();
+}
+
+function invalidateJellyfinSeriesIdentity(config, media) {
+  for (const alias of jellyfinSeriesAliases(config, media)) {
+    const entry = jellyfinSeriesCache.get(alias);
+    if (entry) deleteJellyfinEntry(entry);
+  }
+}
+
 async function searchJellyfinFallback(config, media, targetType) {
   const baseUrl = trimTrailingSlash(config.baseUrl);
   const url = new URL(`${baseUrl}/Users/${config.userId}/Items`);
@@ -105,6 +216,7 @@ async function searchJellyfinFallback(config, media, targetType) {
     }
   } catch (error) {
     console.error("Jellyfin search fallback failed", error);
+    throw error;
   }
   return [];
 }
@@ -112,8 +224,8 @@ async function searchJellyfinFallback(config, media, targetType) {
 async function findByProviderIds(config, media, itemTypes) {
   const baseUrl = trimTrailingSlash(config.baseUrl);
   const allMatched = new Map();
-
-  for (const providerTerm of providerTerms(media.ids)) {
+  const terms = providerTerms(media.ids);
+  const lookups = terms.map(async (providerTerm) => {
     const url = new URL(`${baseUrl}/Users/${config.userId}/Items`);
     url.searchParams.set("Recursive", "true");
     url.searchParams.set("IncludeItemTypes", itemTypes);
@@ -122,8 +234,7 @@ async function findByProviderIds(config, media, itemTypes) {
     url.searchParams.set("api_key", jellyfinApiKey(config));
 
     console.log("Jellyfin lookup started", { itemTypes, providerTerm });
-    try {
-      const body = await fetchJson(url, config, media);
+    const body = await fetchJson(url, config, media);
       const [prov, val] = providerTerm.split(".");
       const providerKey = prov.charAt(0).toUpperCase() + prov.slice(1);
 
@@ -132,14 +243,20 @@ async function findByProviderIds(config, media, itemTypes) {
         return String(pIds[providerKey] || "").toLowerCase() === String(val).toLowerCase();
       }) || [];
 
-      for (const item of items) {
-        if (item?.Id) {
-          allMatched.set(item.Id, item);
-        }
-      }
-    } catch (error) {
-      console.error(`Jellyfin lookup failed for providerTerm: ${providerTerm}`, error);
+    return { providerTerm, items };
+  });
+  const settled = await Promise.allSettled(lookups);
+  settled.forEach((result, index) => {
+    if (result.status === "rejected") {
+      console.error(`Jellyfin lookup failed for providerTerm: ${terms[index]}`, result.reason);
+      return;
     }
+    for (const item of result.value.items) {
+      if (item?.Id) allMatched.set(item.Id, item);
+    }
+  });
+  if (terms.length && settled.every((result) => result.status === "rejected")) {
+    throw settled[0].reason;
   }
 
   const results = Array.from(allMatched.values());
@@ -152,50 +269,11 @@ async function findByProviderIds(config, media, itemTypes) {
 }
 
 async function findEpisode(config, media) {
-  const baseUrl = trimTrailingSlash(config.baseUrl);
-  let seriesList = await findByProviderIds(config, media, "Series");
-  if (!seriesList || seriesList.length === 0) {
-    seriesList = await searchJellyfinFallback(config, media, "Series");
-  }
-  if (!seriesList || seriesList.length === 0) {
-    return [];
-  }
-
   const parsed = parseShowTitle(media.title);
   const season = media.season ?? parsed.season;
   const episodeNum = media.episode ?? parsed.episode;
-
-  const matchedEpisodes = new Map();
-
-  for (const series of seriesList) {
-    const url = new URL(`${baseUrl}/Users/${config.userId}/Items`);
-    url.searchParams.set("ParentId", series.Id);
-    url.searchParams.set("Recursive", "true");
-    url.searchParams.set("IncludeItemTypes", "Episode");
-    url.searchParams.set("Fields", "ProviderIds,UserData");
-    url.searchParams.set("api_key", jellyfinApiKey(config));
-
-    try {
-      const body = await fetchJson(url, config, media);
-      const episodes = body?.Items?.filter((item) => jellyfinEpisodeMatchesCoordinates(item, season, episodeNum)) || [];
-
-      if (episodes.length) {
-        console.log("Jellyfin episode matched from series children", {
-          seriesId: series.Id,
-          itemIds: episodes.map((item) => item.Id),
-          season,
-          episode: episodeNum,
-        });
-        for (const episode of episodes) {
-          if (episode?.Id) matchedEpisodes.set(String(episode.Id), episode);
-        }
-      }
-    } catch (error) {
-      console.error(`Failed to fetch episodes for series ${series.Id}`, error);
-    }
-  }
-
-  return [...matchedEpisodes.values()];
+  const entry = await resolveJellyfinSeriesIdentity(config, media);
+  return entry.episodesByCoordinate.get(`${Number(season)}:${Number(episodeNum)}`) || [];
 }
 
 export function jellyfinEpisodeMatchesCoordinates(item = {}, season, episode) {
@@ -246,7 +324,9 @@ export async function markJellyfinPlayed(config, media) {
         body: JSON.stringify({}),
       });
       if (!response.ok) {
-        throw new Error(`Jellyfin mark played failed with status ${response.status} for item ${item.Id}`);
+        const error = new Error(`Jellyfin mark played failed with status ${response.status} for item ${item.Id}`);
+        error.status = response.status;
+        throw error;
       }
       console.log("Jellyfin item marked played", { itemId: item.Id });
       lastHttpStatus = response.status;
@@ -256,6 +336,10 @@ export async function markJellyfinPlayed(config, media) {
     await Promise.all(markJobs);
     return { platform: "jellyfin", status: "fulfilled", itemId: items[0].Id, itemIds: items.map(i => i.Id), httpStatus: lastHttpStatus };
   } catch (error) {
+    if (error?.status === 404 && media.type === "episode" && !media.__identityRetry) {
+      invalidateJellyfinSeriesIdentity(config, media);
+      return markJellyfinPlayed(config, { ...media, __identityRetry: true });
+    }
     console.error("Jellyfin client failed", error);
     throw error;
   }
@@ -286,7 +370,9 @@ export async function markJellyfinUnplayed(config, media) {
         body: JSON.stringify({}),
       });
       if (!response.ok) {
-        throw new Error(`Jellyfin mark unplayed failed with status ${response.status} for item ${item.Id}`);
+        const error = new Error(`Jellyfin mark unplayed failed with status ${response.status} for item ${item.Id}`);
+        error.status = response.status;
+        throw error;
       }
       console.log("Jellyfin item marked unplayed", { itemId: item.Id });
       lastHttpStatus = response.status;
@@ -296,6 +382,10 @@ export async function markJellyfinUnplayed(config, media) {
     await Promise.all(markJobs);
     return { platform: "jellyfin", status: "fulfilled", itemId: items[0].Id, itemIds: items.map(i => i.Id), httpStatus: lastHttpStatus };
   } catch (error) {
+    if (error?.status === 404 && media.type === "episode" && !media.__identityRetry) {
+      invalidateJellyfinSeriesIdentity(config, media);
+      return markJellyfinUnplayed(config, { ...media, __identityRetry: true });
+    }
     console.error("Jellyfin client failed", error);
     throw error;
   }
@@ -336,7 +426,9 @@ export async function setJellyfinProgress(config, media) {
         }),
       });
       if (!response.ok) {
-        throw new Error(`Jellyfin progress update failed with status ${response.status} for item ${item.Id}`);
+        const error = new Error(`Jellyfin progress update failed with status ${response.status} for item ${item.Id}`);
+        error.status = response.status;
+        throw error;
       }
       console.log("Jellyfin item resume progress updated", { itemId: item.Id, positionMs });
       lastHttpStatus = response.status;
@@ -346,6 +438,10 @@ export async function setJellyfinProgress(config, media) {
     await Promise.all(progressJobs);
     return { platform: "jellyfin", status: "fulfilled", itemId: items[0].Id, itemIds: items.map(i => i.Id), positionMs, httpStatus: lastHttpStatus };
   } catch (error) {
+    if (error?.status === 404 && media.type === "episode" && !media.__identityRetry) {
+      invalidateJellyfinSeriesIdentity(config, media);
+      return setJellyfinProgress(config, { ...media, __identityRetry: true });
+    }
     console.error("Jellyfin progress client failed", error);
     throw error;
   }
@@ -368,12 +464,10 @@ export async function fetchJellyfinEpisodes(config, parentId, media = null) {
 
 export async function fetchJellyfinSeriesEpisodes(config, media) {
   requireJellyfinConfig(config);
-  let series = await findByProviderIds(config, media, "Series");
-  if (!series || series.length === 0) {
-    series = await searchJellyfinFallback(config, media, "Series");
-  }
-  if (!series || series.length === 0) return [];
+  const { series } = await resolveJellyfinSeriesIdentity(config, media);
+  if (!series.length) return [];
 
+  // Reuse stable native series identity but always read mutable UserData fresh.
   const episodeGroups = await Promise.all(series.map((item) => fetchJellyfinEpisodes(config, item.Id, media).catch(() => [])));
   return episodeGroups.flat();
 }

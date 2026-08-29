@@ -172,6 +172,11 @@ Implementation lives in `server/src/scheduled.js`.
      `remainingWatchRowFor()` in `dataRepo.js` promoted from a stale unwatched marker
      back to watched) would reach Trakt stamped as watched right now instead of on
      its real date.
+   - The queue selects at most 15 rows per tick, groups them with the complete
+     history as identity context, and runs up to six different media identities
+     concurrently. Alias rows for the same movie or episode remain serialized so
+     mixed-source loop keys cannot suppress one another. Bulk historical imports
+     remain behind ordinary pending work.
    - Records whose targets keep failing are retried with **exponential backoff**
      (1 m → 5 m → 15 m → 1 h → 6 h, tracked in the `sync_retry_count` /
      `sync_next_retry_at` columns on `watch_history`). After 10 failed attempts a
@@ -182,6 +187,9 @@ Implementation lives in `server/src/scheduled.js`.
      Targets that answer "No matching item found" are recorded in the row's
      telemetry and aggregated per platform by the Cross-Platform Match Report
      (Settings → Sync → Sync Issues, backed by `GET /api/sync-match-report`).
+     A skipped/not-found result is terminal for that target rather than a reason
+     to rediscover the same absent coordinate every minute. An explicit later
+     action or library-history import can retry an item after it enters a library.
    - Every real dispatch this queue makes (and every other one - a bulk duplicate-watch
      cleanup, a single manual watch/unwatch, a webhook-triggered propagation) goes through
      `syncMediaPlaystate` or `syncMediaUnplayedPlaystate` in `syncOrchestrator.js`, which is
@@ -223,6 +231,12 @@ Implementation lives in `server/src/scheduled.js`.
      remote unwatch, deleting the watch it had just created. The unwatch-candidate filter
      excludes any item pushed "watched" within the last 30 minutes for this reason, the same
      window already used to stop a pushed "unwatched" from echoing back as a second unwatch.
+
+Before the manual queue and Trakt snapshot poll start, the scheduler reads the shared
+dispatch-progress owners. When more than eight items remain in an active dispatch burst,
+it defers scheduled media sync and the Trakt poll until the next tick. Backups, TMDB
+prewarm, next-airing, and upcoming-calendar maintenance still run. A scheduled sync
+already in flight is not cancelled; the guard only prevents new competing outbound work.
    - **Sync Now** also reconciles unchanged Trakt watches against Plembfin's current
      canonical state, so it repairs drift that predates the connection baseline.
      The connection card shows an in-progress indicator while the complete snapshot

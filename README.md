@@ -411,7 +411,9 @@ Plembfin runs as a self-hosted Node app (Express + `better-sqlite3` in WAL mode)
 default `ROLE=all` process runs everything; larger installs can split `web` and `worker`
 roles against the same SQLite volume. A per-minute scheduler (leased in SQLite, no
 crontab needed) handles sync reconciliation, cache maintenance, and nightly backups, with
-exponential backoff for offline targets. Every push runs `npm run build` - a syntax
+exponential backoff for offline targets. Large watched-state bursts defer competing
+scheduled media/tracker polling while backups and metadata maintenance continue; pending
+items dispatch concurrently across distinct media identities. Every push runs `npm run build` - a syntax
 check plus a clean-directory boot test - before it ships.
 
 For the full picture - file map, subsystem map, and per-feature references - start at

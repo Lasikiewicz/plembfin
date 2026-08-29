@@ -36,6 +36,10 @@ See [now-playing.md](now-playing.md) for full diagnosis steps.
   sqlite3 data/plembfin.db "SELECT * FROM sync_history ORDER BY created_at DESC LIMIT 10;"
   ```
 - Check the target platform's client credentials (URL / API key / user ID).
+- `status: skipped - No matching item found` is terminal for that target: Plembfin does
+  not retry an episode coordinate that is absent from the connected library every minute.
+  Add the item and use **Retry Sync**, repeat the watched action, or let a later library
+  history import reintroduce it. Timeout, connection, and HTTP errors remain retryable.
 - Errors reading `Request timed out after 10000ms` mean the target server accepted
   the connection but did not answer within the outbound timeout - check that the
   media server is responsive and reachable from the Plembfin host (backup

@@ -8,11 +8,13 @@ const CACHE_FILE_PATH = path.join(DATA_DIR, "tv_progress_cache.json");
 
 let progressCache = {};
 const pendingShowUpdates = new Set();
+let progressFlushPromise = null;
 // Bump whenever progress classification or total episode calculation changes,
 // so existing shows are rebuilt instead of retaining stale counts indefinitely.
 const PROGRESS_CACHE_SCHEMA_VERSION = 3; // trusted user-scoped library-history rows now count as watched
 // How long to wait before retrying a show whose episode total could not be resolved.
 const MISSING_TOTAL_RETRY_MS = 7 * 24 * 60 * 60 * 1000;
+const BURST_TOTAL_REUSE_MS = 60 * 1000;
 
 // True for values like "plex://season/602e6a1b66dfdb002c0a6aa8" or "tvdb://12345"
 // that ended up in a show_title column instead of an actual show name.
@@ -212,12 +214,16 @@ async function calculateAndSetShowProgress(showTitle) {
   const watchedCount = uniqueEpisodes.size;
   
   // Retrieve total episodes count from TMDB (utilizing cached details when possible)
-  let totalEpisodes = 0;
+  const previous = progressCache[showKey];
+  let totalEpisodes = Number(previous?.total_episodes || 0);
   // A handful of rows carry an opaque provider URI in show_title instead of a
   // real name. Neither TVDB nor TMDB can ever resolve one, so attempting it just
   // spends two outbound requests per boot to produce the same failure.
   const titleIsResolvable = Boolean(showTitle) && !isOpaqueProviderRef(showTitle);
-  if (tmdbId || titleIsResolvable) {
+  const reuseRecentTotal = previous
+    && Date.now() - Number(previous.total_checked_at || 0) <= BURST_TOTAL_REUSE_MS
+    && (!tmdbId || !previous.tmdb_id || String(previous.tmdb_id) === String(tmdbId));
+  if (!reuseRecentTotal && (tmdbId || titleIsResolvable)) {
     try {
       const tmdbShow = await getTmdbDetails({
         mediaType: "tv",
@@ -248,6 +254,7 @@ async function calculateAndSetShowProgress(showTitle) {
  * Flushes all pending queued updates to the cache and writes the cache file.
  */
 export async function flushShowProgressUpdates() {
+  if (progressFlushPromise) return progressFlushPromise;
   if (pendingShowUpdates.size === 0) return;
   // The database handle can close before the deferred startup refresh runs
   // (e.g. the test suite's throwaway DB) - drop the queue instead of crashing.
@@ -256,31 +263,53 @@ export async function flushShowProgressUpdates() {
     return;
   }
 
-  const titles = [...pendingShowUpdates];
-  pendingShowUpdates.clear();
+  progressFlushPromise = (async () => {
+    const calculationStartedAt = performance.now();
+    const processedTitles = new Set();
+    // Drain again when an update arrives while an earlier title is awaiting
+    // metadata. Concurrent callers join this promise, so no update is lost and
+    // each caller retains the durable-await contract.
+    while (pendingShowUpdates.size) {
+      const titles = [...pendingShowUpdates];
+      pendingShowUpdates.clear();
+      titles.forEach((title) => processedTitles.add(title));
+      console.log(`[ShowProgressCache] Updating progress for ${titles.length} shows: ${titles.join(", ")}`);
+      for (const title of titles) {
+        if (!db.open) return;
+        await calculateAndSetShowProgress(title);
+      }
+    }
 
-  console.log(`[ShowProgressCache] Updating progress for ${titles.length} shows: ${titles.join(", ")}`);
-  for (const title of titles) {
-    if (!db.open) return;
-    await calculateAndSetShowProgress(title);
-  }
-  
+    const calculationMs = performance.now() - calculationStartedAt;
+    try {
+      const serializationStartedAt = performance.now();
+      const serialized = JSON.stringify(progressCache, null, 2);
+      const serializationMs = performance.now() - serializationStartedAt;
+      const writeStartedAt = performance.now();
+      const tempPath = `${CACHE_FILE_PATH}.${process.pid}.${Date.now()}.tmp`;
+      fs.writeFileSync(tempPath, serialized, "utf8");
+      fs.renameSync(tempPath, CACHE_FILE_PATH);
+      const writeMs = performance.now() - writeStartedAt;
+      console.log(`[ShowProgressCache] Saved updated progress cache to file (${processedTitles.size} shows; calculate ${calculationMs.toFixed(1)}ms, serialize ${serializationMs.toFixed(1)}ms, write ${writeMs.toFixed(1)}ms).`);
+    } catch (e) {
+      console.error("[ShowProgressCache] Failed to save updated progress cache:", e);
+    }
+    // The show list is memoized by data version - bump it so refreshed totals
+    // are visible without waiting for an unrelated watch event.
+    bumpDataVersion();
+  })();
   try {
-    fs.writeFileSync(CACHE_FILE_PATH, JSON.stringify(progressCache, null, 2), "utf8");
-    console.log("[ShowProgressCache] Saved updated progress cache to file.");
-  } catch (e) {
-    console.error("[ShowProgressCache] Failed to save updated progress cache:", e);
+    await progressFlushPromise;
+  } finally {
+    progressFlushPromise = null;
   }
-  // The show list is memoized by data version - bump it so refreshed totals
-  // (e.g. from the startup background refresh) are visible without waiting
-  // for an unrelated watch event to invalidate the cache.
-  bumpDataVersion();
 }
 
 /**
  * Full rebuild of the cache file from database.
  */
 export async function rebuildShowProgressCache() {
+  if (progressFlushPromise) await progressFlushPromise;
   console.log("[ShowProgressCache] Rebuilding TV show progress cache from scratch...");
   const tempCache = {};
   

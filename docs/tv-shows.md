@@ -16,6 +16,12 @@ infinite scroll. Clicking a show opens the show detail page
 | `server/src/utils/nextAiringCache.js` | Next-episode air dates (file cache `data/next-airing-cache.json`) |
 | `server/src/utils/tvdbGateway.js` + `tmdbGateway.js` | Season/episode structure and metadata (see [metadata.md](metadata.md)) |
 
+The progress cache recalculates the watched count from SQLite on every queued flush but
+reuses a recently resolved TMDB total during a burst. Concurrent flush callers share one
+draining promise, and the complete JSON file is atomically replaced only after all queued
+titles are current. Logs report calculation, serialization, and write timings separately.
+Persistence remains synchronous so an awaited flush is durable when it resolves.
+
 ## Data model
 
 A "show" is derived from `watch_history` rows with `media_type = "episode"`, grouped by

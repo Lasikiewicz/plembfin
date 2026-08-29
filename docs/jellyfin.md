@@ -70,12 +70,12 @@ natively reports unwatch via `User Data Saved`, so this is a backstop for a miss
 misconfigured webhook, not the primary detection path - mirrors `checkPlexUnwatchedStatus`
 in [plex.md](plex.md), but Plex needs that poll as its *only* unwatch signal since its
 webhook can't report unwatch at all, and its per-item lookup is a single cheap call, so it
-stays enabled by default at a one-minute cadence over a larger batch. Jellyfin's per-item
-lookup (`findEpisode`: up to 3 provider-ID searches, a title-fallback search, and a full
-series-episode fetch) costs several outbound requests on top of the equivalent Emby check
-running alongside it, which was severe enough at production scale to make the process
-unresponsive and get restarted repeatedly - it needs a real concurrency-limited rework
-before it's safe to enable by default.
+stays enabled by default at a one-minute cadence over a larger batch. Jellyfin runs
+available provider-ID searches concurrently and keeps a connection/user-scoped ten-minute
+identity index for resolved series and episode coordinates. Concurrent sibling episodes
+join one in-flight resolution and reuse one episode-list fetch; operations that inspect
+watched state still fetch fresh `UserData`. Confirmed empty discovery is cached only
+briefly, while transport failures remain retryable.
 
 Playback positions use tick units (1 tick = 100 ns), converted in `scheduled.js`.
 

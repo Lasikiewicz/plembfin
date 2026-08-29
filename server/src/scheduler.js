@@ -1,5 +1,5 @@
 import { createLoopStore } from "./utils/loopStore.js";
-import { activeSyncOperation, appendSyncHistory, loadMediaConfig, loadRuntimeState, setRuntimeState, SYNC_OPERATION_SCHEDULED } from "./utils/configStore.js";
+import { activeSyncOperation, appendSyncHistory, loadBackgroundSyncProgress, loadMediaConfig, loadRuntimeState, setRuntimeState, SYNC_OPERATION_SCHEDULED } from "./utils/configStore.js";
 import { createPlexNotificationListener } from "./utils/plexNotificationListener.js";
 import { createPlexAdaptivePoller } from "./utils/plexAdaptivePoller.js";
 import { fetchPlexContainerEpisodes, fetchPlexMetadataItem, findPlexItem, mergePlexMetadataItem } from "./utils/plexClient.js";
@@ -42,6 +42,11 @@ const NEXT_AIRING_REFRESH_LIMIT = 40;
 let lastNextAiringRefreshAt = 0;
 let nextAiringInitialBuildPending = true;
 let lastUpcomingCalendarRefreshAt = 0;
+const LARGE_DISPATCH_PENDING_THRESHOLD = 8;
+
+export function shouldDeferScheduledOutbound(progress = {}) {
+  return Math.max(0, Number(progress.total || 0) - Number(progress.completed || 0)) > LARGE_DISPATCH_PENDING_THRESHOLD;
+}
 
 function playbackTitleKey(value = "") {
   return String(value || "").toLowerCase().replace(/\(\d{4}\)/g, "").replace(/[^a-z0-9]+/g, "").trim();
@@ -194,9 +199,18 @@ export async function runScheduledTick({ isLeader = () => true } = {}) {
   // (e.g. to /api/sync-jobs, which depends on the invalidation at the end of
   // the run). scheduledTasksInFlight already guards against two overlapping
   // runs, so a generous budget is safe even if a pass runs past one tick.
-  await runWithTimeBudget("Scheduled sync", () => runScheduledSync(), 120_000);
+  const dispatchProgress = await loadBackgroundSyncProgress().catch(() => ({ total: 0, completed: 0 }));
+  const pendingDispatches = Math.max(0, Number(dispatchProgress.total || 0) - Number(dispatchProgress.completed || 0));
+  const deferOutbound = shouldDeferScheduledOutbound(dispatchProgress);
+  if (deferOutbound) {
+    console.log(`Scheduled sync: deferring outbound sync while a large dispatch is in progress (${pendingDispatches} pending).`);
+  } else {
+    await runWithTimeBudget("Scheduled sync", () => runScheduledSync(), 120_000);
+  }
   if (!isLeader()) return { skipped: true, reason: "lease-lost" };
-  await runWithTimeBudget("Tracker watched-state poll", () => pollConnectedTrackers(), 45_000);
+  if (!deferOutbound) {
+    await runWithTimeBudget("Tracker watched-state poll", () => pollConnectedTrackers(), 45_000);
+  }
   if (!isLeader()) return { skipped: true, reason: "lease-lost" };
   await runWithTimeBudget("Scheduled watch-history backup", () => runScheduledWatchBackup(), 30_000);
   if (!isLeader()) return { skipped: true, reason: "lease-lost" };
