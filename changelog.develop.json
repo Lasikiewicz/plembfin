@@ -1,22 +1,6 @@
 {
   "build": 15,
-  "resetCommit": "244174d4170b2e1d46e484084aaac82c1017cc36",
-  "updatedAt": "2026-08-31T16:14:46.895Z",
-  "entries": [
-    {
-      "build": 15,
-      "date": "2026-08-31T16:14:46.895Z",
-      "commit": "29f79f3d8d4707ae9e6f3b4a106bd87113497f82",
-      "message": "Feature - Expand media discovery and personal media workflows",
-      "author": "Lasikiewicz",
-      "details": [
-        "Add Up Next and Discover rails for richer movie and TV discovery.",
-        "Add watchlist, ratings, and custom-list actions across media detail pages.",
-        "Group Force sync, info, image editing, match fixing, and deletion under a persistent Tools section.",
-        "Improve artwork fetching, media cards, and detail-page behavior across screen sizes.",
-        "Add personal-media APIs, database migrations, and artwork persistence for movies and TV shows.",
-        "Keep legacy database upgrades idempotent as the personal-media schema evolves."
-      ]
-    }
-  ]
+  "resetCommit": "0aebdb663513ba93a7e6c3bade5279589f8b9ba4",
+  "updatedAt": "2026-08-31T16:20:55.077Z",
+  "entries": []
 }
