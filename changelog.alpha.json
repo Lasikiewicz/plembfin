@@ -1,10 +1,37 @@
 {
   "baseVersion": "0.14.0",
-  "build": 5,
-  "version": "0.14.0.5",
-  "shortVersion": "0.14.0.5",
-  "updatedAt": "2026-08-31T16:20:55.077Z",
+  "build": 6,
+  "version": "0.14.0.6",
+  "shortVersion": "0.14.0.6",
+  "updatedAt": "2026-08-31T19:11:15.655Z",
   "entries": [
+    {
+      "build": 6,
+      "version": "0.14.0.6",
+      "shortVersion": "0.14.0.6",
+      "date": "2026-08-31T19:11:15.655Z",
+      "commit": "7d8358e76c3eded461def7e182ec3fdabb42cd8b",
+      "message": "Feature - Add discovery and private media collections",
+      "author": "Lasikiewicz",
+      "details": [
+        "Feature: Add discovery and private media collections",
+        "Feature: Browse cached TMDB discovery rails with type and genre filters and direct title actions.",
+        "Feature: Save movies, shows, and episodes to a private watchlist or rate them without changing canonical watch history.",
+        "Feature: Show every custom list as its own horizontal media rail, with four fixed desktop rows and additional lists below.",
+        "Feature: Keep custom-list wheel scrolling predictable by waiting for a stationary pointer and preserving page scrolling at rail boundaries."
+      ],
+      "sections": {
+        "newFeatures": [
+          "Add discovery and private media collections",
+          "Browse cached TMDB discovery rails with type and genre filters and direct title actions.",
+          "Save movies, shows, and episodes to a private watchlist or rate them without changing canonical watch history.",
+          "Show every custom list as its own horizontal media rail, with four fixed desktop rows and additional lists below.",
+          "Keep custom-list wheel scrolling predictable by waiting for a stationary pointer and preserving page scrolling at rail boundaries."
+        ],
+        "majorBugFixes": [],
+        "tweaks": []
+      }
+    },
     {
       "build": 5,
       "version": "0.14.0.5",
