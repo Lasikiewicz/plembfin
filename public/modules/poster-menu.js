@@ -6,7 +6,7 @@
 // anchor means clicking them never triggers card navigation.
 
 import { state } from "./state.js";
-import { customListsForPersonalItem, isPersonalWatchlisted, personalItemFromPosterMenuDataset } from "./personal-media.js?v=20260831p";
+import { customListsForPersonalItem, isPersonalWatchlisted, personalItemFromPosterMenuDataset } from "./personal-media.js?v=20260831q";
 
 let openMenu = null; // { dropdown, button, submenu, submenuTrigger, actionPending, keepOpen, actionButton }
 

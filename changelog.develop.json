@@ -1,6 +1,20 @@
 {
-  "build": 15,
+  "build": 18,
   "resetCommit": "0aebdb663513ba93a7e6c3bade5279589f8b9ba4",
-  "updatedAt": "2026-08-31T16:20:55.077Z",
-  "entries": []
+  "updatedAt": "2026-08-31T19:09:05.661Z",
+  "entries": [
+    {
+      "build": 18,
+      "date": "2026-08-31T19:09:05.661Z",
+      "commit": "b35241660fe64a3a4da499ed3ffeb96606636159",
+      "message": "Feature - Add discovery and private media collections",
+      "author": "Lasikiewicz",
+      "details": [
+        "Browse cached TMDB discovery rails with type and genre filters and direct title actions.",
+        "Save movies, shows, and episodes to a private watchlist or rate them without changing canonical watch history.",
+        "Show every custom list as its own horizontal media rail, with four fixed desktop rows and additional lists below.",
+        "Keep custom-list wheel scrolling predictable by waiting for a stationary pointer and preserving page scrolling at rail boundaries."
+      ]
+    }
+  ]
 }

@@ -149,7 +149,10 @@ as the personal actions on movie and TV show detail pages. Watchlist and custom-
 membership use provider identity when available, with normalized title/year matching as
 a fallback. Detail-page actions update their labels immediately after a successful
 change; an existing watchlist item offers removal, while the custom-list chooser marks
-each list that already contains the title as **Added**.
+each list that already contains the title as **Added**. Custom Lists renders every named
+collection as its own horizontal media rail, keeps up to four rails in the desktop viewport,
+and places additional rails below. Vertical mouse-wheel input enters a rail only after the
+pointer has stopped over it, preserving normal page scrolling while the pointer is moving.
 
 Movie and TV ratings use their provider identity. An episode rating originates from
 the episode row on the show detail page and is keyed by the parent show's identity

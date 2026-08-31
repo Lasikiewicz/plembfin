@@ -12,14 +12,14 @@ import { removeUpNextItem } from "./up-next.js?v=20260831k";
 import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, renderRankingTable } from "./stats.js";
 import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, triggerSearchPage, loadMoreSearchPeople, loadSearchCollection, renderSearchPage, renderExplorer, explorerQueryKey, updateAlphaFilter, handleAlphaFilterClick, resetMovieExplorer, resetShowExplorer, renderExplorerSentinel, observeExplorerSentinel, observeExplorerTmdbPrefetch, scheduleNextAirResort, currentExplorerView, currentExplorerSort, currentPosterWidthKey, setCurrentExplorerSort, applyExplorerPosterWidth, applyListHeaderSort, renderMovieCard, renderMovieExplorer, loadExplorerMovies, applyHistoryPosterWidth, resetHistoryView, renderHistoryItems, renderHistoryView, loadHistoryView, observeHistorySentinel, renderShowExplorer, loadExplorerShows, mergeShowDetail, loadShowDetail, matchesExplorerSearch, sortExplorerItems, renderShowRecord, renderShowFolder, renderSeasonFolder, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, emptyExplorer, FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver } from "./explorer.js?v=20260831b";
 import { openWatchDatePrompt, markDiscoverWatched, submitSeerrRequest } from "./watch-action.js?v=20260831b";
-import { addToWatchlist, removeFromWatchlist, openRatingDialog, openAddToListDialog, addToCustomList, removeFromCustomList, openCreateListDialog, personalItemFromPosterMenuDataset } from "./personal-media.js?v=20260831p";
+import { addToWatchlist, removeFromWatchlist, openRatingDialog, openAddToListDialog, addToCustomList, removeFromCustomList, openCreateListDialog, personalItemFromPosterMenuDataset } from "./personal-media.js?v=20260831q";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails, resolveEpisodeTitleFromTmdb } from "./tmdb.js?v=20260823";
-import { initMediaDetail, nowPlayingHref, openMovieInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, closeMediaInfoModal, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail.js?v=20260831f";
-import { closePersonProfile, loadCastMemberDetails } from "./media-person.js?v=20260831e";
+import { initMediaDetail, nowPlayingHref, openMovieInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, closeMediaInfoModal, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail.js?v=20260831g";
+import { closePersonProfile, loadCastMemberDetails } from "./media-person.js?v=20260831f";
 import { initMediaLightbox } from "./media-lightbox.js";
-import { initMediaDetailEvents, attachMediaDetailEvents, initLibraryForceSyncPanel } from "./media-detail-events.js?v=20260831g";
+import { initMediaDetailEvents, attachMediaDetailEvents, initLibraryForceSyncPanel } from "./media-detail-events.js?v=20260831h";
 import { attachSidebarMiddleClickNavigation } from "./sidebar-navigation.js";
-import { initPosterOverflowMenu, closePosterOverflowMenu, setPosterOverflowMenuActionPending } from "./poster-menu.js?v=20260831k";
+import { initPosterOverflowMenu, closePosterOverflowMenu, setPosterOverflowMenuActionPending } from "./poster-menu.js?v=20260831l";
 
 let _cb = {};
 

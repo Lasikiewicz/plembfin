@@ -6,6 +6,7 @@ import { normalizeMediaCardRecord, renderMediaCard } from "./media-card.js?v=202
 
 const PERSONAL_MEDIA_TTL_MS = 2 * 60 * 1000;
 const PERSONAL_MEDIA_TIMEOUT_MS = 15000;
+const PERSONAL_LIST_WHEEL_ARM_DELAY_MS = 240;
 const PERSONAL_RATING_SECTIONS = [
   { type: "movie", label: "Movies" },
   { type: "tv", label: "TV Shows" },
@@ -510,6 +511,42 @@ function emptyPersonalState(title, detail) {
   return `<div class="empty-log personal-media-empty"><b>${escapeHtml(title)}</b><span>${escapeHtml(detail)}</span></div>`;
 }
 
+function renderCustomListSection(list, index) {
+  const name = list?.name || "Untitled list";
+  const items = Array.isArray(list?.items) ? list.items : [];
+  const headingId = `personal-list-${index}-title`;
+  return `
+    <section class="personal-media-list-section" aria-labelledby="${headingId}">
+      <div class="personal-media-list-heading">
+        <h2 id="${headingId}">${escapeHtml(name)}</h2>
+        <span>${items.length} item${items.length === 1 ? "" : "s"}</span>
+        <button class="button-danger personal-media-delete-list" type="button" data-personal-delete-list="${escapeAttribute(list.id)}" aria-label="Delete ${escapeAttribute(name)}" title="Delete ${escapeAttribute(name)}">Delete</button>
+      </div>
+      <div class="personal-media-list-row horizontal-scroll-row${items.length ? "" : " is-empty"}" data-personal-list-rail>
+        ${items.length
+          ? items.map((item) => personalCard(item, { section: "list", listId: list.id })).join("")
+          : `<div class="empty-log personal-media-list-empty"><b>No items yet</b><span>Add a movie or TV show from any media card.</span></div>`}
+      </div>
+    </section>
+  `;
+}
+
+function renderCustomListSections(lists, startIndex = 0) {
+  return lists.map((list, index) => renderCustomListSection(list, startIndex + index)).join("");
+}
+
+function renderCustomLists(lists) {
+  if (!lists.length) return emptyPersonalState("No custom lists yet", "Create a list to collect films and shows your way.");
+  const visibleLists = lists.slice(0, 4);
+  const additionalLists = lists.slice(4);
+  return `
+    <div class="personal-media-list-viewport">
+      ${renderCustomListSections(visibleLists)}
+    </div>
+    ${additionalLists.length ? `<div class="personal-media-list-overflow">${renderCustomListSections(additionalLists, 4)}</div>` : ""}
+  `;
+}
+
 function renderPersonalRatingSections(ratings) {
   const canonicalRatings = collapsePersonalRatings(ratings);
   return PERSONAL_RATING_SECTIONS.map(({ type, label }) => {
@@ -531,28 +568,51 @@ function renderPersonalRatingSections(ratings) {
   }).join("");
 }
 
-function activePersonalList() {
-  const lists = Array.isArray(state.personalLists) ? state.personalLists : [];
-  if (!lists.length) return null;
-  let list = lists.find((entry) => String(entry.id) === String(state.personalMediaActiveListId));
-  if (!list) {
-    list = lists[0];
-    state.personalMediaActiveListId = list.id;
-  }
-  return list;
-}
-
 function renderPersonalControls() {
-  const list = activePersonalList();
-  const listOptions = (state.personalLists || []).map((entry) => `<option value="${escapeAttribute(entry.id)}"${list?.id === entry.id ? " selected" : ""}>${escapeHtml(entry.name)}</option>`).join("");
   const createListSource = state.personalMediaTab === "lists" ? "custom-lists" : "";
   return `
     <div class="personal-media-toolbar-actions">
-      ${state.personalMediaTab === "lists" && listOptions ? `<label class="personal-media-list-select"><span>List</span><select class="field" data-personal-list-select>${listOptions}</select></label>` : ""}
-      ${state.personalMediaTab === "lists" && list ? `<button class="button-danger personal-media-delete-list" type="button" data-personal-delete-list="${escapeAttribute(list.id)}">Delete list</button>` : ""}
       ${createListSource ? `<button class="button-ghost" type="button" data-personal-create-list="${createListSource}">New list</button>` : ""}
     </div>
   `;
+}
+
+function bindPersonalListWheelBehavior(panel) {
+  for (const rail of panel.querySelectorAll("[data-personal-list-rail]")) {
+    let pointerStationary = false;
+    let stationaryTimer = 0;
+    const clearStationary = () => {
+      pointerStationary = false;
+      window.clearTimeout(stationaryTimer);
+      stationaryTimer = 0;
+    };
+    const armStationary = () => {
+      pointerStationary = false;
+      window.clearTimeout(stationaryTimer);
+      stationaryTimer = window.setTimeout(() => {
+        pointerStationary = true;
+      }, PERSONAL_LIST_WHEEL_ARM_DELAY_MS);
+    };
+
+    rail.addEventListener("pointerenter", armStationary);
+    rail.addEventListener("pointermove", armStationary);
+    rail.addEventListener("pointerleave", clearStationary);
+    rail.addEventListener("pointercancel", clearStationary);
+    rail.addEventListener("wheel", (event) => {
+      if (!pointerStationary || Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+      const delta = event.deltaMode === 1
+        ? event.deltaY * 16
+        : event.deltaMode === 2
+          ? event.deltaY * rail.clientWidth
+          : event.deltaY;
+      const maxScrollLeft = rail.scrollWidth - rail.clientWidth;
+      if (!delta || maxScrollLeft <= 0) return;
+      const nextScrollLeft = Math.max(0, Math.min(maxScrollLeft, rail.scrollLeft + delta));
+      if (nextScrollLeft === rail.scrollLeft) return;
+      event.preventDefault();
+      rail.scrollLeft = nextScrollLeft;
+    }, { passive: false });
+  }
 }
 
 export function renderPersonalMedia() {
@@ -582,13 +642,7 @@ export function renderPersonalMedia() {
       ? renderPersonalRatingSections(ratings)
       : emptyPersonalState("No ratings yet", "Use any media card's actions to keep your own score.");
   } else if (tab === "lists") {
-    const list = activePersonalList();
-    const items = list?.items || [];
-    content = !list
-      ? emptyPersonalState("No custom lists yet", "Create a list to collect films and shows your way.")
-      : items.length
-        ? `<div class="personal-media-list-heading"><b>${escapeHtml(list.name)}</b><span>${items.length} item${items.length === 1 ? "" : "s"}</span></div><div class="personal-media-card-grid">${items.map((item) => personalCard(item, { section: "list", listId: list.id })).join("")}</div>`
-        : emptyPersonalState(`${list.name} is empty`, "Add a movie or TV show from any media card.");
+    content = renderCustomLists(Array.isArray(state.personalLists) ? state.personalLists : []);
   } else {
     const watchlist = state.personalWatchlist || [];
     content = watchlist.length
@@ -596,6 +650,7 @@ export function renderPersonalMedia() {
       : emptyPersonalState("Your watchlist is empty", "Use a media card's menu to save something for later.");
   }
   panel.innerHTML = content;
+  bindPersonalListWheelBehavior(panel);
   hydratePosters(panel);
 }
 
@@ -635,9 +690,6 @@ export async function loadPersonalMedia({ force = false } = {}) {
       state.personalLists = Array.isArray(body.lists)
         ? body.lists.map((list) => ({ ...list, items: Array.isArray(list.items) ? list.items.map(normalizeItem) : [] }))
         : [];
-      if (!state.personalLists.some((list) => String(list.id) === String(state.personalMediaActiveListId))) {
-        state.personalMediaActiveListId = state.personalLists[0]?.id || "";
-      }
       state.personalMediaLoadedAt = Date.now();
       await refreshPersonalViews();
     } catch (error) {
@@ -660,7 +712,6 @@ export function resetPersonalMedia() {
   state.personalRatings = [];
   state.personalWatchlist = [];
   state.personalLists = [];
-  state.personalMediaActiveListId = "";
   closePersonalDialog();
   refreshRenderedPersonalMediaControls();
 }
@@ -822,7 +873,7 @@ export function openAddToListDialog(item) {
   });
 }
 
-export function openCreateListDialog(afterCreateItem = null, { sourceView = state.activeView } = {}) {
+export function openCreateListDialog(afterCreateItem = null) {
   const overlay = dialogFrame("Create a custom list", `
     <form class="personal-media-create-form">
       <label class="field-label" for="personalListName">List name<input id="personalListName" class="field" name="name" maxlength="100" required autocomplete="off" /></label>
@@ -852,10 +903,6 @@ export function openCreateListDialog(afterCreateItem = null, { sourceView = stat
       if (afterCreateItem && list?.id) {
         await addToCustomList(afterCreateItem, list.id);
       } else {
-        if (sourceView === "custom-lists" && list.id) {
-          state.personalMediaActiveListId = list.id;
-          renderPersonalMedia();
-        }
         closePersonalDialog(overlay);
         setPersonalMessage(`${name} created.`, "success");
       }
@@ -882,9 +929,8 @@ async function handlePanelClick(event) {
   const create = event.target.closest("[data-personal-create-list]");
   if (create) {
     event.preventDefault();
-    const sourceView = create.dataset.personalCreateList;
-    if (sourceView !== "watchlist" && sourceView !== "custom-lists") return;
-    openCreateListDialog(null, { sourceView });
+    if (create.dataset.personalCreateList !== "custom-lists") return;
+    openCreateListDialog();
     return;
   }
   const deleteButton = event.target.closest("[data-personal-delete-list]");
@@ -980,19 +1026,10 @@ async function handlePanelClick(event) {
   }
 }
 
-function handlePanelChange(event) {
-  const select = event.target.closest("[data-personal-list-select]");
-  if (!select) return;
-  state.personalMediaActiveListId = select.value;
-  renderPersonalMedia();
-}
-
 export function initPersonalMedia(callbacks = {}) {
   _cb = callbacks;
   if (panelBound || (!elements.personalMediaPanel && !elements.personalMediaTopbarControls)) return;
   panelBound = true;
   elements.personalMediaPanel?.addEventListener("click", handlePanelClick);
-  elements.personalMediaPanel?.addEventListener("change", handlePanelChange);
   elements.personalMediaTopbarControls?.addEventListener("click", handlePanelClick);
-  elements.personalMediaTopbarControls?.addEventListener("change", handlePanelChange);
 }

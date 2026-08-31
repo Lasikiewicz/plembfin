@@ -2,7 +2,7 @@ export const site = {
   name: "Plembfin",
   title: "Plembfin - One local archive for every screen.",
   description:
-    "Plembfin is the self-hosted bridge that remembers what you watched and keeps Plex, Emby, Jellyfin, Trakt, and your metadata sources aligned.",
+    "Plembfin is the self-hosted bridge that remembers what you watched, keeps Plex, Emby, Jellyfin, Trakt, and metadata aligned, and gives you private discovery and media lists.",
   url: "https://plembfin.com",
   repository: "https://github.com/Lasikiewicz/plembfin",
   repositoryDocs: "https://github.com/Lasikiewicz/plembfin/tree/main/docs",
@@ -33,6 +33,14 @@ export const features = [
   {
     title: "Rewatch tracking",
     text: "Full multi-watch history logging with deduplication that preserves genuine repeat viewings.",
+  },
+  {
+    title: "Discovery rails",
+    text: "Browse current TMDB-backed movie and TV feeds, filter them by type or genre, and open a title before it is in your local library.",
+  },
+  {
+    title: "Private media shelves",
+    text: "Keep a personal watchlist, 1–10 ratings, and custom lists alongside the shared library without turning your archive into a public profile.",
   },
   {
     title: "Sync Activity hub",
@@ -71,8 +79,8 @@ export const featureStories = [
   {
     id: "observe",
     title: "Know what is happening.",
-    text: "See playback, recent history, incomplete titles, upcoming episodes, and long-term viewing patterns in one focused dashboard.",
-    bullets: ["Live Now Playing status", "Part-watched media and resume actions", "History, calendar, and useful statistics"],
+    text: "See live playback, the next episode worth starting, recently watched TV and movies, upcoming episodes, and long-term viewing patterns in one focused app.",
+    bullets: ["Now Playing refreshes within seconds", "Up Next with provider availability and Watch Now links", "History, calendar, and useful statistics"],
     imageDark: "/assets/app-captures/now-playing-dark.png",
     imageLight: "/assets/app-captures/now-playing-light.png",
     imageAlt: "Plembfin Now Playing view showing three active playback sessions",
@@ -91,6 +99,28 @@ export const featureStories = [
     linkLabel: "Browse libraries and actions",
   },
   {
+    id: "discover",
+    title: "Find something worth watching.",
+    text: "Discover turns TMDB's current feeds into a browsable set of trending, now-playing, and airing-today rails, with type and genre filters when you want to narrow the signal.",
+    bullets: ["Trending movie and TV rails", "Movie, TV, and genre filters", "Open a title, rate it, watchlist it, or add it to a custom list"],
+    imageDark: "/assets/app-captures/discover-dark.png",
+    imageLight: "/assets/app-captures/discover-light.png",
+    imageAlt: "Plembfin Discover page showing trending movie and TV rails",
+    link: "/docs/discover/",
+    linkLabel: "Explore Discover",
+  },
+  {
+    id: "personal",
+    title: "Keep the queue yours.",
+    text: "Watchlist, ratings, and custom lists are private local tools for deciding what matters to you, without mixing personal intent into canonical watch history.",
+    bullets: ["Save movies, shows, and episodes for later", "Rate media from one to ten", "Create lists for any collection you want to keep"],
+    imageDark: "/assets/app-captures/watchlist-dark.png",
+    imageLight: "/assets/app-captures/watchlist-light.png",
+    imageAlt: "Plembfin Watchlist page showing saved media cards and personal actions",
+    link: "/docs/personal-media/",
+    linkLabel: "Read the personal media guide",
+  },
+  {
     id: "ownership",
     title: "Keep every change explainable.",
     text: "A local archive is only useful when you can understand what happened. Plembfin keeps source, destination, outcome, and retry context close to the record.",
@@ -104,13 +134,13 @@ export const featureStories = [
 ];
 
 export const comparison = {
-  columns: ["Plembfin", "A social tracking hub"],
+  columns: ["Plembfin", "A public tracking hub"],
   rows: [
     {
       label: "Primary focus",
       values: [
         "Watch-history accuracy across every connected media server",
-        "Ratings, personal lists, discovery, and social features",
+        "Public profile, ratings, discovery, and social features",
       ],
     },
     {
@@ -141,8 +171,8 @@ export const comparison = {
     {
       label: "Social features",
       values: [
-        "None, this is a private archive, not a public profile",
-        "Ratings, personal lists, and social features built in",
+        "Private watchlist, ratings, and custom lists; no public profile",
+        "Public ratings, personal lists, and social features built in",
       ],
     },
   ],
@@ -197,10 +227,11 @@ export const docsNav = [
       {
         slug: "dashboard",
         label: "Dashboard",
-        description: "Now Playing, Part Watched, history rows, and the default Card View.",
+        description: "Now Playing, Up Next, watch history rows, and the default Card View.",
         children: [
           { id: "page-structure", label: "Page structure" },
           { id: "now-playing", label: "Now Playing" },
+          { id: "up-next", label: "Up Next" },
           { id: "part-watched", label: "Part Watched" },
           { id: "tv-and-movie-history", label: "TV and movie history" },
           { id: "dashboard-history-cards", label: "Dashboard history cards" },
@@ -223,8 +254,68 @@ export const docsNav = [
   },
   {
     label: "Media and discovery",
-    description: "Inspect a title, correct identity, choose artwork, and control optional detail sections.",
+    description: "Browse current feeds, keep private media lists, inspect titles, correct identity, choose artwork, and control optional detail sections.",
     items: [
+      {
+        slug: "discover",
+        label: "Discover",
+        description: "Browse TMDB-backed rails, filters, and title actions.",
+        children: [
+          { id: "discovery-rails", label: "Discovery rails" },
+          { id: "type-and-genre-filters", label: "Type and genre filters" },
+          { id: "open-and-save-a-title", label: "Open and save a title" },
+        ],
+      },
+      {
+        slug: "personal-media",
+        label: "Personal media",
+        description: "Save, score, and group titles with private local media pages.",
+        children: [
+          { id: "personal-media-at-a-glance", label: "Personal media at a glance" },
+          { id: "choose-the-right-page", label: "Choose the right page" },
+          { id: "actions-from-a-title", label: "Actions from a title" },
+          { id: "privacy-and-watch-state-boundaries", label: "Privacy and watch-state boundaries" },
+        ],
+      },
+      {
+        slug: "watchlist",
+        label: "Watchlist",
+        description: "Save movies, shows, and episodes for later.",
+        children: [
+          { id: "open-watchlist", label: "Open Watchlist" },
+          { id: "saved-media-cards", label: "Saved media cards" },
+          { id: "add-a-title", label: "Add a title" },
+          { id: "rate-or-remove-a-card", label: "Rate or remove a card" },
+          { id: "more-options-and-detail-actions", label: "More options and detail actions" },
+          { id: "empty-state-and-privacy", label: "Empty state and privacy" },
+        ],
+      },
+      {
+        slug: "ratings",
+        label: "Ratings",
+        description: "Keep private 1–10 scores for movies, shows, and episodes.",
+        children: [
+          { id: "open-ratings", label: "Open Ratings" },
+          { id: "rate-a-title-from-a-card", label: "Rate a title from a card" },
+          { id: "rate-from-a-detail-page", label: "Rate from a detail page" },
+          { id: "change-or-remove-a-rating", label: "Change or remove a rating" },
+          { id: "episode-identity-and-groups", label: "Episode identity and groups" },
+          { id: "relationship-to-watched-state", label: "Relationship to watched state" },
+        ],
+      },
+      {
+        slug: "custom-lists",
+        label: "Custom Lists",
+        description: "Create private named collections and manage membership.",
+        children: [
+          { id: "open-custom-lists", label: "Open Custom Lists" },
+          { id: "create-and-select-a-list", label: "Create and select a list" },
+          { id: "add-a-movie-or-tv-show", label: "Add a movie or TV show" },
+          { id: "remove-membership", label: "Remove membership" },
+          { id: "delete-a-list", label: "Delete a list" },
+          { id: "privacy-and-empty-states", label: "Privacy and empty states" },
+        ],
+      },
       {
         slug: "media-details",
         label: "Media details and actions",
@@ -251,7 +342,20 @@ export const docsNav = [
             ],
           },
           { id: "edit-images", label: "Edit Images" },
-          { id: "the-more-menu", label: "The More menu" },
+          {
+            id: "personal-lists-and-the-tools-menu",
+            label: "Personal lists and the Tools menu",
+            children: [
+              { id: "personal-actions", label: "Personal actions" },
+              { id: "tools-menu", label: "Tools menu" },
+              { id: "force-sync", label: "Force Sync" },
+              { id: "info", label: "Info" },
+              { id: "edit-images-from-tools", label: "Edit Images from Tools" },
+              { id: "fix-match-from-tools", label: "Fix Match from Tools" },
+              { id: "delete", label: "Delete" },
+              { id: "merge", label: "Merge" },
+            ],
+          },
           { id: "related-content-and-lightboxes", label: "Related content and lightboxes" },
         ],
       },
@@ -266,6 +370,7 @@ export const docsNav = [
             label: "Dashboard",
             children: [
               { id: "now-playing", label: "Now Playing" },
+              { id: "up-next", label: "Up Next" },
               { id: "part-watched", label: "Part Watched" },
               { id: "dashboard-history", label: "Dashboard history" },
             ],
@@ -273,6 +378,16 @@ export const docsNav = [
           { id: "movies", label: "Movies", children: [{ id: "poster-three-dot-menu", label: "Poster three-dot menu" }] },
           { id: "tv-shows", label: "TV Shows" },
           { id: "upcoming", label: "Upcoming" },
+          { id: "discover", label: "Discover" },
+          {
+            id: "personal-media",
+            label: "Personal media",
+            children: [
+              { id: "watchlist", label: "Watchlist" },
+              { id: "ratings", label: "Ratings" },
+              { id: "custom-lists", label: "Custom Lists" },
+            ],
+          },
           {
             id: "history-and-global-search",
             label: "History and global Search",
@@ -481,6 +596,8 @@ export const docsNav = [
           { id: "a-quick-diagnostic-order", label: "A quick diagnostic order" },
           { id: "now-playing-is-empty-or-stale", label: "Now Playing is empty or stale" },
           { id: "part-watched-is-missing-or-has-the-wrong-progress", label: "Part Watched is missing or has the wrong progress" },
+          { id: "discover-is-empty-or-unavailable", label: "Discover is empty or unavailable" },
+          { id: "watchlist-rating-or-list-action-did-not-update", label: "Watchlist, rating, or list action did not update" },
           { id: "fix-match-returns-no-useful-result", label: "Fix Match returns no useful result" },
           { id: "the-poster-three-dot-menu-is-missing-or-does-nothing", label: "The poster three-dot menu is missing or does nothing" },
           { id: "appearance-settings-are-missing-or-do-not-persist", label: "Appearance settings are missing or do not persist" },
@@ -518,6 +635,17 @@ export const docsSidebarNav = [
     children: [{ slug: "tv-shows/media-page", label: "TV Shows media page" }],
   },
   { id: "upcoming", label: "Upcoming", slug: "upcoming" },
+  { id: "discover", label: "Discover", slug: "discover" },
+  {
+    id: "personal-media",
+    label: "Personal media",
+    slug: "personal-media",
+    children: [
+      { slug: "watchlist", label: "Watchlist" },
+      { slug: "ratings", label: "Ratings" },
+      { slug: "custom-lists", label: "Custom Lists" },
+    ],
+  },
   { id: "history", label: "History", slug: "history-search" },
   { id: "stats", label: "Stats", slug: "stats" },
   {
@@ -547,6 +675,11 @@ export const docsSidebarNav = [
       { slug: "concepts", label: "The sync model" },
       { slug: "navigation", label: "Navigation and global controls" },
       { slug: "media-details", label: "Media details and actions" },
+      { slug: "discover", label: "Discover" },
+      { slug: "personal-media", label: "Personal media overview" },
+      { slug: "watchlist", label: "Watchlist" },
+      { slug: "ratings", label: "Ratings" },
+      { slug: "custom-lists", label: "Custom Lists" },
       { slug: "integrations", label: "Integrations" },
       { slug: "operations", label: "Backups and operations" },
       { slug: "safe-daily-workflows", label: "Safe daily workflows" },
@@ -567,6 +700,11 @@ export const docsPageNav = [
   { slug: "tv-shows", label: "TV Shows" },
   { slug: "tv-shows/media-page", label: "TV Shows media page" },
   { slug: "upcoming", label: "Upcoming" },
+  { slug: "discover", label: "Discover" },
+  { slug: "personal-media", label: "Personal media overview" },
+  { slug: "watchlist", label: "Watchlist" },
+  { slug: "ratings", label: "Ratings" },
+  { slug: "custom-lists", label: "Custom Lists" },
   { slug: "history-search", label: "History and global Search" },
   { slug: "stats", label: "Stats" },
   { slug: "media-details", label: "Media details and editing" },

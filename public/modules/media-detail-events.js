@@ -37,9 +37,9 @@ import {
   renderMovieImmersiveModalContent,
   openHistoryDebugModal,
   openMediaInfoModal,
-} from "./media-detail.js?v=20260831f";
-import { fetchWatchedMovieByTmdb, syncRewatchHistoryToggle } from "./media-detail-movie.js?v=20260831f";
-import { addToWatchlist, removeFromWatchlist, openAddToListDialog, personalItemFromDetailDataset, refreshRenderedPersonalMediaControls, loadPersonalMedia } from "./personal-media.js?v=20260831p";
+} from "./media-detail.js?v=20260831g";
+import { fetchWatchedMovieByTmdb, syncRewatchHistoryToggle } from "./media-detail-movie.js?v=20260831g";
+import { addToWatchlist, removeFromWatchlist, openAddToListDialog, personalItemFromDetailDataset, refreshRenderedPersonalMediaControls, loadPersonalMedia } from "./personal-media.js?v=20260831q";
 
 // Callbacks injected by app-events.js (forwarded from app.js) to avoid circular imports.
 let _cb = {};

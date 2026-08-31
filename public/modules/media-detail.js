@@ -11,10 +11,10 @@ import {
 import {
   openShowImmersiveModalByTitle, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openShowInlineDetail,
   renderImmersiveShowModal, renderShowModalContent, scrollSeasonAccordionIntoView,
-} from "./media-detail-show.js?v=20260831o";
+} from "./media-detail-show.js?v=20260831p";
 import {
   renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, patchMovieWatchedState,
-} from "./media-detail-movie.js?v=20260831f";
+} from "./media-detail-movie.js?v=20260831g";
 import { fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail-shared.js?v=20260831j";
 import { fetchTmdbDetails } from "./tmdb.js?v=20260823";
 
