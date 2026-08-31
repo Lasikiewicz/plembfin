@@ -72,6 +72,7 @@ WIPE_SCOPES.factory = {
     "runtime_state",
     "settings",
     "loop_keys",
+    "media_artwork",
     "poster_cache",
     "tmdb_metadata_cache",
     "tmdb_search_cache",

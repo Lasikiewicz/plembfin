@@ -10,7 +10,7 @@ the module rules. Feature-specific behavior lives in the per-feature docs
 ## Structure
 
 - **`public/index.html`** - the single shell: nav tabs, one `view-panel` section per
-  view (`data-view-panel="dashboard|history|stats|explorer|upcoming|settings|search"`),
+  view (`data-view-panel="dashboard|history|stats|explorer|upcoming|discover|personal-media|settings|search"`),
   every modal/dialog, and `modulepreload` links for each module. All element IDs the JS
   uses are defined here and bound once by `bindElements()` in `app.js`.
 - **`public/app.js`** - orchestrator only (hard rule: stays under 3,000 lines):
@@ -51,6 +51,8 @@ SPA navigation via `history.pushState`:
 | `/`, `/dashboard` | Dashboard |
 | `/movies`, `/tvshows` | Explorer in movies/shows mode |
 | `/upcoming` | Upcoming TV episode calendar |
+| `/discover` | Deterministic TMDB discovery feeds |
+| `/watchlist`, `/ratings`, `/custom-lists` | Personal watchlist, ratings, and custom lists |
 | `/history`, `/stats`, `/search?q=` | History / Stats / Search |
 | `/sync-activity` | Sync Activity: per-media sync rows, newest first |
 | `/settings`, `/settings/:section` | Settings landing list and parent-group administration sections; child sections use `#hash` anchors |
@@ -123,14 +125,37 @@ stays set to the slug throughout, so the address bar keeps the `/tvshow/:key` fo
   by a month as the user scrolls toward either end; server-side month results persist
   locally across restarts, while search can prefetch the next 12 months to list matches
   outside the visible range - see [upcoming.md](upcoming.md).
-- Long-lived caches (explorer pages, dashboard history, poster lookups) persist to
-  localStorage with TTLs and versioned keys; bump the key version when the cached
-  shape changes.
+- Up Next loads through `/api/up-next` only while the dashboard is visible and keeps a
+  short in-memory TTL; Discover loads deterministic TMDB feeds through `/api/discover`
+  with type/genre filters and a longer TTL, hydrates the selected rail set from a
+  bounded localStorage cache for the first paint, then reconciles it with the server
+  cache. A stale server snapshot is served immediately and refreshed in the background;
+  changed snapshots announce a Discover version on `/api/live-updates`, which reloads
+  the active rails without clearing the rendered cards. Both modules preserve rendered
+  data while a refresh is in flight and expose loading, empty, stale, and error states.
+- Long-lived caches (explorer pages, dashboard history, poster lookups, and Discover
+  rail snapshots) persist to localStorage with TTLs and versioned keys; bump the key
+  version when the cached shape changes.
 - `modules/live-updates.js` keeps an authenticated streaming `fetch` open to
-  `/api/live-updates`. A shared SQLite history version lets web and worker processes
-  announce committed watch-state changes; the client debounces bursts and reloads the
-  active library, history, dashboard, or detail page in place, then reconnects after a
-  dropped stream.
+  `/api/live-updates`. A shared SQLite data version lets web and worker processes
+  announce committed watch-state and personal-media changes, while a separate Discover
+  cache version announces changed TMDB feed snapshots. The client debounces bursts and
+  reloads the affected active view in place, then reconnects after a dropped stream.
+
+### Personal media organization
+
+The personal media module backs the Watchlist, Ratings, and Custom Lists pages, as well
+as the personal actions on movie and TV show detail pages. Watchlist and custom-list
+membership use provider identity when available, with normalized title/year matching as
+a fallback. Detail-page actions update their labels immediately after a successful
+change; an existing watchlist item offers removal, while the custom-list chooser marks
+each list that already contains the title as **Added**.
+
+Movie and TV ratings use their provider identity. An episode rating originates from
+the episode row on the show detail page and is keyed by the parent show's identity
+plus its season and episode number. The Ratings page consumes the canonical server
+record, while the client also collapses any legacy aliases defensively. Episode
+artwork remains independent from the show's poster.
 
 ## Settings Layout & Design Standards
 

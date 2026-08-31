@@ -166,6 +166,22 @@ message.
   `state.savingUnwatchIds` for the duration of the delete, so it reads
   "Unwatching..." underneath the dialog if an unrelated in-flight sync happens to
   re-render the season/show panel while the delete is still pending.
+- **Personal ratings** - the show detail page is the source of truth for episode
+  ratings. Each rating uses the parent show's provider identity plus season/episode,
+  so the same episode remains one item on the Ratings page even when another surface
+  only knows an episode-level provider id. Episode artwork is still stored separately
+  and is not replaced by the show's poster.
+- **Personal lists** - movie and show detail pages keep **Add to watch list** and
+  **Add to custom list** in the control bar. The watch-list action changes to
+  **Remove from watch list** when the title is already saved. The custom-list action
+  changes to **In custom list** when it has memberships, and its chooser marks each
+  existing membership as already added. Matching uses the title's provider identity
+  (plus show/season/episode coordinates for episodes), so the state agrees with the
+  Watchlist and Custom Lists pages.
+- **Detail action bar** - the everyday actions stay visible while a permanent
+  **Tools** section groups **Force Sync**, **Info**, **Edit Images**, **Fix Match**,
+  and **Delete**. TV show pages also place **Merge** in Tools. The grouped menu is
+  used at every viewport width so the control bar has one predictable layout.
 - **Rewatch tracking** - a genuine rewatch (a webhook playback event for an
   already-watched item on a later UTC calendar day; see [webhooks.md](webhooks.md#rewatch-detection))
   adds a new watch record instead of being dropped as a duplicate. A bare

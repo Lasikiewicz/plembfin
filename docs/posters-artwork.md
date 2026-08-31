@@ -10,6 +10,7 @@ artwork is fetched once, not per page view.
 | File | Role |
 | --- | --- |
 | `server/src/utils/posterCache.js` | Fetch → sharp resize → store in `data/media/` → record in `poster_cache` |
+| `server/src/utils/mediaArtwork.js` | Resolve and persist the canonical TV-show poster separately from episode artwork (`media_artwork`) |
 | `server/src/index.js` | `handlePoster` (`GET /api/poster`) - candidate resolution; `handleTmdbPoster` / `handleTmdbProfile` / `handleRemoteArtwork` proxies |
 | `server/src/utils/tmdbClient.js` | TMDB poster-URL fallback lookup |
 | `public/modules/images.js` | Frontend: `posterMarkup`, fallback hydration, lookup caching, TMDB URL builders |
@@ -99,11 +100,14 @@ recovered upstream host is still picked up promptly.
 
 Media detail pages let the user pick artwork from TMDB/TVDB/Fanart galleries
 (`edit-dialogs.js` → `openEditImageDialog`, endpoints `GET /api/tmdb-images`,
-`/api/tvdb-images`, `/api/fanart-images`). The selection is stored per watch row
-(`poster_url`, `logo_url`, `backdrop_url` columns) via `POST /api/update-watch`, cached
-locally through the same pipeline, and TV shows inherit the first available artwork
-from their episode rows. Data-URL uploads are also accepted and persisted through
-`cacheArtworkFromUrl`.
+`/api/tvdb-images`, `/api/fanart-images`). A show's selected poster is stored in
+`media_artwork` through `POST /api/update-watch` with `artwork_scope: "show"`.
+Provider aliases and the normalized show title point to the same canonical value,
+so TV-show cards, the library, dashboard fallbacks, and personal show entries use
+the edit everywhere. Episode rows keep their own `watch_history.poster_url`, so
+episode stills are not overwritten by a show-poster edit. Movie artwork remains
+stored on its watch rows and is propagated across repeated plays as before.
+Data-URL uploads are also accepted and persisted through `cacheArtworkFromUrl`.
 
 ## Profile photos
 

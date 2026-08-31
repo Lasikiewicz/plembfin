@@ -1,23 +1,25 @@
 import { buildAuthHeaders, buildNowPlayingUrl, getWebhookToken, onAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./auth.js";
 import { claimWithForm } from "./onboarding.js";
 import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs } from "./logs.js";
-import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS, EXPLORER_VIEW_KEY_MOVIES, EXPLORER_VIEW_KEY_SHOWS, HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS, HISTORY_VIEW_KEY, HISTORY_FILTER_KEY, HISTORY_VIEW_MODES, HISTORY_FILTERS, DASHBOARD_HISTORY_VIEW_KEY, DASHBOARD_HISTORY_VIEW_MODES, PRIMARY_VIEWS } from "./state.js";
+import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS, EXPLORER_VIEW_KEY_MOVIES, EXPLORER_VIEW_KEY_SHOWS, HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS, HISTORY_VIEW_KEY, HISTORY_FILTER_KEY, HISTORY_VIEW_MODES, HISTORY_FILTERS, PRIMARY_VIEWS } from "./state.js";
 import { escapeHtml, sanitizeTitle, safeImageUrl, movieSlug, showTitleFrom, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel } from "./utils.js";
 import { renderSettingsInlineHelp } from "./help-content.js";
-import { compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, markArtworkUnavailable, tmdbProfile } from "./images.js?v=20260826b";
-import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, restoreRemoteBackupFromCard, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runTraktBackfill, runRematchTvShows, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, appendImportLog, loadPlembfinBackups, savePlembfinBackupSettings, createPlembfinBackupNow, downloadPlembfinBackup, deletePlembfinBackupFile, restorePlembfinBackupFromServer, restoreRemotePlembfinBackup, renderPlembfinBackups, updatePlembfinButtonsState, savePlembfinBackupRemoteSettings, createPlembfinBackupRemoteNow, createRemoteWatchBackupNow, saveRemoteWatchBackupSettings } from "./tools.js?v=20260810";
+import { compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, markArtworkUnavailable, tmdbProfile } from "./images.js?v=20260831m";
+import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, restoreRemoteBackupFromCard, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runTraktBackfill, runRematchTvShows, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, appendImportLog, loadPlembfinBackups, savePlembfinBackupSettings, createPlembfinBackupNow, downloadPlembfinBackup, deletePlembfinBackupFile, restorePlembfinBackupFromServer, restoreRemotePlembfinBackup, renderPlembfinBackups, updatePlembfinButtonsState, savePlembfinBackupRemoteSettings, createPlembfinBackupRemoteNow, createRemoteWatchBackupNow, saveRemoteWatchBackupSettings } from "./tools.js?v=20260831a";
 import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerCronSync, triggerStopSync } from "./sync.js";
-import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched, loadPartWatched } from "./dashboard.js?v=20260826b";
+import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched, loadPartWatched } from "./dashboard.js?v=20260831m";
+import { removeUpNextItem } from "./up-next.js?v=20260831k";
 import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, renderRankingTable } from "./stats.js";
-import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, triggerSearchPage, loadMoreSearchPeople, renderSearchPage, renderExplorer, explorerQueryKey, updateAlphaFilter, handleAlphaFilterClick, resetMovieExplorer, resetShowExplorer, renderExplorerSentinel, observeExplorerSentinel, observeExplorerTmdbPrefetch, scheduleNextAirResort, currentExplorerView, currentExplorerSort, currentPosterWidthKey, setCurrentExplorerSort, applyExplorerPosterWidth, applyListHeaderSort, renderMovieCard, renderMovieExplorer, loadExplorerMovies, applyHistoryPosterWidth, resetHistoryView, renderHistoryItems, renderHistoryView, loadHistoryView, observeHistorySentinel, renderShowExplorer, loadExplorerShows, mergeShowDetail, loadShowDetail, matchesExplorerSearch, sortExplorerItems, renderShowRecord, renderShowFolder, renderSeasonFolder, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, emptyExplorer, FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver } from "./explorer.js?v=20260826d";
-import { openWatchDatePrompt } from "./watch-action.js?v=20260826c";
+import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, triggerSearchPage, loadMoreSearchPeople, loadSearchCollection, renderSearchPage, renderExplorer, explorerQueryKey, updateAlphaFilter, handleAlphaFilterClick, resetMovieExplorer, resetShowExplorer, renderExplorerSentinel, observeExplorerSentinel, observeExplorerTmdbPrefetch, scheduleNextAirResort, currentExplorerView, currentExplorerSort, currentPosterWidthKey, setCurrentExplorerSort, applyExplorerPosterWidth, applyListHeaderSort, renderMovieCard, renderMovieExplorer, loadExplorerMovies, applyHistoryPosterWidth, resetHistoryView, renderHistoryItems, renderHistoryView, loadHistoryView, observeHistorySentinel, renderShowExplorer, loadExplorerShows, mergeShowDetail, loadShowDetail, matchesExplorerSearch, sortExplorerItems, renderShowRecord, renderShowFolder, renderSeasonFolder, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, emptyExplorer, FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver } from "./explorer.js?v=20260831b";
+import { openWatchDatePrompt, markDiscoverWatched, submitSeerrRequest } from "./watch-action.js?v=20260831b";
+import { addToWatchlist, removeFromWatchlist, openRatingDialog, openAddToListDialog, addToCustomList, removeFromCustomList, openCreateListDialog, personalItemFromPosterMenuDataset } from "./personal-media.js?v=20260831p";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails, resolveEpisodeTitleFromTmdb } from "./tmdb.js?v=20260823";
-import { initMediaDetail, nowPlayingHref, openMovieInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, closeMediaInfoModal, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail.js?v=20260810";
-import { closePersonProfile, loadCastMemberDetails } from "./media-person.js?v=20260810";
+import { initMediaDetail, nowPlayingHref, openMovieInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, closeMediaInfoModal, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail.js?v=20260831f";
+import { closePersonProfile, loadCastMemberDetails } from "./media-person.js?v=20260831e";
 import { initMediaLightbox } from "./media-lightbox.js";
-import { initMediaDetailEvents, attachMediaDetailEvents, initLibraryForceSyncPanel } from "./media-detail-events.js?v=20260826c";
+import { initMediaDetailEvents, attachMediaDetailEvents, initLibraryForceSyncPanel } from "./media-detail-events.js?v=20260831g";
 import { attachSidebarMiddleClickNavigation } from "./sidebar-navigation.js";
-import { initPosterOverflowMenu } from "./poster-menu.js?v=20260826c";
+import { initPosterOverflowMenu, closePosterOverflowMenu, setPosterOverflowMenuActionPending } from "./poster-menu.js?v=20260831k";
 
 let _cb = {};
 
@@ -72,6 +74,14 @@ export function initAppEvents(callbacks = {}) {
 }
 
 const authHeaders = (...args) => _cb.authHeaders?.(...args), setMessage = (...args) => _cb.setMessage?.(...args), unlockWithToken = (...args) => _cb.unlockWithToken?.(...args), clearSearchInputs = (...args) => _cb.clearSearchInputs?.(...args), selectView = (...args) => _cb.selectView?.(...args), renderLogs = (...args) => _cb.renderLogs?.(...args), logsText = (...args) => _cb.logsText?.(...args), copyToClipboard = (...args) => _cb.copyToClipboard?.(...args), selectBackupsTab = (...args) => _cb.selectBackupsTab?.(...args), navigateTo = (...args) => _cb.navigateTo?.(...args), renderChangelog = (...args) => _cb.renderChangelog?.(...args), lockDashboard = (...args) => _cb.lockDashboard?.(...args), toggleTheme = (...args) => _cb.toggleTheme?.(...args), showConfirmModal = (...args) => _cb.showConfirmModal?.(...args), openConfirmDialog = (...args) => _cb.openConfirmDialog?.(...args) || Promise.resolve(true), closeGlobalSearchDropdown = (...args) => _cb.closeGlobalSearchDropdown?.(...args), saveAdminCredentials = (...args) => _cb.saveAdminCredentials?.(...args), applyActiveView = (...args) => _cb.applyActiveView?.(...args), handleRouting = (...args) => _cb.handleRouting?.(...args), loadHistory = (...args) => _cb.loadHistory?.(...args), loadStats = (...args) => _cb.loadStats?.(...args), loadSavedConfig = (...args) => _cb.loadSavedConfig?.(...args), renderHelp = (...args) => _cb.renderHelp?.(...args), renderDbStatus = (...args) => _cb.renderDbStatus?.(...args), showErrorExplainModal = (...args) => _cb.showErrorExplainModal?.(...args), runRefreshMetadataWorkflow = (...args) => _cb.runRefreshMetadataWorkflow?.(...args), runRefreshTvdbMetadataWorkflow = (...args) => _cb.runRefreshTvdbMetadataWorkflow?.(...args), showToast = (...args) => _cb.showToast?.(...args), logDebug = (...args) => _cb.logDebug?.(...args), syncPageTopbar = (...args) => _cb.syncPageTopbar?.(...args), setUnlocked = (...args) => _cb.setUnlocked?.(...args), renderSettingsStatus = (...args) => _cb.renderSettingsStatus?.(...args), renderAdminCredentialsStatus = (...args) => _cb.renderAdminCredentialsStatus?.(...args), toggleSet = (...args) => _cb.toggleSet?.(...args), renderGlobalSearchDropdown = (...args) => _cb.renderGlobalSearchDropdown?.(...args), loadGlobalDiscovery = (...args) => _cb.loadGlobalDiscovery?.(...args);
+
+function updatePosterMenuAction(button, { label, ariaLabel = label, title = ariaLabel, busy = false, disabled = false }) {
+  button.textContent = label;
+  button.disabled = disabled;
+  button.toggleAttribute("aria-busy", busy);
+  button.setAttribute("aria-label", ariaLabel);
+  button.title = title;
+}
 
 function attachEvents() {
   attachSidebarMiddleClickNavigation(document.querySelector(".topnav"));
@@ -461,6 +471,231 @@ function attachEvents() {
     });
   }
 
+  document.addEventListener("click", (event) => {
+    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const link = event.target.closest("a[data-media-card-href]");
+    if (!link?.dataset.mediaCardHref) return;
+    event.preventDefault();
+    navigateTo(link.dataset.mediaCardHref);
+  });
+
+  const openUpNextWatchPrompt = (watchBtn, event = null) => {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const season = Number(watchBtn.dataset.season);
+    const episode = Number(watchBtn.dataset.episode);
+    const showTitle = watchBtn.dataset.showTitle || "Show";
+    if (!Number.isInteger(season) || !Number.isInteger(episode) || episode <= 0) return;
+    state.pendingWatchAction = {
+      origin: "up-next",
+      scope: "episode",
+      showTitle,
+      showTmdbId: watchBtn.dataset.tmdbId || "",
+      episodes: [{
+        seasonNumber: season,
+        episodeNumber: episode,
+        title: watchBtn.dataset.episodeTitle || episodeCode(season, episode),
+        showTitle,
+        showTmdbId: watchBtn.dataset.tmdbId || "",
+        tvdbId: watchBtn.dataset.tvdbId || "",
+        posterUrl: watchBtn.dataset.posterUrl || null,
+        key: watchBtn.dataset.upNextWatch || watchBtn.dataset.upNextMenuWatch || `up-next:${showTitle}:${season}:${episode}`,
+        airDate: watchBtn.dataset.airDate || null,
+      }],
+      resyncEpisodes: [],
+      label: `Mark ${episodeCode(season, episode)} watched`,
+      countLabel: `${episodeCode(season, episode)} · ${showTitle}`,
+    };
+    openWatchDatePrompt(state.pendingWatchAction);
+  };
+
+  elements.upNextPanel?.addEventListener("click", (event) => {
+    const watchBtn = event.target.closest("[data-up-next-watch]");
+    if (!watchBtn) return;
+    openUpNextWatchPrompt(watchBtn, event);
+  });
+
+  // Overflow menus are portaled to <body>, so their Up Next actions cannot be
+  // delegated from the horizontal row itself.
+  document.addEventListener("click", (event) => {
+    const watchBtn = event.target.closest("[data-up-next-menu-watch]");
+    if (watchBtn) {
+      event.preventDefault();
+      event.stopPropagation();
+      openUpNextWatchPrompt(watchBtn, event);
+      return;
+    }
+
+    const discoverItemFromButton = (button) => ({
+      media_type: button.dataset.discoverMediaType || "movie",
+      tmdb_id: button.dataset.discoverTmdbId || "",
+      tvdb_id: button.dataset.discoverTvdbId || "",
+      imdb_id: button.dataset.discoverImdbId || "",
+      title: button.dataset.discoverTitle || "Untitled",
+      poster_url: button.dataset.discoverPosterUrl || "",
+      release_date: button.dataset.discoverReleaseDate || "",
+    });
+
+    const mediaRateButton = event.target.closest("[data-media-rate]");
+    if (mediaRateButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      openRatingDialog({
+        media_type: mediaRateButton.dataset.mediaRateMediaType || "movie",
+        tmdb_id: mediaRateButton.dataset.mediaRateTmdbId || "",
+        tvdb_id: mediaRateButton.dataset.mediaRateTvdbId || "",
+        imdb_id: mediaRateButton.dataset.mediaRateImdbId || "",
+        show_tmdb_id: mediaRateButton.dataset.mediaRateShowTmdbId || "",
+        show_tvdb_id: mediaRateButton.dataset.mediaRateShowTvdbId || "",
+        show_imdb_id: mediaRateButton.dataset.mediaRateShowImdbId || "",
+        title: mediaRateButton.dataset.mediaRateTitle || "Untitled",
+        show_title: mediaRateButton.dataset.mediaRateShowTitle || "",
+        season: mediaRateButton.dataset.mediaRateSeason || "",
+        episode: mediaRateButton.dataset.mediaRateEpisode || "",
+        poster_url: mediaRateButton.dataset.mediaRatePosterUrl || "",
+        overview: mediaRateButton.dataset.mediaRateOverview || "",
+        release_date: mediaRateButton.dataset.mediaRateReleaseDate || "",
+      });
+      return;
+    }
+
+    const posterPersonalAction = event.target.closest("[data-poster-menu-watchlist], [data-poster-menu-list-id], [data-poster-menu-create-list]");
+    if (posterPersonalAction) {
+      event.preventDefault();
+      event.stopPropagation();
+      const item = personalItemFromPosterMenuDataset(posterPersonalAction.dataset);
+      if (posterPersonalAction.matches("[data-poster-menu-watchlist]")) {
+        const isAdd = posterPersonalAction.dataset.posterMenuWatchlist === "add";
+        const originalLabel = posterPersonalAction.textContent || (isAdd ? "Add to watch list" : "Remove from watch list");
+        const pendingLabel = isAdd ? "Saving…" : "Removing…";
+        const pendingDescription = isAdd ? "Saving to watchlist" : "Removing from watchlist";
+        updatePosterMenuAction(posterPersonalAction, {
+          label: pendingLabel,
+          ariaLabel: pendingDescription,
+          title: pendingDescription,
+          busy: true,
+          disabled: true,
+        });
+        setPosterOverflowMenuActionPending(posterPersonalAction, true);
+        const request = isAdd
+          ? addToWatchlist(item, { showMessage: false })
+          : removeFromWatchlist(item, { showMessage: false });
+        request
+          .then(() => {
+            const label = isAdd ? "Added to watchlist" : "Removed from watchlist";
+            updatePosterMenuAction(posterPersonalAction, { label, ariaLabel: label, title: label, disabled: true });
+            posterPersonalAction.dataset.posterMenuWatchlist = isAdd ? "added" : "removed";
+          })
+          .catch((error) => {
+            updatePosterMenuAction(posterPersonalAction, {
+              label: originalLabel,
+              ariaLabel: originalLabel,
+              title: originalLabel,
+              disabled: false,
+            });
+            setMessage(error.message, "error");
+          })
+          .finally(() => setPosterOverflowMenuActionPending(posterPersonalAction, false));
+      } else if (posterPersonalAction.matches("[data-poster-menu-list-id]")) {
+        const originalLabel = posterPersonalAction.textContent;
+        const isRemove = posterPersonalAction.dataset.posterMenuListAction === "remove";
+        const listName = posterPersonalAction.dataset.posterMenuListName
+          || originalLabel.replace(/^Remove from\s+/, "")
+          || "Custom list";
+        const pendingLabel = `${listName} - ${isRemove ? "Removing…" : "Saving…"}`;
+        updatePosterMenuAction(posterPersonalAction, {
+          label: pendingLabel,
+          ariaLabel: pendingLabel,
+          title: pendingLabel,
+          busy: true,
+          disabled: true,
+        });
+        setPosterOverflowMenuActionPending(posterPersonalAction, true);
+        const request = isRemove
+          ? removeFromCustomList(item, posterPersonalAction.dataset.posterMenuListId, { showMessage: false })
+          : addToCustomList(item, posterPersonalAction.dataset.posterMenuListId, { showMessage: false });
+        request
+          .then(() => {
+            const label = `${listName} - ${isRemove ? "Removed" : "Added"}`;
+            updatePosterMenuAction(posterPersonalAction, { label, ariaLabel: label, title: label, disabled: true });
+            posterPersonalAction.dataset.posterMenuListAction = isRemove ? "removed" : "added";
+          })
+          .catch((error) => {
+            updatePosterMenuAction(posterPersonalAction, {
+              label: originalLabel,
+              ariaLabel: originalLabel,
+              title: originalLabel,
+              disabled: false,
+            });
+            setMessage(error.message, "error");
+          })
+          .finally(() => setPosterOverflowMenuActionPending(posterPersonalAction, false));
+      } else {
+        closePosterOverflowMenu();
+        openCreateListDialog(item);
+      }
+      return;
+    }
+
+    const discoverWatchButton = event.target.closest("[data-discover-mark-watched]");
+    if (discoverWatchButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      markDiscoverWatched(discoverItemFromButton(discoverWatchButton)).catch((error) => setMessage(error.message, "error"));
+      return;
+    }
+
+    const discoverSeerrButton = event.target.closest("[data-discover-seerr-request]");
+    if (discoverSeerrButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      const mediaType = discoverSeerrButton.dataset.seerrMediaType || discoverSeerrButton.dataset.discoverMediaType || "movie";
+      const mediaId = discoverSeerrButton.dataset.seerrMediaId || discoverSeerrButton.dataset.discoverTmdbId || "";
+      submitSeerrRequest(mediaType, mediaId, discoverSeerrButton);
+      return;
+    }
+
+    const discoverWatchlistButton = event.target.closest("[data-discover-watchlist]");
+    if (discoverWatchlistButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      const item = discoverItemFromButton(discoverWatchlistButton);
+      const action = discoverWatchlistButton.dataset.discoverWatchlist === "remove" ? removeFromWatchlist : addToWatchlist;
+      action(item).catch((error) => setMessage(error.message, "error"));
+      return;
+    }
+
+    const discoverRateButton = event.target.closest("[data-discover-rate]");
+    if (discoverRateButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      openRatingDialog(discoverItemFromButton(discoverRateButton));
+      return;
+    }
+
+    const discoverListButton = event.target.closest("[data-discover-add-list]");
+    if (discoverListButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      openAddToListDialog(discoverItemFromButton(discoverListButton));
+      return;
+    }
+
+    const removeBtn = event.target.closest("[data-up-next-remove]");
+    if (!removeBtn) return;
+    event.preventDefault();
+    event.stopPropagation();
+    removeUpNextItem(removeBtn.dataset.upNextRemove, {
+      title: removeBtn.dataset.upNextShowTitle || "",
+      tmdbId: removeBtn.dataset.upNextTmdbId || "",
+      tvdbId: removeBtn.dataset.upNextTvdbId || "",
+      season: removeBtn.dataset.upNextSeason || "",
+      episode: removeBtn.dataset.upNextEpisode || "",
+      episodeTitle: removeBtn.dataset.upNextEpisodeTitle || "",
+      airDate: removeBtn.dataset.upNextAirDate || "",
+    });
+  });
+
   elements.syncProgressIndicator?.addEventListener("click", () => {
     closeMobileMenu();
     navigateTo("/sync-activity");
@@ -826,6 +1061,13 @@ function attachEvents() {
     if (loadMorePeople) {
       e.stopPropagation();
       loadMoreSearchPeople();
+      return;
+    }
+    const collectionToggle = e.target.closest("[data-search-collection]");
+    if (collectionToggle) {
+      e.preventDefault();
+      e.stopPropagation();
+      loadSearchCollection(collectionToggle.dataset.searchCollection);
       return;
     }
     const card = e.target.closest(".explorer-overview-card");
@@ -1217,7 +1459,10 @@ function attachEvents() {
     localStorage.setItem("plembfin:history:posterWidth", `${val}px`);
   });
 
-  elements.partWatchedPanel?.addEventListener("click", async (event) => {
+  // Part Watched now lives inside the TV and movie history sections. Keep the
+  // legacy panel fallbacks for older embeds, but use the dashboard shell as
+  // the delegated root in the current layout.
+  (elements.partWatchedRows || elements.partWatchedPanel || elements.timelineView)?.addEventListener("click", async (event) => {
     const posterLink = event.target.closest("[data-part-watched-href]");
     if (posterLink) {
       event.preventDefault();
@@ -1231,6 +1476,8 @@ function attachEvents() {
     const btn = watchBtn || unwatchBtn;
     const mediaKey = watchBtn ? watchBtn.dataset.actionWatch : unwatchBtn.dataset.actionUnwatch;
     const title = watchBtn ? watchBtn.dataset.title : unwatchBtn.dataset.title;
+    event.preventDefault();
+    event.stopPropagation();
 
     if (watchBtn) {
       const entry = state.partWatchedRaw.find(e => e.media_key === mediaKey);
@@ -1358,17 +1605,6 @@ function attachEvents() {
       state.historyViewMode = view;
       localStorage.setItem(HISTORY_VIEW_KEY, view);
       renderHistoryView();
-    });
-  }
-
-  for (const btn of elements.dashboardHistoryViewButtons || []) {
-    btn.addEventListener("click", () => {
-      const view = btn.dataset.dashboardHistoryView || "cards";
-      if (!DASHBOARD_HISTORY_VIEW_MODES.includes(view)) return;
-      if (view === state.dashboardHistoryViewMode) return;
-      state.dashboardHistoryViewMode = view;
-      localStorage.setItem(DASHBOARD_HISTORY_VIEW_KEY, view);
-      renderDashboard();
     });
   }
 

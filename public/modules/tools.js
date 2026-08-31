@@ -2,7 +2,7 @@ import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute, formatNumber, formatDate, csvRows, normalizeHeader, episodeCode } from "./utils.js";
 import { initBackupTools } from "./tools-backups.js?v=20260810";
-import { initMaintenanceTools } from "./tools-maintenance.js";
+import { initMaintenanceTools } from "./tools-maintenance.js?v=20260831a";
 import { initHealthTools } from "./tools-health.js";
 import { initDuplicateWatchTools } from "./tools-duplicates.js";
 import { initWipeDataTools } from "./tools-wipe-data.js";
@@ -76,7 +76,7 @@ export {
   updatePlembfinButtonsState,
   uploadWatchBackupFile,
 } from "./tools-backups.js?v=20260810";
-export { loadCacheStats, renderCachePanel, resetFullSyncWatchstates } from "./tools-maintenance.js";
+export { loadCacheStats, renderCachePanel, resetFullSyncWatchstates } from "./tools-maintenance.js?v=20260831a";
 export { loadSyncHealth } from "./tools-health.js";
 // ── Trakt / CSV import ─────────────────────────────────────────────────────
 export async function parseSelectedFiles(files) {
@@ -351,6 +351,6 @@ export async function startImport() {
 // checks live in tools-maintenance.js (per CLAUDE.md's module table) and are
 // re-exported here so existing imports of these names from "./tools.js"
 // keep working unchanged.
-export { runRepairWorkflow, runPhantomWatchAudit, runPhantomWatchRepair, runTraktBackfill, runRematchTvShows, runFullSyncWatchstates, cancelFullSyncWatchstates, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory } from "./tools-maintenance.js";
+export { runRepairWorkflow, runPhantomWatchAudit, runPhantomWatchRepair, runTraktBackfill, runRematchTvShows, runFullSyncWatchstates, cancelFullSyncWatchstates, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory } from "./tools-maintenance.js?v=20260831a";
 export { runDuplicateWatchCleanup } from "./tools-duplicates.js";
 export { loadWipeDataPreview, runWipeData } from "./tools-wipe-data.js";

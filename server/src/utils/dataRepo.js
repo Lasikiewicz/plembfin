@@ -7,6 +7,7 @@ import { cachedNextAiringFor, readNextAiringCache } from "./nextAiringCache.js";
 import { buildWatchProvenance, normalizeWatchProvenance } from "./watchProvenance.js";
 import { recordWatchAuditEvent, recordWatchAuditEvents } from "./watchAudit.js";
 import { remoteEpisodeImportError } from "./episodeImportGuard.js";
+import { getCanonicalPosterUrl, saveCanonicalPoster } from "./mediaArtwork.js";
 import {
   initShowProgressCache,
   getCachedShowProgress,
@@ -635,12 +636,17 @@ function statsShowKey(row = {}) {
 }
 
 function compactStatsMedia(row = {}, { key, type, title } = {}) {
+  const isEpisode = row.media_type === "episode" || type === "episode";
   return {
     id: row.id,
     key,
     type,
     title,
-    poster_url: row.poster_url || null,
+    // Stats leaderboard entries represent the show, not one episode. Prefer
+    // the enriched canonical show poster while keeping the episode poster as
+    // a fallback for older rows that have no show artwork yet.
+    poster_url: (isEpisode ? row.show_poster_url || row.poster_url : row.poster_url) || null,
+    show_poster_url: isEpisode ? row.show_poster_url || null : null,
     media_key: row.media_key || null,
     imdb_id: row.imdb_id || null,
     tmdb_id: row.tmdb_id || null,
@@ -853,7 +859,14 @@ export async function getCachedShows({ includeScheduledLibraryHistory = false } 
     // to filter out.
     const tvdbId = group.tvdb_id || "";
     const imdbId = cleanString(group.imdb_id);
-    let posterUrl = group.poster_url || group.representative_episode?.poster_url || "";
+    const canonicalPosterUrl = getCanonicalPosterUrl({
+      media_type: "tv",
+      title: group.title,
+      tmdb_id: tmdbId,
+      tvdb_id: tvdbId,
+      imdb_id: imdbId,
+    });
+    let posterUrl = canonicalPosterUrl || group.poster_url || group.representative_episode?.poster_url || "";
     let status = "";
     if (tmdbId) {
       try {
@@ -878,6 +891,8 @@ export async function getCachedShows({ includeScheduledLibraryHistory = false } 
       tvdb_id: tvdbId,
       status,
       poster_url: posterUrl || null,
+      show_poster_url: canonicalPosterUrl || group.show_poster_url || null,
+      canonical_poster_url: canonicalPosterUrl || group.canonical_poster_url || null,
       episode_count: group.episode_count,
       season_count: group.season_count,
       total_watches: group.total_watches,
@@ -2847,7 +2862,7 @@ export async function queryWatchHistory({ search = "", mediaType = "", limit = 5
       params.search = `%${searchText}%`;
     }
 
-    return db.prepare(`
+    const historyRows = db.prepare(`
       WITH ranked_history AS (
         SELECT
           watch_history.*,
@@ -2880,6 +2895,7 @@ export async function queryWatchHistory({ search = "", mediaType = "", limit = 5
       ORDER BY watched_at DESC
       LIMIT @limit OFFSET @offset
     `).all({ ...params, limit: safeLimit, offset: safeOffset }).map(rowToWatch);
+    return enrichHistoryRowsWithShowArtwork(historyRows);
   }
 
   const rows = await loadHistoryRows({ limit: MAX_HISTORY_LIMIT, offset: 0 });
@@ -2889,7 +2905,7 @@ export async function queryWatchHistory({ search = "", mediaType = "", limit = 5
     return matchesSearch(row, cleanString(search));
   });
   const processed = dedupe ? dedupeHistory(filtered) : filtered;
-  return processed.slice(safeOffset, safeOffset + safeLimit);
+  return enrichHistoryRowsWithShowArtwork(processed.slice(safeOffset, safeOffset + safeLimit));
 }
 
 function compactHistoryPreviewRow(row = {}) {
@@ -2915,6 +2931,7 @@ function compactHistoryPreviewRow(row = {}) {
     episode_title: row.episode_title,
     tmdb_id: row.tmdb_id,
     tvdb_id: row.tvdb_id,
+    show_poster_url: row.show_poster_url || null,
   };
 }
 
@@ -2945,6 +2962,7 @@ export async function queryWatchHistoryPreview({ limit = 120 } = {}) {
       // watch identity. Keep explicit show ids separate because an episode's
       // tmdb_id/tvdb_id may identify the episode rather than the series.
       poster_url: compact.poster_url || show.poster_url || null,
+      show_poster_url: show.show_poster_url || null,
       show_imdb_id: show.imdb_id || null,
       show_tmdb_id: show.tmdb_id || null,
       show_tvdb_id: show.tvdb_id || null,
@@ -3031,9 +3049,9 @@ export async function getWatchStats() {
   // consumer of watch_history already collapses these via
   // filterSameEventDuplicateRows, so Stats needs to match or it overcounts
   // titles the dedup tool correctly sees as having nothing left to remove.
-  const rows = filterSameEventDuplicateRows(
+  const rows = await enrichHistoryRowsWithShowArtwork(filterSameEventDuplicateRows(
     (await loadHistoryRows({ limit: MAX_HISTORY_LIMIT, offset: 0 })).filter(isPlembfinTrackedWatchRow),
-  );
+  ));
   const statsMovieKeys = buildStatsMovieKeys(rows);
   const movieKeys = new Set();
   let episodes = 0;
@@ -4828,18 +4846,34 @@ function groupShowRows(rows = []) {
     )).length;
     const topTmdbId = [...group.tmdbIdCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
     const topImdbId = [...group.imdbIdCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+    const topTvdbId = cachedShowTvdbId(...group.tvdbIdCandidates) || null;
+    const canonicalPosterUrl = getCanonicalPosterUrl({
+      media_type: "tv",
+      title: group.title,
+      tmdb_id: topTmdbId || group.representative_episode?.tmdb_id || "",
+      // Keep an unverified candidate available for artwork lookup. The
+      // media-artwork resolver only accepts it when a cached TVDB/TMDB record
+      // proves it is a series id, so episode-level ids remain harmless.
+      tvdb_id: topTvdbId || [...group.tvdbIdCandidates][0] || "",
+      imdb_id: topImdbId || group.representative_episode?.imdb_id || "",
+    });
     return {
       ...group,
       season_count: group.seasons.size,
       seasons: undefined,
       total_watches: totalWatches,
       rewatched_episode_count: rewatchedEpisodeCount,
-      poster_url: group.poster_url || group.representative_episode?.poster_url || null,
+      // This is the show-level poster. Episode objects below retain their own
+      // poster_url so episode-specific artwork is never replaced by the show
+      // override.
+      poster_url: canonicalPosterUrl || group.poster_url || group.representative_episode?.poster_url || null,
+      show_poster_url: canonicalPosterUrl || null,
+      canonical_poster_url: canonicalPosterUrl || null,
       logo_url: group.logo_url || group.representative_episode?.logo_url || null,
       backdrop_url: group.backdrop_url || group.representative_episode?.backdrop_url || null,
       tmdb_id: topTmdbId || group.representative_episode?.tmdb_id || null,
       imdb_id: topImdbId || group.representative_episode?.imdb_id || null,
-      tvdb_id: cachedShowTvdbId(...group.tvdbIdCandidates) || null,
+      tvdb_id: topTvdbId,
       tvdbIdCandidates: undefined,
       tmdbIdCounts: undefined,
       imdbIdCounts: undefined,
@@ -4847,6 +4881,58 @@ function groupShowRows(rows = []) {
       episodes: group.episodes
         .map((episode) => ({ ...episode, show_title: group.title }))
         .sort((a, b) => Number(a.season || 0) - Number(b.season || 0) || Number(a.episode || 0) - Number(b.episode || 0)),
+    };
+  });
+}
+
+// History endpoints return episode rows rather than the grouped show objects
+// used by the TV library. Attach the shared show artwork as a separate field
+// so history cards can fall back to it without replacing an explicit episode
+// still stored in poster_url. Matching by id/media key first keeps same-title
+// reboots separate; the coordinate fallback covers duplicate watch rows that
+// were deliberately left un-deduped for the History page.
+async function enrichHistoryRowsWithShowArtwork(rows = []) {
+  const input = Array.isArray(rows) ? rows : [];
+  const episodeRows = input.filter((row) => row?.media_type === "episode");
+  if (!episodeRows.length) return input;
+
+  const allEpisodeRows = (await getCachedHistory()).filter((row) => (
+    row?.media_type === "episode" && isPlembfinTrackedEpisodeRow(row)
+  ));
+  const groups = groupShowRows(dedupeHistory(allEpisodeRows));
+  const byId = new Map();
+  const byMediaKey = new Map();
+  const byCoordinate = new Map();
+  for (const group of groups) {
+    for (const episode of group.episodes || []) {
+      if (episode.id != null) byId.set(String(episode.id), group);
+      if (episode.media_key) byMediaKey.set(String(episode.media_key), group);
+      const titleKey = canonicalTitleKey(group.title || episode.show_title || showTitleFrom(episode.title));
+      if (!titleKey || episode.season == null || episode.episode == null) continue;
+      const coordinateKey = `${titleKey}|${episode.season}|${episode.episode}`;
+      const existing = byCoordinate.get(coordinateKey);
+      if (!existing) byCoordinate.set(coordinateKey, group);
+      else if (existing !== group) byCoordinate.set(coordinateKey, null);
+    }
+  }
+
+  return input.map((row) => {
+    if (row?.media_type !== "episode") return row;
+    const titleKey = canonicalTitleKey(row.show_title || showTitleFrom(row.title));
+    const coordinateKey = titleKey && row.season != null && row.episode != null
+      ? `${titleKey}|${row.season}|${row.episode}`
+      : "";
+    const group = byId.get(String(row.id || ""))
+      || (row.media_key ? byMediaKey.get(String(row.media_key)) : null)
+      || (coordinateKey ? byCoordinate.get(coordinateKey) : null);
+    if (!group) return row;
+    const showPosterUrl = group.show_poster_url || group.poster_url || null;
+    return {
+      ...row,
+      show_poster_url: row.show_poster_url || showPosterUrl,
+      show_imdb_id: row.show_imdb_id || group.imdb_id || null,
+      show_tmdb_id: row.show_tmdb_id || group.tmdb_id || null,
+      show_tvdb_id: row.show_tvdb_id || group.tvdb_id || null,
     };
   });
 }
@@ -5034,6 +5120,21 @@ export async function queryShowDetail({ id = "", title = "", tmdbId = "", tvdbId
     // getCachedShows above.
     show.tmdb_id = cleanString(show.tmdb_id) || cachedShowTmdbId(cachedProgress?.tmdb_id, show.representative_episode?.tmdb_id) || null;
     show.total_episodes = cachedProgress?.total_episodes || 0;
+    const canonicalPosterUrl = getCanonicalPosterUrl({
+      media_type: "tv",
+      title: show.title,
+      tmdb_id: show.tmdb_id || "",
+      tvdb_id: show.tvdb_id || "",
+      imdb_id: show.imdb_id || "",
+    });
+    if (canonicalPosterUrl) {
+      show.poster_url = canonicalPosterUrl;
+      show.show_poster_url = canonicalPosterUrl;
+      show.canonical_poster_url = canonicalPosterUrl;
+    } else {
+      show.show_poster_url = show.show_poster_url || null;
+      show.canonical_poster_url = show.canonical_poster_url || null;
+    }
   }
   return show || null;
 }
@@ -5265,7 +5366,20 @@ async function prefetchTmdbMetadataBackground(mediaType, tmdbId, title, recordId
     await persistMovieProviderIds(recordId, record, details).catch((error) => {
       console.error("Failed to persist TMDB movie ids", error);
     });
-    if (recordId && details?.cached_poster_url) {
+    if (record.media_type === "episode" && details?.cached_poster_url) {
+      const savedShowArtwork = saveCanonicalPoster({
+        media_type: "tv",
+        title: details.name || lookupTitle || record.show_title || showTitleFrom(record.title),
+        tmdb_id: details.id || details.external_ids?.tmdb_id || "",
+        tvdb_id: details.external_ids?.tvdb_id || record.tvdb_id || "",
+        imdb_id: details.external_ids?.imdb_id || record.imdb_id || "",
+      }, details.cached_poster_url, { source: "metadata", preserveExisting: true });
+      if (savedShowArtwork.changed) await invalidateHistoryDerivedCaches().catch(() => null);
+    }
+    // TV episode rows may carry episode-specific stills. The metadata cache
+    // remains available to the shared show-poster resolver, but its series
+    // poster must not overwrite the episode's own artwork at ingest time.
+    if (recordId && record.media_type !== "episode" && details?.cached_poster_url) {
       await updateWatchPosterUrl(recordId, details.cached_poster_url).catch(() => null);
     }
     return details;

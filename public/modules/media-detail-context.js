@@ -2,7 +2,7 @@ import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute, platformName, formatDate } from "./utils.js";
 import { historyAction, syncStatus, telemetryLineValue } from "./sync.js";
-import { syncInlineMediaDetailHeading } from "./explorer.js?v=20260826d";
+import { syncInlineMediaDetailHeading } from "./explorer.js?v=20260831b";
 import { auditEventsForRecord, infoSyncSummary, infoSyncTargetStates, infoWatchDetails, mediaInfoGlanceEntries, renderInfoWatchSync } from "./media-info-summary.js";
 
 let _cb = {};
@@ -95,6 +95,22 @@ export function mediaInfoActionHtml() {
       </svg>
       <span>Info</span>
     </button>
+  `;
+}
+
+export function mediaToolsActionHtml(content = "") {
+  return `
+    <details class="actions-tools-dropdown">
+      <summary class="action-pill actions-tools-trigger" aria-label="Open media tools" title="Tools">
+        <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true">
+          <path d="M2 3.25h6v1.5H2v-1.5zm8 0h4v1.5h-4v-1.5zM6.25 1.5h1.5v5h-1.5v-5zM2 7.25h3v1.5H2v-1.5zm5 0h7v1.5H7v-1.5zM4.25 5.5h1.5v5h-1.5v-5zM2 11.25h7v1.5H2v-1.5zm9 0h3v1.5h-3v-1.5zM8.25 9.5h1.5v5h-1.5v-5z" />
+        </svg>
+        <span>Tools</span>
+      </summary>
+      <div class="actions-tools-panel" role="group" aria-label="Media tools">
+        ${content}
+      </div>
+    </details>
   `;
 }
 
@@ -1048,28 +1064,15 @@ export function normalizeMediaDetailActions(el) {
 export function syncMediaActionsMenuState() {
   const el = document.getElementById("mediaDetailActions");
   if (!el) return;
-  const dropdown = el.querySelector(".actions-more-dropdown");
+  const dropdown = el.querySelector(".actions-tools-dropdown");
   if (!dropdown) {
     el.classList.remove("actions-collapsed");
     return;
   }
-  // <details> hides its non-summary content natively whenever it lacks the
-  // `open` attribute, regardless of author CSS display overrides. Force it
-  // open while measuring/flattened so the flattened items actually render;
-  // only a real "More" button toggles it closed once collapsed.
-  dropdown.open = true;
-  el.classList.remove("actions-collapsed");
-  // #mediaDetailActions right-aligns its content (justify-content: flex-end),
-  // so overflow spills off the *start* edge. Browsers don't count start-edge
-  // overflow in scrollWidth the way they do trailing overflow, which made
-  // this check never fire. Force flex-start just for this synchronous
-  // measurement so scrollWidth reflects the real content width.
-  const previousJustify = el.style.justifyContent;
-  el.style.justifyContent = "flex-start";
-  const overflowing = el.scrollWidth > el.clientWidth + 1;
-  el.style.justifyContent = previousJustify;
-  el.classList.toggle("actions-collapsed", overflowing);
-  dropdown.open = !overflowing;
+  // Tools is a permanent grouped action. Keep the class that applies the
+  // popup treatment at every viewport width instead of flattening the tool
+  // actions into the main control bar when there is spare room.
+  el.classList.add("actions-collapsed");
 }
 export function syncTopbarControlsMenuState() {
   const menu = elements.topbarControlsMenu;

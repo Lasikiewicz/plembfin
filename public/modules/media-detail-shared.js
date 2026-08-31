@@ -1,7 +1,7 @@
 import { state } from "./state.js";
 import { buildAuthHeaders } from "./auth.js";
 import { escapeHtml, escapeAttribute, slug, formatTmdbDate, tvShowTmdbHref, movieTmdbHref } from "./utils.js";
-import { tmdbImage, tmdbPoster, tmdbProfile } from "./images.js?v=20260826b";
+import { tmdbImage, tmdbPoster, tmdbProfile } from "./images.js?v=20260831m";
 import { fetchTmdbDetails } from "./tmdb.js?v=20260823";
 
 function authHeaders() {
@@ -421,7 +421,8 @@ function findProviderLogoForNetwork(networkName, providers) {
 }
 
 export function renderMediaFacts(tmdbData, mediaType = "movie", placement = "inline", { ratingsHtml = "", appLinksHtml = "" } = {}) {
-  if (!tmdbData) return "";
+  if (!tmdbData && !ratingsHtml) return "";
+  tmdbData = tmdbData || {};
   const watchProviders = tmdbData["watch/providers"]?.results?.GB || tmdbData["watch/providers"]?.results?.US;
   const providers = watchProviders?.flatrate || [];
   const watchLink = watchProviders?.link || "";
@@ -513,14 +514,44 @@ export function renderMediaFacts(tmdbData, mediaType = "movie", placement = "inl
   `;
 }
 
-function appLinkRowHtml(links = []) {
-  const linkMap = new Map(links.map((link) => [link.target, link]));
-  const activeLinkHtml = [...linkMap.values()].map((link) => `
-    <a class="media-app-link media-app-link--${escapeAttribute(link.target || "")}" href="${escapeAttribute(link.url)}" target="_blank" rel="noopener noreferrer" title="${escapeAttribute(`Open in ${link.label}`)}" aria-label="${escapeAttribute(`Open in ${link.label}`)}">
-      ${link.iconUrl ? `<img class="media-app-link-logo" src="${escapeAttribute(link.iconUrl)}" alt="" loading="lazy" data-err="hide-show-next" />` : ""}
-      <span>${escapeHtml(link.label)}</span>
+const APP_LINK_TARGETS = [
+  ["plex", "Plex"],
+  ["emby", "Emby"],
+  ["jellyfin", "Jellyfin"],
+];
+
+function appLinkHtml(link, { disabled = false, label = "", pillStyle = "" } = {}) {
+  const target = link?.target || "";
+  const displayLabel = link?.label || label || target;
+  const useSourceBadgeStyle = pillStyle === "source-badge";
+  const pillClasses = useSourceBadgeStyle
+    ? ["source-badge", "source-badge--icon", disabled ? "source-badge--disabled" : "source-badge--link"]
+    : ["media-app-link", disabled ? "media-app-link--disabled" : ""];
+  pillClasses.push(`media-app-link--${target}`);
+  const iconClass = useSourceBadgeStyle ? "source-badge-icon" : "media-app-link-logo";
+  if (disabled) {
+    return `
+      <span class="${pillClasses.filter(Boolean).map(escapeAttribute).join(" ")}" title="${escapeAttribute(`${displayLabel} unavailable`)}" aria-label="${escapeAttribute(`${displayLabel} unavailable`)}" aria-disabled="true">
+        <img class="${escapeAttribute(iconClass)}" src="/icons/${escapeAttribute(target)}.svg" alt="" loading="lazy" data-err="hide-show-next" />
+        <span>${escapeHtml(displayLabel)}</span>
+      </span>
+    `;
+  }
+  return `
+    <a class="${pillClasses.filter(Boolean).map(escapeAttribute).join(" ")}" href="${escapeAttribute(link.url)}" target="_blank" rel="noopener noreferrer" title="${escapeAttribute(`Open in ${displayLabel}`)}" aria-label="${escapeAttribute(`Open in ${displayLabel}`)}">
+      ${link.iconUrl ? `<img class="${escapeAttribute(iconClass)}" src="${escapeAttribute(link.iconUrl)}" alt="" loading="lazy" data-err="hide-show-next" />` : ""}
+      <span>${escapeHtml(displayLabel)}</span>
     </a>
-  `).join("");
+  `;
+}
+
+function appLinkRowHtml(links = [], { includeUnavailable = false, pillStyle = "" } = {}) {
+  const linkMap = new Map(links.map((link) => [link.target, link]));
+  const activeLinkHtml = includeUnavailable
+    ? APP_LINK_TARGETS.map(([target, label]) => linkMap.has(target)
+      ? appLinkHtml(linkMap.get(target), { pillStyle })
+      : appLinkHtml({ target, label }, { disabled: true, pillStyle })).join("")
+    : [...linkMap.values()].map((link) => appLinkHtml(link, { pillStyle })).join("");
   if (!activeLinkHtml) return "";
   return `
     <b class="media-app-link-row">
@@ -539,34 +570,38 @@ export async function hydrateMediaAppLinks(root = document) {
 
     const params = new URLSearchParams();
     params.set("mediaType", container.dataset.mediaType || "movie");
-    for (const [param, attr] of [["tmdbId", "tmdbId"], ["imdbId", "imdbId"], ["tvdbId", "tvdbId"], ["title", "title"]]) {
+    for (const [param, attr] of [["tmdbId", "tmdbId"], ["imdbId", "imdbId"], ["tvdbId", "tvdbId"], ["season", "season"], ["episode", "episode"], ["title", "title"]]) {
       const value = container.dataset[attr] || "";
       if (value) params.set(param, value);
     }
 
-    const greyedOutHtml = `
-      <b class="media-app-link-row">
-        <a class="media-app-link media-app-link--plex media-app-link--disabled" title="Checking Plex..." aria-label="Checking Plex..." style="opacity: 0.4; cursor: not-allowed;">
-          <img class="media-app-link-logo" src="/icons/plex.svg" alt="" loading="lazy" data-err="hide-show-next" />
-          <span>Plex</span>
-        </a>
-        <a class="media-app-link media-app-link--emby media-app-link--disabled" title="Checking Emby..." aria-label="Checking Emby..." style="opacity: 0.4; cursor: not-allowed;">
-          <img class="media-app-link-logo" src="/icons/emby.svg" alt="" loading="lazy" data-err="hide-show-next" />
-          <span>Emby</span>
-        </a>
-        <a class="media-app-link media-app-link--jellyfin media-app-link--disabled" title="Checking Jellyfin..." aria-label="Checking Jellyfin..." style="opacity: 0.4; cursor: not-allowed;">
-          <img class="media-app-link-logo" src="/icons/jellyfin.svg" alt="" loading="lazy" data-err="hide-show-next" />
-          <span>Jellyfin</span>
-        </a>
-      </b>
-    `;
+    const pillStyle = container.dataset.appLinkStyle === "source-badge" ? "source-badge" : "";
+    const greyedOutHtml = pillStyle === "source-badge"
+      ? appLinkRowHtml([], { includeUnavailable: true, pillStyle })
+      : `
+        <b class="media-app-link-row">
+          <a class="media-app-link media-app-link--plex media-app-link--disabled" title="Checking Plex..." aria-label="Checking Plex..." style="opacity: 0.4; cursor: not-allowed;">
+            <img class="media-app-link-logo" src="/icons/plex.svg" alt="" loading="lazy" data-err="hide-show-next" />
+            <span>Plex</span>
+          </a>
+          <a class="media-app-link media-app-link--emby media-app-link--disabled" title="Checking Emby..." aria-label="Checking Emby..." style="opacity: 0.4; cursor: not-allowed;">
+            <img class="media-app-link-logo" src="/icons/emby.svg" alt="" loading="lazy" data-err="hide-show-next" />
+            <span>Emby</span>
+          </a>
+          <a class="media-app-link media-app-link--jellyfin media-app-link--disabled" title="Checking Jellyfin..." aria-label="Checking Jellyfin..." style="opacity: 0.4; cursor: not-allowed;">
+            <img class="media-app-link-logo" src="/icons/jellyfin.svg" alt="" loading="lazy" data-err="hide-show-next" />
+            <span>Jellyfin</span>
+          </a>
+        </b>
+      `;
 
     // Render the last known links instantly; fall back to greyed placeholders
     // only when this lookup has never succeeded before.
     const cacheKey = params.toString();
     const cachedEntry = readAppLinksCache()[cacheKey];
     const cachedLinks = Array.isArray(cachedEntry?.links) ? cachedEntry.links : null;
-    const cachedRowHtml = cachedLinks ? appLinkRowHtml(cachedLinks) : "";
+    const includeUnavailable = container.dataset.allApps === "true";
+    const cachedRowHtml = cachedLinks ? appLinkRowHtml(cachedLinks, { includeUnavailable, pillStyle }) : "";
     container.innerHTML = cachedRowHtml || greyedOutHtml;
 
     // A detail page re-renders several times as metadata arrives; refresh a
@@ -580,7 +615,7 @@ export async function hydrateMediaAppLinks(root = document) {
       appLinksRefreshedAt.set(cacheKey, Date.now());
       if (JSON.stringify(body.links) === JSON.stringify(cachedLinks)) return;
       writeAppLinksCacheEntry(cacheKey, body.links);
-      const freshRowHtml = appLinkRowHtml(body.links);
+      const freshRowHtml = appLinkRowHtml(body.links, { includeUnavailable, pillStyle });
       if (freshRowHtml) container.innerHTML = freshRowHtml;
       else if (cachedRowHtml) container.innerHTML = greyedOutHtml;
     } catch {

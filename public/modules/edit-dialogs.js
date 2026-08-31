@@ -2,7 +2,7 @@ import { state } from "./state.js";
 import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, formatDate, actualWatchHistory, sourceBadgeHtml } from "./utils.js?v=20260824h";
 import { buildAuthHeaders } from "./auth.js";
 import { isWatchedHistoryAction } from "./sync.js";
-import { tmdbPoster, tmdbImage, proxiedArtworkUrl } from "./images.js?v=20260826b";
+import { tmdbPoster, tmdbImage, proxiedArtworkUrl } from "./images.js?v=20260831m";
 import { dateAtMiddayIso, refreshShowAfterManualWatch } from "./watch-action.js?v=20260826c";
 import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js";
 
@@ -15,6 +15,7 @@ let _openShowImmersiveModalByTvdbId = async () => {};
 let _navigateTo = () => {};
 let _openConfirmDialog = async () => false;
 let _loadHistory = async () => {};
+let _loadPersonalMedia = async () => {};
 let _renderExplorer = () => {};
 
 export function initEditDialogs(callbacks) {
@@ -26,6 +27,7 @@ export function initEditDialogs(callbacks) {
   if (callbacks.navigateTo) _navigateTo = callbacks.navigateTo;
   if (callbacks.openConfirmDialog) _openConfirmDialog = callbacks.openConfirmDialog;
   if (callbacks.loadHistory) _loadHistory = callbacks.loadHistory;
+  if (callbacks.loadPersonalMedia) _loadPersonalMedia = callbacks.loadPersonalMedia;
   if (callbacks.renderExplorer) _renderExplorer = callbacks.renderExplorer;
 }
 
@@ -1272,14 +1274,28 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
       const payload = activeTab === "youtube"
         ? { youtube_url: ytInput.value.trim(), ...(url ? { poster_url: url } : {}) }
         : { [field]: url };
-      const saved = await apiUpdateWatch(id, payload);
+      const artworkIdentity = options.artworkScope === "show" ? (options.artworkIdentity || {}) : null;
+      const savePayload = artworkIdentity
+        ? {
+          ...payload,
+          artwork_scope: "show",
+          show_title: artworkIdentity.title || options.title || mediaTitle,
+          show_tmdb_id: artworkIdentity.tmdb_id || "",
+          show_tvdb_id: artworkIdentity.tvdb_id || "",
+          show_imdb_id: artworkIdentity.imdb_id || "",
+        }
+        : payload;
+      const saved = await apiUpdateWatch(id, savePayload);
       onSaved?.({
         ...payload,
         ...(saved?.poster_url ? { poster_url: saved.poster_url } : {}),
         ...(saved?.backdrop_url ? { backdrop_url: saved.backdrop_url } : {}),
+        ...(saved?.canonical_poster_url ? { canonical_poster_url: saved.canonical_poster_url } : {}),
+        ...(saved?.show_poster_url ? { show_poster_url: saved.show_poster_url } : {}),
         storage_url: saved?.poster_url,
         updated_ids: saved?.updated_ids,
       });
+      if (artworkIdentity) _loadPersonalMedia({ force: true }).catch(() => { });
       setDialogStatus("Saved.", "success");
       saveBtn.textContent = "Saved";
       window.setTimeout(() => {
@@ -1302,7 +1318,6 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
 export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSaved, options = {}) {
   document.querySelectorAll(".edit-dialog-overlay").forEach((el) => el.remove());
   const isTv = mediaType !== "movie";
-  const sourceLabel = isTv ? "TheTVDB" : "TMDB";
   const headerTitle = options.headerTitle || "Fix Match";
 
   const overlay = document.createElement("div");
@@ -1316,10 +1331,10 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
   overlay.innerHTML = `
     <div class="edit-dialog edit-dialog--wide fix-match-dialog glass-panel">
       <h3>${escapeHtml(headerTitle)}</h3>
-      <p class="muted-copy" style="margin-bottom: 0.75rem;">Search ${sourceLabel} to link the correct ${isTv ? "TV show" : "movie"}${isTv ? " - this rematches every episode of the show" : ""}, or match to a YouTube video.</p>
+      <p class="muted-copy" style="margin-bottom: 0.75rem;">Search all available sources to link the correct ${isTv ? "TV show" : "movie"}${isTv ? " - this rematches every episode of the show" : ""}, or match to a YouTube video.</p>
       <div style="display: flex; gap: 0.5rem;">
         <input type="search" class="field fix-match-input" placeholder="${escapeAttribute(currentTitle || "Search title…")}" value="${escapeAttribute(currentTitle || "")}" style="flex: 1;" />
-        <button class="button-primary fix-match-search-btn" type="button">Search ${sourceLabel}</button>
+        <button class="button-primary fix-match-search-btn" type="button">Search all sources</button>
       </div>
       <div class="fix-match-results"></div>
       <hr style="border:0;border-top:1px solid var(--border);margin:1rem 0 0.75rem;" />
@@ -1410,78 +1425,101 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
     });
   };
 
+  const matchPosterUrl = (item) => {
+    if (item.poster_url) return item.poster_url;
+    if (item.poster_path) return tmdbPoster(item.poster_path, item.tmdb_id, tmdbType) || "/favicon.svg";
+    if (item.image_url) return proxiedArtworkUrl(item.image_url, "poster") || "/favicon.svg";
+    return "/favicon.svg";
+  };
+
+  const renderMatchResults = (results) => {
+    resultsEl.innerHTML = results.map((item) => {
+      const sourceLabels = Array.isArray(item.source_labels) && item.source_labels.length
+        ? item.source_labels
+        : [item.source || "Available source"];
+      const sourceText = [...sourceLabels, item.year ? String(item.year) : ""].filter(Boolean).join(" · ");
+      return `
+        <button class="fix-match-result" type="button"
+          data-match-source="${escapeAttribute(item.source || "")}"
+          data-tmdb-id="${escapeAttribute(item.tmdb_id || "")}"
+          data-tvdb-id="${escapeAttribute(item.tvdb_id || "")}"
+          data-title="${escapeAttribute(item.title || "")}">
+          <img src="${escapeAttribute(matchPosterUrl(item))}" alt="" data-err="fav" />
+          <span class="fix-match-result-title">${escapeHtml(item.title || "Unknown title")}<small>${escapeHtml(sourceText)}</small></span>
+        </button>
+      `;
+    }).join("");
+  };
+
+  const resolveTvdbIdFromTmdb = async (tmdbId) => {
+    if (!tmdbId) throw new Error("This result has no TVDB series identity to rematch.");
+    const res = await fetch(`/api/tmdb-details?mediaType=tv&tmdbId=${encodeURIComponent(tmdbId)}`, { headers: authHeaders() });
+    const body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Could not resolve the TVDB match (HTTP ${res.status})`);
+    const tvdbId = String(body.tvdb_id || body.external_ids?.tvdb_id || "").trim();
+    if (!tvdbId) throw new Error("This result has no TVDB series identity to rematch.");
+    return tvdbId;
+  };
+
+  const bindMatchResults = () => {
+    resultsEl.querySelectorAll(".fix-match-result").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        status.textContent = "";
+        setResultBusy(btn, isTv && !btn.dataset.tvdbId ? "Resolving show match..." : (isTv ? "Preparing rematch..." : "Saving match..."));
+        try {
+          if (isTv) {
+            const tvdbId = btn.dataset.tvdbId || await resolveTvdbIdFromTmdb(btn.dataset.tmdbId);
+            await doTvRematch(tvdbId, btn.dataset.title, btn);
+            return;
+          }
+
+          if (!btn.dataset.tmdbId) throw new Error("This result has no TMDB movie identity.");
+          await apiUpdateWatch(id, { tmdb_id: btn.dataset.tmdbId }, options.mediaKey);
+          state.tmdbDetailsCache.clear();
+          state.tmdbSeasonCache.clear();
+          _clearDerivedUiCaches({ resetExplorer: true });
+          setResultBusy(btn, "Refreshing artwork and metadata...");
+          await onSaved?.({ tmdb_id: btn.dataset.tmdbId, title: btn.dataset.title, refreshed: true });
+          overlay.remove();
+        } catch (err) {
+          status.textContent = `Error: ${err.message}`;
+          btn.classList.remove("is-rematching");
+          for (const result of resultsEl.querySelectorAll(".fix-match-result")) result.disabled = false;
+        }
+      });
+    });
+  };
+
+  let searchRequestId = 0;
   const doSearch = async () => {
     const query = input.value.trim();
     if (!query) return;
+    const requestId = ++searchRequestId;
     status.textContent = "Searching…";
     resultsEl.innerHTML = "";
     try {
-      if (isTv) {
-        const res = await fetch(`/api/tvdb-search?query=${encodeURIComponent(query)}`, { headers: authHeaders() });
-        const data = await res.json();
-        const results = data.results || [];
-        status.textContent = results.length ? "" : "No results found.";
-        resultsEl.innerHTML = results.map((item) => `
-          <button class="fix-match-result" type="button" data-tvdb-id="${escapeAttribute(item.tvdb_id)}" data-title="${escapeAttribute(item.name)}">
-            <img src="${escapeAttribute(item.image_url || "/favicon.svg")}" alt="" data-err="fav" />
-            <span class="fix-match-result-title">${escapeHtml(item.name)}${item.year ? ` <small>(${escapeHtml(item.year)})</small>` : ""}</span>
-          </button>
-        `).join("");
+      const res = await fetch(`/api/fix-match-search?mediaType=${encodeURIComponent(tmdbType)}&query=${encodeURIComponent(query)}`, { headers: authHeaders() });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      if (requestId !== searchRequestId) return;
 
-        resultsEl.querySelectorAll(".fix-match-result").forEach((btn) => {
-          btn.addEventListener("click", async () => {
-            status.textContent = "";
-            setResultBusy(btn, "Preparing rematch...");
-            try {
-              await doTvRematch(btn.dataset.tvdbId, btn.dataset.title, btn);
-            } catch (err) {
-              status.textContent = `Error: ${err.message}`;
-              btn.classList.remove("is-rematching");
-              for (const result of resultsEl.querySelectorAll(".fix-match-result")) result.disabled = false;
-            }
-          });
-        });
-        return;
+      const results = Array.isArray(data.results) ? data.results : [];
+      renderMatchResults(results);
+      bindMatchResults();
+      const unavailable = Object.entries(data.sources || {})
+        .filter(([, source]) => source && source.ok === false)
+        .map(([source]) => source === "local" ? "Local library" : source.toUpperCase());
+      if (!results.length) {
+        status.textContent = unavailable.length
+          ? `No results found. Unavailable sources: ${unavailable.join(", ")}.`
+          : "No results found across the available sources.";
+      } else {
+        status.textContent = unavailable.length
+          ? `Some sources were unavailable: ${unavailable.join(", ")}.`
+          : "";
       }
-
-      if (!state.savedConfig?.tmdb?.configured) { status.textContent = "TMDB API key not configured."; return; }
-      const res = await fetch(`/api/tmdb-search?mediaType=${encodeURIComponent(tmdbType)}&query=${encodeURIComponent(query)}`, { headers: authHeaders() });
-      const data = await res.json();
-      const results = data.results || [];
-      status.textContent = results.length ? "" : "No results found.";
-      resultsEl.innerHTML = results.slice(0, 10).map((item) => {
-        const poster = tmdbPoster(item.poster_path) || "/favicon.svg";
-        const title = item.title || item.name || "Unknown";
-        const year = (item.release_date || item.first_air_date || "").slice(0, 4);
-        return `
-          <button class="fix-match-result" type="button" data-tmdb-id="${item.id}" data-title="${escapeAttribute(title)}">
-            <img src="${escapeAttribute(poster)}" alt="" data-err="fav" />
-            <span class="fix-match-result-title">${escapeHtml(title)}${year ? ` <small>(${escapeHtml(year)})</small>` : ""}</span>
-          </button>
-        `;
-      }).join("");
-
-      resultsEl.querySelectorAll(".fix-match-result").forEach((btn) => {
-        btn.addEventListener("click", async () => {
-          status.textContent = "";
-          setResultBusy(btn, "Saving match...");
-          try {
-            await apiUpdateWatch(id, { tmdb_id: btn.dataset.tmdbId }, options.mediaKey);
-            state.tmdbDetailsCache.clear();
-            state.tmdbSeasonCache.clear();
-            _clearDerivedUiCaches({ resetExplorer: true });
-            setResultBusy(btn, "Refreshing artwork and metadata...");
-            await onSaved?.({ tmdb_id: btn.dataset.tmdbId, title: btn.dataset.title, refreshed: true });
-            overlay.remove();
-          } catch (err) {
-            status.textContent = `Error: ${err.message}`;
-            btn.classList.remove("is-rematching");
-            for (const result of resultsEl.querySelectorAll(".fix-match-result")) result.disabled = false;
-          }
-        });
-      });
     } catch (err) {
-      status.textContent = `Search failed: ${err.message}`;
+      if (requestId === searchRequestId) status.textContent = `Search failed: ${err.message}`;
     }
   };
 

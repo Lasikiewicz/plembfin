@@ -1,7 +1,7 @@
 import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute, platformName, formatNumber, formatDate, shortMonthLabel, movieHref } from "./utils.js";
-import { posterMarkup, hydratePosterFallbacks } from "./images.js?v=20260826b";
+import { posterMarkup, hydratePosterFallbacks } from "./images.js?v=20260831m";
 
 let _cb = {};
 
@@ -268,10 +268,10 @@ export function renderStatsLeaderboard(container, rows = [], { report = selected
 
   container.innerHTML = `
     <div class="stats-lb-leader" data-stats-media-href="${escapeAttribute(statsMediaHref(leader))}" role="link" tabindex="0">
-      <span class="stats-lb-rank-badge">#1</span>
       <div class="stats-lb-leader-poster-wrap">
         ${posterMarkup(leader, "stats-lb-leader-poster")}
       </div>
+      <span class="stats-lb-rank-badge">#1</span>
       <div class="stats-lb-leader-copy">
         <div class="stats-lb-main-copy">
           <h3>${escapeHtml(leader.title || "Unknown media")}</h3>
@@ -290,10 +290,10 @@ export function renderStatsLeaderboard(container, rows = [], { report = selected
     const wpct = Math.round((Number(row.count || 0) / max) * 100);
     return `
           <div class="stats-lb-podium-card" data-stats-media-href="${escapeAttribute(statsMediaHref(row))}" role="link" tabindex="0">
-            <span class="stats-lb-rank-badge">#${rank}</span>
             <div class="stats-lb-podium-poster-wrap">
               ${posterMarkup(row, "stats-lb-podium-poster")}
             </div>
+            <span class="stats-lb-rank-badge">#${rank}</span>
             <div class="stats-lb-podium-body">
               <b class="stats-lb-podium-title">${escapeHtml(row.title || "Unknown media")}</b>
               <div class="stats-lb-card-bottom">
@@ -311,10 +311,10 @@ export function renderStatsLeaderboard(container, rows = [], { report = selected
     const wpct = Math.round((Number(row.count || 0) / max) * 100);
     return `
           <div class="stats-lb-row" data-stats-media-href="${escapeAttribute(statsMediaHref(row))}" role="link" tabindex="0">
-            <span class="stats-lb-rank-badge">#${index + 4}</span>
             <div class="stats-lb-row-poster-wrap">
               ${posterMarkup(row, "stats-lb-row-poster")}
             </div>
+            <span class="stats-lb-rank-badge">#${index + 4}</span>
             <div class="stats-lb-row-body">
               <span class="stats-lb-row-title">${escapeHtml(row.title || "Unknown media")}</span>
               <div class="stats-lb-card-bottom">

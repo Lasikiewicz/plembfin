@@ -1,7 +1,7 @@
 import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute, tvShowTmdbHref } from "./utils.js";
-import { posterMarkup, hydratePosters } from "./images.js?v=20260826b";
+import { posterMarkup, hydratePosters } from "./images.js?v=20260831m";
 
 let _cb = {};
 
@@ -487,7 +487,9 @@ function entryMarkup(episode) {
       data-upcoming-show="${escapeAttribute(episode.showId || "")}"
       data-upcoming-title="${escapeAttribute(episode.showTitle || "")}"
       title="${escapeAttribute(tooltipParts.join(" - "))}">
-      ${posterMarkup(posterItem, "upcoming-entry-poster")}
+      <span class="upcoming-entry-poster-wrap">
+        ${posterMarkup(posterItem, "upcoming-entry-poster")}
+      </span>
       <span class="upcoming-entry-text">
         <span class="upcoming-entry-title">${escapeHtml(episode.showTitle || "Unknown show")}</span>
         <span class="upcoming-entry-meta">

@@ -2,10 +2,12 @@ import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeCode, seasonLabel, formatSeasonTitle, formatTmdbDate, showEpisodeKey } from "./utils.js";
 import { buildAuthHeaders } from "./auth.js";
 import { isWatchedHistoryAction } from "./sync.js";
-import { mergeShowDetail } from "./explorer.js?v=20260826d";
-import { dedupeMediaRecords, resetPartWatchedView, renderPartWatched } from "./dashboard.js?v=20260826b";
+import { mergeShowDetail } from "./explorer.js?v=20260831b";
+import { dedupeMediaRecords, resetPartWatchedView, renderPartWatched } from "./dashboard.js?v=20260831m";
 import { tvSeasonAvailability } from "./media-detail-shared.js";
 import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=20260823";
+import { tmdbPoster } from "./images.js?v=20260831m";
 
 // Callbacks injected by app.js at startup to break circular-import chains.
 let _setMessage = () => {};
@@ -800,6 +802,80 @@ export function markMovieWatched(movie) {
   });
 }
 
+// Discover cards are not guaranteed to exist in the local library yet. Movies
+// can use the normal movie watch-date flow directly; a TV card needs the
+// released episode list first so "Mark watched" records real episode rows
+// rather than inventing a show-level history record.
+export async function markDiscoverWatched(item = {}) {
+  const mediaType = item.media_type === "tv" ? "tv" : "movie";
+  if (mediaType === "movie") {
+    markMovieWatched({
+      tmdbId: item.tmdb_id || item.tmdbId || "",
+      imdbId: item.imdb_id || item.imdbId || "",
+      tvdbId: item.tvdb_id || item.tvdbId || "",
+      title: item.title || "Untitled",
+      posterUrl: item.poster_url || item.posterUrl || "",
+      releaseDate: item.release_date || item.releaseDate || "",
+    });
+    return;
+  }
+
+  const tmdbId = item.tmdb_id || item.tmdbId || "";
+  if (!tmdbId) throw new Error("This TV show has no TMDB id to load its episodes.");
+  _setMessage(`Loading released episodes for "${item.title || "this show"}"…`, "muted");
+
+  try {
+    const details = await fetchTmdbDetails("tv", tmdbId, item.title || "", {
+      imdbId: item.imdb_id || item.imdbId || "",
+      tvdbId: item.tvdb_id || item.tvdbId || "",
+    }, { immediate: true });
+    const showTitle = details?.name || details?.title || item.title || "Show";
+    const showTmdbId = details?.id || tmdbId;
+    const showTvdbId = details?.external_ids?.tvdb_id || item.tvdb_id || item.tvdbId || "";
+    const seasons = (Array.isArray(details?.seasons) ? details.seasons : [])
+      .filter((season) => Number(season?.season_number) > 0)
+      .sort((left, right) => Number(left.season_number) - Number(right.season_number));
+    const seasonDetails = await Promise.all(seasons.map((season) => fetchTmdbSeasonDetails(showTmdbId, season.season_number).catch(() => null)));
+    const today = new Date().toISOString().slice(0, 10);
+    const episodes = seasonDetails
+      .flatMap((season) => Array.isArray(season?.episodes) ? season.episodes : [])
+      .filter((episode) => Number(episode?.episode_number) > 0 && (!episode.air_date || episode.air_date <= today))
+      .map((episode) => ({
+        seasonNumber: Number(episode.season_number),
+        episodeNumber: Number(episode.episode_number),
+        title: episode.name || episode.episode_name || episodeCode(episode.season_number, episode.episode_number),
+        showTitle,
+        showTmdbId: String(showTmdbId),
+        tvdbId: showTvdbId,
+        posterUrl: item.poster_url || item.posterUrl || "",
+        stillUrl: episode.still_path ? tmdbPoster(episode.still_path, showTmdbId, "tv") : "",
+        key: `discover:${showTmdbId}:${episode.season_number}:${episode.episode_number}`,
+        airDate: episode.air_date || null,
+      }))
+      .sort((left, right) => left.seasonNumber - right.seasonNumber || left.episodeNumber - right.episodeNumber);
+
+    if (!episodes.length) throw new Error("No released episodes were found for this TV show.");
+    state.pendingWatchAction = {
+      origin: "discover",
+      scope: "show",
+      showTitle,
+      showTmdbId: String(showTmdbId),
+      episodes,
+      allEpisodes: episodes,
+      resyncEpisodes: [],
+      allResyncEpisodes: [],
+      includeSpecials: false,
+      hasSpecials: false,
+      label: `Mark ${showTitle} watched`,
+      countLabel: `${episodes.length} released episode${episodes.length === 1 ? "" : "s"}`,
+    };
+    openWatchDatePrompt(state.pendingWatchAction);
+  } catch (error) {
+    _setMessage(`Could not load episodes for "${item.title || "this show"}": ${error.message}`, "error");
+    throw error;
+  }
+}
+
 export async function postManualWatchRecords(records, onProgress) {
   let inserted = 0;
   let skipped = 0;
@@ -1256,13 +1332,8 @@ export async function confirmAndMarkUnwatched(button) {
       // explorer visit; state.moviesRaw/historyViewRaw were already kept in
       // sync by removeGridCards, so nothing needs refetching right now.
       _clearDerivedUiCaches({ resetExplorer: false });
-      // The live-update poll's own history-version bump for this same
-      // mutation lands ~1s later (see queueLiveHistoryRefresh/
-      // refreshLiveHistoryView in app.js) and would otherwise immediately
-      // undo the in-place removal above with a full reset + refetch that
-      // resets scroll to the top - suppress that one redundant follow-up
-      // since state is already current.
-      state.suppressExplorerLiveResetUntil = Date.now() + 4000;
+      // The live-update SSE event for this mutation now refreshes data
+      // silently, so it will not undo this in-place removal or reset scroll.
     } else {
       _clearDerivedUiCaches({ resetExplorer: kind === "movie" });
       await historyRefresh;

@@ -1,0 +1,117 @@
+---
+import { site } from "../data/site.js";
+
+const pathname = Astro.url.pathname;
+const isDocs = pathname.startsWith("/docs");
+const isChangelog = pathname.startsWith("/changelog");
+---
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <a class="site-brand" href="/" aria-label="Plembfin home">
+      <img
+        data-theme-logo
+        data-dark-src="/assets/plembfin_header_logo_dark.png"
+        data-light-src="/assets/plembfin_header_logo_light.png"
+        src="/assets/plembfin_header_logo_dark.png"
+        alt="Plembfin"
+        width="164"
+        height="48"
+      />
+    </a>
+
+    <nav id="site-nav" class="site-nav" aria-label="Main navigation">
+      <div class="site-nav-primary">
+        <a class:list={{ active: pathname === "/" }} href="/">Home</a>
+        <a class:list={{ active: isDocs }} href="/docs/">Documentation</a>
+        <a class:list={{ active: isChangelog }} href="/changelog/">Changelog</a>
+      </div>
+      <a class="nav-github nav-github-mobile" href={site.repository} target="_blank" rel="noreferrer">Find on GitHub</a>
+    </nav>
+
+    <div class="site-header-right">
+      <a class="nav-github nav-github-desktop" href={site.repository} target="_blank" rel="noreferrer">Find on GitHub</a>
+
+      <button class="theme-toggle" type="button" data-theme-toggle aria-pressed="false" aria-label="Switch to light mode" title="Switch to light mode">
+        <span class="theme-toggle-track" aria-hidden="true">
+          <span class="theme-toggle-thumb"></span>
+          <span class="theme-toggle-label theme-toggle-label--light">Light</span>
+          <span class="theme-toggle-label theme-toggle-label--dark">Dark</span>
+        </span>
+        <span class="sr-only" data-theme-status>Dark mode selected</span>
+      </button>
+
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav">
+        <span class="sr-only">Toggle navigation</span>
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<script>
+  const navToggle = document.querySelector(".nav-toggle");
+  const nav = document.querySelector("#site-nav");
+  const themeToggle = document.querySelector("[data-theme-toggle]");
+  const themeKey = "plembfin:theme";
+
+  navToggle?.addEventListener("click", () => {
+    const isOpen = document.body.classList.toggle("nav-open");
+    navToggle.setAttribute("aria-expanded", String(isOpen));
+    nav?.querySelector("a")?.focus();
+  });
+
+  nav?.addEventListener("click", (event) => {
+    if (event.target instanceof Element && event.target.closest("a") && window.innerWidth <= 780) {
+      document.body.classList.remove("nav-open");
+      navToggle?.setAttribute("aria-expanded", "false");
+    }
+  });
+
+  const syncThemeControl = () => {
+    const isLightMode = document.documentElement.classList.contains("light-mode");
+    const nextMode = isLightMode ? "dark" : "light";
+    const logo = document.querySelector("[data-theme-logo]");
+
+    if (logo instanceof HTMLImageElement) {
+      logo.src = isLightMode ? logo.dataset.lightSrc || logo.src : logo.dataset.darkSrc || logo.src;
+    }
+
+    document.querySelectorAll("[data-theme-image]").forEach((image) => {
+      if (image instanceof HTMLImageElement) {
+        const nextSource = isLightMode ? image.dataset.lightSrc : image.dataset.darkSrc;
+        if (nextSource && image.getAttribute("src") !== nextSource) image.setAttribute("src", nextSource);
+
+        const imageLink = image.closest("[data-theme-image-link]");
+        if (imageLink instanceof HTMLAnchorElement) {
+          const nextHref = isLightMode ? imageLink.dataset.lightHref : imageLink.dataset.darkHref;
+          if (nextHref && imageLink.getAttribute("href") !== nextHref) imageLink.setAttribute("href", nextHref);
+        }
+      }
+    });
+
+    themeToggle?.setAttribute("aria-pressed", String(isLightMode));
+    themeToggle?.setAttribute("aria-label", `Switch to ${nextMode} mode`);
+    themeToggle?.setAttribute("title", `Switch to ${nextMode} mode`);
+    themeToggle?.querySelector("[data-theme-status]")?.replaceChildren(`${isLightMode ? "Light" : "Dark"} mode selected`);
+    document.querySelector("[data-theme-color]")?.setAttribute("content", isLightMode ? "#ffffff" : "#05080c");
+  };
+
+  themeToggle?.addEventListener("click", () => {
+    const useLightMode = !document.documentElement.classList.contains("light-mode");
+    document.documentElement.classList.add("theme-transition");
+    document.documentElement.classList.toggle("light-mode", useLightMode);
+    document.documentElement.dataset.theme = useLightMode ? "light" : "dark";
+
+    try {
+      window.localStorage.setItem(themeKey, useLightMode ? "light" : "dark");
+    } catch {
+      // The current session still follows the selected mode without storage.
+    }
+
+    syncThemeControl();
+    window.setTimeout(() => document.documentElement.classList.remove("theme-transition"), 180);
+  });
+
+  syncThemeControl();
+</script>

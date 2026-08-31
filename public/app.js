@@ -3,27 +3,30 @@ import { initOnboarding, loadSetupStatus, renderSetupPage, setClaimRequired } fr
 import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs, formatLogLineToHtml } from "./modules/logs.js";
 import { applySettingsRoute, focusSettingsRoute, parseSettingsRoute, prepareSettingsShell, scrollToSettingsSection, settingsPathForLegacy } from "./modules/settings-shell.js";
 import { initSettingsServices, applyConfigToSettingsUi, refreshSeerrCapabilities, renderMediaServerCards, renderMetadataCards } from "./modules/settings-services.js";
-import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS, EXPLORER_VIEW_KEY_MOVIES, EXPLORER_VIEW_KEY_SHOWS, HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS, HISTORY_VIEW_KEY, HISTORY_FILTER_KEY, HISTORY_VIEW_MODES, HISTORY_FILTERS, PRIMARY_VIEWS } from "./modules/state.js";
+import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS, EXPLORER_VIEW_KEY_MOVIES, EXPLORER_VIEW_KEY_SHOWS, HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS, HISTORY_VIEW_KEY, HISTORY_FILTER_KEY, HISTORY_VIEW_MODES, HISTORY_FILTERS, PERSONAL_MEDIA_VIEWS, PRIMARY_VIEWS } from "./modules/state.js";
 import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, movieSlug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, showName, showTitleFrom, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDate, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel } from "./modules/utils.js?v=20260824h";
 import { buildWebhookUrl, renderSettingsInlineHelp } from "./modules/help-content.js";
-import { isCachedStorageImageUrl, compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, rememberPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, tmdbProfile, proxiedArtworkUrl } from "./modules/images.js?v=20260826b";
-import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, loadRemotePlembfinBackupsForRestoreTab, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runPhantomWatchAudit, runPhantomWatchRepair, runTraktBackfill, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, loadPlembfinBackups, renderPlembfinBackups, runDuplicateWatchCleanup, loadWipeDataPreview, runWipeData } from "./modules/tools.js?v=20260810";
+import { isCachedStorageImageUrl, compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, rememberPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, tmdbProfile, proxiedArtworkUrl } from "./modules/images.js?v=20260831m";
+import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, loadRemotePlembfinBackupsForRestoreTab, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runPhantomWatchAudit, runPhantomWatchRepair, runTraktBackfill, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, loadPlembfinBackups, renderPlembfinBackups, runDuplicateWatchCleanup, loadWipeDataPreview, runWipeData } from "./modules/tools.js?v=20260831a";
 import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, showAvailIssuePopup, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerRetrySync, triggerCronSync, triggerStopSync, triggerForceSync, isSyncProgressActive } from "./modules/sync.js";
 import { renderSyncActivity, renderSyncActivityStatus, setSyncActivityProgress, setSyncActivitySearch, loadSyncActivity, downloadSyncActivityLog, retrySyncActivity, startRetryAllSyncActivity, resumeRetryAllSyncActivityIfRunning, fetchAllRetryableSyncActivityIds, toggleSyncActivityRowLog, toggleSyncActivityFailedOnly, startSyncActivityRefresh, stopSyncActivityRefresh } from "./modules/sync-activity.js";
 import { initSyncPreview } from "./modules/sync-preview.js";
-import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched, loadPartWatched } from "./modules/dashboard.js?v=20260826b";
+import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, refreshDashboardHistoryInPlace, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched, loadPartWatched } from "./modules/dashboard.js?v=20260831m";
+import { initUpNext, renderUpNext, loadUpNext, resetUpNext } from "./modules/up-next.js?v=20260831k";
+import { initDiscover, renderDiscover, loadDiscover, resetDiscover } from "./modules/discover.js?v=20260831f";
+import { initPersonalMedia, renderPersonalMedia, loadPersonalMedia, resetPersonalMedia } from "./modules/personal-media.js?v=20260831p";
 import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, loadStats, renderRankingTable } from "./modules/stats.js";
 import { initUpcoming, openUpcomingToToday } from "./modules/upcoming.js";
-import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, triggerSearchPage, renderSearchPage, renderExplorer, explorerQueryKey, updateAlphaFilter, handleAlphaFilterClick, resetMovieExplorer, resetShowExplorer, renderExplorerSentinel, observeExplorerSentinel, observeExplorerTmdbPrefetch, scheduleNextAirResort, currentExplorerView, currentExplorerSort, currentPosterWidthKey, setCurrentExplorerSort, applyExplorerPosterWidth, applyListHeaderSort, renderMovieCard, renderMovieExplorer, loadExplorerMovies, applyHistoryPosterWidth, renderHistoryItems, renderHistoryView, loadHistoryView, observeHistorySentinel, refreshMovieExplorerInPlace, refreshHistoryViewInPlace, renderShowExplorer, loadExplorerShows, mergeShowDetail, loadShowDetail, matchesExplorerSearch, sortExplorerItems, renderShowRecord, renderShowFolder, renderSeasonFolder, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, emptyExplorer, FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver } from "./modules/explorer.js?v=20260826d";
-import { initEditDialogs, openEditDateDialog, openEditShowDateDialog, openEditSeasonDateDialog, openEditImageDialog, openFixMatchDialog, openMergeShowDialog, applyWatchedAtToLocalWatchRecord, editDateOptionsFromButton } from "./modules/edit-dialogs.js?v=20260826b";
-import { initWatchAction, openWatchDatePrompt, closeWatchDatePrompt, submitSeerrRequest, markMovieWatched, refreshShowAfterManualWatch, applyWatchDateChoice, confirmAndMarkUnwatched, confirmAndDeleteMedia } from "./modules/watch-action.js?v=20260826c";
+import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, triggerSearchPage, renderSearchPage, renderExplorer, explorerQueryKey, updateAlphaFilter, handleAlphaFilterClick, resetMovieExplorer, resetShowExplorer, renderExplorerSentinel, observeExplorerSentinel, observeExplorerTmdbPrefetch, scheduleNextAirResort, currentExplorerView, currentExplorerSort, currentPosterWidthKey, setCurrentExplorerSort, applyExplorerPosterWidth, applyListHeaderSort, renderMovieCard, renderMovieExplorer, loadExplorerMovies, applyHistoryPosterWidth, renderHistoryItems, renderHistoryView, loadHistoryView, observeHistorySentinel, renderShowExplorer, loadExplorerShows, loadShowDetail, matchesExplorerSearch, sortExplorerItems, renderShowRecord, renderShowFolder, renderSeasonFolder, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, emptyExplorer, FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver } from "./modules/explorer.js?v=20260831b";
+import { initEditDialogs, openEditDateDialog, openEditShowDateDialog, openEditSeasonDateDialog, openEditImageDialog, openFixMatchDialog, openMergeShowDialog, applyWatchedAtToLocalWatchRecord, editDateOptionsFromButton } from "./modules/edit-dialogs.js?v=20260831b";
+import { initWatchAction, openWatchDatePrompt, closeWatchDatePrompt, submitSeerrRequest, markMovieWatched, refreshShowAfterManualWatch, applyWatchDateChoice, confirmAndMarkUnwatched, confirmAndDeleteMedia } from "./modules/watch-action.js?v=20260831b";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails, resolveEpisodeTitleFromTmdb } from "./modules/tmdb.js?v=20260823";
-import { initMediaDetail, movieBySlugOrId, nowPlayingHref, openMovieInlineDetail, openShowInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, renderImmersiveShowModal, renderShowModalContent, renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus, patchMovieWatchedState } from "./modules/media-detail.js?v=20260810";
-import { initMediaPerson, closePersonProfile, loadCastMemberDetails } from "./modules/media-person.js?v=20260810";
+import { initMediaDetail, movieBySlugOrId, nowPlayingHref, openMovieInlineDetail, openShowInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, renderImmersiveShowModal, renderShowModalContent, renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus, patchMovieWatchedState } from "./modules/media-detail.js?v=20260831f";
+import { initMediaPerson, closePersonProfile, loadCastMemberDetails } from "./modules/media-person.js?v=20260831e";
 import { initMediaLightbox } from "./modules/media-lightbox.js";
-import { initAppEvents, closeMobileMenu } from "./modules/app-events.js?v=20260826c";
+import { initAppEvents, closeMobileMenu } from "./modules/app-events.js?v=20260831p";
 import { initTrackerSettings, refreshTrackerSettings } from "./modules/tracker-settings.js?v=20260817";
-import { startLiveUpdates, stopLiveUpdates } from "./modules/live-updates.js?v=20260816";
+import { startLiveUpdates, stopLiveUpdates } from "./modules/live-updates.js?v=20260831a";
 
 // Ping the backend the moment the app loads (no auth needed), so the server's
 // caches and upstream connections are warm by the time the user clicks into
@@ -172,7 +175,6 @@ function bindElements() {
     sidebarAppearanceWrap: document.querySelector("#sidebarAppearanceWrap"),
     sidebarAppearanceButton: document.querySelector("#sidebarAppearanceButton"),
     sidebarAppearancePanel: document.querySelector("#sidebarAppearancePanel"),
-    sidebarAppearanceDashboardGroup: document.querySelector("#sidebarAppearanceDashboardGroup"),
     sidebarAppearanceMediaGroup: document.querySelector("#sidebarAppearanceMediaGroup"),
     historyPanel: document.querySelector("#historyPanel"),
     alphaFilterNav: document.querySelector("#alphaFilterNav"),
@@ -180,11 +182,15 @@ function bindElements() {
     historySearchInput: document.querySelector("#historySearchInput"),
     historyFilterButtons: [...document.querySelectorAll("[data-history-filter]")],
     historyViewButtons: [...document.querySelectorAll("[data-history-view]")],
-    dashboardHistoryViewButtons: [...document.querySelectorAll("[data-dashboard-history-view]")],
     explorerPosterSize: document.querySelector("#explorerPosterSize"),
     historyPosterSize: document.querySelector("#historyPosterSize"),
-    partWatchedPanel: document.querySelector("#partWatchedRow"),
-    partWatchedSection: document.querySelector("#partWatchedDashboardSection"),
+    partWatchedPanel: document.querySelector("#partWatchedRows"),
+    partWatchedRows: document.querySelector("#partWatchedRows"),
+    partWatchedSection: document.querySelector("#partWatchedRows"),
+    partWatchedTvRow: document.querySelector("#partWatchedTvRow"),
+    partWatchedTvSection: document.querySelector("#partWatchedTvSection"),
+    partWatchedMovieRow: document.querySelector("#partWatchedMovieRow"),
+    partWatchedMovieSection: document.querySelector("#partWatchedMovieSection"),
     explorerPosterSizeLabel: document.querySelector(".explorer-size-slider"),
     explorerSort: document.querySelector("#explorerSort"),
     explorerHideWatchedLabel: document.querySelector("#explorerHideWatchedLabel"),
@@ -275,6 +281,15 @@ function bindElements() {
     monthChart: document.querySelector("#monthChart"),
     nowPlayingGrid: document.querySelector("#nowPlayingGrid"),
     nowPlayingStatus: document.querySelector("#nowPlayingStatus"),
+    upNextPanel: document.querySelector("#upNextPanel"),
+    upNextSection: document.querySelector("#upNextDashboardSection"),
+    discoverPanel: document.querySelector("#discoverPanel"),
+    discoverTopbarControls: document.querySelector("#discoverTopbarControls"),
+    discoverMediaType: document.querySelector("#discoverMediaType"),
+    discoverGenre: document.querySelector("#discoverGenre"),
+    discoverRefreshButton: document.querySelector("#discoverRefreshButton"),
+    personalMediaTopbarControls: document.querySelector("#personalMediaTopbarControls"),
+    personalMediaPanel: document.querySelector("#personalMediaPanel"),
     timelineView: document.querySelector("#timeline-view"),
     refreshSyncButton: document.querySelector("#refreshSyncButton"),
     runCronSyncButton: document.querySelector("#runCronSyncButton"),
@@ -1221,6 +1236,10 @@ function applyMustChangePassword() {
   }
 }
 
+function isPersonalMediaView(view) {
+  return PERSONAL_MEDIA_VIEWS.includes(view);
+}
+
 function isConfigSensitiveRoute(path = "") {
   return path.startsWith("/movie/")
     || path.startsWith("/tvshow/")
@@ -1229,6 +1248,10 @@ function isConfigSensitiveRoute(path = "") {
     || path.startsWith("/settings")
     || path.startsWith("/sync")
     || path.startsWith("/logs")
+    || path.startsWith("/discover")
+    || path.startsWith("/watchlist")
+    || path.startsWith("/ratings")
+    || path.startsWith("/custom-lists")
     || path.startsWith("/setup");
 }
 
@@ -1418,6 +1441,15 @@ function handleRouting(path) {
     clearMediaDetailState();
   } else if (pathname === "/upcoming") {
     state.activeView = "upcoming";
+    state.mediaDetailInline = false;
+    clearMediaDetailState();
+  } else if (pathname === "/discover") {
+    state.activeView = "discover";
+    state.mediaDetailInline = false;
+    clearMediaDetailState();
+  } else if (pathname === "/watchlist" || pathname === "/ratings" || pathname === "/custom-lists") {
+    state.activeView = pathname.slice(1);
+    state.personalMediaTab = pathname === "/custom-lists" ? "lists" : pathname.slice(1);
     state.mediaDetailInline = false;
     clearMediaDetailState();
   } else if (pathname === "/history") {
@@ -1623,6 +1655,8 @@ function syncPageTopbar() {
     elements.searchTopbarControls,
     elements.statsTopbarControls,
     elements.upcomingTopbarControls,
+    elements.discoverTopbarControls,
+    elements.personalMediaTopbarControls,
     elements.settingsSubMenu,
   ].filter(Boolean);
   let title = "Dashboard";
@@ -1665,6 +1699,18 @@ function syncPageTopbar() {
     title = "Upcoming";
     subtitle = "";
     activeControls = elements.upcomingTopbarControls;
+  } else if (state.activeView === "discover") {
+    title = "Discover";
+    subtitle = "";
+    activeControls = elements.discoverTopbarControls;
+  } else if (isPersonalMediaView(state.activeView)) {
+    title = state.activeView === "ratings"
+      ? "Ratings"
+      : state.activeView === "custom-lists"
+        ? "Custom Lists"
+        : "Watchlist";
+    subtitle = "";
+    activeControls = elements.personalMediaTopbarControls;
   } else if (state.activeView === "settings") {
     title = settingsTopbarTitle();
     subtitle = "";
@@ -1779,7 +1825,8 @@ function applyActiveView() {
   }
 
   for (const panel of elements.viewPanels || []) {
-    panel.classList.toggle("hidden", panel.dataset.viewPanel !== state.activeView);
+    const isPersonalPanel = panel.dataset.viewPanel === "personal-media" && isPersonalMediaView(state.activeView);
+    panel.classList.toggle("hidden", panel.dataset.viewPanel !== state.activeView && !isPersonalPanel);
   }
 
   const settingsSubMenu = document.querySelector("#sidebarSettingsMenu");
@@ -1789,6 +1836,8 @@ function applyActiveView() {
   if (state.activeView === "dashboard") {
     applyCachedDashboardHistory();
     renderDashboard();
+    renderUpNext();
+    loadUpNext().catch((error) => setMessage(error.message, "error"));
     if (state.token) loadHistory().catch((error) => setMessage(error.message, "error"));
   }
   if (state.activeView === "stats") {
@@ -1797,6 +1846,19 @@ function applyActiveView() {
   }
   if (state.activeView === "upcoming") {
     openUpcomingToToday();
+  }
+  if (state.activeView === "discover") {
+    renderDiscover();
+    loadDiscover().catch((error) => setMessage(error.message, "error"));
+    renderPersonalMedia();
+    loadPersonalMedia().catch((error) => setMessage(error.message, "error"));
+    if (state.token && !state.historyVersion && !state.historyLoadPromise) {
+      loadHistory().catch((error) => setMessage(error.message, "error"));
+    }
+  }
+  if (isPersonalMediaView(state.activeView)) {
+    renderPersonalMedia();
+    loadPersonalMedia().catch((error) => setMessage(error.message, "error"));
   }
   if (state.activeView === "explorer" && !state.mediaDetailInline) renderExplorer();
   if (state.activeView === "search") renderSearchPage();
@@ -1838,9 +1900,8 @@ function applyActiveView() {
   // browser's own back button left the previous view's control bar in place.
   syncPageTopbar();
 
-  const showDashboardAppearance = state.activeView === "dashboard";
   const showMediaAppearance = Boolean(state.mediaDetailInline) && !window.location.pathname.startsWith("/person/");
-  const showSidebarAppearance = showDashboardAppearance || showMediaAppearance;
+  const showSidebarAppearance = showMediaAppearance;
   if (elements.sidebarAppearanceWrap) {
     elements.sidebarAppearanceWrap.classList.toggle("hidden", !showSidebarAppearance);
     if (!showSidebarAppearance) {
@@ -1848,11 +1909,7 @@ function applyActiveView() {
       elements.sidebarAppearanceButton?.setAttribute("aria-expanded", "false");
     }
   }
-  elements.sidebarAppearanceDashboardGroup?.classList.toggle("hidden", !showDashboardAppearance);
   elements.sidebarAppearanceMediaGroup?.classList.toggle("hidden", !showMediaAppearance);
-  for (const button of elements.dashboardHistoryViewButtons || []) {
-    button.classList.toggle("active", button.dataset.dashboardHistoryView === state.dashboardHistoryViewMode);
-  }
 
   if (state.activeView === "settings") {
     renderSettingsInlineHelp();
@@ -2004,11 +2061,11 @@ async function loadSavedConfig() {
   return body.config || {};
 }
 
-async function loadHistory({ force = false } = {}) {
+async function loadHistory({ force = false, silent = false } = {}) {
   if (state.historyLoadPromise) return state.historyLoadPromise;
 
   state.historyLoadPromise = (async () => {
-    if (!force) applyCachedDashboardHistory();
+    if (!force && !silent) applyCachedDashboardHistory();
 
     const url = new URL("/api/history", window.location.origin);
     url.searchParams.set("limit", String(HISTORY_PREVIEW_LIMIT));
@@ -2042,14 +2099,21 @@ async function loadHistory({ force = false } = {}) {
       state.stats = body.stats;
       state.statsLoaded = true;
     }
-    renderDashboard();
-    renderStats();
-    if (state.activeView === "stats") loadStats({ force: true }).catch((error) => setMessage(error.message, "error"));
-    if (state.activeView === "settings" && state.activeSettingsRoute?.panel === "sync") {
-      loadSyncJobs({ force: true }).catch((error) => setMessage(error.message, "error"));
-      loadSyncHistory({ force: true }).catch((error) => setMessage(error.message, "error"));
+    if (!silent) {
+      renderDashboard();
+      if (state.activeView === "discover") renderDiscover();
+      if (state.activeView === "dashboard") {
+        renderUpNext();
+        loadUpNext({ force }).catch((error) => setMessage(error.message, "error"));
+      }
+      renderStats();
+      if (state.activeView === "stats") loadStats({ force: true }).catch((error) => setMessage(error.message, "error"));
+      if (state.activeView === "settings" && state.activeSettingsRoute?.panel === "sync") {
+        loadSyncJobs({ force: true }).catch((error) => setMessage(error.message, "error"));
+        loadSyncHistory({ force: true }).catch((error) => setMessage(error.message, "error"));
+      }
+      renderDbStatus(true);
     }
-    renderDbStatus(true);
     return state.history;
   })().finally(() => {
     state.historyLoadPromise = null;
@@ -2065,6 +2129,15 @@ function clearDerivedUiCaches({ resetExplorer = true } = {}) {
   state.posterLookupInflight.clear();
   clearPersistentPosterLookupCache();
   state.statsLoaded = false;
+  // Keep the currently painted Up Next cards during a live refresh. The next
+  // server snapshot can then animate watched/removed items out instead of
+  // replacing the whole rail with an empty state first.
+  resetUpNext({ preserveItems: state.activeView === "dashboard" });
+  // History-version SSE events also reach Discover because its watched badges
+  // are derived from the same local history. Keep the current rails painted
+  // while that history snapshot is refreshed; a discovery-cache SSE event
+  // will request the new TMDB payload separately.
+  if (state.activeView !== "discover") resetDiscover();
   if (resetExplorer) {
     resetMovieExplorer();
     resetShowExplorer();
@@ -2173,62 +2246,17 @@ async function refreshLiveHistoryView() {
   liveHistoryRefreshQueued = false;
   try {
     clearDerivedUiCaches({ resetExplorer: false });
-    await loadHistory({ force: true });
-    resetPartWatchedView("default");
-    renderPartWatched();
+    // SSE only tells us that the shared data version changed. Fetch both
+    // authoritative snapshots silently, then reconcile the visible dashboard
+    // history rows once; do not route this through the full page render path.
+    resetPartWatchedView("default", { preserveItems: true });
+    const partWatchedRefresh = loadPartWatched({ silent: true }).catch((error) => {
+      logDebug(`Background Part Watched refresh failed: ${error.message}`);
+    });
+    await loadHistory({ force: true, silent: true });
+    await partWatchedRefresh;
 
-    if (state.mediaDetailInline && state.activeShowRenderContext?.show) {
-      const context = state.activeShowRenderContext;
-      const currentShow = context.show;
-      const url = new URL("/api/show", window.location.origin);
-      if (currentShow.id) url.searchParams.set("id", currentShow.id);
-      if (currentShow.title) url.searchParams.set("title", currentShow.title);
-      const response = await fetch(url, { headers: authHeaders(), cache: "no-store" });
-      const body = await response.json().catch(() => ({}));
-      const freshShow = response.ok && body.show
-        ? mergeShowDetail(body.show)
-        : mergeShowDetail({ ...currentShow, episodes: [], episode_count: 0, latest_watched_at: "", earliest_watched_at: "" });
-      if (freshShow && state.mediaDetailInline && state.activeShowRenderContext?.show === currentShow) {
-        renderShowModalContent(freshShow, {
-          ...context,
-          activeSeasonNum: state.activeShowModalSeason,
-        });
-      }
-      return;
-    }
-
-    if (state.mediaDetailInline && state.activeMovieTmdbId) {
-      await openMovieImmersiveModalByTmdbId(state.activeMovieTmdbId);
-      return;
-    }
-
-    // A poster-grid card unwatch already patched state.moviesRaw/
-    // historyViewRaw and animated its own card out in place
-    // (removeGridCards in watch-action.js) - the live-update poll's own
-    // history-version bump for that same mutation lands ~1s later via this
-    // debounce and would otherwise immediately undo that with a redundant
-    // refresh, since the data here is already current.
-    const suppressGridReset = Boolean(state.suppressExplorerLiveResetUntil) && Date.now() < state.suppressExplorerLiveResetUntil;
-    state.suppressExplorerLiveResetUntil = 0;
-    if (state.activeView === "explorer" && !suppressGridReset) {
-      // Shows are grouped/nested (season, episode) in a way that isn't safe
-      // to refresh in place yet, so that mode keeps the old reset-and-refetch
-      // behavior for now. Movies use refreshMovieExplorerInPlace() instead of
-      // resetMovieExplorer() + renderExplorer(): a remote change (a watch or
-      // unwatch on Trakt or another device) has no local card to animate out,
-      // but the refresh still shouldn't be more disruptive than it has to be
-      // - resetting first empties the grid, which briefly shows the "Loading
-      // movies…" placeholder and clamps scroll back to the top before the
-      // refetch repopulates it, with no way back to where the user was.
-      if (state.explorerMode === "shows") {
-        resetShowExplorer();
-        renderExplorer();
-      } else {
-        await refreshMovieExplorerInPlace();
-      }
-    } else if (state.activeView === "history" && !suppressGridReset) {
-      await refreshHistoryViewInPlace();
-    }
+    if (state.activeView === "dashboard") refreshDashboardHistoryInPlace();
   } finally {
     liveHistoryRefreshActive = false;
     if (liveHistoryRefreshQueued && !isAnySyncRunning()) {
@@ -2366,6 +2394,9 @@ async function unlockWithToken(password, email = elements.adminEmail?.value) {
 
 async function lockDashboard() {
   stopHistoryPolling();
+  resetUpNext();
+  resetDiscover();
+  resetPersonalMedia();
   state.token = "";
   state.currentUser = undefined;
   state.history = [];
@@ -2508,6 +2539,15 @@ function primeSensitiveRouteState(path = "") {
     state.activeView = "setup";
     return true;
   }
+  if (pathname === "/discover") {
+    state.activeView = "discover";
+    return true;
+  }
+  if (pathname === "/watchlist" || pathname === "/ratings" || pathname === "/custom-lists") {
+    state.activeView = pathname.slice(1);
+    state.personalMediaTab = pathname === "/custom-lists" ? "lists" : pathname.slice(1);
+    return true;
+  }
   // These branches mark the detail as already open, which means the matching
   // handleRouting branch skips its own "where did I come from" capture. Record
   // the return context here too, or Back falls through to the defaults in
@@ -2593,11 +2633,26 @@ function initialize() {
     openShowImmersiveModalByTvdbId,
     navigateTo,
     openConfirmDialog,
+    loadPersonalMedia,
   });
   const renderActiveView = () => {
     if (state.activeView === "dashboard") renderDashboard();
+    if (state.activeView === "dashboard") {
+      renderUpNext();
+      loadUpNext().catch((error) => setMessage(error.message, "error"));
+    }
     if (state.activeView === "explorer" && !state.mediaDetailInline) renderExplorer();
     if (state.activeView === "history") renderHistoryView();
+    if (state.activeView === "discover") {
+      renderDiscover();
+      loadDiscover().catch((error) => setMessage(error.message, "error"));
+      renderPersonalMedia();
+      loadPersonalMedia().catch((error) => setMessage(error.message, "error"));
+    }
+    if (isPersonalMediaView(state.activeView)) {
+      renderPersonalMedia();
+      loadPersonalMedia().catch((error) => setMessage(error.message, "error"));
+    }
   };
   initWatchAction({
     setMessage,
@@ -2650,6 +2705,9 @@ function initialize() {
     resolveEpisodeTitleFromTmdb,
     observeExplorerTmdbPrefetch,
   });
+  initUpNext({ setMessage });
+  initDiscover({ setMessage, navigateTo });
+  initPersonalMedia({ setMessage, renderDiscover, openConfirmDialog });
   initExplorer({
     setMessage,
     syncPageTopbar,
@@ -2756,10 +2814,21 @@ function initialize() {
       startLiveUpdates({
         authHeaders,
         onHistoryVersion: queueLiveHistoryRefresh,
+        onDiscoverVersion: (version, { initial = false } = {}) => {
+          const previous = Number(state.discoverVersion || 0);
+          state.discoverVersion = Number(version) || 0;
+          if (initial || previous !== state.discoverVersion) {
+            state.discoverLoadedAt = 0;
+            if (state.activeView === "discover") {
+              loadDiscover({ fromSse: true }).catch((error) => logDebug(`Live Discover refresh failed: ${error.message}`));
+            }
+          }
+        },
         onSyncProgress: renderSyncProgress,
         onError: (error) => logDebug(`Live update connection interrupted: ${error.message}`),
       });
       refreshTrackerSettings().catch(() => { });
+      loadPersonalMedia().catch(() => { });
       resumeActiveRefreshJobs();
       for (const [key, value] of state.posterLookupCache.entries()) {
         if (!value) state.posterLookupCache.delete(key);

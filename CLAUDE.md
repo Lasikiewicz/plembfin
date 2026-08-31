@@ -45,8 +45,14 @@ already committed.
   regress. `resetCommit` and `entries` are the only fields "Force to alpha" resets;
   `build` is not. The running develop build shows this as `Develop Build <n>` in the
   sidebar and Settings → About. `docker-publish-develop.yml` publishes a rolling image to
-  `ghcr.io/lasikiewicz/plembfin:develop` (also tagged `develop-<build>`) on every push,
-  reading the build number that's already in the pushed commit. When more than one
+  `ghcr.io/lasikiewicz/plembfin:develop` (also tagged `develop-<build>`) on every push
+  that changes real content, reading the build number that's already in the pushed
+  commit - it skips the build (`paths-ignore`) when a push only changes
+  `changelog.develop.json`/`changelog.alpha.json`, which is all "Force to alpha" step 4
+  ever pushes to `develop`; the app's own live remote-fetch changelog comparison already
+  reads that file straight from GitHub regardless of whether a new image was built, so
+  rebuilding and republishing an image over a changelog-only diff was pure overhead. When
+  more than one
   commit lands in one entry, it carries `messageFragments` alongside `message` - the true
   one-fragment-per-commit list, not just the folded sentence - so `promoteDevelopToAlpha`
   and `promoteAlphaToMain` can later fold everything into one final headline from real
@@ -341,6 +347,11 @@ or `main`):
 ```bash
 git push origin develop
 ```
+This push only ever changes `changelog.develop.json`/`changelog.alpha.json`, so
+`docker-publish-develop.yml`'s `paths-ignore` skips rebuilding and republishing a develop
+image over it - the point of this push is getting the correct file onto `origin/develop`
+for the app's own live remote-fetch changelog comparison, not producing a new image.
+`secret-scan.yml` still runs on every push regardless of which files changed.
 
 ## "Force to main" command
 

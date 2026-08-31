@@ -12,13 +12,14 @@ import {
   movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, platformBadge, sourceClass, sourceBadgeHtml, formatDate,
   computeProgress, sanitizeTitle, episodeTitle, episodeCode,
 } from "./utils.js?v=20260824h";
-import { posterMarkup, posterOverflowMenu, hydratePosters, bindPosterImageErrorHandler, tmdbPoster, tmdbProfile, proxiedArtworkUrl } from "./images.js?v=20260826b";
+import { posterMarkup, posterOverflowMenu, hydratePosters, bindPosterImageErrorHandler, tmdbPoster, tmdbProfile, proxiedArtworkUrl } from "./images.js?v=20260831m";
 import {
   historySyncPill, renderSyncStatusDot, renderMediaSyncPills,
   renderAvailabilityPills, renderShowAvailabilityPills, showAvailIssuePopup,
   isWatchedHistoryAction,
 } from "./sync.js";
-import { dedupeMediaRecords, renderHistoryCard } from "./dashboard.js?v=20260826b";
+import { dedupeMediaRecords, renderHistoryCard } from "./dashboard.js?v=20260831m";
+import { renderMediaCard } from "./media-card.js?v=20260831d";
 import { nextAiringCell, nextAiringDateValue, formatListDate, futureListDate } from "./stats.js";
 // ---------------------------------------------------------------------------
 // Callback injection - functions defined outside the 2636-4016 range in app.js
@@ -27,6 +28,7 @@ let _cb = {};
 const searchResultsCache = new Map();
 let searchRequestId = 0;
 let searchPeopleRequestId = 0;
+let searchCollectionRequestId = 0;
 export function initExplorer(callbacks) {
   _cb = callbacks;
   initExplorerPosterScrollHydration();
@@ -136,7 +138,23 @@ function comparableTitle(value) {
 
 function normalizeTmdbSearchResult(item = {}, mediaTypeOverride = "") {
   const mediaType = mediaTypeOverride || item.media_type || (item.title ? "movie" : "tv");
-  if (!item?.id || !["movie", "tv", "person"].includes(mediaType)) return null;
+  if (!item?.id || !["movie", "tv", "person", "collection"].includes(mediaType)) return null;
+  if (mediaType === "collection") {
+    const title = item.name || "Untitled collection";
+    return {
+      _type: "collection",
+      id: item.id,
+      title,
+      poster: tmdbPoster(item.poster_path, item.id, "collection"),
+      href: "",
+      sub: `Collection${item.parts_count ? ` · ${item.parts_count} films` : ""} · TMDB`,
+      overview: item.overview || "",
+      isLocal: false,
+      isCollection: true,
+      source: "TMDB",
+      mediaType: "collection",
+    };
+  }
   const title = item.title || item.name || "Unknown title";
   const year = (item.release_date || item.first_air_date || "").slice(0, 4);
   const overview = item.overview || (item.known_for
@@ -171,6 +189,7 @@ export function triggerSearchPage(query) {
   const normalizedQuery = String(query || "").trim().toLowerCase();
   const requestId = ++searchRequestId;
   searchPeopleRequestId += 1;
+  searchCollectionRequestId += 1;
   state.searchQuery = query;
   state.searchLoading = true;
   state.searchResults = [];
@@ -179,6 +198,8 @@ export function triggerSearchPage(query) {
   state.searchPeopleTotalResults = 0;
   state.searchPeopleLoading = false;
   state.searchPeopleError = "";
+  state.searchCollectionDetails.clear();
+  state.searchCollectionLoading.clear();
   syncPageTopbar();
   const loadingEl = document.getElementById("searchViewLoading");
   const emptyEl = document.getElementById("searchViewEmpty");
@@ -257,6 +278,11 @@ export function triggerSearchPage(query) {
           }
           continue;
         }
+        results.push(normalized);
+      }
+      for (const item of (body.collections?.results || [])) {
+        const normalized = normalizeTmdbSearchResult(item, "collection");
+        if (!normalized) continue;
         results.push(normalized);
       }
       // TVDB series results, searched alongside TMDB. Any series already listed
@@ -356,6 +382,35 @@ export function loadMoreSearchPeople() {
     });
 }
 
+export function loadSearchCollection(collectionId) {
+  const id = String(collectionId || "").trim();
+  if (!id || state.searchCollectionLoading.has(id)) return;
+  if (state.searchCollectionDetails.has(id)) {
+    state.searchCollectionDetails.delete(id);
+    renderSearchPage();
+    return;
+  }
+
+  state.searchCollectionLoading.add(id);
+  const requestId = searchCollectionRequestId;
+  renderSearchPage();
+  fetch(`/api/tmdb-collection?id=${encodeURIComponent(id)}`, { headers: authHeaders() })
+    .then(async (response) => {
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || `Collection load failed (${response.status})`);
+      if (requestId !== searchCollectionRequestId) return;
+      state.searchCollectionDetails.set(id, body);
+    })
+    .catch((error) => {
+      if (requestId === searchCollectionRequestId) setMessage(error.message, "error");
+    })
+    .finally(() => {
+      if (requestId !== searchCollectionRequestId) return;
+      state.searchCollectionLoading.delete(id);
+      renderSearchPage();
+    });
+}
+
 function renderSearchPeoplePager() {
   const canLoadMore = Number(state.searchPeoplePage || 1) < Number(state.searchPeopleTotalPages || 1);
   if (!canLoadMore && !state.searchPeopleError) return "";
@@ -405,8 +460,39 @@ export function renderSearchPage() {
     const badgesHtml = r.isLocal
       ? `<span class="status-pill status-success" style="font-size: 0.65rem; padding: 0.1rem 0.3rem;">Local</span>`
       : `<span class="status-pill status-muted" style="font-size: 0.65rem; padding: 0.1rem 0.3rem;">${escapeHtml(r.source || "TMDB")}</span>`;
+    const collectionId = r.isCollection ? String(r.id) : "";
+    const collectionDetail = collectionId ? state.searchCollectionDetails.get(collectionId) : null;
+    const collectionLoading = collectionId && state.searchCollectionLoading.has(collectionId);
+    const collectionParts = Array.isArray(collectionDetail?.parts) ? collectionDetail.parts : [];
+    const collectionPartsHtml = collectionDetail
+      ? `<div class="search-collection-parts">
+          ${collectionParts.length
+            ? collectionParts.map((part) => renderMediaCard({
+              ...part,
+              id: `tmdb:movie:${part.id}`,
+              tmdb_id: part.id,
+              media_type: "movie",
+              source: "TMDB",
+              title: part.title || part.name,
+              poster_path: part.poster_path,
+            }, {
+              variant: "collection-part",
+              compact: true,
+              meta: String(part.release_date || "").slice(0, 4),
+              description: part.overview || "",
+              showSource: false,
+              badge: part.is_watched || (state.history || []).some((history) => (
+                history.media_type === "movie" && String(history.tmdb_id || "") === String(part.id)
+              )) ? "Watched" : "Film",
+            })).join("")
+            : `<div class="gsd-column-empty">No films found in this collection.</div>`}
+        </div>`
+      : "";
+    const collectionToggle = r.isCollection
+      ? `<button class="button-ghost search-collection-toggle" type="button" data-search-collection="${escapeAttribute(collectionId)}" ${collectionLoading ? "disabled" : ""}>${collectionLoading ? "Loading films…" : (collectionDetail ? "Hide films" : "Show films")}</button>`
+      : "";
     return `
-      <article class="explorer-overview-card" data-href="${escapeAttribute(r.href)}">
+      <article class="explorer-overview-card${r.isCollection ? " search-collection-card" : ""}" data-href="${escapeAttribute(r.href)}">
         <div class="search-card-art">
           ${posterHtml}
         </div>
@@ -419,6 +505,8 @@ export function renderSearchPage() {
           </div>
           <div class="overview-card-attrs">${escapeHtml(r.sub)}</div>
           <div class="overview-card-text-wrap"><p class="overview-card-text" style="display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; margin-top: 0.25rem;">${escapeHtml(r.overview || "No synopsis available.")}</p></div>
+          ${collectionToggle}
+          ${collectionPartsHtml}
         </div>
       </article>
     `;
@@ -427,6 +515,7 @@ export function renderSearchPage() {
     const movies = allResults.filter(r => r.mediaType === "movie");
     const shows = allResults.filter(r => r.mediaType === "tv");
     const people = allResults.filter(r => r.mediaType === "person");
+    const collections = allResults.filter(r => r.mediaType === "collection");
     if (resultsEl) {
       resultsEl.className = "search-results-view";
       resultsEl.innerHTML = `
@@ -450,6 +539,12 @@ export function renderSearchPage() {
               ${renderSearchPeoplePager()}
             </div>
           </div>
+          <div class="search-column">
+            <h3 class="search-column-title">Collections (${collections.length})</h3>
+            <div class="search-column-grid">
+              ${collections.length ? collections.map(renderCard).join("") : '<div class="gsd-column-empty">No matching collections</div>'}
+            </div>
+          </div>
         </div>
       `;
     }
@@ -461,6 +556,8 @@ export function renderSearchPage() {
       filtered = allResults.filter((r) => r.mediaType === "tv");
     } else if (state.searchFilter === "people") {
       filtered = allResults.filter((r) => r.mediaType === "person");
+    } else if (state.searchFilter === "collections") {
+      filtered = allResults.filter((r) => r.mediaType === "collection");
     }
     if (!filtered.length) {
       emptyEl?.classList.remove("hidden");
@@ -1587,7 +1684,9 @@ function summaryEpisodeFromShow(show = {}) {
     imdb_id: representative.imdb_id || show.imdb_id || null,
     tmdb_id: representative.tmdb_id || show.tmdb_id || null,
     tvdb_id: representative.tvdb_id || show.tvdb_id || null,
-    poster_url: representative.poster_url || show.poster_url || show.posterUrl || null,
+    // A show card must use the show's canonical poster. The representative
+    // episode poster can be a still and is reserved for episode rows.
+    poster_url: show.show_poster_url || show.canonical_poster_url || show.poster_url || show.posterUrl || representative.poster_url || null,
   };
 }
 export function tmdbLookupIdsFromShow(show = {}, seasons = null) {

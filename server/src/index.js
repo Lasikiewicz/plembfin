@@ -6,14 +6,15 @@ import { runScheduledTick, startPlexNotificationListener, stopPlexNotificationLi
 import { handleBackupExport, handleBackupImport, handleImport, handlePlembfinBackups, handleWatchBackups } from "./routes/backups.js";
 import { handleAppearance, handleConfig, handleMediaAppLinks, handleSeerrMediaStatus, handleSeerrRequest, handleSeerrStatus, handleTestConnection, handleTestPlexNotifications } from "./routes/admin.js";
 import { handleAddWatchDate, handleClearMissingTelemetry, handleDeleteHistoryRecord, handleDeleteMedia, handleDeleteWatchDate, handleDeleteWatchDates, handleDuplicateWatchCleanup, handleDuplicateWatchScan, handleFullSyncWatchstates, handleHistory, handleHistoryAudit, handleMergeShows, handleMovies, handleRematchShow, handleShow, handleShows, handleUpdateWatch, handleUpdateWatchDates, handleWatchDates } from "./routes/media.js";
-import { handleActiveSessions, handleCronSync, handleCronSyncStatus, handleForceSync, handleForceSyncPlan, handleForceSyncCancellation, handleLibraryForceSync, handleLibraryForceSyncStatus, handleManualUnwatch, handleMediaForceSync, handleMediaForceSyncStatus, handleManualWatch, handleNowPlaying, handlePlaybackProgressList, handlePlaybackProgressUnwatch, handlePlaybackProgressWatch, handleRetryAllSyncActivity, handleRetrySync, handleRetrySyncHistory, handleStopForceSync, handleSyncHistory, handleSyncJobs, handleSyncLibraries, handleWebhook } from "./routes/sync.js";
-import { handleFanartImages, handleMediaSearch, handleOmdbRating, handlePoster, handleRemoteArtwork, handleTmdbDetails, handleTmdbDetailsBatch, handleTmdbImages, handleTmdbPerson, handleTmdbPoster, handleTmdbProfile, handleTmdbSearch, handleTmdbSeason, handleTvdbImages, handleTvdbSearch, handleUpcoming, handleYoutubeMeta } from "./routes/metadata.js";
+import { handleActiveSessions, handleCronSync, handleCronSyncStatus, handleForceSync, handleForceSyncPlan, handleForceSyncCancellation, handleLibraryForceSync, handleLibraryForceSyncStatus, handleManualUnwatch, handleMediaForceSync, handleMediaForceSyncStatus, handleManualWatch, handleNowPlaying, handlePlaybackProgressList, handlePlaybackProgressUnwatch, handlePlaybackProgressWatch, handleRetryAllSyncActivity, handleRetrySync, handleRetrySyncHistory, handleStopForceSync, handleSyncHistory, handleSyncJobs, handleSyncLibraries, handleUpNextRemove, handleWebhook } from "./routes/sync.js";
+import { handleDiscover, handleFanartImages, handleFixMatchSearch, handleMediaSearch, handleOmdbRating, handlePoster, handleRemoteArtwork, handleTmdbCollection, handleTmdbDetails, handleTmdbDetailsBatch, handleTmdbImages, handleTmdbPerson, handleTmdbPoster, handleTmdbProfile, handleTmdbSearch, handleTmdbSeason, handleTvdbImages, handleTvdbSearch, handleUpcoming, handleUpNext, handleYoutubeMeta } from "./routes/metadata.js";
 import { handleAdminFixHistory, handleBackfillStatus, handleBackfillTrakt, handleCacheStats, handleChangelog, handleClearCache, handleDebugPlexMatch, handleDiagnosticLogs, handleMaintenanceStub, handlePing, handleRefreshTmdbMetadata, handleRefreshTvdbMetadata, handleRematchTvShows, handleSyncHealth, handleSyncMatchReport, handlePhantomWatchAudit, handlePhantomWatchRepair, handleStaleTraktImportAudit, handleStaleTraktImportRepair, handleStalePendingWatchAudit, handleStalePendingWatchRepair, handleSplitIdentityUnwatchAudit, handleSplitIdentityUnwatchRepair, handleLikelyFalseUnwatchAudit, handleLikelyFalseUnwatchRepair } from "./routes/maintenance.js";
 import { handleWipeDataPreview, handleWipeData } from "./routes/wipeData.js";
 import { handleEmbyLikeAuth, handleEmbyLikeConnection, handlePlexAuth, handlePlexConnection } from "./routes/mediaAuth.js";
 import { handleTrackerAuth, handleTrackerConnections } from "./routes/trackerAuth.js";
 import { handleLiveUpdates } from "./routes/liveUpdates.js";
 import { handleSetupStatus, handleSetupStep, handleSetupImport, handleSetupComplete, handleSetupRestart, handleSetupChecklistDismiss, handleSetupCtaDismiss } from "./routes/onboarding.js";
+import { handlePersonalMedia } from "./routes/personal.js";
 
 function routePath(req) {
   const path = req.path || new URL(req.originalUrl || req.url, "https://local").pathname;
@@ -76,6 +77,8 @@ async function dispatch(req, res) {
     if (path === "shows") return handleShows(req, res);
     if (path === "show") return handleShow(req, res);
     if (path === "upcoming") return handleUpcoming(req, res);
+    if (path === "up-next") return handleUpNext(req, res);
+    if (path === "up-next/remove") return handleUpNextRemove(req, res);
     if (path === "full-sync-watchstates") return handleFullSyncWatchstates(req, res);
     if (path === "import") return handleImport(req, res);
     if (path === "backup/export") return handleBackupExport(req, res);
@@ -128,7 +131,11 @@ async function dispatch(req, res) {
     if (path === "media-details") return handleTmdbDetails(req, res);
     if (path === "tmdb-search") return handleTmdbSearch(req, res);
     if (path === "tvdb-search") return handleTvdbSearch(req, res);
+    if (path === "fix-match-search") return handleFixMatchSearch(req, res);
     if (path === "media-search") return handleMediaSearch(req, res);
+    if (path === "tmdb-collection") return handleTmdbCollection(req, res);
+    if (path === "discover") return handleDiscover(req, res);
+    if (path === "personal-media") return handlePersonalMedia(req, res);
     if (path === "tmdb-season") return handleTmdbSeason(req, res);
     if (path === "tmdb-images") return handleTmdbImages(req, res);
     if (path === "tvdb-images") return handleTvdbImages(req, res);

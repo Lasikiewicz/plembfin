@@ -18,9 +18,8 @@ export const HISTORY_VIEW_KEY = "plembfin:historyView";
 export const HISTORY_FILTER_KEY = "plembfin:historyFilter";
 export const HISTORY_VIEW_MODES = ["grid", "list", "cards"];
 export const HISTORY_FILTERS = ["all", "movies", "shows"];
-export const DASHBOARD_HISTORY_VIEW_KEY = "plembfin:dashboardHistoryView";
-export const DASHBOARD_HISTORY_VIEW_MODES = ["cards", "posters"];
-export const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "upcoming", "settings", "help", "search", "history", "syncActivity", "setup"];
+export const PERSONAL_MEDIA_VIEWS = ["watchlist", "ratings", "custom-lists"];
+export const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "upcoming", "discover", ...PERSONAL_MEDIA_VIEWS, "settings", "help", "search", "history", "syncActivity", "setup"];
 export const SETTINGS_TABS = ["account", "connections", "metadata", "data", "system"];
 
 function _startOfWeek(value) {
@@ -51,7 +50,7 @@ export const state = {
   historyVersion: "",
   historyLoadPromise: null,
   dashboardHistoryFilter: "all",
-  dashboardHistoryViewMode: DASHBOARD_HISTORY_VIEW_MODES.includes(localStorage.getItem(DASHBOARD_HISTORY_VIEW_KEY)) ? localStorage.getItem(DASHBOARD_HISTORY_VIEW_KEY) : "cards",
+  dashboardHistoryViewMode: "cards",
   dashboardHistoryResizeTimer: undefined,
   activeSessions: [],
   syncJobs: [],
@@ -114,6 +113,15 @@ export const state = {
   partWatchedQueryKey: "",
   partWatchedRequestVersion: 0,
   partWatchedAbortController: null,
+  upNextItems: [],
+  upNextLoading: false,
+  upNextLoadedAt: 0,
+  upNextError: "",
+  upNextErrorCode: "",
+  upNextFromCache: false,
+  upNextExitIds: [],
+  upNextRequestVersion: 0,
+  upNextAbortController: null,
   explorerViewMovies: localStorage.getItem(EXPLORER_VIEW_KEY_MOVIES) || "posters",
   explorerViewShows: localStorage.getItem(EXPLORER_VIEW_KEY_SHOWS) || "posters",
   posterLookupCache: new Map(),
@@ -132,7 +140,28 @@ export const state = {
   searchPeopleTotalResults: 0,
   searchPeopleLoading: false,
   searchPeopleError: "",
+  searchCollectionDetails: new Map(),
+  searchCollectionLoading: new Set(),
   globalSearchRemoteTimer: undefined,
+  discoverFeeds: {},
+  discoverLoading: false,
+  discoverLoadedAt: 0,
+  discoverError: "",
+  discoverErrorCode: "",
+  discoverMediaType: "all",
+  discoverGenreId: "",
+  discoverVersion: 0,
+  discoverRequestVersion: 0,
+  discoverAbortController: null,
+  discoverRefreshQueued: false,
+  personalMediaTab: "watchlist",
+  personalMediaActiveListId: "",
+  personalMediaLoadedAt: 0,
+  personalMediaLoading: false,
+  personalMediaError: "",
+  personalRatings: [],
+  personalWatchlist: [],
+  personalLists: [],
   explorerPageCache: new Map(),
   explorerLoadObserver: undefined,
   dashboardPosterObserver: undefined,

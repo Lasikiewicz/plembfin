@@ -56,13 +56,15 @@ None of these talk to each other - they all talk to Plembfin.
 - **Instant state restoration** - Automatically synchronizes watch history to newly added media and rebuilt server libraries
 - **Cross-platform resume** - Pause playback on one server and pick up right where you left off on another
 - **Rewatch tracking** - Full multi-watch history logging with smart deduplication that preserves authentic repeat viewings
-- **Now Playing dashboard** - Real-time playback monitoring, weekly watch activity trends, and recent history
+- **Now Playing dashboard** - Real-time playback monitoring, deterministic Up Next, media-type-aware Watch History, weekly watch activity trends, and recent history
 - **Sync Activity hub** - Live status indicator and dedicated activity stream detailing sync origins, destinations, delivery results, targeted retry for failed or skipped destinations (individually or all at once as a background job that survives closing the tab), and downloadable logs
 - **Rich analytics & stats** - In-depth all-time and period reports, top shows, and platform playback distribution
+- **Personal media organization** - Save movies, shows, and episodes to a watch list or custom lists, and rate them from their media pages; episode ratings use one canonical show/season/episode identity everywhere
 - **Upcoming episodes calendar** - Air date schedule for upcoming and past releases, pre-cached for instant loading
+- **Discover hub** - Cached trending, now-playing, airing-today, and genre feeds paint immediately from saved data, then refresh live through the update stream with direct TMDB detail navigation
 - **Live Trakt sync** - Two-way Trakt integration with seamless device authorization, per-play history import, and resilient sync protection
 - **Seerr integration** - Discover and request movies and TV shows directly from detail pages via Overseerr or Jellyseerr
-- **Movie collections** - Explore related franchise entries, sequels, prequels, and spin-offs directly from movie detail pages
+- **Movie collections** - Explore related franchise entries, sequels, prequels, and spin-offs from movie detail pages and collection search results
 - **Direct server deep links** - Quick one-click links to jump directly to any title in Plex, Emby, or Jellyfin
 - **Automated backups** - Built-in daily local backups with optional scheduled offsite backups to Backblaze B2
 - **Guided first-run setup** - A one-time account claim replaces the old generated-password dead end, followed by a resumable `/setup` wizard that connects media servers, adds metadata, configures webhooks, and optionally connects Trakt
@@ -70,7 +72,7 @@ None of these talk to each other - they all talk to Plembfin.
 - **Enterprise-grade security** - Hardened with strict Content Security Policy (CSP), scrypt password hashing, rate limiting, and HMAC session signing
 - **High-performance artwork cache** - Fast local caching for high-resolution posters, backdrops, and logos from TMDB, TheTVDB, and Fanart.tv
 - **Comprehensive metadata** - Precision episode titles, season numbering, and air dates from TheTVDB paired with rich cast, trailers, and reviews from TMDB
-- **Unified multi-source search** - Blazingly fast search across your local libraries, TMDB, and TheTVDB with local media prioritized
+- **Unified multi-source search** - Blazingly fast search across your local libraries, TMDB movies/shows/collections, and TheTVDB with local media prioritized
 - **Progressive Web App (PWA)** - Installable directly on iOS, Android, macOS, and Windows with a native app experience
 
 See [`docs/architecture.md`](docs/architecture.md) for how each feature is actually built.
@@ -95,8 +97,8 @@ See [`docs/architecture.md`](docs/architecture.md) for how each feature is actua
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/part-watched.png" alt="Part Watched section" width="100%" />
-  <em>Part Watched dashboard section: in-progress items with resume progress and quick mark-watched actions</em>
+  <img src="docs/screenshots/part-watched.png" alt="Watch History and Part Watched" width="100%" />
+  <em>Watch History with in-progress Part Watched items, resume progress, and quick mark-watched actions</em>
 </p>
 
 <p align="center">

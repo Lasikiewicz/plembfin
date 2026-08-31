@@ -1,4 +1,4 @@
-import { getDataVersion } from "../db.js";
+import { getDataVersion, getDiscoverVersion } from "../db.js";
 import { requireAdmin } from "../utils/auth.js";
 import { methodNotAllowed } from "../utils/http.js";
 import { loadBackgroundSyncProgress } from "../utils/configStore.js";
@@ -10,9 +10,9 @@ function writeEvent(res, payload) {
   res.write(`data: ${JSON.stringify(payload)}\n\n`);
 }
 
-// Streams the shared SQLite history version rather than relying on an
-// in-process event emitter. This keeps browser updates working when Plembfin's
-// web and scheduler roles run in separate processes.
+// Streams shared SQLite cache versions rather than relying on an in-process
+// event emitter. This keeps browser updates working when Plembfin's web and
+// scheduler roles run in separate processes.
 export async function handleLiveUpdates(req, res) {
   if (req.method !== "GET") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
@@ -24,6 +24,7 @@ export async function handleLiveUpdates(req, res) {
   const initialSyncTotal = Number(initialProgress.total) || 0;
   const initialSyncCompleted = Number(initialProgress.completed) || 0;
   const initialVersion = getDataVersion();
+  const initialDiscoverVersion = getDiscoverVersion();
 
   res.status(200).set({
     "Content-Type": "text/event-stream; charset=utf-8",
@@ -34,12 +35,14 @@ export async function handleLiveUpdates(req, res) {
   res.flushHeaders?.();
 
   let lastVersion = initialVersion;
+  let lastDiscoverVersion = initialDiscoverVersion;
   let lastWriteAt = Date.now();
   let lastSyncProgress = { total: initialSyncTotal, completed: initialSyncCompleted };
   let pollInFlight = false;
   writeEvent(res, {
     type: "ready",
     version: lastVersion,
+    discoverVersion: lastDiscoverVersion,
     syncTotal: initialSyncTotal,
     syncCompleted: initialSyncCompleted,
   });
@@ -69,12 +72,21 @@ export async function handleLiveUpdates(req, res) {
 
         // --- History version ---
         const version = getDataVersion();
+        const discoverVersion = getDiscoverVersion();
+        const discoverVersionChanged = discoverVersion !== lastDiscoverVersion;
+        if (discoverVersionChanged) lastDiscoverVersion = discoverVersion;
         if (version !== lastVersion) {
           lastVersion = version;
           lastWriteAt = Date.now();
           // Include current sync state so the client knows whether a background
           // sync is active before it decides to act on the version change.
-          writeEvent(res, { type: "history-version", version, syncTotal, syncCompleted });
+          writeEvent(res, { type: "history-version", version, discoverVersion, syncTotal, syncCompleted });
+          return;
+        }
+
+        if (discoverVersionChanged) {
+          lastWriteAt = Date.now();
+          writeEvent(res, { type: "discover-version", discoverVersion });
           return;
         }
 

@@ -1,15 +1,18 @@
 # Dashboard
 
-The home view (`/`): Now Playing, the recent-history rows, and the part-watched
-("continue watching") rail.
+The home view (`/`): Now Playing, an Up Next rail, and Watch History with separate TV-show
+and movie rows. Part Watched ("continue watching") lives inside Watch History rather than
+as a second standalone dashboard panel.
 
 ## Files
 
 | File | Role |
 | --- | --- |
-| `public/modules/dashboard.js` | All dashboard rendering (`renderDashboard`, `renderHistoryCard`, `renderPartWatched`, dedupe helpers, poster observer) |
+| `public/modules/dashboard.js` | Dashboard rendering (`renderDashboard`, `renderHistoryCard`, `renderPartWatched`, media-type grouping, dedupe helpers, poster observer) |
+| `public/modules/up-next.js` | Cached Up Next loading/rendering and shared media-card presentation |
+| `public/modules/media-card.js` | Shared media-card normalization, navigation, poster, metadata, status, and badge contract |
 | `public/modules/sync.js` | Now Playing polling + rendering (`loadActiveSessions`, `renderActiveSessions`, `startHistoryPolling`) |
-| `server/src/index.js` | `handleNowPlaying`, `handleHistory` (`?limit=` preview), `handlePlaybackProgressList` |
+| `server/src/index.js` | `handleNowPlaying`, `handleHistory` (`?limit=` preview), `handlePlaybackProgressList`, `handleUpNext` |
 | `public/app.js` | Route `/` -> dashboard view; history preview loading + localStorage cache |
 
 ## Sections
@@ -21,6 +24,23 @@ Fully documented in [now-playing.md](now-playing.md): the merge of
 events), polled by the browser every 10 seconds with visibility gating.
 The episode label and playback progress use the active appearance accent, matching
 Part Watched, while the green Live indicator remains a semantic playback-status color.
+
+### Up Next
+
+The dashboard's Up Next section occupies the former standalone Part Watched footprint.
+`GET /api/up-next` selects at most one deterministic, released, unwatched episode per
+tracked show, using the existing watch history, playback progress, TVDB season data, and
+TMDB/TVDB caches. A partially watched episode is reserved for Watch History and cannot
+appear again in Up Next. The query is bounded to the most recently active shows and a
+small number of candidate seasons so a large library cannot create an unbounded metadata
+request burst. This is built from Plembfin's local history, so media-server and Trakt
+connections are optional.
+
+Cards show the parent show, season/episode, episode title, release state, a direct
+show-detail link, and a Mark Watched action that uses the shared watched-date/sync flow.
+Missing metadata, a provider failure, or no eligible released episode
+leaves the section usable with an explanatory empty/error state; future episodes remain in
+the Upcoming view.
 
 ### Recent history
 
@@ -40,7 +60,7 @@ Times" for more) - `actualWatchLabel` in `dashboard.js`, driven by the same watc
 figure (`watch_count`, falling back to `playHistory.length`) as the movie detail page's
 rewatch history.
 
-### Part-watched (continue watching)
+### Watch History and Part-watched (continue watching)
 
 `GET /api/playback-progress` lists resume records (`playback_progress` table).
 `loadPartWatched` / `renderPartWatched` render them as progress-bar cards, deduped by
@@ -49,12 +69,21 @@ media identity (`dedupePlaybackProgress`). Actions: mark watched
 (`POST /api/playback-progress/unwatch`). Each App Used badge opens the matching item
 in that configured media app when the item exists there.
 
+The dashboard places these records inside Watch History and splits them into **TV Shows ·
+Part Watched** and **Movies · Part Watched**. The existing completed-history rows remain
+below them as **TV Shows** and **Movies**. This keeps a partial episode/movie visible once,
+in the correct media-type area, while preserving its progress, source, provenance, Resume,
+Mark Watched, Clear Progress, and App Used actions. The full `/history` page keeps its
+existing All / Movies / TV Shows filters.
+
 The displayed percentage is derived from the saved playback position and duration when
 both are available, so an incomplete percentage field from a webhook cannot show `0%`
-for an item with real resume progress. The Now Playing refresh token also invalidates and
-reloads this rail, keeping it aligned with playback changes without a full page reload.
+for an item with real resume progress. SSE history-version events fetch the authoritative
+history and progress snapshots in the background; the dashboard reconciles only its visible
+history rows, without a full page reload or dashboard-wide rerender.
 
-`renderPartWatched` reconciles per card rather than diffing the whole rail as one block:
+`renderPartWatched` and the dashboard history-row reconciler work per card rather than
+diffing the whole rail as one block:
 if a refresh returns the same set of items in the same order (the common case while
 something is actively playing, since the playing item's `updated_at` keeps it sorted
 first), it patches only each card's progress bar, "% watched" text, and "Last Played"

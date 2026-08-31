@@ -876,6 +876,14 @@ a.media-fact-chip:hover {
   color: var(--accent);
 }
 
+.media-app-link--disabled,
+.media-app-link--disabled:hover {
+  border-color: color-mix(in srgb, var(--line), transparent 18%);
+  color: var(--muted);
+  cursor: default;
+  opacity: 0.46;
+}
+
 .is-loading-metadata .immersive-overview {
   max-width: 58ch;
   color: var(--muted);
@@ -1464,7 +1472,7 @@ a.media-fact-chip:hover {
 }
 
 .page-shell[data-active-view="dashboard"] .live-panel {
-  padding-top: calc(var(--top-control-padding) + 0.6rem);
+  padding-top: 0;
 }
 
 .page-shell:not([data-active-view="dashboard"]) .page-topbar + .view-panel {
@@ -1829,6 +1837,21 @@ a.media-fact-chip:hover {
 .source-badge--icon {
   gap: 0.3rem;
   padding: 0.22rem 0.5rem 0.22rem 0.4rem;
+}
+
+.source-badge--link {
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.source-badge--link:hover,
+.source-badge--link:focus-visible {
+  color: var(--accent);
+}
+
+.source-badge--disabled {
+  cursor: default;
+  opacity: 0.46;
 }
 
 .source-badge-icon {
@@ -3040,13 +3063,13 @@ img.poster-img:not(.is-loaded) {
 /* #1 featured leader */
 .stats-lb-leader {
   display: grid;
-  grid-template-columns: 1.8rem 7.5rem minmax(0, 1fr);
+  grid-template-columns: 7.5rem 1.8rem minmax(0, 1fr);
   gap: var(--space-2);
-  padding: var(--space-2);
+  padding: 0;
   background: var(--panel-3);
   border: 1px solid var(--line-strong);
   border-radius: 10px;
-  align-items: start;
+  align-items: stretch;
   overflow: hidden;
 }
 
@@ -3062,16 +3085,19 @@ img.poster-img:not(.is-loaded) {
 .stats-lb-leader-poster-wrap {
   position: relative;
   min-width: 0;
+  align-self: stretch;
   overflow: hidden;
+  border-radius: var(--poster-radius) 0 0 var(--poster-radius);
 }
 
 .stats-lb-leader-poster {
   width: 100%;
   aspect-ratio: 2 / 3;
-  border-radius: var(--poster-radius);
+  height: 100%;
+  border-radius: var(--poster-radius) 0 0 var(--poster-radius);
   object-fit: cover;
   background: var(--panel);
-  border: 1px solid var(--line-strong);
+  border: 0;
   display: block;
 }
 
@@ -3079,14 +3105,14 @@ img.poster-img:not(.is-loaded) {
   align-self: start;
   justify-self: start;
   min-width: 1.8rem;
-  padding: 0;
+  padding: var(--space-2) 0 0;
   background: transparent;
   color: var(--muted);
   border: 0;
   font-weight: 900;
   font-size: 0.8rem;
   line-height: 1;
-  text-align: right;
+  text-align: left;
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
@@ -3098,6 +3124,7 @@ img.poster-img:not(.is-loaded) {
   flex-direction: column;
   align-self: stretch;
   gap: 0.5rem;
+  padding: var(--space-2);
 }
 
 .stats-lb-main-copy {
@@ -3157,13 +3184,14 @@ img.poster-img:not(.is-loaded) {
 .stats-lb-podium-card {
   min-width: 0;
   display: grid;
-  grid-template-columns: 1.8rem 4.1rem minmax(0, 1fr);
-  align-items: start;
+  grid-template-columns: 4.1rem 1.8rem minmax(0, 1fr);
+  align-items: stretch;
   gap: var(--space-2);
-  padding: var(--space-2);
+  padding: 0;
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   background: var(--panel-3);
+  overflow: hidden;
 }
 
 .stats-lb-podium-card[data-stats-media-href] {
@@ -3183,15 +3211,19 @@ img.poster-img:not(.is-loaded) {
 .stats-lb-row-poster-wrap {
   position: relative;
   min-width: 0;
+  align-self: stretch;
+  overflow: hidden;
+  border-radius: var(--poster-radius) 0 0 var(--poster-radius);
 }
 
 .stats-lb-podium-poster {
   width: 100%;
   aspect-ratio: 2 / 3;
-  border-radius: var(--poster-radius);
+  height: 100%;
+  border-radius: var(--poster-radius) 0 0 var(--poster-radius);
   object-fit: cover;
   background: var(--panel-3);
-  border: 1px solid var(--line-strong);
+  border: 0;
   display: block;
 }
 
@@ -3201,6 +3233,7 @@ img.poster-img:not(.is-loaded) {
   flex-direction: column;
   align-self: stretch;
   gap: 0.45rem;
+  padding: var(--space-2);
 }
 
 .stats-lb-podium-title {
@@ -3232,13 +3265,14 @@ img.poster-img:not(.is-loaded) {
 
 .stats-lb-row {
   display: grid;
-  grid-template-columns: 1.8rem 3.1rem minmax(0, 1fr);
-  align-items: start;
+  grid-template-columns: 3.1rem 1.8rem minmax(0, 1fr);
+  align-items: stretch;
   gap: var(--space-2);
-  padding: var(--space-2);
+  padding: 0;
   border: 1px solid var(--line-strong);
   border-radius: 8px;
   background: var(--panel-3);
+  overflow: hidden;
 }
 
 .stats-lb-row[data-stats-media-href] {
@@ -3257,10 +3291,11 @@ img.poster-img:not(.is-loaded) {
 .stats-lb-row-poster {
   width: 100%;
   aspect-ratio: 2 / 3;
-  border-radius: var(--poster-radius);
+  height: 100%;
+  border-radius: var(--poster-radius) 0 0 var(--poster-radius);
   object-fit: cover;
   background: var(--panel-3);
-  border: 1px solid var(--line-strong);
+  border: 0;
   display: block;
 }
 
@@ -3270,6 +3305,7 @@ img.poster-img:not(.is-loaded) {
   flex-direction: column;
   align-self: stretch;
   gap: 0.35rem;
+  padding: var(--space-2);
 }
 
 .stats-lb-row-title {
@@ -7749,6 +7785,7 @@ html.light-mode .poster-overflow-btn {
 .history-grid-card:hover .poster-overflow-btn,
 .history-mini-card:hover .poster-overflow-btn,
 .history-page-card:hover .poster-overflow-btn,
+.shared-media-card:hover .poster-overflow-btn,
 .poster-overflow-btn.is-open,
 .poster-overflow-btn:focus-visible {
   opacity: 1;
@@ -7805,6 +7842,65 @@ html.light-mode .poster-overflow-btn {
 .poster-overflow-item-danger:hover,
 .poster-overflow-item-danger:focus-visible {
   background: color-mix(in srgb, var(--red) 14%, transparent);
+}
+
+.poster-overflow-item-has-submenu {
+  position: relative;
+  padding-right: 1.8rem;
+}
+
+.poster-overflow-item-has-submenu::after {
+  content: "›";
+  position: absolute;
+  top: 50%;
+  right: 0.6rem;
+  color: var(--muted);
+  font-size: 1.15rem;
+  line-height: 1;
+  transform: translateY(-50%);
+}
+
+.poster-overflow-item-has-submenu[aria-expanded="true"],
+.poster-overflow-item-has-submenu[aria-expanded="true"]::after {
+  color: var(--accent);
+}
+
+.poster-overflow-item-has-submenu[aria-expanded="true"] {
+  background: color-mix(in srgb, var(--accent), transparent 88%);
+}
+
+.poster-overflow-submenu {
+  z-index: 61;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  min-width: 12rem;
+  max-width: min(15rem, calc(100vw - var(--space-4)));
+  max-height: min(20rem, calc(100vh - var(--space-4)));
+  overflow: auto;
+  padding: var(--space-1);
+  background: var(--panel-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.4);
+}
+
+.poster-overflow-submenu .poster-overflow-item {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.poster-overflow-submenu-empty {
+  padding: 0.45rem 0.6rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.poster-overflow-item-create {
+  margin-top: var(--space-1);
+  padding-top: 0.55rem;
+  border-top: 1px solid var(--line);
 }
 
 /* Poster-card unwatch feedback (watch-action.js confirmAndMarkUnwatched):
@@ -7903,7 +7999,7 @@ html.light-mode .poster-overflow-btn {
 
 .fix-match-dialog .fix-match-results {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
   gap: 1rem;
   max-height: min(62vh, 680px);
   margin-top: 0.15rem;
@@ -7911,11 +8007,19 @@ html.light-mode .poster-overflow-btn {
 }
 
 .fix-match-dialog .fix-match-result {
-  flex-direction: column;
+  flex-direction: row;
   align-items: stretch;
+  gap: 0.85rem;
   min-width: 0;
-  background: color-mix(in srgb, var(--panel-2), transparent 20%);
-  padding: 0.55rem;
+  background: var(--panel-2);
+  padding: 0.65rem;
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+
+.fix-match-dialog .fix-match-result:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--yellow);
+  transform: translateY(-1px);
 }
 
 .fix-match-dialog .fix-match-result.is-rematching {
@@ -7924,28 +8028,36 @@ html.light-mode .poster-overflow-btn {
 
 .fix-match-dialog .fix-match-result img {
   display: block;
-  width: 100%;
+  flex: 0 0 var(--history-poster-width, 86px);
+  width: var(--history-poster-width, 86px);
   height: auto;
   aspect-ratio: 2 / 3;
+  align-self: flex-start;
+  object-fit: cover;
+  border-radius: var(--poster-radius);
   background: var(--panel-3);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
 }
 
 .fix-match-dialog .fix-match-result-title {
+  flex: 1 1 auto;
   display: block;
-  min-height: 2.65em;
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
-  font-size: 0.88rem;
-  font-weight: 750;
-  line-height: 1.35;
-  text-wrap: balance;
+  font-size: 1rem;
+  font-weight: 850;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.fix-match-dialog .fix-match-result-title small {
+  display: block;
+  margin-top: 0.2rem;
 }
 
 .fix-match-dialog .fix-match-result-progress {
-  grid-column: 1 / -1;
-  flex: none;
-  min-width: 0;
-  width: 100%;
-  margin-left: 0;
+  align-self: center;
 }
 
 .fix-match-result-progress-label {
@@ -7978,7 +8090,7 @@ html.light-mode .poster-overflow-btn {
   }
 
   .fix-match-dialog .fix-match-results {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     gap: 0.7rem;
     max-height: 55vh;
   }
@@ -8351,7 +8463,7 @@ html.light-mode .log-msg {
   }
 
   .stats-lb-leader {
-    grid-template-columns: 1.8rem 5.5rem minmax(0, 1fr);
+    grid-template-columns: 5.5rem 1.8rem minmax(0, 1fr);
   }
 
   .stats-lb-podium {
@@ -8503,6 +8615,7 @@ html.light-mode .log-msg {
   body .page-topbar-actions .explorer-controls:not(.hidden),
   body .page-topbar-actions .stats-controls:not(.hidden),
   body .page-topbar-actions .upcoming-controls:not(.hidden),
+  body .page-topbar-actions .discover-controls:not(.hidden),
   body .page-topbar-actions .sidebar-sub-menu:not(.hidden) {
     display: flex !important;
     flex-direction: row !important;
@@ -8511,6 +8624,12 @@ html.light-mode .log-msg {
     gap: 0.5rem !important;
     width: auto !important;
     flex-shrink: 0 !important;
+  }
+
+  body .page-topbar-actions .discover-controls:not(.hidden) {
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
   }
 
   body .page-topbar-actions .compact-field {
@@ -8881,6 +9000,31 @@ html.light-mode .log-msg {
   color: var(--accent);
 }
 
+.rating-pill--personal {
+  appearance: none;
+  background: color-mix(in srgb, var(--accent), transparent 92%);
+  border-color: color-mix(in srgb, var(--accent), transparent 62%);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.rating-pill--personal:hover,
+.rating-pill--personal:focus-visible {
+  background: color-mix(in srgb, var(--accent), transparent 84%);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.rating-pill--personal.has-rating {
+  color: var(--accent);
+}
+
+.personal-rating-star {
+  color: var(--accent);
+}
+
 @media (max-width: 640px) {
   .rating-pill {
     min-height: 2.25rem;
@@ -8920,6 +9064,96 @@ html.light-mode .log-msg {
 .action-pill:disabled {
   cursor: not-allowed;
   opacity: 0.48;
+}
+
+.personal-media-detail-action.has-personal-state {
+  background: color-mix(in srgb, var(--accent), transparent 88%);
+  border-color: color-mix(in srgb, var(--accent), transparent 48%);
+  color: var(--accent);
+}
+
+.personal-media-detail-action.has-personal-state:hover,
+.personal-media-detail-action.has-personal-state:focus-visible {
+  background: color-mix(in srgb, var(--accent), transparent 78%);
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.actions-tools-dropdown {
+  position: relative;
+  min-width: 0;
+  flex-shrink: 0;
+}
+
+.actions-tools-trigger {
+  cursor: pointer;
+  list-style: none;
+}
+
+.actions-tools-trigger::-webkit-details-marker {
+  display: none;
+}
+
+body #mediaDetailActions.actions-collapsed .actions-tools-dropdown {
+  position: relative;
+  display: inline-block;
+}
+
+body #mediaDetailActions.actions-collapsed .actions-tools-panel {
+  display: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 999;
+  min-width: 10.5rem;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0.25rem 0;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-3);
+  box-shadow: var(--shadow-lg, 0 10px 15px -3px rgba(0, 0, 0, 0.25));
+}
+
+body #mediaDetailActions.actions-collapsed .actions-tools-dropdown[open] .actions-tools-panel {
+  display: flex;
+}
+
+body #mediaDetailActions.actions-collapsed .actions-tools-panel .action-pill,
+body #mediaDetailActions.actions-collapsed .actions-tools-panel .seerr-request-btn,
+body #mediaDetailActions.actions-collapsed .actions-tools-panel .rating-pill {
+  display: flex;
+  min-width: 10rem;
+  width: 100%;
+  max-width: none;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.6rem;
+  padding: 0.5rem 0.8rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  font-size: 0.81rem;
+  letter-spacing: normal;
+  opacity: 0.95;
+  text-align: left;
+  text-transform: none;
+}
+
+body #mediaDetailActions.actions-collapsed .actions-tools-panel .action-pill:hover,
+body #mediaDetailActions.actions-collapsed .actions-tools-panel .seerr-request-btn:hover,
+body #mediaDetailActions.actions-collapsed .actions-tools-panel .rating-pill:hover {
+  background: var(--bg-hover);
+  color: var(--primary);
+}
+
+body:has(#mediaDetailActions.actions-collapsed .actions-tools-dropdown[open]) .page-topbar-actions {
+  overflow: visible;
+}
+
+body #mediaDetailActions.actions-collapsed:has(.actions-tools-dropdown[open]) {
+  overflow: visible;
 }
 
 .media-actions-menu {
@@ -9168,14 +9402,51 @@ html.light-mode .progress-bar-fill {
 }
 
 .immersive-episode-title-row {
-  display: grid;
-  gap: 0.2rem;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
 }
 
-.immersive-episode-title-row b {
+.immersive-episode-title-row > b {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem;
   color: var(--text);
   font-size: 0.88rem;
   line-height: 1.25;
+}
+
+.episode-personal-rating {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 1.7rem;
+  max-width: 100%;
+  padding: 0.16rem 0.42rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.7rem;
+  font-weight: 800;
+  white-space: nowrap;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+.episode-personal-rating:hover,
+.episode-personal-rating:focus-visible,
+.episode-personal-rating.has-rating {
+  background: color-mix(in srgb, var(--accent), transparent 90%);
+  border-color: color-mix(in srgb, var(--accent), transparent 38%);
+  color: var(--accent);
 }
 
 .immersive-episode-title-row time,
@@ -10168,7 +10439,6 @@ body {
   gap: 0.8rem;
   margin: 0;
   padding: 0 0 0.7rem;
-  border-bottom: 1px solid var(--line);
 }
 
 .topbar-actions {
@@ -11085,8 +11355,7 @@ h1 {
 }
 
 .page-shell[data-active-view="dashboard"] {
-  /* Lock the dashboard to the viewport so the 30/20/50 split is computed
-     against a fixed height instead of growing with content. */
+  /* Keep the four dashboard sections inside the viewport on desktop. */
   overflow: hidden;
 }
 
@@ -11105,13 +11374,11 @@ h1 {
   gap: 0.7rem;
 }
 
-/* Vertical split varies by dashboard state (set on #timeline-view):
-   state 1 (playing + part-watched)      → 20 / 20 / 60
-   state 2 (idle + part-watched)         → 15 / 25 / 60
-   state 3 (idle + nothing part-watched) → 30 / 10 / 60   */
+/* Four dashboard sections: Now Playing is intentionally a little shorter;
+   Up Next, TV history, and movie history share the remaining space equally. */
 .page-shell[data-active-view="dashboard"] .live-panel,
-.page-shell[data-active-view="dashboard"] #partWatchedDashboardSection,
-.page-shell[data-active-view="dashboard"] .history-timeline-panel:not(#partWatchedDashboardSection) {
+.page-shell[data-active-view="dashboard"] #upNextDashboardSection,
+.page-shell[data-active-view="dashboard"] .dashboard-history-panel {
   display: flex;
   min-height: 0;
   overflow: hidden;
@@ -11119,23 +11386,38 @@ h1 {
   flex: 1 1 0;
 }
 
-/* Default / state 1 - 20 / 20 / 60 */
-#timeline-view .live-panel { flex-grow: 20; }
-#timeline-view #partWatchedDashboardSection { flex-grow: 20; }
-#timeline-view .history-timeline-panel:not(#partWatchedDashboardSection) { flex-grow: 60; }
+#timeline-view .live-panel { flex-grow: 0.9; }
+#timeline-view #upNextDashboardSection,
+#timeline-view .dashboard-history-panel { flex-grow: 1; }
 
-/* State 2 - idle + part-watched → 15 / 25 / 60 */
-#timeline-view[data-dash-state="2"] .live-panel { flex-grow: 15; }
-#timeline-view[data-dash-state="2"] #partWatchedDashboardSection { flex-grow: 25; }
-#timeline-view[data-dash-state="2"] .history-timeline-panel:not(#partWatchedDashboardSection) { flex-grow: 60; }
+/* A visible Part Watched rail shares its history section with the completed
+   history rail. When no resume item exists this block is removed by .hidden. */
+.page-shell[data-active-view="dashboard"] .dashboard-history-progress-section {
+  flex: 0 1 42%;
+  min-height: 0;
+  overflow: hidden;
+}
 
-/* State 3 - idle + nothing part-watched → 30 / 10 / 60 (Part Watched hidden) */
-#timeline-view[data-dash-state="3"] .live-panel { flex-grow: 30; }
-#timeline-view[data-dash-state="3"] #partWatchedDashboardSection { flex-grow: 10; }
-#timeline-view[data-dash-state="3"] .history-timeline-panel:not(#partWatchedDashboardSection) { flex-grow: 60; }
+.page-shell[data-active-view="dashboard"] .dashboard-history-progress-section .dashboard-part-watched-row {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
 
-.page-shell[data-active-view="dashboard"] #partWatchedDashboardSection.hidden {
-  display: none;
+.page-shell[data-active-view="dashboard"] .dashboard-history-panel .dashboard-row-section {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-top: 0 !important;
+}
+
+.page-shell[data-active-view="dashboard"] .dashboard-history-panel .dashboard-row-section .horizontal-scroll-row {
+  flex: 1 1 0;
+  min-height: 0;
+  padding-bottom: var(--space-2);
 }
 
 /* ---- Now Playing: card fills the slice; poster width follows its height ---- */
@@ -11197,14 +11479,14 @@ h1 {
   gap: 0.15rem;
 }
 
-/* ---- Part Watched: card + poster fill the 20% slice ---- */
-.page-shell[data-active-view="dashboard"] #partWatchedRow {
+/* ---- Part Watched: compact rail inside its matching history section ---- */
+.page-shell[data-active-view="dashboard"] .dashboard-part-watched-row {
   flex: 1 1 0;
   min-height: 0;
   align-items: stretch;
 }
 
-.page-shell[data-active-view="dashboard"] #partWatchedRow .part-watched-page-card {
+.page-shell[data-active-view="dashboard"] .dashboard-part-watched-row .part-watched-page-card {
   height: 100%;
   align-items: stretch;
   overflow: hidden;
@@ -11212,69 +11494,45 @@ h1 {
   gap: 0.7rem;
 }
 
-.page-shell[data-active-view="dashboard"] #partWatchedRow .part-watched-card-poster-wrapper {
+.page-shell[data-active-view="dashboard"] .dashboard-part-watched-row .part-watched-card-poster-wrapper {
   flex: 0 0 auto;
   height: 100%;
   width: auto;
   aspect-ratio: 2 / 3;
 }
 
-/* Compact the details so the whole card (incl. buttons) fits the 20% slice. */
-.page-shell[data-active-view="dashboard"] #partWatchedRow .part-watched-card-details {
+/* Compact the details so the whole card (including actions) fits the rail. */
+.page-shell[data-active-view="dashboard"] .dashboard-part-watched-row .part-watched-card-details {
   gap: 0.2rem;
   min-height: 0;
   overflow: hidden;
 }
 
-.page-shell[data-active-view="dashboard"] #partWatchedRow .part-watched-card-title {
+.page-shell[data-active-view="dashboard"] .dashboard-part-watched-row .part-watched-card-title {
   font-size: 0.95rem;
 }
 
-.page-shell[data-active-view="dashboard"] #partWatchedRow .part-watched-card-episode {
+.page-shell[data-active-view="dashboard"] .dashboard-part-watched-row .part-watched-card-episode {
   font-size: 0.8rem;
 }
 
-.page-shell[data-active-view="dashboard"] #partWatchedRow .part-watched-card-meta {
+.page-shell[data-active-view="dashboard"] .dashboard-part-watched-row .part-watched-card-meta {
   gap: 0.12rem;
   font-size: 0.78rem;
 }
 
-.page-shell[data-active-view="dashboard"] #partWatchedRow .part-watched-progress-container {
+.page-shell[data-active-view="dashboard"] .dashboard-part-watched-row .part-watched-progress-container {
   margin-top: 0;
   gap: 0.15rem;
 }
 
-.page-shell[data-active-view="dashboard"] #partWatchedRow .part-watched-card-actions {
+.page-shell[data-active-view="dashboard"] .dashboard-part-watched-row .part-watched-card-actions {
   margin-top: 0;
 }
 
-.page-shell[data-active-view="dashboard"] #partWatchedRow .part-watched-action-btn {
+.page-shell[data-active-view="dashboard"] .dashboard-part-watched-row .part-watched-action-btn {
   min-height: 0;
   padding: 0.3rem 0.5rem;
-}
-
-/* ---- Watch History: two stacked rows split the 50%; posters fill row height ---- */
-.page-shell[data-active-view="dashboard"] .history-timeline-panel:not(#partWatchedDashboardSection) .dashboard-history-rows {
-  flex: 1 1 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-3);
-}
-
-.page-shell[data-active-view="dashboard"] .dashboard-row-section {
-  flex: 1 1 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-  margin-top: 0 !important;
-}
-
-.page-shell[data-active-view="dashboard"] .dashboard-row-section .horizontal-scroll-row {
-  flex: 1 1 0;
-  min-height: 0;
-  padding-bottom: 0;
 }
 
 /* Vertical card: poster on top, compact centered text below. The text block
@@ -11398,12 +11656,253 @@ h1 {
   font-size: 0.72rem;
 }
 
+/* Up Next and inline Part Watched deliberately use the same page-card geometry
+   as the TV and movie history cards. Their content differs, but their visual
+   rhythm and poster sizing do not. */
+.dashboard-part-watched-card,
+.dashboard-up-next-card {
+  text-decoration: none;
+}
+
+/* Let each dashboard poster form the leading surface of its tile while the
+   information column keeps the card's existing inset. */
+#timeline-view .dashboard-history-page-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+#timeline-view .dashboard-history-page-card > .history-card-poster-wrapper {
+  align-self: stretch;
+  height: auto;
+  max-height: none;
+  border-radius: var(--poster-radius) 0 0 var(--poster-radius);
+}
+
+#timeline-view .dashboard-history-page-card > .history-card-poster-wrapper .history-card-poster-link {
+  border-radius: var(--poster-radius) 0 0 var(--poster-radius);
+}
+
+#timeline-view .dashboard-history-page-card > .history-card-details {
+  padding: 0.65rem;
+}
+
+#timeline-view .dashboard-up-next-card {
+  gap: var(--space-2);
+}
+
+#timeline-view .dashboard-history-page-card .history-card-poster-wrapper .poster-fallback {
+  background: var(--panel-3);
+}
+
+.dashboard-part-watched-card .history-card-poster-wrapper,
+.dashboard-up-next-card .history-card-poster-wrapper {
+  position: relative;
+}
+
+.dashboard-part-watched-card .history-card-poster-link,
+.dashboard-up-next-card .history-card-poster-link {
+  border-radius: var(--poster-radius);
+  overflow: hidden;
+}
+
+.dashboard-part-watched-card .part-watched-progress-container {
+  margin-top: 0.05rem;
+}
+
+.dashboard-part-watched-card .history-card-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  width: 100%;
+  min-width: 0;
+  gap: 0.45rem;
+  margin-top: 0.1rem;
+}
+
+.dashboard-part-watched-card .history-card-actions .part-watched-action-btn {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  padding-inline: 0.4rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dashboard-part-watched-card .history-card-details {
+  min-width: 0;
+  overflow: hidden;
+}
+
+/* The inline Part Watched cards use the shared history-card markup. Keep that
+   desktop variant compact enough for the viewport-fit dashboard row, including
+   the action footer that is easy to lose at 1080p heights. */
+@media (min-width: 761px) {
+  #timeline-view .dashboard-part-watched-card .history-card-details {
+    gap: var(--space-1);
+  }
+
+  #timeline-view .dashboard-part-watched-card .history-card-header {
+    gap: 0;
+  }
+
+  #timeline-view .dashboard-part-watched-card .history-card-title {
+    font-size: 0.92rem;
+    line-height: 1.1;
+  }
+
+  #timeline-view .dashboard-part-watched-card .history-card-episode {
+    font-size: 0.78rem;
+    line-height: 1.1;
+  }
+
+  #timeline-view .dashboard-part-watched-card .history-card-meta {
+    gap: var(--space-1);
+    font-size: 0.72rem;
+  }
+
+  #timeline-view .dashboard-part-watched-card .history-card-meta-row {
+    gap: 0;
+  }
+
+  #timeline-view .dashboard-part-watched-card .history-card-footer {
+    gap: var(--space-1);
+    font-size: 0.72rem;
+  }
+
+  #timeline-view .dashboard-part-watched-card .history-card-apps {
+    gap: var(--space-1);
+  }
+
+  #timeline-view .dashboard-part-watched-card .part-watched-app-badge {
+    gap: var(--space-1);
+    padding-inline: var(--space-1);
+    font-size: 0.66rem;
+  }
+
+  #timeline-view .dashboard-part-watched-card .part-watched-progress-container {
+    gap: var(--space-1);
+    margin-top: 0;
+  }
+
+  #timeline-view .dashboard-part-watched-card .part-watched-progress-text {
+    font-size: 0.7rem;
+  }
+
+  #timeline-view .dashboard-part-watched-card .history-card-actions {
+    gap: var(--space-2);
+    margin-top: 0;
+  }
+
+  #timeline-view .dashboard-part-watched-card .part-watched-action-btn {
+    min-height: 1.6rem;
+    padding: 0.2rem 0.4rem;
+    font-size: 0.7rem;
+    line-height: 1.1;
+  }
+}
+
+.dashboard-up-next-card .history-card-footer--watch-now {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.dashboard-up-next-card .up-next-app-links {
+  display: flex;
+  width: 100%;
+  min-height: 1.45rem;
+  align-items: flex-start;
+  justify-content: flex-start;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+}
+
+.dashboard-up-next-card .up-next-app-links::-webkit-scrollbar {
+  display: none;
+}
+
+.dashboard-up-next-card .up-next-app-links .media-app-link-row {
+  display: flex;
+  width: max-content;
+  max-width: none;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  gap: 0;
+}
+
+#timeline-view .dashboard-up-next-card .up-next-app-links .source-badge--icon {
+  gap: var(--space-1);
+  padding-inline: var(--space-1);
+}
+
+.up-next-apps-empty {
+  color: var(--muted, #666);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+/* Keep inline progress cards horizontally scrollable in the alternate poster
+   view too; the default cards view gets this width from the shared row rule. */
+#timeline-view #tvHistoryRow .dashboard-part-watched-card,
+#timeline-view #movieHistoryRow .dashboard-part-watched-card {
+  flex: 0 0 385px;
+}
+
 #timeline-view[data-dash-state="2"] .dashboard-history-card-row .dashboard-history-page-card {
   flex: 0 0 430px;
 }
 
 #timeline-view[data-dash-state="3"] .dashboard-history-card-row .dashboard-history-page-card {
   flex: 0 0 500px;
+}
+
+/* Rows need only a few pixels of top breathing room: the cards lift on hover,
+   and an auto-scroller with zero top padding clips that border. Keep the
+   spacing symmetrical across Up Next and both history rows. */
+#timeline-view #upNextPanel.dashboard-history-card-row,
+#timeline-view #tvHistoryRow.horizontal-scroll-row,
+#timeline-view #movieHistoryRow.horizontal-scroll-row {
+  padding: 0.55rem 0.2rem 0.55rem;
+  scroll-padding: 0.55rem 0.2rem;
+}
+
+/* Shared FLIP/entrance motion for live dashboard snapshots. Only transform
+   and opacity move, so the row never reflows while the animation is running. */
+.dashboard-card-motion {
+  will-change: transform;
+}
+
+.dashboard-card-enter {
+  animation: dashboard-card-enter 280ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.dashboard-card-exit {
+  animation: dashboard-card-exit 200ms cubic-bezier(0.4, 0, 1, 1) both;
+  pointer-events: none;
+}
+
+@keyframes dashboard-card-enter {
+  from { opacity: 0; transform: translate3d(-14px, 0, 0) scale(0.98); }
+  to { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+}
+
+@keyframes dashboard-card-exit {
+  from { opacity: 1; transform: translate3d(0, 0, 0) scale(1); }
+  to { opacity: 0; transform: translate3d(12px, 0, 0) scale(0.97); }
+}
+
+@media (max-width: 480px) {
+  .dashboard-part-watched-card .history-card-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-card-enter,
+  .dashboard-card-exit {
+    animation: none;
+  }
 }
 
 @media (max-width: 640px) {
@@ -11416,10 +11915,24 @@ h1 {
     gap: 0.5rem;
   }
 
+  #timeline-view #tvHistoryRow .dashboard-part-watched-card,
+  #timeline-view #movieHistoryRow .dashboard-part-watched-card {
+    flex: 0 0 clamp(128px, 40vw, 176px);
+  }
+
   .page-shell[data-active-view="dashboard"] .dashboard-history-card-row .history-card-poster-wrapper {
     width: 100%;
     height: auto;
     max-height: none;
+  }
+
+  #timeline-view .dashboard-history-page-card > .history-card-details {
+    padding: 0.5rem;
+  }
+
+  #timeline-view .dashboard-history-page-card > .history-card-poster-wrapper,
+  #timeline-view .dashboard-history-page-card > .history-card-poster-wrapper .history-card-poster-link {
+    border-radius: var(--poster-radius) var(--poster-radius) 0 0;
   }
 
   .page-shell[data-active-view="dashboard"] .dashboard-history-card-row .history-card-title {
@@ -11866,7 +12379,6 @@ h1 {
     padding: 0.65rem 0.75rem;
     width: 100%;
     flex-wrap: wrap;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
   }
 
   .brand-block {
@@ -12490,8 +13002,8 @@ h1 {
   }
 
   .page-shell[data-active-view="dashboard"] .live-panel,
-  .page-shell[data-active-view="dashboard"] #partWatchedDashboardSection,
-  .page-shell[data-active-view="dashboard"] .history-timeline-panel:not(#partWatchedDashboardSection) {
+  .page-shell[data-active-view="dashboard"] #upNextDashboardSection,
+  .page-shell[data-active-view="dashboard"] .dashboard-history-panel {
     flex: 0 0 auto;
     min-height: 0;
     overflow: visible;
@@ -12499,13 +13011,8 @@ h1 {
 
   /* Reset flex-grow overrides that size the desktop column splits */
   #timeline-view .live-panel,
-  #timeline-view[data-dash-state="2"] .live-panel,
-  #timeline-view[data-dash-state="3"] .live-panel { flex-grow: 0; }
-  #timeline-view #partWatchedDashboardSection,
-  #timeline-view[data-dash-state="2"] #partWatchedDashboardSection { flex-grow: 0; }
-  #timeline-view .history-timeline-panel:not(#partWatchedDashboardSection),
-  #timeline-view[data-dash-state="2"] .history-timeline-panel:not(#partWatchedDashboardSection),
-  #timeline-view[data-dash-state="3"] .history-timeline-panel:not(#partWatchedDashboardSection) { flex-grow: 0; }
+  #timeline-view #upNextDashboardSection,
+  #timeline-view .dashboard-history-panel { flex-grow: 0; }
 
   /* Now Playing: let cards wrap naturally at a good mobile height */
   .page-shell[data-active-view="dashboard"] .now-playing-grid {
@@ -12528,13 +13035,13 @@ h1 {
   }
 
   /* Part Watched: horizontal scroll row with natural card heights */
-  .page-shell[data-active-view="dashboard"] #partWatchedRow {
+  .page-shell[data-active-view="dashboard"] .dashboard-part-watched-row {
     flex: 0 0 auto;
     min-height: 0;
     overflow-x: auto;
   }
 
-  .page-shell[data-active-view="dashboard"] #partWatchedRow .part-watched-page-card {
+  .page-shell[data-active-view="dashboard"] .dashboard-part-watched-row .part-watched-page-card {
     height: auto;
     min-height: 10.5rem;
     width: min(88vw, 26rem);
@@ -12543,28 +13050,36 @@ h1 {
     overflow: visible;
   }
 
-  .page-shell[data-active-view="dashboard"] #partWatchedRow .part-watched-card-poster-wrapper {
+  .page-shell[data-active-view="dashboard"] .dashboard-part-watched-row .part-watched-card-poster-wrapper {
     width: 6.5rem;
     height: 9.75rem;
     flex: 0 0 6.5rem;
   }
 
-  .page-shell[data-active-view="dashboard"] #partWatchedRow .part-watched-card-actions {
+  .page-shell[data-active-view="dashboard"] .dashboard-part-watched-row .part-watched-card-actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0.4rem;
   }
 
-  .page-shell[data-active-view="dashboard"] #partWatchedRow .part-watched-action-btn {
+  .page-shell[data-active-view="dashboard"] .dashboard-part-watched-row .part-watched-action-btn {
     min-height: 2.4rem;
     padding: 0.45rem 0.5rem !important;
     white-space: normal;
   }
 
   /* Watch History rows: natural scrollable height */
-  .page-shell[data-active-view="dashboard"] .history-timeline-panel:not(#partWatchedDashboardSection) .dashboard-history-rows {
+  .page-shell[data-active-view="dashboard"] .dashboard-history-progress-section {
     flex: 0 0 auto;
     min-height: 0;
+    overflow: visible;
+  }
+
+  .page-shell[data-active-view="dashboard"] .dashboard-history-progress-section .dashboard-part-watched-row {
+    flex: 0 0 auto;
+    min-height: 0;
+    overflow-x: auto;
+    overflow-y: visible;
   }
 
   .page-shell[data-active-view="dashboard"] .dashboard-row-section {
@@ -12592,34 +13107,12 @@ h1 {
 
   /* Stats leaderboard leader card: shrink poster on mobile */
   .stats-lb-leader {
-    grid-template-columns: 1.8rem 5rem minmax(0, 1fr);
+    grid-template-columns: 5rem 1.8rem minmax(0, 1fr);
   }
 
   .stats-lb-leader-copy h3 {
     font-size: 1.4rem;
   }
-}
-
-/* Default state: everything fits in one row, so the "More" trigger is hidden
-   and its contents render inline. JS (syncMediaActionsMenuState) measures the
-   actual rendered width and adds .actions-collapsed only when the buttons
-   would overflow, regardless of viewport size. */
-body #mediaDetailActions:not(.actions-collapsed) .actions-more-trigger {
-  display: none !important;
-}
-body #mediaDetailActions:not(.actions-collapsed) .actions-more-dropdown {
-  display: contents !important;
-}
-body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
-  display: flex !important;
-  flex-direction: row !important;
-  gap: 0.5rem !important;
-  position: static !important;
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  padding: 0 !important;
-  width: auto !important;
 }
 
 @media (max-width: 640px) {
@@ -12773,6 +13266,11 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
     background: transparent !important;
   }
 
+  body #mediaDetailActions .personal-media-detail-action.has-personal-state {
+    color: var(--accent) !important;
+    opacity: 1;
+  }
+
   body #mediaDetailActions .action-pill svg,
   body #mediaDetailActions .seerr-request-btn svg,
   body #mediaDetailActions .seerr-request-btn img,
@@ -12799,45 +13297,6 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
     min-height: 2.4em !important;
   }
 
-  /* Match the outer row's gap so flattened items (e.g. Fix Match/Merge,
-     rendered inside .actions-more-panel) are spaced identically to the
-     top-level buttons instead of using the wider desktop gap. */
-  /* On mobile viewports, when the actions fit in one row, style using percentage widths
-     to bypass details/summary browser flexbox bugs and achieve exactly 24% width per button. */
-  body #mediaDetailActions:not(.actions-collapsed) .actions-more-dropdown {
-    display: block !important;
-    width: 49% !important;
-    flex: 0 0 49% !important;
-    margin: 0 !important;
-    padding: 0 !important;
-  }
-
-  body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
-    display: flex !important;
-    flex-direction: row !important;
-    width: 100% !important;
-    gap: 2% !important;
-    justify-content: space-between !important;
-  }
-
-  body #mediaDetailActions:not(.actions-collapsed) > .action-pill:not(.media-toggle-all-seasons-btn),
-  body #mediaDetailActions:not(.actions-collapsed) > .seerr-request-btn,
-  body #mediaDetailActions:not(.actions-collapsed) > .rating-pill {
-    width: 24% !important;
-    flex: 0 0 24% !important;
-    min-width: 0 !important;
-    max-width: none !important;
-  }
-
-  body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel .action-pill,
-  body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel .seerr-request-btn,
-  body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel .rating-pill {
-    width: 49% !important;
-    flex: 0 0 49% !important;
-    min-width: 0 !important;
-    max-width: none !important;
-  }
-
   /* "Expand All"/"Collapse All" seasons stays reachable without scrolling
      the (potentially collapsed/overflowing) actions row - pin it to the
      right edge of the row's own scroll area, like Sonarr's season toolbar. */
@@ -12850,7 +13309,7 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
     margin-left: auto !important;
   }
 
-  body #mediaDetailActions.actions-collapsed .actions-more-dropdown {
+  body #mediaDetailActions.actions-collapsed .actions-tools-dropdown {
     position: relative !important;
     display: inline-block !important;
   }
@@ -12869,7 +13328,7 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
     width: 100% !important;
   }
 
-  body #mediaDetailActions.actions-collapsed .actions-more-dropdown[open] {
+  body #mediaDetailActions.actions-collapsed .actions-tools-dropdown[open] {
     z-index: 99 !important;
   }
 
@@ -12878,7 +13337,7 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
   }
 
   body #mediaDetailActions summary,
-  body #mediaDetailActions .actions-more-trigger {
+  body #mediaDetailActions .actions-tools-trigger {
     outline: none !important;
     border: none !important;
     box-shadow: none !important;
@@ -12887,15 +13346,15 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
 
   body #mediaDetailActions summary:focus,
   body #mediaDetailActions summary:active,
-  body #mediaDetailActions .actions-more-trigger:focus,
-  body #mediaDetailActions .actions-more-trigger:active {
+  body #mediaDetailActions .actions-tools-trigger:focus,
+  body #mediaDetailActions .actions-tools-trigger:active {
     outline: none !important;
     border: none !important;
     box-shadow: none !important;
   }
 
-  /* Sonarr-style dropdown card, shown only when collapsed */
-  body #mediaDetailActions.actions-collapsed .actions-more-panel {
+  /* Sonarr-style dropdown card, shown whenever Tools is opened */
+  body #mediaDetailActions.actions-collapsed .actions-tools-panel {
     display: none;
     position: absolute !important;
     right: 0 !important;
@@ -12910,16 +13369,14 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
     padding: 0.25rem 0 !important;
   }
 
-  body #mediaDetailActions.actions-collapsed .actions-more-dropdown[open] .actions-more-panel {
+  body #mediaDetailActions.actions-collapsed .actions-tools-dropdown[open] .actions-tools-panel {
     display: flex !important;
   }
 
-  /* Stacked list for dropdown items - only when collapsed. When the panel is
-     flattened inline (fits without a "More" button), the plain .action-pill
-     rules above already give it the right look. */
-  body #mediaDetailActions.actions-collapsed .actions-more-panel .action-pill,
-  body #mediaDetailActions.actions-collapsed .actions-more-panel .seerr-request-btn,
-  body #mediaDetailActions.actions-collapsed .actions-more-panel .rating-pill {
+  /* Tools actions stay in a readable stacked list inside the grouped menu. */
+  body #mediaDetailActions.actions-collapsed .actions-tools-panel .action-pill,
+  body #mediaDetailActions.actions-collapsed .actions-tools-panel .seerr-request-btn,
+  body #mediaDetailActions.actions-collapsed .actions-tools-panel .rating-pill {
     flex-direction: row !important;
     align-items: center !important;
     justify-content: flex-start !important;
@@ -12936,23 +13393,23 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
     letter-spacing: normal !important;
   }
 
-  body #mediaDetailActions.actions-collapsed .actions-more-panel .action-pill:hover,
-  body #mediaDetailActions.actions-collapsed .actions-more-panel .seerr-request-btn:hover,
-  body #mediaDetailActions.actions-collapsed .actions-more-panel .rating-pill:hover {
+  body #mediaDetailActions.actions-collapsed .actions-tools-panel .action-pill:hover,
+  body #mediaDetailActions.actions-collapsed .actions-tools-panel .seerr-request-btn:hover,
+  body #mediaDetailActions.actions-collapsed .actions-tools-panel .rating-pill:hover {
     color: var(--primary) !important;
     background: var(--bg-hover) !important;
   }
 
-  body #mediaDetailActions.actions-collapsed .actions-more-panel .action-pill svg,
-  body #mediaDetailActions.actions-collapsed .actions-more-panel .seerr-request-btn svg,
-  body #mediaDetailActions.actions-collapsed .actions-more-panel .rating-pill svg {
+  body #mediaDetailActions.actions-collapsed .actions-tools-panel .action-pill svg,
+  body #mediaDetailActions.actions-collapsed .actions-tools-panel .seerr-request-btn svg,
+  body #mediaDetailActions.actions-collapsed .actions-tools-panel .rating-pill svg {
     width: 1rem !important;
     height: 1rem !important;
   }
 
-  body #mediaDetailActions.actions-collapsed .actions-more-panel .action-pill span,
-  body #mediaDetailActions.actions-collapsed .actions-more-panel .seerr-request-btn span,
-  body #mediaDetailActions.actions-collapsed .actions-more-panel .rating-pill span {
+  body #mediaDetailActions.actions-collapsed .actions-tools-panel .action-pill span,
+  body #mediaDetailActions.actions-collapsed .actions-tools-panel .seerr-request-btn span,
+  body #mediaDetailActions.actions-collapsed .actions-tools-panel .rating-pill span {
     margin: 0 !important;
     font-size: 0.81rem !important;
   }
@@ -12981,7 +13438,7 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
 
   /* Stats leader (#1): compact the poster, clamp the description */
   .stats-lb-leader {
-    grid-template-columns: 1.8rem 4.5rem minmax(0, 1fr);
+    grid-template-columns: 4.5rem 1.8rem minmax(0, 1fr);
     overflow: hidden;
   }
 
@@ -13185,7 +13642,7 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
 
 /* Inline Media Detail Overrides */
 #explorerPanel .media-detail-page {
-  background: rgba(8, 11, 14, 0.16) !important;
+  background: transparent !important;
   border: none !important;
   box-shadow: none !important;
   padding: 0 !important;
@@ -13193,11 +13650,41 @@ body #mediaDetailActions:not(.actions-collapsed) .actions-more-panel {
 }
 
 html.light-mode #explorerPanel .media-detail-page {
-  background: rgba(248, 250, 252, 0.18) !important;
+  background: transparent !important;
 }
 
 #explorerPanel .modal-backdrop-image {
   opacity: 0.12 !important;
+}
+
+/* Keep the inline detail backdrop inside the media region. It bleeds through
+   the media section's small surrounding gaps, while the control bar keeps its
+   own opaque surface and never gets artwork painted underneath it. */
+body:has(#explorerPanel > .modal-backdrop-image) .page-shell {
+  background: transparent !important;
+}
+
+body:has(#explorerPanel > .modal-backdrop-image) .page-topbar {
+  background: var(--panel-3) !important;
+  border-bottom-color: color-mix(in srgb, var(--line), transparent 35%);
+}
+
+body:has(#explorerPanel > .modal-backdrop-image) #explorerPanel > .modal-backdrop-image {
+  position: absolute;
+  top: calc(-1 * var(--space-2));
+  right: calc(-1 * var(--control-inline-padding));
+  bottom: 0;
+  left: calc(-1 * var(--control-inline-padding));
+  width: auto;
+  height: auto;
+}
+
+/* A glass panel's backdrop filter can become the containing surface for a
+   fixed descendant. Disable it while the detail artwork is active so the
+   backdrop is truly viewport-wide and can show beneath the control bar. */
+body:has(#explorerPanel > .modal-backdrop-image) .view-panel[data-view-panel="explorer"] > .glass-panel {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 
 /* Highlighted Episode Row */
@@ -14775,13 +15262,8 @@ html.light-mode .pill-toggle.active {
 /* Dashboard watch-history mini cards (poster + details, ~2 posters wide) */
 #tvHistoryRow.horizontal-scroll-row,
 #movieHistoryRow.horizontal-scroll-row {
-  /* Room for the hover lift so the card border isn't clipped by overflow */
-  padding-top: 6px;
-  padding-left: 6px;
-  padding-right: 6px;
-  padding-bottom: 10px;
-  scroll-padding-left: 6px;
-  scroll-padding-right: 6px;
+  padding: 0 0 var(--space-2);
+  scroll-padding: 0;
 }
 
 .history-mini-card {
@@ -15837,6 +16319,14 @@ details[open] > .tool-section-summary::before {
   transition: transform 130ms ease, box-shadow 130ms ease;
 }
 
+.history-card-poster-link {
+  display: block;
+  width: 100%;
+  height: 100%;
+  color: inherit;
+  text-decoration: none;
+}
+
 .history-page-card:hover .history-card-poster-wrapper {
   transform: scale(1.02);
   box-shadow: 0 6px 15px rgba(0, 0, 0, 0.45);
@@ -15859,6 +16349,32 @@ details[open] > .tool-section-summary::before {
   min-width: 0;
 }
 
+/* Let the card-view history poster form the leading surface of its tile while
+   the existing detail inset remains unchanged. */
+.history-list .history-page-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.history-list .history-page-card > .history-card-poster-wrapper {
+  align-self: stretch;
+  height: auto;
+  max-height: none;
+  border-radius: var(--poster-radius) 0 0 var(--poster-radius);
+}
+
+.history-list .history-page-card > .history-card-poster-wrapper .history-card-poster-link {
+  border-radius: var(--poster-radius) 0 0 var(--poster-radius);
+}
+
+.history-list .history-page-card > .history-card-details {
+  padding: 0.6rem;
+}
+
+.history-list .history-page-card .history-card-poster-wrapper .poster-fallback {
+  background: var(--panel-3);
+}
+
 .history-card-header {
   display: flex;
   flex-direction: column;
@@ -15872,6 +16388,16 @@ details[open] > .tool-section-summary::before {
   white-space: normal;
   word-break: break-word;
   overflow: hidden;
+}
+
+.history-card-title-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.history-card-title-link:hover,
+.history-card-title-link:focus-visible {
+  color: var(--accent);
 }
 
 .history-card-episode {
@@ -16021,6 +16547,11 @@ details[open] > .tool-section-summary::before {
        height instead of its width and flatten it to a square. Sizing from width
        alone lets aspect-ratio set the height. */
     flex: 0 0 auto;
+  }
+
+  .history-list .history-page-card > .history-card-poster-wrapper,
+  .history-list .history-page-card > .history-card-poster-wrapper .history-card-poster-link {
+    border-radius: var(--poster-radius) var(--poster-radius) 0 0;
   }
 }
 
@@ -16963,6 +17494,851 @@ html.light-mode .watch-date-head h3 {
 
 html.light-mode .watch-date-sub {
   color: var(--muted);
+}
+
+/* Scrob-inspired media discovery and dashboard card system */
+.shared-media-card {
+  display: flex;
+  flex: 0 0 auto;
+  min-width: 0;
+  gap: var(--space-3);
+  padding: 0.65rem;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  color: var(--text);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
+  transition: border-color 140ms ease, background 140ms ease, transform 140ms ease;
+}
+
+.shared-media-card:hover {
+  border-color: var(--accent);
+  background: var(--panel);
+  transform: translateY(-2px);
+}
+
+.shared-media-card-poster {
+  display: block;
+  width: 100%;
+  height: 100%;
+  flex: 0 0 auto;
+  overflow: hidden;
+  border-radius: var(--poster-radius);
+  color: inherit;
+  text-decoration: none;
+}
+
+.shared-media-card-poster-wrap {
+  position: relative;
+  display: block;
+  flex: 0 0 6.25rem;
+  width: 6.25rem;
+  aspect-ratio: 2 / 3;
+  overflow: hidden;
+  border-radius: var(--poster-radius);
+}
+
+.shared-media-card-poster-image,
+.shared-media-card-poster .poster-fallback {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.shared-media-card-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.28rem;
+}
+
+.shared-media-card-title {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 850;
+  line-height: 1.25;
+  text-decoration: none;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.shared-media-card-title:hover,
+.shared-media-card-title:focus-visible {
+  color: var(--accent);
+}
+
+.shared-media-card-meta,
+.shared-media-card-status {
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.73rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shared-media-card-status {
+  color: var(--accent);
+}
+
+.shared-media-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+}
+
+.shared-media-card-badges .status-pill {
+  padding: 0.12rem 0.4rem;
+  font-size: 0.63rem;
+}
+
+.shared-media-card-description {
+  display: -webkit-box;
+  margin: 0.15rem 0 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.shared-media-card--discover {
+  display: flex;
+  width: 385px;
+  flex-direction: row;
+  gap: 0.85rem;
+  padding: 0;
+  align-self: stretch;
+  height: 100%;
+}
+
+.shared-media-card--discover .shared-media-card-poster {
+  flex: 0 0 auto;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--poster-radius) 0 0 var(--poster-radius);
+}
+
+.shared-media-card--discover .shared-media-card-poster-wrap {
+  flex: 0 0 auto;
+  width: auto;
+  height: 100%;
+  max-height: 100%;
+  align-self: stretch;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--poster-radius) 0 0 var(--poster-radius);
+  background: var(--panel-3);
+}
+
+.shared-media-card--discover .shared-media-card-body {
+  gap: 0.35rem;
+  padding: 0.65rem;
+  justify-content: space-between;
+}
+
+.shared-media-card--discover .shared-media-card-description {
+  -webkit-line-clamp: 2;
+}
+
+.shared-media-card--discover .shared-media-card-poster .poster-fallback {
+  background: var(--panel-3);
+}
+
+.shared-media-card--collection-part {
+  width: 12rem;
+  padding: 0.45rem;
+}
+
+.shared-media-card--collection-part .shared-media-card-poster {
+  flex-basis: 3.5rem;
+  width: 3.5rem;
+}
+
+.shared-media-card--collection-part .shared-media-card-poster-wrap {
+  flex-basis: 3.5rem;
+  width: 3.5rem;
+}
+
+.search-collection-toggle {
+  align-self: flex-start;
+  margin-top: 0.25rem;
+}
+
+.search-collection-parts {
+  display: flex;
+  width: 100%;
+  gap: var(--space-2);
+  padding-top: var(--space-2);
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.search-collection-parts .shared-media-card {
+  flex: 0 0 12rem;
+}
+
+.discover-shell {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.discover-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-3);
+  padding: 0.7rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+}
+
+.discover-controls .compact-field {
+  min-width: 12rem;
+}
+
+.page-topbar-actions .discover-controls {
+  gap: 0.5rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+.page-topbar-actions .discover-controls .compact-field {
+  min-width: 0;
+}
+
+.page-topbar-actions .personal-media-topbar-controls {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+}
+
+.page-topbar-actions .personal-media-topbar-controls .personal-media-toolbar-actions {
+  justify-content: flex-end;
+}
+
+.discover-panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.discover-feed {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.discover-feed-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.discover-feed-heading h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.95rem;
+}
+
+.discover-feed-heading span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.discover-feed-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--space-2);
+  min-height: 18rem;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0.15rem 0.1rem 0.5rem;
+}
+
+.discover-feed-row .shared-media-card {
+  flex: 0 0 385px;
+}
+
+.discover-feed-row.is-empty {
+  align-items: center;
+  justify-content: center;
+}
+
+.discover-feed-empty {
+  width: 100%;
+  min-height: 8rem;
+  align-content: center;
+  text-align: center;
+}
+
+/* Desktop Discover mirrors the dashboard's viewport-fit treatment: each of
+   the four feeds gets the same vertical slice, while its cards stay in their
+   own horizontal rail. Mobile keeps the natural stacked page so the rails
+   remain comfortable to browse by touch. */
+@media (min-width: 761px) {
+  .page-shell[data-active-view="discover"] {
+    overflow-y: hidden;
+  }
+
+  .page-shell[data-active-view="discover"] .app-shell {
+    height: 100%;
+    min-height: 0;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: var(--space-2);
+  }
+
+  .page-shell[data-active-view="discover"] #discover-view {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    padding-top: 0;
+  }
+
+  .page-shell[data-active-view="discover"] .discover-shell {
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    gap: var(--space-3);
+  }
+
+  .page-shell[data-active-view="discover"] #discoverPanel {
+    flex: 1 1 0;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  .page-shell[data-active-view="discover"] .discover-panel {
+    height: 100%;
+    min-height: 0;
+    grid-auto-rows: minmax(0, 1fr);
+    gap: var(--space-3);
+  }
+
+  .page-shell[data-active-view="discover"] .discover-feed {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+    gap: var(--space-1);
+    overflow: hidden;
+  }
+
+  .page-shell[data-active-view="discover"] .discover-feed-row {
+    flex: 1 1 0;
+    min-height: 0;
+    padding: 0.35rem 0.1rem 0.5rem;
+  }
+
+  .page-shell[data-active-view="discover"] .discover-feed-row .shared-media-card {
+    flex: 0 0 385px;
+    min-height: 0;
+  }
+
+  .page-shell[data-active-view="discover"] .discover-feed-row .shared-media-card:hover,
+  .page-shell[data-active-view="discover"] .discover-feed-row .shared-media-card:focus-within {
+    position: relative;
+    z-index: 1;
+  }
+
+  .page-shell[data-active-view="discover"] .shared-media-card--discover {
+    width: 385px;
+    min-height: 0;
+  }
+}
+
+.personal-media-shell {
+  min-height: 0;
+}
+
+.personal-media-panel {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-4);
+}
+
+.personal-media-toolbar-actions,
+.personal-media-dialog-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.personal-media-list-select {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
+.personal-media-list-select .field {
+  min-width: 10rem;
+  min-height: 2.2rem;
+  padding: 0.3rem 0.5rem;
+}
+
+.personal-media-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 385px), 385px));
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.personal-media-card-grid .shared-media-card--personal {
+  min-height: 0;
+  height: auto;
+  gap: 0.85rem;
+  padding: 0;
+  align-items: stretch;
+  align-self: stretch;
+}
+
+.personal-media-card-grid .shared-media-card--personal .shared-media-card-poster-wrap {
+  flex: 0 0 10rem;
+  width: 10rem;
+  height: auto;
+  max-height: none;
+  align-self: stretch;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--poster-radius) 0 0 var(--poster-radius);
+  background: var(--panel-3);
+}
+
+.personal-media-card-grid .shared-media-card--personal .shared-media-card-poster {
+  border-radius: var(--poster-radius) 0 0 var(--poster-radius);
+}
+
+.personal-media-card-grid .shared-media-card--personal .shared-media-card-body {
+  min-height: 0;
+  padding: 0.65rem;
+  justify-content: space-between;
+}
+
+.personal-media-card-grid .shared-media-card--personal .shared-media-card-poster .poster-fallback {
+  background: var(--panel-3);
+}
+
+.personal-media-card-grid .shared-media-card--personal .shared-media-card-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+  margin-top: auto;
+  padding-top: 0.3rem;
+}
+
+.personal-media-card-grid .shared-media-card--personal .shared-media-card-actions button {
+  min-width: 0;
+  width: 100%;
+  padding: 0.3rem 0.55rem;
+  font-size: 0.72rem;
+}
+
+.personal-media-list-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+  color: var(--text);
+}
+
+.personal-media-list-heading span {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.personal-media-rating-section {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+}
+
+.personal-media-empty {
+  min-height: 10rem;
+  align-content: center;
+  justify-items: start;
+}
+
+.personal-media-dialog-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 120;
+  display: grid;
+  place-items: center;
+  padding: var(--space-4);
+  background: rgba(2, 6, 23, 0.72);
+}
+
+.personal-media-dialog {
+  width: min(100%, 30rem);
+  max-height: min(90vh, 42rem);
+  overflow: auto;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--panel);
+  box-shadow: 0 22px 70px rgba(0, 0, 0, 0.45);
+}
+
+.personal-media-dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-bottom: 1px solid var(--line);
+}
+
+.personal-media-dialog-head h2 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.personal-media-dialog-body {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.personal-media-dialog-copy {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.personal-media-dialog-error {
+  margin: 0;
+  color: var(--danger);
+  line-height: 1.4;
+}
+
+.personal-rating-grid,
+.personal-list-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.45rem;
+}
+
+.personal-rating-choice {
+  min-height: 2.5rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 850;
+}
+
+.personal-rating-choice:hover,
+.personal-rating-choice.active {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent), transparent 86%);
+  color: var(--accent);
+}
+
+.personal-list-choice-grid {
+  grid-template-columns: 1fr;
+}
+
+.personal-list-choice--added,
+.personal-list-choice--added:disabled {
+  cursor: default;
+  opacity: 1;
+  border-color: color-mix(in srgb, var(--accent), transparent 48%);
+  background: color-mix(in srgb, var(--accent), transparent 90%);
+  color: var(--accent);
+}
+
+.personal-media-dialog-actions {
+  justify-content: flex-end;
+}
+
+.personal-media-create-form {
+  display: grid;
+  min-width: 0;
+  margin: 0;
+  gap: var(--space-3);
+}
+
+.personal-media-create-form .field-label {
+  width: 100%;
+  min-width: 0;
+}
+
+.personal-media-create-form .field {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.personal-media-create-form .personal-media-dialog-actions {
+  width: 100%;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding-top: var(--space-1);
+}
+
+.personal-media-create-form .personal-media-dialog-actions > * {
+  flex: 0 0 auto;
+}
+
+@media (max-width: 760px) {
+  .personal-media-toolbar-actions {
+    align-items: stretch;
+  }
+
+  .personal-media-toolbar-actions {
+    width: 100%;
+  }
+
+  .personal-media-toolbar-actions > * {
+    flex: 1 1 auto;
+  }
+
+  .personal-media-list-select {
+    justify-content: space-between;
+  }
+
+  .personal-media-list-select .field {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  body .page-topbar-actions .personal-media-topbar-controls:not(.hidden) {
+    display: flex !important;
+    width: auto !important;
+    max-width: none !important;
+    flex: 0 0 auto !important;
+    align-items: center !important;
+  }
+
+  body .page-topbar-actions .personal-media-topbar-controls .personal-media-toolbar-actions {
+    width: auto !important;
+    flex-wrap: nowrap !important;
+    align-items: center !important;
+  }
+
+  body .page-topbar-actions .personal-media-topbar-controls .personal-media-toolbar-actions > * {
+    flex: 0 0 auto !important;
+  }
+
+  body .page-topbar-actions .personal-media-topbar-controls .personal-media-list-select {
+    justify-content: flex-start;
+  }
+
+  body .page-topbar-actions .personal-media-topbar-controls .personal-media-list-select .field {
+    min-width: 9rem;
+  }
+}
+
+.dashboard-part-watched-rows {
+  display: block;
+  min-width: 0;
+}
+
+.dashboard-history-progress-section {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.dashboard-history-subheading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.dashboard-history-subheading h3 {
+  margin: 0;
+  color: var(--soft);
+  font-size: 0.74rem;
+  font-weight: 850;
+}
+
+.dashboard-history-subheading span {
+  color: var(--muted);
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.dashboard-part-watched-row {
+  min-width: 0;
+  padding: 0.1rem 0.1rem 0.45rem;
+}
+
+.dashboard-part-watched-row .part-watched-page-card {
+  width: min(25rem, 100%);
+  flex-basis: min(25rem, 100%);
+}
+
+.dashboard-part-watched-row .part-watched-card-title {
+  font-size: 0.9rem;
+}
+
+.dashboard-part-watched-row .part-watched-card-meta {
+  gap: 0.2rem;
+  font-size: 0.72rem;
+}
+
+.dashboard-part-watched-row .part-watched-card-actions {
+  margin-top: 0.2rem;
+}
+
+.dashboard-part-watched-row .part-watched-action-btn {
+  min-height: 1.8rem;
+  padding: 0.3rem 0.45rem;
+  font-size: 0.7rem;
+}
+
+.dashboard-part-watched-row .part-watched-card-poster-wrapper {
+  flex-basis: 5.5rem;
+  width: 5.5rem;
+}
+
+/* Dashboard Up Next shares the four-section desktop split. */
+#timeline-view #upNextDashboardSection {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  flex: 1 1 0;
+  flex-grow: 1;
+  overflow: hidden;
+}
+
+#timeline-view .dashboard-history-panel {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  flex: 1 1 0;
+  flex-grow: 1;
+  overflow: hidden;
+}
+
+#timeline-view #upNextPanel {
+  display: flex;
+  flex: 1 1 0;
+  min-height: 0;
+  align-items: stretch;
+  gap: var(--space-3);
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+#timeline-view #upNextPanel .shared-media-card {
+  height: 100%;
+}
+
+#timeline-view #upNextPanel .shared-media-card--up-next {
+  width: clamp(14rem, 18vw, 20rem);
+  flex-basis: clamp(14rem, 18vw, 20rem);
+  min-height: 0;
+}
+
+#timeline-view #upNextPanel .shared-media-card--up-next .shared-media-card-poster {
+  flex: 0 0 auto;
+  height: 100%;
+  width: auto;
+  aspect-ratio: 2 / 3;
+}
+
+#timeline-view #upNextPanel .shared-media-card--up-next .shared-media-card-body {
+  min-height: 0;
+}
+
+#timeline-view #upNextPanel .shared-media-card--up-next .shared-media-card-actions {
+  width: 100%;
+  margin-top: auto;
+}
+
+#timeline-view #upNextPanel .up-next-watch-button {
+  width: 100%;
+}
+
+#timeline-view #upNextPanel .up-next-empty-state {
+  flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+  align-content: center;
+  justify-items: center;
+  text-align: center;
+}
+
+#timeline-view #upNextPanel .up-next-empty-state span {
+  max-width: 42ch;
+}
+
+html.light-mode .shared-media-card {
+  background: var(--panel);
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.07);
+}
+
+@media (max-width: 760px) {
+  #timeline-view #upNextDashboardSection,
+  #timeline-view .dashboard-history-panel {
+    flex: 0 0 auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  #timeline-view #upNextPanel {
+    flex: 0 0 auto;
+    min-height: 0;
+    align-items: stretch;
+    overflow-x: auto;
+    overflow-y: visible;
+  }
+
+  #timeline-view #upNextPanel .shared-media-card {
+    height: auto;
+    width: min(88vw, 26rem);
+    min-height: 9rem;
+  }
+
+  #timeline-view #upNextPanel .shared-media-card--up-next {
+    flex-basis: min(88vw, 26rem);
+  }
+
+  .dashboard-part-watched-row {
+    overflow-x: auto;
+  }
+
+  .dashboard-part-watched-row .part-watched-page-card {
+    width: min(88vw, 26rem);
+    flex-basis: min(88vw, 26rem);
+  }
+
+  .discover-controls .compact-field {
+    flex: 1 1 10rem;
+    min-width: 0;
+  }
+
+  .shared-media-card--discover {
+    width: min(88vw, 26rem);
+  }
+
+  .discover-feed-row .shared-media-card--discover {
+    flex-basis: min(88vw, 26rem);
+  }
 }
 
 html.light-mode .watch-date-close {
@@ -17943,15 +19319,17 @@ html.light-mode .settings-pane .drop-zone:hover {
 
 .upcoming-entry {
   display: flex;
-  align-items: center;
+  align-items: stretch;
   gap: 0.5rem;
   width: 100%;
   min-width: 0;
+  min-height: 3.525rem;
   text-align: left;
   background: var(--surface);
   border: 1px solid var(--line-strong);
   border-radius: 5px;
-  padding: 0.3rem 0.45rem 0.3rem 0.3rem;
+  padding: 0;
+  overflow: hidden;
   color: var(--text);
   font-size: 0.78rem;
   line-height: 1.25;
@@ -17962,18 +19340,29 @@ html.light-mode .settings-pane .drop-zone:hover {
   border-color: var(--accent);
 }
 
-.upcoming-entry-poster {
+.upcoming-entry-poster-wrap {
+  display: block;
+  flex: 0 0 2.35rem;
   width: 2.35rem;
-  height: 3.525rem;
+  min-height: 3.525rem;
+  align-self: stretch;
+  overflow: hidden;
+  border-radius: var(--poster-radius) 0 0 var(--poster-radius);
+  background: var(--panel-3);
+}
+
+.upcoming-entry-poster {
+  width: 100%;
+  height: 100%;
   flex-shrink: 0;
-  border-radius: var(--poster-radius);
+  border-radius: var(--poster-radius) 0 0 var(--poster-radius);
   object-fit: cover;
   background: var(--panel-3);
   display: block;
 }
 
 .upcoming-entry-poster.poster-fallback {
-  border: 1px solid var(--line);
+  border: 0;
 }
 
 .upcoming-entry-text {
@@ -17981,6 +19370,8 @@ html.light-mode .settings-pane .drop-zone:hover {
   display: flex;
   flex-direction: column;
   gap: 1px;
+  justify-content: center;
+  padding: 0.3rem 0.45rem 0.3rem 0.3rem;
 }
 
 .upcoming-entry-meta {
@@ -18161,13 +19552,18 @@ html.light-mode .upcoming-week-day {
   .upcoming-entry {
     min-height: 4.6rem;
     gap: 0.65rem;
-    padding: 0.45rem;
+    padding: 0;
     font-size: 0.82rem;
   }
 
-  .upcoming-entry-poster {
+  .upcoming-entry-poster-wrap {
+    flex-basis: 2.9rem;
     width: 2.9rem;
-    height: 4.35rem;
+    min-height: 4.35rem;
+  }
+
+  .upcoming-entry-text {
+    padding: 0.45rem;
   }
 
   .upcoming-entry-title,
@@ -18250,7 +19646,7 @@ html.light-mode .upcoming-week-day {
   }
 
   .upcoming-entry {
-    align-items: flex-start;
+    align-items: stretch;
   }
 }
 
@@ -20631,4 +22027,36 @@ html.light-mode .settings-pane .settings-card-grid .service-card:focus-visible {
     border-top: 1px solid var(--line);
     border-left: 0;
   }
+}
+
+/* Popup surfaces sit above the page content. The dark theme deliberately
+   uses translucent glass for ordinary panels, but that treatment lets cards
+   show through menus and dialogs. Give popup containers an opaque surface
+   while leaving the light theme and the full-screen immersive view unchanged. */
+html:not(.light-mode) #globalSearchDropdown,
+html:not(.light-mode) .modal-panel.glass-panel:not(.modal-panel--immersive),
+html:not(.light-mode) .edit-dialog.glass-panel,
+html:not(.light-mode) .media-info-panel.glass-panel,
+html:not(.light-mode) .settings-modal,
+html:not(.light-mode) .personal-media-dialog {
+  background: var(--panel-3);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+html:not(.light-mode) #globalSearchDropdown .gsd-columns,
+html:not(.light-mode) #globalSearchDropdown .global-search-result,
+html:not(.light-mode) #globalSearchDropdown .gsd-more {
+  background: var(--panel-3);
+}
+
+html:not(.light-mode) #globalSearchDropdown .gsd-column-header {
+  background: #111820;
+}
+
+html:not(.light-mode) #globalSearchDropdown .global-search-result:hover,
+html:not(.light-mode) #globalSearchDropdown .global-search-result:focus,
+html:not(.light-mode) #globalSearchDropdown .gsd-more:hover,
+html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
+  background: #151d26;
 }

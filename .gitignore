@@ -5,6 +5,8 @@ dist/
 !.env.example
 .random
 scratch/
+
+# Local planning artifacts
 plan/
 
 # Website prototype stays local while it is being reviewed

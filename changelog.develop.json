@@ -1,6 +1,21 @@
 {
-  "build": 12,
+  "build": 14,
   "resetCommit": "244174d4170b2e1d46e484084aaac82c1017cc36",
-  "updatedAt": "2026-08-29T19:53:05.434Z",
-  "entries": []
+  "updatedAt": "2026-08-31T16:04:26.822Z",
+  "entries": [
+    {
+      "build": 14,
+      "date": "2026-08-31T16:04:26.822Z",
+      "commit": "d8fa5a27d5ab068fedeb9d089c9660ea5416c1f0",
+      "message": "Feature - Expand media discovery and personal media workflows",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add deterministic Up Next and Discover rails with resilient cached refreshes and richer collection search.",
+        "Add personal watchlist, ratings, and custom lists across media pages with canonical episode identity.",
+        "Group media-detail maintenance actions in a permanent Tools menu and expose saved-list state in the control bar.",
+        "Improve artwork caching, metadata enrichment, syncing, live updates, and dashboard/history presentation.",
+        "Refresh frontend architecture, README, in-app route documentation, and the documentation references."
+      ]
+    }
+  ]
 }

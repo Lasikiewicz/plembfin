@@ -25,6 +25,7 @@ import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, searchTmdb
 import { searchTvdbSeriesList, resolveTvdbSeriesId, getTvdbSeriesArtwork } from "../utils/tvdbGateway.js";
 import { getFanartMovieArt, getFanartTvArt, getAllFanartMovieImages, getAllFanartTvImages } from "../utils/fanartGateway.js";
 import { getOmdbRating } from "../utils/omdbGateway.js";
+import { canonicalMediaArtworkCacheKey, saveCanonicalPoster } from "../utils/mediaArtwork.js";
 import { POSTERS_DIR, BACKDROPS_DIR, PROFILES_DIR, PUBLIC_DIR } from "../paths.js";
 import { formatDispatchTelemetry, recordSyncHistory } from "./sync.js";
 import {
@@ -1060,9 +1061,14 @@ export async function handleUpdateWatch(req, res) {
   }
   if (!id) return sendJson(res, { error: "Watch record not found" }, 400);
 
+  const rowBeforeUpdate = await getWatchRecordByIdLight(id).catch(() => null);
+  const artworkScope = String(body.artwork_scope || body.artworkScope || "").trim().toLowerCase();
+  const isShowArtworkEdit = artworkScope === "show" && rowBeforeUpdate?.media_type === "episode";
   const fields = {};
   if (body.watched_at !== undefined) fields.watched_at = body.watched_at;
-  if (body.poster_url !== undefined) fields.poster_url = body.poster_url;
+  // A show poster is shared artwork, not the poster for the representative
+  // episode used to open the edit dialog. Keep episode artwork independent.
+  if (body.poster_url !== undefined && !isShowArtworkEdit) fields.poster_url = body.poster_url;
   if (body.logo_url !== undefined) fields.logo_url = body.logo_url;
   if (body.backdrop_url !== undefined) fields.backdrop_url = body.backdrop_url;
   if (body.imdb_id !== undefined) fields.imdb_id = body.imdb_id;
@@ -1073,9 +1079,15 @@ export async function handleUpdateWatch(req, res) {
 
   // Captured before the update runs â€” needed below to invalidate the cache row
   // keyed by the *previous* tmdb_id when tvdb_id changes (Fix Match rematch).
-  const preUpdateRow = body.tvdb_id !== undefined ? await getWatchRecordByIdLight(id).catch(() => null) : null;
+  const preUpdateRow = body.tvdb_id !== undefined ? rowBeforeUpdate : null;
 
-  const result = await updateWatchRecord(id, fields);
+  // A show-poster edit intentionally has no watch_history field to update:
+  // its value is persisted below in media_artwork so the representative
+  // episode keeps its own poster. Treat that as a valid request; all other
+  // empty updates should still receive the repository's validation error.
+  const result = isShowArtworkEdit && !Object.keys(fields).length
+    ? { ok: true }
+    : await updateWatchRecord(id, fields);
   if (!result.ok) return sendJson(res, { error: result.error }, 400);
 
   // Callers may address a record by its media_key (the manual match queue does),
@@ -1084,12 +1096,11 @@ export async function handleUpdateWatch(req, res) {
 
   if (fields.watched_at !== undefined) propagateCorrectedWatchDate(recordId);
 
-  // If a custom poster was chosen, make it authoritative across the site. The
-  // poster pipeline serves /api/poster from the poster cache (keyed by
-  // media_key) before it ever looks at a row's poster_url, so simply stamping
-  // one row leaves the dashboard showing the old cached image. Cache the chosen
-  // image and propagate it to every related record (other plays of the same
-  // movie, or every episode of the same show) so each one resolves to it.
+  // If a custom poster was chosen, cache it once and make the correct scope
+  // authoritative. Show edits write the shared show-artwork record only;
+  // episode artwork is never overwritten by that operation. Movie edits retain
+  // their existing same-media propagation because repeated movie plays do not
+  // have an episode-image exception.
   let customPosterUrl;
   let customPosterIds;
   let customBackdropUrl;
@@ -1099,26 +1110,52 @@ export async function handleUpdateWatch(req, res) {
     const editedRow = await getWatchRecordByIdLight(id).catch(() => null);
     const editedKey = editedRow?.media_key || (editedRow ? mediaKeyFor(editedRow) : null);
     if (editedKey) {
-      const cached = await cachePosterFromUrl(editedKey, chosenPosterFetchUrl, "custom").catch(() => null);
+      const canonicalTarget = isShowArtworkEdit
+        ? {
+          media_type: "tv",
+          title: String(body.show_title || body.showTitle || editedRow.show_title || editedRow.title || "").trim(),
+          tmdb_id: String(body.show_tmdb_id || body.showTmdbId || "").trim(),
+          tvdb_id: String(body.show_tvdb_id || body.showTvdbId || "").trim(),
+          imdb_id: String(body.show_imdb_id || body.showImdbId || "").trim(),
+        }
+        : null;
+      const cacheKey = canonicalTarget ? canonicalMediaArtworkCacheKey(canonicalTarget) : editedKey;
+      const cached = isCachedStorageUrl(chosenPoster)
+        ? { url: chosenPoster }
+        : await cachePosterFromUrl(cacheKey, chosenPosterFetchUrl, "custom").catch(() => null);
       if (cached?.url) {
         // The storage path is derived from media_key, so re-saving a poster
         // overwrites the same file at the same URL â€” browsers and the client
         // poster cache would keep serving the previous image. Append a version
         // token so each change yields a fresh URL that busts those caches.
         const versionedUrl = `${cached.url}${cached.url.includes("?") ? "&" : "?"}v=${Date.now()}`;
-        customPosterUrl = versionedUrl;
-        const related = relatedPosterRows(recordId);
-        const seenKeys = new Set([editedKey]);
-        for (const row of related) {
-          if (row.media_key && !seenKeys.has(row.media_key)) {
-            seenKeys.add(row.media_key);
-            // Cheap upsert for an already-cached storage URL (no re-download).
-            await cachePosterFromUrl(row.media_key, cached.url, "custom").catch(() => null);
+        if (canonicalTarget) {
+          const savedCanonical = saveCanonicalPoster(canonicalTarget, versionedUrl, { source: "manual" });
+          if (savedCanonical.ok) {
+            customPosterUrl = versionedUrl;
+            customPosterIds = [];
+            await invalidateHistoryDerivedCaches().catch(() => null);
           }
+        } else {
+          customPosterUrl = versionedUrl;
+          // A movie can have several watch-history rows for the same media. An
+          // episode-specific edit, if one is ever exposed, is intentionally
+          // limited to that episode so it cannot overwrite sibling artwork.
+          const related = editedRow.media_type === "movie"
+            ? relatedPosterRows(recordId)
+            : [{ id: editedRow.id, media_key: editedKey }];
+          const seenKeys = new Set([editedKey]);
+          for (const row of related) {
+            if (row.media_key && !seenKeys.has(row.media_key)) {
+              seenKeys.add(row.media_key);
+              // Cheap upsert for an already-cached storage URL (no re-download).
+              await cachePosterFromUrl(row.media_key, cached.url, "custom").catch(() => null);
+            }
+          }
+          await setWatchPosterUrls(related.map((row) => ({ id: row.id, posterUrl: versionedUrl }))).catch(() => null);
+          await invalidateHistoryDerivedCaches().catch(() => null);
+          customPosterIds = related.map((row) => row.id);
         }
-        await setWatchPosterUrls(related.map((row) => ({ id: row.id, posterUrl: versionedUrl }))).catch(() => null);
-        await invalidateHistoryDerivedCaches().catch(() => null);
-        customPosterIds = related.map((row) => row.id);
       }
     }
   }
@@ -1177,7 +1214,14 @@ export async function handleUpdateWatch(req, res) {
     }
   }
 
-  return sendJson(res, { ok: true, poster_url: customPosterUrl, backdrop_url: customBackdropUrl, updated_ids: customPosterIds });
+  return sendJson(res, {
+    ok: true,
+    poster_url: customPosterUrl,
+    canonical_poster_url: isShowArtworkEdit ? customPosterUrl : undefined,
+    show_poster_url: isShowArtworkEdit ? customPosterUrl : undefined,
+    backdrop_url: customBackdropUrl,
+    updated_ids: customPosterIds,
+  });
 }
 
 export async function handleRematchShow(req, res) {

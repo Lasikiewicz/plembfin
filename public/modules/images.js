@@ -18,6 +18,17 @@ export function isCachedStorageImageUrl(value = "") {
   return raw.startsWith("/media/posters/") || raw.startsWith("/media/backdrops/");
 }
 
+// These same-origin endpoints already return safe artwork (usually by
+// redirecting to a cached file). Keep them usable in posterMarkup() without
+// trying to resolve them against a media-server base URL.
+function isLocalArtworkUrl(value = "") {
+  const raw = String(value || "").trim();
+  return isCachedStorageImageUrl(raw)
+    || raw.startsWith("/api/poster")
+    || raw.startsWith("/api/tmdb-poster")
+    || raw.startsWith("/api/remote-artwork");
+}
+
 export function compactPosterUrl(value) {
   const raw = String(value || "").trim();
   if (isCachedStorageImageUrl(raw)) return raw;
@@ -180,18 +191,33 @@ export function configuredImageUrl(path, item = {}) {
 
 export function posterUrlFor(item = {}) {
   const idValue = item.id != null ? item.id : item.media_key;
+  const raw = item.poster_url || item.posterUrl || item.imageUrl || item.thumb || "";
+  const showRaw = item.show_poster_url || item.showPosterUrl || item.canonical_poster_url || item.canonicalPosterUrl || "";
+  // A same-origin poster supplied by the API is a deliberate source of truth,
+  // not another candidate for an older negative lookup. This is especially
+  // important after a show poster is edited: the old id-keyed miss must not
+  // hide the new shared artwork.
+  const resolvedRaw = proxiedArtworkUrl(raw, "poster");
+  const resolvedShow = proxiedArtworkUrl(showRaw, "poster");
+  const preferLocalArtwork = isLocalArtworkUrl(resolvedRaw) || (!resolvedRaw && isLocalArtworkUrl(resolvedShow));
   if (idValue != null) {
     const cached = cachedPosterLookup(String(idValue));
-    if (cached !== undefined) return cached || "";
+    // A shared card may carry a fresh same-origin TMDB proxy URL while an old
+    // poster lookup for the numeric provider id is cached as missing. In that
+    // case the explicit local URL is the better source of truth.
+    if (cached !== undefined && !preferLocalArtwork) return cached || "";
   }
-  const raw = item.poster_url || item.posterUrl || item.imageUrl || item.thumb || "";
-  if (isCachedStorageImageUrl(raw)) return raw;
-  if (raw.startsWith("https://img.youtube.com/")) return raw;
-  if (idValue != null && !item.prefer_raw_poster) return "";
-  if (raw) {
-    return configuredImageUrl(raw, item);
+  if (isLocalArtworkUrl(resolvedRaw)) return resolvedRaw;
+  // A history/personal row may not carry its own poster, but still know the
+  // canonical poster for its parent show. Use it as a fallback without
+  // replacing an explicit episode image above.
+  if (!resolvedRaw && isLocalArtworkUrl(resolvedShow)) return resolvedShow;
+  if (resolvedRaw.startsWith("https://img.youtube.com/")) return resolvedRaw;
+  if (idValue != null && !item.prefer_raw_poster && !isLocalArtworkUrl(resolvedShow)) return "";
+  if (resolvedRaw) {
+    return configuredImageUrl(resolvedRaw, item) || configuredImageUrl(resolvedShow, item);
   }
-  return "";
+  return configuredImageUrl(resolvedShow, item);
 }
 
 export function posterMarkup(item = {}, className = "media-poster") {
@@ -208,7 +234,8 @@ export function posterMarkup(item = {}, className = "media-poster") {
 }
 
 // Three-dot overflow button rendered on hover over a poster card outside the
-// media detail pages, offering Mark Unwatched / Edit watch date / Fix match.
+// media detail pages, offering Mark Unwatched / Edit watch date / Fix match /
+// Rate.
 // It carries the item's identity as data-poster-menu-* attributes only - the
 // dropdown itself is built and positioned on demand by poster-menu.js and
 // portaled to <body>, because several poster wrappers this renders inside
@@ -216,13 +243,14 @@ export function posterMarkup(item = {}, className = "media-poster") {
 // far narrower than the menu. The dropdown's buttons reuse the same classes
 // the media detail modal's delegated handlers already act on
 // (`.media-edit-date-btn`, `.media-fix-match-btn`, `[data-unwatch-id]` in
-// media-detail-events.js / watch-action.js), so no separate action-wiring is
-// needed - those handlers already fall back to `document.body` for their
-// container and refresh the active view afterward.
+// media-detail-events.js / watch-action.js). Rating is carried as a generic
+// media payload for app-events.js, while the watch handlers already fall back
+// to `document.body` for their container and refresh the active view afterward.
 export function posterOverflowMenu(item = {}, options = {}) {
   const id = item.id;
   if (!id) return "";
   const isEpisode = item.media_type === "episode";
+  const menuMode = options.menuMode || (options.upNext ? "up-next" : "");
   const mediaType = options.mediaType || (isEpisode ? "tv" : "movie");
   const kind = options.kind || (isEpisode ? "episode" : "movie");
   const showTitle = options.showTitle || (isEpisode ? (item.show_title || "") : "");
@@ -231,6 +259,37 @@ export function posterOverflowMenu(item = {}, options = {}) {
   // must be the show title, not the episode's own title/label.
   const title = options.title || (isEpisode ? (showTitle || item.title || "") : (item.title || ""));
   const label = options.label || (isEpisode ? (showTitle || title) : title);
+  const isEpisodeRating = isEpisode || kind === "episode" || menuMode === "up-next";
+  const ratingTitle = options.ratingTitle || (isEpisodeRating
+    ? (item.episode_title || item.episodeTitle || item.title || title)
+    : title);
+  const ratingShowTitle = options.ratingShowTitle || (isEpisodeRating
+    ? (showTitle || item.show_title || item.showTitle || title)
+    : "");
+  const ratingSeason = options.ratingSeason ?? (isEpisodeRating ? (item.season ?? item.seasonNumber ?? "") : "");
+  const ratingEpisode = options.ratingEpisode ?? (isEpisodeRating ? (item.episode ?? item.episodeNumber ?? "") : "");
+  // Episode watch-history rows can carry the provider's episode id in
+  // `tmdb_id`/`tvdb_id`, while the media detail page rates the episode using
+  // the show's series id. Prefer the explicit show identity for episode
+  // ratings; Up Next rows are already show-level, so retain their fallback.
+  const ratingTmdbId = options.ratingTmdbId || (isEpisodeRating
+    ? (item.show_tmdb_id || item.showTmdbId || (menuMode === "up-next" ? item.tmdb_id || item.tmdbId : ""))
+    : (item.tmdb_id || item.tmdbId || item.show_tmdb_id || item.showTmdbId || ""));
+  const ratingTvdbId = options.ratingTvdbId || (isEpisodeRating
+    ? (item.show_tvdb_id || item.showTvdbId || (menuMode === "up-next" ? item.tvdb_id || item.tvdbId : ""))
+    : (item.tvdb_id || item.tvdbId || item.show_tvdb_id || item.showTvdbId || ""));
+  const ratingImdbId = options.ratingImdbId || (isEpisodeRating
+    ? (item.show_imdb_id || item.showImdbId || (menuMode === "up-next" ? item.imdb_id || item.imdbId : ""))
+    : (item.imdb_id || item.imdbId || ""));
+  const ratingShowTmdbId = options.ratingShowTmdbId || (isEpisodeRating
+    ? (item.show_tmdb_id || item.showTmdbId || (menuMode === "up-next" ? item.tmdb_id || item.tmdbId : ""))
+    : "");
+  const ratingShowTvdbId = options.ratingShowTvdbId || (isEpisodeRating
+    ? (item.show_tvdb_id || item.showTvdbId || (menuMode === "up-next" ? item.tvdb_id || item.tvdbId : ""))
+    : "");
+  const ratingShowImdbId = options.ratingShowImdbId || (isEpisodeRating
+    ? (item.show_imdb_id || item.showImdbId || (menuMode === "up-next" ? item.imdb_id || item.imdbId : ""))
+    : "");
   // Deliberately no movie tmdb id attribute here: confirmAndMarkUnwatched()
   // in watch-action.js treats a present unwatch-tmdb-id as proof the movie's
   // detail page was already open and re-opens it after unwatching. These
@@ -243,6 +302,40 @@ export function posterOverflowMenu(item = {}, options = {}) {
   // browser back-navigation away from a detail page that didn't fully reset
   // them) and misroute a grid unwatch into a no-op "reopen the modal" branch.
   const showTitleAttr = showTitle ? ` data-poster-menu-show-title="${escapeAttribute(showTitle)}"` : "";
+  const menuModeAttr = menuMode ? ` data-poster-menu-mode="${escapeAttribute(menuMode)}"` : "";
+  const ratingAttrs = `
+      data-poster-menu-rating-media-type="${escapeAttribute(isEpisodeRating ? "episode" : mediaType)}"
+      data-poster-menu-rating-tmdb-id="${escapeAttribute(ratingTmdbId)}"
+      data-poster-menu-rating-tvdb-id="${escapeAttribute(ratingTvdbId)}"
+      data-poster-menu-rating-imdb-id="${escapeAttribute(ratingImdbId)}"
+      data-poster-menu-rating-show-tmdb-id="${escapeAttribute(ratingShowTmdbId)}"
+      data-poster-menu-rating-show-tvdb-id="${escapeAttribute(ratingShowTvdbId)}"
+      data-poster-menu-rating-show-imdb-id="${escapeAttribute(ratingShowImdbId)}"
+      data-poster-menu-rating-title="${escapeAttribute(ratingTitle)}"
+      data-poster-menu-rating-show-title="${escapeAttribute(ratingShowTitle)}"
+      data-poster-menu-rating-season="${escapeAttribute(ratingSeason)}"
+      data-poster-menu-rating-episode="${escapeAttribute(ratingEpisode)}"
+      data-poster-menu-rating-poster-url="${escapeAttribute(item.poster_url || item.posterUrl || "")}"
+      data-poster-menu-rating-release-date="${escapeAttribute(item.release_date || item.first_air_date || item.releaseDate || item.air_date || item.airDate || "")}"`;
+  const upNextAttrs = menuMode === "up-next" ? `
+      data-poster-menu-up-next-watch="${escapeAttribute(id)}"
+      data-poster-menu-up-next-show-title="${escapeAttribute(showTitle || title)}"
+      data-poster-menu-up-next-tmdb-id="${escapeAttribute(item.tmdb_id || item.show_tmdb_id || "")}"
+      data-poster-menu-up-next-tvdb-id="${escapeAttribute(item.tvdb_id || item.show_tvdb_id || "")}"
+      data-poster-menu-up-next-season="${escapeAttribute(item.season ?? "")}"
+      data-poster-menu-up-next-episode="${escapeAttribute(item.episode ?? "")}"
+      data-poster-menu-up-next-episode-title="${escapeAttribute(item.episode_title || item.episodeTitle || "")}"
+      data-poster-menu-up-next-air-date="${escapeAttribute(item.air_date || item.airDate || "")}" 
+      data-poster-menu-up-next-poster-url="${escapeAttribute(item.poster_url || item.posterUrl || "")}"` : "";
+  const discoverAttrs = menuMode === "discover" ? `
+      data-poster-menu-discover-media-type="${escapeAttribute(mediaType)}"
+      data-poster-menu-discover-tmdb-id="${escapeAttribute(item.tmdb_id || item.tmdbId || "")}" 
+      data-poster-menu-discover-tvdb-id="${escapeAttribute(item.tvdb_id || item.tvdbId || "")}" 
+      data-poster-menu-discover-imdb-id="${escapeAttribute(item.imdb_id || item.imdbId || "")}" 
+      data-poster-menu-discover-title="${escapeAttribute(item.title || "")}" 
+      data-poster-menu-discover-poster-url="${escapeAttribute(item.poster_url || item.posterUrl || "")}" 
+      data-poster-menu-discover-release-date="${escapeAttribute(item.release_date || item.first_air_date || item.releaseDate || "")}" 
+      data-poster-menu-discover-watchlisted="${options.watchlisted ? "true" : "false"}"` : "";
   return `
     <button
       type="button"
@@ -257,7 +350,7 @@ export function posterOverflowMenu(item = {}, options = {}) {
       data-poster-menu-media-type="${escapeAttribute(mediaType)}"
       data-poster-menu-kind="${escapeAttribute(kind)}"
       data-poster-menu-label="${escapeAttribute(label)}"
-      data-poster-menu-grid="1"${showTitleAttr}
+      data-poster-menu-grid="1"${showTitleAttr}${menuModeAttr}${ratingAttrs}${upNextAttrs}${discoverAttrs}
     >&#8942;</button>
   `;
 }

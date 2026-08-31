@@ -237,6 +237,23 @@ CREATE TABLE IF NOT EXISTS tmdb_metadata_cache (
   updated_at_ms INTEGER
 );
 
+-- Show-level poster overrides. Keep these separate from watch_history.poster_url:
+-- an episode row may legitimately use an episode still, while the selected
+-- show poster must be shared by every non-episode surface.
+CREATE TABLE IF NOT EXISTS media_artwork (
+  identity_key TEXT PRIMARY KEY,
+  media_type TEXT NOT NULL CHECK (media_type IN ('movie', 'tv')),
+  title TEXT,
+  tmdb_id TEXT,
+  tvdb_id TEXT,
+  imdb_id TEXT,
+  poster_url TEXT,
+  poster_source TEXT NOT NULL DEFAULT 'manual',
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_media_artwork_provider_ids
+  ON media_artwork(media_type, tmdb_id, tvdb_id, imdb_id);
+
 CREATE TABLE IF NOT EXISTS tmdb_search_cache (
   id TEXT PRIMARY KEY,
   query TEXT,
@@ -336,6 +353,7 @@ CREATE TABLE IF NOT EXISTS cache_versions (
   updated_at INTEGER NOT NULL
 );
 INSERT OR IGNORE INTO cache_versions (id, version, updated_at) VALUES ('history', 1, 0);
+INSERT OR IGNORE INTO cache_versions (id, version, updated_at) VALUES ('discover', 1, 0);
 
 -- Keep cache invalidation in the same transaction as canonical state writes.
 -- Explicit bumpDataVersion() calls remain useful for file-backed derived data;
@@ -504,3 +522,64 @@ CREATE TABLE IF NOT EXISTS tracker_play_history (
   PRIMARY KEY(provider, history_id)
 );
 CREATE INDEX IF NOT EXISTS idx_tracker_play_history_media ON tracker_play_history(provider, media_key);
+
+-- Local personal media organization. These records intentionally remain
+-- Plembfin-local: ratings, watchlist choices, and custom lists do not alter
+-- any connected media server or tracker state.
+CREATE TABLE IF NOT EXISTS personal_ratings (
+  media_key TEXT PRIMARY KEY,
+  media_type TEXT NOT NULL CHECK (media_type IN ('movie', 'tv', 'episode')),
+  title TEXT NOT NULL,
+  tmdb_id TEXT,
+  tvdb_id TEXT,
+  imdb_id TEXT,
+  poster_url TEXT,
+  overview TEXT,
+  release_date TEXT,
+  show_title TEXT,
+  season INTEGER,
+  episode INTEGER,
+  rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 10),
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_personal_ratings_updated ON personal_ratings(updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS personal_watchlist (
+  media_key TEXT PRIMARY KEY,
+  media_type TEXT NOT NULL CHECK (media_type IN ('movie', 'tv')),
+  title TEXT NOT NULL,
+  tmdb_id TEXT,
+  tvdb_id TEXT,
+  imdb_id TEXT,
+  poster_url TEXT,
+  overview TEXT,
+  release_date TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_personal_watchlist_updated ON personal_watchlist(updated_at DESC);
+
+CREATE TABLE IF NOT EXISTS personal_lists (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL UNIQUE,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS personal_list_items (
+  list_id TEXT NOT NULL REFERENCES personal_lists(id) ON DELETE CASCADE,
+  media_key TEXT NOT NULL,
+  media_type TEXT NOT NULL CHECK (media_type IN ('movie', 'tv')),
+  title TEXT NOT NULL,
+  tmdb_id TEXT,
+  tvdb_id TEXT,
+  imdb_id TEXT,
+  poster_url TEXT,
+  overview TEXT,
+  release_date TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (list_id, media_key)
+);
+CREATE INDEX IF NOT EXISTS idx_personal_list_items_list ON personal_list_items(list_id, updated_at DESC);

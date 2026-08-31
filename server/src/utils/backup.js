@@ -17,6 +17,7 @@ export const BACKUP_COLLECTIONS = [
   "settings",
   "runtimeState",
   "loopKeys",
+  "mediaArtwork",
 ];
 
 function portableValue(value) {
@@ -187,6 +188,7 @@ const collections = {
   settings: jsonCollection("settings"),
   runtimeState: jsonCollection("runtime_state"),
   loopKeys: simpleCollection("loop_keys", "id", (r) => ({ key: r.key || "", value: r.value || "", createdAt: r.created_at, expireAt: r.expire_at }), "INSERT OR REPLACE INTO loop_keys (id,key,value,created_at,expire_at) VALUES (@id,@key,@value,@created_at,@expire_at)", (id, d) => ({ id, key: d.key || "", value: d.value || "", created_at: toMs(d.createdAt), expire_at: toMs(d.expireAt) })),
+  mediaArtwork: simpleCollection("media_artwork", "identity_key", (r) => ({ mediaType: r.media_type, title: r.title, tmdbId: r.tmdb_id, tvdbId: r.tvdb_id, imdbId: r.imdb_id, posterUrl: r.poster_url, posterSource: r.poster_source, updatedAt: r.updated_at }), "INSERT OR REPLACE INTO media_artwork (identity_key,media_type,title,tmdb_id,tvdb_id,imdb_id,poster_url,poster_source,updated_at) VALUES (@identity_key,@media_type,@title,@tmdb_id,@tvdb_id,@imdb_id,@poster_url,@poster_source,@updated_at)", (id, d) => ({ identity_key: id, media_type: d.mediaType || "tv", title: d.title || null, tmdb_id: d.tmdbId || null, tvdb_id: d.tvdbId || null, imdb_id: d.imdbId || null, poster_url: d.posterUrl || null, poster_source: d.posterSource || "manual", updated_at: toMs(d.updatedAt) ?? Date.now() })),
   posterCache: simpleCollection("poster_cache", "id", (r) => ({ mediaKey: r.media_key, variant: r.variant, status: r.status, source: r.source, detail: r.detail, originalUrl: r.original_url, storagePath: r.storage_path, contentType: r.content_type, sizeBytes: r.size_bytes, url: r.url, updatedAtMs: r.updated_at_ms }), "INSERT OR REPLACE INTO poster_cache (id,media_key,variant,status,source,detail,original_url,storage_path,content_type,size_bytes,url,updated_at_ms) VALUES (@id,@media_key,@variant,@status,@source,@detail,@original_url,@storage_path,@content_type,@size_bytes,@url,@updated_at_ms)", (id, d) => ({ id, media_key: d.mediaKey || null, variant: d.variant || "poster", status: d.status || "missing", source: d.source || "unknown", detail: d.detail || null, original_url: d.originalUrl || null, storage_path: d.storagePath || null, content_type: d.contentType || null, size_bytes: d.sizeBytes ?? null, url: d.url || null, updated_at_ms: d.updatedAtMs ?? toMs(d.updatedAt) })),
   tmdbMetadataCache: simpleCollection("tmdb_metadata_cache", "id", (r) => ({ tmdbId: r.tmdb_id, mediaType: r.media_type, title: r.title, details: parseJson(r.details), schemaVersion: r.schema_version, updatedAtMs: r.updated_at_ms }), "INSERT OR REPLACE INTO tmdb_metadata_cache (id,tmdb_id,media_type,title,details,schema_version,updated_at_ms) VALUES (@id,@tmdb_id,@media_type,@title,@details,@schema_version,@updated_at_ms)", (id, d) => ({ id, tmdb_id: d.tmdbId != null ? String(d.tmdbId) : null, media_type: d.mediaType || null, title: d.title || null, details: d.details == null ? null : toJson(d.details), schema_version: d.schemaVersion ?? null, updated_at_ms: d.updatedAtMs ?? toMs(d.updatedAt) })),
   tmdbSearchCache: simpleCollection("tmdb_search_cache", "id", (r) => ({ query: r.query, mediaType: r.media_type, page: r.page, response: parseJson(r.response), missing: Boolean(r.missing), updatedAtMs: r.updated_at_ms }), "INSERT OR REPLACE INTO tmdb_search_cache (id,query,media_type,page,response,missing,updated_at_ms) VALUES (@id,@query,@media_type,@page,@response,@missing,@updated_at_ms)", (id, d) => ({ id, query: d.query || "", media_type: d.mediaType || null, page: d.page ?? 1, response: toJson(d.response), missing: d.missing ? 1 : 0, updated_at_ms: d.updatedAtMs ?? toMs(d.updatedAt) })),
@@ -281,6 +283,6 @@ export function importCollectionBatch(name, documents, { reset = false } = {}) {
   });
   run();
 
-  if (["watchHistory", "playstate", "playbackProgress"].includes(name)) bumpDataVersion();
+  if (["watchHistory", "playstate", "playbackProgress", "mediaArtwork"].includes(name)) bumpDataVersion();
   return { collection: name, imported: documents.length, reset: Boolean(reset) };
 }

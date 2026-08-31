@@ -552,7 +552,9 @@ async function mediaFromTmdbStatusRequest(mediaType, mediaId) {
 }
 
 async function mediaFromAppLinksRequest(req) {
-  const mediaType = String(req.query.mediaType || "").trim().toLowerCase() === "tv" ? "tv" : "movie";
+  const requestedMediaType = String(req.query.mediaType || "").trim().toLowerCase();
+  const isEpisode = requestedMediaType === "episode";
+  const mediaType = requestedMediaType === "tv" || isEpisode ? "tv" : "movie";
   const tmdbId = String(req.query.tmdbId || req.query.mediaId || "").trim();
   const requestedIds = {
     imdb: String(req.query.imdbId || "").trim() || undefined,
@@ -560,22 +562,30 @@ async function mediaFromAppLinksRequest(req) {
     tvdb: String(req.query.tvdbId || "").trim() || undefined,
   };
   const requestedTitle = String(req.query.title || "").trim();
+  const season = Number.parseInt(String(req.query.season || "").trim(), 10);
+  const episode = Number.parseInt(String(req.query.episode || "").trim(), 10);
+  const episodeCoordinates = isEpisode && Number.isInteger(season) && season >= 0 && Number.isInteger(episode) && episode > 0
+    ? { season, episode }
+    : {};
 
   let media = {
-    type: mediaType === "tv" ? "series" : "movie",
+    type: isEpisode ? "episode" : mediaType === "tv" ? "series" : "movie",
     title: requestedTitle,
     ids: requestedIds,
+    ...episodeCoordinates,
   };
 
   if (tmdbId) {
     const tmdbMedia = await mediaFromTmdbStatusRequest(mediaType, tmdbId);
     media = {
       ...tmdbMedia,
+      type: isEpisode ? "episode" : tmdbMedia.type,
       title: requestedTitle || tmdbMedia.title,
       ids: {
         ...tmdbMedia.ids,
         ...Object.fromEntries(Object.entries(requestedIds).filter(([, value]) => value)),
       },
+      ...episodeCoordinates,
     };
   }
 

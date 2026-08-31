@@ -1,6 +1,6 @@
 import { HIDE_EPISODE_SPOILERS_KEY, state } from "./state.js";
 import { escapeAttribute, formatDate, showTitleFrom, showName, slug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js";
-import { isCachedStorageImageUrl, proxiedArtworkUrl, rememberPosterLookup } from "./images.js?v=20260826b";
+import { isCachedStorageImageUrl, proxiedArtworkUrl, rememberPosterLookup } from "./images.js?v=20260831m";
 import {
   openEditDateDialog,
   openEditShowDateDialog,
@@ -10,7 +10,7 @@ import {
   openEditSeasonDateDialog,
   applyWatchedAtToLocalWatchRecord,
   editDateOptionsFromButton,
-} from "./edit-dialogs.js?v=20260826b";
+} from "./edit-dialogs.js?v=20260831b";
 import {
   openWatchDatePrompt,
   closeWatchDatePrompt,
@@ -26,7 +26,7 @@ import {
   toggleWatchDateIncludeSpecials,
 } from "./watch-action.js?v=20260826c";
 import { triggerRetrySync, loadSyncJobs, loadSyncHistory, showAvailIssuePopup } from "./sync.js";
-import { renderExplorer, renderHistoryView, resolvedTmdbCache, refreshMovieExplorerInPlace, refreshHistoryViewInPlace } from "./explorer.js?v=20260826d";
+import { renderExplorer, renderHistoryView, resolvedTmdbCache, refreshMovieExplorerInPlace, refreshHistoryViewInPlace } from "./explorer.js?v=20260831b";
 import {
   movieBySlugOrId,
   openShowInlineDetail,
@@ -37,8 +37,9 @@ import {
   renderMovieImmersiveModalContent,
   openHistoryDebugModal,
   openMediaInfoModal,
-} from "./media-detail.js?v=20260810";
-import { fetchWatchedMovieByTmdb, syncRewatchHistoryToggle } from "./media-detail-movie.js?v=20260821";
+} from "./media-detail.js?v=20260831f";
+import { fetchWatchedMovieByTmdb, syncRewatchHistoryToggle } from "./media-detail-movie.js?v=20260831f";
+import { addToWatchlist, removeFromWatchlist, openAddToListDialog, personalItemFromDetailDataset, refreshRenderedPersonalMediaControls, loadPersonalMedia } from "./personal-media.js?v=20260831p";
 
 // Callbacks injected by app-events.js (forwarded from app.js) to avoid circular imports.
 let _cb = {};
@@ -578,11 +579,8 @@ export function attachMediaDetailEvents() {
     // opening the menu.
     if (event.target.closest(".poster-overflow-btn")) return;
 
-    // Only dropdowns inside a "collapsed" actions bar are real popup menus.
-    // When the bar isn't collapsed, its dropdown is forced open so its
-    // contents render flattened inline (see syncMediaActionsMenuState) and
-    // must not be closed by an outside click.
-    const openDropdowns = document.querySelectorAll("#mediaDetailActions.actions-collapsed .actions-more-dropdown[open]");
+    // Tools is always a popup menu, so close it when a click lands outside it.
+    const openDropdowns = document.querySelectorAll("#mediaDetailActions .actions-tools-dropdown[open]");
     for (const dropdown of openDropdowns) {
       if (!dropdown.contains(event.target)) {
         dropdown.removeAttribute("open");
@@ -640,6 +638,31 @@ export function attachMediaDetailEvents() {
 
     if (event.target === document.querySelector("#mediaForceSyncModal")) {
       closeMediaForceSyncDialog();
+      return;
+    }
+
+    const personalAction = event.target.closest("#mediaDetailActions [data-media-personal-action]");
+    if (personalAction) {
+      event.preventDefault();
+      event.stopPropagation();
+      const item = personalItemFromDetailDataset(personalAction.dataset);
+      if (personalAction.dataset.mediaPersonalAction === "custom-list") {
+        if (!state.personalMediaLoadedAt) await loadPersonalMedia();
+        openAddToListDialog(item);
+        return;
+      }
+      if (personalAction.dataset.mediaPersonalAction === "watchlist") {
+        personalAction.disabled = true;
+        const request = personalAction.dataset.mediaPersonalMode === "remove"
+          ? removeFromWatchlist(item)
+          : addToWatchlist(item);
+        request
+          .catch((error) => setMessage(error.message, "error"))
+          .finally(() => {
+            personalAction.disabled = false;
+            refreshRenderedPersonalMediaControls();
+          });
+      }
       return;
     }
 
@@ -716,6 +739,7 @@ export function attachMediaDetailEvents() {
       // Resolve tmdbData - check both movie and TV caches
       let tmdbData = null;
       const entry = state.history.find((h) => h.id === id) || state.moviesRaw.find((m) => m.id === id);
+      const showForArtwork = state.activeShowModalKey ? activeShowRecord() : null;
       if (entry) {
         const movieKey = `movie|${entry.tmdb_id || ""}|${String(entry.title || "").toLowerCase()}`;
         const cached = state.tmdbDetailsCache.get(movieKey);
@@ -741,7 +765,7 @@ export function attachMediaDetailEvents() {
         }
       }
       if (!tmdbData && state.activeShowModalKey) {
-        const show = activeShowRecord();
+        const show = showForArtwork;
         if (show) {
           const tvKey = `tv|${show.tmdb_id || ""}|${String(show.title || "").toLowerCase()}`;
           const cached = state.tmdbDetailsCache.get(tvKey);
@@ -766,6 +790,15 @@ export function attachMediaDetailEvents() {
         tmdbData = { id: entry.tmdb_id, title: entry.title, media_type: "movie" };
       }
       const imageDialogTitle = editImageBtn.dataset.title || tmdbData?.title || tmdbData?.name || entry?.title || "";
+      const showIdentity = showForArtwork
+        ? {
+          media_type: "tv",
+          title: showForArtwork.title || imageDialogTitle,
+          tmdb_id: editImageBtn.dataset.showTmdbId || tmdbData?.id || showForArtwork.tmdb_id || "",
+          tvdb_id: editImageBtn.dataset.showTvdbId || tmdbData?.external_ids?.tvdb_id || tmdbData?.tvdb_id || showForArtwork.tvdb_id || "",
+          imdb_id: editImageBtn.dataset.showImdbId || tmdbData?.external_ids?.imdb_id || showForArtwork.imdb_id || "",
+        }
+        : null;
       openEditImageDialog(container, id, editImageBtn.dataset.posterUrl, tmdbData, ({ poster_url, logo_url, backdrop_url, youtube_url, storage_url, updated_ids }) => {
         if (poster_url) {
           editImageBtn.dataset.posterUrl = poster_url;
@@ -773,11 +806,21 @@ export function attachMediaDetailEvents() {
           if (posterImg) posterImg.src = poster_url;
           const backdrop = container.querySelector(".modal-backdrop-image");
           if (backdrop) backdrop.style.backgroundImage = `url('${poster_url}')`;
-          // The backend cached the chosen poster and propagated it to every
-          // related record. Point the client poster cache at that stored image
-          // so the dashboard and explorer cards (which resolve posters by record
-          // id) pick it up instead of the previously cached artwork.
-          if (storage_url && isCachedStorageImageUrl(storage_url)) {
+          if (showIdentity) {
+            // Show artwork is shared through the canonical show record. Do not
+            // seed the episode id cache here: that would make this show poster
+            // override the independent artwork of every episode card.
+            const activeShow = showForArtwork || activeShowRecord();
+            if (activeShow) {
+              activeShow.poster_url = poster_url;
+              activeShow.show_poster_url = poster_url;
+              activeShow.canonical_poster_url = poster_url;
+            }
+            clearDerivedUiCaches({ resetExplorer: false });
+            loadHistory({ force: true }).catch(() => { });
+          } else if (storage_url && isCachedStorageImageUrl(storage_url)) {
+            // Movie edits still use the record-id poster cache for the related
+            // watch rows returned by the backend.
             for (const updatedId of (Array.isArray(updated_ids) ? updated_ids : [id])) {
               rememberPosterLookup(String(updatedId), storage_url);
             }
@@ -817,7 +860,10 @@ export function attachMediaDetailEvents() {
         if (youtube_url !== undefined) {
           editImageBtn.dataset.youtubeUrl = youtube_url;
         }
-      }, { title: imageDialogTitle });
+      }, {
+        title: imageDialogTitle,
+        ...(showIdentity ? { artworkScope: "show", artworkIdentity: showIdentity } : {}),
+      });
       return;
     }
 
@@ -1294,6 +1340,14 @@ export function attachMediaDetailEvents() {
       const isTvRow = event.target.closest("#tvHistoryRow");
       if (isTvRow && event.button === 0 && !event.ctrlKey && !event.metaKey) {
         event.preventDefault();
+        const href = historyRow.getAttribute("href");
+        if (href) {
+          // Dashboard episode cards already carry the exact show/season/
+          // episode destination. Rebuilding the URL from the show record
+          // here would silently discard the episode coordinates.
+          navigateTo(href);
+          return;
+        }
         const entry = state.history.find(e => e.id === historyRow.dataset.historyId);
         if (entry) {
           const canonicalShowName = entry.show_title || showName(entry.title);
@@ -1308,11 +1362,16 @@ export function attachMediaDetailEvents() {
             state.showsRaw.push(showObj);
           }
 
-          navigateTo(showObj.tmdb_id
+          const showHref = showObj.tmdb_id
             ? tvShowTmdbHref(showObj.tmdb_id, canonicalShowName)
             : showObj.tvdb_id
               ? tvShowTvdbHref(showObj.tvdb_id, canonicalShowName)
-              : `/tvshow/${showKeySlug}`);
+              : `/tvshow/${showKeySlug}`;
+          const season = Number(entry.season);
+          const episode = Number(entry.episode);
+          navigateTo(Number.isInteger(season) && season >= 0 && Number.isInteger(episode) && episode >= 1
+            ? `${showHref}/season/${season}/episode/${episode}`
+            : showHref);
         }
       } else if (event.target.closest(".movie-card") && event.button === 0 && !event.ctrlKey && !event.metaKey) {
         event.preventDefault();

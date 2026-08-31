@@ -2,6 +2,7 @@ let activeController = null;
 let reconnectTimer = null;
 let connectionGeneration = 0;
 let lastVersion = null;
+let lastDiscoverVersion = null;
 let visibilityHandler = null;
 let lockAbortController = null;
 
@@ -18,9 +19,10 @@ export function stopLiveUpdates() {
   if (visibilityHandler) document.removeEventListener("visibilitychange", visibilityHandler);
   visibilityHandler = null;
   lastVersion = null;
+  lastDiscoverVersion = null;
 }
 
-export function startLiveUpdates({ authHeaders, onHistoryVersion, onSyncProgress, onError } = {}) {
+export function startLiveUpdates({ authHeaders, onHistoryVersion, onDiscoverVersion, onSyncProgress, onError } = {}) {
   stopLiveUpdates();
   const generation = connectionGeneration;
 
@@ -59,6 +61,17 @@ export function startLiveUpdates({ authHeaders, onHistoryVersion, onSyncProgress
     // the stale sync-busy state left by the previous stream.
     if ("syncTotal" in event) {
       onSyncProgress?.({ total: Number(event.syncTotal) || 0, completed: Number(event.syncCompleted) || 0 });
+    }
+
+    const discoverVersion = Number(event.discoverVersion);
+    if (Number.isFinite(discoverVersion)) {
+      if (lastDiscoverVersion === null) {
+        lastDiscoverVersion = discoverVersion;
+        onDiscoverVersion?.(discoverVersion, { initial: true });
+      } else if (discoverVersion !== lastDiscoverVersion) {
+        lastDiscoverVersion = discoverVersion;
+        onDiscoverVersion?.(discoverVersion, { initial: false });
+      }
     }
 
     const version = Number(event.version);

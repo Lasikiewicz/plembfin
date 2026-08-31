@@ -261,6 +261,236 @@ const migrations = [
       }
     },
   },
+  {
+    id: 14,
+    up(database) {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS personal_ratings (
+          media_key TEXT PRIMARY KEY,
+          media_type TEXT NOT NULL CHECK (media_type IN ('movie', 'tv', 'episode')),
+          title TEXT NOT NULL,
+          tmdb_id TEXT,
+          tvdb_id TEXT,
+          imdb_id TEXT,
+          poster_url TEXT,
+          overview TEXT,
+          release_date TEXT,
+          show_title TEXT,
+          season INTEGER,
+          episode INTEGER,
+          rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 10),
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_personal_ratings_updated ON personal_ratings(updated_at DESC);
+
+        CREATE TABLE IF NOT EXISTS personal_watchlist (
+          media_key TEXT PRIMARY KEY,
+          media_type TEXT NOT NULL CHECK (media_type IN ('movie', 'tv')),
+          title TEXT NOT NULL,
+          tmdb_id TEXT,
+          tvdb_id TEXT,
+          imdb_id TEXT,
+          poster_url TEXT,
+          overview TEXT,
+          release_date TEXT,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_personal_watchlist_updated ON personal_watchlist(updated_at DESC);
+
+        CREATE TABLE IF NOT EXISTS personal_lists (
+          id TEXT PRIMARY KEY,
+          name TEXT NOT NULL UNIQUE,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS personal_list_items (
+          list_id TEXT NOT NULL REFERENCES personal_lists(id) ON DELETE CASCADE,
+          media_key TEXT NOT NULL,
+          media_type TEXT NOT NULL CHECK (media_type IN ('movie', 'tv')),
+          title TEXT NOT NULL,
+          tmdb_id TEXT,
+          tvdb_id TEXT,
+          imdb_id TEXT,
+          poster_url TEXT,
+          overview TEXT,
+          release_date TEXT,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          PRIMARY KEY (list_id, media_key)
+        );
+        CREATE INDEX IF NOT EXISTS idx_personal_list_items_list ON personal_list_items(list_id, updated_at DESC);
+      `);
+    },
+  },
+  {
+    id: 15,
+    up(database) {
+      const table = database.prepare("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'personal_ratings'").get();
+      if (!table) return;
+      const columns = new Set(database.pragma("table_info(personal_ratings)").map((column) => column.name));
+      const tableSql = String(table.sql || "").toLowerCase();
+      if (columns.has("show_title") && columns.has("season") && columns.has("episode") && tableSql.includes("'episode'")) return;
+
+      database.exec(`
+        DROP TABLE IF EXISTS personal_ratings_migrated;
+        CREATE TABLE personal_ratings_migrated (
+          media_key TEXT PRIMARY KEY,
+          media_type TEXT NOT NULL CHECK (media_type IN ('movie', 'tv', 'episode')),
+          title TEXT NOT NULL,
+          tmdb_id TEXT,
+          tvdb_id TEXT,
+          imdb_id TEXT,
+          poster_url TEXT,
+          overview TEXT,
+          release_date TEXT,
+          show_title TEXT,
+          season INTEGER,
+          episode INTEGER,
+          rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 10),
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        INSERT INTO personal_ratings_migrated
+          (media_key, media_type, title, tmdb_id, tvdb_id, imdb_id, poster_url, overview, release_date, show_title, season, episode, rating, created_at, updated_at)
+        SELECT media_key, media_type, title, tmdb_id, tvdb_id, imdb_id, poster_url, overview, release_date, NULL, NULL, NULL, rating, created_at, updated_at
+        FROM personal_ratings;
+        DROP TABLE personal_ratings;
+        ALTER TABLE personal_ratings_migrated RENAME TO personal_ratings;
+        CREATE INDEX IF NOT EXISTS idx_personal_ratings_updated ON personal_ratings(updated_at DESC);
+      `);
+    },
+  },
+  {
+    id: 16,
+    up(database) {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS media_artwork (
+          identity_key TEXT PRIMARY KEY,
+          media_type TEXT NOT NULL CHECK (media_type IN ('movie', 'tv')),
+          title TEXT,
+          tmdb_id TEXT,
+          tvdb_id TEXT,
+          imdb_id TEXT,
+          poster_url TEXT,
+          poster_source TEXT NOT NULL DEFAULT 'manual',
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_media_artwork_provider_ids
+          ON media_artwork(media_type, tmdb_id, tvdb_id, imdb_id);
+      `);
+    },
+  },
+  {
+    id: 17,
+    up(database) {
+      const table = database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'personal_ratings'").get();
+      if (!table) return;
+
+      const rows = database.prepare(`
+        SELECT *
+        FROM personal_ratings
+        WHERE media_type = 'episode'
+          AND trim(COALESCE(show_title, '')) <> ''
+          AND season IS NOT NULL
+          AND episode IS NOT NULL
+        ORDER BY updated_at ASC, media_key ASC
+      `).all();
+      const groups = new Map();
+      for (const row of rows) {
+        const groupKey = `${String(row.show_title || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}:${row.season}:${row.episode}`;
+        const group = groups.get(groupKey) || [];
+        group.push(row);
+        groups.set(groupKey, group);
+      }
+
+      const cachedTvTmdbIds = new Set(database.prepare(`
+        SELECT tmdb_id
+        FROM tmdb_metadata_cache
+        WHERE media_type = 'tv' AND trim(COALESCE(tmdb_id, '')) <> ''
+      `).all().map((row) => String(row.tmdb_id).trim()));
+      const cachedSeriesTvdbIds = new Set(database.prepare(`
+        SELECT tvdb_id
+        FROM tvdb_metadata_cache
+        WHERE id LIKE 'series_%' AND trim(COALESCE(tvdb_id, '')) <> ''
+      `).all().map((row) => String(row.tvdb_id).trim()));
+      const valuePresent = (value) => String(value ?? "").trim() !== "";
+      const identityScore = (row) => {
+        let score = 0;
+        if (valuePresent(row.tmdb_id) && cachedTvTmdbIds.has(String(row.tmdb_id).trim())) score += 100;
+        if (valuePresent(row.tvdb_id) && cachedSeriesTvdbIds.has(String(row.tvdb_id).trim())) score += 100;
+        if (valuePresent(row.overview)) score += 4;
+        if (valuePresent(row.release_date)) score += 2;
+        if (valuePresent(row.poster_url)) score += 1;
+        return score;
+      };
+      const update = database.prepare(`
+        UPDATE personal_ratings
+        SET title = @title,
+            tmdb_id = @tmdb_id,
+            tvdb_id = @tvdb_id,
+            imdb_id = @imdb_id,
+            poster_url = @poster_url,
+            overview = @overview,
+            release_date = @release_date,
+            show_title = @show_title,
+            season = @season,
+            episode = @episode,
+            rating = @rating,
+            created_at = @created_at,
+            updated_at = @updated_at
+        WHERE media_key = @media_key
+      `);
+      const remove = database.prepare("DELETE FROM personal_ratings WHERE media_key = ?");
+      let mergedGroups = 0;
+
+      for (const group of groups.values()) {
+        if (group.length < 2) continue;
+        const ranked = [...group].sort((left, right) => (
+          identityScore(right) - identityScore(left)
+          || Number(right.updated_at || 0) - Number(left.updated_at || 0)
+          || String(left.media_key).localeCompare(String(right.media_key))
+        ));
+        const canonical = ranked[0];
+        const latest = [...group].sort((left, right) => (
+          Number(right.updated_at || 0) - Number(left.updated_at || 0)
+          || String(left.media_key).localeCompare(String(right.media_key))
+        ))[0];
+        const pick = (field) => {
+          for (const source of [canonical, ...ranked.slice(1)]) {
+            if (valuePresent(source[field])) return source[field];
+          }
+          return null;
+        };
+        update.run({
+          media_key: canonical.media_key,
+          title: pick("title") || "Untitled",
+          tmdb_id: pick("tmdb_id"),
+          tvdb_id: pick("tvdb_id"),
+          imdb_id: pick("imdb_id"),
+          poster_url: pick("poster_url"),
+          overview: pick("overview"),
+          release_date: pick("release_date"),
+          show_title: pick("show_title"),
+          season: canonical.season,
+          episode: canonical.episode,
+          rating: latest.rating,
+          created_at: Math.min(...group.map((row) => Number(row.created_at || 0))),
+          updated_at: Math.max(...group.map((row) => Number(row.updated_at || 0))),
+        });
+        for (const row of group) {
+          if (row.media_key !== canonical.media_key) remove.run(row.media_key);
+        }
+        mergedGroups += 1;
+      }
+
+      if (mergedGroups) {
+        console.warn(`[personal] merged ${mergedGroups} duplicate episode rating group${mergedGroups === 1 ? "" : "s"}`);
+      }
+    },
+  },
 ];
 
 function runSchemaMigrations() {
@@ -300,6 +530,8 @@ try {
 const CACHE_VERSION_POLL_MS = 500;
 const selectHistoryVersion = db.prepare("SELECT version FROM cache_versions WHERE id = 'history'");
 const bumpHistoryVersion = db.prepare("UPDATE cache_versions SET version = version + 1, updated_at = ? WHERE id = 'history' RETURNING version");
+const selectDiscoverVersion = db.prepare("SELECT version FROM cache_versions WHERE id = 'discover'");
+const bumpDiscoverVersionStmt = db.prepare("UPDATE cache_versions SET version = version + 1, updated_at = ? WHERE id = 'discover' RETURNING version");
 let dataVersion = Number(selectHistoryVersion.get()?.version || 1);
 let lastDataVersionCheckAt = 0;
 export function getDataVersion() {
@@ -331,6 +563,14 @@ export function bumpDataVersion() {
 export function refreshDataVersion() {
   lastDataVersionCheckAt = 0;
   return getDataVersion();
+}
+
+export function getDiscoverVersion() {
+  return Number(selectDiscoverVersion.get()?.version || 1);
+}
+
+export function bumpDiscoverVersion() {
+  return Number(bumpDiscoverVersionStmt.get(Date.now())?.version || 1);
 }
 
 // JSON column helpers -------------------------------------------------------

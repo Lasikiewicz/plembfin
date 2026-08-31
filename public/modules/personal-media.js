@@ -1,0 +1,998 @@
+import { buildAuthHeaders } from "./auth.js";
+import { state, elements } from "./state.js";
+import { escapeAttribute, escapeHtml, formatTmdbDate, episodeCode } from "./utils.js?v=20260824h";
+import { hydratePosters } from "./images.js?v=20260831m";
+import { normalizeMediaCardRecord, renderMediaCard } from "./media-card.js?v=20260831d";
+
+const PERSONAL_MEDIA_TTL_MS = 2 * 60 * 1000;
+const PERSONAL_MEDIA_TIMEOUT_MS = 15000;
+const PERSONAL_RATING_SECTIONS = [
+  { type: "movie", label: "Movies" },
+  { type: "tv", label: "TV Shows" },
+  { type: "episode", label: "Episodes" },
+];
+
+let _cb = {};
+let panelBound = false;
+let loadPromise = null;
+let dialogCleanup = null;
+
+function normalizeType(value) {
+  const type = String(value || "").trim().toLowerCase();
+  if (["tv", "show", "series"].includes(type)) return "tv";
+  if (type === "episode") return "episode";
+  return "movie";
+}
+
+function numberOrNull(value) {
+  if (value === null || value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isInteger(number) ? number : null;
+}
+
+function titleKey(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+function episodeRatingMatches(left = {}, right = {}) {
+  if (normalizeType(left.media_type || left.mediaType || left.type) !== "episode"
+    || normalizeType(right.media_type || right.mediaType || right.type) !== "episode") return false;
+  const leftSeason = numberOrNull(left.season ?? left.seasonNumber);
+  const rightSeason = numberOrNull(right.season ?? right.seasonNumber);
+  const leftEpisode = numberOrNull(left.episode ?? left.episodeNumber);
+  const rightEpisode = numberOrNull(right.episode ?? right.episodeNumber);
+  if (leftSeason == null || rightSeason == null || leftSeason !== rightSeason
+    || leftEpisode == null || rightEpisode == null || leftEpisode !== rightEpisode) return false;
+
+  const leftShowTitle = titleKey(left.show_title || left.showTitle || left.series_title || left.seriesTitle);
+  const rightShowTitle = titleKey(right.show_title || right.showTitle || right.series_title || right.seriesTitle);
+  // Provider ids are not enough to compare episode ratings: one side may have
+  // an episode-level id and the other a series-level id. The show title plus
+  // season/episode coordinates is the stable identity shared by both routes.
+  return Boolean(leftShowTitle && rightShowTitle && leftShowTitle === rightShowTitle);
+}
+
+function episodeRatingQuality(item = {}) {
+  let score = 0;
+  if (item.show_tmdb_id || item.show_tvdb_id || item.show_imdb_id) score += 10;
+  if (item.overview) score += 4;
+  if (item.release_date) score += 2;
+  if (item.poster_url) score += 1;
+  return score;
+}
+
+function collapsePersonalRatings(items = []) {
+  const collapsed = [];
+  for (const item of items) {
+    const matchIndex = normalizeType(item.media_type) === "episode"
+      ? collapsed.findIndex((existing) => episodeRatingMatches(existing, item))
+      : -1;
+    if (matchIndex < 0) {
+      collapsed.push(item);
+      continue;
+    }
+    const existing = collapsed[matchIndex];
+    const winner = episodeRatingQuality(item) > episodeRatingQuality(existing) ? item : existing;
+    const latest = Number(item.updated_at || 0) >= Number(existing.updated_at || 0) ? item : existing;
+    collapsed[matchIndex] = {
+      ...winner,
+      rating: latest.rating,
+      created_at: Math.min(Number(item.created_at || 0), Number(existing.created_at || 0)),
+      updated_at: Math.max(Number(item.updated_at || 0), Number(existing.updated_at || 0)),
+    };
+  }
+  return collapsed;
+}
+
+export function mediaKeyForPersonalItem(item = {}) {
+  const type = normalizeType(item.media_type || item.mediaType || item.type);
+  const tmdbId = String(item.tmdb_id || item.tmdbId || "").trim();
+  const tvdbId = String(item.tvdb_id || item.tvdbId || "").trim();
+  const imdbId = String(item.imdb_id || item.imdbId || "").trim();
+  if (type === "episode") {
+    const showTitle = String(item.show_title || item.showTitle || item.series_title || item.seriesTitle || item.title || item.name || "").trim();
+    const season = numberOrNull(item.season ?? item.seasonNumber);
+    const episode = numberOrNull(item.episode ?? item.episodeNumber);
+    const coordinate = `s${Number.isInteger(season) ? season : "?"}e${Number.isInteger(episode) ? episode : "?"}`;
+    const showTmdbId = String(item.show_tmdb_id || item.showTmdbId || "").trim();
+    const showTvdbId = String(item.show_tvdb_id || item.showTvdbId || "").trim();
+    const showImdbId = String(item.show_imdb_id || item.showImdbId || "").trim();
+    if (showTmdbId) return `episode:tmdb:${showTmdbId}:${coordinate}`;
+    if (showTvdbId) return `episode:tvdb:${showTvdbId}:${coordinate}`;
+    if (showImdbId) return `episode:imdb:${showImdbId}:${coordinate}`;
+    return `episode:title:${titleKey(showTitle)}:${coordinate}`;
+  }
+  if (tmdbId) return `${type}:tmdb:${tmdbId}`;
+  if (tvdbId) return `${type}:tvdb:${tvdbId}`;
+  if (imdbId) return `${type}:imdb:${imdbId}`;
+  return `${type}:title:${titleKey(item.title || item.name)}`;
+}
+
+function normalizeItem(item = {}) {
+  const type = normalizeType(item.media_type || item.mediaType || item.type);
+  const explicitShowTmdbId = item.show_tmdb_id || item.showTmdbId || "";
+  const explicitShowTvdbId = item.show_tvdb_id || item.showTvdbId || "";
+  const explicitShowImdbId = item.show_imdb_id || item.showImdbId || "";
+  const normalized = {
+    ...item,
+    id: item.id || item.media_key || "",
+    media_type: type,
+    title: item.title || item.episode_title || item.episodeTitle || item.name || "Untitled",
+    tmdb_id: type === "episode" ? explicitShowTmdbId : (item.tmdb_id || item.tmdbId || ""),
+    tvdb_id: type === "episode" ? explicitShowTvdbId : (item.tvdb_id || item.tvdbId || ""),
+    imdb_id: type === "episode" ? explicitShowImdbId : (item.imdb_id || item.imdbId || ""),
+    poster_url: item.poster_url || item.posterUrl || item.imageUrl || "",
+    show_poster_url: item.show_poster_url || item.showPosterUrl || item.canonical_poster_url || item.canonicalPosterUrl || "",
+    overview: item.overview || item.description || "",
+    release_date: item.release_date || item.releaseDate || item.first_air_date || "",
+    show_title: item.show_title || item.showTitle || item.series_title || item.seriesTitle || "",
+    show_tmdb_id: explicitShowTmdbId,
+    show_tvdb_id: explicitShowTvdbId,
+    show_imdb_id: explicitShowImdbId,
+    season: item.season ?? item.seasonNumber ?? null,
+    episode: item.episode ?? item.episodeNumber ?? null,
+  };
+  normalized.media_key = item.media_key || mediaKeyForPersonalItem(normalized);
+  return normalized;
+}
+
+export function personalItemFromPosterMenuDataset(dataset = {}) {
+  const value = (...keys) => keys.map((key) => dataset[key]).find((entry) => entry !== undefined && entry !== null && entry !== "") || "";
+  const rawType = value("posterMenuRatingMediaType", "mediaRateMediaType", "posterMenuMediaType") || "movie";
+  const isEpisode = normalizeType(rawType) === "episode"
+    || value("posterMenuKind") === "episode"
+    || value("posterMenuMode") === "up-next";
+  const showTitle = value(
+    "posterMenuRatingShowTitle",
+    "mediaRateShowTitle",
+    "posterMenuShowTitle",
+    "posterMenuUpNextShowTitle",
+  );
+  const tmdbId = value(
+    "posterMenuRatingTmdbId",
+    "mediaRateTmdbId",
+    "posterMenuUpNextTmdbId",
+  );
+  const tvdbId = value(
+    "posterMenuRatingTvdbId",
+    "mediaRateTvdbId",
+    "posterMenuUpNextTvdbId",
+  );
+  const showTmdbId = value(
+    "posterMenuRatingShowTmdbId",
+    "mediaRateShowTmdbId",
+    "posterMenuUpNextTmdbId",
+  );
+  const showTvdbId = value(
+    "posterMenuRatingShowTvdbId",
+    "mediaRateShowTvdbId",
+    "posterMenuUpNextTvdbId",
+  );
+  const showImdbId = value(
+    "posterMenuRatingShowImdbId",
+    "mediaRateShowImdbId",
+  );
+  const title = value(
+    "posterMenuRatingTitle",
+    "mediaRateTitle",
+    "posterMenuDiscoverTitle",
+    "posterMenuTitle",
+  ) || "Untitled";
+  return normalizeItem({
+    media_type: isEpisode ? "tv" : normalizeType(rawType),
+    title: isEpisode ? (showTitle || title) : title,
+    tmdb_id: isEpisode ? showTmdbId : tmdbId,
+    tvdb_id: isEpisode ? showTvdbId : tvdbId,
+    imdb_id: isEpisode ? showImdbId : value("posterMenuRatingImdbId", "mediaRateImdbId", "posterMenuDiscoverImdbId"),
+    poster_url: value("posterMenuRatingPosterUrl", "mediaRatePosterUrl", "posterMenuUpNextPosterUrl", "posterMenuDiscoverPosterUrl"),
+    overview: value("posterMenuRatingOverview", "mediaRateOverview"),
+    release_date: value("posterMenuRatingReleaseDate", "mediaRateReleaseDate", "posterMenuUpNextAirDate", "posterMenuDiscoverReleaseDate"),
+    show_title: isEpisode ? showTitle : "",
+    show_tmdb_id: isEpisode ? showTmdbId : "",
+    show_tvdb_id: isEpisode ? showTvdbId : "",
+    show_imdb_id: isEpisode ? showImdbId : "",
+    season: isEpisode ? value("posterMenuRatingSeason", "mediaRateSeason", "posterMenuUpNextSeason") : null,
+    episode: isEpisode ? value("posterMenuRatingEpisode", "mediaRateEpisode", "posterMenuUpNextEpisode") : null,
+  });
+}
+
+export function personalItemFromDetailDataset(dataset = {}) {
+  const value = (...keys) => keys
+    .map((key) => dataset[key])
+    .find((entry) => entry !== undefined && entry !== null && entry !== "") || "";
+  return normalizeItem({
+    media_type: value("mediaPersonalMediaType") || "movie",
+    title: value("mediaPersonalTitle") || "Untitled",
+    tmdb_id: value("mediaPersonalTmdbId"),
+    tvdb_id: value("mediaPersonalTvdbId"),
+    imdb_id: value("mediaPersonalImdbId"),
+    poster_url: value("mediaPersonalPosterUrl"),
+    overview: value("mediaPersonalOverview"),
+    release_date: value("mediaPersonalReleaseDate"),
+    show_title: value("mediaPersonalShowTitle"),
+    show_tmdb_id: value("mediaPersonalShowTmdbId"),
+    show_tvdb_id: value("mediaPersonalShowTvdbId"),
+    show_imdb_id: value("mediaPersonalShowImdbId"),
+    season: value("mediaPersonalSeason"),
+    episode: value("mediaPersonalEpisode"),
+  });
+}
+
+function itemPayload(item = {}) {
+  const normalized = normalizeItem(item);
+  return {
+    media_type: normalized.media_type,
+    title: normalized.title,
+    tmdb_id: normalized.tmdb_id,
+    tvdb_id: normalized.tvdb_id,
+    imdb_id: normalized.imdb_id,
+    poster_url: normalized.poster_url,
+    overview: normalized.overview,
+    release_date: normalized.release_date,
+    show_title: normalized.show_title,
+    show_tmdb_id: normalized.show_tmdb_id,
+    show_tvdb_id: normalized.show_tvdb_id,
+    show_imdb_id: normalized.show_imdb_id,
+    season: normalized.season == null || normalized.season === "" ? null : Number(normalized.season),
+    episode: normalized.episode == null || normalized.episode === "" ? null : Number(normalized.episode),
+  };
+}
+
+function allPersonalItems() {
+  const items = [
+    ...(state.personalRatings || []),
+    ...(state.personalWatchlist || []),
+  ];
+  for (const list of state.personalLists || []) items.push(...(list.items || []));
+  return items;
+}
+
+function findPersonalItem(mediaKey) {
+  const key = String(mediaKey || "");
+  return allPersonalItems().find((item) => String(item.media_key || mediaKeyForPersonalItem(item)) === key) || null;
+}
+
+const PERSONAL_PROVIDER_FIELDS = ["tmdb_id", "tvdb_id", "imdb_id"];
+
+function personalItemsMatch(left = {}, right = {}) {
+  const first = normalizeItem(left);
+  const second = normalizeItem(right);
+  if (first.media_type !== second.media_type) return false;
+  if (first.media_type === "episode") return episodeRatingMatches(first, second);
+
+  const sharedProviderId = PERSONAL_PROVIDER_FIELDS.some((field) => {
+    const firstId = String(first[field] || "").trim();
+    const secondId = String(second[field] || "").trim();
+    return Boolean(firstId && secondId && firstId === secondId);
+  });
+  if (sharedProviderId) return true;
+
+  const firstTitle = titleKey(first.title);
+  const secondTitle = titleKey(second.title);
+  if (!firstTitle || firstTitle !== secondTitle) return false;
+  const firstYear = String(first.release_date || "").match(/^\d{4}/)?.[0] || "";
+  const secondYear = String(second.release_date || "").match(/^\d{4}/)?.[0] || "";
+  return !firstYear || !secondYear || Math.abs(Number(firstYear) - Number(secondYear)) <= 1;
+}
+
+export function isPersonalWatchlisted(item = {}) {
+  return (state.personalWatchlist || []).some((entry) => personalItemsMatch(entry, item));
+}
+
+export function customListsForPersonalItem(item = {}) {
+  return (state.personalLists || []).filter((list) => (list.items || []).some((entry) => personalItemsMatch(entry, item)));
+}
+
+export function getPersonalRating(item = {}) {
+  const key = mediaKeyForPersonalItem(item);
+  const ratings = state.personalRatings || [];
+  const match = ratings.find((entry) => String(entry.media_key || mediaKeyForPersonalItem(entry)) === key)
+    || ratings.find((entry) => episodeRatingMatches(entry, item));
+  const rating = Number(match?.rating || 0);
+  return Number.isInteger(rating) && rating >= 1 && rating <= 10 ? rating : 0;
+}
+
+function personalRatingDataAttributes(item = {}) {
+  const normalized = normalizeItem(item);
+  const attributes = {
+    "data-media-rate-media-type": normalized.media_type,
+    "data-media-rate-tmdb-id": normalized.tmdb_id,
+    "data-media-rate-tvdb-id": normalized.tvdb_id,
+    "data-media-rate-imdb-id": normalized.imdb_id,
+    "data-media-rate-show-tmdb-id": normalized.show_tmdb_id,
+    "data-media-rate-show-tvdb-id": normalized.show_tvdb_id,
+    "data-media-rate-show-imdb-id": normalized.show_imdb_id,
+    "data-media-rate-title": normalized.title,
+    "data-media-rate-show-title": normalized.show_title,
+    "data-media-rate-season": normalized.season == null ? "" : normalized.season,
+    "data-media-rate-episode": normalized.episode == null ? "" : normalized.episode,
+    "data-media-rate-poster-url": normalized.poster_url,
+    "data-media-rate-overview": normalized.overview,
+    "data-media-rate-release-date": normalized.release_date,
+  };
+  return ["data-media-rate", ...Object.entries(attributes)
+    .map(([name, value]) => `${name}="${escapeAttribute(value ?? "")}"`)]
+    .join(" ");
+}
+
+function personalMediaDataAttributes(item = {}) {
+  const normalized = normalizeItem(item);
+  const attributes = {
+    "data-media-personal-media-type": normalized.media_type,
+    "data-media-personal-tmdb-id": normalized.tmdb_id,
+    "data-media-personal-tvdb-id": normalized.tvdb_id,
+    "data-media-personal-imdb-id": normalized.imdb_id,
+    "data-media-personal-show-tmdb-id": normalized.show_tmdb_id,
+    "data-media-personal-show-tvdb-id": normalized.show_tvdb_id,
+    "data-media-personal-show-imdb-id": normalized.show_imdb_id,
+    "data-media-personal-title": normalized.title,
+    "data-media-personal-show-title": normalized.show_title,
+    "data-media-personal-season": normalized.season == null ? "" : normalized.season,
+    "data-media-personal-episode": normalized.episode == null ? "" : normalized.episode,
+    "data-media-personal-poster-url": normalized.poster_url,
+    "data-media-personal-overview": normalized.overview,
+    "data-media-personal-release-date": normalized.release_date,
+  };
+  return Object.entries(attributes)
+    .map(([name, value]) => `${name}="${escapeAttribute(value ?? "")}"`)
+    .join(" ");
+}
+
+const personalWatchlistIcon = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M2.5 1.5A1.5 1.5 0 0 1 4 0h8a1.5 1.5 0 0 1 1.5 1.5v13a.5.5 0 0 1-.8.4L8 11.75l-4.7 3.15a.5.5 0 0 1-.8-.4v-13zM4 1a.5.5 0 0 0-.5.5v11.07l4.22-2.83a.5.5 0 0 1 .56 0l4.22 2.83V1.5A.5.5 0 0 0 12 1H4z"/></svg>`;
+const personalCustomListIcon = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M2 1.5A1.5 1.5 0 0 1 3.5 0h9A1.5 1.5 0 0 1 14 1.5v13a.5.5 0 0 1-.8.4L8 11.75l-5.2 3.15a.5.5 0 0 1-.8-.4v-13zM3.5 1a.5.5 0 0 0-.5.5v11.07l4.74-2.87a.5.5 0 0 1 .52 0L13 12.57V1.5a.5.5 0 0 0-.5-.5h-9zM5 3h6v1H5V3zm0 2h6v1H5V5z"/></svg>`;
+
+function personalWatchlistActionState(item) {
+  const watchlisted = isPersonalWatchlisted(item);
+  return {
+    active: watchlisted,
+    label: watchlisted ? "Remove from watch list" : "Add to watch list",
+    description: watchlisted ? `Remove ${item.title} from your watch list` : `Add ${item.title} to your watch list`,
+    mode: watchlisted ? "remove" : "add",
+  };
+}
+
+function personalCustomListActionState(item) {
+  const lists = customListsForPersonalItem(item);
+  const names = lists.map((list) => list.name).filter(Boolean);
+  return {
+    active: names.length > 0,
+    label: names.length ? "In custom list" : "Add to custom list",
+    description: names.length
+      ? `In custom list${names.length > 1 ? "s" : ""}: ${names.join(", ")}`
+      : `Add ${item.title} to a custom list`,
+    mode: names.length ? "manage" : "add",
+  };
+}
+
+export function personalMediaActionsHtml(item = {}) {
+  const normalized = normalizeItem(item);
+  const attributes = personalMediaDataAttributes(normalized);
+  const watchlist = personalWatchlistActionState(normalized);
+  const customList = personalCustomListActionState(normalized);
+  return `
+    <button class="action-pill personal-media-detail-action${watchlist.active ? " has-personal-state" : ""}" type="button" ${attributes} data-media-personal-action="watchlist" data-media-personal-mode="${watchlist.mode}" aria-label="${escapeAttribute(watchlist.description)}" aria-pressed="${watchlist.active}" title="${escapeAttribute(watchlist.description)}">
+      ${personalWatchlistIcon}
+      <span data-media-personal-label>${escapeHtml(watchlist.label)}</span>
+    </button>
+    <button class="action-pill personal-media-detail-action${customList.active ? " has-personal-state" : ""}" type="button" ${attributes} data-media-personal-action="custom-list" data-media-personal-mode="${customList.mode}" aria-label="${escapeAttribute(customList.description)}" title="${escapeAttribute(customList.description)}">
+      ${personalCustomListIcon}
+      <span data-media-personal-label>${escapeHtml(customList.label)}</span>
+    </button>
+  `;
+}
+
+export function refreshRenderedPersonalMediaControls() {
+  for (const button of document.querySelectorAll("#mediaDetailActions [data-media-personal-action]")) {
+    const item = personalItemFromDetailDataset(button.dataset);
+    const action = button.dataset.mediaPersonalAction || "";
+    const actionState = action === "watchlist"
+      ? personalWatchlistActionState(item)
+      : action === "custom-list"
+        ? personalCustomListActionState(item)
+        : null;
+    if (!actionState) continue;
+    button.classList.toggle("has-personal-state", actionState.active);
+    button.dataset.mediaPersonalMode = actionState.mode;
+    button.setAttribute("aria-label", actionState.description);
+    button.setAttribute("title", actionState.description);
+    if (action === "watchlist") button.setAttribute("aria-pressed", String(actionState.active));
+    const label = button.querySelector("[data-media-personal-label]");
+    if (label) label.textContent = actionState.label;
+  }
+}
+
+export function personalRatingPillHtml(item = {}) {
+  const normalized = normalizeItem(item);
+  const rating = getPersonalRating(normalized);
+  const label = rating ? `Your rating · ${rating}/10` : "Rate this";
+  const actionLabel = rating ? `Change your rating for ${normalized.title}` : `Rate ${normalized.title}`;
+  return `<button class="rating-pill rating-pill--personal${rating ? " has-rating" : ""}" type="button" ${personalRatingDataAttributes(normalized)} aria-label="${escapeAttribute(actionLabel)}" title="${escapeAttribute(actionLabel)}"><span class="personal-rating-star" aria-hidden="true">★</span><span>${escapeHtml(label)}</span></button>`;
+}
+
+export function personalEpisodeRatingButtonHtml(item = {}) {
+  const normalized = normalizeItem(item);
+  const rating = getPersonalRating(normalized);
+  const code = episodeCode(normalized.season, normalized.episode);
+  const label = rating ? `${rating}/10` : "Rate";
+  const actionLabel = rating ? `Change your rating for ${code} ${normalized.title}` : `Rate ${code} ${normalized.title}`;
+  return `<button class="episode-personal-rating${rating ? " has-rating" : ""}" type="button" ${personalRatingDataAttributes(normalized)} aria-label="${escapeAttribute(actionLabel)}" title="${escapeAttribute(actionLabel)}"><span class="personal-rating-star" aria-hidden="true">★</span><span>${escapeHtml(label)}</span></button>`;
+}
+
+function refreshRenderedPersonalRatingControls() {
+  for (const button of document.querySelectorAll(".rating-pill--personal[data-media-rate], .episode-personal-rating[data-media-rate]")) {
+    const item = {
+      media_type: button.dataset.mediaRateMediaType || "movie",
+      tmdb_id: button.dataset.mediaRateTmdbId || "",
+      tvdb_id: button.dataset.mediaRateTvdbId || "",
+      imdb_id: button.dataset.mediaRateImdbId || "",
+      show_tmdb_id: button.dataset.mediaRateShowTmdbId || "",
+      show_tvdb_id: button.dataset.mediaRateShowTvdbId || "",
+      show_imdb_id: button.dataset.mediaRateShowImdbId || "",
+      title: button.dataset.mediaRateTitle || "Untitled",
+      show_title: button.dataset.mediaRateShowTitle || "",
+      season: button.dataset.mediaRateSeason || "",
+      episode: button.dataset.mediaRateEpisode || "",
+      poster_url: button.dataset.mediaRatePosterUrl || "",
+      overview: button.dataset.mediaRateOverview || "",
+      release_date: button.dataset.mediaRateReleaseDate || "",
+    };
+    button.outerHTML = button.classList.contains("episode-personal-rating")
+      ? personalEpisodeRatingButtonHtml(item)
+      : personalRatingPillHtml(item);
+  }
+}
+
+function setPersonalMessage(message, tone = "success") {
+  _cb.setMessage?.(message, tone);
+}
+
+async function personalRequest(payload) {
+  const response = await fetch("/api/personal-media", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...buildAuthHeaders(state.token) },
+    cache: "no-store",
+    body: JSON.stringify(payload),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || `Personal media update failed (${response.status})`);
+  return body;
+}
+
+function personalErrorPresentation() {
+  if (/(^|\s)not found($|\s)/i.test(state.personalMediaError)) {
+    return "The personal media tables are not available yet. Restart Plembfin, then try again.";
+  }
+  return state.personalMediaError || "Try again later.";
+}
+
+function actionButton(label, action, mediaKey, className = "button-ghost") {
+  return `<button class="${className} personal-media-action" type="button" data-personal-action="${escapeAttribute(action)}" data-personal-key="${escapeAttribute(mediaKey)}">${escapeHtml(label)}</button>`;
+}
+
+function personalCard(item, { section = "watchlist", rating = null, listId = "" } = {}) {
+  const normalized = normalizeItem(item);
+  const record = normalizeMediaCardRecord(normalized, {
+    meta: normalized.media_type === "tv"
+      ? "TV show"
+      : normalized.media_type === "episode"
+        ? `${episodeCode(normalized.season, normalized.episode)} · ${normalized.title}`
+        : "Movie",
+    description: normalized.overview,
+  });
+  const key = normalized.media_key;
+  const releaseDate = normalized.release_date ? formatTmdbDate(normalized.release_date) : "";
+  const actions = section === "ratings"
+    ? `${actionButton("Rate again", "rate", key, "button-ghost")}${actionButton("Remove rating", "remove-rating", key, "button-danger")}`
+    : section === "list"
+      ? `${actionButton("Rate", "rate", key, "button-ghost")}${actionButton("Remove", `remove-list:${listId}`, key, "button-ghost")}`
+      : `${actionButton("Rate", "rate", key, "button-ghost")}${actionButton("Remove", "remove-watchlist", key, "button-ghost")}`;
+  return renderMediaCard({
+    ...record,
+    media_key: key,
+    status: releaseDate,
+  }, {
+    variant: "personal",
+    menuMode: "personal",
+    meta: record.meta,
+    status: releaseDate,
+    badge: section === "ratings" && rating ? `★ ${rating}/10` : section === "list" ? "Custom list" : "Watchlist",
+    showSource: false,
+    description: normalized.overview,
+    actionsHtml: actions,
+  });
+}
+
+function emptyPersonalState(title, detail) {
+  return `<div class="empty-log personal-media-empty"><b>${escapeHtml(title)}</b><span>${escapeHtml(detail)}</span></div>`;
+}
+
+function renderPersonalRatingSections(ratings) {
+  const canonicalRatings = collapsePersonalRatings(ratings);
+  return PERSONAL_RATING_SECTIONS.map(({ type, label }) => {
+    const items = canonicalRatings.filter((item) => normalizeType(item.media_type) === type);
+    if (!items.length) return "";
+
+    const headingId = `personal-ratings-${type}-title`;
+    return `
+      <section class="personal-media-rating-section" aria-labelledby="${headingId}">
+        <div class="personal-media-list-heading">
+          <b id="${headingId}">${escapeHtml(label)}</b>
+          <span>${items.length} item${items.length === 1 ? "" : "s"}</span>
+        </div>
+        <div class="personal-media-card-grid">
+          ${items.map((item) => personalCard(item, { section: "ratings", rating: item.rating })).join("")}
+        </div>
+      </section>
+    `;
+  }).join("");
+}
+
+function activePersonalList() {
+  const lists = Array.isArray(state.personalLists) ? state.personalLists : [];
+  if (!lists.length) return null;
+  let list = lists.find((entry) => String(entry.id) === String(state.personalMediaActiveListId));
+  if (!list) {
+    list = lists[0];
+    state.personalMediaActiveListId = list.id;
+  }
+  return list;
+}
+
+function renderPersonalControls() {
+  const list = activePersonalList();
+  const listOptions = (state.personalLists || []).map((entry) => `<option value="${escapeAttribute(entry.id)}"${list?.id === entry.id ? " selected" : ""}>${escapeHtml(entry.name)}</option>`).join("");
+  const createListSource = state.personalMediaTab === "lists" ? "custom-lists" : "";
+  return `
+    <div class="personal-media-toolbar-actions">
+      ${state.personalMediaTab === "lists" && listOptions ? `<label class="personal-media-list-select"><span>List</span><select class="field" data-personal-list-select>${listOptions}</select></label>` : ""}
+      ${state.personalMediaTab === "lists" && list ? `<button class="button-danger personal-media-delete-list" type="button" data-personal-delete-list="${escapeAttribute(list.id)}">Delete list</button>` : ""}
+      ${createListSource ? `<button class="button-ghost" type="button" data-personal-create-list="${createListSource}">New list</button>` : ""}
+    </div>
+  `;
+}
+
+export function renderPersonalMedia() {
+  const panel = elements.personalMediaPanel;
+  if (!panel) return;
+  if (elements.personalMediaTopbarControls) {
+    elements.personalMediaTopbarControls.innerHTML = state.token ? renderPersonalControls() : "";
+  }
+  if (!state.token) {
+    panel.innerHTML = "";
+    return;
+  }
+  if (state.personalMediaLoading && !state.personalMediaLoadedAt) {
+    panel.innerHTML = emptyPersonalState("Loading your personal media…", "");
+    return;
+  }
+  if (state.personalMediaError && !state.personalMediaLoadedAt) {
+    panel.innerHTML = `<div class="empty-log personal-media-empty" role="alert"><b>Personal media is unavailable</b><span>${escapeHtml(personalErrorPresentation())}</span><button class="button-ghost" type="button" data-personal-retry>Try again</button></div>`;
+    return;
+  }
+
+  const tab = state.personalMediaTab;
+  let content = "";
+  if (tab === "ratings") {
+    const ratings = state.personalRatings || [];
+    content = ratings.length
+      ? renderPersonalRatingSections(ratings)
+      : emptyPersonalState("No ratings yet", "Use any media card's actions to keep your own score.");
+  } else if (tab === "lists") {
+    const list = activePersonalList();
+    const items = list?.items || [];
+    content = !list
+      ? emptyPersonalState("No custom lists yet", "Create a list to collect films and shows your way.")
+      : items.length
+        ? `<div class="personal-media-list-heading"><b>${escapeHtml(list.name)}</b><span>${items.length} item${items.length === 1 ? "" : "s"}</span></div><div class="personal-media-card-grid">${items.map((item) => personalCard(item, { section: "list", listId: list.id })).join("")}</div>`
+        : emptyPersonalState(`${list.name} is empty`, "Add a movie or TV show from any media card.");
+  } else {
+    const watchlist = state.personalWatchlist || [];
+    content = watchlist.length
+      ? `<div class="personal-media-card-grid">${watchlist.map((item) => personalCard(item)).join("")}</div>`
+      : emptyPersonalState("Your watchlist is empty", "Use a media card's menu to save something for later.");
+  }
+  panel.innerHTML = content;
+  hydratePosters(panel);
+}
+
+async function refreshPersonalViews() {
+  renderPersonalMedia();
+  _cb.renderDiscover?.();
+  refreshRenderedPersonalRatingControls();
+  refreshRenderedPersonalMediaControls();
+}
+
+export async function loadPersonalMedia({ force = false } = {}) {
+  if (!state.token) return;
+  if (loadPromise) return loadPromise;
+  if (!force && state.personalMediaLoadedAt && Date.now() - state.personalMediaLoadedAt < PERSONAL_MEDIA_TTL_MS) {
+    renderPersonalMedia();
+    return;
+  }
+
+  state.personalMediaLoading = true;
+  state.personalMediaError = "";
+  renderPersonalMedia();
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), PERSONAL_MEDIA_TIMEOUT_MS);
+  loadPromise = (async () => {
+    try {
+      const response = await fetch("/api/personal-media", {
+        headers: buildAuthHeaders(state.token),
+        cache: force ? "reload" : "default",
+        signal: controller.signal,
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || `Personal media load failed (${response.status})`);
+      state.personalRatings = Array.isArray(body.ratings)
+        ? collapsePersonalRatings(body.ratings.map(normalizeItem))
+        : [];
+      state.personalWatchlist = Array.isArray(body.watchlist) ? body.watchlist.map(normalizeItem) : [];
+      state.personalLists = Array.isArray(body.lists)
+        ? body.lists.map((list) => ({ ...list, items: Array.isArray(list.items) ? list.items.map(normalizeItem) : [] }))
+        : [];
+      if (!state.personalLists.some((list) => String(list.id) === String(state.personalMediaActiveListId))) {
+        state.personalMediaActiveListId = state.personalLists[0]?.id || "";
+      }
+      state.personalMediaLoadedAt = Date.now();
+      await refreshPersonalViews();
+    } catch (error) {
+      state.personalMediaError = error?.name === "AbortError" ? "The request timed out." : (error.message || "Try again later.");
+      setPersonalMessage(`Personal media: ${state.personalMediaError}`, "error");
+    } finally {
+      clearTimeout(timeout);
+      state.personalMediaLoading = false;
+      loadPromise = null;
+      renderPersonalMedia();
+    }
+  })();
+  return loadPromise;
+}
+
+export function resetPersonalMedia() {
+  state.personalMediaLoadedAt = 0;
+  state.personalMediaLoading = false;
+  state.personalMediaError = "";
+  state.personalRatings = [];
+  state.personalWatchlist = [];
+  state.personalLists = [];
+  state.personalMediaActiveListId = "";
+  closePersonalDialog();
+  refreshRenderedPersonalMediaControls();
+}
+
+export async function addToWatchlist(item, { showMessage = true } = {}) {
+  const normalized = normalizeItem(item);
+  await personalRequest({ action: "watchlist-add", ...itemPayload(normalized) });
+  await loadPersonalMedia({ force: true });
+  if (showMessage) setPersonalMessage(`${normalized.title} added to your watchlist.`, "success");
+}
+
+export async function removeFromWatchlist(item, { showMessage = true } = {}) {
+  const normalized = normalizeItem(item);
+  await personalRequest({ action: "watchlist-remove", ...itemPayload(normalized) });
+  await loadPersonalMedia({ force: true });
+  if (showMessage) setPersonalMessage(`${normalized.title} removed from your watchlist.`, "success");
+}
+
+async function saveRating(item, rating) {
+  const normalized = normalizeItem(item);
+  await personalRequest({ action: "rate", rating, ...itemPayload(normalized) });
+  await loadPersonalMedia({ force: true });
+  closePersonalDialog();
+  setPersonalMessage(`${normalized.title} rated ${rating}/10.`, "success");
+}
+
+async function removeRating(item) {
+  const normalized = normalizeItem(item);
+  await personalRequest({ action: "remove-rating", ...itemPayload(normalized) });
+  await loadPersonalMedia({ force: true });
+  closePersonalDialog();
+  setPersonalMessage(`Rating removed from ${normalized.title}.`, "success");
+}
+
+async function createCustomList(name) {
+  const body = await personalRequest({ action: "list-create", name });
+  if (!body?.list?.id) throw new Error("The server did not return the created list.");
+  await loadPersonalMedia({ force: true });
+  return body.list;
+}
+
+export async function addToCustomList(item, listId, { showMessage = true } = {}) {
+  const normalized = normalizeItem(item);
+  await personalRequest({ action: "list-add", list_id: listId, ...itemPayload(normalized) });
+  await loadPersonalMedia({ force: true });
+  closePersonalDialog();
+  const list = (state.personalLists || []).find((entry) => String(entry.id) === String(listId));
+  if (showMessage) setPersonalMessage(`${normalized.title} added to ${list?.name || "your custom list"}.`, "success");
+}
+
+export async function removeFromCustomList(item, listId, { showMessage = true } = {}) {
+  const normalized = normalizeItem(item);
+  await personalRequest({ action: "list-remove", list_id: listId, ...itemPayload(normalized) });
+  await loadPersonalMedia({ force: true });
+  if (showMessage) setPersonalMessage(`${normalized.title} removed from the list.`, "success");
+}
+
+async function deleteCustomList(listId) {
+  const list = (state.personalLists || []).find((entry) => String(entry.id) === String(listId));
+  if (!list || !window.confirm(`Delete the custom list “${list.name}”?`)) return;
+  await personalRequest({ action: "list-delete", list_id: list.id, media_type: "movie", title: "List" });
+  await loadPersonalMedia({ force: true });
+  setPersonalMessage(`${list.name} deleted.`, "success");
+}
+
+function dialogFrame(title, body) {
+  closePersonalDialog();
+  const overlay = document.createElement("div");
+  overlay.className = "personal-media-dialog-overlay";
+  overlay.innerHTML = `
+    <section class="personal-media-dialog" role="dialog" aria-modal="true" aria-labelledby="personal-media-dialog-title">
+      <div class="personal-media-dialog-head">
+        <h2 id="personal-media-dialog-title">${escapeHtml(title)}</h2>
+        <button class="icon-button personal-media-dialog-close" type="button" aria-label="Close">&times;</button>
+      </div>
+      <div class="personal-media-dialog-body">${body}</div>
+    </section>
+  `;
+  document.body.appendChild(overlay);
+  const close = () => closePersonalDialog(overlay);
+  const onClick = (event) => {
+    const target = event.target instanceof Element ? event.target : null;
+    if (event.target === overlay || target?.closest(".personal-media-dialog-close")) {
+      event.preventDefault();
+      close();
+    }
+  };
+  const onKeydown = (event) => {
+    if (event.key === "Escape") close();
+  };
+  overlay.addEventListener("click", onClick);
+  document.addEventListener("keydown", onKeydown);
+  const cleanup = () => {
+    overlay.removeEventListener("click", onClick);
+    document.removeEventListener("keydown", onKeydown);
+    overlay.remove();
+    if (dialogCleanup === cleanup) dialogCleanup = null;
+  };
+  cleanup.overlay = overlay;
+  dialogCleanup = cleanup;
+  return overlay;
+}
+
+export function closePersonalDialog(expectedOverlay = null) {
+  if (expectedOverlay && dialogCleanup?.overlay !== expectedOverlay) return;
+  dialogCleanup?.();
+}
+
+export function openRatingDialog(item) {
+  const normalized = normalizeItem(item);
+  const current = getPersonalRating(normalized);
+  const choices = Array.from({ length: 10 }, (_, index) => index + 1).map((rating) => `<button class="personal-rating-choice${Number(current) === rating ? " active" : ""}" type="button" data-dialog-rating="${rating}">${rating}</button>`).join("");
+  const dialogTitle = normalized.media_type === "episode"
+    ? `Rate ${episodeCode(normalized.season, normalized.episode)} ${normalized.title}`
+    : `Rate ${normalized.title}`;
+  const overlay = dialogFrame(dialogTitle, `
+    <p class="personal-media-dialog-copy">Choose your personal rating out of ten.</p>
+    <div class="personal-rating-grid" aria-label="Choose a rating">${choices}</div>
+    <button class="button-ghost personal-rating-remove${current ? "" : " hidden"}" type="button" data-dialog-remove-rating>Remove rating</button>
+  `);
+  overlay.addEventListener("click", async (event) => {
+    const choice = event.target.closest("[data-dialog-rating]");
+    const remove = event.target.closest("[data-dialog-remove-rating]");
+    if (!choice && !remove) return;
+    event.preventDefault();
+    const buttons = [...overlay.querySelectorAll("button")];
+    buttons.forEach((button) => { button.disabled = true; });
+    try {
+      if (remove) await removeRating(normalized);
+      else await saveRating(normalized, Number(choice.dataset.dialogRating));
+    } catch (error) {
+      buttons.forEach((button) => { button.disabled = false; });
+      setPersonalMessage(error.message, "error");
+    }
+  });
+}
+
+export function openAddToListDialog(item) {
+  const normalized = normalizeItem(item);
+  const lists = state.personalLists || [];
+  const existingListIds = new Set(customListsForPersonalItem(normalized).map((list) => String(list.id)));
+  const body = lists.length
+    ? `<p class="personal-media-dialog-copy">Choose a list for <b>${escapeHtml(normalized.title)}</b>.</p><div class="personal-list-choice-grid">${lists.map((list) => {
+      const alreadyAdded = existingListIds.has(String(list.id));
+      return `<button class="button-ghost${alreadyAdded ? " personal-list-choice--added" : ""}" type="button" ${alreadyAdded ? "disabled" : ""} data-dialog-list-id="${escapeAttribute(list.id)}" aria-label="${escapeAttribute(alreadyAdded ? `${list.name}, already added` : `Add to ${list.name}`)}">${escapeHtml(list.name)}${alreadyAdded ? " · Added" : ""}</button>`;
+    }).join("")}</div><button class="button-ghost" type="button" data-dialog-create-list>Create a new list</button>`
+    : `<p class="personal-media-dialog-copy">Create a list first, then this title will be added to it.</p><button class="button-primary" type="button" data-dialog-create-list>Create a new list</button>`;
+  const overlay = dialogFrame(`Add ${normalized.title} to a list`, body);
+  overlay.addEventListener("click", (event) => {
+    const listButton = event.target.closest("[data-dialog-list-id]");
+    const createButton = event.target.closest("[data-dialog-create-list]");
+    if (listButton) {
+      event.preventDefault();
+      addToCustomList(normalized, listButton.dataset.dialogListId).catch((error) => setPersonalMessage(error.message, "error"));
+    } else if (createButton) {
+      event.preventDefault();
+      openCreateListDialog(normalized);
+    }
+  });
+}
+
+export function openCreateListDialog(afterCreateItem = null, { sourceView = state.activeView } = {}) {
+  const overlay = dialogFrame("Create a custom list", `
+    <form class="personal-media-create-form">
+      <label class="field-label" for="personalListName">List name<input id="personalListName" class="field" name="name" maxlength="100" required autocomplete="off" /></label>
+      <p class="personal-media-dialog-error hidden" data-personal-dialog-error role="alert"></p>
+      <div class="personal-media-dialog-actions"><button class="button-ghost personal-media-dialog-close" type="button">Cancel</button><button class="button-primary" type="submit">Create list</button></div>
+    </form>
+  `);
+  const form = overlay.querySelector("form");
+  const input = form?.querySelector("input");
+  const submit = form?.querySelector("[type=submit]");
+  const errorMessage = form?.querySelector("[data-personal-dialog-error]");
+  let submitting = false;
+  input?.focus();
+  form?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (submitting) return;
+    const name = String(input?.value || "").trim();
+    if (!name) return;
+    submitting = true;
+    if (submit) submit.disabled = true;
+    if (errorMessage) {
+      errorMessage.textContent = "";
+      errorMessage.classList.add("hidden");
+    }
+    try {
+      const list = await createCustomList(name);
+      if (afterCreateItem && list?.id) {
+        await addToCustomList(afterCreateItem, list.id);
+      } else {
+        if (sourceView === "custom-lists" && list.id) {
+          state.personalMediaActiveListId = list.id;
+          renderPersonalMedia();
+        }
+        closePersonalDialog(overlay);
+        setPersonalMessage(`${name} created.`, "success");
+      }
+    } catch (error) {
+      submitting = false;
+      if (submit && overlay.isConnected) submit.disabled = false;
+      const message = error?.message || "Unable to create the list.";
+      if (errorMessage && overlay.isConnected) {
+        errorMessage.textContent = message;
+        errorMessage.classList.remove("hidden");
+      }
+      setPersonalMessage(message, "error");
+    }
+  });
+}
+
+async function handlePanelClick(event) {
+  const retry = event.target.closest("[data-personal-retry]");
+  if (retry) {
+    event.preventDefault();
+    loadPersonalMedia({ force: true }).catch((error) => setPersonalMessage(error.message, "error"));
+    return;
+  }
+  const create = event.target.closest("[data-personal-create-list]");
+  if (create) {
+    event.preventDefault();
+    const sourceView = create.dataset.personalCreateList;
+    if (sourceView !== "watchlist" && sourceView !== "custom-lists") return;
+    openCreateListDialog(null, { sourceView });
+    return;
+  }
+  const deleteButton = event.target.closest("[data-personal-delete-list]");
+  if (deleteButton) {
+    event.preventDefault();
+    deleteCustomList(deleteButton.dataset.personalDeleteList).catch((error) => setPersonalMessage(error.message, "error"));
+    return;
+  }
+  const rateButton = event.target.closest("[data-personal-rate]");
+  if (rateButton) {
+    event.preventDefault();
+    openRatingDialog(findPersonalItem(rateButton.dataset.personalKey) || { title: rateButton.dataset.personalTitle });
+    return;
+  }
+  const actionButtonElement = event.target.closest("[data-personal-action]");
+  if (!actionButtonElement) return;
+  event.preventDefault();
+  const item = findPersonalItem(actionButtonElement.dataset.personalKey);
+  if (!item) return;
+  const action = actionButtonElement.dataset.personalAction || "";
+  if (action === "remove-watchlist") {
+    const originalLabel = actionButtonElement.textContent || "Remove";
+    actionButtonElement.disabled = true;
+    const confirmed = await _cb.openConfirmDialog?.({
+      title: "Remove from watchlist?",
+      body: `Remove "${item.title}" from your watchlist?`,
+      confirmLabel: "Remove",
+      cancelLabel: "Keep",
+      danger: true,
+    });
+    if (!confirmed) {
+      if (actionButtonElement.isConnected) actionButtonElement.disabled = false;
+      return;
+    }
+    actionButtonElement.disabled = true;
+    actionButtonElement.textContent = "Removing…";
+    actionButtonElement.setAttribute("aria-busy", "true");
+    removeFromWatchlist(item, { showMessage: false })
+      .then(() => {
+        if (!actionButtonElement.isConnected) return;
+        actionButtonElement.disabled = true;
+        actionButtonElement.textContent = "Removed";
+        actionButtonElement.removeAttribute("aria-busy");
+        actionButtonElement.setAttribute("aria-label", "Removed");
+        actionButtonElement.title = "Removed";
+      })
+      .catch((error) => {
+        if (actionButtonElement.isConnected) {
+          actionButtonElement.disabled = false;
+          actionButtonElement.textContent = originalLabel;
+          actionButtonElement.removeAttribute("aria-busy");
+        }
+        setPersonalMessage(error.message, "error");
+      });
+  }
+  if (action === "rate") openRatingDialog(item);
+  if (action === "remove-rating") removeRating(item).catch((error) => setPersonalMessage(error.message, "error"));
+  if (action.startsWith("remove-list:")) {
+    const listId = action.slice("remove-list:".length);
+    const listName = (state.personalLists || []).find((entry) => String(entry.id) === String(listId))?.name || "Custom list";
+    const originalLabel = actionButtonElement.textContent || "Remove";
+    actionButtonElement.disabled = true;
+    const confirmed = await _cb.openConfirmDialog?.({
+      title: "Remove from custom list?",
+      body: `Remove "${item.title}" from "${listName}"?`,
+      confirmLabel: "Remove",
+      cancelLabel: "Keep",
+      danger: true,
+    });
+    if (!confirmed) {
+      if (actionButtonElement.isConnected) actionButtonElement.disabled = false;
+      return;
+    }
+    actionButtonElement.textContent = `${listName} - Removing…`;
+    actionButtonElement.setAttribute("aria-busy", "true");
+    removeFromCustomList(item, listId, { showMessage: false })
+      .then(() => {
+        if (!actionButtonElement.isConnected) return;
+        actionButtonElement.disabled = true;
+        actionButtonElement.textContent = "Removed";
+        actionButtonElement.removeAttribute("aria-busy");
+        actionButtonElement.setAttribute("aria-label", "Removed");
+        actionButtonElement.title = "Removed";
+      })
+      .catch((error) => {
+        if (actionButtonElement.isConnected) {
+          actionButtonElement.disabled = false;
+          actionButtonElement.textContent = originalLabel;
+          actionButtonElement.removeAttribute("aria-busy");
+        }
+        setPersonalMessage(error.message, "error");
+      });
+  }
+}
+
+function handlePanelChange(event) {
+  const select = event.target.closest("[data-personal-list-select]");
+  if (!select) return;
+  state.personalMediaActiveListId = select.value;
+  renderPersonalMedia();
+}
+
+export function initPersonalMedia(callbacks = {}) {
+  _cb = callbacks;
+  if (panelBound || (!elements.personalMediaPanel && !elements.personalMediaTopbarControls)) return;
+  panelBound = true;
+  elements.personalMediaPanel?.addEventListener("click", handlePanelClick);
+  elements.personalMediaPanel?.addEventListener("change", handlePanelChange);
+  elements.personalMediaTopbarControls?.addEventListener("click", handlePanelClick);
+  elements.personalMediaTopbarControls?.addEventListener("change", handlePanelChange);
+}

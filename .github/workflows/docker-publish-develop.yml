@@ -1,14 +1,26 @@
 name: Publish Develop Image
 
-# Publishes a rolling pre-release develop image on every push to develop, tagged :develop
-# and :develop-<build>. changelog.develop.json's build counter and changelog entry are
-# computed locally (scripts/rebuild-develop-changelog.js), as part of "Push to git",
-# before the push - this job just reads the value already committed, and never writes
-# back to the branch.
-
+# Publishes a rolling pre-release develop image on every push to develop that changes
+# real content, tagged :develop and :develop-<build>. changelog.develop.json's build
+# counter and changelog entry are computed locally (scripts/rebuild-develop-changelog.js),
+# as part of "Push to git", before the push - this job just reads the value already
+# committed, and never writes back to the branch.
+#
+# "Force to alpha" step 4 also pushes to develop - the same commit that was just
+# force-pushed to alpha, carrying only its reset changelog.develop.json and the promoted
+# changelog.alpha.json, no app code. That push exists so origin/develop has the correct
+# file for the app's own live remote-fetch changelog comparison (handleChangelog /
+# fetchRemoteDevelopChangelog in server/src/routes/maintenance.js already reads GitHub's
+# copy directly, independent of what any built image bundles) - it was never meant to
+# also rebuild and republish a whole image over a changelog-only diff. paths-ignore skips
+# this job when every changed file is one of the two changelog JSON files; any push that
+# also touches real code still runs the full build normally.
 on:
   push:
     branches: [develop]
+    paths-ignore:
+      - "changelog.develop.json"
+      - "changelog.alpha.json"
 
 concurrency:
   group: docker-publish-develop

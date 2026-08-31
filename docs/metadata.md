@@ -8,7 +8,7 @@ caches every source (the CSP is `connect-src 'self'`).
 
 | File | Role |
 | --- | --- |
-| `server/src/utils/tmdbGateway.js` | TMDB gateway + the merged TV details assembly; caches in `tmdb_metadata_cache`, `tmdb_search_cache`, `tmdb_person_cache` |
+| `server/src/utils/tmdbGateway.js` | TMDB gateway + merged TV details assembly, discovery feeds, collection search/details; caches in `tmdb_metadata_cache`, `tmdb_search_cache`, `tmdb_person_cache` |
 | `server/src/utils/tvdbGateway.js` | TheTVDB v4 gateway; caches in `tvdb_metadata_cache`, `tvdb_season_cache` |
 | `server/src/utils/fanartGateway.js` | Fanart.tv artwork (posters, backdrops, HD logos); caches in `fanart_cache` |
 | `server/src/utils/omdbGateway.js` | OMDb - IMDb rating/votes by IMDb id (`omdb_cache`, 7-day TTL) |
@@ -55,7 +55,7 @@ caches in SQLite:
 | Cache table | Contents | TTL |
 | --- | --- | --- |
 | `tmdb_metadata_cache` | Merged details per item, key `movie_<id>` / `tv_<id>` (or `tv_tvdb_<id>` when no TMDB match), stamped with `DETAILS_SCHEMA_VERSION` | 1 day for airing/in-production shows; longer for ended/released |
-| `tmdb_search_cache` | Search responses, including negative results | 15 min (1 day for misses) |
+| `tmdb_search_cache` | Search responses, including negative results, plus Discover snapshots keyed by feed type/genre | Searches: 15 min (1 day for misses); Discover: 15 min with stale-while-revalidate |
 | `tmdb_person_cache` | Person details + credits, `PERSON_SCHEMA_VERSION` | 7 days |
 | `tvdb_metadata_cache` | Raw TVDB series/extended responses + title-search results | 14 days active / 180 days archived series; searches 180 days (1 hour for misses) |
 | `tvdb_season_cache` | Raw TVDB season episode lists | 2 days upcoming / 7 days active / 180 days archived |
@@ -66,6 +66,14 @@ caches in SQLite:
 Schema-version bumps (`DETAILS_SCHEMA_VERSION`, `PERSON_SCHEMA_VERSION`,
 `PROGRESS_CACHE_SCHEMA_VERSION` in `showProgressCache.js`) force refetches after a
 shape change - never hand-edit cache rows to migrate them.
+
+Discover snapshots use versioned keys (`discover:v2|<type>|<genre>`) in
+`tmdb_search_cache`. A normal `/api/discover` request returns the last successful
+snapshot immediately, starts a background refresh when that snapshot is older than
+15 minutes, and only increments the shared `cache_versions.discover` generation when
+the feed payload changes. `/api/live-updates` carries that generation so open Discover
+pages can re-read the updated snapshot without waiting for the TMDB calls in the
+foreground.
 
 A show whose episode total cannot be resolved stamps `total_checked_at` in the progress
 cache and waits seven days before trying again, so an unresolvable title does not repeat
@@ -88,7 +96,9 @@ reloading the page - the poll just re-attaches to whatever job is already runnin
 | `POST /api/tmdb-details-batch` | Batched details for explorer prefetch (bounded worker pool; items may set `light: true` to skip next-airing/artwork enrichment on cold fetches - light-cached rows are refetched in full by detail pages) |
 | `GET /api/tmdb-season` | Season episode list (TVDB-backed for TV). Takes `tmdbId` or, for series that only exist on TVDB, `tvdbId` |
 | `GET /api/tmdb-person` | Person details + filmography |
-| `GET /api/tmdb-search`, `GET /api/tvdb-search`, `GET /api/media-search` | Remote + local search. `tmdb-search` accepts `movie`, `tv`, `multi`, or `person`; `media-search` returns `local`, `discovery` (TMDB movies/shows), `people` (a separately paged TMDB people search), and `tvdb` results, all queried in parallel. `tvdb-search` result lists are cached so the shared TVDB key survives per-keystroke searching |
+| `GET /api/tmdb-search`, `GET /api/tvdb-search`, `GET /api/media-search` | Remote + local search. `tmdb-search` accepts `movie`, `tv`, `multi`, or `person`; `media-search` returns `local`, `discovery` (TMDB movies/shows), `people` (a separately paged TMDB people search), `collections`, and `tvdb` results, all queried in parallel. `tvdb-search` result lists are cached so the shared TVDB key survives per-keystroke searching |
+| `GET /api/tmdb-collection?id=` | Cached TMDB collection/franchise details and movie members |
+| `GET /api/discover?mediaType=&genre=` | Cached deterministic TMDB feeds for trending, now playing, airing today, and optional genre browsing. Normal requests serve the cached snapshot and revalidate stale data in the background; `refresh=1` rebuilds before responding. Requires a reachable TMDB API key |
 | `GET /api/tmdb-images`, `GET /api/tvdb-images`, `GET /api/fanart-images` | Artwork galleries for the edit-image dialog |
 | `GET /api/tmdb-poster`, `GET /api/tmdb-profile` | Image proxies (rate-limited 300/min) |
 | `GET /api/remote-artwork` | Downloads and caches fanart.tv / TVDB / TMDB artwork by URL, then redirects to `/media/...` (see [posters-artwork.md](posters-artwork.md)) |
@@ -104,6 +114,13 @@ reloading the page - the poll just re-attaches to whatever job is already runnin
 `resolveEpisodeTitleFromTmdb` that upgrade "Episode 5" labels to real titles as data
 arrives. Explorer prefetch (`observeExplorerTmdbPrefetch`) warms details for visible
 cards.
+
+The Discover page keeps provider failures actionable: a missing TMDB key links to
+Settings → Metadata, transient TMDB/network failures offer a retry, and a stale local
+server build asks the operator to restart Plembfin. The selected rails are restored
+from a bounded browser cache before the first request, then refreshed from the server
+cache when its SSE Discover version changes. Discover never depends on a media server
+or Trakt connection.
 
 Background lookups are debounced into one batched request, and a batch answers only
 once its slowest item resolves. Detail pages therefore pass `{ immediate: true }` to

@@ -1,7 +1,7 @@
 import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, sourceBadgeHtml, formatDate, resolveEpisodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress } from "./utils.js?v=20260824h";
-import { posterMarkup, posterOverflowMenu, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, tmdbPoster } from "./images.js?v=20260826b";
+import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, sourceBadgeHtml, formatDate, formatTmdbDate, resolveEpisodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress } from "./utils.js?v=20260824h";
+import { posterMarkup, posterOverflowMenu, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, tmdbPoster } from "./images.js?v=20260831m";
 import { renderDashboardChecklist } from "./onboarding.js";
 
 const PART_WATCHED_DASHBOARD_LIMIT = 30;
@@ -239,7 +239,7 @@ export function mergeDashboardHistoryEntries(entries = []) {
     if (entryTime > currentTime) group.entry = { ...entry };
 
     // Keep useful metadata when the newest source row is sparse.
-    for (const field of ["show_title", "show_imdb_id", "show_tmdb_id", "show_tvdb_id", "episode_title", "poster_url", "imdb_id", "tmdb_id", "tvdb_id"]) {
+    for (const field of ["show_title", "show_imdb_id", "show_tmdb_id", "show_tvdb_id", "show_poster_url", "episode_title", "poster_url", "imdb_id", "tmdb_id", "tvdb_id"]) {
       if (!group.entry[field] && entry[field]) group.entry[field] = entry[field];
     }
   }
@@ -261,6 +261,10 @@ function historySourceBadges(entry = {}) {
 }
 
 export function renderHistoryCard(entry) {
+  if (entry.isPartWatched || entry.part_watched) {
+    return renderDashboardHistoryPageCard(entry, { partWatched: true });
+  }
+
   const isEpisode = entry.media_type === "episode";
 
   if (isEpisode) {
@@ -276,11 +280,14 @@ export function renderHistoryCard(entry) {
 
     const canonicalShowName = entry.show_title || showName(entry.title);
     const href = tvShowHrefFromHistoryEntry(entry, canonicalShowName);
+    const posterEntry = entry.show_poster_url
+      ? { ...entry, poster_url: entry.show_poster_url, prefer_raw_poster: true }
+      : entry;
 
     return `
       <a class="history-mini-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(showTitle || "")}">
         <span class="history-mini-card-poster-wrapper">
-          ${posterMarkup(entry, "history-mini-poster")}
+          ${posterMarkup(posterEntry, "history-mini-poster")}
           ${posterOverflowMenu(entry, { showTitle, label: showTitle })}
         </span>
         <div class="history-mini-card-details">
@@ -308,27 +315,60 @@ export function renderHistoryCard(entry) {
 }
 
 function tvShowHrefFromHistoryEntry(entry = {}, title = "") {
-  if (entry.show_tmdb_id) return tvShowTmdbHref(entry.show_tmdb_id, title);
-  if (entry.show_tvdb_id) return tvShowTvdbHref(entry.show_tvdb_id, title);
-  if (entry.tmdb_id) return tvShowTmdbHref(entry.tmdb_id, title);
-  if (entry.tvdb_id) return tvShowTvdbHref(entry.tvdb_id, title);
-  return `/tvshow/${slug(title || entry.show_title || showTitleFrom(entry.title))}`;
+  let href = "";
+  if (entry.show_tmdb_id) href = tvShowTmdbHref(entry.show_tmdb_id, title);
+  else if (entry.show_tvdb_id) href = tvShowTvdbHref(entry.show_tvdb_id, title);
+  else if (entry.tmdb_id) href = tvShowTmdbHref(entry.tmdb_id, title);
+  else if (entry.tvdb_id) href = tvShowTvdbHref(entry.tvdb_id, title);
+  else href = `/tvshow/${slug(title || entry.show_title || showTitleFrom(entry.title))}`;
+
+  const season = Number(entry.season ?? entry.seasonNumber);
+  const episode = Number(entry.episode ?? entry.episodeNumber);
+  if (Number.isInteger(season) && season >= 0 && Number.isInteger(episode) && episode >= 1) {
+    return `${href}/season/${season}/episode/${episode}`;
+  }
+  return href;
 }
 
-function renderDashboardHistoryPageCard(entry) {
-  const isEpisode = entry.media_type === "episode";
+function cssSelectorValue(value = "") {
+  if (globalThis.CSS?.escape) return globalThis.CSS.escape(String(value));
+  return String(value).replace(/[^a-zA-Z0-9_-]/g, (character) => `\\${character}`);
+}
+
+function dashboardCardIdentity(entry = {}) {
+  return String(entry.id ?? entry.media_key ?? progressRecordIdentity(entry));
+}
+
+function upNextAvailabilityLabel(entry = {}) {
+  const airDate = entry.air_date || entry.airDate || "";
+  if (!airDate) return "Ready to watch";
+  return airDate > new Date().toISOString().slice(0, 10)
+    ? `Airs ${formatTmdbDate(airDate)}`
+    : `Ready since ${formatTmdbDate(airDate)}`;
+}
+
+export function renderDashboardHistoryPageCard(entry, options = {}) {
+  const isPartWatched = Boolean(options.partWatched || entry.isPartWatched || entry.part_watched);
+  const isUpNext = Boolean(options.upNext || entry.isUpNext || entry.up_next);
+  const isEpisode = entry.media_type === "episode" || isUpNext;
   let displayTitle = entry.title;
   let epTitle = "";
   let href = "";
+  const cardId = isPartWatched ? partWatchedCardIdentity(entry) : dashboardCardIdentity(entry);
 
   if (isEpisode) {
     displayTitle = entry.show_title || showTitleFrom(entry.title);
-    const resolved = resolveEpisodeTitle(entry);
+    const resolved = isUpNext
+      ? { epTitle: entry.episode_title || entry.episodeTitle || "", needsResolve: false }
+      : resolveEpisodeTitle(entry);
     epTitle = resolved.epTitle;
 
     if (resolved.needsResolve) {
       setTimeout(() => {
-        const el = document.querySelector(`[data-history-id="${entry.id}"] .history-card-episode`);
+        const attribute = isPartWatched
+          ? "data-part-watched-card-id"
+          : "data-history-id";
+        const el = document.querySelector(`[${attribute}="${cssSelectorValue(cardId)}"] .history-card-episode`);
         _cb.resolveEpisodeTitleFromTmdb?.(entry, el);
       }, 50);
     }
@@ -340,16 +380,78 @@ function renderDashboardHistoryPageCard(entry) {
   }
 
   const sources = platformSourceValues(entry);
-  const sourceBadge = historySourceBadges(entry);
+  const sourceBadge = isPartWatched
+    ? (sources.map((source) => renderPartWatchedAppBadge(source, entry, isEpisode ? displayTitle : entry.title)).join(" ") || "None")
+    : historySourceBadges(entry);
+  const isInteractive = isPartWatched || isUpNext;
+  const prefetchType = isEpisode ? "tv" : "movie";
+  const prefetchTmdb = isEpisode ? (entry.show_tmdb_id || entry.tmdb_id || "") : (entry.tmdb_id || "");
+  const posterLabel = `View ${displayTitle || "media"}`;
+  // Playback-progress rows use their stable media key as the identity that
+  // /api/poster can resolve. A progress row's generic `id` can be a watch
+  // record id (or another source-specific identifier), which leaves the new
+  // Part Watched card on the placeholder even when artwork is available.
+  const posterEntry = {
+    ...entry,
+    ...(isEpisode && entry.show_poster_url
+      ? { poster_url: entry.show_poster_url, prefer_raw_poster: true }
+      : {}),
+    ...(isPartWatched && entry.media_key ? { id: entry.media_key } : {}),
+  };
+  const posterHtml = posterMarkup(posterEntry, "history-page-poster");
+  const posterLink = isInteractive
+    ? `<a class="history-card-poster-link" href="${escapeAttribute(href)}" ${isUpNext ? `data-media-card-href="${escapeAttribute(href)}"` : `data-part-watched-href="${escapeAttribute(href)}"`} aria-label="${escapeAttribute(posterLabel)}">${posterHtml}</a>`
+    : posterHtml;
+  const titleHtml = isInteractive
+    ? `<a class="history-card-title history-card-title-link" href="${escapeAttribute(href)}" ${isUpNext ? `data-media-card-href="${escapeAttribute(href)}"` : `data-part-watched-href="${escapeAttribute(href)}"`} title="${escapeAttribute(displayTitle)}">${escapeHtml(displayTitle)}</a>`
+    : `<b class="history-card-title" title="${escapeAttribute(displayTitle)}">${escapeHtml(displayTitle)}</b>`;
+  const menuHtml = isUpNext
+    ? posterOverflowMenu(entry, { menuMode: "up-next", showTitle: displayTitle, title: displayTitle, label: displayTitle, mediaType: "tv", kind: "episode" })
+    : (!isPartWatched ? posterOverflowMenu(entry, isEpisode ? { showTitle: displayTitle, label: displayTitle } : {}) : "");
+  const cardOpen = isPartWatched
+    ? `<article class="history-page-card dashboard-history-page-card dashboard-part-watched-card" data-part-watched-card-id="${escapeAttribute(cardId)}" data-part-watched-media-key="${escapeAttribute(entry.media_key || "")}" data-prefetch-type="${prefetchType}" data-prefetch-tmdb="${escapeAttribute(prefetchTmdb)}" data-prefetch-title="${escapeAttribute(displayTitle || "")}">`
+    : isUpNext
+      ? `<article class="history-page-card dashboard-history-page-card dashboard-up-next-card" data-up-next-card-id="${escapeAttribute(cardId)}" data-prefetch-type="${prefetchType}" data-prefetch-tmdb="${escapeAttribute(prefetchTmdb)}" data-prefetch-title="${escapeAttribute(displayTitle || "")}">`
+      : `<a class="history-page-card dashboard-history-page-card" data-history-id="${escapeAttribute(cardId)}" href="${escapeAttribute(href)}" data-prefetch-type="${prefetchType}" data-prefetch-tmdb="${escapeAttribute(prefetchTmdb)}" data-prefetch-title="${escapeAttribute(displayTitle || "")}">`;
+  const cardClose = isInteractive ? "</article>" : "</a>";
+  const watchedAt = isPartWatched ? entry.updated_at : entry.watched_at;
+  const partProgress = isPartWatched ? partWatchedProgress(entry) : 0;
+  const partActions = isPartWatched ? `
+        <div class="part-watched-card-actions history-card-actions">
+          <button class="button-primary part-watched-action-btn" type="button" data-action-watch="${escapeAttribute(entry.media_key || "")}" data-title="${escapeAttribute(entry.title || displayTitle)}">Watched</button>
+          <button class="button-ghost part-watched-action-btn" type="button" data-action-unwatch="${escapeAttribute(entry.media_key || "")}" data-title="${escapeAttribute(entry.title || displayTitle)}">Clear</button>
+        </div>
+      ` : "";
+  const watchNowFooter = isUpNext ? `
+        <div class="history-card-footer history-card-footer--watch-now">
+          <span class="meta-label">Watch now</span>
+          <div class="history-card-apps media-app-links up-next-app-links" data-media-app-links
+            data-media-type="episode"
+            data-app-link-style="source-badge"
+            data-all-apps="true"
+            data-tmdb-id="${escapeAttribute(entry.tmdb_id || entry.show_tmdb_id || "")}"
+            data-imdb-id="${escapeAttribute(entry.imdb_id || entry.show_imdb_id || "")}"
+            data-tvdb-id="${escapeAttribute(entry.tvdb_id || entry.show_tvdb_id || "")}"
+            data-season="${escapeAttribute(entry.season ?? "")}"
+            data-episode="${escapeAttribute(entry.episode ?? "")}"
+            data-title="${escapeAttribute(displayTitle || "")}"></div>
+        </div>
+      ` : `
+        <div class="history-card-footer">
+          <span class="meta-label">${sources.length > 1 ? "Apps Used:" : "App Used:"}</span>
+          <span class="history-card-apps">${sourceBadge}</span>
+        </div>
+      `;
+
   return `
-    <a class="history-page-card dashboard-history-page-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="${isEpisode ? "tv" : "movie"}" data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(displayTitle || "")}">
+    ${cardOpen}
       <div class="history-card-poster-wrapper">
-        ${posterMarkup(entry, "history-page-poster")}
-        ${posterOverflowMenu(entry, isEpisode ? { showTitle: displayTitle, label: displayTitle } : {})}
+        ${posterLink}
+        ${menuHtml}
       </div>
       <div class="history-card-details">
         <div class="history-card-header">
-          <b class="history-card-title" title="${escapeAttribute(displayTitle)}">${escapeHtml(displayTitle)}</b>
+          ${titleHtml}
           ${isEpisode ? `<span class="history-card-episode" title="${escapeAttribute(epTitle)}">${escapeHtml(epTitle)}</span>` : ""}
         </div>
         <div class="history-card-meta">
@@ -359,23 +461,38 @@ function renderDashboardHistoryPageCard(entry) {
               <span class="meta-value">${escapeHtml(episodeCode(entry.season, entry.episode))}</span>
             </div>
           ` : ""}
-          <div class="history-card-meta-row">
-            <span class="meta-label">Last Played:</span>
-            <span class="meta-value">${formatDate(entry.watched_at)}</span>
-          </div>
-          ${actualWatchLabel(entry) ? `
+          ${isUpNext ? `
+            <div class="history-card-meta-row">
+              <span class="meta-label">Available:</span>
+              <span class="meta-value">${escapeHtml(upNextAvailabilityLabel(entry))}</span>
+            </div>
+          ` : `
+            <div class="history-card-meta-row">
+              <span class="meta-label">Last Played:</span>
+              <span class="meta-value ${isPartWatched ? "part-watched-last-played-value" : ""}">${formatDate(watchedAt)}</span>
+            </div>
+          `}
+          ${!isPartWatched && !isUpNext && actualWatchLabel(entry) ? `
             <div class="history-card-meta-row">
               <span class="meta-value history-card-watch-count">${escapeHtml(actualWatchLabel(entry))}</span>
             </div>
           ` : ""}
         </div>
-        <div class="history-card-footer">
-          <span class="meta-label">${sources.length > 1 ? "Apps Used:" : "App Used:"}</span>
-          <span class="history-card-apps">${sourceBadge}</span>
-        </div>
+        ${watchNowFooter}
+        ${isPartWatched ? `
+          <div class="part-watched-progress-container">
+            <div class="part-watched-progress-bar"><div class="part-watched-progress-fill" style="width: ${partProgress}%;"></div></div>
+            <span class="part-watched-progress-text">${partProgress}% watched</span>
+          </div>
+        ` : ""}
+        ${partActions}
       </div>
-    </a>
+    ${cardClose}
   `;
+}
+
+export function renderDashboardUpNextCard(entry) {
+  return renderDashboardHistoryPageCard({ ...entry, up_next: true }, { upNext: true });
 }
 
 export function observeDashboardPosters() {
@@ -419,99 +536,217 @@ export function observeDashboardPosters() {
 
   const tvRow = elements.tvHistoryRow;
   const movieRow = elements.movieHistoryRow;
-  if (tvRow) {
-    for (const fallback of tvRow.querySelectorAll("[data-poster-id].poster-fallback")) {
+  const rows = [
+    tvRow,
+    movieRow,
+    elements.partWatchedTvRow,
+    elements.partWatchedMovieRow,
+  ].filter(Boolean);
+  for (const row of rows) {
+    for (const fallback of row.querySelectorAll("[data-poster-id].poster-fallback")) {
       state.dashboardPosterObserver.observe(fallback);
     }
-  }
-  if (movieRow) {
-    for (const fallback of movieRow.querySelectorAll("[data-poster-id].poster-fallback")) {
-      state.dashboardPosterObserver.observe(fallback);
-    }
-  }
-}
-
-function syncDashboardHistoryViewButtons() {
-  for (const button of elements.dashboardHistoryViewButtons || []) {
-    button.classList.toggle("active", button.dataset.dashboardHistoryView === state.dashboardHistoryViewMode);
   }
 }
 
 function setDashboardHistoryRowMode(row) {
-  if (!row) return;
-  row.classList.toggle("dashboard-history-card-row", state.dashboardHistoryViewMode === "cards");
+  row?.classList.add("dashboard-history-card-row");
 }
 
-export function renderDashboard() {
-  renderDashboardChecklist();
-  renderPartWatched();
-  syncDashboardHistoryViewButtons();
-  setDashboardHistoryRowMode(elements.tvHistoryRow);
-  setDashboardHistoryRowMode(elements.movieHistoryRow);
+const DASHBOARD_CARD_MOTION_MS = 280;
+const DASHBOARD_CARD_EXIT_MS = 200;
 
-  if (!state.history.length) {
-    if (elements.tvHistoryRow) {
-      elements.tvHistoryRow.innerHTML = `
-        <div class="empty-log">
-          <b>No watch history yet</b>
-          <span>Import a Trakt export or send watched webhooks to start building the archive.</span>
-        </div>
-      `;
-    }
-    if (elements.movieHistoryRow) {
-      elements.movieHistoryRow.innerHTML = "";
-    }
+function dashboardMotionReduced() {
+  return Boolean(window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches);
+}
+
+function dashboardRowCards(row) {
+  if (!row) return [];
+  return [...row.children].filter((node) => node.matches?.(
+    "[data-history-id], [data-part-watched-card-id], [data-up-next-card-id], .shared-media-card",
+  ));
+}
+
+function dashboardRowCardKey(node) {
+  return String(
+    node?.dataset?.historyId
+      || node?.dataset?.partWatchedCardId
+      || node?.dataset?.upNextCardId
+      || node?.dataset?.mediaCardKey
+      || "",
+  );
+}
+
+function clearDashboardMotionStyles(node) {
+  node.classList.remove("dashboard-card-motion", "dashboard-card-enter");
+  node.style.removeProperty("transition");
+  node.style.removeProperty("transform");
+}
+
+// Resume progress is the only part of a Part Watched card that normally
+// changes while the item remains in the same place. Ignore those values when
+// comparing the row's generated markup so the existing card (and hydrated
+// poster image) can be patched instead of recreated.
+function dashboardRowHtmlWithoutPartWatchedProgress(html = "") {
+  return String(html)
+    .replace(/(<div class="part-watched-progress-fill" style="width:\s*)[^"]+(;"><\/div>)/g, "$1__part_progress__$2")
+    .replace(/(<span class="part-watched-progress-text">)[^<]*(<\/span>)/g, "$1__part_progress_text__$2")
+    .replace(/(<span class="meta-value part-watched-last-played-value">)[^<]*(<\/span>)/g, "$1__part_last_played__$2");
+}
+
+function patchDashboardPartWatchedProgress(row, nextHtml, visibleItems = []) {
+  const previousHtml = row?.dataset?.renderedHtml || "";
+  const partWatchedItems = visibleItems.filter((entry) => entry?.isPartWatched || entry?.part_watched);
+  if (!previousHtml || !partWatchedItems.length) return false;
+  if (dashboardRowHtmlWithoutPartWatchedProgress(previousHtml) !== dashboardRowHtmlWithoutPartWatchedProgress(nextHtml)) {
+    return false;
+  }
+
+  const existingCards = [...row.querySelectorAll("[data-part-watched-card-id]")];
+  const expectedIds = partWatchedItems.map(partWatchedCardIdentity);
+  const existingIds = existingCards.map((card) => card.dataset.partWatchedCardId);
+  if (existingIds.length !== expectedIds.length || existingIds.some((id, index) => id !== expectedIds[index])) {
+    return false;
+  }
+
+  const cardsById = new Map(existingCards.map((card) => [card.dataset.partWatchedCardId, card]));
+  for (const entry of partWatchedItems) {
+    patchPartWatchedCardProgress(cardsById.get(partWatchedCardIdentity(entry)), entry);
+  }
+  return true;
+}
+
+function renderDashboardHistoryRow(row, nextHtml, visibleItems = []) {
+  if (!row || row.dataset.renderedHtml === nextHtml) return;
+  if (patchDashboardPartWatchedProgress(row, nextHtml, visibleItems)) {
+    row.dataset.renderedHtml = nextHtml;
     return;
   }
 
+  row.dataset.renderedHtml = nextHtml;
+  updateDashboardRowWithMotion(row, nextHtml, {
+    onCommitted: () => {
+      bindPartWatchedAppBadges(row);
+      hydratePosters(row);
+    },
+  });
+}
+
+// Replace a dashboard row while preserving the visual position of cards that
+// remain in the row. The server sends a fresh ordered snapshot, so a small
+// FLIP pass gives existing cards a natural slide when a new watch arrives and
+// lets newly inserted cards enter without animating width/height or causing a
+// layout jump. `exitKeys` is used by Up Next so a watched/dismissed item gets a
+// short fade before the new snapshot takes its place.
+export function updateDashboardRowWithMotion(row, html, { exitKeys = [], onCommitted } = {}) {
+  if (!row) return;
+  const previousCards = dashboardRowCards(row);
+  const previousPositions = new Map(previousCards.map((card) => [dashboardRowCardKey(card), card.getBoundingClientRect()]));
+  const previousKeys = previousCards.map(dashboardRowCardKey);
+  const exitSet = new Set((exitKeys || []).map((key) => String(key)));
+  const token = Number(row.dataset.motionToken || 0) + 1;
+  row.dataset.motionToken = String(token);
+
+  const commit = () => {
+    if (Number(row.dataset.motionToken) !== token) return;
+    row.innerHTML = html;
+    const nextCards = dashboardRowCards(row);
+    const nextKeys = nextCards.map(dashboardRowCardKey);
+    const membershipChanged = previousKeys.length !== nextKeys.length
+      || previousKeys.some((key, index) => key !== nextKeys[index]);
+    const shouldAnimate = previousCards.length > 0 && membershipChanged && !dashboardMotionReduced();
+
+    if (shouldAnimate) {
+      const previousKeySet = new Set(previousKeys);
+      for (const card of nextCards) {
+        const key = dashboardRowCardKey(card);
+        if (!previousKeySet.has(key)) {
+          card.classList.add("dashboard-card-enter");
+          continue;
+        }
+        const from = previousPositions.get(key);
+        if (!from) continue;
+        const to = card.getBoundingClientRect();
+        const deltaX = from.left - to.left;
+        const deltaY = from.top - to.top;
+        if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) continue;
+        card.classList.add("dashboard-card-motion");
+        card.style.transition = "none";
+        card.style.transform = `translate3d(${deltaX}px, ${deltaY}px, 0)`;
+        requestAnimationFrame(() => {
+          if (!card.isConnected) return;
+          card.style.transition = `transform ${DASHBOARD_CARD_MOTION_MS}ms cubic-bezier(0.22, 1, 0.36, 1)`;
+          card.style.transform = "";
+          window.setTimeout(() => clearDashboardMotionStyles(card), DASHBOARD_CARD_MOTION_MS + 40);
+        });
+      }
+      window.setTimeout(() => {
+        for (const card of dashboardRowCards(row)) clearDashboardMotionStyles(card);
+      }, DASHBOARD_CARD_MOTION_MS + 80);
+    }
+
+    onCommitted?.();
+  };
+
+  const exitingCards = previousCards.filter((card) => exitSet.has(dashboardRowCardKey(card)));
+  if (exitingCards.length && !dashboardMotionReduced()) {
+    exitingCards.forEach((card) => card.classList.add("dashboard-card-exit"));
+    window.setTimeout(commit, DASHBOARD_CARD_EXIT_MS);
+    return;
+  }
+  commit();
+}
+
+function renderDashboardHistoryRows() {
   const tvHistory = mergeDashboardHistoryEntries(state.history.filter((entry) => entry.media_type === "episode"));
   const movieHistory = dedupeMediaRecords(state.history.filter((entry) => entry.media_type === "movie"), "movies");
+  const partWatchedItems = state.partWatchedRaw
+    .map(enrichPartWatchedEntry)
+    .map((entry) => ({ ...entry, isPartWatched: true, prefer_raw_poster: true }))
+    .sort((left, right) => Number(right.updated_at || 0) - Number(left.updated_at || 0));
+  const tvPartWatched = partWatchedItems.filter((entry) => entry.media_type === "episode");
+  const moviePartWatched = partWatchedItems.filter((entry) => entry.media_type === "movie");
+  const tvItems = [...tvPartWatched, ...tvHistory];
+  const movieItems = [...moviePartWatched, ...movieHistory];
 
   let visibleTv = [];
   let visibleMovies = [];
 
   if (elements.tvHistoryRow) {
-    if (!tvHistory.length) {
+    if (!tvItems.length) {
       elements.tvHistoryRow.innerHTML = `
         <div class="empty-log">
-          <b>No TV history in this preview</b>
-          <span>New watched episodes will appear here.</span>
+          <b>${state.history.length ? "No TV history in this preview" : "No watch history yet"}</b>
+          <span>${state.history.length ? "New watched episodes will appear here." : "Import a Trakt export or send watched webhooks to start building the archive."}</span>
         </div>
       `;
+      delete elements.tvHistoryRow.dataset.renderedHtml;
     } else {
       const tvFitLimit = getRowFitLimit(elements.tvHistoryRow);
-      visibleTv = tvHistory.slice(0, tvFitLimit);
+      visibleTv = tvItems.slice(0, tvFitLimit);
       const nextTvHtml = visibleTv
-        .map(state.dashboardHistoryViewMode === "cards" ? renderDashboardHistoryPageCard : renderHistoryCard)
+        .map((entry, index) => renderDashboardHistoryPageCard({ ...entry, eager_poster: index < 6 }))
         .join("");
-      if (elements.tvHistoryRow.dataset.renderedHtml !== nextTvHtml) {
-        elements.tvHistoryRow.dataset.renderedHtml = nextTvHtml;
-        elements.tvHistoryRow.innerHTML = nextTvHtml;
-        hydratePosters(elements.tvHistoryRow);
-      }
+      renderDashboardHistoryRow(elements.tvHistoryRow, nextTvHtml, visibleTv);
     }
   }
 
   if (elements.movieHistoryRow) {
-    if (!movieHistory.length) {
+    if (!movieItems.length) {
       elements.movieHistoryRow.innerHTML = `
         <div class="empty-log">
-          <b>No movie history in this preview</b>
-          <span>New watched movies will appear here.</span>
+          <b>${state.history.length ? "No movie history in this preview" : "No watch history yet"}</b>
+          <span>${state.history.length ? "New watched movies will appear here." : "Import a Trakt export or send watched webhooks to start building the archive."}</span>
         </div>
       `;
       delete elements.movieHistoryRow.dataset.renderedHtml;
     } else {
       const movieFitLimit = getRowFitLimit(elements.movieHistoryRow);
-      visibleMovies = movieHistory.slice(0, movieFitLimit);
+      visibleMovies = movieItems.slice(0, movieFitLimit);
       const nextMovieHtml = visibleMovies
-        .map(state.dashboardHistoryViewMode === "cards" ? renderDashboardHistoryPageCard : renderHistoryCard)
+        .map((entry, index) => renderDashboardHistoryPageCard({ ...entry, eager_poster: index < 6 }))
         .join("");
-      if (elements.movieHistoryRow.dataset.renderedHtml !== nextMovieHtml) {
-        elements.movieHistoryRow.dataset.renderedHtml = nextMovieHtml;
-        elements.movieHistoryRow.innerHTML = nextMovieHtml;
-        hydratePosters(elements.movieHistoryRow);
-      }
+      renderDashboardHistoryRow(elements.movieHistoryRow, nextMovieHtml, visibleMovies);
     }
   }
 
@@ -522,27 +757,48 @@ export function renderDashboard() {
   observeDashboardPosters();
 }
 
+// Reconciles only the dashboard history surfaces after an SSE-triggered
+// background fetch. The rest of the dashboard stays untouched, including
+// Now Playing, checklist content, scroll positions, and any open controls.
+export function refreshDashboardHistoryInPlace() {
+  // The current shell puts Part Watched into these rows; dedicated legacy
+  // embeds still receive their normal media-type-specific update here.
+  renderPartWatched({ renderInline: false });
+  renderDashboardHistoryRows();
+}
+
+export function renderDashboard() {
+  renderDashboardChecklist();
+  // In the current dashboard shell Part Watched is rendered into the front
+  // of the matching history row. The legacy renderer below still supports
+  // older embeds that provide a dedicated Part Watched row.
+  renderPartWatched({ renderInline: false });
+  setDashboardHistoryRowMode(elements.tvHistoryRow);
+  setDashboardHistoryRowMode(elements.movieHistoryRow);
+  renderDashboardHistoryRows();
+}
+
 export function updateDashboardSplitState() {
   if (!elements.timelineView) return;
   const playing = state.activeSessions.length > 0;
-  const hasPartWatched = state.partWatchedRaw.length > 0;
-  const dashState = hasPartWatched ? (playing ? "1" : "2") : "3";
-  elements.timelineView.dataset.dashState = dashState;
+  elements.timelineView.dataset.dashState = playing ? "playing" : "idle";
 }
 
 function applyPartWatchedPosterWidth() {
   document.documentElement.style.setProperty("--part-watched-poster-width", "128px");
 }
 
-export function resetPartWatchedView(key = "") {
+export function resetPartWatchedView(key = "", { preserveItems = false } = {}) {
   // A dashboard live refresh can reset this view while its previous request is
   // still pending. Abort and invalidate that request before clearing loading;
   // otherwise its late finally block can own the new generation and leave the
-  // panel stuck on "Loading partly watched items…" indefinitely.
+  // panel stuck on "Loading partly watched items…" indefinitely. Automatic
+  // refreshes pass preserveItems so the last successful snapshot remains
+  // visible until the replacement snapshot is ready.
   state.partWatchedRequestVersion += 1;
   state.partWatchedAbortController?.abort();
   state.partWatchedAbortController = null;
-  state.partWatchedRaw = [];
+  if (!preserveItems) state.partWatchedRaw = [];
   state.partWatchedOffset = 0;
   state.partWatchedHasMore = true;
   state.partWatchedLoading = false;
@@ -550,69 +806,15 @@ export function resetPartWatchedView(key = "") {
   state.partWatchedScrollArmed = false;
 }
 
+function partWatchedCardIdentity(entry = {}) {
+  return String(entry.media_key || progressRecordIdentity(entry));
+}
+
 export function renderPartWatchedCard(entry) {
-  const isEpisode = entry.media_type === "episode";
-  let displayTitle = entry.title;
-  let epTitle = "";
-
-  if (isEpisode) {
-    displayTitle = entry.show_title || showTitleFrom(entry.title);
-    const resolved = resolveEpisodeTitle(entry);
-    epTitle = resolved.epTitle;
-
-    if (resolved.needsResolve) {
-      setTimeout(() => {
-        const el = document.querySelector(`[data-part-watched-card-id="${entry.id}"] .part-watched-card-episode`);
-        _cb.resolveEpisodeTitleFromTmdb?.(entry, el);
-      }, 50);
-    }
-  }
-
-  const sources = Array.isArray(entry.sources) && entry.sources.length ? entry.sources : (entry.source ? [entry.source] : []);
-  const sourceBadges = sources.map((src) => renderPartWatchedAppBadge(src, entry, isEpisode ? displayTitle : entry.title)).join(" ");
-  const sourceBadgeMarkup = sourceBadges || "None";
-  const progressPercent = partWatchedProgress(entry);
-  const formattedTime = entry.updated_at ? formatDate(entry.updated_at) : "";
-  const prefetchType = isEpisode ? "tv" : "movie";
-  const prefetchTitle = isEpisode ? displayTitle : entry.title;
-  const mediaHref = isEpisode
-    ? `/tvshow/${encodeURIComponent(slug(displayTitle))}`
-    : `/movie/${encodeURIComponent(slug(entry.title || displayTitle))}`;
-
-  return `
-    <div class="part-watched-page-card" data-part-watched-card-id="${entry.id}" data-part-watched-media-key="${escapeAttribute(entry.media_key)}" data-prefetch-type="${prefetchType}" data-prefetch-title="${escapeAttribute(prefetchTitle)}"${entry.tmdb_id ? ` data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id)}"` : ""}>
-      <a class="part-watched-card-poster-wrapper" href="${escapeAttribute(mediaHref)}" data-part-watched-href="${escapeAttribute(mediaHref)}" aria-label="View ${escapeAttribute(displayTitle)}">
-        ${posterMarkup(entry, "part-watched-page-poster")}
-      </a>
-      <div class="part-watched-card-details">
-        <div class="part-watched-card-header">
-          <b class="part-watched-card-title" title="${escapeAttribute(displayTitle)}">${escapeHtml(displayTitle)}</b>
-          ${isEpisode ? `<span class="part-watched-card-episode" title="${escapeAttribute(epTitle)}">${escapeHtml(epTitle)}</span>` : ""}
-        </div>
-        <div class="part-watched-card-meta">
-          ${isEpisode ? `<span><span class="meta-label">Season/Ep:</span> ${escapeHtml(episodeCode(entry.season, entry.episode))}</span>` : ""}
-          <span><span class="meta-label">Last Played:</span> <span class="part-watched-last-played-value">${formattedTime}</span></span>
-          <span><span class="meta-label">App Used:</span> ${sourceBadgeMarkup}</span>
-        </div>
-
-        <div class="part-watched-progress-container">
-          <div class="part-watched-progress-bar">
-            <div class="part-watched-progress-fill" style="width: ${progressPercent}%;"></div>
-          </div>
-          <span class="part-watched-progress-text">${progressPercent}% watched</span>
-        </div>
-
-        <div class="part-watched-card-actions">
-          <button class="button-primary part-watched-action-btn" type="button" data-action-watch="${escapeAttribute(entry.media_key)}" data-title="${escapeAttribute(entry.title)}">
-            Mark Watched
-          </button>
-          <button class="button-ghost part-watched-action-btn" type="button" data-action-unwatch="${escapeAttribute(entry.media_key)}" data-title="${escapeAttribute(entry.title)}">
-            Clear Progress
-          </button>
-        </div>
-      </div>
-    </div>
-  `;
+  return renderDashboardHistoryPageCard({
+    ...entry,
+    isPartWatched: true,
+  }, { partWatched: true });
 }
 
 function renderPartWatchedAppBadge(source, entry, mediaTitle) {
@@ -690,8 +892,72 @@ function patchPartWatchedCardProgress(node, entry) {
   if (lastPlayed) lastPlayed.textContent = entry.updated_at ? formatDate(entry.updated_at) : "";
 }
 
-export function renderPartWatched() {
-  if (!elements.partWatchedPanel) return;
+function partWatchedTargets() {
+  if (elements.partWatchedTvRow || elements.partWatchedMovieRow) {
+    return [
+      { type: "episode", row: elements.partWatchedTvRow, section: elements.partWatchedTvSection },
+      { type: "movie", row: elements.partWatchedMovieRow, section: elements.partWatchedMovieSection },
+    ].filter((target) => target.row);
+  }
+  return elements.partWatchedPanel
+    ? [{ type: "all", row: elements.partWatchedPanel, section: elements.partWatchedSection }]
+    : [];
+}
+
+function enrichPartWatchedEntry(entry = {}) {
+  if (entry.media_type !== "episode") return { ...entry };
+  const matchingHistory = state.history.find((historyEntry) => (
+    (entry.media_key && historyEntry.media_key === entry.media_key)
+    || (entry.tmdb_id && historyEntry.tmdb_id === entry.tmdb_id && historyEntry.season === entry.season && historyEntry.episode === entry.episode)
+    || (entry.tvdb_id && historyEntry.tvdb_id === entry.tvdb_id && historyEntry.season === entry.season && historyEntry.episode === entry.episode)
+  ));
+  if (!matchingHistory) return { ...entry };
+  return {
+    ...matchingHistory,
+    ...entry,
+    show_title: entry.show_title || matchingHistory.show_title || showTitleFrom(matchingHistory.title),
+    poster_url: entry.poster_url || matchingHistory.poster_url,
+    show_tmdb_id: entry.show_tmdb_id || matchingHistory.show_tmdb_id,
+    show_tvdb_id: entry.show_tvdb_id || matchingHistory.show_tvdb_id,
+  };
+}
+
+function renderPartWatchedBucket(target, items) {
+  if (!target.row) return;
+  if (!items.length) {
+    target.section?.classList.add("hidden");
+    target.row.innerHTML = "";
+    delete target.row.dataset.renderedHtml;
+    return;
+  }
+
+  target.section?.classList.remove("hidden");
+  const visibleItems = items.slice(0, PART_WATCHED_DASHBOARD_LIMIT);
+  const currentIds = visibleItems.map(partWatchedCardIdentity);
+  const existingCards = [...target.row.querySelectorAll("[data-part-watched-card-id]")];
+  const existingIds = existingCards.map((el) => el.dataset.partWatchedCardId);
+  const sameMembership = existingIds.length === currentIds.length && existingIds.every((id, index) => id === currentIds[index]);
+
+  if (!sameMembership) {
+    const nextHtml = visibleItems.map((entry, index) => renderPartWatchedCard({
+      ...entry,
+      eager_poster: index < 6,
+      prefer_raw_poster: true,
+    })).join("");
+    target.row.innerHTML = nextHtml;
+    bindPartWatchedAppBadges(target.row);
+    hydratePosters(target.row);
+    _cb.observeExplorerTmdbPrefetch?.(target.row);
+  } else {
+    const nodesById = new Map(existingCards.map((el) => [el.dataset.partWatchedCardId, el]));
+    for (const entry of visibleItems) patchPartWatchedCardProgress(nodesById.get(partWatchedCardIdentity(entry)), entry);
+  }
+}
+
+export function renderPartWatched({ renderInline = true } = {}) {
+  const targets = partWatchedTargets();
+  const inline = !targets.length && Boolean(elements.tvHistoryRow || elements.movieHistoryRow);
+  if (!targets.length && !inline) return;
   const key = "default";
   if (state.partWatchedQueryKey !== key) resetPartWatchedView(key);
 
@@ -701,60 +967,55 @@ export function renderPartWatched() {
 
   applyPartWatchedPosterWidth();
 
-  const panel = elements.partWatchedPanel;
+  if (inline) {
+    // The dashboard renderer owns the TV/movie rows in the current shell. A
+    // caller such as the Clear Progress action can request an immediate
+    // redraw after resetting the progress cache; the fetch completion then
+    // redraws the row again with the new first card in place.
+    if (renderInline) renderDashboard();
+    return;
+  }
 
+  const wrapper = elements.partWatchedRows;
   if (!state.partWatchedRaw.length) {
     if (state.partWatchedLoading) {
-      // A live refresh resets partWatchedRaw before re-fetching (see
-      // resetPartWatchedView), which lands here every time regardless of
-      // whether anything actually changed. If real cards are still on
-      // screen from before the reset, leave them exactly as they are rather
-      // than flashing a loading placeholder over them - the fresh fetch
-      // reconciles them in place a moment later without ever touching their
-      // poster elements. Only a genuine first load (nothing on screen yet)
-      // shows the placeholder.
-      if (!panel.querySelectorAll("[data-part-watched-card-id]").length) {
-        if (elements.partWatchedSection) elements.partWatchedSection.classList.remove("hidden");
-        panel.innerHTML = `<div class="empty-log"><b>Loading partly watched items…</b></div>`;
+      // A first load has no cards to preserve, so show a placeholder. Live
+      // refreshes keep their last successful snapshot in partWatchedRaw and
+      // therefore leave the existing cards painted while this request runs.
+      const firstTarget = targets[0];
+      const hasCards = targets.some((target) => target.row.querySelectorAll("[data-part-watched-card-id]").length);
+      if (!hasCards && firstTarget.row) {
+        wrapper?.classList.remove("hidden");
+        firstTarget.section?.classList.remove("hidden");
+        firstTarget.row.innerHTML = `<div class="empty-log"><b>Loading partly watched items…</b></div>`;
       }
     } else {
-      if (elements.partWatchedSection) elements.partWatchedSection.classList.add("hidden");
-      panel.innerHTML = "";
+      wrapper?.classList.add("hidden");
+      for (const target of targets) {
+        target.section?.classList.add("hidden");
+        target.row.innerHTML = "";
+        delete target.row.dataset.renderedHtml;
+      }
+      // Legacy test and embedding fallback: the old section is the wrapper.
+      if (!wrapper) elements.partWatchedSection?.classList.add("hidden");
     }
     updateDashboardSplitState();
     return;
   }
 
-  if (elements.partWatchedSection) elements.partWatchedSection.classList.remove("hidden");
-  const items = state.partWatchedRaw.slice(0, PART_WATCHED_DASHBOARD_LIMIT);
-  const currentIds = items.map((entry) => String(entry.id));
-  const existingCards = [...panel.querySelectorAll("[data-part-watched-card-id]")];
-  const existingIds = existingCards.map((el) => el.dataset.partWatchedCardId);
-  const sameMembership = existingIds.length === currentIds.length && existingIds.every((id, index) => id === currentIds[index]);
-
-  if (!sameMembership) {
-    // The set or order of partly-watched items actually changed (one started,
-    // finished, or reordered by recency) - nothing to preserve card-for-card,
-    // so rebuild the row normally.
-    const nextHtml = items.map((entry, index) => renderPartWatchedCard({
-      ...entry,
-      eager_poster: index < 6,
-      prefer_raw_poster: true,
-    })).join("");
-    panel.innerHTML = nextHtml;
-    bindPartWatchedAppBadges(panel);
-    hydratePosters(panel);
-    _cb.observeExplorerTmdbPrefetch?.(panel);
-  } else {
-    // Same cards in the same order - patch each one's progress/last-played
-    // text in place instead of touching the DOM node at all.
-    const nodesById = new Map(existingCards.map((el) => [el.dataset.partWatchedCardId, el]));
-    for (const entry of items) patchPartWatchedCardProgress(nodesById.get(String(entry.id)), entry);
+  wrapper?.classList.remove("hidden");
+  const items = state.partWatchedRaw.map(enrichPartWatchedEntry);
+  for (const target of targets) {
+    const bucket = target.type === "all"
+      ? items
+      : items.filter((entry) => target.type === "episode" ? entry.media_type === "episode" : entry.media_type === "movie");
+    renderPartWatchedBucket(target, bucket);
   }
+  if (!wrapper) elements.partWatchedSection?.classList.remove("hidden");
   updateDashboardSplitState();
 }
 
-export async function loadPartWatched() {
+export async function loadPartWatched({ silent = false } = {}) {
   if (state.partWatchedLoading || !state.partWatchedHasMore) return;
   const requestVersion = state.partWatchedRequestVersion + 1;
   state.partWatchedRequestVersion = requestVersion;
@@ -774,8 +1035,12 @@ export async function loadPartWatched() {
     if (requestVersion !== state.partWatchedRequestVersion) return;
 
     const items = Array.isArray(body.progress) ? body.progress : [];
-    state.partWatchedRaw = dedupePlaybackProgress([...state.partWatchedRaw, ...items]);
-    state.partWatchedOffset += items.length;
+    // A reset starts a new first page. When that reset preserved the previous
+    // snapshot for a live refresh, the response is authoritative and must
+    // replace it rather than merge removed rows back into the list.
+    const pageOffset = state.partWatchedOffset;
+    state.partWatchedRaw = dedupePlaybackProgress(pageOffset === 0 ? items : [...state.partWatchedRaw, ...items]);
+    state.partWatchedOffset = pageOffset + items.length;
     state.partWatchedHasMore = false;
   } catch (error) {
     // A reset intentionally aborts the old generation; it must not change or
@@ -789,7 +1054,13 @@ export async function loadPartWatched() {
     if (requestVersion === state.partWatchedRequestVersion) {
       state.partWatchedAbortController = null;
       state.partWatchedLoading = false;
-      renderPartWatched();
+      if (!silent) {
+        if (!partWatchedTargets().length && (elements.tvHistoryRow || elements.movieHistoryRow)) {
+          renderDashboard();
+        } else {
+          renderPartWatched();
+        }
+      }
     }
   }
 }

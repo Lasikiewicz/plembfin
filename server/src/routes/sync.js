@@ -52,6 +52,7 @@ import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, searchTmdb
 import { searchTvdbSeriesList, resolveTvdbSeriesId, getTvdbSeriesArtwork } from "../utils/tvdbGateway.js";
 import { getFanartMovieArt, getFanartTvArt, getAllFanartMovieImages, getAllFanartTvImages } from "../utils/fanartGateway.js";
 import { getOmdbRating } from "../utils/omdbGateway.js";
+import { getCanonicalPosterUrl } from "../utils/mediaArtwork.js";
 import { POSTERS_DIR, BACKDROPS_DIR, PROFILES_DIR, PUBLIC_DIR } from "../paths.js";
 import {
   countPlaybackProgressRows,
@@ -1501,6 +1502,36 @@ export async function handlePlaybackProgressList(req, res) {
       } catch (err) {
         // ignore
       }
+
+      // Playback-progress rows can be title-only episode identities. They do
+      // not have the watched-row artwork enrichment used by the History API,
+      // so resolve the parent show poster here as well. Keep poster_url tied
+      // to the episode/progress row; the dashboard consumes show_poster_url
+      // for this card so episode artwork remains independent elsewhere.
+      if (row.media_type === "episode") {
+        const showTitle = row.show_title || showTitleFrom(row.title);
+        const knownIdentity = showTitle
+          ? await getKnownShowIdentityForTitle(showTitle).catch(() => ({}))
+          : {};
+        const showIdentity = {
+          media_type: "tv",
+          title: showTitle,
+          tmdb_id: row.show_tmdb_id || knownIdentity.tmdb_id || "",
+          tvdb_id: row.show_tvdb_id || knownIdentity.tvdb_id || "",
+          imdb_id: row.show_imdb_id || knownIdentity.imdb_id || "",
+        };
+        const showPosterUrl = getCanonicalPosterUrl(showIdentity);
+        return {
+          ...row,
+          poster_url: posterUrl,
+          show_title: showTitle || row.show_title || null,
+          show_poster_url: showPosterUrl || null,
+          show_tmdb_id: showIdentity.tmdb_id || null,
+          show_tvdb_id: showIdentity.tvdb_id || null,
+          show_imdb_id: showIdentity.imdb_id || null,
+        };
+      }
+
       return { ...row, poster_url: posterUrl };
     }));
 
@@ -1629,6 +1660,81 @@ export async function handlePlaybackProgressUnwatch(req, res) {
     return sendJson(res, { error: "Playback progress unwatch failed" }, 500);
   } finally {
     await invalidateHistoryDerivedCaches().catch(() => null);
+  }
+}
+
+// Remove an Up Next item without changing its watched state. Providers do not
+// share a hide-from-Next-Up API, but clearing resume progress removes the item
+// from Continue Watching where the provider supports that distinction. The
+// episode remains unplayed, so a provider's Next Up queue may still include it.
+export async function handleUpNextRemove(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const body = await readJson(req).catch(() => ({}));
+  const mediaType = String(body.media_type || body.mediaType || "episode").toLowerCase() === "movie"
+    ? "movie"
+    : "episode";
+  const title = String(body.title || body.show_title || body.showTitle || "").trim();
+  const season = body.season == null || body.season === "" ? undefined : Number(body.season);
+  const episode = body.episode == null || body.episode === "" ? undefined : Number(body.episode);
+  if (!title) return sendJson(res, { error: "title is required" }, 400);
+  if (mediaType === "episode" && (!Number.isInteger(season) || !Number.isInteger(episode) || episode <= 0)) {
+    return sendJson(res, { error: "season and episode are required for an episode" }, 400);
+  }
+
+  try {
+    const config = await loadMediaConfig();
+    const media = {
+      title,
+      showTitle: String(body.show_title || body.showTitle || title).trim(),
+      type: mediaType,
+      source: "manual",
+      ids: {
+        imdb: body.imdb_id || body.imdbId || body.imdb || undefined,
+        tmdb: body.tmdb_id || body.tmdbId || body.tmdb || undefined,
+        tvdb: body.tvdb_id || body.tvdbId || body.tvdb || undefined,
+      },
+      season,
+      episode,
+      positionMs: 0,
+      offsetMs: 0,
+      progress: 0,
+      isValid: true,
+      lane: "interactive",
+    };
+
+    const targets = [];
+    if (config.plex?.baseUrl && config.plex?.token && !config.plex.disabled) {
+      targets.push(["plex", () => setPlexProgress(config.plex, media)]);
+    }
+    if (config.emby?.baseUrl && config.emby?.apiKey && config.emby?.userId && !config.emby.disabled) {
+      targets.push(["emby", () => setEmbyProgress(config.emby, media)]);
+    }
+    const jellyfinApiKey = config.jellyfin?.apiKey || config.jellyfin?.api_key || config.jellyfin?.token;
+    if (config.jellyfin?.baseUrl && jellyfinApiKey && config.jellyfin?.userId && !config.jellyfin.disabled) {
+      targets.push(["jellyfin", () => setJellyfinProgress(config.jellyfin, media)]);
+    }
+
+    const targetStates = await Promise.all(targets.map(async ([target, clearResume]) => {
+      try {
+        const result = await clearResume();
+        return { target, ...(result || {}), status: result?.status || "fulfilled" };
+      } catch (error) {
+        return { target, status: "error", detail: error.message || String(error) };
+      }
+    }));
+
+    return sendJson(res, {
+      ok: true,
+      clearedResume: targetStates.some((target) => ["fulfilled", "not_found"].includes(target.status)),
+      targetStates,
+      nextUpNote: "Connected-app Next Up lists cannot be hidden without marking the episode watched.",
+    });
+  } catch (error) {
+    console.error("Up Next removal failed", error);
+    return sendJson(res, { error: "Up Next removal failed" }, 500);
   }
 }
 

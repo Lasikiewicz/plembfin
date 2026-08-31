@@ -1,0 +1,259 @@
+---
+import { site } from "../data/site.js";
+import SiteHeader from "../components/SiteHeader.astro";
+import SiteFooter from "../components/SiteFooter.astro";
+import "../styles/site.css";
+
+const {
+  title,
+  description = site.description,
+  image = "/assets/app-captures/dashboard-dark.png",
+  noindex = false,
+} = Astro.props;
+
+const pageTitle = title ? `${site.name} - ${title}` : site.title;
+const canonical = new URL(Astro.url.pathname, site.url).href;
+const previewBranch = import.meta.env.MODE !== "development" && process.env.CF_PAGES_BRANCH && process.env.CF_PAGES_BRANCH !== "main";
+const robots = noindex || previewBranch ? "noindex,nofollow" : "index,follow";
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width" />
+    <meta name="theme-color" content="#05080c" data-theme-color />
+    <meta name="color-scheme" content="dark light" />
+    <meta name="description" content={description} />
+    <meta name="robots" content={robots} />
+    <link rel="canonical" href={canonical} />
+    <link rel="icon" href="/assets/favicon.svg" type="image/svg+xml" />
+    <title>{pageTitle}</title>
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="Plembfin" />
+    <meta property="og:title" content={pageTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonical} />
+    <meta property="og:image" content={new URL(image, site.url).href} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={pageTitle} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={new URL(image, site.url).href} />
+    <script is:inline>
+      (() => {
+        const themeKey = "plembfin:theme";
+        let savedTheme = null;
+
+        try {
+          savedTheme = window.localStorage.getItem(themeKey);
+        } catch {
+          // Continue with the system preference when storage is unavailable.
+        }
+
+        const useLightMode = savedTheme === "light" || (savedTheme === null && !window.matchMedia("(prefers-color-scheme: dark)").matches);
+        document.documentElement.classList.toggle("light-mode", useLightMode);
+        document.documentElement.dataset.theme = useLightMode ? "light" : "dark";
+        document.querySelector("[data-theme-color]")?.setAttribute("content", useLightMode ? "#ffffff" : "#05080c");
+      })();
+    </script>
+  </head>
+  <body>
+    <SiteHeader />
+    <main id="main-content">
+      <slot />
+    </main>
+    <SiteFooter />
+
+    <dialog class="image-lightbox" data-image-lightbox aria-labelledby="image-lightbox-title">
+      <div class="image-lightbox-shell">
+        <div class="image-lightbox-toolbar">
+          <p class="image-lightbox-title" id="image-lightbox-title">Image preview</p>
+          <div class="image-lightbox-controls" aria-label="Image controls">
+            <button class="image-lightbox-control" type="button" data-lightbox-zoom-out aria-label="Zoom out">−</button>
+            <button class="image-lightbox-control image-lightbox-zoom-reset" type="button" data-lightbox-zoom-reset>100%</button>
+            <button class="image-lightbox-control" type="button" data-lightbox-zoom-in aria-label="Zoom in">+</button>
+            <button class="image-lightbox-control" type="button" data-lightbox-close>Close</button>
+          </div>
+        </div>
+        <div class="image-lightbox-stage" data-lightbox-stage>
+          <img data-lightbox-image alt="" />
+        </div>
+        <p class="image-lightbox-caption" data-lightbox-caption></p>
+      </div>
+    </dialog>
+    <script>
+  const imageLightbox = document.querySelector("[data-image-lightbox]");
+
+  if (imageLightbox instanceof HTMLDialogElement) {
+    const lightboxImage = imageLightbox.querySelector("[data-lightbox-image]");
+    const lightboxStage = imageLightbox.querySelector("[data-lightbox-stage]");
+    const lightboxCaption = imageLightbox.querySelector("[data-lightbox-caption]");
+    const zoomReset = imageLightbox.querySelector("[data-lightbox-zoom-reset]");
+    let scale = 1;
+    let translateX = 0;
+    let translateY = 0;
+    let isDragging = false;
+    let dragMoved = false;
+    let pointerStartX = 0;
+    let pointerStartY = 0;
+    let dragOriginX = 0;
+    let dragOriginY = 0;
+
+    const clampPan = () => {
+      if (!(lightboxImage instanceof HTMLImageElement) || !(lightboxStage instanceof HTMLElement) || scale <= 1) {
+        translateX = 0;
+        translateY = 0;
+        return;
+      }
+
+      const maxX = Math.max(0, (lightboxImage.offsetWidth * scale - lightboxStage.clientWidth) / 2 + 24);
+      const maxY = Math.max(0, (lightboxImage.offsetHeight * scale - lightboxStage.clientHeight) / 2 + 24);
+      translateX = Math.min(maxX, Math.max(-maxX, translateX));
+      translateY = Math.min(maxY, Math.max(-maxY, translateY));
+    };
+
+    const setTransform = () => {
+      clampPan();
+
+      if (lightboxImage instanceof HTMLImageElement) {
+        lightboxImage.style.transform = `translate3d(${translateX}px, ${translateY}px, 0) scale(${scale})`;
+        lightboxImage.style.cursor = isDragging ? "grabbing" : scale > 1 ? "grab" : "zoom-in";
+        lightboxImage.classList.toggle("is-dragging", isDragging);
+      }
+    };
+
+    const setScale = (nextScale) => {
+      scale = Math.min(3.5, Math.max(1, nextScale));
+      if (scale <= 1) {
+        translateX = 0;
+        translateY = 0;
+      }
+      setTransform();
+
+      if (zoomReset instanceof HTMLButtonElement) {
+        zoomReset.textContent = `${Math.round(scale * 100)}%`;
+      }
+    };
+
+    const closeLightbox = () => {
+      if (imageLightbox.open) imageLightbox.close();
+    };
+
+    document.addEventListener("click", (event) => {
+      if (!(event.target instanceof Element)) return;
+
+      const trigger = event.target.closest("[data-lightbox-trigger]");
+      if (!(trigger instanceof HTMLAnchorElement) || !(lightboxImage instanceof HTMLImageElement)) return;
+
+      const href = trigger.getAttribute("href");
+      if (!href || imageLightbox.open) return;
+
+      event.preventDefault();
+      const sourceImage = trigger.querySelector("img");
+      lightboxImage.src = href;
+      lightboxImage.alt = sourceImage?.getAttribute("alt") || "";
+
+      if (lightboxCaption instanceof HTMLElement) {
+        lightboxCaption.textContent = trigger.getAttribute("data-lightbox-caption") || lightboxImage.alt;
+      }
+
+      translateX = 0;
+      translateY = 0;
+      setScale(1);
+      imageLightbox.showModal();
+    });
+
+    imageLightbox.querySelector("[data-lightbox-close]")?.addEventListener("click", closeLightbox);
+    imageLightbox.querySelector("[data-lightbox-zoom-in]")?.addEventListener("click", () => setScale(scale + 0.25));
+    imageLightbox.querySelector("[data-lightbox-zoom-out]")?.addEventListener("click", () => setScale(scale - 0.25));
+    zoomReset?.addEventListener("click", () => setScale(1));
+    lightboxImage?.addEventListener("dragstart", (event) => event.preventDefault());
+    lightboxImage?.addEventListener("pointerdown", (event) => {
+      dragMoved = false;
+      if (scale <= 1 || !(lightboxImage instanceof HTMLImageElement)) return;
+
+      event.preventDefault();
+      isDragging = true;
+      pointerStartX = event.clientX;
+      pointerStartY = event.clientY;
+      dragOriginX = translateX;
+      dragOriginY = translateY;
+      lightboxImage.setPointerCapture(event.pointerId);
+      setTransform();
+    });
+    lightboxImage?.addEventListener("pointermove", (event) => {
+      if (!isDragging) return;
+
+      const deltaX = event.clientX - pointerStartX;
+      const deltaY = event.clientY - pointerStartY;
+      if (Math.hypot(deltaX, deltaY) > 4) dragMoved = true;
+      translateX = dragOriginX + deltaX;
+      translateY = dragOriginY + deltaY;
+      setTransform();
+    });
+
+    const endDrag = (event) => {
+      if (!isDragging) return;
+      isDragging = false;
+      if (lightboxImage instanceof HTMLImageElement && lightboxImage.hasPointerCapture(event.pointerId)) {
+        lightboxImage.releasePointerCapture(event.pointerId);
+      }
+      setTransform();
+    };
+
+    lightboxImage?.addEventListener("pointerup", endDrag);
+    lightboxImage?.addEventListener("pointercancel", endDrag);
+    lightboxImage?.addEventListener("click", () => {
+      if (dragMoved) {
+        dragMoved = false;
+        return;
+      }
+      setScale(scale > 1 ? 1 : 2);
+    });
+    lightboxImage?.addEventListener("load", setTransform);
+
+    lightboxStage?.addEventListener("wheel", (event) => {
+      if (!(event instanceof WheelEvent)) return;
+      if (!imageLightbox.open) return;
+      event.preventDefault();
+      setScale(scale + (event.deltaY < 0 ? 0.25 : -0.25));
+    }, { passive: false });
+
+    imageLightbox.addEventListener("click", (event) => {
+      if (event.target === imageLightbox) closeLightbox();
+    });
+
+    imageLightbox.addEventListener("close", () => {
+      if (lightboxImage instanceof HTMLImageElement) {
+        lightboxImage.removeAttribute("src");
+        lightboxImage.style.transform = "";
+        lightboxImage.style.cursor = "";
+        lightboxImage.classList.remove("is-dragging");
+      }
+
+      if (lightboxCaption instanceof HTMLElement) lightboxCaption.textContent = "";
+      isDragging = false;
+      translateX = 0;
+      translateY = 0;
+      setScale(1);
+    });
+  }
+    </script>
+    <script>
+      const backToTop = document.querySelector("[data-back-to-top]");
+
+      if (backToTop instanceof HTMLButtonElement) {
+        const updateBackToTop = () => {
+          backToTop.hidden = window.scrollY < 520;
+        };
+
+        backToTop.addEventListener("click", () => {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+        });
+
+        window.addEventListener("scroll", updateBackToTop, { passive: true });
+        updateBackToTop();
+      }
+    </script>
+  </body>
+</html>

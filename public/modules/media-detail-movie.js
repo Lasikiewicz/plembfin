@@ -1,16 +1,17 @@
 import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute, formatDate, formatTmdbDate } from "./utils.js";
-import { posterUrlFor, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=20260826b";
+import { posterUrlFor, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=20260831m";
 import { isWatchedHistoryAction, getMediaTargetSyncStatus, renderSyncStatusDot } from "./sync.js";
 import { fetchTmdbDetails } from "./tmdb.js?v=20260823";
 import { renderWatchDatePrompt, isMovieSavingWatchAction } from "./watch-action.js?v=20260826c";
-import { authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, setMediaInfoContext, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=20260810";
+import { authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=20260831c";
+import { personalRatingPillHtml, personalMediaActionsHtml } from "./personal-media.js?v=20260831p";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderMediaImagesSection, renderMediaFacts,
   renderExternalRatingPills, ratingPillHtml, renderSeerrRequestPill, fetchSeerrMediaStatus,
   refreshActiveMediaDetailAfterSeerrStatus, rankedRecommendations, recommendedTvShowsForMovie,
   renderRecommendationSection, hydrateMediaAppLinks, renderCollectionSection, mediaAppLinksHtml,
-} from "./media-detail-shared.js";
+} from "./media-detail-shared.js?v=20260831j";
 
 // Watch history list - playHistory (every { id, watched_at, source } entry for
 // this movie, collapsed server-side in dedupeMovies/collapseMovieCluster) has
@@ -225,7 +226,17 @@ function _renderWatchedMovieContent(root, movie, {
   const movieTitle = movie.title;
   const logoUrl = proxiedArtworkUrl(movie.logo_url || bestTmdbLogo(tmdbData), "logo");
   const ratingBadgeHtml = rating ? renderExternalRatingPills("movie", tmdbData, movieTitle, rating) : "";
-  const ratingsFactHtml = `${ratingBadgeHtml || (tmdbData ? renderExternalRatingPills("movie", tmdbData, movieTitle) : "")}${imdbPillHtml}`;
+  const personalRatingHtml = personalRatingPillHtml({
+    media_type: "movie",
+    title: movieTitle,
+    tmdb_id: tmdbData?.id || movie.tmdb_id || "",
+    tvdb_id: movie.tvdb_id || "",
+    imdb_id: tmdbData?.imdb_id || movie.imdb_id || "",
+    poster_url: posterUrl || localPoster,
+    overview,
+    release_date: tmdbData?.release_date || movie.release_date || "",
+  });
+  const ratingsFactHtml = `${ratingBadgeHtml || (tmdbData ? renderExternalRatingPills("movie", tmdbData, movieTitle) : "")}${imdbPillHtml}${personalRatingHtml}`;
   const appLinksFactHtml = tmdbData ? mediaAppLinksHtml(tmdbData, "movie") : "";
   const syncStatusDotHtml = renderSyncStatusDot(movie);
   const visibleSyncStatuses = getMediaTargetSyncStatus(movie).filter((s) => !s.hidden);
@@ -259,41 +270,47 @@ function _renderWatchedMovieContent(root, movie, {
        </a>`
     : "";
 
+  const personalMediaItem = {
+    media_type: "movie",
+    title: movieTitle,
+    tmdb_id: tmdbData?.id || movie.tmdb_id || "",
+    tvdb_id: movie.tvdb_id || "",
+    imdb_id: tmdbData?.imdb_id || movie.imdb_id || "",
+    poster_url: posterUrl || localPoster,
+    overview,
+    release_date: tmdbData?.release_date || movie.release_date || "",
+  };
+
   setMediaDetailActions(`
-    ${mediaInfoActionHtml()}
-    ${mediaForceSyncActionHtml({
-      type: "movie",
-      title: movieTitle,
-      tmdbId: tmdbData?.id || movie.tmdb_id || "",
-      tvdbId: movie.tvdb_id || "",
-      imdbId: tmdbData?.imdb_id || movie.imdb_id || "",
-      disabled: isSaving,
-    })}
+    ${personalMediaActionsHtml(personalMediaItem)}
     <button class="action-pill action-pill-ghost" type="button" ${isSaving ? "disabled" : ""} data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-tmdb-id="${escapeAttribute(tmdbData?.id || movie.tmdb_id || "")}" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">
       ${eyeSlashIcon}
       <span>Mark <br>Unwatched</span>
     </button>
     ${ytWatchBtn}
-    <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || movieTitle || "")}" data-poster-url="${escapeAttribute(movie.poster_url || "")}" data-logo-url="${escapeAttribute(movie.logo_url || "")}" data-backdrop-url="${escapeAttribute(movie.backdrop_url || "")}">
-      ${imageIcon}
-      <span>Edit <br>Images</span>
-    </button>
-    <details class="actions-more-dropdown">
-      <summary class="action-pill actions-more-trigger">
-        <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M3 9.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/></svg>
-        <span>More</span>
-      </summary>
-      <div class="actions-more-panel">
-        <button class="action-pill media-fix-match-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-media-type="movie">
-          ${searchIcon}
-          <span>Fix Match</span>
-        </button>
-        <button class="action-pill action-pill-danger" type="button" ${isSaving ? "disabled" : ""} data-delete-media-id="${escapeAttribute(movie.id)}" data-delete-media-type="movie" data-delete-media-title="${escapeAttribute(movie.title || "this movie")}">
-          ${trashIcon}
-          <span>Delete</span>
-        </button>
-      </div>
-    </details>
+    ${mediaToolsActionHtml(`
+      ${mediaForceSyncActionHtml({
+        type: "movie",
+        title: movieTitle,
+        tmdbId: tmdbData?.id || movie.tmdb_id || "",
+        tvdbId: movie.tvdb_id || "",
+        imdbId: tmdbData?.imdb_id || movie.imdb_id || "",
+        disabled: isSaving,
+      })}
+      ${mediaInfoActionHtml()}
+      <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || movieTitle || "")}" data-poster-url="${escapeAttribute(movie.poster_url || "")}" data-logo-url="${escapeAttribute(movie.logo_url || "")}" data-backdrop-url="${escapeAttribute(movie.backdrop_url || "")}">
+        ${imageIcon}
+        <span>Edit <br>Images</span>
+      </button>
+      <button class="action-pill media-fix-match-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-media-type="movie">
+        ${searchIcon}
+        <span>Fix Match</span>
+      </button>
+      <button class="action-pill action-pill-danger" type="button" ${isSaving ? "disabled" : ""} data-delete-media-id="${escapeAttribute(movie.id)}" data-delete-media-type="movie" data-delete-media-title="${escapeAttribute(movie.title || "this movie")}">
+        ${trashIcon}
+        <span>Delete</span>
+      </button>
+    `)}
   `);
 
   root.innerHTML = `
@@ -385,40 +402,46 @@ export function patchMovieWatchedState(movie) {
        </a>`
     : "";
 
+  const personalMediaItem = {
+    media_type: "movie",
+    title: movie.title,
+    tmdb_id: movie.tmdb_id || "",
+    tvdb_id: movie.tvdb_id || "",
+    imdb_id: movie.imdb_id || "",
+    poster_url: posterUrlFor(movie) || "/favicon.svg",
+    overview: "",
+    release_date: movie.release_date || "",
+  };
+
   setMediaDetailActions(`
-    ${mediaInfoActionHtml()}
-    ${mediaForceSyncActionHtml({
-      type: "movie",
-      title: movie.title,
-      tmdbId: movie.tmdb_id || "",
-      tvdbId: movie.tvdb_id || "",
-      imdbId: movie.imdb_id || "",
-    })}
+    ${personalMediaActionsHtml(personalMediaItem)}
     <button class="action-pill action-pill-ghost" type="button" data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-tmdb-id="${escapeAttribute(movie.tmdb_id || "")}" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">
       ${eyeSlashIcon}
       <span>Mark <br>Unwatched</span>
     </button>
     ${ytWatchBtn}
-    <button class="action-pill media-edit-image-btn" type="button" data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-poster-url="${escapeAttribute(movie.poster_url || "")}" data-logo-url="${escapeAttribute(movie.logo_url || "")}" data-backdrop-url="${escapeAttribute(movie.backdrop_url || "")}">
-      ${imageIcon}
-      <span>Edit <br>Images</span>
-    </button>
-    <details class="actions-more-dropdown">
-      <summary class="action-pill actions-more-trigger">
-        <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M3 9.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/></svg>
-        <span>More</span>
-      </summary>
-      <div class="actions-more-panel">
-        <button class="action-pill media-fix-match-btn" type="button" data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-media-type="movie">
-          ${searchIcon}
-          <span>Fix Match</span>
-        </button>
-        <button class="action-pill action-pill-danger" type="button" data-delete-media-id="${escapeAttribute(movie.id)}" data-delete-media-type="movie" data-delete-media-title="${escapeAttribute(movie.title || "this movie")}">
-          ${trashIcon}
-          <span>Delete</span>
-        </button>
-      </div>
-    </details>
+    ${mediaToolsActionHtml(`
+      ${mediaForceSyncActionHtml({
+        type: "movie",
+        title: movie.title,
+        tmdbId: movie.tmdb_id || "",
+        tvdbId: movie.tvdb_id || "",
+        imdbId: movie.imdb_id || "",
+      })}
+      ${mediaInfoActionHtml()}
+      <button class="action-pill media-edit-image-btn" type="button" data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-poster-url="${escapeAttribute(movie.poster_url || "")}" data-logo-url="${escapeAttribute(movie.logo_url || "")}" data-backdrop-url="${escapeAttribute(movie.backdrop_url || "")}">
+        ${imageIcon}
+        <span>Edit <br>Images</span>
+      </button>
+      <button class="action-pill media-fix-match-btn" type="button" data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-media-type="movie">
+        ${searchIcon}
+        <span>Fix Match</span>
+      </button>
+      <button class="action-pill action-pill-danger" type="button" data-delete-media-id="${escapeAttribute(movie.id)}" data-delete-media-type="movie" data-delete-media-title="${escapeAttribute(movie.title || "this movie")}">
+        ${trashIcon}
+        <span>Delete</span>
+      </button>
+    `)}
   `);
 
   const progressSection = page.querySelector(".progress-section");
@@ -503,6 +526,16 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
   const recommendations = rankedRecommendations(tmdbData, "movie");
   const logoUrl = proxiedArtworkUrl(bestTmdbLogo(tmdbData), "logo");
   const ratingBadgeHtml = rating !== "N/A" ? `${renderExternalRatingPills("movie", tmdbData, movieTitle, rating)}` : "";
+  const personalMediaItem = {
+    media_type: "movie",
+    title: movieTitle,
+    tmdb_id: tmdbData.id,
+    imdb_id: tmdbData.imdb_id || "",
+    poster_url: posterUrl,
+    overview,
+    release_date: tmdbData.release_date || "",
+  };
+  const personalRatingHtml = personalRatingPillHtml(personalMediaItem);
   setMediaInfoContext({
     mediaType: "movie",
     media: { title: movieTitle, media_type: "movie", tmdb_id: tmdbData.id },
@@ -512,11 +545,14 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
     summary: { watchedCount: 0, totalCount: 1, progressPercent: 0 },
     records: [],
   });
-  setMediaDetailActions(`${mediaInfoActionHtml()}${mediaForceSyncActionHtml({
-    type: "movie",
-    title: movieTitle,
-    tmdbId: tmdbData.id,
-  })}`);
+  setMediaDetailActions(`${personalMediaActionsHtml(personalMediaItem)}${mediaToolsActionHtml(`
+    ${mediaInfoActionHtml()}
+    ${mediaForceSyncActionHtml({
+      type: "movie",
+      title: movieTitle,
+      tmdbId: tmdbData.id,
+    })}
+  `)}`);
 
   const buildUnwatchedHtml = (tvRecommendations = []) => `
     <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(backdropUrl || posterUrl)}');"></div>
@@ -549,7 +585,7 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
           </div>
         </div>
         ${renderMediaFacts(tmdbData, "movie", "sidebar", {
-          ratingsHtml: ratingBadgeHtml || renderExternalRatingPills("movie", tmdbData, movieTitle),
+          ratingsHtml: `${ratingBadgeHtml || renderExternalRatingPills("movie", tmdbData, movieTitle)}${personalRatingHtml}`,
           appLinksHtml: mediaAppLinksHtml(tmdbData, "movie"),
         })}
       </header>

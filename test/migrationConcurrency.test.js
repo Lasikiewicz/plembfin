@@ -35,7 +35,7 @@ test("legacy schema migration is idempotent under concurrent process startup", a
     const columns = new Set(upgraded.pragma("table_info(watch_history)").map((column) => column.name));
     for (const name of ["logo_url", "backdrop_url", "sync_retry_count", "sync_next_retry_at", "watch_provenance"]) assert.ok(columns.has(name));
     assert.equal(upgraded.prepare("SELECT id FROM watch_history WHERE id='legacy-row'").get()?.id, "legacy-row");
-    assert.deepEqual(upgraded.prepare("SELECT id FROM schema_migrations ORDER BY id").all().map((row) => row.id), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]);
+    assert.deepEqual(upgraded.prepare("SELECT id FROM schema_migrations ORDER BY id").all().map((row) => row.id), Array.from({ length: 17 }, (_, index) => index + 1));
     assert.ok(upgraded.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='media_connections'").get());
     const connectionColumns = new Set(upgraded.pragma("table_info(media_connections)").map((column) => column.name));
     assert.ok(connectionColumns.has("server_credential_ciphertext"));

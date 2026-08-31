@@ -108,7 +108,12 @@ values already committed" - none of them write anything back to their branch.
   `alpha-<build>`) using the build number already in the pushed commit, then posts that
   one build's own changelog entry to Discord (see "Discord release notifications"
   below). Afterward, push develop's own reset state to `origin/develop` too (a plain
-  push, not a force-push).
+  push, not a force-push) - that push only ever changes
+  `changelog.develop.json`/`changelog.alpha.json`, so `docker-publish-develop.yml`'s
+  `paths-ignore` skips rebuilding and republishing a develop image over it; the point is
+  getting the correct file onto `origin/develop` for the app's own live remote-fetch
+  changelog comparison (`fetchRemoteDevelopChangelog` in `routes/maintenance.js`), not a
+  new image. `secret-scan.yml` still runs regardless of which files changed.
 - **"Force to main"** checks out `alpha`'s actual tip locally, runs
   `scripts/promote-alpha-to-main.js` (consolidates every alpha build entry accumulated
   this cycle into one clean release entry - bumps the real semver, writes

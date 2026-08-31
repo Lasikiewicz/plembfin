@@ -21,7 +21,7 @@ import { getTargetsForSource, shouldSyncResumeProgress, syncMediaPlaystate, sync
 import { watchedPlayedSyncEnabled } from "../utils/syncFlags.js";
 import { fetchPosterFromTmdb } from "../utils/tmdbClient.js";
 import { cacheBackdropFromUrl, cacheLogoFromUrl, cachePosterFromUrl, cacheProfileFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "../utils/posterCache.js";
-import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, searchTmdb, getCachedTvdbId } from "../utils/tmdbGateway.js";
+import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, searchTmdb, searchTmdbCollections, getTmdbCollection, getTmdbDiscovery, getCachedTvdbId } from "../utils/tmdbGateway.js";
 import { searchTvdbSeriesList, resolveTvdbSeriesId, getTvdbSeriesArtwork } from "../utils/tvdbGateway.js";
 import { getUpcomingCalendarMonth } from "../utils/upcomingCalendarCache.js";
 import { getFanartMovieArt, getFanartTvArt, getAllFanartMovieImages, getAllFanartTvImages } from "../utils/fanartGateway.js";
@@ -67,7 +67,9 @@ import {
   normalizeWatchRecordForInsert,
   watchRowToMedia,
   getCachedMovies,
+  getCachedShows,
   getCachedHistory,
+  showTitleFrom,
   findExistingWatch,
   findWatchedByAnyMediaKey,
   getPlaystateForMedia,
@@ -622,6 +624,141 @@ export async function handleTvdbSearch(req, res) {
   }
 }
 
+// Fix Match needs a broader search than the normal provider-specific search
+// controls. A title can be absent from one catalogue, have a stale identity in
+// the local history, or be represented by a different provider id altogether.
+// Keep each source independent so one unavailable provider does not hide the
+// matches returned by the others.
+export async function handleFixMatchSearch(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const query = String(req.query.query || req.query.q || "").trim();
+  const mediaType = String(req.query.mediaType || req.query.type || "").trim().toLowerCase();
+  if (query.length < 2) return sendJson(res, { error: "A search query of at least two characters is required" }, 400);
+  if (!["movie", "tv"].includes(mediaType)) return sendJson(res, { error: "mediaType must be movie or tv" }, 400);
+
+  const sourceLabels = {
+    local: "Local library",
+    tmdb: "TMDB",
+    tvdb: "TVDB",
+  };
+  const sourceTasks = [
+    ["local", mediaType === "movie"
+      ? queryMovies({ search: query, limit: 20 })
+      : queryShows({ search: query, limit: 20 })],
+    ["tmdb", searchTmdb({ query, page: req.query.page || 1, mediaType })],
+  ];
+  if (mediaType === "tv") sourceTasks.push(["tvdb", searchTvdbSeriesList(query)]);
+
+  const settled = await Promise.allSettled(sourceTasks.map(([, task]) => task));
+  const sourceStatus = {};
+  const results = [];
+  const resultByIdentity = new Map();
+
+  const addResult = (candidate) => {
+    const tmdbId = String(candidate.tmdb_id || "").trim();
+    const tvdbId = String(candidate.tvdb_id || "").trim();
+    const identity = tmdbId
+      ? `tmdb:${tmdbId}`
+      : (tvdbId ? `tvdb:${tvdbId}` : "");
+    if (!identity || !candidate.title) return;
+
+    const existing = resultByIdentity.get(identity);
+    if (existing) {
+      const label = sourceLabels[candidate.source] || candidate.source;
+      if (!existing.source_labels.includes(label)) existing.source_labels.push(label);
+      if (!existing.poster_url && candidate.poster_url) existing.poster_url = candidate.poster_url;
+      if (!existing.poster_path && candidate.poster_path) existing.poster_path = candidate.poster_path;
+      if (!existing.image_url && candidate.image_url) existing.image_url = candidate.image_url;
+      if (!existing.year && candidate.year) existing.year = candidate.year;
+      if (!existing.imdb_id && candidate.imdb_id) existing.imdb_id = candidate.imdb_id;
+      return;
+    }
+
+    const result = {
+      ...candidate,
+      source_labels: [sourceLabels[candidate.source] || candidate.source],
+      media_type: mediaType,
+    };
+    resultByIdentity.set(identity, result);
+    results.push(result);
+  };
+
+  for (let index = 0; index < sourceTasks.length; index += 1) {
+    const [source] = sourceTasks[index];
+    const outcome = settled[index];
+    if (outcome.status === "rejected") {
+      sourceStatus[source] = { ok: false, count: 0, error: outcome.reason?.message || "Unavailable" };
+      continue;
+    }
+
+    const value = outcome.value;
+    if (source === "local") {
+      const items = Array.isArray(value) ? value : [];
+      sourceStatus[source] = { ok: true, count: items.length };
+      for (const item of items) {
+        addResult({
+          source,
+          title: String(item.title || "").trim(),
+          year: "",
+          poster_url: item.poster_url || "",
+          poster_path: "",
+          image_url: "",
+          tmdb_id: item.tmdb_id || "",
+          tvdb_id: item.tvdb_id || "",
+          imdb_id: item.imdb_id || "",
+          local_id: item.id || "",
+        });
+      }
+      continue;
+    }
+
+    if (source === "tmdb") {
+      const items = (Array.isArray(value?.results) ? value.results : [])
+        .filter((item) => (item.media_type || mediaType) === mediaType && item.id);
+      sourceStatus[source] = { ok: true, count: items.length };
+      for (const item of items.slice(0, 20)) {
+        const tmdbId = String(item.id);
+        addResult({
+          source,
+          title: String(item.title || item.name || "").trim(),
+          year: String(item.release_date || item.first_air_date || "").slice(0, 4),
+          poster_url: "",
+          poster_path: item.poster_path || "",
+          image_url: "",
+          tmdb_id: tmdbId,
+          tvdb_id: mediaType === "tv" ? getCachedTvdbId(tmdbId) : "",
+          imdb_id: "",
+        });
+      }
+      continue;
+    }
+
+    const items = Array.isArray(value) ? value : [];
+    sourceStatus[source] = { ok: true, count: items.length };
+    for (const item of items.slice(0, 20)) {
+      addResult({
+        source,
+        title: String(item.name || "").trim(),
+        year: String(item.year || "").trim(),
+        poster_url: "",
+        poster_path: "",
+        image_url: item.image_url || "",
+        tmdb_id: "",
+        tvdb_id: item.tvdb_id || "",
+        imdb_id: "",
+      });
+    }
+  }
+
+  return sendJson(res, { results, sources: sourceStatus }, 200, {
+    "Cache-Control": "private, max-age=60, stale-while-revalidate=900",
+    Vary: "Authorization",
+  });
+}
+
 function searchableTitle(value) {
   return String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 }
@@ -645,6 +782,31 @@ export async function searchTvdbSeries(query) {
   }
 }
 
+async function localTmdbWatchedIds() {
+  const [movies, shows] = await Promise.all([
+    getCachedMovies().catch(() => []),
+    getCachedShows().catch(() => []),
+  ]);
+  return {
+    movie: new Set(movies.map((item) => String(item.tmdb_id || "")).filter(Boolean)),
+    tv: new Set(shows.map((item) => String(item.tmdb_id || "")).filter(Boolean)),
+  };
+}
+
+function annotateDiscoveryWatched(payload, watchedIds) {
+  const feeds = Object.fromEntries(Object.entries(payload?.feeds || {}).map(([key, feed]) => [
+    key,
+    {
+      ...feed,
+      results: (feed?.results || []).map((item) => ({
+        ...item,
+        is_watched: watchedIds[item.media_type === "tv" ? "tv" : "movie"]?.has(String(item.id)) || false,
+      })),
+    },
+  ]));
+  return { ...payload, feeds };
+}
+
 export async function handleMediaSearch(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET") return methodNotAllowed(res);
@@ -653,19 +815,227 @@ export async function handleMediaSearch(req, res) {
   if (query.length < 2) return sendJson(res, { error: "A search query of at least two characters is required" }, 400);
   try {
     const localLimit = Math.min(Math.max(Number(req.query.limit || req.query.localLimit || 50), 1), 250);
-    const [movies, shows, discovery, people, tvdbShows] = await Promise.all([
+    const [movies, shows, discovery, people, collections, tvdbShows] = await Promise.all([
       queryMovies({ search: query, limit: localLimit }),
       queryShows({ search: query, limit: localLimit }),
       searchTmdb({ query, page: req.query.page, mediaType: req.query.mediaType || "multi" }),
       searchTmdb({ query, page: req.query.peoplePage || 1, mediaType: "person" }),
+      searchTmdbCollections({ query, page: req.query.collectionPage || 1 }).catch(() => ({ results: [] })),
       searchTvdbSeries(query),
     ]);
-    return sendJson(res, { local: { movies, shows }, discovery, people, tvdb: { shows: tvdbShows } }, 200, {
+    return sendJson(res, { local: { movies, shows }, discovery, people, collections, tvdb: { shows: tvdbShows } }, 200, {
       "Cache-Control": "private, max-age=60, stale-while-revalidate=900",
       Vary: "Authorization",
     });
   } catch (error) {
     return sendJson(res, { error: error.message }, error.status || 500);
+  }
+}
+
+export async function handleTmdbCollection(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const id = String(req.query.id || req.query.collectionId || "").trim();
+    const details = await getTmdbCollection(id);
+    const watchedIds = await localTmdbWatchedIds();
+    const response = {
+      ...details,
+      parts: (details.parts || []).map((part) => ({
+        ...part,
+        is_watched: watchedIds.movie.has(String(part.id)),
+      })),
+    };
+    return sendJson(res, response, 200, { "Cache-Control": "private, max-age=3600, stale-while-revalidate=86400", Vary: "Authorization" });
+  } catch (error) {
+    return sendJson(res, { error: error.message }, error.status || 500);
+  }
+}
+
+export async function handleDiscover(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const refresh = ["1", "true", "yes"].includes(String(req.query.refresh || "").toLowerCase());
+    const payload = await getTmdbDiscovery({
+      mediaType: req.query.mediaType || req.query.type || "all",
+      genreId: req.query.genreId || req.query.genre || "",
+      force: refresh,
+      revalidate: !refresh,
+    });
+    const watchedIds = await localTmdbWatchedIds();
+    return sendJson(res, annotateDiscoveryWatched(payload, watchedIds), 200, { "Cache-Control": "private, max-age=600, stale-while-revalidate=1800", Vary: "Authorization" });
+  } catch (error) {
+    if (error?.message === "TMDB API key is not configured") {
+      return sendJson(res, {
+        error: error.message,
+        code: "TMDB_NOT_CONFIGURED",
+        retryable: false,
+      }, 400);
+    }
+    if (Number(error?.status) === 401 || /TMDB request failed with 401/i.test(String(error?.message || ""))) {
+      return sendJson(res, {
+        error: "TMDB rejected the configured API key. Check Settings → Metadata.",
+        code: "TMDB_AUTH_FAILED",
+        retryable: false,
+      }, 400);
+    }
+    if (Number(error?.status) === 429 || /429|rate limit/i.test(String(error?.message || ""))) {
+      return sendJson(res, {
+        error: "TMDB is rate-limiting requests. Wait a moment, then try again.",
+        code: "TMDB_RATE_LIMITED",
+        retryable: true,
+      }, 429);
+    }
+    if (!error?.status || Number(error.status) >= 500 || /fetch failed|network|timeout/i.test(String(error?.message || ""))) {
+      return sendJson(res, {
+        error: "TMDB could not be reached. Check the network connection, then try again.",
+        code: "TMDB_UNAVAILABLE",
+        retryable: true,
+      }, 424);
+    }
+    return sendJson(res, { error: error.message }, error.status || 500);
+  }
+}
+
+const UP_NEXT_CACHE_TTL_MS = 2 * 60 * 1000;
+let upNextCache = { builtAt: 0, items: [] };
+const selectEpisodeProgressForUpNextStmt = db.prepare(
+  "SELECT title, tmdb_id, tvdb_id, season, episode FROM playback_progress WHERE media_type = 'episode'",
+);
+
+function episodeCoordinate(row = {}) {
+  const season = Number(row.season);
+  const episode = Number(row.episode);
+  if (!Number.isInteger(season) || !Number.isInteger(episode) || episode <= 0) return "";
+  return `${season}:${episode}`;
+}
+
+function isUnwatchedRow(row = {}) {
+  return ["unwatched", "unplayed"].includes(String(row.sync_action || "").toLowerCase());
+}
+
+async function buildUpNextItems() {
+  const MAX_UP_NEXT_SHOWS = 24;
+  const partialEpisodes = selectEpisodeProgressForUpNextStmt.all()
+    .map((row) => ({
+      title: showTitleFrom(row.title || ""),
+      tmdbId: String(row.tmdb_id || ""),
+      tvdbId: String(row.tvdb_id || ""),
+      season: Number(row.season),
+      episode: Number(row.episode),
+    }))
+    .filter((row) => row.title && Number.isInteger(row.season) && Number.isInteger(row.episode) && row.episode > 0);
+  const shows = (await getCachedShows())
+    .filter((show) => Number(show.episode_count || 0) > 0 && (show.tmdb_id || show.tvdb_id))
+    .sort((left, right) => String(right.latest_watched_at || "").localeCompare(String(left.latest_watched_at || "")))
+    .slice(0, MAX_UP_NEXT_SHOWS);
+  const queue = shows.slice();
+  const items = [];
+  const today = new Date().toISOString().slice(0, 10);
+
+  async function worker() {
+    for (let show = queue.shift(); show; show = queue.shift()) {
+      const detail = await queryShowDetail({
+        id: show.id,
+        title: show.title,
+        tmdbId: show.tmdb_id,
+        tvdbId: show.tvdb_id,
+        imdbId: show.imdb_id,
+      }).catch(() => null);
+      const watchedRows = (detail?.episodes || [])
+        .filter((row) => !isUnwatchedRow(row))
+        .map((row) => ({ row, coordinate: episodeCoordinate(row) }))
+        .filter(({ coordinate }) => coordinate);
+      const watched = new Set(watchedRows.map(({ coordinate }) => coordinate));
+      const partial = partialEpisodes
+        .filter((row) => (
+          (row.tmdbId && row.tmdbId === String(show.tmdb_id || ""))
+          || (row.tvdbId && row.tvdbId === String(show.tvdb_id || ""))
+          || row.title.toLowerCase() === String(show.title || "").toLowerCase()
+        ))
+        .map((row) => `${row.season}:${row.episode}`);
+      for (const coordinate of partial) watched.add(coordinate);
+      const metadata = await getTmdbDetails({
+        mediaType: "tv",
+        tmdbId: show.tmdb_id,
+        title: show.title,
+        ids: { tvdbId: show.tvdb_id },
+        light: true,
+      }).catch(() => null);
+      const tmdbId = String(show.tmdb_id || metadata?.id || "");
+      const tvdbId = String(show.tvdb_id || metadata?.external_ids?.tvdb_id || "");
+      const seasonNumbers = [...new Set((metadata?.seasons || [])
+        .map((season) => Number(season.season_number))
+        .filter((season) => Number.isInteger(season) && season > 0))]
+        .sort((left, right) => left - right);
+      const maxWatchedSeason = Math.max(0, ...watchedRows.map(({ row }) => Number(row.season) || 0));
+      const firstSeason = maxWatchedSeason > 0
+        ? maxWatchedSeason
+        : (seasonNumbers[0] || 1);
+      const candidateSeasons = seasonNumbers.length
+        ? [firstSeason, ...seasonNumbers.filter((season) => season > firstSeason)]
+        : [firstSeason, firstSeason + 1];
+
+      let next = null;
+      // One episode-list request is normally enough. Looking at at most two
+      // following seasons handles a fully watched season without turning the
+      // dashboard into an unbounded metadata fan-out for long-running shows.
+      for (const seasonNumber of [...new Set(candidateSeasons)].slice(0, 3)) {
+        const season = await getTmdbSeason({ tmdbId, tvdbId, seasonNumber }).catch(() => null);
+        const episodes = [...(season?.episodes || [])]
+          .filter((episode) => Number(episode.episode_number) > 0)
+          .sort((left, right) => Number(left.episode_number) - Number(right.episode_number));
+        for (const episode of episodes) {
+          // Up Next is a released queue. Upcoming episodes belong in the
+          // existing Upcoming view, not beside items ready to watch now.
+          if (episode.air_date && episode.air_date > today) continue;
+          const coordinate = `${seasonNumber}:${Number(episode.episode_number)}`;
+          if (watched.has(coordinate)) continue;
+          next = {
+            id: `${show.id}:${seasonNumber}:${Number(episode.episode_number)}`,
+            media_type: "tv",
+            title: show.title,
+            tmdb_id: tmdbId || null,
+            tvdb_id: tvdbId || null,
+            poster_url: show.poster_url || metadata?.cached_poster_url || (metadata?.poster_path ? `/api/tmdb-poster?path=${encodeURIComponent(metadata.poster_path)}` : ""),
+            season: seasonNumber,
+            episode: Number(episode.episode_number),
+            episode_title: episode.name || "",
+            air_date: episode.air_date || "",
+            is_upcoming: Boolean(episode.air_date && episode.air_date > today),
+            show_id: show.id,
+          };
+          break;
+        }
+        if (next) break;
+      }
+      if (next) items.push(next);
+    }
+  }
+
+  const workers = Math.min(4, queue.length || 1);
+  await Promise.all(Array.from({ length: workers }, worker));
+  return items.sort((left, right) => String(left.title).localeCompare(String(right.title)));
+}
+
+export async function handleUpNext(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  const refresh = ["1", "true", "yes"].includes(String(req.query.refresh || "").toLowerCase());
+  try {
+    if (!refresh && upNextCache.builtAt && Date.now() - upNextCache.builtAt < UP_NEXT_CACHE_TTL_MS) {
+      return sendJson(res, { items: upNextCache.items }, 200, { "Cache-Control": "private, max-age=60, stale-while-revalidate=120", Vary: "Authorization" });
+    }
+    const items = await buildUpNextItems();
+    upNextCache = { builtAt: Date.now(), items };
+    return sendJson(res, { items }, 200, { "Cache-Control": "private, max-age=60, stale-while-revalidate=120", Vary: "Authorization" });
+  } catch (error) {
+    console.error("Up Next request failed", error);
+    return sendJson(res, { error: error.message || "Up Next request failed" }, error.status || 500);
   }
 }
 

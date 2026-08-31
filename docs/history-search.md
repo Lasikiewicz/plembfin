@@ -96,14 +96,15 @@ watch date propagates the correction" behavior in [media-detail.md](media-detail
 
 ## Search page (`/search`)
 
-Global search across the local library, TMDB discovery **and** TVDB, reached from the
-topbar search or `/search?q=`.
+Global search across the local library, TMDB discovery, TMDB collections **and** TVDB,
+reached from the topbar search or `/search?q=`.
 
 | File | Role |
 | --- | --- |
-| `public/modules/explorer.js` | `triggerSearchPage`, `renderSearchPage` |
-| `server/src/index.js` | `handleMediaSearch` (`GET /api/media-search`), `handleTmdbSearch` (`GET /api/tmdb-search`), `handleTvdbSearch` (`GET /api/tvdb-search`) |
-| `server/src/utils/tmdbGateway.js` | `searchTmdb` with the `tmdb_search_cache` table (15-min TTL) |
+| `public/modules/explorer.js` | `triggerSearchPage`, `renderSearchPage`, `loadSearchCollection` |
+| `public/modules/media-card.js` | Shared collection-member media cards and deep links |
+| `server/src/index.js` | `handleMediaSearch` (`GET /api/media-search`), `handleTmdbCollection` (`GET /api/tmdb-collection`), `handleTmdbSearch` (`GET /api/tmdb-search`), `handleTvdbSearch` (`GET /api/tvdb-search`) |
+| `server/src/utils/tmdbGateway.js` | `searchTmdb` and `searchTmdbCollections` with the `tmdb_search_cache` table (15-min TTL); cached collection details |
 | `server/src/utils/tvdbGateway.js` | `searchTvdbSeriesList`, cached in `tvdb_metadata_cache` (7-day TTL for hits, 1 hour for misses) |
 
 Behavior:
@@ -143,17 +144,24 @@ Behavior:
   TVDB-only series via `/tvshow/tvdb/:id`. Detail pages reached this way offer Seerr
   requesting instead of watch history; the Seerr pill is absent for TVDB-only series,
   because Seerr requests are keyed on TMDB ids.
-- The filter chips (all / movies / shows / people) drive `state.searchFilter`; person
+- The filter chips (all / movies / shows / people / collections) drive `state.searchFilter`; person
   results open `/person/:id`.
-- The results page lays the three categories out as columns (`.search-columns` in
+- The results page lays the four categories out as columns (`.search-columns` in
   `styles.css`). Above 1200px the row is capped at the viewport height and each column
   scrolls its own list; below that the columns stack. The cap is a `max-height`, so
   short result sets size the panels to their content.
 - The topbar also has a compact search dropdown (wired in `app.js`) that reuses the
   same search plumbing and links to the full page.
+- TMDB collections/franchises are a distinct result type. A collection result can expand
+  in place to show its TMDB movie members, and each member uses the shared media-card
+  navigation contract. Collection details are cached for seven days and a failed expansion
+  does not discard the rest of the search results.
+- The filter chips include **Collections** alongside movies, TV shows, and people. Collection
+  membership is informational in this first slice; personal lists/watchlist actions remain
+  part of the later personal-tracking phase.
 
 ## Related state
 
 All paging/filter/observer state lives in `state` (`public/modules/state.js`):
-`historyView*` keys for the history page, `search*` / `globalSearch*` /
-`globalDiscoveryResults` for search.
+`historyView*` keys for the history page, `search*` / `searchCollection*` /
+`globalSearch*` / `globalDiscoveryResults` for search.

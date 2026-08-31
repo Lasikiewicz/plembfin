@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { db, parseJson, toJson } from "../db.js";
+import { bumpDiscoverVersion, db, parseJson, toJson } from "../db.js";
 import { fetchWithTimeout } from "./outbound.js";
 import { loadMediaConfig, loadRuntimeState, setRuntimeState } from "./configStore.js";
 import { cacheBackdropFromUrl, cacheLogoFromUrl, cachePosterFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "./posterCache.js";
@@ -12,10 +12,13 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const DETAILS_SCHEMA_VERSION = 14; // bumped: preserve TMDB network logo data when TVDB supplies the structural show record
 const PERSON_SCHEMA_VERSION = 5;
 const SEARCH_TTL_MS = 15 * 60 * 1000;
+const DISCOVERY_REVALIDATE_MIN_INTERVAL_MS = 10 * 60 * 1000;
 const MISSING_TTL_MS = DAY_MS;
 const PERSON_TTL_MS = 7 * DAY_MS;
 const PREWARM_INTERVAL_MS = 15 * 60 * 1000;
 const inflight = new Map();
+const discoveryRefreshes = new Map();
+const discoveryRefreshRequestedAt = new Map();
 let nextRequestAt = 0;
 let throttleTail = Promise.resolve();
 
@@ -590,6 +593,180 @@ export async function searchTmdb({ query, page = 1, mediaType = "multi" }) {
       const cleaned = { ...response, results: (response.results || []).filter((item) => ["movie", "tv", "person"].includes(item.media_type || type)) };
       searchSetStmt.run({ id: cacheKey, query, media_type: type, page: safePage, response: toJson(cleaned), missing: cleaned.results.length ? 0 : 1, updated_at_ms: Date.now() });
       return cleaned;
+    } catch (error) {
+      if (cached?.response) return { ...cached.response, cache_stale: true };
+      throw error;
+    }
+  });
+}
+
+export async function searchTmdbCollections({ query, page = 1 }) {
+  const safePage = Math.min(Math.max(Number(page) || 1, 1), 500);
+  const cleanQuery = String(query || "").trim();
+  const cacheKey = hash(`collection|${canonicalTitle(cleanQuery)}|${safePage}`);
+  return collapse(`search:${cacheKey}`, async () => {
+    const row = searchGetStmt.get(cacheKey);
+    const cached = row ? { response: parseJson(row.response), missing: Boolean(row.missing), updatedAtMs: row.updated_at_ms } : null;
+    const ttl = cached?.missing ? MISSING_TTL_MS : SEARCH_TTL_MS;
+    if (cached && fresh(cached, ttl)) return cached.response;
+    try {
+      const response = await upstream("search/collection", { query: cleanQuery, page: safePage, include_adult: false });
+      const cleaned = { ...response, results: (response.results || []).filter((item) => item?.id) };
+      searchSetStmt.run({ id: cacheKey, query: cleanQuery, media_type: "collection", page: safePage, response: toJson(cleaned), missing: cleaned.results.length ? 0 : 1, updated_at_ms: Date.now() });
+      return cleaned;
+    } catch (error) {
+      if (cached?.response) return { ...cached.response, cache_stale: true };
+      throw error;
+    }
+  });
+}
+
+export async function getTmdbCollection(collectionId) {
+  const id = String(collectionId || "").trim();
+  if (!/^\d+$/.test(id)) {
+    const error = new Error("A valid TMDB collection id is required");
+    error.status = 400;
+    throw error;
+  }
+  return collapse(`collection:${id}`, async () => {
+    const cacheId = `collection_details_${id}`;
+    const cached = metaGet(cacheId);
+    if (cached?.details && fresh(cached, 7 * DAY_MS)) return cached.details;
+    try {
+      const response = await upstream(`collection/${id}`, {});
+      const details = {
+        id: response.id,
+        name: response.name || "",
+        overview: response.overview || "",
+        poster_path: response.poster_path || "",
+        backdrop_path: response.backdrop_path || "",
+        parts: (response.parts || []).filter((item) => item?.id).slice(0, 40),
+      };
+      metaSet(cacheId, { tmdbId: id, mediaType: "collection", title: details.name, details, schemaVersion: DETAILS_SCHEMA_VERSION, updatedAtMs: Date.now() });
+      return details;
+    } catch (error) {
+      if (cached?.details) return { ...cached.details, cache_stale: true };
+      throw error;
+    }
+  });
+}
+
+function discoveryCacheResponse(cacheKey) {
+  const row = searchGetStmt.get(cacheKey);
+  if (!row) return null;
+  return { response: parseJson(row.response), missing: Boolean(row.missing), updatedAtMs: row.updated_at_ms };
+}
+
+function discoveryRequest({ mediaType = "all", genreId = "" } = {}) {
+  const type = ["movie", "tv", "all"].includes(String(mediaType).toLowerCase())
+    ? String(mediaType).toLowerCase()
+    : "all";
+  const genre = /^\d+$/.test(String(genreId || "")) ? String(genreId) : "";
+  // Version the key when the rail shape changes so an older cached response
+  // cannot leave the client with fewer than the current four sections.
+  return { type, genre, cacheKey: hash(`discover:v2|${type}|${genre}`) };
+}
+
+function discoverySpecs(type, genre) {
+  // Keep the Discover page predictable: it always receives four rails. The
+  // type selector changes the four rails to the selected medium rather than
+  // leaving a sparse two-rail page, while a genre swaps the secondary
+  // popularity rail for a genre-specific one.
+  const specs = [];
+  if (type === "all") {
+    specs.push(["trending_movies", "trending/movie/week", { include_adult: false }, "movie"]);
+    specs.push(["trending_shows", "trending/tv/week", { include_adult: false }, "tv"]);
+    if (genre) {
+      specs.push(["genre_movies", "discover/movie", { page: 1, include_adult: false, with_genres: genre, sort_by: "popularity.desc" }, "movie"]);
+      specs.push(["genre_shows", "discover/tv", { page: 1, include_adult: false, with_genres: genre, sort_by: "popularity.desc" }, "tv"]);
+    } else {
+      specs.push(["new_movies", "movie/now_playing", { page: 1, include_adult: false }, "movie"]);
+      specs.push(["new_shows", "tv/airing_today", { page: 1, include_adult: false }, "tv"]);
+    }
+  } else if (type === "movie") {
+    specs.push(["trending_movies", "trending/movie/week", { include_adult: false }, "movie"]);
+    specs.push([genre ? "genre_movies" : "popular_movies", "discover/movie", {
+      page: 1,
+      include_adult: false,
+      ...(genre ? { with_genres: genre } : {}),
+      sort_by: "popularity.desc",
+    }, "movie"]);
+    specs.push(["new_movies", "movie/now_playing", { page: 1, include_adult: false }, "movie"]);
+    specs.push(["upcoming_movies", "movie/upcoming", { page: 1, include_adult: false }, "movie"]);
+  } else {
+    specs.push(["trending_shows", "trending/tv/week", { include_adult: false }, "tv"]);
+    specs.push([genre ? "genre_shows" : "popular_shows", "discover/tv", {
+      page: 1,
+      include_adult: false,
+      ...(genre ? { with_genres: genre } : {}),
+      sort_by: "popularity.desc",
+    }, "tv"]);
+    specs.push(["new_shows", "tv/airing_today", { page: 1, include_adult: false }, "tv"]);
+    specs.push(["on_air_shows", "tv/on_the_air", { page: 1, include_adult: false }, "tv"]);
+  }
+  return specs;
+}
+
+async function refreshDiscoveryCache(request) {
+  const entries = await Promise.all(discoverySpecs(request.type, request.genre).map(async ([key, path, params, itemType]) => {
+    const response = await upstream(path, params);
+    const results = (response.results || []).filter((item) => item?.id).slice(0, 30).map((item) => ({
+      ...item,
+      media_type: itemType,
+    }));
+    return [key, { page: response.page || 1, total_pages: response.total_pages || 1, results }];
+  }));
+  const payload = { media_type: request.type, genre_id: request.genre, feeds: Object.fromEntries(entries) };
+  const hasResults = entries.some(([, feed]) => feed.results.length);
+  const previous = discoveryCacheResponse(request.cacheKey)?.response || null;
+  searchSetStmt.run({
+    id: request.cacheKey,
+    query: request.genre,
+    media_type: `discover:${request.type}`,
+    page: 1,
+    response: toJson(payload),
+    missing: hasResults ? 0 : 1,
+    updated_at_ms: Date.now(),
+  });
+  if (JSON.stringify(previous) !== JSON.stringify(payload)) bumpDiscoverVersion();
+  return payload;
+}
+
+function beginDiscoveryRefresh(request, { force = false } = {}) {
+  const existing = discoveryRefreshes.get(request.cacheKey);
+  if (existing) return existing;
+
+  const lastRequestedAt = Number(discoveryRefreshRequestedAt.get(request.cacheKey) || 0);
+  if (!force && Date.now() - lastRequestedAt < DISCOVERY_REVALIDATE_MIN_INTERVAL_MS) return null;
+  discoveryRefreshRequestedAt.set(request.cacheKey, Date.now());
+
+  const promise = refreshDiscoveryCache(request).finally(() => {
+    discoveryRefreshes.delete(request.cacheKey);
+  });
+  discoveryRefreshes.set(request.cacheKey, promise);
+  // Background revalidation is intentionally detached from the request. Mark
+  // the rejection as handled while retaining the original promise for a
+  // forced request that arrives before the refresh completes.
+  promise.catch((error) => {
+    console.warn(`Discover cache refresh failed for ${request.type}${request.genre ? ` / genre ${request.genre}` : ""}: ${error.message}`);
+  });
+  return promise;
+}
+
+export async function getTmdbDiscovery({ mediaType = "all", genreId = "", force = false, revalidate = false } = {}) {
+  const request = discoveryRequest({ mediaType, genreId });
+  return collapse(`discover:${request.cacheKey}`, async () => {
+    const cached = discoveryCacheResponse(request.cacheKey);
+    if (!force && cached?.response) {
+      if (revalidate) {
+        if (!fresh(cached, SEARCH_TTL_MS)) beginDiscoveryRefresh(request);
+        return cached.response;
+      }
+      if (fresh(cached, SEARCH_TTL_MS)) return cached.response;
+    }
+
+    try {
+      return await beginDiscoveryRefresh(request, { force: true });
     } catch (error) {
       if (cached?.response) return { ...cached.response, cache_stale: true };
       throw error;

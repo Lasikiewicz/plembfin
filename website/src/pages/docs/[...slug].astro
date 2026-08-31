@@ -1,0 +1,114 @@
+---
+import { getCollection } from "astro:content";
+import SiteLayout from "../../layouts/SiteLayout.astro";
+import DocsSidebar from "../../components/DocsSidebar.astro";
+import DocsPageRail from "../../components/DocsPageRail.astro";
+import DocsArticleSearch from "../../components/DocsArticleSearch.astro";
+import { flatDocs } from "../../data/site.js";
+
+export async function getStaticPaths() {
+  const entries = await getCollection("docs");
+  return entries.map((entry) => ({
+    params: { slug: entry.slug },
+    props: { entry },
+  }));
+}
+
+const { entry } = Astro.props;
+const { Content } = await entry.render();
+const currentIndex = flatDocs.findIndex((item) => item.slug === entry.slug);
+const previous = currentIndex > 0 ? flatDocs[currentIndex - 1] : null;
+const next = currentIndex >= 0 && currentIndex < flatDocs.length - 1 ? flatDocs[currentIndex + 1] : null;
+const sourceLinks = entry.data.sourcePaths;
+const browserTitle = entry.slug === "history-search" ? "History and global search" : entry.data.title;
+---
+
+<SiteLayout title={browserTitle} description={entry.data.description}>
+  <div class="docs-shell docs-shell--article">
+    <DocsSidebar currentSlug={entry.slug} />
+    <article class="docs-main">
+      <header class="article-header">
+        <div class="article-heading">
+          <h1>{entry.data.title}</h1>
+          <p>{entry.data.description}</p>
+        </div>
+      </header>
+      <DocsArticleSearch />
+      <div class="article-body">
+        <Content />
+      </div>
+      <nav class="article-next" aria-label="Documentation pagination">
+        {previous ? <a class="button-secondary" href={`/docs/${previous.slug}/`}>{previous.label}</a> : <span></span>}
+        <button class="back-to-top" type="button" data-back-to-top hidden>Back to top</button>
+        {next ? <a class="button-secondary" href={`/docs/${next.slug}/`}>{next.label}</a> : <a class="button-secondary" href="/docs/">Back to documentation</a>}
+      </nav>
+    </article>
+    <DocsPageRail sourceVersion={entry.data.sourceVersion} sourceCount={sourceLinks.length} />
+  </div>
+</SiteLayout>
+
+<script>
+  const getHashTarget = () => {
+    const hash = window.location.hash.slice(1);
+    if (!hash) return null;
+
+    try {
+      return document.getElementById(decodeURIComponent(hash));
+    } catch {
+      return null;
+    }
+  };
+
+  const scrollToHashTarget = (behavior = "auto") => {
+    const target = getHashTarget();
+    if (!(target instanceof HTMLElement)) return;
+
+    const header = document.querySelector(".site-header");
+    const offset = (header instanceof HTMLElement ? header.getBoundingClientRect().height : 0) + 16;
+    const top = target.getBoundingClientRect().top + window.scrollY - offset;
+    window.scrollTo({ top: Math.max(0, top), behavior });
+  };
+
+  const scheduleHashScroll = (behavior = "auto") => {
+    const align = () => {
+      scrollToHashTarget(behavior);
+      window.setTimeout(() => scrollToHashTarget("auto"), 180);
+      window.setTimeout(() => scrollToHashTarget("auto"), 600);
+    };
+
+    window.requestAnimationFrame(() => {
+      align();
+      if (document.fonts?.ready) document.fonts.ready.then(() => scrollToHashTarget("auto"));
+    });
+  };
+
+  document.addEventListener("click", (event) => {
+    if (!(event.target instanceof Element)) return;
+
+    const link = event.target.closest("a[href]");
+    if (!(link instanceof HTMLAnchorElement)) return;
+
+    const url = new URL(link.href, window.location.href);
+    if (url.origin !== window.location.origin || url.pathname !== window.location.pathname || !url.hash) return;
+
+    let targetId = "";
+    try {
+      targetId = decodeURIComponent(url.hash.slice(1));
+    } catch {
+      return;
+    }
+
+    const target = document.getElementById(targetId);
+    if (!(target instanceof HTMLElement)) return;
+
+    event.preventDefault();
+    window.history.pushState({}, "", `${url.pathname}${url.search}${url.hash}`);
+    window.dispatchEvent(new Event("hashchange"));
+    scrollToHashTarget("smooth");
+  });
+
+  window.addEventListener("hashchange", () => scheduleHashScroll("smooth"));
+  window.addEventListener("load", () => scheduleHashScroll());
+  scheduleHashScroll();
+  window.setTimeout(() => scheduleHashScroll(), 120);
+</script>

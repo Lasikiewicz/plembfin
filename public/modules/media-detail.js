@@ -1,21 +1,21 @@
 import { state, elements } from "./state.js";
 import { slug, movieSlug, movieHref, movieTmdbHref, tvShowTmdbHref, showName, showTitleFrom } from "./utils.js";
-import { dedupeMediaRecords } from "./dashboard.js?v=20260826b";
+import { dedupeMediaRecords } from "./dashboard.js?v=20260831m";
 import { isWatchedHistoryAction } from "./sync.js";
 import {
   initMediaDetail, authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions,
   prepareInlineMediaDetail, syncMediaActionsMenuState, syncTopbarControlsMenuState,
   openDebugModal, closeDebugModal, clearMediaDetailState, closeMediaDetail,
   openMediaInfoModal, closeMediaInfoModal,
-} from "./media-detail-context.js?v=20260810";
+} from "./media-detail-context.js?v=20260831c";
 import {
   openShowImmersiveModalByTitle, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openShowInlineDetail,
   renderImmersiveShowModal, renderShowModalContent, scrollSeasonAccordionIntoView,
-} from "./media-detail-show.js?v=20260824h";
+} from "./media-detail-show.js?v=20260831o";
 import {
   renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, patchMovieWatchedState,
-} from "./media-detail-movie.js?v=20260821";
-import { fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail-shared.js";
+} from "./media-detail-movie.js?v=20260831f";
+import { fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail-shared.js?v=20260831j";
 import { fetchTmdbDetails } from "./tmdb.js?v=20260823";
 
 export {

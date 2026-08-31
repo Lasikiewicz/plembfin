@@ -52,10 +52,11 @@ new metadata requests.
 | TV Shows library page | `public/modules/explorer.js`, `queryShows`, `showProgressCache.js`, `nextAiringCache.js` | [tv-shows.md](tv-shows.md) |
 | Upcoming episode calendar | `public/modules/upcoming.js`, `handleUpcoming` in `routes/metadata.js`, `upcomingCalendarCache.js`, `nextAiringCache.js` | [upcoming.md](upcoming.md) |
 | Movie/show/person detail pages | `public/modules/media-detail*.js`, `media-person.js` | [media-detail.md](media-detail.md) |
+| Personal media pages | `public/modules/personal-media.js`, `handlePersonalMedia` in `routes/personal.js` | [frontend.md](frontend.md) |
 | History page, Search page | `public/modules/explorer.js`, `handleHistory` in `routes/media.js`, `handleMediaSearch` in `routes/metadata.js` | [history-search.md](history-search.md) |
 | Stats page | `public/modules/stats.js`, `getWatchStats` in `dataRepo.js` | [stats.md](stats.md) |
 | TMDB/TVDB/Fanart/OMDb metadata | `server/src/routes/metadata.js`, `server/src/utils/tmdbGateway.js`, `tvdbGateway.js`, `fanartGateway.js`, `omdbGateway.js` | [metadata.md](metadata.md) |
-| Posters, backdrops, logos, artwork caching | `server/src/utils/posterCache.js`, `handlePoster` in `routes/metadata.js`, `public/modules/images.js` | [posters-artwork.md](posters-artwork.md) |
+| Posters, backdrops, logos, artwork caching | `server/src/utils/posterCache.js`, `server/src/utils/mediaArtwork.js`, `handlePoster` in `routes/metadata.js`, `public/modules/images.js` | [posters-artwork.md](posters-artwork.md) |
 | Backups (all three subsystems) | `server/src/routes/backups.js`, `server/src/utils/backup.js`, `watchHistoryBackups.js`, `plembfinBackups.js`, `backupDestinations/`, `public/modules/tools-backups.js` | [backups.md](backups.md) |
 | Settings pages, connection config | `server/src/routes/admin.js`, `server/src/utils/configStore.js`, `public/modules/settings-shell.js`, `public/modules/settings-ui.js`, `public/modules/settings-services.js`, `public/modules/tools-backups.js` | [settings.md](settings.md) |
 | Login, sessions, API key, webhook secret | `server/src/utils/auth.js`, `server/src/appConfig.js`, `public/modules/auth.js` | [auth.md](auth.md) |
@@ -100,7 +101,7 @@ Repository files relevant to the application, build, and operations, grouped by 
 | File | What it is |
 | --- | --- |
 | `workflows/update-changelog.yml` (workflow name "Publish Main Release") | On every push to `main`: runs the full build gate, reads the version already committed by "Force to main" (`scripts/promote-alpha-to-main.js`, run locally before the push), and builds/pushes the Docker image to GHCR tagged `latest` + the version. Does not write anything back to the branch. |
-| `workflows/docker-publish-alpha.yml`, `workflows/docker-publish-develop.yml` | The same shape for `alpha`/`develop`: verify, then build/push a rolling image (`alpha`/`alpha-<build>`, `develop`/`develop-<build>`) using the build number already committed by "Force to alpha" / "Push to git". Neither writes anything back to its branch. |
+| `workflows/docker-publish-alpha.yml`, `workflows/docker-publish-develop.yml` | The same shape for `alpha`/`develop`: verify, then build/push a rolling image (`alpha`/`alpha-<build>`, `develop`/`develop-<build>`) using the build number already committed by "Force to alpha" / "Push to git". Neither writes anything back to its branch. `docker-publish-develop.yml` has `paths-ignore` for `changelog.develop.json`/`changelog.alpha.json`, since "Force to alpha" step 4 pushes to `develop` with only those two files changed - the app's own live remote-fetch changelog comparison reads that file straight from GitHub regardless of whether a new image was built, so that push was never meant to also trigger a full rebuild. |
 | `workflows/docker-publish.yml` | Manual (`workflow_dispatch`) Docker build & push to GHCR, without touching the changelog. |
 | `workflows/security.yml` | `npm audit` (high+) and CodeQL on push/PR/daily schedule. |
 | `workflows/secret-scan.yml` | TruffleHog verified-secret scan on push/PR. |
@@ -143,14 +144,14 @@ See [README.md](README.md) for the documentation index, including this file
 | `wipeData.js` | Wipe data handlers (`GET /api/wipe-data/preview`, `POST /api/wipe-data`): Watch History, Sync History & Logs, Everything Tracked, and Wipe All / Fresh Start (also clears every remaining table, deletes cached artwork, and resets `data/config.json` via `appConfig.js`'s `resetAdminAccount()`). Kept separate from `maintenance.js`, which is already near its size limit. |
 | `mediaAuth.js` | Browser-session-only Plex account, Emby account, and Jellyfin Quick Connect/account flows; verifies identities and persists encrypted managed connections. |
 | `trackerAuth.js` | Trakt device authorization, initial-state policy, connection status/disconnect, and manual tracker synchronization. |
-| `liveUpdates.js` | Authenticated streaming endpoint that emits shared history-version changes so open pages refresh as watch-state commits land. |
+| `liveUpdates.js` | Authenticated streaming endpoint that emits shared history and Discover-cache version changes so open pages refresh as local state or feed snapshots change. |
 | `onboarding.js` | Guided-setup API: aggregated `/api/setup/status`, step/acknowledgement persistence, background-import start/cancel, completion, restart, and checklist dismissal. |
 
 ### `server/src/utils/`
 
 | File | What it is |
 | --- | --- |
-| `dataRepo.js` | **The data repository** - pure SQLite. All prepared-statement CRUD for watch history, playstate, playback progress, live tracking cache; the memoized derived caches (`getCachedHistory/Movies/Shows`, `getWatchStats`); `mediaKeyFor` canonical keys; query functions behind `/api/history`, `/api/movies`, `/api/shows`, `/api/show`; dedup/merge/rematch/backfill helpers. |
+| `dataRepo.js` | **The data repository** - pure SQLite. All prepared-statement CRUD for watch history, playstate, playback progress, live tracking cache; the memoized derived caches (`getCachedHistory/Movies/Shows`, `getWatchStats`); canonical show-poster enrichment; `mediaKeyFor` canonical keys; query functions behind `/api/history`, `/api/movies`, `/api/shows`, `/api/show`; dedup/merge/rematch/backfill helpers. |
 | `parsers.js` | Webhook normalization: `parsePlexWebhook` (multipart), `parseEmbyWebhook`, `parseJellyfinWebhook`, `parseCustomWebhook` → a unified `media` object with a `phase` field (`active`/`completed`/`ended`/`unplayed`/`ignored`). Also `parsePlexGuids`, `normalizeProviderIds`, `decodeHtmlEntities`, `buildPlexMediaFromMetadata`. See [webhooks.md](webhooks.md). |
 | `resumeAuthority.js` | Shared ordering rules for resume candidates versus canonical watched/unwatched state: same-position acknowledgement matching, reliable source/receipt timestamps, stored-progress deletion authority, and Emby/Jellyfin ambiguous `UserDataSaved` phase resolution. |
 | `syncOrchestrator.js` | Cross-platform propagation: `syncMediaPlaystate` / `syncMediaUnplayedPlaystate` / `syncMediaProgress` fan out normal events to the other platforms' clients, while `syncCanonicalPlaystate` replays Plembfin's state to every configured destination; all use `TARGETS_BY_SOURCE` routing, echo-loop detection via `loopStore.checkAndClaim`, and result summaries written to telemetry. |
@@ -234,14 +235,17 @@ See [README.md](README.md) for the documentation index, including this file
 | `settings-services.js` | Media-server and metadata-provider card grids, edit dialogs, config saves, connection tests, and the inline Sync Tuning form. |
 | `settings-shell.js` | Owns hierarchical settings routes (parent groups + child sections), multi-view panel aggregation, legacy aliases, the landing list, sidebar/mobile navigation, section-scoped scrolling, and tools disclosures. |
 | `tracker-settings.js` | Trakt device-code connection, initial baseline/import policy, connection state, personal-app fallback, and Sync Now controls. |
-| `live-updates.js` | Authenticated watch-state version stream, reconnect/backoff, and debounced active-view refresh. |
+| `live-updates.js` | Authenticated watch-state/personal-media and Discover-cache version stream, reconnect/backoff, and debounced background data refresh with targeted visible-row reconciliation. |
 | `logs.js` | Frontend debug-log store (localStorage ring buffer) + fetching backend diagnostic logs. |
 | `images.js` | Poster/artwork frontend: `posterMarkup` (with its loading skeleton), `hydratePosterFallbacks`, `/api/poster` lookups with a persistent cache, TMDB image URL builders, `proxiedArtworkUrl`, `isCachedStorageImageUrl`. See [posters-artwork.md](posters-artwork.md). |
 | `sync.js` | Now Playing polling + rendering, sync-status pills/telemetry parsing, sync jobs + sync history panels, cron/force-sync triggers. |
 | `sync-activity.js` | The always-present sidebar sync indicator (Idle / N of M) and the `/sync-activity` page: per-media rows from `/api/sync-history` newest first, source-to-target route line, icon-plus-status target results (`activityPlatform` names trackers as well as media servers, so Trakt is not folded into Plex), targeted retry for failed/skipped destinations, a "Retry all failed" background job covering the whole history, title links to the media page, click-to-expand inline logs, and the per-item log download. See [dashboard.md](dashboard.md). |
-| `dashboard.js` | Dashboard rendering: Now Playing grid, recent-history rows, part-watched (continue watching) rail. See [dashboard.md](dashboard.md). |
+| `dashboard.js` | Dashboard rendering: Now Playing grid, recent-history rows, and media-type-aware Part Watched subsections inside Watch History. See [dashboard.md](dashboard.md). |
+| `media-card.js` | Shared media-card normalization/rendering for Up Next, Discover, collection members, and later list/library surfaces. |
+| `up-next.js` | Dashboard Up Next loader/rendering backed by released-episode selection and the shared media-card contract. See [dashboard.md](dashboard.md). |
+| `discover.js` | `/discover` deterministic TMDB feeds, type/genre filters, browser/server cache hydration, SSE refresh, error/empty states, and poster hydration. See [metadata.md](metadata.md). |
 | `stats.js` | Stats page: KPI cards, leaderboards, platform split, month chart, yearly/monthly review reports. See [stats.md](stats.md). |
-| `explorer.js` | Movies grid, TV Shows grid, History page, Search page: paging, sorting, filters, IntersectionObserver infinite scroll, TMDB prefetch. See [movies.md](movies.md), [tv-shows.md](tv-shows.md), [history-search.md](history-search.md). |
+| `explorer.js` | Movies grid, TV Shows grid, History page, Search page: paging, sorting, filters, collection expansion, IntersectionObserver infinite scroll, TMDB prefetch. See [movies.md](movies.md), [tv-shows.md](tv-shows.md), [history-search.md](history-search.md). |
 | `poster-menu.js` | Builds and positions the poster three-dot overflow dropdown (Edit watch date / Fix match / Mark unwatched), portaled to `<body>` so it isn't clipped by a card's `overflow: hidden`. See [movies.md](movies.md#frontend-behavior). |
 | `upcoming.js` | Upcoming page: scrolling month calendar of historical and future TV episode air dates that opens on the current week, search, outside-month matches, poster hydration, and show navigation. See [upcoming.md](upcoming.md). |
 | `media-detail.js` | Detail-page entry points: open movie/show detail by id/slug/TMDB id, lookups, modal-close routing. |
@@ -568,12 +572,13 @@ rather than a version string.
 `better-sqlite3` opens `data/plembfin.db` in WAL mode and applies `schema.sql` on
 boot. All database access uses prepared statements.
 
-**Cross-process memoization:** derived caches are keyed by a monotone version in
-`cache_versions`, polled at most every 500 ms. SQLite triggers advance it in the same
-transaction as canonical watch-state writes; `bumpDataVersion()` also supports
-file-backed derived changes. The next read reloads from SQLite. This works
-because Plembfin is a single long-lived process - never assume a second process can
-share these caches.
+**Cross-process memoization:** derived caches are keyed by monotone versions in
+`cache_versions`, polled at most every 500 ms. SQLite triggers advance `history` in the
+same transaction as canonical watch-state writes; Discover cache writes advance its
+separate `discover` generation only when the feed payload changes. `bumpDataVersion()`
+also supports file-backed derived changes. The next read reloads from SQLite. This
+works because Plembfin is a single long-lived process - never assume a second process
+can share these caches.
 
 Gotcha: `getCachedHistory()`, `getCachedMovies()`, and `getCachedShows()` rebuild full
 history-derived result sets after invalidation. That is acceptable for current local
@@ -602,7 +607,7 @@ Full detail: [auth.md](auth.md).
   feature code split across `public/modules/` and `app.js` kept to startup,
   routing, shared callbacks, and element binding.
 - SPA navigation via `navigateTo(url)` / `handleRouting()` / `history.pushState`.
-  Routes: `/` dashboard, `/movies`, `/tvshows`, `/upcoming`, `/history`, `/stats`,
+  Routes: `/` dashboard, `/movies`, `/tvshows`, `/upcoming`, `/discover`, `/watchlist`, `/ratings`, `/custom-lists`, `/history`, `/stats`,
   `/sync-activity`,
   `/search`, `/settings` and `/settings/:section` (plus `/sync`, `/logs`, and retired
   grouped settings aliases), `/movie/:id`,
