@@ -352,7 +352,10 @@ async function pollTrakt({ reconcile = false } = {}) {
   // unwatch cannot hide a newer watch (or vice versa).
   const protectedMissing = new Map();
   const unwatchedCandidates = [];
-  if (baseline) {
+  // An explicit reconciliation is a one-way repair: anything currently
+  // watched on Trakt is restored locally, but an incomplete/filtered Trakt
+  // response must not be interpreted as thousands of remote unwatches.
+  if (baseline && !reconcile) {
     const echoCutoff = Date.now() - OUTBOUND_ECHO_WINDOW_MS;
     const recentOutbound = buildRecentOutboundIndex(previous, echoCutoff);
     for (const item of previousForDiff) {
@@ -498,6 +501,7 @@ async function pollTrakt({ reconcile = false } = {}) {
 
   return {
     skipped: false,
+    reconcile,
     baselineEstablished: !baseline,
     watched: watched.length - deferredWatched,
     unwatched: appliedUnwatched,

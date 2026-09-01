@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 import { DB_PATH, ensureDataDirs } from "./paths.js";
 import { repairPhantomWatchBursts } from "./utils/phantomWatchRepair.js";
+import { activityGroupKeyFor } from "./utils/syncActivityIdentity.js";
 
 ensureDataDirs();
 
@@ -491,7 +492,67 @@ const migrations = [
       }
     },
   },
+  {
+    id: 18,
+    up(database) {
+      const columns = new Set(database.pragma("table_info(sync_history)").map((column) => column.name));
+      if (!columns.has("activity_group_key")) {
+        database.exec("ALTER TABLE sync_history ADD COLUMN activity_group_key TEXT");
+      }
+
+      const rows = database.prepare("SELECT id, media_type, title, source, action, target_states, raw_payload_debug FROM sync_history WHERE activity_group_key IS NULL OR activity_group_key = ''").all();
+      const update = database.prepare("UPDATE sync_history SET activity_group_key = ? WHERE id = ?");
+      for (const row of rows) {
+        update.run(activityGroupKeyFor({
+          mediaType: row.media_type,
+          title: row.title,
+          source: row.source,
+          action: row.action,
+          targetStates: parseJsonValue(row.target_states, []),
+          rawPayloadDebug: parseJsonValue(row.raw_payload_debug, {}),
+        }), row.id);
+      }
+      database.exec("CREATE INDEX IF NOT EXISTS idx_sync_history_activity_group ON sync_history(activity_group_key, timestamp DESC, id DESC)");
+    },
+  },
+  {
+    id: 19,
+    up(database) {
+      const columns = new Set(database.pragma("table_info(sync_history)").map((column) => column.name));
+      if (!columns.has("activity_group_key")) return;
+
+      // Migration 18 originally keyed episodes by show + season + episode.
+      // Recompute every row with the final show-level identity so databases
+      // that already ran that migration receive the same grouping as fresh
+      // installs. Do not pass the stored key back into the helper: it may be
+      // one of those older episode-level keys.
+      const rows = database.prepare("SELECT id, media_type, title, source, action, target_states, raw_payload_debug FROM sync_history").all();
+      const update = database.prepare("UPDATE sync_history SET activity_group_key = ? WHERE id = ?");
+      for (const row of rows) {
+        const activityGroupKey = activityGroupKeyFor({
+          mediaType: row.media_type,
+          title: row.title,
+          source: row.source,
+          action: row.action,
+          targetStates: parseJsonValue(row.target_states, []),
+          rawPayloadDebug: parseJsonValue(row.raw_payload_debug, {}),
+        });
+        if (activityGroupKey) update.run(activityGroupKey, row.id);
+      }
+      database.exec("CREATE INDEX IF NOT EXISTS idx_sync_history_activity_group ON sync_history(activity_group_key, timestamp DESC, id DESC)");
+    },
+  },
 ];
+
+function parseJsonValue(value, fallback) {
+  if (value == null) return fallback;
+  try {
+    const parsed = JSON.parse(value);
+    return parsed ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 function runSchemaMigrations() {
   db.exec("CREATE TABLE IF NOT EXISTS schema_migrations (id INTEGER PRIMARY KEY, applied_at INTEGER)");

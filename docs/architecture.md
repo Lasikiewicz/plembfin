@@ -313,7 +313,7 @@ directory are linked from the app's Reddit developer-platform listing.
 | `mediaForceSync.test.js` | Title-scoped Force Sync mode/target normalization, watched Plex/Emby item shaping, and duplicate-quality Jellyfin episode matching. |
 | `mediaForceSyncTrackerPhases.test.js` | Local-first detail Force Sync ordering, independently bounded Trakt work, combined partial outcomes, and cancellation of queued tracker items. |
 | `scheduledResumeAuthority.test.js` | Timestamp and canonical-state precedence for webhook and scheduled resume candidates, including stale acknowledgements and explicit unwatches. |
-| `syncRetry.test.js` | Scheduled-dispatch retry backoff schedule/eligibility, retry columns, `sync_history` retention pruning. |
+| `syncRetry.test.js` | Scheduled-dispatch retry backoff schedule/eligibility, retry columns, permanent `sync_history` pagination. |
 | `bulkMarkWatchedPerformance.test.js` | Bulk-watch dispatch identity grouping, scheduler deferral threshold, provider fan-out, and single-flight series/episode lookup coverage. |
 | `metadataCaches.test.js` | Fanart response cache (hits and negative misses), TMDB details cache freshness, light-vs-full cache row semantics. |
 | `exportPlexHistory.test.js` | The standalone Plex history export script's episode-record shaping (specials season zero). |

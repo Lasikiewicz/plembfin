@@ -727,6 +727,7 @@ export async function handleAlphaFilterClick(e) {
 // Reset helpers
 // ---------------------------------------------------------------------------
 export function resetMovieExplorer(key = explorerQueryKey("movies")) {
+  state.moviesRequestVersion += 1;
   state.moviesRaw = [];
   state.moviesOffset = 0;
   state.moviesHasMore = true;
@@ -735,12 +736,19 @@ export function resetMovieExplorer(key = explorerQueryKey("movies")) {
   state.explorerScrollArmed = false;
 }
 export function resetShowExplorer(key = explorerQueryKey("shows")) {
+  state.showsRequestVersion += 1;
   state.showsRaw = [];
   state.showsOffset = 0;
   state.showsHasMore = true;
   state.showsLoading = false;
   state.showsQueryKey = key;
   state.explorerScrollArmed = false;
+}
+
+function isCurrentExplorerRoute(mode) {
+  return state.activeView === "explorer"
+    && state.explorerMode === mode
+    && !state.mediaDetailInline;
 }
 // ---------------------------------------------------------------------------
 // Scroll sentinel
@@ -1127,7 +1135,7 @@ function renderMovieOverviewCard(movie) {
 // Movie explorer
 // ---------------------------------------------------------------------------
 export function renderMovieExplorer() {
-  if (state.mediaDetailInline) return;
+  if (!isCurrentExplorerRoute("movies")) return;
   const key = explorerQueryKey("movies");
   if (state.moviesQueryKey !== key) resetMovieExplorer(key);
   if (!state.moviesRaw.length && state.moviesHasMore && !state.moviesLoading && state.token) {
@@ -1148,6 +1156,7 @@ export function renderMovieExplorer() {
 }
 export async function loadExplorerMovies() {
   if (state.moviesLoading || !state.moviesHasMore) return;
+  const requestVersion = state.moviesRequestVersion;
   state.moviesLoading = true;
   renderMovieExplorer();
   try {
@@ -1172,12 +1181,14 @@ export async function loadExplorerMovies() {
       if (!res.ok) throw new Error(body.error || `Movies load failed ${res.status}`);
       rememberExplorerPage(cacheKey, body);
     }
+    if (requestVersion !== state.moviesRequestVersion) return;
     const movies = Array.isArray(body.movies) ? body.movies : [];
     state.moviesRaw = dedupeMediaRecords([...state.moviesRaw, ...movies], "movies");
     state.moviesOffset += movies.length;
     state.moviesHasMore = movies.length === EXPLORER_PAGE_SIZE;
     if (state.moviesHasMore) state.explorerScrollArmed = true;
   } finally {
+    if (requestVersion !== state.moviesRequestVersion) return;
     state.moviesLoading = false;
     renderMovieExplorer();
   }
@@ -1197,7 +1208,8 @@ export async function loadExplorerMovies() {
 // existing <img> preservation keeps already-loaded posters from reloading for
 // every id present in both the old and new list.
 export async function refreshMovieExplorerInPlace() {
-  if (state.mediaDetailInline || state.moviesLoading) return;
+  if (!isCurrentExplorerRoute("movies") || state.moviesLoading) return;
+  const requestVersion = state.moviesRequestVersion;
   const loadedCount = Math.max(state.moviesOffset, EXPLORER_PAGE_SIZE);
   const url = new URL("/api/movies", window.location.origin);
   url.searchParams.set("limit", String(loadedCount));
@@ -1212,6 +1224,7 @@ export async function refreshMovieExplorerInPlace() {
   } catch {
     return; // Leave the current list showing rather than clobber it on a failed refresh.
   }
+  if (requestVersion !== state.moviesRequestVersion || !isCurrentExplorerRoute("movies")) return;
   const movies = Array.isArray(body.movies) ? body.movies : [];
   state.moviesRaw = dedupeMediaRecords(movies, "movies");
   state.moviesOffset = movies.length;
@@ -1222,6 +1235,7 @@ export async function refreshMovieExplorerInPlace() {
 // Same idea as refreshMovieExplorerInPlace(), for the flat History page/grid.
 export async function refreshHistoryViewInPlace() {
   if (state.historyViewLoading) return;
+  const requestVersion = state.historyViewRequestVersion;
   const loadedCount = Math.max(state.historyViewOffset, EXPLORER_PAGE_SIZE);
   const url = new URL("/api/history", window.location.origin);
   url.searchParams.set("limit", String(loadedCount));
@@ -1239,6 +1253,7 @@ export async function refreshHistoryViewInPlace() {
   } catch {
     return;
   }
+  if (requestVersion !== state.historyViewRequestVersion || state.activeView !== "history") return;
   const historyItems = Array.isArray(body.history) ? body.history : [];
   state.historyViewRaw = historyItems;
   state.historyViewOffset = historyItems.length;
@@ -1256,6 +1271,7 @@ export function applyHistoryPosterWidth() {
   if (elements.historyPosterSize) elements.historyPosterSize.value = parseInt(saved) || 150;
 }
 export function resetHistoryView(key = "") {
+  state.historyViewRequestVersion += 1;
   state.historyViewRaw = [];
   state.historyViewOffset = 0;
   state.historyViewHasMore = true;
@@ -1400,7 +1416,7 @@ export function renderHistoryItems() {
   return `<div class="history-grid-view">${state.historyViewRaw.map(renderHistoryGridCard).join("")}</div>${sentinel}`;
 }
 export function renderHistoryView() {
-  if (state.mediaDetailInline) return;
+  if (state.activeView !== "history" || state.mediaDetailInline) return;
   const key = [state.historyViewSearch, state.historyViewFilter].join("|");
   if (state.historyViewQueryKey !== key) resetHistoryView(key);
   if (!state.historyViewRaw.length && state.historyViewHasMore && !state.historyViewLoading && state.token) {
@@ -1431,6 +1447,7 @@ export function renderHistoryView() {
 }
 export async function loadHistoryView() {
   if (state.historyViewLoading || !state.historyViewHasMore) return;
+  const requestVersion = state.historyViewRequestVersion;
   state.historyViewLoading = true;
   if (elements.historyPanel) {
     const sentinel = elements.historyPanel.querySelector("[data-history-sentinel] span");
@@ -1449,10 +1466,12 @@ export async function loadHistoryView() {
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || `History load failed ${res.status}`);
     const historyItems = Array.isArray(body.history) ? body.history : [];
+    if (requestVersion !== state.historyViewRequestVersion) return;
     state.historyViewRaw = [...state.historyViewRaw, ...historyItems];
     state.historyViewOffset += historyItems.length;
     state.historyViewHasMore = typeof body.hasMore === "boolean" ? body.hasMore : historyItems.length === EXPLORER_PAGE_SIZE;
   } finally {
+    if (requestVersion !== state.historyViewRequestVersion) return;
     state.historyViewLoading = false;
     renderHistoryView();
   }
@@ -1475,7 +1494,7 @@ export function observeHistorySentinel() {
 // Show explorer
 // ---------------------------------------------------------------------------
 export function renderShowExplorer() {
-  if (state.mediaDetailInline) return;
+  if (!isCurrentExplorerRoute("shows")) return;
   const key = explorerQueryKey("shows");
   if (state.showsQueryKey !== key) resetShowExplorer(key);
   if (!state.showsRaw.length && state.showsHasMore && !state.showsLoading && state.token) {
@@ -1507,6 +1526,7 @@ export function renderShowExplorer() {
 }
 export async function loadExplorerShows() {
   if (state.showsLoading || !state.showsHasMore) return;
+  const requestVersion = state.showsRequestVersion;
   state.showsLoading = true;
   renderShowExplorer();
   try {
@@ -1525,12 +1545,14 @@ export async function loadExplorerShows() {
       if (!res.ok) throw new Error(body.error || `Shows load failed ${res.status}`);
       rememberExplorerPage(cacheKey, body);
     }
+    if (requestVersion !== state.showsRequestVersion) return;
     const shows = Array.isArray(body.shows) ? body.shows : [];
     state.showsRaw = dedupeMediaRecords([...state.showsRaw, ...shows], "shows");
     state.showsOffset += shows.length;
     state.showsHasMore = shows.length === EXPLORER_PAGE_SIZE;
     if (state.showsHasMore) state.explorerScrollArmed = true;
   } finally {
+    if (requestVersion !== state.showsRequestVersion) return;
     state.showsLoading = false;
     renderShowExplorer();
   }

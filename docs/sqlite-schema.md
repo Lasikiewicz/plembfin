@@ -12,7 +12,7 @@ Reference for `data/plembfin.db`. The full authoritative schema is in
 | `active_sessions` | Live sessions from webhook `active` events (5-min TTL) | webhook `active` phase | `handleNowPlaying`, `active-sessions` |
 | `playback_progress` | Resume position records | webhook `ended`, sync orchestrator | resume propagation |
 | `playstate` | Per-item watched/unwatched state for sync targets | sync orchestrator | sync orchestrator |
-| `sync_history` | Log of sync dispatch results (90-day / 10,000-row retention, pruned hourly on write) | sync outcome changes | sync-history endpoint |
+| `sync_history` | Permanent log of sync dispatch results, with `activity_group_key` for grouped movie/show activity | sync outcome changes | sync-history and sync-activity endpoints |
 | `runtime_state` | Single-row JSON blob - last cron time, force-sync state/log, `nowPlayingRefresh` signal | scheduler, force-sync, webhooks | dashboard polling |
 | `cache_versions` | Monotone cross-process cache generations (`history` for canonical watch state, `discover` for changed TMDB feed snapshots) | SQLite triggers and explicit invalidation | every web/worker process |
 | `scheduler_lease` | Current worker leader, fencing generation, heartbeat and tick time | worker coordinator | health and worker coordination |

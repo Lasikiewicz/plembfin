@@ -34,6 +34,12 @@ const activityFeedback = new Map();
 // into that row's own log text (buildSyncActivityLog) so it survives closing
 // and reopening the row, and shows up in a downloaded log too.
 const activityNotes = new Map();
+// The page stores only one row per media group. Event pages are fetched when
+// a group is opened, so a large audit trail does not become a large browser
+// payload. The cache also lets a refresh reopen the group without losing the
+// reader's place.
+const groupEventCache = new Map();
+const groupEventLoading = new Set();
 
 function setActivityFeedback(id, feedback) {
   const key = String(id || "");
@@ -188,46 +194,126 @@ function feedbackHtml(id) {
   return `<div class="sync-activity-row-feedback sync-activity-row-feedback--${escapeAttribute(feedback.tone || "muted")}" role="status">${escapeHtml(feedback.text)}</div>`;
 }
 
-function activityRow(entry = {}) {
-  const tone = syncHistoryTone(entry);
-  const mediaType = String(entry.mediaType || "").toLowerCase() === "movie" ? "Movie" : "TV";
-  const source = activityPlatform(entry.source);
-  const statusLabel = entry.status || "unknown";
-  const statusClass = tone === "error" ? "status-error" : tone === "pending" ? "status-warning" : "status-ready";
-  const id = entry.id != null ? String(entry.id) : "";
-  const title = entry.title || "Unknown media";
-  const retryable = isRetryableActivity(entry);
-  const retrying = retryingActivityIds.has(id);
+function groupLatestEntry(group = {}) {
+  return group?.latest && typeof group.latest === "object" ? group.latest : {};
+}
+
+function groupTone(group = {}) {
+  const latest = groupLatestEntry(group);
+  if (Number(group.problemCount || 0) > 0) return "error";
+  if (Number(group.pendingCount || 0) > 0) return "pending";
+  return syncHistoryTone(latest);
+}
+
+function statusClassForTone(tone) {
+  return tone === "error" ? "status-error" : tone === "pending" ? "status-warning" : "status-ready";
+}
+
+function pluralLabel(count, singular, plural = `${singular}s`) {
+  const value = Number(count) || 0;
+  return `${value} ${value === 1 ? singular : plural}`;
+}
+
+function groupSummaryLine(group = {}) {
+  const latest = groupLatestEntry(group);
+  const source = activityPlatform(latest.source);
+  const pieces = [
+    pluralLabel(group.eventCount, "event"),
+    `latest ${formatDate(group.timestamp || latest.timestamp)}`,
+    `${source.name} · ${syncHistoryActionLabel(latest)}`,
+  ];
+  if (Number(group.problemCount || 0) > 0) pieces.push(pluralLabel(group.problemCount, "issue"));
+  return pieces.join(" · ");
+}
+
+function activityGroupRow(group = {}) {
+  const latest = groupLatestEntry(group);
+  const tone = groupTone(group);
+  const mediaType = String(group.mediaType || latest.mediaType || "").toLowerCase() === "movie" ? "Movie" : "Show";
+  const statusLabel = latest.status || "unknown";
+  const statusClass = statusClassForTone(tone);
+  const groupKey = String(group.groupKey || latest.activityGroupKey || "");
+  const title = group.title || latest.title || "Unknown media";
   return `
-    <article class="sync-activity-row" data-tone="${tone}" data-activity-id="${escapeAttribute(id)}" aria-expanded="false" title="Show this item's log">
+    <article class="sync-activity-row sync-activity-group-row" data-tone="${tone}" data-activity-group-key="${escapeAttribute(groupKey)}" role="button" tabindex="0" aria-expanded="false" title="Show all sync activity for ${escapeAttribute(title)}">
       <span class="sync-status-dot sync-status-dot--${tone}" aria-hidden="true"></span>
-      <div class="sync-activity-row-main">
-        <div class="sync-activity-row-heading">
-          <button class="sync-activity-row-title" type="button" data-media-href="${escapeAttribute(mediaHrefFor(entry))}" title="Open ${escapeAttribute(title)}">${escapeHtml(title)}</button>
-          <span class="sync-activity-action">${escapeHtml(syncHistoryActionLabel(entry))}</span>
-        </div>
-        <div class="sync-activity-row-meta">
+      <div class="sync-activity-group-main">
+        <div class="sync-activity-group-heading">
+          <button class="sync-activity-row-title sync-activity-group-title" type="button" data-media-href="${escapeAttribute(mediaHrefFor(latest))}" title="Open ${escapeAttribute(title)}">${escapeHtml(title)}</button>
           <span class="sync-activity-type">${escapeHtml(mediaType)}</span>
-          <span class="sync-activity-source">${platformIcon(source)}<span>${escapeHtml(source.name)}</span></span>
-          <span>${escapeHtml(formatDate(entry.timestamp))}</span>
         </div>
-        ${routeLine(entry)}
-        ${entry.details ? `<div class="sync-activity-row-detail">${escapeHtml(entry.details)}</div>` : ""}
+        <div class="sync-activity-group-summary">${escapeHtml(groupSummaryLine(group))}</div>
+        ${routeLine(latest)}
+        ${latest.details ? `<div class="sync-activity-row-detail sync-activity-group-latest-detail">${escapeHtml(latest.details)}</div>` : ""}
       </div>
-      <div class="sync-activity-row-outcome">
+      <div class="sync-activity-group-outcome">
         <div class="sync-activity-outcome-heading">
-          <span>Target results</span>
+          <span>Latest result</span>
           <span class="status-pill ${statusClass} sync-activity-row-status">${escapeHtml(statusLabel)}</span>
         </div>
+        <div class="sync-activity-row-results">${targetResults(latest)}</div>
+        <div class="sync-activity-group-counts">
+          <div class="sync-activity-group-count-labels">
+            <span>${escapeHtml(pluralLabel(group.eventCount, "recorded event"))}</span>
+            ${Number(group.problemCount || 0) > 0 ? `<span class="sync-activity-group-issue-count">${escapeHtml(pluralLabel(group.problemCount, "issue"))}</span>` : ""}
+          </div>
+          <button class="button-ghost sync-activity-download" type="button" data-sync-activity-download="${escapeAttribute(groupKey)}" title="Download every event for this media">Download all logs</button>
+        </div>
+      </div>
+      <div class="sync-activity-group-detail hidden" data-sync-activity-group-detail></div>
+    </article>
+  `;
+}
+
+function syncActivityEventRow(entry = {}, index = 0) {
+  const tone = syncHistoryTone(entry);
+  const source = activityPlatform(entry.source);
+  const statusClass = statusClassForTone(tone);
+  const id = entry.id != null ? String(entry.id) : "";
+  const retryable = isRetryableActivity(entry);
+  const retrying = retryingActivityIds.has(id);
+  const isEpisode = String(entry.mediaType || "").toLowerCase() === "episode";
+  const eventLabel = isEpisode && entry.title ? `${syncHistoryActionLabel(entry)} · ${entry.title}` : syncHistoryActionLabel(entry);
+  return `
+    <details class="sync-activity-event" ${index === 0 ? "open" : ""}>
+      <summary>
+        <span class="sync-status-dot sync-status-dot--${tone}" aria-hidden="true"></span>
+        <strong>${escapeHtml(eventLabel)}</strong>
+        <span class="sync-activity-event-source">${platformIcon(source)}${escapeHtml(source.name)}</span>
+        <span class="sync-activity-event-time">${escapeHtml(formatDate(entry.timestamp))}</span>
+        <span class="status-pill ${statusClass}">${escapeHtml(entry.status || "unknown")}</span>
+      </summary>
+      <div class="sync-activity-event-body">
+        ${routeLine(entry)}
+        ${entry.details ? `<div class="sync-activity-row-detail">${escapeHtml(entry.details)}</div>` : ""}
         <div class="sync-activity-row-results">${targetResults(entry)}</div>
         <div class="sync-activity-row-actions">
           ${retryable ? `<button class="button-ghost sync-activity-retry" type="button" data-sync-activity-retry="${escapeAttribute(id)}" ${retrying ? "disabled" : ""} title="Retry only the failed or skipped destinations">${retrying ? "Retrying..." : "Retry failed"}</button>` : ""}
-          <button class="button-ghost sync-activity-download" type="button" data-sync-activity-download="${escapeAttribute(id)}" title="Download this item's sync log">Download log</button>
         </div>
         ${feedbackHtml(id)}
+        <pre class="sync-activity-log">${escapeHtml(buildSyncActivityLog(entry))}</pre>
       </div>
-      <pre class="sync-activity-log hidden"></pre>
-    </article>
+    </details>
+  `;
+}
+
+function renderGroupEvents(groupKey, payload, container) {
+  if (!container) return;
+  const events = Array.isArray(payload?.events) ? payload.events : [];
+  const group = payload?.group || {};
+  const pagination = payload?.pagination || {};
+  const olderButton = pagination.hasNext
+    ? `<button class="button-ghost sync-activity-group-more" type="button" data-sync-activity-group-more="${escapeAttribute(groupKey)}" data-sync-activity-group-page="${Number(pagination.page || 1) + 1}">Load older events</button>`
+    : "";
+  container.innerHTML = `
+    <div class="sync-activity-group-detail-heading">
+      <b>Latest sync activity</b>
+      <span>${escapeHtml(pluralLabel(group.eventCount, "event"))} kept in the audit log</span>
+    </div>
+    <div class="sync-activity-event-list">
+      ${events.length ? events.map((entry, index) => syncActivityEventRow(entry, index)).join("") : `<div class="empty-log"><b>No event details available</b><span>Refresh the page and try again.</span></div>`}
+    </div>
+    ${olderButton}
   `;
 }
 
@@ -275,6 +361,9 @@ export async function retrySyncActivity(id) {
   renderSyncActivity();
   try {
     const result = await dispatchRetry(key);
+    for (const [groupKey, cached] of groupEventCache.entries()) {
+      if ((cached.events || []).some((entry) => String(entry.id) === key)) groupEventCache.delete(groupKey);
+    }
     await loadSyncActivity({ force: true, page: 1 });
     return result;
   } finally {
@@ -463,14 +552,94 @@ function syncActivityLogFilename(entry = {}) {
   return `${safeTitle}-sync-${stamp}.log`;
 }
 
-export function downloadSyncActivityLog(id) {
-  const entry = state.syncActivity.find((item) => String(item.id) === String(id));
-  if (!entry) return false;
-  const blob = new Blob([buildSyncActivityLog(entry)], { type: "text/plain;charset=utf-8" });
+function currentActivityGroup(groupKey) {
+  const key = String(groupKey || "");
+  return state.syncActivity.find((group) => String(group.groupKey || "") === key) || groupEventCache.get(key)?.group || null;
+}
+
+function groupEventPageUrl(groupKey, page = 1, limit = 200) {
+  const url = new URL("/api/sync-activity/group", window.location.origin);
+  url.searchParams.set("key", String(groupKey || ""));
+  url.searchParams.set("limit", String(limit));
+  url.searchParams.set("page", String(Math.max(Number(page) || 1, 1)));
+  return url;
+}
+
+async function requestActivityGroupPage(groupKey, page = 1, limit = 200) {
+  const response = await fetch(groupEventPageUrl(groupKey, page, limit), { headers: authHeaders(), cache: "no-store" });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || `Sync activity details failed with ${response.status}`);
+  return body;
+}
+
+function cacheActivityGroupPage(groupKey, body, append = false) {
+  const key = String(groupKey || "");
+  const previous = groupEventCache.get(key);
+  const incoming = Array.isArray(body?.events) ? body.events : [];
+  const events = append
+    ? [...(previous?.events || []), ...incoming.filter((event) => !(previous?.events || []).some((item) => String(item.id) === String(event.id)))]
+    : incoming;
+  const cached = {
+    group: body?.group || previous?.group || currentActivityGroup(key),
+    events,
+    pagination: body?.pagination || previous?.pagination || { page: 1, total: events.length, totalPages: 1, hasNext: false },
+  };
+  groupEventCache.set(key, cached);
+  return cached;
+}
+
+async function loadActivityGroupPage(groupKey, { page = 1, force = false } = {}) {
+  const key = String(groupKey || "");
+  if (!key) throw new Error("Sync activity group is missing");
+  const cached = groupEventCache.get(key);
+  if (!force && Number(page) === 1 && cached) return cached;
+  const body = await requestActivityGroupPage(key, page, 200);
+  return cacheActivityGroupPage(key, body, Number(page) > 1 && !force);
+}
+
+async function fetchAllActivityGroupEvents(groupKey) {
+  const key = String(groupKey || "");
+  const first = await requestActivityGroupPage(key, 1, 500);
+  const all = [...(Array.isArray(first.events) ? first.events : [])];
+  const totalPages = Math.max(Number(first.pagination?.totalPages) || 1, 1);
+  for (let page = 2; page <= totalPages; page += 1) {
+    const body = await requestActivityGroupPage(key, page, 500);
+    for (const event of Array.isArray(body.events) ? body.events : []) {
+      if (!all.some((item) => String(item.id) === String(event.id))) all.push(event);
+    }
+  }
+  cacheActivityGroupPage(key, { ...first, events: all }, false);
+  return { group: first.group || currentActivityGroup(key), events: all };
+}
+
+function buildSyncActivityGroupLog(group = {}, events = []) {
+  const latest = groupLatestEntry(group);
+  const lines = [
+    "Plembfin grouped sync log",
+    `Exported: ${new Date().toISOString()}`,
+    "",
+    `Title: ${group.title || latest.title || "Unknown media"}`,
+    `Media type: ${group.mediaType || latest.mediaType || "unknown"}`,
+    `Recorded events: ${events.length || Number(group.eventCount) || 0}`,
+    `Latest activity: ${logTimestamp(group.timestamp || latest.timestamp)}`,
+    "",
+  ];
+  for (const [index, event] of events.entries()) {
+    lines.push(`===== Event ${index + 1} of ${events.length} =====`, buildSyncActivityLog(event).trim(), "");
+  }
+  return `${lines.join("\n")}\n`;
+}
+
+export async function downloadSyncActivityLog(groupKey) {
+  const group = currentActivityGroup(groupKey);
+  if (!group) return false;
+  const detail = await fetchAllActivityGroupEvents(groupKey);
+  const latest = detail.group || group;
+  const blob = new Blob([buildSyncActivityGroupLog(latest, detail.events)], { type: "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = syncActivityLogFilename(entry);
+  link.download = syncActivityLogFilename({ title: latest.title || group.title, timestamp: latest.timestamp || group.timestamp });
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -478,23 +647,56 @@ export function downloadSyncActivityLog(id) {
   return true;
 }
 
-// Clicking anywhere on a row that is not the title or the download button
-// expands it to show the same log text the download would produce.
+// Clicking anywhere on a group row that is not the title or the download
+// button expands it and fetches the complete event list for that media item.
 export function toggleSyncActivityRowLog(row) {
   if (!row) return false;
-  const log = row.querySelector(".sync-activity-log");
-  if (!log) return false;
+  const detail = row.querySelector("[data-sync-activity-group-detail]");
+  const groupKey = String(row.dataset.activityGroupKey || "");
+  if (!detail || !groupKey) return false;
   const expanded = row.getAttribute("aria-expanded") === "true";
   if (expanded) {
-    log.classList.add("hidden");
+    detail.classList.add("hidden");
     row.setAttribute("aria-expanded", "false");
     return true;
   }
-  const entry = state.syncActivity.find((item) => String(item.id) === String(row.dataset.activityId));
-  log.textContent = entry ? buildSyncActivityLog(entry) : "This sync log is no longer available - refresh the page.";
-  log.classList.remove("hidden");
   row.setAttribute("aria-expanded", "true");
+  detail.classList.remove("hidden");
+  const cached = groupEventCache.get(groupKey);
+  const current = currentActivityGroup(groupKey);
+  const cacheIsCurrent = cached && (!current
+    || (Number(cached.pagination?.total) || cached.events.length) === (Number(current.eventCount) || 0)
+    && Number(cached.group?.timestamp || 0) >= Number(current.timestamp || 0));
+  if (cacheIsCurrent) {
+    renderGroupEvents(groupKey, cached, detail);
+    return true;
+  }
+  detail.innerHTML = `<div class="empty-log"><b>Loading activity</b><span>Fetching every checkpoint and target result for this media.</span></div>`;
+  if (!groupEventLoading.has(groupKey)) {
+    groupEventLoading.add(groupKey);
+    loadActivityGroupPage(groupKey, { force: Boolean(cached) })
+      .then((payload) => {
+        if (row.getAttribute("aria-expanded") === "true") renderGroupEvents(groupKey, payload, detail);
+      })
+      .catch((error) => {
+        if (row.getAttribute("aria-expanded") === "true") {
+          detail.innerHTML = `<div class="empty-log"><b>Could not load activity details</b><span>${escapeHtml(error.message || "Refresh the page and try again.")}</span></div>`;
+        }
+      })
+      .finally(() => groupEventLoading.delete(groupKey));
+  }
   return true;
+}
+
+export async function loadOlderSyncActivityGroup(groupKey, page) {
+  const key = String(groupKey || "");
+  const payload = await loadActivityGroupPage(key, { page: Math.max(Number(page) || 1, 1) });
+  const row = [...(elements.syncActivityRows?.querySelectorAll(".sync-activity-group-row") || [])]
+    .find((candidate) => candidate.dataset.activityGroupKey === key);
+  if (row?.getAttribute("aria-expanded") === "true") {
+    renderGroupEvents(key, payload, row.querySelector("[data-sync-activity-group-detail]"));
+  }
+  return payload;
 }
 
 export function renderSyncActivityStatus() {
@@ -565,23 +767,6 @@ export function paginationItems(page, totalPages, maxVisible = 5) {
   return items;
 }
 
-function syncActivityMatchesSearch(entry, query) {
-  const normalized = String(query || "").trim().toLowerCase();
-  if (!normalized) return true;
-  return [
-    entry.mediaType,
-    entry.title,
-    entry.source,
-    activityPlatform(entry.source).name,
-    entry.status,
-    entry.details,
-    entry.action,
-    syncHistoryActionLabel(entry),
-    JSON.stringify(entry.targetStates || []),
-    JSON.stringify(entry.rawPayloadDebug || {}),
-  ].join(" ").toLowerCase().includes(normalized);
-}
-
 export function setSyncActivitySearch(value) {
   state.syncActivitySearch = String(value || "").slice(0, 120);
   state.syncActivityPagination = { ...DEFAULT_PAGINATION, ...(state.syncActivityPagination || {}), page: 1 };
@@ -591,6 +776,20 @@ export function setSyncActivitySearch(value) {
     searchTimer = null;
     loadSyncActivity({ force: true, page: 1 }).catch(() => null);
   }, SEARCH_DEBOUNCE_MS);
+}
+
+export function resetSyncActivity() {
+  loadRequestToken += 1;
+  if (searchTimer) window.clearTimeout(searchTimer);
+  searchTimer = null;
+  state.syncActivity = [];
+  state.syncActivityLoaded = false;
+  state.syncActivityLoading = false;
+  state.syncActivitySearch = "";
+  state.syncActivityFailedOnly = false;
+  state.syncActivityPagination = { ...DEFAULT_PAGINATION };
+  groupEventCache.clear();
+  groupEventLoading.clear();
 }
 
 // Filters the currently loaded page down to failed entries only - scoped to
@@ -637,12 +836,10 @@ export function renderSyncActivity() {
   }
 
   const query = state.syncActivitySearch || "";
-  const pageRows = [...state.syncActivity]
-    .filter((entry) => syncActivityMatchesSearch(entry, query))
-    .sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
-  const failed = pageRows.filter((entry) => syncHistoryTone(entry) === "error").length;
+  const pageRows = [...state.syncActivity];
+  const failed = pageRows.filter((group) => groupTone(group) === "error").length;
   const failedOnly = Boolean(state.syncActivityFailedOnly) && failed > 0;
-  const rows = failedOnly ? pageRows.filter((entry) => syncHistoryTone(entry) === "error") : pageRows;
+  const rows = failedOnly ? pageRows.filter((group) => groupTone(group) === "error") : pageRows;
   const pagination = { ...DEFAULT_PAGINATION, ...(state.syncActivityPagination || {}) };
   const total = Math.max(Number(pagination.total) || 0, pageRows.length);
   const from = total ? Math.max(Number(pagination.from) || 1, 1) : 0;
@@ -656,7 +853,7 @@ export function renderSyncActivity() {
     } else {
       elements.syncActivitySummary.textContent = failedOnly
         ? `Showing failed only: ${failed} on page - click to show all`
-        : `Showing ${from}-${to} of ${total} / ${failed} failed on page${failed ? " - click to show only failed" : ""}`;
+        : `Showing ${from}-${to} of ${total} media groups / ${failed} with issues on page${failed ? " - click to show only failed" : ""}`;
       elements.syncActivitySummary.className = `status-pill ${failed ? "status-error" : "status-ready"}${failed ? " is-clickable" : ""}`;
       if (failed) elements.syncActivitySummary.setAttribute("data-sync-activity-failed-toggle", "1");
       else elements.syncActivitySummary.removeAttribute("data-sync-activity-failed-toggle");
@@ -685,12 +882,13 @@ export function renderSyncActivity() {
 
   // A background refresh replaces the markup, so rows the reader has opened are
   // reopened afterwards rather than snapping shut under them.
-  const expandedIds = new Set(
-    [...elements.syncActivityRows.querySelectorAll('.sync-activity-row[aria-expanded="true"]')].map((row) => row.dataset.activityId),
+  const expandedKeys = new Set(
+    [...elements.syncActivityRows.querySelectorAll('.sync-activity-row[aria-expanded="true"]')].map((row) => row.dataset.activityGroupKey),
   );
-  elements.syncActivityRows.innerHTML = rows.map(activityRow).join("");
-  for (const id of expandedIds) {
-    const row = elements.syncActivityRows.querySelector(`.sync-activity-row[data-activity-id="${CSS.escape(id)}"]`);
+  elements.syncActivityRows.innerHTML = rows.map(activityGroupRow).join("");
+  for (const key of expandedKeys) {
+    const row = [...elements.syncActivityRows.querySelectorAll(".sync-activity-group-row")]
+      .find((candidate) => candidate.dataset.activityGroupKey === key);
     if (row) toggleSyncActivityRowLog(row);
   }
   renderSyncActivityPagination();
@@ -707,7 +905,7 @@ export async function loadSyncActivity({ force = false, page } = {}) {
   state.syncActivityLoading = true;
   renderSyncActivity();
   try {
-    const url = new URL("/api/sync-history", window.location.origin);
+    const url = new URL("/api/sync-activity", window.location.origin);
     url.searchParams.set("limit", String(ACTIVITY_PAGE_SIZE));
     url.searchParams.set("page", String(requestedPage));
     if (requestedSearch.trim()) url.searchParams.set("search", requestedSearch.trim());
@@ -715,7 +913,7 @@ export async function loadSyncActivity({ force = false, page } = {}) {
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || `Sync activity load failed with ${response.status}`);
     if (requestToken !== loadRequestToken || requestedSearch !== state.syncActivitySearch) return state.syncActivity;
-    state.syncActivity = Array.isArray(body.history) ? body.history : [];
+    state.syncActivity = Array.isArray(body.groups) ? body.groups : [];
     state.traktDispatchProgress = body.traktDispatchProgress || null;
     const rawPagination = body.pagination && typeof body.pagination === "object" ? body.pagination : {};
     const limit = Math.min(Math.max(Number(rawPagination.limit) || ACTIVITY_PAGE_SIZE, 1), 200);

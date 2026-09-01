@@ -237,10 +237,13 @@ dispatch-progress owners. When more than eight items remain in an active dispatc
 it defers scheduled media sync and the Trakt poll until the next tick. Backups, TMDB
 prewarm, next-airing, and upcoming-calendar maintenance still run. A scheduled sync
 already in flight is not cancelled; the guard only prevents new competing outbound work.
-   - **Sync Now** also reconciles unchanged Trakt watches against Plembfin's current
-     canonical state, so it repairs drift that predates the connection baseline.
-     The connection card shows an in-progress indicator while the complete snapshot
-     is read, then reports the number of Trakt items checked and changes applied.
+   - **Sync Now** is a one-way repair pass for the current Trakt snapshot: it compares
+     unchanged Trakt watches with Plembfin's canonical state and restores missing
+     watched state. It does not infer unwatches from items missing in that one response,
+     so a partial Trakt result cannot clear a whole show such as Oak Island. The normal
+     minute-by-minute poll still handles genuine remote removals, with the safety checks
+     above. The connection card reports how many Trakt items were checked and how many
+     watched states were restored.
    - Episode writes resolve series-level provider IDs before calling Trakt. This avoids
      sending episode-level Plex/Emby/Jellyfin IDs in the show slot and lets identity-poor
      catch-up rows use the show's cached metadata. This lookup only fills in ids for an
@@ -283,15 +286,19 @@ already in flight is not cancelled; the guard only prevents new competing outbou
      `checkJellyfinUnwatchedStatus` do the same for a smaller batch (5 records, checked
      sequentially rather than concurrently) every 5 minutes instead of every 1, since their
      webhooks natively report unwatch and these polls only ever backstop a missed or
-     misconfigured webhook. They are **enabled by default**
-     (`EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED=false` to opt out). Their per-item lookup
+     misconfigured webhook. Emby is enabled by default with
+     `EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED`; Jellyfin's ambiguous library `Played=false`
+     fallback is **disabled by default** and can be opted into with
+     `JELLYFIN_UNWATCHED_POLL_ENABLED=true`. Jellyfin's explicit mark-unplayed webhook
+     remains authoritative. When the fallback is enabled, it requires the same false
+     state twice within `JELLYFIN_UNWATCHED_CONFIRMATION_WINDOW_MS` and ignores a duplicate
+     match if any matching Jellyfin item is still watched. Their per-item lookup
      (`findEpisode`: several sequential provider-ID/fallback/episode-fetch requests) is more
-     expensive than Plex's single lookup, which is why the batch size and cadence are both
+     expensive than Plex's single lookup, which is why the batch size and cadence are
      smaller; the "last checked" timestamp seeds to process start time instead of zero so a
-     restart can't make the next tick fire immediately. A record more than ~100
-     tracked watches old ages out of this window and is only caught
-     by a manual
-     Force Sync (`docs/media-detail.md`).
+     restart can't make the next tick fire immediately. A record more than ~100 tracked
+     watches old ages out of this window and is only caught by a manual Force Sync
+     (`docs/media-detail.md`).
 
 This is how a play that finishes without a final scrobble webhook still gets
 recorded: the poller sees it hit the watched threshold (90% by default), then

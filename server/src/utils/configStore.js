@@ -4,6 +4,7 @@ import { applyTuningConfig, normalizeTuningSection, tuningClamps, tuningEnvDefau
 import { normalizeSyncRoles, validateSyncRolesSection, normalizeAuthority } from "./syncRoles.js";
 import { getMediaConnection, resolveConnectedProviderConfig } from "./mediaConnectionRepo.js";
 import { getValidPlexServerToken, getValidPlexToken } from "./plexTokenManager.js";
+import { activityGroupKeyFor, activityGroupMediaType, activityGroupTitleFromRecord } from "./syncActivityIdentity.js";
 
 const SETTINGS_ID = "mediaConfig";
 const RUNTIME_ID = "main";
@@ -914,8 +915,8 @@ export async function appendRuntimeLog(field, items = []) {
 }
 
 const insertSyncHistoryStmt = db.prepare(
-  `INSERT INTO sync_history (timestamp, media_type, title, source, status, details, action, target_states, raw_payload_debug, created_at)
-   VALUES (@timestamp, @media_type, @title, @source, @status, @details, @action, @target_states, @raw_payload_debug, @created_at)`,
+  `INSERT INTO sync_history (timestamp, media_type, title, source, status, details, action, target_states, raw_payload_debug, activity_group_key, created_at)
+   VALUES (@timestamp, @media_type, @title, @source, @status, @details, @action, @target_states, @raw_payload_debug, @activity_group_key, @created_at)`,
 );
 const updateSyncHistoryStmt = db.prepare(
   `UPDATE sync_history SET timestamp=@timestamp, status=@status, details=@details, action=@action, target_states=@target_states, raw_payload_debug=@raw_payload_debug WHERE id=@id`,
@@ -939,6 +940,51 @@ const syncHistorySearchExpression = `LOWER(
 ) LIKE ? ESCAPE '\\'`;
 const selectSyncHistorySearchPageStmt = db.prepare(`SELECT * FROM sync_history WHERE ${syncHistorySearchExpression} ORDER BY timestamp DESC, id DESC LIMIT ? OFFSET ?`);
 const countSyncHistorySearchStmt = db.prepare(`SELECT COUNT(*) AS count FROM sync_history WHERE ${syncHistorySearchExpression}`);
+
+const syncActivityGroupExpression = "COALESCE(NULLIF(activity_group_key, ''), LOWER(COALESCE(media_type, 'unknown')) || '|title:' || LOWER(TRIM(COALESCE(title, 'Unknown media'))))";
+const syncActivityProblemExpression = "LOWER(COALESCE(status, '')) IN ('error', 'failed') OR LOWER(COALESCE(target_states, '')) LIKE '%\"status\":\"error\"%' OR LOWER(COALESCE(target_states, '')) LIKE '%\"status\":\"failed\"%'";
+const syncActivityPendingExpression = "LOWER(COALESCE(status, '')) IN ('pending', 'queued', 'in_progress', 'in progress')";
+const countSyncActivityGroupsStmt = db.prepare(`SELECT COUNT(DISTINCT ${syncActivityGroupExpression}) AS count FROM sync_history`);
+const countSyncActivityGroupsSearchStmt = db.prepare(`SELECT COUNT(DISTINCT ${syncActivityGroupExpression}) AS count FROM sync_history WHERE ${syncHistorySearchExpression}`);
+const selectSyncActivityGroupsStmt = db.prepare(`
+  SELECT
+    ${syncActivityGroupExpression} AS activity_group_key,
+    COUNT(*) AS event_count,
+    MAX(timestamp) AS last_activity,
+    MAX(id) AS latest_id,
+    SUM(CASE WHEN ${syncActivityProblemExpression} THEN 1 ELSE 0 END) AS problem_count,
+    SUM(CASE WHEN ${syncActivityPendingExpression} THEN 1 ELSE 0 END) AS pending_count
+  FROM sync_history
+  GROUP BY ${syncActivityGroupExpression}
+  ORDER BY last_activity DESC, latest_id DESC
+  LIMIT ? OFFSET ?`);
+const selectSyncActivityGroupsSearchStmt = db.prepare(`
+  SELECT
+    ${syncActivityGroupExpression} AS activity_group_key,
+    COUNT(*) AS event_count,
+    MAX(timestamp) AS last_activity,
+    MAX(id) AS latest_id,
+    SUM(CASE WHEN ${syncActivityProblemExpression} THEN 1 ELSE 0 END) AS problem_count,
+    SUM(CASE WHEN ${syncActivityPendingExpression} THEN 1 ELSE 0 END) AS pending_count
+  FROM sync_history
+  WHERE ${syncHistorySearchExpression}
+  GROUP BY ${syncActivityGroupExpression}
+  ORDER BY last_activity DESC, latest_id DESC
+  LIMIT ? OFFSET ?`);
+const selectSyncActivityLatestStmt = db.prepare(`SELECT * FROM sync_history WHERE ${syncActivityGroupExpression} = ? ORDER BY timestamp DESC, id DESC LIMIT 1`);
+const selectSyncActivityEventsStmt = db.prepare(`SELECT * FROM sync_history WHERE ${syncActivityGroupExpression} = ? ORDER BY timestamp DESC, id DESC LIMIT ? OFFSET ?`);
+const countSyncActivityEventsStmt = db.prepare(`SELECT COUNT(*) AS count FROM sync_history WHERE ${syncActivityGroupExpression} = ?`);
+const selectSyncActivityGroupSummaryStmt = db.prepare(`
+  SELECT
+    ${syncActivityGroupExpression} AS activity_group_key,
+    COUNT(*) AS event_count,
+    MAX(timestamp) AS last_activity,
+    MAX(id) AS latest_id,
+    SUM(CASE WHEN ${syncActivityProblemExpression} THEN 1 ELSE 0 END) AS problem_count,
+    SUM(CASE WHEN ${syncActivityPendingExpression} THEN 1 ELSE 0 END) AS pending_count
+  FROM sync_history
+  WHERE ${syncActivityGroupExpression} = ?
+  GROUP BY ${syncActivityGroupExpression}`);
 
 const SYNC_HISTORY_MAX_PAGE_SIZE = 200;
 
@@ -968,11 +1014,19 @@ function syncHistoryRow(row) {
     action: row.action,
     targetStates: parseJson(row.target_states, []),
     rawPayloadDebug: parseJson(row.raw_payload_debug, {}),
+    activityGroupKey: row.activity_group_key || activityGroupKeyFor({
+      mediaType: row.media_type,
+      title: row.title,
+      source: row.source,
+      action: row.action,
+      rawPayloadDebug: parseJson(row.raw_payload_debug, {}),
+    }),
     createdAt: row.created_at,
   };
 }
 
 export async function appendSyncHistory(record) {
+  const rawPayloadDebug = record.rawPayloadDebug || {};
   insertSyncHistoryStmt.run({
     timestamp: Date.now(),
     media_type: record.mediaType || "unknown",
@@ -982,7 +1036,8 @@ export async function appendSyncHistory(record) {
     details: record.details || "",
     action: record.action || "watched",
     target_states: toJson(Array.isArray(record.targetStates) ? record.targetStates : []),
-    raw_payload_debug: toJson(record.rawPayloadDebug || {}),
+    raw_payload_debug: toJson(rawPayloadDebug),
+    activity_group_key: activityGroupKeyFor({ ...record, rawPayloadDebug }),
     created_at: Date.now(),
   });
 }
@@ -1027,6 +1082,53 @@ export async function getSyncHistoryPage({ limit = 50, offset = 0, search = "" }
     : selectSyncHistoryPageStmt.all(safeLimit, safeOffset)
   ).map(syncHistoryRow);
   return { history, total, limit: safeLimit, offset: safeOffset };
+}
+
+function syncActivityGroupFromRows(summary, latestRow) {
+  if (!summary || !latestRow) return null;
+  const latest = syncHistoryRow(latestRow);
+  return {
+    groupKey: String(summary.activity_group_key || latest.activityGroupKey || ""),
+    title: activityGroupTitleFromRecord(latest),
+    mediaType: activityGroupMediaType(latest),
+    timestamp: Number(summary.last_activity || latest.timestamp || 0),
+    eventCount: Number(summary.event_count || 0),
+    problemCount: Number(summary.problem_count || 0),
+    pendingCount: Number(summary.pending_count || 0),
+    latest,
+  };
+}
+
+export async function getSyncActivityGroupsPage({ limit = 50, offset = 0, search = "" } = {}) {
+  const safeLimit = safeSyncHistoryPageSize(limit);
+  const safeOffset = safeSyncHistoryOffset(offset);
+  const searchPattern = syncHistorySearchPattern(search);
+  const total = Number(searchPattern
+    ? countSyncActivityGroupsSearchStmt.get(searchPattern)?.count
+    : countSyncActivityGroupsStmt.get()?.count) || 0;
+  const summaries = (searchPattern
+    ? selectSyncActivityGroupsSearchStmt.all(searchPattern, safeLimit, safeOffset)
+    : selectSyncActivityGroupsStmt.all(safeLimit, safeOffset));
+  const groups = summaries.map((summary) => syncActivityGroupFromRows(summary, selectSyncActivityLatestStmt.get(summary.activity_group_key))).filter(Boolean);
+  return { groups, total, limit: safeLimit, offset: safeOffset };
+}
+
+export async function getSyncActivityGroupEvents({ groupKey = "", limit = 200, offset = 0 } = {}) {
+  const key = String(groupKey || "").trim();
+  const safeLimit = Math.min(Math.max(Number(limit) || 200, 1), 500);
+  const safeOffset = safeSyncHistoryOffset(offset);
+  if (!key) return { group: null, events: [], total: 0, limit: safeLimit, offset: safeOffset };
+  const summary = selectSyncActivityGroupSummaryStmt.get(key);
+  if (!summary) return { group: null, events: [], total: 0, limit: safeLimit, offset: safeOffset };
+  const latest = selectSyncActivityLatestStmt.get(key);
+  const events = selectSyncActivityEventsStmt.all(key, safeLimit, safeOffset).map(syncHistoryRow);
+  return {
+    group: syncActivityGroupFromRows(summary, latest),
+    events,
+    total: Number(countSyncActivityEventsStmt.get(key)?.count) || 0,
+    limit: safeLimit,
+    offset: safeOffset,
+  };
 }
 
 export async function getSyncHistoryById(id) {

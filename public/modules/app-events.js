@@ -10,9 +10,9 @@ import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHi
 import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched, loadPartWatched } from "./dashboard.js?v=20260831m";
 import { removeUpNextItem } from "./up-next.js?v=20260831k";
 import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, renderRankingTable } from "./stats.js";
-import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, triggerSearchPage, loadMoreSearchPeople, loadSearchCollection, renderSearchPage, renderExplorer, explorerQueryKey, updateAlphaFilter, handleAlphaFilterClick, resetMovieExplorer, resetShowExplorer, renderExplorerSentinel, observeExplorerSentinel, observeExplorerTmdbPrefetch, scheduleNextAirResort, currentExplorerView, currentExplorerSort, currentPosterWidthKey, setCurrentExplorerSort, applyExplorerPosterWidth, applyListHeaderSort, renderMovieCard, renderMovieExplorer, loadExplorerMovies, applyHistoryPosterWidth, resetHistoryView, renderHistoryItems, renderHistoryView, loadHistoryView, observeHistorySentinel, renderShowExplorer, loadExplorerShows, mergeShowDetail, loadShowDetail, matchesExplorerSearch, sortExplorerItems, renderShowRecord, renderShowFolder, renderSeasonFolder, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, emptyExplorer, FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver } from "./explorer.js?v=20260831b";
+import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, triggerSearchPage, loadMoreSearchPeople, loadSearchCollection, renderSearchPage, renderExplorer, explorerQueryKey, updateAlphaFilter, handleAlphaFilterClick, resetMovieExplorer, resetShowExplorer, renderExplorerSentinel, observeExplorerSentinel, observeExplorerTmdbPrefetch, scheduleNextAirResort, currentExplorerView, currentExplorerSort, currentPosterWidthKey, setCurrentExplorerSort, applyExplorerPosterWidth, applyListHeaderSort, renderMovieCard, renderMovieExplorer, loadExplorerMovies, applyHistoryPosterWidth, resetHistoryView, renderHistoryItems, renderHistoryView, loadHistoryView, observeHistorySentinel, renderShowExplorer, loadExplorerShows, mergeShowDetail, loadShowDetail, matchesExplorerSearch, sortExplorerItems, renderShowRecord, renderShowFolder, renderSeasonFolder, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, emptyExplorer, FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver } from "./explorer.js?v=20260831c";
 import { openWatchDatePrompt, markDiscoverWatched, submitSeerrRequest } from "./watch-action.js?v=20260831b";
-import { addToWatchlist, removeFromWatchlist, openRatingDialog, openAddToListDialog, addToCustomList, removeFromCustomList, openCreateListDialog, personalItemFromPosterMenuDataset } from "./personal-media.js?v=20260831q";
+import { addToWatchlist, removeFromWatchlist, openRatingDialog, openAddToListDialog, addToCustomList, removeFromCustomList, openCreateListDialog, personalItemFromPosterMenuDataset } from "./personal-media.js?v=20260831r";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails, resolveEpisodeTitleFromTmdb } from "./tmdb.js?v=20260823";
 import { initMediaDetail, nowPlayingHref, openMovieInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, closeMediaInfoModal, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail.js?v=20260831g";
 import { closePersonProfile, loadCastMemberDetails } from "./media-person.js?v=20260831f";
@@ -787,10 +787,22 @@ function attachEvents() {
       return;
     }
 
+    const older = event.target.closest("[data-sync-activity-group-more]");
+    if (older) {
+      older.disabled = true;
+      older.textContent = "Loading older events...";
+      _cb.loadOlderSyncActivityGroup?.(older.dataset.syncActivityGroupMore, older.dataset.syncActivityGroupPage)
+        ?.catch?.((error) => setMessage(error.message || "Could not load older activity.", "error"));
+      return;
+    }
+
     const download = event.target.closest("[data-sync-activity-download]");
     if (download) {
-      const downloaded = _cb.downloadSyncActivityLog?.(download.dataset.syncActivityDownload);
-      if (!downloaded) setMessage("That sync log is no longer available - refresh the page.", "error");
+      Promise.resolve(_cb.downloadSyncActivityLog?.(download.dataset.syncActivityDownload))
+        .then((downloaded) => {
+          if (!downloaded) setMessage("That sync log is no longer available - refresh the page.", "error");
+        })
+        .catch((error) => setMessage(error.message || "Could not download the sync log.", "error"));
       return;
     }
 
@@ -800,8 +812,19 @@ function attachEvents() {
       return;
     }
 
+    if (event.target.closest(".sync-activity-group-detail")) return;
+
     const row = event.target.closest(".sync-activity-row");
     if (row) _cb.toggleSyncActivityRowLog?.(row);
+  });
+
+  elements.syncActivityRows?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    if (event.target.closest(".sync-activity-group-detail") || event.target.closest("button,[data-media-href]")) return;
+    const row = event.target.closest(".sync-activity-group-row");
+    if (!row) return;
+    event.preventDefault();
+    _cb.toggleSyncActivityRowLog?.(row);
   });
 
   elements.appVersion?.addEventListener("click", () => {
@@ -1443,7 +1466,10 @@ function attachEvents() {
 
   window.addEventListener("popstate", () => {
     state.internalHistoryCount = history.state?.index || 0;
-    handleRouting(window.location.pathname + window.location.search + window.location.hash);
+    const path = window.location.pathname + window.location.search + window.location.hash;
+    closeMobileMenu();
+    _cb.resetPageEntryState?.(path);
+    handleRouting(path);
     applyActiveView();
   });
 

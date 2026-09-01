@@ -13,7 +13,19 @@ test("legacy schema migration is idempotent under concurrent process startup", a
   legacy.exec(`CREATE TABLE watch_history (
     id TEXT PRIMARY KEY, title_lower TEXT, media_type TEXT, watched_at TEXT,
     media_key TEXT, show_title_lower TEXT
-  ); INSERT INTO watch_history (id) VALUES ('legacy-row')`);
+  ); INSERT INTO watch_history (id) VALUES ('legacy-row');
+  CREATE TABLE sync_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    timestamp INTEGER, media_type TEXT, title TEXT, source TEXT, status TEXT,
+    details TEXT, action TEXT, target_states TEXT, raw_payload_debug TEXT,
+    activity_group_key TEXT, created_at INTEGER
+  );
+  INSERT INTO sync_history
+    (timestamp, media_type, title, source, status, details, action, target_states, raw_payload_debug, activity_group_key, created_at)
+  VALUES
+    (1000, 'episode', 'The Curse of Oak Island - S12E01', 'trakt', 'success', '', 'watched', '[]',
+     '{"ids":{"imdb":"tt3455408"},"showTitle":"The Curse of Oak Island","season":12,"episode":1}',
+     'episode|imdb:tt3455408|s:12|e:1', 1000)`);
   legacy.close();
 
   const command = "import('./server/src/db.js').then(({db}) => { db.close(); })";
@@ -35,7 +47,7 @@ test("legacy schema migration is idempotent under concurrent process startup", a
     const columns = new Set(upgraded.pragma("table_info(watch_history)").map((column) => column.name));
     for (const name of ["logo_url", "backdrop_url", "sync_retry_count", "sync_next_retry_at", "watch_provenance"]) assert.ok(columns.has(name));
     assert.equal(upgraded.prepare("SELECT id FROM watch_history WHERE id='legacy-row'").get()?.id, "legacy-row");
-    assert.deepEqual(upgraded.prepare("SELECT id FROM schema_migrations ORDER BY id").all().map((row) => row.id), Array.from({ length: 17 }, (_, index) => index + 1));
+    assert.deepEqual(upgraded.prepare("SELECT id FROM schema_migrations ORDER BY id").all().map((row) => row.id), Array.from({ length: 19 }, (_, index) => index + 1));
     assert.ok(upgraded.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='media_connections'").get());
     const connectionColumns = new Set(upgraded.pragma("table_info(media_connections)").map((column) => column.name));
     assert.ok(connectionColumns.has("server_credential_ciphertext"));
@@ -43,6 +55,10 @@ test("legacy schema migration is idempotent under concurrent process startup", a
     const trackerColumns = new Set(upgraded.pragma("table_info(tracker_connections)").map((column) => column.name));
     assert.ok(trackerColumns.has("history_synced_at"));
     assert.ok(upgraded.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='tracker_play_history'").get());
+    assert.equal(
+      upgraded.prepare("SELECT activity_group_key FROM sync_history WHERE title = 'The Curse of Oak Island - S12E01'").get()?.activity_group_key,
+      "show|title:the-curse-of-oak-island",
+    );
     upgraded.close();
   } finally {
     try {

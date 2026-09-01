@@ -487,7 +487,7 @@ function personalCard(item, { section = "watchlist", rating = null, listId = "" 
   const key = normalized.media_key;
   const releaseDate = normalized.release_date ? formatTmdbDate(normalized.release_date) : "";
   const actions = section === "ratings"
-    ? `${actionButton("Rate again", "rate", key, "button-ghost")}${actionButton("Remove rating", "remove-rating", key, "button-danger")}`
+    ? `${actionButton("Rate again", "rate", key, "button-ghost")}${actionButton("Remove", "remove-rating", key, "button-danger")}`
     : section === "list"
       ? `${actionButton("Rate", "rate", key, "button-ghost")}${actionButton("Remove", `remove-list:${listId}`, key, "button-ghost")}`
       : `${actionButton("Rate", "rate", key, "button-ghost")}${actionButton("Remove", "remove-watchlist", key, "button-ghost")}`;
@@ -746,6 +746,17 @@ async function removeRating(item) {
   setPersonalMessage(`Rating removed from ${normalized.title}.`, "success");
 }
 
+async function confirmRatingRemoval(item) {
+  const normalized = normalizeItem(item);
+  return Boolean(await _cb.openConfirmDialog?.({
+    title: "Remove rating?",
+    body: `Remove "${normalized.title}" from your ratings?`,
+    confirmLabel: "Remove",
+    cancelLabel: "Keep",
+    danger: true,
+  }));
+}
+
 async function createCustomList(name) {
   const body = await personalRequest({ action: "list-create", name });
   if (!body?.list?.id) throw new Error("The server did not return the created list.");
@@ -830,7 +841,7 @@ export function openRatingDialog(item) {
   const overlay = dialogFrame(dialogTitle, `
     <p class="personal-media-dialog-copy">Choose your personal rating out of ten.</p>
     <div class="personal-rating-grid" aria-label="Choose a rating">${choices}</div>
-    <button class="button-ghost personal-rating-remove${current ? "" : " hidden"}" type="button" data-dialog-remove-rating>Remove rating</button>
+    <button class="button-ghost personal-rating-remove${current ? "" : " hidden"}" type="button" data-dialog-remove-rating>Remove</button>
   `);
   overlay.addEventListener("click", async (event) => {
     const choice = event.target.closest("[data-dialog-rating]");
@@ -840,8 +851,15 @@ export function openRatingDialog(item) {
     const buttons = [...overlay.querySelectorAll("button")];
     buttons.forEach((button) => { button.disabled = true; });
     try {
-      if (remove) await removeRating(normalized);
-      else await saveRating(normalized, Number(choice.dataset.dialogRating));
+      if (remove) {
+        if (!await confirmRatingRemoval(normalized)) {
+          buttons.forEach((button) => { button.disabled = false; });
+          return;
+        }
+        await removeRating(normalized);
+      } else {
+        await saveRating(normalized, Number(choice.dataset.dialogRating));
+      }
     } catch (error) {
       buttons.forEach((button) => { button.disabled = false; });
       setPersonalMessage(error.message, "error");
@@ -987,7 +1005,34 @@ async function handlePanelClick(event) {
       });
   }
   if (action === "rate") openRatingDialog(item);
-  if (action === "remove-rating") removeRating(item).catch((error) => setPersonalMessage(error.message, "error"));
+  if (action === "remove-rating") {
+    const originalLabel = actionButtonElement.textContent || "Remove";
+    actionButtonElement.disabled = true;
+    const confirmed = await confirmRatingRemoval(item);
+    if (!confirmed) {
+      if (actionButtonElement.isConnected) actionButtonElement.disabled = false;
+      return;
+    }
+    actionButtonElement.textContent = "Removing…";
+    actionButtonElement.setAttribute("aria-busy", "true");
+    removeRating(item)
+      .then(() => {
+        if (!actionButtonElement.isConnected) return;
+        actionButtonElement.disabled = true;
+        actionButtonElement.textContent = "Removed";
+        actionButtonElement.removeAttribute("aria-busy");
+        actionButtonElement.setAttribute("aria-label", "Removed");
+        actionButtonElement.title = "Removed";
+      })
+      .catch((error) => {
+        if (actionButtonElement.isConnected) {
+          actionButtonElement.disabled = false;
+          actionButtonElement.textContent = originalLabel;
+          actionButtonElement.removeAttribute("aria-busy");
+        }
+        setPersonalMessage(error.message, "error");
+      });
+  }
   if (action.startsWith("remove-list:")) {
     const listId = action.slice("remove-list:".length);
     const listName = (state.personalLists || []).find((entry) => String(entry.id) === String(listId))?.name || "Custom list";

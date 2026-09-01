@@ -10,7 +10,7 @@ import { createLoopStore } from "../utils/loopStore.js";
 import { runWithConcurrency } from "../utils/concurrency.js";
 import { listActiveSessions, deleteActiveSession, upsertActiveSession } from "../utils/activeSessions.js";
 import { hydrateCachedSession, loadLiveTrackingCache } from "../utils/liveSessions.js";
-import { activeSyncOperation, appendSyncHistory, clearSyncOperation, loadMediaConfig, mergeIncomingConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistoryById, getSyncHistoryPage, updateSyncHistoryStatus, loadRuntimeState, setRuntimeState, appendRuntimeLog, SYNC_OPERATION_FORCE, SYNC_OPERATION_SCHEDULED } from "../utils/configStore.js";
+import { activeSyncOperation, appendSyncHistory, clearSyncOperation, loadMediaConfig, mergeIncomingConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistoryById, getSyncHistoryPage, getSyncActivityGroupsPage, getSyncActivityGroupEvents, updateSyncHistoryStatus, loadRuntimeState, setRuntimeState, appendRuntimeLog, SYNC_OPERATION_FORCE, SYNC_OPERATION_SCHEDULED } from "../utils/configStore.js";
 import { forceSyncStopAction } from "../utils/forceSyncControl.js";
 import { getSyncPlanActionsPage, getSyncPlanSummary, confirmSyncPlan } from "../utils/syncPlans.js";
 import {
@@ -830,6 +830,79 @@ export async function handleSyncHistory(req, res) {
   const search = String(req.query.search || "").trim().slice(0, 120);
   const body = await getMergedSyncActivityPage({ limit: requestedLimit, page: requestedPage, search });
   return sendJson(res, body, 200, { "Cache-Control": "private, max-age=15, stale-while-revalidate=60", Vary: "Authorization" });
+}
+
+// Stable, user-facing view of the audit trail. The legacy /api/sync-history
+// endpoint remains event-shaped for retry tooling and compatibility; this
+// endpoint groups events before pagination so a busy movie cannot consume a
+// page by itself.
+export async function handleSyncActivity(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const limit = Math.min(Math.max(Number(req.query.limit) || 25, 1), 200);
+  const page = Math.max(Math.floor(Number(req.query.page) || 1), 1);
+  const search = String(req.query.search || "").trim().slice(0, 120);
+  const offset = (page - 1) * limit;
+  const result = await getSyncActivityGroupsPage({ limit, offset, search });
+  const totalPages = Math.max(1, Math.ceil(result.total / result.limit));
+  const resolvedPage = Math.min(page, totalPages);
+  // A new event can move a group onto page one between requests. Re-read the
+  // requested page when the supplied page was beyond the current end so the
+  // response never advertises an empty page that cannot exist.
+  const resolved = resolvedPage === page
+    ? result
+    : await getSyncActivityGroupsPage({ limit, offset: (resolvedPage - 1) * limit, search });
+  const from = resolved.total ? (resolvedPage - 1) * limit + 1 : 0;
+  const to = resolved.total ? Math.min(from + resolved.groups.length - 1, resolved.total) : 0;
+  const traktDispatchProgress = countTraktImportPendingDispatch();
+  return sendJson(res, {
+    groups: resolved.groups,
+    pagination: {
+      page: resolvedPage,
+      limit: resolved.limit,
+      total: resolved.total,
+      totalPages,
+      from,
+      to,
+      hasPrevious: resolvedPage > 1,
+      hasNext: resolvedPage < totalPages,
+    },
+    ...(traktDispatchProgress.pending > 0 ? { traktDispatchProgress } : {}),
+  }, 200, { "Cache-Control": "private, no-store", Vary: "Authorization" });
+}
+
+export async function handleSyncActivityGroup(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const groupKey = String(req.query.key || "").trim();
+  if (!groupKey) return sendJson(res, { error: "Activity group key is required" }, 400);
+  const limit = Math.min(Math.max(Number(req.query.limit) || 200, 1), 500);
+  const page = Math.max(Math.floor(Number(req.query.page) || 1), 1);
+  const result = await getSyncActivityGroupEvents({ groupKey, limit, offset: (page - 1) * limit });
+  if (!result.group) return sendJson(res, { error: "Sync activity group not found" }, 404);
+  const totalPages = Math.max(1, Math.ceil(result.total / result.limit));
+  const resolvedPage = Math.min(page, totalPages);
+  const resolved = resolvedPage === page
+    ? result
+    : await getSyncActivityGroupEvents({ groupKey, limit, offset: (resolvedPage - 1) * limit });
+  return sendJson(res, {
+    group: resolved.group,
+    events: resolved.events,
+    pagination: {
+      page: resolvedPage,
+      limit: resolved.limit,
+      total: resolved.total,
+      totalPages,
+      from: resolved.total ? (resolvedPage - 1) * limit + 1 : 0,
+      to: resolved.total ? Math.min(resolvedPage * limit, resolved.total) : 0,
+      hasPrevious: resolvedPage > 1,
+      hasNext: resolvedPage < totalPages,
+    },
+  }, 200, { "Cache-Control": "private, no-store", Vary: "Authorization" });
 }
 
 function isRetryableSyncActivityEntry(entry = {}) {

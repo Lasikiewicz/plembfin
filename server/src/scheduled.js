@@ -104,13 +104,45 @@ let lastPlexUnwatchedPollAt = Date.now();
 // The batch is now capped at EMBY_LIKE_UNWATCHED_BATCH_SIZE and records are
 // processed sequentially (not concurrently), and the "last checked" timestamp
 // now seeds to Date.now() instead of 0 so a restart can't make the next tick
-// fire immediately. Set EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED=false to opt back out.
+// fire immediately. Emby's fallback is controlled by EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED;
+// Jellyfin's fallback is separately opt-in via JELLYFIN_UNWATCHED_POLL_ENABLED.
+// Jellyfin's native webhook is the authoritative unwatch signal. Its generic
+// Played=false library snapshot is ambiguous after outbound marks and library
+// rescans, so the Jellyfin fallback stays opt-in until explicitly enabled.
 const EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED = String(process.env.EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED ?? "true").toLowerCase() !== "false";
 const EMBY_UNWATCHED_POLL_INTERVAL_MS = Number(process.env.EMBY_UNWATCHED_POLL_INTERVAL_MS || 5 * 60 * 1000);
 let lastEmbyUnwatchedPollAt = Date.now();
 const JELLYFIN_UNWATCHED_POLL_INTERVAL_MS = Number(process.env.JELLYFIN_UNWATCHED_POLL_INTERVAL_MS || 5 * 60 * 1000);
+const JELLYFIN_UNWATCHED_POLL_ENABLED = String(process.env.JELLYFIN_UNWATCHED_POLL_ENABLED ?? "false").toLowerCase() !== "false";
+const JELLYFIN_UNWATCHED_CONFIRMATION_WINDOW_MS = Number(process.env.JELLYFIN_UNWATCHED_CONFIRMATION_WINDOW_MS || 20 * 60 * 1000);
 let lastJellyfinUnwatchedPollAt = Date.now();
 const EMBY_LIKE_UNWATCHED_BATCH_SIZE = 5;
+
+export function jellyfinUnwatchedConfirmationKey(media = {}) {
+  return `jellyfin-unwatched-candidate:${mediaKeyFor(media)}`;
+}
+
+export function jellyfinMatchesContainWatched(items = []) {
+  return (Array.isArray(items) ? items : []).some((item) => isEmbyLikePlayed(item));
+}
+
+// A single false Played flag is not enough to infer that a user deliberately
+// marked an item unwatched. Require the same false observation again within a
+// bounded window. Webhook-based unwatches do not use this helper and remain
+// immediate.
+export async function confirmJellyfinUnwatchedObservation(media, loopStore, { now = Date.now(), windowMs = JELLYFIN_UNWATCHED_CONFIRMATION_WINDOW_MS } = {}) {
+  if (!loopStore?.get || !loopStore?.put) return false;
+  const key = jellyfinUnwatchedConfirmationKey(media);
+  const previous = Number(await Promise.resolve(loopStore.get(key)).catch(() => 0));
+  if (previous > 0 && now >= previous && now - previous <= windowMs) return true;
+  await Promise.resolve(loopStore.put(key, now, { expirationTtl: Math.max(1, Math.ceil(windowMs / 1000)) })).catch(() => null);
+  return false;
+}
+
+async function clearJellyfinUnwatchedObservation(media, loopStore) {
+  if (!loopStore?.put) return;
+  await Promise.resolve(loopStore.put(jellyfinUnwatchedConfirmationKey(media), 0, { expirationTtl: 1 })).catch(() => null);
+}
 
 // Cadence for background catch-up library syncs (recently watched & continue watching lists).
 // These serve as backstops for events missed by webhooks/live session tracking, so they
@@ -414,6 +446,10 @@ async function recordSyncHistory(media = {}, summary = {}, action = "watched") {
     rawPayloadDebug: {
       sessionId: media.sessionId || media.id || "",
       ids: media.ids || {},
+      mediaKey: mediaKeyFor(media),
+      showTitle: media.showTitle || media.show_title || "",
+      itemId: media.itemId || "",
+      watchRecordId: media.watchRecordId || media.watch_record_id || media.recordId || media.record_id || "",
       season: media.season ?? null,
       episode: media.episode ?? null,
       progress: media.progress ?? null,
@@ -574,23 +610,45 @@ async function checkJellyfinUnwatchedStatus(config, loopStore) {
       };
 
       const items = await findJellyfinItems(config.jellyfin, media);
-      const item = items?.[0];
-      if (item) {
-        const isWatched = isEmbyLikePlayed(item);
-        if (!isWatched) {
-          const jellyfinMedia = { ...media, itemId: item.Id || undefined };
-          const ownPlayedMarkAt = await lastOutboundPlayedMarkAt(jellyfinMedia, "jellyfin", loopStore).catch(() => 0);
-          if (ownPlayedMarkAt > 0 && Date.now() - ownPlayedMarkAt <= 10 * 60 * 1000) {
-            console.log("Cron ignored Jellyfin unplayed state after Plembfin's own played mark", { title: record.title });
-            continue;
-          }
+      if (!items?.length) continue;
 
-          console.log("Cron detected Jellyfin item marked unwatched; storing and propagating", { title: record.title });
-          const result = await applyUnwatchedTransition(jellyfinMedia, config, loopStore, { recordId: record.id });
-          if (!result.alreadyUnwatched) await recordSyncHistory(jellyfinMedia, result.summary, "unwatched");
-          await invalidateHistoryDerivedCaches().catch(() => null);
+      // Provider/title matching can return duplicate library items. One
+      // watched match is positive evidence; looking only at items[0] made a
+      // stale duplicate capable of turning a real watched item unwatched.
+      const watchedItems = items.filter((item) => isEmbyLikePlayed(item));
+      if (jellyfinMatchesContainWatched(items)) {
+        if (watchedItems.length !== items.length) {
+          console.warn("Cron ignored mixed Jellyfin match state; at least one matching item is watched", {
+            title: record.title,
+            itemIds: items.map((item) => item.Id),
+            watchedItemIds: watchedItems.map((item) => item.Id),
+          });
         }
+        await clearJellyfinUnwatchedObservation(media, loopStore);
+        continue;
       }
+
+      const ownPlayedMarkAt = Math.max(0, ...(await Promise.all(items.map((item) => (
+        lastOutboundPlayedMarkAt({ ...media, itemId: item.Id || undefined }, "jellyfin", loopStore).catch(() => 0)
+      )))));
+      if (ownPlayedMarkAt > 0 && Date.now() - ownPlayedMarkAt <= 10 * 60 * 1000) {
+        await clearJellyfinUnwatchedObservation(media, loopStore);
+        console.log("Cron ignored Jellyfin unplayed state after Plembfin's own played mark", { title: record.title });
+        continue;
+      }
+
+      const confirmed = await confirmJellyfinUnwatchedObservation(media, loopStore);
+      if (!confirmed) {
+        console.log("Cron held Jellyfin unplayed state for a second confirmation", { title: record.title });
+        continue;
+      }
+
+      const jellyfinMedia = { ...media, itemId: items[0].Id || undefined };
+      console.log("Cron detected Jellyfin item marked unwatched after repeated confirmation; storing and propagating", { title: record.title });
+      const result = await applyUnwatchedTransition(jellyfinMedia, config, loopStore, { recordId: record.id });
+      if (!result.alreadyUnwatched) await recordSyncHistory(jellyfinMedia, result.summary, "unwatched");
+      await clearJellyfinUnwatchedObservation(media, loopStore);
+      await invalidateHistoryDerivedCaches().catch(() => null);
     } catch (error) {
       console.error(`Error checking Jellyfin unwatched status for '${record.title}':`, error);
     }
@@ -1795,7 +1853,7 @@ async function runScheduledSyncCore(logger = console.log, { forceCatchup = false
     });
   }
 
-  if (EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED && jellyfinActive && Date.now() - lastJellyfinUnwatchedPollAt >= JELLYFIN_UNWATCHED_POLL_INTERVAL_MS) {
+  if (EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED && JELLYFIN_UNWATCHED_POLL_ENABLED && jellyfinActive && Date.now() - lastJellyfinUnwatchedPollAt >= JELLYFIN_UNWATCHED_POLL_INTERVAL_MS) {
     lastJellyfinUnwatchedPollAt = Date.now();
     trace("Scheduled Sync: checking Jellyfin unwatched status (fallback poll)...");
     await checkJellyfinUnwatchedStatus(config, loopStore).catch((error) => {

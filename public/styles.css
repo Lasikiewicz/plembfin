@@ -13132,7 +13132,7 @@ h1 {
      flattened here to promote .page-topbar-title/.page-topbar-actions to
      direct grid items of #appShell, which is what makes the title's sticky
      positioning actually take effect. */
-  body:has(.media-detail-page) .page-topbar,
+  body.media-detail-active .page-topbar,
   body:has(.page-shell[data-active-view="explorer"]) .page-topbar,
   body:has(.page-shell[data-active-view="history"]) .page-topbar {
     display: contents !important;
@@ -13147,13 +13147,13 @@ h1 {
      Simplest correct fix: kill the grid gap entirely here and re-add
      breathing room only where it can scroll away with its owning row
      (padding-bottom on the actions row, not a gap belonging to the next row). */
-  body:has(.media-detail-page) #appShell,
+  body.media-detail-active #appShell,
   body:has(.page-shell[data-active-view="explorer"]) #appShell,
   body:has(.page-shell[data-active-view="history"]) #appShell {
     gap: 0 !important;
   }
 
-  body:has(.media-detail-page) .page-topbar-title,
+  body.media-detail-active .page-topbar-title,
   body:has(.page-shell[data-active-view="explorer"]) .page-topbar-title,
   body:has(.page-shell[data-active-view="history"]) .page-topbar-title {
     position: sticky !important;
@@ -13167,10 +13167,10 @@ h1 {
     box-sizing: border-box !important;
   }
 
-  body:has(.media-detail-page) .page-topbar-actions,
+  body.media-detail-active .page-topbar-actions,
   body:has(.page-shell[data-active-view="explorer"]) .page-topbar-actions,
   body:has(.page-shell[data-active-view="history"]) .page-topbar-actions,
-  body:has(.media-detail-page) #mediaDetailActions {
+  body.media-detail-active #mediaDetailActions {
     overflow: visible !important;
   }
 
@@ -13182,7 +13182,7 @@ h1 {
      same context regardless of DOM order - so without this, the fixed
      backdrop art was painting over the controls row instead of the other
      way around. */
-  body:has(.media-detail-page) .page-topbar-actions,
+  body.media-detail-active .page-topbar-actions,
   body:has(.page-shell[data-active-view="explorer"]) .page-topbar-actions,
   body:has(.page-shell[data-active-view="history"]) .page-topbar-actions {
     position: relative !important;
@@ -13196,7 +13196,7 @@ h1 {
     box-sizing: border-box !important;
   }
 
-  body:has(.media-detail-page) #mediaDetailActions {
+  body.media-detail-active #mediaDetailActions {
     display: flex !important;
     align-items: flex-start !important;
     flex-direction: row !important;
@@ -13210,7 +13210,7 @@ h1 {
     flex-shrink: 0 !important;
   }
 
-  body:not(:has(.media-detail-page)) #mediaDetailActions {
+  body:not(.media-detail-active) #mediaDetailActions {
     display: none !important;
   }
 
@@ -22170,6 +22170,244 @@ html.light-mode .settings-pane .settings-card-grid .service-card:focus-visible {
   }
 }
 
+/* Grouped audit rows keep the page scannable without hiding any audit data. */
+.sync-activity-help {
+  margin: calc(var(--space-3) * -0.25) 0 var(--space-3);
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+
+.sync-activity-group-row {
+  grid-template-columns: auto minmax(0, 1fr) minmax(15rem, 22rem);
+  cursor: pointer;
+}
+
+.sync-activity-group-row:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.sync-activity-group-main {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.sync-activity-group-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.sync-activity-group-title {
+  font-size: 1rem;
+}
+
+.sync-activity-type {
+  padding: 0.2rem 0.45rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.sync-activity-group-summary {
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+
+.sync-activity-group-latest-detail {
+  color: var(--soft);
+}
+
+.sync-activity-group-outcome {
+  display: grid;
+  min-width: 0;
+  gap: var(--space-2);
+  padding-left: var(--space-3);
+  border-left: 1px solid var(--line);
+}
+
+.sync-activity-group-counts {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: 100%;
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
+.sync-activity-group-count-labels {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.sync-activity-group-issue-count {
+  color: var(--red);
+}
+
+.sync-activity-group-counts .sync-activity-download {
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.sync-activity-group-detail {
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+  cursor: default;
+}
+
+.sync-activity-group-detail.hidden {
+  display: none;
+}
+
+.sync-activity-group-detail-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  color: var(--soft);
+  font-size: 0.82rem;
+}
+
+.sync-activity-group-detail-heading span {
+  color: var(--muted);
+}
+
+.sync-activity-event-list {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.sync-activity-event {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-3);
+}
+
+.sync-activity-event > summary {
+  display: grid;
+  grid-template-columns: auto auto minmax(8rem, auto) minmax(8rem, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  color: var(--soft);
+  cursor: pointer;
+  list-style: none;
+}
+
+.sync-activity-event > summary::-webkit-details-marker {
+  display: none;
+}
+
+.sync-activity-event > summary::before {
+  content: "+";
+  grid-column: 1;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.sync-activity-event[open] > summary::before {
+  content: "−";
+}
+
+.sync-activity-event > summary > .sync-status-dot { grid-column: 2; }
+.sync-activity-event > summary > strong { grid-column: 3; }
+.sync-activity-event > summary > .sync-activity-event-source { grid-column: 4; }
+.sync-activity-event > summary > .sync-activity-event-time { grid-column: 5; }
+.sync-activity-event > summary > .status-pill { grid-column: 6; }
+
+.sync-activity-event > summary:hover,
+.sync-activity-event > summary:focus-visible {
+  background: color-mix(in srgb, var(--panel-2), transparent 20%);
+}
+
+.sync-activity-event-source,
+.sync-activity-event-time {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  min-width: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.sync-activity-event-time {
+  justify-content: flex-end;
+}
+
+.sync-activity-event-body {
+  display: grid;
+  gap: var(--space-2);
+  padding: 0 var(--space-2) var(--space-2);
+  border-top: 1px solid var(--line);
+}
+
+.sync-activity-event-body .sync-activity-row-actions {
+  justify-content: flex-start;
+}
+
+.sync-activity-event-body .sync-activity-log {
+  max-height: 16rem;
+}
+
+.sync-activity-group-more {
+  margin-top: var(--space-2);
+}
+
+@media (max-width: 1100px) {
+  .sync-activity-group-row {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .sync-activity-group-outcome {
+    grid-column: 2;
+    padding-top: var(--space-2);
+    padding-left: 0;
+    border-top: 1px solid var(--line);
+    border-left: 0;
+  }
+}
+
+@media (max-width: 760px) {
+  .sync-activity-event > summary {
+    grid-template-columns: auto auto minmax(0, 1fr) auto;
+  }
+
+  .sync-activity-event > summary::before { grid-column: 1; grid-row: 1 / span 3; }
+  .sync-activity-event > summary > .sync-status-dot { grid-column: 2; grid-row: 1 / span 3; }
+  .sync-activity-event > summary > strong { grid-column: 3; grid-row: 1; min-width: 0; }
+
+  .sync-activity-event-source {
+    grid-column: 3 !important;
+    grid-row: 2;
+  }
+
+  .sync-activity-event-time {
+    grid-column: 4 !important;
+    grid-row: 1 / span 3;
+  }
+
+  .sync-activity-event > summary .status-pill {
+    grid-column: 3 !important;
+    grid-row: 3;
+    justify-self: start;
+  }
+}
+
 /* Popup surfaces sit above the page content. The dark theme deliberately
    uses translucent glass for ordinary panels, but that treatment lets cards
    show through menus and dialogs. Give popup containers an opaque surface
@@ -22200,4 +22438,111 @@ html:not(.light-mode) #globalSearchDropdown .global-search-result:focus,
 html:not(.light-mode) #globalSearchDropdown .gsd-more:hover,
 html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
   background: #151d26;
+}
+
+/* Final mobile shell corrections ----------------------------------------- *
+ * The shared topbar keeps every page's control source in the DOM so the
+ * desktop shell can move the active group into place. On narrow screens a
+ * later generic .explorer-controls rule was overriding .hidden and making
+ * inactive groups participate in the flex layout. Keep inactive sources out
+ * of the mobile topbar, then let the active groups use the full content
+ * column. These rules are intentionally mobile-only so desktop sizing stays
+ * unchanged. */
+@media (max-width: 760px) {
+  body .page-topbar-actions > .hidden {
+    display: none !important;
+  }
+
+  body .topnav.nav-open {
+    position: fixed !important;
+    inset: 0 !important;
+    width: 100% !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+  }
+
+  body .page-shell[data-active-view="dashboard"] .dashboard-history-panel .dashboard-row-section {
+    flex: 0 0 auto;
+    min-height: 0;
+  }
+
+  body .page-shell[data-active-view="dashboard"] .dashboard-history-panel .dashboard-row-section .horizontal-scroll-row {
+    flex: 0 0 auto;
+    min-height: 0;
+    height: auto;
+  }
+
+  body .setup-brand-logo {
+    width: min(100%, 34rem);
+    max-width: 100%;
+    height: auto;
+    max-height: 5.5rem;
+  }
+
+  body .sync-activity-header-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: stretch;
+    width: 100%;
+    min-width: 0;
+  }
+
+  body .sync-activity-header-actions #syncActivitySummary {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: flex-start;
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+    box-sizing: border-box;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  body .sync-activity-header-actions > button {
+    min-width: 0;
+  }
+
+  body .page-topbar-actions .discover-controls:not(.hidden) {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: end !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    flex: 0 1 auto !important;
+    gap: var(--space-2) !important;
+  }
+
+  body .page-topbar-actions .discover-controls:not(.hidden) .compact-field {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    gap: var(--space-1) !important;
+    flex: 1 1 auto !important;
+  }
+
+  body .page-topbar-actions .discover-controls:not(.hidden) .compact-field input,
+  body .page-topbar-actions .discover-controls:not(.hidden) .compact-field select {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  body .page-topbar-actions .discover-controls:not(.hidden) #discoverRefreshButton {
+    grid-column: 1 / -1;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  body .personal-media-list-viewport {
+    grid-template-columns: minmax(0, 1fr);
+    width: 100%;
+  }
+
+  body .personal-media-list-section,
+  body .personal-media-list-heading,
+  body .personal-media-list-row {
+    width: 100%;
+    min-width: 0;
+  }
 }

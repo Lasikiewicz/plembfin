@@ -57,7 +57,7 @@ None of these talk to each other - they all talk to Plembfin.
 - **Cross-platform resume** - Pause playback on one server and pick up right where you left off on another
 - **Rewatch tracking** - Full multi-watch history logging with smart deduplication that preserves authentic repeat viewings
 - **Now Playing dashboard** - Real-time playback monitoring, deterministic Up Next, media-type-aware Watch History, weekly watch activity trends, and recent history
-- **Sync Activity hub** - Live status indicator and dedicated activity stream detailing sync origins, destinations, delivery results, targeted retry for failed or skipped destinations (individually or all at once as a background job that survives closing the tab), and downloadable logs
+- **Sync Activity hub** - Live grouped activity by movie/show, with all resume checkpoints and destination results preserved behind each row, targeted retry for failed or skipped destinations (individually or all at once as a background job that survives closing the tab), and downloadable group logs
 - **Rich analytics & stats** - In-depth all-time and period reports, top shows, and platform playback distribution
 - **Personal media organization** - Save movies, shows, and episodes to a watch list or custom lists, and rate them from their media pages; episode ratings use one canonical show/season/episode identity everywhere
 - **Upcoming episodes calendar** - Air date schedule for upcoming and past releases, pre-cached for instant loading
@@ -397,8 +397,10 @@ is in [`.env.example`](.env.example).
 | `WATCHED_PLAYED_SYNC_ENABLED` | `true` | Set `false` to disable watched/played propagation (recording still happens). |
 | `CATCHUP_SYNC_INTERVAL_MS` | `900000` (15m) | Frequency of catch-up library scans. |
 | `PLEX_UNWATCHED_POLL_INTERVAL_MS` | `60000` (1m) | Cadence of the Plex unwatched-reconciliation backstop poll. |
-| `EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED` | `true` | Set `false` to disable the equivalent Emby/Jellyfin backstop poll. |
-| `EMBY_UNWATCHED_POLL_INTERVAL_MS` / `JELLYFIN_UNWATCHED_POLL_INTERVAL_MS` | `300000` (5m) each | Cadence of that poll when enabled. |
+| `EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED` | `true` | Enables Emby's unwatched backstop poll. |
+| `JELLYFIN_UNWATCHED_POLL_ENABLED` | `false` | Jellyfin's ambiguous `Played=false` fallback is off by default; explicit Jellyfin unplayed webhooks remain authoritative. If enabled, the false state must repeat within the confirmation window. |
+| `EMBY_UNWATCHED_POLL_INTERVAL_MS` / `JELLYFIN_UNWATCHED_POLL_INTERVAL_MS` | `300000` (5m) each | Cadence of each fallback poll when enabled. |
+| `JELLYFIN_UNWATCHED_CONFIRMATION_WINDOW_MS` | `1200000` (20m) | Window in which Jellyfin must report the same false state twice before the fallback propagates it. |
 | `WATCHED_THRESHOLD_PERCENT` | `90` | Playback % counted as watched (50-100). Settings takes precedence. |
 | `MIN_RESUME_POSITION_SEC` | `60` | Minimum position saved as resume progress (0-3600s). Settings takes precedence. |
 | `ACTIVE_SESSION_TTL_MIN` | `5` | Time before an active session goes stale (1-120 min). Settings takes precedence. |

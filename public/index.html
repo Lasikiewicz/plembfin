@@ -11,7 +11,7 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#05080c" />
     <link rel="preconnect" href="https://image.tmdb.org" />
-    <link rel="modulepreload" href="/app.js?v=20260831y" />
+    <link rel="modulepreload" href="/app.js?v=20260901c" />
     <link rel="modulepreload" href="/modules/auth.js" />
     <link rel="modulepreload" href="/modules/logs.js" />
     <link rel="modulepreload" href="/modules/settings.js" />
@@ -35,10 +35,10 @@
     <link rel="modulepreload" href="/modules/media-card.js?v=20260831d" />
     <link rel="modulepreload" href="/modules/up-next.js?v=20260831k" />
     <link rel="modulepreload" href="/modules/discover.js?v=20260831g" />
-    <link rel="modulepreload" href="/modules/personal-media.js?v=20260831q" />
+    <link rel="modulepreload" href="/modules/personal-media.js?v=20260831r" />
     <link rel="modulepreload" href="/modules/stats.js" />
     <link rel="modulepreload" href="/modules/upcoming.js" />
-    <link rel="modulepreload" href="/modules/explorer.js?v=20260831b" />
+    <link rel="modulepreload" href="/modules/explorer.js?v=20260831c" />
     <link rel="modulepreload" href="/modules/calendar-picker.js" />
     <link rel="modulepreload" href="/modules/edit-dialogs.js?v=20260831b" />
     <link rel="modulepreload" href="/modules/watch-action.js?v=20260831b" />
@@ -53,7 +53,7 @@
     <link rel="modulepreload" href="/modules/media-lightbox.js" />
     <link rel="modulepreload" href="/modules/media-detail-events.js?v=20260831h" />
     <link rel="modulepreload" href="/modules/poster-menu.js?v=20260831l" />
-    <link rel="modulepreload" href="/modules/app-events.js?v=20260831q" />
+    <link rel="modulepreload" href="/modules/app-events.js?v=20260831r" />
     <link rel="stylesheet" href="/styles.css?v=20260831z" />
   </head>
   <body>
@@ -464,14 +464,15 @@
               </div>
               <label class="sync-activity-search">
                 <span class="sr-only">Search sync activity</span>
-                <input id="syncActivitySearch" class="field" type="search" placeholder="Search sync activity..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+                <input id="syncActivitySearch" class="field" type="search" placeholder="Search movies, shows, platforms..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
               </label>
               <div class="sync-activity-header-actions">
                 <span id="syncActivitySummary" class="status-pill status-muted">No activity</span>
-                <button id="syncActivityRetryAllFailed" class="button-ghost" type="button" title="Retry every failed or skipped item currently shown, one at a time" disabled>Retry all failed</button>
+                <button id="syncActivityRetryAllFailed" class="button-ghost" type="button" title="Retry every failed or skipped destination in the audit log, one at a time" disabled>Retry all failed</button>
                 <button id="syncActivityRefresh" class="button-ghost" type="button">Refresh</button>
               </div>
             </div>
+            <p class="sync-activity-help">One row per movie or show. Resume checkpoints and every target result remain available inside the row.</p>
             <div id="syncActivityTraktProgress" class="guide-callout sync-activity-trakt-progress hidden"></div>
             <div id="syncActivityRows" class="sync-activity-rows"></div>
             <div id="syncActivityPagination" class="sync-activity-pagination hidden" aria-label="Sync activity pages">
@@ -2577,6 +2578,6 @@
 
     <div id="copyToast" class="copy-toast hidden" role="status" aria-live="polite">Copied!</div>
 
-    <script type="module" src="/app.js?v=20260831y"></script>
+    <script type="module" src="/app.js?v=20260901c"></script>
   </body>
 </html>

@@ -5,7 +5,7 @@ import { isWatchedHistoryAction, getMediaTargetSyncStatus, renderSyncStatusDot }
 import { fetchTmdbDetails } from "./tmdb.js?v=20260823";
 import { renderWatchDatePrompt, isMovieSavingWatchAction } from "./watch-action.js?v=20260826c";
 import { authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=20260831c";
-import { personalRatingPillHtml, personalMediaActionsHtml } from "./personal-media.js?v=20260831q";
+import { personalRatingPillHtml, personalMediaActionsHtml } from "./personal-media.js?v=20260831r";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderMediaImagesSection, renderMediaFacts,
   renderExternalRatingPills, ratingPillHtml, renderSeerrRequestPill, fetchSeerrMediaStatus,

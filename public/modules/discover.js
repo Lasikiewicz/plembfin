@@ -3,7 +3,7 @@ import { state, elements } from "./state.js";
 import { escapeHtml, formatTmdbDate } from "./utils.js?v=20260824h";
 import { hydratePosters } from "./images.js?v=20260831m";
 import { renderMediaCard } from "./media-card.js?v=20260831d";
-import { mediaKeyForPersonalItem } from "./personal-media.js?v=20260831q";
+import { mediaKeyForPersonalItem } from "./personal-media.js?v=20260831r";
 
 const DISCOVER_TTL_MS = 10 * 60 * 1000;
 const DISCOVER_TIMEOUT_MS = 20000;

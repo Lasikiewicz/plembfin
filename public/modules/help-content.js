@@ -152,7 +152,7 @@ export function traktBridgeGuide() {
         </div>
       </details>
 
-      <p class="tool-accordion-desc" style="margin: 0;"><b>First connection:</b> “Start from current state” records a safe baseline without changing other apps. “Import all existing Trakt watched state” deliberately treats every current Trakt watch as input. After that baseline, the complete snapshot is checked each minute; additions become watched actions and removals become unwatched actions. <b>Sync Now</b> also compares unchanged Trakt watches with Plembfin's current state so it can repair older drift across connected services. While it runs, the connection card shows progress and changes the action to “Syncing”; completion reports how many Trakt items were checked and how many changes were applied.</p>
+      <p class="tool-accordion-desc" style="margin: 0;"><b>First connection:</b> “Start from current state” records a safe baseline without changing other apps. “Import all existing Trakt watched state” deliberately treats every current Trakt watch as input. After that baseline, the complete snapshot is checked each minute; additions become watched actions and removals become unwatched actions. <b>Sync Now</b> is a safe repair pass: it restores missing watched state from Trakt, but never treats a partial Trakt response as a bulk unwatch. While it runs, the connection card shows progress and changes the action to “Syncing”; completion reports how many Trakt items were checked and how many changes were applied.</p>
     </div>
   `;
 }

@@ -120,29 +120,33 @@ Clicking the line opens the Sync Activity page at `/sync-activity`.
 ### Sync Activity page
 
 `/sync-activity` (`public/modules/sync-activity.js`) lists what Plembfin has synced,
-one row per media item, newest first, backed by `GET /api/sync-history`. The same
-Idle / N of M status appears at the top of the page, and the page reloads itself every
-15 seconds while it is the visible view so a running sync fills in as it goes.
+one row per movie or show, newest group activity first. `GET /api/sync-activity`
+groups the durable `sync_history` events before pagination, so a busy movie cannot
+fill a page by itself. The older event-shaped `GET /api/sync-history` endpoint remains
+for retry tooling and compatibility. The same Idle / N of M status appears at the top
+of the page, and the page reloads itself every 15 seconds while it is visible.
 
-Each row shows the title, media type, source, action (Marked Watched, Marked Unwatched,
-or Resume Progress), timestamp, a "From <source> -> To <targets>" route line naming the
-app that reported the play and the apps it was dispatched to, one result per target as
-that app's icon followed by its status (hover for the failure detail), and the overall
-status. Event details occupy the main column while target results, overall status, and
-row actions are grouped in a separate outcome column; that outcome section stacks below
-the event details at narrower widths. Pending rows use "Awaiting dispatch" and "Waiting
-for dispatch" rather than presenting missing target results as an error. Failed rows
-carry a red edge and pending ones a yellow edge.
+Each group row shows the title, movie/show type, number of recorded events, latest
+timestamp/source/action, the latest route and target results, and whether any event in
+the group has an issue. A group moves to the top whenever any new checkpoint, watch,
+retry, or target result is recorded. Pending groups use "Awaiting dispatch" and
+"Waiting for dispatch" rather than presenting missing target results as an error.
+Failed groups remain visible as issues even when their newest event succeeded.
 
-The summary pill above the list ("Showing 1-25 of 26 / 11 failed on page") is clickable
+Clicking a row loads its latest activity inline. The expanded section contains every
+resume checkpoint and every target result for that movie or show, newest first, with a
+"Load older events" button for unusually large groups. The event details are fetched
+only when opened, so the list stays quick and readable without deleting audit data.
+
+The summary pill above the list ("Showing 1-25 of 26 media groups / 11 with issues on page") is clickable
 whenever the current page has at least one failed row: clicking it filters the page down
 to failed rows only, and clicking it again (it now reads "Showing failed only") restores
 the full page. This filters within the loaded page's rows client-side rather than
 querying the server, since a row's failed status can come from a target-level result
 that a text search would not reliably match.
 
-Partial, failed, and skipped rows with an actionable destination include a Retry
-button. `POST /api/sync-history/retry` reconstructs the media identity from the
+Partial, failed, and skipped events with an actionable destination include a Retry
+button inside the expanded group. `POST /api/sync-history/retry` reconstructs the media identity from the
 activity record (including a fresh Plex metadata lookup when a native rating key is
 available) and retries only the failed or skipped destinations. The retried row is
 updated in place - a target that now succeeds shows success, a target with nowhere to
@@ -173,14 +177,19 @@ alongside Plex, Emby, Jellyfin, and Plembfin's own manual actions.
 Clicking a title opens that media's page: its local page when the record matches
 something in the library, the TMDB or TVDB route when the dispatch carried those ids,
 and a search for the title when it carried neither. Clicking anywhere else on a row
-expands it to show that item's full log inline; a background refresh reopens rows that
-were already expanded.
+expands it to show the grouped event list; a background refresh reopens rows that were
+already expanded. The `/history` page remains the chronological watch-history view; Sync
+Activity is the operational record of what Plembfin attempted and what each destination
+reported.
 
-The "Download log" button sits on the same line as the target results and saves that
-single item's record as a plain-text `.log` file: title, media type, action, status,
-local and ISO timestamps, record id, the source it came from, the targets it went to,
-the details string, every target result with its detail, and the raw payload debug JSON
-when the record has one.
+The "Download all logs" button saves every event in the group as one plain-text `.log`
+file. Each event includes its title, media type, action, status, local and ISO timestamps,
+record id, source, targets, details, target results, and raw payload debug JSON when present.
+
+`sync_history` is deliberately a permanent audit log: it has no age or row-count
+retention policy. Pagination and on-demand group detail loading keep responses bounded;
+they do not remove old records. Backups retain this audit data with the rest of the
+database.
 
 ## Posters
 

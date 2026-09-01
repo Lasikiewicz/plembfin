@@ -32,6 +32,9 @@ export function traktSyncCompletionMessage(result = {}) {
   const deferredCopy = deferred
     ? ` ${deferred} change${deferred === 1 ? "" : "s"} held for re-check.`
     : "";
+  if (result.reconcile) {
+    return `Trakt reconciliation complete: ${remoteItems.toLocaleString()} watched item${remoteItems === 1 ? "" : "s"} checked; ${watched} missing watched state restored and ${unwatched} unwatched change${unwatched === 1 ? "" : "s"} applied.${deferredCopy}`;
+  }
   return `Trakt sync complete: ${remoteItems.toLocaleString()} item${remoteItems === 1 ? "" : "s"} checked; ${watched} watched and ${unwatched} unwatched change${changes === 1 ? "" : "s"} applied.${deferredCopy}`;
 }
 
