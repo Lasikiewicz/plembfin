@@ -1,10 +1,37 @@
 {
   "baseVersion": "0.14.0",
-  "build": 8,
-  "version": "0.14.0.8",
-  "shortVersion": "0.14.0.8",
-  "updatedAt": "2026-09-01T14:04:46.807Z",
+  "build": 9,
+  "version": "0.14.0.9",
+  "shortVersion": "0.14.0.9",
+  "updatedAt": "2026-09-01T15:20:32.328Z",
   "entries": [
+    {
+      "build": 9,
+      "version": "0.14.0.9",
+      "shortVersion": "0.14.0.9",
+      "date": "2026-09-01T15:20:32.328Z",
+      "commit": "0c9b251e3585a04ea7dc8da6ff7924a204b50475",
+      "message": "Feature - Add isolated personal rating sync",
+      "author": "Lasikiewicz",
+      "details": [
+        "Feature: Add isolated personal rating sync",
+        "Feature: Add opt-in provider directions, baseline/import modes, conflict policy, and live status controls",
+        "Feature: Queue local rating changes independently with durable retries and episode-aware identity",
+        "Feature: Sync personal ratings with Plex, Emby, Jellyfin, and Trakt, including a per-title Force Sync action",
+        "Feature: Keep watched-state Force Sync separate while exposing Trakt as an explicit Push target"
+      ],
+      "sections": {
+        "newFeatures": [
+          "Add isolated personal rating sync",
+          "Add opt-in provider directions, baseline/import modes, conflict policy, and live status controls",
+          "Queue local rating changes independently with durable retries and episode-aware identity",
+          "Sync personal ratings with Plex, Emby, Jellyfin, and Trakt, including a per-title Force Sync action",
+          "Keep watched-state Force Sync separate while exposing Trakt as an explicit Push target"
+        ],
+        "majorBugFixes": [],
+        "tweaks": []
+      }
+    },
     {
       "build": 8,
       "version": "0.14.0.8",
