@@ -1,10 +1,47 @@
 {
   "baseVersion": "0.14.0",
-  "build": 7,
-  "version": "0.14.0.7",
-  "shortVersion": "0.14.0.7",
-  "updatedAt": "2026-09-01T13:15:00.772Z",
+  "build": 8,
+  "version": "0.14.0.8",
+  "shortVersion": "0.14.0.8",
+  "updatedAt": "2026-09-01T14:04:46.807Z",
   "entries": [
+    {
+      "build": 8,
+      "version": "0.14.0.8",
+      "shortVersion": "0.14.0.8",
+      "date": "2026-09-01T14:04:46.807Z",
+      "commit": "d9ef03c11cab6c2492eede04aa8f3527a554a74a",
+      "message": "This update includes align mobile media pages with dashboard rails and improve dashboard freshness and sync reliability.",
+      "author": "Lasikiewicz",
+      "details": [
+        "Tweak: This update includes align mobile media pages with dashboard rails and improve dashboard freshness and sync reliability.",
+        "Tweak: Make Discover, Watchlist, Ratings, Custom Lists, and History use compact poster-first touch rails on phones",
+        "Tweak: Keep metadata and actions inside consistently sized cards without desktop-width overflow",
+        "Tweak: Fetch more History only at the right edge and preserve the rail position after loading",
+        "Tweak: Restore the dashboard Up Next queue quickly from cached data and refresh it when watch state changes",
+        "Tweak: Keep Up Next data warm across restarts with background revalidation and live update notifications",
+        "Tweak: Resolve Plex episode notifications through the exact parent show while retaining season and episode coordinates for cross-platform matching",
+        "Tweak: Prevent unresolved Plex episode unwatches and rejected episode identities from changing Trakt incorrectly"
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [],
+        "tweaks": [
+          "This update includes align mobile media pages with dashboard rails and improve dashboard freshness and sync reliability.",
+          "Make Discover, Watchlist, Ratings, Custom Lists, and History use compact poster-first touch rails on phones",
+          "Keep metadata and actions inside consistently sized cards without desktop-width overflow",
+          "Fetch more History only at the right edge and preserve the rail position after loading",
+          "Restore the dashboard Up Next queue quickly from cached data and refresh it when watch state changes",
+          "Keep Up Next data warm across restarts with background revalidation and live update notifications",
+          "Resolve Plex episode notifications through the exact parent show while retaining season and episode coordinates for cross-platform matching",
+          "Prevent unresolved Plex episode unwatches and rejected episode identities from changing Trakt incorrectly"
+        ]
+      },
+      "messageFragments": [
+        "Fix - Align mobile media pages with dashboard rails",
+        "Feature - Improve dashboard freshness and sync reliability"
+      ]
+    },
     {
       "build": 7,
       "version": "0.14.0.7",

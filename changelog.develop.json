@@ -1,27 +1,6 @@
 {
   "build": 21,
-  "resetCommit": "8bf4834f20187118a57938cbea6faf0b641ee790",
-  "updatedAt": "2026-09-01T14:00:46.042Z",
-  "entries": [
-    {
-      "build": 21,
-      "date": "2026-09-01T14:00:46.042Z",
-      "commit": "dd3d64b58bf4574bba37205a9941cdd702b0758b",
-      "message": "This update includes align mobile media pages with dashboard rails and improve dashboard freshness and sync reliability.",
-      "author": "Lasikiewicz",
-      "details": [
-        "Make Discover, Watchlist, Ratings, Custom Lists, and History use compact poster-first touch rails on phones",
-        "Keep metadata and actions inside consistently sized cards without desktop-width overflow",
-        "Fetch more History only at the right edge and preserve the rail position after loading",
-        "Restore the dashboard Up Next queue quickly from cached data and refresh it when watch state changes",
-        "Keep Up Next data warm across restarts with background revalidation and live update notifications",
-        "Resolve Plex episode notifications through the exact parent show while retaining season and episode coordinates for cross-platform matching",
-        "Prevent unresolved Plex episode unwatches and rejected episode identities from changing Trakt incorrectly"
-      ],
-      "messageFragments": [
-        "Fix - Align mobile media pages with dashboard rails",
-        "Feature - Improve dashboard freshness and sync reliability"
-      ]
-    }
-  ]
+  "resetCommit": "d9ef03c11cab6c2492eede04aa8f3527a554a74a",
+  "updatedAt": "2026-09-01T14:04:46.807Z",
+  "entries": []
 }
