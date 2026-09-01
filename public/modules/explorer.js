@@ -29,6 +29,18 @@ const searchResultsCache = new Map();
 let searchRequestId = 0;
 let searchPeopleRequestId = 0;
 let searchCollectionRequestId = 0;
+let historyViewLoadScrollElement = null;
+let historyViewLoadScrollHandler = null;
+
+function clearHistoryViewLoadWatchers() {
+  state.historyViewLoadObserver?.disconnect();
+  state.historyViewLoadObserver = undefined;
+  if (historyViewLoadScrollElement && historyViewLoadScrollHandler) {
+    historyViewLoadScrollElement.removeEventListener("scroll", historyViewLoadScrollHandler);
+  }
+  historyViewLoadScrollElement = null;
+  historyViewLoadScrollHandler = null;
+}
 export function initExplorer(callbacks) {
   _cb = callbacks;
   initExplorerPosterScrollHydration();
@@ -1271,6 +1283,7 @@ export function applyHistoryPosterWidth() {
   if (elements.historyPosterSize) elements.historyPosterSize.value = parseInt(saved) || 150;
 }
 export function resetHistoryView(key = "") {
+  clearHistoryViewLoadWatchers();
   state.historyViewRequestVersion += 1;
   state.historyViewRaw = [];
   state.historyViewOffset = 0;
@@ -1448,6 +1461,8 @@ export function renderHistoryView() {
 export async function loadHistoryView() {
   if (state.historyViewLoading || !state.historyViewHasMore) return;
   const requestVersion = state.historyViewRequestVersion;
+  const historyRail = elements.historyPanel?.querySelector(".history-list");
+  const preservedScrollLeft = historyRail?.scrollLeft || 0;
   state.historyViewLoading = true;
   if (elements.historyPanel) {
     const sentinel = elements.historyPanel.querySelector("[data-history-sentinel] span");
@@ -1474,13 +1489,28 @@ export async function loadHistoryView() {
     if (requestVersion !== state.historyViewRequestVersion) return;
     state.historyViewLoading = false;
     renderHistoryView();
+    if (preservedScrollLeft) {
+      elements.historyPanel?.querySelector(".history-list")?.scrollTo({ left: preservedScrollLeft, behavior: "auto" });
+    }
   }
 }
 export function observeHistorySentinel() {
-  state.historyViewLoadObserver?.disconnect();
-  state.historyViewLoadObserver = undefined;
+  clearHistoryViewLoadWatchers();
   const sentinel = elements.historyPanel?.querySelector("[data-history-sentinel]");
-  if (!sentinel || !("IntersectionObserver" in window)) return;
+  if (!sentinel) return;
+  const historyRail = elements.historyPanel?.querySelector(".history-list");
+  if (historyRail && window.innerWidth <= 760) {
+    const loadThreshold = Math.max(160, historyRail.clientWidth * 0.75);
+    historyViewLoadScrollHandler = () => {
+      if (state.historyViewLoading || !state.historyViewHasMore) return;
+      if (historyRail.scrollLeft + historyRail.clientWidth < historyRail.scrollWidth - loadThreshold) return;
+      loadHistoryView().catch((error) => setMessage(error.message, "error"));
+    };
+    historyViewLoadScrollElement = historyRail;
+    historyRail.addEventListener("scroll", historyViewLoadScrollHandler, { passive: true });
+    return;
+  }
+  if (!("IntersectionObserver" in window)) return;
   state.historyViewLoadObserver = new IntersectionObserver(
     (entries) => {
       if (!entries.some((entry) => entry.isIntersecting)) return;

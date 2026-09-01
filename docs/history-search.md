@@ -18,13 +18,17 @@ history.
 Behavior:
 
 - **Paging** - the endpoint returns an explicit `hasMore` flag so the page can
-  lazy-load through the full log with an IntersectionObserver sentinel.
+  lazy-load through the full log. Vertical layouts use an IntersectionObserver
+  sentinel; the mobile card rail requests the next page when the user scrolls
+  near its right edge.
 - **Dedupe** - raw history collapses duplicates to one entry per movie or show episode
   per calendar day, so same-day webhook echoes don't crowd out genuine later rewatches
   (`dedupe` option in `queryWatchHistory`).
 - **View modes** - grid / list / cards (`plembfin:historyView`), filter all/movies/shows
   (`plembfin:historyFilter`), search box (server-side `?search=`), adjustable poster
-  width (`applyHistoryPosterWidth`).
+  width (`applyHistoryPosterWidth`). On mobile, the cards view uses the same compact
+  poster-first horizontal rail geometry as the dashboard and preserves its position
+  when another page of history is appended.
 - **Row actions** - each entry links to its detail page; sync pills, edit-date, and
   debug modal are available per row (see [media-detail.md](media-detail.md)). Grid and
   page card views also get the poster three-dot overflow menu (Edit watch date / Fix

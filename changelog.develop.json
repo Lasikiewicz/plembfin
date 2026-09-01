@@ -1,6 +1,19 @@
 {
-  "build": 19,
+  "build": 20,
   "resetCommit": "8bf4834f20187118a57938cbea6faf0b641ee790",
-  "updatedAt": "2026-09-01T13:15:00.772Z",
-  "entries": []
+  "updatedAt": "2026-09-01T13:54:57.682Z",
+  "entries": [
+    {
+      "build": 20,
+      "date": "2026-09-01T13:54:57.682Z",
+      "commit": "4ea8ec42e6462d4109631df0ed8f633902c5d120",
+      "message": "Fix - Align mobile media pages with dashboard rails",
+      "author": "Lasikiewicz",
+      "details": [
+        "Make Discover, Watchlist, Ratings, Custom Lists, and History use compact poster-first touch rails on phones",
+        "Keep metadata and actions inside consistently sized cards without desktop-width overflow",
+        "Fetch more History only at the right edge and preserve the rail position after loading"
+      ]
+    }
+  ]
 }

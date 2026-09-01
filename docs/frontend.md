@@ -42,7 +42,8 @@ filters, theme, cached pages); the constants at the top of `state.js` list them 
 
 SPA navigation via `history.pushState`:
 
-- `navigateTo(url)` - pushes state, scrolls to top on pathname change, then routes.
+- `navigateTo(url)` - pushes state, resets the shell and nested view scroll positions,
+  then routes so every page entry starts with fresh controls and a clean viewport.
 - `handleRouting(path)` (`app.js`) - parses the URL into `state.activeView` (+ mode/
   detail state) and calls the right opener. Routes:
 
@@ -116,7 +117,9 @@ stays set to the slug throughout, so the address bar keeps the `/tvshow/:key` fo
 - Loaders are idempotent and guarded (`state.xLoading`, `state.xLoaded`,
   `{ force }` options) so view switches don't stampede the API.
 - Infinite scroll uses IntersectionObserver sentinels (1200px rootMargin, 240-item
-  pages) - explorer, history, filmography all follow the same pattern.
+  pages) for vertical views; the mobile History card rail loads its next page when
+  the user reaches the right edge so horizontal layout does not eagerly fetch the
+  complete log.
 - Poster hydration is observer-gated and cached - see
   [posters-artwork.md](posters-artwork.md).
 - Now Playing polls only while the dashboard is visible - see
@@ -159,6 +162,11 @@ the episode row on the show detail page and is keyed by the parent show's identi
 plus its season and episode number. The Ratings page consumes the canonical server
 record, while the client also collapses any legacy aliases defensively. Episode
 artwork remains independent from the show's poster.
+
+At mobile widths, Discover, Watchlist, Ratings, Custom Lists, and History use the
+dashboard's compact poster-first card geometry. Each feed or collection is a
+horizontal rail that exposes the next card at the right edge, while the card's
+metadata and actions remain below its poster inside the tile.
 
 ## Settings Layout & Design Standards
 

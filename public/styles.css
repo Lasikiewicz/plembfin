@@ -22546,3 +22546,167 @@ html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
     min-width: 0;
   }
 }
+
+/* Mobile media rails ----------------------------------------------------- *
+ * Dashboard media rows use a compact, poster-first tile that exposes the
+ * next card at the right edge. Keep the same geometry on the other media
+ * views so a page entry never turns into a desktop-width card stack on a
+ * phone. These rules intentionally stay below the desktop card system and
+ * are limited to the mobile breakpoint. */
+@media (max-width: 760px) {
+  .page-shell[data-active-view="discover"],
+  .page-shell[data-active-view="watchlist"],
+  .page-shell[data-active-view="ratings"],
+  .page-shell[data-active-view="custom-lists"],
+  .page-shell[data-active-view="history"] {
+    --mobile-dashboard-card-width: clamp(128px, 40vw, 176px);
+  }
+
+  .page-shell[data-active-view="discover"] .discover-feed-row,
+  .page-shell[data-active-view="watchlist"] .personal-media-card-grid,
+  .page-shell[data-active-view="ratings"] .personal-media-card-grid,
+  .page-shell[data-active-view="custom-lists"] .personal-media-list-row,
+  .page-shell[data-active-view="history"] .history-list {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: stretch;
+    gap: var(--space-3);
+    min-height: 0;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0.55rem 0.2rem;
+    scroll-padding-inline: 0.2rem;
+    overscroll-behavior-inline: contain;
+  }
+
+  .page-shell[data-active-view="discover"] .discover-feed-row .shared-media-card--discover,
+  .page-shell[data-active-view="custom-lists"] .personal-media-list-row .shared-media-card--personal,
+  .page-shell[data-active-view="watchlist"] .personal-media-card-grid .shared-media-card--personal,
+  .page-shell[data-active-view="ratings"] .personal-media-card-grid .shared-media-card--personal,
+  .page-shell[data-active-view="history"] .history-list .history-page-card {
+    box-sizing: border-box;
+    width: var(--mobile-dashboard-card-width);
+    min-width: 0;
+    flex: 0 0 var(--mobile-dashboard-card-width);
+    align-self: stretch;
+    scroll-snap-align: start;
+  }
+
+  /* Discover and personal cards share the dashboard's poster-first stack on
+     mobile. The information/action area remains inside the tile instead of
+     being pushed off the right edge of a desktop-style horizontal card. */
+  .page-shell[data-active-view="discover"] .discover-feed-row .shared-media-card--discover,
+  .page-shell[data-active-view="custom-lists"] .personal-media-list-row .shared-media-card--personal,
+  .page-shell[data-active-view="watchlist"] .personal-media-card-grid .shared-media-card--personal,
+  .page-shell[data-active-view="ratings"] .personal-media-card-grid .shared-media-card--personal {
+    display: flex;
+    flex-direction: column;
+    height: auto;
+    gap: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .page-shell[data-active-view="discover"] .discover-feed-row .shared-media-card--discover .shared-media-card-poster-wrap,
+  .page-shell[data-active-view="custom-lists"] .personal-media-list-row .shared-media-card--personal .shared-media-card-poster-wrap,
+  .page-shell[data-active-view="watchlist"] .personal-media-card-grid .shared-media-card--personal .shared-media-card-poster-wrap,
+  .page-shell[data-active-view="ratings"] .personal-media-card-grid .shared-media-card--personal .shared-media-card-poster-wrap {
+    box-sizing: border-box;
+    flex: 0 0 auto;
+    width: 100%;
+    height: auto;
+    max-height: none;
+    align-self: stretch;
+    aspect-ratio: 2 / 3;
+    border-radius: var(--poster-radius) var(--poster-radius) 0 0;
+  }
+
+  .page-shell[data-active-view="discover"] .discover-feed-row .shared-media-card--discover .shared-media-card-poster,
+  .page-shell[data-active-view="custom-lists"] .personal-media-list-row .shared-media-card--personal .shared-media-card-poster,
+  .page-shell[data-active-view="watchlist"] .personal-media-card-grid .shared-media-card--personal .shared-media-card-poster,
+  .page-shell[data-active-view="ratings"] .personal-media-card-grid .shared-media-card--personal .shared-media-card-poster {
+    border-radius: var(--poster-radius) var(--poster-radius) 0 0;
+  }
+
+  .page-shell[data-active-view="discover"] .discover-feed-row .shared-media-card--discover .shared-media-card-body,
+  .page-shell[data-active-view="custom-lists"] .personal-media-list-row .shared-media-card--personal .shared-media-card-body,
+  .page-shell[data-active-view="watchlist"] .personal-media-card-grid .shared-media-card--personal .shared-media-card-body,
+  .page-shell[data-active-view="ratings"] .personal-media-card-grid .shared-media-card--personal .shared-media-card-body {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 0;
+    flex: 1 1 auto;
+    padding: 0.5rem;
+    justify-content: space-between;
+  }
+
+  .page-shell[data-active-view="discover"] .discover-feed-row .shared-media-card--discover .shared-media-card-actions,
+  .page-shell[data-active-view="custom-lists"] .personal-media-list-row .shared-media-card--personal .shared-media-card-actions,
+  .page-shell[data-active-view="watchlist"] .personal-media-card-grid .shared-media-card--personal .shared-media-card-actions,
+  .page-shell[data-active-view="ratings"] .personal-media-card-grid .shared-media-card--personal .shared-media-card-actions {
+    width: 100%;
+    min-width: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.35rem;
+    margin-top: auto;
+  }
+
+  .page-shell[data-active-view="discover"] .discover-feed-row .shared-media-card--discover .shared-media-card-actions button,
+  .page-shell[data-active-view="custom-lists"] .personal-media-list-row .shared-media-card--personal .shared-media-card-actions button,
+  .page-shell[data-active-view="watchlist"] .personal-media-card-grid .shared-media-card--personal .shared-media-card-actions button,
+  .page-shell[data-active-view="ratings"] .personal-media-card-grid .shared-media-card--personal .shared-media-card-actions button {
+    min-width: 0;
+    width: 100%;
+    padding-inline: 0.25rem;
+    font-size: 0.68rem;
+  }
+
+  .page-shell[data-active-view="discover"] .discover-feed-row {
+    min-height: 0;
+  }
+
+  /* History uses the same tile geometry as the dashboard rows. Keep the
+     existing history details, but put them below the poster and let the
+     complete list browse horizontally on a narrow screen. */
+  .page-shell[data-active-view="history"] .history-list .history-page-card {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .page-shell[data-active-view="history"] .history-list .history-page-card > .history-card-poster-wrapper {
+    box-sizing: border-box;
+    width: 100%;
+    height: auto;
+    max-height: none;
+    flex: 0 0 auto;
+    align-self: stretch;
+    aspect-ratio: 2 / 3;
+    border-radius: var(--poster-radius) var(--poster-radius) 0 0;
+  }
+
+  .page-shell[data-active-view="history"] .history-list .history-page-card > .history-card-poster-wrapper .history-card-poster-link {
+    border-radius: var(--poster-radius) var(--poster-radius) 0 0;
+  }
+
+  .page-shell[data-active-view="history"] .history-list .history-page-card > .history-card-details {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 0;
+    padding: 0.5rem;
+  }
+
+  .page-shell[data-active-view="history"] .history-list .history-card-title {
+    font-size: 0.86rem;
+    line-height: 1.2;
+  }
+
+  .page-shell[data-active-view="history"] .history-list .history-card-episode,
+  .page-shell[data-active-view="history"] .history-list .history-card-meta,
+  .page-shell[data-active-view="history"] .history-list .meta-label {
+    font-size: 0.72rem;
+  }
+}
