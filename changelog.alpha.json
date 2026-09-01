@@ -1,10 +1,31 @@
 {
   "baseVersion": "0.14.0",
-  "build": 6,
-  "version": "0.14.0.6",
-  "shortVersion": "0.14.0.6",
-  "updatedAt": "2026-08-31T19:11:15.655Z",
+  "build": 7,
+  "version": "0.14.0.7",
+  "shortVersion": "0.14.0.7",
+  "updatedAt": "2026-09-01T13:15:00.772Z",
   "entries": [
+    {
+      "build": 7,
+      "version": "0.14.0.7",
+      "shortVersion": "0.14.0.7",
+      "date": "2026-09-01T13:15:00.772Z",
+      "commit": "8bf4834f20187118a57938cbea6faf0b641ee790",
+      "message": "Feature - Consolidate sync activity and fix scheduled sync",
+      "author": "Lasikiewicz",
+      "details": [
+        "Feature: Consolidate sync activity and fix scheduled sync",
+        "Feature: Group repeated sync activity by movie or show while keeping the full event history available, and prevent scheduled Jellyfin polling from incorrectly undoing watched state."
+      ],
+      "sections": {
+        "newFeatures": [
+          "Consolidate sync activity and fix scheduled sync",
+          "Group repeated sync activity by movie or show while keeping the full event history available, and prevent scheduled Jellyfin polling from incorrectly undoing watched state."
+        ],
+        "majorBugFixes": [],
+        "tweaks": []
+      }
+    },
     {
       "build": 6,
       "version": "0.14.0.6",

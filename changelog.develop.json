@@ -1,17 +1,6 @@
 {
   "build": 19,
-  "resetCommit": "7d8358e76c3eded461def7e182ec3fdabb42cd8b",
-  "updatedAt": "2026-09-01T13:12:29.716Z",
-  "entries": [
-    {
-      "build": 19,
-      "date": "2026-09-01T13:12:29.716Z",
-      "commit": "7723d5c2309d1ad4738c2c969a13756f9f8752ce",
-      "message": "Feature - Consolidate sync activity and fix scheduled sync",
-      "author": "Lasikiewicz",
-      "details": [
-        "Group repeated sync activity by movie or show while keeping the full event history available, and prevent scheduled Jellyfin polling from incorrectly undoing watched state."
-      ]
-    }
-  ]
+  "resetCommit": "8bf4834f20187118a57938cbea6faf0b641ee790",
+  "updatedAt": "2026-09-01T13:15:00.772Z",
+  "entries": []
 }
