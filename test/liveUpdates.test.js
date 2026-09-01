@@ -6,7 +6,7 @@ import { makeTempDataDir } from "./helpers.js";
 
 makeTempDataDir("plembfin-live-updates-");
 
-const { db, getDataVersion, bumpDataVersion } = await import("../server/src/db.js");
+const { db, getDataVersion, bumpDataVersion, getUpNextVersion, bumpUpNextVersion } = await import("../server/src/db.js");
 const { AUTH } = await import("../server/src/appConfig.js");
 const { BACKGROUND_SYNC_PROGRESS_STALE_MS, loadRuntimeState, setRuntimeState } = await import("../server/src/utils/configStore.js");
 const { handleLiveUpdates } = await import("../server/src/routes/liveUpdates.js");
@@ -128,6 +128,7 @@ test("liveUpdates establishes SSE stream and sends ready event", async () => {
   assert.ok(output.includes(`"version":${initialVersion}`));
   assert.ok(output.includes('"syncTotal":0'));
   assert.ok(output.includes('"syncCompleted":0'));
+  assert.ok(output.includes('"upNextVersion":' + getUpNextVersion()));
 
   res.close();
 });
@@ -150,6 +151,22 @@ test("liveUpdates broadcasts history version changes", async () => {
   assert.ok(output.includes(`"type":"history-version"`));
   assert.ok(output.includes(`"version":${newVersion}`));
 
+  res.close();
+});
+
+test("liveUpdates broadcasts Up Next cache version changes", async () => {
+  const { req, res, getOutput } = createMockReqRes({
+    method: "GET",
+    headers: { "x-api-key": AUTH.apiKey },
+  });
+
+  await handleLiveUpdates(req, res);
+  const newVersion = bumpUpNextVersion();
+  await new Promise((resolve) => setTimeout(resolve, 600));
+
+  const output = getOutput();
+  assert.ok(output.includes('"type":"up-next-version"'));
+  assert.ok(output.includes('"upNextVersion":' + newVersion));
   res.close();
 });
 
@@ -263,6 +280,39 @@ test("client applies reconnect progress before reacting to its newer version", a
     });
     await new Promise((resolve) => setTimeout(resolve, 100));
     assert.deepEqual(calls, ["progress:0/0", "progress:4/12", "version:2"]);
+  } finally {
+    stopLiveUpdates();
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("client live-updates separates standalone and history-paired Up Next changes", async () => {
+  const upNextCalls = [];
+  let historyCall = null;
+  const mockStream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('data: {"type":"ready","version":1,"upNextVersion":2}\n\n'));
+      controller.enqueue(new TextEncoder().encode('data: {"type":"up-next-version","upNextVersion":3}\n\n'));
+      controller.enqueue(new TextEncoder().encode('data: {"type":"history-version","version":2,"upNextVersion":4}\n\n'));
+      controller.close();
+    },
+  });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: true, status: 200, body: mockStream });
+
+  try {
+    startLiveUpdates({
+      authHeaders: () => ({}),
+      onUpNextVersion: (version, details) => upNextCalls.push({ version, ...details }),
+      onHistoryVersion: (version) => { historyCall = version; },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.deepEqual(upNextCalls, [
+      { version: 2, initial: true, pairedWithHistory: false },
+      { version: 3, initial: false, pairedWithHistory: false },
+      { version: 4, initial: false, pairedWithHistory: true },
+    ]);
+    assert.equal(historyCall, 2);
   } finally {
     stopLiveUpdates();
     globalThis.fetch = originalFetch;

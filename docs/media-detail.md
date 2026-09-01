@@ -428,7 +428,12 @@ message.
   request for that show's episodes, `not_found`-ing both the add and the
   clear-existing-plays step. The lookup now only fills in ids an episode is
   missing and is skipped entirely once it already has one, so a correct
-  stored id is never overwritten by a guess. Plex/Emby/Jellyfin's own mark-played APIs
+  stored id is never overwritten by a guess. If Trakt rejects an existing episode
+  identity, its dispatch stops and reports the mismatch rather than retrying with
+  a title-derived series id; only title-only episodes can be hydrated before their
+  first dispatch, and movie retries remain supported. Plex notification episodes
+  also use their native grandparent key to fetch exact series metadata when available.
+  Plex/Emby/Jellyfin's own mark-played APIs
   don't accept an arbitrary date, so those servers still record the moment the
   correction ran, not the corrected date itself - only Trakt's history reflects
   the actual corrected timestamp. TV Fix Match sends one `POST /api/rematch-show` request that

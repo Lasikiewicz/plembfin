@@ -593,6 +593,8 @@ const selectHistoryVersion = db.prepare("SELECT version FROM cache_versions WHER
 const bumpHistoryVersion = db.prepare("UPDATE cache_versions SET version = version + 1, updated_at = ? WHERE id = 'history' RETURNING version");
 const selectDiscoverVersion = db.prepare("SELECT version FROM cache_versions WHERE id = 'discover'");
 const bumpDiscoverVersionStmt = db.prepare("UPDATE cache_versions SET version = version + 1, updated_at = ? WHERE id = 'discover' RETURNING version");
+const selectUpNextVersion = db.prepare("SELECT version FROM cache_versions WHERE id = 'up_next'");
+const bumpUpNextVersionStmt = db.prepare("UPDATE cache_versions SET version = version + 1, updated_at = ? WHERE id = 'up_next' RETURNING version");
 let dataVersion = Number(selectHistoryVersion.get()?.version || 1);
 let lastDataVersionCheckAt = 0;
 export function getDataVersion() {
@@ -632,6 +634,14 @@ export function getDiscoverVersion() {
 
 export function bumpDiscoverVersion() {
   return Number(bumpDiscoverVersionStmt.get(Date.now())?.version || 1);
+}
+
+export function getUpNextVersion() {
+  return Number(selectUpNextVersion.get()?.version || 1);
+}
+
+export function bumpUpNextVersion() {
+  return Number(bumpUpNextVersionStmt.get(Date.now())?.version || 1);
 }
 
 // JSON column helpers -------------------------------------------------------

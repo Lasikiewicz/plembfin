@@ -198,8 +198,13 @@ async function searchPlexFallback(config, media, targetType) {
 const plexRatingKeyCache = new Map();
 const plexSeriesIdentityCache = new Map();
 const plexSeriesInFlight = new Map();
+const plexEpisodeSeriesMetadataCache = new Map();
+const plexEpisodeSeriesMetadataInFlight = new Map();
 const PLEX_IDENTITY_TTL_MS = 10 * 60 * 1000;
 const PLEX_IDENTITY_MAX_ENTRIES = 100;
+const PLEX_EPISODE_SERIES_METADATA_TTL_MS = 10 * 60 * 1000;
+const PLEX_EPISODE_SERIES_METADATA_NEGATIVE_TTL_MS = 20 * 1000;
+const PLEX_EPISODE_SERIES_METADATA_MAX_ENTRIES = 200;
 let plexCacheNow = () => Date.now();
 
 function plexConnectionScope(config = {}) {
@@ -252,6 +257,8 @@ export function __resetPlexIdentityCache() {
   plexRatingKeyCache.clear();
   plexSeriesIdentityCache.clear();
   plexSeriesInFlight.clear();
+  plexEpisodeSeriesMetadataCache.clear();
+  plexEpisodeSeriesMetadataInFlight.clear();
   plexCacheNow = () => Date.now();
 }
 
@@ -662,6 +669,103 @@ export async function fetchPlexMetadataItem(config, ratingKey, { lane = "sync" }
   }
   const body = await response.json();
   return body?.MediaContainer?.Metadata?.[0] || null;
+}
+
+function plexRatingKeyFromReference(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const match = raw.match(/\/library\/metadata\/([^/?#]+)/i);
+  if (!match) return raw.replace(/^\/+/, "").split(/[/?#]/, 1)[0];
+  try {
+    return decodeURIComponent(match[1]);
+  } catch {
+    return match[1];
+  }
+}
+
+function plexEpisodeSeriesMetadataCacheKey(config, ratingKey) {
+  return `${plexConnectionScope(config)}:${ratingKey}`;
+}
+
+function cachedPlexEpisodeSeriesMetadata(cacheKey) {
+  const entry = plexEpisodeSeriesMetadataCache.get(cacheKey);
+  if (!entry) return undefined;
+  if (entry.expiresAt <= plexCacheNow()) {
+    plexEpisodeSeriesMetadataCache.delete(cacheKey);
+    return undefined;
+  }
+  return entry.series;
+}
+
+function cachePlexEpisodeSeriesMetadata(cacheKey, series) {
+  const now = plexCacheNow();
+  plexEpisodeSeriesMetadataCache.set(cacheKey, {
+    series,
+    expiresAt: now + (series ? PLEX_EPISODE_SERIES_METADATA_TTL_MS : PLEX_EPISODE_SERIES_METADATA_NEGATIVE_TTL_MS),
+  });
+  while (plexEpisodeSeriesMetadataCache.size > PLEX_EPISODE_SERIES_METADATA_MAX_ENTRIES) {
+    plexEpisodeSeriesMetadataCache.delete(plexEpisodeSeriesMetadataCache.keys().next().value);
+  }
+}
+
+function mergePlexEpisodeSeriesMetadata(metadata, series) {
+  if (!series) return metadata;
+  const merged = { ...metadata };
+  if (!merged.grandparentTitle && series.title) merged.grandparentTitle = series.title;
+  if (!merged.grandparentRatingKey && series.ratingKey) merged.grandparentRatingKey = series.ratingKey;
+  if (!merged.grandparentGuid && !merged.grandparentGUID && series.guid) merged.grandparentGuid = series.guid;
+
+  const seriesGuids = Array.isArray(series.Guid)
+    ? series.Guid
+    : series.Guid
+      ? [series.Guid]
+      : series.guid
+        ? [{ id: series.guid }]
+        : [];
+  const existingSeriesGuids = merged.GrandparentGuid || merged.GrandparentGUID;
+  if ((!Array.isArray(existingSeriesGuids) || existingSeriesGuids.length === 0) && seriesGuids.length) {
+    merged.GrandparentGuid = seriesGuids;
+  }
+  return merged;
+}
+
+// Plex episode metadata sometimes contains the native grandparent key but omits
+// grandparentGuid/GrandparentGuid from the response. Trakt and the other media
+// servers need the series identity, not the episode's own provider ids. Resolve
+// that parent by Plex's native key before normalizing the notification, then cache
+// it so a bulk show change does not fetch the same series once per episode.
+export async function hydratePlexEpisodeMetadata(config, metadata, { lane = "sync" } = {}) {
+  if (String(metadata?.type || "").toLowerCase() !== "episode") return metadata;
+
+  const parentReference = metadata.grandparentRatingKey
+    || metadata.grandparentKey
+    || metadata.grandparentId;
+  const parentRatingKey = plexRatingKeyFromReference(parentReference);
+  if (!parentRatingKey || parentRatingKey === String(metadata.ratingKey || "")) return metadata;
+
+  const cacheKey = plexEpisodeSeriesMetadataCacheKey(config, parentRatingKey);
+  const cached = cachedPlexEpisodeSeriesMetadata(cacheKey);
+  if (cached !== undefined) return mergePlexEpisodeSeriesMetadata(metadata, cached);
+
+  let pending = plexEpisodeSeriesMetadataInFlight.get(cacheKey);
+  if (!pending) {
+    pending = fetchPlexMetadataItem(config, parentRatingKey, { lane })
+      .then((series) => {
+        const type = String(series?.type || "").toLowerCase();
+        const normalizedSeries = !series || !type || type === "show" || type === "series" ? series : null;
+        cachePlexEpisodeSeriesMetadata(cacheKey, normalizedSeries);
+        return normalizedSeries;
+      });
+    plexEpisodeSeriesMetadataInFlight.set(cacheKey, pending);
+  }
+
+  try {
+    return mergePlexEpisodeSeriesMetadata(metadata, await pending);
+  } finally {
+    if (plexEpisodeSeriesMetadataInFlight.get(cacheKey) === pending) {
+      plexEpisodeSeriesMetadataInFlight.delete(cacheKey);
+    }
+  }
 }
 
 // Adaptive history rows contain the current user watch state but can omit the

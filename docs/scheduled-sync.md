@@ -246,15 +246,19 @@ already in flight is not cancelled; the guard only prevents new competing outbou
      watched states were restored.
    - Episode writes resolve series-level provider IDs before calling Trakt. This avoids
      sending episode-level Plex/Emby/Jellyfin IDs in the show slot and lets identity-poor
-     catch-up rows use the show's cached metadata. This lookup only fills in ids for an
-     episode that arrives with none - an id the episode already carries always wins, so a
-     bad match already resolved for that specific episode is never silently overwritten.
-     If Trakt then rejects that stored id outright (a non-empty `not_found` in its
-     `/sync/history` response body), `dispatchTrakt` retries once with the show's own known series ids before
-     giving up; this recovers a media server's own mismatched per-episode metadata (a
-     webhook can report a genuinely wrong id for one episode) without ever speculatively
-     replacing an id that was actually working. A retry that succeeds says so explicitly
-     in the sync-history detail rather than reporting a bare success.
+     catch-up rows use the show's cached metadata. Plex notification episodes first use
+     their native grandparent rating key to fetch the exact Plex series metadata when the
+     notification omitted the series GUID; this is a direct parent lookup, not a title guess.
+     Title-only episodes can still be hydrated once because they have no identity to protect.
+     An episode that already carries an identity remains tied to it: if Trakt rejects that
+     identity (`not_found` in `/sync/history`), Plembfin does not retry with a title-derived
+     series id. It records the mismatch as an error so the media can be fixed or matched
+     explicitly. Movies retain their one title-derived retry because their Trakt payload is
+     title-level rather than series-plus-episode.
+   - A Plex notification episode unwatch whose every configured Emby/Jellyfin destination
+     reports `No matching item found` is kept out of Trakt. Plembfin still records the
+     incoming local transition and the no-match audit, but does not let an unresolved Plex
+     episode identity change Trakt's state.
    - Dispatches accepted transitions to media servers and signals the authenticated
      browser update stream after each committed item.
    - After the snapshot diff, a separate step reads Trakt's per-play history and imports

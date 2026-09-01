@@ -6,6 +6,7 @@ import path from "node:path";
 
 import {
   getTargetsForSource,
+  shouldSuppressPlexNotificationEpisodeUnwatch,
   shouldSyncResumeProgress,
   syncMediaPlaystate,
 } from "../server/src/utils/syncOrchestrator.js";
@@ -17,6 +18,28 @@ test("getTargetsForSource routes to every other enabled platform", () => {
   assert.deepEqual(getTargetsForSource("manual", { jellyfin: { disabled: true } }), ["plex", "emby"]);
   assert.deepEqual(getTargetsForSource("unknown_source"), ["plex", "emby", "jellyfin"]);
   assert.deepEqual(getTargetsForSource("plex_custom"), ["emby", "jellyfin"]);
+});
+
+test("Plex notification episode unwatches do not reach Trakt when no LAN item matches", () => {
+  const media = {
+    source: "plex",
+    type: "episode",
+    event: "notification.viewstate",
+    title: "Reacher - S03E01",
+  };
+  const noMatches = {
+    targetStates: [
+      { target: "emby", status: "skipped", detail: "No matching item found" },
+      { target: "jellyfin", status: "skipped", detail: "No matching item found" },
+    ],
+  };
+
+  assert.equal(shouldSuppressPlexNotificationEpisodeUnwatch(noMatches, media, "unwatched"), true);
+  assert.equal(shouldSuppressPlexNotificationEpisodeUnwatch({
+    targetStates: [{ target: "emby", status: "success" }, noMatches.targetStates[1]],
+  }, media, "unwatched"), false);
+  assert.equal(shouldSuppressPlexNotificationEpisodeUnwatch(noMatches, { ...media, event: "media.scrobble" }, "unwatched"), false);
+  assert.equal(shouldSuppressPlexNotificationEpisodeUnwatch(noMatches, media, "watched"), false);
 });
 
 test("a dispatch with every destination disabled is skipped, not successful", async () => {

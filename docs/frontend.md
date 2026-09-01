@@ -128,8 +128,11 @@ stays set to the slug throughout, so the address bar keeps the `/tvshow/:key` fo
   by a month as the user scrolls toward either end; server-side month results persist
   locally across restarts, while search can prefetch the next 12 months to list matches
   outside the visible range - see [upcoming.md](upcoming.md).
-- Up Next loads through `/api/up-next` only while the dashboard is visible and keeps a
-  short in-memory TTL; Discover loads deterministic TMDB feeds through `/api/discover`
+- Up Next loads through `/api/up-next` only while the dashboard is visible, hydrates a
+  24-hour localStorage snapshot for instant first paint, and uses a durable server snapshot
+  with stale-while-revalidate. A changed Up Next snapshot announces its generation on
+  `/api/live-updates`; watch-state history events refresh the rail after the authoritative
+  history snapshot arrives. Discover loads deterministic TMDB feeds through `/api/discover`
   with type/genre filters and a longer TTL, hydrates the selected rail set from a
   bounded localStorage cache for the first paint, then reconciles it with the server
   cache. A stale server snapshot is served immediately and refreshed in the background;
@@ -141,9 +144,10 @@ stays set to the slug throughout, so the address bar keeps the `/tvshow/:key` fo
   version when the cached shape changes.
 - `modules/live-updates.js` keeps an authenticated streaming `fetch` open to
   `/api/live-updates`. A shared SQLite data version lets web and worker processes
-  announce committed watch-state and personal-media changes, while a separate Discover
-  cache version announces changed TMDB feed snapshots. The client debounces bursts and
-  reloads the affected active view in place, then reconnects after a dropped stream.
+  announce committed watch-state and personal-media changes, while separate Discover
+  and Up Next cache generations announce changed derived snapshots. The client debounces
+  bursts and reloads the affected active view in place, then reconnects after a dropped
+  stream.
 
 ### Personal media organization
 

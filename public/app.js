@@ -12,7 +12,7 @@ import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHi
 import { renderSyncActivity, renderSyncActivityStatus, setSyncActivityProgress, setSyncActivitySearch, resetSyncActivity, loadSyncActivity, downloadSyncActivityLog, retrySyncActivity, startRetryAllSyncActivity, resumeRetryAllSyncActivityIfRunning, fetchAllRetryableSyncActivityIds, toggleSyncActivityRowLog, loadOlderSyncActivityGroup, toggleSyncActivityFailedOnly, startSyncActivityRefresh, stopSyncActivityRefresh } from "./modules/sync-activity.js";
 import { initSyncPreview } from "./modules/sync-preview.js";
 import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, refreshDashboardHistoryInPlace, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched, loadPartWatched } from "./modules/dashboard.js?v=20260831m";
-import { initUpNext, renderUpNext, loadUpNext, resetUpNext } from "./modules/up-next.js?v=20260831k";
+import { initUpNext, renderUpNext, loadUpNext, resetUpNext } from "./modules/up-next.js?v=20260901a";
 import { initDiscover, renderDiscover, loadDiscover, resetDiscover } from "./modules/discover.js?v=20260831g";
 import { initPersonalMedia, renderPersonalMedia, loadPersonalMedia, resetPersonalMedia } from "./modules/personal-media.js?v=20260831r";
 import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, loadStats, renderRankingTable } from "./modules/stats.js";
@@ -26,7 +26,7 @@ import { initMediaPerson, closePersonProfile, loadCastMemberDetails } from "./mo
 import { initMediaLightbox } from "./modules/media-lightbox.js";
 import { initAppEvents, closeMobileMenu } from "./modules/app-events.js?v=20260831r";
 import { initTrackerSettings, refreshTrackerSettings } from "./modules/tracker-settings.js?v=20260817";
-import { startLiveUpdates, stopLiveUpdates } from "./modules/live-updates.js?v=20260831a";
+import { startLiveUpdates, stopLiveUpdates } from "./modules/live-updates.js?v=20260901a";
 
 // Ping the backend the moment the app loads (no auth needed), so the server's
 // caches and upstream connections are warm by the time the user clicks into
@@ -2328,17 +2328,23 @@ async function refreshLiveHistoryView() {
   liveHistoryRefreshQueued = false;
   try {
     clearDerivedUiCaches({ resetExplorer: false });
-    // SSE only tells us that the shared data version changed. Fetch both
-    // authoritative snapshots silently, then reconcile the visible dashboard
-    // history rows once; do not route this through the full page render path.
+    // SSE only tells us that the shared data version changed. Fetch the
+    // authoritative history/progress snapshots, then reconcile the visible
+    // rows and refresh the preserved Up Next rail without a full page render.
     resetPartWatchedView("default", { preserveItems: true });
     const partWatchedRefresh = loadPartWatched({ silent: true }).catch((error) => {
       logDebug(`Background Part Watched refresh failed: ${error.message}`);
     });
     await loadHistory({ force: true, silent: true });
+    const upNextRefresh = state.activeView === "dashboard"
+      ? loadUpNext({ force: true }).catch((error) => {
+        logDebug(`Background Up Next refresh failed: ${error.message}`);
+      })
+      : null;
     await partWatchedRefresh;
 
     if (state.activeView === "dashboard") refreshDashboardHistoryInPlace();
+    await upNextRefresh;
   } finally {
     liveHistoryRefreshActive = false;
     if (liveHistoryRefreshQueued && !isAnySyncRunning()) {
@@ -2901,6 +2907,15 @@ function initialize() {
       startLiveUpdates({
         authHeaders,
         onHistoryVersion: queueLiveHistoryRefresh,
+        onUpNextVersion: (version, { initial = false, pairedWithHistory = false } = {}) => {
+          const normalized = Number(version);
+          if (!Number.isFinite(normalized)) return;
+          const previous = Number(state.upNextVersion || 0);
+          state.upNextVersion = normalized;
+          if ((initial || previous !== normalized) && !pairedWithHistory && state.activeView === "dashboard") {
+            loadUpNext({ fromSse: true }).catch((error) => logDebug(`Live Up Next refresh failed: ${error.message}`));
+          }
+        },
         onDiscoverVersion: (version, { initial = false } = {}) => {
           const previous = Number(state.discoverVersion || 0);
           state.discoverVersion = Number(version) || 0;

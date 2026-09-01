@@ -81,11 +81,16 @@ full generation/rendering detail; the summary here is what each publish workflow
 does, which in every case is now just "verify, then build and publish the image using
 values already committed" - none of them write anything back to their branch.
 
-- **"Push to git"** runs `scripts/rebuild-develop-changelog.js` locally (recomputes
-  `changelog.develop.json`'s single entry from git history since its `resetCommit`
-  anchor), commits, and pushes to `develop`; the pre-push hook independently verifies
-  that the committed changelog covers every user-facing commit before allowing the
-  push. `docker-publish-develop.yml` checks README
+- **"Push all to git"** includes every relevant local worktree change and every pending
+  local `develop` commit, rebuilds `changelog.develop.json` from its `resetCommit`
+  anchor, consolidates the pending work into one commit, and pushes it to `develop`.
+  **"Push to git"** uses the same changelog/build workflow but scopes staging and
+  committing to work created in the current chat only. The agent records the chat's
+  baseline first, leaves pre-existing edits and commits untouched, and stops for
+  clarification if changes are mixed or older local commits are already ahead of
+  `origin/develop`; it never uses `git add .` for this narrow-scope command. In both
+  cases, the pre-push hook independently verifies that the committed changelog covers
+  every user-facing commit before allowing the push. `docker-publish-develop.yml` checks README
   consistency, then builds, verifies, and publishes a rolling image to
   `ghcr.io/lasikiewicz/plembfin:develop` (also tagged `develop-<build>`) using the build
   number already in the pushed commit. `develop` never touches

@@ -355,6 +355,7 @@ CREATE TABLE IF NOT EXISTS cache_versions (
 );
 INSERT OR IGNORE INTO cache_versions (id, version, updated_at) VALUES ('history', 1, 0);
 INSERT OR IGNORE INTO cache_versions (id, version, updated_at) VALUES ('discover', 1, 0);
+INSERT OR IGNORE INTO cache_versions (id, version, updated_at) VALUES ('up_next', 1, 0);
 
 -- Keep cache invalidation in the same transaction as canonical state writes.
 -- Explicit bumpDataVersion() calls remain useful for file-backed derived data;

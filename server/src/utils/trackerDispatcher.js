@@ -174,24 +174,28 @@ async function performTraktDispatch(connection, trackerMedia, state, isCanonical
   return { removeResult, result };
 }
 
-// A stored provider id remains the primary payload. Trakt rejecting it is a
-// stronger signal than a title guess, though, so both episodes and movies get
-// one title-derived retry candidate. Force preflight resolves the same
-// candidate early to cover its LAN gap; a shared promise keeps that lookup
-// O(1) for repeated items in a Force batch.
+// A stored provider id remains the primary payload. Movies may receive one
+// title-derived retry when Trakt rejects that id, because a movie title maps
+// directly to the payload Trakt expects. Episodes are different: Trakt expects
+// a series id plus season/episode coordinates, and a title search can select
+// the wrong series. An existing episode identity is therefore never retried
+// with a guessed series id. Title-only episodes can still be hydrated once
+// before their first dispatch because they have no identity to protect.
 function titleRetryCacheKey(media = {}) {
   const type = media.type || media.mediaType;
-  const title = type === "episode" ? trackerShowTitle(media) : String(media.title || "").trim();
+  if (type !== "movie") return "";
+  const title = String(media.title || "").trim();
   return `${type}:${title.toLowerCase().replace(/\s+/g, " ").trim()}:${String(media.year || "")}`;
 }
 
 async function titleIdsForRetry(media, cache = null, detailsResolver = getTmdbDetails) {
   const type = media.type || media.mediaType;
-  const title = type === "episode" ? trackerShowTitle(media) : String(media.title || "").trim();
+  if (type !== "movie") return null;
+  const title = String(media.title || "").trim();
   if (!title) return null;
   const resolve = async () => {
     const details = await Promise.resolve()
-      .then(() => detailsResolver({ mediaType: type === "episode" ? "tv" : "movie", title, light: true }))
+      .then(() => detailsResolver({ mediaType: "movie", title, light: true }))
       .catch(() => null);
     const ids = {
       imdb: String(details?.external_ids?.imdb_id || "").trim(),
@@ -209,11 +213,10 @@ async function titleIdsForRetry(media, cache = null, detailsResolver = getTmdbDe
 
 // Resolve the identities the real Trakt dispatch can use before it mutates
 // anything remotely. `hydrateTrackerMedia` fills title-only Force items while
-// raw sparse IDs remain authoritative primaries. Either an episode or a movie
-// can carry a wrong provider ID; dispatchTrakt retries that case with the
-// title-derived identity after Trakt returns not_found. Force Sync asks for
-// that candidate up front too, so its preflight marker covers the same item
-// during the earlier LAN phase.
+// raw sparse IDs remain authoritative primaries. Only movies receive a
+// title-derived not_found retry; an existing episode identity is never replaced
+// with a guessed series id. Force Sync asks for the same safe candidates up
+// front, so its preflight marker covers the item during the earlier LAN phase.
 export async function trackerDispatchMediaCandidates(media = {}, {
   includeTitleFallback = false,
   primaryHydrationCache = null,
@@ -225,7 +228,8 @@ export async function trackerDispatchMediaCandidates(media = {}, {
   const candidates = trackerMediaIdentityKeys(primary).length ? [primary] : [];
   // A title-only item's hydrated primary already *is* its title-derived
   // candidate. Only raw-ID primaries need the separate not_found retry.
-  if (includeTitleFallback && hadPrimaryIdentity) {
+  const type = primary.type || primary.mediaType;
+  if (includeTitleFallback && hadPrimaryIdentity && type !== "episode") {
     const titleIds = await titleIdsForRetry(primary, titleFallbackCache, detailsResolver).catch(() => null);
     if (titleIds) {
       const fallback = { ...primary, ids: titleIds };

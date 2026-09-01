@@ -1,4 +1,4 @@
-import { getDataVersion, getDiscoverVersion } from "../db.js";
+import { getDataVersion, getDiscoverVersion, getUpNextVersion } from "../db.js";
 import { requireAdmin } from "../utils/auth.js";
 import { methodNotAllowed } from "../utils/http.js";
 import { loadBackgroundSyncProgress } from "../utils/configStore.js";
@@ -25,6 +25,7 @@ export async function handleLiveUpdates(req, res) {
   const initialSyncCompleted = Number(initialProgress.completed) || 0;
   const initialVersion = getDataVersion();
   const initialDiscoverVersion = getDiscoverVersion();
+  const initialUpNextVersion = getUpNextVersion();
 
   res.status(200).set({
     "Content-Type": "text/event-stream; charset=utf-8",
@@ -36,6 +37,7 @@ export async function handleLiveUpdates(req, res) {
 
   let lastVersion = initialVersion;
   let lastDiscoverVersion = initialDiscoverVersion;
+  let lastUpNextVersion = initialUpNextVersion;
   let lastWriteAt = Date.now();
   let lastSyncProgress = { total: initialSyncTotal, completed: initialSyncCompleted };
   let pollInFlight = false;
@@ -43,6 +45,7 @@ export async function handleLiveUpdates(req, res) {
     type: "ready",
     version: lastVersion,
     discoverVersion: lastDiscoverVersion,
+    upNextVersion: lastUpNextVersion,
     syncTotal: initialSyncTotal,
     syncCompleted: initialSyncCompleted,
   });
@@ -73,20 +76,29 @@ export async function handleLiveUpdates(req, res) {
         // --- History version ---
         const version = getDataVersion();
         const discoverVersion = getDiscoverVersion();
+        const upNextVersion = getUpNextVersion();
         const discoverVersionChanged = discoverVersion !== lastDiscoverVersion;
         if (discoverVersionChanged) lastDiscoverVersion = discoverVersion;
         if (version !== lastVersion) {
           lastVersion = version;
+          lastUpNextVersion = upNextVersion;
           lastWriteAt = Date.now();
           // Include current sync state so the client knows whether a background
           // sync is active before it decides to act on the version change.
-          writeEvent(res, { type: "history-version", version, discoverVersion, syncTotal, syncCompleted });
+          writeEvent(res, { type: "history-version", version, discoverVersion, upNextVersion, syncTotal, syncCompleted });
           return;
         }
 
         if (discoverVersionChanged) {
           lastWriteAt = Date.now();
           writeEvent(res, { type: "discover-version", discoverVersion });
+          return;
+        }
+
+        if (upNextVersion !== lastUpNextVersion) {
+          lastUpNextVersion = upNextVersion;
+          lastWriteAt = Date.now();
+          writeEvent(res, { type: "up-next-version", upNextVersion });
           return;
         }
 

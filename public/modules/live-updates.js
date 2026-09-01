@@ -3,6 +3,7 @@ let reconnectTimer = null;
 let connectionGeneration = 0;
 let lastVersion = null;
 let lastDiscoverVersion = null;
+let lastUpNextVersion = null;
 let visibilityHandler = null;
 let lockAbortController = null;
 
@@ -20,9 +21,10 @@ export function stopLiveUpdates() {
   visibilityHandler = null;
   lastVersion = null;
   lastDiscoverVersion = null;
+  lastUpNextVersion = null;
 }
 
-export function startLiveUpdates({ authHeaders, onHistoryVersion, onDiscoverVersion, onSyncProgress, onError } = {}) {
+export function startLiveUpdates({ authHeaders, onHistoryVersion, onDiscoverVersion, onUpNextVersion, onSyncProgress, onError } = {}) {
   stopLiveUpdates();
   const generation = connectionGeneration;
 
@@ -51,6 +53,14 @@ export function startLiveUpdates({ authHeaders, onHistoryVersion, onDiscoverVers
     if (!data) return;
     const event = JSON.parse(data);
 
+    const upNextVersion = Number(event.upNextVersion);
+    let upNextVersionChanged = false;
+    let upNextVersionInitial = false;
+    if (Number.isFinite(upNextVersion)) {
+      upNextVersionInitial = lastUpNextVersion === null;
+      upNextVersionChanged = !upNextVersionInitial && upNextVersion !== lastUpNextVersion;
+    }
+
     if (event.type === "sync-progress") {
       onSyncProgress?.({ total: Number(event.total) || 0, completed: Number(event.completed) || 0 });
       return;
@@ -75,13 +85,28 @@ export function startLiveUpdates({ authHeaders, onHistoryVersion, onDiscoverVers
     }
 
     const version = Number(event.version);
-    if (!Number.isFinite(version)) return;
-    if (lastVersion === null) {
+    const historyVersionChanged = Number.isFinite(version) && lastVersion !== null && version !== lastVersion;
+    if (Number.isFinite(version) && lastVersion === null) {
       lastVersion = version;
+    } else if (historyVersionChanged) {
+      lastVersion = version;
+    }
+
+    if (Number.isFinite(upNextVersion)) {
+      lastUpNextVersion = upNextVersion;
+      if (upNextVersionInitial || upNextVersionChanged) {
+        onUpNextVersion?.(upNextVersion, {
+          initial: upNextVersionInitial,
+          pairedWithHistory: historyVersionChanged,
+        });
+      }
+    }
+
+    if (!Number.isFinite(version)) {
+      if (event.type === "up-next-version" && upNextVersionChanged) return;
       return;
     }
-    if (version === lastVersion) return;
-    lastVersion = version;
+    if (!historyVersionChanged) return;
     // If the server piggybacked sync-progress onto this version bump, apply it
     // first so the client's sync-busy flag is current before onHistoryVersion
     // decides whether to queue a dashboard refresh.

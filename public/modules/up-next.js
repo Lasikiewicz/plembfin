@@ -43,16 +43,21 @@ function readUpNextCache() {
     if (!stored || !Array.isArray(stored.items)) return null;
     const savedAt = Number(stored.savedAt || 0);
     if (!savedAt || Date.now() - savedAt > UP_NEXT_CACHE_TTL_MS) return null;
-    return stored.items.slice(0, 100);
+    return {
+      savedAt,
+      version: Number(stored.version || 0),
+      items: stored.items.slice(0, 100),
+    };
   } catch {
     return null;
   }
 }
 
-function persistUpNextCache(items = state.upNextItems) {
+function persistUpNextCache(items = state.upNextItems, { savedAt = Date.now(), version = state.upNextVersion } = {}) {
   try {
     localStorage.setItem(UP_NEXT_CACHE_KEY, JSON.stringify({
-      savedAt: Date.now(),
+      savedAt,
+      version,
       items: (Array.isArray(items) ? items : []).slice(0, 100),
     }));
   } catch {
@@ -64,10 +69,14 @@ function hydrateUpNextCache() {
   if (cacheHydrated || state.upNextItems.length) return;
   cacheHydrated = true;
   const cachedItems = readUpNextCache();
-  if (!cachedItems?.length) return;
+  if (!cachedItems) return;
+  if (Number.isFinite(cachedItems.version) && cachedItems.version > 0) {
+    state.upNextVersion = cachedItems.version;
+  }
+  if (!cachedItems.items.length) return;
   // Leave loadedAt at zero so the network still reconciles the cache; the
   // cached cards simply get a head start while that request is in flight.
-  state.upNextItems = cachedItems;
+  state.upNextItems = cachedItems.items;
   state.upNextLoadedAt = 0;
   state.upNextFromCache = true;
 }
@@ -93,12 +102,18 @@ export function resetUpNext({ preserveItems = false } = {}) {
   state.upNextRequestVersion += 1;
   state.upNextAbortController?.abort();
   state.upNextAbortController = null;
-  if (!preserveItems) state.upNextItems = [];
+  if (!preserveItems) {
+    state.upNextItems = [];
+    state.upNextVersion = 0;
+    state.upNextFromCache = false;
+    cacheHydrated = false;
+  }
   state.upNextLoading = false;
   state.upNextLoadedAt = 0;
   state.upNextError = "";
   state.upNextErrorCode = "";
   state.upNextExitIds = [];
+  state.upNextRefreshQueued = false;
 }
 
 function upNextErrorPresentation() {
@@ -215,10 +230,14 @@ export async function removeUpNextItem(itemId, details = {}) {
   }
 }
 
-export async function loadUpNext({ force = false } = {}) {
-  if (!state.token || state.upNextLoading) return;
+export async function loadUpNext({ force = false, fromSse = false } = {}) {
+  if (!state.token) return;
+  if (state.upNextLoading) {
+    if (fromSse) state.upNextRefreshQueued = true;
+    return;
+  }
   hydrateUpNextCache();
-  if (!force && state.upNextLoadedAt && Date.now() - state.upNextLoadedAt < UP_NEXT_TTL_MS) {
+  if (!force && !fromSse && state.upNextLoadedAt && Date.now() - state.upNextLoadedAt < UP_NEXT_TTL_MS) {
     renderUpNext();
     return;
   }
@@ -234,9 +253,10 @@ export async function loadUpNext({ force = false } = {}) {
   const timeout = setTimeout(() => controller.abort(), UP_NEXT_TIMEOUT_MS);
 
   try {
-    const response = await fetch(`/api/up-next${force ? "?refresh=1" : ""}`, {
+    const params = force ? "refresh=1" : "revalidate=1";
+    const response = await fetch(`/api/up-next?${params}`, {
       headers: buildAuthHeaders(state.token),
-      cache: force ? "reload" : "default",
+      cache: force ? "reload" : "no-store",
       signal: controller.signal,
     });
     const body = await response.json().catch(() => ({}));
@@ -252,9 +272,14 @@ export async function loadUpNext({ force = false } = {}) {
     const nextIds = new Set(nextItems.map((item) => String(item?.id || "")).filter(Boolean));
     state.upNextExitIds = [...previousIds].filter((id) => !nextIds.has(id));
     state.upNextItems = nextItems;
-    state.upNextLoadedAt = Date.now();
-    state.upNextFromCache = false;
-    persistUpNextCache(state.upNextItems);
+    const responseVersion = Number(body.upNextVersion);
+    if (Number.isFinite(responseVersion) && responseVersion > 0) state.upNextVersion = responseVersion;
+    state.upNextFromCache = body.cacheStale === true;
+    state.upNextLoadedAt = state.upNextFromCache ? 0 : Date.now();
+    persistUpNextCache(state.upNextItems, {
+      savedAt: state.upNextFromCache ? Number(body.builtAt || 0) || Date.now() : Date.now(),
+      version: state.upNextVersion,
+    });
   } catch (error) {
     if (requestVersion !== state.upNextRequestVersion) return;
     state.upNextErrorCode = error?.name === "AbortError"
@@ -268,6 +293,11 @@ export async function loadUpNext({ force = false } = {}) {
       state.upNextAbortController = null;
       state.upNextLoading = false;
       renderUpNext();
+      const refreshQueued = state.upNextRefreshQueued;
+      state.upNextRefreshQueued = false;
+      if (refreshQueued && state.activeView === "dashboard") {
+        Promise.resolve().then(() => loadUpNext({ fromSse: true })).catch(() => { });
+      }
     }
   }
 }

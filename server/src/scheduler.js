@@ -3,7 +3,7 @@ import { activeSyncOperation, appendSyncHistory, loadBackgroundSyncProgress, loa
 import { createPlexNotificationListener } from "./utils/plexNotificationListener.js";
 import { createPlexAdaptivePoller } from "./utils/plexAdaptivePoller.js";
 import { createLiveSessionPoller } from "./utils/liveSessionPoller.js";
-import { fetchPlexContainerEpisodes, fetchPlexMetadataItem, findPlexItem, mergePlexMetadataItem } from "./utils/plexClient.js";
+import { fetchPlexContainerEpisodes, fetchPlexMetadataItem, findPlexItem, hydratePlexEpisodeMetadata, mergePlexMetadataItem } from "./utils/plexClient.js";
 import { buildPlexMediaFromMetadata } from "./utils/parsers.js";
 import { buildWatchProvenance, provenanceTelemetryLines } from "./utils/watchProvenance.js";
 import { listActiveSessions } from "./utils/activeSessions.js";
@@ -264,8 +264,13 @@ async function handlePlexLibraryItemChange(ratingKey, metadataOverride = null) {
     console.error(`Plex notification: metadata lookup failed for ratingKey ${ratingKey}: ${error.message}`);
     return null;
   });
-  const metadata = mergePlexMetadataItem(authoritativeMetadata, metadataOverride);
+  let metadata = mergePlexMetadataItem(authoritativeMetadata, metadataOverride);
   if (!metadata) return;
+
+  metadata = await hydratePlexEpisodeMetadata(config.plex, metadata).catch((error) => {
+    console.warn(`Plex notification: series identity lookup failed for ratingKey ${ratingKey}: ${error.message}`);
+    return metadata;
+  });
 
   if (["show", "season"].includes(String(metadata.type || "").toLowerCase())) {
     const episodes = await fetchPlexContainerEpisodes(config.plex, ratingKey, metadata.type).catch((error) => {

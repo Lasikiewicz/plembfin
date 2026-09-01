@@ -122,6 +122,8 @@ export const state = {
   upNextErrorCode: "",
   upNextFromCache: false,
   upNextExitIds: [],
+  upNextVersion: 0,
+  upNextRefreshQueued: false,
   upNextRequestVersion: 0,
   upNextAbortController: null,
   explorerViewMovies: localStorage.getItem(EXPLORER_VIEW_KEY_MOVIES) || "posters",

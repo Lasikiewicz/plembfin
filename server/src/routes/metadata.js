@@ -24,6 +24,7 @@ import { cacheBackdropFromUrl, cacheLogoFromUrl, cachePosterFromUrl, cacheProfil
 import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, searchTmdb, searchTmdbCollections, getTmdbCollection, getTmdbDiscovery, getCachedTvdbId } from "../utils/tmdbGateway.js";
 import { searchTvdbSeriesList, resolveTvdbSeriesId, getTvdbSeriesArtwork } from "../utils/tvdbGateway.js";
 import { getUpcomingCalendarMonth } from "../utils/upcomingCalendarCache.js";
+import { getUpNextCacheSnapshot } from "../utils/upNextCache.js";
 import { getFanartMovieArt, getFanartTvArt, getAllFanartMovieImages, getAllFanartTvImages } from "../utils/fanartGateway.js";
 import { getOmdbRating } from "../utils/omdbGateway.js";
 import { POSTERS_DIR, BACKDROPS_DIR, PROFILES_DIR, PUBLIC_DIR } from "../paths.js";
@@ -900,8 +901,6 @@ export async function handleDiscover(req, res) {
   }
 }
 
-const UP_NEXT_CACHE_TTL_MS = 2 * 60 * 1000;
-let upNextCache = { builtAt: 0, items: [] };
 const selectEpisodeProgressForUpNextStmt = db.prepare(
   "SELECT title, tmdb_id, tvdb_id, season, episode FROM playback_progress WHERE media_type = 'episode'",
 );
@@ -1026,13 +1025,15 @@ export async function handleUpNext(req, res) {
   if (req.method !== "GET") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
   const refresh = ["1", "true", "yes"].includes(String(req.query.refresh || "").toLowerCase());
+  const revalidate = ["1", "true", "yes"].includes(String(req.query.revalidate || "").toLowerCase());
   try {
-    if (!refresh && upNextCache.builtAt && Date.now() - upNextCache.builtAt < UP_NEXT_CACHE_TTL_MS) {
-      return sendJson(res, { items: upNextCache.items }, 200, { "Cache-Control": "private, max-age=60, stale-while-revalidate=120", Vary: "Authorization" });
-    }
-    const items = await buildUpNextItems();
-    upNextCache = { builtAt: Date.now(), items };
-    return sendJson(res, { items }, 200, { "Cache-Control": "private, max-age=60, stale-while-revalidate=120", Vary: "Authorization" });
+    const snapshot = await getUpNextCacheSnapshot(buildUpNextItems, { refresh, revalidate });
+    return sendJson(res, {
+      items: snapshot.items,
+      builtAt: snapshot.builtAt,
+      upNextVersion: snapshot.upNextVersion,
+      cacheStale: snapshot.stale,
+    }, 200, { "Cache-Control": "private, max-age=60, stale-while-revalidate=120", Vary: "Authorization" });
   } catch (error) {
     console.error("Up Next request failed", error);
     return sendJson(res, { error: error.message || "Up Next request failed" }, error.status || 500);

@@ -719,6 +719,33 @@ function deferredDispatchSummary(details = "A newer local/outbound state took pr
   };
 }
 
+export function shouldSuppressPlexNotificationEpisodeUnwatch(summary = {}, media = {}, state = "unwatched") {
+  if (String(state).toLowerCase() !== "unwatched") return false;
+  if (String(media?.source || "").toLowerCase() !== "plex") return false;
+  if (String(media?.type || media?.mediaType || "").toLowerCase() !== "episode") return false;
+
+  const event = String(media?.event || media?.watchProvenance?.event || "").toLowerCase();
+  const ingestPath = String(
+    media?.ingestPath
+      || media?.ingest_path
+      || media?.watchProvenance?.ingestPath
+      || media?.watchProvenance?.ingest_path
+      || "",
+  ).toLowerCase();
+  if (event !== "notification.viewstate" && ingestPath !== "plex_notification") return false;
+
+  const mediaServerStates = (summary?.targetStates || []).filter((entry) =>
+    ["emby", "jellyfin"].includes(String(entry?.target || "").toLowerCase()),
+  );
+  if (!mediaServerStates.length) return false;
+
+  return mediaServerStates.every((entry) => {
+    const status = String(entry?.status || "").toLowerCase();
+    const detail = String(entry?.detail || "").toLowerCase();
+    return ["skipped", "not_found"].includes(status) && /no matching item found|no match/.test(detail);
+  });
+}
+
 async function includeTrackerDispatch(summary, media, state, lane = "sync") {
   // An explicit target list is authoritative. Detail-page Force Sync uses it
   // for destination-specific repairs, which must not also mutate Trakt as an
@@ -726,6 +753,17 @@ async function includeTrackerDispatch(summary, media, state, lane = "sync") {
   if (Array.isArray(media?.syncTargets)) {
     const requested = new Set(media.syncTargets.map((target) => String(target).trim().toLowerCase()).filter(Boolean));
     if (!requested.has("trakt")) return summary;
+  }
+  if (shouldSuppressPlexNotificationEpisodeUnwatch(summary, media, state)) {
+    const detail = "Episode unwatch withheld from Trakt because no matching Emby or Jellyfin item was found";
+    return {
+      ...summary,
+      targetStates: [
+        ...(summary.targetStates || []),
+        { target: "trakt", status: "skipped", detail },
+      ],
+      details: [summary.details, detail].filter(Boolean).join("; "),
+    };
   }
   const trackerStates = (await dispatchTrackerWatchState(media, state, { lane })).filter((entry) => entry.status !== "skipped");
   if (!trackerStates.length) return summary;

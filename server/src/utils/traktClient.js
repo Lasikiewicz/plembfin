@@ -98,6 +98,26 @@ export function trackerMediaIdentityKeys(media = {}) {
   ));
 }
 
+function trackerEpisodeCoordinates(media = {}) {
+  const titleMatch = String(media.title || "").match(/\bS(\d{1,3})E(\d{1,3})\b/i);
+  const season = Number(media.season ?? titleMatch?.[1]);
+  const episode = Number(media.episode ?? titleMatch?.[2]);
+  return {
+    season: Number.isInteger(season) ? season : null,
+    episode: Number.isInteger(episode) ? episode : null,
+  };
+}
+
+function trackerEpisodeShowTitle(media = {}) {
+  const explicit = media.showTitle || media.show_title || media.seriesTitle;
+  const title = explicit || String(media.title || "").replace(/\s+-\s+S\d{1,3}E\d{1,3}.*$/i, "");
+  return String(title || "")
+    .replace(/\s*\(\d{4}\)\s*$/, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
 export function trackerMediaMatches(left = {}, right = {}) {
   const leftType = left.type || left.mediaType;
   const rightType = right.type || right.mediaType;
@@ -107,7 +127,22 @@ export function trackerMediaMatches(left = {}, right = {}) {
     || Number(left.episode) !== Number(right.episode)
   )) return false;
   const rightKeys = new Set(trackerMediaIdentityKeys(right));
-  return trackerMediaIdentityKeys(left).some((key) => rightKeys.has(key));
+  if (trackerMediaIdentityKeys(left).some((key) => rightKeys.has(key))) return true;
+
+  // An authoritative Force Sync can carry a stale provider id while the
+  // Trakt snapshot has the same episode under the corrected series id. This
+  // fallback is only for matching the recent outbound echo ledger; it does not
+  // create a Trakt payload or merge the underlying provider identities. Requiring
+  // an id on both sides keeps title-only records from collapsing unrelated shows.
+  if (leftType !== "episode" || !trackerMediaIdentityKeys(left).length || !rightKeys.size) return false;
+  const leftCoordinates = trackerEpisodeCoordinates(left);
+  const rightCoordinates = trackerEpisodeCoordinates(right);
+  return leftCoordinates.season !== null
+    && leftCoordinates.episode !== null
+    && leftCoordinates.season === rightCoordinates.season
+    && leftCoordinates.episode === rightCoordinates.episode
+    && trackerEpisodeShowTitle(left) !== ""
+    && trackerEpisodeShowTitle(left) === trackerEpisodeShowTitle(right);
 }
 
 function normalizeMovie(entry) {

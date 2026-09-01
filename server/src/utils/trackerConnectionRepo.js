@@ -186,8 +186,10 @@ export function getTrackerItemState(provider, mediaKey) {
 
 // Returns a recent outbound intent/success for the same real media item. An
 // exact media_key is preferred, but provider-id richness can change the key's
-// preferred prefix (IMDb vs TMDB, for example), so also match episode
-// coordinates plus an overlapping provider-specific series id.
+// preferred prefix (IMDb vs TMDB, for example). Also match episode coordinates
+// plus an overlapping provider-specific series id, or the exact normalized show
+// title when a Force Sync is carrying a stale provider id. The latter is only
+// an outbound-echo guard; it never becomes a remote Trakt identity.
 export function findLatestTrackerOutboundSince(provider, item, since = 0) {
   const name = providerName(provider);
   const mediaKey = String(item?.mediaKey || "");

@@ -108,20 +108,39 @@ gh run list --workflow ghcr-cleanup.yml --limit 1
 ```
 If the latest run shows `in_progress`, wait for it to complete before pushing.
 
-## "Push to git" command
+## "Push to git" and "Push all to git" commands
 
-Any request to push the current work to Git—including lowercase wording or phrases
-such as **"push all to git"**—means this complete workflow; it never means running
-`git push` by itself. Run the full pre-push workflow before committing to `develop`:
+Choose the scope from the user's wording before doing anything. Both commands run
+the complete local changelog/build workflow below; they differ in which local work
+may enter it:
 
-### 1 - Review all pending changes
+- **"Push all to git"** (also accept **"push all the git"** and case variations)
+  includes every relevant local change currently in the worktree and every pending
+  local `develop` commit that can be safely consolidated. This is the command for
+  publishing all local work.
+- **"Push to git"** includes only files, lines, and commits created in the current
+  chat. Before the first task edit, record the current `HEAD`, `git status`, and
+  the pending `origin/develop..HEAD` commit list as this chat's baseline. Leave
+  pre-existing worktree changes and commits untouched; do not use `git add .` in
+  this mode. If old and current work are mixed in a file and cannot be separated
+  safely, or if the baseline already has unpushed commits, stop and ask whether
+  the user wants **"Push all to git"** or a narrower scope.
+
+The selected scope applies to every review, documentation, staging, commit, and
+consolidation step. Never interpret either phrase as running `git push` by itself.
+
+### 1 - Review the selected scope
 ```bash
 git diff --stat HEAD
 ```
-Read the list of changed files to understand what was touched in this session.
+For **"Push all to git"**, read every relevant changed file and pending local
+commit. For **"Push to git"**, compare the worktree with the baseline recorded at
+the start of this chat and review only this chat's changes. A pre-existing local
+commit ahead of `origin/develop` cannot be omitted from a normal branch push, so
+the scope check must stop before committing when one is present.
 
 ### 2 - Sync docs and README
-For every changed file, check whether the corresponding doc **and** the relevant section of `README.md` need updating:
+For every selected changed file, check whether the corresponding doc **and** the relevant section of `README.md` need updating:
 
 | Changed area | Doc to check | README section to check |
 | --- | --- | --- |
@@ -219,7 +238,10 @@ git commit -m "fix: concise summary" \
 The `.githooks/commit-msg` hook rejects `feat`, `fix`, `security`, `enhance`, and `docs` commits that have no meaningful bullet, and `rebuild-develop-changelog.js` in step 6 applies the same `validateReleaseMessage` check again while walking real git history, so bypassing local hooks (or a commit from before this repo had the hook) still cannot reach a published changelog entry. After committing, verify the recorded message with `git log -1 --format=full` before pushing.
 
 ### 5 - Stage and commit
-Stage all modified files **except** `data/`, `node_modules/`, and any secrets. Commit using the message written in step 4.
+For **"Push all to git"**, stage all modified files **except** `data/`,
+`node_modules/`, and any secrets. For **"Push to git"**, stage only the files or
+lines created in this chat and leave the baseline changes unstaged. Commit using
+the message written in step 4.
 
 ### 6 - Rebuild the develop changelog
 ```bash
@@ -227,22 +249,27 @@ node scripts/rebuild-develop-changelog.js
 git add changelog.develop.json
 git commit -m "chore: rebuild develop changelog"
 ```
-This walks every real commit from `changelog.develop.json`'s `resetCommit` anchor (set by
-the last "Force to alpha") through the commit just made in step 5, inclusive, and
-recomputes the single develop entry from scratch - so it picks up not just this session's
-work but anything pushed in an earlier "Push to git" run since the last reset too. If it
-prints "No user-facing commits since the last reset", nothing changed the file; skip
-`git add`/`git commit` for it. If it exits with a validation error, fix the offending
-commit message(s) it names before continuing - do not bypass it.
+For **"Push all to git"**, this intentionally walks every real commit from
+`changelog.develop.json`'s `resetCommit` anchor (set by the last "Force to alpha")
+through the commit just made in step 5, inclusive, and recomputes the single
+develop entry from scratch. For **"Push to git"**, run this step only after the
+scope check has confirmed that no older local commit is pending; earlier commits
+already published on `origin/develop` remain represented in the rolling entry,
+but pre-existing local work is not staged or pushed by this chat. If it prints
+"No user-facing commits since the last reset", nothing changed the file; skip
+`git add`/`git commit` for it. If it exits with a validation error, fix the
+offending commit message(s) it names before continuing - do not bypass it.
 
 ### 7 - Consolidate pending local commits
 Check what is about to be pushed:
 ```bash
 git log origin/develop..HEAD --oneline
 ```
-This is normally at least two commits now (the step 5 commit plus step 6's changelog
-commit); squash them into one clean commit before pushing so history on `develop` stays
-one commit per push, same as before:
+For **"Push all to git"**, squash all pending local product/changelog commits into
+one clean commit before pushing so history on `develop` stays one commit per push.
+For **"Push to git"**, do this only when the baseline had no pending local commits;
+then it consolidates only this chat's product/changelog commits. Never use the
+consolidation reset to absorb baseline commits in the narrow-scope mode:
 ```bash
 git reset --soft origin/develop
 git commit -m "<type>: <consolidated summary>" \
@@ -252,15 +279,14 @@ git commit -m "<type>: <consolidated summary>" \
 Take the commit message from step 4's product commit - step 6's "chore: rebuild develop
 changelog" commit has no product bullets of its own and contributes nothing to the
 message. `git reset --soft` preserves the working tree exactly, so the changelog file step
-6 already rebuilt is included in this final commit untouched. If more than one *product*
-commit is being squashed (e.g. this session added to a commit still pending from an
-earlier interrupted "Push to git" run), combine their bullet lists into one consolidated
-list using the same standard as step 4 (3-8 of the most significant user-visible changes;
-drop a bullet that just restates another one in the group more briefly) - this is exactly
-what turned one evening's worth of commits into a 38-bullet release note once (see
-`docs: consolidate v0.12.9 changelog entry into higher-level bullets` for the correction
-this required) - and re-run step 6 afterward so the rebuilt entry reflects the final,
-consolidated message rather than the pre-squash one.
+6 already rebuilt is included in this final commit untouched. In all-scope mode, if more
+than one *product* commit is being squashed, combine their bullet lists into one
+consolidated list using the same standard as step 4 (3-8 of the most significant
+user-visible changes; drop a bullet that just restates another one in the group more
+briefly) - this is exactly what turned one evening's worth of commits into a 38-bullet
+release note once (see `docs: consolidate v0.12.9 changelog entry into higher-level
+bullets` for the correction this required) - and re-run step 6 afterward so the rebuilt
+entry reflects the final, consolidated message rather than the pre-squash one.
 
 ### 8 - Push
 

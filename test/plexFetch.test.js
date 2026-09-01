@@ -2,7 +2,12 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { fetchPlexWithRefresh, plexRequestHeaders } from "../server/src/utils/plexFetch.js";
-import { mergePlexMetadataItem } from "../server/src/utils/plexClient.js";
+import {
+  __resetPlexIdentityCache,
+  hydratePlexEpisodeMetadata,
+  mergePlexMetadataItem,
+} from "../server/src/utils/plexClient.js";
+import { buildPlexMediaFromMetadata } from "../server/src/utils/parsers.js";
 
 test("adaptive Plex state keeps full provider GUID metadata", () => {
   const merged = mergePlexMetadataItem(
@@ -25,6 +30,58 @@ test("adaptive Plex state keeps full provider GUID metadata", () => {
   assert.equal(merged.lastViewedAt, 1787728716);
   assert.equal(merged.guid, "plex://movie/canonical");
   assert.deepEqual(merged.Guid, [{ id: "imdb://tt0247745" }, { id: "tmdb://39939" }]);
+});
+
+test("Plex episode notifications hydrate series ids from the native grandparent key", async () => {
+  const originalFetch = globalThis.fetch;
+  const config = { baseUrl: "https://plex.example.test", token: "token" };
+  let seriesRequests = 0;
+  __resetPlexIdentityCache();
+
+  globalThis.fetch = async (url) => {
+    const requestUrl = new URL(String(url));
+    assert.equal(requestUrl.pathname, "/library/metadata/series-42");
+    seriesRequests += 1;
+    return new Response(JSON.stringify({
+      MediaContainer: {
+        Metadata: [{
+          ratingKey: "series-42",
+          type: "show",
+          title: "Reacher",
+          guid: "plex://show/reacher",
+          Guid: [{ id: "tmdb://108978" }, { id: "tvdb://366924" }],
+        }],
+      },
+    }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+
+  const episode = {
+    ratingKey: "episode-7",
+    type: "episode",
+    title: "Picture Says a Thousand Words",
+    grandparentTitle: "Reacher",
+    grandparentKey: "/library/metadata/series-42",
+    parentIndex: 2,
+    index: 3,
+    guid: "plex://episode/episode-specific",
+    Guid: [{ id: "tmdb://episode-specific" }],
+    viewCount: 0,
+  };
+
+  try {
+    const hydrated = await hydratePlexEpisodeMetadata(config, episode);
+    const media = buildPlexMediaFromMetadata(hydrated);
+    assert.equal(media.ids.tmdb, "108978");
+    assert.equal(media.ids.tvdb, "366924");
+    assert.equal(media.season, 2);
+    assert.equal(media.episode, 3);
+
+    await hydratePlexEpisodeMetadata(config, episode);
+    assert.equal(seriesRequests, 1, "the same Plex series should be fetched once for repeated episode notifications");
+  } finally {
+    globalThis.fetch = originalFetch;
+    __resetPlexIdentityCache();
+  }
 });
 
 test("managed Plex headers bind JWT requests to the stable device", () => {

@@ -438,6 +438,12 @@ each promotion to `main` becoming one numbered release. See
 [Which version should I run?](#which-version-should-i-run) for what that means as a
 user, and [`docs/development.md`](docs/development.md) for the full workflow.
 
+Use **"Push all to git"** when every relevant local change and pending local commit
+should be included in the develop changelog and published. Use **"Push to git"** when
+only the work created in the current chat should be staged and published; pre-existing
+local edits or pending commits remain out of scope, and mixed or ambiguous changes
+must be clarified before committing.
+
 Changelog content for every branch is generated locally, before each push, from real git
 history - never by CI reading GitHub's push event - which also keeps release-process
 bookkeeping out of what publishes to `alpha` and `main`.

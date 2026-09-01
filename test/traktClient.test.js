@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { fetchTraktWatchedSnapshot, pollTraktDeviceAuth, setTraktWatchState, startTraktDeviceAuth, trackerMediaKey } from "../server/src/utils/traktClient.js";
+import { fetchTraktWatchedSnapshot, pollTraktDeviceAuth, setTraktWatchState, startTraktDeviceAuth, trackerMediaKey, trackerMediaMatches } from "../server/src/utils/traktClient.js";
 
 test("Trakt device authorization uses the API device endpoints", async () => {
   const originalFetch = globalThis.fetch;
@@ -80,6 +80,29 @@ test("Trakt watched snapshots reject show responses without season progress", as
       /did not include season progress/,
     );
   } finally { globalThis.fetch = originalFetch; }
+});
+
+test("tracker outbound matching bridges a stale episode id by exact show and coordinates", () => {
+  const stale = {
+    type: "episode",
+    title: "Reacher - S03E01",
+    showTitle: "Reacher",
+    season: 3,
+    episode: 1,
+    ids: { tmdb: "old-series-id" },
+  };
+  const corrected = {
+    type: "episode",
+    title: "Reacher - S03E01",
+    showTitle: "Reacher",
+    season: 3,
+    episode: 1,
+    ids: { tmdb: "new-series-id" },
+  };
+
+  assert.equal(trackerMediaMatches(stale, corrected), true);
+  assert.equal(trackerMediaMatches(stale, { ...corrected, episode: 2 }), false);
+  assert.equal(trackerMediaMatches(stale, { ...corrected, showTitle: "Reachers" }), false);
 });
 
 test("Trakt episode writes use show IDs plus season and episode coordinates", async () => {

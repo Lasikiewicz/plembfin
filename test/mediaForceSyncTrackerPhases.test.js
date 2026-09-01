@@ -238,14 +238,14 @@ test("Force preflight resolves title metadata once for many sparse items", async
     }));
     const primed = await primeTrackerWatchStateIntents([...sparse, ...titleOnly, ...wrongMovies], { detailsResolver });
 
-    assert.equal(metadataQueries.filter((title) => title === sparseTitle).length, 1,
-      "a sparse show's title-derived fallback should resolve once for the whole batch");
+    assert.equal(metadataQueries.filter((title) => title === sparseTitle).length, 0,
+      "an episode with an existing id must not trigger a title-derived series guess");
     assert.equal(metadataQueries.filter((title) => title === titleOnlyTitle).length, 1,
       "a title-only show's primary hydration should resolve once for the whole batch");
     assert.equal(metadataQueries.filter((title) => title === wrongMovieTitle).length, 1,
       "wrong-ID movies sharing a title should resolve one retry candidate for the whole batch");
-    assert.equal(primed, (episodeCount * 3) + movieCount + 1,
-      "raw identities remain distinct while their shared title fallback is deduplicated");
+    assert.equal(primed, (episodeCount * 2) + movieCount + 1,
+      "episode identities remain distinct without speculative title fallbacks while movie fallbacks stay deduplicated");
 
     for (const entry of sparse) {
       assert.equal(
@@ -253,11 +253,13 @@ test("Force preflight resolves title metadata once for many sparse items", async
         "watched",
         "the sparse raw identity remains the dispatch primary",
       );
-      const fallback = { ...entry.media, ids: { imdb: "tt610001", tmdb: "610001", tvdb: "710001" } };
       assert.equal(
-        trackerConnectionRepo.getTrackerItemState("trakt", trackerMediaKey(fallback))?.lastOutboundState,
-        "watched",
-        "the sparse title-derived retry identity is primed too",
+        trackerConnectionRepo.getTrackerItemState("trakt", trackerMediaKey({
+          ...entry.media,
+          ids: { imdb: "tt610001", tmdb: "610001", tvdb: "710001" },
+        })),
+        null,
+        "a sparse episode must not prime a guessed title-derived retry identity",
       );
     }
     for (const entry of titleOnly) {
@@ -286,7 +288,7 @@ test("Force preflight resolves title metadata once for many sparse items", async
   }
 });
 
-test("a wrong-ID Force item primes its title-derived Trakt identity before the LAN gap", async () => {
+test("a wrong-ID Force episode reports the Trakt mismatch without a title fallback", async () => {
   const title = "Phase Gap Wrong ID Show";
   const serverKey = "phase-gap-wrong-id";
   const tmdbId = "765432";
@@ -320,6 +322,7 @@ test("a wrong-ID Force item primes its title-derived Trakt identity before the L
   }]);
 
   const localWrites = new Set();
+  const localMediaKey = trackerMediaKey({ ...media, ids: wrongIds });
   let pollResult = null;
   let markerSeenBeforePoll = false;
   let pollStarted = false;
@@ -334,7 +337,7 @@ test("a wrong-ID Force item primes its title-derived Trakt identity before the L
     onLocalWrite: async ({ method }) => {
       if (pollStarted || method !== "POST") return;
       pollStarted = true;
-      const marker = trackerConnectionRepo.getTrackerItemState("trakt", mediaKey);
+      const marker = trackerConnectionRepo.getTrackerItemState("trakt", localMediaKey);
       markerSeenBeforePoll = marker?.lastOutboundState === "watched" && Number(marker.lastOutboundAt) > 0;
       // The LAN server has accepted the watched write, but Force Sync has not
       // yet entered its deferred Trakt phase. Reproduce a stale, empty Trakt
@@ -371,9 +374,10 @@ test("a wrong-ID Force item primes its title-derived Trakt identity before the L
     assert.equal(pollResult?.deferredUnwatched, 1);
     assert.equal((await repo.getPlaystateForMedia(media))?.state, "watched");
     assert.equal(result.results[0]?.canonicalState, "watched");
-    assert.equal(result.results[0]?.status, "success");
+    assert.equal(result.results[0]?.status, "partial");
+    assert.equal(result.results[0]?.targetStates.find((target) => target.target === "trakt")?.status, "error");
     assert.equal(wrongPrimaryRejected, true, "the stored episode IDs should reach Trakt and be rejected");
-    assert.equal(titleFallbackAccepted, true, "the title-derived series IDs should complete the retry");
+    assert.equal(titleFallbackAccepted, false, "an existing episode identity must never be replaced by a title-derived series guess");
   } finally {
     globalThis.fetch = originalFetch;
     trackerConnectionRepo.deleteTrackerConnection("trakt");

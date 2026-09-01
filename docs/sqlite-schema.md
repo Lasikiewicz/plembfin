@@ -14,7 +14,7 @@ Reference for `data/plembfin.db`. The full authoritative schema is in
 | `playstate` | Per-item watched/unwatched state for sync targets | sync orchestrator | sync orchestrator |
 | `sync_history` | Permanent log of sync dispatch results, with `activity_group_key` for grouped movie/show activity | sync outcome changes | sync-history and sync-activity endpoints |
 | `runtime_state` | Single-row JSON blob - last cron time, force-sync state/log, `nowPlayingRefresh` signal | scheduler, force-sync, webhooks | dashboard polling |
-| `cache_versions` | Monotone cross-process cache generations (`history` for canonical watch state, `discover` for changed TMDB feed snapshots) | SQLite triggers and explicit invalidation | every web/worker process |
+| `cache_versions` | Monotone cross-process cache generations (`history` for canonical watch state, `discover` for changed TMDB feed snapshots, `up_next` for changed dashboard queue snapshots) | SQLite triggers and explicit invalidation | every web/worker process |
 | `scheduler_lease` | Current worker leader, fencing generation, heartbeat and tick time | worker coordinator | health and worker coordination |
 | `background_jobs` / `background_job_logs` | Durable cron/force-sync queue, state, results and ordered logs | web enqueues; leader claims | sync APIs and worker |
 | `settings` | Single-row JSON blob - Plex/Emby/Jellyfin/TMDB/TVDB connection settings | config endpoint | everything that talks to servers |

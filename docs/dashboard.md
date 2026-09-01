@@ -36,6 +36,15 @@ small number of candidate seasons so a large library cannot create an unbounded 
 request burst. This is built from Plembfin's local history, so media-server and Trakt
 connections are optional.
 
+The browser hydrates the rail from the 24-hour `plembfin:upNextCache:v1` localStorage
+snapshot before requesting the network. The server also keeps the completed snapshot in
+`data/up-next-cache.json`, so a restart can serve warm data immediately. Dashboard loads
+request `/api/up-next?revalidate=1`: a stale snapshot is returned while one background
+rebuild runs, and a changed result advances the `up_next` cache generation. The existing
+`/api/live-updates` stream announces that generation with `up-next-version`; history-version
+events also refresh Up Next after watched/progress changes. Existing cards remain painted
+while a refresh is in flight, then the new snapshot is reconciled into the rail.
+
 Cards show the parent show, season/episode, episode title, release state, a direct
 show-detail link, and a Mark Watched action that uses the shared watched-date/sync flow.
 Missing metadata, a provider failure, or no eligible released episode

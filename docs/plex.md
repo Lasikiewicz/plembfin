@@ -106,9 +106,16 @@ item's metadata via `fetchPlexMetadataItem` and merges it with the notification'
 state fields through `mergePlexMetadataItem` (`plexClient.js`): the notification payload
 can arrive without the item's provider `Guid` collection, so the fresher metadata fetch's
 identity data is kept while the notification's own live watch-state fields still win.
+For an episode, `hydratePlexEpisodeMetadata` then follows Plex's native grandparent
+rating key when available and copies the exact series GUID collection onto the episode
+before normalization. That prevents an episode's own provider IDs from being sent in
+Trakt's series slot, and avoids guessing the series from a short or ambiguous title.
 The result is checked for its actual view state. A watched transition is recorded in
 Plembfin history and propagated to Emby/Jellyfin. An unwatched transition supersedes the
-watched state in Plembfin and propagates to the other eligible destinations. This channel
+watched state in Plembfin and propagates to the other eligible destinations. If a Plex
+notification episode unwatch finds no matching item on any configured Emby/Jellyfin
+destination, the orchestrator records that no-match result but withholds the remaining
+Trakt episode unwatch until the identity/library mapping is reliable. This channel
 covers library UI changes that Plex webhooks do not reliably report, including unwatching.
 Plex's "Mark Unwatched" clears `viewCount` but can leave a stale `viewOffset` behind, and a
 lingering offset alone cannot distinguish that from a fresh in-progress first watch. The
@@ -163,6 +170,7 @@ Used by the sync orchestrator and manual watch actions:
 | `setPlexProgress` | `/:/progress` to set a resume position |
 | `markPlexUnplayedByRatingKey` | Unscrobble by ratingKey (used by unwatch propagation) |
 | `fetchPlexMetadataItem` | `/library/metadata/<ratingKey>` lookup (used by the WebSocket callback) |
+| `hydratePlexEpisodeMetadata` | Follows an episode's native grandparent rating key and adds the exact series GUIDs needed for cross-platform matching |
 | `mergePlexMetadataItem` | Merges a `fetchPlexMetadataItem` result with a notification's state override, keeping the fetch's provider `Guid` identity but the override's live state fields |
 | `fetchPlexSeriesEpisodes` | All episodes of a series (season-level operations) |
 | `fetchPlexWatchedItems` / `fetchPlexResumableItems` | History and on-deck feeds for catch-up sync |
