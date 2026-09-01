@@ -290,6 +290,9 @@ export function posterOverflowMenu(item = {}, options = {}) {
   const ratingShowImdbId = options.ratingShowImdbId || (isEpisodeRating
     ? (item.show_imdb_id || item.showImdbId || (menuMode === "up-next" ? item.imdb_id || item.imdbId : ""))
     : "");
+  const ratingEpisodeTmdbId = options.ratingEpisodeTmdbId || item.episode_tmdb_id || item.episodeTmdbId || "";
+  const ratingEpisodeTvdbId = options.ratingEpisodeTvdbId || item.episode_tvdb_id || item.episodeTvdbId || "";
+  const ratingEpisodeImdbId = options.ratingEpisodeImdbId || item.episode_imdb_id || item.episodeImdbId || "";
   // Deliberately no movie tmdb id attribute here: confirmAndMarkUnwatched()
   // in watch-action.js treats a present unwatch-tmdb-id as proof the movie's
   // detail page was already open and re-opens it after unwatching. These
@@ -311,6 +314,9 @@ export function posterOverflowMenu(item = {}, options = {}) {
       data-poster-menu-rating-show-tmdb-id="${escapeAttribute(ratingShowTmdbId)}"
       data-poster-menu-rating-show-tvdb-id="${escapeAttribute(ratingShowTvdbId)}"
       data-poster-menu-rating-show-imdb-id="${escapeAttribute(ratingShowImdbId)}"
+      data-poster-menu-rating-episode-tmdb-id="${escapeAttribute(ratingEpisodeTmdbId)}"
+      data-poster-menu-rating-episode-tvdb-id="${escapeAttribute(ratingEpisodeTvdbId)}"
+      data-poster-menu-rating-episode-imdb-id="${escapeAttribute(ratingEpisodeImdbId)}"
       data-poster-menu-rating-title="${escapeAttribute(ratingTitle)}"
       data-poster-menu-rating-show-title="${escapeAttribute(ratingShowTitle)}"
       data-poster-menu-rating-season="${escapeAttribute(ratingSeason)}"
@@ -322,6 +328,9 @@ export function posterOverflowMenu(item = {}, options = {}) {
       data-poster-menu-up-next-show-title="${escapeAttribute(showTitle || title)}"
       data-poster-menu-up-next-tmdb-id="${escapeAttribute(item.tmdb_id || item.show_tmdb_id || "")}"
       data-poster-menu-up-next-tvdb-id="${escapeAttribute(item.tvdb_id || item.show_tvdb_id || "")}"
+      data-poster-menu-up-next-episode-tmdb-id="${escapeAttribute(ratingEpisodeTmdbId)}"
+      data-poster-menu-up-next-episode-tvdb-id="${escapeAttribute(ratingEpisodeTvdbId)}"
+      data-poster-menu-up-next-episode-imdb-id="${escapeAttribute(ratingEpisodeImdbId)}"
       data-poster-menu-up-next-season="${escapeAttribute(item.season ?? "")}"
       data-poster-menu-up-next-episode="${escapeAttribute(item.episode ?? "")}"
       data-poster-menu-up-next-episode-title="${escapeAttribute(item.episode_title || item.episodeTitle || "")}"

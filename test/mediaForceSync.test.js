@@ -85,6 +85,14 @@ test("normalizes target-specific push and pull operations", () => {
     },
   );
   assert.equal(normalizeMediaForceSyncRequest({ title: "The Acolyte", type: "show", mode: "pull_from", pull_from: "plex" }).mode, "pull");
+  assert.equal(
+    normalizeMediaForceSyncRequest({ title: "The Acolyte", type: "show", mode: "push_to", push_to: "trakt" }).target,
+    "trakt",
+  );
+  assert.throws(
+    () => normalizeMediaForceSyncRequest({ title: "The Acolyte", type: "show", mode: "pull_from", pull_from: "trakt" }),
+    /source must be plex, emby, or jellyfin/,
+  );
 });
 
 test("normalizes a season subset for a show detail Force Sync request", () => {
@@ -115,6 +123,8 @@ test("normalizes the Settings library Force Sync options", () => {
     normalizeLibraryForceSyncRequest({ mode: "push_to", push_to: "emby" }).target,
     "emby",
   );
+  assert.equal(normalizeLibraryForceSyncRequest({ mode: "push_to", push_to: "trakt" }).target, "trakt");
+  assert.throws(() => normalizeLibraryForceSyncRequest({ mode: "pull_from", pull_from: "trakt" }), /source must be plex, emby, or jellyfin/);
   assert.throws(() => normalizeLibraryForceSyncRequest({ mode: "full_sync" }), /mode must be push or pull/);
 });
 

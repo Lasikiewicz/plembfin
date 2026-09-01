@@ -4,6 +4,8 @@ import { readJson } from "../utils/requestBody.js";
 import { methodNotAllowed, sendJson, sendOptions } from "../utils/http.js";
 import { bumpDataVersion, db, transaction, writeAuditLog } from "../db.js";
 import { getCanonicalPosterUrl } from "../utils/mediaArtwork.js";
+import { loadMediaConfig } from "../utils/configStore.js";
+import { queuePersonalRatingMutation } from "../utils/personalRatingSync.js";
 
 const PERSONAL_MEDIA_TYPES = new Set(["movie", "tv", "episode"]);
 const MAX_TITLE_LENGTH = 300;
@@ -105,6 +107,9 @@ function mediaFromBody(body = {}, { allowEpisode = false } = {}) {
   }
   const rawTmdbId = cleanText(body.tmdb_id || body.tmdbId, 100);
   const rawTvdbId = cleanText(body.tvdb_id || body.tvdbId, 100);
+  const episodeTmdbId = isEpisode ? cleanText(body.episode_tmdb_id || body.episodeTmdbId, 100) : "";
+  const episodeTvdbId = isEpisode ? cleanText(body.episode_tvdb_id || body.episodeTvdbId, 100) : "";
+  const episodeImdbId = isEpisode ? cleanText(body.episode_imdb_id || body.episodeImdbId, 100) : "";
   const explicitShowTmdbId = cleanText(body.show_tmdb_id || body.showTmdbId, 100);
   const explicitShowTvdbId = cleanText(body.show_tvdb_id || body.showTvdbId, 100);
   const explicitShowImdbId = cleanText(body.show_imdb_id || body.showImdbId, 100);
@@ -142,6 +147,9 @@ function mediaFromBody(body = {}, { allowEpisode = false } = {}) {
     show_tmdb_id: isEpisode ? tmdbId : "",
     show_tvdb_id: isEpisode ? tvdbId : "",
     show_imdb_id: isEpisode ? imdbId : "",
+    episode_tmdb_id: episodeTmdbId,
+    episode_tvdb_id: episodeTvdbId,
+    episode_imdb_id: episodeImdbId,
     season,
     episode,
   };
@@ -187,6 +195,9 @@ function mediaFromBody(body = {}, { allowEpisode = false } = {}) {
     show_tmdb_id: canonical.tmdb_id || media.show_tmdb_id,
     show_tvdb_id: canonical.tvdb_id || media.show_tvdb_id,
     show_imdb_id: canonical.imdb_id || media.show_imdb_id,
+    episode_tmdb_id: canonical.episode_tmdb_id || media.episode_tmdb_id,
+    episode_tvdb_id: canonical.episode_tvdb_id || media.episode_tvdb_id,
+    episode_imdb_id: canonical.episode_imdb_id || media.episode_imdb_id,
   };
 }
 
@@ -214,6 +225,9 @@ function mediaRow(row = {}, extra = {}) {
     show_tmdb_id: showTmdbId || "",
     show_tvdb_id: showTvdbId || "",
     show_imdb_id: mediaType === "episode" ? row.imdb_id || "" : "",
+    episode_tmdb_id: mediaType === "episode" ? row.episode_tmdb_id || "" : "",
+    episode_tvdb_id: mediaType === "episode" ? row.episode_tvdb_id || "" : "",
+    episode_imdb_id: mediaType === "episode" ? row.episode_imdb_id || "" : "",
     poster_url: row.poster_url || "",
     show_poster_url: showPosterUrl || "",
     overview: row.overview || "",
@@ -270,13 +284,15 @@ function upsertMedia(tableName, media, timestamp, { rating = null } = {}) {
   if (tableName === "personal_ratings") {
     db.prepare(`
       INSERT INTO personal_ratings
-        (media_key, media_type, title, tmdb_id, tvdb_id, imdb_id, poster_url, overview, release_date, show_title, season, episode, rating, created_at, updated_at)
-      VALUES (@media_key, @media_type, @title, @tmdb_id, @tvdb_id, @imdb_id, @poster_url, @overview, @release_date, @show_title, @season, @episode, @rating, @created_at, @updated_at)
+        (media_key, media_type, title, tmdb_id, tvdb_id, imdb_id, poster_url, overview, release_date, show_title, season, episode, episode_tmdb_id, episode_tvdb_id, episode_imdb_id, rating, origin, canonical_updated_at, created_at, updated_at)
+      VALUES (@media_key, @media_type, @title, @tmdb_id, @tvdb_id, @imdb_id, @poster_url, @overview, @release_date, @show_title, @season, @episode, @episode_tmdb_id, @episode_tvdb_id, @episode_imdb_id, @rating, 'manual', @updated_at, @created_at, @updated_at)
       ON CONFLICT(media_key) DO UPDATE SET
         media_type=excluded.media_type, title=excluded.title, tmdb_id=excluded.tmdb_id,
         tvdb_id=excluded.tvdb_id, imdb_id=excluded.imdb_id, poster_url=excluded.poster_url,
         overview=excluded.overview, release_date=excluded.release_date, show_title=excluded.show_title,
-        season=excluded.season, episode=excluded.episode, rating=excluded.rating,
+        season=excluded.season, episode=excluded.episode, episode_tmdb_id=excluded.episode_tmdb_id,
+        episode_tvdb_id=excluded.episode_tvdb_id, episode_imdb_id=excluded.episode_imdb_id, rating=excluded.rating,
+        origin='manual', canonical_updated_at=excluded.canonical_updated_at,
         updated_at=excluded.updated_at
     `).run({ ...media, rating, created_at: timestamp, updated_at: timestamp });
     return;
@@ -337,6 +353,13 @@ export async function handlePersonalMedia(req, res) {
     if (action === "watchlist-add" || action === "watchlist-remove" || action === "rate" || action === "remove-rating" || action === "list-add" || action === "list-remove") {
       const media = mediaFromBody(body, { allowEpisode: action === "rate" || action === "remove-rating" });
       const timestamp = Date.now();
+      // A local rating must not depend on a provider refresh or network call.
+      // The transaction below commits Plembfin's canonical value first; the
+      // separate queue worker resolves provider credentials later.
+      const ratingSyncConfig = ["rate", "remove-rating"].includes(action)
+        ? await loadMediaConfig({ resolveConnections: false })
+        : null;
+      let ratingQueue = { queued: 0, providers: [] };
       transaction(() => {
         if (action === "watchlist-add") upsertMedia("personal_watchlist", media, timestamp);
         if (action === "watchlist-remove") db.prepare("DELETE FROM personal_watchlist WHERE media_key = ?").run(media.media_key);
@@ -349,10 +372,12 @@ export async function handlePersonalMedia(req, res) {
           }
           deleteEpisodeRatingAliases(media, { keepMediaKey: media.media_key });
           upsertMedia("personal_ratings", media, timestamp, { rating });
+          ratingQueue = queuePersonalRatingMutation(media, rating, { config: ratingSyncConfig, source: "manual", timestamp });
         }
         if (action === "remove-rating") {
           if (media.media_type === "episode") deleteEpisodeRatingAliases(media);
           else db.prepare("DELETE FROM personal_ratings WHERE media_key = ?").run(media.media_key);
+          ratingQueue = queuePersonalRatingMutation(media, null, { config: ratingSyncConfig, source: "manual", timestamp });
         }
         if (action === "list-add") {
           const listId = requireListId(body);
@@ -367,7 +392,7 @@ export async function handlePersonalMedia(req, res) {
       });
       bumpDataVersion();
       writeAuditLog(`personal.${action}`, { detail: { mediaKey: media.media_key } });
-      return sendJson(res, { ok: true, media_key: media.media_key }, 200);
+      return sendJson(res, { ok: true, media_key: media.media_key, rating_sync: ratingQueue }, 200);
     }
 
     if (action === "list-create") {

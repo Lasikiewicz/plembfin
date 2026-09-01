@@ -939,3 +939,165 @@ export async function fetchPlexResumableItems(config, { limit = 0 } = {}) {
 
   return resumableItems;
 }
+
+// ---------------------------------------------------------------------------
+// Personal ratings
+// ---------------------------------------------------------------------------
+
+function plexRatingProviderIds(item = {}, parent = null) {
+  const values = [];
+  const add = (value) => {
+    if (Array.isArray(value)) values.push(...value);
+    else if (value) values.push(value);
+  };
+  add(item.Guid);
+  add(item.guid);
+  add(parent?.Guid);
+  add(parent?.guid);
+  const ids = {};
+  for (const raw of values) {
+    const value = String(raw?.id || raw || "");
+    const match = value.match(/(?:^|\.)(imdb|tmdb|tvdb|themoviedb|thetvdb):\/\/([^/?]+)/i);
+    if (!match) continue;
+    const provider = match[1].toLowerCase().replace("themoviedb", "tmdb").replace("thetvdb", "tvdb");
+    ids[provider] = match[2];
+  }
+  return ids;
+}
+
+function plexRatingParentProviderIds(item = {}) {
+  const values = [];
+  const add = (value) => {
+    if (Array.isArray(value)) values.push(...value);
+    else if (value) values.push(value);
+  };
+  add(item.GrandparentGuid);
+  add(item.GrandparentGUID);
+  add(item.grandparentGuid);
+  add(item.grandparentGUID);
+  const ids = {};
+  for (const raw of values) {
+    const value = String(raw?.id || raw || "");
+    const match = value.match(/(?:^|\.)(imdb|tmdb|tvdb|themoviedb|thetvdb):\/\/([^/?]+)/i);
+    if (!match) continue;
+    const provider = match[1].toLowerCase().replace("themoviedb", "tmdb").replace("thetvdb", "tvdb");
+    ids[provider] = match[2];
+  }
+  return ids;
+}
+
+async function fetchPlexRatingSectionItems(config, directory, type, accountId) {
+  const items = [];
+  const baseUrl = trimTrailingSlash(config.baseUrl);
+  const pageSize = 500;
+  for (let start = 0; start <= 10_000_000; start += pageSize) {
+    const url = new URL(`${baseUrl}/library/sections/${directory.key}/all`);
+    url.searchParams.set("type", String(type));
+    url.searchParams.set("includeGuids", "1");
+    url.searchParams.set("includeUserState", "1");
+    url.searchParams.set("X-Plex-Container-Start", String(start));
+    url.searchParams.set("X-Plex-Container-Size", String(pageSize));
+    if (accountId != null) url.searchParams.set("accountID", String(accountId));
+    const response = await fetchPlexWithRefresh(config, url, { lane: "sync" });
+    if (!response.ok) {
+      const error = new Error(`Plex rating scan failed with status ${response.status} for section ${directory.key}`);
+      error.status = response.status;
+      throw error;
+    }
+    const body = await response.json();
+    const page = body?.MediaContainer?.Metadata || [];
+    items.push(...page);
+    const total = Number(body?.MediaContainer?.totalSize || 0);
+    if (!page.length || page.length < pageSize || (total > 0 && start + page.length >= total)) break;
+  }
+  return items;
+}
+
+function plexRatingMedia(item, mediaType, parent = null) {
+  const ids = plexRatingProviderIds(item, parent);
+  const isEpisode = mediaType === "episode";
+  const parentIds = isEpisode ? { ...plexRatingParentProviderIds(item), ...plexRatingProviderIds(parent || {}) } : {};
+  return {
+    media_type: isEpisode ? "episode" : mediaType === "show" ? "tv" : "movie",
+    title: String(item.title || item.grandparentTitle || item.parentTitle || "Untitled"),
+    tmdb_id: isEpisode ? parentIds.tmdb || "" : ids.tmdb || "",
+    tvdb_id: isEpisode ? parentIds.tvdb || "" : ids.tvdb || "",
+    imdb_id: isEpisode ? parentIds.imdb || "" : ids.imdb || "",
+    show_title: isEpisode ? String(item.grandparentTitle || item.parentTitle || "") : "",
+    show_tmdb_id: isEpisode ? parentIds.tmdb || "" : "",
+    show_tvdb_id: isEpisode ? parentIds.tvdb || "" : "",
+    show_imdb_id: isEpisode ? parentIds.imdb || "" : "",
+    episode_tmdb_id: isEpisode ? ids.tmdb || "" : "",
+    episode_tvdb_id: isEpisode ? ids.tvdb || "" : "",
+    episode_imdb_id: isEpisode ? ids.imdb || "" : "",
+    season: isEpisode ? Number(item.parentIndex) : null,
+    episode: isEpisode ? Number(item.index) : null,
+    year: Number(item.year || 0) || null,
+    poster_url: "",
+  };
+}
+
+export async function fetchPlexPersonalRatingSnapshot(config) {
+  requirePlexConfig(config);
+  const accountId = await resolvePlexAccountId(config);
+  const directories = await fetchPlexLibraryDirectories(config);
+  const records = [];
+  for (const directory of selectPlexSections(directories)) {
+    const types = directory.type === "movie" ? [{ type: 1, mediaType: "movie" }] : [
+      { type: 2, mediaType: "show" },
+      { type: 4, mediaType: "episode" },
+    ];
+    for (const entry of types) {
+      const items = await fetchPlexRatingSectionItems(config, directory, entry.type, accountId);
+      for (const item of items) {
+        const rating = Number(item.userRating);
+        if (!Number.isInteger(rating) || rating < 1 || rating > 10) continue;
+        records.push({
+          media: plexRatingMedia(item, entry.mediaType, null),
+          providerItemId: String(item.ratingKey || ""),
+          providerIds: { plex: String(item.ratingKey || ""), ...plexRatingProviderIds(item) },
+          rating,
+          ratedAt: null,
+        });
+      }
+    }
+  }
+  return records;
+}
+
+async function writePlexPersonalRating(config, media, rating, { lane = "sync" } = {}) {
+  requirePlexConfig(config);
+  const lookup = {
+    ...media,
+    type: media.media_type || media.mediaType || media.type,
+    ids: {
+      tmdb: media.show_tmdb_id || media.tmdb_id,
+      tvdb: media.show_tvdb_id || media.tvdb_id,
+      imdb: media.show_imdb_id || media.imdb_id,
+    },
+  };
+  const item = await findPlexItem(config, lookup);
+  if (!item?.ratingKey) return { platform: "plex", status: "not_found" };
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/:/rate`);
+  url.searchParams.set("key", String(item.ratingKey));
+  url.searchParams.set("rating", String(rating));
+  url.searchParams.set("identifier", "com.plexapp.plugins.library");
+  await addConfiguredPlexAccountId(url, config, { lane });
+  const response = await fetchPlexWithRefresh(config, url, { method: "PUT", lane });
+  if (response.status === 404) return { platform: "plex", status: "not_found", itemId: item.ratingKey };
+  if (!response.ok) {
+    const error = new Error(`Plex personal rating update failed with status ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
+  return { platform: "plex", status: "fulfilled", itemId: item.ratingKey, httpStatus: response.status };
+}
+
+export function setPlexPersonalRating(config, media, rating, options = {}) {
+  return writePlexPersonalRating(config, media, Math.max(1, Math.min(10, Math.round(Number(rating)))), options);
+}
+
+export function clearPlexPersonalRating(config, media, options = {}) {
+  // Plex clears a user rating through the same endpoint with rating=0.
+  return writePlexPersonalRating(config, media, 0, options);
+}

@@ -15,6 +15,7 @@ import { handleTrackerAuth, handleTrackerConnections } from "./routes/trackerAut
 import { handleLiveUpdates } from "./routes/liveUpdates.js";
 import { handleSetupStatus, handleSetupStep, handleSetupImport, handleSetupComplete, handleSetupRestart, handleSetupChecklistDismiss, handleSetupCtaDismiss } from "./routes/onboarding.js";
 import { handlePersonalMedia } from "./routes/personal.js";
+import { handleRatingSync } from "./routes/ratingSync.js";
 
 function routePath(req) {
   const path = req.path || new URL(req.originalUrl || req.url, "https://local").pathname;
@@ -138,6 +139,7 @@ async function dispatch(req, res) {
     if (path === "tmdb-collection") return handleTmdbCollection(req, res);
     if (path === "discover") return handleDiscover(req, res);
     if (path === "personal-media") return handlePersonalMedia(req, res);
+    if (["rating-sync/status", "rating-sync/run", "rating-sync/push", "rating-sync/retry", "rating-sync"].includes(path)) return handleRatingSync(req, res);
     if (path === "tmdb-season") return handleTmdbSeason(req, res);
     if (path === "tmdb-images") return handleTmdbImages(req, res);
     if (path === "tvdb-images") return handleTvdbImages(req, res);

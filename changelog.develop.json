@@ -1,6 +1,20 @@
 {
-  "build": 21,
+  "build": 23,
   "resetCommit": "d9ef03c11cab6c2492eede04aa8f3527a554a74a",
-  "updatedAt": "2026-09-01T14:04:46.807Z",
-  "entries": []
+  "updatedAt": "2026-09-01T15:13:00.667Z",
+  "entries": [
+    {
+      "build": 23,
+      "date": "2026-09-01T15:13:00.667Z",
+      "commit": "1bfc562b1a4db0d5a4b50e3e8daf6220f3db3466",
+      "message": "Feature - Add isolated personal rating sync",
+      "author": "Lasikiewicz",
+      "details": [
+        "Add opt-in provider directions, baseline/import modes, conflict policy, and live status controls",
+        "Queue local rating changes independently with durable retries and episode-aware identity",
+        "Sync personal ratings with Plex, Emby, Jellyfin, and Trakt, including a per-title Force Sync action",
+        "Keep watched-state Force Sync separate while exposing Trakt as an explicit Push target"
+      ]
+    }
+  ]
 }

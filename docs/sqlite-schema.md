@@ -25,6 +25,9 @@ Reference for `data/plembfin.db`. The full authoritative schema is in
 | `tracker_auth_flows` | Expiring Trakt device-code authorization attempts | tracker auth routes | tracker auth polling/completion |
 | `tracker_item_state` | Last observed Trakt state/timestamp and echo-suppression markers per canonical item | tracker sync/dispatcher | Trakt change detection |
 | `tracker_play_history` | Dedup ledger of individually-imported Trakt plays, keyed by Trakt history id | tracker sync | rewatch/multi-play import |
+| `personal_rating_sources` | Last per-provider personal-rating observation, snapshot generation, conflict status, and outbound echo markers | rating snapshot/queue worker | rating reconciliation and status |
+| `personal_rating_sync_queue` | Durable latest-intent personal-rating writes with leases, retries, and outcomes | local rating actions, rating push/reconcile | rating queue worker and status |
+| `personal_rating_sync_runs` | Per-provider baseline/import generation and scan counters | rating snapshot worker | rating status and missing-row safety |
 | `loop_keys` | Loop-detection KV with TTL | sync orchestrator | sync orchestrator |
 | `poster_cache` | Cached artwork metadata (binaries in `data/media/`) | poster handler | poster resolution |
 | `tmdb_metadata_cache` | Movie details (pure TMDB) or TV show details (TVDB structure + TMDB extras merged), key `${mediaType}_${tmdbId}` (or `tv_tvdb_${tvdbId}` if no TMDB match) | tmdb-details handler | detail pages, prefetch |
@@ -118,10 +121,33 @@ the show poster into episode rows.
 
 Personal ratings are local user data. Movie and TV rows use their own provider
 identity; episode rows use the parent show's provider identity plus `season` and
-`episode` in `media_key`. Startup migration 17 merges older episode aliases that
-share a show title and episode coordinate, keeping the canonical media-page row and
-the latest rating. The Ratings page reads these canonical records, while
+`episode` in `media_key`. Episode-level provider IDs are stored separately so a
+provider write can address the leaf item without changing the canonical key.
+`origin` identifies `manual`, `import`, or `reconcile` writes and
+`canonical_updated_at` supplies ordering for conflict resolution and queue intents.
+Startup migration 17 merges older episode aliases that share a show title and
+episode coordinate, keeping the canonical media-page row and the latest rating.
+Migration 20 adds the episode identity/origin columns and the isolated rating
+source, queue, and run tables. The Ratings page reads the canonical records, while
 `poster_url` remains the episode's own artwork.
+
+## Personal rating sync tables
+
+`personal_rating_sources` stores the latest observation for each provider/media key,
+including the provider item ID, remote rated/unrated state, snapshot generation,
+last inbound timestamp, last outbound intent marker, and a bounded error/status.
+
+`personal_rating_sync_queue` has one row per provider/media key. A newer local or
+reconcile intent replaces the older pending intent, which prevents stale ratings
+from being delivered after a quick edit/remove sequence. `processing` rows have a
+lease owner and expiry so a crashed worker can be reclaimed; transient failures use
+`failed` plus `next_attempt_at`, while `not_found` and `reauth_required` await an
+explicit retry.
+
+`personal_rating_sync_runs` records one current snapshot generation per provider,
+its baseline/import mode, completion marker, counts, cursor, and last error. Missing
+remote ratings are only treated as clears after a previous complete generation, so
+an incomplete provider response cannot bulk-clear local ratings.
 
 ## `watch_history` sync retry columns
 

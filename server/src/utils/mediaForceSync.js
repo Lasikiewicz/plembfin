@@ -96,7 +96,7 @@ export function normalizeMediaForceSyncRequest(input = {}) {
   if (!["movie", "show", "episode"].includes(type)) throw new Error("type must be movie, show, or episode");
   if (!FORCE_SYNC_MODES.includes(mode)) throw new Error("mode must be push or pull");
   if (source && !MEDIA_SERVERS.includes(source)) throw new Error("source must be plex, emby, or jellyfin");
-  if (target && !MEDIA_SERVERS.includes(target)) throw new Error("target must be plex, emby, or jellyfin");
+  if (target && ![...MEDIA_SERVERS, "trakt"].includes(target)) throw new Error("target must be plex, emby, jellyfin, or trakt");
 
   return { title, type, ids, season, episode, seasons, mode, source, target };
 }
@@ -649,7 +649,7 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
       const destination = requested.target ? sourceLabel(requested.target) : "local media servers";
       logger(`[${requested.mode}] ${media.title}: sending ${canonicalState} state to ${destination}.`);
       try {
-        summary = await syncCanonicalPlaystate(syncMedia, resolvedConfig, loopStore, canonicalState, { includeTrackers: false });
+        summary = await syncCanonicalPlaystate(syncMedia, resolvedConfig, loopStore, canonicalState, { includeTrackers: requested.target === "trakt" });
         trackerEligible = !requested.target;
       } catch (error) {
         summary = {

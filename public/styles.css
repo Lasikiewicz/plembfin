@@ -5451,6 +5451,117 @@ details.sync-tool-details[open] > summary {
   padding: var(--space-3);
 }
 
+.personal-rating-sync-panel {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--blue) 45%, var(--line));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--blue) 5%, var(--panel-2));
+}
+
+.personal-rating-sync-heading,
+.personal-rating-sync-action-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.personal-rating-sync-heading > div,
+.personal-rating-sync-action-row > div {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.personal-rating-sync-heading small,
+.personal-rating-sync-action-row small {
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.personal-rating-sync-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.personal-rating-sync-controls label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+}
+
+.personal-rating-sync-controls .field {
+  width: auto;
+  min-width: 10rem;
+  padding: 0.45rem 0.6rem;
+}
+
+.personal-rating-sync-number {
+  width: 4.5rem !important;
+  min-width: 0 !important;
+}
+
+.personal-rating-sync-providers {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.personal-rating-sync-provider {
+  display: grid;
+  gap: 0.35rem;
+  padding: 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-3);
+}
+
+.personal-rating-sync-provider small {
+  min-height: 2.2em;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.personal-rating-sync-provider select {
+  width: 100%;
+}
+
+.personal-rating-sync-action-row {
+  grid-template-columns: minmax(0, 1fr) minmax(10rem, 13rem) auto auto;
+}
+
+@media (max-width: 900px) {
+  .personal-rating-sync-providers {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .personal-rating-sync-action-row {
+    grid-template-columns: minmax(0, 1fr) minmax(10rem, 13rem);
+  }
+
+  .personal-rating-sync-action-row button {
+    width: 100%;
+  }
+}
+
+@media (max-width: 680px) {
+  .personal-rating-sync-heading,
+  .personal-rating-sync-action-row {
+    grid-template-columns: 1fr;
+  }
+
+  .personal-rating-sync-providers {
+    grid-template-columns: 1fr;
+  }
+}
+
 .media-force-sync-select {
   width: 100%;
   min-width: 0;
@@ -22708,5 +22819,44 @@ html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
   .page-shell[data-active-view="history"] .history-list .history-card-meta,
   .page-shell[data-active-view="history"] .history-list .meta-label {
     font-size: 0.72rem;
+  }
+}
+
+/* Keep the shared page controls in the same mobile flow as the collapsed
+   navigation. The old topbar breakpoint was 640px, so the 641-760px range
+   could still squeeze page controls into the desktop title row. */
+@media (max-width: 760px) {
+  body .page-topbar {
+    height: auto;
+    min-height: auto;
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--space-1);
+    padding: var(--space-2) var(--control-inline-padding);
+  }
+
+  body .page-topbar-title {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  body .page-topbar-actions {
+    width: 100%;
+    max-width: 100%;
+    margin-left: 0;
+    justify-content: flex-start;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+    gap: 0.5rem;
+    align-items: center;
+    padding-bottom: 2px;
+  }
+
+  body .page-topbar-actions::-webkit-scrollbar {
+    display: none;
   }
 }

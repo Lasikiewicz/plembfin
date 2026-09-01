@@ -54,7 +54,7 @@
     <link rel="modulepreload" href="/modules/media-detail-events.js?v=20260831h" />
     <link rel="modulepreload" href="/modules/poster-menu.js?v=20260831l" />
     <link rel="modulepreload" href="/modules/app-events.js?v=20260831r" />
-    <link rel="stylesheet" href="/styles.css?v=20260901a" />
+    <link rel="stylesheet" href="/styles.css?v=20260901b" />
   </head>
   <body>
     <div class="app-chassis">
@@ -2054,6 +2054,40 @@
                           <button id="runCronSyncButton" class="button-primary sync-action-btn sync-tool-button" type="button" title="Check recent watched and part-watched items for missing Plembfin records">Repair Recent Items</button>
                         </div>
 
+                        <!-- Personal ratings are a separate opt-in sync action. They never enter the watched-state Force Sync operation. -->
+                        <section id="ratingSyncPanel" class="personal-rating-sync-panel" aria-labelledby="ratingSyncHeading">
+                          <div class="personal-rating-sync-heading">
+                            <div>
+                              <strong id="ratingSyncHeading">Personal Rating Sync</strong>
+                              <small>Mirrors Plembfin's personal movie, show, and episode ratings only. This is separate from watched status, play history, and resume-position sync.</small>
+                            </div>
+                            <span id="ratingSyncStatus" class="activity-log-state">Disabled</span>
+                          </div>
+                          <div class="personal-rating-sync-controls">
+                            <label class="checkbox-label"><input id="ratingSyncEnabled" type="checkbox"> Enable rating sync</label>
+                            <label>Every <input id="ratingSyncInterval" class="field personal-rating-sync-number" type="number" min="5" max="1440" step="1" value="15"> minutes</label>
+                            <label>First inbound run <select id="ratingSyncInitialMode" class="field"><option value="baseline">Record a baseline only</option><option value="import">Import remote ratings</option></select></label>
+                            <label>Conflict policy <select id="ratingSyncConflictPolicy" class="field"><option value="local_wins">Keep newer local ratings</option><option value="remote_wins">Accept remote ratings</option></select></label>
+                            <button id="ratingSyncSaveButton" class="button-ghost sync-tool-button" type="button">Save rating settings</button>
+                          </div>
+                          <div id="ratingSyncProviderRows" class="personal-rating-sync-providers"></div>
+                          <div class="personal-rating-sync-action-row">
+                            <div>
+                              <strong>Run a rating sync</strong>
+                              <small id="ratingSyncHelp">Enable the feature and choose a direction for at least one connected provider.</small>
+                            </div>
+                            <select id="settingsRatingSyncTarget" class="field media-force-sync-select" aria-label="Personal rating sync provider">
+                              <option value="all">All enabled providers</option>
+                              <option value="plex">Plex</option>
+                              <option value="emby">Emby</option>
+                              <option value="jellyfin">Jellyfin</option>
+                              <option value="trakt">Trakt</option>
+                            </select>
+                            <button id="ratingSyncRunButton" class="button-primary sync-tool-button" type="button">Sync ratings</button>
+                            <button id="ratingSyncPushButton" class="button-ghost sync-tool-button" type="button">Push local ratings</button>
+                          </div>
+                        </section>
+
                         <!-- Force Sync actions -->
                         <div id="settingsForceSyncPanel" class="settings-force-sync-panel" aria-label="Force Sync options">
                             <div id="forceSyncPreviewPanel" class="sync-preview-panel hidden" aria-live="polite"></div>
@@ -2095,6 +2129,7 @@
                                     <option value="plex">Plex</option>
                                     <option value="emby">Emby</option>
                                     <option value="jellyfin">Jellyfin</option>
+                                    <option value="trakt">Trakt</option>
                                     <option value="all">All connected servers</option>
                                   </select>
                                   <button class="button-primary sync-tool-button" type="button" data-library-force-sync-run="push">Push state</button>
@@ -2498,6 +2533,7 @@
                 <option value="plex">Plex</option>
                 <option value="emby">Emby</option>
                 <option value="jellyfin">Jellyfin</option>
+                <option value="trakt">Trakt</option>
                 <option value="all">All connected servers</option>
               </select>
               <button class="button-primary" type="button" data-media-force-sync-run="push">Push state</button>
@@ -2515,6 +2551,21 @@
                 <option value="all">All connected servers</option>
               </select>
               <button class="button-ghost" type="button" data-media-force-sync-run="pull">Pull state</button>
+            </div>
+
+            <div class="media-force-sync-target-row media-force-sync-rating-row">
+              <div class="media-force-sync-target-copy">
+                <label for="mediaForceSyncRatingTarget">Push Personal Rating</label>
+                <small>Sends Plembfin's personal rating for this title only. This is separate from watched status, play history, resume positions, and lists.</small>
+              </div>
+              <select id="mediaForceSyncRatingTarget" class="field media-force-sync-select">
+                <option value="plex">Plex</option>
+                <option value="emby">Emby</option>
+                <option value="jellyfin">Jellyfin</option>
+                <option value="trakt">Trakt</option>
+                <option value="all">All enabled rating providers</option>
+              </select>
+              <button class="button-primary" type="button" data-media-rating-sync-run>Push rating</button>
             </div>
           </div>
 

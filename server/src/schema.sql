@@ -525,9 +525,9 @@ CREATE TABLE IF NOT EXISTS tracker_play_history (
 );
 CREATE INDEX IF NOT EXISTS idx_tracker_play_history_media ON tracker_play_history(provider, media_key);
 
--- Local personal media organization. These records intentionally remain
--- Plembfin-local: ratings, watchlist choices, and custom lists do not alter
--- any connected media server or tracker state.
+-- Local personal media organization. Watchlist choices and custom lists remain
+-- Plembfin-local. Ratings are still canonical here, but the separate optional
+-- rating-sync queue may mirror them to explicitly enabled providers.
 CREATE TABLE IF NOT EXISTS personal_ratings (
   media_key TEXT PRIMARY KEY,
   media_type TEXT NOT NULL CHECK (media_type IN ('movie', 'tv', 'episode')),
@@ -541,11 +541,91 @@ CREATE TABLE IF NOT EXISTS personal_ratings (
   show_title TEXT,
   season INTEGER,
   episode INTEGER,
+  episode_tmdb_id TEXT,
+  episode_tvdb_id TEXT,
+  episode_imdb_id TEXT,
   rating INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 10),
+  origin TEXT NOT NULL DEFAULT 'manual' CHECK (origin IN ('manual', 'import', 'reconcile')),
+  canonical_updated_at INTEGER NOT NULL DEFAULT 0,
   created_at INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_personal_ratings_updated ON personal_ratings(updated_at DESC);
+
+-- Provider-specific rating observations. This ledger is deliberately separate
+-- from watched-state tables: a remote rating of NULL is an explicit unrated
+-- observation, not a missing watched event.
+CREATE TABLE IF NOT EXISTS personal_rating_sources (
+  provider TEXT NOT NULL CHECK (provider IN ('plex', 'emby', 'jellyfin', 'trakt')),
+  media_key TEXT NOT NULL,
+  media_json TEXT NOT NULL,
+  provider_item_id TEXT,
+  provider_ids_json TEXT,
+  remote_rating INTEGER CHECK (remote_rating BETWEEN 1 AND 10 OR remote_rating IS NULL),
+  remote_state TEXT NOT NULL DEFAULT 'unknown' CHECK (remote_state IN ('rated', 'unrated', 'unknown')),
+  remote_rated_at INTEGER,
+  last_seen_at INTEGER,
+  last_snapshot_generation INTEGER,
+  last_complete_snapshot_at INTEGER,
+  last_inbound_at INTEGER,
+  last_outbound_rating INTEGER,
+  last_outbound_state TEXT CHECK (last_outbound_state IN ('rated', 'unrated')),
+  last_outbound_intent_id TEXT,
+  last_outbound_at INTEGER,
+  sync_status TEXT NOT NULL DEFAULT 'unknown' CHECK (sync_status IN ('unknown', 'synced', 'pending', 'conflict', 'not_found', 'reauth_required', 'failed')),
+  last_error TEXT,
+  PRIMARY KEY (provider, media_key)
+);
+CREATE INDEX IF NOT EXISTS idx_personal_rating_sources_snapshot
+  ON personal_rating_sources(provider, last_snapshot_generation, remote_state);
+
+-- Durable, deduplicated outbound rating mutations. desired_state remains
+-- explicit for clears, so an unrated tombstone can never be confused with a
+-- missing queue value.
+CREATE TABLE IF NOT EXISTS personal_rating_sync_queue (
+  provider TEXT NOT NULL CHECK (provider IN ('plex', 'emby', 'jellyfin', 'trakt')),
+  media_key TEXT NOT NULL,
+  media_json TEXT NOT NULL,
+  desired_state TEXT NOT NULL CHECK (desired_state IN ('rated', 'unrated')),
+  desired_rating INTEGER CHECK (desired_rating BETWEEN 1 AND 10 OR desired_rating IS NULL),
+  source TEXT NOT NULL CHECK (source IN ('manual', 'import', 'reconcile', 'push')),
+  intent_id TEXT NOT NULL,
+  canonical_version INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'succeeded', 'not_found', 'reauth_required', 'failed')),
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at INTEGER NOT NULL DEFAULT 0,
+  lease_owner TEXT,
+  lease_expires_at INTEGER,
+  last_error TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  succeeded_at INTEGER,
+  PRIMARY KEY (provider, media_key)
+);
+CREATE INDEX IF NOT EXISTS idx_personal_rating_sync_queue_due
+  ON personal_rating_sync_queue(status, next_attempt_at, updated_at);
+
+-- One current run/cursor per provider is enough for restart-safe status. The
+-- generation is the complete-snapshot gate: missing remote rows only mean
+-- "unrated" after a full provider scan has completed successfully.
+CREATE TABLE IF NOT EXISTS personal_rating_sync_runs (
+  provider TEXT PRIMARY KEY CHECK (provider IN ('plex', 'emby', 'jellyfin', 'trakt')),
+  run_id TEXT,
+  generation INTEGER NOT NULL DEFAULT 0,
+  mode TEXT NOT NULL DEFAULT 'baseline' CHECK (mode IN ('baseline', 'import')),
+  status TEXT NOT NULL DEFAULT 'idle' CHECK (status IN ('idle', 'running', 'succeeded', 'partial', 'failed')),
+  baseline_complete INTEGER NOT NULL DEFAULT 0,
+  started_at INTEGER,
+  completed_at INTEGER,
+  scanned_count INTEGER NOT NULL DEFAULT 0,
+  changed_count INTEGER NOT NULL DEFAULT 0,
+  imported_count INTEGER NOT NULL DEFAULT 0,
+  cleared_count INTEGER NOT NULL DEFAULT 0,
+  queued_count INTEGER NOT NULL DEFAULT 0,
+  cursor_json TEXT,
+  last_error TEXT,
+  updated_at INTEGER NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS personal_watchlist (
   media_key TEXT PRIMARY KEY,
@@ -561,6 +641,150 @@ CREATE TABLE IF NOT EXISTS personal_watchlist (
   updated_at INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_personal_watchlist_updated ON personal_watchlist(updated_at DESC);
+
+-- A watchlist mutation is an append-only local intent.  The present rows above
+-- remain the fast canonical read model; these records preserve removals and
+-- revisions so an old provider callback can never delete a newer re-add.
+CREATE TABLE IF NOT EXISTS personal_watchlist_meta (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  revision INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL
+);
+INSERT OR IGNORE INTO personal_watchlist_meta (id, revision, updated_at) VALUES (1, 0, 0);
+
+CREATE TABLE IF NOT EXISTS personal_watchlist_mutations (
+  id TEXT PRIMARY KEY,
+  media_key TEXT NOT NULL,
+  media_json TEXT NOT NULL,
+  desired_state TEXT NOT NULL CHECK (desired_state IN ('present', 'absent')),
+  origin TEXT NOT NULL CHECK (origin IN ('local', 'plex', 'emby', 'jellyfin', 'watched', 'restore', 'reconcile', 'system')),
+  reason TEXT NOT NULL,
+  canonical_revision INTEGER NOT NULL,
+  event_fingerprint TEXT UNIQUE,
+  source_timestamp INTEGER,
+  created_at INTEGER NOT NULL,
+  superseded_at INTEGER,
+  applied_at INTEGER,
+  tombstone INTEGER NOT NULL DEFAULT 0 CHECK (tombstone IN (0, 1))
+);
+CREATE INDEX IF NOT EXISTS idx_personal_watchlist_mutations_media
+  ON personal_watchlist_mutations(media_key, canonical_revision DESC, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_personal_watchlist_mutations_active
+  ON personal_watchlist_mutations(canonical_revision DESC, desired_state);
+
+-- One row per provider representation and remote item.  Duplicate remote
+-- matches are intentionally retained instead of silently choosing one.
+CREATE TABLE IF NOT EXISTS personal_watchlist_provider_items (
+  provider TEXT NOT NULL CHECK (provider IN ('plex', 'emby', 'jellyfin')),
+  connection_id TEXT NOT NULL DEFAULT '',
+  remote_scope_key TEXT NOT NULL DEFAULT '',
+  representation TEXT NOT NULL CHECK (representation IN ('native', 'playlist', 'favorites', 'rss')),
+  media_key TEXT NOT NULL,
+  media_json TEXT NOT NULL,
+  provider_item_id TEXT NOT NULL DEFAULT '',
+  provider_ids_json TEXT,
+  remote_state TEXT NOT NULL DEFAULT 'unknown' CHECK (remote_state IN ('present', 'absent', 'unavailable', 'unknown', 'unmanaged')),
+  managed_by_plembfin INTEGER NOT NULL DEFAULT 0 CHECK (managed_by_plembfin IN (0, 1)),
+  primary_target INTEGER NOT NULL DEFAULT 0 CHECK (primary_target IN (0, 1)),
+  container_id TEXT,
+  container_name TEXT,
+  last_confirmed_present_at INTEGER,
+  last_seen_at INTEGER,
+  last_complete_generation INTEGER,
+  last_outbound_state TEXT CHECK (last_outbound_state IN ('present', 'absent')),
+  last_outbound_intent_id TEXT,
+  last_outbound_at INTEGER,
+  sync_status TEXT NOT NULL DEFAULT 'unknown' CHECK (sync_status IN ('unknown', 'synced', 'pending', 'not_available', 'reauth_required', 'failed', 'needs_review')),
+  last_error TEXT,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (provider, connection_id, remote_scope_key, representation, media_key, provider_item_id)
+);
+CREATE INDEX IF NOT EXISTS idx_personal_watchlist_provider_items_scope
+  ON personal_watchlist_provider_items(provider, connection_id, remote_scope_key, representation, remote_state);
+CREATE INDEX IF NOT EXISTS idx_personal_watchlist_provider_items_media
+  ON personal_watchlist_provider_items(media_key, provider);
+
+-- Durable per-provider desired state.  The unique scope/media key collapses
+-- rapid add/remove churn while intent_id and canonical_revision preserve the
+-- stale-event guard at the worker boundary.
+CREATE TABLE IF NOT EXISTS personal_watchlist_sync_queue (
+  provider TEXT NOT NULL CHECK (provider IN ('plex', 'emby', 'jellyfin')),
+  connection_id TEXT NOT NULL DEFAULT '',
+  remote_scope_key TEXT NOT NULL DEFAULT '',
+  representation TEXT NOT NULL CHECK (representation IN ('native', 'playlist', 'favorites', 'rss')),
+  media_key TEXT NOT NULL,
+  media_json TEXT NOT NULL,
+  desired_state TEXT NOT NULL CHECK (desired_state IN ('present', 'absent')),
+  operation TEXT NOT NULL CHECK (operation IN ('add', 'remove', 'create_container', 'repair')),
+  source_mutation_id TEXT,
+  intent_id TEXT NOT NULL,
+  canonical_revision INTEGER NOT NULL DEFAULT 0,
+  provider_item_id TEXT,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'succeeded', 'not_available', 'reauth_required', 'failed')),
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at INTEGER NOT NULL DEFAULT 0,
+  lease_owner TEXT,
+  lease_expires_at INTEGER,
+  last_error TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  succeeded_at INTEGER,
+  PRIMARY KEY (provider, connection_id, remote_scope_key, representation, media_key)
+);
+CREATE INDEX IF NOT EXISTS idx_personal_watchlist_sync_queue_due
+  ON personal_watchlist_sync_queue(status, next_attempt_at, updated_at);
+
+CREATE TABLE IF NOT EXISTS personal_watchlist_sync_runs (
+  provider TEXT NOT NULL CHECK (provider IN ('plex', 'emby', 'jellyfin')),
+  connection_id TEXT NOT NULL DEFAULT '',
+  remote_scope_key TEXT NOT NULL DEFAULT '',
+  representation TEXT NOT NULL CHECK (representation IN ('native', 'playlist', 'favorites', 'rss')),
+  run_id TEXT,
+  generation INTEGER NOT NULL DEFAULT 0,
+  mode TEXT NOT NULL DEFAULT 'reconcile' CHECK (mode IN ('initial_publish', 'reconcile', 'repair')),
+  status TEXT NOT NULL DEFAULT 'idle' CHECK (status IN ('idle', 'running', 'succeeded', 'partial', 'failed')),
+  canonical_revision INTEGER NOT NULL DEFAULT 0,
+  scanned_count INTEGER NOT NULL DEFAULT 0,
+  present_count INTEGER NOT NULL DEFAULT 0,
+  removed_count INTEGER NOT NULL DEFAULT 0,
+  unavailable_count INTEGER NOT NULL DEFAULT 0,
+  started_at INTEGER,
+  completed_at INTEGER,
+  cursor_json TEXT,
+  complete_snapshot INTEGER NOT NULL DEFAULT 0 CHECK (complete_snapshot IN (0, 1)),
+  snapshot_hash TEXT,
+  last_error TEXT,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (provider, connection_id, remote_scope_key, representation)
+);
+
+CREATE TABLE IF NOT EXISTS personal_watchlist_activity (
+  id TEXT PRIMARY KEY,
+  provider TEXT,
+  connection_id TEXT,
+  remote_scope_key TEXT,
+  representation TEXT,
+  media_key TEXT,
+  media_json TEXT,
+  action TEXT NOT NULL,
+  origin TEXT NOT NULL,
+  reason TEXT,
+  status TEXT NOT NULL,
+  details TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_personal_watchlist_activity_created
+  ON personal_watchlist_activity(created_at DESC, id DESC);
+
+CREATE TRIGGER IF NOT EXISTS trg_personal_watchlist_cache_insert AFTER INSERT ON personal_watchlist BEGIN
+  UPDATE cache_versions SET version=version+1, updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id='history';
+END;
+CREATE TRIGGER IF NOT EXISTS trg_personal_watchlist_cache_update AFTER UPDATE ON personal_watchlist BEGIN
+  UPDATE cache_versions SET version=version+1, updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id='history';
+END;
+CREATE TRIGGER IF NOT EXISTS trg_personal_watchlist_cache_delete AFTER DELETE ON personal_watchlist BEGIN
+  UPDATE cache_versions SET version=version+1, updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id='history';
+END;
 
 CREATE TABLE IF NOT EXISTS personal_lists (
   id TEXT PRIMARY KEY,

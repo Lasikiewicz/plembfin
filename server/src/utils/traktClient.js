@@ -184,6 +184,167 @@ export async function fetchTraktWatchedSnapshot({ clientId, accessToken }) {
   return result.filter((item) => !item.mediaKey.endsWith(":"));
 }
 
+// ---------------------------------------------------------------------------
+// Personal ratings
+// ---------------------------------------------------------------------------
+
+async function fetchAllRatingPages(type, connection) {
+  const limit = 100;
+  const rows = [];
+  const username = String(connection.username || connection.remoteUsername || "me").trim() || "me";
+  for (let page = 1; page <= 10_000; page += 1) {
+    const result = await request(`${API_BASE}/users/${encodeURIComponent(username)}/ratings/${type}?extended=full&page=${page}&limit=${limit}`, {
+      ...connection,
+      includePagination: true,
+    });
+    const values = Array.isArray(result.data) ? result.data : [];
+    rows.push(...values);
+    if (result.pageCount > 0 ? page >= result.pageCount : values.length < (result.pageLimit || limit)) return rows;
+  }
+  throw new Error(`Trakt ${type} rating snapshot exceeded the pagination safety limit`);
+}
+
+function traktRatingDate(value) {
+  const parsed = Date.parse(String(value || ""));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function normalizeTraktRatingMovie(entry) {
+  const movie = entry.movie || entry;
+  const ids = cleanIds(movie.ids);
+  return {
+    media: {
+      media_type: "movie",
+      title: movie.title || "Unknown movie",
+      year: movie.year || null,
+      tmdb_id: ids.tmdb || "",
+      tvdb_id: ids.tvdb || "",
+      imdb_id: ids.imdb || "",
+      trakt_id: ids.trakt || "",
+      poster_url: "",
+    },
+    providerItemId: ids.trakt || ids.imdb || ids.tmdb || ids.tvdb || "",
+    providerIds: ids,
+    rating: Number(entry.rating),
+    ratedAt: traktRatingDate(entry.rated_at),
+  };
+}
+
+function normalizeTraktRatingShow(entry) {
+  const show = entry.show || entry;
+  const ids = cleanIds(show.ids);
+  return {
+    media: {
+      media_type: "tv",
+      title: show.title || "Unknown show",
+      year: show.year || null,
+      tmdb_id: ids.tmdb || "",
+      tvdb_id: ids.tvdb || "",
+      imdb_id: ids.imdb || "",
+      trakt_id: ids.trakt || "",
+      poster_url: "",
+    },
+    providerItemId: ids.trakt || ids.imdb || ids.tmdb || ids.tvdb || "",
+    providerIds: ids,
+    rating: Number(entry.rating),
+    ratedAt: traktRatingDate(entry.rated_at),
+  };
+}
+
+function normalizeTraktRatingEpisode(entry) {
+  const show = entry.show || {};
+  const episode = entry.episode || entry;
+  const showIds = cleanIds(show.ids);
+  const episodeIds = cleanIds(episode.ids);
+  return {
+    media: {
+      media_type: "episode",
+      title: `${show.title || "Unknown show"} - S${String(episode.season).padStart(2, "0")}E${String(episode.number).padStart(2, "0")}${episode.title ? ` - ${episode.title}` : ""}`,
+      show_title: show.title || "",
+      tmdb_id: showIds.tmdb || "",
+      tvdb_id: showIds.tvdb || "",
+      imdb_id: showIds.imdb || "",
+      trakt_id: showIds.trakt || "",
+      show_tmdb_id: showIds.tmdb || "",
+      show_tvdb_id: showIds.tvdb || "",
+      show_imdb_id: showIds.imdb || "",
+      show_trakt_id: showIds.trakt || "",
+      episode_tmdb_id: episodeIds.tmdb || "",
+      episode_tvdb_id: episodeIds.tvdb || "",
+      episode_imdb_id: episodeIds.imdb || "",
+      episode_trakt_id: episodeIds.trakt || "",
+      season: Number(episode.season),
+      episode: Number(episode.number),
+      year: show.year || null,
+      poster_url: "",
+    },
+    providerItemId: episodeIds.trakt || episodeIds.imdb || episodeIds.tmdb || episodeIds.tvdb || "",
+    providerIds: { ...episodeIds, show: showIds },
+    rating: Number(entry.rating),
+    ratedAt: traktRatingDate(entry.rated_at),
+  };
+}
+
+export async function fetchTraktPersonalRatingSnapshot(connection) {
+  const [movies, shows, episodes] = await Promise.all([
+    fetchAllRatingPages("movies", connection),
+    fetchAllRatingPages("shows", connection),
+    fetchAllRatingPages("episodes", connection),
+  ]);
+  const records = [];
+  for (const entry of movies) if (Number.isInteger(Number(entry.rating)) && Number(entry.rating) >= 1 && Number(entry.rating) <= 10) records.push(normalizeTraktRatingMovie(entry));
+  for (const entry of shows) if (Number.isInteger(Number(entry.rating)) && Number(entry.rating) >= 1 && Number(entry.rating) <= 10) records.push(normalizeTraktRatingShow(entry));
+  for (const entry of episodes) if (Number.isInteger(Number(entry.rating)) && Number(entry.rating) >= 1 && Number(entry.rating) <= 10) records.push(normalizeTraktRatingEpisode(entry));
+  return records;
+}
+
+function traktRatingPayload(media, rating = null) {
+  const type = media.type || media.media_type || media.mediaType;
+  const ids = cleanIds(type === "episode"
+    ? {
+        trakt: media.episode_trakt_id || media.episodeProviderIds?.trakt,
+        imdb: media.episode_imdb_id || media.episodeProviderIds?.imdb,
+        tmdb: media.episode_tmdb_id || media.episodeProviderIds?.tmdb,
+        tvdb: media.episode_tvdb_id || media.episodeProviderIds?.tvdb,
+      }
+    : {
+        trakt: media.trakt_id || media.traktId,
+        imdb: media.imdb_id || media.imdbId,
+        tmdb: media.tmdb_id || media.tmdbId,
+        tvdb: media.tvdb_id || media.tvdbId,
+      });
+  if (!Object.keys(ids).length) {
+    const error = Object.assign(new Error("Trakt needs a provider id for this personal rating"), { code: "not_found", status: 404 });
+    throw error;
+  }
+  const item = { ids };
+  if (rating != null) item.rating = Math.max(1, Math.min(10, Math.round(Number(rating))));
+  if (type === "movie") return { movies: [item] };
+  if (type === "tv" || type === "show" || type === "series") return { shows: [item] };
+  if (type === "episode") return { episodes: [item] };
+  throw new Error("Unsupported Trakt rating media type");
+}
+
+export function setTraktPersonalRating(connection, media, rating, { lane = "sync" } = {}) {
+  return request(`${API_BASE}/sync/ratings`, {
+    method: "POST",
+    clientId: connection.clientId,
+    accessToken: connection.accessToken,
+    body: traktRatingPayload(media, rating),
+    lane,
+  });
+}
+
+export function clearTraktPersonalRating(connection, media, { lane = "sync" } = {}) {
+  return request(`${API_BASE}/sync/ratings/remove`, {
+    method: "POST",
+    clientId: connection.clientId,
+    accessToken: connection.accessToken,
+    body: traktRatingPayload(media),
+    lane,
+  });
+}
+
 async function fetchAllHistoryPages(type, connection, { startAt } = {}) {
   const limit = 250;
   const items = [];

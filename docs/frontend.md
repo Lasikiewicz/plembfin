@@ -5,7 +5,7 @@ bundler, no TypeScript, no build step. This doc covers structure, routing, state
 the module rules. Feature-specific behavior lives in the per-feature docs
 ([dashboard.md](dashboard.md), [movies.md](movies.md), [tv-shows.md](tv-shows.md),
 [media-detail.md](media-detail.md), [history-search.md](history-search.md),
-[stats.md](stats.md), [settings.md](settings.md)).
+[stats.md](stats.md), [settings.md](settings.md), [personal-ratings.md](personal-ratings.md)).
 
 ## Structure
 
@@ -116,6 +116,9 @@ stays set to the slug throughout, so the address bar keeps the `/tvshow/:key` fo
 
 - Loaders are idempotent and guarded (`state.xLoading`, `state.xLoaded`,
   `{ force }` options) so view switches don't stampede the API.
+- Personal Rating Sync is an authenticated settings module with its own status
+  polling and queue feedback; it does not reuse the watched-state sync activity
+  indicator or Force Sync operation state.
 - Infinite scroll uses IntersectionObserver sentinels (1200px rootMargin, 240-item
   pages) for vertical views; the mobile History card rail loads its next page when
   the user reaches the right edge so horizontal layout does not eagerly fetch the

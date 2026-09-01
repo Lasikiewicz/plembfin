@@ -542,6 +542,89 @@ const migrations = [
       database.exec("CREATE INDEX IF NOT EXISTS idx_sync_history_activity_group ON sync_history(activity_group_key, timestamp DESC, id DESC)");
     },
   },
+  {
+    id: 20,
+    up(database) {
+      const ratingsTable = database.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'personal_ratings'").get();
+      if (ratingsTable) {
+        const columns = new Set(database.pragma("table_info(personal_ratings)").map((column) => column.name));
+        if (!columns.has("episode_tmdb_id")) database.exec("ALTER TABLE personal_ratings ADD COLUMN episode_tmdb_id TEXT");
+        if (!columns.has("episode_tvdb_id")) database.exec("ALTER TABLE personal_ratings ADD COLUMN episode_tvdb_id TEXT");
+        if (!columns.has("episode_imdb_id")) database.exec("ALTER TABLE personal_ratings ADD COLUMN episode_imdb_id TEXT");
+        if (!columns.has("origin")) database.exec("ALTER TABLE personal_ratings ADD COLUMN origin TEXT NOT NULL DEFAULT 'manual'");
+        if (!columns.has("canonical_updated_at")) database.exec("ALTER TABLE personal_ratings ADD COLUMN canonical_updated_at INTEGER NOT NULL DEFAULT 0");
+        database.exec("UPDATE personal_ratings SET canonical_updated_at = updated_at WHERE canonical_updated_at = 0 OR canonical_updated_at IS NULL");
+      }
+
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS personal_rating_sources (
+          provider TEXT NOT NULL CHECK (provider IN ('plex', 'emby', 'jellyfin', 'trakt')),
+          media_key TEXT NOT NULL,
+          media_json TEXT NOT NULL,
+          provider_item_id TEXT,
+          provider_ids_json TEXT,
+          remote_rating INTEGER CHECK (remote_rating BETWEEN 1 AND 10 OR remote_rating IS NULL),
+          remote_state TEXT NOT NULL DEFAULT 'unknown' CHECK (remote_state IN ('rated', 'unrated', 'unknown')),
+          remote_rated_at INTEGER,
+          last_seen_at INTEGER,
+          last_snapshot_generation INTEGER,
+          last_complete_snapshot_at INTEGER,
+          last_inbound_at INTEGER,
+          last_outbound_rating INTEGER,
+          last_outbound_state TEXT CHECK (last_outbound_state IN ('rated', 'unrated')),
+          last_outbound_intent_id TEXT,
+          last_outbound_at INTEGER,
+          sync_status TEXT NOT NULL DEFAULT 'unknown' CHECK (sync_status IN ('unknown', 'synced', 'pending', 'conflict', 'not_found', 'reauth_required', 'failed')),
+          last_error TEXT,
+          PRIMARY KEY (provider, media_key)
+        );
+        CREATE INDEX IF NOT EXISTS idx_personal_rating_sources_snapshot
+          ON personal_rating_sources(provider, last_snapshot_generation, remote_state);
+
+        CREATE TABLE IF NOT EXISTS personal_rating_sync_queue (
+          provider TEXT NOT NULL CHECK (provider IN ('plex', 'emby', 'jellyfin', 'trakt')),
+          media_key TEXT NOT NULL,
+          media_json TEXT NOT NULL,
+          desired_state TEXT NOT NULL CHECK (desired_state IN ('rated', 'unrated')),
+          desired_rating INTEGER CHECK (desired_rating BETWEEN 1 AND 10 OR desired_rating IS NULL),
+          source TEXT NOT NULL CHECK (source IN ('manual', 'import', 'reconcile', 'push')),
+          intent_id TEXT NOT NULL,
+          canonical_version INTEGER NOT NULL DEFAULT 0,
+          status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'succeeded', 'not_found', 'reauth_required', 'failed')),
+          attempt_count INTEGER NOT NULL DEFAULT 0,
+          next_attempt_at INTEGER NOT NULL DEFAULT 0,
+          lease_owner TEXT,
+          lease_expires_at INTEGER,
+          last_error TEXT,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          succeeded_at INTEGER,
+          PRIMARY KEY (provider, media_key)
+        );
+        CREATE INDEX IF NOT EXISTS idx_personal_rating_sync_queue_due
+          ON personal_rating_sync_queue(status, next_attempt_at, updated_at);
+
+        CREATE TABLE IF NOT EXISTS personal_rating_sync_runs (
+          provider TEXT PRIMARY KEY CHECK (provider IN ('plex', 'emby', 'jellyfin', 'trakt')),
+          run_id TEXT,
+          generation INTEGER NOT NULL DEFAULT 0,
+          mode TEXT NOT NULL DEFAULT 'baseline' CHECK (mode IN ('baseline', 'import')),
+          status TEXT NOT NULL DEFAULT 'idle' CHECK (status IN ('idle', 'running', 'succeeded', 'partial', 'failed')),
+          baseline_complete INTEGER NOT NULL DEFAULT 0,
+          started_at INTEGER,
+          completed_at INTEGER,
+          scanned_count INTEGER NOT NULL DEFAULT 0,
+          changed_count INTEGER NOT NULL DEFAULT 0,
+          imported_count INTEGER NOT NULL DEFAULT 0,
+          cleared_count INTEGER NOT NULL DEFAULT 0,
+          queued_count INTEGER NOT NULL DEFAULT 0,
+          cursor_json TEXT,
+          last_error TEXT,
+          updated_at INTEGER NOT NULL
+        );
+      `);
+    },
+  },
 ];
 
 function parseJsonValue(value, fallback) {

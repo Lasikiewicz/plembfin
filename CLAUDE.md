@@ -531,6 +531,7 @@ When adding frontend code, place it in the most specific existing module that ow
 | Connection label formatting | `modules/settings.js` |
 | Shared settings modal, picker, and card-grid primitives | `modules/settings-ui.js` |
 | Media-server and metadata-provider settings cards/modals | `modules/settings-services.js` |
+| Personal Rating Sync settings, provider directions, status polling, and manual actions | `modules/rating-sync-settings.js` |
 | Flat settings routes, landing list, sidebar, help panels, and clean path routing (`/settings/media-servers`, `/settings/sync`, etc.) | `modules/settings-shell.js` |
 | Shared `state` and `elements` objects | `modules/state.js` |
 | App event wiring | `modules/app-events.js` |
@@ -568,6 +569,7 @@ If a new feature area doesn't fit any existing module and would exceed 150 lines
 | API area | Module |
 | --- | --- |
 | Config, appearance, Seerr/app links, connection tests | `server/src/routes/admin.js` |
+| Personal Rating Sync status, snapshot, explicit push, and retry | `server/src/routes/ratingSync.js` |
 | Plex, Emby, and Jellyfin account connection flows | `server/src/routes/mediaAuth.js` |
 | Trakt device authorization and connection management | `server/src/routes/trackerAuth.js` |
 | Guided first-run setup status/step/import/complete/restart/checklist API | `server/src/routes/onboarding.js` |

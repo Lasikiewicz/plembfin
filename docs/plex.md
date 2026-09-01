@@ -174,6 +174,8 @@ Used by the sync orchestrator and manual watch actions:
 | `mergePlexMetadataItem` | Merges a `fetchPlexMetadataItem` result with a notification's state override, keeping the fetch's provider `Guid` identity but the override's live state fields |
 | `fetchPlexSeriesEpisodes` | All episodes of a series (season-level operations) |
 | `fetchPlexWatchedItems` / `fetchPlexResumableItems` | History and on-deck feeds for catch-up sync |
+| `fetchPlexPersonalRatingSnapshot` | Reads rated movies, shows, and episodes for the isolated personal-rating snapshot worker |
+| `setPlexPersonalRating` / `clearPlexPersonalRating` | Writes or clears a personal rating without changing watched state or resume progress |
 
 A `not_found` result from a mark-played call is reported as "skipped - no matching item"
 in sync telemetry rather than an error: the item simply isn't in that server's library.

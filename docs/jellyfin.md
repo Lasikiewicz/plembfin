@@ -89,6 +89,8 @@ Playback positions use tick units (1 tick = 100 ns), converted in `scheduled.js`
 | `markJellyfinUnplayedById` | Unplay by item ID (used by unwatch propagation) |
 | `fetchJellyfinSeriesEpisodes` / `fetchJellyfinEpisodes` | Episode lists for season-level operations |
 | `fetchJellyfinWatchedItems` / `fetchJellyfinResumableItems` | Feeds for catch-up sync |
+| `fetchJellyfinPersonalRatingSnapshot` | Reads rated movies, series, and episodes for the isolated personal-rating snapshot worker |
+| `setJellyfinPersonalRating` / `clearJellyfinPersonalRating` | Writes or clears a personal rating without changing played state or resume progress |
 
 A `not_found` result is reported as "skipped - no matching item" in sync telemetry:
 the item isn't in Jellyfin's library.

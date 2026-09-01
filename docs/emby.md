@@ -114,6 +114,8 @@ platform that reported them.
 | `markEmbyUnplayedById` | Unplay by item ID (used by unwatch propagation) |
 | `fetchEmbySeriesEpisodes` / `fetchEmbyEpisodes` | Episode lists for season-level operations |
 | `fetchEmbyWatchedItems` / `fetchEmbyResumableItems` | Feeds for catch-up sync |
+| `fetchEmbyPersonalRatingSnapshot` | Reads rated movies, series, and episodes for the isolated personal-rating snapshot worker |
+| `setEmbyPersonalRating` / `clearEmbyPersonalRating` | Writes or clears a personal rating without changing played state or resume progress |
 
 A `not_found` result is reported as "skipped - no matching item" in sync telemetry:
 the item isn't in Emby's library, which is normal for non-mirrored libraries.

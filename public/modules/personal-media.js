@@ -134,6 +134,9 @@ function normalizeItem(item = {}) {
     show_tmdb_id: explicitShowTmdbId,
     show_tvdb_id: explicitShowTvdbId,
     show_imdb_id: explicitShowImdbId,
+    episode_tmdb_id: item.episode_tmdb_id || item.episodeTmdbId || "",
+    episode_tvdb_id: item.episode_tvdb_id || item.episodeTvdbId || "",
+    episode_imdb_id: item.episode_imdb_id || item.episodeImdbId || "",
     season: item.season ?? item.seasonNumber ?? null,
     episode: item.episode ?? item.episodeNumber ?? null,
   };
@@ -177,6 +180,21 @@ export function personalItemFromPosterMenuDataset(dataset = {}) {
     "posterMenuRatingShowImdbId",
     "mediaRateShowImdbId",
   );
+  const episodeTmdbId = value(
+    "posterMenuRatingEpisodeTmdbId",
+    "mediaRateEpisodeTmdbId",
+    "posterMenuUpNextEpisodeTmdbId",
+  );
+  const episodeTvdbId = value(
+    "posterMenuRatingEpisodeTvdbId",
+    "mediaRateEpisodeTvdbId",
+    "posterMenuUpNextEpisodeTvdbId",
+  );
+  const episodeImdbId = value(
+    "posterMenuRatingEpisodeImdbId",
+    "mediaRateEpisodeImdbId",
+    "posterMenuUpNextEpisodeImdbId",
+  );
   const title = value(
     "posterMenuRatingTitle",
     "mediaRateTitle",
@@ -196,6 +214,9 @@ export function personalItemFromPosterMenuDataset(dataset = {}) {
     show_tmdb_id: isEpisode ? showTmdbId : "",
     show_tvdb_id: isEpisode ? showTvdbId : "",
     show_imdb_id: isEpisode ? showImdbId : "",
+    episode_tmdb_id: isEpisode ? episodeTmdbId : "",
+    episode_tvdb_id: isEpisode ? episodeTvdbId : "",
+    episode_imdb_id: isEpisode ? episodeImdbId : "",
     season: isEpisode ? value("posterMenuRatingSeason", "mediaRateSeason", "posterMenuUpNextSeason") : null,
     episode: isEpisode ? value("posterMenuRatingEpisode", "mediaRateEpisode", "posterMenuUpNextEpisode") : null,
   });
@@ -218,6 +239,9 @@ export function personalItemFromDetailDataset(dataset = {}) {
     show_tmdb_id: value("mediaPersonalShowTmdbId"),
     show_tvdb_id: value("mediaPersonalShowTvdbId"),
     show_imdb_id: value("mediaPersonalShowImdbId"),
+    episode_tmdb_id: value("mediaPersonalEpisodeTmdbId"),
+    episode_tvdb_id: value("mediaPersonalEpisodeTvdbId"),
+    episode_imdb_id: value("mediaPersonalEpisodeImdbId"),
     season: value("mediaPersonalSeason"),
     episode: value("mediaPersonalEpisode"),
   });
@@ -238,6 +262,9 @@ function itemPayload(item = {}) {
     show_tmdb_id: normalized.show_tmdb_id,
     show_tvdb_id: normalized.show_tvdb_id,
     show_imdb_id: normalized.show_imdb_id,
+    episode_tmdb_id: normalized.episode_tmdb_id,
+    episode_tvdb_id: normalized.episode_tvdb_id,
+    episode_imdb_id: normalized.episode_imdb_id,
     season: normalized.season == null || normalized.season === "" ? null : Number(normalized.season),
     episode: normalized.episode == null || normalized.episode === "" ? null : Number(normalized.episode),
   };
@@ -307,6 +334,9 @@ function personalRatingDataAttributes(item = {}) {
     "data-media-rate-show-tmdb-id": normalized.show_tmdb_id,
     "data-media-rate-show-tvdb-id": normalized.show_tvdb_id,
     "data-media-rate-show-imdb-id": normalized.show_imdb_id,
+    "data-media-rate-episode-tmdb-id": normalized.episode_tmdb_id,
+    "data-media-rate-episode-tvdb-id": normalized.episode_tvdb_id,
+    "data-media-rate-episode-imdb-id": normalized.episode_imdb_id,
     "data-media-rate-title": normalized.title,
     "data-media-rate-show-title": normalized.show_title,
     "data-media-rate-season": normalized.season == null ? "" : normalized.season,
@@ -330,6 +360,9 @@ function personalMediaDataAttributes(item = {}) {
     "data-media-personal-show-tmdb-id": normalized.show_tmdb_id,
     "data-media-personal-show-tvdb-id": normalized.show_tvdb_id,
     "data-media-personal-show-imdb-id": normalized.show_imdb_id,
+    "data-media-personal-episode-tmdb-id": normalized.episode_tmdb_id,
+    "data-media-personal-episode-tvdb-id": normalized.episode_tvdb_id,
+    "data-media-personal-episode-imdb-id": normalized.episode_imdb_id,
     "data-media-personal-title": normalized.title,
     "data-media-personal-show-title": normalized.show_title,
     "data-media-personal-season": normalized.season == null ? "" : normalized.season,
@@ -433,6 +466,9 @@ function refreshRenderedPersonalRatingControls() {
       show_tmdb_id: button.dataset.mediaRateShowTmdbId || "",
       show_tvdb_id: button.dataset.mediaRateShowTvdbId || "",
       show_imdb_id: button.dataset.mediaRateShowImdbId || "",
+      episode_tmdb_id: button.dataset.mediaRateEpisodeTmdbId || "",
+      episode_tvdb_id: button.dataset.mediaRateEpisodeTvdbId || "",
+      episode_imdb_id: button.dataset.mediaRateEpisodeImdbId || "",
       title: button.dataset.mediaRateTitle || "Untitled",
       show_title: button.dataset.mediaRateShowTitle || "",
       season: button.dataset.mediaRateSeason || "",
@@ -732,18 +768,22 @@ export async function removeFromWatchlist(item, { showMessage = true } = {}) {
 
 async function saveRating(item, rating) {
   const normalized = normalizeItem(item);
-  await personalRequest({ action: "rate", rating, ...itemPayload(normalized) });
+  const body = await personalRequest({ action: "rate", rating, ...itemPayload(normalized) });
   await loadPersonalMedia({ force: true });
   closePersonalDialog();
-  setPersonalMessage(`${normalized.title} rated ${rating}/10.`, "success");
+  const queued = Number(body?.rating_sync?.queued || 0);
+  const suffix = queued ? ` Queued for ${body.rating_sync.providers.map((provider) => provider[0].toUpperCase() + provider.slice(1)).join(", ")} separately.` : "";
+  setPersonalMessage(`${normalized.title} rated ${rating}/10.${suffix}`, "success");
 }
 
 async function removeRating(item) {
   const normalized = normalizeItem(item);
-  await personalRequest({ action: "remove-rating", ...itemPayload(normalized) });
+  const body = await personalRequest({ action: "remove-rating", ...itemPayload(normalized) });
   await loadPersonalMedia({ force: true });
   closePersonalDialog();
-  setPersonalMessage(`Rating removed from ${normalized.title}.`, "success");
+  const queued = Number(body?.rating_sync?.queued || 0);
+  const suffix = queued ? ` Removal queued for ${body.rating_sync.providers.map((provider) => provider[0].toUpperCase() + provider.slice(1)).join(", ")} separately.` : "";
+  setPersonalMessage(`Rating removed from ${normalized.title}.${suffix}`, "success");
 }
 
 async function confirmRatingRemoval(item) {

@@ -58,7 +58,7 @@ export function normalizeLibraryForceSyncRequest(input = {}) {
 
   if (!FORCE_SYNC_MODES.includes(mode)) throw new Error("mode must be push or pull");
   if (source && !MEDIA_SERVERS.includes(source)) throw new Error("source must be plex, emby, or jellyfin");
-  if (target && !MEDIA_SERVERS.includes(target)) throw new Error("target must be plex, emby, or jellyfin");
+  if (target && ![...MEDIA_SERVERS, "trakt"].includes(target)) throw new Error("target must be plex, emby, jellyfin, or trakt");
 
   return { title: "All media", type: "library", mode, source, target };
 }
@@ -385,6 +385,11 @@ async function syncOneLibraryItem(media, requested, config, loopStore, logger) {
 }
 
 async function syncOneLibraryProgressItem(media, requested, config, loopStore, logger) {
+  if (requested.target === "trakt") {
+    const detail = "Trakt is available for watched-state Push only; it does not accept resume positions.";
+    logger(`[${requested.mode}] ${media.title}: ${detail}`);
+    return { skipped: true, status: "skipped", details: detail, targetStates: [{ target: "trakt", status: "skipped", detail }] };
+  }
   const syncMedia = requested.target ? { ...media, syncTargets: [requested.target] } : media;
   const positionMs = Number(media.positionMs ?? media.offsetMs ?? 0);
   logger(`[${requested.mode}] ${media.title}: sending resume position ${Math.round(positionMs / 1000)}s to ${requested.target || "all connected servers"}.`);

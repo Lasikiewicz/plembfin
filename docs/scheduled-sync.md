@@ -23,6 +23,11 @@ The same logic runs on demand via:
   select one of Plex, Emby, or Jellyfin. The response returns an operation id,
   and `GET /api/force-sync/media/status?id=...` exposes live log lines and the
   final result for the popup terminal.
+- `GET /api/rating-sync/status` - reports the independent personal-rating queue,
+  provider directions, and per-provider snapshot runs.
+- `POST /api/rating-sync/run`, `/api/rating-sync/push`, and
+  `/api/rating-sync/retry` - run a rating snapshot, explicitly push local ratings,
+  or retry failed/not-found/reauthorization-required rating work.
 
 Manual cron and force-sync requests are stored in `background_jobs`; their ordered
 logs live in `background_job_logs`. The web process relays logs while the leaseholder
@@ -62,6 +67,22 @@ canonical state to the selected destination(s) without checking their current st
 It does not change the behavior or safety guarantees of the library-wide `/api/force-sync`
 planner and executor. Jellyfin episode lookups return every matching season/episode item so
 duplicate quality copies are marked consistently.
+
+## Personal rating scheduler
+
+Personal Rating Sync is disabled by default and is not part of the watched-state
+dispatch queue. When enabled in Settings → Sync → Sync Tools, the elected worker
+checks its configured interval after the normal watched-state work completes. Each
+provider has its own snapshot run and durable outbound queue, so a slow or unavailable
+rating provider cannot block or rewrite watched history, playstate, resume progress,
+or the Force Sync operation lock.
+
+Local rating changes commit to `personal_ratings` first and enqueue provider writes in
+the same SQLite transaction. The queue uses latest-intent deduplication, leases,
+backoff, explicit reauthentication status, and outbound echo markers. Baseline mode
+records the first remote snapshot without importing it; Import mode seeds the local
+canonical ratings. A missing-row clear is only considered after a complete previous
+snapshot.
 
 Provider-ID changes can create a distinct local record. Fix Match
 (`PATCH /api/update-watch`) recomputes `media_key` and merges playstate when a correction

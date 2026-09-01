@@ -26,6 +26,7 @@ import { initMediaPerson, closePersonProfile, loadCastMemberDetails } from "./mo
 import { initMediaLightbox } from "./modules/media-lightbox.js";
 import { initAppEvents, closeMobileMenu } from "./modules/app-events.js?v=20260831r";
 import { initTrackerSettings, refreshTrackerSettings } from "./modules/tracker-settings.js?v=20260817";
+import { initRatingSyncSettings, applyRatingSyncConfig, refreshRatingSyncStatus } from "./modules/rating-sync-settings.js?v=20260901a";
 import { startLiveUpdates, stopLiveUpdates } from "./modules/live-updates.js?v=20260901a";
 
 // Ping the backend the moment the app loads (no auth needed), so the server's
@@ -2130,6 +2131,7 @@ async function loadSavedConfig() {
   state.syncHistory = Array.isArray(body.history) ? body.history : state.syncHistory;
   state.syncHistoryLoaded = Array.isArray(body.history);
   applyConfigToSettingsUi(body.config || {});
+  applyRatingSyncConfig(body.config || {});
   state.configLoaded = true;
   state.posterLookupCache.clear();
   state.posterLookupInflight.clear();
@@ -2516,6 +2518,7 @@ async function lockDashboard() {
   elements.adminToken.value = "";
   if (elements.settingsUsername) elements.settingsUsername.value = "";
   applyConfigToSettingsUi({});
+  applyRatingSyncConfig({});
   renderDashboard();
   renderActiveSessions();
   renderSyncHistory();
@@ -2682,6 +2685,13 @@ function initialize() {
     renderActiveSessions,
   });
   initTrackerSettings({ authHeaders });
+  initRatingSyncSettings({
+    authHeaders,
+    setMessage,
+    onConfig: (config) => {
+      state.savedConfig = config || state.savedConfig;
+    },
+  });
   initOnboarding({ authHeaders, navigateTo, setMessage, setUnlocked, loadHistory, loadSavedConfig, startHistoryPolling, openConfirmDialog });
   initTools({
     setMessage,
@@ -2887,6 +2897,7 @@ function initialize() {
   elements.settingsUsername.value = elements.adminEmail.value;
   applyActiveView();
   applyConfigToSettingsUi({});
+  applyRatingSyncConfig({});
   renderDashboard();
   renderActiveSessions();
   renderStats();
@@ -2930,6 +2941,7 @@ function initialize() {
         onError: (error) => logDebug(`Live update connection interrupted: ${error.message}`),
       });
       refreshTrackerSettings().catch(() => { });
+      refreshRatingSyncStatus().catch(() => { });
       loadPersonalMedia().catch(() => { });
       resumeActiveRefreshJobs();
       for (const [key, value] of state.posterLookupCache.entries()) {

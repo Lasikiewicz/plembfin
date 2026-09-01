@@ -137,6 +137,8 @@ function forceSyncElements(scope = "media") {
     progressFill: document.querySelector(id("ProgressFill")),
     pushTarget: document.querySelector(id("PushTarget")),
     pullSource: document.querySelector(id("PullSource")),
+    ratingTarget: library ? null : document.querySelector("#mediaForceSyncRatingTarget"),
+    ratingButton: library ? null : document.querySelector("[data-media-rating-sync-run]"),
     seasons: document.querySelector(id("Seasons")),
     seasonsList: document.querySelector(id("SeasonsList")),
     cancel: document.querySelector(id("CancelButton")),
@@ -274,6 +276,7 @@ function openMediaForceSyncDialog(button) {
   if (elements.title) elements.title.textContent = `Force Sync · ${payload.title}`;
   if (elements.pushTarget) elements.pushTarget.value = "all";
   if (elements.pullSource) elements.pullSource.value = "all";
+  if (elements.ratingTarget) elements.ratingTarget.value = "all";
   renderMediaForceSyncSeasons(elements, payload.type === "show" ? payload.availableSeasons : []);
   resetMediaForceSyncActivity(elements);
   setMediaForceSyncControlsBusy(elements, false);
@@ -325,6 +328,89 @@ function forceSyncConfirmation(mode, session, elements) {
     return `This will send Plembfin's currently recorded watched state${progress} for ${title}${seasonScope} to ${mediaForceSyncServerLabel(elements.pushTarget?.value || "all")}, overwriting whatever it currently shows. Nothing is checked or pulled in first. If Plembfin's own record is wrong, this sends that wrong state out too. Continue?`;
   }
   return `This will read watched status for ${title}${seasonScope} from ${mediaForceSyncServerLabel(elements.pullSource?.value || "all")} and add anything Plembfin doesn't already have. Nothing is sent back out, and nothing is marked unwatched or removed. Continue?`;
+}
+
+function mediaRatingSyncLabel(target = "all") {
+  if (target === "all" || !target) return "all enabled rating providers";
+  return target.charAt(0).toUpperCase() + target.slice(1);
+}
+
+function mediaRatingSyncPayload(payload = {}) {
+  const item = {
+    media_type: payload.type === "show" ? "tv" : payload.type,
+    title: payload.title || "",
+    tmdb_id: payload.tmdb_id || "",
+    tvdb_id: payload.tvdb_id || "",
+    imdb_id: payload.imdb_id || "",
+  };
+  return Object.fromEntries(Object.entries(item).filter(([, value]) => value !== ""));
+}
+
+async function confirmAndRunMediaRatingSync() {
+  const session = mediaForceSyncSession;
+  if (!session || session.running || session.ratingRunning || session.confirmingRating) return;
+  const elements = session.elements || mediaForceSyncElements();
+  const target = elements.ratingTarget?.value || "all";
+  session.confirmingRating = true;
+  try {
+    const confirmed = await openConfirmDialog({
+      title: "Confirm Push Personal Rating",
+      body: `This will send Plembfin's personal rating for "${session.payload.title}" to ${mediaRatingSyncLabel(target)}. It will not change watched status, play history, resume positions, or lists. Continue?`,
+      confirmLabel: "Push rating",
+      cancelLabel: "Cancel",
+    });
+    if (confirmed && mediaForceSyncSession === session) await runMediaRatingSync();
+  } finally {
+    session.confirmingRating = false;
+  }
+}
+
+async function runMediaRatingSync() {
+  const session = mediaForceSyncSession;
+  if (!session || session.running || session.ratingRunning) return;
+  const elements = session.elements || mediaForceSyncElements();
+  const target = elements.ratingTarget?.value || "all";
+  const button = elements.ratingButton;
+  const payload = mediaRatingSyncPayload(session.payload);
+  if (!payload.title && !payload.tmdb_id && !payload.tvdb_id && !payload.imdb_id) {
+    setMessage("This item does not have enough identity data to push a personal rating.", "error");
+    return;
+  }
+  session.ratingRunning = true;
+  if (button) {
+    button.disabled = true;
+    button.setAttribute("aria-busy", "true");
+  }
+  if (elements.ratingTarget) elements.ratingTarget.disabled = true;
+  setMessage(`Pushing personal rating for ${session.payload.title} separately from watched-state Force Sync…`, "muted");
+  try {
+    const response = await fetch("/api/rating-sync/push", {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ providers: target === "all" ? [] : [target], items: [payload] }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || body.ok === false) throw new Error(body.error || `Personal rating push failed with ${response.status}`);
+    if (body.status === "disabled") {
+      setMessage("Personal Rating Sync is disabled. Enable it in Settings → Sync Tools first.", "muted");
+    } else if (Number(body.items || 0) === 0) {
+      setMessage("No local Plembfin personal rating exists for this title, so nothing was pushed.", "muted");
+    } else if (Number(body.queued || 0) === 0) {
+      setMessage(`No enabled send direction is configured for ${mediaRatingSyncLabel(target)}.`, "muted");
+    } else {
+      setMessage(`Personal rating push completed for ${session.payload.title} via ${mediaRatingSyncLabel(target)}. Watched state was not changed.`, "success");
+      await loadPersonalMedia({ force: true }).catch(() => null);
+    }
+  } catch (error) {
+    setMessage(error.message || "Personal rating push failed", "error");
+  } finally {
+    session.ratingRunning = false;
+    if (button) {
+      button.disabled = false;
+      button.removeAttribute("aria-busy");
+    }
+    if (elements.ratingTarget) elements.ratingTarget.disabled = false;
+  }
 }
 
 async function confirmAndRunMediaForceSync(mode) {
@@ -619,6 +705,13 @@ export function attachMediaDetailEvents() {
     if (forceSyncCancelButton) {
       event.preventDefault();
       cancelMediaForceSync().catch((error) => setMessage(error.message, "error"));
+      return;
+    }
+
+    const ratingSyncRunButton = event.target.closest("[data-media-rating-sync-run]");
+    if (ratingSyncRunButton) {
+      event.preventDefault();
+      confirmAndRunMediaRatingSync().catch((error) => setMessage(error.message, "error"));
       return;
     }
 

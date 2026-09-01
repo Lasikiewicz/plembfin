@@ -19,6 +19,7 @@ import { cachedNextAiringFor, mergeNextAiringCacheEntries, nextAiringCacheEntryS
 import { refreshUpcomingCalendarCache } from "./utils/upcomingCalendarCache.js";
 import { runScheduledWatchBackup, runScheduledRemoteWatchBackup } from "./utils/watchHistoryBackups.js";
 import { runScheduledPlembfinBackup } from "./utils/plembfinBackups.js";
+import { runRatingSyncScheduler } from "./utils/personalRatingSync.js";
 import { pruneSyncPlans } from "./utils/syncPlans.js";
 import {
   deletePlaybackProgress,
@@ -212,6 +213,12 @@ export async function runScheduledTick({ isLeader = () => true } = {}) {
   if (!deferOutbound) {
     await runWithTimeBudget("Tracker watched-state poll", () => pollConnectedTrackers(), 45_000);
   }
+  if (!isLeader()) return { skipped: true, reason: "lease-lost" };
+  // Personal ratings have their own opt-in queue and provider snapshot
+  // generations. Keep their cadence and failure budget independent from the
+  // watched-state sync above: a ratings outage must not delay watch history,
+  // and a large watched dispatch must not suppress a due rating run.
+  await runWithTimeBudget("Personal rating sync", () => runRatingSyncScheduler(), 45_000);
   if (!isLeader()) return { skipped: true, reason: "lease-lost" };
   await runWithTimeBudget("Scheduled watch-history backup", () => runScheduledWatchBackup(), 30_000);
   if (!isLeader()) return { skipped: true, reason: "lease-lost" };

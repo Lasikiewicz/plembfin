@@ -14,7 +14,7 @@ Desktop renders the grouped sidebar; mobile uses the **Settings section** select
 | Webhooks | `/settings/webhooks` | Setup Guides, Webhook Secret | `/settings/webhooks#setup-guides`, `/settings/webhooks#webhook-secret` |
 | Connections | `/settings/connections` | Trakt, Seerr | `/settings/connections#trakt`, `/settings/connections#seerr` |
 | Metadata | `/settings/metadata` | Metadata Providers, Refresh Metadata (TMDB, TVDB) | `/settings/metadata#metadata-providers`, `/settings/metadata#refresh-metadata` |
-| Sync | `/settings/sync` | Sync Tuning, Sync Tools (Repair Recent Items, Full Sync Watchstates, Force Sync), Sync Issues, Sync History | `/settings/sync#sync-tuning`, `/settings/sync#sync-tools`, `/settings/sync#sync-issues`, `/settings/sync#sync-history` |
+| Sync | `/settings/sync` | Sync Tuning, Sync Tools (Repair Recent Items, Full Sync Watchstates, Force Sync, Personal Rating Sync), Sync Issues, Sync History | `/settings/sync#sync-tuning`, `/settings/sync#sync-tools`, `/settings/sync#sync-issues`, `/settings/sync#sync-history` |
 | Backup | `/settings/backup` | Local (Watch History, Plembfin), Remote (Watch History, Plembfin) | `/settings/backup#backup-local`, `/settings/backup#backup-remote` |
 | Restore | `/settings/restore` | Local (Watch History, Plembfin), Remote (Watch History, Plembfin) | `/settings/restore#restore-local`, `/settings/restore#restore-remote` |
 | Tools | `/settings/tools` | Guided Setup, Database Repairs, Library Rebuilds and Backfills, Wipe data (Watch History, Sync History & Logs, Everything Tracked, Wipe All / Fresh Start) | `/settings/tools#guided-setup`, `/settings/tools#database-repairs`, `/settings/tools#library-rebuilds`, `/settings/tools#wipe-data` |
@@ -97,8 +97,12 @@ show - it does not check their current state first.
 **Import Watched Status** scans the configured Plex, Emby, and Jellyfin libraries for
 watched items and adds anything Plembfin doesn't already have, without sending anything
 back out or removing anything.
-Both operations are library-wide, and status is polled through the shared Force Sync
-activity ledger until each completes.
+Both watched-state operations are library-wide, and status is polled through the shared
+Force Sync activity ledger until each completes. The detail-page modal also exposes a
+separate **Push Personal Rating** row for the open title. Its provider selector includes
+Trakt, and its request does not enter the watched-state Force Sync worker or lock.
+Trakt is a valid watched-state Push target as well; the watched-state Pull selector
+remains media-server-only.
 
 ## Multi-view aggregation
 
@@ -193,6 +197,7 @@ footer visible while the body scrolls, and collapse to stacked fields on mobile.
 | `public/modules/settings-shell.js` | Hierarchical section/group registry, multi-view aggregation, legacy aliases, landing list, sidebar, mobile selector, panel visibility, section-scoped scrolling, and tools disclosures |
 | `public/modules/settings-ui.js` | Shared edit modal, picker modal, service-card grid, and the `renderFieldRow`/`collectFieldValues` primitives reused by both modal and inline forms |
 | `public/modules/settings-services.js` | Media-server and metadata definitions, config saves, connection tests, cards/dialogs, and the inline Sync Tuning form |
+| `public/modules/rating-sync-settings.js` | Personal Rating Sync settings, provider direction controls, status polling, and manual actions |
 | `public/modules/settings.js` | Shared connection-label formatting |
 | `public/modules/tools.js` | Trakt import and compatibility exports for backup and maintenance behavior |
 | `public/modules/tools-backups.js` | Backup schedules, restore, destination cards/dialogs, and appearance behavior |
@@ -246,6 +251,14 @@ watched threshold, minimum resume position, active-session TTL, and outbound req
 timeout. Blank fields inherit the matching environment variable or built-in default;
 saved values take precedence. The defaults remain 90%, 60 seconds, 5 minutes, and 10
 seconds respectively.
+
+**Personal Rating Sync** is a separate optional form in Sync Tools and is disabled by
+default. It has an independent enabled flag, 5-minute-to-24-hour interval, baseline or
+import first-snapshot mode, local-wins or remote-wins conflict policy, and a direction
+selector for Plex, Emby, Jellyfin, and Trakt. Local rating changes are saved to
+Plembfin first and delivered through a durable queue; provider failures do not alter
+watched state, play history, resume positions, or lists. See
+[personal-ratings.md](personal-ratings.md).
 
 The same form's **Fast Local-Network Sync** checkbox controls the outbound pacing
 governor's profile (`server/src/utils/outboundGovernor.js`), stored as `pacing.profile`

@@ -16,6 +16,7 @@ behavior, configuration, operations, and integration contracts.
 | [architecture.md](architecture.md) | Application flow, repository file map, request flow, configuration, and data model. |
 | [frontend.md](frontend.md) | SPA routing, state, module ownership, and data-loading conventions. |
 | [sqlite-schema.md](sqlite-schema.md) | SQLite tables, columns, indexes, and migration behavior. |
+| [personal-ratings.md](personal-ratings.md) | Canonical personal ratings, provider directions, queue delivery, identity, and Force Sync actions. |
 | [development.md](development.md) | Build checks, Git hooks, CI workflows, Docker, and release/versioning. |
 | [troubleshooting.md](troubleshooting.md) | Symptom-based diagnosis and operational remedies. |
 

@@ -567,3 +567,128 @@ export async function fetchJellyfinResumableItems(config, { limit = 0 } = {}) {
   const data = await fetchJson(url, config);
   return data?.Items || [];
 }
+
+// ---------------------------------------------------------------------------
+// Personal ratings
+// ---------------------------------------------------------------------------
+
+function jellyfinProviderIds(item = {}) {
+  const ids = item.ProviderIds || {};
+  return {
+    imdb: ids.Imdb || ids.imdb || "",
+    tmdb: ids.Tmdb || ids.tmdb || "",
+    tvdb: ids.Tvdb || ids.tvdb || "",
+    jellyfin: item.Id || "",
+  };
+}
+
+function jellyfinRatingRecord(item = {}) {
+  const type = String(item.Type || item.type || "").toLowerCase();
+  const isEpisode = type === "episode";
+  const isShow = type === "series";
+  const providerIds = jellyfinProviderIds(item);
+  const seriesIds = isEpisode ? {
+    imdb: item.SeriesProviderIds?.Imdb || item.SeriesProviderIds?.imdb || "",
+    tmdb: item.SeriesProviderIds?.Tmdb || item.SeriesProviderIds?.tmdb || "",
+    tvdb: item.SeriesProviderIds?.Tvdb || item.SeriesProviderIds?.tvdb || "",
+  } : providerIds;
+  return {
+    media: {
+      media_type: isEpisode ? "episode" : isShow ? "tv" : "movie",
+      title: String(item.Name || item.Title || "Untitled"),
+      tmdb_id: seriesIds.tmdb || "",
+      tvdb_id: seriesIds.tvdb || "",
+      imdb_id: seriesIds.imdb || "",
+      show_title: isEpisode ? String(item.SeriesName || "") : "",
+      show_tmdb_id: isEpisode ? seriesIds.tmdb || "" : "",
+      show_tvdb_id: isEpisode ? seriesIds.tvdb || "" : "",
+      show_imdb_id: isEpisode ? seriesIds.imdb || "" : "",
+      episode_tmdb_id: isEpisode ? providerIds.tmdb || "" : "",
+      episode_tvdb_id: isEpisode ? providerIds.tvdb || "" : "",
+      episode_imdb_id: isEpisode ? providerIds.imdb || "" : "",
+      season: isEpisode ? Number(item.ParentIndexNumber) : null,
+      episode: isEpisode ? Number(item.IndexNumber) : null,
+      year: Number(item.ProductionYear || 0) || null,
+      poster_url: "",
+    },
+    providerItemId: String(item.Id || ""),
+    providerIds,
+    rating: Number(item.UserData?.Rating),
+    ratedAt: null,
+  };
+}
+
+export async function fetchJellyfinPersonalRatingSnapshot(config) {
+  requireJellyfinConfig(config);
+  const records = [];
+  const pageSize = 200;
+  for (let start = 0; start <= 10_000_000; start += pageSize) {
+    const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${config.userId}/Items`);
+    url.searchParams.set("Recursive", "true");
+    url.searchParams.set("IncludeItemTypes", "Movie,Series,Episode");
+    url.searchParams.set("Fields", "ProviderIds,SeriesProviderIds,UserData,PremiereDate,ProductionYear");
+    url.searchParams.set("StartIndex", String(start));
+    url.searchParams.set("Limit", String(pageSize));
+    url.searchParams.set("api_key", jellyfinApiKey(config));
+    const response = await fetchWithTimeout(url, { headers: authHeaders(config), lane: "sync" });
+    if (!response.ok) {
+      const error = new Error(`Jellyfin rating scan failed with status ${response.status}`);
+      error.status = response.status;
+      throw error;
+    }
+    const data = await response.json();
+    const page = data?.Items || [];
+    for (const item of page) {
+      const rating = Number(item.UserData?.Rating);
+      if (!Number.isFinite(rating) || rating < 1 || rating > 10) continue;
+      const record = jellyfinRatingRecord(item);
+      record.rating = Math.round(rating);
+      if (Number.isInteger(record.rating) && record.rating >= 1 && record.rating <= 10) records.push(record);
+    }
+    const total = Number(data?.TotalRecordCount || 0);
+    if (!page.length || page.length < pageSize || (total > 0 && start + page.length >= total)) break;
+  }
+  return records;
+}
+
+async function writeJellyfinPersonalRating(config, media, rating, { lane = "sync" } = {}) {
+  requireJellyfinConfig(config);
+  const lookup = {
+    ...media,
+    type: media.media_type || media.mediaType || media.type,
+    ids: {
+      tmdb: media.show_tmdb_id || media.tmdb_id,
+      tvdb: media.show_tvdb_id || media.tvdb_id,
+      imdb: media.show_imdb_id || media.imdb_id,
+    },
+  };
+  const items = await findJellyfinItems(config, lookup);
+  if (!items?.length) return { platform: "jellyfin", status: "not_found" };
+  let lastHttpStatus = 200;
+  for (const item of items) {
+    const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${config.userId}/Items/${item.Id}/UserData`);
+    url.searchParams.set("api_key", jellyfinApiKey(config));
+    const response = await fetchWithTimeout(url, {
+      method: "POST",
+      headers: { ...authHeaders(config), "Content-Type": "application/json" },
+      lane,
+      body: JSON.stringify({ Rating: rating == null ? null : Math.max(1, Math.min(10, Math.round(Number(rating)))) }),
+    });
+    if (response.status === 404) return { platform: "jellyfin", status: "not_found", itemId: item.Id };
+    if (!response.ok) {
+      const error = new Error(`Jellyfin personal rating update failed with status ${response.status}`);
+      error.status = response.status;
+      throw error;
+    }
+    lastHttpStatus = response.status;
+  }
+  return { platform: "jellyfin", status: "fulfilled", itemId: items[0].Id, itemIds: items.map((item) => item.Id), httpStatus: lastHttpStatus };
+}
+
+export function setJellyfinPersonalRating(config, media, rating, options = {}) {
+  return writeJellyfinPersonalRating(config, media, rating, options);
+}
+
+export function clearJellyfinPersonalRating(config, media, options = {}) {
+  return writeJellyfinPersonalRating(config, media, null, options);
+}

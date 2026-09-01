@@ -8,6 +8,15 @@ import { activityGroupKeyFor, activityGroupMediaType, activityGroupTitleFromReco
 
 const SETTINGS_ID = "mediaConfig";
 const RUNTIME_ID = "main";
+export const RATING_SYNC_PROVIDERS = ["plex", "emby", "jellyfin", "trakt"];
+export const RATING_SYNC_DIRECTIONS = ["off", "send", "receive", "bidirectional"];
+export const DEFAULT_RATING_SYNC = Object.freeze({
+  enabled: false,
+  intervalMinutes: 15,
+  initialSyncMode: "baseline",
+  conflictPolicy: "local_wins",
+  providers: Object.freeze({ plex: "off", emby: "off", jellyfin: "off", trakt: "off" }),
+});
 export const BACKGROUND_SYNC_PROGRESS_STALE_MS = 90_000;
 export const BACKGROUND_SYNC_PROGRESS_MAX_OWNER_MS = 30 * 60_000;
 // Local owners normally remove themselves after the 2s UI settle window. Give
@@ -49,6 +58,25 @@ export function normalizeSyncScope(scope = {}) {
 export function normalizePacing(section = {}) {
   const profile = ["gentle", "standard", "fast"].includes(String(section.profile || "")) ? String(section.profile) : "standard";
   return { profile };
+}
+
+export function normalizeRatingSyncSection(section = {}) {
+  const providers = {};
+  for (const provider of RATING_SYNC_PROVIDERS) {
+    const direction = String(section.providers?.[provider] || section[provider] || "off").trim().toLowerCase();
+    providers[provider] = RATING_SYNC_DIRECTIONS.includes(direction) ? direction : "off";
+  }
+  const intervalValue = Number(section.intervalMinutes);
+  const intervalMinutes = Number.isInteger(intervalValue)
+    ? Math.max(5, Math.min(1440, intervalValue))
+    : DEFAULT_RATING_SYNC.intervalMinutes;
+  return {
+    enabled: Boolean(section.enabled),
+    intervalMinutes,
+    initialSyncMode: section.initialSyncMode === "import" ? "import" : "baseline",
+    conflictPolicy: section.conflictPolicy === "remote_wins" ? "remote_wins" : "local_wins",
+    providers,
+  };
 }
 
 function envMediaConfig() {
@@ -94,6 +122,7 @@ function envMediaConfig() {
     syncScope: normalizeSyncScope({}),
     authority: normalizeAuthority({}),
     pacing: normalizePacing({ profile: envValue("OUTBOUND_PACING_PROFILE") }),
+    ratingSync: normalizeRatingSyncSection({}),
   });
 }
 
@@ -145,6 +174,7 @@ function mergeEnvDefaults(stored = {}) {
   merged.syncScope = normalized.syncScope;
   merged.authority = normalized.authority;
   merged.pacing = normalized.pacing;
+  merged.ratingSync = normalized.ratingSync;
 
   for (const section of ["plex", "emby", "jellyfin"]) {
     if (hasConfiguredFields(normalized[section])) {
@@ -213,6 +243,7 @@ export function normalizeStoredConfig(stored = {}) {
     syncScope: normalizeSyncScope(stored.syncScope || {}),
     authority: normalizeAuthority(stored.authority || {}),
     pacing: normalizePacing(stored.pacing || {}),
+    ratingSync: normalizeRatingSyncSection(stored.ratingSync || {}),
   };
 }
 
@@ -296,6 +327,7 @@ export function publicMediaConfig(config = {}) {
     syncScope: normalized.syncScope,
     authority: normalized.authority,
     pacing: normalized.pacing,
+    ratingSync: normalized.ratingSync,
   };
 }
 
@@ -333,6 +365,18 @@ function mergeSection(existing = {}, incoming, secretFields = []) {
   return merged;
 }
 
+function mergeRatingSyncSection(existing = {}, incoming) {
+  if (!incoming) return existing;
+  return {
+    ...existing,
+    ...incoming,
+    providers: {
+      ...(existing.providers || {}),
+      ...(incoming.providers || {}),
+    },
+  };
+}
+
 // Returns the normalized result of merging `config` over the stored settings,
 // without persisting. handleConfig validates this merged shape so a save that
 // omits an already-stored credential still passes required-field checks.
@@ -355,6 +399,7 @@ export async function mergeIncomingConfig(config = {}) {
     syncScope: mergeSection(existing.syncScope, config.syncScope, []),
     authority: mergeSection(existing.authority, config.authority, []),
     pacing: mergeSection(existing.pacing, config.pacing, []),
+    ratingSync: mergeRatingSyncSection(existing.ratingSync, config.ratingSync),
   });
 }
 
@@ -456,6 +501,24 @@ export function validateConfig(config = {}) {
   }
   if (config.pacing && !["gentle", "standard", "fast"].includes(config.pacing.profile)) {
     errors.push("pacing.profile must be gentle, standard, or fast");
+  }
+
+  if (config.ratingSync) {
+    const interval = Number(config.ratingSync.intervalMinutes);
+    if (!Number.isInteger(interval) || interval < 5 || interval > 1440) {
+      errors.push("ratingSync.intervalMinutes must be a whole number between 5 and 1440");
+    }
+    if (!["baseline", "import"].includes(config.ratingSync.initialSyncMode)) {
+      errors.push("ratingSync.initialSyncMode must be baseline or import");
+    }
+    if (!["local_wins", "remote_wins"].includes(config.ratingSync.conflictPolicy)) {
+      errors.push("ratingSync.conflictPolicy must be local_wins or remote_wins");
+    }
+    for (const provider of RATING_SYNC_PROVIDERS) {
+      if (!RATING_SYNC_DIRECTIONS.includes(config.ratingSync.providers?.[provider])) {
+        errors.push(`ratingSync.providers.${provider} must be off, send, receive, or bidirectional`);
+      }
+    }
   }
 
   return errors;
