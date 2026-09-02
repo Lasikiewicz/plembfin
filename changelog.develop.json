@@ -1,19 +1,6 @@
 {
   "build": 30,
-  "resetCommit": "79a66d16e02bb3cd284e345ba487bc15fb551a18",
-  "updatedAt": "2026-09-02T20:57:35.406Z",
-  "entries": [
-    {
-      "build": 30,
-      "date": "2026-09-02T20:57:35.406Z",
-      "commit": "e0fd23b493f1f0b3809938b9ed7754d059def106",
-      "message": "Fix - Keep sync bursts from starving health checks",
-      "author": "Lasikiewicz",
-      "details": [
-        "Keep the live health check responsive while Plex bulk watch-state changes are processed",
-        "Coalesce duplicate Plex state notifications so one library action does not fan out repeatedly",
-        "Share TV cache rebuilds across concurrent readers and cache empty results correctly"
-      ]
-    }
-  ]
+  "resetCommit": "13aabe19ea343c69e0dc8aa8e9762be802e5bdc3",
+  "updatedAt": "2026-09-02T21:01:25.133Z",
+  "entries": []
 }

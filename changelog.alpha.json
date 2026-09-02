@@ -1,10 +1,35 @@
 {
   "baseVersion": "0.14.0",
-  "build": 11,
-  "version": "0.14.0.11",
-  "shortVersion": "0.14.0.11",
-  "updatedAt": "2026-09-02T20:15:44.177Z",
+  "build": 12,
+  "version": "0.14.0.12",
+  "shortVersion": "0.14.0.12",
+  "updatedAt": "2026-09-02T21:01:25.133Z",
   "entries": [
+    {
+      "build": 12,
+      "version": "0.14.0.12",
+      "shortVersion": "0.14.0.12",
+      "date": "2026-09-02T21:01:25.133Z",
+      "commit": "13aabe19ea343c69e0dc8aa8e9762be802e5bdc3",
+      "message": "Fix - Keep sync bursts from starving health checks",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix: Keep sync bursts from starving health checks",
+        "Fix: Keep the live health check responsive while Plex bulk watch-state changes are processed",
+        "Fix: Coalesce duplicate Plex state notifications so one library action does not fan out repeatedly",
+        "Fix: Share TV cache rebuilds across concurrent readers and cache empty results correctly"
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Keep sync bursts from starving health checks",
+          "Keep the live health check responsive while Plex bulk watch-state changes are processed",
+          "Coalesce duplicate Plex state notifications so one library action does not fan out repeatedly",
+          "Share TV cache rebuilds across concurrent readers and cache empty results correctly"
+        ],
+        "tweaks": []
+      }
+    },
     {
       "build": 11,
       "version": "0.14.0.11",
