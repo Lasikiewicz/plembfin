@@ -1,10 +1,53 @@
 {
   "baseVersion": "0.14.0",
-  "build": 9,
-  "version": "0.14.0.9",
-  "shortVersion": "0.14.0.9",
-  "updatedAt": "2026-09-01T15:20:32.328Z",
+  "build": 10,
+  "version": "0.14.0.10",
+  "shortVersion": "0.14.0.10",
+  "updatedAt": "2026-09-02T16:42:31.558Z",
   "entries": [
+    {
+      "build": 10,
+      "version": "0.14.0.10",
+      "shortVersion": "0.14.0.10",
+      "date": "2026-09-02T16:42:31.558Z",
+      "commit": "e6f05452676dadefc83c35dd07618cfd1ee61566",
+      "message": "This update includes improve sync restore and media integrations and make restore issues repairable and episode sync safe.",
+      "author": "Lasikiewicz",
+      "details": [
+        "Feature: Add Fix Match recovery for restore failures with missing saved identities",
+        "Fix: Repair blocked restore items per destination or show without releasing the restore fence prematurely",
+        "Tweak: This update includes improve sync restore and media integrations and make restore issues repairable and episode sync safe.",
+        "Tweak: Makes watch-history restore authoritative, target-aware, and safer while surfacing actionable sync attention details.",
+        "Tweak: Adds watchlist and up-next synchronization across connected media services with matching documentation and coverage.",
+        "Tweak: Treats expected unavailable-library items as non-blocking restore skips while retaining real failures for repair or retry.",
+        "Tweak: Commit manual unwatches during restores and queue outbound unplayed propagation for later",
+        "Tweak: Canonicalize split and combined episode numbering from titles and season metadata before Trakt dispatch",
+        "Tweak: Keep Up Next artwork on cached local posters and authenticated provider fallbacks",
+        "Tweak: Improve grouped Sync Activity controls, inline detail routing, and retry visibility"
+      ],
+      "sections": {
+        "newFeatures": [
+          "Add Fix Match recovery for restore failures with missing saved identities"
+        ],
+        "majorBugFixes": [
+          "Repair blocked restore items per destination or show without releasing the restore fence prematurely"
+        ],
+        "tweaks": [
+          "This update includes improve sync restore and media integrations and make restore issues repairable and episode sync safe.",
+          "Makes watch-history restore authoritative, target-aware, and safer while surfacing actionable sync attention details.",
+          "Adds watchlist and up-next synchronization across connected media services with matching documentation and coverage.",
+          "Treats expected unavailable-library items as non-blocking restore skips while retaining real failures for repair or retry.",
+          "Commit manual unwatches during restores and queue outbound unplayed propagation for later",
+          "Canonicalize split and combined episode numbering from titles and season metadata before Trakt dispatch",
+          "Keep Up Next artwork on cached local posters and authenticated provider fallbacks",
+          "Improve grouped Sync Activity controls, inline detail routing, and retry visibility"
+        ]
+      },
+      "messageFragments": [
+        "Feature - Improve sync restore and media integrations",
+        "Feature - Make restore issues repairable and episode sync safe"
+      ]
+    },
     {
       "build": 9,
       "version": "0.14.0.9",

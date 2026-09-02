@@ -1,29 +1,6 @@
 {
   "build": 27,
-  "resetCommit": "0c9b251e3585a04ea7dc8da6ff7924a204b50475",
-  "updatedAt": "2026-09-02T16:38:25.183Z",
-  "entries": [
-    {
-      "build": 27,
-      "date": "2026-09-02T16:38:25.183Z",
-      "commit": "f351eb435164e0e03ebe28fbece7ac4673a46a7a",
-      "message": "This update includes improve sync restore and media integrations and make restore issues repairable and episode sync safe.",
-      "author": "Lasikiewicz",
-      "details": [
-        "Makes watch-history restore authoritative, target-aware, and safer while surfacing actionable sync attention details.",
-        "Adds watchlist and up-next synchronization across connected media services with matching documentation and coverage.",
-        "Treats expected unavailable-library items as non-blocking restore skips while retaining real failures for repair or retry.",
-        "Repair blocked restore items per destination or show without releasing the restore fence prematurely",
-        "Add Fix Match recovery for restore failures with missing saved identities",
-        "Commit manual unwatches during restores and queue outbound unplayed propagation for later",
-        "Canonicalize split and combined episode numbering from titles and season metadata before Trakt dispatch",
-        "Keep Up Next artwork on cached local posters and authenticated provider fallbacks",
-        "Improve grouped Sync Activity controls, inline detail routing, and retry visibility"
-      ],
-      "messageFragments": [
-        "Feature - Improve sync restore and media integrations",
-        "Feature - Make restore issues repairable and episode sync safe"
-      ]
-    }
-  ]
+  "resetCommit": "e6f05452676dadefc83c35dd07618cfd1ee61566",
+  "updatedAt": "2026-09-02T16:42:31.558Z",
+  "entries": []
 }
