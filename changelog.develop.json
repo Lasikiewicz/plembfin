@@ -1,12 +1,12 @@
 {
-  "build": 26,
+  "build": 27,
   "resetCommit": "0c9b251e3585a04ea7dc8da6ff7924a204b50475",
-  "updatedAt": "2026-09-02T16:37:29.299Z",
+  "updatedAt": "2026-09-02T16:38:25.183Z",
   "entries": [
     {
-      "build": 26,
-      "date": "2026-09-02T16:37:29.299Z",
-      "commit": "425b5f24b3c90ee73451d95982b23139bee633ef",
+      "build": 27,
+      "date": "2026-09-02T16:38:25.183Z",
+      "commit": "f351eb435164e0e03ebe28fbece7ac4673a46a7a",
       "message": "This update includes improve sync restore and media integrations and make restore issues repairable and episode sync safe.",
       "author": "Lasikiewicz",
       "details": [
