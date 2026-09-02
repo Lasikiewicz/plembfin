@@ -1,6 +1,19 @@
 {
-  "build": 23,
+  "build": 24,
   "resetCommit": "0c9b251e3585a04ea7dc8da6ff7924a204b50475",
-  "updatedAt": "2026-09-01T15:20:32.328Z",
-  "entries": []
+  "updatedAt": "2026-09-02T14:19:47.892Z",
+  "entries": [
+    {
+      "build": 24,
+      "date": "2026-09-02T14:19:47.892Z",
+      "commit": "2d771b9194389fd0563bfc4abd5e87df1eb90d5b",
+      "message": "Feature - Improve sync restore and media integrations",
+      "author": "Lasikiewicz",
+      "details": [
+        "Makes watch-history restore authoritative, target-aware, and safer while surfacing actionable sync attention details.",
+        "Adds watchlist and up-next synchronization across connected media services with matching documentation and coverage.",
+        "Treats expected unavailable-library items as non-blocking restore skips while retaining real failures for repair or retry."
+      ]
+    }
+  ]
 }
