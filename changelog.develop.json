@@ -1,21 +1,6 @@
 {
   "build": 29,
-  "resetCommit": "e6f05452676dadefc83c35dd07618cfd1ee61566",
-  "updatedAt": "2026-09-02T20:05:44.930Z",
-  "entries": [
-    {
-      "build": 29,
-      "date": "2026-09-02T20:05:44.930Z",
-      "commit": "cdd4b6e447443db2acfb4f4e73a3007782f2cfea",
-      "message": "Fix - Make personal rating sync resolve provider identities",
-      "author": "Lasikiewicz",
-      "details": [
-        "Reads personal ratings with the authenticated provider account and preserves episode identity across providers",
-        "Resolves normalized TV records and episode series titles before writing ratings",
-        "Shows failed, unmatched, and reauthentication-required rating work in sync settings",
-        "Cancels interrupted onboarding imports on restart and blocks imports after setup completion",
-        "Adds regression coverage for provider rating resolution and onboarding recovery"
-      ]
-    }
-  ]
+  "resetCommit": "79a66d16e02bb3cd284e345ba487bc15fb551a18",
+  "updatedAt": "2026-09-02T20:15:44.177Z",
+  "entries": []
 }

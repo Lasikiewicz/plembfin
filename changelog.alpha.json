@@ -1,10 +1,39 @@
 {
   "baseVersion": "0.14.0",
-  "build": 10,
-  "version": "0.14.0.10",
-  "shortVersion": "0.14.0.10",
-  "updatedAt": "2026-09-02T16:42:31.558Z",
+  "build": 11,
+  "version": "0.14.0.11",
+  "shortVersion": "0.14.0.11",
+  "updatedAt": "2026-09-02T20:15:44.177Z",
   "entries": [
+    {
+      "build": 11,
+      "version": "0.14.0.11",
+      "shortVersion": "0.14.0.11",
+      "date": "2026-09-02T20:15:44.177Z",
+      "commit": "79a66d16e02bb3cd284e345ba487bc15fb551a18",
+      "message": "Fix - Make personal rating sync resolve provider identities",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix: Make personal rating sync resolve provider identities",
+        "Fix: Reads personal ratings with the authenticated provider account and preserves episode identity across providers",
+        "Fix: Resolves normalized TV records and episode series titles before writing ratings",
+        "Fix: Shows failed, unmatched, and reauthentication-required rating work in sync settings",
+        "Fix: Cancels interrupted onboarding imports on restart and blocks imports after setup completion",
+        "Fix: Adds regression coverage for provider rating resolution and onboarding recovery"
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Make personal rating sync resolve provider identities",
+          "Reads personal ratings with the authenticated provider account and preserves episode identity across providers",
+          "Resolves normalized TV records and episode series titles before writing ratings",
+          "Shows failed, unmatched, and reauthentication-required rating work in sync settings",
+          "Cancels interrupted onboarding imports on restart and blocks imports after setup completion",
+          "Adds regression coverage for provider rating resolution and onboarding recovery"
+        ],
+        "tweaks": []
+      }
+    },
     {
       "build": 10,
       "version": "0.14.0.10",
