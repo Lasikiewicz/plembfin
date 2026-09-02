@@ -35,6 +35,11 @@ let showCache = { version: null, shows: [] };
 let scheduledShowCache = { version: null, shows: [] };
 let movieCache = { version: null, rows: null };
 let statsCache = { version: null, stats: null };
+// A cache invalidation can wake several API requests at once (for example while
+// a Plex season notification is updating sibling episodes). Keep one rebuild in
+// flight per show-set variant so those requests share the expensive synchronous
+// per-show work instead of multiplying it and starving the HTTP health check.
+const showCacheBuilds = new Map();
 
 function assertRestoreWriteAllowed(source = "", { allowDuringRestore = false } = {}) {
   // An explicit manual unwatch is allowed to commit its local canonical marker
@@ -832,94 +837,115 @@ export async function getCachedMovies() {
 }
 
 export async function getCachedShows({ includeScheduledLibraryHistory = false } = {}) {
-  const version = getDataVersion();
-  const memo = includeScheduledLibraryHistory ? scheduledShowCache : showCache;
-  if (memo.version === version && memo.shows.length > 0) return memo.shows;
-  // The default (non-scheduled) branch is not watched-state filtered: a show
-  // whose every episode has been marked unwatched still needs its own group
-  // here (with 0 watched) so it stays visible in the TV Shows grid/dashboard
-  // instead of disappearing entirely.
-  const episodeRows = (await getCachedHistory()).filter((r) => r.media_type === "episode"
-    && (includeScheduledLibraryHistory ? isWatchedAction(r) : isPlembfinTrackedEpisodeRow(r)));
-  const groups = groupShowRows(dedupeHistory(episodeRows));
-  // Each show needs its own SQLite lookup + JSON parse for cached TMDB details;
-  // at library scale that's enough synchronous work in one pass to block the
-  // event loop for a second or more, which is long enough (especially when
-  // this rebuild fires repeatedly in a short window - it isn't debounced) to
-  // fail the container's health check and get restarted. Yielding every 25
-  // shows keeps any single burst small without slowing the overall rebuild.
-  const YIELD_EVERY = 25;
-  const shows = [];
-  for (let i = 0; i < groups.length; i++) {
-    if (i > 0 && i % YIELD_EVERY === 0) await new Promise((resolve) => setImmediate(resolve));
-    const group = groups[i];
-    const showKey = canonicalTitleKey(group.title) || normalizeKeyPart(group.title);
-    const rawShowKey = canonicalTitleKey(group.raw_title) || normalizeKeyPart(group.raw_title);
-    const cachedProgress = getCachedShowProgress(showKey) || (rawShowKey !== showKey ? getCachedShowProgress(rawShowKey) : null);
-    // group.tmdb_id, trusted unconditionally, comes from an actual recorded
-    // watch_history row - Plembfin's own ground truth. cachedShowTmdbId's
-    // gate (only return a candidate that already has cached metadata) exists
-    // to protect the *weaker* fallback candidates below: the progress cache
-    // can hold an id resolved from an earlier ambiguous title search that was
-    // never written back onto any row (see the matching comment in
-    // rematchShowWatchRecords below), and that gate is precisely what let a
-    // bad cached resolution keep winning even after group.tmdb_id was put
-    // first here - a real, correct id with no cache entry yet still lost to
-    // a wrong id that happened to have one.
-    const tmdbId = cleanString(group.tmdb_id) || cachedShowTmdbId(cachedProgress?.tmdb_id, group.representative_episode?.tmdb_id);
-    // group.tvdb_id is already resolved through cachedShowTvdbId inside
-    // groupShowRows - do not fall back to an ungated representative_episode
-    // tvdb_id here, that's exactly the unverified episode-level id it exists
-    // to filter out.
-    const tvdbId = group.tvdb_id || "";
-    const imdbId = cleanString(group.imdb_id);
-    const canonicalPosterUrl = getCanonicalPosterUrl({
-      media_type: "tv",
-      title: group.title,
-      tmdb_id: tmdbId,
-      tvdb_id: tvdbId,
-      imdb_id: imdbId,
-    });
-    let posterUrl = canonicalPosterUrl || group.poster_url || group.representative_episode?.poster_url || "";
-    let status = "";
-    if (tmdbId) {
-      try {
-        const details = cachedTmdbShowDetails(tmdbId);
-        if (details) {
-          status = details.status || "";
-          if (!posterUrl && details.poster_path) posterUrl = `/api/tmdb-poster?path=${encodeURIComponent(details.poster_path)}`;
-        }
-      } catch (err) {
-        console.error(`Failed to get TV show details for tv_${tmdbId}`, err);
-      }
+  const cacheKey = includeScheduledLibraryHistory ? "scheduled" : "default";
+  while (true) {
+    const version = getDataVersion();
+    const memo = includeScheduledLibraryHistory ? scheduledShowCache : showCache;
+    // Empty is a valid cached result. Rebuilding it on every read made a new or
+    // fully-unwatched library repeatedly pay the same full-table cost.
+    if (memo.version === version) return memo.shows;
+
+    const pendingBuild = showCacheBuilds.get(cacheKey);
+    if (pendingBuild) {
+      // The build may have started at an older version. Re-check after it
+      // completes so a write that landed during the build is never hidden.
+      await pendingBuild;
+      continue;
     }
-    shows.push({
-      // Title-only ids were safe while the library collapsed every same-title
-      // series into one row. Keep that fallback for metadata-less shows, but
-      // use a provider identity whenever one is known so reboots such as The
-      // Office (UK) and The Office (US) remain separate records and routes.
-      id: showSummaryIdentityKey({ title: group.title, tmdb_id: tmdbId, tvdb_id: tvdbId, imdb_id: imdbId }),
-      title: group.title,
-      imdb_id: imdbId,
-      tmdb_id: tmdbId,
-      tvdb_id: tvdbId,
-      status,
-      poster_url: posterUrl || null,
-      show_poster_url: canonicalPosterUrl || group.show_poster_url || null,
-      canonical_poster_url: canonicalPosterUrl || group.canonical_poster_url || null,
-      episode_count: group.episode_count,
-      season_count: group.season_count,
-      total_watches: group.total_watches,
-      rewatched_episode_count: group.rewatched_episode_count,
-      latest_watched_at: group.latest_watched_at,
-      earliest_watched_at: group.earliest_watched_at,
-      representative_episode: compactEpisode(group.representative_episode),
-      total_episodes: cachedProgress?.total_episodes || 0,
-    });
+
+    const buildPromise = (async () => {
+      // The default (non-scheduled) branch is not watched-state filtered: a show
+      // whose every episode has been marked unwatched still needs its own group
+      // here (with 0 watched) so it stays visible in the TV Shows grid/dashboard
+      // instead of disappearing entirely.
+      const episodeRows = (await getCachedHistory()).filter((r) => r.media_type === "episode"
+        && (includeScheduledLibraryHistory ? isWatchedAction(r) : isPlembfinTrackedEpisodeRow(r)));
+      const groups = groupShowRows(dedupeHistory(episodeRows));
+      // Each show needs its own SQLite lookup + JSON parse for cached TMDB details;
+      // at library scale that's enough synchronous work in one pass to block the
+      // event loop for a second or more. Yield frequently, and share this whole
+      // rebuild with concurrent callers, so a burst cannot multiply the block.
+      const YIELD_EVERY = 10;
+      const shows = [];
+      for (let i = 0; i < groups.length; i++) {
+        if (i > 0 && i % YIELD_EVERY === 0) await new Promise((resolve) => setImmediate(resolve));
+        const group = groups[i];
+        const showKey = canonicalTitleKey(group.title) || normalizeKeyPart(group.title);
+        const rawShowKey = canonicalTitleKey(group.raw_title) || normalizeKeyPart(group.raw_title);
+        const cachedProgress = getCachedShowProgress(showKey) || (rawShowKey !== showKey ? getCachedShowProgress(rawShowKey) : null);
+        // group.tmdb_id, trusted unconditionally, comes from an actual recorded
+        // watch_history row - Plembfin's own ground truth. cachedShowTmdbId's
+        // gate (only return a candidate that already has cached metadata) exists
+        // to protect the *weaker* fallback candidates below: the progress cache
+        // can hold an id resolved from an earlier ambiguous title search that was
+        // never written back onto any row (see the matching comment in
+        // rematchShowWatchRecords below), and that gate is precisely what let a
+        // bad cached resolution keep winning even after group.tmdb_id was put
+        // first here - a real, correct id with no cache entry yet still lost to
+        // a wrong id that happened to have one.
+        const tmdbId = cleanString(group.tmdb_id) || cachedShowTmdbId(cachedProgress?.tmdb_id, group.representative_episode?.tmdb_id);
+        // group.tvdb_id is already resolved through cachedShowTvdbId inside
+        // groupShowRows - do not fall back to an ungated representative_episode
+        // tvdb_id here, that's exactly the unverified episode-level id it exists
+        // to filter out.
+        const tvdbId = group.tvdb_id || "";
+        const imdbId = cleanString(group.imdb_id);
+        const canonicalPosterUrl = getCanonicalPosterUrl({
+          media_type: "tv",
+          title: group.title,
+          tmdb_id: tmdbId,
+          tvdb_id: tvdbId,
+          imdb_id: imdbId,
+        });
+        let posterUrl = canonicalPosterUrl || group.poster_url || group.representative_episode?.poster_url || "";
+        let status = "";
+        if (tmdbId) {
+          try {
+            const details = cachedTmdbShowDetails(tmdbId);
+            if (details) {
+              status = details.status || "";
+              if (!posterUrl && details.poster_path) posterUrl = `/api/tmdb-poster?path=${encodeURIComponent(details.poster_path)}`;
+            }
+          } catch (err) {
+            console.error(`Failed to get TV show details for tv_${tmdbId}`, err);
+          }
+        }
+        shows.push({
+          // Title-only ids were safe while the library collapsed every same-title
+          // series into one row. Keep that fallback for metadata-less shows, but
+          // use a provider identity whenever one is known so reboots such as The
+          // Office (UK) and The Office (US) remain separate records and routes.
+          id: showSummaryIdentityKey({ title: group.title, tmdb_id: tmdbId, tvdb_id: tvdbId, imdb_id: imdbId }),
+          title: group.title,
+          imdb_id: imdbId,
+          tmdb_id: tmdbId,
+          tvdb_id: tvdbId,
+          status,
+          poster_url: posterUrl || null,
+          show_poster_url: canonicalPosterUrl || group.show_poster_url || null,
+          canonical_poster_url: canonicalPosterUrl || group.canonical_poster_url || null,
+          episode_count: group.episode_count,
+          season_count: group.season_count,
+          total_watches: group.total_watches,
+          rewatched_episode_count: group.rewatched_episode_count,
+          latest_watched_at: group.latest_watched_at,
+          earliest_watched_at: group.earliest_watched_at,
+          representative_episode: compactEpisode(group.representative_episode),
+          total_episodes: cachedProgress?.total_episodes || 0,
+        });
+      }
+      if (includeScheduledLibraryHistory) scheduledShowCache = { version, shows };
+      else showCache = { version, shows };
+      return shows;
+    })();
+
+    showCacheBuilds.set(cacheKey, buildPromise);
+    try {
+      await buildPromise;
+    } finally {
+      if (showCacheBuilds.get(cacheKey) === buildPromise) showCacheBuilds.delete(cacheKey);
+    }
   }
-  if (includeScheduledLibraryHistory) scheduledShowCache = { version, shows };
-  else showCache = { version, shows };
-  return shows;
 }
 
 

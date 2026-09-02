@@ -203,9 +203,11 @@ an automatic source can also represent a genuine unwatch performed directly on a
 
 An explicit unplayed webhook/notification or Trakt snapshot removal changes the canonical
 state to unwatched and propagates it. Plex show and season notifications are expanded into
-their episodes so bulk library actions follow the same transition path. Polling remains
-conservative when a server scan is unavailable or incomplete: absence from a failed/partial
-scan is never interpreted as an unwatch.
+their episodes so bulk library actions follow the same transition path. Plex notification
+handlers are bounded and repeated same-state frames are coalesced, including the recursive
+episode fan-out from a container, so a library burst cannot overwhelm provider lookups or
+the web process. Polling remains conservative when a server scan is unavailable or
+incomplete: absence from a failed/partial scan is never interpreted as an unwatch.
 
 Implementation lives in `server/src/scheduled.js`.
 

@@ -46,6 +46,8 @@ let lastNextAiringRefreshAt = 0;
 let nextAiringInitialBuildPending = true;
 let lastUpcomingCalendarRefreshAt = 0;
 const LARGE_DISPATCH_PENDING_THRESHOLD = 8;
+const PLEX_BULK_EPISODE_CONCURRENCY = 2;
+const PLEX_NOTIFICATION_STATE_DEDUPE_MS = 60 * 1000;
 
 export function shouldDeferScheduledOutbound(progress = {}) {
   return Math.max(0, Number(progress.total || 0) - Number(progress.completed || 0)) > LARGE_DISPATCH_PENDING_THRESHOLD;
@@ -268,8 +270,37 @@ export async function runScheduledTick({ isLeader = () => true } = {}) {
 // ---------------------------------------------------------------------------
 
 let plexNotificationListener = null;
+const plexNotificationInFlight = new Map();
+const recentPlexNotificationStates = new Map();
 
-async function handlePlexLibraryItemChange(ratingKey, metadataOverride = null) {
+function plexNotificationStateKey(ratingKey, metadata = {}) {
+  const type = String(metadata.type || "").trim().toLowerCase();
+  const viewCount = Number(metadata.viewCount || 0);
+  const state = viewCount > 0 ? "watched" : "unplayed";
+  // Plex increments viewCount (and normally lastViewedAt) for a real rewatch.
+  // Do not include viewOffset for watched items: timeline progress frames can
+  // change it repeatedly while the same viewing is in progress.
+  const lastViewedAt = state === "watched"
+    ? String(metadata.lastViewedAt || metadata.last_viewed_at || metadata.viewedAt || "")
+    : "";
+  const viewOffset = state === "unplayed"
+    ? Math.max(0, Math.floor(Number(metadata.viewOffset || 0)))
+    : "";
+  return `${String(ratingKey || "").trim()}:${type}:${state}:${viewCount}:${lastViewedAt}:${viewOffset}`;
+}
+
+function claimRecentPlexNotificationState(stateKey) {
+  const now = Date.now();
+  for (const [key, timestamp] of recentPlexNotificationStates) {
+    if (now - timestamp >= PLEX_NOTIFICATION_STATE_DEDUPE_MS) recentPlexNotificationStates.delete(key);
+  }
+  const previousAt = recentPlexNotificationStates.get(stateKey);
+  if (previousAt && now - previousAt < PLEX_NOTIFICATION_STATE_DEDUPE_MS) return false;
+  recentPlexNotificationStates.set(stateKey, now);
+  return true;
+}
+
+async function processPlexLibraryItemChange(ratingKey, metadataOverride = null) {
   if (!watchedPlayedSyncEnabled()) return;
 
   const restoreRuntime = await loadRuntimeState().catch(() => ({}));
@@ -294,8 +325,19 @@ async function handlePlexLibraryItemChange(ratingKey, metadataOverride = null) {
     return metadata;
   });
 
+  const notificationStateKey = plexNotificationStateKey(ratingKey, metadata);
+  if (!claimRecentPlexNotificationState(notificationStateKey)) {
+    console.log("Plex notifications: coalesced duplicate library state", {
+      ratingKey,
+      type: metadata.type,
+    });
+    return;
+  }
+
   if (["show", "season"].includes(String(metadata.type || "").toLowerCase())) {
+    let expansionFailed = false;
     const episodes = await fetchPlexContainerEpisodes(config.plex, ratingKey, metadata.type).catch((error) => {
+      expansionFailed = true;
       console.error(`Plex notification: failed to expand ${metadata.type} ratingKey ${ratingKey}: ${error.message}`);
       return [];
     });
@@ -304,13 +346,17 @@ async function handlePlexLibraryItemChange(ratingKey, metadataOverride = null) {
       type: metadata.type,
       episodes: episodes.length,
     });
-    const concurrency = 6;
+    // A listener slot can receive a show/season container and recursively fan
+    // it out. Keep this lower than the top-level listener limit so a burst of
+    // containers cannot multiply into an unbounded provider/DB storm.
+    const concurrency = PLEX_BULK_EPISODE_CONCURRENCY;
     for (let index = 0; index < episodes.length; index += concurrency) {
       const batch = episodes.slice(index, index + concurrency);
       await Promise.allSettled(batch.map((episode) =>
         handlePlexLibraryItemChange(String(episode.ratingKey || ""), episode)
       ));
     }
+    if (expansionFailed) recentPlexNotificationStates.delete(notificationStateKey);
     return;
   }
 
@@ -529,6 +575,47 @@ async function handlePlexLibraryItemChange(ratingKey, metadataOverride = null) {
   } finally {
     await invalidateHistoryDerivedCaches().catch(() => null);
     await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
+  }
+}
+
+// Multiple Plex frames can describe the same item while the first handler is
+// still waiting on provider requests. Join that work, but retain one trailing
+// refresh so a genuine state change that arrives during it is not lost. The
+// state fingerprint above then drops a repeated same-state refresh without
+// repeating the provider fan-out.
+async function handlePlexLibraryItemChange(ratingKey, metadataOverride = null) {
+  const normalizedRatingKey = String(ratingKey || "").trim();
+  if (!normalizedRatingKey) return;
+
+  const active = plexNotificationInFlight.get(normalizedRatingKey);
+  if (active) {
+    active.needsRefresh = true;
+    if (metadataOverride) active.latestMetadata = metadataOverride;
+    return active.promise;
+  }
+
+  const entry = {
+    latestMetadata: metadataOverride,
+    needsRefresh: false,
+    promise: null,
+  };
+  entry.promise = (async () => {
+    let nextMetadataOverride = metadataOverride;
+    while (true) {
+      entry.needsRefresh = false;
+      entry.latestMetadata = null;
+      const result = await processPlexLibraryItemChange(normalizedRatingKey, nextMetadataOverride);
+      if (!entry.needsRefresh) return result;
+      nextMetadataOverride = entry.latestMetadata;
+    }
+  })();
+  plexNotificationInFlight.set(normalizedRatingKey, entry);
+  try {
+    return await entry.promise;
+  } finally {
+    if (plexNotificationInFlight.get(normalizedRatingKey) === entry) {
+      plexNotificationInFlight.delete(normalizedRatingKey);
+    }
   }
 }
 

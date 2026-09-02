@@ -643,6 +643,11 @@ history-derived result sets after invalidation. That is acceptable for current l
 install sizes, but large datasets should move hot paths to indexed SQL with
 `LIMIT`/`OFFSET` before adding more full-table caches.
 
+Concurrent readers share one in-flight `getCachedShows()` rebuild per show-set variant,
+and an empty result is cached by version just like a non-empty result. This keeps a burst
+of history invalidations from multiplying the synchronous per-show work that feeds the TV
+Shows and Upcoming views.
+
 Table-by-table reference: [sqlite-schema.md](sqlite-schema.md).
 
 ## Auth (`server/src/utils/auth.js` + `server/src/appConfig.js`)

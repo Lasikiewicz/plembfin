@@ -160,7 +160,7 @@ export function parsePlexNotificationRatingKeys(raw) {
 // platform was severe enough in practice to spike memory and get the process killed.
 // This caps how many handlers run at once; the rest wait in a queue instead of all
 // firing at the same moment.
-const MAX_CONCURRENT_HANDLERS = 3;
+const MAX_CONCURRENT_HANDLERS = 2;
 
 export function createPlexNotificationListener({ getPlexConfig, onLibraryItemChange, onPlaySessionActivity, logger = console.log }) {
   let socket = null;
