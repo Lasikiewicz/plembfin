@@ -332,7 +332,7 @@ export async function findJellyfinItems(config, media) {
     }
     return movies;
   }
-  if (media.type === "series" || media.type === "show") {
+  if (media.type === "tv" || media.type === "series" || media.type === "show") {
     let series = await findByProviderIds(config, media, "Series");
     if (!series || series.length === 0) {
       series = await searchJellyfinFallback(config, media, "Series");

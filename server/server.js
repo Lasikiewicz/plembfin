@@ -20,11 +20,21 @@ const { DATA_DIR, PUBLIC_DIR, MEDIA_DIR, ensureDataDirs } = await import("./src/
 const { dispatch } = await import("./src/index.js");
 const { db } = await import("./src/db.js");
 const { clearRestoreSyncState, loadMediaConfig, loadRuntimeState, RESTORE_KIND_FULL_SYNC } = await import("./src/utils/configStore.js");
+const { recoverInterruptedBackgroundImports } = await import("./src/utils/onboardingStore.js");
 const { schedulerLeaseStatus } = await import("./src/utils/schedulerLease.js");
 const { createWorkerCoordinator } = await import("./src/workerCoordinator.js");
 const { flushPending: flushDiagnosticLogs } = await import("./src/utils/diagnosticLogger.js");
 
 ensureDataDirs();
+
+if (roleHasWeb(ROLE)) {
+  const recoveredImports = recoverInterruptedBackgroundImports();
+  if (recoveredImports.recovered.length) {
+    console.warn("Cancelled background imports interrupted by server restart", {
+      providers: recoveredImports.recovered,
+    });
+  }
+}
 
 // Full Sync Watchstates is driven by browser requests, so it cannot survive a
 // process restart. Clear only the tagged full-sync guard here; backup restores

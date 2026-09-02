@@ -56,7 +56,12 @@ setup-only configuration path.
   across servers and continue in the background even after setup is closed - none of them
   push anything outward, so they don't take the same lock a full Force Sync push does.
 - **Trakt baseline import** - same idea, using the same first-sync path Trakt's regular
-  poll cycle uses once a connection's baseline snapshot isn't complete yet.
+  poll cycle uses once a connection's baseline snapshot isn't complete yet. It is only
+  started by an explicit onboarding choice, an import request for a newly connected
+  Trakt account, or an explicit Sync Now/reconciliation request; routine polls never
+  launch a full import.
+  Because the onboarding import is an in-process operation, a server restart cancels
+  any stale `Importing` marker rather than silently starting it again.
 - **Setting Plembfin as the source of truth** (pushing local watch history outward) is
   intentionally *not* offered inline in the wizard. It's a destructive, confirm-gated
   action, so the wizard links to Settings → Sync → Sync Tools, where the existing

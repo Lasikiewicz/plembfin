@@ -41,6 +41,8 @@ const upsertStmt = db.prepare(
    ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at`,
 );
 
+const INTERRUPTED_IMPORT_MESSAGE = "Import interrupted by a server restart; it will not restart automatically.";
+
 function readRaw() {
   const row = selectStmt.get(SETTINGS_ID);
   if (!row?.data) return null;
@@ -76,6 +78,50 @@ export function saveOnboardingState(patch = {}) {
   const next = mergeState({ ...readRaw(), ...patch });
   writeRaw(next);
   return next;
+}
+
+// Background imports are deliberately in-process operations rather than
+// durable jobs. Their progress is persisted for the UI, but the operation
+// itself cannot survive a process restart safely. Clear any stale importing
+// markers at web-process startup instead of leaving the dashboard reporting
+// work that no longer exists or allowing onboarding to wait on it forever.
+export function recoverInterruptedBackgroundImports() {
+  const state = getOnboardingState();
+  const recoveredAt = Date.now();
+  const recovered = [];
+  const servers = { ...state.backgroundImports.servers };
+
+  for (const [provider, entry] of Object.entries(servers)) {
+    if (entry?.status !== "importing") continue;
+    servers[provider] = {
+      ...entry,
+      enabled: false,
+      status: "cancelled",
+      completedAt: recoveredAt,
+      error: INTERRUPTED_IMPORT_MESSAGE,
+    };
+    recovered.push(provider);
+  }
+
+  let trakt = state.backgroundImports.trakt;
+  if (trakt?.status === "importing") {
+    trakt = {
+      ...trakt,
+      enabled: false,
+      status: "cancelled",
+      completedAt: recoveredAt,
+      error: INTERRUPTED_IMPORT_MESSAGE,
+    };
+    recovered.push("trakt");
+  }
+
+  if (!recovered.length) return { state, recovered };
+  return {
+    state: saveOnboardingState({
+      backgroundImports: { ...state.backgroundImports, servers, trakt },
+    }),
+    recovered,
+  };
 }
 
 export function isAccountClaimed() {

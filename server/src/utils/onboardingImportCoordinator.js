@@ -59,6 +59,7 @@ const RESTORE_RETRY_DELAY_MS = 5_000;
 // running behind it. Retrying via a real server-side timer survives that.
 export async function startServerImport(provider, { lockWaitStartedAt = Date.now(), traktWaitStartedAt = Date.now() } = {}) {
   if (!MEDIA_SERVERS.includes(provider)) throw new Error("Unsupported provider");
+  if (getOnboardingState().runState === "completed") return { started: false, code: "ONBOARDING_COMPLETE" };
   const waitToken = cancelTokens.get(`server:${provider}`) || { cancelled: false };
   cancelTokens.set(`server:${provider}`, waitToken);
   if (waitToken.cancelled) return { started: false, code: "CANCELLED" };
@@ -183,6 +184,7 @@ async function runFullTraktReconcile() {
 }
 
 export async function startTraktImport() {
+  if (getOnboardingState().runState === "completed") return { started: false, code: "ONBOARDING_COMPLETE" };
   if (isAuthoritativeRestoreActive()) {
     patchTraktImport({ enabled: true, status: "importing", error: null });
     setTimeout(() => {

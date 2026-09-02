@@ -191,7 +191,12 @@ export async function fetchTraktWatchedSnapshot({ clientId, accessToken }) {
 async function fetchAllRatingPages(type, connection) {
   const limit = 100;
   const rows = [];
-  const username = String(connection.username || connection.remoteUsername || "me").trim() || "me";
+  // Authenticated Trakt requests must use the special `me` subject. A
+  // username-scoped request can return an empty list even for the same account
+  // that just accepted a sync write.
+  const username = connection.accessToken
+    ? "me"
+    : String(connection.username || connection.remoteUsername || "me").trim() || "me";
   for (let page = 1; page <= 10_000; page += 1) {
     const result = await request(`${API_BASE}/users/${encodeURIComponent(username)}/ratings/${type}?extended=full&page=${page}&limit=${limit}`, {
       ...connection,
@@ -298,25 +303,131 @@ export async function fetchTraktPersonalRatingSnapshot(connection) {
   return records;
 }
 
-function traktRatingPayload(media, rating = null) {
-  const type = media.type || media.media_type || media.mediaType;
-  const ids = cleanIds(type === "episode"
+function missingTraktPersonalRatingIdError() {
+  return Object.assign(new Error("Trakt needs a provider id for this personal rating"), { code: "not_found", status: 404 });
+}
+
+function personalRatingIds(media, type) {
+  return cleanIds(type === "episode"
     ? {
-        trakt: media.episode_trakt_id || media.episodeProviderIds?.trakt,
-        imdb: media.episode_imdb_id || media.episodeProviderIds?.imdb,
-        tmdb: media.episode_tmdb_id || media.episodeProviderIds?.tmdb,
-        tvdb: media.episode_tvdb_id || media.episodeProviderIds?.tvdb,
+        trakt: media.episode_trakt_id || media.episodeProviderIds?.trakt || media.trackerEpisodeIds?.trakt || media.provider_item_ids?.trakt,
+        imdb: media.episode_imdb_id || media.episodeProviderIds?.imdb || media.trackerEpisodeIds?.imdb,
+        tmdb: media.episode_tmdb_id || media.episodeProviderIds?.tmdb || media.trackerEpisodeIds?.tmdb,
+        tvdb: media.episode_tvdb_id || media.episodeProviderIds?.tvdb || media.trackerEpisodeIds?.tvdb,
       }
     : {
-        trakt: media.trakt_id || media.traktId,
-        imdb: media.imdb_id || media.imdbId,
-        tmdb: media.tmdb_id || media.tmdbId,
-        tvdb: media.tvdb_id || media.tvdbId,
+        trakt: media.trakt_id || media.traktId || media.ids?.trakt,
+        imdb: media.imdb_id || media.imdbId || media.ids?.imdb,
+        tmdb: media.tmdb_id || media.tmdbId || media.ids?.tmdb,
+        tvdb: media.tvdb_id || media.tvdbId || media.ids?.tvdb,
       });
-  if (!Object.keys(ids).length) {
-    const error = Object.assign(new Error("Trakt needs a provider id for this personal rating"), { code: "not_found", status: 404 });
-    throw error;
+}
+
+async function resolveTraktEpisodeIds(connection, media, { force = false } = {}) {
+  const existingIds = personalRatingIds(media, "episode");
+  if (!force && Object.keys(existingIds).length) return existingIds;
+
+  const coordinates = trackerEpisodeCoordinates(media);
+  if (coordinates.season === null || coordinates.episode === null) throw missingTraktPersonalRatingIdError();
+
+  const showIds = cleanIds({
+    trakt: media.show_trakt_id || media.showTraktId || media.trakt_id || media.traktId,
+    imdb: media.show_imdb_id || media.showImdbId || media.imdb_id || media.imdbId,
+    tmdb: media.show_tmdb_id || media.showTmdbId || media.tmdb_id || media.tmdbId,
+    tvdb: media.show_tvdb_id || media.showTvdbId || media.tvdb_id || media.tvdbId,
+  });
+  let traktShowId = showIds.trakt || "";
+  if (!traktShowId) {
+    for (const [idType, id] of [["tmdb", showIds.tmdb], ["tvdb", showIds.tvdb], ["imdb", showIds.imdb]]) {
+      if (!id) continue;
+      try {
+        const matches = await request(`${API_BASE}/search/${idType}/${encodeURIComponent(id)}?type=show&limit=1`, connection);
+        traktShowId = matches?.[0]?.show?.ids?.trakt || "";
+      } catch (error) {
+        if (Number(error?.status) !== 404) throw error;
+      }
+      if (traktShowId) break;
+    }
   }
+  if (!traktShowId) throw missingTraktPersonalRatingIdError();
+
+  const episode = await request(
+    `${API_BASE}/shows/${encodeURIComponent(traktShowId)}/seasons/${coordinates.season}/episodes/${coordinates.episode}?extended=full`,
+    connection,
+  );
+  const ids = cleanIds(episode?.ids || episode?.episode?.ids || {});
+  if (!Object.keys(ids).length) throw missingTraktPersonalRatingIdError();
+  return ids;
+}
+
+function applyTraktEpisodeIds(media, ids) {
+  media.episode_provider_ids = { ...(media.episode_provider_ids || {}), ...ids };
+  for (const provider of ["trakt", "imdb", "tmdb", "tvdb"]) {
+    if (ids[provider] && !media[`episode_${provider}_id`]) media[`episode_${provider}_id`] = String(ids[provider]);
+  }
+  return media;
+}
+
+function traktRatingNotFound(result, type) {
+  const notFound = result?.not_found;
+  if (!notFound || typeof notFound !== "object") return false;
+  const bucketName = type === "episode" ? "episodes" : type === "movie" ? "movies" : "shows";
+  const bucket = notFound[bucketName];
+  if (Array.isArray(bucket)) return bucket.length > 0;
+  if (bucket != null) return Boolean(bucket);
+  return Object.values(notFound).some((value) => Array.isArray(value) ? value.length > 0 : Boolean(value));
+}
+
+function assertTraktRatingResult(result, type) {
+  if (traktRatingNotFound(result, type)) {
+    throw Object.assign(new Error(`Trakt could not match this ${type} personal rating`), { code: "not_found", status: 404, body: result });
+  }
+  return result;
+}
+
+async function submitTraktPersonalRating(path, connection, media, rating, lane) {
+  const type = media.type || media.media_type || media.mediaType;
+  let body = await traktRatingPayload(connection, media, rating);
+  let result = await request(`${API_BASE}${path}`, {
+    method: "POST",
+    clientId: connection.clientId,
+    accessToken: connection.accessToken,
+    body,
+    lane,
+  });
+
+  // Trakt can return HTTP 201 with a `not_found` bucket instead of using an
+  // HTTP error. If an external episode id was not accepted, resolve the
+  // episode through Trakt and retry once with its canonical leaf id.
+  if (type === "episode" && traktRatingNotFound(result, type)) {
+    const originalTraktId = body.episodes?.[0]?.ids?.trakt;
+    const resolvedIds = await resolveTraktEpisodeIds(connection, media, { force: true });
+    if (resolvedIds.trakt && String(resolvedIds.trakt) !== String(originalTraktId || "")) {
+      applyTraktEpisodeIds(media, resolvedIds);
+      body = await traktRatingPayload(connection, media, rating);
+      result = await request(`${API_BASE}${path}`, {
+        method: "POST",
+        clientId: connection.clientId,
+        accessToken: connection.accessToken,
+        body,
+        lane,
+      });
+    }
+  }
+  return assertTraktRatingResult(result, type);
+}
+
+async function traktRatingPayload(connection, media, rating = null) {
+  const type = media.type || media.media_type || media.mediaType;
+  if (!["movie", "tv", "show", "series", "episode"].includes(type)) throw new Error("Unsupported Trakt rating media type");
+  let ids = personalRatingIds(media, type);
+  if (type === "episode" && !Object.keys(ids).length) {
+    ids = await resolveTraktEpisodeIds(connection, media);
+    // Keep the resolved leaf identity with the queue item so later updates do
+    // not need another Trakt lookup (and so source metadata can be hydrated).
+    applyTraktEpisodeIds(media, ids);
+  }
+  if (!Object.keys(ids).length) throw missingTraktPersonalRatingIdError();
   const item = { ids };
   if (rating != null) item.rating = Math.max(1, Math.min(10, Math.round(Number(rating))));
   if (type === "movie") return { movies: [item] };
@@ -325,24 +436,12 @@ function traktRatingPayload(media, rating = null) {
   throw new Error("Unsupported Trakt rating media type");
 }
 
-export function setTraktPersonalRating(connection, media, rating, { lane = "sync" } = {}) {
-  return request(`${API_BASE}/sync/ratings`, {
-    method: "POST",
-    clientId: connection.clientId,
-    accessToken: connection.accessToken,
-    body: traktRatingPayload(media, rating),
-    lane,
-  });
+export async function setTraktPersonalRating(connection, media, rating, { lane = "sync" } = {}) {
+  return submitTraktPersonalRating("/sync/ratings", connection, media, rating, lane);
 }
 
-export function clearTraktPersonalRating(connection, media, { lane = "sync" } = {}) {
-  return request(`${API_BASE}/sync/ratings/remove`, {
-    method: "POST",
-    clientId: connection.clientId,
-    accessToken: connection.accessToken,
-    body: traktRatingPayload(media),
-    lane,
-  });
+export async function clearTraktPersonalRating(connection, media, { lane = "sync" } = {}) {
+  return submitTraktPersonalRating("/sync/ratings/remove", connection, media, null, lane);
 }
 
 async function fetchAllHistoryPages(type, connection, { startAt } = {}) {

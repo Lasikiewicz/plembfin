@@ -26,7 +26,7 @@ import { initMediaPerson, closePersonProfile, loadCastMemberDetails } from "./mo
 import { initMediaLightbox } from "./modules/media-lightbox.js";
 import { initAppEvents, closeMobileMenu } from "./modules/app-events.js?v=20260903g";
 import { initTrackerSettings, refreshTrackerSettings } from "./modules/tracker-settings.js?v=20260817";
-import { initRatingSyncSettings, applyRatingSyncConfig, refreshRatingSyncStatus } from "./modules/rating-sync-settings.js?v=20260903a";
+import { initRatingSyncSettings, applyRatingSyncConfig, refreshRatingSyncStatus } from "./modules/rating-sync-settings.js?v=20260903b";
 import { initWatchlistSyncSettings, applyWatchlistSyncConfig, refreshWatchlistSyncStatus } from "./modules/watchlist-sync-settings.js?v=20260901a";
 import { startLiveUpdates, stopLiveUpdates } from "./modules/live-updates.js?v=20260902a";
 

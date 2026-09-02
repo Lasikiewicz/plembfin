@@ -59,9 +59,14 @@ function renderProviderRows(config = currentConfig()) {
     const provider = entry.provider;
     const connection = entry.configured ? (entry.connectionStatus || "configured") : "Not connected";
     const direction = config.providers[provider] || (config.enabled ? "bidirectional" : "off");
+    const pending = Number(entry.queue?.pending || 0) + Number(entry.queue?.processing || 0);
+    const queueDetails = [
+      pending ? `${pending} queued` : "",
+      ...queueIssueDetails(entry.queue),
+    ].filter(Boolean);
     return `<label class="personal-rating-sync-provider">
       <strong>${escapeHtml(PROVIDER_LABELS[provider] || provider)}</strong>
-      <small>${escapeHtml(connection)}${Number(entry.queue?.pending || 0) ? ` · ${Number(entry.queue.pending)} queued` : ""}</small>
+      <small>${escapeHtml([connection, ...queueDetails].join(" · "))}</small>
       <select data-rating-sync-provider="${provider}" aria-label="${escapeHtml(PROVIDER_LABELS[provider] || provider)} rating sync direction">
         ${DIRECTIONS.map(([value, label]) => `<option value="${value}" ${direction === value ? "selected" : ""}>${label}</option>`).join("")}
       </select>
@@ -100,6 +105,23 @@ function selectedProviders() {
   return value === "all" ? [] : [value];
 }
 
+function queueIssueCount(queue = {}) {
+  return Number(queue.failed || 0)
+    + Number(queue.not_found ?? queue.notFound ?? 0)
+    + Number(queue.reauth_required ?? queue.reauthRequired ?? 0);
+}
+
+function queueIssueDetails(queue = {}) {
+  const details = [];
+  const failed = Number(queue.failed || 0);
+  const notFound = Number(queue.not_found ?? queue.notFound ?? 0);
+  const reauthRequired = Number(queue.reauth_required ?? queue.reauthRequired ?? 0);
+  if (failed) details.push(`${failed} failed`);
+  if (notFound) details.push(`${notFound} not found`);
+  if (reauthRequired) details.push(`${reauthRequired} need re-auth`);
+  return details;
+}
+
 function setBusy(busy) {
   const ui = elements();
   for (const button of [ui.save, ui.run, ui.push]) {
@@ -118,13 +140,19 @@ function renderStatus(nextStatus = status) {
     if (ui.status) ui.status.textContent = "Disabled";
   } else {
     const pending = Number(nextStatus.queue?.pending || 0) + Number(nextStatus.queue?.processing || 0);
-    if (ui.status) ui.status.textContent = pending ? `${pending} queued` : "Two-way Active";
+    const issues = queueIssueCount(nextStatus.queue);
+    if (ui.status) ui.status.textContent = issues
+      ? `${issues} sync issue${issues === 1 ? "" : "s"}`
+      : pending ? `${pending} queued` : "Two-way Active";
   }
   const configured = (nextStatus.providers || []).filter((entry) => entry.configured && entry.direction !== "off").length;
+  const issues = queueIssueCount(nextStatus.queue);
   if (ui.help) {
     ui.help.textContent = !config.enabled
       ? "Disabled: ratings stay in Plembfin and are not sent to any provider."
-      : configured
+      : issues
+        ? "Some ratings need attention. Review the provider rows and run sync again."
+        : configured
         ? `Two-way rating sync active across ${configured} connected provider${configured === 1 ? "" : "s"}.`
         : "Connect at least one media server or Trakt to sync ratings.";
   }
@@ -189,7 +217,12 @@ async function runAction(action) {
     });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || `Personal rating sync failed with ${response.status}`);
-    callbacks.setMessage?.(action === "push" ? "Local ratings pushed to the selected provider(s)." : "Personal rating sync completed.", body.status === "partial" ? "muted" : "success");
+    const issues = queueIssueCount(body.queue);
+    const partial = body.status === "partial" || issues > 0;
+    const actionLabel = action === "push" ? "Local rating push" : "Personal rating sync";
+    callbacks.setMessage?.(partial
+      ? `${actionLabel} completed with ${issues || "some"} sync issue${issues === 1 ? "" : "s"}. Review Settings → Sync Tools.`
+      : action === "push" ? "Local ratings pushed to the selected provider(s)." : "Personal rating sync completed.", partial ? "muted" : "success");
     await refreshRatingSyncStatus().catch(() => null);
   } catch (error) {
     callbacks.setMessage?.(error.message || "Personal rating sync failed.", "error");

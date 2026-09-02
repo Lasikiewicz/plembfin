@@ -34,7 +34,9 @@ stale rating cannot be delivered after a newer intent.
 The request that saves a local rating does not call Plex, Emby, Jellyfin, or Trakt.
 The queue worker leases items, retries transient failures with backoff, records
 `not_found` and `reauth_required` states, and preserves failed work for a manual
-retry. A provider outage therefore does not roll back the local rating or affect the
+retry. The Settings status view reports failed, unmatched, and reauthentication-
+required queue work, including partial completion when some items remain unresolved.
+A provider outage therefore does not roll back the local rating or affect the
 watched-state synchronizer.
 
 ## Identity and episodes
@@ -43,6 +45,11 @@ Movies and shows use their own provider identity. An episode uses its parent sho
 identity plus season and episode coordinates in `media_key`; episode-level TMDB,
 TVDB, IMDb, and provider item IDs are stored separately for remote writes. This
 prevents an episode's leaf ID from fragmenting the show's episode rating record.
+
+Authenticated Trakt snapshots read the account's ratings feed. For episode writes,
+Plembfin can resolve a Trakt leaf ID from show identity and season/episode
+coordinates, then retry with the canonical episode ID when an external episode ID
+is rejected.
 
 ## Manual actions and API
 

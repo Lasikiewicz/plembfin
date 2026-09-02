@@ -185,3 +185,62 @@ test("Plex sibling episodes resolve the series once and share one allLeaves fetc
     globalThis.fetch = originalFetch;
   }
 });
+
+test("Plex episode lookup uses show_title when a rating snapshot has a leaf title", async () => {
+  resetOutboundGovernor();
+  __resetPlexIdentityCache();
+  const originalFetch = globalThis.fetch;
+  let searchedQuery = "";
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    if (url.pathname === "/search") {
+      searchedQuery = url.searchParams.get("query") || "";
+      return response({ MediaContainer: { Metadata: [{ ratingKey: "series-1", type: "show", title: "Fast Show" }] } });
+    }
+    if (url.pathname.endsWith("/allLeaves")) {
+      return response({ MediaContainer: { Metadata: [{ ratingKey: "episode-1", type: "episode", parentIndex: 1, index: 1 }] } });
+    }
+    return response({ MediaContainer: { Metadata: [] } });
+  };
+  try {
+    const config = { baseUrl: "http://127.0.0.1:32400", token: "token" };
+    const result = await findPlexItem(config, {
+      type: "episode",
+      title: "Curiouser and Curiouser!",
+      show_title: "Fast Show",
+      season: 1,
+      episode: 1,
+      ids: {},
+    });
+    assert.equal(result?.ratingKey, "episode-1");
+    assert.equal(searchedQuery, "Fast Show");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("all media providers resolve normalized tv ratings as series", async () => {
+  resetOutboundGovernor();
+  __resetEmbySeriesCache();
+  __resetJellyfinSeriesCache();
+  __resetPlexIdentityCache();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    if (url.hostname === "127.0.0.1" && url.port === "32400") {
+      return response({ MediaContainer: { Metadata: [{ ratingKey: "plex-series", type: "show", title: "Rated Show" }] } });
+    }
+    return response({ Items: [{ Id: `${url.port === "8096" ? "emby" : "jellyfin"}-series`, Name: "Rated Show", ProviderIds: { Tmdb: "98177" } }] });
+  };
+  try {
+    const media = { type: "tv", title: "Rated Show", ids: { tmdb: "98177" } };
+    const plex = await findPlexItem({ baseUrl: "http://127.0.0.1:32400", token: "token" }, media);
+    const emby = await findEmbyItems({ baseUrl: "http://127.0.0.1:8096", apiKey: "key", userId: "user" }, media);
+    const jellyfin = await findJellyfinItems({ baseUrl: "http://127.0.0.1:8920", apiKey: "key", userId: "user" }, media);
+    assert.equal(plex?.ratingKey, "plex-series");
+    assert.deepEqual(emby.map((item) => item.Id), ["emby-series"]);
+    assert.deepEqual(jellyfin.map((item) => item.Id), ["jellyfin-series"]);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});

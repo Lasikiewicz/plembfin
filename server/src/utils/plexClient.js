@@ -474,7 +474,14 @@ async function findPlexEpisodeItems(config, media) {
   const parsed = parseShowTitle(media.title);
   const season = media.season ?? parsed.season;
   const episodeNum = media.episode ?? parsed.episode;
-  const entry = await resolvePlexSeriesIdentity(config, media);
+  // Personal-rating snapshots keep the leaf title in `title` and the series
+  // title in `show_title`. Use the series title when the combined
+  // "Show - S01E01" form is not available, otherwise the fallback search can
+  // look for an episode title and miss a perfectly valid Plex series.
+  const seriesMedia = parsed.season != null || parsed.episode != null || !media.show_title
+    ? media
+    : { ...media, title: media.show_title };
+  const entry = await resolvePlexSeriesIdentity(config, seriesMedia);
   const episodes = compoundEpisodeItemsForMedia(entry.episodesByCoordinate, {
     ...media,
     season,
@@ -528,7 +535,7 @@ async function findPlexItemUncached(config, media) {
     const episodes = await findPlexEpisodeItems(config, media);
     item = episodes[0];
     if (item && episodes.length > 1) item = { ...item, __compoundItems: episodes };
-  } else if (media.type === "series" || media.type === "show") {
+  } else if (media.type === "tv" || media.type === "series" || media.type === "show") {
     item = await findPlexSeries(config, media);
   }
 

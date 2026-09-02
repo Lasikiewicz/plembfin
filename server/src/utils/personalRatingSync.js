@@ -154,6 +154,16 @@ function isNotFound(error) {
   return Number(error?.status) === 404 || error?.code === "not_found";
 }
 
+function queueIssueCount(queue = {}) {
+  return Number(queue.failed || 0)
+    + Number(queue.not_found ?? queue.notFound ?? 0)
+    + Number(queue.reauth_required ?? queue.reauthRequired ?? 0);
+}
+
+function ratingSyncHasIssues(queue = {}) {
+  return queueIssueCount(queue) > 0;
+}
+
 function isSourceRowSame(previous, state, rating) {
   return Boolean(previous
     && previous.remote_state === state
@@ -185,6 +195,35 @@ function sourceRowsMatch(left, right) {
   return String(leftMedia.show_title || "").trim().toLowerCase() === String(rightMedia.show_title || "").trim().toLowerCase()
     && Number(leftMedia.season) === Number(rightMedia.season)
     && Number(leftMedia.episode) === Number(rightMedia.episode);
+}
+
+function sourceRowForMedia(provider, media) {
+  return getRatingSourceRow(provider, media.media_key)
+    || listRatingSourceRows(provider).find((row) => sourceRowsMatch(row, media))
+    || null;
+}
+
+function enrichTraktEpisodeMedia(media, mediaKey) {
+  if (media.media_type !== "episode") return media;
+  const episodeProviderIds = { ...(media.episode_provider_ids || {}) };
+  const sourceProviders = PERSONAL_RATING_PROVIDERS.filter((provider) => provider !== "trakt");
+  for (const sourceProvider of sourceProviders) {
+    const source = sourceRowForMedia(sourceProvider, { ...media, media_key: mediaKey });
+    if (!source) continue;
+    const sourceMedia = source.media || {};
+    const sourceIds = source.provider_ids || {};
+    const candidates = {
+      tmdb: sourceMedia.episode_tmdb_id || sourceIds.episode_tmdb_id || sourceIds.episode_tmdb || sourceIds.tmdb,
+      tvdb: sourceMedia.episode_tvdb_id || sourceIds.episode_tvdb_id || sourceIds.episode_tvdb || sourceIds.tvdb,
+      imdb: sourceMedia.episode_imdb_id || sourceIds.episode_imdb_id || sourceIds.episode_imdb || sourceIds.imdb,
+      trakt: sourceMedia.episode_trakt_id || sourceIds.episode_trakt_id || sourceIds.episode_trakt || sourceIds.trakt,
+    };
+    for (const [provider, value] of Object.entries(candidates)) {
+      if (!episodeProviderIds[provider] && value != null && String(value).trim()) episodeProviderIds[provider] = String(value).trim();
+    }
+  }
+  if (!Object.keys(episodeProviderIds).length) return media;
+  return normalizePersonalRatingMedia({ ...media, episode_provider_ids: episodeProviderIds }, { mediaKey });
 }
 
 function findPreviousSourceRow(previousRows, media) {
@@ -263,15 +302,26 @@ function applyRemoteObservation({ provider, media, rating, previous, config, mod
   }
 
   const existing = findCanonicalPersonalRating(media);
+  const canonicalMedia = existing ? canonicalMediaFromRow(existing) : null;
   const remoteMedia = existing
     ? normalizePersonalRatingMedia({
         ...media,
-        ...canonicalMediaFromRow(existing),
+        ...canonicalMedia,
         media_key: existing.media_key,
         title: existing.title || media.title,
         poster_url: existing.poster_url || media.poster_url,
         overview: existing.overview || media.overview,
         release_date: existing.release_date || media.release_date,
+        // Canonical rows created before an episode was resolved can have
+        // blank leaf ids. Keep any richer ids from the provider observation.
+        episode_tmdb_id: canonicalMedia.episode_tmdb_id || media.episode_tmdb_id || "",
+        episode_tvdb_id: canonicalMedia.episode_tvdb_id || media.episode_tvdb_id || "",
+        episode_imdb_id: canonicalMedia.episode_imdb_id || media.episode_imdb_id || "",
+        episode_trakt_id: canonicalMedia.episode_trakt_id || media.episode_trakt_id || "",
+        episode_provider_ids: {
+          ...(media.episode_provider_ids || {}),
+          ...(canonicalMedia.episode_provider_ids || {}),
+        },
       }, { mediaKey: existing.media_key })
     : media;
   const echo = Boolean(previous
@@ -457,8 +507,8 @@ async function runProviderSnapshot(provider, { config, mode, logger = () => {} }
 
 async function drainPersonalRatingQueue({ config, providers = RATING_SYNC_PROVIDERS, limit = MAX_QUEUE_BATCH, logger = () => {} } = {}) {
   const settings = configForRating(config);
-  if (isAuthoritativeRestoreActive()) return { processed: 0, succeeded: 0, failed: 0, skipped: "authoritative-restore-active" };
-  if (!settings.ratingSync.enabled) return { processed: 0, succeeded: 0, failed: 0, skipped: "disabled" };
+  if (isAuthoritativeRestoreActive()) return { processed: 0, succeeded: 0, failed: 0, notFound: 0, reauthRequired: 0, skipped: "authoritative-restore-active" };
+  if (!settings.ratingSync.enabled) return { processed: 0, succeeded: 0, failed: 0, notFound: 0, reauthRequired: 0, skipped: "disabled" };
   const owner = `ratings:${process.pid}:${crypto.randomUUID()}`;
   let processed = 0;
   let succeeded = 0;
@@ -479,7 +529,9 @@ async function drainPersonalRatingQueue({ config, providers = RATING_SYNC_PROVID
           error.code = "not_configured";
           throw error;
         }
-        const media = normalizePersonalRatingMedia(item.media, { mediaKey: item.media_key });
+        const media = provider === "trakt"
+          ? enrichTraktEpisodeMedia(normalizePersonalRatingMedia(item.media, { mediaKey: item.media_key }), item.media_key)
+          : normalizePersonalRatingMedia(item.media, { mediaKey: item.media_key });
         media.provider_item_ids = item.media.provider_item_ids || {};
         const result = item.desired_state === "rated"
           ? await mediaProviderAdapters[provider].write(connection, media, item.desired_rating, { lane: "sync" })
@@ -487,6 +539,7 @@ async function drainPersonalRatingQueue({ config, providers = RATING_SYNC_PROVID
         if (result?.status === "not_found") {
           failPersonalRatingQueue({ provider, mediaKey: item.media_key, intentId: item.intent_id, status: "not_found", error: "No matching item was found on the provider" });
           notFound += 1;
+          logger(`[ratings] ${provider}: ${item.media.title || item.media_key} -> not_found: No matching item was found on the provider`);
           continue;
         }
         const acknowledged = acknowledgePersonalRatingQueue({
@@ -499,8 +552,9 @@ async function drainPersonalRatingQueue({ config, providers = RATING_SYNC_PROVID
         });
         if (acknowledged) succeeded += 1;
       } catch (error) {
-        const status = isUnauthorized(error) ? "reauth_required" : "failed";
+        const status = isUnauthorized(error) ? "reauth_required" : isNotFound(error) ? "not_found" : "failed";
         if (status === "reauth_required") reauthRequired += 1;
+        else if (status === "not_found") notFound += 1;
         else failed += 1;
         const retryAt = Date.now() + retryDelay(item.attempt_count, error);
         failPersonalRatingQueue({
@@ -549,7 +603,11 @@ export async function runRatingSync({ providers = [], mode = "", snapshot = true
     const queueResult = drain ? await drainPersonalRatingQueue({ config: settings, providers: targets, logger }) : null;
     bumpDataVersion();
     writeAuditLog("rating-sync.run", { detail: { providers: targets, results: results.map(({ provider, status }) => ({ provider, status })), queue: queueResult } });
-    return { ok: true, status: results.some((result) => ["failed", "partial"].includes(result.status)) ? "partial" : "completed", providers: results, queue: queueResult || ratingQueueCounts() };
+    const queue = queueResult || ratingQueueCounts();
+    const status = results.some((result) => ["failed", "partial", "reauth_required", "not_found"].includes(result.status)) || ratingSyncHasIssues(queue)
+      ? "partial"
+      : "completed";
+    return { ok: true, status, providers: results, queue };
   })().finally(() => { activeSyncPromise = null; });
   return activeSyncPromise;
 }
@@ -588,7 +646,7 @@ export async function pushPersonalRatings({ providers = [], items = [], logger =
   const queue = await drainPersonalRatingQueue({ config: settings, providers: targets, logger });
   bumpDataVersion();
   writeAuditLog("rating-sync.push", { detail: { providers: targets, queued, items: canonicalItems.length } });
-  return { ok: true, status: "completed", queued, items: canonicalItems.length, queue, counts: ratingQueueCounts() };
+  return { ok: true, status: ratingSyncHasIssues(queue) ? "partial" : "completed", queued, items: canonicalItems.length, queue, counts: ratingQueueCounts() };
 }
 
 export async function retryRatingSync({ providers = [], drain = true, logger = () => {}, config = null } = {}) {
@@ -597,7 +655,8 @@ export async function retryRatingSync({ providers = [], drain = true, logger = (
   const retried = retryPersonalRatingQueue({ provider: targets.length === 1 ? targets[0] : "" });
   const settings = configForRating(config || await loadMediaConfig());
   const queue = drain ? await drainPersonalRatingQueue({ config: settings, providers: targets, logger }) : null;
-  return { ok: true, retried, queue: queue || ratingQueueCounts() };
+  const resultQueue = queue || ratingQueueCounts();
+  return { ok: true, status: ratingSyncHasIssues(resultQueue) ? "partial" : "completed", retried, queue: resultQueue };
 }
 
 export async function getRatingSyncStatus({ config = null } = {}) {

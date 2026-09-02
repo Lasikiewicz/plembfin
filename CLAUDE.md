@@ -6,6 +6,14 @@ Agent instructions for working with this codebase.
 > It is the master guide: the big picture, a complete map of every file in the repo,
 > and a task router that points to the feature doc covering the area you are touching.
 
+## Local testing context
+
+When local-server or connected-browser testing is explicitly requested, check whether
+`.claude/local-environment.md` exists and read it before testing. It contains
+machine-specific local URLs and signed-in browser-session context, and is intentionally
+gitignored. Treat it as optional because it is absent from fresh clones and other
+machines.
+
 ## Agent Guidelines
 
 - **No Git Pushes** - Never execute `git push` or push commits to any remote repository unless the user explicitly instructs you to push in their request.
