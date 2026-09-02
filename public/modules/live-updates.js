@@ -9,6 +9,29 @@ let lockAbortController = null;
 
 const RECONNECT_MS = 1_000;
 
+function progressFromEvent(event, { standalone = false } = {}) {
+  const progress = {
+    total: Number(standalone ? event.total : event.syncTotal) || 0,
+    completed: Number(standalone ? event.completed : event.syncCompleted) || 0,
+  };
+  // Keep the old callback shape for older servers/events, while forwarding
+  // the richer active/label fields emitted by the current live-updates route.
+  const activeKey = standalone ? "active" : "syncActive";
+  const labelKey = standalone ? "label" : "syncLabel";
+  if (activeKey in event) progress.active = event[activeKey] === true;
+  if (labelKey in event) progress.label = String(event[labelKey] || "");
+  return progress;
+}
+
+function attentionFromEvent(event) {
+  if (!("syncAttentionCount" in event) && !("syncAttentionStatus" in event)) return null;
+  const count = Math.max(Number(event.syncAttentionCount) || 0, 0);
+  return {
+    count,
+    status: String(event.syncAttentionStatus || (count ? "attention" : "clear")),
+  };
+}
+
 export function stopLiveUpdates() {
   connectionGeneration += 1;
   activeController?.abort();
@@ -24,7 +47,7 @@ export function stopLiveUpdates() {
   lastUpNextVersion = null;
 }
 
-export function startLiveUpdates({ authHeaders, onHistoryVersion, onDiscoverVersion, onUpNextVersion, onSyncProgress, onError } = {}) {
+export function startLiveUpdates({ authHeaders, onHistoryVersion, onDiscoverVersion, onUpNextVersion, onSyncProgress, onSyncAttention, onError } = {}) {
   stopLiveUpdates();
   const generation = connectionGeneration;
 
@@ -53,6 +76,9 @@ export function startLiveUpdates({ authHeaders, onHistoryVersion, onDiscoverVers
     if (!data) return;
     const event = JSON.parse(data);
 
+    const attention = attentionFromEvent(event);
+    if (attention) onSyncAttention?.(attention);
+
     const upNextVersion = Number(event.upNextVersion);
     let upNextVersionChanged = false;
     let upNextVersionInitial = false;
@@ -62,7 +88,7 @@ export function startLiveUpdates({ authHeaders, onHistoryVersion, onDiscoverVers
     }
 
     if (event.type === "sync-progress") {
-      onSyncProgress?.({ total: Number(event.total) || 0, completed: Number(event.completed) || 0 });
+      onSyncProgress?.(progressFromEvent(event, { standalone: true }));
       return;
     }
 
@@ -70,7 +96,7 @@ export function startLiveUpdates({ authHeaders, onHistoryVersion, onDiscoverVers
     // comparing versions so a reconnect cannot start a history refresh using
     // the stale sync-busy state left by the previous stream.
     if ("syncTotal" in event) {
-      onSyncProgress?.({ total: Number(event.syncTotal) || 0, completed: Number(event.syncCompleted) || 0 });
+      onSyncProgress?.(progressFromEvent(event));
     }
 
     const discoverVersion = Number(event.discoverVersion);

@@ -11,6 +11,8 @@ Reference for `data/plembfin.db`. The full authoritative schema is in
 | `live_tracking_cache` | Snapshot of currently-playing sessions from the scheduler | elected worker only | `handleNowPlaying` |
 | `active_sessions` | Live sessions from webhook `active` events (5-min TTL) | webhook `active` phase | `handleNowPlaying`, `active-sessions` |
 | `playback_progress` | Resume position records | webhook `ended`, sync orchestrator | resume propagation |
+| `up_next_provider_items` | Latest generation of provider Resume/Continue Watching/Next Up observations, keyed by provider feed and native item ID | scheduled provider feed sync | unified Up Next builder, source-ledger mutation lookup |
+| `up_next_provider_feed_state` | Per-provider/feed generation, completion, freshness, count, cursor, retry, and redacted error state | scheduled provider feed sync | Up Next cache/status response |
 | `playstate` | Per-item watched/unwatched state for sync targets | sync orchestrator | sync orchestrator |
 | `sync_history` | Permanent log of sync dispatch results, with `activity_group_key` for grouped movie/show activity | sync outcome changes | sync-history and sync-activity endpoints |
 | `runtime_state` | Single-row JSON blob - last cron time, force-sync state/log, `nowPlayingRefresh` signal | scheduler, force-sync, webhooks | dashboard polling |
@@ -28,6 +30,13 @@ Reference for `data/plembfin.db`. The full authoritative schema is in
 | `personal_rating_sources` | Last per-provider personal-rating observation, snapshot generation, conflict status, and outbound echo markers | rating snapshot/queue worker | rating reconciliation and status |
 | `personal_rating_sync_queue` | Durable latest-intent personal-rating writes with leases, retries, and outcomes | local rating actions, rating push/reconcile | rating queue worker and status |
 | `personal_rating_sync_runs` | Per-provider baseline/import generation and scan counters | rating snapshot worker | rating status and missing-row safety |
+| `personal_watchlist` | Canonical present-set of local movie/TV watchlist rows | personal-media actions, watched completion hook | Watchlist page, watchlist sync |
+| `personal_watchlist_meta` | Singleton monotone canonical watchlist revision | watchlist repository | mutation ordering and queue intent |
+| `personal_watchlist_mutations` | Append-only present/absent mutations, including removal tombstones and origin/reason | local/provider/watched/restore paths | latest desired state, reconciliation |
+| `personal_watchlist_provider_items` | Provider/user/representation observations, ownership, container IDs, and outbound status | watchlist snapshot/queue worker | safe removal, status, retry |
+| `personal_watchlist_sync_queue` | Durable latest-intent provider additions/removals with leases and retry state | watchlist repository/worker | watchlist queue worker |
+| `personal_watchlist_sync_runs` | Provider snapshot generations, completion markers, cursors, counts, and errors | watchlist snapshot worker | complete-snapshot safety/status |
+| `personal_watchlist_activity` | Redacted watchlist-specific activity and removal reasons | watchlist repository/worker | Watchlist settings activity feed |
 | `loop_keys` | Loop-detection KV with TTL | sync orchestrator | sync orchestrator |
 | `poster_cache` | Cached artwork metadata (binaries in `data/media/`) | poster handler | poster resolution |
 | `tmdb_metadata_cache` | Movie details (pure TMDB) or TV show details (TVDB structure + TMDB extras merged), key `${mediaType}_${tmdbId}` (or `tv_tvdb_${tvdbId}` if no TMDB match) | tmdb-details handler | detail pages, prefetch |
@@ -49,6 +58,27 @@ Reference for `data/plembfin.db`. The full authoritative schema is in
 each applied id in `schema_migrations`. Existing databases that already have a migrated
 column still record the migration id after the idempotent check succeeds, so every
 database converges on the same ledger.
+
+## `up_next_provider_items` and `up_next_provider_feed_state`
+
+The provider tables are a rebuildable source ledger, not a second watch-history store.
+`up_next_provider_items` keeps one row per `(provider, feed_kind, provider_item_id)` in
+the currently active feed generation. It retains canonical identity hints (IMDb/TMDB/
+TVDB IDs and series IDs), episode coordinates, source timestamps, progress, poster
+metadata, and the native IDs needed for later provider writes. `provider_ids_json` is
+normalized metadata rather than a raw provider response.
+
+`up_next_provider_feed_state` makes refreshes atomic from the queue's point of view:
+the scheduler writes a generation, replaces active rows only after a complete response,
+and records `failed`/`partial` status without discarding the last successful generation.
+The dashboard receives feed freshness and redacted errors, never
+provider URLs, API keys, tokens, or raw payloads. A changed active ledger advances the
+`up_next` cache version and the live-update stream.
+
+These two tables are cleared by tracked-data wipes and are intentionally rebuildable;
+portable watch-history backups do not need to include them. Restoring canonical
+`watch_history`, `playstate`, and `playback_progress` remains sufficient to recover the
+local queue, while the next scheduled provider catch-up repopulates source observations.
 
 ## `live_tracking_cache`
 
@@ -148,6 +178,27 @@ explicit retry.
 its baseline/import mode, completion marker, counts, cursor, and last error. Missing
 remote ratings are only treated as clears after a previous complete generation, so
 an incomplete provider response cannot bulk-clear local ratings.
+
+## Personal watchlist tables
+
+`personal_watchlist` remains the compatibility-facing current present-set. Every local
+add, local removal, provider-originated removal, watched completion, or restore writes an
+append-only `personal_watchlist_mutations` row and advances `personal_watchlist_meta`.
+Absent mutations are retained as tombstones so a restart or rapid re-add cannot lose a
+removal. The latest canonical revision, rather than the provider timestamp alone, wins.
+
+`personal_watchlist_provider_items` is deliberately scoped by provider connection,
+remote user, representation, and media key. It supports duplicate provider copies and
+records whether Plembfin owns each item or container. Queue rows explicitly store
+`desired_state` (`present` or `absent`), so an absence can never be confused with “no
+work”. Processing rows have a lease; transient failures retry with backoff, while
+`not_available` and `reauth_required` remain visible for an explicit retry.
+
+`personal_watchlist_sync_runs.complete_snapshot` is the safety gate for remote deletion:
+only a successful complete snapshot may interpret a previously owned item missing from
+the next snapshot as a confirmed provider removal. Restore resets remote observations,
+queue success markers, and snapshot completion, records a restore revision, and stores a
+separate restore-pending flag until explicit publish.
 
 ## `watch_history` sync retry columns
 

@@ -10,15 +10,14 @@ import { createLoopStore } from "../utils/loopStore.js";
 import { listActiveSessions, deleteActiveSession, upsertActiveSession } from "../utils/activeSessions.js";
 import { hydrateCachedSession, loadLiveTrackingCache } from "../utils/liveSessions.js";
 import { runForceSync, runScheduledSync } from "../scheduled.js";
-import { activeSyncOperation, appendSyncHistory, claimSyncOperation, clearRestoreSyncState, loadMediaConfig, mergeIncomingConfig, publicMediaConfig, releaseSyncOperation, saveMediaConfig, validateConfig, getSyncHistory, loadRuntimeState, RESTORE_KIND_FULL_SYNC, setRuntimeState, appendRuntimeLog, touchSyncOperation } from "../utils/configStore.js";
+import { activeSyncOperation, appendSyncHistory, claimSyncOperation, clearRestoreSyncState, isAuthoritativeRestoreKind, loadMediaConfig, mergeIncomingConfig, publicMediaConfig, releaseSyncOperation, saveMediaConfig, validateConfig, getSyncHistory, loadRuntimeState, RESTORE_KIND_FULL_SYNC, setRuntimeState, appendRuntimeLog, touchSyncOperation } from "../utils/configStore.js";
+import { cancelSyncJobsForAuthoritativeRestore } from "../utils/backgroundJobs.js";
 import { findPlexItem, markPlexPlayed, setPlexProgress, markPlexUnplayedByRatingKey, fetchPlexWatchedItems, fetchPlexMetadataItem, fetchPlexSeriesEpisodes } from "../utils/plexClient.js";
 import { probePlexNotificationSocket } from "../utils/plexNotificationListener.js";
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes } from "../utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes } from "../utils/jellyfinClient.js";
 import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook } from "../utils/parsers.js";
 import { getTargetsForSource, recordOutboundPlayedMarks, shouldSyncResumeProgress, syncCanonicalPlaystate, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
-import { canReceiveState } from "../utils/syncRoles.js";
-import { watchedPlayedSyncEnabled } from "../utils/syncFlags.js";
 import { fetchPosterFromTmdb } from "../utils/tmdbClient.js";
 import { cacheBackdropFromUrl, cachePosterFromUrl, cacheProfileFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "../utils/posterCache.js";
 import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, searchTmdb, getCachedTvdbId } from "../utils/tmdbGateway.js";
@@ -369,9 +368,12 @@ export async function handleShow(req, res) {
 
 function configuredRestoreTargets(config = {}, stateType = "watched") {
   const targets = [];
-  if (!config.plex?.disabled && config.plex?.baseUrl && config.plex?.token && canReceiveState(config, "plex", stateType)) targets.push("plex");
-  if (!config.emby?.disabled && config.emby?.baseUrl && config.emby?.apiKey && config.emby?.userId && canReceiveState(config, "emby", stateType)) targets.push("emby");
-  if (!config.jellyfin?.disabled && config.jellyfin?.baseUrl && config.jellyfin?.apiKey && config.jellyfin?.userId && canReceiveState(config, "jellyfin", stateType)) targets.push("jellyfin");
+  // This endpoint is an explicit restore/replay, not an ordinary directional
+  // sync. Every connected, enabled app must receive the canonical state even
+  // when its normal sync role is source-only.
+  if (!config.plex?.disabled && config.plex?.baseUrl && config.plex?.token) targets.push("plex");
+  if (!config.emby?.disabled && config.emby?.baseUrl && config.emby?.apiKey && config.emby?.userId) targets.push("emby");
+  if (!config.jellyfin?.disabled && config.jellyfin?.baseUrl && config.jellyfin?.apiKey && config.jellyfin?.userId) targets.push("jellyfin");
   return targets;
 }
 
@@ -423,7 +425,10 @@ async function beginFullSyncRestore(runId, phase, requestedSnapshotAt, phaseStar
   const activeRunId = validFullSyncRunId(runtime.restoreSyncRunId);
   const operation = activeSyncOperation(runtime);
 
-  if (operation && (operation.kind !== RESTORE_KIND_FULL_SYNC || operation.ownerId !== runId)) {
+  if (operation && isAuthoritativeRestoreKind(operation.kind)
+    && !(operation.kind === RESTORE_KIND_FULL_SYNC && operation.ownerId === runId)) {
+    // A different authoritative restore still owns the canonical tables and
+    // must finish (or be explicitly reset) before this restore can start.
     return { conflict: true, active: operation };
   }
 
@@ -462,8 +467,14 @@ async function beginFullSyncRestore(runId, phase, requestedSnapshotAt, phaseStar
       restoreSyncSnapshotAt: snapshotAt,
       restoreSyncResult: null,
     },
+    preempt: true,
   });
   if (!claim?.ok) return { conflict: true, active: claim?.active || null };
+
+  // Full Sync is an authoritative restore too. Cancel queued sync jobs after
+  // the shared marker is claimed so a worker that wakes on another process
+  // cannot start a new watch-state batch while this restore is replaying.
+  cancelSyncJobsForAuthoritativeRestore();
 
   return { conflict: false, snapshotAt };
 }
@@ -471,6 +482,7 @@ async function beginFullSyncRestore(runId, phase, requestedSnapshotAt, phaseStar
 async function finishFullSyncRestore(runId, result = {}) {
   const runtime = await loadRuntimeState();
   if (validFullSyncRunId(runtime.restoreSyncRunId) !== runId) return;
+  const finishedAt = Date.now();
   await releaseSyncOperation({
     kind: RESTORE_KIND_FULL_SYNC,
     ownerId: runId,
@@ -479,8 +491,8 @@ async function finishFullSyncRestore(runId, result = {}) {
       restoreSyncRunId: "",
       restoreSyncKind: "",
       restoreSyncCancelRequested: Boolean(result.cancelled),
-      restoreSyncHeartbeat: Date.now(),
-      restoreSyncResult: { ...result, finishedAt: Date.now() },
+      restoreSyncHeartbeat: finishedAt,
+      restoreSyncResult: { ...result, runId, finishedAt },
     },
   }).catch(() => null);
 }
@@ -569,19 +581,6 @@ export async function handleFullSyncWatchstates(req, res) {
   }
 
   const phase = String(body.phase || "watched") === "progress" ? "progress" : "watched";
-  if (phase === "watched" && !watchedPlayedSyncEnabled()) {
-    return sendJson(res, {
-      ok: true,
-      skipped: true,
-      phase,
-      runId,
-      total: 0,
-      processed: 0,
-      nextOffset: 0,
-      hasMore: false,
-      note: "Watched/played syncing is disabled.",
-    });
-  }
   const offset = Math.max(Number(body.offset || 0), 0);
   const limit = Math.min(Math.max(Number(body.limit || 25), 1), 100);
   const phaseStart = body.start === true || String(body.start || "").toLowerCase() === "true";
@@ -653,10 +652,19 @@ export async function handleFullSyncWatchstates(req, res) {
         if (!media.isValid) return { target, result: { status: "skipped" } };
 
         try {
+          if (await fullSyncRestoreIsCancelled(runId)) {
+            return { target, result: { status: "skipped", detail: "Restore was cancelled before this target was written." } };
+          }
           if (phase === "watched") {
             await recordOutboundPlayedMarks(media, [target], loopStore).catch(() => null);
           }
+          if (await fullSyncRestoreIsCancelled(runId)) {
+            return { target, result: { status: "skipped", detail: "Restore was cancelled before this target was written." } };
+          }
           const result = await restoreClientFor(target, phase, config, media)();
+          if (await fullSyncRestoreIsCancelled(runId)) {
+            return { target, result: { status: "skipped", detail: "Restore was cancelled while this target was being written." } };
+          }
           if (phase === "watched" && result?.status !== "not_found") {
             const itemIds = Array.isArray(result?.itemIds) && result.itemIds.length
               ? result.itemIds

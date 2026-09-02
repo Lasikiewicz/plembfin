@@ -6,7 +6,7 @@
 // anchor means clicking them never triggers card navigation.
 
 import { state } from "./state.js";
-import { customListsForPersonalItem, isPersonalWatchlisted, personalItemFromPosterMenuDataset } from "./personal-media.js?v=20260831r";
+import { customListsForPersonalItem, isPersonalWatchlisted, personalItemFromPosterMenuDataset } from "./personal-media.js?v=20260903b";
 
 let openMenu = null; // { dropdown, button, submenu, submenuTrigger, actionPending, keepOpen, actionButton }
 
@@ -103,14 +103,20 @@ function personalDataset(d) {
     posterMenuShowTitle: d.posterMenuShowTitle || "",
     posterMenuTitle: d.posterMenuTitle || "",
     posterMenuUpNextShowTitle: d.posterMenuUpNextShowTitle || "",
+    posterMenuUpNextMediaType: d.posterMenuUpNextMediaType || d.posterMenuMediaType || "movie",
+    posterMenuUpNextQueueKind: d.posterMenuUpNextQueueKind || "next_up",
+    posterMenuUpNextTitle: d.posterMenuUpNextTitle || d.posterMenuTitle || "",
     posterMenuUpNextTmdbId: d.posterMenuUpNextTmdbId || "",
     posterMenuUpNextTvdbId: d.posterMenuUpNextTvdbId || "",
+    posterMenuUpNextImdbId: d.posterMenuUpNextImdbId || "",
     posterMenuUpNextEpisodeTmdbId: d.posterMenuUpNextEpisodeTmdbId || "",
     posterMenuUpNextEpisodeTvdbId: d.posterMenuUpNextEpisodeTvdbId || "",
     posterMenuUpNextEpisodeImdbId: d.posterMenuUpNextEpisodeImdbId || "",
     posterMenuUpNextSeason: d.posterMenuUpNextSeason || "",
     posterMenuUpNextEpisode: d.posterMenuUpNextEpisode || "",
     posterMenuUpNextPosterUrl: d.posterMenuUpNextPosterUrl || "",
+    posterMenuUpNextAirDate: d.posterMenuUpNextAirDate || "",
+    posterMenuUpNextProviderItems: d.posterMenuUpNextProviderItems || "{}",
     posterMenuDiscoverTitle: d.posterMenuDiscoverTitle || "",
     posterMenuDiscoverImdbId: d.posterMenuDiscoverImdbId || "",
     posterMenuDiscoverPosterUrl: d.posterMenuDiscoverPosterUrl || "",
@@ -239,45 +245,61 @@ function buildDropdown(button) {
   }
 
   if (d.posterMenuMode === "up-next") {
+    const mediaType = d.posterMenuUpNextMediaType === "episode" ? "episode" : "movie";
+    const isEpisode = mediaType === "episode";
+    const queueKind = d.posterMenuUpNextQueueKind === "resume" ? "resume" : "next_up";
+    const itemTitle = d.posterMenuUpNextTitle || d.posterMenuTitle || "Untitled";
+    const showTitle = d.posterMenuUpNextShowTitle || (isEpisode ? d.posterMenuTitle : "");
+    const providerItems = d.posterMenuUpNextProviderItems || "{}";
     dropdown.appendChild(menuItem("", "Mark watched", {
       upNextMenuWatch: d.posterMenuUpNextWatch || d.posterMenuId || "",
-      season: d.posterMenuUpNextSeason || "",
-      episode: d.posterMenuUpNextEpisode || "",
-      showTitle: d.posterMenuUpNextShowTitle || d.posterMenuTitle || "",
+      upNextMediaType: mediaType,
+      upNextQueueKind: queueKind,
+      upNextTitle: itemTitle,
+      season: isEpisode ? d.posterMenuUpNextSeason || "" : "",
+      episode: isEpisode ? d.posterMenuUpNextEpisode || "" : "",
+      showTitle,
       tmdbId: d.posterMenuUpNextTmdbId || "",
       tvdbId: d.posterMenuUpNextTvdbId || "",
+      imdbId: d.posterMenuUpNextImdbId || "",
       episodeTitle: d.posterMenuUpNextEpisodeTitle || "",
       airDate: d.posterMenuUpNextAirDate || "",
       posterUrl: d.posterMenuUpNextPosterUrl || "",
+      providerItems,
     }));
-    const showTitle = d.posterMenuUpNextShowTitle || d.posterMenuTitle || "";
     dropdown.appendChild(menuItem("", "Rate", ratingDataset(d, {
-      mediaRateMediaType: "episode",
+      mediaRateMediaType: isEpisode ? "episode" : "movie",
       mediaRateTmdbId: d.posterMenuUpNextTmdbId || "",
       mediaRateTvdbId: d.posterMenuUpNextTvdbId || "",
-      mediaRateShowTmdbId: d.posterMenuUpNextTmdbId || "",
-      mediaRateShowTvdbId: d.posterMenuUpNextTvdbId || "",
+      mediaRateImdbId: d.posterMenuUpNextImdbId || "",
+      mediaRateShowTmdbId: isEpisode ? d.posterMenuUpNextTmdbId || "" : "",
+      mediaRateShowTvdbId: isEpisode ? d.posterMenuUpNextTvdbId || "" : "",
+      mediaRateShowImdbId: isEpisode ? d.posterMenuUpNextImdbId || "" : "",
       mediaRateEpisodeTmdbId: d.posterMenuUpNextEpisodeTmdbId || "",
       mediaRateEpisodeTvdbId: d.posterMenuUpNextEpisodeTvdbId || "",
       mediaRateEpisodeImdbId: d.posterMenuUpNextEpisodeImdbId || "",
-      mediaRateTitle: d.posterMenuUpNextEpisodeTitle || showTitle || "Untitled",
+      mediaRateTitle: isEpisode ? d.posterMenuUpNextEpisodeTitle || showTitle || "Untitled" : itemTitle,
       mediaRateShowTitle: showTitle,
-      mediaRateSeason: d.posterMenuUpNextSeason || "",
-      mediaRateEpisode: d.posterMenuUpNextEpisode || "",
+      mediaRateSeason: isEpisode ? d.posterMenuUpNextSeason || "" : "",
+      mediaRateEpisode: isEpisode ? d.posterMenuUpNextEpisode || "" : "",
       mediaRatePosterUrl: d.posterMenuUpNextPosterUrl || "",
       mediaRateReleaseDate: d.posterMenuUpNextAirDate || "",
     })));
     appendPersonalMenuActions(dropdown, button);
-    dropdown.appendChild(menuItem("poster-overflow-item-danger", "Remove from up next", {
-      upNextRemove: d.posterMenuUpNextWatch || d.posterMenuId || "",
-      upNextShowTitle: d.posterMenuUpNextShowTitle || d.posterMenuTitle || "",
-      upNextTmdbId: d.posterMenuUpNextTmdbId || "",
-      upNextTvdbId: d.posterMenuUpNextTvdbId || "",
-      upNextSeason: d.posterMenuUpNextSeason || "",
-      upNextEpisode: d.posterMenuUpNextEpisode || "",
-      upNextEpisodeTitle: d.posterMenuUpNextEpisodeTitle || "",
-      upNextAirDate: d.posterMenuUpNextAirDate || "",
-    }));
+    if (queueKind === "resume") {
+      dropdown.appendChild(menuItem("poster-overflow-item-danger", "Clear progress", {
+        upNextClear: d.posterMenuUpNextWatch || d.posterMenuId || "",
+        upNextMediaType: mediaType,
+        upNextTitle: itemTitle,
+        upNextShowTitle: showTitle,
+        upNextTmdbId: d.posterMenuUpNextTmdbId || "",
+        upNextTvdbId: d.posterMenuUpNextTvdbId || "",
+        upNextImdbId: d.posterMenuUpNextImdbId || "",
+        upNextSeason: isEpisode ? d.posterMenuUpNextSeason || "" : "",
+        upNextEpisode: isEpisode ? d.posterMenuUpNextEpisode || "" : "",
+        upNextProviderItems: providerItems,
+      }));
+    }
     return dropdown;
   }
 

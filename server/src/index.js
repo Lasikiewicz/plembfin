@@ -13,9 +13,11 @@ import { handleWipeDataPreview, handleWipeData } from "./routes/wipeData.js";
 import { handleEmbyLikeAuth, handleEmbyLikeConnection, handlePlexAuth, handlePlexConnection } from "./routes/mediaAuth.js";
 import { handleTrackerAuth, handleTrackerConnections } from "./routes/trackerAuth.js";
 import { handleLiveUpdates } from "./routes/liveUpdates.js";
+import { handleSyncAttention } from "./routes/syncAttention.js";
 import { handleSetupStatus, handleSetupStep, handleSetupImport, handleSetupComplete, handleSetupRestart, handleSetupChecklistDismiss, handleSetupCtaDismiss } from "./routes/onboarding.js";
 import { handlePersonalMedia } from "./routes/personal.js";
 import { handleRatingSync } from "./routes/ratingSync.js";
+import { handleWatchlistSync } from "./routes/watchlistSync.js";
 
 function routePath(req) {
   const path = req.path || new URL(req.originalUrl || req.url, "https://local").pathname;
@@ -69,6 +71,7 @@ async function dispatch(req, res) {
     if (path === "sync/libraries") return handleSyncLibraries(req, res);
     if (path === "sync-match-report") return handleSyncMatchReport(req, res);
     if (path === "health/sync") return handleSyncHealth(req, res);
+    if (path === "sync-attention") return handleSyncAttention(req, res);
     if (path === "sync-activity") return handleSyncActivity(req, res);
     if (path === "sync-activity/group") return handleSyncActivityGroup(req, res);
     if (path === "sync-history") return handleSyncHistory(req, res);
@@ -140,6 +143,7 @@ async function dispatch(req, res) {
     if (path === "discover") return handleDiscover(req, res);
     if (path === "personal-media") return handlePersonalMedia(req, res);
     if (["rating-sync/status", "rating-sync/run", "rating-sync/push", "rating-sync/retry", "rating-sync"].includes(path)) return handleRatingSync(req, res);
+    if (["watchlist-sync/status", "watchlist-sync/preview", "watchlist-sync/run", "watchlist-sync/activity"].includes(path)) return handleWatchlistSync(req, res);
     if (path === "tmdb-season") return handleTmdbSeason(req, res);
     if (path === "tmdb-images") return handleTmdbImages(req, res);
     if (path === "tvdb-images") return handleTvdbImages(req, res);

@@ -34,7 +34,7 @@ const BACKUP_VERSION = 1;
 const ENCRYPTED_BACKUP_FORMAT = "plembfin-encrypted-backup";
 const ENCRYPTED_BACKUP_VERSION = 1;
 const BACKUP_KDF_ITERATIONS = 250000;
-const BACKUP_COLLECTIONS = ["watchHistory", "playstate", "playbackProgress", "activeSessions", "liveTrackingCache", "syncHistory", "settings", "runtimeState", "loopKeys"];
+const BACKUP_COLLECTIONS = ["watchHistory", "playstate", "playbackProgress", "activeSessions", "liveTrackingCache", "syncHistory", "watchAuditEvents", "trackerItemState", "settings", "runtimeState", "loopKeys", "mediaArtwork", "personalWatchlist", "personalWatchlistMutations", "personalWatchlistProviderItems", "personalWatchlistSyncQueue", "personalWatchlistSyncRuns", "personalWatchlistActivity"];
 // ── Backup transfer state ──────────────────────────────────────────────────
 export function setBackupTransferState(label, tone = "muted", log = "", area = "restore") {
   const status = area === "export" ? elements.backupExportStatus : elements.backupRestoreStatus;
@@ -163,13 +163,14 @@ function validatePlembfinBackup(value) {
   }
   return { backup: value, included };
 }
-function backupImportPayload(collection, documents, reset) {
+function backupImportPayload(collection, documents, reset, portable = false) {
   return JSON.stringify({
     format: BACKUP_FORMAT,
     version: BACKUP_VERSION,
     collection,
     documents,
     reset,
+    portable,
   });
 }
 function backupPayloadBytes(collection, documents) {
@@ -191,16 +192,16 @@ function createBackupImportBatches(collection, documents) {
   if (current.length) batches.push(current);
   return batches;
 }
-async function sendBackupImportBatch(collection, documents, reset, onImported) {
+async function sendBackupImportBatch(collection, documents, reset, onImported, portable = false) {
   const response = await fetch("/api/backup/import", {
     method: "POST",
     headers: authHeaders(),
-    body: backupImportPayload(collection, documents, reset),
+    body: backupImportPayload(collection, documents, reset, portable),
   });
   if (response.status === 413 && documents.length > 1) {
     const midpoint = Math.ceil(documents.length / 2);
-    await sendBackupImportBatch(collection, documents.slice(0, midpoint), reset, onImported);
-    await sendBackupImportBatch(collection, documents.slice(midpoint), false, onImported);
+    await sendBackupImportBatch(collection, documents.slice(0, midpoint), reset, onImported, portable);
+    await sendBackupImportBatch(collection, documents.slice(midpoint), false, onImported, portable);
     return;
   }
   const result = await response.json().catch(() => ({}));
@@ -277,6 +278,7 @@ export async function importPlembfinBackup() {
   const button = elements.backupImportButton;
   const input = elements.backupImportFile;
   const { backup, included } = state.backupImport;
+  const portable = backup.portable === true;
   button.disabled = true;
   input.disabled = true;
   button.textContent = "Restoring...";
@@ -292,7 +294,7 @@ export async function importPlembfinBackup() {
           collectionImported += count;
           totalDocuments += count;
           setBackupTransferState("Importing", "warning", `Imported ${collection}: ${formatNumber(collectionImported)} of ${formatNumber(documents.length)} documents\nTotal imported: ${formatNumber(totalDocuments)} documents`, "restore");
-        });
+        }, portable);
       }
     }
     _clearDerivedUiCaches();
@@ -396,7 +398,7 @@ export function renderWatchBackups() {
     const destText = destNames.length ? ` (${destNames.map(escapeHtml).join(", ")})` : "";
     remoteLoading = `<div class="remote-search-banner"><span class="remote-search-spinner"></span><span>Searching remote destinations${destText} for backups…</span></div>`;
   }
-  const clearMode = state.restoreClearMode || "reconcile";
+  const clearMode = state.restoreClearMode || "wipe";
   const clearModeSelector = `
     <div class="restore-clear-mode" style="margin-bottom: var(--space-3);">
       <div class="restore-clear-intro">Watch-history restore pushes the selected backup's watched history to every connected app. Choose whether to merge it into each app's existing state or replace that state completely:</div>
@@ -646,7 +648,7 @@ export function renderBackupDestinationCards() {
     addVisibleLabel: "Click to add a remote destination",
   });
 }
-export async function restoreRemoteBackupFromCard(card, filename, clearMode = "reconcile") {
+export async function restoreRemoteBackupFromCard(card, filename, clearMode = "wipe") {
   const wipe = clearMode === "wipe";
   const approved = await _openConfirmDialog({
     title: "Restore watch history?",
@@ -1075,7 +1077,7 @@ export async function saveAppearanceSettings() {
   applyAppearanceToBody(prefs);
 
   if (state.activeShowModalKey) {
-    const { openShowInlineDetail, renderImmersiveShowModal } = await import("./media-detail-show.js?v=20260831o");
+    const { openShowInlineDetail, renderImmersiveShowModal } = await import("./media-detail-show.js?v=20260901a");
     if (state.mediaDetailInline) {
       openShowInlineDetail(state.activeShowModalKey, state.activeShowModalSeason).catch(() => null);
     } else {
@@ -1218,7 +1220,7 @@ export async function uploadWatchBackupFile(file) {
   _setMessage(`Backup file added: ${body.file?.name || name}.`, "success");
   return body.file;
 }
-export async function restoreWatchBackup(filename, clearMode = "reconcile", dryRun = false) {
+export async function restoreWatchBackup(filename, clearMode = "wipe", dryRun = false) {
   if (dryRun) {
     const result = await postWatchBackupAction({ action: "restore", filename, dryRun: true });
     const summary = result.restore || {};
@@ -1250,7 +1252,7 @@ async function runAuthoritativeRestore(payload) {
     const summary = result.restore || {};
     if (terminal) {
       terminal.textContent += `[${new Date().toLocaleTimeString()}] Restored ${summary.watchHistory || 0} history, ${summary.playstate || 0} playstate, ${summary.playbackProgress || 0} progress records\n`;
-      terminal.textContent += `[${new Date().toLocaleTimeString()}] Pushing to connected apps (clear mode: ${result.clearMode || payload.clearMode || "reconcile"})...\n`;
+      terminal.textContent += `[${new Date().toLocaleTimeString()}] Pushing to connected apps (clear mode: ${result.clearMode || payload.clearMode || "wipe"})...\n`;
     }
     const jobResult = await pollRestoreProgress(terminal);
     _clearDerivedUiCaches();

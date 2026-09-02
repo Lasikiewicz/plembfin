@@ -59,3 +59,38 @@ test("Up Next serves a durable snapshot while stale data rebuilds in the backgro
   assert.ok(refreshed.upNextVersion > initialVersion);
   assert.equal(buildCount, 2);
 });
+
+test("reading a legacy cache snapshot collapses identity and title-only episode duplicates", async () => {
+  await getUpNextCacheSnapshot(async () => ([
+    {
+      id: "episode|series:tmdb:6278773|s:1|e:5",
+      media_type: "episode",
+      title: "Example Show - S01E05",
+      show_title: "Example Show",
+      show_tmdb_id: "6278773",
+      season: 1,
+      episode: 5,
+      queue_kind: "resume",
+      position_ms: 100,
+      duration_ms: 1000,
+      progress: 10,
+    },
+    {
+      id: "episode|title:example-show|s:1|e:5",
+      media_type: "episode",
+      title: "Example Show - S01E05",
+      show_title: "Example Show",
+      season: 1,
+      episode: 5,
+      queue_kind: "resume",
+      position_ms: 90,
+      duration_ms: 1000,
+      progress: 9,
+    },
+  ]), { refresh: true });
+
+  bumpDataVersion();
+  const snapshot = await getUpNextCacheSnapshot(async () => [], { revalidate: true });
+  assert.equal(snapshot.items.length, 1);
+  assert.equal(snapshot.items[0].show_tmdb_id, "6278773");
+});

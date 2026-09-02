@@ -3,7 +3,7 @@
 // out of the request: the library scan is performed once, then the
 // resulting canonical state is replayed item by item.
 
-import { appendSyncHistory, loadMediaConfig } from "./configStore.js";
+import { appendSyncHistory, isAuthoritativeRestoreActive, loadMediaConfig } from "./configStore.js";
 import { createLoopStore } from "./loopStore.js";
 import { runWithConcurrency } from "./concurrency.js";
 import {
@@ -351,17 +351,19 @@ async function syncOneLibraryItem(media, requested, config, loopStore, logger) {
   let inserted = false;
 
   if (requested.mode !== "push" && !record) {
+    if (isAuthoritativeRestoreActive()) throw new Error("Authoritative watch-history restore is active");
     const insertedResult = await insertWatchRecord({
       ...media,
       sync_action: "watched",
       sync_dispatch_telemetry: pendingTelemetry(media, requested),
-    }, { skipInvalidate: true });
+    }, { skipInvalidate: true, watchlistConfig: config });
     record = insertedResult.record;
     record.id = insertedResult.id;
     inserted = true;
     await insertedResult.assetPrefetch?.catch(() => null);
   }
 
+  if (isAuthoritativeRestoreActive()) throw new Error("Authoritative watch-history restore is active");
   await upsertPlaystateForMedia(media, canonicalState, media.watched_at, { skipInvalidate: true });
 
   if (requested.mode === "pull") {
@@ -403,6 +405,29 @@ async function syncOneLibraryProgressItem(media, requested, config, loopStore, l
 export async function forceSyncLibraryState(input, { config = null, now = Date.now(), logger = () => {}, isCancelled = () => false } = {}) {
   const requested = normalizeLibraryForceSyncRequest(input);
   const resolvedConfig = config || await loadMediaConfig();
+  if (isAuthoritativeRestoreActive()) {
+    logger(`[${requested.mode}] paused because an authoritative watch-history restore is active.`);
+    return {
+      ok: true,
+      title: requested.title,
+      type: requested.type,
+      mode: requested.mode,
+      target: requested.target || "all",
+      pullFrom: requested.source || "all",
+      found: 0,
+      progressFound: 0,
+      processed: 0,
+      imported: 0,
+      existing: 0,
+      pulled: 0,
+      synced: 0,
+      progressSynced: 0,
+      errors: 0,
+      cancelled: true,
+      results: [],
+      records: [],
+    };
+  }
   logger(`[${requested.mode}] ${modeLabel(requested.mode)} started for all media.`);
 
   const collection = requested.mode === "push"
@@ -410,11 +435,11 @@ export async function forceSyncLibraryState(input, { config = null, now = Date.n
     : await collectLibraryItems(resolvedConfig, requested, now, logger);
   const loopStore = createLoopStore();
   const results = [];
-  let cancelled = Boolean(isCancelled());
+  let cancelled = Boolean(isCancelled()) || isAuthoritativeRestoreActive();
   let itemsCancellationLogged = false;
 
   await runWithConcurrency(collection.items, async (media) => {
-    if (isCancelled()) {
+    if (isCancelled() || isAuthoritativeRestoreActive()) {
       cancelled = true;
       if (!itemsCancellationLogged) {
         itemsCancellationLogged = true;
@@ -425,6 +450,10 @@ export async function forceSyncLibraryState(input, { config = null, now = Date.n
     try {
       const { record, inserted, summary } = await syncOneLibraryItem(media, requested, resolvedConfig, loopStore, logger);
       if (record?.id) {
+        if (isAuthoritativeRestoreActive()) {
+          cancelled = true;
+          return;
+        }
         await updateWatchTelemetry(record.id, completedTelemetry(media, summary, requested), { skipInvalidate: true });
         await appendLibraryForceSyncHistory(media, summary, requested);
       }
@@ -459,10 +488,10 @@ export async function forceSyncLibraryState(input, { config = null, now = Date.n
     }
   }, FORCE_SYNC_ITEM_CONCURRENCY);
 
-  if (requested.mode === "push" && !cancelled) {
+  if (requested.mode === "push" && !cancelled && !isAuthoritativeRestoreActive()) {
     let progressCancellationLogged = false;
     await runWithConcurrency(collection.progressItems || [], async (media) => {
-      if (isCancelled()) {
+      if (isCancelled() || isAuthoritativeRestoreActive()) {
         cancelled = true;
         if (!progressCancellationLogged) {
           progressCancellationLogged = true;
@@ -472,6 +501,10 @@ export async function forceSyncLibraryState(input, { config = null, now = Date.n
       }
       try {
         const summary = await syncOneLibraryProgressItem(media, requested, resolvedConfig, loopStore, logger);
+        if (isAuthoritativeRestoreActive()) {
+          cancelled = true;
+          return;
+        }
         await updatePlaybackProgressTelemetry(media, completedProgressTelemetry(media, summary, requested));
         await appendLibraryForceSyncProgressHistory(media, summary, requested);
         results.push({
@@ -506,7 +539,7 @@ export async function forceSyncLibraryState(input, { config = null, now = Date.n
     }, FORCE_SYNC_ITEM_CONCURRENCY);
   }
 
-  cancelled = cancelled || Boolean(isCancelled());
+  cancelled = cancelled || Boolean(isCancelled()) || isAuthoritativeRestoreActive();
   await invalidateHistoryDerivedCaches().catch(() => null);
   logger(cancelled
     ? `[${requested.mode}] ${modeLabel(requested.mode)} cancelled after ${results.length} item${results.length === 1 ? "" : "s"}.`

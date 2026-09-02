@@ -24,6 +24,7 @@ const ACTIVE_SEASON_TTL_MS = 7 * DAY_MS;
 const ARCHIVED_SEASON_TTL_MS = 180 * DAY_MS;
 const TOKEN_LIFETIME_MS = 25 * DAY_MS;
 const TVDB_ID_PATTERN = /^\d+$/;
+const SEARCH_MATCH_SCHEMA_VERSION = 2;
 const inflight = new Map();
 let nextRequestAt = 0;
 let throttleTail = Promise.resolve();
@@ -54,6 +55,70 @@ function secretFingerprint(value) {
 
 function canonicalTitle(value = "") {
   return String(value).trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function titleParts(value = "") {
+  const text = String(value || "").trim().replace(/\s*\(\d{4}\)\s*$/, "");
+  const yearMatch = String(value || "").trim().match(/\((\d{4})\)\s*$/);
+  return { title: text, year: yearMatch?.[1] || "" };
+}
+
+export function tvdbSeriesTitleKey(value = "") {
+  const { title } = titleParts(value);
+  return canonicalTitle(title);
+}
+
+function candidateYear(item = {}) {
+  return String(item.year || item.first_air_time || item.firstAired || "").slice(0, 4);
+}
+
+function normalizeSearchCandidate(item = {}) {
+  const tvdbId = normalizeTvdbId(item.tvdb_id || item.tvdbId || item.id);
+  const name = String(item.name || item.title || item.translations?.eng || "").trim();
+  if (!tvdbId || !name) return null;
+  return { tvdb_id: tvdbId, name, year: candidateYear(item) };
+}
+
+// TVDB search results are ranked, not guaranteed to be the requested series.
+// A title-only lookup must therefore never accept the first result blindly:
+// accept one exact match, use a year in the title when supplied, and otherwise
+// fail closed so a reboot or same-title series cannot be silently misassigned.
+export function selectTvdbSeriesMatch(results = [], title = "") {
+  const requested = titleParts(title);
+  const requestedKey = tvdbSeriesTitleKey(requested.title);
+  if (!requestedKey) return null;
+
+  const exact = (Array.isArray(results) ? results : [])
+    .map(normalizeSearchCandidate)
+    .filter((candidate) => candidate && tvdbSeriesTitleKey(candidate.name) === requestedKey);
+  if (!exact.length) return null;
+
+  if (requested.year) {
+    const sameYear = exact.filter((candidate) => candidate.year === requested.year);
+    return sameYear.length === 1 ? sameYear[0] : null;
+  }
+  return exact.length === 1 ? exact[0] : null;
+}
+
+function seriesNameCandidates(details = {}) {
+  const source = details && typeof details === "object" ? details : {};
+  const names = [source.name, source.originalName, source.original_name];
+  if (Array.isArray(source.aliases)) {
+    names.push(...source.aliases.map((alias) => typeof alias === "string" ? alias : alias?.name));
+  }
+  if (source.translations && typeof source.translations === "object") {
+    names.push(...Object.values(source.translations).flatMap((translation) => (
+      typeof translation === "string" ? [translation] : [translation?.name, translation?.title]
+    )));
+  }
+  return names.map((name) => String(name || "").trim()).filter(Boolean);
+}
+
+export function tvdbSeriesTitleMatches(title = "", details = {}) {
+  const expected = tvdbSeriesTitleKey(title);
+  if (!expected) return true;
+  const candidates = seriesNameCandidates(details);
+  return !candidates.length || candidates.some((candidate) => tvdbSeriesTitleKey(candidate) === expected);
 }
 
 function fresh(updatedAtMs, ttl) {
@@ -250,14 +315,26 @@ export async function resolveTvdbSeriesId({ tvdbId = "", title = "" } = {}) {
   const cached = seriesGetStmt.get(cacheKey);
   if (cached && fresh(cached.updated_at_ms, cached.tvdb_id ? SEARCH_TTL_MS : SEARCH_MISS_TTL_MS)) {
     const details = parseJson(cached.details);
-    return details?.tvdb_id ? String(details.tvdb_id) : "";
+    if (details?.match_schema_version === SEARCH_MATCH_SCHEMA_VERSION) {
+      return details?.tvdb_id ? String(details.tvdb_id) : "";
+    }
   }
 
   try {
     const results = await upstream("search", { query: cleanedTitle, type: "series" });
-    const best = Array.isArray(results) ? results[0] : null;
-    const resolvedId = best ? normalizeTvdbId(best.tvdb_id || best.id) : "";
-    seriesSetStmt.run({ id: cacheKey, tvdb_id: resolvedId, title: cleanedTitle, details: toJson({ tvdb_id: resolvedId }), updated_at_ms: Date.now() });
+    const best = selectTvdbSeriesMatch(results, cleanedTitle);
+    const resolvedId = best?.tvdb_id || "";
+    seriesSetStmt.run({
+      id: cacheKey,
+      tvdb_id: resolvedId,
+      title: cleanedTitle,
+      details: toJson({
+        tvdb_id: resolvedId,
+        matched_name: best?.name || "",
+        match_schema_version: SEARCH_MATCH_SCHEMA_VERSION,
+      }),
+      updated_at_ms: Date.now(),
+    });
     return resolvedId;
   } catch {
     return "";

@@ -85,6 +85,72 @@ CREATE TABLE IF NOT EXISTS playback_progress (
 );
 CREATE INDEX IF NOT EXISTS idx_playback_progress_updated ON playback_progress(updated_at DESC);
 
+-- Provider feed observations used to explain and rebuild the unified Up Next
+-- projection. These rows are deliberately not canonical watch state: the
+-- playstate/playback_progress tables remain authoritative.
+CREATE TABLE IF NOT EXISTS up_next_provider_items (
+  provider TEXT NOT NULL CHECK (provider IN ('plex', 'emby', 'jellyfin')),
+  feed_kind TEXT NOT NULL CHECK (feed_kind IN ('resume', 'next_up')),
+  provider_item_id TEXT NOT NULL,
+  media_key TEXT,
+  media_type TEXT NOT NULL CHECK (media_type IN ('movie', 'episode')),
+  title TEXT,
+  show_title TEXT,
+  episode_title TEXT,
+  season INTEGER,
+  episode INTEGER,
+  year INTEGER,
+  air_date TEXT,
+  poster_url TEXT,
+  show_poster_url TEXT,
+  imdb_id TEXT,
+  tmdb_id TEXT,
+  tvdb_id TEXT,
+  show_imdb_id TEXT,
+  show_tmdb_id TEXT,
+  show_tvdb_id TEXT,
+  provider_ids_json TEXT NOT NULL DEFAULT '{}',
+  parent_provider_item_id TEXT,
+  series_provider_item_id TEXT,
+  position_ms INTEGER,
+  duration_ms INTEGER,
+  progress REAL,
+  source_updated_at INTEGER,
+  observed_at INTEGER NOT NULL,
+  feed_generation INTEGER NOT NULL,
+  last_seen_at INTEGER NOT NULL,
+  resolution_status TEXT NOT NULL DEFAULT 'resolved',
+  last_error TEXT,
+  PRIMARY KEY (provider, feed_kind, provider_item_id)
+);
+CREATE INDEX IF NOT EXISTS idx_up_next_provider_items_feed
+  ON up_next_provider_items(provider, feed_kind, feed_generation);
+CREATE INDEX IF NOT EXISTS idx_up_next_provider_items_media_key
+  ON up_next_provider_items(media_key);
+CREATE INDEX IF NOT EXISTS idx_up_next_provider_items_coordinate
+  ON up_next_provider_items(media_type, season, episode);
+
+-- A provider/feed generation is only made active after a complete successful
+-- response. Failed or partial generations therefore cannot erase the last
+-- usable observations.
+CREATE TABLE IF NOT EXISTS up_next_provider_feed_state (
+  provider TEXT NOT NULL CHECK (provider IN ('plex', 'emby', 'jellyfin')),
+  feed_kind TEXT NOT NULL CHECK (feed_kind IN ('resume', 'next_up')),
+  current_generation INTEGER NOT NULL DEFAULT 0,
+  active_generation INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'idle' CHECK (status IN ('idle', 'running', 'succeeded', 'partial', 'failed')),
+  started_at INTEGER,
+  completed_at INTEGER,
+  last_success_at INTEGER,
+  item_count INTEGER NOT NULL DEFAULT 0,
+  last_run_complete INTEGER NOT NULL DEFAULT 0,
+  cursor_json TEXT,
+  last_error TEXT,
+  retry_after INTEGER NOT NULL DEFAULT 0,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (provider, feed_kind)
+);
+
 -- Cross-process mutex for writes that change a media server's played state.
 -- A watched write and the corresponding progress-clear + unplayed pair must
 -- never pass each other on the wire: whichever operation acquires this lease

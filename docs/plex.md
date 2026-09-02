@@ -10,7 +10,7 @@ one outbound client. Read [architecture.md](architecture.md) first for the big p
 | `server/src/utils/plexClient.js` | Outbound HTTP client - all Plex API calls |
 | `server/src/utils/plexNotificationListener.js` | Real-time WebSocket listener for library watch-state changes |
 | `server/src/utils/parsers.js` | `parsePlexWebhook` / `parsePlexGuids` / `buildPlexMediaFromMetadata` - webhook + metadata normalization |
-| `server/src/scheduled.js` | `syncRecentlyWatchedFromPlex`, `syncRecentlyResumableFromPlex`, `checkPlexUnwatchedStatus` - catch-up polling |
+| `server/src/scheduled.js` | `syncRecentlyWatchedFromPlex`, `syncRecentlyResumableFromPlex`, `checkPlexUnwatchedStatus` - catch-up polling and Up Next source-ledger refresh |
 | `server/src/utils/liveSessions.js` | Polls `/status/sessions` for Now Playing |
 | `public/modules/help-content.js` | `plexCredentialGuide()`, `plexWebhookSetup()` - in-app setup guides |
 
@@ -46,6 +46,22 @@ Every Plex HTTP request sends the token as an `X-Plex-Token` **header**
 (`plexAuthHeaders`), never a query parameter, so tokens stay out of access logs. The
 single exception is the notification WebSocket, whose handshake cannot carry custom
 headers - there the token stays in the URL.
+
+## Personal Watchlist Sync
+
+Settings → Sync → Sync Tools can enable a separate Personal Watchlist Sync projection.
+The Plex adapter (`plexWatchlistClient.js`) uses the account-level Universal Watchlist,
+not a selected server library, so it authenticates with the connected Plex account JWT.
+It deliberately does not reuse a server token for account operations. A native
+representation can read and write only when **Allow account writes** is enabled; the
+RSS representation is read-only and is useful for observation/preview only.
+
+Plex does not publish a stable, fully documented account-watchlist mutation API in the
+PMS API reference. Plembfin therefore keeps native write paths configurable, probes
+capability before delivery, and leaves the canonical local row intact when the account
+or target is unavailable. Initial publish is previewed and explicitly confirmed. A
+complete snapshot is required before a missing previously managed item can be treated
+as a provider removal; unrelated account-watchlist entries are never removed.
 
 ## Inbound channel 1: webhooks
 
@@ -153,6 +169,12 @@ own catch-up sync separately pulls:
   the configured username/account ID (`plexHistoryItemMatchesConfiguredUser`).
 - **Resumable items** (`fetchPlexResumableItems` → `syncRecentlyResumableFromPlex`) -
   replicates resume positions set on Plex to the other platforms.
+- **Continue Watching / Up Next** (`fetchPlexContinueWatchingItems`, called by the
+  resumable catch-up pass) - reads Plex's account-scoped
+  `/hubs/home/continueWatching` feed, preserving the Plex rating key and account
+  context. If that hub is unavailable, Plembfin falls back to the existing configured
+  library-section scan. The result is recorded in the provider source ledger for the
+  unified dashboard queue; it does not overwrite canonical local watch state.
 
 Every minute, **unwatched reconciliation** (`checkPlexUnwatchedStatus`) verifies items
 Plembfin thinks are watched are still watched on Plex, as a backstop for unwatches
@@ -173,9 +195,15 @@ Used by the sync orchestrator and manual watch actions:
 | `hydratePlexEpisodeMetadata` | Follows an episode's native grandparent rating key and adds the exact series GUIDs needed for cross-platform matching |
 | `mergePlexMetadataItem` | Merges a `fetchPlexMetadataItem` result with a notification's state override, keeping the fetch's provider `Guid` identity but the override's live state fields |
 | `fetchPlexSeriesEpisodes` | All episodes of a series (season-level operations) |
-| `fetchPlexWatchedItems` / `fetchPlexResumableItems` | History and on-deck feeds for catch-up sync |
+| `fetchPlexWatchedItems` / `fetchPlexResumableItems` / `fetchPlexContinueWatchingItems` | History, resume, and account-scoped Continue Watching feeds for catch-up sync |
 | `fetchPlexPersonalRatingSnapshot` | Reads rated movies, shows, and episodes for the isolated personal-rating snapshot worker |
 | `setPlexPersonalRating` / `clearPlexPersonalRating` | Writes or clears a personal rating without changing watched state or resume progress |
+
+The separate `plexWatchlistClient.js` exposes account-watchlist snapshot, identity
+resolution, add, and remove operations to the watchlist worker. Its requests use
+`X-Plex-Token` and `X-Plex-Client-Identifier` headers; the account token is never placed
+in a query string. The adapter supports duplicate-safe provider identity matching and
+returns an unavailable/ambiguous result instead of guessing a write target.
 
 A `not_found` result from a mark-played call is reported as "skipped - no matching item"
 in sync telemetry rather than an error: the item simply isn't in that server's library.

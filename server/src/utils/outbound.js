@@ -108,6 +108,16 @@ async function fetchFollowingSafeRedirects(url, options) {
   throw new Error("Upstream request exceeded the redirect limit");
 }
 
+function upstreamCauseCode(error) {
+  let current = error;
+  for (let depth = 0; depth < 5 && current; depth += 1) {
+    const code = String(current?.code || "").trim().toUpperCase();
+    if (/^[A-Z][A-Z0-9_:-]{1,48}$/.test(code)) return code;
+    current = current?.cause;
+  }
+  return "";
+}
+
 // Set PLEMBFIN_DEBUG_OUTBOUND=1 to log a per-host outbound request count once
 // a minute (visible in Settings → Logs via the diagnostic logger). Useful for
 // measuring how much traffic each upstream (TMDB, TVDB, fanart.tv, media
@@ -163,6 +173,13 @@ export async function fetchWithTimeout(url, options = {}, timeoutMs = undefined)
     return response;
   } catch (error) {
     if (controller.signal.aborted && controller.signal.reason === timeoutError) throw timeoutError;
+    const message = String(error?.message || "").trim();
+    const causeCode = upstreamCauseCode(error);
+    if (causeCode && /^fetch failed$/i.test(message)) {
+      const wrapped = new Error(`Upstream request failed (${causeCode})`);
+      wrapped.code = causeCode;
+      throw wrapped;
+    }
     throw error;
   } finally {
     clearTimeout(timeout);

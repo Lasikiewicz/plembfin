@@ -10,7 +10,7 @@ import { createLoopStore } from "../utils/loopStore.js";
 import { runWithConcurrency } from "../utils/concurrency.js";
 import { listActiveSessions, deleteActiveSession, upsertActiveSession } from "../utils/activeSessions.js";
 import { hydrateCachedSession, loadLiveTrackingCache } from "../utils/liveSessions.js";
-import { activeSyncOperation, appendSyncHistory, clearSyncOperation, loadMediaConfig, mergeIncomingConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistoryById, getSyncHistoryPage, getSyncActivityGroupsPage, getSyncActivityGroupEvents, updateSyncHistoryStatus, loadRuntimeState, setRuntimeState, appendRuntimeLog, SYNC_OPERATION_FORCE, SYNC_OPERATION_SCHEDULED } from "../utils/configStore.js";
+import { activeSyncOperation, appendSyncHistory, clearSyncOperation, isAuthoritativeRestoreActive, loadMediaConfig, mergeIncomingConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistoryById, getSyncHistoryPage, getSyncActivityGroupsPage, getSyncActivityGroupEvents, updateSyncHistoryStatus, loadRuntimeState, setRuntimeState, appendRuntimeLog, SYNC_OPERATION_FORCE, SYNC_OPERATION_SCHEDULED } from "../utils/configStore.js";
 import { forceSyncStopAction } from "../utils/forceSyncControl.js";
 import { getSyncPlanActionsPage, getSyncPlanSummary, confirmSyncPlan } from "../utils/syncPlans.js";
 import {
@@ -427,6 +427,8 @@ export function manualWatchMediaFromRecord(record = {}) {
     watched_at: record.watched_at || undefined,
     posterUrl: record.poster_url || undefined,
     watchProvenance: record.watch_provenance || null,
+    providerItems: record.provider_items || record.providerItems || {},
+    providerItemId: record.provider_item_id || record.providerItemId || undefined,
     isValid: Boolean(record.title && ["movie", "episode"].includes(record.media_type)),
   };
 }
@@ -483,6 +485,8 @@ function mediaFromWatchRecord(record) {
     episode: record.episode == null ? undefined : Number(record.episode),
     posterUrl: record.poster_url || undefined,
     watchProvenance: record.watch_provenance || null,
+    providerItems: record.provider_items || record.providerItems || {},
+    providerItemId: record.provider_item_id || record.providerItemId || undefined,
     isValid: Boolean(record.title && ["movie", "episode"].includes(record.media_type)),
   };
 }
@@ -1062,6 +1066,9 @@ async function retryQueuedWatchRecord(watchRecordId) {
 // `.status` for the HTTP wrapper to translate into a response code; the
 // background job just logs the message and moves on to the next id.
 async function retrySyncActivityEntry(rawId) {
+  if (isAuthoritativeRestoreActive()) {
+    throw Object.assign(new Error("An authoritative watch-history restore is active; retry sync is paused until it completes."), { status: 409 });
+  }
   const id = String(rawId == null ? "" : rawId).trim();
   if (!id) throw Object.assign(new Error("Missing required field: id"), { status: 400 });
   if (id.startsWith("queued:")) return retryQueuedWatchRecord(id.slice("queued:".length));
@@ -1104,6 +1111,9 @@ export async function handleRetrySyncHistory(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
+  if (isAuthoritativeRestoreActive()) {
+    return sendJson(res, { ok: false, error: "An authoritative watch-history restore is active; retry sync is paused until it completes." }, 409);
+  }
 
   const body = await readJson(req);
   try {
@@ -1132,7 +1142,7 @@ export async function runRetryAllSyncActivityJob(log, { isCancelled } = {}) {
   let errored = 0;
 
   for (let i = 0; i < ids.length; i++) {
-    if (isCancelled && await isCancelled()) {
+    if (isAuthoritativeRestoreActive() || (isCancelled && await isCancelled())) {
       return {
         success: true, aborted: true, cancelled: true,
         total, processed: i, succeeded, stillFailed, skipped, errored,
@@ -1179,6 +1189,9 @@ export async function handleRetryAllSyncActivity(req, res) {
   }
 
   // POST: fire-and-forget - return 202 immediately, run in background.
+  if (isAuthoritativeRestoreActive()) {
+    return sendJson(res, { ok: false, error: "An authoritative watch-history restore is active; retry sync is paused until it completes." }, 409);
+  }
   if (!workerAvailable()) return sendJson(res, { ok: false, error: "No background worker is available." }, 503);
   const existingJob = getLatestBackgroundJob("retry_all_sync_activity");
   if (existingJob && ["queued", "running"].includes(existingJob.status)) {
@@ -1212,6 +1225,9 @@ export async function handleMediaForceSync(req, res) {
   try {
     const body = await readJson(req);
     const requested = normalizeMediaForceSyncRequest(body);
+    if (isAuthoritativeRestoreActive()) {
+      return sendJson(res, { ok: false, error: "An authoritative watch-history restore is active; Force Sync is paused until it completes." }, 409);
+    }
     const operationId = createMediaForceSyncActivity({
       title: requested.title,
       type: requested.type,
@@ -1264,6 +1280,9 @@ export async function handleLibraryForceSync(req, res) {
   try {
     const body = await readJson(req);
     const requested = normalizeLibraryForceSyncRequest(body);
+    if (isAuthoritativeRestoreActive()) {
+      return sendJson(res, { ok: false, error: "An authoritative watch-history restore is active; Force Sync is paused until it completes." }, 409);
+    }
     const operationId = createMediaForceSyncActivity({
       title: requested.title,
       type: requested.type,
@@ -1332,6 +1351,9 @@ export async function handleManualUnwatch(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
+  if (isAuthoritativeRestoreActive()) {
+    return sendJson(res, { ok: false, error: "An authoritative watch-history restore is active; manual watch-state changes are paused until it completes." }, 409);
+  }
 
   const body = await readJson(req);
   const ids = Array.isArray(body.ids)
@@ -1385,6 +1407,9 @@ export async function handleManualWatch(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
+  if (isAuthoritativeRestoreActive()) {
+    return sendJson(res, { ok: false, error: "An authoritative watch-history restore is active; manual watch-state changes are paused until it completes." }, 409);
+  }
 
   const body = await readJson(req);
   const records = Array.isArray(body) ? body : body.records;
@@ -1447,7 +1472,11 @@ export async function handleManualWatch(req, res) {
 
       const { data, record } = normalized;
       const existing = await findExistingWatch(data.mediaKey || mediaKeyFor(record), data.watchedAt);
-      const media = manualWatchMediaFromRecord(record);
+      const media = manualWatchMediaFromRecord({
+        ...record,
+        provider_items: rawRecord.provider_items || rawRecord.providerItems || {},
+        provider_item_id: rawRecord.provider_item_id || rawRecord.providerItemId,
+      });
 
       const exactExistingWatched = existing?.sync_action === "watched";
       const resyncOnly = rawRecord.resync_only === true;
@@ -1471,7 +1500,7 @@ export async function handleManualWatch(req, res) {
         // display dedupe keeps the history UI tidy.
         const replaceExisting = existing && !exactExistingWatched;
         if (replaceExisting) await deleteWatchRecordById(existing.id, { skipInvalidate: true }).catch(() => null);
-        const insertResult = await insertWatchRecord(record, { skipInvalidate: true, id: replaceExisting ? existing.id : "" });
+        const insertResult = await insertWatchRecord(record, { skipInvalidate: true, id: replaceExisting ? existing.id : "", watchlistConfig: config });
         id = insertResult.id;
         storedRecord = insertResult.record;
         await insertResult.assetPrefetch?.catch(() => null);
@@ -1490,6 +1519,10 @@ export async function handleManualWatch(req, res) {
         tmdb: storedRecord.tmdb_id || undefined,
         tvdb: storedRecord.tvdb_id || undefined,
       };
+      await deletePlaybackProgress({
+        ...media,
+        media_key: rawRecord.media_key || rawRecord.mediaKey || data.mediaKey || undefined,
+      }).catch(() => null);
       await upsertPlaystateForMedia(media, "watched", record.watched_at, { skipInvalidate: true });
       syncTasks.push({ media, id, record: { ...storedRecord, id } });
 
@@ -1619,6 +1652,9 @@ export async function handlePlaybackProgressWatch(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
+  if (isAuthoritativeRestoreActive()) {
+    return sendJson(res, { ok: false, error: "An authoritative watch-history restore is active; manual watch-state changes are paused until it completes." }, 409);
+  }
 
   const body = await readJson(req);
   const mediaKey = String(body.media_key || "").trim();
@@ -1655,7 +1691,7 @@ export async function handlePlaybackProgressWatch(req, res) {
       id = existing.id;
     } else {
       if (existing) await deleteWatchRecordById(existing.id, { skipInvalidate: true }).catch(() => null);
-      const insertResult = await insertWatchRecord(normalizedRecord, { skipInvalidate: true, id: existing?.id || "" });
+      const insertResult = await insertWatchRecord(normalizedRecord, { skipInvalidate: true, id: existing?.id || "", watchlistConfig: config });
       id = insertResult.id;
       await insertResult.assetPrefetch?.catch(() => null);
       media.ids = {
@@ -1696,10 +1732,50 @@ export async function handlePlaybackProgressWatch(req, res) {
   }
 }
 
+function requestProviderItems(value) {
+  if (!value) return {};
+  if (typeof value === "string") {
+    try { return JSON.parse(value) || {}; } catch { return {}; }
+  }
+  return typeof value === "object" ? value : {};
+}
+
+function mediaFromProgressRequest(progressRow, body = {}, mediaKey = "") {
+  const mediaType = String(body.media_type || body.mediaType || progressRow?.media_type || "").toLowerCase() === "movie"
+    ? "movie"
+    : "episode";
+  const title = String(body.title || progressRow?.title || body.show_title || body.showTitle || "").trim();
+  const seasonValue = body.season ?? progressRow?.season;
+  const episodeValue = body.episode ?? progressRow?.episode;
+  return {
+    title,
+    showTitle: String(body.show_title || body.showTitle || progressRow?.show_title || "").trim() || undefined,
+    type: mediaType,
+    source: "manual",
+    media_key: mediaKey || progressRow?.media_key || undefined,
+    ids: {
+      imdb: body.imdb_id || body.imdbId || body.imdb || progressRow?.imdb_id || undefined,
+      tmdb: body.tmdb_id || body.tmdbId || body.tmdb || progressRow?.tmdb_id || undefined,
+      tvdb: body.tvdb_id || body.tvdbId || body.tvdb || progressRow?.tvdb_id || undefined,
+    },
+    season: seasonValue == null || seasonValue === "" ? undefined : Number(seasonValue),
+    episode: episodeValue == null || episodeValue === "" ? undefined : Number(episodeValue),
+    providerItems: requestProviderItems(body.provider_items || body.providerItems),
+    providerItemId: body.provider_item_id || body.providerItemId || undefined,
+    positionMs: 0,
+    offsetMs: 0,
+    progress: 0,
+    isValid: Boolean(title && ["movie", "episode"].includes(mediaType)),
+  };
+}
+
 export async function handlePlaybackProgressUnwatch(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
+  if (isAuthoritativeRestoreActive()) {
+    return sendJson(res, { ok: false, error: "An authoritative watch-history restore is active; manual watch-state changes are paused until it completes." }, 409);
+  }
 
   const body = await readJson(req);
   const mediaKey = String(body.media_key || "").trim();
@@ -1707,27 +1783,20 @@ export async function handlePlaybackProgressUnwatch(req, res) {
 
   try {
     const progressRow = db.prepare("SELECT * FROM playback_progress WHERE media_key = ?").get(mediaKey);
-    if (!progressRow) return sendJson(res, { error: "Playback progress item not found" }, 404);
-
-    const media = {
-      title: progressRow.title,
-      type: progressRow.media_type,
-      source: progressRow.source || "manual",
-      ids: {
-        imdb: progressRow.imdb_id || undefined,
-        tmdb: progressRow.tmdb_id || undefined,
-        tvdb: progressRow.tvdb_id || undefined,
-      },
-      season: progressRow.season == null ? undefined : Number(progressRow.season),
-      episode: progressRow.episode == null ? undefined : Number(progressRow.episode),
-      isValid: Boolean(progressRow.title && ["movie", "episode"].includes(progressRow.media_type)),
-    };
+    const media = mediaFromProgressRequest(progressRow, body, mediaKey);
+    if (!media.isValid) return sendJson(res, { error: "A valid media item is required" }, 400);
 
     const config = await loadMediaConfig();
     const loopStore = createLoopStore();
 
     const { id: unwatchedId, summary } = await applyManualUnwatch(media, config, loopStore, "", { includeSourcePlatform: true, force: true, lane: "interactive" });
-    return sendJson(res, { ok: true, id: unwatchedId, status: summary.status, targetStates: summary.targetStates || [] });
+    return sendJson(res, {
+      ok: true,
+      id: unwatchedId,
+      clearedResume: true,
+      status: summary.status,
+      targetStates: summary.targetStates || [],
+    });
   } catch (error) {
     console.error("Playback progress unwatch failed", error);
     return sendJson(res, { error: "Playback progress unwatch failed" }, 500);
@@ -1736,78 +1805,42 @@ export async function handlePlaybackProgressUnwatch(req, res) {
   }
 }
 
-// Remove an Up Next item without changing its watched state. Providers do not
-// share a hide-from-Next-Up API, but clearing resume progress removes the item
-// from Continue Watching where the provider supports that distinction. The
-// episode remains unplayed, so a provider's Next Up queue may still include it.
+// Compatibility endpoint for older clients. Up Next clearing is a canonical
+// unwatch transition: there is no durable client-side dismissal state.
 export async function handleUpNextRemove(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
-
-  const body = await readJson(req).catch(() => ({}));
-  const mediaType = String(body.media_type || body.mediaType || "episode").toLowerCase() === "movie"
-    ? "movie"
-    : "episode";
-  const title = String(body.title || body.show_title || body.showTitle || "").trim();
-  const season = body.season == null || body.season === "" ? undefined : Number(body.season);
-  const episode = body.episode == null || body.episode === "" ? undefined : Number(body.episode);
-  if (!title) return sendJson(res, { error: "title is required" }, 400);
-  if (mediaType === "episode" && (!Number.isInteger(season) || !Number.isInteger(episode) || episode <= 0)) {
-    return sendJson(res, { error: "season and episode are required for an episode" }, 400);
+  if (isAuthoritativeRestoreActive()) {
+    return sendJson(res, { ok: false, error: "An authoritative watch-history restore is active; manual watch-state changes are paused until it completes." }, 409);
   }
 
+  const body = await readJson(req).catch(() => ({}));
+  const mediaKey = String(body.media_key || "").trim();
   try {
     const config = await loadMediaConfig();
-    const media = {
-      title,
-      showTitle: String(body.show_title || body.showTitle || title).trim(),
-      type: mediaType,
-      source: "manual",
-      ids: {
-        imdb: body.imdb_id || body.imdbId || body.imdb || undefined,
-        tmdb: body.tmdb_id || body.tmdbId || body.tmdb || undefined,
-        tvdb: body.tvdb_id || body.tvdbId || body.tvdb || undefined,
-      },
-      season,
-      episode,
-      positionMs: 0,
-      offsetMs: 0,
-      progress: 0,
-      isValid: true,
-      lane: "interactive",
-    };
-
-    const targets = [];
-    if (config.plex?.baseUrl && config.plex?.token && !config.plex.disabled) {
-      targets.push(["plex", () => setPlexProgress(config.plex, media)]);
-    }
-    if (config.emby?.baseUrl && config.emby?.apiKey && config.emby?.userId && !config.emby.disabled) {
-      targets.push(["emby", () => setEmbyProgress(config.emby, media)]);
-    }
-    const jellyfinApiKey = config.jellyfin?.apiKey || config.jellyfin?.api_key || config.jellyfin?.token;
-    if (config.jellyfin?.baseUrl && jellyfinApiKey && config.jellyfin?.userId && !config.jellyfin.disabled) {
-      targets.push(["jellyfin", () => setJellyfinProgress(config.jellyfin, media)]);
-    }
-
-    const targetStates = await Promise.all(targets.map(async ([target, clearResume]) => {
-      try {
-        const result = await clearResume();
-        return { target, ...(result || {}), status: result?.status || "fulfilled" };
-      } catch (error) {
-        return { target, status: "error", detail: error.message || String(error) };
-      }
-    }));
+    const progressRow = mediaKey ? db.prepare("SELECT * FROM playback_progress WHERE media_key = ?").get(mediaKey) : null;
+    const media = mediaFromProgressRequest(progressRow, body, mediaKey);
+    if (!media.isValid) return sendJson(res, { error: "A valid media item is required" }, 400);
+    const loopStore = createLoopStore();
+    const { id: unwatchedId, summary } = await applyManualUnwatch(
+      media,
+      config,
+      loopStore,
+      "",
+      { includeSourcePlatform: true, force: true, lane: "interactive" },
+    );
 
     return sendJson(res, {
       ok: true,
-      clearedResume: targetStates.some((target) => ["fulfilled", "not_found"].includes(target.status)),
-      targetStates,
-      nextUpNote: "Connected-app Next Up lists cannot be hidden without marking the episode watched.",
+      id: unwatchedId,
+      clearedResume: true,
+      status: summary.status,
+      targetStates: summary.targetStates || [],
     });
   } catch (error) {
-    console.error("Up Next removal failed", error);
-    return sendJson(res, { error: "Up Next removal failed" }, 500);
+    console.error("Up Next clear failed", error);
+    return sendJson(res, { error: "Up Next clear failed" }, 500);
   }
 }
 
@@ -1815,6 +1848,9 @@ export async function handleRetrySync(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
+  if (isAuthoritativeRestoreActive()) {
+    return sendJson(res, { ok: false, error: "An authoritative watch-history restore is active; retry sync is paused until it completes." }, 409);
+  }
 
   const body = await readJson(req);
   const id = body.id;
@@ -1940,6 +1976,9 @@ export async function handleCronSync(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (!["GET", "POST"].includes(req.method)) return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
+  if (isAuthoritativeRestoreActive()) {
+    return sendJson(res, { ok: false, error: "An authoritative watch-history restore is active; scheduled sync is paused until it completes." }, 409);
+  }
 
   if (!workerAvailable()) return sendJson(res, { error: "No background worker is available." }, 503);
   const job = enqueueBackgroundJob("cron_sync", { forceCatchup: true });
@@ -2017,6 +2056,9 @@ export async function handleForceSync(req, res) {
 
   // POST: fire-and-forget â€” return 202 immediately, run in background
   if (!(await requireAdmin(req, res))) return;
+  if (isAuthoritativeRestoreActive()) {
+    return sendJson(res, { ok: false, error: "An authoritative watch-history restore is active; Force Sync is paused until it completes." }, 409);
+  }
 
   if (!workerAvailable()) return sendJson(res, { ok: false, error: "No background worker is available." }, 503);
   const body = await readJson(req).catch(() => ({}));
@@ -2085,6 +2127,9 @@ export async function handleForceSyncPlan(req, res) {
   }
 
   if (req.method !== "POST" || id) return methodNotAllowed(res);
+  if (isAuthoritativeRestoreActive()) {
+    return sendJson(res, { ok: false, error: "An authoritative watch-history restore is active; Force Sync planning is paused until it completes." }, 409);
+  }
   if (!workerAvailable()) return sendJson(res, { ok: false, error: "No background worker is available." }, 503);
   const body = await readJson(req).catch(() => ({}));
   try {
@@ -2190,6 +2235,14 @@ export async function handleWebhook(req, res) {
   const queryToken = String(req.query?.token || "").trim();
   if (![headerToken, authToken, queryToken].some((token) => verifyWebhookToken(token))) {
     return sendJson(res, { error: "Unauthorized" }, 401);
+  }
+  if (isAuthoritativeRestoreActive()) {
+    return sendJson(res, {
+      ok: true,
+      inserted: false,
+      skipped: true,
+      reason: "Authoritative watch-history restore is active; inbound watch events are paused until it completes.",
+    }, 202);
   }
 
   let media;
@@ -2492,7 +2545,7 @@ export async function handleWebhook(req, res) {
             const watchRecord = mediaToWatchRecord(episodeMedia, episodeMedia.source);
             watchRecord.sync_action = "watched";
             watchRecord.sync_dispatch_telemetry = formatDispatchTelemetry({ skipped: false, status: "pending", details: "Propagation queued", targetStates: [] }, episodeMedia, "watched");
-            const dbResult = await insertWatchRecord(watchRecord, { skipInvalidate: true });
+            const dbResult = await insertWatchRecord(watchRecord, { skipInvalidate: true, watchlistConfig: config });
             await upsertPlaystateForMedia(episodeMedia, "watched", dbResult.record.watched_at, { skipInvalidate: true });
             const summary = await syncMediaPlaystate(episodeMedia, config, loopStore).catch((error) => ({
               skipped: false,
@@ -2865,7 +2918,7 @@ export async function handleWebhook(req, res) {
     const watchRecord = mediaToWatchRecord(media, media.source);
     watchRecord.sync_action = "watched";
     watchRecord.sync_dispatch_telemetry = formatDispatchTelemetry({ skipped: false, status: "pending", details: "Propagation queued", targetStates: [] }, media, "watched");
-    const result = await insertWatchRecord(watchRecord, { skipInvalidate: true });
+    const result = await insertWatchRecord(watchRecord, { skipInvalidate: true, watchlistConfig: config });
     // Resolve a movie's provider ids before its first outbound dispatch. The
     // prefetch still runs in the background for episodes and for callers that
     // do not need the result synchronously, but a movie with no identity must

@@ -11,7 +11,7 @@
     <link rel="manifest" href="/manifest.webmanifest" />
     <meta name="theme-color" content="#05080c" />
     <link rel="preconnect" href="https://image.tmdb.org" />
-    <link rel="modulepreload" href="/app.js?v=20260901e" />
+    <link rel="modulepreload" href="/app.js?v=20260903d" />
     <link rel="modulepreload" href="/modules/auth.js" />
     <link rel="modulepreload" href="/modules/logs.js" />
     <link rel="modulepreload" href="/modules/settings.js" />
@@ -30,12 +30,12 @@
     <link rel="modulepreload" href="/modules/tools-duplicates.js" />
     <link rel="modulepreload" href="/modules/sync.js" />
     <link rel="modulepreload" href="/modules/sync-preview.js" />
-    <link rel="modulepreload" href="/modules/sync-activity.js" />
+    <link rel="modulepreload" href="/modules/sync-activity.js?v=20260903d" />
     <link rel="modulepreload" href="/modules/dashboard.js?v=20260831m" />
     <link rel="modulepreload" href="/modules/media-card.js?v=20260831d" />
-    <link rel="modulepreload" href="/modules/up-next.js?v=20260901a" />
-    <link rel="modulepreload" href="/modules/discover.js?v=20260831g" />
-    <link rel="modulepreload" href="/modules/personal-media.js?v=20260831r" />
+    <link rel="modulepreload" href="/modules/up-next.js?v=20260903b" />
+    <link rel="modulepreload" href="/modules/discover.js?v=20260903b" />
+    <link rel="modulepreload" href="/modules/personal-media.js?v=20260903b" />
     <link rel="modulepreload" href="/modules/stats.js" />
     <link rel="modulepreload" href="/modules/upcoming.js" />
     <link rel="modulepreload" href="/modules/explorer.js?v=20260901a" />
@@ -46,15 +46,15 @@
     <link rel="modulepreload" href="/modules/media-detail-context.js?v=20260831c" />
     <link rel="modulepreload" href="/modules/media-info-summary.js" />
     <link rel="modulepreload" href="/modules/media-detail-shared.js?v=20260831j" />
-    <link rel="modulepreload" href="/modules/media-detail-show.js?v=20260831p" />
+    <link rel="modulepreload" href="/modules/media-detail-show.js?v=20260901a" />
     <link rel="modulepreload" href="/modules/media-detail-movie.js?v=20260831g" />
     <link rel="modulepreload" href="/modules/media-detail.js?v=20260831g" />
     <link rel="modulepreload" href="/modules/media-person.js?v=20260831f" />
     <link rel="modulepreload" href="/modules/media-lightbox.js" />
     <link rel="modulepreload" href="/modules/media-detail-events.js?v=20260831h" />
     <link rel="modulepreload" href="/modules/poster-menu.js?v=20260831l" />
-    <link rel="modulepreload" href="/modules/app-events.js?v=20260831r" />
-    <link rel="stylesheet" href="/styles.css?v=20260901b" />
+    <link rel="modulepreload" href="/modules/app-events.js?v=20260903c" />
+    <link rel="stylesheet" href="/styles.css?v=20260903d" />
   </head>
   <body>
     <div class="app-chassis">
@@ -98,6 +98,13 @@
             <div id="sidebarOnboardingCta" class="sidebar-onboarding-cta hidden">
               <button id="sidebarOnboardingButton" type="button" class="sidebar-onboarding-cta-button">Complete onboarding</button>
               <button id="sidebarOnboardingDismiss" type="button" class="sidebar-onboarding-cta-dismiss" title="Dismiss permanently" aria-label="Dismiss onboarding reminder permanently">&times;</button>
+            </div>
+            <div id="sidebarSyncAttention" class="sidebar-sync-attention hidden" aria-live="polite">
+              <button id="sidebarSyncAttentionButton" class="sidebar-sync-attention-button" type="button" aria-controls="sync-activity-view" aria-label="Attention - Issue. Open Sync Activity for details.">
+                <span id="sidebarSyncAttentionTitle">Attention</span>
+                <span aria-hidden="true"> - </span>
+                <span id="sidebarSyncAttentionText">Issue</span>
+              </button>
             </div>
             <button id="syncProgressIndicator" class="sync-progress-indicator" type="button" data-sync-state="idle" title="Open sync activity">
               <span class="sync-progress-dot" aria-hidden="true"></span>
@@ -253,9 +260,10 @@
           </section>
 
           <section id="upNextDashboardSection" class="glass-panel p-section history-timeline-panel">
-            <div class="section-heading">
-              <div>
-        <h2>Up Next</h2>
+            <div class="section-heading up-next-section-heading">
+              <div class="up-next-heading-copy">
+                <h2>Up Next</h2>
+                <span id="upNextSourceStatus" class="up-next-source-status status-pill status-warning hidden" role="status"></span>
               </div>
             </div>
             <div id="upNextPanel" class="horizontal-scroll-row dashboard-history-card-row" aria-live="polite"></div>
@@ -473,6 +481,7 @@
               </div>
             </div>
             <p class="sync-activity-help">One row per movie or show. Resume checkpoints and every target result remain available inside the row.</p>
+            <section id="syncActivityAttention" class="sync-attention-panel hidden" aria-live="polite" aria-label="Sync attention details"></section>
             <div id="syncActivityTraktProgress" class="guide-callout sync-activity-trakt-progress hidden"></div>
             <div id="syncActivityRows" class="sync-activity-rows"></div>
             <div id="syncActivityPagination" class="sync-activity-pagination hidden" aria-label="Sync activity pages">
@@ -1460,7 +1469,7 @@
                         <div class="sync-heading-title">
                           <p style="margin: 0;">Wipe Data</p>
                         </div>
-                        <span>Permanently delete tracked watch history, sync history, or both</span>
+                        <span>Permanently delete tracked watch history, personal watchlist, sync history, or any combination</span>
                       </div>
 
                       <div id="wipeDataContent" style="display: flex; flex-direction: column; gap: var(--space-3);">
@@ -1488,7 +1497,26 @@
                           </div>
                         </details>
 
-                        <!-- Inner Box 2: Wipe Sync History & Logs -->
+                        <!-- Inner Box 2: Wipe Personal Watchlist -->
+                        <details id="wipe-personal-watchlist" class="sync-tool-details">
+                          <summary class="accordion-header">
+                            <div class="sync-tool-summary-title">
+                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                              <b>Personal Watchlist</b>
+                              <span id="wipeWatchlistStatus" class="status-pill status-muted">Idle</span>
+                            </div>
+                            <span>Canonical rows, provider ledger, queue, runs, and activity</span>
+                          </summary>
+                          <div class="tool-item-row">
+                            <p id="wipeWatchlistCounts" class="muted-copy" style="margin: 0 0 var(--space-2);">Loading row counts…</p>
+                            <div id="wipeWatchlistLog" class="import-terminal compact-terminal hidden" style="margin-top: var(--space-2);">Wipe log will appear here.</div>
+                            <div class="settings-actions" style="margin-top: var(--space-2);">
+                              <button id="wipeWatchlistButton" class="button-danger sync-tools-cancel-button sync-tool-button" type="button" data-wipe-scope="watchlist" disabled>Wipe Personal Watchlist</button>
+                            </div>
+                          </div>
+                        </details>
+
+                        <!-- Inner Box 3: Wipe Sync History & Logs -->
                         <details id="wipe-sync-logs" class="sync-tool-details">
                           <summary class="accordion-header">
                             <div class="sync-tool-summary-title">
@@ -1507,7 +1535,7 @@
                           </div>
                         </details>
 
-                        <!-- Inner Box 3: Wipe Everything Tracked -->
+                        <!-- Inner Box 4: Wipe Everything Tracked -->
                         <details id="wipe-everything-tracked" class="sync-tool-details">
                           <summary class="accordion-header">
                             <div class="sync-tool-summary-title">
@@ -1526,7 +1554,7 @@
                           </div>
                         </details>
 
-                        <!-- Inner Box 4: Wipe All / Fresh Start (factory reset) -->
+                        <!-- Inner Box 5: Wipe All / Fresh Start (factory reset) -->
                         <details id="wipe-fresh-start" class="sync-tool-details" style="border-color: rgba(239, 68, 68, 0.45);">
                           <summary class="accordion-header">
                             <div class="sync-tool-summary-title">
@@ -1560,7 +1588,7 @@
                       </div>
                       <div style="margin-bottom: var(--space-2);">
                         <b style="display: block; margin-bottom: 2px;">What stays untouched</b>
-                        <p style="margin: 0; line-height: 1.4;">Your settings, media server connections, Trakt connection, API keys, and admin login are never touched by Watch History, Sync History &amp; Logs, or Everything Tracked.</p>
+                        <p style="margin: 0; line-height: 1.4;">Your settings, media server connections, Trakt connection, API keys, and admin login are never touched by Watch History, Personal Watchlist, Sync History &amp; Logs, or Everything Tracked.</p>
                         <p style="margin: 4px 0 0; line-height: 1.4;">Wipe All / Fresh Start is the one exception below - it resets those too.</p>
                         <p style="margin: 4px 0 0; line-height: 1.4;">Wiping local data does not unwatch anything on Plex, Emby, or Jellyfin themselves - it only clears what Plembfin has recorded.</p>
                       </div>
@@ -1569,12 +1597,16 @@
                         <p style="margin: 0; line-height: 1.4;">Deletes every watched item, resume position, and live session Plembfin has recorded. This is the same data a watch-history backup restores from - back one up first if you want a way back.</p>
                       </div>
                       <div style="margin-bottom: var(--space-2);">
+                        <b style="display: block; margin-bottom: 2px;">Personal Watchlist</b>
+                        <p style="margin: 0; line-height: 1.4;">Deletes the canonical local watchlist, mutation/tombstone history, provider observations, queued work, sync runs, activity, and Plembfin-owned playlist/container identifiers. It does not remove items from Plex, Emby, or Jellyfin.</p>
+                      </div>
+                      <div style="margin-bottom: var(--space-2);">
                         <b style="display: block; margin-bottom: 2px;">Sync History &amp; Logs</b>
                         <p style="margin: 0; line-height: 1.4;">Deletes the sync history list, audit trail, and diagnostic logs. Lower stakes - your actual watch history is untouched.</p>
                       </div>
                       <div style="margin-bottom: var(--space-2);">
                         <b style="display: block; margin-bottom: 2px;">Everything Tracked</b>
-                        <p style="margin: 0; line-height: 1.4;">Runs Watch History and Sync History &amp; Logs together. Your settings and connections still stay untouched.</p>
+                        <p style="margin: 0; line-height: 1.4;">Runs Watch History, Personal Watchlist, and Sync History &amp; Logs together. Your settings and connections still stay untouched.</p>
                       </div>
                       <div>
                         <b style="display: block; margin-bottom: 2px;">Wipe All / Fresh Start</b>
@@ -2085,6 +2117,44 @@
                             </select>
                             <button id="ratingSyncRunButton" class="button-primary sync-tool-button" type="button">Sync ratings</button>
                             <button id="ratingSyncPushButton" class="button-ghost sync-tool-button" type="button">Push local ratings</button>
+                          </div>
+                        </section>
+
+                        <section id="watchlistSyncPanel" class="personal-watchlist-sync-panel" aria-labelledby="watchlistSyncHeading">
+                          <div class="personal-watchlist-sync-heading">
+                            <div>
+                              <strong id="watchlistSyncHeading">Personal Watchlist Sync</strong>
+                              <small>Plembfin is the canonical list. Local additions are delivered to enabled providers; a confirmed provider removal or completed watch removes the item everywhere.</small>
+                            </div>
+                            <span id="watchlistSyncStatus" class="activity-log-state">Disabled</span>
+                          </div>
+                          <div class="personal-watchlist-sync-controls">
+                            <label class="checkbox-label"><input id="watchlistSyncEnabled" type="checkbox"> Enable watchlist sync</label>
+                            <label>Snapshot every <input id="watchlistSyncInterval" class="field personal-rating-sync-number" type="number" min="5" max="1440" step="1" value="5"> minutes</label>
+                            <button id="watchlistSyncSaveButton" class="button-ghost sync-tool-button" type="button">Save watchlist settings</button>
+                          </div>
+                          <div id="watchlistSyncProviderRows" class="personal-watchlist-sync-providers"></div>
+                          <div id="watchlistSyncMetrics" class="personal-watchlist-sync-metrics" aria-live="polite"></div>
+                          <div class="personal-watchlist-sync-action-row">
+                            <div>
+                              <strong>Provider actions</strong>
+                              <div id="watchlistSyncHelp" class="watchlist-sync-help">Local watchlist actions always save in Plembfin first.</div>
+                            </div>
+                            <select id="settingsWatchlistSyncTarget" class="field media-force-sync-select" aria-label="Personal watchlist sync provider">
+                              <option value="all">All enabled providers</option>
+                              <option value="plex">Plex</option>
+                              <option value="emby">Emby</option>
+                              <option value="jellyfin">Jellyfin</option>
+                            </select>
+                            <button id="watchlistSyncPreviewButton" class="button-ghost sync-tool-button" type="button">Preview publish</button>
+                            <button id="watchlistSyncRunButton" class="button-primary sync-tool-button" type="button">Sync now</button>
+                            <button id="watchlistSyncRetryButton" class="button-ghost sync-tool-button" type="button">Retry failed</button>
+                            <button id="watchlistSyncPublishButton" class="button-primary sync-tool-button" type="button">Publish local list</button>
+                          </div>
+                          <div id="watchlistSyncPreview" class="personal-watchlist-sync-preview hidden" aria-live="polite"></div>
+                          <div class="personal-watchlist-sync-activity-wrap">
+                            <strong>Recent watchlist activity</strong>
+                            <div id="watchlistSyncActivity" class="personal-watchlist-sync-activity"><small>No watchlist activity yet.</small></div>
                           </div>
                         </section>
 
@@ -2627,8 +2697,6 @@
       </article>
     </div>
 
-    <div id="copyToast" class="copy-toast hidden" role="status" aria-live="polite">Copied!</div>
-
-    <script type="module" src="/app.js?v=20260901e"></script>
+    <script type="module" src="/app.js?v=20260903d"></script>
   </body>
 </html>

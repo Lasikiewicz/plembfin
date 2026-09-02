@@ -9,7 +9,7 @@ polling. Read [architecture.md](architecture.md) first for the big picture.
 | --- | --- |
 | `server/src/utils/embyClient.js` | Outbound HTTP client - all Emby API calls |
 | `server/src/utils/parsers.js` | `parseEmbyWebhook` - webhook normalization |
-| `server/src/scheduled.js` | `syncRecentlyWatchedFromEmby`, `syncRecentlyResumableFromEmby` - catch-up polling |
+| `server/src/scheduled.js` | `syncRecentlyWatchedFromEmby`, `syncRecentlyResumableFromEmby`, `syncRecentlyNextUpFromEmby` - catch-up polling |
 | `server/src/utils/liveSessions.js` | Polls `/Sessions` for Now Playing |
 | `public/modules/help-content.js` | `embyCredentialGuide()`, `embyWebhookSetup()` - in-app setup guides |
 
@@ -30,6 +30,21 @@ All three are required when Emby is enabled in manual mode (`validateConfig`). O
 mode is active: completing account setup removes the stored manual key, while saving
 manual setup switches Emby back to manual mode. Requests authenticate with the
 `X-Emby-Token` header.
+
+## Personal Watchlist Sync
+
+Emby has no native user watchlist contract that Plembfin can rely on, so the optional
+watchlist projection offers two representations. **Plembfin playlist** uses a dedicated
+playlist named `Plembfin Watchlist` and is an exact, ownership-bounded projection.
+**Favorites compatibility** reads and writes the user's Favorites collection, but only
+Favorites previously marked as Plembfin-managed may be removed; unrelated Favorites are
+preserved. Both modes are scoped to the configured Emby user and use provider IDs first,
+then normalized title/year matching, with ambiguous matches held as unavailable.
+
+Initial publish always starts with a read-only preview and explicit confirmation. The
+worker paginates the user-scoped representation and interprets missing items as removals
+only after a complete snapshot follows an earlier complete snapshot. An unavailable
+Emby library or failed request never deletes Plembfin's canonical watchlist row.
 
 ## Inbound: webhooks
 
@@ -65,6 +80,11 @@ Every minute `fetchLiveSessions` polls `/Sessions` for Now Playing. The catch-up
   `syncRecentlyResumableFromEmby` replicates resume positions to the other platforms.
   Episode rows include series provider IDs so cross-server lookup can resolve the
   series before selecting the matching season and episode.
+- **Next Up** - `fetchEmbyNextUpItems` (`/Shows/NextUp`, scoped to the configured user)
+  records released episode observations for the unified dashboard queue. Resume and
+  Next Up responses are generation-based source snapshots: a failed or partial response
+  keeps the last successful generation instead of clearing the queue, and the source
+  ledger is never treated as canonical watched state.
 
 **Enabled by default** - set `EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED=false` to disable it. Every
 5 minutes (`EMBY_UNWATCHED_POLL_INTERVAL_MS`), **unwatched reconciliation**
@@ -113,9 +133,14 @@ platform that reported them.
 | `setEmbyProgress` | Writes a resume position via the item's UserData, retaining the source progress date so Emby's Continue Watching feed can order and include it |
 | `markEmbyUnplayedById` | Unplay by item ID (used by unwatch propagation) |
 | `fetchEmbySeriesEpisodes` / `fetchEmbyEpisodes` | Episode lists for season-level operations |
-| `fetchEmbyWatchedItems` / `fetchEmbyResumableItems` | Feeds for catch-up sync |
+| `fetchEmbyWatchedItems` / `fetchEmbyResumableItems` / `fetchEmbyNextUpItems` | Watched, resume, and Next Up feeds for catch-up sync |
 | `fetchEmbyPersonalRatingSnapshot` | Reads rated movies, series, and episodes for the isolated personal-rating snapshot worker |
 | `setEmbyPersonalRating` / `clearEmbyPersonalRating` | Writes or clears a personal rating without changing played state or resume progress |
+
+The dedicated `embyWatchlistClient.js` owns playlist creation, user-scoped playlist/Favorites
+listing, identity resolution, and add/remove calls. Playlist container IDs and managed
+provider item IDs are retained in Plembfin's provider ledger so a later removal cannot
+touch another user's list or an unrelated Emby Favorite.
 
 A `not_found` result is reported as "skipped - no matching item" in sync telemetry:
 the item isn't in Emby's library, which is normal for non-mirrored libraries.

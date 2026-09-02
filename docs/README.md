@@ -17,6 +17,7 @@ behavior, configuration, operations, and integration contracts.
 | [frontend.md](frontend.md) | SPA routing, state, module ownership, and data-loading conventions. |
 | [sqlite-schema.md](sqlite-schema.md) | SQLite tables, columns, indexes, and migration behavior. |
 | [personal-ratings.md](personal-ratings.md) | Canonical personal ratings, provider directions, queue delivery, identity, and Force Sync actions. |
+| [personal-watchlist.md](personal-watchlist.md) | Canonical personal watchlist membership, provider projections, completion removal, recovery, and status. |
 | [development.md](development.md) | Build checks, Git hooks, CI workflows, Docker, and release/versioning. |
 | [troubleshooting.md](troubleshooting.md) | Symptom-based diagnosis and operational remedies. |
 
@@ -25,7 +26,7 @@ behavior, configuration, operations, and integration contracts.
 | Document | Scope |
 | --- | --- |
 | [webhooks.md](webhooks.md) | Webhook phases, authentication, event normalization, and propagation. |
-| [scheduled-sync.md](scheduled-sync.md) | The minute-by-minute worker, catch-up sync, safeguards, and live-session polling. |
+| [scheduled-sync.md](scheduled-sync.md) | The minute-by-minute worker, catch-up sync, safeguards, live-session polling, and personal watchlist delivery. |
 | [now-playing.md](now-playing.md) | Now Playing data sources, polling, poster resolution, and diagnostics. |
 
 ### Platform integrations
@@ -41,7 +42,7 @@ behavior, configuration, operations, and integration contracts.
 
 | Document | Scope |
 | --- | --- |
-| [dashboard.md](dashboard.md) | Home view, Now Playing, recent history, and part-watched media. |
+| [dashboard.md](dashboard.md) | Home view, Now Playing, mixed Up Next, and completed watch history. |
 | [movies.md](movies.md) | Movies library behavior and API payloads. |
 | [tv-shows.md](tv-shows.md) | TV Shows library, progress, next airing, and show identity. |
 | [upcoming.md](upcoming.md) | Upcoming calendar, search, and episode air dates. |

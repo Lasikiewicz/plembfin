@@ -1,4 +1,6 @@
+import crypto from "node:crypto";
 import { bumpDataVersion, db, parseJson, toJson } from "../db.js";
+import { clearWatchlistRemoteProjection, getWatchlistRestoreState, markWatchlistRestorePending } from "./personalWatchlistRepository.js";
 
 export const BACKUP_FORMAT = "plembfin-backup";
 export const BACKUP_VERSION = 1;
@@ -18,7 +20,18 @@ export const BACKUP_COLLECTIONS = [
   "runtimeState",
   "loopKeys",
   "mediaArtwork",
+  "personalWatchlist",
+  "personalWatchlistMutations",
+  "personalWatchlistProviderItems",
+  "personalWatchlistSyncQueue",
+  "personalWatchlistSyncRuns",
+  "personalWatchlistActivity",
 ];
+const BROWSER_EXCLUDED_COLLECTIONS = new Set(["mediaAuthDevices", "mediaConnections", "trackerConnections"]);
+export const BROWSER_BACKUP_COLLECTIONS = BACKUP_COLLECTIONS.filter((name) => !BROWSER_EXCLUDED_COLLECTIONS.has(name));
+const WATCHLIST_BACKUP_COLLECTIONS = new Set(BACKUP_COLLECTIONS.filter((name) => name.startsWith("personalWatchlist")));
+const BROWSER_REDACTED_SECRETS_FIELD = "__plembfinRedactedSecrets";
+const SECRET_SETTING_KEY_PATTERN = /(?:api[_-]?key|access[_-]?token|auth[_-]?token|client[_-]?secret|credential|pass(?:word|phrase)?|private[_-]?key|refresh[_-]?token|session[_-]?secret|webhook[_-]?secret|secret|^token$)/i;
 
 function portableValue(value) {
   if (value == null || typeof value !== "object") return value;
@@ -32,6 +45,40 @@ function reviveValue(value) {
   if (value.__plembfinType === "timestamp") return Number(value.value);
   if (Array.isArray(value)) return value.map(reviveValue);
   return Object.fromEntries(Object.entries(value).map(([key, item]) => [key, reviveValue(item)]));
+}
+
+function redactBrowserSettings(value) {
+  let redacted = false;
+  const visit = (current) => {
+    if (Array.isArray(current)) return current.map(visit);
+    if (!current || typeof current !== "object") return current;
+    const result = {};
+    for (const [key, item] of Object.entries(current)) {
+      if (SECRET_SETTING_KEY_PATTERN.test(key)) {
+        redacted = true;
+        continue;
+      }
+      result[key] = visit(item);
+    }
+    return result;
+  };
+  const result = visit(value);
+  if (!redacted || !result || typeof result !== "object" || Array.isArray(result)) return result;
+  return { ...result, [BROWSER_REDACTED_SECRETS_FIELD]: true };
+}
+
+function mergeRedactedSettings(existing, incoming) {
+  const merge = (current, next) => {
+    if (Array.isArray(next)) return next;
+    if (!next || typeof next !== "object") return next;
+    const result = current && typeof current === "object" && !Array.isArray(current) ? { ...current } : {};
+    for (const [key, value] of Object.entries(next)) {
+      if (key === BROWSER_REDACTED_SECRETS_FIELD) continue;
+      result[key] = merge(result[key], value);
+    }
+    return result;
+  };
+  return merge(existing, incoming);
 }
 
 function toMs(value) {
@@ -185,7 +232,7 @@ const collections = {
   mediaConnections: simpleCollection("media_connections", "id", (r) => ({ provider: r.provider, baseUrl: r.base_url, serverId: r.server_id, serverName: r.server_name, authDeviceId: r.auth_device_id, remoteUserId: r.remote_user_id, remoteUsername: r.remote_username, authKind: r.auth_kind, credentialCiphertext: r.credential_ciphertext, credentialIv: r.credential_iv, credentialTag: r.credential_tag, tokenVersion: r.token_version, serverCredentialCiphertext: r.server_credential_ciphertext, serverCredentialIv: r.server_credential_iv, serverCredentialTag: r.server_credential_tag, serverTokenVersion: r.server_token_version, accessTokenExpiresAt: r.access_token_expires_at, lastRefreshedAt: r.last_refreshed_at, refreshFailureCount: r.refresh_failure_count, status: r.status, lastValidatedAt: r.last_validated_at, createdAt: r.created_at, updatedAt: r.updated_at }), "INSERT OR REPLACE INTO media_connections (id,provider,base_url,server_id,server_name,auth_device_id,remote_user_id,remote_username,auth_kind,credential_ciphertext,credential_iv,credential_tag,token_version,server_credential_ciphertext,server_credential_iv,server_credential_tag,server_token_version,access_token_expires_at,last_refreshed_at,refresh_failure_count,status,last_validated_at,created_at,updated_at) VALUES (@id,@provider,@base_url,@server_id,@server_name,@auth_device_id,@remote_user_id,@remote_username,@auth_kind,@credential_ciphertext,@credential_iv,@credential_tag,@token_version,@server_credential_ciphertext,@server_credential_iv,@server_credential_tag,@server_token_version,@access_token_expires_at,@last_refreshed_at,@refresh_failure_count,@status,@last_validated_at,@created_at,@updated_at)", (id, d) => ({ id, provider: d.provider, base_url: d.baseUrl, server_id: d.serverId, server_name: d.serverName || null, auth_device_id: d.authDeviceId, remote_user_id: d.remoteUserId, remote_username: d.remoteUsername || null, auth_kind: d.authKind, credential_ciphertext: d.credentialCiphertext, credential_iv: d.credentialIv, credential_tag: d.credentialTag, token_version: d.tokenVersion || 1, server_credential_ciphertext: d.serverCredentialCiphertext || null, server_credential_iv: d.serverCredentialIv || null, server_credential_tag: d.serverCredentialTag || null, server_token_version: d.serverTokenVersion || 1, access_token_expires_at: toMs(d.accessTokenExpiresAt), last_refreshed_at: toMs(d.lastRefreshedAt), refresh_failure_count: d.refreshFailureCount || 0, status: d.status, last_validated_at: toMs(d.lastValidatedAt), created_at: toMs(d.createdAt), updated_at: toMs(d.updatedAt) })),
   trackerConnections: rawCollection("tracker_connections", "id", ["provider","status","remote_user_id","remote_username","client_id","client_secret_ciphertext","client_secret_iv","client_secret_tag","access_token_ciphertext","access_token_iv","access_token_tag","refresh_token_ciphertext","refresh_token_iv","refresh_token_tag","token_version","access_token_expires_at","initial_sync_mode","baseline_complete","last_polled_at","last_validated_at","last_error","created_at","updated_at"]),
   trackerItemState: rawCollection("tracker_item_state", "media_key", ["provider","media_json","remote_watched_at","last_seen_at","last_outbound_state","last_outbound_at"]),
-  settings: jsonCollection("settings"),
+  settings: browserSettingsCollection(),
   runtimeState: jsonCollection("runtime_state"),
   loopKeys: simpleCollection("loop_keys", "id", (r) => ({ key: r.key || "", value: r.value || "", createdAt: r.created_at, expireAt: r.expire_at }), "INSERT OR REPLACE INTO loop_keys (id,key,value,created_at,expire_at) VALUES (@id,@key,@value,@created_at,@expire_at)", (id, d) => ({ id, key: d.key || "", value: d.value || "", created_at: toMs(d.createdAt), expire_at: toMs(d.expireAt) })),
   mediaArtwork: simpleCollection("media_artwork", "identity_key", (r) => ({ mediaType: r.media_type, title: r.title, tmdbId: r.tmdb_id, tvdbId: r.tvdb_id, imdbId: r.imdb_id, posterUrl: r.poster_url, posterSource: r.poster_source, updatedAt: r.updated_at }), "INSERT OR REPLACE INTO media_artwork (identity_key,media_type,title,tmdb_id,tvdb_id,imdb_id,poster_url,poster_source,updated_at) VALUES (@identity_key,@media_type,@title,@tmdb_id,@tvdb_id,@imdb_id,@poster_url,@poster_source,@updated_at)", (id, d) => ({ identity_key: id, media_type: d.mediaType || "tv", title: d.title || null, tmdb_id: d.tmdbId || null, tvdb_id: d.tvdbId || null, imdb_id: d.imdbId || null, poster_url: d.posterUrl || null, poster_source: d.posterSource || "manual", updated_at: toMs(d.updatedAt) ?? Date.now() })),
@@ -194,6 +241,12 @@ const collections = {
   tmdbSearchCache: simpleCollection("tmdb_search_cache", "id", (r) => ({ query: r.query, mediaType: r.media_type, page: r.page, response: parseJson(r.response), missing: Boolean(r.missing), updatedAtMs: r.updated_at_ms }), "INSERT OR REPLACE INTO tmdb_search_cache (id,query,media_type,page,response,missing,updated_at_ms) VALUES (@id,@query,@media_type,@page,@response,@missing,@updated_at_ms)", (id, d) => ({ id, query: d.query || "", media_type: d.mediaType || null, page: d.page ?? 1, response: toJson(d.response), missing: d.missing ? 1 : 0, updated_at_ms: d.updatedAtMs ?? toMs(d.updatedAt) })),
   tmdbSeasonCache: simpleCollection("tmdb_season_cache", "id", (r) => ({ tmdbId: r.tmdb_id, seasonNumber: r.season_number, showStatus: r.show_status, details: parseJson(r.details), updatedAtMs: r.updated_at_ms }), "INSERT OR REPLACE INTO tmdb_season_cache (id,tmdb_id,season_number,show_status,details,updated_at_ms) VALUES (@id,@tmdb_id,@season_number,@show_status,@details,@updated_at_ms)", (id, d) => ({ id, tmdb_id: d.tmdbId != null ? String(d.tmdbId) : null, season_number: d.seasonNumber ?? null, show_status: d.showStatus || null, details: toJson(d.details), updated_at_ms: d.updatedAtMs ?? toMs(d.updatedAt) })),
   tmdbPersonCache: simpleCollection("tmdb_person_cache", "id", (r) => ({ personId: r.person_id, details: parseJson(r.details), schemaVersion: r.schema_version, updatedAtMs: r.updated_at_ms }), "INSERT OR REPLACE INTO tmdb_person_cache (id,person_id,details,schema_version,updated_at_ms) VALUES (@id,@person_id,@details,@schema_version,@updated_at_ms)", (id, d) => ({ id, person_id: d.personId != null ? String(d.personId) : null, details: toJson(d.details), schema_version: d.schemaVersion ?? null, updated_at_ms: d.updatedAtMs ?? toMs(d.updatedAt) })),
+  personalWatchlist: rawCollection("personal_watchlist", "media_key", ["media_type", "title", "tmdb_id", "tvdb_id", "imdb_id", "poster_url", "overview", "release_date", "created_at", "updated_at"]),
+  personalWatchlistMutations: rawCollection("personal_watchlist_mutations", "id", ["media_key", "media_json", "desired_state", "origin", "reason", "canonical_revision", "event_fingerprint", "source_timestamp", "created_at", "superseded_at", "applied_at", "tombstone"]),
+  personalWatchlistProviderItems: watchlistRawCollection("personal_watchlist_provider_items", ["provider", "connection_id", "remote_scope_key", "representation", "media_key", "media_json", "provider_item_id", "provider_ids_json", "remote_state", "managed_by_plembfin", "primary_target", "container_id", "container_name", "last_confirmed_present_at", "last_seen_at", "last_complete_generation", "last_outbound_state", "last_outbound_intent_id", "last_outbound_at", "sync_status", "last_error", "updated_at"]),
+  personalWatchlistSyncQueue: watchlistRawCollection("personal_watchlist_sync_queue", ["provider", "connection_id", "remote_scope_key", "representation", "media_key", "media_json", "desired_state", "operation", "source_mutation_id", "intent_id", "canonical_revision", "provider_item_id", "status", "attempt_count", "next_attempt_at", "lease_owner", "lease_expires_at", "last_error", "created_at", "updated_at", "succeeded_at"]),
+  personalWatchlistSyncRuns: watchlistRawCollection("personal_watchlist_sync_runs", ["provider", "connection_id", "remote_scope_key", "representation", "run_id", "generation", "mode", "status", "canonical_revision", "scanned_count", "present_count", "removed_count", "unavailable_count", "started_at", "completed_at", "cursor_json", "complete_snapshot", "snapshot_hash", "last_error", "updated_at"]),
+  personalWatchlistActivity: rawCollection("personal_watchlist_activity", "id", ["provider", "connection_id", "remote_scope_key", "representation", "media_key", "media_json", "action", "origin", "reason", "status", "details", "created_at"]),
 };
 
 function simpleCollection(table, key, rowToData, sql, dataToRow) {
@@ -211,6 +264,20 @@ function rawCollection(table, key, columns) {
   );
 }
 
+function watchlistRawCollection(table, columns) {
+  const collection = rawCollection(table, "rowid", columns);
+  collection.numericKey = true;
+  const dataToRow = collection.dataToRow;
+  collection.dataToRow = (id, data) => {
+    const rowid = Number(id);
+    if (!Number.isSafeInteger(rowid) || rowid < 1) {
+      throw new Error(`A ${table} backup document has an invalid rowid`);
+    }
+    return dataToRow(rowid, data);
+  };
+  return collection;
+}
+
 function jsonCollection(table) {
   return {
     table, key: "id",
@@ -220,15 +287,22 @@ function jsonCollection(table) {
   };
 }
 
+function browserSettingsCollection() {
+  const collection = jsonCollection("settings");
+  collection.browserRowToData = (row) => redactBrowserSettings(parseJson(row.data, {}));
+  return collection;
+}
+
 export function backupManifest(origin = "") {
   return {
     format: BACKUP_FORMAT,
     version: BACKUP_VERSION,
+    portable: true,
     exportedAt: new Date().toISOString(),
     source: { app: "plembfin", storage: "sqlite", origin },
-    collections: BACKUP_COLLECTIONS,
+    collections: BROWSER_BACKUP_COLLECTIONS,
     notes: [
-      "This backup can contain encrypted media credentials and plaintext legacy credentials in settings. Restoring encrypted connections requires the original credential.key or PLEMBFIN_CREDENTIAL_KEY.",
+      "Browser portable exports omit credential-bearing collections and redact secret-bearing settings. Encrypted full backups retain encrypted media credentials; restoring encrypted connections requires the original credential.key or PLEMBFIN_CREDENTIAL_KEY.",
       "Artwork binaries, poster cache rows, and TMDB metadata cache rows are not included.",
     ],
   };
@@ -236,11 +310,13 @@ export function backupManifest(origin = "") {
 
 export function getFullBackup(origin = "") {
   const backup = backupManifest(origin);
+  backup.portable = false;
   backup.collections = {};
   for (const name of BACKUP_COLLECTIONS) {
     const config = collections[name];
     if (!config) continue;
-    const rows = db.prepare(`SELECT * FROM ${config.table} ORDER BY ${config.key}`).all();
+    const select = config.numericKey ? `${config.key}, *` : "*";
+    const rows = db.prepare(`SELECT ${select} FROM ${config.table} ORDER BY ${config.key}`).all();
     backup.collections[name] = rows.map((row) => ({
       id: String(row[config.key]),
       data: portableValue(config.rowToData(row)),
@@ -249,15 +325,20 @@ export function getFullBackup(origin = "") {
   return backup;
 }
 
-export function exportCollectionPage(name, { cursor = "", limit = 250 } = {}) {
+export function exportCollectionPage(name, { cursor = "", limit = 250, browserSafe = true } = {}) {
   const config = collections[name];
   if (!config) throw new Error(`Unknown backup collection: ${name}`);
+  if (browserSafe && !BROWSER_BACKUP_COLLECTIONS.includes(name)) {
+    throw new Error(`Collection is not available in browser portable exports: ${name}`);
+  }
   const pageLimit = Math.max(1, Math.min(Number(limit) || 250, 500));
   const comparator = config.numericKey ? Number(cursor) || 0 : String(cursor || "");
+  const select = config.numericKey ? `${config.key}, *` : "*";
   const rows = cursor
-    ? db.prepare(`SELECT * FROM ${config.table} WHERE ${config.key} > ? ORDER BY ${config.key} LIMIT ?`).all(comparator, pageLimit)
-    : db.prepare(`SELECT * FROM ${config.table} ORDER BY ${config.key} LIMIT ?`).all(pageLimit);
-  const documents = rows.map((row) => ({ id: String(row[config.key]), data: portableValue(config.rowToData(row)) }));
+    ? db.prepare(`SELECT ${select} FROM ${config.table} WHERE ${config.key} > ? ORDER BY ${config.key} LIMIT ?`).all(comparator, pageLimit)
+    : db.prepare(`SELECT ${select} FROM ${config.table} ORDER BY ${config.key} LIMIT ?`).all(pageLimit);
+  const rowToData = browserSafe ? (config.browserRowToData || config.rowToData) : config.rowToData;
+  const documents = rows.map((row) => ({ id: String(row[config.key]), data: portableValue(rowToData(row)) }));
   return {
     collection: name,
     documents,
@@ -266,19 +347,151 @@ export function exportCollectionPage(name, { cursor = "", limit = 250 } = {}) {
   };
 }
 
-export function importCollectionBatch(name, documents, { reset = false } = {}) {
+function restoreWatchlistMedia(row) {
+  return {
+    media_key: row.media_key,
+    media_type: row.media_type,
+    title: row.title || "Untitled",
+    tmdb_id: row.tmdb_id || "",
+    tvdb_id: row.tvdb_id || "",
+    imdb_id: row.imdb_id || "",
+    poster_url: row.poster_url || "",
+    overview: row.overview || "",
+    release_date: row.release_date || "",
+  };
+}
+
+// A restore must leave a durable local desired state while invalidating every
+// remote observation and outbound result from the source instance. The next
+// explicit Publish restored watchlist action is the only operation allowed to
+// establish new provider state.
+function createWatchlistRestoreRevision() {
+  const now = Date.now();
+  const restoreState = getWatchlistRestoreState();
+  const restoreId = restoreState.restoreId || crypto.randomUUID();
+  const canonicalRows = db.prepare("SELECT * FROM personal_watchlist ORDER BY media_key").all();
+  const latestRows = db.prepare(`
+    SELECT mutation.*
+    FROM personal_watchlist_mutations mutation
+    INNER JOIN (
+      SELECT media_key, MAX(canonical_revision) AS revision
+      FROM personal_watchlist_mutations
+      GROUP BY media_key
+    ) latest ON latest.media_key = mutation.media_key AND latest.revision = mutation.canonical_revision
+    ORDER BY mutation.media_key
+  `).all();
+  const desired = new Map(canonicalRows.map((row) => [row.media_key, { state: "present", media: restoreWatchlistMedia(row) }]));
+  for (const row of latestRows) {
+    if (desired.has(row.media_key)) continue;
+    if (row.desired_state !== "absent") continue;
+    desired.set(row.media_key, { state: "absent", media: parseJson(row.media_json, { media_key: row.media_key, media_type: "movie", title: "Untitled" }) });
+  }
+
+  const insert = db.prepare(`
+    INSERT INTO personal_watchlist_mutations
+      (id, media_key, media_json, desired_state, origin, reason, canonical_revision,
+       event_fingerprint, source_timestamp, created_at, superseded_at, applied_at, tombstone)
+    VALUES (?, ?, ?, ?, 'restore', 'restore', ?, ?, NULL, ?, NULL, ?, ?)
+  `);
+  const supersede = db.prepare("UPDATE personal_watchlist_mutations SET superseded_at = ? WHERE media_key = ? AND superseded_at IS NULL");
+  const meta = db.prepare("SELECT revision FROM personal_watchlist_meta WHERE id = 1");
+  const updateMeta = db.prepare("UPDATE personal_watchlist_meta SET revision = ?, updated_at = ? WHERE id = 1");
+  let revision = Number(meta.get()?.revision || 0);
+  let lastRevision = revision;
+  db.transaction(() => {
+    for (const [mediaKey, entry] of desired) {
+      revision += 1;
+      supersede.run(now, mediaKey);
+      insert.run(crypto.randomUUID(), mediaKey, toJson(entry.media), entry.state, revision, `restore:${restoreId}:${mediaKey}:${revision}`, now, now, entry.state === "absent" ? 1 : 0);
+      lastRevision = revision;
+    }
+    updateMeta.run(revision, now);
+  })();
+  clearWatchlistRemoteProjection();
+  const pending = markWatchlistRestorePending({ restoreId, timestamp: now });
+  return { ...pending, revision: lastRevision, restoredItems: desired.size };
+}
+
+function importWatchlistCollectionBatch(name, documents, { reset = false } = {}) {
   const config = collections[name];
   if (!config) throw new Error(`Unknown backup collection: ${name}`);
   if (!Array.isArray(documents)) throw new Error("Backup documents must be an array");
   if (documents.length > 250) throw new Error("Backup import batches are limited to 250 documents");
 
   const run = db.transaction(() => {
-    if (reset) db.prepare(`DELETE FROM ${config.table}`).run();
+    if (name === "personalWatchlist" && reset) {
+      for (const table of ["personal_watchlist", "personal_watchlist_mutations", "personal_watchlist_provider_items", "personal_watchlist_sync_queue", "personal_watchlist_sync_runs", "personal_watchlist_activity"]) {
+        db.prepare(`DELETE FROM ${table}`).run();
+      }
+      db.prepare("UPDATE personal_watchlist_meta SET revision = 0, updated_at = ? WHERE id = 1").run(Date.now());
+    } else if (reset) {
+      if (name === "personalWatchlistMutations") db.prepare("DELETE FROM personal_watchlist_mutations").run();
+      if (name === "personalWatchlistProviderItems") db.prepare("DELETE FROM personal_watchlist_provider_items").run();
+      if (name === "personalWatchlistSyncQueue") db.prepare("DELETE FROM personal_watchlist_sync_queue").run();
+      if (name === "personalWatchlistSyncRuns") db.prepare("DELETE FROM personal_watchlist_sync_runs").run();
+      if (name === "personalWatchlistActivity") db.prepare("DELETE FROM personal_watchlist_activity").run();
+    }
     for (const document of documents) {
       const id = String(document?.id || "").trim();
       if (!id) throw new Error(`A ${name} document is missing its id`);
       const data = reviveValue(document.data || {});
       config.insert.run(config.dataToRow(id, data));
+    }
+
+    if (name === "personalWatchlistProviderItems") {
+      db.prepare(`
+        UPDATE personal_watchlist_provider_items
+        SET remote_state = 'unknown', sync_status = 'unknown',
+            last_confirmed_present_at = NULL, last_seen_at = NULL,
+            last_complete_generation = NULL, last_outbound_state = NULL,
+            last_outbound_intent_id = NULL, last_outbound_at = NULL,
+            last_error = NULL, updated_at = ?
+      `).run(Date.now());
+    }
+    if (name === "personalWatchlistSyncQueue") {
+      db.prepare(`
+        UPDATE personal_watchlist_sync_queue
+        SET status = 'pending', attempt_count = 0, next_attempt_at = 0,
+            lease_owner = NULL, lease_expires_at = NULL,
+            last_error = 'Restore requires explicit watchlist publish.',
+            succeeded_at = NULL, updated_at = ?
+      `).run(Date.now());
+    }
+    if (name === "personalWatchlistSyncRuns") {
+      db.prepare(`
+        UPDATE personal_watchlist_sync_runs
+        SET status = 'idle', started_at = NULL, completed_at = NULL,
+            cursor_json = NULL, complete_snapshot = 0,
+            last_error = 'Restore requires explicit watchlist publish.', updated_at = ?
+      `).run(Date.now());
+    }
+  });
+  run();
+
+  let restore = null;
+  if (["personalWatchlist", "personalWatchlistMutations"].includes(name)) restore = createWatchlistRestoreRevision();
+  else if (WATCHLIST_BACKUP_COLLECTIONS.has(name)) restore = markWatchlistRestorePending();
+  bumpDataVersion();
+  return { collection: name, imported: documents.length, reset: Boolean(reset), restore };
+}
+
+export function importCollectionBatch(name, documents, { reset = false, portable = false } = {}) {
+  if (WATCHLIST_BACKUP_COLLECTIONS.has(name)) return importWatchlistCollectionBatch(name, documents, { reset });
+  const config = collections[name];
+  if (!config) throw new Error(`Unknown backup collection: ${name}`);
+  if (!Array.isArray(documents)) throw new Error("Backup documents must be an array");
+  if (documents.length > 250) throw new Error("Backup import batches are limited to 250 documents");
+
+  const run = db.transaction(() => {
+    if (reset && !(portable && name === "settings")) db.prepare(`DELETE FROM ${config.table}`).run();
+    for (const document of documents) {
+      const id = String(document?.id || "").trim();
+      if (!id) throw new Error(`A ${name} document is missing its id`);
+      const data = reviveValue(document.data || {});
+      const importData = name === "settings" && portable
+        ? mergeRedactedSettings(parseJson(db.prepare("SELECT data FROM settings WHERE id = ?").get(id)?.data, {}), data)
+        : data;
+      config.insert.run(config.dataToRow(id, importData));
     }
   });
   run();

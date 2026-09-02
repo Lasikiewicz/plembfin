@@ -3,7 +3,7 @@ export function sidebarNavigationPath(target) {
 
   if (target.dataset?.settingsPath) return target.dataset.settingsPath;
   if (target.id === "brandLink") return "/";
-  if (target.id === "syncProgressIndicator") return "/sync-activity";
+  if (target.id === "syncProgressIndicator" || target.id === "sidebarSyncAttentionButton") return "/sync-activity";
 
   const view = target.dataset?.view;
   if (!view) return "";
@@ -18,7 +18,7 @@ export function attachSidebarMiddleClickNavigation(sidebar, openWindow = window.
 
   sidebar.addEventListener("auxclick", (event) => {
     if (event.button !== 1) return;
-    const target = event.target.closest("#brandLink, #syncProgressIndicator, [data-view], [data-settings-path]");
+    const target = event.target.closest("#brandLink, #syncProgressIndicator, #sidebarSyncAttentionButton, [data-view], [data-settings-path]");
     if (!target || !sidebar.contains(target)) return;
 
     const path = sidebarNavigationPath(target);

@@ -14,10 +14,10 @@ Desktop renders the grouped sidebar; mobile uses the **Settings section** select
 | Webhooks | `/settings/webhooks` | Setup Guides, Webhook Secret | `/settings/webhooks#setup-guides`, `/settings/webhooks#webhook-secret` |
 | Connections | `/settings/connections` | Trakt, Seerr | `/settings/connections#trakt`, `/settings/connections#seerr` |
 | Metadata | `/settings/metadata` | Metadata Providers, Refresh Metadata (TMDB, TVDB) | `/settings/metadata#metadata-providers`, `/settings/metadata#refresh-metadata` |
-| Sync | `/settings/sync` | Sync Tuning, Sync Tools (Repair Recent Items, Full Sync Watchstates, Force Sync, Personal Rating Sync), Sync Issues, Sync History | `/settings/sync#sync-tuning`, `/settings/sync#sync-tools`, `/settings/sync#sync-issues`, `/settings/sync#sync-history` |
+| Sync | `/settings/sync` | Sync Tuning, Sync Tools (Repair Recent Items, Full Sync Watchstates, Force Sync, Personal Rating Sync, Personal Watchlist Sync), Sync Issues, Sync History | `/settings/sync#sync-tuning`, `/settings/sync#sync-tools`, `/settings/sync#sync-issues`, `/settings/sync#sync-history` |
 | Backup | `/settings/backup` | Local (Watch History, Plembfin), Remote (Watch History, Plembfin) | `/settings/backup#backup-local`, `/settings/backup#backup-remote` |
 | Restore | `/settings/restore` | Local (Watch History, Plembfin), Remote (Watch History, Plembfin) | `/settings/restore#restore-local`, `/settings/restore#restore-remote` |
-| Tools | `/settings/tools` | Guided Setup, Database Repairs, Library Rebuilds and Backfills, Wipe data (Watch History, Sync History & Logs, Everything Tracked, Wipe All / Fresh Start) | `/settings/tools#guided-setup`, `/settings/tools#database-repairs`, `/settings/tools#library-rebuilds`, `/settings/tools#wipe-data` |
+| Tools | `/settings/tools` | Guided Setup, Database Repairs, Library Rebuilds and Backfills, Wipe data (Watch History, Personal Watchlist, Sync History & Logs, Everything Tracked, Wipe All / Fresh Start) | `/settings/tools#guided-setup`, `/settings/tools#database-repairs`, `/settings/tools#library-rebuilds`, `/settings/tools#wipe-data` |
 | Logs | `/settings/logs` | (none - single-page group) | - |
 | About | `/settings/about` | (none - single-page group) | - |
 
@@ -198,11 +198,12 @@ footer visible while the body scrolls, and collapse to stacked fields on mobile.
 | `public/modules/settings-ui.js` | Shared edit modal, picker modal, service-card grid, and the `renderFieldRow`/`collectFieldValues` primitives reused by both modal and inline forms |
 | `public/modules/settings-services.js` | Media-server and metadata definitions, config saves, connection tests, cards/dialogs, and the inline Sync Tuning form |
 | `public/modules/rating-sync-settings.js` | Personal Rating Sync settings, provider direction controls, status polling, and manual actions |
+| `public/modules/watchlist-sync-settings.js` | Personal Watchlist Sync provider controls, representation choices, preview/publish confirmation, status, activity, and retry actions |
 | `public/modules/settings.js` | Shared connection-label formatting |
 | `public/modules/tools.js` | Trakt import and compatibility exports for backup and maintenance behavior |
 | `public/modules/tools-backups.js` | Backup schedules, restore, destination cards/dialogs, and appearance behavior |
 | `public/modules/tools-maintenance.js` | Diagnostics, cross-platform match reporting, repairs, backfills, and cache behavior |
-| `public/modules/tools-wipe-data.js` | Wipe data: Watch History, Sync History & Logs, Everything Tracked, and Wipe All / Fresh Start, each behind two confirm dialogs |
+| `public/modules/tools-wipe-data.js` | Wipe data: Watch History, Personal Watchlist, Sync History & Logs, Everything Tracked, and Wipe All / Fresh Start, each behind two confirm dialogs |
 | `public/modules/help-content.js` | Credential, webhook, migration, and account setup guides |
 | `public/modules/logs.js` / `public/modules/sync.js` | Logs and sync rendering/loaders |
 | `public/app.js` | SPA routing, per-view data-loader gating across `route.views`, element binding, and module callback injection |
@@ -259,6 +260,15 @@ selector for Plex, Emby, Jellyfin, and Trakt. Local rating changes are saved to
 Plembfin first and delivered through a durable queue; provider failures do not alter
 watched state, play history, resume positions, or lists. See
 [personal-ratings.md](personal-ratings.md).
+
+**Personal Watchlist Sync** is disabled globally and per provider by default. Plembfin
+is the canonical local present-set; Plex can use its account Universal Watchlist in
+native mode (writes are separately opt-in) or RSS read-only mode, while Emby and Jellyfin
+use a Plembfin-owned playlist or an ownership-aware Favorites compatibility mode. The
+Preview action is read-only. **Publish local list** is the explicit first-publish step,
+and a restored list remains paused until it is published. Provider-only additions are
+not imported automatically, unrelated Favorites are preserved, and provider failures
+never delete the local list.
 
 The same form's **Fast Local-Network Sync** checkbox controls the outbound pacing
 governor's profile (`server/src/utils/outboundGovernor.js`), stored as `pacing.profile`

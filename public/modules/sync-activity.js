@@ -20,6 +20,7 @@ const DEFAULT_PAGINATION = {
 let refreshTimer = null;
 let searchTimer = null;
 let loadRequestToken = 0;
+let attentionRequestToken = 0;
 const retryingActivityIds = new Set();
 // "Retry all failed" runs one item at a time rather than in parallel, so it
 // doesn't fire a burst of simultaneous requests at Plex/Emby/Jellyfin/Trakt -
@@ -62,16 +63,66 @@ function authHeaders() {
   return buildAuthHeaders(state.token);
 }
 
+function normalizeAttentionTone(value, fallback = "warning") {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (["error", "critical", "blocking", "red", "failed", "attention"].includes(normalized)) return "error";
+  if (["warning", "warn", "degraded", "amber"].includes(normalized)) return "warning";
+  return fallback;
+}
+
+function attentionToneForItem(item = {}) {
+  return normalizeAttentionTone(item.severity || item.tone, "warning");
+}
+
+function serverAttentionItems() {
+  return Array.isArray(state.syncAttention) ? state.syncAttention : [];
+}
+
+function clientAttentionItems() {
+  return Array.isArray(state.clientAttention) ? state.clientAttention : [];
+}
+
+function attentionItems() {
+  return [...serverAttentionItems(), ...clientAttentionItems()];
+}
+
+function serverAttentionCount() {
+  const count = Number(state.syncAttentionCount);
+  return Number.isFinite(count) && count > 0 ? count : serverAttentionItems().length;
+}
+
+function attentionCount() {
+  const serverCount = serverAttentionCount();
+  const clientCount = clientAttentionItems().length;
+  const attentionCheckFailed = state.syncAttentionError && !serverCount && !clientCount ? 1 : 0;
+  return serverCount + clientCount + attentionCheckFailed;
+}
+
+function attentionTone() {
+  const items = attentionItems();
+  if (state.syncAttentionError) return "error";
+  if (items.some((item) => attentionToneForItem(item) === "error")) return "error";
+  if (items.length) return "warning";
+  return state.syncAttentionSeverity === "error" ? "error" : "clear";
+}
+
+function syncAttentionNeeded() {
+  return serverAttentionCount() > 0 || Boolean(state.syncAttentionError);
+}
+
 function statusText() {
   const total = Number(state.syncActivityProgress?.total) || 0;
   const completed = Number(state.syncActivityProgress?.completed) || 0;
-  return total > 0 && completed < total ? `Sync - ${completed} of ${total}` : "Sync - Idle";
+  if (total > 0 && completed < total) return `Sync - ${completed} of ${total}`;
+  if (state.syncActivityProgress?.active) return `Sync - ${state.syncActivityProgress.label || "Working"}`;
+  if (syncAttentionNeeded()) return "Sync - Attention Needed";
+  return "Sync - Idle";
 }
 
 function isActive() {
   const total = Number(state.syncActivityProgress?.total) || 0;
   const completed = Number(state.syncActivityProgress?.completed) || 0;
-  return total > 0 && completed < total;
+  return Boolean(state.syncActivityProgress?.active) || (total > 0 && completed < total);
 }
 
 // The shared `normalizePlatformSource` helper only knows about the three media
@@ -701,19 +752,490 @@ export async function loadOlderSyncActivityGroup(groupKey, page) {
 
 export function renderSyncActivityStatus() {
   const text = statusText();
-  const stateName = isActive() ? "active" : "idle";
+  const hasAttention = syncAttentionNeeded();
+  const stateName = isActive() ? "active" : hasAttention ? "attention" : "idle";
+  const attentionToneName = hasAttention
+    ? (state.syncAttentionError || state.syncAttentionSeverity === "error" ? "error" : "warning")
+    : "clear";
   if (elements.syncProgressIndicator && elements.syncProgressText) {
     elements.syncProgressText.textContent = text;
     elements.syncProgressIndicator.dataset.syncState = stateName;
+    elements.syncProgressIndicator.dataset.attentionTone = attentionToneName;
+    elements.syncProgressIndicator.title = hasAttention
+      ? "Open sync activity - attention needed"
+      : "Open sync activity";
   }
   if (elements.syncActivityStatus && elements.syncActivityStatusText) {
     elements.syncActivityStatusText.textContent = text;
     elements.syncActivityStatus.dataset.syncState = stateName;
+    elements.syncActivityStatus.dataset.attentionTone = attentionToneName;
+  }
+  renderSidebarSyncAttention();
+}
+
+function renderSidebarSyncAttention() {
+  const container = elements.sidebarSyncAttention;
+  const button = elements.sidebarSyncAttentionButton;
+  if (!container || !button) return;
+  const items = clientAttentionItems();
+  const count = items.length;
+  const tone = items.some((item) => attentionToneForItem(item) === "error") ? "error" : "warning";
+  const visible = count > 0;
+  container.classList.toggle("hidden", !visible);
+  if (!visible) {
+    container.removeAttribute("data-attention-tone");
+    button.removeAttribute("data-attention-tone");
+    return;
+  }
+
+  const title = "Attention";
+  const detail = tone === "error" ? "Issue" : "Warning";
+  container.dataset.attentionTone = tone;
+  button.dataset.attentionTone = tone;
+  if (elements.sidebarSyncAttentionTitle) elements.sidebarSyncAttentionTitle.textContent = title;
+  if (elements.sidebarSyncAttentionText) elements.sidebarSyncAttentionText.textContent = detail;
+  button.title = "Open Sync Activity to review this issue";
+  button.setAttribute("aria-label", `${title}: ${detail}. Open Sync Activity for details.`);
+}
+
+export function setSyncAttentionSummary({ count = 0, status = "", severity = "" } = {}) {
+  const normalizedCount = Math.max(Number(count) || 0, 0);
+  state.syncAttentionCount = normalizedCount;
+  state.syncAttentionStatus = normalizedCount > 0 || String(status || "").toLowerCase() === "attention" ? "attention" : "clear";
+  state.syncAttentionSeverity = normalizedCount > 0
+    ? normalizeAttentionTone(severity || status, "error")
+    : "clear";
+  if (normalizedCount === 0) {
+    state.syncAttention = [];
+    if (String(status || "").toLowerCase() !== "attention") state.syncAttentionError = "";
+  }
+  renderSyncActivityStatus();
+  renderSyncAttention();
+}
+
+function clientAttentionSignature(message, route) {
+  return `${route}\n${String(message || "").replace(/\s+/g, " ").trim()}`.slice(0, 600);
+}
+
+function clientAttentionId(signature) {
+  let hash = 0;
+  for (let index = 0; index < signature.length; index += 1) {
+    hash = ((hash << 5) - hash) + signature.charCodeAt(index);
+    hash |= 0;
+  }
+  return `client:${Math.abs(hash).toString(36)}`;
+}
+
+function clientAttentionRoute() {
+  if (typeof window === "undefined") return "";
+  return `${window.location.pathname || "/"}${window.location.search || ""}${window.location.hash || ""}`;
+}
+
+function clientAttentionTitle(message, explicitTitle = "") {
+  if (explicitTitle) return explicitTitle;
+  const match = String(message || "").match(/^([^:]{2,48}):\s*/);
+  const source = match?.[1]?.trim();
+  return source ? `${source} needs attention` : "Request needs attention";
+}
+
+function clientAttentionRecommendations(message) {
+  const lower = String(message || "").toLowerCase();
+  if (/unauthorized|forbidden|401|403|token|credential|api key/.test(lower)) {
+    return [
+      "Open Settings → Connections and verify the affected service URL and credentials.",
+      "Test the connection after saving any correction.",
+      "Review Settings → Logs if the connection still fails.",
+    ];
+  }
+  if (/timeout|timed out|network|refused|connect|fetch failed|econn|socket/.test(lower)) {
+    return [
+      "Confirm the affected service is running and reachable from the Plembfin server.",
+      "Check firewall, proxy, DNS, and TLS settings for the connection.",
+      "Review Settings → Logs for the full request failure.",
+    ];
+  }
+  if (/not found|404|older build|route missing/.test(lower)) {
+    return [
+      "Confirm the requested item or local API route exists in this Plembfin build.",
+      "Restart Plembfin if the message says the server is running an older build.",
+      "Review Settings → Logs for the full failure context.",
+    ];
+  }
+  return [
+    "Review Settings → Logs for the full failure details.",
+    "Check the affected connection or configuration before trying the action again.",
+  ];
+}
+
+export function recordClientAttention(message, tone = "error", options = {}) {
+  const text = String(message || "").replace(/\s+/g, " ").trim();
+  if (!text) return null;
+  const route = String(options.route || clientAttentionRoute());
+  const signature = clientAttentionSignature(text, route);
+  const id = clientAttentionId(signature);
+  const existing = clientAttentionItems().find((item) => item.id === id);
+  const item = {
+    ...(existing || {}),
+    id,
+    source: "client",
+    kind: "client_request_failure",
+    severity: normalizeAttentionTone(tone, "error"),
+    title: clientAttentionTitle(text, String(options.title || "").trim()),
+    summary: text,
+    explanation: String(options.explanation || "Plembfin could not complete this request. The failure is kept here so it is not lost when the page changes."),
+    recommendations: Array.isArray(options.recommendations) && options.recommendations.length
+      ? options.recommendations.filter(Boolean)
+      : clientAttentionRecommendations(text),
+    canSkip: false,
+    createdAt: Number(existing?.createdAt || Date.now()),
+    context: {
+      ...(existing?.context || {}),
+      route,
+      signature,
+    },
+  };
+  state.clientAttention = [item, ...clientAttentionItems().filter((candidate) => candidate.id !== id)].slice(0, 8);
+  renderSyncActivityStatus();
+  renderSyncAttention();
+  return item;
+}
+
+export function clearClientAttention() {
+  if (!clientAttentionItems().length) return;
+  state.clientAttention = [];
+  renderSyncActivityStatus();
+  renderSyncAttention();
+}
+
+export function clearClientAttentionForRoute(route = clientAttentionRoute()) {
+  const targetRoute = String(route || "");
+  const remaining = clientAttentionItems().filter((item) => String(item.context?.route || "") !== targetRoute);
+  if (remaining.length === clientAttentionItems().length) return;
+  state.clientAttention = remaining;
+  renderSyncActivityStatus();
+  renderSyncAttention();
+}
+
+function attentionCreatedAt(item = {}) {
+  const value = Number(item.createdAt || 0);
+  return Number.isFinite(value) && value > 0 ? formatDate(value) : "during the current sync run";
+}
+
+function attentionExamples(item = {}) {
+  const examples = Array.isArray(item.context?.examples) ? item.context.examples.filter(Boolean) : [];
+  if (!examples.length) return "";
+  return `
+    <div class="sync-attention-examples">
+      <h4>Examples</h4>
+      <ul>${examples.map((example) => `<li>${escapeHtml(example)}</li>`).join("")}</ul>
+    </div>`;
+}
+
+function attentionIssueCode(issue = {}) {
+  const season = Number(issue.sourceSeason ?? issue.season);
+  const episode = Number(issue.sourceEpisode ?? issue.episode);
+  if (!Number.isInteger(season) || !Number.isInteger(episode)) return "";
+  return `S${String(season).padStart(2, "0")}E${String(episode).padStart(2, "0")}`;
+}
+
+function attentionIssueDate(issue = {}) {
+  const watchedAt = String(issue.watchedAt || "").trim();
+  return watchedAt ? formatDate(watchedAt) : "Date unavailable";
+}
+
+function attentionIssueProvider(issue = {}) {
+  const provider = String(issue.provider || issue.target || "").trim().toLowerCase();
+  if (provider === "plex") return "Plex";
+  if (provider === "emby") return "Emby";
+  if (provider === "jellyfin") return "Jellyfin";
+  if (provider === "trakt") return "Trakt";
+  return provider ? provider.charAt(0).toUpperCase() + provider.slice(1) : "";
+}
+
+function attentionIssueMarkup(parentId, issue = {}) {
+  const issueKey = String(issue.key || issue.sourceRowId || "").trim();
+  if (!issueKey) return "";
+  const actionKey = `${parentId}:${issueKey}`;
+  const skipping = state.syncAttentionIssueSkipping === actionKey;
+  const code = attentionIssueCode(issue);
+  const provider = attentionIssueProvider(issue);
+  const metadata = [code, issue.watchedAt ? `Watched ${attentionIssueDate(issue)}` : "Date unavailable"]
+    .concat(provider ? [`Target ${provider}`] : [])
+    .filter(Boolean)
+    .join(" · ");
+  const href = String(issue.localHref || "").trim();
+  const linkLabel = String(issue.localLinkLabel || "Open in Plembfin");
+  const reason = String(issue.reason || (provider && provider !== "Trakt"
+    ? `${provider} did not confirm the restored state.`
+    : "Trakt could not match this restored play."));
+  const skipButton = `<button class="button-ghost sync-attention-issue-skip" type="button" data-sync-attention-skip-item="${escapeAttribute(parentId)}" data-sync-attention-item-key="${escapeAttribute(issueKey)}" ${skipping ? "disabled" : ""} ${skipping ? 'aria-busy="true"' : ""}>${escapeHtml(skipping ? "Skipping..." : "Skip this issue")}</button>`;
+  return `
+    <article class="sync-attention-issue" data-sync-attention-issue="${escapeAttribute(issueKey)}">
+      <div class="sync-attention-issue-copy">
+        <div class="sync-attention-issue-title-row">
+          <h4>${escapeHtml(issue.title || "Unknown media")}</h4>
+          ${issue.candidate ? '<span class="sync-attention-issue-badge">Candidate</span>' : ""}
+        </div>
+        <span class="sync-attention-issue-meta">${escapeHtml(metadata)}</span>
+        <span class="sync-attention-issue-reason">${escapeHtml(reason)}</span>
+      </div>
+      <div class="sync-attention-issue-actions">
+        ${href ? `<a class="button-ghost sync-attention-issue-link" href="${escapeAttribute(href)}">${escapeHtml(linkLabel)}</a>` : '<span class="sync-attention-issue-unavailable">No local link available</span>'}
+        ${issue.canRepair === true ? skipButton : ""}
+      </div>
+    </article>`;
+}
+
+function attentionIssueList(item = {}) {
+  const context = item.context || {};
+  const issues = Array.isArray(context.issueItems) ? context.issueItems : [];
+  const issueCount = Math.max(Number(context.issueCount) || issues.length, issues.length);
+  const itemWord = issues.some((issue) => {
+    const provider = String(issue.provider || issue.target || "").toLowerCase();
+    return provider && provider !== "trakt";
+  }) ? "item" : "play";
+  if (!issueCount && !issues.length) return attentionExamples(item);
+  const listed = issues.length;
+  const complete = context.issueItemsComplete === true && listed >= issueCount;
+  const description = complete
+    ? `All ${issueCount} affected ${itemWord}${issueCount === 1 ? " is" : "s are"} listed below.`
+    : listed
+      ? `${listed} of ${issueCount} affected ${itemWord}s are listed. The failed run retained only these examples; run a new restore to capture any missing item-level details.`
+      : `${issueCount} affected ${itemWord}s were reported, but the failed run did not retain item-level details. Run a new restore to capture them.`;
+  return `
+    <div class="sync-attention-issues">
+      <div class="sync-attention-issues-heading">
+        <h4>Affected plays</h4>
+        <span>${escapeHtml(`${listed} listed · ${issueCount} total`)}</span>
+      </div>
+      <p class="sync-attention-issues-note">${escapeHtml(description)}</p>
+      ${listed ? `<div class="sync-attention-issue-list">${issues.map((issue) => attentionIssueMarkup(item.id, issue)).join("")}</div>` : ""}
+    </div>`;
+}
+
+function syncAttentionItemMarkup(item = {}) {
+  const recommendations = Array.isArray(item.recommendations) ? item.recommendations.filter(Boolean) : [];
+  const skipping = state.syncAttentionSkipping === String(item.id || "");
+  const skipLabel = skipping ? "Skipping..." : String(item.skipLabel || "Skip this issue");
+  const tone = attentionToneForItem(item);
+  const isBlocking = tone === "error";
+  return `
+    <article class="sync-attention-item" data-sync-attention-item="${escapeAttribute(item.id)}">
+      <div class="sync-attention-item-header">
+        <div class="sync-attention-item-title">
+          <span class="sync-attention-kicker">${isBlocking ? "Blocking issue" : "Warning"}</span>
+          <h3>${escapeHtml(item.title || "Sync issue")}</h3>
+        </div>
+        <span class="status-pill status-${isBlocking ? "error" : "warning"}">${isBlocking ? "Needs attention" : "Review warning"}</span>
+      </div>
+      <p class="sync-attention-summary">${escapeHtml(item.summary || "This operation did not complete.")}</p>
+      <div class="sync-attention-detail-grid">
+        <div>
+          <h4>Why this blocks completion</h4>
+          <p>${escapeHtml(item.explanation || "The sync cannot be considered complete until this issue is resolved or skipped.")}</p>
+        </div>
+        <div>
+          <h4>Recommended next steps</h4>
+          ${recommendations.length
+            ? `<ol>${recommendations.map((recommendation) => `<li>${escapeHtml(recommendation)}</li>`).join("")}</ol>`
+            : `<p>Review Settings → Logs, correct the affected connection, and retry the operation.</p>`}
+        </div>
+      </div>
+      ${attentionIssueList(item)}
+      <div class="sync-attention-item-footer">
+        <span class="sync-attention-detected">Detected ${escapeHtml(attentionCreatedAt(item))}</span>
+        <div class="sync-attention-actions">
+          <p>Skipping accepts this incomplete projection and lets normal sync resume; it does not create the missing remote records.</p>
+          <button class="button-ghost sync-attention-skip" type="button" data-sync-attention-skip="${escapeAttribute(item.id)}" ${skipping ? "disabled" : ""} ${skipping ? 'aria-busy="true"' : ""}>${escapeHtml(skipLabel)}</button>
+        </div>
+      </div>
+    </article>`;
+}
+
+function clientAttentionItemMarkup(item = {}) {
+  const recommendations = Array.isArray(item.recommendations) ? item.recommendations.filter(Boolean) : [];
+  const tone = attentionToneForItem(item);
+  const route = String(item.context?.route || "").trim();
+  const internalRoute = route.startsWith("/") && !route.startsWith("//") ? route : "";
+  return `
+    <article class="sync-attention-item sync-attention-item--client" data-sync-client-attention="${escapeAttribute(item.id)}">
+      <div class="sync-attention-item-header">
+        <div class="sync-attention-item-title">
+          <span class="sync-attention-kicker">${tone === "error" ? "Request failed" : "Warning"}</span>
+          <h3>${escapeHtml(item.title || "Request needs attention")}</h3>
+        </div>
+        <span class="status-pill status-${tone === "error" ? "error" : "warning"}">${tone === "error" ? "Needs attention" : "Review warning"}</span>
+      </div>
+      <p class="sync-attention-summary">${escapeHtml(item.summary || "The request did not complete.")}</p>
+      <div class="sync-attention-detail-grid">
+        <div>
+          <h4>What happened</h4>
+          <p>${escapeHtml(item.explanation || "Plembfin could not complete this request.")}</p>
+        </div>
+        <div>
+          <h4>What to do</h4>
+          ${recommendations.length
+            ? `<ol>${recommendations.map((recommendation) => `<li>${escapeHtml(recommendation)}</li>`).join("")}</ol>`
+            : `<p>Review Settings → Logs for the full failure details.</p>`}
+        </div>
+      </div>
+      <div class="sync-attention-item-footer">
+        <span class="sync-attention-detected">Detected ${escapeHtml(attentionCreatedAt(item))}</span>
+        ${internalRoute
+          ? `<div class="sync-attention-actions"><a class="button-ghost sync-attention-issue-link" href="${escapeAttribute(internalRoute)}">Return to affected page</a></div>`
+          : ""}
+      </div>
+    </article>`;
+}
+
+export function renderSyncAttention() {
+  const container = elements.syncActivityAttention;
+  if (!container) return;
+  const items = attentionItems();
+  const serverItems = serverAttentionItems();
+  const count = attentionCount();
+  const loading = state.syncAttentionLoading === true;
+  const error = String(state.syncAttentionError || "").trim();
+
+  if (!count && !loading && !error) {
+    container.classList.add("hidden");
+    container.removeAttribute("data-attention-tone");
+    container.innerHTML = "";
+    return;
+  }
+
+  container.classList.remove("hidden");
+  container.dataset.attentionTone = attentionTone() === "error" ? "error" : "warning";
+  if (loading && !state.syncAttentionLoaded && !clientAttentionItems().length) {
+    container.innerHTML = `<div class="sync-attention-loading"><b>Checking sync blockers</b><span>Reading the latest restore and initial-sync status.</span></div>`;
+    return;
+  }
+  if (error && !items.length) {
+    container.innerHTML = `<div class="sync-attention-error"><div><b>Could not load sync attention details</b><span>${escapeHtml(error)} Review Settings → Logs for the full server-side failure. Details will refresh automatically when Sync Activity is opened again.</span></div></div>`;
+    return;
+  }
+  if (!items.length) {
+    container.innerHTML = `<div class="sync-attention-loading"><b>Sync needs attention</b><span>Loading the issue details. No automatic retry is offered from this alert.</span></div>`;
+    return;
+  }
+
+  const affectedCount = serverItems.reduce((total, item) => total + (Number(item.context?.issueCount) || 0), 0);
+  const blockingCount = items.filter((item) => attentionToneForItem(item) === "error").length;
+  const heading = affectedCount
+    ? `${count} issue${count === 1 ? "" : "s"} · ${affectedCount} affected play${affectedCount === 1 ? "" : "s"}`
+    : `${count} issue${count === 1 ? "" : "s"} need${count === 1 ? "s" : ""} review`;
+  const badge = blockingCount ? `${blockingCount} attention` : `${count} to review`;
+  const description = serverItems.length
+    ? "The restore or initial sync is paused to protect your canonical watch history. Review the explanation and recommended fixes below."
+    : "These failed requests are kept here so an important problem is not lost when a temporary message disappears.";
+  container.innerHTML = `
+    <div class="sync-attention-heading">
+      <div>
+        <span class="sync-attention-kicker">Sync - Attention Needed</span>
+        <h2 id="syncAttentionHeading">${escapeHtml(heading)}</h2>
+        <p>${escapeHtml(description)}</p>
+      </div>
+      <span class="status-pill status-${blockingCount ? "error" : "warning"}">${escapeHtml(badge)}</span>
+    </div>
+    <div class="sync-attention-list">${items.map((item) => item.source === "client" ? clientAttentionItemMarkup(item) : syncAttentionItemMarkup(item)).join("")}</div>`;
+}
+
+export async function loadSyncAttention({ force = false } = {}) {
+  if (!state.token || (state.syncAttentionLoading && !force)) return state.syncAttention;
+  const requestToken = ++attentionRequestToken;
+  state.syncAttentionLoading = true;
+  state.syncAttentionError = "";
+  renderSyncAttention();
+  try {
+    const response = await fetch("/api/sync-attention", { headers: authHeaders(), cache: "no-store" });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `Sync attention load failed with ${response.status}`);
+    if (requestToken !== attentionRequestToken) return state.syncAttention;
+    state.syncAttention = Array.isArray(body.attention) ? body.attention : [];
+    state.syncAttentionCount = Math.max(Number(body.count) || state.syncAttention.length, 0);
+    state.syncAttentionStatus = state.syncAttentionCount ? "attention" : "clear";
+    state.syncAttentionSeverity = state.syncAttentionCount
+      ? (state.syncAttention.some((item) => attentionToneForItem(item) === "error") ? "error" : "warning")
+      : "clear";
+    state.syncAttentionLoaded = true;
+    return state.syncAttention;
+  } catch (error) {
+    if (requestToken === attentionRequestToken) {
+      state.syncAttentionError = error.message || "Could not load sync attention details.";
+      state.syncAttentionStatus = "attention";
+      state.syncAttentionSeverity = "error";
+    }
+    throw error;
+  } finally {
+    if (requestToken === attentionRequestToken) {
+      state.syncAttentionLoading = false;
+      renderSyncActivityStatus();
+      renderSyncAttention();
+    }
   }
 }
 
-export function setSyncActivityProgress({ total = 0, completed = 0 } = {}) {
-  state.syncActivityProgress = { total, completed };
+export async function skipSyncAttention(id) {
+  const key = String(id || "").trim();
+  if (!key || state.syncAttentionSkipping) return null;
+  state.syncAttentionSkipping = key;
+  state.syncAttentionError = "";
+  renderSyncAttention();
+  try {
+    const response = await fetch("/api/sync-attention", {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ id: key }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `Could not skip sync issue (${response.status})`);
+    await loadSyncAttention({ force: true });
+    return body;
+  } catch (error) {
+    state.syncAttentionError = error.message || "Could not skip sync issue.";
+    throw error;
+  } finally {
+    state.syncAttentionSkipping = "";
+    renderSyncAttention();
+  }
+}
+
+export async function skipSyncAttentionItem(id, itemKey) {
+  const parentId = String(id || "").trim();
+  const issueKey = String(itemKey || "").trim();
+  if (!parentId || !issueKey || state.syncAttentionIssueSkipping) return null;
+  const actionKey = `${parentId}:${issueKey}`;
+  state.syncAttentionIssueSkipping = actionKey;
+  state.syncAttentionError = "";
+  renderSyncAttention();
+  try {
+    const response = await fetch("/api/sync-attention", {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ id: parentId, itemKey: issueKey, action: "skip-item" }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `Could not acknowledge restore issue (${response.status})`);
+    await loadSyncAttention({ force: true });
+    return body;
+  } catch (error) {
+    state.syncAttentionError = error.message || "Could not acknowledge restore issue.";
+    throw error;
+  } finally {
+    if (state.syncAttentionIssueSkipping === actionKey) state.syncAttentionIssueSkipping = "";
+    renderSyncAttention();
+  }
+}
+
+export function setSyncActivityProgress({ total = 0, completed = 0, active = false, label = "" } = {}) {
+  const normalizedTotal = Math.max(Number(total) || 0, 0);
+  const normalizedCompleted = Math.max(Number(completed) || 0, 0);
+  state.syncActivityProgress = {
+    total: normalizedTotal,
+    completed: normalizedCompleted,
+    active: Boolean(active) || (normalizedTotal > 0 && normalizedCompleted < normalizedTotal),
+    label: String(label || ""),
+  };
   renderSyncActivityStatus();
 }
 
@@ -821,6 +1343,7 @@ function renderTraktDispatchProgress() {
 
 export function renderSyncActivity() {
   renderSyncActivityStatus();
+  renderSyncAttention();
   renderTraktDispatchProgress();
   if (!elements.syncActivityRows) return;
   renderSyncActivityPagination();
@@ -954,6 +1477,7 @@ export function startSyncActivityRefresh() {
   refreshTimer = window.setInterval(() => {
     if (state.activeView !== "syncActivity") return;
     loadSyncActivity({ force: true }).catch(() => null);
+    loadSyncAttention({ force: true }).catch(() => null);
   }, REFRESH_MS);
 }
 

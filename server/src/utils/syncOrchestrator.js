@@ -7,6 +7,7 @@ import { canReceiveState, canSendState } from "./syncRoles.js";
 import { dispatchTrackerWatchState, primeTrackerWatchStateIntents } from "./trackerDispatcher.js";
 import {
   BACKGROUND_SYNC_PROGRESS_MAX_OWNER_MS,
+  isAuthoritativeRestoreActive,
   releaseBackgroundSyncProgressOwner,
   startBackgroundSyncProgressOwner,
   updateBackgroundSyncProgressOwner,
@@ -16,7 +17,10 @@ import {
   canonicalTitleKey,
   showTitleFrom,
 } from "./dataRepo.js";
+import { listActiveUpNextProviderItems } from "./upNextRepository.js";
+import { normalizeUpNextCandidate, upNextIdentityAliases } from "./upNextIdentity.js";
 import { runWithOutboundStateLease } from "./outboundStateLease.js";
+import { compoundEpisodeForMedia } from "./compoundEpisode.js";
 
 const LOOP_CACHE_TTL_SECONDS = 60;
 const LOOP_WINDOW_MS = 15_000;
@@ -203,6 +207,12 @@ const TARGETS_BY_SOURCE = {
 
 export function getTargetsForSource(source = "manual", config = {}, stateType = "watched") {
   const baseSource = String(source).trim().toLowerCase();
+  if (baseSource.startsWith("restore")) {
+    // A restore is an explicit authoritative projection. It must not inherit
+    // a normal server's source/destination role and silently omit the very
+    // app it is meant to repair.
+    return ["plex", "emby", "jellyfin"].filter((platform) => !config[platform]?.disabled);
+  }
   let targets = TARGETS_BY_SOURCE[baseSource];
   if (!targets) {
     // Fallback: target all platforms except the source itself
@@ -234,6 +244,51 @@ function targetsForMedia(media, config, stateType) {
   if (!Array.isArray(media.syncTargets)) return targets;
   const requested = new Set(media.syncTargets.map((target) => String(target).trim().toLowerCase()).filter(Boolean));
   return targets.filter((target) => requested.has(target));
+}
+
+function allSyncDestinationsDisabled(config = {}) {
+  return ["plex", "emby", "jellyfin"].every((platform) => config?.[platform]?.disabled === true);
+}
+
+function restoreSource(media = {}) {
+  return String(media.source || "").trim().toLowerCase().startsWith("restore");
+}
+
+function restoreBlocksSync(media = {}) {
+  return isAuthoritativeRestoreActive() && !restoreSource(media);
+}
+
+function providerItemsForMedia(media = {}) {
+  const candidate = normalizeUpNextCandidate({
+    ...media,
+    media_type: media.type || media.mediaType || media.media_type,
+    provider_items: media.provider_items || media.providerItems || {},
+  });
+  const aliases = new Set(upNextIdentityAliases(candidate));
+  const merged = {};
+  for (const observation of listActiveUpNextProviderItems()) {
+    const normalized = normalizeUpNextCandidate(observation);
+    if (!upNextIdentityAliases(normalized).some((alias) => aliases.has(alias))) continue;
+    for (const [provider, ids] of Object.entries(normalized.provider_items || {})) {
+      merged[provider] = [...new Set([...(merged[provider] || []), ...ids.map(String).filter(Boolean)])].sort();
+    }
+  }
+  for (const [provider, ids] of Object.entries(media.provider_items || media.providerItems || {})) {
+    const values = Array.isArray(ids) ? ids : [ids];
+    merged[provider] = [...new Set([...(merged[provider] || []), ...values.map(String).filter(Boolean)])].sort();
+  }
+  if (!Object.keys(merged).length) return media;
+  return {
+    ...media,
+    provider_items: merged,
+    providerItems: merged,
+    ...(media.restoreLookupCache ? { restoreLookupCache: media.restoreLookupCache } : {}),
+  };
+}
+
+function compoundEpisodeMediaForDispatch(media = {}) {
+  const compoundEpisode = compoundEpisodeForMedia(media);
+  return compoundEpisode ? { ...media, compound_episode: compoundEpisode } : media;
 }
 
 function normalizedCoordinate(value) {
@@ -747,6 +802,7 @@ export function shouldSuppressPlexNotificationEpisodeUnwatch(summary = {}, media
 }
 
 async function includeTrackerDispatch(summary, media, state, lane = "sync") {
+  if (restoreBlocksSync(media)) return { ...summary, ...deferredDispatchSummary("Paused while an authoritative watch-history restore is running") };
   // An explicit target list is authoritative. Detail-page Force Sync uses it
   // for destination-specific repairs, which must not also mutate Trakt as an
   // unadvertised side effect.
@@ -788,7 +844,8 @@ export async function syncMediaPlaystate(media, config, kv, {
   includeTrackers = true,
   shouldDefer = null,
 } = {}) {
-  if (!watchedPlayedSyncEnabled()) {
+  const isRestore = restoreSource(media);
+  if (!isRestore && !watchedPlayedSyncEnabled()) {
     console.log("Sync playstate skipped: watched/played syncing is disabled");
     return { skipped: true, status: "skipped", details: "Watched/played syncing is disabled.", targetStates: [], results: [] };
   }
@@ -798,11 +855,13 @@ export async function syncMediaPlaystate(media, config, kv, {
     return { skipped: true, status: "skipped", details: "Invalid normalized media payload", results: [] };
   }
 
-  if (!["manual", "force_sync", "trakt", "trakt_import", "trakt_current"].includes(String(media.source || "").toLowerCase()) && !canSendState(config, String(media.source || "").toLowerCase(), "watched")) {
+  if (!["manual", "force_sync", "restore", "restore_replay", "trakt", "trakt_import", "trakt_current"].includes(String(media.source || "").toLowerCase()) && !canSendState(config, String(media.source || "").toLowerCase(), "watched")) {
     return { skipped: true, status: "skipped", details: "Source is not allowed to send watched state", targetStates: [], results: [] };
   }
 
-  if (shouldDefer?.()) return deferredDispatchSummary("A newer unwatched state took precedence before watched dispatch");
+  media = compoundEpisodeMediaForDispatch(providerItemsForMedia(media));
+
+  if (await shouldDefer?.()) return deferredDispatchSummary("A newer unwatched state took precedence before watched dispatch");
 
   const targets = targetsForMedia(media, config, "watched");
   if (checkAndClaimLoop(media, media.source, targets, kv)) {
@@ -815,6 +874,11 @@ export async function syncMediaPlaystate(media, config, kv, {
       results: [],
     };
   }
+  if (!targets.length && allSyncDestinationsDisabled(config)) {
+    const summary = summarizeResults(targets, []);
+    return { ...summary, skipped: summary.status === "skipped", results: [] };
+  }
+  if (restoreBlocksSync(media)) return deferredDispatchSummary("Paused while an authoritative watch-history restore is running");
 
   console.log("Sync playstate dispatch started", {
     source: media.source,
@@ -829,15 +893,18 @@ export async function syncMediaPlaystate(media, config, kv, {
     const jobs = targets.map((target) => {
       const leaseKey = outboundStateLeaseKey(media, target);
       return runWithOutboundStateLease(leaseKey, "watched", async ({ shouldDefer: leaseShouldDefer }) => {
+        if (restoreBlocksSync(media)) {
+          return { status: "deferred", deferred: true, detail: "Paused while an authoritative watch-history restore is running" };
+        }
         // Prime the echo ledger inside the same target lease and immediately
         // before its write. Plex can emit the played notification while the
         // request is still in flight.
         await recordOutboundPlayedMarks(media, [target], kv);
-        if (leaseShouldDefer()) {
+        if (restoreBlocksSync(media) || await leaseShouldDefer()) {
           return { status: "deferred", deferred: true, detail: "A newer unwatched state took precedence" };
         }
         const result = await clientFor(target, config, media, lane)();
-        if (leaseShouldDefer()) {
+        if (restoreBlocksSync(media) || await leaseShouldDefer()) {
           return { status: "deferred", deferred: true, detail: "A newer unwatched state took precedence" };
         }
         if (result?.status !== "not_found") await recordOutboundPlayedMarks(media, [target], kv);
@@ -859,11 +926,11 @@ export async function syncMediaPlaystate(media, config, kv, {
       })),
     });
 
-    if (shouldDefer?.()) summary = { ...summary, ...deferredDispatchSummary("A newer unwatched state took precedence during watched dispatch"), targetStates: summary.targetStates || [], results };
+    if (await shouldDefer?.()) summary = { ...summary, ...deferredDispatchSummary("A newer unwatched state took precedence during watched dispatch"), targetStates: summary.targetStates || [], results };
 
     // A deferred LAN target means this whole inbound state was superseded.
     // Never let its older tracker write escape after the newer action.
-    if (includeTrackers && !summary.deferred) summary = await includeTrackerDispatch(summary, media, "watched", lane);
+    if (includeTrackers && !summary.deferred && !restoreBlocksSync(media)) summary = await includeTrackerDispatch(summary, media, "watched", lane);
     return { ...summary, skipped: summary.status === "skipped", results };
   } finally {
     if (trackDispatch) completeDispatchTracking(trackingOwnerId);
@@ -928,7 +995,8 @@ export async function syncMediaUnplayedPlaystate(media, config, kv, {
   includeTrackers = true,
   shouldDefer = null,
 } = {}) {
-  if (!watchedPlayedSyncEnabled()) {
+  const isRestore = restoreSource(media);
+  if (!isRestore && !watchedPlayedSyncEnabled()) {
     return { skipped: true, status: "skipped", details: "Watched/played syncing is disabled.", targetStates: [], results: [] };
   }
 
@@ -937,10 +1005,11 @@ export async function syncMediaUnplayedPlaystate(media, config, kv, {
     return { skipped: true, status: "skipped", details: "Invalid normalized media payload", results: [] };
   }
 
-  if (!["manual", "force_sync", "trakt", "trakt_import", "trakt_current"].includes(String(media.source || "").toLowerCase()) && !canSendState(config, String(media.source || "").toLowerCase(), "unwatched")) {
+  if (!["manual", "force_sync", "restore", "restore_replay", "trakt", "trakt_import", "trakt_current"].includes(String(media.source || "").toLowerCase()) && !canSendState(config, String(media.source || "").toLowerCase(), "unwatched")) {
     return { skipped: true, status: "skipped", details: "Source is not allowed to send unwatched state", targetStates: [], results: [] };
   }
-  if (shouldDefer?.()) return deferredDispatchSummary("A newer watched state took precedence before unplayed dispatch");
+  media = compoundEpisodeMediaForDispatch(providerItemsForMedia(media));
+  if (await shouldDefer?.()) return deferredDispatchSummary("A newer watched state took precedence before unplayed dispatch");
   const targets = targetsForMedia(media, config, "unwatched");
   if (checkAndClaimLoop(media, media.source, targets, kv, "unplayed_loop")) {
     return {
@@ -951,6 +1020,11 @@ export async function syncMediaUnplayedPlaystate(media, config, kv, {
       results: [],
     };
   }
+  if (!targets.length && allSyncDestinationsDisabled(config)) {
+    const summary = summarizeResults(targets, []);
+    return { ...summary, skipped: summary.status === "skipped", results: [] };
+  }
+  if (restoreBlocksSync(media)) return deferredDispatchSummary("Paused while an authoritative watch-history restore is running");
 
   console.log("Sync unplayed dispatch started", {
     source: media.source,
@@ -964,6 +1038,9 @@ export async function syncMediaUnplayedPlaystate(media, config, kv, {
     const jobs = targets.map((target) => {
       const leaseKey = outboundStateLeaseKey(media, target);
       return runWithOutboundStateLease(leaseKey, "unwatched", async ({ shouldDefer: leaseShouldDefer }) => {
+        if (restoreBlocksSync(media)) {
+          return { status: "deferred", deferred: true, detail: "Paused while an authoritative watch-history restore is running" };
+        }
         // Prime before the DELETE/unscrobble request because some servers emit
         // their callback before the outbound request resolves.
         await recordOutboundUnplayedMarks(media, [target], kv);
@@ -971,7 +1048,7 @@ export async function syncMediaUnplayedPlaystate(media, config, kv, {
         // Progress clear and mark-unplayed are one indivisible remote state
         // operation under this lease. A newer watched write cannot slip between
         // them and then be overwritten by this older unplayed request.
-        if (leaseShouldDefer()) {
+        if (restoreBlocksSync(media) || await leaseShouldDefer()) {
           return { status: "deferred", deferred: true, detail: "A newer watched state took precedence" };
         }
         try {
@@ -979,12 +1056,12 @@ export async function syncMediaUnplayedPlaystate(media, config, kv, {
         } catch (error) {
           console.log(`Resume progress clear on ${target} during unwatch failed (non-fatal)`, error.message);
         }
-        if (leaseShouldDefer()) {
+        if (restoreBlocksSync(media) || await leaseShouldDefer()) {
           return { status: "deferred", deferred: true, detail: "A newer watched state took precedence" };
         }
 
         const result = await clientUnplayedFor(target, config, media, lane)();
-        if (leaseShouldDefer()) {
+        if (restoreBlocksSync(media) || await leaseShouldDefer()) {
           return { status: "deferred", deferred: true, detail: "A newer watched state took precedence" };
         }
         if (result?.status !== "not_found") await recordOutboundUnplayedMarks(media, [target], kv);
@@ -994,7 +1071,7 @@ export async function syncMediaUnplayedPlaystate(media, config, kv, {
 
     const results = await Promise.allSettled(jobs);
     let summary = summarizeResults(targets, results);
-    if (shouldDefer?.()) summary = { ...summary, ...deferredDispatchSummary("A newer watched state took precedence during unplayed dispatch"), targetStates: summary.targetStates || [], results };
+    if (await shouldDefer?.()) summary = { ...summary, ...deferredDispatchSummary("A newer watched state took precedence during unplayed dispatch"), targetStates: summary.targetStates || [], results };
     console.log("Sync unplayed dispatch completed", {
       source: media.source,
       results: results.map((result, index) => ({
@@ -1004,7 +1081,7 @@ export async function syncMediaUnplayedPlaystate(media, config, kv, {
       })),
     });
 
-    if (includeTrackers && !summary.deferred) summary = await includeTrackerDispatch(summary, media, "unwatched", lane);
+    if (includeTrackers && !summary.deferred && !restoreBlocksSync(media)) summary = await includeTrackerDispatch(summary, media, "unwatched", lane);
     return { ...summary, skipped: summary.status === "skipped", results };
   } finally {
     if (trackDispatch) completeDispatchTracking(trackingOwnerId);
@@ -1012,6 +1089,7 @@ export async function syncMediaUnplayedPlaystate(media, config, kv, {
 }
 
 export async function syncMediaProgress(media, config, kv, { lane = "sync" } = {}) {
+  if (restoreBlocksSync(media)) return deferredDispatchSummary("Paused while an authoritative watch-history restore is running");
   if (!shouldSyncResumeProgress(media)) {
     console.log("Sync progress skipped: resume payload is not actionable", {
       source: media.source,
@@ -1027,6 +1105,7 @@ export async function syncMediaProgress(media, config, kv, { lane = "sync" } = {
   if (!["manual", "force_sync", "trakt_import", "trakt_current"].includes(String(media.source || "").toLowerCase()) && !canSendState(config, String(media.source || "").toLowerCase(), "progress")) {
     return { skipped: true, status: "skipped", details: "Source is not allowed to send progress", targetStates: [], results: [] };
   }
+  media = providerItemsForMedia(media);
   const targets = targetsForMedia(media, config, "progress");
   if (checkAndClaimLoop(media, media.source, targets, kv, "progress_loop")) {
     console.log("Sync progress skipped: echo loop detected", { source: media.source, title: media.title });
@@ -1038,6 +1117,11 @@ export async function syncMediaProgress(media, config, kv, { lane = "sync" } = {
       results: [],
     };
   }
+  if (!targets.length && allSyncDestinationsDisabled(config)) {
+    const summary = summarizeProgressResults(targets, []);
+    return { ...summary, skipped: summary.status === "skipped", results: [] };
+  }
+  if (restoreBlocksSync(media)) return deferredDispatchSummary("Paused while an authoritative watch-history restore is running");
 
   console.log("Sync progress dispatch started", {
     source: media.source,
@@ -1055,9 +1139,12 @@ export async function syncMediaProgress(media, config, kv, { lane = "sync" } = {
   // playback_progress.
   await recordOutboundProgressMarks(media, targets, kv);
 
-  const jobs = targets.map((target) => {
-    const run = clientProgressFor(target, config, media, lane);
-    return run();
+  if (restoreBlocksSync(media)) return deferredDispatchSummary("Paused while an authoritative watch-history restore is running");
+  const jobs = targets.map(async (target) => {
+    if (restoreBlocksSync(media)) return { status: "deferred", deferred: true, detail: "Paused while an authoritative watch-history restore is running" };
+    const result = await clientProgressFor(target, config, media, lane)();
+    if (restoreBlocksSync(media)) return { status: "deferred", deferred: true, detail: "Paused while an authoritative watch-history restore is running" };
+    return result;
   });
 
   const results = await Promise.allSettled(jobs);

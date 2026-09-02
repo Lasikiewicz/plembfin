@@ -11,7 +11,7 @@ fork and keeps most of the API surface) with a few differences noted below. Read
 | --- | --- |
 | `server/src/utils/jellyfinClient.js` | Outbound HTTP client - all Jellyfin API calls |
 | `server/src/utils/parsers.js` | `parseJellyfinWebhook` - webhook normalization |
-| `server/src/scheduled.js` | `syncRecentlyWatchedFromJellyfin`, `syncRecentlyResumableFromJellyfin` - catch-up polling |
+| `server/src/scheduled.js` | `syncRecentlyWatchedFromJellyfin`, `syncRecentlyResumableFromJellyfin`, `syncRecentlyNextUpFromJellyfin` - catch-up polling |
 | `server/src/utils/liveSessions.js` | Polls `/Sessions` for Now Playing |
 | `public/modules/help-content.js` | `jellyfinCredentialGuide()`, `jellyfinWebhookSetup()` - in-app setup guides |
 
@@ -34,6 +34,21 @@ one mode is active: completing account setup removes the stored manual key, whil
 manual setup switches Jellyfin back to manual mode. Requests send both
 `X-Emby-Token` and `X-MediaBrowser-Token` headers so every Jellyfin version accepts
 them.
+
+## Personal Watchlist Sync
+
+Jellyfin's optional watchlist projection mirrors Emby's two supported representations.
+**Plembfin playlist** owns a dedicated playlist named `Plembfin Watchlist`; **Favorites
+compatibility** uses the selected user's Favorites but preserves unrelated entries and
+only removes items previously recorded as Plembfin-managed. Requests are user-scoped,
+provider-ID-first, and ambiguity-safe. The adapter sends both Jellyfin token headers and
+never puts the API key in a URL.
+
+The initial publish flow is read-only preview followed by explicit confirmation. Complete
+paginated snapshots establish the removal baseline. A partial response, unavailable
+library, missing match, or failed request leaves the canonical local watchlist intact and
+keeps the provider queue item visible for retry. Restored local state is paused until a
+new explicit publish establishes fresh provider observations.
 
 ## Inbound: webhooks
 
@@ -61,6 +76,11 @@ Every minute `fetchLiveSessions` polls `/Sessions` for Now Playing. The catch-up
   `syncRecentlyResumableFromJellyfin` replicates resume positions. Episode rows include
   series provider IDs so cross-server lookup can resolve the series before selecting
   the matching season and episode.
+- **Next Up** - `fetchJellyfinNextUpItems` (`/Shows/NextUp`, scoped to the configured user)
+  records released episode observations for the unified dashboard queue. Jellyfin native
+  IDs are retained, so equivalent entries from multiple Jellyfin libraries can fan out
+  mutations safely. Feed generations are activated only after a complete response;
+  failures preserve the last good source snapshot and never change canonical watch state.
 
 **Enabled by default** - set `EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED=false` to disable it. Every
 5 minutes (`JELLYFIN_UNWATCHED_POLL_INTERVAL_MS`), **unwatched
@@ -88,9 +108,14 @@ Playback positions use tick units (1 tick = 100 ns), converted in `scheduled.js`
 | `setJellyfinProgress` | Writes a resume position via the item's UserData |
 | `markJellyfinUnplayedById` | Unplay by item ID (used by unwatch propagation) |
 | `fetchJellyfinSeriesEpisodes` / `fetchJellyfinEpisodes` | Episode lists for season-level operations |
-| `fetchJellyfinWatchedItems` / `fetchJellyfinResumableItems` | Feeds for catch-up sync |
+| `fetchJellyfinWatchedItems` / `fetchJellyfinResumableItems` / `fetchJellyfinNextUpItems` | Watched, resume, and Next Up feeds for catch-up sync |
 | `fetchJellyfinPersonalRatingSnapshot` | Reads rated movies, series, and episodes for the isolated personal-rating snapshot worker |
 | `setJellyfinPersonalRating` / `clearJellyfinPersonalRating` | Writes or clears a personal rating without changing played state or resume progress |
+
+The dedicated `jellyfinWatchlistClient.js` owns playlist discovery/creation, user-scoped
+playlist/Favorites snapshots, provider identity resolution, and add/remove calls. The
+worker stores the playlist container and managed item IDs in its provider ledger, so
+global removals remain limited to Plembfin-owned entries.
 
 A `not_found` result is reported as "skipped - no matching item" in sync telemetry:
 the item isn't in Jellyfin's library.

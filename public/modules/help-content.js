@@ -442,6 +442,19 @@ export function savedCredentialNote() {
   `;
 }
 
+export function watchlistSyncGuide() {
+  return `
+    <b>Plembfin is the canonical watchlist</b>
+    <p style="margin: 4px 0 0;">Watchlist add/remove actions save locally first, then queue provider delivery. Preview is read-only; use <b>Publish local list</b> only after reviewing the provider changes.</p>
+    <ul style="margin: 4px 0 0; padding-left: 1.1rem; line-height: 1.45;">
+      <li><b>Plex:</b> Universal Watchlist native mode can write only after <b>Allow account writes</b>; RSS mode is read-only.</li>
+      <li><b>Emby/Jellyfin:</b> playlist mode owns <code>Plembfin Watchlist</code>; Favorites mode preserves unrelated Favorites.</li>
+      <li>Provider-only additions are not imported automatically. Missing or unavailable items stay local and remain visible for retry.</li>
+      <li>A restored list is paused until you explicitly publish it again. A completed movie/show watch removes it from every enabled provider.</li>
+    </ul>
+  `;
+}
+
 export function renderSettingsInlineHelp() {
   const adminLoginHelp = document.getElementById("adminLoginHelp");
   if (adminLoginHelp) adminLoginHelp.innerHTML = adminTokenGuide();
@@ -510,4 +523,7 @@ export function renderSettingsInlineHelp() {
       <p class="tool-accordion-desc" style="margin: 4px 0 0;"><b>Rescan</b> re-runs the sync for every listed item and rebuilds the report. <b>Fix All Matches</b> does the same, then walks you through fixing them one at a time.</p>
     `;
   }
+
+  const watchlistHelp = document.getElementById("watchlistSyncHelp");
+  if (watchlistHelp) watchlistHelp.innerHTML = watchlistSyncGuide();
 }

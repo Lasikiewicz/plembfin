@@ -211,7 +211,7 @@ export async function handleConfig(req, res) {
     // are validated, matching the previous per-section semantics.
     const merged = await mergeIncomingConfig(config);
     const toValidate = {};
-    for (const section of ["plex", "emby", "jellyfin", "seerr", "tuning", "pacing", "ratingSync"]) {
+    for (const section of ["plex", "emby", "jellyfin", "seerr", "tuning", "pacing", "ratingSync", "watchlistSync"]) {
       if (config[section]) toValidate[section] = merged[section];
     }
     const errors = validateConfig(toValidate);
@@ -562,6 +562,15 @@ async function mediaFromAppLinksRequest(req) {
     tvdb: String(req.query.tvdbId || "").trim() || undefined,
   };
   const requestedTitle = String(req.query.title || "").trim();
+  let providerItems = {};
+  try {
+    const parsedProviderItems = JSON.parse(String(req.query.providerItems || "{}"));
+    if (parsedProviderItems && typeof parsedProviderItems === "object" && !Array.isArray(parsedProviderItems)) {
+      providerItems = parsedProviderItems;
+    }
+  } catch {
+    providerItems = {};
+  }
   const season = Number.parseInt(String(req.query.season || "").trim(), 10);
   const episode = Number.parseInt(String(req.query.episode || "").trim(), 10);
   const episodeCoordinates = isEpisode && Number.isInteger(season) && season >= 0 && Number.isInteger(episode) && episode > 0
@@ -572,6 +581,7 @@ async function mediaFromAppLinksRequest(req) {
     type: isEpisode ? "episode" : mediaType === "tv" ? "series" : "movie",
     title: requestedTitle,
     ids: requestedIds,
+    provider_items: providerItems,
     ...episodeCoordinates,
   };
 
@@ -585,6 +595,7 @@ async function mediaFromAppLinksRequest(req) {
         ...tmdbMedia.ids,
         ...Object.fromEntries(Object.entries(requestedIds).filter(([, value]) => value)),
       },
+      provider_items: providerItems,
       ...episodeCoordinates,
     };
   }

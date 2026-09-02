@@ -625,6 +625,229 @@ const migrations = [
       `);
     },
   },
+  {
+    id: 21,
+    up(database) {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS up_next_provider_items (
+          provider TEXT NOT NULL CHECK (provider IN ('plex', 'emby', 'jellyfin')),
+          feed_kind TEXT NOT NULL CHECK (feed_kind IN ('resume', 'next_up')),
+          provider_item_id TEXT NOT NULL,
+          media_key TEXT,
+          media_type TEXT NOT NULL CHECK (media_type IN ('movie', 'episode')),
+          title TEXT,
+          show_title TEXT,
+          episode_title TEXT,
+          season INTEGER,
+          episode INTEGER,
+          year INTEGER,
+          air_date TEXT,
+          poster_url TEXT,
+          show_poster_url TEXT,
+          imdb_id TEXT,
+          tmdb_id TEXT,
+          tvdb_id TEXT,
+          show_imdb_id TEXT,
+          show_tmdb_id TEXT,
+          show_tvdb_id TEXT,
+          provider_ids_json TEXT NOT NULL DEFAULT '{}',
+          parent_provider_item_id TEXT,
+          series_provider_item_id TEXT,
+          position_ms INTEGER,
+          duration_ms INTEGER,
+          progress REAL,
+          source_updated_at INTEGER,
+          observed_at INTEGER NOT NULL,
+          feed_generation INTEGER NOT NULL,
+          last_seen_at INTEGER NOT NULL,
+          resolution_status TEXT NOT NULL DEFAULT 'resolved',
+          last_error TEXT,
+          PRIMARY KEY (provider, feed_kind, provider_item_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_up_next_provider_items_feed
+          ON up_next_provider_items(provider, feed_kind, feed_generation);
+        CREATE INDEX IF NOT EXISTS idx_up_next_provider_items_media_key
+          ON up_next_provider_items(media_key);
+        CREATE INDEX IF NOT EXISTS idx_up_next_provider_items_coordinate
+          ON up_next_provider_items(media_type, season, episode);
+
+        CREATE TABLE IF NOT EXISTS up_next_provider_feed_state (
+          provider TEXT NOT NULL CHECK (provider IN ('plex', 'emby', 'jellyfin')),
+          feed_kind TEXT NOT NULL CHECK (feed_kind IN ('resume', 'next_up')),
+          current_generation INTEGER NOT NULL DEFAULT 0,
+          active_generation INTEGER NOT NULL DEFAULT 0,
+          status TEXT NOT NULL DEFAULT 'idle' CHECK (status IN ('idle', 'running', 'succeeded', 'partial', 'failed')),
+          started_at INTEGER,
+          completed_at INTEGER,
+          last_success_at INTEGER,
+          item_count INTEGER NOT NULL DEFAULT 0,
+          last_run_complete INTEGER NOT NULL DEFAULT 0,
+          cursor_json TEXT,
+          last_error TEXT,
+          retry_after INTEGER NOT NULL DEFAULT 0,
+          updated_at INTEGER NOT NULL,
+          PRIMARY KEY (provider, feed_kind)
+        );
+      `);
+    },
+  },
+  {
+    id: 22,
+    up(database) {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS personal_watchlist_meta (
+          id INTEGER PRIMARY KEY CHECK (id = 1),
+          revision INTEGER NOT NULL DEFAULT 0,
+          updated_at INTEGER NOT NULL
+        );
+        INSERT OR IGNORE INTO personal_watchlist_meta (id, revision, updated_at) VALUES (1, 0, 0);
+
+        CREATE TABLE IF NOT EXISTS personal_watchlist_mutations (
+          id TEXT PRIMARY KEY,
+          media_key TEXT NOT NULL,
+          media_json TEXT NOT NULL,
+          desired_state TEXT NOT NULL CHECK (desired_state IN ('present', 'absent')),
+          origin TEXT NOT NULL CHECK (origin IN ('local', 'plex', 'emby', 'jellyfin', 'watched', 'restore', 'reconcile', 'system')),
+          reason TEXT NOT NULL,
+          canonical_revision INTEGER NOT NULL,
+          event_fingerprint TEXT UNIQUE,
+          source_timestamp INTEGER,
+          created_at INTEGER NOT NULL,
+          superseded_at INTEGER,
+          applied_at INTEGER,
+          tombstone INTEGER NOT NULL DEFAULT 0 CHECK (tombstone IN (0, 1))
+        );
+        CREATE INDEX IF NOT EXISTS idx_personal_watchlist_mutations_media
+          ON personal_watchlist_mutations(media_key, canonical_revision DESC, created_at DESC);
+        CREATE INDEX IF NOT EXISTS idx_personal_watchlist_mutations_active
+          ON personal_watchlist_mutations(canonical_revision DESC, desired_state);
+
+        CREATE TABLE IF NOT EXISTS personal_watchlist_provider_items (
+          provider TEXT NOT NULL CHECK (provider IN ('plex', 'emby', 'jellyfin')),
+          connection_id TEXT NOT NULL DEFAULT '',
+          remote_scope_key TEXT NOT NULL DEFAULT '',
+          representation TEXT NOT NULL CHECK (representation IN ('native', 'playlist', 'favorites', 'rss')),
+          media_key TEXT NOT NULL,
+          media_json TEXT NOT NULL,
+          provider_item_id TEXT NOT NULL DEFAULT '',
+          provider_ids_json TEXT,
+          remote_state TEXT NOT NULL DEFAULT 'unknown' CHECK (remote_state IN ('present', 'absent', 'unavailable', 'unknown', 'unmanaged')),
+          managed_by_plembfin INTEGER NOT NULL DEFAULT 0 CHECK (managed_by_plembfin IN (0, 1)),
+          primary_target INTEGER NOT NULL DEFAULT 0 CHECK (primary_target IN (0, 1)),
+          container_id TEXT,
+          container_name TEXT,
+          last_confirmed_present_at INTEGER,
+          last_seen_at INTEGER,
+          last_complete_generation INTEGER,
+          last_outbound_state TEXT CHECK (last_outbound_state IN ('present', 'absent')),
+          last_outbound_intent_id TEXT,
+          last_outbound_at INTEGER,
+          sync_status TEXT NOT NULL DEFAULT 'unknown' CHECK (sync_status IN ('unknown', 'synced', 'pending', 'not_available', 'reauth_required', 'failed', 'needs_review')),
+          last_error TEXT,
+          updated_at INTEGER NOT NULL,
+          PRIMARY KEY (provider, connection_id, remote_scope_key, representation, media_key, provider_item_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_personal_watchlist_provider_items_scope
+          ON personal_watchlist_provider_items(provider, connection_id, remote_scope_key, representation, remote_state);
+        CREATE INDEX IF NOT EXISTS idx_personal_watchlist_provider_items_media
+          ON personal_watchlist_provider_items(media_key, provider);
+
+        CREATE TABLE IF NOT EXISTS personal_watchlist_sync_queue (
+          provider TEXT NOT NULL CHECK (provider IN ('plex', 'emby', 'jellyfin')),
+          connection_id TEXT NOT NULL DEFAULT '',
+          remote_scope_key TEXT NOT NULL DEFAULT '',
+          representation TEXT NOT NULL CHECK (representation IN ('native', 'playlist', 'favorites', 'rss')),
+          media_key TEXT NOT NULL,
+          media_json TEXT NOT NULL,
+          desired_state TEXT NOT NULL CHECK (desired_state IN ('present', 'absent')),
+          operation TEXT NOT NULL CHECK (operation IN ('add', 'remove', 'create_container', 'repair')),
+          source_mutation_id TEXT,
+          intent_id TEXT NOT NULL,
+          canonical_revision INTEGER NOT NULL DEFAULT 0,
+          provider_item_id TEXT,
+          status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'processing', 'succeeded', 'not_available', 'reauth_required', 'failed')),
+          attempt_count INTEGER NOT NULL DEFAULT 0,
+          next_attempt_at INTEGER NOT NULL DEFAULT 0,
+          lease_owner TEXT,
+          lease_expires_at INTEGER,
+          last_error TEXT,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL,
+          succeeded_at INTEGER,
+          PRIMARY KEY (provider, connection_id, remote_scope_key, representation, media_key)
+        );
+        CREATE INDEX IF NOT EXISTS idx_personal_watchlist_sync_queue_due
+          ON personal_watchlist_sync_queue(status, next_attempt_at, updated_at);
+
+        CREATE TABLE IF NOT EXISTS personal_watchlist_sync_runs (
+          provider TEXT NOT NULL CHECK (provider IN ('plex', 'emby', 'jellyfin')),
+          connection_id TEXT NOT NULL DEFAULT '',
+          remote_scope_key TEXT NOT NULL DEFAULT '',
+          representation TEXT NOT NULL CHECK (representation IN ('native', 'playlist', 'favorites', 'rss')),
+          run_id TEXT,
+          generation INTEGER NOT NULL DEFAULT 0,
+          mode TEXT NOT NULL DEFAULT 'reconcile' CHECK (mode IN ('initial_publish', 'reconcile', 'repair')),
+          status TEXT NOT NULL DEFAULT 'idle' CHECK (status IN ('idle', 'running', 'succeeded', 'partial', 'failed')),
+          canonical_revision INTEGER NOT NULL DEFAULT 0,
+          scanned_count INTEGER NOT NULL DEFAULT 0,
+          present_count INTEGER NOT NULL DEFAULT 0,
+          removed_count INTEGER NOT NULL DEFAULT 0,
+          unavailable_count INTEGER NOT NULL DEFAULT 0,
+          started_at INTEGER,
+          completed_at INTEGER,
+          cursor_json TEXT,
+          complete_snapshot INTEGER NOT NULL DEFAULT 0 CHECK (complete_snapshot IN (0, 1)),
+          snapshot_hash TEXT,
+          last_error TEXT,
+          updated_at INTEGER NOT NULL,
+          PRIMARY KEY (provider, connection_id, remote_scope_key, representation)
+        );
+
+        CREATE TABLE IF NOT EXISTS personal_watchlist_activity (
+          id TEXT PRIMARY KEY,
+          provider TEXT,
+          connection_id TEXT,
+          remote_scope_key TEXT,
+          representation TEXT,
+          media_key TEXT,
+          media_json TEXT,
+          action TEXT NOT NULL,
+          origin TEXT NOT NULL,
+          reason TEXT,
+          status TEXT NOT NULL,
+          details TEXT,
+          created_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_personal_watchlist_activity_created
+          ON personal_watchlist_activity(created_at DESC, id DESC);
+
+        CREATE TRIGGER IF NOT EXISTS trg_personal_watchlist_cache_insert AFTER INSERT ON personal_watchlist BEGIN
+          UPDATE cache_versions SET version=version+1, updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id='history';
+        END;
+        CREATE TRIGGER IF NOT EXISTS trg_personal_watchlist_cache_update AFTER UPDATE ON personal_watchlist BEGIN
+          UPDATE cache_versions SET version=version+1, updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id='history';
+        END;
+        CREATE TRIGGER IF NOT EXISTS trg_personal_watchlist_cache_delete AFTER DELETE ON personal_watchlist BEGIN
+          UPDATE cache_versions SET version=version+1, updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id='history';
+        END;
+      `);
+    },
+  },
+  {
+    id: 23,
+    up(database) {
+      const columns = new Set(database.pragma("table_info(up_next_provider_items)").map((column) => column.name));
+      if (!columns.has("air_date")) database.exec("ALTER TABLE up_next_provider_items ADD COLUMN air_date TEXT");
+    },
+  },
+  {
+    id: 24,
+    up(database) {
+      const columns = new Set(database.pragma("table_info(up_next_provider_items)").map((column) => column.name));
+      if (!columns.has("poster_url")) database.exec("ALTER TABLE up_next_provider_items ADD COLUMN poster_url TEXT");
+      if (!columns.has("show_poster_url")) database.exec("ALTER TABLE up_next_provider_items ADD COLUMN show_poster_url TEXT");
+    },
+  },
 ];
 
 function parseJsonValue(value, fallback) {

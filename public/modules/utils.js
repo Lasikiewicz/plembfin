@@ -358,11 +358,17 @@ export function normalizeHeader(value) {
 
 export function formatTmdbDate(dateStr) {
   if (!dateStr) return "";
-  const parts = dateStr.split("-");
-  if (parts.length !== 3) return dateStr;
-  const date = new Date(parts[0], parts[1] - 1, parts[2]);
-  if (Number.isNaN(date.getTime())) return dateStr;
-  return new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(date);
+  const value = String(dateStr).trim();
+  const formatter = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });
+  const dateOnly = value.match(/^(\d{4})-(\d{2})-(\d{2})(?:$|T)/);
+  if (dateOnly) {
+    const date = new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]));
+    if (!Number.isNaN(date.getTime())) return formatter.format(date);
+  }
+
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return value;
+  return formatter.format(parsed);
 }
 
 export function ordinalDay(day) {

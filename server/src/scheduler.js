@@ -1,5 +1,5 @@
 import { createLoopStore } from "./utils/loopStore.js";
-import { activeSyncOperation, appendSyncHistory, loadBackgroundSyncProgress, loadMediaConfig, loadRuntimeState, setRuntimeState, SYNC_OPERATION_SCHEDULED } from "./utils/configStore.js";
+import { activeSyncOperation, appendSyncHistory, isAuthoritativeRestoreActive, loadBackgroundSyncProgress, loadMediaConfig, loadRuntimeState, setRuntimeState, SYNC_OPERATION_SCHEDULED } from "./utils/configStore.js";
 import { createPlexNotificationListener } from "./utils/plexNotificationListener.js";
 import { createPlexAdaptivePoller } from "./utils/plexAdaptivePoller.js";
 import { createLiveSessionPoller } from "./utils/liveSessionPoller.js";
@@ -20,6 +20,7 @@ import { refreshUpcomingCalendarCache } from "./utils/upcomingCalendarCache.js";
 import { runScheduledWatchBackup, runScheduledRemoteWatchBackup } from "./utils/watchHistoryBackups.js";
 import { runScheduledPlembfinBackup } from "./utils/plembfinBackups.js";
 import { runRatingSyncScheduler } from "./utils/personalRatingSync.js";
+import { runWatchlistSyncScheduler } from "./utils/personalWatchlistSync.js";
 import { pruneSyncPlans } from "./utils/syncPlans.js";
 import {
   deletePlaybackProgress,
@@ -189,6 +190,7 @@ async function runWithTimeBudget(label, task, timeoutMs) {
 // Invoked once per minute by the elected worker coordinator.
 export async function runScheduledTick({ isLeader = () => true } = {}) {
   if (!isLeader()) return { skipped: true, reason: "lease-lost" };
+  if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active" };
   pruneSyncPlans();
   // A large outstanding backlog (checkUnwatched + recently-watched/resumable
   // polling across all three platforms, then up to 15 manual-dispatch
@@ -210,23 +212,36 @@ export async function runScheduledTick({ isLeader = () => true } = {}) {
     await runWithTimeBudget("Scheduled sync", () => runScheduledSync(), 120_000);
   }
   if (!isLeader()) return { skipped: true, reason: "lease-lost" };
+  if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active" };
   if (!deferOutbound) {
     await runWithTimeBudget("Tracker watched-state poll", () => pollConnectedTrackers(), 45_000);
   }
   if (!isLeader()) return { skipped: true, reason: "lease-lost" };
+  if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active" };
   // Personal ratings have their own opt-in queue and provider snapshot
   // generations. Keep their cadence and failure budget independent from the
   // watched-state sync above: a ratings outage must not delay watch history,
   // and a large watched dispatch must not suppress a due rating run.
   await runWithTimeBudget("Personal rating sync", () => runRatingSyncScheduler(), 45_000);
   if (!isLeader()) return { skipped: true, reason: "lease-lost" };
+  if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active" };
+  // Personal watchlists have their own durable queue and complete-snapshot
+  // reconciliation. Keep this independent from ratings so a provider outage
+  // or large watchlist does not delay watch history or the other personal sync.
+  await runWithTimeBudget("Personal watchlist sync", () => runWatchlistSyncScheduler(), 45_000);
+  if (!isLeader()) return { skipped: true, reason: "lease-lost" };
+  if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active" };
   await runWithTimeBudget("Scheduled watch-history backup", () => runScheduledWatchBackup(), 30_000);
   if (!isLeader()) return { skipped: true, reason: "lease-lost" };
+  if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active" };
   await runWithTimeBudget("Scheduled remote watch-history backup", () => runScheduledRemoteWatchBackup(), 60_000);
   if (!isLeader()) return { skipped: true, reason: "lease-lost" };
+  if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active" };
   await runWithTimeBudget("Scheduled Plembfin backup", () => runScheduledPlembfinBackup(), 30_000);
   if (!isLeader()) return { skipped: true, reason: "lease-lost" };
+  if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active" };
   await runWithTimeBudget("TMDB prewarm", () => prewarmTmdbLibrary({ limit: 4 }), 30_000);
+  if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active" };
   if (Date.now() - lastNextAiringRefreshAt > NEXT_AIRING_REFRESH_INTERVAL_MS) {
     if (!isLeader()) return { skipped: true, reason: "lease-lost" };
     lastNextAiringRefreshAt = Date.now();
@@ -381,6 +396,7 @@ async function handlePlexLibraryItemChange(ratingKey, metadataOverride = null) {
     // relies on for this; treat a hit there as conclusive too, not just an
     // exact playstate match.
     const existingByAnyKey = await findWatchedByAnyMediaKey(media).catch(() => null);
+    if (isAuthoritativeRestoreActive()) return;
     if (existingByAnyKey && !isNewerWatch) {
       console.log("Plex notifications: already recorded under a different key; repairing playstate instead of logging a new watch", {
         title: media.title,
@@ -390,6 +406,12 @@ async function handlePlexLibraryItemChange(ratingKey, metadataOverride = null) {
       await deletePlaybackProgress(media).catch(() => null);
       return;
     }
+
+    // The restore fence may have been claimed while the notification was
+    // being hydrated. Do not admit a newly observed watched event after the
+    // canonical restore has started; its app push will otherwise be based on
+    // a row that the restore just replaced.
+    if (isAuthoritativeRestoreActive()) return;
 
     const watchRecord = mediaToWatchRecord(media, "plex");
     watchRecord.watched_at = watchedAt;
@@ -407,7 +429,7 @@ async function handlePlexLibraryItemChange(ratingKey, metadataOverride = null) {
       type: media.type,
     });
 
-    const result = await insertWatchRecord(watchRecord, { skipInvalidate: true });
+    const result = await insertWatchRecord(watchRecord, { skipInvalidate: true, watchlistConfig: config });
     await upsertPlaystateForMedia(media, "watched", watchedAt, { skipInvalidate: true });
     const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
       skipped: false,

@@ -6,6 +6,7 @@ import { bumpDataVersion, db, transaction, writeAuditLog } from "../db.js";
 import { getCanonicalPosterUrl } from "../utils/mediaArtwork.js";
 import { loadMediaConfig } from "../utils/configStore.js";
 import { queuePersonalRatingMutation } from "../utils/personalRatingSync.js";
+import { recordWatchlistMutation } from "../utils/personalWatchlistRepository.js";
 
 const PERSONAL_MEDIA_TYPES = new Set(["movie", "tv", "episode"]);
 const MAX_TITLE_LENGTH = 300;
@@ -359,10 +360,32 @@ export async function handlePersonalMedia(req, res) {
       const ratingSyncConfig = ["rate", "remove-rating"].includes(action)
         ? await loadMediaConfig({ resolveConnections: false })
         : null;
+      const watchlistSyncConfig = ["watchlist-add", "watchlist-remove"].includes(action)
+        ? await loadMediaConfig({ resolveConnections: false })
+        : null;
       let ratingQueue = { queued: 0, providers: [] };
+      let watchlistMutation = null;
       transaction(() => {
-        if (action === "watchlist-add") upsertMedia("personal_watchlist", media, timestamp);
-        if (action === "watchlist-remove") db.prepare("DELETE FROM personal_watchlist WHERE media_key = ?").run(media.media_key);
+        if (action === "watchlist-add") {
+          watchlistMutation = recordWatchlistMutation({
+            media,
+            desiredState: "present",
+            origin: "local",
+            reason: "manual_add",
+            config: watchlistSyncConfig,
+            timestamp,
+          });
+        }
+        if (action === "watchlist-remove") {
+          watchlistMutation = recordWatchlistMutation({
+            media,
+            desiredState: "absent",
+            origin: "local",
+            reason: "manual_remove",
+            config: watchlistSyncConfig,
+            timestamp,
+          });
+        }
         if (action === "rate") {
           const rating = Number(body.rating);
           if (!Number.isInteger(rating) || rating < 1 || rating > 10) {
@@ -392,7 +415,20 @@ export async function handlePersonalMedia(req, res) {
       });
       bumpDataVersion();
       writeAuditLog(`personal.${action}`, { detail: { mediaKey: media.media_key } });
-      return sendJson(res, { ok: true, media_key: media.media_key, rating_sync: ratingQueue }, 200);
+      return sendJson(res, {
+        ok: true,
+        media_key: media.media_key,
+        rating_sync: ratingQueue,
+        watchlist_sync: watchlistMutation
+          ? {
+              mutation_id: watchlistMutation.mutation?.id || "",
+              revision: watchlistMutation.mutation?.canonical_revision || 0,
+              queued: watchlistMutation.queued?.length || 0,
+              providers: (watchlistMutation.queued || []).map((item) => item.provider),
+              stale: Boolean(watchlistMutation.stale),
+            }
+          : null,
+      }, 200);
     }
 
     if (action === "list-create") {

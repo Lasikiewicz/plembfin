@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { db, getDataVersion, bumpDataVersion, parseJson, toJson, transaction } from "../db.js";
-import { loadMediaConfig } from "./configStore.js";
+import { isAuthoritativeRestoreActive, loadMediaConfig } from "./configStore.js";
 import { fetchPosterFromTmdb } from "./tmdbClient.js";
 import { getTmdbDetails, getTmdbSeason } from "./tmdbGateway.js";
 import { cachedNextAiringFor, readNextAiringCache } from "./nextAiringCache.js";
@@ -15,6 +15,7 @@ import {
   queueShowProgressUpdate,
   flushShowProgressUpdates,
 } from "./showProgressCache.js";
+import { recordWatchlistMutation } from "./personalWatchlistRepository.js";
 
 // Initialize TV show progress cache on startup
 initShowProgressCache().catch((err) => {
@@ -34,6 +35,15 @@ let showCache = { version: null, shows: [] };
 let scheduledShowCache = { version: null, shows: [] };
 let movieCache = { version: null, rows: null };
 let statsCache = { version: null, stats: null };
+
+function assertRestoreWriteAllowed(source = "") {
+  const normalizedSource = String(source || "").trim().toLowerCase();
+  if (normalizedSource.startsWith("restore")) return;
+  if (!isAuthoritativeRestoreActive()) return;
+  const error = new Error("An authoritative watch-history restore is active; watch-state writes are paused until it completes.");
+  error.code = "RESTORE_ACTIVE";
+  throw error;
+}
 
 export async function getHistoryCacheVersion() {
   return getDataVersion();
@@ -976,6 +986,7 @@ export function upsertPlaystateSync(record, stateOverride = undefined) {
   const normalized = normalizeWatchRecord(record, record.source || "webhook");
   const errors = validateWatchRecord(normalized);
   if (errors.length) throw new Error(errors.join(", "));
+  assertRestoreWriteAllowed(normalized.source);
 
   const state = normalizePlaystateState(stateOverride || normalized.sync_action);
   const identityMatches = playstateRowsForIdentity(normalized);
@@ -1196,10 +1207,11 @@ async function invalidateAfterRowMetaWrite(id, oldRow, changed) {
 // `id` lets a caller that is replacing a row keep that row's identity - see
 // applyManualUnwatch, where a superseding unwatched record stands in for the
 // watched one it replaced. It must name a row that no longer exists.
-export function insertWatchRecordSync(record, { id: presetId = "" } = {}) {
+export function insertWatchRecordSync(record, { id: presetId = "", watchlistConfig = null } = {}) {
   const normalized = normalizeWatchRecord(record, record.source);
   const errors = validateWatchRecord(normalized);
   if (errors.length) throw new Error(errors.join(", "));
+  assertRestoreWriteAllowed(normalized.source);
 
   // Queue show progress update
   queueProgressUpdateForRecord(normalized);
@@ -1208,6 +1220,30 @@ export function insertWatchRecordSync(record, { id: presetId = "" } = {}) {
   const params = watchRowParams(normalized);
   const storedAt = Date.now();
   insertWatchStmt.run({ id, ...params, created_at: storedAt, updated_at: storedAt });
+  // Keep the watchlist removal in the same SQLite transaction as the
+  // completed watch. Callers with a resolved provider config can queue the
+  // fanout immediately; older/import paths without one are repaired by the
+  // durable watchlist worker on its next pass.
+  if (isWatchedAction(normalized) && ["movie", "tv"].includes(normalized.media_type)) {
+    recordWatchlistMutation({
+      media: {
+        type: normalized.media_type,
+        title: normalized.title,
+        tmdb_id: normalized.tmdb_id,
+        tvdb_id: normalized.tvdb_id,
+        imdb_id: normalized.imdb_id,
+        poster_url: normalized.poster_url,
+      },
+      desiredState: "absent",
+      origin: "watched",
+      reason: "completed_watch",
+      config: watchlistConfig,
+      timestamp: storedAt,
+      eventId: id,
+      eventAt: normalized.watched_at,
+      guardStale: true,
+    });
+  }
   recordWatchAuditEvent({
     eventType: isWatchedAction(normalized) ? "history_added" : "history_state_recorded",
     timestamp: storedAt,
@@ -1278,8 +1314,8 @@ export function prefetchWatchRecordAssets({ id = "", record = null } = {}) {
   return prefetchTmdbMetadataBackground(record.media_type, record.tmdb_id, record.title, id, record).catch(() => null);
 }
 
-export async function insertWatchRecord(record, { skipInvalidate = false, id: presetId = "" } = {}) {
-  const result = insertWatchRecordSync(record, { id: presetId });
+export async function insertWatchRecord(record, { skipInvalidate = false, id: presetId = "", watchlistConfig = null } = {}) {
+  const result = insertWatchRecordSync(record, { id: presetId, watchlistConfig });
   if (!skipInvalidate) await invalidateHistoryDerivedCaches();
 
   // Eagerly pull + store TMDB metadata/artwork at ingest (fire-and-forget;
@@ -1302,6 +1338,7 @@ function defaultTelemetry(record) {
 }
 
 export async function batchInsertWatchRecords(records) {
+  assertRestoreWriteAllowed("trakt_import");
   let inserted = 0;
   let skipped = 0;
   const rejected = [];
@@ -1344,6 +1381,7 @@ export async function batchInsertWatchRecords(records) {
     const insertedRecords = [];
     transaction(() => {
       for (const normalized of toInsert) {
+        assertRestoreWriteAllowed(normalized.source);
         // Queue show progress update
         queueProgressUpdateForRecord(normalized);
         const id = crypto.randomUUID();
@@ -1353,6 +1391,26 @@ export async function batchInsertWatchRecords(records) {
         });
         const storedAt = Date.now();
         insertWatchStmt.run({ id, ...params, created_at: storedAt, updated_at: storedAt });
+        if (isWatchedAction(normalized) && ["movie", "tv"].includes(normalized.media_type)) {
+          recordWatchlistMutation({
+            media: {
+              type: normalized.media_type,
+              title: normalized.title,
+              tmdb_id: normalized.tmdb_id,
+              tvdb_id: normalized.tvdb_id,
+              imdb_id: normalized.imdb_id,
+              poster_url: normalized.poster_url,
+            },
+            desiredState: "absent",
+            origin: "watched",
+            reason: "completed_watch",
+            config,
+            timestamp: storedAt,
+            eventId: id,
+            eventAt: normalized.watched_at,
+            guardStale: true,
+          });
+        }
         insertedRecords.push({ id, ...normalized, watched_at: params.watched_at, media_key: params.media_key });
         insertedAuditEvents.push({
           eventType: isWatchedAction(normalized) ? "history_added" : "history_state_recorded",
@@ -1603,6 +1661,7 @@ export async function getWatchDatesForRecord(id) {
 // (e.g. from the "Add another watch date" control), cloning that row's
 // identity fields rather than requiring the caller to resupply them.
 export async function addWatchDate(id, watchedAtInput) {
+  assertRestoreWriteAllowed("manual");
   const existing = selectByIdStmt.get(String(id));
   if (!existing) return { ok: false, error: "Watch record not found" };
   const watchedAt = normalizeWatchedAt(watchedAtInput);
@@ -1966,6 +2025,7 @@ function normalizeDeletedWatchSuppressionDate(value) {
 // whichever recorded watch is now the most recent one; if none remain, the
 // item goes back to unwatched.
 export async function deleteWatchDate(id) {
+  assertRestoreWriteAllowed("manual");
   const existing = selectByIdStmt.get(String(id));
   if (!existing) return { ok: false, error: "Watch record not found" };
 
@@ -2030,6 +2090,7 @@ export async function deleteWatchDate(id) {
 // date at another episode's exact time. Deleting exactly the given ids, no
 // more, is the only behavior that matches what the caller actually decided.
 export async function deleteWatchDates(ids = []) {
+  assertRestoreWriteAllowed("manual");
   const uniqueIds = [...new Set((ids || []).map((id) => String(id || "").trim()).filter(Boolean))];
   const deleted = [];
   const notFound = [];
@@ -2221,6 +2282,7 @@ export async function upsertPlaybackProgress(record) {
   if (!normalized.title) throw new Error("title is required");
   if (!["movie", "episode"].includes(normalized.media_type)) throw new Error("media_type must be movie or episode");
   if (!normalized.position_ms) throw new Error("position_ms is required");
+  assertRestoreWriteAllowed(normalized.source);
 
   const identityMatch = progressRowsForIdentity(normalized)[0];
   const mediaKey = identityMatch?.media_key || normalized.media_key;
@@ -2294,6 +2356,7 @@ export async function getPlaybackProgressForMedia(mediaOrRecord) {
 
 export function deletePlaybackProgressSync(mediaOrRecord) {
   const normalized = normalizePlaybackProgressRecord(mediaOrRecord, mediaOrRecord?.source);
+  assertRestoreWriteAllowed(normalized.source);
   if (!normalized.media_key) return false;
   const related = normalized.title
     ? selectProgressByTitleStmt
@@ -3281,6 +3344,7 @@ export async function getWatchRecordByMediaKey(mediaKey, minWatchedAt = null) {
 }
 
 export async function updateWatchRecord(id, fields = {}, { preserveDispatchState = false, auditSource = "manual" } = {}) {
+  assertRestoreWriteAllowed(auditSource);
   if (!id) return { ok: false, error: "id is required" };
   const existing = selectByIdStmt.get(String(id)) || selectByMediaKeyStmt.all(String(id))[0];
   if (!existing) return { ok: false, error: "Watch record not found" };
@@ -3434,6 +3498,7 @@ export async function updateWatchRecord(id, fields = {}, { preserveDispatchState
 // different date to every episode without rewriting another genuine watch or
 // creating a new history row.
 export async function updateWatchDates(updates = []) {
+  assertRestoreWriteAllowed("manual");
   if (!Array.isArray(updates) || !updates.length) {
     return { ok: false, error: "updates is required" };
   }
@@ -3823,6 +3888,7 @@ export async function backfillUnknownShowTitles() {
 }
 
 export function deleteWatchRecordByIdSync(id) {
+  assertRestoreWriteAllowed("manual");
   if (!id) return false;
   const row = selectByIdStmt.get(String(id));
   if (row) {
@@ -3871,6 +3937,7 @@ export async function deleteWatchRecordById(id, { skipInvalidate = false } = {})
 }
 
 export function deleteWatchRecordSync(media) {
+  assertRestoreWriteAllowed(media?.source || "manual");
   const key = mediaKeyFor({
     title: media.title,
     type: media.type,
@@ -4207,6 +4274,7 @@ export function auditLikelyFalseUnwatches({ sampleSize = 50 } = {}) {
 // repairSplitIdentityUnwatches uses.
 export async function repairLikelyFalseUnwatches() {
   const candidates = findLikelyFalseUnwatchCandidates();
+  const watchlistConfig = await loadMediaConfig().catch(() => null);
   const restored = [];
   for (const { rows, bestEvidence } of candidates) {
     const media = {
@@ -4225,7 +4293,7 @@ export async function repairLikelyFalseUnwatches() {
     }
     const record = mediaToWatchRecord({ ...media, syncAction: "watched" }, "manual");
     record.sync_action = "watched";
-    await insertWatchRecord(record, { skipInvalidate: true });
+    await insertWatchRecord(record, { skipInvalidate: true, watchlistConfig });
     await upsertPlaystateForMedia(media, "watched", bestEvidence.watched_at, { skipInvalidate: true });
     restored.push(media);
   }
@@ -4359,6 +4427,7 @@ const deletePlaystateByKeyStmt = db.prepare("DELETE FROM playstate WHERE media_k
 // playstate and playback_progress rows. Matching is by shared external ID
 // (imdb/tmdb/tvdb); only when the anchor has no IDs do we fall back to title.
 export async function deleteMovieByWatchId(id, { skipInvalidate = false } = {}) {
+  assertRestoreWriteAllowed("manual");
   const anchor = selectByIdStmt.get(String(id || ""));
   if (!anchor) return { found: false, deleted: 0 };
 
@@ -4400,6 +4469,7 @@ export async function deleteMovieByWatchId(id, { skipInvalidate = false } = {}) 
 // plays for the selected show. Unmatched rows have no safe show identity, so
 // only the selected media key is removed in that case.
 export async function deleteShowByWatchId(id, { skipInvalidate = false } = {}) {
+  assertRestoreWriteAllowed("manual");
   const anchor = selectByIdStmt.get(String(id || ""));
   if (!anchor || normalizeMediaType(anchor.media_type) !== "episode") return { found: false, deleted: 0 };
 
@@ -4446,6 +4516,7 @@ export async function deleteMediaByWatchId(id, { mediaType = "", skipInvalidate 
 }
 
 export function deleteWatchRecordsByIds(ids = []) {
+  assertRestoreWriteAllowed("manual");
   let deleted = 0;
   transaction(() => {
     for (const id of ids) {
@@ -5362,6 +5433,11 @@ async function prefetchTmdbMetadataBackground(mediaType, tmdbId, title, recordId
         imdbId: record.imdb_id,
         tvdbId: record.tvdb_id,
       },
+      // Automatic media-server imports should never trust a valid-but-wrong
+      // TVDB id without checking it against the server's show title. Manual
+      // title selections remain unchanged; they already represent an explicit
+      // user choice.
+      verifyTvdbTitle: ["plex", "emby", "jellyfin"].includes(String(record.source || "").toLowerCase()),
     });
     await persistMovieProviderIds(recordId, record, details).catch((error) => {
       console.error("Failed to persist TMDB movie ids", error);

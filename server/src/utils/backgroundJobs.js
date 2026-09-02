@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
 import { db, parseJson, toJson } from "../db.js";
+import { isAuthoritativeRestoreActive } from "./configStore.js";
 import { schedulerLeaseStatus } from "./schedulerLease.js";
 
 const selectJob = db.prepare("SELECT * FROM background_jobs WHERE id = ?");
@@ -9,6 +10,34 @@ const insertJob = db.prepare(`INSERT INTO background_jobs
   (id,type,status,requested_at,cancel_requested,payload) VALUES (@id,@type,'queued',@requestedAt,0,@payload)`);
 
 export const BACKGROUND_JOB_STALE_MS = 90_000;
+const RESTORE_PAUSED_JOB_TYPES = new Set(["cron_sync", "force_sync", "force_sync_plan", "retry_all_sync_activity"]);
+
+function cancelSyncJobsForRestoreInTransaction(now = Date.now()) {
+  const placeholders = [...RESTORE_PAUSED_JOB_TYPES].map(() => "?").join(",");
+  const queued = db.prepare(`UPDATE background_jobs
+    SET status='cancelled', cancel_requested=1, finished_at=?, heartbeat_at=?,
+        result=?, error=NULL
+    WHERE status='queued' AND type IN (${placeholders})`).run(
+    now,
+    now,
+    toJson({ success: false, aborted: true, cancelled: true, reason: "Job cancelled because an authoritative watch-history restore started." }),
+    ...RESTORE_PAUSED_JOB_TYPES,
+  ).changes;
+  const running = db.prepare(`UPDATE background_jobs
+    SET cancel_requested=1, heartbeat_at=?
+    WHERE status='running' AND type IN (${placeholders})`).run(
+    now,
+    ...RESTORE_PAUSED_JOB_TYPES,
+  ).changes;
+  return { queued, running, total: queued + running };
+}
+
+// Restore takes precedence over queued and running sync jobs. Queued work is
+// made terminal immediately; running workers see cancel_requested and the
+// shared restore fence, so they stop accepting further batches/writes.
+export function cancelSyncJobsForAuthoritativeRestore(now = Date.now()) {
+  return db.transaction(() => cancelSyncJobsForRestoreInTransaction(now)).immediate();
+}
 
 function shape(row) {
   if (!row) return null;
@@ -41,6 +70,11 @@ const SINGLETON_JOB_TYPES = new Set(["force_sync", "force_sync_plan", "refresh_t
 
 export function enqueueBackgroundJob(type, payload = {}, now = Date.now()) {
   if (!SUPPORTED_JOB_TYPES.includes(type)) throw new Error(`Unsupported background job type: ${type}`);
+  if (RESTORE_PAUSED_JOB_TYPES.has(type) && isAuthoritativeRestoreActive()) {
+    const error = new Error("An authoritative watch-history restore is active; sync jobs are paused until it completes.");
+    error.code = "RESTORE_ACTIVE";
+    throw error;
+  }
   const job = { id: crypto.randomUUID(), type, requestedAt: now, payload: toJson(payload || {}) };
   return db.transaction(() => {
     if (SINGLETON_JOB_TYPES.has(type)) {
@@ -78,8 +112,13 @@ export function appendBackgroundJobLog(id, message, now = Date.now()) {
 
 export function claimNextBackgroundJob({ holderId, generation, staleAfterMs = BACKGROUND_JOB_STALE_MS, now = Date.now() }) {
   return db.transaction(() => {
-    const lease = db.prepare("SELECT holder_id, generation, expires_at FROM scheduler_lease WHERE id='scheduler'").get();
-    if (lease?.holder_id !== holderId || Number(lease.generation) !== Number(generation) || Number(lease.expires_at) <= now) return null;
+  const lease = db.prepare("SELECT holder_id, generation, expires_at FROM scheduler_lease WHERE id='scheduler'").get();
+  if (lease?.holder_id !== holderId || Number(lease.generation) !== Number(generation) || Number(lease.expires_at) <= now) return null;
+
+    if (isAuthoritativeRestoreActive()) {
+      cancelSyncJobsForRestoreInTransaction(now);
+      return null;
+    }
 
     // A worker can die after an administrator presses Stop. Mark that job
     // terminal before looking for work so a replacement worker cannot revive

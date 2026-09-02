@@ -16,7 +16,7 @@
 // forceSyncLibraryState() shares the same outbound client/rate-limit state.
 import { forceSyncLibraryState } from "./libraryForceSync.js";
 import { pollConnectedTrackers } from "./trackerSync.js";
-import { activeSyncOperation, loadRuntimeState, SYNC_OPERATION_SCHEDULED } from "./configStore.js";
+import { activeSyncOperation, isAuthoritativeRestoreActive, loadRuntimeState, SYNC_OPERATION_SCHEDULED } from "./configStore.js";
 import { countTrackerItemStates } from "./trackerConnectionRepo.js";
 import { getOnboardingState, saveOnboardingState } from "./onboardingStore.js";
 
@@ -50,6 +50,7 @@ const SCHEDULED_LOCK_MAX_WAIT_MS = 120_000;
 // scheduled-sync wait above covers, so it gets its own much longer cap.
 const TRAKT_WAIT_RETRY_DELAY_MS = 5_000;
 const TRAKT_WAIT_MAX_MS = 30 * 60_000;
+const RESTORE_RETRY_DELAY_MS = 5_000;
 
 // This wait is deliberately server-side, not something the caller polls for
 // and re-triggers itself: onboarding previously queued this from the browser
@@ -61,6 +62,15 @@ export async function startServerImport(provider, { lockWaitStartedAt = Date.now
   const waitToken = cancelTokens.get(`server:${provider}`) || { cancelled: false };
   cancelTokens.set(`server:${provider}`, waitToken);
   if (waitToken.cancelled) return { started: false, code: "CANCELLED" };
+
+  if (isAuthoritativeRestoreActive()) {
+    patchServerImport(provider, { enabled: true, status: "importing", error: null });
+    setTimeout(() => {
+      if (waitToken.cancelled) return;
+      startServerImport(provider, { lockWaitStartedAt, traktWaitStartedAt }).catch(() => {});
+    }, RESTORE_RETRY_DELAY_MS);
+    return { started: false, code: "RESTORE_ACTIVE_RETRYING" };
+  }
 
   const traktImport = getOnboardingState().backgroundImports.trakt;
   const traktStillImporting = traktImport?.enabled !== false && traktImport?.status === "importing";
@@ -109,8 +119,24 @@ export async function startServerImport(provider, { lockWaitStartedAt = Date.now
     },
   )
     .then((result) => {
+      if (token.cancelled) {
+        patchServerImport(provider, {
+          status: "cancelled",
+          completedAt: Date.now(),
+          itemCount: Array.isArray(result?.results) ? result.results.length : itemCount,
+        });
+        return;
+      }
+      if (result?.cancelled === true || isAuthoritativeRestoreActive()) {
+        patchServerImport(provider, { enabled: true, status: "importing", completedAt: null, error: null });
+        setTimeout(() => {
+          if (token.cancelled) return;
+          startServerImport(provider, { lockWaitStartedAt, traktWaitStartedAt }).catch(() => {});
+        }, RESTORE_RETRY_DELAY_MS);
+        return;
+      }
       patchServerImport(provider, {
-        status: token.cancelled ? "cancelled" : "complete",
+        status: "complete",
         completedAt: Date.now(),
         itemCount: Array.isArray(result?.results) ? result.results.length : itemCount,
       });
@@ -145,6 +171,9 @@ export function cancelServerImport(provider) {
 const MAX_TRAKT_RECONCILE_PASSES = 25;
 async function runFullTraktReconcile() {
   for (let pass = 0; pass < MAX_TRAKT_RECONCILE_PASSES; pass++) {
+    if (isAuthoritativeRestoreActive()) {
+      throw Object.assign(new Error("An authoritative watch-history restore is active; Trakt import is paused."), { code: "RESTORE_ACTIVE" });
+    }
     const result = await pollConnectedTrackers({ reconcile: true });
     // See the identical note where this is called - report what's actually
     // on file, not an in-memory accumulator a restart could lose.
@@ -154,6 +183,15 @@ async function runFullTraktReconcile() {
 }
 
 export async function startTraktImport() {
+  if (isAuthoritativeRestoreActive()) {
+    patchTraktImport({ enabled: true, status: "importing", error: null });
+    setTimeout(() => {
+      const state = getOnboardingState().backgroundImports.trakt;
+      if (state?.enabled === false || state?.status !== "importing") return;
+      startTraktImport().catch(() => {});
+    }, RESTORE_RETRY_DELAY_MS);
+    return { started: false, code: "RESTORE_ACTIVE_RETRYING" };
+  }
   const runtime = await loadRuntimeState();
   const activeOperation = activeSyncOperation(runtime);
   // Unlike the per-server pulls above, pollConnectedTrackers only talks to
@@ -179,6 +217,15 @@ export async function startTraktImport() {
       patchTraktImport({ status: "complete", completedAt: Date.now(), itemCount: countTrackerItemStates("trakt") });
     })
     .catch((error) => {
+      if (error?.code === "RESTORE_ACTIVE" || isAuthoritativeRestoreActive()) {
+        patchTraktImport({ enabled: true, status: "importing", error: null });
+        setTimeout(() => {
+          const state = getOnboardingState().backgroundImports.trakt;
+          if (state?.enabled === false || state?.status !== "importing") return;
+          startTraktImport().catch(() => {});
+        }, RESTORE_RETRY_DELAY_MS);
+        return;
+      }
       patchTraktImport({ status: "failed", completedAt: Date.now(), error: error.message || String(error) });
     });
 

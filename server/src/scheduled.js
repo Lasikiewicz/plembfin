@@ -7,7 +7,7 @@ import { parsePlexMediaIds } from "./utils/parsers.js";
 import { findPlexItem, resolvePlexAccountId } from "./utils/plexClient.js";
 import { fetchPlexWithRefresh } from "./utils/plexFetch.js";
 import { buildCacheRow, fetchLiveSessions, hydrateCachedSession } from "./utils/liveSessions.js";
-import { activeSyncOperation, appendSyncHistory, clearSyncOperation, claimSyncOperation, loadMediaConfig, loadRuntimeState, releaseSyncOperation, setRuntimeState, touchSyncOperation, RESTORE_KIND_BACKUP, RESTORE_KIND_FULL_SYNC, SYNC_OPERATION_FORCE, SYNC_OPERATION_SCHEDULED } from "./utils/configStore.js";
+import { activeSyncOperation, appendSyncHistory, clearSyncOperation, claimSyncOperation, isAuthoritativeRestoreActive, loadMediaConfig, loadRuntimeState, releaseSyncOperation, setRuntimeState, touchSyncOperation, RESTORE_KIND_BACKUP, RESTORE_KIND_FULL_SYNC, SYNC_OPERATION_FORCE, SYNC_OPERATION_SCHEDULED } from "./utils/configStore.js";
 import { createLoopStore } from "./utils/loopStore.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
 import { isCronSyncPaused, loadWatchBackupRuntime } from "./utils/watchHistoryBackups.js";
@@ -19,6 +19,7 @@ import { buildWatchProvenance, provenanceTelemetryLines } from "./utils/watchPro
 import { recordWatchAuditEvent, recordWatchAuditEvents } from "./utils/watchAudit.js";
 import { canReceiveState } from "./utils/syncRoles.js";
 import { earliestTraktWatchedAt, loadTraktWatchedDateIndex } from "./utils/mediaForceSync.js";
+import { startUpNextProviderFeed, completeUpNextProviderFeed, failUpNextProviderFeed, redactUpNextProviderError } from "./utils/upNextRepository.js";
 
 // A library-history endpoint exposes the server's current played snapshot; it
 // does not prove another viewing occurred. A canonical Plembfin playstate can
@@ -255,6 +256,9 @@ export function mediaFromPlexResumableItem(item = {}) {
     // same show identity every other ingestion path resolves.
     ids: parsePlexMediaIds(item, type),
     episodeTitle: type === "episode" ? item.title : null,
+    providerItemId: item.ratingKey || null,
+    providerItems: { plex: item.ratingKey ? [String(item.ratingKey)] : [] },
+    seriesProviderItemId: item.grandparentRatingKey || item.parentRatingKey || null,
     positionMs,
     offsetMs: positionMs,
     durationMs,
@@ -302,6 +306,9 @@ export function mediaFromEmbyLikeResumableItem(item = {}, source = "emby", norma
       tvdb: ids.tvdb || undefined,
     },
     episodeTitle: type === "episode" ? item.Name : null,
+    providerItemId: item.Id || null,
+    providerItems: { [source]: item.Id ? [String(item.Id)] : [] },
+    seriesProviderItemId: item.SeriesId || item.ParentId || null,
     positionMs,
     offsetMs: positionMs,
     durationMs,
@@ -656,6 +663,7 @@ async function checkJellyfinUnwatchedStatus(config, loopStore) {
 }
 
 async function processCompletedSession(row, config, loopStore) {
+  if (isAuthoritativeRestoreActive()) return null;
   const media = cachedRowToMedia(row);
   if (!media.isValid || Number(media.progress || 0) < watchedThresholdPercent()) return null;
 
@@ -679,10 +687,13 @@ async function processCompletedSession(row, config, loopStore) {
   // trustworthy evidence a play happened, but it still should not create a
   // second row for an episode already recorded under a different key.
   const existingByAnyKey = await findWatchedByAnyMediaKey(media).catch(() => null);
+  if (isAuthoritativeRestoreActive()) return null;
   if (existingByAnyKey) {
     await upsertPlaystateForMedia(media, "watched", existingByAnyKey.watched_at, { skipInvalidate: true });
     return null;
   }
+
+  if (isAuthoritativeRestoreActive()) return null;
 
   await markLiveTrackingComplete(row.session_id, Date.now());
 
@@ -748,7 +759,9 @@ async function processCompletedSession(row, config, loopStore) {
     media.source,
   );
 
-  const inserted = await insertWatchRecord(watchRecord, { skipInvalidate: true });
+  if (isAuthoritativeRestoreActive()) return null;
+  const inserted = await insertWatchRecord(watchRecord, { skipInvalidate: true, watchlistConfig: config });
+  if (isAuthoritativeRestoreActive()) return null;
   await upsertPlaystateForMedia(media, "watched", inserted.record.watched_at, { skipInvalidate: true });
   let syncSummary;
   try {
@@ -774,6 +787,7 @@ async function processCompletedSession(row, config, loopStore) {
 }
 
 async function processStoppedSessionProgress(row, config, loopStore) {
+  if (isAuthoritativeRestoreActive()) return null;
   const media = cachedRowToMedia(row);
   if (!shouldSyncResumeProgress(media)) return null;
 
@@ -823,6 +837,7 @@ async function processStoppedSessionProgress(row, config, loopStore) {
   });
 
   const progressRecord = mediaToPlaybackProgressRecord(media, media.source);
+  if (isAuthoritativeRestoreActive()) return null;
   await upsertPlaybackProgress({
     ...progressRecord,
     sync_dispatch_telemetry: buildProgressTelemetry(media, {
@@ -837,6 +852,7 @@ async function processStoppedSessionProgress(row, config, loopStore) {
 
   let syncSummary;
   try {
+    if (isAuthoritativeRestoreActive()) return null;
     syncSummary = await syncMediaProgress(media, config, loopStore);
   } catch (error) {
     console.error("Live tracking resume progress dispatch failed", { sessionId: row.session_id, error });
@@ -875,7 +891,23 @@ function clearResumeOutcome(media) {
   lastResumeOutcome.delete(`${media.source}|${media.title}|${media.season ?? ""}|${media.episode ?? ""}`);
 }
 
+async function fetchAndRecordUpNextFeed(provider, feedKind, fetchItems, logger = console.log) {
+  if (isAuthoritativeRestoreActive()) return [];
+  const generation = startUpNextProviderFeed(provider, feedKind);
+  try {
+    const items = await fetchItems();
+    if (isAuthoritativeRestoreActive()) return [];
+    completeUpNextProviderFeed(provider, feedKind, generation, items);
+    return items;
+  } catch (error) {
+    failUpNextProviderFeed(provider, feedKind, generation, error);
+    logger(`${provider} ${feedKind} feed failed: ${redactUpNextProviderError(error)}`);
+    throw error;
+  }
+}
+
 async function syncResumableMedia(media, config, loopStore, logger = console.log) {
+  if (isAuthoritativeRestoreActive()) return false;
   if (!shouldSyncResumeProgress(media)) {
     logResumeSkip(logger, media, "not actionable");
     return false;
@@ -902,6 +934,7 @@ async function syncResumableMedia(media, config, loopStore, logger = console.log
     // Reject this stale candidate, but do not let it erase a newer position
     // already stored in Plembfin. Only canonical state that also outranks the
     // stored row is allowed to clear that row.
+    if (isAuthoritativeRestoreActive()) return false;
     if (playstateBlocksStoredResumeProgress(existingPlaystate, existingProgress)) {
       await deletePlaybackProgress(media).catch(() => null);
     }
@@ -923,6 +956,7 @@ async function syncResumableMedia(media, config, loopStore, logger = console.log
   }
 
   const progressRecord = mediaToPlaybackProgressRecord(media, media.source);
+  if (isAuthoritativeRestoreActive()) return false;
   await upsertPlaybackProgress({
     ...progressRecord,
     sync_dispatch_telemetry: buildProgressTelemetry(media, {
@@ -963,10 +997,16 @@ async function syncRecentlyResumableFromPlex(config, loopStore, logger = console
 
   let syncedCount = 0;
   try {
-    const { fetchPlexResumableItems } = await import("./utils/plexClient.js");
-    const raw = await fetchPlexResumableItems(config.plex, { limit: SCHEDULED_RESUME_LIMIT });
+    const { fetchPlexContinueWatchingItems } = await import("./utils/plexClient.js");
+    const raw = await fetchAndRecordUpNextFeed(
+      "plex",
+      "resume",
+      () => fetchPlexContinueWatchingItems(config.plex, { limit: SCHEDULED_RESUME_LIMIT }),
+      logger,
+    );
     logger(`Plex: fetched ${raw.length} resumable library items.`);
     for (const item of raw) {
+      if (isAuthoritativeRestoreActive()) return syncedCount;
       if (await syncResumableMedia(mediaFromPlexResumableItem(item), config, loopStore, logger)) syncedCount++;
     }
   } catch (error) {
@@ -986,9 +1026,15 @@ async function syncRecentlyResumableFromEmby(config, loopStore, logger = console
   try {
     const { fetchEmbyResumableItems } = await import("./utils/embyClient.js");
     const { normalizeProviderIds } = await import("./utils/parsers.js");
-    const raw = await fetchEmbyResumableItems(config.emby, { limit: SCHEDULED_RESUME_LIMIT });
+    const raw = await fetchAndRecordUpNextFeed(
+      "emby",
+      "resume",
+      () => fetchEmbyResumableItems(config.emby, { limit: SCHEDULED_RESUME_LIMIT }),
+      logger,
+    );
     logger(`Emby: fetched ${raw.length} resumable library items.`);
     for (const item of raw) {
+      if (isAuthoritativeRestoreActive()) return syncedCount;
       if (await syncResumableMedia(mediaFromEmbyLikeResumableItem(item, "emby", normalizeProviderIds), config, loopStore, logger)) syncedCount++;
     }
   } catch (error) {
@@ -1008,9 +1054,15 @@ async function syncRecentlyResumableFromJellyfin(config, loopStore, logger = con
   try {
     const { fetchJellyfinResumableItems } = await import("./utils/jellyfinClient.js");
     const { normalizeProviderIds } = await import("./utils/parsers.js");
-    const raw = await fetchJellyfinResumableItems(config.jellyfin, { limit: SCHEDULED_RESUME_LIMIT });
+    const raw = await fetchAndRecordUpNextFeed(
+      "jellyfin",
+      "resume",
+      () => fetchJellyfinResumableItems(config.jellyfin, { limit: SCHEDULED_RESUME_LIMIT }),
+      logger,
+    );
     logger(`Jellyfin: fetched ${raw.length} resumable library items.`);
     for (const item of raw) {
+      if (isAuthoritativeRestoreActive()) return syncedCount;
       if (await syncResumableMedia(mediaFromEmbyLikeResumableItem(item, "jellyfin", normalizeProviderIds), config, loopStore, logger)) syncedCount++;
     }
   } catch (error) {
@@ -1019,7 +1071,46 @@ async function syncRecentlyResumableFromJellyfin(config, loopStore, logger = con
   return syncedCount;
 }
 
+async function syncRecentlyNextUpFromEmby(config, logger = console.log) {
+  if (!watchedPlayedSyncEnabled()) return 0;
+  if (!config.emby?.baseUrl || !config.emby?.apiKey || !config.emby?.userId) return 0;
+  try {
+    const { fetchEmbyNextUpItems } = await import("./utils/embyClient.js");
+    const raw = await fetchAndRecordUpNextFeed(
+      "emby",
+      "next_up",
+      () => fetchEmbyNextUpItems(config.emby, { limit: SCHEDULED_RESUME_LIMIT }),
+      logger,
+    );
+    logger(`Emby: fetched ${raw.length} next-up items.`);
+    return raw.length;
+  } catch (error) {
+    logger(`Emby next-up sync failed: ${error.message}`);
+    return 0;
+  }
+}
+
+async function syncRecentlyNextUpFromJellyfin(config, logger = console.log) {
+  if (!watchedPlayedSyncEnabled()) return 0;
+  if (!config.jellyfin?.baseUrl || !config.jellyfin?.apiKey || !config.jellyfin?.userId) return 0;
+  try {
+    const { fetchJellyfinNextUpItems } = await import("./utils/jellyfinClient.js");
+    const raw = await fetchAndRecordUpNextFeed(
+      "jellyfin",
+      "next_up",
+      () => fetchJellyfinNextUpItems(config.jellyfin, { limit: SCHEDULED_RESUME_LIMIT }),
+      logger,
+    );
+    logger(`Jellyfin: fetched ${raw.length} next-up items.`);
+    return raw.length;
+  } catch (error) {
+    logger(`Jellyfin next-up sync failed: ${error.message}`);
+    return 0;
+  }
+}
+
 async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.log, traktWatchedDateIndex = null) {
+  if (isAuthoritativeRestoreActive()) return 0;
   if (!watchedPlayedSyncEnabled()) {
     logger("Plex watched library sync is disabled.");
     return 0;
@@ -1137,6 +1228,7 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
     }
 
     for (const { item, watchedAt, watchDate } of uniqueItems) {
+      if (isAuthoritativeRestoreActive()) return syncedCount;
       const media = {
         title: item.title,
         type: item.type,
@@ -1190,11 +1282,13 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
       // playstate rather than filing a second watch for the same play.
       if (existing && playstate?.state !== "watched") {
         logger(`Plex: repaired playstate for an already-recorded watch: ${media.title}`);
+        if (isAuthoritativeRestoreActive()) return syncedCount;
         await upsertPlaystateForMedia(media, "watched", existing.watched_at, { skipInvalidate: true });
         continue;
       }
 
       if (!existing) {
+        if (isAuthoritativeRestoreActive()) return syncedCount;
         const lastRestoreAt = Number(loadWatchBackupRuntime().lastRestoreAt || 0);
         if (lastRestoreAt && new Date(watchedAt).getTime() <= lastRestoreAt) {
           logger(`Plex: skipped pre-restore item (played ${watchedAt}): ${media.title}`);
@@ -1218,7 +1312,8 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
           `Details: Watch event fetched from Plex library history; queueing sync.`,
         ].join("\n");
 
-        const result = await insertWatchRecord(watchRecord, { skipInvalidate: true });
+        const result = await insertWatchRecord(watchRecord, { skipInvalidate: true, watchlistConfig: config });
+        if (isAuthoritativeRestoreActive()) return syncedCount;
         await upsertPlaystateForMedia(media, "watched", result.record.watched_at, { skipInvalidate: true });
         const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
           skipped: false,
@@ -1254,6 +1349,7 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
 }
 
 async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.log, traktWatchedDateIndex = null) {
+  if (isAuthoritativeRestoreActive()) return 0;
   if (!watchedPlayedSyncEnabled()) {
     logger("Emby watched library sync is disabled.");
     return 0;
@@ -1268,6 +1364,7 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
     const { normalizeProviderIds } = await import("./utils/parsers.js");
     const raw = await fetchEmbyWatchedItems(config.emby, { limit: SCHEDULED_RECENT_WATCH_LIMIT });
     for (const item of raw) {
+      if (isAuthoritativeRestoreActive()) return syncedCount;
       // For episodes, prefer series-level provider IDs (SeriesProviderIds) so that Plex and
       // other targets can match by series GUID rather than failing on episode-level IDs.
       const rawIds = item.Type === "Episode"
@@ -1320,6 +1417,7 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
       }
 
       if (!existing) {
+        if (isAuthoritativeRestoreActive()) return syncedCount;
         const lastRestoreAt = Number(loadWatchBackupRuntime().lastRestoreAt || 0);
         if (lastRestoreAt && new Date(watchedAt).getTime() <= lastRestoreAt) {
           logger(`Emby: skipped pre-restore item (played ${watchedAt}): ${media.title}`);
@@ -1343,7 +1441,8 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
           `Details: Watch event fetched from Emby library history; queueing sync.`,
         ].join("\n");
 
-        const result = await insertWatchRecord(watchRecord, { skipInvalidate: true });
+        const result = await insertWatchRecord(watchRecord, { skipInvalidate: true, watchlistConfig: config });
+        if (isAuthoritativeRestoreActive()) return syncedCount;
         await upsertPlaystateForMedia(media, "watched", result.record.watched_at, { skipInvalidate: true });
         const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
           skipped: false,
@@ -1384,6 +1483,7 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
 }
 
 async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = console.log, traktWatchedDateIndex = null) {
+  if (isAuthoritativeRestoreActive()) return 0;
   if (!watchedPlayedSyncEnabled()) {
     logger("Jellyfin watched library sync is disabled.");
     return 0;
@@ -1398,6 +1498,7 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
     const { normalizeProviderIds } = await import("./utils/parsers.js");
     const raw = await fetchJellyfinWatchedItems(config.jellyfin, { limit: SCHEDULED_RECENT_WATCH_LIMIT });
     for (const item of raw) {
+      if (isAuthoritativeRestoreActive()) return syncedCount;
       // For episodes, prefer series-level provider IDs (SeriesProviderIds) so that Plex and
       // other targets can match by series GUID rather than failing on episode-level IDs.
       const rawIds = item.Type === "Episode"
@@ -1447,6 +1548,7 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
       }
 
       if (!existing) {
+        if (isAuthoritativeRestoreActive()) return syncedCount;
         const lastRestoreAt = Number(loadWatchBackupRuntime().lastRestoreAt || 0);
         if (lastRestoreAt && new Date(watchedAt).getTime() <= lastRestoreAt) {
           logger(`Jellyfin: skipped pre-restore item (played ${watchedAt}): ${media.title}`);
@@ -1470,7 +1572,8 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
           `Details: Watch event fetched from Jellyfin library history; queueing sync.`,
         ].join("\n");
 
-        const result = await insertWatchRecord(watchRecord, { skipInvalidate: true });
+        const result = await insertWatchRecord(watchRecord, { skipInvalidate: true, watchlistConfig: config });
+        if (isAuthoritativeRestoreActive()) return syncedCount;
         await upsertPlaystateForMedia(media, "watched", result.record.watched_at, { skipInvalidate: true });
         const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
           skipped: false,
@@ -1541,6 +1644,7 @@ function isTargetSynced(telemetry = "", target = "", source = "") {
 }
 
 export async function syncPendingManualDispatches(config, loopStore, logger = console.log) {
+  if (isAuthoritativeRestoreActive()) return 0;
   if (!watchedPlayedSyncEnabled()) {
     logger("Pending watched dispatch sync is disabled.");
     return 0;
@@ -1598,6 +1702,7 @@ export async function syncPendingManualDispatches(config, loopStore, logger = co
     const dispatchGroups = dispatchGroupsForRows(batchToRetry, rows);
     await runWithConcurrency(dispatchGroups, 6, async (group) => {
       for (const row of group.rows) {
+        if (isAuthoritativeRestoreActive()) return;
         try {
       const id = row.id;
       const media = {
@@ -1631,6 +1736,7 @@ export async function syncPendingManualDispatches(config, loopStore, logger = co
       if (targetsStillNeeded.length) media.syncTargets = targetsStillNeeded;
 
       logger(`Background Queue: retrying/dispatching sync for ${media.title} (${id})...`);
+      if (isAuthoritativeRestoreActive()) return;
       await upsertPlaystateForMedia(media, "watched", row.watched_at, { skipInvalidate: true });
       const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
         skipped: false,
@@ -1719,6 +1825,7 @@ const MISSING_LIVE_SESSION_CONFIRMATION_POLLS = 2;
 // (liveSessionPoller.js) so both drive the exact same completion/propagation
 // logic instead of maintaining two copies of it.
 export async function refreshLiveSessions(config, loopStore, { logger = () => {}, trace = () => {} } = {}) {
+  if (isAuthoritativeRestoreActive()) return { currentRows: [], completions: [], progressUpdates: [], staleIds: [], cachedCount: 0, pendingConfirmations: 0, skipped: true };
   const { sessions: currentSessions, failedSources } = await fetchLiveSessions(config);
   const currentRows = currentSessions.map(buildCacheRow);
   const currentIds = new Set(currentRows.map((row) => row.session_id));
@@ -1727,12 +1834,15 @@ export async function refreshLiveSessions(config, loopStore, { logger = () => {}
   const progressUpdates = [];
   const staleIds = [];
 
+  if (isAuthoritativeRestoreActive()) return { currentRows: [], completions: [], progressUpdates: [], staleIds: [], cachedCount: cachedRows.length, pendingConfirmations: 0, skipped: true };
+
   if (currentRows.length || cachedRows.length) {
     trace(`Live sessions: ${currentRows.length}, cached sessions in tracking: ${cachedRows.length}`);
   }
   await upsertLiveTrackingCache(currentRows);
 
   for (const row of cachedRows) {
+    if (isAuthoritativeRestoreActive()) return { currentRows, completions, progressUpdates, staleIds, cachedCount: cachedRows.length, pendingConfirmations: missingLiveSessionStreaks.size, skipped: true };
     if (currentIds.has(row.session_id)) {
       missingLiveSessionStreaks.delete(row.session_id);
       continue;
@@ -1789,6 +1899,10 @@ export async function refreshLiveSessions(config, loopStore, { logger = () => {}
 }
 
 async function runScheduledSyncCore(logger = console.log, { forceCatchup = false } = {}) {
+  if (isAuthoritativeRestoreActive()) {
+    logger("Scheduled Sync: skipped because an authoritative watch-history restore is active.");
+    return { sessions: 0, completions: 0, removed: 0, cached: 0, skipped: true };
+  }
   if (isCronSyncPaused()) {
     logger("Scheduled Sync: skipped because cron sync is paused (likely due to restore in progress).");
     return { sessions: 0, completions: 0, removed: 0, cached: 0, skipped: true };
@@ -1867,6 +1981,8 @@ async function runScheduledSyncCore(logger = console.log, { forceCatchup = false
   let plexResumeSynced = 0;
   let embyResumeSynced = 0;
   let jellyfinResumeSynced = 0;
+  let embyNextUpFetched = 0;
+  let jellyfinNextUpFetched = 0;
   let manualSynced = 0;
 
   const shouldRunCatchup = forceCatchup || !lastCatchupSyncAt || (Date.now() - lastCatchupSyncAt >= CATCHUP_SYNC_INTERVAL_MS);
@@ -1933,6 +2049,24 @@ async function runScheduledSyncCore(logger = console.log, { forceCatchup = false
         logger(`Scheduled Sync ERROR: Jellyfin resume sync failed: ${error.message}`);
       }
     }
+
+    if (embyActive) {
+      try {
+        trace("Scheduled Sync: checking Emby next up...");
+        embyNextUpFetched = await syncRecentlyNextUpFromEmby(config, logger);
+      } catch (error) {
+        logger(`Scheduled Sync ERROR: Emby next-up sync failed: ${error.message}`);
+      }
+    }
+
+    if (jellyfinActive) {
+      try {
+        trace("Scheduled Sync: checking Jellyfin next up...");
+        jellyfinNextUpFetched = await syncRecentlyNextUpFromJellyfin(config, logger);
+      } catch (error) {
+        logger(`Scheduled Sync ERROR: Jellyfin next-up sync failed: ${error.message}`);
+      }
+    }
   }
 
   try {
@@ -1957,7 +2091,7 @@ async function runScheduledSyncCore(logger = console.log, { forceCatchup = false
   }
 
   if (hasActivity) {
-    logger(`Scheduled Sync complete! Synced Plex: ${plexSynced}, Emby: ${embySynced}, Jellyfin: ${jellyfinSynced}, Resume Plex: ${plexResumeSynced}, Resume Emby: ${embyResumeSynced}, Resume Jellyfin: ${jellyfinResumeSynced}, Manual: ${manualSynced}`);
+    logger(`Scheduled Sync complete! Synced Plex: ${plexSynced}, Emby: ${embySynced}, Jellyfin: ${jellyfinSynced}, Resume Plex: ${plexResumeSynced}, Resume Emby: ${embyResumeSynced}, Resume Jellyfin: ${jellyfinResumeSynced}, Next Up Emby: ${embyNextUpFetched}, Next Up Jellyfin: ${jellyfinNextUpFetched}, Manual: ${manualSynced}`);
   }
   return {
     sessions: liveSessionSnapshot.length,
@@ -2015,6 +2149,7 @@ export async function runScheduledSync(logger = console.log, options = {}) {
     activeField: "scheduledSyncActive",
     startedAt: Date.now(),
     values: {
+      scheduledSyncRunId: ownerId,
       scheduledSyncStartedAt: Date.now(),
       scheduledSyncHeartbeat: Date.now(),
     },
@@ -2406,8 +2541,11 @@ export async function runForceSync(logger = console.log, {
     if (cancellationChecks !== 1 && cancellationChecks % checkEvery !== 0) return false;
     const currentRuntime = await loadRuntimeState();
     const requested = await isCancelled().catch(() => false);
-    if (requested || currentRuntime.forceSyncCancelRequested === true) {
-      logger("Force Sync: stop request detected. Aborting sync...");
+    const restoreActive = isAuthoritativeRestoreActive(currentRuntime);
+    if (requested || currentRuntime.forceSyncCancelRequested === true || restoreActive) {
+      logger(restoreActive
+        ? "Force Sync: authoritative restore detected. Aborting sync..."
+        : "Force Sync: stop request detected. Aborting sync...");
       abortResult = abortSummary();
       return true;
     }
@@ -2502,11 +2640,13 @@ export async function runForceSync(logger = console.log, {
         logger(`Deleting outdated unwatched record for "${mediaObj.title}"`);
         const unwatchedDocs = historyRecords.filter(r => r.syncAction === "unwatched");
         for (const docRec of unwatchedDocs) {
+          if (await shouldAbort()) return false;
           await deleteWatchRecordById(docRec.id, { skipInvalidate: true });
         }
       }
 
       for (const target of healthyWatchedTargets) {
+        if (await shouldAbort()) return false;
         if (!serverWatchedOn.has(target)) {
           logger(`Propagating: marking played "${mediaObj.title}" on ${target}`);
           try {
@@ -2536,6 +2676,7 @@ export async function runForceSync(logger = console.log, {
       logger(`Plembfin is canonical for "${mediaObj.title}"; only repairing remote played flags.`);
 
       for (const target of healthyUnwatchedTargets) {
+        if (await shouldAbort()) return false;
         if (serverWatchedOn.has(target)) {
           logger(`Propagating: marking unplayed "${mediaObj.title}" on ${target}`);
           try {

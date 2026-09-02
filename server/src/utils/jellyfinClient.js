@@ -1,4 +1,6 @@
 import { fetchWithTimeout } from "./outbound.js";
+import { compoundEpisodeItemsForMedia } from "./compoundEpisode.js";
+import { restoreLookupKey } from "./restoreLookupCache.js";
 
 function trimTrailingSlash(value = "") {
   return String(value).replace(/\/+$/, "");
@@ -34,9 +36,33 @@ function providerTerms(ids = {}) {
 async function fetchJson(url, config, media = null) {
   const response = await fetchWithTimeout(url, { headers: authHeaders(config), lane: media?.lane || "sync" });
   if (!response.ok) {
-    throw new Error(`Jellyfin request failed with status ${response.status}`);
+    const error = new Error(`Jellyfin request failed with status ${response.status}`);
+    error.status = response.status;
+    throw error;
   }
   return response.json();
+}
+
+function nativeJellyfinItems(media = {}) {
+  const configured = media.provider_items || media.providerItems || {};
+  const values = Array.isArray(configured.jellyfin) ? configured.jellyfin : configured.jellyfin ? [configured.jellyfin] : [];
+  const directId = media.provider_item_id || media.providerItemId || media.jellyfin_id || media.jellyfinId;
+  return [...new Set([...values, directId].map((value) => String(value || "").trim()).filter(Boolean))]
+    .map((Id) => ({ Id }));
+}
+
+async function findJellyfinItemsForMutation(config, media = {}) {
+  const direct = nativeJellyfinItems(media);
+  if (direct.length) return direct;
+  const cache = media?.restoreLookupCache;
+  if (cache && typeof cache.resolve === "function") {
+    return cache.resolve(
+      restoreLookupKey("jellyfin", config, media),
+      media,
+      () => findJellyfinItems(config, media),
+    );
+  }
+  return findJellyfinItems(config, media);
 }
 
 function extractYear(title) {
@@ -80,6 +106,14 @@ const SERIES_CACHE_MAX_ENTRIES = 100;
 const jellyfinSeriesCache = new Map();
 const jellyfinSeriesInFlight = new Map();
 let jellyfinCacheNow = () => Date.now();
+
+function mediaIdentitiesCompatible(left = {}, right = {}) {
+  return ["imdb", "tmdb", "tvdb"].every((provider) => {
+    const a = String(left?.ids?.[provider] || "").trim().toLowerCase();
+    const b = String(right?.ids?.[provider] || "").trim().toLowerCase();
+    return !a || !b || a === b;
+  });
+}
 
 function jellyfinSeriesAliases(config, media) {
   const scope = `jellyfin|${trimTrailingSlash(config.baseUrl).toLowerCase()}|${String(config.userId).toLowerCase()}`;
@@ -125,13 +159,15 @@ function storeJellyfinEntry(entry, aliases) {
 
 async function resolveJellyfinSeriesIdentity(config, media) {
   const aliases = jellyfinSeriesAliases(config, media);
-  const hasProviderIdentity = Boolean(media.ids?.imdb || media.ids?.tmdb || media.ids?.tvdb);
-  const inFlightAliases = hasProviderIdentity ? aliases.filter((alias) => !alias.includes("|title:")) : aliases;
+  // A provider-id lookup can legitimately fall back to a title search. Keep
+  // that fallback in-flight across sibling episodes, while guarding against
+  // sharing a pending lookup for two conflicting remakes.
+  const inFlightAliases = aliases;
   const cached = getCachedJellyfinEntry(aliases, media);
   if (cached) return cached;
   for (const alias of inFlightAliases) {
     const pending = jellyfinSeriesInFlight.get(alias);
-    if (pending) return pending;
+    if (pending && mediaIdentitiesCompatible(pending.media, media)) return pending.promise;
   }
   const promise = (async () => {
     let series = [];
@@ -163,9 +199,10 @@ async function resolveJellyfinSeriesIdentity(config, media) {
     storeJellyfinEntry(entry, [...new Set(discoveredAliases)]);
     return entry;
   })();
-  for (const alias of inFlightAliases) jellyfinSeriesInFlight.set(alias, promise);
+  const pendingEntry = { media, promise };
+  for (const alias of inFlightAliases) jellyfinSeriesInFlight.set(alias, pendingEntry);
   try { return await promise; } finally {
-    for (const [alias, pending] of jellyfinSeriesInFlight) if (pending === promise) jellyfinSeriesInFlight.delete(alias);
+    for (const [alias, pending] of jellyfinSeriesInFlight) if (pending === pendingEntry) jellyfinSeriesInFlight.delete(alias);
   }
 }
 
@@ -184,6 +221,7 @@ function invalidateJellyfinSeriesIdentity(config, media) {
     const entry = jellyfinSeriesCache.get(alias);
     if (entry) deleteJellyfinEntry(entry);
   }
+  media?.restoreLookupCache?.delete?.(restoreLookupKey("jellyfin", config, media));
 }
 
 async function searchJellyfinFallback(config, media, targetType) {
@@ -273,7 +311,11 @@ async function findEpisode(config, media) {
   const season = media.season ?? parsed.season;
   const episodeNum = media.episode ?? parsed.episode;
   const entry = await resolveJellyfinSeriesIdentity(config, media);
-  return entry.episodesByCoordinate.get(`${Number(season)}:${Number(episodeNum)}`) || [];
+  return compoundEpisodeItemsForMedia(entry.episodesByCoordinate, {
+    ...media,
+    season,
+    episode: episodeNum,
+  });
 }
 
 export function jellyfinEpisodeMatchesCoordinates(item = {}, season, episode) {
@@ -281,6 +323,8 @@ export function jellyfinEpisodeMatchesCoordinates(item = {}, season, episode) {
 }
 
 export async function findJellyfinItems(config, media) {
+  const direct = nativeJellyfinItems(media);
+  if (direct.length) return direct;
   if (media.type === "movie") {
     let movies = await findByProviderIds(config, media, "Movie");
     if (!movies || movies.length === 0) {
@@ -303,7 +347,7 @@ export async function markJellyfinPlayed(config, media) {
   try {
     requireJellyfinConfig(config);
 
-    const items = await findJellyfinItems(config, media);
+    const items = await findJellyfinItemsForMutation(config, media);
     if (!items || items.length === 0) {
       console.log(`[NOT FOUND] No matching item in Jellyfin library for: "${media.title}"`);
       return { platform: "jellyfin", status: "not_found" };
@@ -349,7 +393,7 @@ export async function markJellyfinUnplayed(config, media) {
   try {
     requireJellyfinConfig(config);
 
-    const items = await findJellyfinItems(config, media);
+    const items = await findJellyfinItemsForMutation(config, media);
     if (!items || items.length === 0) {
       console.log(`[NOT FOUND] No matching item in Jellyfin library for: "${media.title}"`);
       return { platform: "jellyfin", status: "not_found" };
@@ -395,7 +439,7 @@ export async function setJellyfinProgress(config, media) {
   try {
     requireJellyfinConfig(config);
 
-    const items = await findJellyfinItems(config, media);
+    const items = await findJellyfinItemsForMutation(config, media);
     if (!items || items.length === 0) {
       console.log(`[NOT FOUND] No matching item in Jellyfin library for: "${media.title}"`);
       return { platform: "jellyfin", status: "not_found" };
@@ -564,6 +608,21 @@ export async function fetchJellyfinResumableItems(config, { limit = 0 } = {}) {
   if (Number(limit) > 0) url.searchParams.set("Limit", String(Math.max(1, Math.round(Number(limit)))));
   url.searchParams.set("api_key", apiKey);
 
+  const data = await fetchJson(url, config);
+  return data?.Items || [];
+}
+
+export async function fetchJellyfinNextUpItems(config, { limit = 0 } = {}) {
+  requireJellyfinConfig(config);
+  const apiKey = jellyfinApiKey(config);
+  const baseUrl = trimTrailingSlash(config.baseUrl);
+  const url = new URL(`${baseUrl}/Shows/NextUp`);
+  url.searchParams.set("UserId", config.userId);
+  url.searchParams.set("Fields", "ProviderIds,SeriesProviderIds,UserData,PremiereDate,ProductionYear,RunTimeTicks,MediaSources");
+  url.searchParams.set("EnableResumable", "true");
+  url.searchParams.set("EnableUserData", "true");
+  if (Number(limit) > 0) url.searchParams.set("Limit", String(Math.max(1, Math.round(Number(limit)))));
+  url.searchParams.set("api_key", apiKey);
   const data = await fetchJson(url, config);
   return data?.Items || [];
 }

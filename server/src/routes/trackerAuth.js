@@ -7,6 +7,7 @@ import { getTraktUser, pollTraktDeviceAuth, startTraktDeviceAuth } from "../util
 import { pollConnectedTrackers } from "../utils/trackerSync.js";
 import { traktTokenExpiry, withFreshTraktConnection } from "../utils/trackerDispatcher.js";
 import { getTraktAppConfig, hydrateTraktAppCredentials, resolveTraktAppCredentials } from "../utils/traktAppConfig.js";
+import { isAuthoritativeRestoreActive } from "../utils/configStore.js";
 
 function requireBrowserAdmin(req, res, principal) {
   if (principal.via !== "session") { sendJson(res, { error: "An administrator browser session is required" }, 403); return null; }
@@ -95,6 +96,9 @@ export async function handleTrackerConnections(req, res, path) {
     return sendJson(res, { ok: true, removed, guidance: "Plembfin deleted its encrypted Trakt credentials. You can also revoke the app in Trakt's connected-app settings." });
   }
   if (req.method === "POST") {
+    if (isAuthoritativeRestoreActive()) {
+      return sendJson(res, { ok: false, error: "An authoritative watch-history restore is active; Trakt import is paused until it completes." }, 409);
+    }
     const connection = await withFreshTraktConnection();
     if (!connection) return sendJson(res, { error: "Trakt is not connected" }, 409);
     const result = await pollConnectedTrackers({ reconcile: true });

@@ -132,25 +132,33 @@ stays set to the slug throughout, so the address bar keeps the `/tvshow/:key` fo
   locally across restarts, while search can prefetch the next 12 months to list matches
   outside the visible range - see [upcoming.md](upcoming.md).
 - Up Next loads through `/api/up-next` only while the dashboard is visible, hydrates a
-  24-hour localStorage snapshot for instant first paint, and uses a durable server snapshot
-  with stale-while-revalidate. A changed Up Next snapshot announces its generation on
-  `/api/live-updates`; watch-state history events refresh the rail after the authoritative
-  history snapshot arrives. Discover loads deterministic TMDB feeds through `/api/discover`
+  24-hour `plembfin:upNextCache:v2` localStorage snapshot for instant first paint, and
+  uses a durable mixed movie/episode server snapshot with stale-while-revalidate. Resume
+  cards are ordered by canonical progress updates and released provider/local `next_up`
+  cards follow a stable order; a matching resume/next-up observation renders once. A
+  changed Up Next snapshot announces its generation on `/api/live-updates`, and feed
+  failures/partial refreshes expose source status while retaining the last good rows.
+  Watch-state history events refresh the rail after the authoritative history snapshot
+  arrives. Discover loads deterministic TMDB feeds through `/api/discover`
   with type/genre filters and a longer TTL, hydrates the selected rail set from a
   bounded localStorage cache for the first paint, then reconciles it with the server
   cache. A stale server snapshot is served immediately and refreshed in the background;
   changed snapshots announce a Discover version on `/api/live-updates`, which reloads
   the active rails without clearing the rendered cards. Both modules preserve rendered
   data while a refresh is in flight and expose loading, empty, stale, and error states.
-- Long-lived caches (explorer pages, dashboard history, poster lookups, and Discover
-  rail snapshots) persist to localStorage with TTLs and versioned keys; bump the key
-  version when the cached shape changes.
+- Long-lived caches (explorer pages, dashboard history, Up Next, poster lookups, and
+  Discover rail snapshots) persist to localStorage with TTLs and versioned keys; bump the
+  key version when the cached shape changes.
 - `modules/live-updates.js` keeps an authenticated streaming `fetch` open to
   `/api/live-updates`. A shared SQLite data version lets web and worker processes
   announce committed watch-state and personal-media changes, while separate Discover
   and Up Next cache generations announce changed derived snapshots. The client debounces
   bursts and reloads the affected active view in place, then reconnects after a dropped
   stream.
+- Watchlist mutations are local-first: the Watchlist page and detail cards update after
+  the local transaction and show `Saved locally` or provider queue feedback without
+  waiting on a remote API call. The same live refresh path reloads Watchlist cards when
+  a provider-originated removal or a completed watch changes the canonical list.
 
 ### Personal media organization
 
@@ -169,6 +177,18 @@ the episode row on the show detail page and is keyed by the parent show's identi
 plus its season and episode number. The Ratings page consumes the canonical server
 record, while the client also collapses any legacy aliases defensively. Episode
 artwork remains independent from the show's poster.
+
+### Personal Watchlist Sync settings
+
+The Personal Watchlist Sync panel lives in Settings → Sync → Sync Tools and is rendered
+by `watchlist-sync-settings.js`. It keeps the global feature and each provider's
+enablement/representation controls separate from the media-server connection cards:
+Plex offers Universal Watchlist native mode or RSS read-only mode, while Emby and
+Jellyfin offer a Plembfin-owned playlist or an ownership-aware Favorites mode. Status
+polling shows the canonical count, pending delivery, unavailable items, provider user
+scope, last complete snapshot, and recent activity. Preview reads remote state without
+writing; Publish local list is a separate confirmation-gated action. A restored local
+watchlist remains visibly blocked until that publish action is completed.
 
 At mobile widths, Discover, Watchlist, Ratings, Custom Lists, and History use the
 dashboard's compact poster-first card geometry. Each feed or collection is a

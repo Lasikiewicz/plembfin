@@ -148,18 +148,27 @@ export async function runWithOutboundStateLease(
       return false;
     }
   };
-  const leaseShouldDefer = () => (
-    ownershipLost
-    || Boolean(shouldDefer?.())
-    || !hasLeaseOwnership()
-  );
+  // Deferral hooks may be synchronous (the normal local-state transition
+  // path) or asynchronous (an authoritative restore also verifies that its
+  // owner still holds the cross-process restore fence). Keep the probe live
+  // and await the hook so an async callback is not treated as a truthy Promise
+  // and used to defer every outbound write.
+  const leaseShouldDefer = async () => {
+    if (ownershipLost || !hasLeaseOwnership()) return true;
+    if (!shouldDefer) return false;
+    try {
+      return Boolean(await shouldDefer());
+    } catch {
+      return true;
+    }
+  };
   const heartbeat = setInterval(renew, LEASE_RENEW_MS);
   heartbeat.unref?.();
 
   try {
     // This check must happen after admission. A newer operation may have held
     // the lease, completed its write, and released while this caller waited.
-    if (leaseShouldDefer()) return deferredResult();
+    if (await leaseShouldDefer()) return deferredResult();
     return await work({ shouldDefer: leaseShouldDefer });
   } finally {
     clearInterval(heartbeat);

@@ -5,9 +5,9 @@ import { formatNumber } from "./utils.js";
 // ── Wipe data ────────────────────────────────────────────────────────────
 // Deliberately separate from tools-maintenance.js (repairs/backfills), which
 // is already near its module size limit - see CLAUDE.md's frontend module
-// discipline table. Every scope here only ever touches tracked watch/sync
-// data; settings, connections, credentials, and the admin login are never
-// part of what gets deleted (see server/src/routes/maintenance.js).
+// discipline table. Every non-factory scope here only ever touches tracked
+// watch/sync data; settings, connections, credentials, and the admin login are
+// never part of what gets deleted (see server/src/routes/wipeData.js).
 //
 // Elements are queried directly by id rather than through the shared
 // state.js `elements` registry - app.js is already at its 3,000-line module
@@ -55,6 +55,22 @@ const SCOPES = {
       tracker_play_history: "tracker play history rows",
     },
   },
+  watchlist: {
+    label: "Personal Watchlist",
+    countsEl: () => el("wipeWatchlistCounts"),
+    statusEl: () => el("wipeWatchlistStatus"),
+    logEl: () => el("wipeWatchlistLog"),
+    buttonEl: () => el("wipeWatchlistButton"),
+    tableLabels: {
+      personal_watchlist: "canonical watchlist rows",
+      personal_watchlist_meta: "watchlist revision rows",
+      personal_watchlist_mutations: "watchlist mutation/tombstone rows",
+      personal_watchlist_provider_items: "provider ledger rows",
+      personal_watchlist_sync_queue: "watchlist queue rows",
+      personal_watchlist_sync_runs: "watchlist run rows",
+      personal_watchlist_activity: "watchlist activity rows",
+    },
+  },
   logs: {
     label: "Sync History & Logs",
     countsEl: () => el("wipeLogsCounts"),
@@ -96,7 +112,7 @@ function summarizeCounts(scope, tables, total) {
   const def = SCOPES[scope];
   if (!total) return "Nothing to delete - every table in this scope is already empty.";
   if (scope === "factory") return `${formatNumber(total)} row${total === 1 ? "" : "s"} across the entire database, plus all settings, connections, and cached artwork.`;
-  if (!def.tableLabels) return `${formatNumber(total)} row${total === 1 ? "" : "s"} across watch history and sync history/logs.`;
+  if (!def.tableLabels) return `${formatNumber(total)} row${total === 1 ? "" : "s"} across watch history, personal watchlist, and sync history/logs.`;
   const parts = Object.entries(tables)
     .filter(([, count]) => count > 0)
     .map(([table, count]) => `${formatNumber(count)} ${def.tableLabels[table] || table}`);

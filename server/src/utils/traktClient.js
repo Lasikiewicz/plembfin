@@ -389,10 +389,27 @@ export async function fetchTraktPlayHistory({ clientId, accessToken }, { startAt
   return result.filter((item) => !item.mediaKey.endsWith(":"));
 }
 
+function parsedTimestamp(value) {
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "number") return value;
+  const text = String(value || "").trim();
+  return text ? Date.parse(text) : NaN;
+}
+
+function watchedAtForPayload(media = {}) {
+  const raw = media.watched_at ?? media.watchedAt;
+  const parsed = parsedTimestamp(raw);
+  const isRestore = String(media.source || "").toLowerCase().startsWith("restore");
+  if (isRestore && !Number.isFinite(parsed)) {
+    throw Object.assign(new Error("Authoritative restore requires a valid watched_at timestamp for every Trakt play"), { code: "invalid_restore_timestamp" });
+  }
+  return new Date(Number.isFinite(parsed) ? parsed : Date.now()).toISOString();
+}
+
 function syncPayload(media, state) {
   const ids = cleanIds(media.ids);
   if (!Object.keys(ids).length) throw Object.assign(new Error("Trakt needs a Trakt, IMDb, TMDB, or TVDB ID for this item"), { code: "not_found" });
-  const watchedAt = state === "watched" ? new Date(media.watched_at || media.watchedAt || Date.now()).toISOString() : undefined;
+  const watchedAt = state === "watched" ? watchedAtForPayload(media) : undefined;
   if (media.type === "episode" || media.mediaType === "episode") {
     const episode = { number: Number(media.episode) };
     if (watchedAt) episode.watched_at = watchedAt;
@@ -403,9 +420,71 @@ function syncPayload(media, state) {
   return { movies: [item] };
 }
 
+function syncHistoryPayload(items = [], state = "watched") {
+  const movies = [];
+  const shows = new Map();
+  for (const media of items) {
+    const ids = cleanIds(media?.ids);
+    if (!Object.keys(ids).length) {
+      throw Object.assign(new Error("Trakt needs a Trakt, IMDb, TMDB, or TVDB ID for every restored play"), { code: "not_found" });
+    }
+    const watchedAt = state === "watched" ? watchedAtForPayload(media) : undefined;
+    if (media.type === "episode" || media.mediaType === "episode") {
+      const season = Number(media.season);
+      const number = Number(media.episode);
+      if (!Number.isInteger(season) || !Number.isInteger(number)) {
+        throw Object.assign(new Error("Trakt requires valid season and episode numbers for every restored episode"), { code: "not_found" });
+      }
+      const showKey = JSON.stringify(Object.entries(ids).sort(([left], [right]) => left.localeCompare(right)));
+      let show = shows.get(showKey);
+      if (!show) {
+        show = { ids, seasons: new Map() };
+        shows.set(showKey, show);
+      }
+      let seasonEntry = show.seasons.get(season);
+      if (!seasonEntry) {
+        seasonEntry = { number: season, episodes: [] };
+        show.seasons.set(season, seasonEntry);
+      }
+      const episode = { number };
+      if (watchedAt) episode.watched_at = watchedAt;
+      seasonEntry.episodes.push(episode);
+    } else {
+      const movie = { ids };
+      if (watchedAt) movie.watched_at = watchedAt;
+      movies.push(movie);
+    }
+  }
+  const payload = {};
+  if (movies.length) payload.movies = movies;
+  if (shows.size) {
+    payload.shows = [...shows.values()].map((show) => ({
+      ids: show.ids,
+      seasons: [...show.seasons.values()],
+    }));
+  }
+  return payload;
+}
+
 export function setTraktWatchState({ clientId, accessToken }, media, state, { lane = "sync" } = {}) {
   const path = state === "unwatched" ? "/sync/history/remove" : "/sync/history";
   return request(`${API_BASE}${path}`, { method: "POST", clientId, accessToken, body: syncPayload(media, state), lane });
+}
+
+// Trakt accepts multiple dated plays in one request. Restore uses this instead
+// of one request per play so a large history cannot time out halfway through,
+// and every event retains its source timestamp in the payload.
+export function setTraktWatchHistoryBatch({ clientId, accessToken }, items, state, { lane = "sync" } = {}) {
+  const values = Array.isArray(items) ? items.filter(Boolean) : [];
+  if (!values.length) return Promise.resolve({});
+  const path = state === "unwatched" ? "/sync/history/remove" : "/sync/history";
+  return request(`${API_BASE}${path}`, {
+    method: "POST",
+    clientId,
+    accessToken,
+    body: syncHistoryPayload(values, state),
+    lane,
+  });
 }
 
 export function trackerMediaKey(media) {

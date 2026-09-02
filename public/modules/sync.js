@@ -1211,7 +1211,7 @@ export async function triggerCronSync() {
 
     if (finalResult) {
       const detail = `Cron run complete! Sessions: ${finalResult.sessions ?? 0}, completions: ${finalResult.completions ?? 0}, cached: ${finalResult.cached ?? 0}`;
-      _cb.showToast?.(detail);
+      _cb.setMessage?.(detail, "success");
       if (terminal) { terminal.textContent += `\nSUCCESS: ${detail}\n`; terminal.scrollTop = terminal.scrollHeight; }
       finishSyncProgress("complete", "Recent-item repair complete");
     } else {
@@ -1220,7 +1220,7 @@ export async function triggerCronSync() {
 
     await Promise.all([_cb.loadSyncJobs?.({ force: true }), _cb.loadSyncHistory?.({ force: true })]);
   } catch (error) {
-    _cb.showToast?.(`Error: ${error.message}`);
+    _cb.setMessage?.(`Error: ${error.message}`, "error");
     if (terminal) { terminal.textContent += `\nERROR: ${error.message}\n`; terminal.scrollTop = terminal.scrollHeight; }
     finishSyncProgress("error", "Recent-item repair failed");
   } finally {
@@ -1240,14 +1240,14 @@ export async function triggerStopSync() {
     const response = await fetch("/api/stop-force-sync", { method: "POST", headers: authHeaders() });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || `Stop sync failed with HTTP ${response.status}`);
-    _cb.showToast?.(body.message || "Stop sync request sent.");
+    _cb.setMessage?.(body.message || "Stop sync request sent.", "muted");
     if (body.reset && terminal) {
       terminal.classList.remove("hidden");
       terminal.textContent += `${terminal.textContent ? "\n" : ""}RESET: ${body.message}\n`;
       terminal.scrollTop = terminal.scrollHeight;
     }
   } catch (error) {
-    _cb.showToast?.(`Error stopping sync: ${error.message}`);
+    _cb.setMessage?.(`Error stopping sync: ${error.message}`, "error");
   } finally {
     button.disabled = false;
     button.textContent = originalText;
@@ -1318,14 +1318,14 @@ export async function triggerForceSync({ planId = "", confirmed = false } = {}) 
       const stopped = Boolean(finalResult.aborted || finalResult.cancelled);
       if (stopped) {
         const detail = finalResult.error || "Force Sync stopped.";
-        _cb.showToast?.(detail);
+        _cb.setMessage?.(detail, "muted");
         if (terminal) { terminal.textContent += `\nABORTED: ${detail}\n`; terminal.scrollTop = terminal.scrollHeight; }
         finishSyncProgress("stopped", "Force sync stopped");
       } else if (finalResult.success) {
         const stats = finalResult.stats || {};
         const scanErrorCount = Object.keys(stats.scanErrors || {}).length;
         const detail = `Force Sync complete! Targets: ${(finalResult.activeTargets || []).join(", ") || "none"}. Found: ${stats.totalWatchedFoundAcrossServers ?? 0}, added: ${stats.addedToHistory ?? 0}, deleted: ${stats.deletedFromHistory ?? 0}, propagated: ${stats.propagatedUpdates ?? 0}${scanErrorCount ? `; ${scanErrorCount} server scan${scanErrorCount === 1 ? "" : "s"} failed` : ""}`;
-        _cb.showToast?.(detail);
+        _cb.setMessage?.(detail, "success");
         if (terminal) { terminal.textContent += `\nSUCCESS: ${detail}\n`; terminal.scrollTop = terminal.scrollHeight; }
         finishSyncProgress("complete", "Force sync complete");
       } else {
@@ -1334,7 +1334,7 @@ export async function triggerForceSync({ planId = "", confirmed = false } = {}) 
 
       await Promise.all([_cb.loadSyncJobs?.({ force: true }), _cb.loadSyncHistory?.({ force: true })]);
     } catch (error) {
-      _cb.showToast?.(`Error: ${error.message}`);
+      _cb.setMessage?.(`Error: ${error.message}`, "error");
       if (terminal) { terminal.textContent += `\nERROR: ${error.message}\n`; terminal.scrollTop = terminal.scrollHeight; }
       finishSyncProgress("error", "Force sync failed");
     } finally {

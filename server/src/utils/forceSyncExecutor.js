@@ -6,6 +6,7 @@ import { recordOutboundPlayedMarks, recordOutboundUnplayedMarks } from "./syncOr
 import { createLoopStore } from "./loopStore.js";
 import { collectServerFingerprintCounts, planStaleness } from "./forceSyncPlanner.js";
 import { finishSyncPlan, getSyncPlanFull, setSyncPlanSnapshot, setSyncPlanStatus } from "./syncPlans.js";
+import { isAuthoritativeRestoreActive } from "./configStore.js";
 import { createWatchHistoryBackup, verifyWatchBackup } from "./watchHistoryBackups.js";
 import { runWithConcurrency } from "./concurrency.js";
 
@@ -77,7 +78,7 @@ export async function executeForceSyncPlan(id, config, logger = () => {}, { sign
     let cancelled = false;
     await runWithConcurrency(plan.actions, async (action) => {
       if (cancelled) return;
-      if (signal?.aborted || await shouldCancel()) {
+      if (signal?.aborted || isAuthoritativeRestoreActive() || await shouldCancel()) {
         cancelled = true;
         return;
       }
@@ -85,6 +86,10 @@ export async function executeForceSyncPlan(id, config, logger = () => {}, { sign
         if (action.kind === "mark_played" || action.kind === "mark_unplayed") {
           const marker = action.kind === "mark_played" ? recordOutboundPlayedMarks : recordOutboundUnplayedMarks;
           await marker(action.media, [action.target], loopStore).catch(() => null);
+          if (isAuthoritativeRestoreActive() || await shouldCancel()) {
+            cancelled = true;
+            return;
+          }
           const remoteResult = await remoteWrite(action, config);
           if (remoteResult?.status !== "not_found") {
             const itemIds = Array.isArray(remoteResult?.itemIds) && remoteResult.itemIds.length
@@ -99,8 +104,18 @@ export async function executeForceSyncPlan(id, config, logger = () => {}, { sign
             }
           }
         }
-        else if (["remove_unwatched_marker", "delete_history_rows"].includes(action.kind)) for (const rowId of action.historyRowIds || []) await deleteWatchRecordById(rowId, { skipInvalidate: true });
+        else if (["remove_unwatched_marker", "delete_history_rows"].includes(action.kind)) for (const rowId of action.historyRowIds || []) {
+          if (isAuthoritativeRestoreActive() || await shouldCancel()) {
+            cancelled = true;
+            return;
+          }
+          await deleteWatchRecordById(rowId, { skipInvalidate: true });
+        }
         else if (action.kind === "insert_unwatched_record") {
+          if (isAuthoritativeRestoreActive() || await shouldCancel()) {
+            cancelled = true;
+            return;
+          }
           const record = mediaToWatchRecord({ ...action.media, source: "force_sync", watched_at: action.resolvedAt || new Date().toISOString() }, "force_sync");
           record.sync_action = "unwatched";
           const inserted = await insertWatchRecord(record, { skipInvalidate: true });

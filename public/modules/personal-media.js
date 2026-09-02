@@ -146,10 +146,10 @@ function normalizeItem(item = {}) {
 
 export function personalItemFromPosterMenuDataset(dataset = {}) {
   const value = (...keys) => keys.map((key) => dataset[key]).find((entry) => entry !== undefined && entry !== null && entry !== "") || "";
-  const rawType = value("posterMenuRatingMediaType", "mediaRateMediaType", "posterMenuMediaType") || "movie";
+  const rawType = value("posterMenuRatingMediaType", "mediaRateMediaType", "posterMenuMediaType", "posterMenuUpNextMediaType") || "movie";
   const isEpisode = normalizeType(rawType) === "episode"
     || value("posterMenuKind") === "episode"
-    || value("posterMenuMode") === "up-next";
+    || normalizeType(value("posterMenuUpNextMediaType")) === "episode";
   const showTitle = value(
     "posterMenuRatingShowTitle",
     "mediaRateShowTitle",
@@ -730,7 +730,6 @@ export async function loadPersonalMedia({ force = false } = {}) {
       await refreshPersonalViews();
     } catch (error) {
       state.personalMediaError = error?.name === "AbortError" ? "The request timed out." : (error.message || "Try again later.");
-      setPersonalMessage(`Personal media: ${state.personalMediaError}`, "error");
     } finally {
       clearTimeout(timeout);
       state.personalMediaLoading = false;
@@ -754,16 +753,24 @@ export function resetPersonalMedia() {
 
 export async function addToWatchlist(item, { showMessage = true } = {}) {
   const normalized = normalizeItem(item);
-  await personalRequest({ action: "watchlist-add", ...itemPayload(normalized) });
+  const body = await personalRequest({ action: "watchlist-add", ...itemPayload(normalized) });
   await loadPersonalMedia({ force: true });
-  if (showMessage) setPersonalMessage(`${normalized.title} added to your watchlist.`, "success");
+  if (showMessage) setPersonalMessage(`${normalized.title} added to your watchlist.${watchlistQueueMessage(body)}`, "success");
 }
 
 export async function removeFromWatchlist(item, { showMessage = true } = {}) {
   const normalized = normalizeItem(item);
-  await personalRequest({ action: "watchlist-remove", ...itemPayload(normalized) });
+  const body = await personalRequest({ action: "watchlist-remove", ...itemPayload(normalized) });
   await loadPersonalMedia({ force: true });
-  if (showMessage) setPersonalMessage(`${normalized.title} removed from your watchlist.`, "success");
+  if (showMessage) setPersonalMessage(`${normalized.title} removed from your watchlist.${watchlistQueueMessage(body)}`, "success");
+}
+
+function watchlistQueueMessage(body = {}) {
+  const sync = body.watchlist_sync || {};
+  const providers = Array.isArray(sync.providers) ? sync.providers : [];
+  if (!Number(sync.queued || 0) || !providers.length) return " Saved locally.";
+  const labels = providers.map((provider) => String(provider).replace(/^./, (letter) => letter.toUpperCase())).join(", ");
+  return ` Queued for ${labels}.`;
 }
 
 async function saveRating(item, rating) {
@@ -981,7 +988,7 @@ async function handlePanelClick(event) {
   const retry = event.target.closest("[data-personal-retry]");
   if (retry) {
     event.preventDefault();
-    loadPersonalMedia({ force: true }).catch((error) => setPersonalMessage(error.message, "error"));
+    loadPersonalMedia({ force: true }).catch(() => { });
     return;
   }
   const create = event.target.closest("[data-personal-create-list]");

@@ -25,6 +25,9 @@ import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, searchTmdb
 import { searchTvdbSeriesList, resolveTvdbSeriesId, getTvdbSeriesArtwork } from "../utils/tvdbGateway.js";
 import { getUpcomingCalendarMonth } from "../utils/upcomingCalendarCache.js";
 import { getUpNextCacheSnapshot } from "../utils/upNextCache.js";
+import { buildUpNextProjection } from "../utils/upNextService.js";
+import { getActiveUpNextProviderItemById } from "../utils/upNextRepository.js";
+import { providerArtworkPathsForCandidate } from "../utils/upNextIdentity.js";
 import { getFanartMovieArt, getFanartTvArt, getAllFanartMovieImages, getAllFanartTvImages } from "../utils/fanartGateway.js";
 import { getOmdbRating } from "../utils/omdbGateway.js";
 import { POSTERS_DIR, BACKDROPS_DIR, PROFILES_DIR, PUBLIC_DIR } from "../paths.js";
@@ -55,7 +58,6 @@ import {
   progressRowToMedia,
   querySyncJobs,
   queryMovies,
-  queryShowDetail,
   queryShows,
   queryWatchHistory,
   queryWatchHistoryPreview,
@@ -70,7 +72,6 @@ import {
   getCachedMovies,
   getCachedShows,
   getCachedHistory,
-  showTitleFrom,
   findExistingWatch,
   findWatchedByAnyMediaKey,
   getPlaystateForMedia,
@@ -189,10 +190,23 @@ export async function handlePoster(req, res) {
   if (req.method !== "GET") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
   const cacheHeaders = { "Cache-Control": "private, max-age=3600, stale-while-revalidate=86400" };
+  const imageRequested = String(req.query.format || "").trim().toLowerCase() === "image";
+  const providerImageRequested = imageRequested && Boolean(String(req.query.provider || "").trim());
+  const respondPoster = (payload, status = 200) => {
+    if (!imageRequested) return sendJson(res, payload, status, cacheHeaders);
+    if (payload?.url && isCachedStorageUrl(payload.url)) {
+      return res.set(cacheHeaders).redirect(302, payload.url);
+    }
+    return res.status(status >= 400 ? status : 404).set(cacheHeaders).send("");
+  };
 
   try {
     const rowId = String(req.query.id || "");
-    let row = await getWatchRecordByIdLight(rowId);
+    const provider = String(req.query.provider || "").trim().toLowerCase();
+    let row = provider ? getActiveUpNextProviderItemById(provider, rowId) : null;
+    if (!row) {
+      row = await getWatchRecordByIdLight(rowId);
+    }
     if (!row) {
       row = await getWatchRecordByMediaKey(rowId).catch(() => null);
     }
@@ -217,7 +231,7 @@ export async function handlePoster(req, res) {
     if (!row) {
       row = await findLiveSessionPosterRow(rowId).catch(() => null);
     }
-    if (!row) return sendJson(res, { error: "not found" }, 404);
+    if (!row) return respondPoster({ error: "not found" }, 404);
 
     const fallbackRequested = ["1", "true", "yes"].includes(String(req.query.fallback || "").toLowerCase());
     const config = await loadMediaConfig().catch(() => ({}));
@@ -227,15 +241,18 @@ export async function handlePoster(req, res) {
     // Check for fresh cached result first (before deduplication check).
     // However, ignore negative cache for items without poster_url - these should retry TMDB fallback.
     const cached = usableCachedPoster(await getPosterCache(mediaKey));
-    if (cached?.url) return sendJson(res, cached, 200, cacheHeaders);
-    if (cached?.cached && row.poster_url) return sendJson(res, cached, 200, cacheHeaders);
+    if (cached?.url) return respondPoster(cached, 200);
+    // Provider image URLs are rendered directly by the browser. A previous
+    // transient provider outage must not turn that image into a long-lived
+    // blank placeholder; let the authenticated provider lookup retry it.
+    if (cached?.cached && row.poster_url && !providerImageRequested) return respondPoster(cached, 200);
 
     // If another request is already processing this mediaKey, wait for it to complete.
     if (inflight.has(mediaKey)) {
       await inflight.get(mediaKey);
       const recheck = usableCachedPoster(await getPosterCache(mediaKey));
-      if (recheck?.url || recheck?.cached) return sendJson(res, recheck, 200, cacheHeaders);
-      return sendJson(res, { url: null, cached: true, source: "missing" }, 200, cacheHeaders);
+      if (recheck?.url || recheck?.cached) return respondPoster(recheck, 200);
+      return respondPoster({ url: null, cached: true, source: "missing" }, 200);
     }
 
     // Mark this mediaKey as inflight and process it.
@@ -270,6 +287,47 @@ export async function handlePoster(req, res) {
           if (path) {
             const configuredUrl = configuredPosterUrl(path, "plex", config);
             if (configuredUrl) candidates.push({ url: configuredUrl, source: "plex" });
+          }
+        }
+
+        const rowSource = String(row.source || "").toLowerCase();
+        if ((rowSource.includes("emby") || rowSource.includes("jellyfin"))
+          && configForPosterSource(config, rowSource).baseUrl
+          && configForPosterSource(config, rowSource).apiKey) {
+          const providerConfig = rowSource.includes("jellyfin") ? config.jellyfin : config.emby;
+          const providerClient = rowSource.includes("jellyfin") ? findJellyfinItems : findEmbyItems;
+          const providerItems = await providerClient(providerConfig, {
+            type: row.media_type,
+            title: row.title,
+            show_title: row.show_title,
+            ids: {
+              imdb: row.show_imdb_id || row.imdb_id || null,
+              tmdb: row.show_tmdb_id || row.tmdb_id || null,
+              tvdb: row.show_tvdb_id || row.tvdb_id || null,
+            },
+            season: row.season ?? null,
+            episode: row.episode ?? null,
+            provider_items: row.provider_items || {},
+            provider_item_id: row.provider_item_id || null,
+            series_provider_item_id: row.series_provider_item_id || null,
+            parent_provider_item_id: row.parent_provider_item_id || null,
+          }).catch((error) => {
+            console.error("Poster provider lookup failed", { id: row.id, title: row.title, source: rowSource, error: error.message || String(error) });
+            return [];
+          });
+          for (const providerItem of Array.isArray(providerItems) ? providerItems : []) {
+            const paths = providerArtworkPathsForCandidate({
+              provider: rowSource,
+              media_type: row.media_type,
+              provider_item_id: providerItem?.Id || providerItem?.id || row.provider_item_id,
+              item: providerItem,
+            });
+            const path = paths.show_poster || paths.poster;
+            const configuredUrl = configuredPosterUrl(path, rowSource, config);
+            if (configuredUrl) {
+              candidates.push({ url: configuredUrl, source: rowSource });
+              break;
+            }
           }
         }
 
@@ -317,19 +375,19 @@ export async function handlePoster(req, res) {
     inflight.delete(mediaKey);
 
     if (result) {
-      return sendJson(res, result, 200, cacheHeaders);
+      return respondPoster(result, 200);
     }
 
     // If result is null (error occurred), try to return cached result or error response.
     const fallback = usableCachedPoster(await getPosterCache(mediaKey));
     if (fallback?.url || fallback?.cached) {
-      return sendJson(res, fallback, 200, cacheHeaders);
+      return respondPoster(fallback, 200);
     }
-    return sendJson(res, { url: null, cached: false, source: "error" }, 200, cacheHeaders);
+    return respondPoster({ url: null, cached: false, source: "error" }, 200);
   } catch (error) {
     inflight.delete(String(req.query.id || ""));
     console.error("Poster lookup failed", { id: String(req.query.id || ""), error: error.message || String(error) });
-    return sendJson(res, { url: null, cached: false, source: "error" }, 200, cacheHeaders);
+    return respondPoster({ url: null, cached: false, source: "error" }, 200);
   }
 }
 
@@ -901,125 +959,6 @@ export async function handleDiscover(req, res) {
   }
 }
 
-const selectEpisodeProgressForUpNextStmt = db.prepare(
-  "SELECT title, tmdb_id, tvdb_id, season, episode FROM playback_progress WHERE media_type = 'episode'",
-);
-
-function episodeCoordinate(row = {}) {
-  const season = Number(row.season);
-  const episode = Number(row.episode);
-  if (!Number.isInteger(season) || !Number.isInteger(episode) || episode <= 0) return "";
-  return `${season}:${episode}`;
-}
-
-function isUnwatchedRow(row = {}) {
-  return ["unwatched", "unplayed"].includes(String(row.sync_action || "").toLowerCase());
-}
-
-async function buildUpNextItems() {
-  const MAX_UP_NEXT_SHOWS = 24;
-  const partialEpisodes = selectEpisodeProgressForUpNextStmt.all()
-    .map((row) => ({
-      title: showTitleFrom(row.title || ""),
-      tmdbId: String(row.tmdb_id || ""),
-      tvdbId: String(row.tvdb_id || ""),
-      season: Number(row.season),
-      episode: Number(row.episode),
-    }))
-    .filter((row) => row.title && Number.isInteger(row.season) && Number.isInteger(row.episode) && row.episode > 0);
-  const shows = (await getCachedShows())
-    .filter((show) => Number(show.episode_count || 0) > 0 && (show.tmdb_id || show.tvdb_id))
-    .sort((left, right) => String(right.latest_watched_at || "").localeCompare(String(left.latest_watched_at || "")))
-    .slice(0, MAX_UP_NEXT_SHOWS);
-  const queue = shows.slice();
-  const items = [];
-  const today = new Date().toISOString().slice(0, 10);
-
-  async function worker() {
-    for (let show = queue.shift(); show; show = queue.shift()) {
-      const detail = await queryShowDetail({
-        id: show.id,
-        title: show.title,
-        tmdbId: show.tmdb_id,
-        tvdbId: show.tvdb_id,
-        imdbId: show.imdb_id,
-      }).catch(() => null);
-      const watchedRows = (detail?.episodes || [])
-        .filter((row) => !isUnwatchedRow(row))
-        .map((row) => ({ row, coordinate: episodeCoordinate(row) }))
-        .filter(({ coordinate }) => coordinate);
-      const watched = new Set(watchedRows.map(({ coordinate }) => coordinate));
-      const partial = partialEpisodes
-        .filter((row) => (
-          (row.tmdbId && row.tmdbId === String(show.tmdb_id || ""))
-          || (row.tvdbId && row.tvdbId === String(show.tvdb_id || ""))
-          || row.title.toLowerCase() === String(show.title || "").toLowerCase()
-        ))
-        .map((row) => `${row.season}:${row.episode}`);
-      for (const coordinate of partial) watched.add(coordinate);
-      const metadata = await getTmdbDetails({
-        mediaType: "tv",
-        tmdbId: show.tmdb_id,
-        title: show.title,
-        ids: { tvdbId: show.tvdb_id },
-        light: true,
-      }).catch(() => null);
-      const tmdbId = String(show.tmdb_id || metadata?.id || "");
-      const tvdbId = String(show.tvdb_id || metadata?.external_ids?.tvdb_id || "");
-      const seasonNumbers = [...new Set((metadata?.seasons || [])
-        .map((season) => Number(season.season_number))
-        .filter((season) => Number.isInteger(season) && season > 0))]
-        .sort((left, right) => left - right);
-      const maxWatchedSeason = Math.max(0, ...watchedRows.map(({ row }) => Number(row.season) || 0));
-      const firstSeason = maxWatchedSeason > 0
-        ? maxWatchedSeason
-        : (seasonNumbers[0] || 1);
-      const candidateSeasons = seasonNumbers.length
-        ? [firstSeason, ...seasonNumbers.filter((season) => season > firstSeason)]
-        : [firstSeason, firstSeason + 1];
-
-      let next = null;
-      // One episode-list request is normally enough. Looking at at most two
-      // following seasons handles a fully watched season without turning the
-      // dashboard into an unbounded metadata fan-out for long-running shows.
-      for (const seasonNumber of [...new Set(candidateSeasons)].slice(0, 3)) {
-        const season = await getTmdbSeason({ tmdbId, tvdbId, seasonNumber }).catch(() => null);
-        const episodes = [...(season?.episodes || [])]
-          .filter((episode) => Number(episode.episode_number) > 0)
-          .sort((left, right) => Number(left.episode_number) - Number(right.episode_number));
-        for (const episode of episodes) {
-          // Up Next is a released queue. Upcoming episodes belong in the
-          // existing Upcoming view, not beside items ready to watch now.
-          if (episode.air_date && episode.air_date > today) continue;
-          const coordinate = `${seasonNumber}:${Number(episode.episode_number)}`;
-          if (watched.has(coordinate)) continue;
-          next = {
-            id: `${show.id}:${seasonNumber}:${Number(episode.episode_number)}`,
-            media_type: "tv",
-            title: show.title,
-            tmdb_id: tmdbId || null,
-            tvdb_id: tvdbId || null,
-            poster_url: show.poster_url || metadata?.cached_poster_url || (metadata?.poster_path ? `/api/tmdb-poster?path=${encodeURIComponent(metadata.poster_path)}` : ""),
-            season: seasonNumber,
-            episode: Number(episode.episode_number),
-            episode_title: episode.name || "",
-            air_date: episode.air_date || "",
-            is_upcoming: Boolean(episode.air_date && episode.air_date > today),
-            show_id: show.id,
-          };
-          break;
-        }
-        if (next) break;
-      }
-      if (next) items.push(next);
-    }
-  }
-
-  const workers = Math.min(4, queue.length || 1);
-  await Promise.all(Array.from({ length: workers }, worker));
-  return items.sort((left, right) => String(left.title).localeCompare(String(right.title)));
-}
-
 export async function handleUpNext(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET") return methodNotAllowed(res);
@@ -1027,11 +966,13 @@ export async function handleUpNext(req, res) {
   const refresh = ["1", "true", "yes"].includes(String(req.query.refresh || "").toLowerCase());
   const revalidate = ["1", "true", "yes"].includes(String(req.query.revalidate || "").toLowerCase());
   try {
-    const snapshot = await getUpNextCacheSnapshot(buildUpNextItems, { refresh, revalidate });
+    const snapshot = await getUpNextCacheSnapshot(buildUpNextProjection, { refresh, revalidate });
     return sendJson(res, {
       items: snapshot.items,
       builtAt: snapshot.builtAt,
       upNextVersion: snapshot.upNextVersion,
+      sourceVersion: snapshot.sourceVersion,
+      sourceStatus: snapshot.sourceStatus,
       cacheStale: snapshot.stale,
     }, 200, { "Cache-Control": "private, max-age=60, stale-while-revalidate=120", Vary: "Authorization" });
   } catch (error) {

@@ -47,7 +47,7 @@ test("legacy schema migration is idempotent under concurrent process startup", a
     const columns = new Set(upgraded.pragma("table_info(watch_history)").map((column) => column.name));
     for (const name of ["logo_url", "backdrop_url", "sync_retry_count", "sync_next_retry_at", "watch_provenance"]) assert.ok(columns.has(name));
     assert.equal(upgraded.prepare("SELECT id FROM watch_history WHERE id='legacy-row'").get()?.id, "legacy-row");
-    assert.deepEqual(upgraded.prepare("SELECT id FROM schema_migrations ORDER BY id").all().map((row) => row.id), Array.from({ length: 20 }, (_, index) => index + 1));
+    assert.deepEqual(upgraded.prepare("SELECT id FROM schema_migrations ORDER BY id").all().map((row) => row.id), Array.from({ length: 24 }, (_, index) => index + 1));
     assert.ok(upgraded.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='media_connections'").get());
     const connectionColumns = new Set(upgraded.pragma("table_info(media_connections)").map((column) => column.name));
     assert.ok(connectionColumns.has("server_credential_ciphertext"));
@@ -58,6 +58,8 @@ test("legacy schema migration is idempotent under concurrent process startup", a
     assert.ok(upgraded.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='personal_rating_sources'").get());
     assert.ok(upgraded.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='personal_rating_sync_queue'").get());
     assert.ok(upgraded.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='personal_rating_sync_runs'").get());
+    assert.ok(upgraded.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='up_next_provider_items'").get());
+    assert.ok(upgraded.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='up_next_provider_feed_state'").get());
     const ratingColumns = new Set(upgraded.pragma("table_info(personal_ratings)").map((column) => column.name));
     for (const name of ["episode_tmdb_id", "episode_tvdb_id", "episode_imdb_id", "origin", "canonical_updated_at"]) assert.ok(ratingColumns.has(name));
     assert.equal(

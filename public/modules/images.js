@@ -259,7 +259,7 @@ export function posterOverflowMenu(item = {}, options = {}) {
   // must be the show title, not the episode's own title/label.
   const title = options.title || (isEpisode ? (showTitle || item.title || "") : (item.title || ""));
   const label = options.label || (isEpisode ? (showTitle || title) : title);
-  const isEpisodeRating = isEpisode || kind === "episode" || menuMode === "up-next";
+  const isEpisodeRating = isEpisode || kind === "episode";
   const ratingTitle = options.ratingTitle || (isEpisodeRating
     ? (item.episode_title || item.episodeTitle || item.title || title)
     : title);
@@ -325,9 +325,13 @@ export function posterOverflowMenu(item = {}, options = {}) {
       data-poster-menu-rating-release-date="${escapeAttribute(item.release_date || item.first_air_date || item.releaseDate || item.air_date || item.airDate || "")}"`;
   const upNextAttrs = menuMode === "up-next" ? `
       data-poster-menu-up-next-watch="${escapeAttribute(id)}"
+      data-poster-menu-up-next-media-type="${escapeAttribute(item.media_type || (isEpisode ? "episode" : "movie"))}"
+      data-poster-menu-up-next-queue-kind="${escapeAttribute(options.queueKind || item.queue_kind || "next_up")}"
+      data-poster-menu-up-next-title="${escapeAttribute(item.title || title)}"
       data-poster-menu-up-next-show-title="${escapeAttribute(showTitle || title)}"
-      data-poster-menu-up-next-tmdb-id="${escapeAttribute(item.tmdb_id || item.show_tmdb_id || "")}"
-      data-poster-menu-up-next-tvdb-id="${escapeAttribute(item.tvdb_id || item.show_tvdb_id || "")}"
+      data-poster-menu-up-next-tmdb-id="${escapeAttribute(isEpisode ? (item.show_tmdb_id || item.tmdb_id || "") : (item.tmdb_id || ""))}"
+      data-poster-menu-up-next-tvdb-id="${escapeAttribute(isEpisode ? (item.show_tvdb_id || item.tvdb_id || "") : (item.tvdb_id || ""))}"
+      data-poster-menu-up-next-imdb-id="${escapeAttribute(isEpisode ? (item.show_imdb_id || item.imdb_id || "") : (item.imdb_id || ""))}"
       data-poster-menu-up-next-episode-tmdb-id="${escapeAttribute(ratingEpisodeTmdbId)}"
       data-poster-menu-up-next-episode-tvdb-id="${escapeAttribute(ratingEpisodeTvdbId)}"
       data-poster-menu-up-next-episode-imdb-id="${escapeAttribute(ratingEpisodeImdbId)}"
@@ -335,7 +339,8 @@ export function posterOverflowMenu(item = {}, options = {}) {
       data-poster-menu-up-next-episode="${escapeAttribute(item.episode ?? "")}"
       data-poster-menu-up-next-episode-title="${escapeAttribute(item.episode_title || item.episodeTitle || "")}"
       data-poster-menu-up-next-air-date="${escapeAttribute(item.air_date || item.airDate || "")}" 
-      data-poster-menu-up-next-poster-url="${escapeAttribute(item.poster_url || item.posterUrl || "")}"` : "";
+      data-poster-menu-up-next-poster-url="${escapeAttribute(item.poster_url || item.posterUrl || "")}"
+      data-poster-menu-up-next-provider-items="${escapeAttribute(JSON.stringify(item.provider_items || item.providerItems || {}))}"` : "";
   const discoverAttrs = menuMode === "discover" ? `
       data-poster-menu-discover-media-type="${escapeAttribute(mediaType)}"
       data-poster-menu-discover-tmdb-id="${escapeAttribute(item.tmdb_id || item.tmdbId || "")}" 

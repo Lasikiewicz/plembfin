@@ -5,15 +5,17 @@ import { readJson } from "../utils/requestBody.js";
 import { sendJson, sendOptions, methodNotAllowed } from "../utils/http.js";
 import { db, writeAuditLog, bumpDataVersion } from "../db.js";
 import { invalidateHistoryDerivedCaches } from "../utils/dataRepo.js";
+import { clearWatchlistRestorePending } from "../utils/personalWatchlistRepository.js";
 import { resetAdminAccount } from "../appConfig.js";
 import { POSTERS_DIR, BACKDROPS_DIR, PROFILES_DIR } from "../paths.js";
 
 // ---------------------------------------------------------------------------
 // Wipe data (Settings -> Tools -> Wipe Data)
 //
-// Three scopes are deliberately limited to tracked watch/sync data only -
-// never settings, connections, credentials, or the admin account. The fourth,
-// "factory", is the one genuine exception: a real fresh-start reset, requested
+// The history, watchlist, logs, and everything-tracked scopes are deliberately
+// limited to tracked watch/sync data only - never settings, connections,
+// credentials, or the admin account. The separate "factory" scope is the one
+// genuine exception: a real fresh-start reset, requested
 // explicitly as its own option, that also clears every remaining table
 // (settings, caches, tracker connections, everything except schema_migrations)
 // and the on-disk image cache, then resets data/config.json back to a
@@ -39,6 +41,20 @@ const WIPE_SCOPES = {
       "live_tracking_cache",
       "tracker_item_state",
       "tracker_play_history",
+      "up_next_provider_items",
+      "up_next_provider_feed_state",
+    ],
+  },
+  watchlist: {
+    label: "Personal Watchlist",
+    tables: [
+      "personal_watchlist",
+      "personal_watchlist_meta",
+      "personal_watchlist_mutations",
+      "personal_watchlist_provider_items",
+      "personal_watchlist_sync_queue",
+      "personal_watchlist_sync_runs",
+      "personal_watchlist_activity",
     ],
   },
   logs: {
@@ -50,7 +66,11 @@ const WIPE_SCOPES = {
 // list - keeping it derived avoids the two ever drifting apart.
 WIPE_SCOPES.all = {
   label: "Everything Tracked",
-  tables: [...new Set([...WIPE_SCOPES.history.tables, ...WIPE_SCOPES.logs.tables])],
+  tables: [...new Set([
+    ...WIPE_SCOPES.history.tables,
+    ...WIPE_SCOPES.watchlist.tables,
+    ...WIPE_SCOPES.logs.tables,
+  ])],
 };
 // Every table in schema.sql except schema_migrations (schema-version
 // bookkeeping, not user data). Listed explicitly rather than derived, so a
@@ -71,6 +91,10 @@ WIPE_SCOPES.factory = {
     "watch_audit_events",
     "runtime_state",
     "settings",
+    // The pristine-install detector uses this table to decide whether the
+    // instance has already been configured. It must be cleared before
+    // resetAdminAccount() runs, or Fresh Start falls back to the login screen.
+    "media_connections",
     "loop_keys",
     "media_artwork",
     "poster_cache",
@@ -94,6 +118,15 @@ WIPE_SCOPES.factory = {
     "tracker_auth_flows",
     "tracker_item_state",
     "tracker_play_history",
+    "personal_watchlist",
+    "personal_watchlist_meta",
+    "personal_watchlist_mutations",
+    "personal_watchlist_provider_items",
+    "personal_watchlist_sync_queue",
+    "personal_watchlist_sync_runs",
+    "personal_watchlist_activity",
+    "up_next_provider_items",
+    "up_next_provider_feed_state",
   ],
 };
 
@@ -150,7 +183,7 @@ export async function handleWipeData(req, res) {
     const body = await readJson(req);
     const scope = String(body?.scope || "").trim();
     const def = WIPE_SCOPES[scope];
-    if (!def) return sendJson(res, { error: "scope must be one of: history, logs, all, factory" }, 400);
+    if (!def) return sendJson(res, { error: "scope must be one of: history, watchlist, logs, all, factory" }, 400);
     // A second, explicit typed confirmation from the client - on top of the two
     // confirm dialogs already shown in the browser - so this can never fire from
     // a stray click or a replayed request.
@@ -164,6 +197,13 @@ export async function handleWipeData(req, res) {
         db.prepare(`DELETE FROM ${table}`).run();
       }
     })();
+
+    // The restore gate lives in settings rather than the watchlist tables so a
+    // restored local list cannot remain paused after the user explicitly wipes
+    // that list. Factory reset removes settings entirely below.
+    if (!def.resetAuth && (scope === "watchlist" || scope === "all")) {
+      clearWatchlistRestorePending();
+    }
 
     let imagesDeleted = 0;
     if (def.resetAuth) imagesDeleted = await deleteAllCachedImages();

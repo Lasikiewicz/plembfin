@@ -14,7 +14,7 @@ import { fetchTraktWatchedSnapshot, trackerMediaIdentityKeys } from "./traktClie
 import { withFreshTraktConnection } from "./trackerDispatcher.js";
 import { isEmbyLikePlayed, releaseDateForItem, releaseDateForPlexItem, watchedAtForEmbyLikeItem, watchedAtForPlexItem } from "./watchDates.js";
 import { remoteEpisodeImportError } from "./episodeImportGuard.js";
-import { appendSyncHistory, loadMediaConfig } from "./configStore.js";
+import { appendSyncHistory, isAuthoritativeRestoreActive, loadMediaConfig } from "./configStore.js";
 import { createLoopStore } from "./loopStore.js";
 import { runWithConcurrency } from "./concurrency.js";
 import { appendCanonicalTrackerDispatch, primeCanonicalTrackerDispatchIntents, syncCanonicalPlaystate } from "./syncOrchestrator.js";
@@ -511,6 +511,24 @@ export function earliestTraktWatchedAt(index, media) {
 export async function forceSyncMediaState(input, { config = null, now = Date.now(), logger = () => {}, isCancelled = () => false } = {}) {
   const requested = normalizeMediaForceSyncRequest(input);
   const resolvedConfig = config || await loadMediaConfig();
+  if (isAuthoritativeRestoreActive()) {
+    logger(`[${requested.mode}] paused because an authoritative watch-history restore is active.`);
+    return {
+      ok: true,
+      title: requested.title,
+      type: requested.type,
+      mode: requested.mode,
+      target: requested.target || "all",
+      pullFrom: requested.source || "all",
+      found: 0,
+      imported: 0,
+      existing: 0,
+      synced: 0,
+      cancelled: true,
+      results: [],
+      records: [],
+    };
+  }
   logger(`[${requested.mode}] ${modeLabel(requested.mode)} started for "${requested.title}".`);
   const collection = requested.mode === "push"
     ? await collectLocalCanonicalItems(requested, { logger })
@@ -520,7 +538,7 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
   const results = [];
   const records = [];
   const preparedItems = new Array(collection.items.length);
-  let cancelled = Boolean(isCancelled());
+  let cancelled = Boolean(isCancelled()) || isAuthoritativeRestoreActive();
   let cancellationLogged = false;
 
   // getCanonicalWatchState matches by provider id/media_key, but an incoming
@@ -575,7 +593,7 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
   }
 
   await runWithConcurrency(collection.items, async (media, index) => {
-    if (isCancelled()) {
+    if (isCancelled() || isAuthoritativeRestoreActive()) {
       cancelled = true;
       if (!cancellationLogged) {
         cancellationLogged = true;
@@ -619,11 +637,15 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
       const coordinateState = currentEpisodeStateByCoordinate?.get(`${media.season}:${media.episode}`);
       const currentCanonicalState = coordinateState ?? await getCanonicalWatchState(media).catch(() => null);
       if (currentCanonicalState !== "watched") {
+        if (isCancelled() || isAuthoritativeRestoreActive()) {
+          cancelled = true;
+          return;
+        }
         const insertedResult = await insertWatchRecord({
           ...media,
           sync_action: "watched",
           sync_dispatch_telemetry: pendingTelemetry(media, requested),
-        }, { skipInvalidate: true });
+        }, { skipInvalidate: true, watchlistConfig: config });
         record = insertedResult.record;
         record.id = insertedResult.id;
         inserted = true;
@@ -631,6 +653,10 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
       }
     }
 
+    if (isCancelled() || isAuthoritativeRestoreActive()) {
+      cancelled = true;
+      return;
+    }
     await upsertPlaystateForMedia(media, canonicalState, media.watched_at, { skipInvalidate: true });
 
     let summary;
@@ -649,6 +675,10 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
       const destination = requested.target ? sourceLabel(requested.target) : "local media servers";
       logger(`[${requested.mode}] ${media.title}: sending ${canonicalState} state to ${destination}.`);
       try {
+        if (isCancelled() || isAuthoritativeRestoreActive()) {
+          cancelled = true;
+          return;
+        }
         summary = await syncCanonicalPlaystate(syncMedia, resolvedConfig, loopStore, canonicalState, { includeTrackers: requested.target === "trakt" });
         trackerEligible = !requested.target;
       } catch (error) {
@@ -672,11 +702,11 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
   const trackerItems = requested.mode === "push" && !requested.target
     ? completedLocalItems.filter((item) => item.trackerEligible)
     : [];
-  if (trackerItems.length) {
+  if (trackerItems.length && !isAuthoritativeRestoreActive() && !isCancelled()) {
     logger(`[push] Local media-server phase complete for ${completedLocalItems.length} item${completedLocalItems.length === 1 ? "" : "s"}; syncing Trakt.`);
     let trackerCancellationLogged = false;
     await runWithConcurrency(trackerItems, async (item) => {
-      if (isCancelled()) {
+      if (isCancelled() || isAuthoritativeRestoreActive()) {
         cancelled = true;
         item.summary = summaryWithDeferredTrackerState(
           item.summary,
@@ -709,6 +739,10 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
   // This also keeps the operation audit separate from history-row telemetry
   // for canonical unwatched movies that have no safe representative row.
   for (const item of completedLocalItems) {
+    if (isAuthoritativeRestoreActive()) {
+      cancelled = true;
+      break;
+    }
     const { media, record, inserted, canonicalState, summary } = item;
     if (record?.id) {
       await updateWatchTelemetry(record.id, completedTelemetry(media, summary, requested), { skipInvalidate: true });
@@ -733,7 +767,7 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
     });
   }
 
-  cancelled = cancelled || Boolean(isCancelled());
+  cancelled = cancelled || Boolean(isCancelled()) || isAuthoritativeRestoreActive();
   await invalidateHistoryDerivedCaches().catch(() => null);
   logger(cancelled
     ? `[${requested.mode}] ${modeLabel(requested.mode)} cancelled after ${results.length} item${results.length === 1 ? "" : "s"}.`

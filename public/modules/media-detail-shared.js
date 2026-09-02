@@ -574,6 +574,8 @@ export async function hydrateMediaAppLinks(root = document) {
       const value = container.dataset[attr] || "";
       if (value) params.set(param, value);
     }
+    const providerItems = container.dataset.providerItems || "";
+    if (providerItems) params.set("providerItems", providerItems);
 
     const pillStyle = container.dataset.appLinkStyle === "source-badge" ? "source-badge" : "";
     const greyedOutHtml = pillStyle === "source-badge"

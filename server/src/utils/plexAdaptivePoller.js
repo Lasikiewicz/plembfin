@@ -1,6 +1,7 @@
 import { fetchPlexWithRefresh } from "./plexFetch.js";
 import { resolvePlexAccountId } from "./plexClient.js";
 import { watchedAtForPlexItem } from "./watchDates.js";
+import { isAuthoritativeRestoreActive } from "./configStore.js";
 import { plexHistoryItemMatchesConfiguredUser } from "../scheduled.js";
 
 const DEFAULT_ACTIVE_INTERVAL_MS = 5000;
@@ -112,6 +113,10 @@ export function createPlexAdaptivePoller({
     running = true;
 
     try {
+      if (isAuthoritativeRestoreActive()) {
+        scheduleNext(idleIntervalMs);
+        return;
+      }
       const config = await getPlexConfig();
       if (!config?.baseUrl || !config?.token || config.disabled) {
         scheduleNext(idleIntervalMs);
@@ -125,6 +130,10 @@ export function createPlexAdaptivePoller({
       }
 
       const candidates = await pollPlexWatchedItems(config, targetAccountId);
+      if (isAuthoritativeRestoreActive()) {
+        scheduleNext(idleIntervalMs);
+        return;
+      }
       const uniqueWatched = [];
       const seen = new Set();
 
@@ -155,6 +164,7 @@ export function createPlexAdaptivePoller({
         const newWatches = uniqueWatched.filter((w) => w.timeMs > lastKnownTime);
 
         for (const { item, ratingKey, watchedAt, timeMs } of newWatches.reverse()) {
+          if (isAuthoritativeRestoreActive()) break;
           if (timeMs > maxNewTime) maxNewTime = timeMs;
           lastActivityAt = Date.now();
           if (onLibraryItemChange) {
@@ -176,7 +186,7 @@ export function createPlexAdaptivePoller({
 
       if (now - lastUnwatchCheckAt >= unwatchInterval) {
         lastUnwatchCheckAt = now;
-        if (typeof checkUnwatched === "function") {
+        if (!isAuthoritativeRestoreActive() && typeof checkUnwatched === "function") {
           const foundUnwatch = await checkUnwatched(config).catch(() => false);
           if (foundUnwatch) {
             lastActivityAt = Date.now();

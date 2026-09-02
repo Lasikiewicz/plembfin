@@ -20,10 +20,30 @@ const {
 } = await import("../server/src/utils/plexClient.js");
 const { resetOutboundGovernor } = await import("../server/src/utils/outboundGovernor.js");
 const { shouldDeferScheduledOutbound } = await import("../server/src/scheduler.js");
+const { createRestoreLookupCache } = await import("../server/src/utils/restoreLookupCache.js");
 
 function response(body, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
 }
+
+test("restore lookup cache shares one in-flight resolution and keeps a bounded result", async () => {
+  const cache = createRestoreLookupCache({ maxEntries: 100 });
+  let calls = 0;
+  const resolver = async () => {
+    calls += 1;
+    await Promise.resolve();
+    return [{ Id: "native-1" }];
+  };
+  const results = await Promise.all([
+    cache.resolve("restore-key", { title: "Cached Show - S01E01" }, resolver),
+    cache.resolve("restore-key", { title: "Cached Show - S01E01" }, resolver),
+  ]);
+  assert.equal(calls, 1);
+  assert.deepEqual(results[0], results[1]);
+  assert.equal(cache.size, 1);
+  cache.delete("restore-key");
+  assert.equal(cache.size, 0);
+});
 
 test("dispatch grouping uses broader provider bridges and episode coordinates", () => {
   const first = { id: "a", media_type: "movie", title: "Bridge Film", imdb_id: "tt1", watched_at: "2026-01-01T00:00:00Z" };
@@ -82,6 +102,58 @@ for (const platform of ["emby", "jellyfin"]) {
   });
 }
 
+for (const platform of ["emby", "jellyfin"]) {
+  test(`${platform} title fallback is shared when provider ids miss`, async () => {
+    resetOutboundGovernor();
+    if (platform === "emby") __resetEmbySeriesCache();
+    else __resetJellyfinSeriesCache();
+    const originalFetch = globalThis.fetch;
+    let providerRequests = 0;
+    let searchRequests = 0;
+    let episodeRequests = 0;
+    globalThis.fetch = async (input) => {
+      const url = new URL(String(input));
+      if (url.searchParams.has("AnyProviderIdEquals")) {
+        providerRequests += 1;
+        return response({ Items: [] });
+      }
+      if (url.searchParams.has("SearchTerm")) {
+        searchRequests += 1;
+        return response({ Items: [{ Id: "fallback-series", Name: "Fallback Show", ProviderIds: { Imdb: "tt-fallback" } }] });
+      }
+      if (url.searchParams.get("ParentId") === "fallback-series") {
+        episodeRequests += 1;
+        return response({ Items: Array.from({ length: 6 }, (_, index) => ({ Id: `fallback-ep-${index + 1}`, ParentIndexNumber: 1, IndexNumber: index + 1 })) });
+      }
+      return response({ Items: [] });
+    };
+    try {
+      const config = { baseUrl: "http://127.0.0.1:8096", apiKey: "key", userId: "user" };
+      const lookup = platform === "emby" ? findEmbyItems : findJellyfinItems;
+      const results = await Promise.all(Array.from({ length: 6 }, (_, index) => lookup(config, {
+        type: "episode",
+        title: `Fallback Show - S01E0${index + 1}`,
+        season: 1,
+        episode: index + 1,
+        ids: { imdb: "tt-missing", tmdb: "999", tvdb: "888" },
+      })));
+      assert.deepEqual(results.map((items) => items[0]?.Id), [
+        "fallback-ep-1",
+        "fallback-ep-2",
+        "fallback-ep-3",
+        "fallback-ep-4",
+        "fallback-ep-5",
+        "fallback-ep-6",
+      ]);
+      assert.equal(providerRequests, 3);
+      assert.equal(searchRequests, 1);
+      assert.equal(episodeRequests, 1);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+}
+
 test("Plex sibling episodes resolve the series once and share one allLeaves fetch", async () => {
   resetOutboundGovernor();
   __resetPlexIdentityCache();
@@ -113,4 +185,3 @@ test("Plex sibling episodes resolve the series once and share one allLeaves fetc
     globalThis.fetch = originalFetch;
   }
 });
-

@@ -39,7 +39,7 @@ import {
   openMediaInfoModal,
 } from "./media-detail.js?v=20260831g";
 import { fetchWatchedMovieByTmdb, syncRewatchHistoryToggle } from "./media-detail-movie.js?v=20260831g";
-import { addToWatchlist, removeFromWatchlist, openAddToListDialog, personalItemFromDetailDataset, refreshRenderedPersonalMediaControls, loadPersonalMedia } from "./personal-media.js?v=20260831r";
+import { addToWatchlist, removeFromWatchlist, openAddToListDialog, personalItemFromDetailDataset, refreshRenderedPersonalMediaControls, loadPersonalMedia } from "./personal-media.js?v=20260903b";
 
 // Callbacks injected by app-events.js (forwarded from app.js) to avoid circular imports.
 let _cb = {};
@@ -1174,7 +1174,7 @@ export function attachMediaDetailEvents() {
 
     const copyButton = event.target.closest("[data-copy]");
     if (copyButton) {
-      copyToClipboard(copyButton.dataset.copy);
+      copyToClipboard(copyButton.dataset.copy, copyButton);
       return;
     }
 

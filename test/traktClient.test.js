@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { fetchTraktWatchedSnapshot, pollTraktDeviceAuth, setTraktWatchState, startTraktDeviceAuth, trackerMediaKey, trackerMediaMatches } from "../server/src/utils/traktClient.js";
+import { fetchTraktWatchedSnapshot, pollTraktDeviceAuth, setTraktWatchHistoryBatch, setTraktWatchState, startTraktDeviceAuth, trackerMediaKey, trackerMediaMatches } from "../server/src/utils/traktClient.js";
 
 test("Trakt device authorization uses the API device endpoints", async () => {
   const originalFetch = globalThis.fetch;
@@ -134,4 +134,34 @@ test("Trakt watched writes send an explicit historical watched_at rather than th
     await setTraktWatchState({ clientId: "client", accessToken: "token" }, media, "watched");
     assert.equal(request.body.shows[0].seasons[0].episodes[0].watched_at, "2026-08-12T12:00:00.000Z");
   } finally { globalThis.fetch = originalFetch; }
+});
+
+test("Trakt restore batches preserve dates for movies and repeated episodes", async () => {
+  const originalFetch = globalThis.fetch;
+  let request;
+  globalThis.fetch = async (url, options) => {
+    request = { url: String(url), body: JSON.parse(options.body) };
+    return new Response(JSON.stringify({ added: { movies: 1, episodes: 2 } }), { status: 201, headers: { "content-type": "application/json" } });
+  };
+  try {
+    await setTraktWatchHistoryBatch({ clientId: "client", accessToken: "token" }, [
+      { type: "movie", ids: { tmdb: 329865 }, source: "restore_replay", watched_at: "2020-01-02T03:04:05.000Z" },
+      { type: "episode", ids: { tmdb: 108978 }, season: 1, episode: 2, source: "restore_replay", watched_at: "2021-02-03T04:05:06.000Z" },
+      { type: "episode", ids: { tmdb: 108978 }, season: 1, episode: 3, source: "restore_replay", watched_at: "2022-03-04T05:06:07.000Z" },
+    ], "watched");
+    assert.equal(request.url, "https://api.trakt.tv/sync/history");
+    assert.equal(request.body.movies[0].watched_at, "2020-01-02T03:04:05.000Z");
+    assert.equal(request.body.shows[0].seasons[0].number, 1);
+    assert.deepEqual(request.body.shows[0].seasons[0].episodes.map((item) => item.watched_at), [
+      "2021-02-03T04:05:06.000Z",
+      "2022-03-04T05:06:07.000Z",
+    ]);
+  } finally { globalThis.fetch = originalFetch; }
+});
+
+test("Trakt restore writes fail closed when a historical date is missing", async () => {
+  assert.throws(
+    () => setTraktWatchHistoryBatch({ clientId: "client", accessToken: "token" }, [{ type: "movie", ids: { tmdb: 1 }, source: "restore_replay" }], "watched"),
+    /requires a valid watched_at timestamp/,
+  );
 });

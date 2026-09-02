@@ -1,4 +1,4 @@
-import { loadMediaConfig } from "./configStore.js";
+import { isAuthoritativeRestoreActive, loadMediaConfig } from "./configStore.js";
 import {
   findExistingWatch, getCanonicalWatchState, getPlaystateForMedia, getPlaystateForMediaSync, insertWatchRecord,
   invalidateHistoryDerivedCaches, mediaKeyFor, mediaToWatchRecord, signalHistoryDataChanged, upsertPlaystateForMedia,
@@ -194,7 +194,8 @@ async function runTransitionBatch(items, handler, concurrency = TRACKER_TRANSITI
 // (via tracker_play_history) and nudges playstate's timestamp forward when
 // a newer rewatch is found. It never propagates to sync targets itself -
 // these are historical facts, not new events for Plex/Emby/Jellyfin to act on.
-async function importTraktPlayHistory(connection, publicConnection, previousStates) {
+async function importTraktPlayHistory(connection, publicConnection, previousStates, watchlistConfig = null) {
+  if (isAuthoritativeRestoreActive()) return;
   const watermarkMs = publicConnection.baselineComplete ? Number(publicConnection.historySyncedAt || 0) : 0;
   // A minute of overlap tolerates clock skew; tracker_play_history dedup
   // means re-seeing already-imported plays here is a harmless no-op.
@@ -211,6 +212,7 @@ async function importTraktPlayHistory(connection, publicConnection, previousStat
   const recentOutbound = buildRecentOutboundIndex(previousStates, Date.now() - OUTBOUND_ECHO_WINDOW_MS);
 
   for (const entry of entries.filter((entry) => pendingIds.has(entry.historyId)).sort((a, b) => a.watchedAt - b.watchedAt)) {
+    if (isAuthoritativeRestoreActive()) return;
     const watchedAtIso = new Date(entry.watchedAt).toISOString();
 
     // A play that looks like it just happened, right after Plembfin itself
@@ -283,7 +285,7 @@ async function importTraktPlayHistory(connection, publicConnection, previousStat
         "Target emby status: skipped - Historical import; not re-propagated",
         "Target jellyfin status: skipped - Historical import; not re-propagated",
       ].join("\n");
-      const result = await insertWatchRecord(record, { skipInvalidate: true });
+      const result = await insertWatchRecord(record, { skipInvalidate: true, watchlistConfig });
       watchRecordId = result.id;
     }
     recordTrackerPlay("trakt", { historyId: entry.historyId, mediaKey: canonicalMediaKey, watchedAt: watchedAtIso, watchRecordId });
@@ -320,9 +322,11 @@ export function selectTraktWatchedTransitions({ snapshot = [], previous = [], ba
 
 async function pollTrakt({ reconcile = false } = {}) {
   const pollStartedAt = Date.now();
+  if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active", watched: 0, unwatched: 0 };
   const publicConnection = getTrackerConnection("trakt");
   if (!publicConnection || publicConnection.status !== "connected") return { skipped: true, reason: "not-connected", watched: 0, unwatched: 0 };
   const { connection, snapshot } = await readSnapshot();
+  if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active", watched: 0, unwatched: 0 };
   const previous = listTrackerItemStates("trakt");
   const previousForDiff = dedupeTrackerItemsByIdentity(previous);
   const currentByKey = new Map(snapshot.map((item) => [item.mediaKey, item]));
@@ -382,6 +386,7 @@ async function pollTrakt({ reconcile = false } = {}) {
   }
 
   const config = await loadMediaConfig();
+  if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active", watched: 0, unwatched: 0 };
   const loopStore = createLoopStore();
   // Reserve the whole known batch size on the sidebar sync-progress indicator
   // up front, instead of letting it climb one item at a time as the bounded-
@@ -392,6 +397,7 @@ async function pollTrakt({ reconcile = false } = {}) {
   let deferredWatched = 0;
   let appliedUnwatched = 0;
   try {
+    if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active", watched: 0, unwatched: 0 };
     await runTransitionBatch(watched, async (item) => {
       try {
         const media = { ...item.media, source: "trakt", watched_at: new Date(item.watchedAt || Date.now()).toISOString() };
@@ -459,6 +465,8 @@ async function pollTrakt({ reconcile = false } = {}) {
   // after the batch or the TV detail page can continue showing stale progress.
   if (watched.length - deferredWatched || appliedUnwatched) await invalidateHistoryDerivedCaches();
 
+  if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active", watched: 0, unwatched: 0 };
+
   // Held-back items must stay recorded as watched in tracker_item_state (not
   // wiped out by the fresh snapshot) or the next poll would lose the "still
   // missing?" comparison point and never be able to confirm or clear them.
@@ -494,7 +502,7 @@ async function pollTrakt({ reconcile = false } = {}) {
   updateTrackerConnectionStatus("trakt", { baselineComplete: true, lastPolledAt: Date.now(), lastValidatedAt: Date.now(), lastError: null });
 
   try {
-    await importTraktPlayHistory(connection, publicConnection, previous);
+    await importTraktPlayHistory(connection, publicConnection, previous, config);
   } catch (error) {
     console.error("[trackerSync] Trakt play-history import failed (non-fatal)", error);
   }
@@ -512,6 +520,7 @@ async function pollTrakt({ reconcile = false } = {}) {
 }
 
 export async function pollConnectedTrackers(options = {}) {
+  if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active", watched: 0, unwatched: 0 };
   const reconcile = Boolean(options.reconcile);
   if (pollInFlight) {
     if (!reconcile || pollInFlightReconcile) return pollInFlight;

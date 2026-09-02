@@ -84,6 +84,35 @@ records the first remote snapshot without importing it; Import mode seeds the lo
 canonical ratings. A missing-row clear is only considered after a complete previous
 snapshot.
 
+## Personal watchlist scheduler
+
+Personal Watchlist Sync is disabled globally and per provider until enabled from
+Settings → Sync → Sync Tools. The elected worker runs it after watched-state work and
+personal ratings, within its own bounded budget. Local add/remove mutations are already
+durable before this pass starts; the worker repairs provider queue rows, reads each
+enabled provider's configured representation, and delivers pending additions/removals
+with leases, retry backoff, and redacted errors.
+
+The first run is intentionally two-stage. `POST /api/watchlist-sync/preview` performs a
+read-only provider snapshot and reports local items that can be resolved, unresolved
+items, and provider-only entries. `POST /api/watchlist-sync/run` with a confirmed
+`publish` then establishes the provider baseline. A Plembfin-owned Emby/Jellyfin
+playlist may be cleaned up during that explicit publish; unrelated Favorites and
+Plex's existing account watchlist entries remain unmanaged.
+
+Missing remote items only become provider-originated removals after a successful,
+complete snapshot has followed an earlier complete snapshot. Partial, empty-after-error,
+unauthorized, or unavailable responses never remove the canonical local row. A confirmed
+provider removal does remove the canonical row and queues a global removal to every
+enabled provider. A completed movie watch, explicitly completed TV show, or show-progress
+completion follows the same global removal hook; watching one episode alone does not
+remove a TV show watchlist row.
+
+The worker records provider/user/representation scope, ownership, queue outcome, run
+generation, and removal reason in the watchlist ledger/activity tables. A full backup
+restore pauses delivery and requires an explicit Publish restored watchlist action;
+disabling or disconnecting a provider never deletes the canonical list.
+
 Provider-ID changes can create a distinct local record. Fix Match
 (`PATCH /api/update-watch`) recomputes `media_key` and merges playstate when a correction
 changes a record's identity. Title comparisons normalize whitespace, so title variants from
@@ -288,6 +317,18 @@ already in flight is not cancelled; the guard only prevents new competing outbou
      still completes normally.
 4. **Catch-up library sync** - **runs every 15 minutes** (configurable via `CATCHUP_SYNC_INTERVAL_MS` env variable) to avoid heavy redundant API queries:
    - Pulls recently-watched and continue-watching (resumable) items from each active server: `syncRecentlyWatchedFromPlex`/`syncRecentlyResumableFromPlex` (and Emby/Jellyfin equivalents) in `scheduled.js`.
+   - Refreshes the provider Up Next feeds in the same catch-up window. Plex uses the
+     account-scoped Continue Watching hub and falls back to the configured library
+     sections; Emby and Jellyfin use their user-scoped Resume and Next Up endpoints.
+     These responses are stored as source observations in `up_next_provider_items`, not
+     as watched-state authority. Each feed is generation-based: only a complete response
+     becomes active, while a failed or partial response leaves the last good generation
+     available and records a redacted status for the dashboard.
+   - The queue builder merges those observations by verified provider identity and
+     episode coordinates, keeps resume cards ahead of released next-up episodes, and
+     uses bounded local TVDB/TMDB lookup when a configured provider has no usable Next Up
+     feed. The active source-ledger IDs are also preferred for later provider mutations,
+     including all matching Jellyfin item variants.
    - A recently-watched row counts in Plembfin's visible history and show progress only
      when it carries the configured source user and an explicit server played timestamp.
      Unscoped library scans remain diagnostic evidence rather than asserted watches.

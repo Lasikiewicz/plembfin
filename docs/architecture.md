@@ -25,6 +25,9 @@ cast, trailers, artwork), Jellyseerr/Overseerr requesting, and a backup system.
 Personal ratings are a separate optional domain: Plembfin remains their local
 canonical store, while a durable rating queue can exchange ratings with Plex, Emby,
 Jellyfin, and Trakt without entering the watched-state pipeline.
+Personal watchlist membership is another isolated domain: `personal_watchlist` is the
+canonical present-set, while provider-specific observations, tombstones, queues, and
+complete-snapshot runs drive safe projections to Plex, Emby, and Jellyfin.
 
 ### Performance-sensitive page loading
 
@@ -47,7 +50,7 @@ new metadata requests.
 | Plex API calls, Plex WebSocket listener | `server/src/utils/plexClient.js`, `plexNotificationListener.js` | [plex.md](plex.md) |
 | Emby API calls | `server/src/utils/embyClient.js` | [emby.md](emby.md) |
 | Jellyfin API calls | `server/src/utils/jellyfinClient.js` | [jellyfin.md](jellyfin.md) |
-| Background/scheduled sync, catch-up sync | `server/src/scheduler.js`, `server/src/scheduled.js` | [scheduled-sync.md](scheduled-sync.md) |
+| Background/scheduled sync, catch-up sync, provider Up Next feeds | `server/src/scheduler.js`, `server/src/scheduled.js`, `server/src/utils/upNextRepository.js` | [scheduled-sync.md](scheduled-sync.md) |
 | Now Playing (dashboard live sessions) | `handleNowPlaying` in `server/src/routes/sync.js`, `server/src/utils/liveSessions.js`, `liveSessionPoller.js`, `activeSessions.js`, `public/modules/sync.js` | [now-playing.md](now-playing.md) |
 | Dashboard rendering | `public/modules/dashboard.js` | [dashboard.md](dashboard.md) |
 | Sidebar sync indicator, Sync Activity page | `public/modules/sync-activity.js`, `handleSyncHistory` in `routes/sync.js` | [dashboard.md](dashboard.md) |
@@ -57,6 +60,7 @@ new metadata requests.
 | Movie/show/person detail pages | `public/modules/media-detail*.js`, `media-person.js` | [media-detail.md](media-detail.md) |
 | Personal media pages | `public/modules/personal-media.js`, `handlePersonalMedia` in `routes/personal.js` | [frontend.md](frontend.md) |
 | Personal rating sync | `server/src/utils/personalRatingSync.js`, `personalRatingRepository.js`, provider clients, `public/modules/rating-sync-settings.js` | [personal-ratings.md](personal-ratings.md) |
+| Personal watchlist sync | `server/src/utils/personalWatchlistSync.js`, provider watchlist adapters, `routes/watchlistSync.js`, `public/modules/watchlist-sync-settings.js` | this document, [settings.md](settings.md) |
 | History page, Search page | `public/modules/explorer.js`, `handleHistory` in `routes/media.js`, `handleMediaSearch` in `routes/metadata.js` | [history-search.md](history-search.md) |
 | Stats page | `public/modules/stats.js`, `getWatchStats` in `dataRepo.js` | [stats.md](stats.md) |
 | TMDB/TVDB/Fanart/OMDb metadata | `server/src/routes/metadata.js`, `server/src/utils/tmdbGateway.js`, `tvdbGateway.js`, `fanartGateway.js`, `omdbGateway.js` | [metadata.md](metadata.md) |
@@ -132,8 +136,8 @@ See [README.md](README.md) for the documentation index, including this file
 | `src/appConfig.js` | Resolves admin credentials + secrets from env / `data/config.json` (scrypt password hash, generated API key / webhook secret / session secret), warns about insecure config at startup, exports `AUTH`, `verifyWebhookToken`, `rotateWebhookSecret`, `updateAdminCredentials`. |
 | `src/env.js` | Minimal `.env` loader (`loadLocalEnv`) - parses `<repo>/.env` without a dotenv dependency; env vars already set take precedence. |
 | `src/paths.js` | Resolves `DATA_DIR` and every path under it (`MEDIA_DIR`, `POSTERS_DIR`, `BACKDROPS_DIR`, `PROFILES_DIR`, backup dirs, `DB_PATH`, `CONFIG_PATH`, `PUBLIC_DIR`); `ensureDataDirs()` creates them. |
-| `src/scheduled.js` | The background sync engine: live-session polling → `live_tracking_cache`, completed-session detection, resume-progress replication, per-platform catch-up sync (recently watched + resumable), Plembfin-canonical dispatch/reconciliation queue, Plex drift repair, `runScheduledSync` and `runForceSync`. See [scheduled-sync.md](scheduled-sync.md). |
-| `src/scheduler.js` | Scheduler wrapper and Plex notification listener lifecycle: per-minute tick orchestration, scheduled backup runs, next-airing cache refresh, startup/shutdown listener control, and Plex library-item unwatch callback. |
+| `src/scheduled.js` | The background sync engine: live-session polling → `live_tracking_cache`, completed-session detection, resume-progress replication, per-platform catch-up sync (recently watched + resumable + provider Up Next feeds), Plembfin-canonical dispatch/reconciliation queue, Plex drift repair, `runScheduledSync` and `runForceSync`. See [scheduled-sync.md](scheduled-sync.md). |
+| `src/scheduler.js` | Scheduler wrapper and Plex notification listener lifecycle: per-minute tick orchestration, scheduled backup runs, watchlist/rating worker hooks, next-airing cache refresh, startup/shutdown listener control, and Plex library-item unwatch callback. |
 
 ### `server/src/routes/`
 
@@ -145,8 +149,9 @@ See [README.md](README.md) for the documentation index, including this file
 | `metadata.js` | Poster proxy and metadata/search handlers: TMDB details/search/season/images/person/poster/profile, the remote-artwork caching proxy, TVDB search/images, Fanart images, media search, Upcoming episodes, cached Up Next, YouTube metadata, and OMDb ratings. |
 | `sync.js` | Sync/runtime handlers: webhook ingestion, manual watch/unwatch, playback progress, retry sync, sync job/history listing, Now Playing, active sessions, cron sync, library-wide planner Force Sync, Settings library Force Sync modes and status polling, title-scoped detail-page Force Sync modes and status polling, and stop-force-sync. |
 | `ratingSync.js` | Authenticated personal-rating status, snapshot, local-push, and retry actions. |
+| `watchlistSync.js` | Authenticated personal-watchlist status, non-destructive preview, publish/reconcile/retry actions, and paged activity. |
 | `maintenance.js` | Maintenance/admin utility handlers: ping, changelog/update check, diagnostic logs, cross-platform match reporting, backfill/repair/dedup/rematch, cache stats, and cache clearing. |
-| `wipeData.js` | Wipe data handlers (`GET /api/wipe-data/preview`, `POST /api/wipe-data`): Watch History, Sync History & Logs, Everything Tracked, and Wipe All / Fresh Start (also clears every remaining table, deletes cached artwork, and resets `data/config.json` via `appConfig.js`'s `resetAdminAccount()`). Kept separate from `maintenance.js`, which is already near its size limit. |
+| `wipeData.js` | Wipe data handlers (`GET /api/wipe-data/preview`, `POST /api/wipe-data`): Watch History, Personal Watchlist, Sync History & Logs, Everything Tracked, and Wipe All / Fresh Start (also clears every remaining table, deletes cached artwork, and resets `data/config.json` via `appConfig.js`'s `resetAdminAccount()`). Kept separate from `maintenance.js`, which is already near its size limit. |
 | `mediaAuth.js` | Browser-session-only Plex account, Emby account, and Jellyfin Quick Connect/account flows; verifies identities and persists encrypted managed connections. |
 | `trackerAuth.js` | Trakt device authorization, initial-state policy, connection status/disconnect, and manual tracker synchronization. |
 | `liveUpdates.js` | Authenticated streaming endpoint that emits shared history, Up Next-cache, and Discover-cache version changes so open pages refresh as local state or feed snapshots change. |
@@ -163,6 +168,15 @@ See [README.md](README.md) for the documentation index, including this file
 | `personalRatingIdentity.js` | Normalizes movie/show/episode rating identity; episode keys use parent show identity plus season/episode while retaining leaf provider IDs for writes. |
 | `personalRatingRepository.js` | SQLite repository for canonical rating source observations, latest-intent queue rows, provider echo markers, and per-provider sync runs. |
 | `personalRatingSync.js` | Optional personal-rating snapshots, conflict policy, complete-snapshot clears, durable queue delivery, retries, and the independent scheduler hook. |
+| `personalWatchlistIdentity.js` | Canonical movie/TV watchlist identity and provider/title aliases; episode rows are intentionally excluded from the first watchlist release. |
+| `personalWatchlistRepository.js` | Canonical watchlist mutations/tombstones, provider ownership ledger, durable queue, sync runs, activity, restore gate, and completed-watch removal hook. |
+| `personalWatchlistSync.js` | Bounded provider snapshots, complete-snapshot removal safety, initial-publish preview/confirmation, owned-container cleanup, queue delivery, retries, and scheduler integration. |
+| `upNextIdentity.js` | Shared Up Next identity normalizer and deterministic ordering/merge rules: verified movie IDs, provider-series-plus-SxxExx episode keys, native-ID fallbacks, source-ID preservation, and resume-over-next-up reconciliation. |
+| `upNextRepository.js` | Generation-based SQLite source ledger for provider Resume/Continue Watching/Next Up feeds. Activates only complete snapshots, preserves last-good rows on failures, exposes redacted feed status, and advances `up_next` invalidation when active source content changes. |
+| `upNextService.js` | Builds the unified dashboard projection from canonical local resume/playstate, provider observations, and bounded released-episode metadata fallback; emits stable public queue items without raw provider payloads. |
+| `plexWatchlistClient.js` | Plex account-level Universal Watchlist adapter with native read/write capability probing and RSS read-only fallback. |
+| `embyWatchlistClient.js` | Emby user-scoped playlist/Favorites watchlist adapter with dedicated Plembfin playlist ownership. |
+| `jellyfinWatchlistClient.js` | Jellyfin user-scoped playlist/Favorites watchlist adapter with dedicated Plembfin playlist ownership. |
 | `traktAppConfig.js` | Supplies the bundled Plembfin Trakt device application, applies optional `TRAKT_CLIENT_ID` / `TRAKT_CLIENT_SECRET` overrides, validates the personal-app fallback, and hydrates runtime requests without persisting application credentials in tracker records. |
 | `credentialVault.js` | AES-256-GCM envelope for provider credentials, backed by `PLEMBFIN_CREDENTIAL_KEY` or the generated `data/credential.key`. |
 | `mediaConnectionRepo.js` | CRUD and runtime adaptation for encrypted Plex/Emby/Jellyfin account connections. |
@@ -184,10 +198,10 @@ See [README.md](README.md) for the documentation index, including this file
 | `concurrency.js` | `runWithConcurrency(items, handler, limit)` - a small bounded worker pool used by Force Sync to process multiple items at once. Safe to raise: outbound HTTP calls are still throttled per host by the outbound governor (`outboundGovernor.js`), so this only shortens wall-clock time. |
 | `mediaForceSyncActivity.js` | Bounded in-memory activity ledger used by the detail-page and Settings Force Sync status/cancellation endpoints to stream operation lines, cancellation state, and final results to the UI. |
 | `tuning.js` | Import-free runtime accessors for watched threshold, minimum resume position, active-session TTL, and outbound timeout; reads environment defaults and applies validated Settings overrides. |
-| `plexClient.js` | Plex HTTP client: find items by GUID/title, mark played/unplayed, set resume progress, fetch watched/resumable/metadata/episodes, and read/write personal ratings; username→accountID resolution with memoization. Token always sent as `X-Plex-Token` header. See [plex.md](plex.md). |
+| `plexClient.js` | Plex HTTP client: find items by GUID/title, mark played/unplayed, set resume progress, fetch watched/resumable/account-scoped Continue Watching/metadata/episodes, and read/write personal ratings; username→accountID resolution with memoization. Token always sent as `X-Plex-Token` header. See [plex.md](plex.md). |
 | `plexNotificationListener.js` | Plex real-time WebSocket listener (`/:/websockets/notifications`): detects watched/unwatched changes the webhook can never deliver, reconnects with backoff, debounces per ratingKey; also recognizes the `playing` notification type to poke the live session poller (see `liveSessionPoller.js`) the instant a session's state changes; plus `probePlexNotificationSocket` for the System Integrity Check. |
-| `embyClient.js` | Emby HTTP client (same operation set as Plex client, `X-Emby-Token` auth, provider-ID `AnyProviderIdEquals` lookups), including personal rating snapshots and writes. See [emby.md](emby.md). |
-| `jellyfinClient.js` | Jellyfin HTTP client (same shape as Emby client; sends both `X-Emby-Token` and `X-MediaBrowser-Token`); episode coordinate lookups retain duplicate quality copies so all matching items receive playstate, and rating operations use the same isolated queue adapter. See [jellyfin.md](jellyfin.md). |
+| `embyClient.js` | Emby HTTP client (same operation set as Plex client, `X-Emby-Token` auth, provider-ID `AnyProviderIdEquals` lookups), including user-scoped Resume/Next Up feeds and personal rating snapshots/writes. See [emby.md](emby.md). |
+| `jellyfinClient.js` | Jellyfin HTTP client (same shape as Emby client; sends both `X-Emby-Token` and `X-MediaBrowser-Token`); includes user-scoped Resume/Next Up feeds, retains duplicate quality copies so all matching items receive playstate, and uses the same isolated queue adapter for rating operations. See [jellyfin.md](jellyfin.md). |
 | `liveSessions.js` | Polls Plex/Emby/Jellyfin `sessions` endpoints for what's playing now (`fetchLiveSessions`, reports per-platform fetch failures separately from a genuinely empty result), normalizes them (`buildCacheRow`, `sessionIdentity`, `hydrateCachedSession`) for `live_tracking_cache`. Feeds Now Playing and completed-session detection. |
 | `liveSessionPoller.js` | Independent, activity-adaptive timer (10s while something's playing, 45s while idle) that runs `refreshLiveSessions()` (in `scheduled.js`) outside the once-a-minute scheduler tick, so Now Playing updates in seconds instead of up to a minute. `poke()` lets the Plex notification listener and `handleNowPlaying` trigger an immediate refresh. See [now-playing.md](now-playing.md). |
 | `activeSessions.js` | The `active_sessions` table (webhook `active`-phase sessions, configurable 5-minute TTL by default, enforced on read). |
@@ -208,7 +222,7 @@ See [README.md](README.md) for the documentation index, including this file
 | `tmdbClient.js` | Tiny wrapper `fetchPosterFromTmdb(row)` used by the poster pipeline's TMDB fallback. |
 | `nextAiringCache.js` | File-backed cache (`data/next-airing-cache.json`) of each show's next episode air date + status, so the TV Shows page can sort by "next airing" without live TVDB/TMDB calls. TTL 6h for active shows, 7d for ended. |
 | `upcomingCalendarCache.js` | Persistent month-level episode calendar (`data/upcoming-calendar-cache.json`): serves cached results, builds historical months once, checks current/future results for changes, and merges newly tracked shows without rebuilding existing entries. |
-| `upNextCache.js` | Persistent dashboard queue snapshot (`data/up-next-cache.json`): serves a warm Up Next result, revalidates stale history-derived data in the background, and advances the shared `up_next` cache generation when the completed snapshot changes. |
+| `upNextCache.js` | Persistent unified dashboard queue snapshot (`data/up-next-cache.json`): serves a warm mixed movie/episode result, revalidates stale canonical/source-ledger data in the background, and advances the shared `up_next` cache generation when the completed snapshot changes. |
 | `showProgressCache.js` | File-backed cache (`data/tv_progress_cache.json`) of per-show watched/total episode counts. Burst updates share one flush, reuse recent metadata totals, and atomically replace the file after synchronous persistence. In split `web` + `worker` deployments each process still owns a private whole-file snapshot, so concurrent writers can overwrite one another's unrelated show updates; SQLite watch history remains authoritative and a later recalculation repairs the cache. |
 | `backup.js` | Portable full-backup format: exports/imports the core SQLite tables as versioned JSON collections (paged export, batched import, optional reset). Used by Settings → Backup / restore and the encrypted backup subsystem. |
 | `watchHistoryBackups.js` | Watch-history-only backup subsystem: gzip JSON of `watch_history` + `playstate` + `playback_progress` with checksum manifest, independent daily local and remote schedules with separate retention counts, dry-run/merge/replace restore, remote destination management (secrets kept server-side, redacted in every API response), cron-sync pausing around restores. See [backups.md](backups.md). |
@@ -243,6 +257,7 @@ See [README.md](README.md) for the documentation index, including this file
 | `settings-ui.js` | Reusable settings edit dialog, provider picker, and status-card grid primitives. |
 | `settings-services.js` | Media-server and metadata-provider card grids, edit dialogs, config saves, connection tests, and the inline Sync Tuning form. |
 | `rating-sync-settings.js` | Personal Rating Sync settings, provider directions, status polling, snapshot/push actions, and queue feedback. |
+| `watchlist-sync-settings.js` | Personal Watchlist Sync provider enablement, representation choices, publish preview/confirmation, queue/status/activity polling, and retry actions. |
 | `settings-shell.js` | Owns hierarchical settings routes (parent groups + child sections), multi-view panel aggregation, legacy aliases, the landing list, sidebar/mobile navigation, section-scoped scrolling, and tools disclosures. |
 | `tracker-settings.js` | Trakt device-code connection, initial baseline/import policy, connection state, personal-app fallback, and Sync Now controls. |
 | `live-updates.js` | Authenticated watch-state/personal-media, Up Next-cache, and Discover-cache version stream, reconnect/backoff, and debounced background data refresh with targeted visible-row reconciliation. |
@@ -250,9 +265,9 @@ See [README.md](README.md) for the documentation index, including this file
 | `images.js` | Poster/artwork frontend: `posterMarkup` (with its loading skeleton), `hydratePosterFallbacks`, `/api/poster` lookups with a persistent cache, TMDB image URL builders, `proxiedArtworkUrl`, `isCachedStorageImageUrl`. See [posters-artwork.md](posters-artwork.md). |
 | `sync.js` | Now Playing polling + rendering, sync-status pills/telemetry parsing, sync jobs + sync history panels, cron/force-sync triggers. |
 | `sync-activity.js` | The always-present sidebar sync indicator (Idle / N of M) and the `/sync-activity` page: per-media rows from `/api/sync-history` newest first, source-to-target route line, icon-plus-status target results (`activityPlatform` names trackers as well as media servers, so Trakt is not folded into Plex), targeted retry for failed/skipped destinations, a "Retry all failed" background job covering the whole history, title links to the media page, click-to-expand inline logs, and the per-item log download. See [dashboard.md](dashboard.md). |
-| `dashboard.js` | Dashboard rendering: Now Playing grid, recent-history rows, and media-type-aware Part Watched subsections inside Watch History. See [dashboard.md](dashboard.md). |
+| `dashboard.js` | Dashboard rendering: Now Playing grid, completed recent-history rows, mixed Up Next cards, and compatibility-only Part Watched panels. See [dashboard.md](dashboard.md). |
 | `media-card.js` | Shared media-card normalization/rendering for Up Next, Discover, collection members, and later list/library surfaces. |
-| `up-next.js` | Dashboard Up Next loader/rendering backed by browser/server cache hydration, released-episode selection, SSE revalidation, and the shared media-card contract. See [dashboard.md](dashboard.md). |
+| `up-next.js` | Dashboard mixed Up Next loader/rendering backed by browser/server cache hydration, provider/local resume and released-episode observations, SSE revalidation, source-status messaging, and the shared media-card contract. See [dashboard.md](dashboard.md). |
 | `discover.js` | `/discover` deterministic TMDB feeds, type/genre filters, browser/server cache hydration, SSE refresh, error/empty states, and poster hydration. See [metadata.md](metadata.md). |
 | `stats.js` | Stats page: KPI cards, leaderboards, platform split, month chart, yearly/monthly review reports. See [stats.md](stats.md). |
 | `explorer.js` | Movies grid, TV Shows grid, History page, Search page: paging, sorting, filters, collection expansion, IntersectionObserver infinite scroll, TMDB prefetch. See [movies.md](movies.md), [tv-shows.md](tv-shows.md), [history-search.md](history-search.md). |
@@ -274,7 +289,7 @@ See [README.md](README.md) for the documentation index, including this file
 | `tools-backups.js` | Settings backup and appearance UI: full export/import, watch-history backups, encrypted backups, Backblaze destination cards/dialogs, backup passphrase controls, and appearance settings. See [backups.md](backups.md). |
 | `tools-maintenance.js` | Maintenance diagnostics: System Integrity Check, repair workflow, dedup history, Trakt backfill, TV re-match, full watchstate sync, cache stats/clear. |
 | `tools-duplicates.js` | Library-wide duplicate-watch cleanup (Settings → Tools → Database Repairs): scans then removes every extra watch beyond the oldest, for TV episodes and movies separately. |
-| `tools-wipe-data.js` | Wipe data (Settings → Tools → Wipe data): Watch History, Sync History & Logs, Everything Tracked, and Wipe All / Fresh Start (full factory reset). Two confirm dialogs per action; row-count previews from `GET /api/wipe-data/preview`. |
+| `tools-wipe-data.js` | Wipe data (Settings → Tools → Wipe data): Watch History, Personal Watchlist, Sync History & Logs, Everything Tracked, and Wipe All / Fresh Start (full factory reset). Two confirm dialogs per action; row-count previews from `GET /api/wipe-data/preview`. |
 | `help-content.js` | Static help/guide HTML: credential guides, webhook setup per platform, cron guide, settings inline help. |
 | `app-events.js` | Global app event wiring (delegated click/submit/keyboard handlers bound at startup). |
 
@@ -328,6 +343,9 @@ directory are linked from the app's Reddit developer-platform listing.
 | `metadataCaches.test.js` | Fanart response cache (hits and negative misses), TMDB details cache freshness, light-vs-full cache row semantics. |
 | `exportPlexHistory.test.js` | The standalone Plex history export script's episode-record shaping (specials season zero). |
 | `trackerSettings.test.js` | Live Trakt Sync Now completion summary counts and wording. |
+| `upNextIdentity.test.js` | Canonical mixed movie/episode identity, provider-ID aliases, deterministic ordering, and queue merging. |
+| `upNextQueue.test.js` | Unified Up Next projection, local resume precedence, canonical watched-state filtering, and bounded metadata fallback. |
+| `upNextProviderFeeds.test.js` | Generation-based provider feed snapshots, last-good retention, source-ledger metadata, and credential-redacted errors. |
 
 ## Request flow
 
@@ -411,17 +429,36 @@ The same logic runs on demand via:
   the optional personal-rating snapshot/reconciliation worker.
 - `POST /api/rating-sync/push` and `POST /api/rating-sync/retry` - explicitly
   queue local ratings or retry durable rating work.
+- `GET /api/watchlist-sync/status` and `GET /api/watchlist-sync/activity` - inspect
+  canonical count, provider capabilities, queue/run state, restore gating, and recent
+  watchlist-specific activity.
+- `POST /api/watchlist-sync/preview` - read a provider snapshot and show local items
+  that can be resolved plus provider-only items without changing state.
+- `POST /api/watchlist-sync/run` - run `reconcile`, `retry`, or explicitly confirmed
+  `publish` work for selected providers.
 
 Personal rating sync is invoked by the same elected scheduler tick only after the
 watched-state work, but it has its own enabled flag, interval gate, queue, leases,
 provider adapters, and error accounting. A rating provider outage cannot change
 watched state, play history, resume progress, or the watched-state Force Sync lock.
 
+Personal watchlist sync is a separate elected-worker pass. Local add/remove actions
+commit the canonical row or append-only tombstone and provider queue intents in one
+SQLite transaction. Provider snapshots are only allowed to infer removals after a
+successful complete snapshot; an initial publish requires a preview and explicit
+confirmation. Plex uses the account-level Universal Watchlist (native writes are
+opt-in; RSS is read-only), while Emby and Jellyfin use a Plembfin-owned playlist or
+an ownership-aware Favorites compatibility mode. Unavailable providers never delete
+the canonical row, and a restored watchlist remains paused until the user publishes it.
+
 The tick also runs the scheduled watch-history backup and encrypted backup jobs
-([backups.md](backups.md)), maintains `data/next-airing-cache.json`, and progressively
-builds `data/upcoming-calendar-cache.json`. The calendar cache stores the previous 24
-months without refreshing them, checks current/future months for actual changes, and
-merges newly tracked shows on access without repeating existing TVDB season pulls.
+([backups.md](backups.md)), refreshes the generation-based provider Up Next source ledger,
+maintains `data/next-airing-cache.json`, and progressively builds
+`data/upcoming-calendar-cache.json`. The calendar cache stores the previous 24 months
+without refreshing them, checks current/future months for actual changes, and merges
+newly tracked shows on access without repeating existing TVDB season pulls. Provider
+feed failures preserve their last successful ledger generation and are surfaced as
+non-secret status on the dashboard.
 
 Full detail: [scheduled-sync.md](scheduled-sync.md).
 
@@ -596,7 +633,8 @@ boot. All database access uses prepared statements.
 same transaction as canonical watch-state writes; Discover and Up Next cache writes
 advance their separate generations only when the completed derived payload changes.
 `bumpDataVersion()`
-also supports file-backed derived changes. The next read reloads from SQLite. This
+also supports file-backed derived changes. Provider Up Next feed generations contribute
+to the source version used by the queue cache; the next read reloads from SQLite. This
 keeps each process's in-memory memoization coherent; persistent file-backed caches use
 atomic replacement and re-read their on-disk snapshot when another process updates it.
 

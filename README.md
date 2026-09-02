@@ -61,6 +61,7 @@ None of these talk to each other - they all talk to Plembfin.
 - **Rich analytics & stats** - In-depth all-time and period reports, top shows, and platform playback distribution
 - **Personal media organization** - Save movies, shows, and episodes to a watch list or custom lists, and rate them from their media pages; episode ratings use one canonical show/season/episode identity everywhere
 - **Personal Rating Sync** - Optional, disabled-by-default rating exchange with Plex, Emby, Jellyfin, and Trakt through an isolated durable queue; local ratings are committed first and never share the watched-state Force Sync path
+- **Personal Watchlist Sync** - Optional, disabled-by-default canonical watchlist projection to Plex Universal Watchlist, Emby playlists/Favorites, and Jellyfin playlists/Favorites, with explicit first publish, ownership-safe removals, durable retries, and restore gating
 - **Upcoming episodes calendar** - Air date schedule for upcoming and past releases, pre-cached for instant loading
 - **Discover hub** - Cached trending, now-playing, airing-today, and genre feeds paint immediately from saved data, then refresh live through the update stream with direct TMDB detail navigation
 - **Live Trakt sync** - Two-way Trakt integration with seamless device authorization, per-play history import, and resilient sync protection
@@ -98,8 +99,8 @@ See [`docs/architecture.md`](docs/architecture.md) for how each feature is actua
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/part-watched.png" alt="Watch History and Part Watched" width="100%" />
-  <em>Watch History with in-progress Part Watched items, resume progress, and quick mark-watched actions</em>
+  <img src="docs/screenshots/part-watched.png" alt="Up Next and Watch History" width="100%" />
+  <em>Mixed Up Next queue with resume progress alongside completed watch history</em>
 </p>
 
 <p align="center">
@@ -337,6 +338,7 @@ manual Back Up Now button.
 
 - **Watch history backups** - snapshots of history, playstates, and resume markers (`data/backups/watch-history`)
 - **Full Plembfin backups** - AES-256-GCM encrypted, includes settings/keys/credentials/history (`data/backups/plembfin`)
+- **Personal watchlist recovery** - full backups include the local canonical watchlist and sync ledger; restore pauses provider delivery until an explicit publish, while watch-history-only backups exclude it
 - **Remote backups** - optional mirror of either type to Backblaze B2, on its own schedule (Settings → Backup / restore → Backup settings → Remote)
 
 ---
@@ -420,7 +422,9 @@ crontab needed) handles sync reconciliation, cache maintenance, and nightly back
 exponential backoff for offline targets. Large watched-state bursts defer competing
 scheduled media/tracker polling while backups and metadata maintenance continue; pending
 items dispatch concurrently across distinct media identities. Every push runs `npm run build` - a syntax
-check plus a clean-directory boot test - before it ships.
+check plus a clean-directory boot test - before it ships. Personal watchlist delivery uses
+its own leased queue, provider ownership ledger, complete-snapshot gate, and failure budget,
+so a provider watchlist outage cannot pause watched-state or rating synchronization.
 
 For the full picture - file map, subsystem map, and per-feature references - start at
 [`docs/architecture.md`](docs/architecture.md) and the [docs index](docs/README.md).

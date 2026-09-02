@@ -4,6 +4,7 @@ import {
   DEFAULT_RATING_SYNC,
   RATING_SYNC_DIRECTIONS,
   RATING_SYNC_PROVIDERS,
+  isAuthoritativeRestoreActive,
   loadMediaConfig,
   normalizeRatingSyncSection,
 } from "./configStore.js";
@@ -315,6 +316,7 @@ async function fetchProviderSnapshot(provider, config) {
 }
 
 async function runProviderSnapshot(provider, { config, mode, logger = () => {} } = {}) {
+  if (isAuthoritativeRestoreActive()) return { provider, status: "skipped", skipped: "authoritative-restore-active" };
   const previousRun = getPersonalRatingSyncRun(provider);
   const previousRows = listRatingSourceRows(provider);
   const run = startPersonalRatingSyncRun(provider, mode);
@@ -326,6 +328,10 @@ async function runProviderSnapshot(provider, { config, mode, logger = () => {} }
     finishPersonalRatingSyncRun(provider, { status: "failed", last_error: safeError(error) });
     throw error;
   }
+  if (isAuthoritativeRestoreActive()) {
+    finishPersonalRatingSyncRun(provider, { status: "cancelled", last_error: "Authoritative watch-history restore is active" });
+    return { provider, status: "skipped", skipped: "authoritative-restore-active" };
+  }
 
   const seenPrevious = new Set();
   let changedCount = 0;
@@ -335,6 +341,10 @@ async function runProviderSnapshot(provider, { config, mode, logger = () => {} }
   let processingErrors = 0;
 
   for (const record of Array.isArray(records) ? records : []) {
+    if (isAuthoritativeRestoreActive()) {
+      finishPersonalRatingSyncRun(provider, { status: "cancelled", last_error: "Authoritative watch-history restore is active" });
+      return { provider, status: "skipped", skipped: "authoritative-restore-active" };
+    }
     try {
       const rawMedia = normalizePersonalRatingMedia(record.media || record);
       const previous = findPreviousSourceRow(previousRows, rawMedia);
@@ -385,6 +395,10 @@ async function runProviderSnapshot(provider, { config, mode, logger = () => {} }
   const canUseMissingRows = Boolean(previousRun?.baseline_complete);
   if (canUseMissingRows) {
     for (const previous of previousRows) {
+      if (isAuthoritativeRestoreActive()) {
+        finishPersonalRatingSyncRun(provider, { status: "cancelled", last_error: "Authoritative watch-history restore is active" });
+        return { provider, status: "skipped", skipped: "authoritative-restore-active" };
+      }
       if (previous.remote_state !== "rated" || seenPrevious.has(previous.media_key)) continue;
       try {
         const media = normalizePersonalRatingMedia(previous.media || {}, { mediaKey: previous.media_key });
@@ -443,6 +457,7 @@ async function runProviderSnapshot(provider, { config, mode, logger = () => {} }
 
 async function drainPersonalRatingQueue({ config, providers = RATING_SYNC_PROVIDERS, limit = MAX_QUEUE_BATCH, logger = () => {} } = {}) {
   const settings = configForRating(config);
+  if (isAuthoritativeRestoreActive()) return { processed: 0, succeeded: 0, failed: 0, skipped: "authoritative-restore-active" };
   if (!settings.ratingSync.enabled) return { processed: 0, succeeded: 0, failed: 0, skipped: "disabled" };
   const owner = `ratings:${process.pid}:${crypto.randomUUID()}`;
   let processed = 0;
@@ -451,9 +466,11 @@ async function drainPersonalRatingQueue({ config, providers = RATING_SYNC_PROVID
   let notFound = 0;
   let reauthRequired = 0;
   for (const provider of normalizeProviders(providers)) {
+    if (isAuthoritativeRestoreActive()) return { processed, succeeded, failed, notFound, reauthRequired, skipped: "authoritative-restore-active" };
     if (!directionAllows(settings.ratingSync.providers[provider], "send")) continue;
     const claimed = claimPersonalRatingQueue({ provider, limit, owner, leaseMs: QUEUE_LEASE_MS });
     for (const item of claimed.rows) {
+      if (isAuthoritativeRestoreActive()) return { processed, succeeded, failed, notFound, reauthRequired, skipped: "authoritative-restore-active" };
       processed += 1;
       try {
         const connection = await providerConfig(settings, provider);
@@ -508,6 +525,7 @@ function snapshotModeFor(provider, config, explicitMode = "") {
 }
 
 export async function runRatingSync({ providers = [], mode = "", snapshot = true, drain = true, logger = () => {}, config = null } = {}) {
+  if (isAuthoritativeRestoreActive()) return { ok: true, status: "skipped", reason: "authoritative-restore-active", providers: [], queue: ratingQueueCounts() };
   if (activeSyncPromise) return activeSyncPromise;
   activeSyncPromise = (async () => {
     const settings = configForRating(config || await loadMediaConfig());
@@ -537,6 +555,7 @@ export async function runRatingSync({ providers = [], mode = "", snapshot = true
 }
 
 export async function pushPersonalRatings({ providers = [], items = [], logger = () => {}, config = null } = {}) {
+  if (isAuthoritativeRestoreActive()) return { ok: true, status: "skipped", reason: "authoritative-restore-active", queued: 0, queue: ratingQueueCounts() };
   const settings = configForRating(config || await loadMediaConfig());
   if (!settings.ratingSync.enabled) return { ok: true, status: "disabled", queued: 0, queue: ratingQueueCounts() };
   const targets = normalizeProviders(providers);
@@ -573,6 +592,7 @@ export async function pushPersonalRatings({ providers = [], items = [], logger =
 }
 
 export async function retryRatingSync({ providers = [], drain = true, logger = () => {}, config = null } = {}) {
+  if (isAuthoritativeRestoreActive()) return { ok: true, status: "skipped", reason: "authoritative-restore-active", retried: 0, queue: ratingQueueCounts() };
   const targets = normalizeProviders(providers);
   const retried = retryPersonalRatingQueue({ provider: targets.length === 1 ? targets[0] : "" });
   const settings = configForRating(config || await loadMediaConfig());
@@ -605,6 +625,7 @@ export async function getRatingSyncStatus({ config = null } = {}) {
 }
 
 export async function runRatingSyncScheduler({ logger = () => {} } = {}) {
+  if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active" };
   const config = await loadMediaConfig();
   if (!config.ratingSync?.enabled) return { skipped: true, reason: "disabled" };
   const providers = RATING_SYNC_PROVIDERS.filter((provider) => config.ratingSync.providers[provider] !== "off");

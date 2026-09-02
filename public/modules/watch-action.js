@@ -594,9 +594,13 @@ function watchRecordFromEpisode(episode, watchedAt) {
     watched_at: watchedAt,
     source: "manual",
     tmdb_id: episode.showTmdbId || null,
+    imdb_id: episode.imdbId || episode.showImdbId || null,
+    tvdb_id: episode.tvdbId || episode.showTvdbId || null,
     season: episode.seasonNumber,
     episode: episode.episodeNumber,
     poster_url: episode.posterUrl || episode.stillUrl || null,
+    provider_items: episode.providerItems || episode.provider_items || {},
+    provider_item_id: episode.providerItemId || episode.provider_item_id || undefined,
   };
 }
 
@@ -607,7 +611,11 @@ function watchRecordFromMovie(movie, watchedAt) {
     watched_at: watchedAt,
     source: "manual",
     tmdb_id: movie.tmdbId || null,
+    imdb_id: movie.imdbId || null,
+    tvdb_id: movie.tvdbId || null,
     poster_url: movie.posterUrl || null,
+    provider_items: movie.providerItems || movie.provider_items || {},
+    provider_item_id: movie.providerItemId || movie.provider_item_id || undefined,
   };
 }
 

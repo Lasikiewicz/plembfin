@@ -7,34 +7,99 @@ import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashb
 
 const UP_NEXT_TTL_MS = 2 * 60 * 1000;
 const UP_NEXT_TIMEOUT_MS = 20000;
-const UP_NEXT_DISMISSED_KEY = "plembfin:upNextDismissed:v1";
-const UP_NEXT_CACHE_KEY = "plembfin:upNextCache:v1";
+const UP_NEXT_CACHE_KEY = "plembfin:upNextCache:v3";
 const UP_NEXT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 let _cb = {};
 let actionsBound = false;
 let cacheHydrated = false;
-const dismissedUpNextIds = readDismissedUpNextIds();
 
-function readDismissedUpNextIds() {
-  try {
-    const stored = JSON.parse(localStorage.getItem(UP_NEXT_DISMISSED_KEY) || "[]");
-    return new Set(Array.isArray(stored) ? stored.map((id) => String(id || "").trim()).filter(Boolean) : []);
-  } catch {
-    return new Set();
-  }
+const UP_NEXT_PROVIDER_LABELS = {
+  plex: "Plex",
+  emby: "Emby",
+  jellyfin: "Jellyfin",
+};
+
+const UP_NEXT_FEED_LABELS = {
+  resume: "Resume",
+  next_up: "Next Up",
+};
+
+const UP_NEXT_NETWORK_REASONS = {
+  ENOTFOUND: "DNS could not find the server",
+  EAI_AGAIN: "DNS lookup temporarily failed",
+  ECONNREFUSED: "the server refused the connection",
+  ECONNRESET: "the connection was reset",
+  ETIMEDOUT: "the connection timed out",
+  UND_ERR_CONNECT_TIMEOUT: "the connection timed out",
+  UND_ERR_SOCKET: "the connection closed unexpectedly",
+  EACCES: "the network request was denied",
+  ERR_TLS_CERT_ALTNAME_INVALID: "the TLS certificate could not be verified",
+  DEPTH_ZERO_SELF_SIGNED_CERT: "the TLS certificate could not be verified",
+  CERT_HAS_EXPIRED: "the TLS certificate could not be verified",
+};
+
+function upNextFeedLabel(feed) {
+  const provider = UP_NEXT_PROVIDER_LABELS[feed?.provider] || String(feed?.provider || "Provider");
+  const feedKind = UP_NEXT_FEED_LABELS[feed?.feed_kind] || String(feed?.feed_kind || "Feed").replace(/_/g, " ");
+  return `${provider} ${feedKind}`;
 }
 
-function persistDismissedUpNextIds() {
-  try {
-    // Keep this bounded so a long-lived local install cannot accumulate an
-    // unbounded list of old episode coordinates.
-    const values = [...dismissedUpNextIds].slice(-300);
-    localStorage.setItem(UP_NEXT_DISMISSED_KEY, JSON.stringify(values));
-  } catch {
-    // Local suppression is best effort; the current in-memory view still
-    // updates even when browser storage is unavailable.
+function upNextFailureReason(feed) {
+  const raw = String(feed?.last_error || "").replace(/\s+/g, " ").trim();
+  if (!raw) return "the refresh failed";
+  if (/timed out|timeout/i.test(raw)) return "the request timed out";
+
+  const statusMatch = raw.match(/\b(?:http\s*)?(?:status\s*[:=]?\s*)?(\d{3})\b/i);
+  if (statusMatch && /\b(?:http|status)\b/i.test(raw)) {
+    return `the server returned HTTP ${statusMatch[1]}`;
   }
+
+  const codeMatch = raw.match(/\b(?:UND_ERR_[A-Z0-9_]+|ERR_[A-Z0-9_]+|E[A-Z0-9_]+|CERT_[A-Z0-9_]+|DEPTH_ZERO_SELF_SIGNED_CERT)\b/i);
+  const code = codeMatch?.[0]?.toUpperCase() || "";
+  if (code && UP_NEXT_NETWORK_REASONS[code]) return UP_NEXT_NETWORK_REASONS[code];
+  if (/fetch failed|could not be reached|request failed/i.test(raw)) return "the server could not be reached";
+  if (code) return `the upstream request failed (${code})`;
+  return raw.replace(/[.!?]+$/, "").slice(0, 180) || "the refresh failed";
+}
+
+function upNextListLabel(values) {
+  const unique = [...new Set(values.filter(Boolean))];
+  if (unique.length <= 1) return unique[0] || "Connected service";
+  if (unique.length === 2) return `${unique[0]} and ${unique[1]}`;
+  return `${unique.slice(0, -1).join(", ")}, and ${unique.at(-1)}`;
+}
+
+function renderUpNextSourceStatus() {
+  const status = elements.upNextSourceStatus;
+  if (!status) return;
+  const failedFeeds = state.token && Array.isArray(state.upNextSourceStatus)
+    ? state.upNextSourceStatus.filter((feed) => ["failed", "partial"].includes(feed.status))
+    : [];
+  const unavailable = failedFeeds.length > 0;
+  if (unavailable) {
+    const providerLabels = upNextListLabel(failedFeeds.map((feed) => UP_NEXT_PROVIDER_LABELS[feed?.provider] || feed?.provider));
+    const reasons = [...new Set(failedFeeds.map(upNextFailureReason))];
+    const scope = failedFeeds.length === 1
+      ? upNextFeedLabel(failedFeeds[0])
+      : `${providerLabels} feeds`;
+    const reason = reasons.length === 1 ? reasons[0] : "some refresh requests failed";
+    const hasSavedItems = visibleUpNextItems().length > 0
+      || failedFeeds.some((feed) => Number(feed?.active_generation || 0) > 0 && Number(feed?.item_count || 0) > 0);
+    const fallback = hasSavedItems ? "Showing saved items." : "Using the local fallback.";
+    const copy = `${scope} unavailable — ${reason}. ${fallback}`;
+    const details = failedFeeds
+      .map((feed) => `${upNextFeedLabel(feed)}: ${String(feed?.last_error || "No error detail recorded.")}`)
+      .join("\n");
+    status.textContent = copy;
+    status.title = `${details}\n\nPlembfin will retry during the next sync. If this continues, check Settings → Connections.`;
+    status.setAttribute("aria-label", copy);
+  } else {
+    status.textContent = "";
+    status.title = "";
+    status.removeAttribute("aria-label");
+  }
+  status.classList.toggle("hidden", !unavailable);
 }
 
 function readUpNextCache() {
@@ -47,18 +112,27 @@ function readUpNextCache() {
       savedAt,
       version: Number(stored.version || 0),
       items: stored.items.slice(0, 100),
+      sourceVersion: String(stored.sourceVersion || ""),
+      sourceStatus: Array.isArray(stored.sourceStatus) ? stored.sourceStatus : [],
     };
   } catch {
     return null;
   }
 }
 
-function persistUpNextCache(items = state.upNextItems, { savedAt = Date.now(), version = state.upNextVersion } = {}) {
+function persistUpNextCache(items = state.upNextItems, {
+  savedAt = Date.now(),
+  version = state.upNextVersion,
+  sourceVersion = state.upNextSourceVersion,
+  sourceStatus = state.upNextSourceStatus,
+} = {}) {
   try {
     localStorage.setItem(UP_NEXT_CACHE_KEY, JSON.stringify({
       savedAt,
       version,
       items: (Array.isArray(items) ? items : []).slice(0, 100),
+      sourceVersion,
+      sourceStatus: Array.isArray(sourceStatus) ? sourceStatus : [],
     }));
   } catch {
     // A full/private browser storage area should not make the dashboard fail.
@@ -73,6 +147,8 @@ function hydrateUpNextCache() {
   if (Number.isFinite(cachedItems.version) && cachedItems.version > 0) {
     state.upNextVersion = cachedItems.version;
   }
+  state.upNextSourceVersion = cachedItems.sourceVersion || "";
+  state.upNextSourceStatus = cachedItems.sourceStatus || [];
   if (!cachedItems.items.length) return;
   // Leave loadedAt at zero so the network still reconciles the cache; the
   // cached cards simply get a head start while that request is in flight.
@@ -82,7 +158,7 @@ function hydrateUpNextCache() {
 }
 
 function visibleUpNextItems() {
-  return state.upNextItems.filter((item) => !dismissedUpNextIds.has(String(item?.id || "")));
+  return Array.isArray(state.upNextItems) ? state.upNextItems : [];
 }
 
 export function initUpNext(callbacks = {}) {
@@ -94,7 +170,7 @@ export function initUpNext(callbacks = {}) {
     const retry = event.target.closest("[data-up-next-retry]");
     if (!retry) return;
     event.preventDefault();
-    loadUpNext({ force: true }).catch((error) => _cb.setMessage?.(error.message, "error"));
+    loadUpNext({ force: true }).catch(() => { });
   });
 }
 
@@ -105,6 +181,8 @@ export function resetUpNext({ preserveItems = false } = {}) {
   if (!preserveItems) {
     state.upNextItems = [];
     state.upNextVersion = 0;
+    state.upNextSourceVersion = "";
+    state.upNextSourceStatus = [];
     state.upNextFromCache = false;
     cacheHydrated = false;
   }
@@ -138,6 +216,7 @@ export function renderUpNext({ exitIds = [] } = {}) {
   if (!panel) return;
 
   hydrateUpNextCache();
+  renderUpNextSourceStatus();
 
   panel.classList.add("dashboard-history-card-row");
 
@@ -175,7 +254,7 @@ export function renderUpNext({ exitIds = [] } = {}) {
 
   if (!items.length) {
     if (section) section.classList.remove("hidden");
-    commitPanel(`<div class="empty-log up-next-empty-state"><b>No episodes queued</b><span>Watch a TV episode to start building your Up Next list.</span></div>`);
+    commitPanel(`<div class="empty-log up-next-empty-state"><b>No movies or episodes queued</b><span>Start watching a movie or TV episode to build your Up Next list.</span></div>`);
     return;
   }
 
@@ -188,46 +267,6 @@ export function renderUpNext({ exitIds = [] } = {}) {
     hydratePosters(panel);
     hydrateMediaAppLinks(panel).catch(() => { });
   });
-}
-
-export async function removeUpNextItem(itemId, details = {}) {
-  const id = String(itemId || "").trim();
-  if (!id) return;
-  dismissedUpNextIds.add(id);
-  persistDismissedUpNextIds();
-  state.upNextExitIds = [id];
-  persistUpNextCache(state.upNextItems.filter((item) => String(item?.id || "") !== id));
-  renderUpNext();
-
-  try {
-    const response = await fetch("/api/up-next/remove", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", ...buildAuthHeaders(state.token) },
-      cache: "no-store",
-      body: JSON.stringify({
-        media_type: "episode",
-        title: details.title || "",
-        tmdb_id: details.tmdbId || "",
-        tvdb_id: details.tvdbId || "",
-        season: details.season || "",
-        episode: details.episode || "",
-        episode_title: details.episodeTitle || "",
-        air_date: details.airDate || "",
-      }),
-    });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
-
-    const clearedTargets = Array.isArray(body.targetStates)
-      ? body.targetStates.filter((target) => target.status === "fulfilled").map((target) => target.target)
-      : [];
-    const targetText = clearedTargets.length ? ` Resume cleared in ${clearedTargets.join(", ")}.` : "";
-    _cb.setMessage?.(`Removed from Up Next in Plembfin.${targetText}`, "success");
-  } catch {
-    // The local dismissal is already applied. A missing/older server route or
-    // a disconnected media server must not put the card back in the dashboard.
-    _cb.setMessage?.("Removed from Up Next in Plembfin. Connected-app resume state was unchanged.", "success");
-  }
 }
 
 export async function loadUpNext({ force = false, fromSse = false } = {}) {
@@ -274,11 +313,15 @@ export async function loadUpNext({ force = false, fromSse = false } = {}) {
     state.upNextItems = nextItems;
     const responseVersion = Number(body.upNextVersion);
     if (Number.isFinite(responseVersion) && responseVersion > 0) state.upNextVersion = responseVersion;
+    state.upNextSourceVersion = String(body.sourceVersion || "");
+    state.upNextSourceStatus = Array.isArray(body.sourceStatus) ? body.sourceStatus : [];
     state.upNextFromCache = body.cacheStale === true;
     state.upNextLoadedAt = state.upNextFromCache ? 0 : Date.now();
     persistUpNextCache(state.upNextItems, {
       savedAt: state.upNextFromCache ? Number(body.builtAt || 0) || Date.now() : Date.now(),
       version: state.upNextVersion,
+      sourceVersion: state.upNextSourceVersion,
+      sourceStatus: state.upNextSourceStatus,
     });
   } catch (error) {
     if (requestVersion !== state.upNextRequestVersion) return;
@@ -286,7 +329,6 @@ export async function loadUpNext({ force = false, fromSse = false } = {}) {
       ? "TIMEOUT"
       : error?.code || (Number(error?.status) === 404 ? "SERVER_ROUTE_MISSING" : Number(error?.status) === 401 ? "UNAUTHORIZED" : "");
     state.upNextError = error?.name === "AbortError" ? "The request timed out." : (error.message || "Try again later.");
-    _cb.setMessage?.(`Up Next: ${state.upNextError}`, "error");
   } finally {
     clearTimeout(timeout);
     if (requestVersion === state.upNextRequestVersion) {

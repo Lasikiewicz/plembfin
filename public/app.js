@@ -9,12 +9,12 @@ import { buildWebhookUrl, renderSettingsInlineHelp } from "./modules/help-conten
 import { isCachedStorageImageUrl, compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, rememberPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, tmdbProfile, proxiedArtworkUrl } from "./modules/images.js?v=20260831m";
 import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, loadRemotePlembfinBackupsForRestoreTab, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runPhantomWatchAudit, runPhantomWatchRepair, runTraktBackfill, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, loadPlembfinBackups, renderPlembfinBackups, runDuplicateWatchCleanup, loadWipeDataPreview, runWipeData } from "./modules/tools.js?v=20260831a";
 import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, showAvailIssuePopup, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerRetrySync, triggerCronSync, triggerStopSync, triggerForceSync, isSyncProgressActive } from "./modules/sync.js";
-import { renderSyncActivity, renderSyncActivityStatus, setSyncActivityProgress, setSyncActivitySearch, resetSyncActivity, loadSyncActivity, downloadSyncActivityLog, retrySyncActivity, startRetryAllSyncActivity, resumeRetryAllSyncActivityIfRunning, fetchAllRetryableSyncActivityIds, toggleSyncActivityRowLog, loadOlderSyncActivityGroup, toggleSyncActivityFailedOnly, startSyncActivityRefresh, stopSyncActivityRefresh } from "./modules/sync-activity.js";
+import { renderSyncActivity, renderSyncActivityStatus, setSyncActivityProgress, setSyncAttentionSummary, loadSyncAttention, skipSyncAttention, skipSyncAttentionItem, recordClientAttention, clearClientAttention, clearClientAttentionForRoute, setSyncActivitySearch, resetSyncActivity, loadSyncActivity, downloadSyncActivityLog, retrySyncActivity, startRetryAllSyncActivity, resumeRetryAllSyncActivityIfRunning, fetchAllRetryableSyncActivityIds, toggleSyncActivityRowLog, loadOlderSyncActivityGroup, toggleSyncActivityFailedOnly, startSyncActivityRefresh, stopSyncActivityRefresh } from "./modules/sync-activity.js?v=20260903d";
 import { initSyncPreview } from "./modules/sync-preview.js";
-import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, refreshDashboardHistoryInPlace, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched, loadPartWatched } from "./modules/dashboard.js?v=20260831m";
-import { initUpNext, renderUpNext, loadUpNext, resetUpNext } from "./modules/up-next.js?v=20260901a";
-import { initDiscover, renderDiscover, loadDiscover, resetDiscover } from "./modules/discover.js?v=20260831g";
-import { initPersonalMedia, renderPersonalMedia, loadPersonalMedia, resetPersonalMedia } from "./modules/personal-media.js?v=20260831r";
+import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, refreshDashboardHistoryInPlace, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched } from "./modules/dashboard.js?v=20260831m";
+import { initUpNext, renderUpNext, loadUpNext, resetUpNext } from "./modules/up-next.js?v=20260903b";
+import { initDiscover, renderDiscover, loadDiscover, resetDiscover } from "./modules/discover.js?v=20260903b";
+import { initPersonalMedia, renderPersonalMedia, loadPersonalMedia, resetPersonalMedia } from "./modules/personal-media.js?v=20260903b";
 import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, loadStats, renderRankingTable } from "./modules/stats.js";
 import { initUpcoming, openUpcomingToToday } from "./modules/upcoming.js";
 import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, triggerSearchPage, renderSearchPage, renderExplorer, explorerQueryKey, updateAlphaFilter, handleAlphaFilterClick, resetMovieExplorer, resetShowExplorer, renderExplorerSentinel, observeExplorerSentinel, observeExplorerTmdbPrefetch, scheduleNextAirResort, currentExplorerView, currentExplorerSort, currentPosterWidthKey, setCurrentExplorerSort, applyExplorerPosterWidth, applyListHeaderSort, renderMovieCard, renderMovieExplorer, loadExplorerMovies, applyHistoryPosterWidth, renderHistoryItems, renderHistoryView, resetHistoryView, loadHistoryView, observeHistorySentinel, renderShowExplorer, loadExplorerShows, loadShowDetail, matchesExplorerSearch, sortExplorerItems, renderShowRecord, renderShowFolder, renderSeasonFolder, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, emptyExplorer, FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver } from "./modules/explorer.js?v=20260901a";
@@ -24,10 +24,11 @@ import { fetchTmdbDetails, fetchTmdbSeasonDetails, resolveEpisodeTitleFromTmdb }
 import { initMediaDetail, movieBySlugOrId, nowPlayingHref, openMovieInlineDetail, openShowInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, renderImmersiveShowModal, renderShowModalContent, renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus, patchMovieWatchedState } from "./modules/media-detail.js?v=20260831g";
 import { initMediaPerson, closePersonProfile, loadCastMemberDetails } from "./modules/media-person.js?v=20260831f";
 import { initMediaLightbox } from "./modules/media-lightbox.js";
-import { initAppEvents, closeMobileMenu } from "./modules/app-events.js?v=20260831r";
+import { initAppEvents, closeMobileMenu } from "./modules/app-events.js?v=20260903c";
 import { initTrackerSettings, refreshTrackerSettings } from "./modules/tracker-settings.js?v=20260817";
 import { initRatingSyncSettings, applyRatingSyncConfig, refreshRatingSyncStatus } from "./modules/rating-sync-settings.js?v=20260901a";
-import { startLiveUpdates, stopLiveUpdates } from "./modules/live-updates.js?v=20260901a";
+import { initWatchlistSyncSettings, applyWatchlistSyncConfig, refreshWatchlistSyncStatus } from "./modules/watchlist-sync-settings.js?v=20260901a";
+import { startLiveUpdates, stopLiveUpdates } from "./modules/live-updates.js?v=20260902a";
 
 // Ping the backend the moment the app loads (no auth needed), so the server's
 // caches and upstream connections are warm by the time the user clicks into
@@ -117,10 +118,15 @@ function bindElements() {
     sidebarOnboardingCta: document.querySelector("#sidebarOnboardingCta"),
     sidebarOnboardingButton: document.querySelector("#sidebarOnboardingButton"),
     sidebarOnboardingDismiss: document.querySelector("#sidebarOnboardingDismiss"),
+    sidebarSyncAttention: document.querySelector("#sidebarSyncAttention"),
+    sidebarSyncAttentionButton: document.querySelector("#sidebarSyncAttentionButton"),
+    sidebarSyncAttentionTitle: document.querySelector("#sidebarSyncAttentionTitle"),
+    sidebarSyncAttentionText: document.querySelector("#sidebarSyncAttentionText"),
     syncProgressIndicator: document.querySelector("#syncProgressIndicator"),
     syncProgressText: document.querySelector("#syncProgressText"),
     syncActivityStatus: document.querySelector("#syncActivityStatus"),
     syncActivityStatusText: document.querySelector("#syncActivityStatusText"),
+    syncActivityAttention: document.querySelector("#syncActivityAttention"),
     syncActivitySummary: document.querySelector("#syncActivitySummary"),
     syncActivityRetryAllFailed: document.querySelector("#syncActivityRetryAllFailed"),
     syncActivityRefresh: document.querySelector("#syncActivityRefresh"),
@@ -277,13 +283,13 @@ function bindElements() {
     logsTerminal: document.querySelector("#logsTerminal"),
     themeToggleButton: document.querySelector("#themeToggleButton"),
     message: document.querySelector("#message"),
-    copyToast: document.querySelector("#copyToast"),
     modalBody: document.querySelector("#modalBody"),
     monthChart: document.querySelector("#monthChart"),
     nowPlayingGrid: document.querySelector("#nowPlayingGrid"),
     nowPlayingStatus: document.querySelector("#nowPlayingStatus"),
     upNextPanel: document.querySelector("#upNextPanel"),
     upNextSection: document.querySelector("#upNextDashboardSection"),
+    upNextSourceStatus: document.querySelector("#upNextSourceStatus"),
     discoverPanel: document.querySelector("#discoverPanel"),
     discoverTopbarControls: document.querySelector("#discoverTopbarControls"),
     discoverMediaType: document.querySelector("#discoverMediaType"),
@@ -1168,13 +1174,32 @@ function rememberExplorerPage(key, body) {
 
 
 
-function setMessage(text, tone = "muted") {
-  elements.message.textContent = text;
-  elements.message.dataset.tone = tone;
-  // #message lives inside the auth panel, which is hidden once signed in - surface
-  // feedback as a toast whenever the app shell is the visible surface.
-  if (text && elements.appShell && !elements.appShell.classList.contains("hidden")) {
-    showToast(text, tone);
+function isLikelyActionableFailure(text, tone) {
+  if (!["error", "warning"].includes(String(tone || "").toLowerCase())) return false;
+  const normalized = String(text || "").replace(/\s+/g, " ").trim();
+  if (!normalized) return false;
+  // Validation and empty-state guidance belongs beside the control that raised
+  // it. Only promote failures that indicate a service, request, sync, or
+  // configuration problem that can still matter after the user changes page.
+  if (/^(enter|select|choose|there are no|no watched|no local|cannot (?:mark|send|push)|this item does not|missing (?:media|details|info)|season information hasn't loaded|try again in a moment)/i.test(normalized)) return false;
+  return /(could not|failed|failure|unable|error|exception|timed? out|timeout|unavailable|refused|unauthorized|forbidden|not responding|not found|network|connection|server|request|sync|import|metadata|backup|restore)/i.test(normalized);
+}
+
+function isSyncAttentionContext(options = {}) {
+  if (String(options.scope || "").toLowerCase() === "sync") return true;
+  return state.activeView === "syncActivity"
+    || (state.activeView === "settings" && state.activeSettingsRoute?.panel === "sync");
+}
+
+function setMessage(text, tone = "muted", options = {}) {
+  const messageText = String(text || "");
+  if (elements.message) {
+    elements.message.textContent = messageText;
+    elements.message.dataset.tone = tone;
+  }
+  if (messageText && String(tone || "").toLowerCase() === "success") clearClientAttentionForRoute();
+  if (messageText && elements.appShell && !elements.appShell.classList.contains("hidden") && !isSyncAttentionContext(options) && isLikelyActionableFailure(messageText, tone)) {
+    recordClientAttention(messageText, tone, options);
   }
 }
 
@@ -1952,6 +1977,7 @@ function applyActiveView() {
     startSyncActivityRefresh();
     if (state.token) {
       loadSyncActivity({ force: true }).catch((error) => setMessage(error.message, "error"));
+      loadSyncAttention({ force: true }).catch((error) => logDebug(`Sync attention details failed to load: ${error.message}`));
       resumeRetryAllSyncActivityIfRunning();
     }
   } else {
@@ -2132,6 +2158,7 @@ async function loadSavedConfig() {
   state.syncHistoryLoaded = Array.isArray(body.history);
   applyConfigToSettingsUi(body.config || {});
   applyRatingSyncConfig(body.config || {});
+  applyWatchlistSyncConfig(body.config || {});
   state.configLoaded = true;
   state.posterLookupCache.clear();
   state.posterLookupInflight.clear();
@@ -2237,8 +2264,8 @@ function isAnySyncRunning() {
   return isBackgroundSyncing || Boolean(state.fullSyncActive) || isSyncProgressActive();
 }
 
-function renderSyncProgress({ total = 0, completed = 0 } = {}) {
-  const syncing = total > 0 && completed < total;
+function renderSyncProgress({ total = 0, completed = 0, active = false, label = "" } = {}) {
+  const syncing = Boolean(active) || (total > 0 && completed < total);
 
   // A long sync runs as a sequence of small batches with brief idle gaps
   // between them (one batch finishes, completed>=total, before the next
@@ -2263,8 +2290,9 @@ function renderSyncProgress({ total = 0, completed = 0 } = {}) {
   }
 
   // The sidebar indicator is permanent: it reads "Sync - Idle" when nothing is
-  // running and "Sync - <completed> of <total>" while a sync is in flight.
-  setSyncActivityProgress({ total, completed });
+  // running, shows item counts for a known dispatch burst, and uses the
+  // operation label for scans/imports whose total is not known yet.
+  setSyncActivityProgress({ total, completed, active: syncing, label });
 
   // A live-update sync-progress event can arrive several times a second while
   // a batch is in flight. Reloading the whole Sync Activity list on every tick
@@ -2275,6 +2303,19 @@ function renderSyncProgress({ total = 0, completed = 0 } = {}) {
       syncActivityRefreshTimer = null;
       if (state.activeView === "syncActivity") loadSyncActivity({ force: true }).catch(() => null);
     }, 1000);
+  }
+}
+
+function handleSyncAttentionUpdate(summary = {}) {
+  const previousCount = Number(state.syncAttentionCount) || 0;
+  setSyncAttentionSummary(summary);
+  // The SSE stream deliberately carries only the compact count/status. If the
+  // attention page is already open, fetch the protected detail payload as soon
+  // as a new blocker arrives instead of making the user wait for its periodic
+  // refresh.
+  const nextCount = Number(summary.count) || 0;
+  if (state.activeView === "syncActivity" && nextCount > 0 && (!state.syncAttentionLoaded || previousCount !== nextCount)) {
+    loadSyncAttention({ force: true }).catch((error) => logDebug(`Live sync attention refresh failed: ${error.message}`));
   }
 }
 
@@ -2333,18 +2374,18 @@ async function refreshLiveHistoryView() {
     // SSE only tells us that the shared data version changed. Fetch the
     // authoritative history/progress snapshots, then reconcile the visible
     // rows and refresh the preserved Up Next rail without a full page render.
-    resetPartWatchedView("default", { preserveItems: true });
-    const partWatchedRefresh = loadPartWatched({ silent: true }).catch((error) => {
-      logDebug(`Background Part Watched refresh failed: ${error.message}`);
-    });
     await loadHistory({ force: true, silent: true });
+    if (isPersonalMediaView(state.activeView)) {
+      await loadPersonalMedia({ force: true }).catch((error) => logDebug(`Background personal watchlist refresh failed: ${error.message}`));
+    }
+    if (state.activeView === "settings" && state.activeSettingsRoute?.panel === "sync") {
+      refreshWatchlistSyncStatus().catch((error) => logDebug(`Background watchlist status refresh failed: ${error.message}`));
+    }
     const upNextRefresh = state.activeView === "dashboard"
       ? loadUpNext({ force: true }).catch((error) => {
         logDebug(`Background Up Next refresh failed: ${error.message}`);
       })
       : null;
-    await partWatchedRefresh;
-
     if (state.activeView === "dashboard") refreshDashboardHistoryInPlace();
     await upNextRefresh;
   } finally {
@@ -2500,6 +2541,13 @@ async function lockDashboard() {
   state.syncActivityLoaded = false;
   state.syncActivityLoading = false;
   state.syncActivitySearch = "";
+  clearClientAttention();
+  state.syncAttention = [];
+  state.syncAttentionCount = 0;
+  state.syncAttentionStatus = "clear";
+  state.syncAttentionSeverity = "clear";
+  state.syncAttentionLoaded = false;
+  state.syncAttentionError = "";
   if (elements.syncActivitySearch) elements.syncActivitySearch.value = "";
   state.syncActivityPagination = { page: 1, limit: 25, total: 0, totalPages: 1, from: 0, to: 0, hasPrevious: false, hasNext: false };
   state.importRecords = [];
@@ -2519,6 +2567,7 @@ async function lockDashboard() {
   if (elements.settingsUsername) elements.settingsUsername.value = "";
   applyConfigToSettingsUi({});
   applyRatingSyncConfig({});
+  applyWatchlistSyncConfig({});
   renderDashboard();
   renderActiveSessions();
   renderSyncHistory();
@@ -2688,6 +2737,14 @@ function initialize() {
   initRatingSyncSettings({
     authHeaders,
     setMessage,
+    onConfig: (config) => {
+      state.savedConfig = config || state.savedConfig;
+    },
+  });
+  initWatchlistSyncSettings({
+    authHeaders,
+    setMessage,
+    openConfirmDialog,
     onConfig: (config) => {
       state.savedConfig = config || state.savedConfig;
     },
@@ -2880,6 +2937,9 @@ function initialize() {
     runDuplicateWatchCleanup,
     runWipeData,
     loadSyncActivity,
+    loadSyncAttention,
+    skipSyncAttention,
+    skipSyncAttentionItem,
     setSyncActivitySearch,
     downloadSyncActivityLog,
     retrySyncActivity,
@@ -2898,6 +2958,7 @@ function initialize() {
   applyActiveView();
   applyConfigToSettingsUi({});
   applyRatingSyncConfig({});
+  applyWatchlistSyncConfig({});
   renderDashboard();
   renderActiveSessions();
   renderStats();
@@ -2938,10 +2999,13 @@ function initialize() {
           }
         },
         onSyncProgress: renderSyncProgress,
+        onSyncAttention: handleSyncAttentionUpdate,
         onError: (error) => logDebug(`Live update connection interrupted: ${error.message}`),
       });
+      loadSyncAttention().catch((error) => logDebug(`Initial sync attention load failed: ${error.message}`));
       refreshTrackerSettings().catch(() => { });
       refreshRatingSyncStatus().catch(() => { });
+      refreshWatchlistSyncStatus().catch(() => { });
       loadPersonalMedia().catch(() => { });
       resumeActiveRefreshJobs();
       for (const [key, value] of state.posterLookupCache.entries()) {
@@ -3020,6 +3084,8 @@ function initialize() {
     } else if (!user) {
       stopLiveUpdates();
       renderSyncProgress({ total: 0, completed: 0 });
+      clearClientAttention();
+      setSyncAttentionSummary({ count: 0, status: "clear" });
       setClaimRequired(claimRequired === true);
       setUnlocked(false);
     }
@@ -3028,10 +3094,10 @@ function initialize() {
 
 window.addEventListener("DOMContentLoaded", initialize);
 
-async function copyToClipboard(value) {
+async function copyToClipboard(value, sourceButton = null) {
   try {
     await navigator.clipboard.writeText(value);
-    showCopyToast();
+    showCopyFeedback(sourceButton);
   } catch (error) {
     const textArea = document.createElement("textarea");
     textArea.value = value;
@@ -3039,25 +3105,32 @@ async function copyToClipboard(value) {
     textArea.select();
     document.execCommand("copy");
     textArea.remove();
-    showCopyToast();
+    showCopyFeedback(sourceButton);
   }
 }
 
-function showToast(text, tone = "success") {
-  if (!elements.copyToast) return;
-  elements.copyToast.textContent = text;
-  elements.copyToast.dataset.tone = tone;
-  elements.copyToast.classList.remove("hidden");
-  window.clearTimeout(showToast.timer);
-  showToast.timer = window.setTimeout(() => {
-    elements.copyToast.classList.add("hidden");
-    elements.copyToast.textContent = "Copied!";
-    delete elements.copyToast.dataset.tone;
-  }, tone === "error" ? 6000 : 3500);
+function showToast(text, tone = "success", options = {}) {
+  const messageText = String(text || "").trim();
+  if (!messageText || !["error", "warning"].includes(String(tone || "").toLowerCase())) return;
+  if (isSyncAttentionContext(options)) return;
+  if (isLikelyActionableFailure(messageText, tone)) recordClientAttention(messageText, tone);
 }
 
-function showCopyToast() {
-  showToast("Copied!");
+function showCopyFeedback(button) {
+  if (!button) return;
+  if (!button.dataset.copyOriginalLabel) button.dataset.copyOriginalLabel = button.textContent || "Copy";
+  if (!button.dataset.copyOriginalAriaLabel) button.dataset.copyOriginalAriaLabel = button.getAttribute("aria-label") || "";
+  window.clearTimeout(button.copyFeedbackTimer);
+  button.textContent = "Copied";
+  button.setAttribute("aria-label", "Copied");
+  button.copyFeedbackTimer = window.setTimeout(() => {
+    button.textContent = button.dataset.copyOriginalLabel || "Copy";
+    if (button.dataset.copyOriginalAriaLabel) button.setAttribute("aria-label", button.dataset.copyOriginalAriaLabel);
+    else button.removeAttribute("aria-label");
+    delete button.dataset.copyOriginalLabel;
+    delete button.dataset.copyOriginalAriaLabel;
+    delete button.copyFeedbackTimer;
+  }, 1600);
 }
 
 // Both refresh workflows run as server-side background jobs (see

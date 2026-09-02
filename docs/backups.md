@@ -9,7 +9,7 @@ live under **Settings → Restore → Local / Remote** (`/settings/restore#resto
 | Subsystem | What it saves | Format | Files |
 | --- | --- | --- | --- |
 | Watch-history backups | `watch_history`, `playstate`, `playback_progress` + manifest | gzip JSON (`plembfin-watch-history-<stamp>.json.gz`) | `server/src/utils/watchHistoryBackups.js` |
-| Encrypted full backups | Every portable collection (history, playstate, progress, sessions, sync history, settings, runtime state, loop keys) | AES-256-GCM encrypted JSON (`plembfin-backup-<stamp>.encrypted.json`) | `server/src/utils/plembfinBackups.js` |
+| Encrypted full backups | Every portable collection, including canonical personal watchlist mutations, provider ledger, queue, runs, and activity (but no provider secret) | AES-256-GCM encrypted JSON (`plembfin-backup-<stamp>.encrypted.json`) | `server/src/utils/plembfinBackups.js` |
 | Full export/import | Same portable collections, plain JSON, paged over the API | `plembfin-backup` v1 document | `server/src/utils/backup.js` |
 
 Artwork binaries, poster cache rows, and TMDB metadata cache rows are never included -
@@ -118,6 +118,21 @@ The portable-format engine the other subsystems build on, also exposed directly:
 - `POST /api/backup/import` (`handleBackupImport`) - imports batches via
   `importCollectionBatch` (≤ 250 documents per batch, optional per-collection reset).
   Importing watch-state collections bumps `dataVersion` so derived caches reload.
+  Watchlist collections are restored as local desired state: provider observations are
+  downgraded, queue success/lease state is reset, a restore revision is recorded, and
+  delivery pauses until the user explicitly selects **Publish restored watchlist** in
+  Settings → Sync → Sync Tools.
+
+Full backups include `personal_watchlist`, its append-only mutation/tombstone history,
+provider ownership observations (including Plembfin-owned playlist/container IDs),
+non-secret queue/run state, and redacted activity. Provider URLs, users, and other
+connection settings remain in encrypted full backups as before; browser portable export
+does not include provider credentials. Restore never treats old provider success markers
+as current truth and never publishes automatically.
+
+Watch-history-only backups intentionally do **not** include personal watchlist rows,
+mutations, provider ledgers, queues, or runs. Restoring one cannot change the Watchlist
+page or provider watchlists.
 - The `portableValue`/`reviveValue` helpers keep timestamps portable, and the format
   also revives `_seconds`-style timestamps found in old exports.
 

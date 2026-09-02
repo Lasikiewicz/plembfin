@@ -1,4 +1,6 @@
 import { fetchWithTimeout } from "./outbound.js";
+import { compoundEpisodeItemsForMedia } from "./compoundEpisode.js";
+import { restoreLookupKey } from "./restoreLookupCache.js";
 
 function trimTrailingSlash(value = "") {
   return String(value).replace(/\/+$/, "");
@@ -38,9 +40,33 @@ function providerTerms(ids = {}) {
 async function fetchJson(url, config, media = null) {
   const response = await fetchWithTimeout(url, { headers: authHeaders(config), lane: media?.lane || "sync" });
   if (!response.ok) {
-    throw new Error(`Emby request failed with status ${response.status}`);
+    const error = new Error(`Emby request failed with status ${response.status}`);
+    error.status = response.status;
+    throw error;
   }
   return response.json();
+}
+
+function nativeEmbyItems(media = {}) {
+  const configured = media.provider_items || media.providerItems || {};
+  const values = Array.isArray(configured.emby) ? configured.emby : configured.emby ? [configured.emby] : [];
+  const directId = media.provider_item_id || media.providerItemId || media.emby_id || media.embyId;
+  return [...new Set([...values, directId].map((value) => String(value || "").trim()).filter(Boolean))]
+    .map((Id) => ({ Id }));
+}
+
+async function findEmbyItemsForMutation(config, media = {}) {
+  const direct = nativeEmbyItems(media);
+  if (direct.length) return direct;
+  const cache = media?.restoreLookupCache;
+  if (cache && typeof cache.resolve === "function") {
+    return cache.resolve(
+      restoreLookupKey("emby", config, media),
+      media,
+      () => findEmbyItems(config, media),
+    );
+  }
+  return findEmbyItems(config, media);
 }
 
 function extractYear(title) {
@@ -84,6 +110,14 @@ const SERIES_CACHE_MAX_ENTRIES = 100;
 const embySeriesCache = new Map();
 const embySeriesInFlight = new Map();
 let embyCacheNow = () => Date.now();
+
+function mediaIdentitiesCompatible(left = {}, right = {}) {
+  return ["imdb", "tmdb", "tvdb"].every((provider) => {
+    const a = String(left?.ids?.[provider] || "").trim().toLowerCase();
+    const b = String(right?.ids?.[provider] || "").trim().toLowerCase();
+    return !a || !b || a === b;
+  });
+}
 
 function normalizedShowTitle(media = {}) {
   return parseShowTitle(media.title).title.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -133,13 +167,17 @@ function storeEmbyEntry(entry, aliases) {
 
 async function resolveEmbySeriesIdentity(config, media) {
   const aliases = embySeriesAliases(config, media);
-  const hasProviderIdentity = Boolean(media.ids?.imdb || media.ids?.tmdb || media.ids?.tvdb);
-  const inFlightAliases = hasProviderIdentity ? aliases.filter((alias) => !alias.includes("|title:")) : aliases;
+  // Title fallback must participate in the in-flight map too. Provider IDs
+  // are often present in imported history even when that server cannot resolve
+  // them; excluding the title alias made every sibling episode launch its own
+  // slow title search during a restore. Pending requests still carry their
+  // media identity so two conflicting remakes do not share work.
+  const inFlightAliases = aliases;
   const cached = getCachedEmbyEntry(aliases, media);
   if (cached) return cached;
   for (const alias of inFlightAliases) {
     const pending = embySeriesInFlight.get(alias);
-    if (pending) return pending;
+    if (pending && mediaIdentitiesCompatible(pending.media, media)) return pending.promise;
   }
 
   const promise = (async () => {
@@ -173,9 +211,10 @@ async function resolveEmbySeriesIdentity(config, media) {
     storeEmbyEntry(entry, [...new Set(discoveredAliases)]);
     return entry;
   })();
-  for (const alias of inFlightAliases) embySeriesInFlight.set(alias, promise);
+  const pendingEntry = { media, promise };
+  for (const alias of inFlightAliases) embySeriesInFlight.set(alias, pendingEntry);
   try { return await promise; } finally {
-    for (const [alias, pending] of embySeriesInFlight) if (pending === promise) embySeriesInFlight.delete(alias);
+    for (const [alias, pending] of embySeriesInFlight) if (pending === pendingEntry) embySeriesInFlight.delete(alias);
   }
 }
 
@@ -194,6 +233,7 @@ function invalidateEmbySeriesIdentity(config, media) {
     const entry = embySeriesCache.get(alias);
     if (entry) deleteEmbyEntry(entry);
   }
+  media?.restoreLookupCache?.delete?.(restoreLookupKey("emby", config, media));
 }
 
 async function searchEmbyFallback(config, media, targetType) {
@@ -283,7 +323,11 @@ async function findEpisode(config, media) {
   const season = media.season ?? parsed.season;
   const episodeNum = media.episode ?? parsed.episode;
   const entry = await resolveEmbySeriesIdentity(config, media);
-  return entry.episodesByCoordinate.get(`${Number(season)}:${Number(episodeNum)}`) || [];
+  return compoundEpisodeItemsForMedia(entry.episodesByCoordinate, {
+    ...media,
+    season,
+    episode: episodeNum,
+  });
 }
 
 export function embyEpisodeMatchesCoordinates(item = {}, season, episode) {
@@ -291,6 +335,8 @@ export function embyEpisodeMatchesCoordinates(item = {}, season, episode) {
 }
 
 export async function findEmbyItems(config, media) {
+  const direct = nativeEmbyItems(media);
+  if (direct.length) return direct;
   if (media.type === "movie") {
     let movies = await findByProviderIds(config, media, "Movie");
     if (!movies || movies.length === 0) {
@@ -313,7 +359,7 @@ export async function markEmbyPlayed(config, media) {
   try {
     requireEmbyConfig(config);
 
-    const items = await findEmbyItems(config, media);
+    const items = await findEmbyItemsForMutation(config, media);
     if (!items || items.length === 0) {
       console.log(`[NOT FOUND] No matching item in Emby library for: "${media.title}"`);
       return { platform: "emby", status: "not_found" };
@@ -355,7 +401,7 @@ export async function markEmbyUnplayed(config, media) {
   try {
     requireEmbyConfig(config);
 
-    const items = await findEmbyItems(config, media);
+    const items = await findEmbyItemsForMutation(config, media);
     if (!items || items.length === 0) {
       console.log(`[NOT FOUND] No matching item in Emby library for: "${media.title}"`);
       return { platform: "emby", status: "not_found" };
@@ -397,7 +443,7 @@ export async function setEmbyProgress(config, media) {
   try {
     requireEmbyConfig(config);
 
-    const items = await findEmbyItems(config, media);
+    const items = await findEmbyItemsForMutation(config, media);
     if (!items || items.length === 0) {
       console.log(`[NOT FOUND] No matching item in Emby library for: "${media.title}"`);
       return { platform: "emby", status: "not_found" };
@@ -566,6 +612,20 @@ export async function fetchEmbyResumableItems(config, { limit = 0 } = {}) {
   if (Number(limit) > 0) url.searchParams.set("Limit", String(Math.max(1, Math.round(Number(limit)))));
   url.searchParams.set("api_key", config.apiKey);
 
+  const data = await fetchJson(url, config);
+  return data?.Items || [];
+}
+
+export async function fetchEmbyNextUpItems(config, { limit = 0 } = {}) {
+  requireEmbyConfig(config);
+  const baseUrl = trimTrailingSlash(config.baseUrl);
+  const url = new URL(`${baseUrl}/Shows/NextUp`);
+  url.searchParams.set("UserId", config.userId);
+  url.searchParams.set("Fields", "ProviderIds,SeriesProviderIds,UserData,PremiereDate,ProductionYear,RunTimeTicks,MediaSources");
+  url.searchParams.set("EnableResumable", "true");
+  url.searchParams.set("EnableUserData", "true");
+  if (Number(limit) > 0) url.searchParams.set("Limit", String(Math.max(1, Math.round(Number(limit)))));
+  url.searchParams.set("api_key", config.apiKey);
   const data = await fetchJson(url, config);
   return data?.Items || [];
 }

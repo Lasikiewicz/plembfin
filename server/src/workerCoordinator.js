@@ -192,14 +192,14 @@ export function createWorkerCoordinator({ holderId, role }) {
       appendBackgroundJobLog(job.id, `RESULT: ${JSON.stringify(result)}`);
       finishBackgroundJob({ ...token, status: cancelled ? "cancelled" : "succeeded", result });
       if (job.type === "cron_sync") await setRuntimeState({ lastCronResult: { ok: !cancelled, result, finishedAt: Date.now() } });
-      if (job.type === "force_sync") await setRuntimeState({ forceSyncResult: result, forceSyncHeartbeat: Date.now() });
+      if (job.type === "force_sync") await setRuntimeState({ forceSyncResult: { ...result, jobId: job.id, finishedAt: Date.now() }, forceSyncHeartbeat: Date.now() });
     } catch (error) {
       const current = getBackgroundJob(job.id);
       const cancelled = current?.cancelRequested === true;
       const result = { success: false, ...(cancelled ? { aborted: true, cancelled: true } : {}), error: error.message };
       appendBackgroundJobLog(job.id, `ERROR: ${error.message}`);
       finishBackgroundJob({ ...token, status: cancelled ? "cancelled" : "failed", error: error.message, result });
-      if (job.type === "force_sync") await setRuntimeState({ forceSyncResult: result, forceSyncHeartbeat: Date.now() }).catch(() => null);
+      if (job.type === "force_sync") await setRuntimeState({ forceSyncResult: { ...result, jobId: job.id, finishedAt: Date.now() }, forceSyncHeartbeat: Date.now() }).catch(() => null);
     } finally {
       clearInterval(heartbeat);
     }

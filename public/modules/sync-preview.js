@@ -49,12 +49,12 @@ export function initSyncPreview({ button, panel, token, onToast = () => {}, onEx
         } else {
           const execute = await fetch("/api/force-sync", { method: "POST", headers: { ...headers(), "Content-Type": "application/json" }, body: JSON.stringify({ planId }) });
           if (!execute.ok) throw new Error((await execute.json().catch(() => ({}))).error || "Could not execute plan");
-          onToast("Force Sync plan confirmed and queued.");
+          onToast("Force Sync plan confirmed and queued.", "success");
         }
       });
     } catch (error) {
       setPanel(`<div class="sync-preview-state error">${esc(error.message)}</div>`);
-      onToast(error.message);
+      onToast(error.message, "error");
     } finally { button.disabled = false; }
   });
 }

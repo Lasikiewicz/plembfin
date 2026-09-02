@@ -1,14 +1,14 @@
 # Dashboard
 
-The home view (`/`): Now Playing, an Up Next rail, and Watch History with separate TV-show
-and movie rows. Part Watched ("continue watching") lives inside Watch History rather than
-as a second standalone dashboard panel.
+The home view (`/`): Now Playing, one mixed Up Next rail, and Watch History with separate
+TV-show and movie rows. Part Watched ("continue watching") belongs in Up Next; the recent
+history rows contain completed watches only.
 
 ## Files
 
 | File | Role |
 | --- | --- |
-| `public/modules/dashboard.js` | Dashboard rendering (`renderDashboard`, `renderHistoryCard`, `renderPartWatched`, media-type grouping, dedupe helpers, poster observer) |
+| `public/modules/dashboard.js` | Dashboard rendering (`renderDashboard`, completed-history rows, mixed Up Next cards, compatibility progress-card renderer, dedupe helpers, poster observer) |
 | `public/modules/up-next.js` | Cached Up Next loading/rendering and shared media-card presentation |
 | `public/modules/media-card.js` | Shared media-card normalization, navigation, poster, metadata, status, and badge contract |
 | `public/modules/sync.js` | Now Playing polling + rendering (`loadActiveSessions`, `renderActiveSessions`, `startHistoryPolling`) |
@@ -27,29 +27,34 @@ Part Watched, while the green Live indicator remains a semantic playback-status 
 
 ### Up Next
 
-The dashboard's Up Next section occupies the former standalone Part Watched footprint.
-`GET /api/up-next` selects at most one deterministic, released, unwatched episode per
-tracked show, using the existing watch history, playback progress, TVDB season data, and
-TMDB/TVDB caches. A partially watched episode is reserved for Watch History and cannot
-appear again in Up Next. The query is bounded to the most recently active shows and a
-small number of candidate seasons so a large library cannot create an unbounded metadata
-request burst. This is built from Plembfin's local history, so media-server and Trakt
-connections are optional.
+The dashboard's Up Next section is a single mixed queue of movies and TV episodes.
+`GET /api/up-next` combines actionable canonical resume progress with released `next_up`
+episodes from provider observations and a local TVDB/TMDB fallback. A local fallback episode
+is included only when an active provider observation confirms that exact show and season/episode
+coordinate exists in a connected media-server library; local history and metadata alone do not
+create a Watch now card. Resume cards always come first and are ordered by authoritative
+progress-update time; next-up cards follow in a stable show/season/episode order. A matching
+resume and next-up observation becomes one resume card. The builder is bounded to the most
+recently active shows and a small number of candidate seasons, so a large library cannot create
+an unbounded metadata request burst. Canonical local resume cards remain usable without a
+provider connection.
 
-The browser hydrates the rail from the 24-hour `plembfin:upNextCache:v1` localStorage
-snapshot before requesting the network. The server also keeps the completed snapshot in
-`data/up-next-cache.json`, so a restart can serve warm data immediately. Dashboard loads
+The browser hydrates the rail from the 24-hour `plembfin:upNextCache:v3` localStorage
+snapshot before requesting the network. The server also keeps the completed mixed snapshot
+in `data/up-next-cache.json`, so a restart can serve warm data immediately. Dashboard loads
 request `/api/up-next?revalidate=1`: a stale snapshot is returned while one background
-rebuild runs, and a changed result advances the `up_next` cache generation. The existing
+rebuild runs, and a changed projection advances the `up_next` cache generation. The
 `/api/live-updates` stream announces that generation with `up-next-version`; history-version
 events also refresh Up Next after watched/progress changes. Existing cards remain painted
-while a refresh is in flight, then the new snapshot is reconciled into the rail.
+while a refresh is in flight, then the refreshed snapshot is reconciled into the rail.
 
-Cards show the parent show, season/episode, episode title, release state, a direct
-show-detail link, and a Mark Watched action that uses the shared watched-date/sync flow.
-Missing metadata, a provider failure, or no eligible released episode
-leaves the section usable with an explanatory empty/error state; future episodes remain in
-the Upcoming view.
+Resume cards show progress, source badges, app links, Watch now, Mark watched, and Clear
+progress. Clearing an episode deletes its positive progress and marks it unwatched, so a
+refresh moves it below remaining resumes as a zero-progress next-up card. Clearing a movie
+removes it from the queue. Mark watched commits locally first, deletes the resume row, adds
+completed history, and then dispatches to connected providers. A failed or partial provider
+feed keeps the last good observations and displays a compact source-status message; future
+episodes remain in the Upcoming view.
 
 ### Recent history
 
@@ -69,38 +74,30 @@ Times" for more) - `actualWatchLabel` in `dashboard.js`, driven by the same watc
 figure (`watch_count`, falling back to `playHistory.length`) as the movie detail page's
 rewatch history.
 
-### Watch History and Part-watched (continue watching)
+### Watch History and legacy progress compatibility
 
-`GET /api/playback-progress` lists resume records (`playback_progress` table).
-`loadPartWatched` / `renderPartWatched` render them as progress-bar cards, deduped by
-media identity (`dedupePlaybackProgress`). Actions: mark watched
-(`POST /api/playback-progress/watch`) and dismiss/mark unwatched
-(`POST /api/playback-progress/unwatch`). Each App Used badge opens the matching item
-in that configured media app when the item exists there.
+`GET /api/playback-progress` lists positive resume records from the
+`playback_progress` table for compatibility with older embeds and non-dashboard tooling.
+The dashboard uses the unified `/api/up-next` response for resume cards and does not make a
+separate Part Watched request or prepend resume rows to recent history. Completed TV/movie
+rows are limited to canonical watched records. The compatibility `loadPartWatched` /
+`renderPartWatched` helpers are available to explicit legacy panels; they are not part of the
+current dashboard shell.
 
-The dashboard places these records inside Watch History and splits them into **TV Shows ·
-Part Watched** and **Movies · Part Watched**. The existing completed-history rows remain
-below them as **TV Shows** and **Movies**. This keeps a partial episode/movie visible once,
-in the correct media-type area, while preserving its progress, source, provenance, Resume,
-Mark Watched, Clear Progress, and App Used actions. The full `/history` page keeps its
-existing All / Movies / TV Shows filters.
+The displayed percentage on a resume card is derived from the saved playback position and
+duration when both are available, so an incomplete percentage field from a webhook cannot
+show `0%` for an item with real resume progress. SSE history/up-next events fetch the
+authoritative snapshots in the background; the dashboard reconciles the visible rows and
+rail without a full page reload or dashboard-wide rerender.
 
-The displayed percentage is derived from the saved playback position and duration when
-both are available, so an incomplete percentage field from a webhook cannot show `0%`
-for an item with real resume progress. SSE history-version events fetch the authoritative
-history and progress snapshots in the background; the dashboard reconciles only its visible
-history rows, without a full page reload or dashboard-wide rerender.
-
-`renderPartWatched` and the dashboard history-row reconciler work per card rather than
-diffing the whole rail as one block:
-if a refresh returns the same set of items in the same order (the common case while
-something is actively playing, since the playing item's `updated_at` keeps it sorted
-first), it patches only each card's progress bar, "% watched" text, and "Last Played"
-timestamp in place (`patchPartWatchedCardProgress`) and never touches the poster `<img>`
-or rebuilds the card's DOM node. A full rebuild only happens when the set or order of
-items actually changes. A live refresh also leaves existing cards on screen untouched
-while it re-fetches rather than clearing the rail to a loading placeholder first, so a
-routine progress-only update while something plays never flashes the posters.
+The legacy Part Watched card reconciler operates per card rather than diffing its
+whole panel as one block: when a refresh returns the same set of items in the same order,
+it patches only each card's progress bar, "% watched" text, and "Last Played" timestamp
+in place (`patchPartWatchedCardProgress`) and never touches the poster `<img>` or rebuilds
+the card's DOM node. The mixed Up Next rail uses stable canonical IDs and the same
+no-flash refresh behavior; a resume-to-next-up transition is a deliberate membership
+and priority change, so it is refreshed from the server instead of being hidden by a
+client-side dismissal.
 
 ### Version badge / update check
 

@@ -4,6 +4,19 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## Unreleased
+
+### New Features
+
+- Add an optional Personal Watchlist Sync domain with Plembfin as the canonical local
+  list, explicit initial-publish confirmation, durable provider queues, complete-snapshot
+  removal safety, and watched-completion auto-removal.
+- Add Plex Universal Watchlist, Emby playlist/Favorites, and Jellyfin playlist/Favorites
+  adapters with provider/user scoping, ownership-aware cleanup, unavailable-item status,
+  retry controls, and local-first Watchlist feedback.
+- Include watchlist state and non-secret sync metadata in full backups, require explicit
+  republish after restore, and expose watchlist rows in Wipe Data.
+
 ## v0.14.0 - 29 August 2026
 
 Fix - Compute changelog content locally instead of via unreliable CI push events

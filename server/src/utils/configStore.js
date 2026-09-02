@@ -17,6 +17,22 @@ export const DEFAULT_RATING_SYNC = Object.freeze({
   conflictPolicy: "local_wins",
   providers: Object.freeze({ plex: "off", emby: "off", jellyfin: "off", trakt: "off" }),
 });
+export const WATCHLIST_SYNC_PROVIDERS = ["plex", "emby", "jellyfin"];
+export const WATCHLIST_SYNC_REPRESENTATIONS = Object.freeze({
+  plex: ["native", "rss"],
+  emby: ["playlist", "favorites"],
+  jellyfin: ["playlist", "favorites"],
+});
+export const DEFAULT_WATCHLIST_SYNC = Object.freeze({
+  enabled: false,
+  intervalMinutes: 5,
+  importRemoteAdditions: false,
+  providers: Object.freeze({
+    plex: Object.freeze({ enabled: false, representation: "native", writeEnabled: false, publishConfirmedAt: 0 }),
+    emby: Object.freeze({ enabled: false, representation: "playlist", publishConfirmedAt: 0 }),
+    jellyfin: Object.freeze({ enabled: false, representation: "playlist", publishConfirmedAt: 0 }),
+  }),
+});
 export const BACKGROUND_SYNC_PROGRESS_STALE_MS = 90_000;
 export const BACKGROUND_SYNC_PROGRESS_MAX_OWNER_MS = 30 * 60_000;
 // Local owners normally remove themselves after the 2s UI settle window. Give
@@ -79,6 +95,35 @@ export function normalizeRatingSyncSection(section = {}) {
   };
 }
 
+export function normalizeWatchlistSyncSection(section = {}) {
+  const intervalValue = Number(section.intervalMinutes);
+  const intervalMinutes = Number.isInteger(intervalValue)
+    ? Math.max(5, Math.min(1440, intervalValue))
+    : DEFAULT_WATCHLIST_SYNC.intervalMinutes;
+  const providers = {};
+  for (const provider of WATCHLIST_SYNC_PROVIDERS) {
+    const raw = section.providers?.[provider] ?? section[provider] ?? {};
+    const value = raw && typeof raw === "object" ? raw : {};
+    const allowed = WATCHLIST_SYNC_REPRESENTATIONS[provider];
+    const representation = allowed.includes(String(value.representation || "").toLowerCase())
+      ? String(value.representation).toLowerCase()
+      : DEFAULT_WATCHLIST_SYNC.providers[provider].representation;
+    const confirmed = Number(value.publishConfirmedAt || value.publish_confirmed_at || 0);
+    providers[provider] = {
+      enabled: Boolean(value.enabled),
+      representation,
+      ...(provider === "plex" ? { writeEnabled: Boolean(value.writeEnabled || value.write_enabled) } : {}),
+      publishConfirmedAt: Number.isFinite(confirmed) && confirmed > 0 ? Math.round(confirmed) : 0,
+    };
+  }
+  return {
+    enabled: Boolean(section.enabled),
+    intervalMinutes,
+    importRemoteAdditions: Boolean(section.importRemoteAdditions || section.import_remote_additions),
+    providers,
+  };
+}
+
 function envMediaConfig() {
   const plexEnabled = envEnabled("PLEX_ENABLED");
   const embyEnabled = envEnabled("EMBY_ENABLED");
@@ -123,6 +168,7 @@ function envMediaConfig() {
     authority: normalizeAuthority({}),
     pacing: normalizePacing({ profile: envValue("OUTBOUND_PACING_PROFILE") }),
     ratingSync: normalizeRatingSyncSection({}),
+    watchlistSync: normalizeWatchlistSyncSection({}),
   });
 }
 
@@ -175,6 +221,7 @@ function mergeEnvDefaults(stored = {}) {
   merged.authority = normalized.authority;
   merged.pacing = normalized.pacing;
   merged.ratingSync = normalized.ratingSync;
+  merged.watchlistSync = normalized.watchlistSync;
 
   for (const section of ["plex", "emby", "jellyfin"]) {
     if (hasConfiguredFields(normalized[section])) {
@@ -244,6 +291,7 @@ export function normalizeStoredConfig(stored = {}) {
     authority: normalizeAuthority(stored.authority || {}),
     pacing: normalizePacing(stored.pacing || {}),
     ratingSync: normalizeRatingSyncSection(stored.ratingSync || {}),
+    watchlistSync: normalizeWatchlistSyncSection(stored.watchlistSync || {}),
   };
 }
 
@@ -328,6 +376,7 @@ export function publicMediaConfig(config = {}) {
     authority: normalized.authority,
     pacing: normalized.pacing,
     ratingSync: normalized.ratingSync,
+    watchlistSync: normalized.watchlistSync,
   };
 }
 
@@ -377,6 +426,30 @@ function mergeRatingSyncSection(existing = {}, incoming) {
   };
 }
 
+function mergeWatchlistSyncSection(existing = {}, incoming) {
+  if (!incoming) return existing;
+  const existingProviders = existing.providers || {};
+  const incomingProviders = incoming.providers || {};
+  const providers = { ...existingProviders };
+  for (const provider of WATCHLIST_SYNC_PROVIDERS) {
+    const previous = existingProviders[provider] || {};
+    const next = incomingProviders[provider];
+    if (!next || typeof next !== "object") continue;
+    const representationChanged = next.representation && next.representation !== previous.representation;
+    const newlyEnabled = next.enabled === true && previous.enabled !== true;
+    providers[provider] = {
+      ...previous,
+      ...next,
+      ...(representationChanged || newlyEnabled ? { publishConfirmedAt: 0 } : {}),
+    };
+  }
+  return {
+    ...existing,
+    ...incoming,
+    providers,
+  };
+}
+
 // Returns the normalized result of merging `config` over the stored settings,
 // without persisting. handleConfig validates this merged shape so a save that
 // omits an already-stored credential still passes required-field checks.
@@ -400,6 +473,7 @@ export async function mergeIncomingConfig(config = {}) {
     authority: mergeSection(existing.authority, config.authority, []),
     pacing: mergeSection(existing.pacing, config.pacing, []),
     ratingSync: mergeRatingSyncSection(existing.ratingSync, config.ratingSync),
+    watchlistSync: mergeWatchlistSyncSection(existing.watchlistSync, config.watchlistSync),
   });
 }
 
@@ -521,6 +595,23 @@ export function validateConfig(config = {}) {
     }
   }
 
+  if (config.watchlistSync) {
+    const interval = Number(config.watchlistSync.intervalMinutes);
+    if (!Number.isInteger(interval) || interval < 5 || interval > 1440) {
+      errors.push("watchlistSync.intervalMinutes must be a whole number between 5 and 1440");
+    }
+    for (const provider of WATCHLIST_SYNC_PROVIDERS) {
+      const setting = config.watchlistSync.providers?.[provider] || {};
+      if (!WATCHLIST_SYNC_REPRESENTATIONS[provider].includes(setting.representation)) {
+        errors.push(`watchlistSync.providers.${provider}.representation is invalid`);
+      }
+      if (typeof setting.enabled !== "boolean") errors.push(`watchlistSync.providers.${provider}.enabled must be boolean`);
+      if (provider === "plex" && typeof setting.writeEnabled !== "boolean") {
+        errors.push("watchlistSync.providers.plex.writeEnabled must be boolean");
+      }
+    }
+  }
+
   return errors;
 }
 
@@ -536,7 +627,34 @@ export const SYNC_OPERATION_FORCE = "force_sync";
 export const SYNC_OPERATION_REBUILD = "rebuild";
 export const SYNC_OPERATION_SCHEDULED = "scheduled_sync";
 
+// A restore owns the canonical watch-state tables and every outbound projection
+// until its replay has finished. Keep this classification in the shared runtime
+// store so every process (web, worker, and split-role installs) uses the same
+// fail-closed gate instead of maintaining separate in-memory flags.
+const AUTHORITATIVE_RESTORE_KINDS = new Set([
+  RESTORE_KIND_BACKUP,
+  RESTORE_KIND_FULL_SYNC,
+  "restore",
+]);
+
+export function isAuthoritativeRestoreKind(kind) {
+  return AUTHORITATIVE_RESTORE_KINDS.has(String(kind || "").trim());
+}
+
 function operationMatches(runtime = {}) {
+  // The legacy restore flag is itself a safety fence. If an older process
+  // left it set while a newer process wrote an unrelated syncOperation, treat
+  // the restore as the owner rather than allowing that newer marker to reopen
+  // a write race.
+  if (runtime.restoreSyncActive === true) {
+    return {
+      kind: String(runtime.restoreSyncKind || "restore"),
+      ownerId: String(runtime.restoreSyncRunId || ""),
+      startedAt: Number(runtime.restoreSyncStartedAt || 0),
+      heartbeat: Number(runtime.restoreSyncHeartbeat || runtime.restoreSyncStartedAt || 0),
+    };
+  }
+
   const stored = runtime.syncOperation && typeof runtime.syncOperation === "object"
     ? runtime.syncOperation
     : null;
@@ -552,14 +670,6 @@ function operationMatches(runtime = {}) {
   // Compatibility for locks written before the shared operation marker was
   // introduced. These fields remain in runtime_state because the UI and the
   // restore recovery path still expose them directly.
-  if (runtime.restoreSyncActive === true) {
-    return {
-      kind: String(runtime.restoreSyncKind || "restore"),
-      ownerId: String(runtime.restoreSyncRunId || ""),
-      startedAt: Number(runtime.restoreSyncStartedAt || 0),
-      heartbeat: Number(runtime.restoreSyncHeartbeat || runtime.restoreSyncStartedAt || 0),
-    };
-  }
   if (runtime.forceSyncActive === true) {
     return {
       kind: SYNC_OPERATION_FORCE,
@@ -576,11 +686,47 @@ function operationMatches(runtime = {}) {
       heartbeat: Number(runtime.rebuildHeartbeat || runtime.rebuildStartedAt || 0),
     };
   }
+  if (runtime.scheduledSyncActive === true) {
+    return {
+      kind: SYNC_OPERATION_SCHEDULED,
+      ownerId: String(runtime.scheduledSyncRunId || ""),
+      startedAt: Number(runtime.scheduledSyncStartedAt || 0),
+      heartbeat: Number(runtime.scheduledSyncHeartbeat || runtime.scheduledSyncStartedAt || 0),
+    };
+  }
   return null;
 }
 
 export function activeSyncOperation(runtime = {}) {
   return operationMatches(runtime);
+}
+
+// Synchronous by design: hot paths such as webhook admission and outbound
+// dispatch must be able to check the cross-process restore fence immediately
+// before touching local state or a remote service. Passing a runtime object is
+// useful to callers that already loaded it; omitting it reads the authoritative
+// SQLite value.
+export function activeAuthoritativeRestore(runtime = null) {
+  const current = runtime && typeof runtime === "object"
+    ? runtime
+    : parseJson(selectRuntimeStmt.get(RUNTIME_ID)?.data, {}) || {};
+  const operation = operationMatches(current);
+  if (operation && isAuthoritativeRestoreKind(operation.kind)) return operation;
+
+  // Compatibility for old rows that only carried the legacy restore fields.
+  if (current.restoreSyncActive === true && isAuthoritativeRestoreKind(current.restoreSyncKind || "restore")) {
+    return {
+      kind: String(current.restoreSyncKind || "restore"),
+      ownerId: String(current.restoreSyncRunId || ""),
+      startedAt: Number(current.restoreSyncStartedAt || 0),
+      heartbeat: Number(current.restoreSyncHeartbeat || current.restoreSyncStartedAt || 0),
+    };
+  }
+  return null;
+}
+
+export function isAuthoritativeRestoreActive(runtime = null) {
+  return Boolean(activeAuthoritativeRestore(runtime));
 }
 
 export function syncOperationIsFresh(runtime = {}, now = Date.now(), staleMs = 3 * 60 * 1000) {
@@ -596,20 +742,74 @@ function sameOperationOwner(active, kind, ownerId) {
     && active.ownerId === String(ownerId);
 }
 
+function isBackupRestoreKind(kind) {
+  return String(kind || "").trim() === RESTORE_KIND_BACKUP;
+}
+
+function valuesForPreemptedOperation(active, now) {
+  if (!active) return {};
+  if (active.kind === SYNC_OPERATION_FORCE) {
+    return {
+      forceSyncActive: false,
+      forceSyncCancelRequested: true,
+      forceSyncHeartbeat: now,
+      forceSyncResult: {
+        success: false,
+        aborted: true,
+        cancelled: true,
+        preempted: true,
+        reason: "Force Sync was preempted by an authoritative restore.",
+      },
+    };
+  }
+  if (active.kind === SYNC_OPERATION_SCHEDULED) {
+    return {
+      scheduledSyncActive: false,
+      scheduledSyncCancelRequested: true,
+      scheduledSyncHeartbeat: now,
+    };
+  }
+  if (active.kind === RESTORE_KIND_FULL_SYNC || active.kind === "restore") {
+    return {
+      restoreSyncCancelRequested: true,
+      restoreSyncHeartbeat: now,
+    };
+  }
+  if (active.kind === SYNC_OPERATION_REBUILD) {
+    return {
+      rebuildActive: false,
+      rebuildCancelRequested: true,
+      rebuildHeartbeat: now,
+    };
+  }
+  return {};
+}
+
 // Runtime state is stored in SQLite, so claiming the shared operation marker
 // in the same immediate transaction as the legacy active flag gives all web
 // and worker processes one compare-and-set boundary. The owner id makes batch
 // requests re-entrant while preventing a second operation of the same kind
-// from stealing the first one's lock.
-export async function claimSyncOperation({ kind, ownerId = "", activeField, startedAt = Date.now(), values = {} } = {}) {
+// from stealing the first one's lock. An authoritative restore is the one
+// deliberate exception: it preempts every non-restore operation, fences its
+// owner, and marks cancellable background work for shutdown.
+export async function claimSyncOperation({ kind, ownerId = "", activeField, startedAt = Date.now(), values = {}, preempt = false } = {}) {
   if (!kind || !activeField) throw new Error("kind and activeField are required to claim a sync operation");
   let result;
   db.transaction(() => {
     const current = parseJson(selectRuntimeStmt.get(RUNTIME_ID)?.data, {}) || {};
     const active = operationMatches(current);
     if (active && !sameOperationOwner(active, kind, ownerId)) {
-      result = { ok: false, active };
-      return;
+      // A second authoritative restore must still be rejected. A restore may,
+      // however, take ownership from scheduled/Force Sync/rebuild, because
+      // leaving any of those writers alive would let it race the canonical
+      // restore.
+      const canPreempt = preempt === true
+        && isAuthoritativeRestoreKind(kind)
+        && (isBackupRestoreKind(kind) || !isAuthoritativeRestoreKind(active.kind));
+      if (!canPreempt) {
+        result = { ok: false, active };
+        return;
+      }
     }
     const now = Date.now();
     const operation = {
@@ -621,13 +821,18 @@ export async function claimSyncOperation({ kind, ownerId = "", activeField, star
     };
     const merged = {
       ...current,
+      ...((active && !sameOperationOwner(active, kind, ownerId)) ? valuesForPreemptedOperation(active, now) : {}),
       ...values,
       [activeField]: true,
       syncOperation: operation,
       updatedAt: now,
     };
     upsertRuntimeStmt.run(RUNTIME_ID, toJson(merged), now);
-    result = { ok: true, operation };
+    result = {
+      ok: true,
+      operation,
+      ...(active && !sameOperationOwner(active, kind, ownerId) ? { preempted: active } : {}),
+    };
   }).immediate();
   return result;
 }
@@ -687,6 +892,42 @@ export async function setRuntimeState(values = {}) {
     const merged = { ...current, ...values, updatedAt: Date.now() };
     upsertRuntimeStmt.run(RUNTIME_ID, toJson(merged), Date.now());
   }).immediate();
+}
+
+// Record a user acknowledgement for a surfaced sync blocker without replacing
+// any concurrent progress, heartbeat, or restore fields. Attention items are
+// derived from runtime_state, so this small compare-and-set style helper keeps
+// a skip click safe when a worker writes its final result at the same time.
+export async function recordSyncAttentionSkip(id, details = {}) {
+  const key = String(id || "").trim();
+  if (!key) return null;
+  let result = null;
+  db.transaction(() => {
+    const current = parseJson(selectRuntimeStmt.get(RUNTIME_ID)?.data, {}) || {};
+    const existing = current.syncAttentionSkips && typeof current.syncAttentionSkips === "object"
+      ? current.syncAttentionSkips
+      : {};
+    const skippedAt = Date.now();
+    const next = {
+      ...existing,
+      [key]: {
+        ...(existing[key] && typeof existing[key] === "object" ? existing[key] : {}),
+        ...details,
+        skippedAt,
+      },
+    };
+    // Keep acknowledgements bounded. Old run ids must not make runtime_state
+    // grow forever on an install that performs many restores.
+    const bounded = Object.fromEntries(
+      Object.entries(next)
+        .sort(([, left], [, right]) => Number(left?.skippedAt || 0) - Number(right?.skippedAt || 0))
+        .slice(-200),
+    );
+    const merged = { ...current, syncAttentionSkips: bounded, updatedAt: skippedAt };
+    upsertRuntimeStmt.run(RUNTIME_ID, toJson(merged), skippedAt);
+    result = bounded[key];
+  }).immediate();
+  return result;
 }
 
 export async function loadRuntimeState() {

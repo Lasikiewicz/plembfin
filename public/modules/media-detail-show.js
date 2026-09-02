@@ -6,7 +6,7 @@ import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeE
 import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=20260823";
 import { renderWatchDatePrompt, seasonUnwatchButtonHtml, showUnwatchButtonHtml, savingEpisodeKeysForShow } from "./watch-action.js?v=20260826c";
 import { authHeaders, setMessage, syncPageTopbar, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=20260831c";
-import { personalRatingPillHtml, personalEpisodeRatingButtonHtml, personalMediaActionsHtml } from "./personal-media.js?v=20260831r";
+import { personalRatingPillHtml, personalEpisodeRatingButtonHtml, personalMediaActionsHtml } from "./personal-media.js?v=20260903b";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderRelatedShowsSection,
   renderMediaFacts, renderMediaImagesSection, renderExternalRatingPills, ratingPillHtml,
@@ -114,6 +114,56 @@ function isUnmatchedShowTitle(title = "") {
 function historyRowShowIsUnresolved(row) {
   const parsed = showTitleFrom(row?.show_title || row?.grandparent_title || row?.series_title || row?.title || "");
   return isUnmatchedShowTitle(parsed) || /^plex:\/\//i.test(parsed);
+}
+
+function localShowSeedForTmdbId(tmdbId) {
+  const requestedId = String(tmdbId || "");
+  if (!requestedId) return null;
+  const show = (state.showsRaw || []).find((entry) => String(entry.tmdb_id || "") === requestedId);
+  if (show) return show;
+
+  const rows = [
+    ...(Array.isArray(state.upNextItems) ? state.upNextItems : []),
+    ...(Array.isArray(state.history) ? state.history : []),
+    ...(Array.isArray(state.partWatchedRaw) ? state.partWatchedRaw : []),
+    ...(Array.isArray(state.historyViewRaw) ? state.historyViewRaw : []),
+  ];
+  const row = rows.find((entry) => (
+    entry?.media_type === "episode"
+      && String(entry.show_tmdb_id || entry.tmdb_id || "") === requestedId
+  ));
+  if (!row) return null;
+  const title = row.show_title || showTitleFrom(row.title || "");
+  return {
+    title,
+    tmdb_id: row.show_tmdb_id || row.tmdb_id || requestedId,
+    tvdb_id: row.show_tvdb_id || row.tvdb_id || "",
+    imdb_id: row.show_imdb_id || row.imdb_id || "",
+    episodes: [row],
+    episode_count: 1,
+    season_count: row.season == null ? 0 : 1,
+  };
+}
+
+async function fetchLocalShowByTmdbId(tmdbId) {
+  const seed = localShowSeedForTmdbId(tmdbId);
+  if (seed) return seed;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4000);
+  try {
+    const response = await fetch(`/api/show?tmdbId=${encodeURIComponent(String(tmdbId || ""))}`, {
+      headers: authHeaders(),
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    if (!response.ok) return null;
+    const body = await response.json().catch(() => ({}));
+    return body.show || null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
 }
 
 export async function openShowImmersiveModalByTitle(showTitle, seedEpisode = null, requestedSeason = null) {
@@ -227,6 +277,7 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
   state.showModalRequestToken += 1;
   setMediaDetailActions("");
   state.activeShowTmdbId = String(tmdbId);
+  const localSeedPromise = fetchLocalShowByTmdbId(tmdbId);
   state.activeShowTvdbId = null;
   syncInlineMediaDetailHeading("shows");
   if (!state.mediaDetailInline) {
@@ -247,7 +298,10 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
     `;
   }
 
-  let tmdbData = await fetchTmdbDetails("tv", tmdbId, null, {}, { immediate: true });
+  const localSeed = await localSeedPromise;
+  const lookupIds = tmdbLookupIdsFromShow(localSeed || {});
+  state.activeShowTvdbId = lookupIds.tvdbId || null;
+  let tmdbData = await fetchTmdbDetails("tv", tmdbId, localSeed?.title || "", lookupIds, { immediate: true });
   if (currentMediaRenderToken() !== renderToken) return;
   if (!tmdbData) {
     // The stored TMDB ID may not map to a valid show (e.g. episode-level ID from
@@ -269,7 +323,7 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
     // unreachable. Fall back to the local library record so the episode
     // history remains visible and the user can use Fix Match to repair the
     // identity that caused the lookup to fail.
-    let fallbackShow = state.showsRaw.find((show) => String(show.tmdb_id || "") === String(tmdbId));
+    let fallbackShow = localSeed || state.showsRaw.find((show) => String(show.tmdb_id || "") === String(tmdbId));
     if (!fallbackShow) {
       const matchingRows = (state.history || []).filter((row) => (
         row.media_type === "episode" && String(row.tmdb_id || "") === String(tmdbId)

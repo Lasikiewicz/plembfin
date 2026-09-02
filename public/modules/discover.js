@@ -3,7 +3,7 @@ import { state, elements } from "./state.js";
 import { escapeHtml, formatTmdbDate } from "./utils.js?v=20260824h";
 import { hydratePosters } from "./images.js?v=20260831m";
 import { renderMediaCard } from "./media-card.js?v=20260831d";
-import { mediaKeyForPersonalItem } from "./personal-media.js?v=20260831r";
+import { mediaKeyForPersonalItem } from "./personal-media.js?v=20260903b";
 
 const DISCOVER_TTL_MS = 10 * 60 * 1000;
 const DISCOVER_TIMEOUT_MS = 20000;
@@ -110,7 +110,7 @@ export function initDiscover(callbacks = {}) {
       const retry = event.target.closest("[data-discover-retry]");
       if (!retry) return;
       event.preventDefault();
-      loadDiscover({ force: true }).catch((error) => _cb.setMessage?.(error.message, "error"));
+      loadDiscover({ force: true }).catch(() => { });
     });
   }
   elements.discoverMediaType?.addEventListener("change", () => {
@@ -121,16 +121,16 @@ export function initDiscover(callbacks = {}) {
     syncGenreOptions();
     resetDiscover({ hydrate: true });
     renderDiscover();
-    loadDiscover({ force: true }).catch((error) => _cb.setMessage?.(error.message, "error"));
+    loadDiscover({ force: true }).catch(() => { });
   });
   elements.discoverGenre?.addEventListener("change", () => {
     state.discoverGenreId = String(elements.discoverGenre.value || "");
     resetDiscover({ hydrate: true });
     renderDiscover();
-    loadDiscover({ force: true }).catch((error) => _cb.setMessage?.(error.message, "error"));
+    loadDiscover({ force: true }).catch(() => { });
   });
   elements.discoverRefreshButton?.addEventListener("click", () => {
-    loadDiscover({ force: true }).catch((error) => _cb.setMessage?.(error.message, "error"));
+    loadDiscover({ force: true }).catch(() => { });
   });
 }
 
@@ -322,7 +322,6 @@ export async function loadDiscover({ force = false, fromSse = false } = {}) {
       ? "TIMEOUT"
       : error?.code || (Number(error?.status) === 404 ? "SERVER_ROUTE_MISSING" : "");
     state.discoverError = error?.name === "AbortError" ? "The request timed out." : (error.message || "Try again later.");
-    _cb.setMessage?.(`Discover: ${state.discoverError}`, "error");
   } finally {
     clearTimeout(timeout);
     if (requestVersion === state.discoverRequestVersion) {

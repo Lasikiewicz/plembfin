@@ -4,7 +4,7 @@ import { fetchWithTimeout } from "./outbound.js";
 import { loadMediaConfig, loadRuntimeState, setRuntimeState } from "./configStore.js";
 import { cacheBackdropFromUrl, cacheLogoFromUrl, cachePosterFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "./posterCache.js";
 import { getFanartMovieArt, getFanartTvArt } from "./fanartGateway.js";
-import { resolveTvdbSeriesId, resolveTvdbSeriesIdFromEpisodeId, getTvdbSeriesExtended, getTvdbSeasonEpisodes, shapeTvdbSeriesAsTmdb } from "./tvdbGateway.js";
+import { resolveTvdbSeriesId, resolveTvdbSeriesIdFromEpisodeId, getTvdbSeriesExtended, getTvdbSeasonEpisodes, shapeTvdbSeriesAsTmdb, tvdbSeriesTitleMatches } from "./tvdbGateway.js";
 
 const API_ROOT = "https://api.themoviedb.org/3";
 const IMAGE_ROOT = "https://image.tmdb.org/t/p";
@@ -395,9 +395,9 @@ async function deriveNextAiring(details, tvdbId) {
 // don't need (collection parts, next-airing derivation, artwork/fanart
 // caching). Light-fetched rows are stamped `details_light` so the next full
 // caller refetches and completes them.
-export async function getTmdbDetails({ mediaType, tmdbId = "", title = "", ids = {}, force = false, forceTvdb = force, light = false }) {
+export async function getTmdbDetails({ mediaType, tmdbId = "", title = "", ids = {}, force = false, forceTvdb = force, light = false, verifyTvdbTitle = false }) {
   const type = mediaTypeFor(mediaType);
-  if (type === "tv") return getTvShowDetails({ tmdbId, title, ids, force, forceTvdb, light: light && !force });
+  if (type === "tv") return getTvShowDetails({ tmdbId, title, ids, force, forceTvdb, light: light && !force, verifyTvdbTitle });
   return getMovieDetails({ tmdbId, title, ids, force, light: light && !force });
 }
 
@@ -450,7 +450,7 @@ async function getMovieDetails({ tmdbId = "", title = "", ids = {}, force = fals
 // trailers, reviews, similar/recommendations, watch providers) and to keep
 // `id` = TMDB id, since Seerr requests and `/tvshow/tmdb/:id` routing are
 // TMDB-keyed throughout the rest of the app.
-async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = false, forceTvdb = force, light = false }) {
+async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = false, forceTvdb = force, light = false, verifyTvdbTitle = false }) {
   let tvdbId = String(ids.tvdbId || ids.tvdb_id || ids.tvdb || "").trim();
   if (!tvdbId) tvdbId = await resolveTvdbSeriesId({ title });
   if (!tvdbId && tmdbId) {
@@ -471,7 +471,8 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
     // is known, so lookups by the resolved tmdbId (getTmdbSeason, etc.) can find it.
     const initialCacheId = tmdbId ? `tv_${tmdbId}` : `tv_tvdb_${tvdbId}`;
     const cached = metaGet(initialCacheId);
-    if (!force && cacheSatisfies(cached, { light })) return cached.details;
+    const cachedTitleIsSafe = !verifyTvdbTitle || !title || tvdbSeriesTitleMatches(title, cached?.details);
+    if (!force && cachedTitleIsSafe && cacheSatisfies(cached, { light })) return cached.details;
     try {
       // Older library records can carry a TVDB episode ID rather than the
       // series ID. If that ID cannot be loaded as a series, first ask TVDB
@@ -490,6 +491,24 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
         if (!fallbackSeriesId || fallbackSeriesId === seriesTvdbId) throw error;
         seriesTvdbId = fallbackSeriesId;
         extended = await getTvdbSeriesExtended(seriesTvdbId, { force: forceTvdb });
+      }
+
+      if (verifyTvdbTitle && title && !tvdbSeriesTitleMatches(title, extended)) {
+        const fallbackSeriesId = await resolveTvdbSeriesId({ title });
+        if (!fallbackSeriesId || fallbackSeriesId === seriesTvdbId) {
+          const error = new Error("TVDB series match does not agree with the media-server title");
+          error.code = "TVDB_TITLE_MISMATCH";
+          error.status = 409;
+          throw error;
+        }
+        seriesTvdbId = fallbackSeriesId;
+        extended = await getTvdbSeriesExtended(seriesTvdbId, { force: forceTvdb });
+        if (!tvdbSeriesTitleMatches(title, extended)) {
+          const error = new Error("TVDB title search did not produce a matching series");
+          error.code = "TVDB_TITLE_MISMATCH";
+          error.status = 409;
+          throw error;
+        }
       }
       const shaped = shapeTvdbSeriesAsTmdb(extended);
       let resolvedTmdbId = String(tmdbId || shaped.external_ids.tmdb_id || "");
@@ -573,7 +592,7 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
       metaSet(cacheId, { tmdbId: resolvedTmdbId, mediaType: "tv", details, schemaVersion: DETAILS_SCHEMA_VERSION, updatedAtMs: Date.now() });
       return details;
     } catch (error) {
-      if (cached?.details) return { ...cached.details, cache_stale: true };
+      if (cached?.details && cachedTitleIsSafe) return { ...cached.details, cache_stale: true };
       throw error;
     }
   });

@@ -1,7 +1,8 @@
-import { getTrackerConnection, recordTrackerOutbound, recordTrackerOutboundBatch, updateTrackerConnectionStatus, updateTrackerTokens } from "./trackerConnectionRepo.js";
-import { refreshTraktToken, setTraktWatchState, trackerMediaIdentityKeys, trackerMediaKey } from "./traktClient.js";
+import { getTrackerConnection, recordTrackerOutbound, recordTrackerOutboundBatch, replaceTrackerSnapshot, updateTrackerConnectionStatus, updateTrackerTokens } from "./trackerConnectionRepo.js";
+import { fetchTraktPlayHistory, refreshTraktToken, setTraktWatchHistoryBatch, setTraktWatchState, trackerMediaIdentityKeys, trackerMediaKey } from "./traktClient.js";
 import { hydrateTraktAppCredentials } from "./traktAppConfig.js";
 import { getTmdbDetails } from "./tmdbGateway.js";
+import { canonicalCompoundEpisodeMedia, canonicalizeCompoundEpisodeRows } from "./compoundEpisode.js";
 
 let traktRefreshInFlight = null;
 
@@ -241,7 +242,817 @@ export async function trackerDispatchMediaCandidates(media = {}, {
   return candidates;
 }
 
+function restoreIdValue(...values) {
+  return values.map((value) => String(value ?? "").trim()).find(Boolean) || "";
+}
+
+function restoreIdsFromRow(row = {}) {
+  const nested = row.ids && typeof row.ids === "object" ? row.ids : {};
+  return {
+    imdb: restoreIdValue(row.show_imdb_id, row.showImdbId, nested.imdb, row.imdb_id, row.imdbId),
+    tmdb: restoreIdValue(row.show_tmdb_id, row.showTmdbId, nested.tmdb, row.tmdb_id, row.tmdbId),
+    tvdb: restoreIdValue(row.show_tvdb_id, row.showTvdbId, nested.tvdb, row.tvdb_id, row.tvdbId),
+  };
+}
+
+function restoreSeriesKey(media = {}) {
+  return trackerShowTitle(media)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+function restoreEpisodeCoordinate(row = {}) {
+  const season = Number(row.season);
+  const episode = Number(row.episode);
+  if (!Number.isInteger(season) || season < 0 || !Number.isInteger(episode) || episode <= 0) return "";
+  return `${season}:${episode}`;
+}
+
+// A watch-history row normally stores provider ids in flattened columns, but
+// those columns are not consistent across old imports: some rows contain the
+// series id, while others contain the exact episode id, and some contain none.
+// A Trakt episode payload needs the series id. Repeated ids across different
+// season/episode coordinates are strong evidence of a series identity; a
+// single-coordinate id is treated as an episode id and is not used as the
+// fallback. Ties are deliberately left unresolved so a same-titled pair of
+// shows cannot be silently merged during an authoritative restore.
+export function buildRestoreSeriesIdentityIndex(rows = []) {
+  const byShow = new Map();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const type = String(row?.media_type || row?.mediaType || row?.type || "").toLowerCase();
+    if (type !== "episode") continue;
+    const showKey = restoreSeriesKey(row);
+    const coordinate = restoreEpisodeCoordinate(row);
+    if (!showKey || !coordinate) continue;
+
+    if (!byShow.has(showKey)) byShow.set(showKey, new Map());
+    const providerStats = byShow.get(showKey);
+    const ids = restoreIdsFromRow(row);
+    for (const [provider, value] of Object.entries(ids)) {
+      if (!value) continue;
+      const valueKey = provider === "imdb" ? value.toLowerCase() : value;
+      if (!providerStats.has(provider)) providerStats.set(provider, new Map());
+      if (!providerStats.get(provider).has(valueKey)) {
+        providerStats.get(provider).set(valueKey, { value, coordinates: new Set() });
+      }
+      providerStats.get(provider).get(valueKey).coordinates.add(coordinate);
+    }
+  }
+
+  const result = new Map();
+  for (const [showKey, providerStats] of byShow) {
+    const ids = {};
+    const repeated = new Map();
+    for (const [provider, values] of providerStats) {
+      const candidates = [...values.entries()]
+        .filter(([, entry]) => entry.coordinates.size >= 2)
+        .sort((left, right) => right[1].coordinates.size - left[1].coordinates.size || left[0].localeCompare(right[0]));
+      if (!candidates.length) continue;
+      repeated.set(provider, new Set(candidates.map(([valueKey]) => valueKey)));
+      const bestCount = candidates[0][1].coordinates.size;
+      const winners = candidates.filter(([, entry]) => entry.coordinates.size === bestCount);
+      if (winners.length === 1) ids[provider] = winners[0][1].value;
+    }
+    if (Object.keys(ids).length) result.set(showKey, { ids, repeated });
+  }
+  return result;
+}
+
+// Normalize rows that have no usable identity, or that only carry one-off
+// episode ids, to the unambiguous repeated series identity discovered above.
+// Rows with a conflicting repeated identity are left untouched and will fail
+// closed rather than being assigned to the wrong show.
+export function restoreMediaWithSeriesIdentityFallback(media = {}, index = new Map()) {
+  const type = media.type || media.mediaType;
+  if (type !== "episode" || !index?.get) return media;
+  const identity = index.get(restoreSeriesKey(media));
+  if (!identity?.ids || !Object.keys(identity.ids).length) return media;
+
+  const currentIds = Object.fromEntries(Object.entries(media.ids || {}).filter(([, value]) => String(value ?? "").trim()));
+  const currentEntries = Object.entries(currentIds);
+  const sharesSeriesIdentity = currentEntries.some(([provider, value]) => {
+    const canonical = identity.ids[provider];
+    return canonical && String(canonical).trim().toLowerCase() === String(value).trim().toLowerCase();
+  });
+  const allIdsLookOneOff = currentEntries.length > 0 && currentEntries.every(([provider, value]) => {
+    const valueKey = provider === "imdb" ? String(value).trim().toLowerCase() : String(value).trim();
+    return !identity.repeated?.get(provider)?.has(valueKey);
+  });
+  if (currentEntries.length && !sharesSeriesIdentity && !allIdsLookOneOff) return media;
+
+  const nextIds = JSON.stringify(Object.entries(identity.ids).sort(([left], [right]) => left.localeCompare(right)));
+  const previousIds = JSON.stringify(Object.entries(currentIds).sort(([left], [right]) => left.localeCompare(right)));
+  if (nextIds === previousIds) return media;
+  return {
+    ...media,
+    showTitle: trackerShowTitle(media),
+    ids: { ...identity.ids },
+  };
+}
+
+function buildRestoreCoordinateIdentityIndex(rows = []) {
+  const result = new Map();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const type = String(row?.media_type || row?.mediaType || row?.type || "").toLowerCase();
+    if (type !== "episode") continue;
+    const showKey = restoreSeriesKey(row);
+    const coordinate = restoreEpisodeCoordinate(row);
+    const ids = restoreIdsFromRow(row);
+    if (!showKey || !coordinate || !Object.values(ids).some(Boolean)) continue;
+    const key = `${showKey}:${coordinate}`;
+    if (!result.has(key)) result.set(key, []);
+    const sources = result.get(key);
+    const signature = JSON.stringify(Object.entries(ids).sort(([left], [right]) => left.localeCompare(right)));
+    if (!sources.some((source) => source.signature === signature)) sources.push({ ids, signature });
+  }
+  return result;
+}
+
+function restoreCoordinateIdentitySources(media = {}, index = new Map()) {
+  const coordinate = restoreEpisodeCoordinate(media);
+  if (!coordinate) return [];
+  return index.get(`${restoreSeriesKey(media)}:${coordinate}`) || [];
+}
+
+function restoreSeriesIdsFromDetails(details = {}) {
+  const external = details?.external_ids || {};
+  const ids = {
+    imdb: restoreIdValue(external.imdb_id, external.imdb),
+    tmdb: restoreIdValue(details.id, external.tmdb_id, external.tmdb),
+    tvdb: restoreIdValue(external.tvdb_id, external.tvdb),
+  };
+  return Object.fromEntries(Object.entries(ids).filter(([, value]) => value));
+}
+
+function restoreDetailsMatchShow(media = {}, details = {}) {
+  const actualTitle = restoreIdValue(details.name, details.title, details.original_name);
+  return Boolean(actualTitle && restoreSeriesKey({ showTitle: actualTitle }) === restoreSeriesKey(media));
+}
+
+function restoreIdentitySourceSignature(ids = {}) {
+  return JSON.stringify(Object.entries(ids)
+    .filter(([, value]) => String(value ?? "").trim())
+    .sort(([left], [right]) => left.localeCompare(right)));
+}
+
+// A watch-history import can contain a title-only duplicate next to an older
+// row with episode-level ids. Resolve that sibling through TMDB/TVDB before
+// handing it to Trakt. The resolver is deliberately title-checked: an id from
+// a similarly named show must never become the canonical series identity.
+async function resolveRestoreSeriesIds(media = {}, sources = [], {
+  cache = null,
+  detailsResolver = getTmdbDetails,
+} = {}) {
+  const showTitle = trackerShowTitle(media);
+  if (!showTitle) return null;
+  const uniqueSources = [];
+  const seen = new Set();
+  for (const source of sources) {
+    const ids = Object.fromEntries(Object.entries(source || {}).filter(([, value]) => String(value ?? "").trim()));
+    if (!Object.keys(ids).length) continue;
+    const signature = restoreIdentitySourceSignature(ids);
+    if (seen.has(signature)) continue;
+    seen.add(signature);
+    uniqueSources.push(ids);
+  }
+
+  for (const ids of uniqueSources) {
+    const key = `${restoreSeriesKey(media)}:${restoreIdentitySourceSignature(ids)}`;
+    const resolve = async () => {
+      const details = await Promise.resolve().then(() => detailsResolver({
+        mediaType: "tv",
+        tmdbId: ids.tmdb || "",
+        title: showTitle,
+        ids: {
+          ...(ids.tvdb ? { tvdbId: ids.tvdb } : {}),
+          ...(ids.imdb ? { imdbId: ids.imdb } : {}),
+        },
+        light: true,
+        verifyTvdbTitle: true,
+      })).catch(() => null);
+      if (!restoreDetailsMatchShow(media, details)) return null;
+      const resolved = restoreSeriesIdsFromDetails(details);
+      return Object.keys(resolved).length ? resolved : null;
+    };
+    const resolved = cache
+      ? (cache.has(key) ? await cache.get(key) : (cache.set(key, resolve()), await cache.get(key)))
+      : await resolve();
+    if (resolved) return resolved;
+  }
+  return null;
+}
+
+function restoreMediaFromWatchRow(row = {}) {
+  const type = String(row.media_type || row.mediaType || row.type || "").toLowerCase();
+  return {
+    isValid: true,
+    source: "restore_replay",
+    type,
+    mediaType: type,
+    title: row.title || "",
+    showTitle: row.show_title || "",
+    season: row.season == null ? undefined : Number(row.season),
+    episode: row.episode == null ? undefined : Number(row.episode),
+    year: row.year == null ? undefined : Number(row.year),
+    ids: restoreIdsFromRow(row),
+    watched_at: row.watched_at || "",
+  };
+}
+
+// Keep the durable restore blocker small and safe to expose to the admin UI.
+// The full watch_history row is deliberately not persisted in runtime_state:
+// it contains artwork, provenance, and provider-specific fields that are not
+// needed to repair one Trakt play. The source row id is enough to re-read the
+// latest local mapping after the user fixes it in Plembfin.
+function restoreIssueText(value, fallback = "") {
+  const normalized = String(value ?? "").trim();
+  return (normalized || fallback).slice(0, 400);
+}
+
+function restoreIssueIds(ids = {}) {
+  return Object.fromEntries(Object.entries(ids || {})
+    .filter(([provider, value]) => ["imdb", "tmdb", "tvdb", "trakt"].includes(provider) && String(value ?? "").trim())
+    .map(([provider, value]) => [provider, String(value).trim().slice(0, 120)]));
+}
+
+function restoreIssueCoordinates(value = {}) {
+  const season = Number(value.season);
+  const episode = Number(value.episode);
+  return {
+    season: Number.isInteger(season) && season >= 0 ? season : null,
+    episode: Number.isInteger(episode) && episode >= 0 ? episode : null,
+  };
+}
+
+export function serializeRestoreIssue(media = {}, sourceRow = {}, reason = "", index = 0, { candidate = false } = {}) {
+  const type = String(media.type || media.mediaType || sourceRow.media_type || "").toLowerCase();
+  const coordinates = restoreIssueCoordinates(media);
+  const sourceCoordinates = restoreIssueCoordinates({
+    season: sourceRow.season,
+    episode: sourceRow.episode,
+  });
+  const title = restoreIssueText(sourceRow.title || media.title, "Unknown media");
+  const showTitle = restoreIssueText(sourceRow.show_title || media.showTitle || trackerShowTitle(media));
+  const watchedAt = restoreIssueText(media.watched_at || sourceRow.watched_at);
+  const sourceRowId = restoreIssueText(sourceRow.id);
+  const identity = sourceRowId
+    || `${type}|${sourceRow.media_key || media.media_key || ""}|${watchedAt}|${title}|${index}`;
+  return {
+    key: `restore-row:${identity}`.slice(0, 280),
+    sourceRowId: sourceRowId.slice(0, 240),
+    sourceMediaKey: restoreIssueText(sourceRow.media_key || media.media_key).slice(0, 240),
+    title,
+    showTitle,
+    sourceTitle: title,
+    type: type === "episode" || type === "movie" ? type : "unknown",
+    season: coordinates.season,
+    episode: coordinates.episode,
+    sourceSeason: sourceCoordinates.season,
+    sourceEpisode: sourceCoordinates.episode,
+    watchedAt,
+    ids: restoreIssueIds(media.ids),
+    sourceIds: restoreIssueIds(restoreIdsFromRow(sourceRow)),
+    ...(media.compound_episode ? {
+      compoundEpisode: {
+        canonicalSeason: restoreIssueCoordinates(media.compound_episode).season,
+        canonicalEpisode: Number.isInteger(Number(media.compound_episode.canonicalEpisode))
+          ? Number(media.compound_episode.canonicalEpisode)
+          : coordinates.episode,
+        sourceRepresentation: String(media.compound_episode.sourceRepresentation || "split").slice(0, 20),
+      },
+    } : {}),
+    ...(candidate ? { candidate: true } : {}),
+    ...(reason ? { reason: restoreIssueText(reason, "Trakt could not match this restored play.") } : {}),
+  };
+}
+
+async function prepareRestoreMediaForTrakt(row, {
+  seriesIdentityIndex,
+  coordinateIdentityIndex,
+  resolvedSeriesByShow,
+  seriesResolutionCache,
+  detailsResolver = getTmdbDetails,
+  logger = () => {},
+  loggedSeriesFallbacks,
+} = {}) {
+  const rawMedia = restoreMediaFromWatchRow(row);
+  const showKey = restoreSeriesKey(rawMedia);
+  const identity = seriesIdentityIndex?.get(showKey);
+  if (!resolvedSeriesByShow.has(showKey) && identity?.ids && Object.keys(identity.ids).length) {
+    // Repeated ids are already the fail-closed series evidence built by
+    // buildRestoreSeriesIdentityIndex; no remote lookup is needed for them.
+    resolvedSeriesByShow.set(showKey, identity.ids);
+  }
+
+  let media = restoreMediaWithSeriesIdentityFallback(rawMedia, seriesIdentityIndex);
+  if (media !== rawMedia && !loggedSeriesFallbacks.has(showKey)) {
+    loggedSeriesFallbacks.add(showKey);
+    logger(`Trakt restore: recovered the series identity for "${trackerShowTitle(media)}" from repeated restore rows.`);
+  }
+
+  if ((media.type || media.mediaType) === "episode") {
+    let canonicalIds = resolvedSeriesByShow.get(showKey) || null;
+    if (!canonicalIds && !identity?.ids?.length) {
+      const coordinateSources = restoreCoordinateIdentitySources(media, coordinateIdentityIndex)
+        .map((source) => source.ids);
+      canonicalIds = await resolveRestoreSeriesIds(media, [media.ids, ...coordinateSources], {
+        cache: seriesResolutionCache,
+        detailsResolver,
+      });
+      if (canonicalIds) {
+        resolvedSeriesByShow.set(showKey, canonicalIds);
+        logger(`Trakt restore: resolved the canonical series identity for "${trackerShowTitle(media)}" from imported metadata.`);
+      }
+    }
+    if (canonicalIds && Object.keys(canonicalIds).length) {
+      media = {
+        ...media,
+        showTitle: trackerShowTitle(media),
+        ids: { ...canonicalIds },
+      };
+    }
+  }
+  return media;
+}
+
+function historyBatches(items = [], batchSize = 100) {
+  const batches = [];
+  let batch = [];
+  const keys = new Set();
+  const limit = Math.max(1, Number(batchSize) || 100);
+  for (const item of items) {
+    const key = trackerMediaKey(item);
+    // Trakt's grouped show/season payload cannot safely contain the same
+    // episode twice. Split repeated plays into separate requests; each request
+    // still carries its original watched_at and therefore remains a distinct
+    // history event on Trakt.
+    if (batch.length >= limit || keys.has(key)) {
+      if (batch.length) batches.push(batch);
+      batch = [];
+      keys.clear();
+    }
+    batch.push(item);
+    keys.add(key);
+  }
+  if (batch.length) batches.push(batch);
+  return batches;
+}
+
+function replayCancellationError() {
+  return Object.assign(new Error("Authoritative watch-history restore was cancelled before Trakt replay completed"), { code: "restore_cancelled" });
+}
+
+function traktNotFoundEntries(result = {}) {
+  return Object.entries(result?.not_found || {})
+    .filter(([, entries]) => Array.isArray(entries))
+    .flatMap(([category, entries]) => entries.map((entry) => ({ category, entry })));
+}
+
+function traktNotFoundEntryValue(entry = {}) {
+  return entry?.episode || entry?.movie || entry?.show || entry?.season || entry;
+}
+
+function traktNotFoundEntryCoordinates(entry = {}) {
+  const value = traktNotFoundEntryValue(entry);
+  const coordinates = [];
+  const add = (seasonValue, episodeValue) => {
+    const season = Number(seasonValue);
+    const episode = Number(episodeValue);
+    if (!Number.isInteger(season) || !Number.isInteger(episode)) return;
+    if (!coordinates.some((coordinate) => coordinate.season === season && coordinate.episode === episode)) {
+      coordinates.push({ season, episode });
+    }
+  };
+
+  // Trakt returns an episode rejection in the same grouped shape accepted by
+  // /sync/history: { ids, seasons: [{ number, episodes: [{ number }] }] }.
+  // Also accept the flatter shape used by older responses and our unit tests.
+  add(
+    value?.season ?? value?.season_number ?? value?.seasonNumber,
+    value?.number ?? value?.episode ?? value?.episode_number ?? value?.episodeNumber,
+  );
+  for (const seasonEntry of Array.isArray(value?.seasons) ? value.seasons : []) {
+    const season = seasonEntry?.number ?? seasonEntry?.season ?? seasonEntry?.season_number ?? seasonEntry?.seasonNumber;
+    for (const episodeEntry of Array.isArray(seasonEntry?.episodes) ? seasonEntry.episodes : []) {
+      add(
+        season,
+        episodeEntry?.number ?? episodeEntry?.episode ?? episodeEntry?.episode_number ?? episodeEntry?.episodeNumber,
+      );
+    }
+  }
+  return coordinates;
+}
+
+function providerIdsOverlap(media = {}, entry = {}) {
+  const value = traktNotFoundEntryValue(entry);
+  const entryIds = value?.ids || entry?.ids || {};
+  const mediaIds = media?.ids || {};
+  return Object.entries(entryIds).some(([provider, value]) => (
+    value != null
+    && String(value) !== ""
+    && mediaIds[provider] != null
+    && String(mediaIds[provider]).trim().toLowerCase() === String(value).trim().toLowerCase()
+  ));
+}
+
+function traktNotFoundMatchesMedia(media = {}, category = "", entry = {}) {
+  if (!providerIdsOverlap(media, entry)) return false;
+  const type = media.type || media.mediaType;
+  if (type !== "episode") return category === "movies";
+  if (category === "shows") return true;
+  const entryCoordinates = traktNotFoundEntryCoordinates(entry);
+  if (!entryCoordinates.length) return true;
+  return entryCoordinates.some(({ season, episode }) => (
+    Number(media.season) === season && Number(media.episode) === episode
+  ));
+}
+
+export function partitionTraktNotFoundBatch(batch = [], result = {}) {
+  const entries = traktNotFoundEntries(result);
+  if (!entries.length) return { accepted: [], rejected: [], entries };
+  const rejected = batch.filter((media) => entries.some(({ category, entry }) => traktNotFoundMatchesMedia(media, category, entry)));
+  return {
+    accepted: batch.filter((media) => !rejected.includes(media)),
+    rejected,
+    entries,
+  };
+}
+
+// Replace Trakt's append-only play log with the restored Plembfin history.
+// This is intentionally a clear-and-replay operation: POST /sync/history does
+// not edit an existing play's timestamp, so simply adding the restored rows
+// would leave the incorrect "today" plays in place forever.
+export async function replayTraktWatchHistory(rows = [], {
+  logger = () => {},
+  shouldCancel = async () => false,
+  batchSize = 100,
+  detailsResolver = getTmdbDetails,
+} = {}) {
+  let connection = await withFreshTraktConnection();
+  if (!connection) return { skipped: true, reason: "Trakt is not connected", cleared: 0, replayed: 0 };
+
+  const rawSourceRows = (Array.isArray(rows) ? rows : [])
+    .filter((row) => !["unwatched", "unplayed"].includes(String(row.sync_action || row.syncAction || "watched").toLowerCase()))
+    .sort((left, right) => String(left.watched_at || "").localeCompare(String(right.watched_at || "")) || String(left.id || "").localeCompare(String(right.id || "")));
+  const compoundProjection = canonicalizeCompoundEpisodeRows(rawSourceRows);
+  const sourceRows = compoundProjection.rows;
+  if (compoundProjection.mapped || compoundProjection.collapsed) {
+    logger(`Trakt restore: projected ${compoundProjection.mapped} split/compound coordinate(s) to canonical episode(s); collapsed ${compoundProjection.collapsed} same-session split pair(s).`);
+  }
+  const primaryHydrationCache = new Map();
+  const titleFallbackCache = new Map();
+  // Build identity evidence from the raw coordinates. Canonicalizing S05E21 +
+  // S05E22 to one Trakt coordinate must not erase the repeated-id evidence
+  // needed to recover the show's series identity.
+  const seriesIdentityIndex = buildRestoreSeriesIdentityIndex(rawSourceRows);
+  const coordinateIdentityIndex = buildRestoreCoordinateIdentityIndex(rawSourceRows);
+  const resolvedSeriesByShow = new Map();
+  const seriesResolutionCache = new Map();
+  const loggedSeriesFallbacks = new Set();
+  const restoreSourceByMedia = new WeakMap();
+  const resolved = new Array(sourceRows.length);
+  let pending = [];
+
+  const resolveRow = async (row, {
+    rowPrimaryHydrationCache = primaryHydrationCache,
+    rowTitleFallbackCache = titleFallbackCache,
+    rowSeriesResolutionCache = seriesResolutionCache,
+  } = {}) => {
+    if (await shouldCancel()) throw replayCancellationError();
+    const media = await prepareRestoreMediaForTrakt(row, {
+      seriesIdentityIndex,
+      coordinateIdentityIndex,
+      resolvedSeriesByShow,
+      seriesResolutionCache: rowSeriesResolutionCache,
+      detailsResolver,
+      logger,
+      loggedSeriesFallbacks,
+    });
+    const candidates = await trackerDispatchMediaCandidates(media, {
+      includeTitleFallback: true,
+      primaryHydrationCache: rowPrimaryHydrationCache,
+      titleFallbackCache: rowTitleFallbackCache,
+    });
+    const candidate = candidates[0];
+    if (!candidate) return null;
+    const resolvedCandidate = { ...candidate, source: "restore_replay", watched_at: media.watched_at };
+    restoreSourceByMedia.set(resolvedCandidate, { row, media });
+    return resolvedCandidate;
+  };
+
+  for (let index = 0; index < sourceRows.length; index += 1) {
+    const candidate = await resolveRow(sourceRows[index]);
+    if (candidate) resolved[index] = candidate;
+    else pending.push({ index, row: sourceRows[index] });
+  }
+
+  const resolutionRetryCount = 3;
+  for (let attempt = 1; pending.length && attempt <= resolutionRetryCount; attempt += 1) {
+    if (await shouldCancel()) throw replayCancellationError();
+    logger(`Trakt restore: retrying ${pending.length} unresolved item(s) (attempt ${attempt}/${resolutionRetryCount})...`);
+    await new Promise((resolve) => setTimeout(resolve, 750));
+    const retryPrimaryHydrationCache = new Map();
+    const retryTitleFallbackCache = new Map();
+    const retrySeriesResolutionCache = new Map();
+    const nextPending = [];
+    for (const item of pending) {
+      const candidate = await resolveRow(item.row, {
+        rowPrimaryHydrationCache: retryPrimaryHydrationCache,
+        rowTitleFallbackCache: retryTitleFallbackCache,
+        rowSeriesResolutionCache: retrySeriesResolutionCache,
+      });
+      if (candidate) resolved[item.index] = candidate;
+      else nextPending.push(item);
+    }
+    pending = nextPending;
+  }
+
+  if (pending.length) {
+    const examples = pending.slice(0, 5).map(({ row }) => row.title || "unknown title").join(", ");
+    const restoreIssues = pending.map(({ row }, index) => serializeRestoreIssue(
+      restoreMediaFromWatchRow(row),
+      row,
+      "Trakt could not resolve this restored item to a provider identity.",
+      index,
+    ));
+    throw Object.assign(
+      new Error(`Trakt could not resolve ${pending.length} restored item(s) after ${resolutionRetryCount} retries (for example: ${examples})`),
+      {
+        code: "not_found",
+        restoreIssues,
+        restoreIssueCount: pending.length,
+        restoreIssuesComplete: true,
+      },
+    );
+  }
+
+  const desired = resolved.filter(Boolean);
+
+  if (await shouldCancel()) throw replayCancellationError();
+  let existing = await fetchTraktPlayHistory(connection);
+  const existingByKey = new Map();
+  for (const entry of existing) {
+    const key = trackerMediaKey(entry.media);
+    if (key && !existingByKey.has(key)) existingByKey.set(key, entry.media);
+  }
+
+  const callBatch = async (items, state) => {
+    if (await shouldCancel()) throw replayCancellationError();
+    try {
+      return await setTraktWatchHistoryBatch(connection, items, state, { lane: "sync" });
+    } catch (error) {
+      if (error.status !== 401) throw error;
+      connection = await withFreshTraktConnection(true);
+      if (!connection) throw error;
+      return setTraktWatchHistoryBatch(connection, items, state, { lane: "sync" });
+    }
+  };
+
+  const removeBatches = historyBatches([...existingByKey.values()], batchSize);
+  let cleared = 0;
+  for (const batch of removeBatches) {
+    const result = await callBatch(batch, "unwatched");
+    const notFound = traktNotFoundCount(result);
+    if (notFound) throw new Error(`Trakt rejected ${notFound} item(s) while clearing existing history`);
+    cleared += batch.length;
+    logger(`Trakt restore: cleared ${cleared}/${existingByKey.size} existing item(s).`);
+  }
+
+  const addBatches = historyBatches(desired, batchSize);
+  let replayed = 0;
+  let replayRetryCalls = 0;
+  let rejectedPlays = [];
+  for (const batch of addBatches) {
+    const result = await callBatch(batch, "watched");
+    const notFound = traktNotFoundCount(result);
+    if (notFound) {
+      const partition = partitionTraktNotFoundBatch(batch, result);
+      if (!partition.rejected.length) {
+        logger(`Trakt restore: ${notFound} rejected play(s) could not be isolated from the batch response.`);
+        const restoreIssues = batch.map((media, index) => {
+          const source = restoreSourceByMedia.get(media);
+          return serializeRestoreIssue(
+            media,
+            source?.row || {},
+            "Trakt returned not_found but did not identify the affected play in its response.",
+            index,
+            { candidate: true },
+          );
+        });
+        throw Object.assign(
+          new Error(`Trakt rejected ${notFound} restored play(s) as not_found without identifying the affected item(s)`),
+          {
+            code: "not_found",
+            restoreIssues,
+            restoreIssueCount: notFound,
+            restoreIssuesComplete: false,
+          },
+        );
+      }
+      rejectedPlays.push(...partition.rejected.map((media) => ({
+        media,
+        desiredIndex: desired.indexOf(media),
+        sourceRow: restoreSourceByMedia.get(media)?.row || {},
+      })));
+      replayed += partition.accepted.length;
+      logger(`Trakt restore: queued ${partition.rejected.length} rejected play(s) for retry; replayed ${replayed}/${desired.length} historical play(s) so far.`);
+      continue;
+    }
+    replayed += batch.length;
+    logger(`Trakt restore: replayed ${replayed}/${desired.length} historical play(s).`);
+  }
+
+  const rejectedRetryCount = 3;
+  for (let attempt = 1; rejectedPlays.length && attempt <= rejectedRetryCount; attempt += 1) {
+    if (await shouldCancel()) throw replayCancellationError();
+    logger(`Trakt restore: retrying ${rejectedPlays.length} rejected play(s) (attempt ${attempt}/${rejectedRetryCount})...`);
+    await new Promise((resolve) => setTimeout(resolve, 750));
+    const retrySeriesResolutionCache = new Map();
+    const nextRejected = [];
+    for (const original of rejectedPlays) {
+      if (await shouldCancel()) throw replayCancellationError();
+      let retryMedia = original.media;
+      if ((retryMedia.type || retryMedia.mediaType) === "episode") {
+        const refreshedIds = await resolveRestoreSeriesIds(retryMedia, [retryMedia.ids], {
+          cache: retrySeriesResolutionCache,
+          detailsResolver,
+        });
+        if (refreshedIds) retryMedia = { ...retryMedia, ids: refreshedIds };
+      }
+      replayRetryCalls += 1;
+      try {
+        const result = await callBatch([retryMedia], "watched");
+        if (traktNotFoundCount(result)) {
+          nextRejected.push({
+            media: retryMedia,
+            desiredIndex: original.desiredIndex,
+            sourceRow: original.sourceRow || restoreSourceByMedia.get(original.media)?.row || {},
+            reason: "Trakt returned not_found for this play after retrying its stored mapping.",
+          });
+          continue;
+        }
+        if (original.desiredIndex >= 0) desired[original.desiredIndex] = retryMedia;
+        replayed += 1;
+        logger(`Trakt restore: replayed ${replayed}/${desired.length} historical play(s).`);
+      } catch (error) {
+        nextRejected.push({
+          media: retryMedia,
+          desiredIndex: original.desiredIndex,
+          sourceRow: original.sourceRow || restoreSourceByMedia.get(original.media)?.row || {},
+          reason: error.message || String(error),
+        });
+      }
+    }
+    rejectedPlays = nextRejected;
+  }
+
+  if (rejectedPlays.length) {
+    const examples = rejectedPlays.slice(0, 5).map(({ media }) => media.title || "unknown title").join(", ");
+    const restoreIssues = rejectedPlays.map(({ media, sourceRow, reason }, index) => serializeRestoreIssue(
+      media,
+      sourceRow,
+      reason || "Trakt could not match this restored play.",
+      index,
+    ));
+    throw Object.assign(
+      new Error(`Trakt rejected ${rejectedPlays.length} restored play(s) after ${rejectedRetryCount} retries (for example: ${examples})`),
+      {
+        code: "not_found",
+        restoreIssues,
+        restoreIssueCount: rejectedPlays.length,
+        restoreIssuesComplete: true,
+      },
+    );
+  }
+
+  // Keep the local Trakt projection aligned with the remote replacement before
+  // the next scheduled poll can interpret the old snapshot as an unwatch.
+  const latestByKey = new Map();
+  for (const media of desired) latestByKey.set(trackerMediaKey(media), media);
+  const snapshot = [...latestByKey.entries()].map(([mediaKey, media]) => ({
+    mediaKey,
+    media,
+    watchedAt: Date.parse(String(media.watched_at || "")) || Date.now(),
+  }));
+  replaceTrackerSnapshot("trakt", snapshot);
+  recordTrackerOutboundBatch("trakt", snapshot.map(({ mediaKey, media }) => ({ mediaKey, media, state: "watched" })));
+  const latestWatchedAt = desired.reduce((latest, media) => Math.max(latest, Date.parse(String(media.watched_at || "")) || 0), 0);
+  updateTrackerConnectionStatus("trakt", { historySyncedAt: latestWatchedAt || Date.now(), lastError: "" });
+  existing = null;
+  return {
+    skipped: false,
+    cleared,
+    replayed,
+    compoundMapped: compoundProjection.mapped,
+    compoundCollapsed: compoundProjection.collapsed,
+    clearBatches: removeBatches.length,
+    replayBatches: addBatches.length + replayRetryCalls,
+  };
+}
+
+// Retry one rejected restore play without clearing or replaying the rest of
+// Trakt history. The route calls this only while the authoritative restore
+// fence still belongs to the failed run. Re-read the source row so a user can
+// open the item in Plembfin, fix its match, and then retry the corrected ids.
+export async function retryTraktRestoreItem(row = {}, {
+  rows = [],
+  logger = () => {},
+  detailsResolver = getTmdbDetails,
+  shouldCancel = async () => false,
+} = {}) {
+  let connection;
+  try {
+    connection = await withFreshTraktConnection();
+  } catch (error) {
+    return { success: false, code: error.code || "connection", error: error.message || String(error) };
+  }
+  if (!connection) return { success: false, code: "not_connected", error: "Trakt is not connected." };
+
+  const sourceRows = (Array.isArray(rows) && rows.length ? rows : [row])
+    .filter((candidate) => !["unwatched", "unplayed"].includes(String(candidate?.sync_action || candidate?.syncAction || "watched").toLowerCase()))
+    .sort((left, right) => String(left?.watched_at || "").localeCompare(String(right?.watched_at || "")) || String(left?.id || "").localeCompare(String(right?.id || "")));
+  const projection = canonicalizeCompoundEpisodeRows(sourceRows);
+  const rowId = String(row?.id || "").trim();
+  const projectedRow = projection.rows.find((candidate) => rowId && String(candidate?.id || "") === rowId) || row;
+  if (!projectedRow || !String(projectedRow.media_type || projectedRow.mediaType || projectedRow.type || "").trim()) {
+    return { success: false, code: "not_found", error: "The restored Plembfin watch-history row could not be found." };
+  }
+
+  const primaryHydrationCache = new Map();
+  const titleFallbackCache = new Map();
+  const seriesIdentityIndex = buildRestoreSeriesIdentityIndex(sourceRows);
+  const coordinateIdentityIndex = buildRestoreCoordinateIdentityIndex(sourceRows);
+  const resolvedSeriesByShow = new Map();
+  const seriesResolutionCache = new Map();
+  const loggedSeriesFallbacks = new Set();
+  let media;
+  try {
+    media = await prepareRestoreMediaForTrakt(projectedRow, {
+      seriesIdentityIndex,
+      coordinateIdentityIndex,
+      resolvedSeriesByShow,
+      seriesResolutionCache,
+      detailsResolver,
+      logger,
+      loggedSeriesFallbacks,
+    });
+  } catch (error) {
+    return { success: false, code: error.code || "not_found", error: error.message || String(error) };
+  }
+  const candidates = await trackerDispatchMediaCandidates(media, {
+    includeTitleFallback: true,
+    primaryHydrationCache,
+    titleFallbackCache,
+    detailsResolver,
+  });
+  if (!candidates.length) {
+    return { success: false, code: "not_found", error: "Plembfin could not resolve this watch-history row to a Trakt identity." };
+  }
+
+  const callBatch = async (candidate) => {
+    if (await shouldCancel()) {
+      return { cancelled: true };
+    }
+    try {
+      return await setTraktWatchHistoryBatch(connection, [candidate], "watched", { lane: "sync" });
+    } catch (error) {
+      if (error.status !== 401) throw error;
+      connection = await withFreshTraktConnection(true);
+      if (!connection) throw error;
+      return setTraktWatchHistoryBatch(connection, [candidate], "watched", { lane: "sync" });
+    }
+  };
+
+  let lastError = "Trakt could not match this restored play.";
+  for (const candidate of candidates) {
+    const mediaKey = trackerMediaKey(candidate);
+    recordTrackerOutbound("trakt", mediaKey, candidate, "watched");
+    try {
+      const result = await callBatch(candidate);
+      if (result?.cancelled) return { success: false, code: "restore_changed", error: "The restore changed or was cancelled before this play was repaired." };
+      if (traktNotFoundCount(result)) {
+        lastError = "Trakt returned not_found for this play using the current Plembfin mapping.";
+        continue;
+      }
+      recordTrackerOutbound("trakt", mediaKey, candidate, "watched");
+      updateTrackerConnectionStatus("trakt", {
+        historySyncedAt: Date.parse(String(candidate.watched_at || "")) || Date.now(),
+        lastError: "",
+      });
+      return { success: true, media: candidate, mediaKey };
+    } catch (error) {
+      lastError = error.message || String(error);
+    }
+  }
+  return { success: false, code: "not_found", error: lastError };
+}
+
 async function dispatchTrakt(media, state, lane = "sync") {
+  // Trakt has one canonical coordinate for some two-part episodes. Local
+  // source media may arrive as the second split part, so normalize the
+  // outbound tracker payload while keeping the local history row untouched.
+  media = canonicalCompoundEpisodeMedia(media);
   let connection = await withFreshTraktConnection();
   if (!connection) return { target: "trakt", status: "skipped", detail: "Trakt is not connected" };
   // Anything sourced from Trakt itself - the live poller ("trakt") or a bulk

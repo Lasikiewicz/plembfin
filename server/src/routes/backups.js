@@ -6,11 +6,15 @@ import { fetchWithTimeout } from "../utils/outbound.js";
 import { db, writeAuditLog } from "../db.js";
 import { createLoopStore } from "../utils/loopStore.js";
 import { listActiveSessions } from "../utils/activeSessions.js";
-import { claimSyncOperation, loadMediaConfig, loadRuntimeState, releaseSyncOperation, RESTORE_KIND_BACKUP, setRuntimeState, appendRuntimeLog, touchSyncOperation } from "../utils/configStore.js";
+import { claimSyncOperation, clearRestoreSyncState, isAuthoritativeRestoreActive, loadMediaConfig, loadRuntimeState, releaseSyncOperation, RESTORE_KIND_BACKUP, setRuntimeState, appendRuntimeLog, touchSyncOperation } from "../utils/configStore.js";
 import { markPlexUnplayedByRatingKey, fetchPlexWatchedItems } from "../utils/plexClient.js";
 import { markEmbyUnplayedById, fetchEmbyWatchedItems } from "../utils/embyClient.js";
 import { markJellyfinUnplayedById, fetchJellyfinWatchedItems } from "../utils/jellyfinClient.js";
-import { syncMediaPlaystate, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
+import { recordOutboundUnplayedMarks, syncMediaPlaystate, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
+import { replayTraktWatchHistory } from "../utils/trackerDispatcher.js";
+import { buildCompoundEpisodeIndex, compoundEpisodeForRow } from "../utils/compoundEpisode.js";
+import { createRestoreLookupCache } from "../utils/restoreLookupCache.js";
+import { cancelSyncJobsForAuthoritativeRestore } from "../utils/backgroundJobs.js";
 import { BACKUP_FORMAT, BACKUP_VERSION, backupManifest, exportCollectionPage, importCollectionBatch } from "../utils/backup.js";
 import { batchInsertWatchRecords, requireDb } from "../utils/dataRepo.js";
 import {
@@ -48,6 +52,9 @@ export async function handleImport(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
+  if (isAuthoritativeRestoreActive()) {
+    return sendJson(res, { ok: false, error: "An authoritative watch-history restore is active; watch-history imports are paused until it completes." }, 409);
+  }
   const body = await readJson(req);
   const records = Array.isArray(body) ? body : body.records;
   if (!Array.isArray(records)) return sendJson(res, { error: "Expected an array of records" }, 400);
@@ -67,6 +74,7 @@ export async function handleBackupExport(req, res) {
     return sendJson(res, exportCollectionPage(collection, {
       cursor: req.query?.cursor,
       limit: req.query?.limit,
+      browserSafe: true,
     }));
   } catch (error) {
     return sendJson(res, { error: error.message }, 400);
@@ -77,6 +85,9 @@ export async function handleBackupImport(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
+  if (isAuthoritativeRestoreActive()) {
+    return sendJson(res, { ok: false, error: "An authoritative watch-history restore is active; backup imports are paused until it completes." }, 409);
+  }
 
   const body = await readJson(req);
   if (body.format !== BACKUP_FORMAT || Number(body.version) !== BACKUP_VERSION) {
@@ -86,7 +97,7 @@ export async function handleBackupImport(req, res) {
   try {
     return sendJson(res, {
       ok: true,
-      ...importCollectionBatch(String(body.collection || ""), body.documents, { reset: body.reset === true }),
+      ...importCollectionBatch(String(body.collection || ""), body.documents, { reset: body.reset === true, portable: body.portable === true }),
     });
   } catch (error) {
     return sendJson(res, { error: error.message }, 400);
@@ -255,9 +266,12 @@ async function exchangeDropboxCode(destination, code) {
 const RESTORE_SKEW_BUFFER_MS = 5000;
 const POST_RESTORE_WEBHOOK_GUARD_MS = 24 * 60 * 60 * 1000;
 // How many items the restore push/clear processes at once, and the per-item timeout so a single
-// hung app call can't stall the whole job.
-const RESTORE_PUSH_CONCURRENCY = Math.min(Math.max(Number(process.env.PLEMBFIN_RESTORE_CONCURRENCY || 24), 1), 64);
+// hung app call can't stall the whole job. Keep the default conservative: each item fans out to
+// every connected media server, so a value that looks modest here can otherwise create dozens
+// of simultaneous requests against a home server.
+const RESTORE_PUSH_CONCURRENCY = Math.min(Math.max(Number(process.env.PLEMBFIN_RESTORE_CONCURRENCY || 8), 1), 64);
 const RESTORE_ITEM_TIMEOUT_MS = 30000;
+const RESTORE_TARGET_FAILURE_THRESHOLD = Math.min(Math.max(Number(process.env.PLEMBFIN_RESTORE_TARGET_FAILURE_THRESHOLD || 3), 1), 10);
 
 function normalizedTitlePart(value = "") {
   return String(value || "").trim().toLowerCase();
@@ -356,12 +370,14 @@ function createBatchedRuntimeLogger(field, { intervalMs = 2000 } = {}) {
   return { log, stop };
 }
 
-function mediaFromPlaystateRow(row) {
+function mediaFromPlaystateRow(row, compoundIndex = null) {
   const media = {
     title: row.title,
     type: row.media_type,
     source: "restore",
     isValid: true,
+    watched_at: row.watched_at || undefined,
+    watchedAt: row.watched_at || undefined,
     ids: {
       imdb: row.imdb_id || undefined,
       tmdb: row.tmdb_id || undefined,
@@ -371,101 +387,360 @@ function mediaFromPlaystateRow(row) {
   if (String(row.media_type) === "episode") {
     media.season = row.season != null ? Number(row.season) : undefined;
     media.episode = row.episode != null ? Number(row.episode) : undefined;
+    const compoundEpisode = compoundEpisodeForRow(row, compoundIndex);
+    if (compoundEpisode) media.compound_episode = compoundEpisode;
   }
   return media;
 }
 
-// Push the just-restored playstate to every connected app. `source: "restore"` makes
-// getTargetsForSource fan out to all three platforms.
-async function pushRestoredStateToApps(config, logLine) {
+function restoreTargetConfigured(config = {}, target) {
+  const section = config?.[target] || {};
+  if (section.disabled === true) return false;
+  if (target === "plex") return Boolean(section.baseUrl && section.token);
+  return Boolean(section.baseUrl && section.apiKey && section.userId);
+}
+
+function restoreOutcomeIsExpectedSkip(outcome = {}) {
+  const state = outcome.targetState || {};
+  const detail = String(
+    outcome.error?.message
+    || state.detail
+    || outcome.summary?.details
+    || "",
+  ).trim();
+  return state.status === "skipped" && /no matching item/i.test(detail);
+}
+
+function restoreProjectionIssue(row, outcome, historyRow = null) {
+  const target = String(outcome.target || "").trim().toLowerCase();
+  const state = outcome.targetState || {};
+  const detail = String(
+    outcome.error?.message
+    || state.detail
+    || outcome.summary?.details
+    || "The connected app did not confirm the restored state.",
+  ).trim();
+  const isMissing = restoreOutcomeIsExpectedSkip(outcome);
+  const sourceRowId = historyRow?.id ? String(historyRow.id) : "";
+  const sourceMediaKey = row.media_key ? String(row.media_key) : "";
+  const sourceTitle = String(row.title || "Unknown media");
+  const type = String(row.media_type || "unknown").toLowerCase();
+  return {
+    key: `restore-target:${target}:${sourceMediaKey || sourceTitle}:${row.season ?? "x"}:${row.episode ?? "x"}`.slice(0, 280),
+    provider: target,
+    target,
+    category: "media_server_projection",
+    sourceRowId,
+    sourceMediaKey,
+    sourceTitle,
+    title: sourceTitle,
+    sourceShowTitle: row.show_title || historyRow?.show_title || "",
+    showTitle: row.show_title || historyRow?.show_title || "",
+    type,
+    season: row.season != null ? Number(row.season) : undefined,
+    episode: row.episode != null ? Number(row.episode) : undefined,
+    sourceSeason: row.season != null ? Number(row.season) : undefined,
+    sourceEpisode: row.episode != null ? Number(row.episode) : undefined,
+    watchedAt: row.watched_at || undefined,
+    sourceIds: {
+      imdb: row.imdb_id || undefined,
+      tmdb: row.tmdb_id || undefined,
+      tvdb: row.tvdb_id || undefined,
+    },
+    ids: {
+      imdb: row.imdb_id || undefined,
+      tmdb: row.tmdb_id || undefined,
+      tvdb: row.tvdb_id || undefined,
+    },
+    state: String(row.state || "watched").toLowerCase() === "unwatched" ? "unwatched" : "watched",
+    expectedSkip: isMissing,
+    reason: isMissing
+      ? `No matching item was found on ${target}; refresh or correct the library mapping, then retry.`
+      : detail,
+    lastError: detail,
+    repairAttempts: 0,
+    candidate: false,
+  };
+}
+
+// Push the just-restored playstate to every connected app. Each target gets
+// its own bounded operation, so a slow Emby lookup cannot make Plex,
+// Jellyfin, or the Trakt replay wait for a second whole-row retry. The
+// restore-scoped lookup cache is shared by all target jobs in this pass.
+async function pushRestoredStateToApps(config, logLine, { shouldCancel = async () => false } = {}) {
   const loopStore = createLoopStore();
+  const lookupCache = createRestoreLookupCache();
   const rows = requireDb().prepare("SELECT * FROM playstate").all();
-  logLine(`Pushing ${rows.length} restored item(s) to connected apps (concurrency ${RESTORE_PUSH_CONCURRENCY})...`);
+  const historyRows = requireDb().prepare("SELECT * FROM watch_history").all();
+  const compoundIndex = buildCompoundEpisodeIndex(historyRows);
+  const targets = ["plex", "emby", "jellyfin"].filter((target) => restoreTargetConfigured(config, target));
+  const historyByMediaKey = new Map();
+  for (const row of historyRows) {
+    const mediaKey = String(row.media_key || "").trim();
+    if (mediaKey && !historyByMediaKey.has(mediaKey)) historyByMediaKey.set(mediaKey, row);
+  }
+  const indexedRows = rows.map((row, index) => ({ row, index }));
+  const jobs = indexedRows.flatMap(({ row, index }) => targets.map((target) => ({ row, index, target })));
+  logLine(`Pushing ${rows.length} restored item(s) to connected apps (target concurrency ${RESTORE_PUSH_CONCURRENCY}; ${targets.length || "no"} target${targets.length === 1 ? "" : "s"})...`);
   let done = 0;
-  let watched = 0;
-  let unwatched = 0;
-  let failed = 0;
-  await runWithConcurrency(rows, RESTORE_PUSH_CONCURRENCY, async (row) => {
-    const media = mediaFromPlaystateRow(row);
+  let cancelled = false;
+  const outcomes = new Map();
+  const targetHealth = new Map(targets.map((target) => [target, {
+    transportFailures: 0,
+    circuitOpen: false,
+  }]));
+
+  const isTransportFailure = (outcome) => {
+    const detail = String(outcome.error?.message || outcome.targetState?.detail || "").toLowerCase();
+    return !outcome.targetState
+      || /timed out|timeout|network|refused|econn|eacces|fetch failed|socket|status 4(?:01|03)\b|status 5\d\d\b/.test(detail);
+  };
+
+  const pushOne = async (row, target) => {
+    const media = {
+      ...mediaFromPlaystateRow(row, compoundIndex),
+      syncTargets: [target],
+      restoreLookupCache: lookupCache,
+    };
     const isWatched = String(row.state || "watched").toLowerCase() !== "unwatched";
-    try {
-      if (isWatched) {
-        await withTimeout(syncMediaPlaystate(media, config, loopStore), RESTORE_ITEM_TIMEOUT_MS, media.title);
-        watched++;
-      } else {
-        await withTimeout(syncMediaUnplayedPlaystate(media, config, loopStore), RESTORE_ITEM_TIMEOUT_MS, media.title);
-        unwatched++;
-      }
-    } catch (error) {
-      failed++;
-      logLine(`  ! Failed to push "${media.title}": ${error.message}`);
+    const health = targetHealth.get(target);
+    if (health?.circuitOpen) {
+      return {
+        ok: false,
+        isWatched,
+        target,
+        media,
+        error: new Error(`${target} was marked unavailable after ${RESTORE_TARGET_FAILURE_THRESHOLD} consecutive connection failures; no further calls were made in this restore.`),
+      };
     }
+    try {
+      const summary = isWatched
+        ? await withTimeout(syncMediaPlaystate(media, config, loopStore, {
+          includeTrackers: false,
+          trackDispatch: false,
+          shouldDefer: shouldCancel,
+        }), RESTORE_ITEM_TIMEOUT_MS, `${target}: ${media.title}`)
+        : await withTimeout(syncMediaUnplayedPlaystate(media, config, loopStore, {
+          includeTrackers: false,
+          trackDispatch: false,
+          shouldDefer: shouldCancel,
+        }), RESTORE_ITEM_TIMEOUT_MS, `${target}: ${media.title}`);
+      const targetState = (summary?.targetStates || []).find((entry) => entry.target === target);
+      const wasCancelled = Boolean(summary?.deferred || targetState?.status === "deferred" || await shouldCancel());
+      const expectedSkip = !wasCancelled && restoreOutcomeIsExpectedSkip({ summary, targetState });
+      const outcome = {
+        // A media item that is absent from one connected library is an
+        // expected availability skip during a restore, not a failed restore.
+        ok: !wasCancelled && (targetState?.status === "success" || expectedSkip),
+        expectedSkip,
+        cancelled: wasCancelled,
+        isWatched,
+        target,
+        media,
+        summary,
+        targetState,
+      };
+      if (!outcome.ok && !outcome.cancelled && isTransportFailure(outcome)) {
+        health.transportFailures += 1;
+        if (health.transportFailures >= RESTORE_TARGET_FAILURE_THRESHOLD) {
+          health.circuitOpen = true;
+          logLine(`  ! ${target} has reached ${RESTORE_TARGET_FAILURE_THRESHOLD} connection failures; remaining ${target} restore items will be recorded for attention without more remote calls.`);
+        }
+      } else if (outcome.ok) {
+        health.transportFailures = 0;
+      }
+      return outcome;
+    } catch (error) {
+      const outcome = { ok: false, isWatched, target, media, error };
+      if (isTransportFailure(outcome)) {
+        health.transportFailures += 1;
+        if (health.transportFailures >= RESTORE_TARGET_FAILURE_THRESHOLD) {
+          health.circuitOpen = true;
+          logLine(`  ! ${target} has reached ${RESTORE_TARGET_FAILURE_THRESHOLD} connection failures; remaining ${target} restore items will be recorded for attention without more remote calls.`);
+        }
+      }
+      return outcome;
+    }
+  };
+
+  const progress = () => {
+    let watched = 0;
+    let unwatched = 0;
+    let failed = 0;
+    let expectedSkipped = 0;
+    let expectedSkipRows = 0;
+    for (const { row, index } of indexedRows) {
+      if (!targets.length) {
+        if (String(row.state || "watched").toLowerCase() === "unwatched") unwatched++;
+        else watched++;
+        continue;
+      }
+      const rowOutcomes = targets.map((target) => outcomes.get(`${index}:${target}`));
+      if (rowOutcomes.some((outcome) => outcome?.cancelled)) continue;
+      if (rowOutcomes.length === targets.length && rowOutcomes.every((outcome) => outcome?.ok)) {
+        const rowExpectedSkips = rowOutcomes.filter((outcome) => outcome?.expectedSkip).length;
+        expectedSkipped += rowExpectedSkips;
+        if (rowExpectedSkips) expectedSkipRows++;
+        if (String(row.state || "watched").toLowerCase() === "unwatched") unwatched++;
+        else watched++;
+      } else if (rowOutcomes.some(Boolean)) {
+        failed++;
+      }
+    }
+    return { watched, unwatched, failed, expectedSkipped, expectedSkipRows };
+  };
+
+  await runWithConcurrency(jobs, RESTORE_PUSH_CONCURRENCY, async ({ row, index, target }) => {
+    if (await shouldCancel()) {
+      cancelled = true;
+      outcomes.set(`${index}:${target}`, { ok: false, cancelled: true, target });
+      return;
+    }
+    const outcome = await pushOne(row, target);
+    outcomes.set(`${index}:${target}`, outcome);
+    if (!outcome.ok && !outcome.cancelled) {
+      logLine(`  ! Failed to push "${outcome.media.title}" to ${target}: ${outcome.error?.message || outcome.targetState?.detail || "target reported an error"}`);
+    }
+    if (outcome.cancelled) cancelled = true;
     done++;
-    if (done % 25 === 0 || done === rows.length) {
-      logLine(`  Pushed ${done}/${rows.length} (watched ${watched}, unwatched ${unwatched}, failed ${failed})`);
+    if (done % 25 === 0 || done === jobs.length) {
+      const current = progress();
+      logLine(`  Pushed ${done}/${jobs.length} target operation(s) (rows complete: watched ${current.watched}, unwatched ${current.unwatched}, failed ${current.failed})`);
     }
   });
-  return { total: rows.length, watched, unwatched, failed };
+
+  const issues = [];
+  const expectedSkips = [];
+  for (const { row, index, target } of jobs) {
+    const outcome = outcomes.get(`${index}:${target}`);
+    if (!outcome || outcome.cancelled) continue;
+    if (outcome.expectedSkip) {
+      expectedSkips.push(restoreProjectionIssue(row, outcome, historyByMediaKey.get(String(row.media_key || "").trim())));
+    } else if (!outcome.ok) {
+      issues.push(restoreProjectionIssue(row, outcome, historyByMediaKey.get(String(row.media_key || "").trim())));
+    }
+  }
+  const final = progress();
+  return {
+    total: rows.length,
+    ...final,
+    issues,
+    expectedSkips,
+    expectedSkipCount: expectedSkips.length,
+    targetOperations: jobs.length,
+    cancelled,
+  };
 }
 
 // Full-wipe clear pass: mark every item each app currently reports as watched as unwatched,
 // so that the subsequent push re-marks only the backup's watched set and the apps end up
 // matching the backup exactly. Operates on native item ids (no re-resolution).
-async function clearAppWatchstates(config, logLine) {
-  const summary = { plex: 0, emby: 0, jellyfin: 0, failed: 0 };
+async function clearAppWatchstates(config, logLine, { shouldCancel = async () => false } = {}) {
+  const summary = { plex: 0, emby: 0, jellyfin: 0, failed: 0, cancelled: false };
+  const loopStore = createLoopStore();
   const plexActive = !config?.plex?.disabled && Boolean(config?.plex?.baseUrl && config?.plex?.token);
   const embyActive = !config?.emby?.disabled && Boolean(config?.emby?.baseUrl && config?.emby?.apiKey && config?.emby?.userId);
   const jellyfinActive = !config?.jellyfin?.disabled && Boolean(config?.jellyfin?.baseUrl && config?.jellyfin?.apiKey && config?.jellyfin?.userId);
 
+  const mediaForClearedItem = (item, itemId) => ({
+    source: "restore",
+    title: item.title || item.Name || item.name || item.SeriesName || String(itemId || ""),
+    type: String(item.type || item.Type || "").toLowerCase() === "episode" ? "episode" : "movie",
+    itemId,
+    ids: {
+      imdb: item.imdb_id || item.imdb || item.ProviderIds?.Imdb || item.providerIds?.Imdb || undefined,
+      tmdb: item.tmdb_id || item.tmdb || item.ProviderIds?.Tmdb || item.providerIds?.Tmdb || undefined,
+      tvdb: item.tvdb_id || item.tvdb || item.ProviderIds?.Tvdb || item.providerIds?.Tvdb || undefined,
+    },
+  });
+
   // Mark one platform's watched items unplayed, in parallel with a per-item timeout.
-  const clearPlatform = async (items, getId, unmark) => {
+  const clearPlatform = async (target, items, getId, unmark) => {
     let cleared = 0;
     let failed = 0;
+    let cancelled = false;
     await runWithConcurrency(items, RESTORE_PUSH_CONCURRENCY, async (item) => {
+      if (await shouldCancel()) {
+        cancelled = true;
+        return;
+      }
       try {
-        await withTimeout(unmark(getId(item)), RESTORE_ITEM_TIMEOUT_MS);
+        const itemId = getId(item);
+        // The clear pass uses native-id endpoints rather than the normal
+        // orchestrator, so explicitly prime the same outbound-unplayed ledger
+        // before the request. A delayed callback from the wipe must not be
+        // mistaken for a user's unwatch after the restore fence is released.
+        const media = mediaForClearedItem(item, itemId);
+        await recordOutboundUnplayedMarks(media, [target], loopStore).catch(() => null);
+        const result = await withTimeout(unmark(itemId), RESTORE_ITEM_TIMEOUT_MS);
+        if (result?.status !== "not_found") {
+          await recordOutboundUnplayedMarks(mediaForClearedItem(item, result?.itemId || itemId), [target], loopStore).catch(() => null);
+        }
         cleared++;
       } catch (error) {
         failed++;
       }
     });
-    return { cleared, failed };
+    return { cleared, failed, cancelled };
   };
 
   if (plexActive) {
     try {
       const items = await fetchPlexWatchedItems(config.plex);
+      if (await shouldCancel()) return { ...summary, cancelled: true };
       logLine(`Clearing ${items.length} watched item(s) on Plex...`);
-      const r = await clearPlatform(items, (i) => i.ratingKey || i.key, (id) => markPlexUnplayedByRatingKey(config.plex, id));
+      const r = await clearPlatform("plex", items, (i) => i.ratingKey || i.key, (id) => markPlexUnplayedByRatingKey(config.plex, id));
       summary.plex = r.cleared;
       summary.failed += r.failed;
+      if (r.cancelled) return { ...summary, cancelled: true };
     } catch (error) {
       logLine(`  ! Plex clear failed: ${error.message}`);
+      summary.failed += 1;
     }
   }
   if (embyActive) {
     try {
       const items = await fetchEmbyWatchedItems(config.emby);
+      if (await shouldCancel()) return { ...summary, cancelled: true };
       logLine(`Clearing ${items.length} watched item(s) on Emby...`);
-      const r = await clearPlatform(items, (i) => i.Id, (id) => markEmbyUnplayedById(config.emby, id));
+      const r = await clearPlatform("emby", items, (i) => i.Id, (id) => markEmbyUnplayedById(config.emby, id));
       summary.emby = r.cleared;
       summary.failed += r.failed;
+      if (r.cancelled) return { ...summary, cancelled: true };
     } catch (error) {
       logLine(`  ! Emby clear failed: ${error.message}`);
+      summary.failed += 1;
     }
   }
   if (jellyfinActive) {
     try {
       const items = await fetchJellyfinWatchedItems(config.jellyfin);
+      if (await shouldCancel()) return { ...summary, cancelled: true };
       logLine(`Clearing ${items.length} watched item(s) on Jellyfin...`);
-      const r = await clearPlatform(items, (i) => i.Id, (id) => markJellyfinUnplayedById(config.jellyfin, id));
+      const r = await clearPlatform("jellyfin", items, (i) => i.Id, (id) => markJellyfinUnplayedById(config.jellyfin, id));
       summary.jellyfin = r.cleared;
       summary.failed += r.failed;
+      if (r.cancelled) return { ...summary, cancelled: true };
     } catch (error) {
       logLine(`  ! Jellyfin clear failed: ${error.message}`);
+      summary.failed += 1;
     }
   }
   return summary;
+}
+
+function restoreIssueProvider(issue = {}) {
+  return String(issue.provider || issue.target || "").trim().toLowerCase();
+}
+
+function restoreFailureMessage(issues = [], fallback = "One or more restored projections reported failures.") {
+  const providers = [...new Set(issues.map(restoreIssueProvider).filter(Boolean))];
+  if (!issues.length) return fallback;
+  if (providers.length === 1 && providers[0] === "trakt") {
+    return `Trakt rejected ${issues.length} restored play${issues.length === 1 ? "" : "s"}; item-level attention is required.`;
+  }
+  const providerText = providers.length ? ` on ${providers.join(", ")}` : "";
+  return `${issues.length} restored item projection${issues.length === 1 ? "" : "s"} still need attention${providerText}.`;
 }
 
 // Background reconcile job, kicked off after the synchronous DB restore. Optionally wipes app
@@ -490,44 +765,129 @@ async function runRestoreReconcileJob(clearMode, ownerId) {
   }, 30000);
   if (typeof heartbeat.unref === "function") heartbeat.unref();
   let result;
+  const restoreStillOwned = async () => {
+    const runtime = await loadRuntimeState().catch(() => null);
+    return runtime?.restoreSyncActive === true && String(runtime.restoreSyncRunId || "") === String(ownerId);
+  };
   try {
     const config = await loadMediaConfig();
+    if (!(await restoreStillOwned())) throw new Error("Authoritative restore was cancelled before app reconciliation started");
+    let cleared = null;
     if (clearMode === "wipe") {
       log("Clear mode: full wipe â€” marking every watched item on each app as unwatched.");
-      const cleared = await clearAppWatchstates(config, log);
+      cleared = await clearAppWatchstates(config, log, { shouldCancel: async () => !(await restoreStillOwned()) });
+      if (cleared.cancelled || !(await restoreStillOwned())) throw new Error("Authoritative restore was cancelled during app watch-state clearing");
       log(`Clear complete: Plex ${cleared.plex}, Emby ${cleared.emby}, Jellyfin ${cleared.jellyfin}, failed ${cleared.failed}.`);
     } else {
       log("Clear mode: reconcile â€” pushing only items tracked by the backup.");
     }
-    const pushed = await pushRestoredStateToApps(config, log);
-    log(`Push complete: ${pushed.watched} watched, ${pushed.unwatched} unwatched, ${pushed.failed} failed.`);
-    result = { success: true, clearMode, pushed };
+    const pushed = await pushRestoredStateToApps(config, log, { shouldCancel: async () => !(await restoreStillOwned()) });
+    if (pushed.cancelled || !(await restoreStillOwned())) throw new Error("Authoritative restore was cancelled during app reconciliation");
+    log(`Push complete: ${pushed.watched} watched, ${pushed.unwatched} unwatched, ${pushed.failed} failed row(s), ${pushed.issues.length} actionable target issue(s), ${pushed.expectedSkipCount || 0} expected availability skip(s).`);
+    const historyRows = requireDb().prepare("SELECT * FROM watch_history WHERE sync_action IS NULL OR sync_action NOT IN ('unwatched', 'unplayed') ORDER BY watched_at ASC, id ASC").all();
+    log(`Replaying ${historyRows.length} historical watched event(s) to Trakt...`);
+    let trakt;
+    try {
+      trakt = await replayTraktWatchHistory(historyRows, {
+        logger: log,
+        shouldCancel: async () => !(await restoreStillOwned()),
+      });
+    } catch (error) {
+      // A target-level app failure must not prevent the Trakt replacement from
+      // running. Preserve both issue sets so the attention screen can repair
+      // each target independently after the pass completes.
+      trakt = {
+        success: false,
+        error: error.message || String(error),
+        ...(Array.isArray(error.restoreIssues) ? { restoreIssues: error.restoreIssues } : {}),
+        ...(error.restoreIssueCount != null ? { restoreIssueCount: Number(error.restoreIssueCount) || 0 } : {}),
+        ...(error.restoreIssuesComplete !== undefined ? { restoreIssuesComplete: error.restoreIssuesComplete !== false } : {}),
+      };
+      log(`  ! Trakt replay ended with attention: ${trakt.error}`);
+    }
+    if (trakt?.skipped) log(`Trakt replay skipped: ${trakt.reason}.`);
+    const pushedIssues = Array.isArray(pushed.issues) ? pushed.issues : [];
+    const traktIssues = Array.isArray(trakt?.restoreIssues)
+      ? trakt.restoreIssues.map((issue) => ({
+        ...issue,
+        provider: issue?.provider || "trakt",
+        target: issue?.target || "trakt",
+      }))
+      : [];
+    const restoreIssues = [...pushedIssues, ...traktIssues];
+    const appSuccess = !cleared?.failed && !pushed.failed && pushedIssues.length === 0;
+    const traktSuccess = Boolean(trakt && trakt.success !== false && !trakt.error);
+    const success = appSuccess && traktSuccess && restoreIssues.length === 0;
+    const traktIssueCount = Math.max(Number(trakt?.restoreIssueCount) || 0, traktIssues.length);
+    const restoreIssuesComplete = !traktIssueCount
+      || (traktIssues.length >= traktIssueCount && trakt?.restoreIssuesComplete !== false);
+    result = {
+      success,
+      runId: ownerId,
+      finishedAt: Date.now(),
+      clearMode,
+      cleared,
+      pushed,
+      trakt,
+      ...(success ? {} : {
+        error: restoreFailureMessage(restoreIssues, trakt?.error || "One or more restored projections reported failures."),
+        ...(restoreIssues.length || traktIssueCount ? {
+          restoreIssues,
+          restoreIssueCount: Math.max(restoreIssues.length, traktIssueCount),
+          restoreIssuesComplete,
+        } : {}),
+      }),
+    };
   } catch (error) {
     log(`ERROR: Restore reconcile failed: ${error.message}`);
-    result = { success: false, error: error.message };
+    const finishedAt = Date.now();
+    const restoreIssues = Array.isArray(error.restoreIssues) ? error.restoreIssues : [];
+    result = {
+      success: false,
+      runId: ownerId,
+      finishedAt,
+      error: error.message,
+      ...(restoreIssues.length || error.restoreIssueCount != null ? {
+        restoreIssues,
+        restoreIssueCount: Number(error.restoreIssueCount) || restoreIssues.length,
+        restoreIssuesComplete: error.restoreIssuesComplete !== false,
+      } : {}),
+    };
   } finally {
     clearInterval(heartbeat);
-    // Always advance the watermark: after a successful DB restore the local DB IS the backup,
-    // so the cron should ignore any app history at/before now regardless of push outcome.
-    const stampedAt = Date.now() + RESTORE_SKEW_BUFFER_MS;
-    setLastRestoreAt(stampedAt);
-    log(`Stamped lastRestoreAt = ${new Date(stampedAt).toISOString()}; cron will skip app history up to this point.`);
-    log("âœ“ Authoritative restore complete.");
-    await stop();
-    // Clear the active flag LAST (after lastRestoreAt is stamped) so the first allowed cron tick
-    // already sees the watermark.
-    await releaseSyncOperation({
-      kind: RESTORE_KIND_BACKUP,
-      ownerId,
-      values: {
-        restoreSyncActive: false,
-        restoreSyncRunId: "",
-        restoreSyncKind: "",
-        restoreSyncCancelRequested: false,
-        restoreSyncHeartbeat: Date.now(),
-        restoreSyncResult: result || { success: false },
-      },
-    }).catch(() => null);
+    if (result?.success) {
+      // Only advance the watermark after every connected projection and the
+      // Trakt play-log replacement have succeeded. A failed restore must keep
+      // normal sync fenced so it cannot overwrite a partially repaired state.
+      const stampedAt = Date.now() + RESTORE_SKEW_BUFFER_MS;
+      setLastRestoreAt(stampedAt);
+      log(`Stamped lastRestoreAt = ${new Date(stampedAt).toISOString()}; cron will skip app history up to this point.`);
+      log("âœ“ Authoritative restore complete.");
+      await stop();
+      await releaseSyncOperation({
+        kind: RESTORE_KIND_BACKUP,
+        ownerId,
+        values: {
+          restoreSyncActive: false,
+          restoreSyncRunId: "",
+          restoreSyncKind: "",
+          restoreSyncCancelRequested: false,
+          restoreSyncHeartbeat: Date.now(),
+          restoreSyncResult: result,
+        },
+      }).catch(() => null);
+    } else {
+      log("Restore remains paused after the failure. Retry the restore or clear its status before resuming normal sync.");
+      await stop();
+      await touchSyncOperation({
+        kind: RESTORE_KIND_BACKUP,
+        ownerId,
+        values: {
+          restoreSyncResult: result || { success: false },
+          restoreSyncHeartbeat: Date.now(),
+        },
+      }).catch(() => null);
+    }
   }
   return result;
 }
@@ -542,6 +902,7 @@ async function startAuthoritativeRestore(filename, clearMode) {
     ownerId: restoreRunId,
     activeField: "restoreSyncActive",
     startedAt,
+    preempt: true,
     values: {
       restoreSyncRunId: restoreRunId,
       restoreSyncKind: RESTORE_KIND_BACKUP,
@@ -565,9 +926,14 @@ async function startAuthoritativeRestore(filename, clearMode) {
 
   let restore;
   try {
+    // Cancel queued work and ask running workers to stop before the restored
+    // tables are written. Their shared outbound gates also reject any later
+    // batches that were already in flight when this claim was taken.
+    cancelSyncJobsForAuthoritativeRestore();
     restore = restoreWatchHistoryBackup(filename, { mode: "replace", dryRun: false });
     writeAuditLog("backup.restored", { detail: { filename, clearMode, records: restore?.imported } });
   } catch (error) {
+    const finishedAt = Date.now();
     await releaseSyncOperation({
       kind: RESTORE_KIND_BACKUP,
       ownerId: restoreRunId,
@@ -576,15 +942,17 @@ async function startAuthoritativeRestore(filename, clearMode) {
         restoreSyncRunId: "",
         restoreSyncKind: "",
         restoreSyncCancelRequested: false,
-        restoreSyncHeartbeat: Date.now(),
-        restoreSyncResult: { success: false, error: error.message },
+        restoreSyncHeartbeat: finishedAt,
+        restoreSyncResult: { success: false, runId: restoreRunId, finishedAt, error: error.message },
       },
     }).catch(() => null);
     return { status: 400, body: { error: error.message } };
   }
 
   // Fire-and-forget â€” the job stamps lastRestoreAt and clears the flag when it finishes.
-  runRestoreReconcileJob(clearMode, restoreRunId);
+  void runRestoreReconcileJob(clearMode, restoreRunId).catch((error) => {
+    console.error("Authoritative restore reconcile crashed", error);
+  });
 
   return { status: 202, body: { ok: true, restore, clearMode, jobStarted: true } };
 }
@@ -653,7 +1021,10 @@ export async function handleWatchBackups(req, res) {
         });
       }
 
-      const clearMode = body.clearMode === "wipe" ? "wipe" : "reconcile";
+      // An authoritative restore is source-of-truth by default. Reconcile is
+      // still available as an explicit opt-in for users who intentionally want
+      // to preserve watched items that are absent from the backup.
+      const clearMode = body.clearMode === "reconcile" ? "reconcile" : "wipe";
       const { status, body: payload } = await startAuthoritativeRestore(filename, clearMode);
       return sendJson(res, payload, status);
     }
@@ -683,12 +1054,17 @@ export async function handleWatchBackups(req, res) {
           restore: restoreWatchHistoryBackup(pulled.name, { mode: "replace", dryRun: true }),
         });
       }
-      const clearMode = body.clearMode === "wipe" ? "wipe" : "reconcile";
+      const clearMode = body.clearMode === "reconcile" ? "reconcile" : "wipe";
       const { status, body: payload } = await startAuthoritativeRestore(pulled.name, clearMode);
       return sendJson(res, { ...payload, pulled }, status);
     }
     if (action === "clear-restore-status") {
-      return sendJson(res, { ok: true, ...clearRestoreStatus() });
+      const cleared = clearRestoreStatus();
+      const reset = await clearRestoreSyncState({
+        reason: "Authoritative watch-history restore was cleared by an administrator.",
+        expectedKind: RESTORE_KIND_BACKUP,
+      });
+      return sendJson(res, { ok: true, ...cleared, restoreSync: reset });
     }
     if (action === "pause-cron") {
       const hours = Math.max(1, Math.min(48, Number(body.hours) || 12));

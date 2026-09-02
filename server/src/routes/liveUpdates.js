@@ -1,13 +1,77 @@
 import { getDataVersion, getDiscoverVersion, getUpNextVersion } from "../db.js";
 import { requireAdmin } from "../utils/auth.js";
 import { methodNotAllowed } from "../utils/http.js";
-import { loadBackgroundSyncProgress } from "../utils/configStore.js";
+import {
+  activeSyncOperation,
+  loadBackgroundSyncProgress,
+  loadRuntimeState,
+  syncOperationIsFresh,
+} from "../utils/configStore.js";
+import { getOnboardingState } from "../utils/onboardingStore.js";
+import { syncAttentionState } from "../utils/syncAttention.js";
 
 const POLL_MS = 250;
 const HEARTBEAT_MS = 15_000;
 
 function writeEvent(res, payload) {
   res.write(`data: ${JSON.stringify(payload)}\n\n`);
+}
+
+function onboardingImportIsActive() {
+  const onboarding = getOnboardingState();
+  const serverImports = Object.values(onboarding.backgroundImports?.servers || {});
+  const imports = [...serverImports, onboarding.backgroundImports?.trakt];
+  return imports.some((entry) => entry?.status === "importing" && entry?.enabled !== false);
+}
+
+function labelForSyncOperation(operation) {
+  switch (operation?.kind) {
+    case "scheduled_sync": return "Scanning";
+    case "force_sync": return "Syncing";
+    case "rebuild": return "Rebuilding";
+    case "full_sync_watchstates":
+    case "backup_restore":
+    case "restore": return "Restoring";
+    default: return operation ? "Working" : "";
+  }
+}
+
+// The original progress counter tracks outbound dispatch bursts. Initial
+// library imports and the scheduled library scan can be doing real work while
+// that counter is empty, so the dashboard needs the broader operation state as
+// well. Keep this snapshot read-only and sourced from the same shared stores as
+// the existing SSE progress so split web/worker deployments agree.
+async function loadSyncStatus() {
+  const [progress, runtime] = await Promise.all([
+    loadBackgroundSyncProgress(),
+    loadRuntimeState(),
+  ]);
+  const total = Number(progress.total) || 0;
+  const completed = Number(progress.completed) || 0;
+  const dispatchActive = total > 0 && completed < total;
+  const operation = syncOperationIsFresh(runtime) ? activeSyncOperation(runtime) : null;
+  const importing = onboardingImportIsActive();
+  const active = importing || Boolean(operation) || dispatchActive;
+  const attention = syncAttentionState(runtime, getOnboardingState());
+  return {
+    total,
+    completed,
+    active,
+    label: importing ? "Importing" : labelForSyncOperation(operation) || (dispatchActive ? "Syncing" : ""),
+    attentionCount: attention.count,
+    attentionStatus: attention.status,
+  };
+}
+
+function syncEventFields(status) {
+  return {
+    syncTotal: status.total,
+    syncCompleted: status.completed,
+    syncActive: status.active,
+    syncLabel: status.label,
+    syncAttentionCount: status.attentionCount,
+    syncAttentionStatus: status.attentionStatus,
+  };
 }
 
 // Streams shared SQLite cache versions rather than relying on an in-process
@@ -20,9 +84,7 @@ export async function handleLiveUpdates(req, res) {
   // Send a complete progress snapshot in `ready`, before the browser is
   // allowed to react to a version change. This matters on reconnect: the tab
   // still holds its previous sync-busy flag until this new stream corrects it.
-  const initialProgress = await loadBackgroundSyncProgress();
-  const initialSyncTotal = Number(initialProgress.total) || 0;
-  const initialSyncCompleted = Number(initialProgress.completed) || 0;
+  const initialSyncStatus = await loadSyncStatus();
   const initialVersion = getDataVersion();
   const initialDiscoverVersion = getDiscoverVersion();
   const initialUpNextVersion = getUpNextVersion();
@@ -39,15 +101,14 @@ export async function handleLiveUpdates(req, res) {
   let lastDiscoverVersion = initialDiscoverVersion;
   let lastUpNextVersion = initialUpNextVersion;
   let lastWriteAt = Date.now();
-  let lastSyncProgress = { total: initialSyncTotal, completed: initialSyncCompleted };
+  let lastSyncStatus = initialSyncStatus;
   let pollInFlight = false;
   writeEvent(res, {
     type: "ready",
     version: lastVersion,
     discoverVersion: lastDiscoverVersion,
     upNextVersion: lastUpNextVersion,
-    syncTotal: initialSyncTotal,
-    syncCompleted: initialSyncCompleted,
+    ...syncEventFields(initialSyncStatus),
   });
 
   // Single poll loop: checks both history version and sync-progress every
@@ -60,18 +121,19 @@ export async function handleLiveUpdates(req, res) {
   const timer = setInterval(() => {
     if (res.writableEnded || res.destroyed || pollInFlight) return;
     pollInFlight = true;
-    loadBackgroundSyncProgress()
-      .then((progress) => {
+    loadSyncStatus()
+      .then((syncStatus) => {
         if (res.writableEnded || res.destroyed) return;
 
         // --- Sync progress ---
-        const syncTotal = Number(progress.total) || 0;
-        const syncCompleted = Number(progress.completed) || 0;
         const syncProgressChanged =
-          syncTotal !== lastSyncProgress.total || syncCompleted !== lastSyncProgress.completed;
-        if (syncProgressChanged) {
-          lastSyncProgress = { total: syncTotal, completed: syncCompleted };
-        }
+          syncStatus.total !== lastSyncStatus.total
+          || syncStatus.completed !== lastSyncStatus.completed
+          || syncStatus.active !== lastSyncStatus.active
+          || syncStatus.label !== lastSyncStatus.label
+          || syncStatus.attentionCount !== lastSyncStatus.attentionCount
+          || syncStatus.attentionStatus !== lastSyncStatus.attentionStatus;
+        if (syncProgressChanged) lastSyncStatus = syncStatus;
 
         // --- History version ---
         const version = getDataVersion();
@@ -85,26 +147,33 @@ export async function handleLiveUpdates(req, res) {
           lastWriteAt = Date.now();
           // Include current sync state so the client knows whether a background
           // sync is active before it decides to act on the version change.
-          writeEvent(res, { type: "history-version", version, discoverVersion, upNextVersion, syncTotal, syncCompleted });
+          writeEvent(res, { type: "history-version", version, discoverVersion, upNextVersion, ...syncEventFields(syncStatus) });
           return;
         }
 
         if (discoverVersionChanged) {
           lastWriteAt = Date.now();
-          writeEvent(res, { type: "discover-version", discoverVersion });
+          writeEvent(res, { type: "discover-version", discoverVersion, ...syncEventFields(syncStatus) });
           return;
         }
 
         if (upNextVersion !== lastUpNextVersion) {
           lastUpNextVersion = upNextVersion;
           lastWriteAt = Date.now();
-          writeEvent(res, { type: "up-next-version", upNextVersion });
+          writeEvent(res, { type: "up-next-version", upNextVersion, ...syncEventFields(syncStatus) });
           return;
         }
 
         // No version bump — emit a sync-progress-only update if progress changed.
         if (syncProgressChanged) {
-          writeEvent(res, { type: "sync-progress", total: syncTotal, completed: syncCompleted });
+          writeEvent(res, {
+            type: "sync-progress",
+            total: syncStatus.total,
+            completed: syncStatus.completed,
+            active: syncStatus.active,
+            label: syncStatus.label,
+            ...syncEventFields(syncStatus),
+          });
           return;
         }
 

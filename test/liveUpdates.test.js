@@ -9,6 +9,7 @@ makeTempDataDir("plembfin-live-updates-");
 const { db, getDataVersion, bumpDataVersion, getUpNextVersion, bumpUpNextVersion } = await import("../server/src/db.js");
 const { AUTH } = await import("../server/src/appConfig.js");
 const { BACKGROUND_SYNC_PROGRESS_STALE_MS, loadRuntimeState, setRuntimeState } = await import("../server/src/utils/configStore.js");
+const { getOnboardingState, saveOnboardingState } = await import("../server/src/utils/onboardingStore.js");
 const { handleLiveUpdates } = await import("../server/src/routes/liveUpdates.js");
 const { startLiveUpdates, stopLiveUpdates } = await import("../public/modules/live-updates.js");
 
@@ -192,6 +193,94 @@ test("liveUpdates broadcasts background sync progress", async () => {
   res.close();
 });
 
+test("liveUpdates reports an active onboarding import even without dispatch counts", async () => {
+  const originalOnboarding = getOnboardingState();
+  await setRuntimeState({
+    backgroundSyncProgressOwners: {},
+    backgroundSyncProgress: { total: 0, completed: 0, updatedAt: Date.now() },
+  });
+  saveOnboardingState({
+    backgroundImports: {
+      servers: { emby: { enabled: true, status: "importing", itemCount: 3 } },
+      trakt: originalOnboarding.backgroundImports.trakt,
+    },
+  });
+
+  const { req, res, getOutput } = createMockReqRes({
+    method: "GET",
+    headers: { "x-api-key": AUTH.apiKey },
+  });
+
+  try {
+    await handleLiveUpdates(req, res);
+    const initialOutput = getOutput();
+    assert.ok(initialOutput.includes('"syncActive":true'));
+    assert.ok(initialOutput.includes('"syncLabel":"Importing"'));
+
+    saveOnboardingState({
+      backgroundImports: {
+        servers: { emby: { enabled: true, status: "complete", itemCount: 3 } },
+        trakt: originalOnboarding.backgroundImports.trakt,
+      },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    assert.ok(getOutput().includes('"type":"sync-progress"'));
+    assert.ok(getOutput().includes('"active":false'));
+  } finally {
+    res.close();
+    saveOnboardingState(originalOnboarding);
+    await setRuntimeState({
+      backgroundSyncProgressOwners: {},
+      backgroundSyncProgress: { total: 0, completed: 0, updatedAt: Date.now() },
+    });
+  }
+});
+
+test("liveUpdates exposes a persisted restore blocker as sync attention", async () => {
+  await setRuntimeState({
+    backgroundSyncProgressOwners: {},
+    backgroundSyncProgress: { total: 0, completed: 0, updatedAt: Date.now() },
+    restoreSyncActive: true,
+    restoreSyncRunId: "live-attention-restore",
+    restoreSyncKind: "backup_restore",
+    restoreSyncStartedAt: Date.now(),
+    restoreSyncResult: {
+      success: false,
+      error: "Trakt rejected 1 restored play(s) after 3 retries (for example: Split Show - S01E01)",
+    },
+    syncAttentionSkips: {},
+  });
+  const { req, res, getOutput } = createMockReqRes({
+    method: "GET",
+    headers: { "x-api-key": AUTH.apiKey },
+  });
+
+  try {
+    await handleLiveUpdates(req, res);
+    assert.ok(getOutput().includes('"syncAttentionCount":1'));
+    assert.ok(getOutput().includes('"syncAttentionStatus":"attention"'));
+
+    await setRuntimeState({
+      restoreSyncActive: false,
+      restoreSyncRunId: "",
+      restoreSyncKind: "",
+      restoreSyncResult: { success: true, completedWithSkippedIssues: true },
+      syncAttentionSkips: {},
+    });
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    assert.ok(getOutput().includes('"syncAttentionStatus":"clear"'));
+  } finally {
+    res.close();
+    await setRuntimeState({
+      restoreSyncActive: false,
+      restoreSyncRunId: "",
+      restoreSyncKind: "",
+      restoreSyncResult: null,
+      syncAttentionSkips: {},
+    });
+  }
+});
+
 test("liveUpdates recovers and broadcasts idle after an interrupted sync heartbeat expires", async () => {
   await setRuntimeState({
     backgroundSyncProgressOwners: null,
@@ -254,6 +343,54 @@ test("client live-updates parses SSE stream and invokes callbacks", async () => 
 
     assert.equal(receivedVersion, 2);
     assert.deepEqual(receivedProgress, { total: 10, completed: 4 });
+  } finally {
+    stopLiveUpdates();
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("client live-updates forwards active sync labels", async () => {
+  let receivedProgress = null;
+  const mockStream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('data: {"type":"ready","version":1,"syncTotal":0,"syncCompleted":0,"syncActive":true,"syncLabel":"Importing"}\n\n'));
+      controller.close();
+    },
+  });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: true, status: 200, body: mockStream });
+
+  try {
+    startLiveUpdates({
+      authHeaders: () => ({}),
+      onSyncProgress: (progress) => { receivedProgress = progress; },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.deepEqual(receivedProgress, { total: 0, completed: 0, active: true, label: "Importing" });
+  } finally {
+    stopLiveUpdates();
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("client live-updates forwards sync attention summaries", async () => {
+  let receivedAttention = null;
+  const mockStream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('data: {"type":"ready","version":1,"syncTotal":0,"syncCompleted":0,"syncAttentionCount":2,"syncAttentionStatus":"attention"}\n\n'));
+      controller.close();
+    },
+  });
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: true, status: 200, body: mockStream });
+
+  try {
+    startLiveUpdates({
+      authHeaders: () => ({}),
+      onSyncAttention: (attention) => { receivedAttention = attention; },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.deepEqual(receivedAttention, { count: 2, status: "attention" });
   } finally {
     stopLiveUpdates();
     globalThis.fetch = originalFetch;

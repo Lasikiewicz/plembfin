@@ -7,12 +7,12 @@ import { renderSettingsInlineHelp } from "./help-content.js";
 import { compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, markArtworkUnavailable, tmdbProfile } from "./images.js?v=20260831m";
 import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, restoreRemoteBackupFromCard, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runTraktBackfill, runRematchTvShows, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, appendImportLog, loadPlembfinBackups, savePlembfinBackupSettings, createPlembfinBackupNow, downloadPlembfinBackup, deletePlembfinBackupFile, restorePlembfinBackupFromServer, restoreRemotePlembfinBackup, renderPlembfinBackups, updatePlembfinButtonsState, savePlembfinBackupRemoteSettings, createPlembfinBackupRemoteNow, createRemoteWatchBackupNow, saveRemoteWatchBackupSettings } from "./tools.js?v=20260831a";
 import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerCronSync, triggerStopSync } from "./sync.js";
-import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched, loadPartWatched } from "./dashboard.js?v=20260831m";
-import { removeUpNextItem } from "./up-next.js?v=20260901a";
+import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched } from "./dashboard.js?v=20260831m";
+import { loadUpNext } from "./up-next.js?v=20260903b";
 import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, renderRankingTable } from "./stats.js";
 import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, triggerSearchPage, loadMoreSearchPeople, loadSearchCollection, renderSearchPage, renderExplorer, explorerQueryKey, updateAlphaFilter, handleAlphaFilterClick, resetMovieExplorer, resetShowExplorer, renderExplorerSentinel, observeExplorerSentinel, observeExplorerTmdbPrefetch, scheduleNextAirResort, currentExplorerView, currentExplorerSort, currentPosterWidthKey, setCurrentExplorerSort, applyExplorerPosterWidth, applyListHeaderSort, renderMovieCard, renderMovieExplorer, loadExplorerMovies, applyHistoryPosterWidth, resetHistoryView, renderHistoryItems, renderHistoryView, loadHistoryView, observeHistorySentinel, renderShowExplorer, loadExplorerShows, mergeShowDetail, loadShowDetail, matchesExplorerSearch, sortExplorerItems, renderShowRecord, renderShowFolder, renderSeasonFolder, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, emptyExplorer, FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver } from "./explorer.js?v=20260831c";
 import { openWatchDatePrompt, markDiscoverWatched, submitSeerrRequest } from "./watch-action.js?v=20260831b";
-import { addToWatchlist, removeFromWatchlist, openRatingDialog, openAddToListDialog, addToCustomList, removeFromCustomList, openCreateListDialog, personalItemFromPosterMenuDataset } from "./personal-media.js?v=20260831r";
+import { addToWatchlist, removeFromWatchlist, openRatingDialog, openAddToListDialog, addToCustomList, removeFromCustomList, openCreateListDialog, personalItemFromPosterMenuDataset } from "./personal-media.js?v=20260903b";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails, resolveEpisodeTitleFromTmdb } from "./tmdb.js?v=20260823";
 import { initMediaDetail, nowPlayingHref, openMovieInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, closeMediaInfoModal, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail.js?v=20260831g";
 import { closePersonProfile, loadCastMemberDetails } from "./media-person.js?v=20260831f";
@@ -269,7 +269,7 @@ function attachEvents() {
   });
 
   elements.copyLogsButton.addEventListener("click", () => {
-    copyToClipboard(state.renderedLogsText || logsText() || "[no diagnostic logs captured yet]");
+    copyToClipboard(state.renderedLogsText || logsText() || "[no diagnostic logs captured yet]", elements.copyLogsButton);
   });
 
   elements.downloadLogsButton?.addEventListener("click", async () => {
@@ -319,7 +319,7 @@ function attachEvents() {
     const copyBtn = event.target.closest(".copy-button");
     if (copyBtn) {
       const copyText = copyBtn.dataset.copy || copyBtn.closest(".copy-block")?.querySelector("code")?.textContent;
-      if (copyText) copyToClipboard(copyText.trim());
+      if (copyText) copyToClipboard(copyText.trim(), copyBtn);
       return;
     }
     const target = event.target.closest("[data-settings-path]");
@@ -375,7 +375,7 @@ function attachEvents() {
     }
     const restore = event.target.closest("[data-watch-backup-restore]");
     if (restore) {
-      const clearMode = state.restoreClearMode || "reconcile";
+      const clearMode = state.restoreClearMode || "wipe";
       const destId = restore.dataset.restoreDestId;
       if (destId) {
         restoreRemoteBackupFromCard({ dataset: { destId } }, restore.dataset.watchBackupRestore, clearMode).catch((error) => setMessage(error.message, "error"));
@@ -479,28 +479,90 @@ function attachEvents() {
     navigateTo(link.dataset.mediaCardHref);
   });
 
+  const parseDatasetObject = (value, fallback = {}) => {
+    if (!value) return fallback;
+    try {
+      const parsed = JSON.parse(value);
+      return parsed && typeof parsed === "object" ? parsed : fallback;
+    } catch {
+      return fallback;
+    }
+  };
+
+  const upNextPayloadFromButton = (button) => {
+    const d = button?.dataset || {};
+    const mediaType = d.upNextMediaType === "episode" ? "episode" : "movie";
+    const isEpisode = mediaType === "episode";
+    const title = d.upNextTitle || d.upNextMenuTitle || d.title || "Untitled";
+    const showTitle = d.showTitle || d.upNextShowTitle || (isEpisode ? title : "");
+    return {
+      id: d.upNextWatch || d.upNextMenuWatch || d.upNextClear || "",
+      mediaType,
+      isEpisode,
+      title,
+      showTitle,
+      episodeTitle: d.episodeTitle || d.upNextEpisodeTitle || "",
+      season: d.season || d.upNextSeason || "",
+      episode: d.episode || d.upNextEpisode || "",
+      tmdbId: d.tmdbId || d.upNextTmdbId || "",
+      tvdbId: d.tvdbId || d.upNextTvdbId || "",
+      imdbId: d.imdbId || d.upNextImdbId || "",
+      posterUrl: d.posterUrl || d.upNextPosterUrl || "",
+      airDate: d.airDate || d.upNextAirDate || "",
+      providerItems: parseDatasetObject(d.providerItems || d.upNextProviderItems, {}),
+    };
+  };
+
   const openUpNextWatchPrompt = (watchBtn, event = null) => {
     event?.preventDefault();
     event?.stopPropagation();
-    const season = Number(watchBtn.dataset.season);
-    const episode = Number(watchBtn.dataset.episode);
-    const showTitle = watchBtn.dataset.showTitle || "Show";
+    const item = upNextPayloadFromButton(watchBtn);
+    if (!item.id) return;
+
+    if (!item.isEpisode) {
+      state.pendingWatchAction = {
+        origin: "up-next",
+        scope: "movie",
+        mediaKey: item.id,
+        title: item.title,
+        movie: {
+          title: item.title,
+          tmdbId: item.tmdbId,
+          imdbId: item.imdbId,
+          tvdbId: item.tvdbId,
+          posterUrl: item.posterUrl || null,
+          releaseDate: item.airDate || null,
+          providerItems: item.providerItems,
+        },
+        providerItems: item.providerItems,
+        label: `Mark ${item.title} watched`,
+        countLabel: "1 movie",
+      };
+      openWatchDatePrompt(state.pendingWatchAction);
+      return;
+    }
+
+    const season = Number(item.season);
+    const episode = Number(item.episode);
     if (!Number.isInteger(season) || !Number.isInteger(episode) || episode <= 0) return;
+    const showTitle = item.showTitle || "Show";
     state.pendingWatchAction = {
       origin: "up-next",
       scope: "episode",
       showTitle,
-      showTmdbId: watchBtn.dataset.tmdbId || "",
+      showTmdbId: item.tmdbId,
       episodes: [{
         seasonNumber: season,
         episodeNumber: episode,
-        title: watchBtn.dataset.episodeTitle || episodeCode(season, episode),
+        title: item.episodeTitle || episodeCode(season, episode),
         showTitle,
-        showTmdbId: watchBtn.dataset.tmdbId || "",
-        tvdbId: watchBtn.dataset.tvdbId || "",
-        posterUrl: watchBtn.dataset.posterUrl || null,
-        key: watchBtn.dataset.upNextWatch || watchBtn.dataset.upNextMenuWatch || `up-next:${showTitle}:${season}:${episode}`,
-        airDate: watchBtn.dataset.airDate || null,
+        showTmdbId: item.tmdbId,
+        tvdbId: item.tvdbId,
+        imdbId: item.imdbId,
+        posterUrl: item.posterUrl || null,
+        providerItems: item.providerItems,
+        key: item.id || `up-next:${showTitle}:${season}:${episode}`,
+        airDate: item.airDate || null,
       }],
       resyncEpisodes: [],
       label: `Mark ${episodeCode(season, episode)} watched`,
@@ -509,7 +571,77 @@ function attachEvents() {
     openWatchDatePrompt(state.pendingWatchAction);
   };
 
+  const clearUpNextProgress = async (clearBtn, event = null) => {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const d = clearBtn?.dataset || {};
+    const itemId = d.upNextClear || "";
+    const item = state.upNextItems.find((candidate) => String(candidate?.id || "") === String(itemId)) || null;
+    const payload = item
+      ? {
+          ...item,
+          providerItems: item.provider_items || item.providerItems || {},
+        }
+      : upNextPayloadFromButton(clearBtn);
+    if (!payload.id && !payload.media_key) return;
+
+    const payloadMediaType = payload.media_type || payload.mediaType || "movie";
+    const title = payloadMediaType === "episode"
+      ? (payload.show_title || payload.showTitle || payload.title || "this episode")
+      : (payload.title || "this movie");
+    const confirmed = await openConfirmDialog({
+      title: "Clear Progress",
+      body: `Clear saved progress for "${title}" and mark it unwatched?`,
+      confirmLabel: "Clear progress",
+      danger: true,
+    });
+    if (!confirmed) return;
+
+    const originalText = clearBtn.textContent;
+    const originalLabel = clearBtn.getAttribute("aria-label");
+    clearBtn.disabled = true;
+    clearBtn.textContent = "…";
+    clearBtn.setAttribute("aria-label", "Clearing progress");
+    try {
+      const mediaType = payload.media_type || payload.mediaType || (payload.season != null ? "episode" : "movie");
+      const response = await fetch("/api/playback-progress/unwatch", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({
+          media_key: payload.media_key || payload.id,
+          media_type: mediaType,
+          title: payload.title || payload.episode_title || payload.show_title || payload.showTitle || "Untitled",
+          show_title: payload.show_title || payload.showTitle || "",
+          tmdb_id: payload.tmdb_id || payload.tmdbId || payload.show_tmdb_id || payload.showTmdbId || "",
+          imdb_id: payload.imdb_id || payload.imdbId || payload.show_imdb_id || payload.showImdbId || "",
+          tvdb_id: payload.tvdb_id || payload.tvdbId || payload.show_tvdb_id || payload.showTvdbId || "",
+          season: mediaType === "episode" ? (payload.season ?? "") : "",
+          episode: mediaType === "episode" ? (payload.episode ?? "") : "",
+          provider_items: payload.provider_items || payload.providerItems || {},
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+      setMessage(`Progress cleared for "${title}"`, "success");
+      await loadHistory({ force: true, silent: true }).catch(() => null);
+      await loadUpNext({ force: true });
+      renderDashboard();
+    } catch (error) {
+      showErrorExplainModal(`Failed to clear progress for "${title}"`, error.message);
+    } finally {
+      clearBtn.disabled = false;
+      clearBtn.textContent = originalText;
+      if (originalLabel === null) clearBtn.removeAttribute("aria-label");
+      else clearBtn.setAttribute("aria-label", originalLabel);
+    }
+  };
+
   elements.upNextPanel?.addEventListener("click", (event) => {
+    const clearBtn = event.target.closest("[data-up-next-clear]");
+    if (clearBtn) {
+      clearUpNextProgress(clearBtn, event);
+      return;
+    }
     const watchBtn = event.target.closest("[data-up-next-watch]");
     if (!watchBtn) return;
     openUpNextWatchPrompt(watchBtn, event);
@@ -518,6 +650,12 @@ function attachEvents() {
   // Overflow menus are portaled to <body>, so their Up Next actions cannot be
   // delegated from the horizontal row itself.
   document.addEventListener("click", (event) => {
+    const clearBtn = event.target.closest("[data-up-next-clear]");
+    if (clearBtn) {
+      clearUpNextProgress(clearBtn, event);
+      return;
+    }
+
     const watchBtn = event.target.closest("[data-up-next-menu-watch]");
     if (watchBtn) {
       event.preventDefault();
@@ -684,22 +822,14 @@ function attachEvents() {
       return;
     }
 
-    const removeBtn = event.target.closest("[data-up-next-remove]");
-    if (!removeBtn) return;
-    event.preventDefault();
-    event.stopPropagation();
-    removeUpNextItem(removeBtn.dataset.upNextRemove, {
-      title: removeBtn.dataset.upNextShowTitle || "",
-      tmdbId: removeBtn.dataset.upNextTmdbId || "",
-      tvdbId: removeBtn.dataset.upNextTvdbId || "",
-      season: removeBtn.dataset.upNextSeason || "",
-      episode: removeBtn.dataset.upNextEpisode || "",
-      episodeTitle: removeBtn.dataset.upNextEpisodeTitle || "",
-      airDate: removeBtn.dataset.upNextAirDate || "",
-    });
   });
 
   elements.syncProgressIndicator?.addEventListener("click", () => {
+    closeMobileMenu();
+    navigateTo("/sync-activity");
+  });
+
+  elements.sidebarSyncAttentionButton?.addEventListener("click", () => {
     closeMobileMenu();
     navigateTo("/sync-activity");
   });
@@ -756,6 +886,46 @@ function attachEvents() {
   elements.syncActivitySummary?.addEventListener("click", () => {
     if (!elements.syncActivitySummary.hasAttribute("data-sync-activity-failed-toggle")) return;
     _cb.toggleSyncActivityFailedOnly?.();
+  });
+
+  elements.syncActivityAttention?.addEventListener("click", async (event) => {
+    const skipItem = event.target.closest("[data-sync-attention-skip-item]");
+    if (skipItem && !skipItem.disabled) {
+      const id = String(skipItem.dataset.syncAttentionSkipItem || "");
+      const itemKey = String(skipItem.dataset.syncAttentionItemKey || "");
+      const parent = (state.syncAttention || []).find((candidate) => String(candidate.id) === id);
+      const issue = parent?.context?.issueItems?.find((candidate) => String(candidate.key) === itemKey);
+      const confirmed = await openConfirmDialog({
+        title: "Skip this restored play?",
+        body: `${issue?.title || "This play"} will remain missing from Trakt. The restore fence stays active until every remaining issue is repaired or skipped.`,
+        confirmLabel: "Skip this play",
+      });
+      if (!confirmed) return;
+      try {
+        const result = await _cb.skipSyncAttentionItem?.(id, itemKey);
+        setMessage(result?.message || "Restore play skipped.", result?.released ? "warning" : "muted");
+      } catch (error) {
+        setMessage(error.message || "Could not skip this restored play.", "error");
+      }
+      return;
+    }
+
+    const skip = event.target.closest("[data-sync-attention-skip]");
+    if (!skip || skip.disabled) return;
+    const id = String(skip.dataset.syncAttentionSkip || "");
+    const item = (state.syncAttention || []).find((candidate) => String(candidate.id) === id);
+    const confirmed = await openConfirmDialog({
+      title: "Skip this sync issue?",
+      body: `${item?.summary || "This sync operation did not complete."}\n\nSkipping acknowledges the incomplete projection and releases the restore fence when it belongs to this issue. The missing remote records will not be created automatically.`,
+      confirmLabel: item?.skipLabel || "Skip and resume sync",
+    });
+    if (!confirmed) return;
+    try {
+      const result = await _cb.skipSyncAttention?.(id);
+      setMessage(result?.message || "Sync issue skipped.", result?.released ? "warning" : "muted");
+    } catch (error) {
+      setMessage(error.message || "Could not skip this sync issue.", "error");
+    }
   });
 
   elements.syncActivitySearch?.addEventListener("input", (event) => {
@@ -1488,9 +1658,8 @@ function attachEvents() {
     localStorage.setItem("plembfin:history:posterWidth", `${val}px`);
   });
 
-  // Part Watched now lives inside the TV and movie history sections. Keep the
-  // legacy panel fallbacks for older embeds, but use the dashboard shell as
-  // the delegated root in the current layout.
+  // Keep the legacy Part Watched panel fallbacks for older embeds. The current
+  // dashboard renders resume cards through the mixed Up Next rail.
   (elements.partWatchedRows || elements.partWatchedPanel || elements.timelineView)?.addEventListener("click", async (event) => {
     const posterLink = event.target.closest("[data-part-watched-href]");
     if (posterLink) {
