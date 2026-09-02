@@ -1,12 +1,12 @@
 {
-  "build": 28,
+  "build": 29,
   "resetCommit": "e6f05452676dadefc83c35dd07618cfd1ee61566",
-  "updatedAt": "2026-09-02T20:04:50.269Z",
+  "updatedAt": "2026-09-02T20:05:44.930Z",
   "entries": [
     {
-      "build": 28,
-      "date": "2026-09-02T20:04:50.269Z",
-      "commit": "b1762e589510408eec01f63659b958f5746b8d0d",
+      "build": 29,
+      "date": "2026-09-02T20:05:44.930Z",
+      "commit": "cdd4b6e447443db2acfb4f4e73a3007782f2cfea",
       "message": "Fix - Make personal rating sync resolve provider identities",
       "author": "Lasikiewicz",
       "details": [
