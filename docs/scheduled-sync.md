@@ -157,6 +157,12 @@ without changing watched state or sending another dispatch:
 `GET /api/stale-trakt-import-audit` and `POST /api/stale-trakt-import-repair`
 (`auditStaleTraktImportRows`/`repairStaleTraktImportRows` in `dataRepo.js`).
 
+During an authoritative watch-history restore, an explicit manual unwatch or clear-
+progress action commits Plembfin's local unwatched state immediately. Its outbound
+fan-out is recorded as pending and the scheduler dispatches it after the restore fence
+is released; provider callbacks and automatic transitions remain fenced while the
+restore is active.
+
 Canonical replays for an existing `watch_history` row record dispatch telemetry so the
 manual-dispatch queue can retry failures. `GET /api/stale-pending-watch-audit` reports
 watched rows with missing or exhausted retry telemetry (read-only).
@@ -305,6 +311,12 @@ already in flight is not cancelled; the guard only prevents new competing outbou
      series id. It records the mismatch as an error so the media can be fixed or matched
      explicitly. Movies retain their one title-derived retry because their Trakt payload is
      title-level rather than series-plus-episode.
+   - Compound episodes are canonicalized when the source represents one story as two
+     numbered parts. Common `(1)`/`(2)`, `(Part 1)`/`(Part 2)`, `(Pt 1)`/`(Pt 2)`, and
+     bracketed markers are recognized directly; matching split titles in cached season
+     metadata are also recognized when the watch rows lack those markers. Both source
+     coordinates map to the canonical first episode for dispatch while the original
+     coordinate is retained for audit and matching.
    - A Plex notification episode unwatch whose every configured Emby/Jellyfin destination
      reports `No matching item found` is kept out of Trakt. Plembfin still records the
      incoming local transition and the no-match audit, but does not let an unresolved Plex

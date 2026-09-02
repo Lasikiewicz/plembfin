@@ -261,12 +261,12 @@ export function platformIconMarkup(value, className = "source-badge-icon", wrapp
   const safeClassName = escapeAttribute(className);
   const normalized = normalizePlatformSource(value);
   if (normalized !== "plembfin") {
-    return `<img class="${safeClassName}" src="${escapeAttribute(platformIconUrl(value))}" alt="" loading="lazy" />`;
+    return `<img class="${safeClassName}" src="${escapeAttribute(platformIconUrl(value))}" alt="" loading="eager" decoding="async" />`;
   }
 
   return `<span class="${escapeAttribute(wrapperClass)} theme-aware-icon-set" aria-hidden="true">
-    <img class="${safeClassName} theme-aware-icon--light" src="/icons/plembfin-light.png?v=20260824h" alt="" loading="lazy" />
-    <img class="${safeClassName} theme-aware-icon--dark" src="/icons/plembfin.png?v=20260824h" alt="" loading="lazy" />
+    <img class="${safeClassName} theme-aware-icon--light" src="/icons/plembfin-light.png?v=20260824h" alt="" loading="eager" decoding="async" />
+    <img class="${safeClassName} theme-aware-icon--dark" src="/icons/plembfin.png?v=20260824h" alt="" loading="eager" decoding="async" />
   </span>`;
 }
 

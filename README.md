@@ -57,7 +57,7 @@ None of these talk to each other - they all talk to Plembfin.
 - **Cross-platform resume** - Pause playback on one server and pick up right where you left off on another
 - **Rewatch tracking** - Full multi-watch history logging with smart deduplication that preserves authentic repeat viewings
 - **Now Playing dashboard** - Real-time playback monitoring, deterministic Up Next, media-type-aware Watch History, weekly watch activity trends, and recent history
-- **Sync Activity hub** - Live grouped activity by movie/show, with all resume checkpoints and destination results preserved behind each row, targeted retry for failed or skipped destinations (individually or all at once as a background job that survives closing the tab), and downloadable group logs
+- **Sync Activity hub** - Live grouped activity by movie/show, with all resume checkpoints and destination results preserved behind each row, targeted retry for failed or skipped destinations (individually or all at once as a background job that survives closing the tab), blocked-restore repair grouped by show with Fix Match and skip controls, and downloadable group logs
 - **Rich analytics & stats** - In-depth all-time and period reports, top shows, and platform playback distribution
 - **Personal media organization** - Save movies, shows, and episodes to a watch list or custom lists, and rate them from their media pages; episode ratings use one canonical show/season/episode identity everywhere
 - **Personal Rating Sync** - Optional, disabled-by-default rating exchange with Plex, Emby, Jellyfin, and Trakt through an isolated durable queue; local ratings are committed first and never share the watched-state Force Sync path

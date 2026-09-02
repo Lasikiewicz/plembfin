@@ -4,10 +4,8 @@ import { escapeHtml } from "./utils.js";
 const PROVIDERS = ["plex", "emby", "jellyfin", "trakt"];
 const PROVIDER_LABELS = { plex: "Plex", emby: "Emby", jellyfin: "Jellyfin", trakt: "Trakt" };
 const DIRECTIONS = [
-  ["off", "Off"],
-  ["send", "Send local ratings"],
-  ["receive", "Receive remote ratings"],
   ["bidirectional", "Two-way sync"],
+  ["off", "Off"],
 ];
 
 let callbacks = {};
@@ -37,12 +35,19 @@ function elements() {
 
 function currentConfig() {
   const saved = state.savedConfig?.ratingSync || {};
+  const enabled = Boolean(saved.enabled);
+  const allSavedOff = PROVIDERS.every((p) => !saved.providers?.[p] || saved.providers?.[p] === "off");
   return {
-    enabled: Boolean(saved.enabled),
+    enabled,
     intervalMinutes: Number(saved.intervalMinutes) || 15,
     initialSyncMode: saved.initialSyncMode === "import" ? "import" : "baseline",
     conflictPolicy: saved.conflictPolicy === "remote_wins" ? "remote_wins" : "local_wins",
-    providers: Object.fromEntries(PROVIDERS.map((provider) => [provider, saved.providers?.[provider] || "off"])),
+    providers: Object.fromEntries(PROVIDERS.map((provider) => {
+      if (!enabled) return [provider, saved.providers?.[provider] || "off"];
+      if (allSavedOff) return [provider, "bidirectional"];
+      const val = saved.providers?.[provider];
+      return [provider, val === "off" ? "off" : "bidirectional"];
+    })),
   };
 }
 
@@ -53,7 +58,7 @@ function renderProviderRows(config = currentConfig()) {
   ui.providerRows.innerHTML = entries.map((entry) => {
     const provider = entry.provider;
     const connection = entry.configured ? (entry.connectionStatus || "configured") : "Not connected";
-    const direction = config.providers[provider] || "off";
+    const direction = config.providers[provider] || (config.enabled ? "bidirectional" : "off");
     return `<label class="personal-rating-sync-provider">
       <strong>${escapeHtml(PROVIDER_LABELS[provider] || provider)}</strong>
       <small>${escapeHtml(connection)}${Number(entry.queue?.pending || 0) ? ` · ${Number(entry.queue.pending)} queued` : ""}</small>
@@ -76,15 +81,17 @@ function applyControls(config = currentConfig()) {
 
 function selectedConfig() {
   const ui = elements();
+  const enabled = Boolean(ui.enabled?.checked);
   return {
-    enabled: Boolean(ui.enabled?.checked),
+    enabled,
     intervalMinutes: Math.max(5, Math.min(1440, Math.round(Number(ui.interval?.value) || 15))),
     initialSyncMode: ui.initialMode?.value === "import" ? "import" : "baseline",
     conflictPolicy: ui.conflictPolicy?.value === "remote_wins" ? "remote_wins" : "local_wins",
-    providers: Object.fromEntries(PROVIDERS.map((provider) => [
-      provider,
-      ui.providerRows?.querySelector(`[data-rating-sync-provider="${provider}"]`)?.value || "off",
-    ])),
+    providers: Object.fromEntries(PROVIDERS.map((provider) => {
+      const selectVal = ui.providerRows?.querySelector(`[data-rating-sync-provider="${provider}"]`)?.value;
+      if (!enabled) return [provider, "off"];
+      return [provider, selectVal === "off" ? "off" : "bidirectional"];
+    })),
   };
 }
 
@@ -111,15 +118,15 @@ function renderStatus(nextStatus = status) {
     if (ui.status) ui.status.textContent = "Disabled";
   } else {
     const pending = Number(nextStatus.queue?.pending || 0) + Number(nextStatus.queue?.processing || 0);
-    if (ui.status) ui.status.textContent = pending ? `${pending} queued` : "Ready";
+    if (ui.status) ui.status.textContent = pending ? `${pending} queued` : "Two-way Active";
   }
   const configured = (nextStatus.providers || []).filter((entry) => entry.configured && entry.direction !== "off").length;
   if (ui.help) {
     ui.help.textContent = !config.enabled
       ? "Disabled: ratings stay in Plembfin and are not sent to any provider."
       : configured
-        ? `${configured} provider${configured === 1 ? "" : "s"} enabled. Rating changes are saved locally first, then delivered by the separate queue.`
-        : "Choose a direction for at least one connected provider.";
+        ? `Two-way rating sync active across ${configured} connected provider${configured === 1 ? "" : "s"}.`
+        : "Connect at least one media server or Trakt to sync ratings.";
   }
   ui.run && (ui.run.disabled = !config.enabled || nextStatus.running);
   ui.push && (ui.push.disabled = !config.enabled || nextStatus.running);
@@ -198,11 +205,21 @@ export function initRatingSyncSettings(nextCallbacks = {}) {
   if (!ui.panel || ui.panel.dataset.bound === "1") return;
   ui.panel.dataset.bound = "1";
   applyControls(currentConfig());
+  ui.enabled?.addEventListener("change", () => {
+    const isEnabled = Boolean(ui.enabled.checked);
+    for (const provider of PROVIDERS) {
+      const select = ui.providerRows?.querySelector(`[data-rating-sync-provider="${provider}"]`);
+      if (select) {
+        select.value = isEnabled ? "bidirectional" : "off";
+      }
+    }
+    renderStatus({ ...(status || {}), config: selectedConfig() });
+  });
   ui.save?.addEventListener("click", () => saveSettings().catch((error) => callbacks.setMessage?.(error.message, "error")));
   ui.run?.addEventListener("click", () => runAction("run"));
   ui.push?.addEventListener("click", () => runAction("push"));
   ui.panel.addEventListener("change", (event) => {
-    if (event.target.matches("[data-rating-sync-provider]")) renderStatus(status);
+    if (event.target.matches("[data-rating-sync-provider]")) renderStatus({ ...(status || {}), config: selectedConfig() });
   });
   document.addEventListener("plembfin:config-changed", () => {
     applyControls(currentConfig());

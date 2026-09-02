@@ -355,6 +355,51 @@ export function renderCollectionSection(tmdbData) {
   `;
 }
 
+export function initialMediaAppLinksContent({
+  mediaType = "movie",
+  tmdbId = "",
+  imdbId = "",
+  tvdbId = "",
+  season = "",
+  episode = "",
+  title = "",
+  providerItems = "",
+  appLinkStyle = "",
+  allApps = false,
+} = {}) {
+  const params = new URLSearchParams();
+  params.set("mediaType", mediaType || "movie");
+  for (const [param, val] of [
+    ["tmdbId", tmdbId],
+    ["imdbId", imdbId],
+    ["tvdbId", tvdbId],
+    ["season", season],
+    ["episode", episode],
+    ["title", title],
+  ]) {
+    if (val) params.set(param, String(val));
+  }
+  if (providerItems) {
+    params.set("providerItems", typeof providerItems === "object" ? JSON.stringify(providerItems) : String(providerItems));
+  }
+
+  const pillStyle = appLinkStyle === "source-badge" ? "source-badge" : "";
+  const includeUnavailable = Boolean(allApps);
+  const cacheKey = params.toString();
+  const cachedEntry = readAppLinksCache()[cacheKey];
+  const cachedLinks = Array.isArray(cachedEntry?.links) ? cachedEntry.links : null;
+  if (cachedLinks) {
+    return appLinkRowHtml(cachedLinks, { includeUnavailable, pillStyle });
+  }
+
+  if (includeUnavailable) {
+    return pillStyle === "source-badge"
+      ? appLinkRowHtml([], { includeUnavailable: true, pillStyle })
+      : "";
+  }
+  return "";
+}
+
 // The Plex/Emby/Jellyfin app-link pills, as a standalone hydratable container
 // for the "Watch Now" row of the media facts panel.
 export function mediaAppLinksHtml(tmdbData, mediaType = "movie") {
@@ -363,13 +408,20 @@ export function mediaAppLinksHtml(tmdbData, mediaType = "movie") {
   const imdbId = tmdbData.imdb_id || tmdbData.external_ids?.imdb_id || "";
   const tvdbId = tmdbData.external_ids?.tvdb_id || "";
   const title = mediaType === "tv" ? (tmdbData.name || tmdbData.original_name || "") : (tmdbData.title || tmdbData.original_title || "");
+  const initialContent = initialMediaAppLinksContent({
+    mediaType,
+    tmdbId,
+    imdbId,
+    tvdbId,
+    title,
+  });
   return `
     <div class="media-app-links" data-media-app-links
       data-media-type="${escapeAttribute(mediaType)}"
       data-tmdb-id="${escapeAttribute(String(tmdbId))}"
       data-imdb-id="${escapeAttribute(String(imdbId))}"
       data-tvdb-id="${escapeAttribute(String(tvdbId))}"
-      data-title="${escapeAttribute(title)}"></div>
+      data-title="${escapeAttribute(title)}">${initialContent}</div>
   `;
 }
 
@@ -532,14 +584,14 @@ function appLinkHtml(link, { disabled = false, label = "", pillStyle = "" } = {}
   if (disabled) {
     return `
       <span class="${pillClasses.filter(Boolean).map(escapeAttribute).join(" ")}" title="${escapeAttribute(`${displayLabel} unavailable`)}" aria-label="${escapeAttribute(`${displayLabel} unavailable`)}" aria-disabled="true">
-        <img class="${escapeAttribute(iconClass)}" src="/icons/${escapeAttribute(target)}.svg" alt="" loading="lazy" data-err="hide-show-next" />
+        <img class="${escapeAttribute(iconClass)}" src="/icons/${escapeAttribute(target)}.svg" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
         <span>${escapeHtml(displayLabel)}</span>
       </span>
     `;
   }
   return `
     <a class="${pillClasses.filter(Boolean).map(escapeAttribute).join(" ")}" href="${escapeAttribute(link.url)}" target="_blank" rel="noopener noreferrer" title="${escapeAttribute(`Open in ${displayLabel}`)}" aria-label="${escapeAttribute(`Open in ${displayLabel}`)}">
-      ${link.iconUrl ? `<img class="${escapeAttribute(iconClass)}" src="${escapeAttribute(link.iconUrl)}" alt="" loading="lazy" data-err="hide-show-next" />` : ""}
+      ${link.iconUrl ? `<img class="${escapeAttribute(iconClass)}" src="${escapeAttribute(link.iconUrl)}" alt="" loading="eager" decoding="async" data-err="hide-show-next" />` : ""}
       <span>${escapeHtml(displayLabel)}</span>
     </a>
   `;
@@ -583,15 +635,15 @@ export async function hydrateMediaAppLinks(root = document) {
       : `
         <b class="media-app-link-row">
           <a class="media-app-link media-app-link--plex media-app-link--disabled" title="Checking Plex..." aria-label="Checking Plex..." style="opacity: 0.4; cursor: not-allowed;">
-            <img class="media-app-link-logo" src="/icons/plex.svg" alt="" loading="lazy" data-err="hide-show-next" />
+            <img class="media-app-link-logo" src="/icons/plex.svg" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
             <span>Plex</span>
           </a>
           <a class="media-app-link media-app-link--emby media-app-link--disabled" title="Checking Emby..." aria-label="Checking Emby..." style="opacity: 0.4; cursor: not-allowed;">
-            <img class="media-app-link-logo" src="/icons/emby.svg" alt="" loading="lazy" data-err="hide-show-next" />
+            <img class="media-app-link-logo" src="/icons/emby.svg" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
             <span>Emby</span>
           </a>
           <a class="media-app-link media-app-link--jellyfin media-app-link--disabled" title="Checking Jellyfin..." aria-label="Checking Jellyfin..." style="opacity: 0.4; cursor: not-allowed;">
-            <img class="media-app-link-logo" src="/icons/jellyfin.svg" alt="" loading="lazy" data-err="hide-show-next" />
+            <img class="media-app-link-logo" src="/icons/jellyfin.svg" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
             <span>Jellyfin</span>
           </a>
         </b>
@@ -604,7 +656,10 @@ export async function hydrateMediaAppLinks(root = document) {
     const cachedLinks = Array.isArray(cachedEntry?.links) ? cachedEntry.links : null;
     const includeUnavailable = container.dataset.allApps === "true";
     const cachedRowHtml = cachedLinks ? appLinkRowHtml(cachedLinks, { includeUnavailable, pillStyle }) : "";
-    container.innerHTML = cachedRowHtml || greyedOutHtml;
+    const targetInitialHtml = cachedRowHtml || greyedOutHtml;
+    if (container.innerHTML !== targetInitialHtml) {
+      container.innerHTML = targetInitialHtml;
+    }
 
     // A detail page re-renders several times as metadata arrives; refresh a
     // known result over the network at most once per TTL window.
@@ -618,8 +673,11 @@ export async function hydrateMediaAppLinks(root = document) {
       if (JSON.stringify(body.links) === JSON.stringify(cachedLinks)) return;
       writeAppLinksCacheEntry(cacheKey, body.links);
       const freshRowHtml = appLinkRowHtml(body.links, { includeUnavailable, pillStyle });
-      if (freshRowHtml) container.innerHTML = freshRowHtml;
-      else if (cachedRowHtml) container.innerHTML = greyedOutHtml;
+      if (freshRowHtml) {
+        if (container.innerHTML !== freshRowHtml) container.innerHTML = freshRowHtml;
+      } else if (cachedRowHtml && container.innerHTML !== greyedOutHtml) {
+        container.innerHTML = greyedOutHtml;
+      }
     } catch {
       // App links are optional; leave whatever is rendered if the lookup fails.
     }

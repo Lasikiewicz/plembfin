@@ -2,7 +2,7 @@ import { buildAuthHeaders, buildNowPlayingUrl, getWebhookToken, onAuthChange, re
 import { claimWithForm } from "./onboarding.js";
 import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs } from "./logs.js";
 import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS, EXPLORER_VIEW_KEY_MOVIES, EXPLORER_VIEW_KEY_SHOWS, HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS, HISTORY_VIEW_KEY, HISTORY_FILTER_KEY, HISTORY_VIEW_MODES, HISTORY_FILTERS, PRIMARY_VIEWS } from "./state.js";
-import { escapeHtml, sanitizeTitle, safeImageUrl, movieSlug, showTitleFrom, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel } from "./utils.js";
+import { escapeHtml, sanitizeTitle, safeImageUrl, movieSlug, showTitleFrom, slug, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel } from "./utils.js";
 import { renderSettingsInlineHelp } from "./help-content.js";
 import { compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, markArtworkUnavailable, tmdbProfile } from "./images.js?v=20260831m";
 import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, restoreRemoteBackupFromCard, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runTraktBackfill, runRematchTvShows, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, appendImportLog, loadPlembfinBackups, savePlembfinBackupSettings, createPlembfinBackupNow, downloadPlembfinBackup, deletePlembfinBackupFile, restorePlembfinBackupFromServer, restoreRemotePlembfinBackup, renderPlembfinBackups, updatePlembfinButtonsState, savePlembfinBackupRemoteSettings, createPlembfinBackupRemoteNow, createRemoteWatchBackupNow, saveRemoteWatchBackupSettings } from "./tools.js?v=20260831a";
@@ -74,6 +74,126 @@ export function initAppEvents(callbacks = {}) {
 }
 
 const authHeaders = (...args) => _cb.authHeaders?.(...args), setMessage = (...args) => _cb.setMessage?.(...args), unlockWithToken = (...args) => _cb.unlockWithToken?.(...args), clearSearchInputs = (...args) => _cb.clearSearchInputs?.(...args), selectView = (...args) => _cb.selectView?.(...args), renderLogs = (...args) => _cb.renderLogs?.(...args), logsText = (...args) => _cb.logsText?.(...args), copyToClipboard = (...args) => _cb.copyToClipboard?.(...args), selectBackupsTab = (...args) => _cb.selectBackupsTab?.(...args), navigateTo = (...args) => _cb.navigateTo?.(...args), renderChangelog = (...args) => _cb.renderChangelog?.(...args), lockDashboard = (...args) => _cb.lockDashboard?.(...args), toggleTheme = (...args) => _cb.toggleTheme?.(...args), showConfirmModal = (...args) => _cb.showConfirmModal?.(...args), openConfirmDialog = (...args) => _cb.openConfirmDialog?.(...args) || Promise.resolve(true), closeGlobalSearchDropdown = (...args) => _cb.closeGlobalSearchDropdown?.(...args), saveAdminCredentials = (...args) => _cb.saveAdminCredentials?.(...args), applyActiveView = (...args) => _cb.applyActiveView?.(...args), handleRouting = (...args) => _cb.handleRouting?.(...args), loadHistory = (...args) => _cb.loadHistory?.(...args), loadStats = (...args) => _cb.loadStats?.(...args), loadSavedConfig = (...args) => _cb.loadSavedConfig?.(...args), renderHelp = (...args) => _cb.renderHelp?.(...args), renderDbStatus = (...args) => _cb.renderDbStatus?.(...args), showErrorExplainModal = (...args) => _cb.showErrorExplainModal?.(...args), runRefreshMetadataWorkflow = (...args) => _cb.runRefreshMetadataWorkflow?.(...args), runRefreshTvdbMetadataWorkflow = (...args) => _cb.runRefreshTvdbMetadataWorkflow?.(...args), showToast = (...args) => _cb.showToast?.(...args), logDebug = (...args) => _cb.logDebug?.(...args), syncPageTopbar = (...args) => _cb.syncPageTopbar?.(...args), setUnlocked = (...args) => _cb.setUnlocked?.(...args), renderSettingsStatus = (...args) => _cb.renderSettingsStatus?.(...args), renderAdminCredentialsStatus = (...args) => _cb.renderAdminCredentialsStatus?.(...args), toggleSet = (...args) => _cb.toggleSet?.(...args), renderGlobalSearchDropdown = (...args) => _cb.renderGlobalSearchDropdown?.(...args), loadGlobalDiscovery = (...args) => _cb.loadGlobalDiscovery?.(...args);
+
+function syncAttentionIssueMediaType(issue = {}) {
+  const type = String(issue.type || issue.mediaType || "").trim().toLowerCase();
+  return ["episode", "movie"].includes(type) ? type : "";
+}
+
+function syncAttentionIssueShowTitle(issue = {}) {
+  return String(issue.showTitle || issue.sourceShowTitle || showTitleFrom(issue.sourceTitle || issue.title || "")).trim();
+}
+
+function syncAttentionIssueSourceKey(issue = {}) {
+  return String(issue.sourceRowId || issue.sourceMediaKey || issue.sourcePlaystateKey || issue.mediaKey || "").trim();
+}
+
+function syncAttentionIssueRowsFromState() {
+  const rows = [];
+  const seen = new Set();
+  const add = (row) => {
+    if (!row?.id || seen.has(String(row.id))) return;
+    seen.add(String(row.id));
+    rows.push(row);
+  };
+
+  for (const row of [...(state.history || []), ...(state.historyViewRaw || []), ...(state.moviesRaw || [])]) add(row);
+  for (const show of state.showsRaw || []) {
+    for (const episode of show.episodes || []) add(episode?.watched || episode);
+  }
+  return rows;
+}
+
+function syncAttentionIssueRowMatch(rows = [], issue = {}) {
+  const type = syncAttentionIssueMediaType(issue);
+  const sourceKey = syncAttentionIssueSourceKey(issue);
+  const byKey = sourceKey && rows.find((row) => String(row.media_key || row.mediaKey || "") === sourceKey);
+  if (byKey) return byKey;
+
+  const sourceIds = issue.sourceIds || issue.ids || {};
+  const byProviderId = rows.find((row) => type === String(row.media_type || row.type || "").toLowerCase()
+    && ["imdb", "tmdb", "tvdb"].some((name) => sourceIds[name] && String(row[`${name}_id`] || row[name] || "") === String(sourceIds[name])));
+  if (byProviderId) return byProviderId;
+
+  if (type === "episode") {
+    const showTitle = syncAttentionIssueShowTitle(issue);
+    const showKey = showTitle ? slug(showTitle) : "";
+    const season = Number(issue.sourceSeason ?? issue.season);
+    const episode = Number(issue.sourceEpisode ?? issue.episode);
+    const coordinateRows = rows.filter((row) => String(row.media_type || row.type || "").toLowerCase() === "episode"
+      && Number(row.season) === season
+      && Number(row.episode) === episode);
+    return (showKey && coordinateRows.find((row) => slug(row.show_title || row.showTitle || showTitleFrom(row.title || "")) === showKey))
+      || coordinateRows[0]
+      || null;
+  }
+
+  const titleKey = slug(issue.sourceTitle || issue.title || "");
+  return rows.find((row) => String(row.media_type || row.type || "").toLowerCase() === "movie" && slug(row.title || "") === titleKey) || null;
+}
+
+async function syncAttentionHistoryRowById(id) {
+  const key = String(id || "").trim();
+  if (!key) return null;
+  const response = await fetch(`/api/history?id=${encodeURIComponent(key)}`, { headers: authHeaders(), cache: "no-store" });
+  const body = await response.json().catch(() => ({}));
+  return response.ok ? body.row || null : null;
+}
+
+async function resolveSyncAttentionFixMatchAnchor(issue = {}) {
+  const sourceRowId = String(issue.sourceRowId || "").trim();
+  if (sourceRowId) {
+    const row = await syncAttentionHistoryRowById(sourceRowId).catch(() => null);
+    if (row?.id) return row;
+  }
+
+  let rows = syncAttentionIssueRowsFromState();
+  let match = syncAttentionIssueRowMatch(rows, issue);
+  if (match?.id) return match;
+
+  const type = syncAttentionIssueMediaType(issue);
+  const search = type === "episode" ? syncAttentionIssueShowTitle(issue) : String(issue.sourceTitle || issue.title || "").trim();
+  if (!search) return null;
+  const url = new URL("/api/history", window.location.origin);
+  url.searchParams.set("search", search);
+  url.searchParams.set("mediaType", type);
+  url.searchParams.set("limit", "500");
+  url.searchParams.set("dedupe", "false");
+  const response = await fetch(url, { headers: authHeaders(), cache: "no-store" });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) return null;
+  rows = Array.isArray(body.history) ? body.history : [];
+  match = syncAttentionIssueRowMatch(rows, issue);
+  return match?.id ? match : null;
+}
+
+async function openSyncAttentionFixMatch(issue = {}) {
+  const type = syncAttentionIssueMediaType(issue);
+  const anchor = await resolveSyncAttentionFixMatchAnchor(issue);
+  if (!anchor?.id) {
+    const href = String(issue.localHref || "").trim();
+    if (href) {
+      navigateTo(href);
+      setMessage("No local watch row was found for a direct match dialog. Opened the affected Plembfin item instead.", "warning");
+      return;
+    }
+    throw new Error("Could not find a local watch row to fix-match.");
+  }
+
+  const currentTitle = type === "episode"
+    ? syncAttentionIssueShowTitle(issue)
+    : String(issue.sourceTitle || issue.title || anchor.title || "").trim();
+  if (!currentTitle) throw new Error("This issue does not include a title to match.");
+
+  _cb.openFixMatchDialog?.(null, anchor.id, currentTitle, type, async () => {
+    setMessage("Match updated. Retry this item now; the retry will use the corrected local identity.", "success");
+  }, {
+    headerTitle: `Fix match · ${currentTitle}`,
+    ...(type === "movie" && syncAttentionIssueSourceKey(issue)
+      ? { mediaKey: syncAttentionIssueSourceKey(issue) }
+      : {}),
+  });
+}
 
 function updatePosterMenuAction(button, { label, ariaLabel = label, title = ariaLabel, busy = false, disabled = false }) {
   button.textContent = label;
@@ -622,7 +742,12 @@ function attachEvents() {
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
-      setMessage(`Progress cleared for "${title}"`, "success");
+      setMessage(
+        body.queued
+          ? `Progress cleared for "${title}"; unwatched sync queued until the current blocking operation completes`
+          : `Progress cleared for "${title}"`,
+        "success",
+      );
       await loadHistory({ force: true, silent: true }).catch(() => null);
       await loadUpNext({ force: true });
       renderDashboard();
@@ -889,6 +1014,98 @@ function attachEvents() {
   });
 
   elements.syncActivityAttention?.addEventListener("click", async (event) => {
+    const fixMatch = event.target.closest("[data-sync-attention-fix-match]");
+    if (fixMatch && !fixMatch.disabled) {
+      const id = String(fixMatch.dataset.syncAttentionFixMatch || "");
+      const itemKey = String(fixMatch.dataset.syncAttentionItemKey || "");
+      const parent = (state.syncAttention || []).find((candidate) => String(candidate.id) === id);
+      const issue = parent?.context?.issueItems?.find((candidate) => String(candidate.key || candidate.sourceRowId || "") === itemKey);
+      if (!issue) {
+        setMessage("That restore issue is no longer available. Refresh Sync Activity and try again.", "error");
+        return;
+      }
+      fixMatch.disabled = true;
+      try {
+        await openSyncAttentionFixMatch(issue);
+      } catch (error) {
+        setMessage(error.message || "Could not open Fix match.", "error");
+      } finally {
+        if (fixMatch.isConnected) fixMatch.disabled = false;
+      }
+      return;
+    }
+
+    const retryShow = event.target.closest("[data-sync-attention-retry-show]");
+    if (retryShow && !retryShow.disabled) {
+      const id = String(retryShow.dataset.syncAttentionRetryShow || "");
+      const showKey = String(retryShow.dataset.syncAttentionShowKey || "");
+      try {
+        const result = await _cb.retrySyncAttentionShow?.(id, showKey);
+        setMessage(result?.message || "Show retry complete.", result?.failed > 0 ? "warning" : "success");
+      } catch (error) {
+        setMessage(error.message || "Could not retry this show.", "error");
+      }
+      return;
+    }
+
+    const skipShow = event.target.closest("[data-sync-attention-skip-show]");
+    if (skipShow && !skipShow.disabled) {
+      const id = String(skipShow.dataset.syncAttentionSkipShow || "");
+      const showKey = String(skipShow.dataset.syncAttentionShowKey || "");
+      const parent = (state.syncAttention || []).find((candidate) => String(candidate.id) === id);
+      const allIssues = Array.isArray(parent?.context?.issueItems) ? parent.context.issueItems : [];
+      const showIssues = allIssues.filter((issue) => {
+        const explicit = String(issue.showTitle || issue.show_title || "").trim();
+        const title = String(issue.title || "").trim();
+        const stripped = explicit || title.replace(/\s*-?\s*S\d{1,3}E\d{1,3}\b.*$/i, "").trim() || title;
+        return String(stripped).toLowerCase().replace(/[^a-z0-9]+/g, "").trim() === showKey;
+      });
+      const showTitle = showIssues[0]?.showTitle || showIssues[0]?.show_title || "this show";
+      const count = showIssues.length || 1;
+      const confirmed = await openConfirmDialog({
+        title: `Skip all plays for ${showTitle}?`,
+        body: `${count} ${count === 1 ? "play" : "plays"} for "${showTitle}" will remain missing from Trakt. The restore fence stays active until every remaining issue is repaired or skipped.`,
+        confirmLabel: `Skip ${count} ${count === 1 ? "play" : "plays"}`,
+      });
+      if (!confirmed) return;
+      try {
+        const result = await _cb.skipSyncAttentionShow?.(id, showKey);
+        setMessage(result?.message || `Plays for "${showTitle}" skipped.`, result?.released ? "warning" : "muted");
+      } catch (error) {
+        setMessage(error.message || `Could not skip plays for "${showTitle}".`, "error");
+      }
+      return;
+    }
+
+    const toggleShow = event.target.closest("[data-sync-attention-toggle-show]");
+    if (toggleShow) {
+      if (event.target.closest("button, a, input")) return;
+      const id = String(toggleShow.dataset.syncAttentionToggleShow || "");
+      const showKey = String(toggleShow.dataset.syncAttentionShowKey || "");
+      const actionKey = `${id}:${showKey}`;
+      if (!state.syncAttentionExpandedShows) state.syncAttentionExpandedShows = new Set();
+      if (state.syncAttentionExpandedShows.has(actionKey)) {
+        state.syncAttentionExpandedShows.delete(actionKey);
+      } else {
+        state.syncAttentionExpandedShows.add(actionKey);
+      }
+      _cb.renderSyncAttention?.();
+      return;
+    }
+
+    const retryItem = event.target.closest("[data-sync-attention-retry-item]");
+    if (retryItem && !retryItem.disabled) {
+      const id = String(retryItem.dataset.syncAttentionRetryItem || "");
+      const itemKey = String(retryItem.dataset.syncAttentionItemKey || "");
+      try {
+        const result = await _cb.retrySyncAttentionItem?.(id, itemKey);
+        setMessage(result?.message || "The restored item was repaired.", "success");
+      } catch (error) {
+        setMessage(error.message || "Could not retry this restored item.", "error");
+      }
+      return;
+    }
+
     const skipItem = event.target.closest("[data-sync-attention-skip-item]");
     if (skipItem && !skipItem.disabled) {
       const id = String(skipItem.dataset.syncAttentionSkipItem || "");
@@ -926,6 +1143,14 @@ function attachEvents() {
     } catch (error) {
       setMessage(error.message || "Could not skip this sync issue.", "error");
     }
+  });
+
+  elements.syncAttention?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const toggleShow = event.target.closest("[data-sync-attention-toggle-show]");
+    if (!toggleShow) return;
+    event.preventDefault();
+    toggleShow.click();
   });
 
   elements.syncActivitySearch?.addEventListener("input", (event) => {
@@ -1758,7 +1983,12 @@ function attachEvents() {
           });
           const body = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
-          setMessage(`Progress cleared for "${title}"`, "success");
+          setMessage(
+            body.queued
+              ? `Progress cleared for "${title}"; unwatched sync queued until the current blocking operation completes`
+              : `Progress cleared for "${title}"`,
+            "success",
+          );
           resetPartWatchedView("default");
           renderPartWatched();
         } catch (error) {

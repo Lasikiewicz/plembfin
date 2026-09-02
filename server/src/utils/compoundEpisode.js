@@ -1,10 +1,12 @@
+import { db, parseJson } from "../db.js";
+
 // TV databases do not agree on how to number a two-part episode. One source
 // may expose "S05E21" as a single long episode while another exposes the same
 // programme as "S05E21" and "S05E22". Keep the source coordinates intact and
 // carry this small, derived projection alongside a dispatch media object.
 
-const EPISODE_MARKER_RE = /(?:\b(?:part|pt)\s*(one|two|1|2)\b|\(\s*(one|two|1|2)\s*\)|\[\s*(one|two|1|2)\s*\])\s*$/i;
-const COMBINED_MARKER_RE = /\bparts?\s*(?:one|1)\s*(?:and|&|\+|\/)\s*(?:two|2)\b/i;
+const EPISODE_MARKER_RE = /(?:[\(\[]\s*(?:part|pt)?\.?\s*(one|two|1|2)\s*[\)\]]|\b(?:part|pt)\.?\s*(one|two|1|2)\b)\s*$/i;
+const COMBINED_MARKER_RE = /(?:\bparts?\s*(?:one|1)\s*(?:and|&|\+|\/)\s*(?:two|2)\b|[\(\[]\s*(?:parts?\s*)?(?:one|1)\s*(?:and|&|\+|\/)\s*(?:two|2)\s*[\)\]])/i;
 const COMPOUND_SESSION_WINDOW_MS = 4 * 60 * 60 * 1000;
 
 function clean(value) {
@@ -33,7 +35,7 @@ function showTitleFrom(value = {}) {
     .trim();
 }
 
-function canonicalText(value) {
+export function canonicalText(value) {
   return clean(value)
     .toLowerCase()
     .replace(/&/g, " and ")
@@ -52,14 +54,14 @@ function episodeTitleFrom(value = {}) {
 function stripCompoundMarker(title, marker) {
   let result = clean(title);
   if (marker === "combined") {
-    result = result.replace(/,?\s*parts?\s*(?:one|1)\s*(?:and|&|\+|\/)\s*(?:two|2)\s*$/i, "");
+    result = result.replace(/,?\s*(?:\bparts?\s*(?:one|1)\s*(?:and|&|\+|\/)\s*(?:two|2)\b|[\(\[]\s*(?:parts?\s*)?(?:one|1)\s*(?:and|&|\+|\/)\s*(?:two|2)\s*[\)\]])\s*$/i, "");
   } else {
-    result = result.replace(/\s*(?:\b(?:part|pt)\s*(?:one|two|1|2)\b|\(\s*(?:one|two|1|2)\s*\)|\[\s*(?:one|two|1|2)\s*\])\s*$/i, "");
+    result = result.replace(/(?:\s*[-:–—,])?\s*(?:[\(\[]\s*(?:part|pt)?\.?\s*(?:one|two|1|2)\s*[\)\]]|\b(?:part|pt)\.?\s*(?:one|two|1|2)\b)\s*$/i, "");
   }
   return clean(result).replace(/[,:;\-–—]+\s*$/, "").trim();
 }
 
-function parseCompoundTitle(title) {
+export function parseCompoundTitle(title) {
   const value = clean(title);
   if (!value) return null;
   if (COMBINED_MARKER_RE.test(value)) {
@@ -67,12 +69,142 @@ function parseCompoundTitle(title) {
   }
   const match = value.match(EPISODE_MARKER_RE);
   if (!match) return null;
-  const token = String(match[1] || match[2] || match[3] || "").toLowerCase();
+  const token = String(match[1] || match[2] || "").toLowerCase();
   return {
     kind: "split",
     part: token === "1" || token === "one" ? 1 : 2,
     baseTitle: stripCompoundMarker(value, "split"),
   };
+}
+
+function getSeasonEpisodesFromDb({ tvdbId, tmdbId, showTitle, season } = {}) {
+  if (!db || season == null) return [];
+  try {
+    let resolvedTvdbId = tvdbId;
+    let resolvedTmdbId = tmdbId;
+    if (!resolvedTvdbId && !resolvedTmdbId && showTitle) {
+      const idRow = db.prepare("SELECT tvdb_id, tmdb_id FROM watch_history WHERE show_title = ? AND (tvdb_id IS NOT NULL OR tmdb_id IS NOT NULL) LIMIT 1").get(showTitle);
+      if (idRow) {
+        resolvedTvdbId = idRow.tvdb_id;
+        resolvedTmdbId = idRow.tmdb_id;
+      }
+    }
+    if (resolvedTvdbId) {
+      const row = db.prepare("SELECT details FROM tvdb_season_cache WHERE (tvdb_id = ? OR id = ?) AND season_number = ?").get(String(resolvedTvdbId), `${resolvedTvdbId}_${season}`, Number(season));
+      if (row?.details) {
+        const details = parseJson(row.details);
+        if (Array.isArray(details?.episodes)) return details.episodes;
+      }
+    }
+    if (resolvedTmdbId) {
+      const row = db.prepare("SELECT details FROM tmdb_season_cache WHERE tmdb_id = ? AND season_number = ?").get(String(resolvedTmdbId), Number(season));
+      if (row?.details) {
+        const details = parseJson(row.details);
+        if (Array.isArray(details?.episodes)) return details.episodes;
+      }
+    }
+  } catch {
+    // Database may be inaccessible in isolated test contexts
+  }
+  return [];
+}
+
+export function findCompoundEpisodesFromSeason(episodes = [], { season = null, showKey = "" } = {}) {
+  const parsed = [];
+  for (const ep of Array.isArray(episodes) ? episodes : []) {
+    const episodeNum = numberOrNull(ep.episode_number ?? ep.episode ?? ep.number ?? ep.index);
+    const title = clean(ep.name || ep.title || ep.episode_title);
+    if (episodeNum == null || !title) continue;
+    const marker = parseCompoundTitle(title);
+    parsed.push({
+      episode: episodeNum,
+      title,
+      baseTitle: marker?.baseTitle || title,
+      marker,
+    });
+  }
+
+  parsed.sort((a, b) => a.episode - b.episode);
+
+  const descriptors = [];
+  for (let i = 0; i < parsed.length; i++) {
+    const current = parsed[i];
+
+    if (current.marker?.kind === "combined") {
+      const canonicalEpisode = current.episode;
+      descriptors.push({
+        key: `${showKey}:${season}:${canonicalText(current.baseTitle)}`,
+        showKey,
+        season,
+        canonicalEpisode,
+        aliases: [
+          { season, episode: canonicalEpisode },
+          { season, episode: canonicalEpisode + 1 },
+        ],
+        title: current.baseTitle,
+        hasCombinedEvidence: true,
+        canonicalSourceCoordinate: { season, episode: canonicalEpisode },
+        canonicalSourceIsCombined: true,
+      });
+      continue;
+    }
+
+    if (current.marker?.kind === "split" && current.marker.part === 1) {
+      const partTwo = parsed.find((other) => (
+        other.episode > current.episode
+        && other.marker?.kind === "split"
+        && other.marker?.part === 2
+        && canonicalText(other.baseTitle) === canonicalText(current.baseTitle)
+      )) || parsed.find((other) => (
+        other.episode === current.episode + 1
+        && canonicalText(other.baseTitle) === canonicalText(current.baseTitle)
+      ));
+
+      if (partTwo) {
+        const canonicalEpisode = current.episode;
+        descriptors.push({
+          key: `${showKey}:${season}:${canonicalText(current.baseTitle)}`,
+          showKey,
+          season,
+          canonicalEpisode,
+          aliases: [
+            { season, episode: canonicalEpisode },
+            { season, episode: partTwo.episode },
+          ],
+          title: current.baseTitle,
+          hasCombinedEvidence: true,
+          canonicalSourceCoordinate: { season, episode: canonicalEpisode },
+          canonicalSourceIsCombined: true,
+        });
+      }
+    } else if (!current.marker && current.baseTitle) {
+      const partTwo = parsed.find((other) => (
+        other.episode === current.episode + 1
+        && other.marker?.kind === "split"
+        && other.marker?.part === 2
+        && canonicalText(other.baseTitle) === canonicalText(current.baseTitle)
+      ));
+      if (partTwo) {
+        const canonicalEpisode = current.episode;
+        descriptors.push({
+          key: `${showKey}:${season}:${canonicalText(current.baseTitle)}`,
+          showKey,
+          season,
+          canonicalEpisode,
+          aliases: [
+            { season, episode: canonicalEpisode },
+            { season, episode: partTwo.episode },
+          ],
+          title: current.baseTitle,
+          hasCombinedEvidence: true,
+          canonicalSourceCoordinate: { season, episode: canonicalEpisode },
+          canonicalSourceIsCombined: true,
+        });
+      }
+    }
+  }
+
+  return descriptors;
 }
 
 function rowDetails(row = {}) {
@@ -163,10 +295,9 @@ function descriptorScore(descriptor, detail) {
   return (isCanonical ? 100 : 0) + (isExplicit ? 20 : 0) + (descriptor.hasCombinedEvidence ? 1 : 0);
 }
 
-// Build a map only from metadata that explicitly says "part 1", "part 2", or
-// "parts one and two". Adjacent episode numbers by themselves are not enough
-// evidence; ordinary consecutive episodes must never be merged.
-export function buildCompoundEpisodeIndex(rows = []) {
+// Build a map from metadata that explicitly says "part 1", "part 2", or
+// "parts one and two", or from season metadata matching (1) and (2) with the same name.
+export function buildCompoundEpisodeIndex(rows = [], { seasonEpisodesResolver = null } = {}) {
   const groups = new Map();
   for (const row of Array.isArray(rows) ? rows : []) {
     if (String(row?.media_type || row?.mediaType || row?.type || "").toLowerCase() !== "episode") continue;
@@ -212,14 +343,52 @@ export function buildCompoundEpisodeIndex(rows = []) {
       });
     }
   }
+
+  // For shows and seasons represented in rows, also discover compound episodes
+  // from season metadata (tvdb_season_cache / tmdb_season_cache or seasonEpisodesResolver).
+  const inspectedSeasons = new Set();
+  for (const row of Array.isArray(rows) ? rows : []) {
+    if (String(row?.media_type || row?.mediaType || row?.type || "").toLowerCase() !== "episode") continue;
+    const showKey = canonicalText(showTitleFrom(row));
+    const coords = coordinatesFrom(row);
+    if (!showKey || coords.season == null) continue;
+    const seasonKey = `${showKey}:${coords.season}`;
+    if (inspectedSeasons.has(seasonKey)) continue;
+    inspectedSeasons.add(seasonKey);
+
+    const tvdbId = row.tvdb_id || row.tvdbId || row.ids?.tvdb;
+    const tmdbId = row.tmdb_id || row.tmdbId || row.ids?.tmdb;
+    const showTitle = showTitleFrom(row);
+    const seasonEpisodes = seasonEpisodesResolver
+      ? seasonEpisodesResolver({ tvdbId, tmdbId, showTitle, season: coords.season })
+      : getSeasonEpisodesFromDb({ tvdbId, tmdbId, showTitle, season: coords.season });
+
+    if (Array.isArray(seasonEpisodes) && seasonEpisodes.length) {
+      const seasonDescriptors = findCompoundEpisodesFromSeason(seasonEpisodes, { season: coords.season, showKey });
+      for (const descriptor of seasonDescriptors) {
+        for (const alias of descriptor.aliases) {
+          const key = `${descriptor.showKey}:${alias.season}:${alias.episode}`;
+          if (coordinateMap.has(key)) continue;
+          coordinateMap.set(key, {
+            ...descriptor,
+            sourceRepresentation: alias.season === descriptor.canonicalSourceCoordinate.season
+              && alias.episode === descriptor.canonicalSourceCoordinate.episode
+              && descriptor.canonicalSourceIsCombined ? "combined" : "split",
+            sourceCoordinate: alias,
+          });
+        }
+      }
+    }
+  }
+
   return coordinateMap;
 }
 
-export function compoundEpisodeForRow(row = {}, index = null) {
+export function compoundEpisodeForRow(row = {}, index = null, options = {}) {
   const coordinates = coordinatesFrom(row);
   const showKey = canonicalText(showTitleFrom(row));
   if (coordinates.season == null || coordinates.episode == null || !showKey) return null;
-  const resolvedIndex = index || buildCompoundEpisodeIndex([row]);
+  const resolvedIndex = index || buildCompoundEpisodeIndex([row], options);
   return resolvedIndex.get(`${showKey}:${coordinates.season}:${coordinates.episode}`) || null;
 }
 
@@ -248,31 +417,63 @@ function suppliedDescriptor(media = {}) {
   };
 }
 
-export function compoundEpisodeForMedia(media = {}) {
+export function compoundEpisodeForMedia(media = {}, { seasonEpisodesResolver = null } = {}) {
   const supplied = suppliedDescriptor(media);
   if (supplied) return supplied;
   if (String(media.type || media.mediaType || media.media_type || "").toLowerCase() !== "episode") return null;
   const coordinates = coordinatesFrom(media);
+  if (coordinates.season == null || coordinates.episode == null) return null;
+  const showKey = canonicalText(showTitleFrom(media));
+  if (!showKey) return null;
+
   const marker = parseCompoundTitle(episodeTitleFrom(media));
-  if (!marker || coordinates.season == null || coordinates.episode == null) return null;
-  const canonicalEpisode = marker.kind === "combined"
-    ? coordinates.episode
-    : marker.part === 2 ? coordinates.episode - 1 : coordinates.episode;
-  if (canonicalEpisode < 0) return null;
-  const aliases = [{ season: coordinates.season, episode: canonicalEpisode }];
-  if (marker.kind === "combined" || marker.part === 1) aliases.push({ season: coordinates.season, episode: canonicalEpisode + 1 });
-  if (marker.kind === "split" && marker.part === 2) aliases.push({ season: coordinates.season, episode: coordinates.episode });
-  return {
-    key: `${canonicalText(showTitleFrom(media))}:${coordinates.season}:${canonicalText(marker.baseTitle)}`,
-    showKey: canonicalText(showTitleFrom(media)),
-    season: coordinates.season,
-    canonicalEpisode,
-    aliases,
-    title: marker.baseTitle,
-    hasCombinedEvidence: marker.kind === "combined",
-    sourceRepresentation: marker.kind === "combined" ? "combined" : "split",
-    sourceCoordinate: coordinates,
-  };
+  if (marker) {
+    const canonicalEpisode = marker.kind === "combined"
+      ? coordinates.episode
+      : marker.part === 2 ? coordinates.episode - 1 : coordinates.episode;
+    if (canonicalEpisode >= 0) {
+      const aliases = [{ season: coordinates.season, episode: canonicalEpisode }];
+      if (marker.kind === "combined" || marker.part === 1) aliases.push({ season: coordinates.season, episode: canonicalEpisode + 1 });
+      if (marker.kind === "split" && marker.part === 2) aliases.push({ season: coordinates.season, episode: coordinates.episode });
+      return {
+        key: `${showKey}:${coordinates.season}:${canonicalText(marker.baseTitle)}`,
+        showKey,
+        season: coordinates.season,
+        canonicalEpisode,
+        aliases,
+        title: marker.baseTitle,
+        hasCombinedEvidence: marker.kind === "combined",
+        sourceRepresentation: marker.kind === "combined" ? "combined" : "split",
+        sourceCoordinate: coordinates,
+      };
+    }
+  }
+
+  // If the media object lacked explicit (1)/(2) markers in its title, check season metadata
+  const tvdbId = media.ids?.tvdb || media.tvdb_id || media.tvdbId;
+  const tmdbId = media.ids?.tmdb || media.tmdb_id || media.tmdbId;
+  const showTitle = showTitleFrom(media);
+  const seasonEpisodes = seasonEpisodesResolver
+    ? seasonEpisodesResolver({ tvdbId, tmdbId, showTitle, season: coordinates.season })
+    : getSeasonEpisodesFromDb({ tvdbId, tmdbId, showTitle, season: coordinates.season });
+
+  if (Array.isArray(seasonEpisodes) && seasonEpisodes.length) {
+    const descriptors = findCompoundEpisodesFromSeason(seasonEpisodes, { season: coordinates.season, showKey });
+    for (const descriptor of descriptors) {
+      const match = descriptor.aliases.find((a) => a.season === coordinates.season && a.episode === coordinates.episode);
+      if (match) {
+        return {
+          ...descriptor,
+          sourceRepresentation: match.season === descriptor.canonicalSourceCoordinate.season
+            && match.episode === descriptor.canonicalSourceCoordinate.episode
+            && descriptor.canonicalSourceIsCombined ? "combined" : "split",
+          sourceCoordinate: coordinates,
+        };
+      }
+    }
+  }
+
+  return null;
 }
 
 export function compoundEpisodeItemsForMedia(episodesByCoordinate, media = {}) {
@@ -303,8 +504,8 @@ export function compoundEpisodeItemsForMedia(episodesByCoordinate, media = {}) {
   return [];
 }
 
-export function canonicalCompoundEpisodeMedia(media = {}) {
-  const descriptor = compoundEpisodeForMedia(media);
+export function canonicalCompoundEpisodeMedia(media = {}, options = {}) {
+  const descriptor = compoundEpisodeForMedia(media, options);
   if (!descriptor) return media;
   const coordinates = coordinatesFrom(media);
   if (coordinates.season === descriptor.season && coordinates.episode === descriptor.canonicalEpisode) {
@@ -320,8 +521,9 @@ export function canonicalCompoundEpisodeMedia(media = {}) {
 
 export function canonicalizeCompoundEpisodeRows(rows = [], {
   sessionWindowMs = COMPOUND_SESSION_WINDOW_MS,
+  seasonEpisodesResolver = null,
 } = {}) {
-  const index = buildCompoundEpisodeIndex(rows);
+  const index = buildCompoundEpisodeIndex(rows, { seasonEpisodesResolver });
   let mapped = 0;
   const projected = (Array.isArray(rows) ? rows : []).map((row) => {
     if (String(row?.media_type || row?.mediaType || row?.type || "").toLowerCase() !== "episode") return row;

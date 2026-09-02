@@ -15,7 +15,7 @@ export const DEFAULT_RATING_SYNC = Object.freeze({
   intervalMinutes: 15,
   initialSyncMode: "baseline",
   conflictPolicy: "local_wins",
-  providers: Object.freeze({ plex: "off", emby: "off", jellyfin: "off", trakt: "off" }),
+  providers: Object.freeze({ plex: "bidirectional", emby: "bidirectional", jellyfin: "bidirectional", trakt: "bidirectional" }),
 });
 export const WATCHLIST_SYNC_PROVIDERS = ["plex", "emby", "jellyfin"];
 export const WATCHLIST_SYNC_REPRESENTATIONS = Object.freeze({
@@ -77,17 +77,30 @@ export function normalizePacing(section = {}) {
 }
 
 export function normalizeRatingSyncSection(section = {}) {
+  const enabled = Boolean(section.enabled);
   const providers = {};
+  const hasExplicitProviders = Boolean(section.providers && typeof section.providers === "object");
   for (const provider of RATING_SYNC_PROVIDERS) {
-    const direction = String(section.providers?.[provider] || section[provider] || "off").trim().toLowerCase();
-    providers[provider] = RATING_SYNC_DIRECTIONS.includes(direction) ? direction : "off";
+    const raw = section.providers?.[provider] ?? section[provider];
+    if (raw !== undefined && RATING_SYNC_DIRECTIONS.includes(String(raw).trim().toLowerCase())) {
+      providers[provider] = String(raw).trim().toLowerCase();
+    } else if (hasExplicitProviders) {
+      providers[provider] = "off";
+    } else {
+      providers[provider] = enabled ? "bidirectional" : "off";
+    }
+  }
+  if (enabled && Object.values(providers).every((direction) => direction === "off")) {
+    for (const provider of RATING_SYNC_PROVIDERS) {
+      providers[provider] = "bidirectional";
+    }
   }
   const intervalValue = Number(section.intervalMinutes);
   const intervalMinutes = Number.isInteger(intervalValue)
     ? Math.max(5, Math.min(1440, intervalValue))
     : DEFAULT_RATING_SYNC.intervalMinutes;
   return {
-    enabled: Boolean(section.enabled),
+    enabled,
     intervalMinutes,
     initialSyncMode: section.initialSyncMode === "import" ? "import" : "baseline",
     conflictPolicy: section.conflictPolicy === "remote_wins" ? "remote_wins" : "local_wins",

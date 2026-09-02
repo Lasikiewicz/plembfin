@@ -165,6 +165,16 @@ locally with no durable activity row of its own yet) is retried the same way, bu
 outcome is written back onto the underlying watch record's own telemetry, since that is
 what the queued row is rendered from.
 
+When an authoritative watch-history restore is blocked, retained media-server projection
+failures appear in the Sync - Attention Needed panel grouped by show. A show can be
+expanded to reveal its episodes, retried or skipped as a batch, or repaired one item at a
+time with a target-specific "Retry on …" action. Each retry runs while the restore fence
+remains in place; the fence is released automatically after the last outstanding item is
+repaired or skipped. If a failed item no longer has enough saved identity data for a
+direct retry, **Fix match** opens the normal local title/provider-ID correction flow and
+the retry uses the corrected identity. Items that cannot be repaired can still be
+skipped or handled by running the restore again.
+
 The "Retry all failed" button next to Refresh retries every failed or skipped item
 across the entire sync history, not just the current page. Clicking it discovers the
 real total across every page first and confirms before starting. The retry itself runs
@@ -201,7 +211,9 @@ database.
 
 Dashboard posters use the standard fallback -> `/api/poster` hydration pipeline with a
 dedicated IntersectionObserver (`observeDashboardPosters`) so only visible cards
-trigger lookups. See [posters-artwork.md](posters-artwork.md).
+trigger lookups. Up Next episode cards prefer a cached show poster from the shared artwork
+cache or watched history before asking a provider proxy, so a known show keeps its artwork
+when a provider feed is unavailable. See [posters-artwork.md](posters-artwork.md).
 
 ## Gotchas
 

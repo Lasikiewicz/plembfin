@@ -87,7 +87,6 @@ test("restore failures become actionable attention items with split-episode guid
   assert.ok(items[0].recommendations.some((item) => /split or combined episodes/i.test(item)));
   assert.deepEqual(items[0].context.examples, ["Split Show - S01E01", "Split Show - S01E02"]);
 });
-
 test("structured restore failures expose every play with a local repair link", () => {
   const [item] = buildSyncAttentionItems({
     restoreSyncActive: true,
@@ -140,6 +139,39 @@ test("media-server restore failures expose target-specific repair actions", () =
   assert.equal(item.context.issueItems[0].repairLabel, "Retry on Emby");
   assert.match(item.context.issueItems[0].localHref, /historyId=history-1/);
   assert.match(item.recommendations.join(" "), /Emby/i);
+});
+
+test("media-server restore failures remain repairable when only the playstate key was retained", () => {
+  const [item] = buildSyncAttentionItems({
+    restoreSyncActive: true,
+    restoreSyncRunId: "restore-playstate-key-123",
+    restoreSyncKind: "backup_restore",
+    restoreSyncResult: {
+      success: false,
+      runId: "restore-playstate-key-123",
+      finishedAt: Date.now(),
+      error: "1 restored item projection still need attention on jellyfin.",
+      restoreIssueCount: 1,
+      restoreIssuesComplete: true,
+      restoreIssues: [{
+        key: "restore-target:jellyfin:show-key:1:1",
+        provider: "jellyfin",
+        target: "jellyfin",
+        sourceMediaKey: "episode:tmdb:123:1:1",
+        sourceTitle: "A Thousand Blows - S01E01",
+        showTitle: "A Thousand Blows",
+        type: "episode",
+        season: 1,
+        episode: 1,
+        watchedAt: "2026-08-22T01:21:00.000Z",
+        reason: "timed out after 30000ms: jellyfin: A Thousand Blows - S01E01",
+      }],
+    },
+  }, {});
+
+  assert.equal(item.context.issueItems[0].sourceMediaKey, "episode:tmdb:123:1:1");
+  assert.equal(item.context.issueItems[0].canRepair, true);
+  assert.equal(item.context.issueItems[0].repairLabel, "Retry on Jellyfin");
 });
 
 test("expected media availability skips do not become restore blockers", () => {
@@ -302,6 +334,44 @@ test("individual restore issues can be skipped while the restore fence remains u
   assert.equal(second.status(), 200);
   assert.equal(second.payload().released, true);
   assert.equal(second.payload().count, 0);
+
+  await runtime.setRuntimeState({
+    restoreSyncActive: false,
+    restoreSyncRunId: "",
+    restoreSyncKind: "",
+    restoreSyncResult: null,
+    syncOperation: null,
+    syncAttentionSkips: {},
+  });
+});
+
+test("multiple restore issues can be skipped at once with skip-items releasing the restore fence", async () => {
+  await runtime.setRuntimeState({
+    restoreSyncActive: true,
+    restoreSyncRunId: "restore-items-batch-456",
+    restoreSyncKind: runtime.RESTORE_KIND_BACKUP,
+    restoreSyncStartedAt: Date.now(),
+    restoreSyncHeartbeat: Date.now(),
+    restoreSyncResult: { ...structuredTraktFailure, runId: "restore-items-batch-456" },
+    syncOperation: null,
+    syncAttentionSkips: {},
+  });
+
+  const get = mockRequestResponse("GET");
+  await handleSyncAttention(get.request, get.response);
+  const parent = get.payload().attention[0];
+  const allKeys = parent.context.issueItems.map((i) => i.key);
+  assert.equal(allKeys.length, 2);
+
+  const batchSkip = mockRequestResponse("POST", { id: parent.id, itemKeys: allKeys, action: "skip-items" });
+  await handleSyncAttention(batchSkip.request, batchSkip.response);
+  assert.equal(batchSkip.status(), 200);
+  assert.equal(batchSkip.payload().released, true);
+  assert.equal(batchSkip.payload().count, 0);
+
+  const afterBatch = await runtime.loadRuntimeState();
+  assert.equal(afterBatch.restoreSyncActive, false);
+  assert.equal(afterBatch.restoreSyncResult.restoreIssues.length, 0);
 
   await runtime.setRuntimeState({
     restoreSyncActive: false,

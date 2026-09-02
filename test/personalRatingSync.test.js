@@ -46,6 +46,16 @@ test("rating sync defaults off and normalizes its independent provider direction
       providers: { plex: "send", emby: "off", jellyfin: "off", trakt: "bidirectional" },
     },
   );
+  assert.deepEqual(
+    normalizeRatingSyncSection({ enabled: true }),
+    {
+      enabled: true,
+      intervalMinutes: 15,
+      initialSyncMode: "baseline",
+      conflictPolicy: "local_wins",
+      providers: { plex: "bidirectional", emby: "bidirectional", jellyfin: "bidirectional", trakt: "bidirectional" },
+    },
+  );
   assert.deepEqual(validateConfig({ ratingSync: normalizeRatingSyncSection({}) }), []);
 });
 

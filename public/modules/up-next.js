@@ -261,7 +261,7 @@ export function renderUpNext({ exitIds = [] } = {}) {
   if (section) section.classList.remove("hidden");
   const html = items.slice(0, 30).map((item, index) => renderDashboardUpNextCard({
     ...item,
-    eager_poster: index < 6,
+    eager_poster: index < 12,
   })).join("");
   commitPanel(html, () => {
     hydratePosters(panel);

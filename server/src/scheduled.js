@@ -1643,6 +1643,18 @@ function isTargetSynced(telemetry = "", target = "", source = "") {
   return false;
 }
 
+function dispatchSourceForPendingRow(row = {}, action = row.sync_action) {
+  const normalizedAction = String(action || "").toLowerCase();
+  const telemetry = String(row.sync_dispatch_telemetry || "");
+  // Manual unwatches are recorded with the original provider as their row
+  // source so inbound history remains attributable, but their outbound replay
+  // must fan out to every destination, including that original provider.
+  if (["unwatched", "unplayed"].includes(normalizedAction) && /^Origin:\s*manual\s*$/im.test(telemetry)) {
+    return "manual";
+  }
+  return row.source;
+}
+
 export async function syncPendingManualDispatches(config, loopStore, logger = console.log) {
   if (isAuthoritativeRestoreActive()) return 0;
   if (!watchedPlayedSyncEnabled()) {
@@ -1661,7 +1673,9 @@ export async function syncPendingManualDispatches(config, loopStore, logger = co
     const now = Date.now();
 
     for (const row of rows) {
-      if (row.sync_action !== "watched") continue;
+      const action = String(row.sync_action || "watched").toLowerCase();
+      if (!["watched", "unwatched", "unplayed"].includes(action)) continue;
+      const dispatchSource = dispatchSourceForPendingRow(row, action);
 
       const telemetry = row.sync_dispatch_telemetry || "";
       const isPending = telemetry.includes("Dispatch status: pending");
@@ -1669,7 +1683,7 @@ export async function syncPendingManualDispatches(config, loopStore, logger = co
       let needsSync = isPending;
       if (!isPending && activeTargets.length > 0) {
         const allSynced = activeTargets.every((target) =>
-          isTargetSynced(telemetry, target, row.source)
+          isTargetSynced(telemetry, target, dispatchSource)
         );
         if (!allSynced) {
           needsSync = true;
@@ -1705,10 +1719,13 @@ export async function syncPendingManualDispatches(config, loopStore, logger = co
         if (isAuthoritativeRestoreActive()) return;
         try {
       const id = row.id;
+      const action = String(row.sync_action || "watched").toLowerCase();
+      const isUnwatched = action === "unwatched" || action === "unplayed";
+      const dispatchSource = dispatchSourceForPendingRow(row, action);
       const media = {
         title: row.title,
         type: row.media_type,
-        source: row.source,
+        source: dispatchSource,
         // Without this, a retried dispatch falls back to Date.now() in
         // traktClient.js's syncPayload, so a row that genuinely happened at
         // some earlier date reaches Trakt stamped as watched right now
@@ -1731,14 +1748,21 @@ export async function syncPendingManualDispatches(config, loopStore, logger = co
       // re-sending mark-played to ones the telemetry already shows as
       // successful - fewer redundant outbound calls, faster backlog drain.
       const targetsStillNeeded = activeTargets.filter(
-        (target) => !isTargetSynced(row.sync_dispatch_telemetry || "", target, row.source)
+        (target) => !isTargetSynced(row.sync_dispatch_telemetry || "", target, dispatchSource)
       );
       if (targetsStillNeeded.length) media.syncTargets = targetsStillNeeded;
 
       logger(`Background Queue: retrying/dispatching sync for ${media.title} (${id})...`);
       if (isAuthoritativeRestoreActive()) return;
-      await upsertPlaystateForMedia(media, "watched", row.watched_at, { skipInvalidate: true });
-      const summary = await syncMediaPlaystate(media, config, loopStore).catch((error) => ({
+      const stateMedia = { ...media, source: row.source || media.source };
+      if (isUnwatched) {
+        await upsertPlaystateForMedia(stateMedia, "unwatched", row.watched_at, { skipInvalidate: true });
+      } else {
+        await upsertPlaystateForMedia(stateMedia, "watched", row.watched_at, { skipInvalidate: true });
+      }
+      const summary = await (isUnwatched
+        ? syncMediaUnplayedPlaystate(media, config, loopStore)
+        : syncMediaPlaystate(media, config, loopStore)).catch((error) => ({
         skipped: false,
         status: "error",
         details: `Outbound sync failed: ${error.message || String(error)}`,
@@ -1763,7 +1787,7 @@ export async function syncPendingManualDispatches(config, loopStore, logger = co
         `Origin: ${media.source}`,
         `Loop-check: Passed`,
         `Dispatch status: ${summary.status}`,
-        `Details: ${summary.details || "Manual watch state propagated; sync completed."}`,
+        `Details: ${summary.details || (isUnwatched ? "Manual unwatch state propagated; sync completed." : "Manual watch state propagated; sync completed.")}`,
         ...provenanceTelemetryLines(media.watchProvenance || media.watch_provenance),
         ...carriedForwardLines,
         ...(summary.targetStates || []).map(
@@ -1773,7 +1797,7 @@ export async function syncPendingManualDispatches(config, loopStore, logger = co
 
       const previousRetryCount = Number(row.sync_retry_count || 0);
       const allSyncedNow = activeTargets.length > 0 && activeTargets.every((target) =>
-        isTargetSynced(telemetryLines.join("\n"), target, row.source)
+        isTargetSynced(telemetryLines.join("\n"), target, dispatchSource)
       );
       let terminal = false;
       if (allSyncedNow) {
@@ -1795,7 +1819,7 @@ export async function syncPendingManualDispatches(config, loopStore, logger = co
       // first failed attempt, a success, or giving up. Identical failures on
       // every backoff step would otherwise flood the table.
       if (allSyncedNow || previousRetryCount === 0 || terminal) {
-        await recordSyncHistory(media, summary, "watched");
+        await recordSyncHistory(media, summary, action);
       }
       syncedCount++;
         } catch (error) {

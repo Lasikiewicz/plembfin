@@ -21,12 +21,13 @@ export function isCachedStorageImageUrl(value = "") {
 // These same-origin endpoints already return safe artwork (usually by
 // redirecting to a cached file). Keep them usable in posterMarkup() without
 // trying to resolve them against a media-server base URL.
-function isLocalArtworkUrl(value = "") {
+export function isLocalArtworkUrl(value = "") {
   const raw = String(value || "").trim();
   return isCachedStorageImageUrl(raw)
     || raw.startsWith("/api/poster")
     || raw.startsWith("/api/tmdb-poster")
-    || raw.startsWith("/api/remote-artwork");
+    || raw.startsWith("/api/remote-artwork")
+    || compactPosterUrl(raw) !== "";
 }
 
 export function compactPosterUrl(value) {
@@ -455,7 +456,7 @@ export async function hydratePosterFallbacks(container = document.body) {
     bindPosterImageErrorHandler(image);
     image.src = encodeURI(safeUrl);
     image.alt = `${fallback.getAttribute("aria-label") || "Media poster"}`;
-    image.loading = "lazy";
+    image.loading = "eager";
     image.decoding = "async";
     image.referrerPolicy = "no-referrer";
     image.dataset.posterId = posterId;

@@ -1030,13 +1030,17 @@ export function mediaDetailLoaderHtml(label = "Loading details") {
 }
 export function prepareInlineMediaDetail(mode = state.explorerMode || "movies") {
   setMediaDetailActions("");
-  if (!state.mediaDetailInline) {
+  const enteringInlineDetail = !state.mediaDetailInline;
+  if (enteringInlineDetail) {
     state.mediaDetailReturnView = state.activeView || "explorer";
     state.mediaDetailReturnExplorerMode = state.explorerMode || "movies";
   }
   state.mediaDetailInline = true;
   state.explorerMode = mode;
-  selectView("explorer");
+  // Route handlers set mediaDetailInline before opening the detail renderer.
+  // Re-selecting the already active view here re-enters the same URL route,
+  // which starts another detail load and can exhaust the browser's resources.
+  if (enteringInlineDetail) selectView("explorer");
   syncInlineMediaDetailHeading(mode);
   elements.explorerPanel.innerHTML = "";
   elements.explorerPanel.scrollIntoView({ block: "start" });

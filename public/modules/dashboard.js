@@ -1,8 +1,9 @@
 import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, sourceBadgeHtml, formatDate, formatTmdbDate, resolveEpisodeTitle, episodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress } from "./utils.js?v=20260824h";
-import { posterMarkup, posterOverflowMenu, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, tmdbPoster } from "./images.js?v=20260831m";
+import { posterMarkup, posterOverflowMenu, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, tmdbPoster, isLocalArtworkUrl } from "./images.js?v=20260831m";
 import { renderDashboardChecklist } from "./onboarding.js";
+import { initialMediaAppLinksContent } from "./media-detail-shared.js?v=20260831j";
 
 const PART_WATCHED_DASHBOARD_LIMIT = 30;
 const EXPLORER_PAGE_SIZE = 240;
@@ -365,6 +366,26 @@ function dashboardUpNextEpisodeTitle(entry, showTitle) {
   return storedTitle && !isGeneratedLabel(storedTitle) ? storedTitle : "";
 }
 
+function findKnownShowPoster(entry = {}) {
+  if (!entry || entry.media_type !== "episode") return "";
+  const showTitle = slug(entry.show_title || showTitleFrom(entry.title) || "");
+  const showTmdb = String(entry.show_tmdb_id || entry.tmdb_id || "").trim();
+  const showTvdb = String(entry.show_tvdb_id || entry.tvdb_id || "").trim();
+  const showImdb = String(entry.show_imdb_id || entry.imdb_id || "").trim().toLowerCase();
+
+  const match = (state.history || []).find((h) => {
+    if (h.media_type !== "episode") return false;
+    if (showTmdb && (String(h.show_tmdb_id || "") === showTmdb || String(h.tmdb_id || "") === showTmdb)) return true;
+    if (showTvdb && (String(h.show_tvdb_id || "") === showTvdb || String(h.tvdb_id || "") === showTvdb)) return true;
+    if (showImdb && String(h.show_imdb_id || h.imdb_id || "").toLowerCase() === showImdb) return true;
+    if (showTitle && slug(h.show_title || showTitleFrom(h.title) || "") === showTitle) return true;
+    return false;
+  });
+
+  const poster = match?.show_poster_url || match?.poster_url || "";
+  return isLocalArtworkUrl(poster) ? poster : "";
+}
+
 export function renderDashboardHistoryPageCard(entry, options = {}) {
   const isPartWatched = Boolean(options.partWatched || entry.isPartWatched || entry.part_watched);
   const isUpNext = Boolean(options.upNext || entry.isUpNext || entry.up_next);
@@ -410,10 +431,14 @@ export function renderDashboardHistoryPageCard(entry, options = {}) {
   // /api/poster can resolve. A progress row's generic `id` can be a watch
   // record id (or another source-specific identifier), which leaves the new
   // Part Watched card on the placeholder even when artwork is available.
+  const knownShowPoster = (isEpisode && (!entry.show_poster_url || entry.show_poster_url.startsWith("/api/poster")))
+    ? findKnownShowPoster(entry)
+    : "";
+  const effectiveShowPoster = knownShowPoster || entry.show_poster_url;
   const posterEntry = {
     ...entry,
-    ...(isEpisode && entry.show_poster_url
-      ? { poster_url: entry.show_poster_url, prefer_raw_poster: true }
+    ...(isEpisode && effectiveShowPoster
+      ? { poster_url: effectiveShowPoster, show_poster_url: effectiveShowPoster, prefer_raw_poster: true }
       : {}),
     ...(isPartWatched && entry.media_key ? { id: entry.media_key } : {}),
   };
@@ -454,7 +479,18 @@ export function renderDashboardHistoryPageCard(entry, options = {}) {
             data-season="${escapeAttribute(isEpisode ? (entry.season ?? "") : "")}"
             data-episode="${escapeAttribute(isEpisode ? (entry.episode ?? "") : "")}"
             data-provider-items="${escapeAttribute(JSON.stringify(entry.provider_items || entry.providerItems || {}))}"
-            data-title="${escapeAttribute(isEpisode ? (displayTitle || "") : (entry.title || ""))}"></div>
+            data-title="${escapeAttribute(isEpisode ? (displayTitle || "") : (entry.title || ""))}">${initialMediaAppLinksContent({
+              mediaType: isEpisode ? "episode" : "movie",
+              appLinkStyle: "source-badge",
+              allApps: true,
+              tmdbId: isEpisode ? (entry.show_tmdb_id || entry.tmdb_id || "") : (entry.tmdb_id || ""),
+              imdbId: isEpisode ? (entry.show_imdb_id || entry.imdb_id || "") : (entry.imdb_id || ""),
+              tvdbId: isEpisode ? (entry.show_tvdb_id || entry.tvdb_id || "") : (entry.tvdb_id || ""),
+              season: isEpisode ? (entry.season ?? "") : "",
+              episode: isEpisode ? (entry.episode ?? "") : "",
+              providerItems: entry.provider_items || entry.providerItems || {},
+              title: isEpisode ? (displayTitle || "") : (entry.title || ""),
+            })}</div>
         </div>
       ` : `
         <div class="history-card-footer">

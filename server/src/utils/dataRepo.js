@@ -36,7 +36,11 @@ let scheduledShowCache = { version: null, shows: [] };
 let movieCache = { version: null, rows: null };
 let statsCache = { version: null, stats: null };
 
-function assertRestoreWriteAllowed(source = "") {
+function assertRestoreWriteAllowed(source = "", { allowDuringRestore = false } = {}) {
+  // An explicit manual unwatch is allowed to commit its local canonical marker
+  // while a restore owns outbound projection. Its pending telemetry is then
+  // picked up by the scheduler once the restore fence is released.
+  if (allowDuringRestore) return;
   const normalizedSource = String(source || "").trim().toLowerCase();
   if (normalizedSource.startsWith("restore")) return;
   if (!isAuthoritativeRestoreActive()) return;
@@ -982,11 +986,11 @@ export function playstateRecordFromMedia(media = {}, state = media?.syncAction |
   return record;
 }
 
-export function upsertPlaystateSync(record, stateOverride = undefined) {
+export function upsertPlaystateSync(record, stateOverride = undefined, { allowDuringRestore = false } = {}) {
   const normalized = normalizeWatchRecord(record, record.source || "webhook");
   const errors = validateWatchRecord(normalized);
   if (errors.length) throw new Error(errors.join(", "));
-  assertRestoreWriteAllowed(normalized.source);
+  assertRestoreWriteAllowed(normalized.source, { allowDuringRestore });
 
   const state = normalizePlaystateState(stateOverride || normalized.sync_action);
   const identityMatches = playstateRowsForIdentity(normalized);
@@ -1031,14 +1035,14 @@ export function upsertPlaystateSync(record, stateOverride = undefined) {
   return { mediaKey, state, record: normalized };
 }
 
-export async function upsertPlaystate(record, stateOverride = undefined, { skipInvalidate = false } = {}) {
-  const result = upsertPlaystateSync(record, stateOverride);
+export async function upsertPlaystate(record, stateOverride = undefined, { skipInvalidate = false, allowDuringRestore = false } = {}) {
+  const result = upsertPlaystateSync(record, stateOverride, { allowDuringRestore });
   if (!skipInvalidate) await invalidateHistoryDerivedCaches();
   return result;
 }
 
-export function upsertPlaystateForMediaSync(media, state = "watched", watchedAt = undefined) {
-  return upsertPlaystateSync(playstateRecordFromMedia(media, state, watchedAt), state);
+export function upsertPlaystateForMediaSync(media, state = "watched", watchedAt = undefined, options = {}) {
+  return upsertPlaystateSync(playstateRecordFromMedia(media, state, watchedAt), state, options);
 }
 
 export async function upsertPlaystateForMedia(media, state = "watched", watchedAt = undefined, options = {}) {
@@ -1207,11 +1211,11 @@ async function invalidateAfterRowMetaWrite(id, oldRow, changed) {
 // `id` lets a caller that is replacing a row keep that row's identity - see
 // applyManualUnwatch, where a superseding unwatched record stands in for the
 // watched one it replaced. It must name a row that no longer exists.
-export function insertWatchRecordSync(record, { id: presetId = "", watchlistConfig = null } = {}) {
+export function insertWatchRecordSync(record, { id: presetId = "", watchlistConfig = null, allowDuringRestore = false } = {}) {
   const normalized = normalizeWatchRecord(record, record.source);
   const errors = validateWatchRecord(normalized);
   if (errors.length) throw new Error(errors.join(", "));
-  assertRestoreWriteAllowed(normalized.source);
+  assertRestoreWriteAllowed(normalized.source, { allowDuringRestore });
 
   // Queue show progress update
   queueProgressUpdateForRecord(normalized);
@@ -1314,8 +1318,8 @@ export function prefetchWatchRecordAssets({ id = "", record = null } = {}) {
   return prefetchTmdbMetadataBackground(record.media_type, record.tmdb_id, record.title, id, record).catch(() => null);
 }
 
-export async function insertWatchRecord(record, { skipInvalidate = false, id: presetId = "", watchlistConfig = null } = {}) {
-  const result = insertWatchRecordSync(record, { id: presetId, watchlistConfig });
+export async function insertWatchRecord(record, { skipInvalidate = false, id: presetId = "", watchlistConfig = null, allowDuringRestore = false } = {}) {
+  const result = insertWatchRecordSync(record, { id: presetId, watchlistConfig, allowDuringRestore });
   if (!skipInvalidate) await invalidateHistoryDerivedCaches();
 
   // Eagerly pull + store TMDB metadata/artwork at ingest (fire-and-forget;
@@ -2354,9 +2358,9 @@ export async function getPlaybackProgressForMedia(mediaOrRecord) {
   return row ? playbackProgressFromRow(row) : null;
 }
 
-export function deletePlaybackProgressSync(mediaOrRecord) {
+export function deletePlaybackProgressSync(mediaOrRecord, { allowDuringRestore = false } = {}) {
   const normalized = normalizePlaybackProgressRecord(mediaOrRecord, mediaOrRecord?.source);
-  assertRestoreWriteAllowed(normalized.source);
+  assertRestoreWriteAllowed(normalized.source, { allowDuringRestore });
   if (!normalized.media_key) return false;
   const related = normalized.title
     ? selectProgressByTitleStmt
@@ -2387,8 +2391,8 @@ export function deletePlaybackProgressSync(mediaOrRecord) {
   return keys.size > 0;
 }
 
-export async function deletePlaybackProgress(mediaOrRecord) {
-  return deletePlaybackProgressSync(mediaOrRecord);
+export async function deletePlaybackProgress(mediaOrRecord, options = {}) {
+  return deletePlaybackProgressSync(mediaOrRecord, options);
 }
 
 export async function listPlaybackProgressRowsForReplay({ limit = 25, offset = 0, snapshotAt = undefined } = {}) {
@@ -3636,6 +3640,18 @@ export async function rematchShowWatchRecords({ id = "", showTitle = "", tvdbId 
   const cachedProgressTmdbId = cleanString(getCachedShowProgress(showKey)?.tmdb_id);
   if (cachedProgressTmdbId) oldTmdbIds.add(cachedProgressTmdbId);
   const mediaKeys = new Set(rows.map((row) => cleanString(row.media_key)).filter(Boolean));
+  // A restore can leave a watched playstate row without a corresponding
+  // watch-history row (for example, when the failed projection retained only
+  // the target's identity). Include those rows in the match migration when
+  // their title and episode coordinates belong to this show, otherwise Fix
+  // Match repairs the history while the stale target identity remains behind.
+  const orphanPlaystateRows = db.prepare("SELECT * FROM playstate WHERE media_type = 'episode'").all().filter((playstate) => {
+    if (canonicalShowTitleKey(showTitleFrom(playstate.title || "")) !== showKey) return false;
+    const titleCoordinates = episodeCoordinatesFromTitle(playstate.title || "");
+    const season = playstate.season ?? titleCoordinates.season;
+    const episode = playstate.episode ?? titleCoordinates.episode;
+    return rows.some((row) => Number(row.season) === Number(season) && Number(row.episode) === Number(episode));
+  });
   const updatedAt = Date.now();
 
   // Old media_key -> new media_key, collected while the rows are rewritten so the
@@ -3675,6 +3691,26 @@ export async function rematchShowWatchRecords({ id = "", showTitle = "", tvdbId 
       }
     }
 
+    for (const playstate of orphanPlaystateRows) {
+      const titleCoordinates = episodeCoordinatesFromTitle(playstate.title || "");
+      const season = playstate.season ?? titleCoordinates.season;
+      const episode = playstate.episode ?? titleCoordinates.episode;
+      const previousKey = cleanString(playstate.media_key);
+      const nextTitle = renameTo
+        ? retitledEpisode(playstate.title, renameTo, season, episode)
+        : playstate.title;
+      const nextKey = mediaKeyFor({
+        media_type: "episode",
+        season,
+        episode,
+        tvdb_id: cleanTvdbId,
+        title: nextTitle,
+      });
+      if (previousKey && nextKey && nextKey !== previousKey) {
+        keyMigrations.set(previousKey, { nextKey, title: nextTitle });
+      }
+    }
+
     for (const [previousKey, { nextKey, title }] of keyMigrations) {
       // A playstate row may already sit at the destination when only some of the
       // episodes were mis-keyed. The row already at the correct key is the
@@ -3683,7 +3719,7 @@ export async function rematchShowWatchRecords({ id = "", showTitle = "", tvdbId 
       else movePlaystateKeyStmt.run(nextKey, cleanTvdbId, title, title.toLowerCase(), updatedAt, previousKey);
     }
 
-    for (const mediaKey of mediaKeys) deletePosterByMediaKeyStmt.run(mediaKey);
+    for (const mediaKey of new Set([...mediaKeys, ...keyMigrations.keys()])) deletePosterByMediaKeyStmt.run(mediaKey);
     for (const tmdbId of oldTmdbIds) deleteTmdbMetadataStmt.run(`tv_${tmdbId}`);
     deleteTvdbMetadataStmt.run(`series_${cleanTvdbId}`);
   });
@@ -3887,8 +3923,8 @@ export async function backfillUnknownShowTitles() {
   return fixed;
 }
 
-export function deleteWatchRecordByIdSync(id) {
-  assertRestoreWriteAllowed("manual");
+export function deleteWatchRecordByIdSync(id, { allowDuringRestore = false } = {}) {
+  assertRestoreWriteAllowed("manual", { allowDuringRestore });
   if (!id) return false;
   const row = selectByIdStmt.get(String(id));
   if (row) {
@@ -3930,14 +3966,14 @@ export function deleteWatchRecordByIdSync(id) {
   return true;
 }
 
-export async function deleteWatchRecordById(id, { skipInvalidate = false } = {}) {
-  const deleted = deleteWatchRecordByIdSync(id);
+export async function deleteWatchRecordById(id, { skipInvalidate = false, allowDuringRestore = false } = {}) {
+  const deleted = deleteWatchRecordByIdSync(id, { allowDuringRestore });
   if (deleted && !skipInvalidate) await invalidateHistoryDerivedCaches();
   return deleted;
 }
 
-export function deleteWatchRecordSync(media) {
-  assertRestoreWriteAllowed(media?.source || "manual");
+export function deleteWatchRecordSync(media, { allowDuringRestore = false } = {}) {
+  assertRestoreWriteAllowed(media?.source || "manual", { allowDuringRestore });
   const key = mediaKeyFor({
     title: media.title,
     type: media.type,
@@ -3977,8 +4013,8 @@ export function deleteWatchRecordSync(media) {
   return true;
 }
 
-export async function deleteWatchRecord(media, { skipInvalidate = false } = {}) {
-  const deleted = deleteWatchRecordSync(media);
+export async function deleteWatchRecord(media, { skipInvalidate = false, allowDuringRestore = false } = {}) {
+  const deleted = deleteWatchRecordSync(media, { allowDuringRestore });
   if (deleted && !skipInvalidate) await invalidateHistoryDerivedCaches();
   return deleted;
 }

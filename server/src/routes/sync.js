@@ -495,7 +495,14 @@ function mediaFromWatchRecord(record) {
 // unwatched record, flip the playstate cache, and propagate unplayed to the other
 // platforms. Shared by the webhook `unplayed` phase and the manual-unwatch handler.
 export async function applyManualUnwatch(media, config, loopStore, recordId = "", { includeSourcePlatform = false, trackDispatch = true, force = false, lane = "sync" } = {}) {
-  const result = await applyUnwatchedTransition(media, config, loopStore, { recordId, includeSourcePlatform, trackDispatch, force, lane });
+  const result = await applyUnwatchedTransition(media, config, loopStore, {
+    recordId,
+    includeSourcePlatform,
+    trackDispatch,
+    force,
+    lane,
+    allowLocalDuringRestore: includeSourcePlatform,
+  });
   // includeSourcePlatform means this is an explicit manual action, not an inbound
   // event from `media.source` - applyUnwatchedTransition dispatches under "manual"
   // for the same reason (see its includeSourcePlatform handling), so the recorded
@@ -1351,9 +1358,6 @@ export async function handleManualUnwatch(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
-  if (isAuthoritativeRestoreActive()) {
-    return sendJson(res, { ok: false, error: "An authoritative watch-history restore is active; manual watch-state changes are paused until it completes." }, 409);
-  }
 
   const body = await readJson(req);
   const ids = Array.isArray(body.ids)
@@ -1367,6 +1371,7 @@ export async function handleManualUnwatch(req, res) {
   const results = new Array(ids.length);
   let succeeded = 0;
   let failed = 0;
+  let queued = 0;
 
   const trackingReservation = reserveDispatchBatch(ids.length);
   try {
@@ -1382,7 +1387,9 @@ export async function handleManualUnwatch(req, res) {
           lane: ids.length === 1 ? "interactive" : "sync",
         });
         succeeded += 1;
-        results[index] = { id, unwatchedId, status: summary.status, targetStates: summary.targetStates || [] };
+        const wasQueued = Boolean(summary.deferred);
+        if (wasQueued) queued += 1;
+        results[index] = { id, unwatchedId, status: summary.status, queued: wasQueued, targetStates: summary.targetStates || [] };
       } catch (error) {
         failed += 1;
         results[index] = { id, error: error.message || String(error) };
@@ -1398,9 +1405,9 @@ export async function handleManualUnwatch(req, res) {
   if (ids.length === 1) {
     const only = results[0];
     if (only.error) return sendJson(res, { error: "Manual unwatch failed" }, 500);
-    return sendJson(res, { ok: true, id: only.unwatchedId, status: only.status, targetStates: only.targetStates });
+    return sendJson(res, { ok: true, id: only.unwatchedId, status: only.status, queued: Boolean(only.queued), targetStates: only.targetStates });
   }
-  return sendJson(res, { ok: true, succeeded, failed, results });
+  return sendJson(res, { ok: true, succeeded, failed, queued, results });
 }
 
 export async function handleManualWatch(req, res) {
@@ -1773,9 +1780,6 @@ export async function handlePlaybackProgressUnwatch(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
-  if (isAuthoritativeRestoreActive()) {
-    return sendJson(res, { ok: false, error: "An authoritative watch-history restore is active; manual watch-state changes are paused until it completes." }, 409);
-  }
 
   const body = await readJson(req);
   const mediaKey = String(body.media_key || "").trim();
@@ -1795,6 +1799,7 @@ export async function handlePlaybackProgressUnwatch(req, res) {
       id: unwatchedId,
       clearedResume: true,
       status: summary.status,
+      queued: Boolean(summary.deferred),
       targetStates: summary.targetStates || [],
     });
   } catch (error) {
@@ -1811,9 +1816,6 @@ export async function handleUpNextRemove(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
-  if (isAuthoritativeRestoreActive()) {
-    return sendJson(res, { ok: false, error: "An authoritative watch-history restore is active; manual watch-state changes are paused until it completes." }, 409);
-  }
 
   const body = await readJson(req).catch(() => ({}));
   const mediaKey = String(body.media_key || "").trim();
@@ -1836,6 +1838,7 @@ export async function handleUpNextRemove(req, res) {
       id: unwatchedId,
       clearedResume: true,
       status: summary.status,
+      queued: Boolean(summary.deferred),
       targetStates: summary.targetStates || [],
     });
   } catch (error) {

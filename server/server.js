@@ -220,6 +220,8 @@ app.all("/api/*path", express.raw({ type: "*/*", limit: "15mb" }), (req, res) =>
 
 // Locally cached posters/backdrops.
 app.use("/media", express.static(MEDIA_DIR, { maxAge: "365d", immutable: true }));
+// Bundled app and source icons.
+app.use("/icons", express.static(path.join(PUBLIC_DIR, "icons"), { maxAge: "7d" }));
 
 app.get("/changelog.json", (_req, res) => {
   res.sendFile(path.resolve(PUBLIC_DIR, "..", "changelog.json"));

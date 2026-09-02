@@ -22419,8 +22419,110 @@ html.light-mode .settings-pane .settings-card-grid .service-card:focus-visible {
   padding-right: 0.15rem;
 }
 
-.sync-attention-issue {
+.sync-attention-show-group {
+  display: grid;
+  gap: 0;
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) - 1px);
+  background: var(--panel-3);
+  overflow: hidden;
+}
+
+.sync-attention-show-header {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  cursor: pointer;
+  user-select: none;
+  background: var(--panel-3);
+  transition: background 0.15s ease;
+}
+
+.sync-attention-show-header:hover,
+.sync-attention-show-header:focus-visible {
+  background: var(--panel-2);
+}
+
+.sync-attention-show-header-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.sync-attention-show-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.25rem;
+  height: 1.25rem;
+  color: var(--muted);
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1;
+  transition: transform 0.2s ease;
+}
+
+.sync-attention-show-chevron.is-expanded {
+  transform: rotate(90deg);
+}
+
+.sync-attention-show-title-copy {
+  display: grid;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.sync-attention-show-title {
+  margin: 0;
+  color: var(--soft);
+  font-size: 0.95rem;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sync-attention-show-meta {
+  color: var(--muted);
+  font-size: 0.77rem;
+  line-height: 1.4;
+}
+
+.sync-attention-show-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  flex-shrink: 0;
+}
+
+.sync-attention-show-episodes {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: var(--space-2);
+  background: var(--bg);
+  border-top: 1px solid var(--line);
+}
+
+.sync-attention-show-episodes .sync-attention-issue {
+  background: var(--panel-3);
+}
+
+.sync-attention-show-terminal {
+  margin: 0;
+  border-radius: 0;
+  border-left: none;
+  border-right: none;
+}
+
+.sync-attention-issue {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
@@ -22429,6 +22531,87 @@ html.light-mode .settings-pane .settings-card-grid .service-card:focus-visible {
   border: 1px solid var(--line);
   border-radius: calc(var(--radius) - 1px);
   background: var(--panel-3);
+}
+
+.sync-attention-issue-terminal {
+  display: grid;
+  grid-column: 1 / -1;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: calc(var(--radius) - 1px);
+  background: var(--bg);
+}
+
+.sync-attention-issue-terminal-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  padding: 0.35rem var(--space-2);
+  border-bottom: 1px solid var(--line);
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.sync-attention-issue-terminal-prompt {
+  color: var(--blue);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 1rem;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.sync-attention-issue-terminal-title {
+  color: var(--soft);
+  font-weight: 800;
+}
+
+.sync-attention-issue-terminal-target {
+  overflow: hidden;
+  margin-left: auto;
+  color: var(--muted);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sync-attention-issue-terminal-state {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  min-height: 1.35rem;
+  padding: 0.1rem 0.4rem;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  font-size: 0.64rem;
+  font-weight: 800;
+}
+
+.sync-attention-issue-terminal-state--running {
+  color: var(--blue);
+}
+
+.sync-attention-issue-terminal-state--success {
+  color: var(--green);
+}
+
+.sync-attention-issue-terminal-state--error {
+  color: var(--red);
+}
+
+.sync-attention-issue-terminal-output {
+  max-height: 10rem;
+  margin: 0;
+  overflow: auto;
+  padding: var(--space-2) var(--space-3);
+  color: var(--soft);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.72rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .sync-attention-issue-copy {
@@ -22461,6 +22644,23 @@ html.light-mode .settings-pane .settings-card-grid .service-card:focus-visible {
 
 .sync-attention-issue-reason {
   color: var(--soft);
+}
+
+.sync-attention-issue-match-guidance {
+  grid-column: 1 / -1;
+  margin: 0;
+  padding: var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--yellow) 45%, var(--line));
+  border-radius: calc(var(--radius) - 1px);
+  background: color-mix(in srgb, var(--yellow) 7%, var(--panel-3));
+  color: var(--soft);
+  font-size: 0.77rem;
+  line-height: 1.45;
+}
+
+.sync-attention-issue-match-guidance strong,
+.sync-attention-issue-fix-match {
+  color: var(--yellow);
 }
 
 .sync-attention-issue-badge {
@@ -22900,6 +23100,7 @@ html.light-mode .settings-pane .settings-card-grid .service-card:focus-visible {
 
   .sync-attention-issue {
     align-items: stretch;
+    display: flex;
     flex-direction: column;
   }
 

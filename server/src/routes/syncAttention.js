@@ -13,7 +13,13 @@ import {
   touchSyncOperation,
 } from "../utils/configStore.js";
 import { getOnboardingState, saveOnboardingState } from "../utils/onboardingStore.js";
-import { getWatchRecordById, requireDb } from "../utils/dataRepo.js";
+import {
+  canonicalShowTitleKey,
+  canonicalTitleKey,
+  getWatchRecordById,
+  requireDb,
+  showTitleFrom,
+} from "../utils/dataRepo.js";
 import { retryTraktRestoreItem } from "../utils/trackerDispatcher.js";
 import { createLoopStore } from "../utils/loopStore.js";
 import { syncMediaPlaystate, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
@@ -80,6 +86,19 @@ function restoreIssueKey(issue = {}) {
 
 function restoreIssueProvider(issue = {}) {
   return String(issue.provider || issue.target || "").trim().toLowerCase();
+}
+
+function restoreIssueCanRepair(issue = {}) {
+  const provider = restoreIssueProvider(issue);
+  if (!["trakt", "plex", "emby", "jellyfin"].includes(provider) || issue.candidate === true) return false;
+  const type = String(issue.type || issue.mediaType || "").trim().toLowerCase();
+  if (!["episode", "movie"].includes(type)) return false;
+  const sourceRowId = String(issue.sourceRowId || "").trim();
+  const sourcePlaystateKey = String(issue.sourcePlaystateKey || issue.mediaKey || "").trim();
+  const sourceMediaKey = String(issue.sourceMediaKey || "").trim();
+  return provider === "trakt"
+    ? Boolean(sourceRowId)
+    : Boolean(sourceRowId || sourcePlaystateKey || sourceMediaKey);
 }
 
 function isExpectedRestoreAvailabilitySkip(issue = {}) {
@@ -213,6 +232,60 @@ function mediaFromRestoreRepairRow(row = {}, compoundIndex = null) {
   return media;
 }
 
+function restoreIssueType(issue = {}) {
+  const type = String(issue.type || issue.mediaType || "").trim().toLowerCase();
+  return ["episode", "movie"].includes(type) ? type : "";
+}
+
+function restoreIssueShowTitle(issue = {}) {
+  return String(
+    issue.showTitle
+      || issue.sourceShowTitle
+      || showTitleFrom(issue.sourceTitle || issue.title || ""),
+  ).trim();
+}
+
+function restoreHistoryRowForIssue(issue = {}) {
+  const type = restoreIssueType(issue);
+  if (!type) return null;
+  const rows = requireDb().prepare(`
+    SELECT * FROM watch_history
+    WHERE sync_action IS NULL OR LOWER(sync_action) NOT IN ('unwatched', 'unplayed')
+  `).all();
+  const candidates = rows.filter((row) => String(row.media_type || "").toLowerCase() === type);
+  const sourceRowId = String(issue.sourceRowId || "").trim();
+  const bySourceRowId = sourceRowId && candidates.find((row) => String(row.id || "").trim() === sourceRowId);
+  if (bySourceRowId) return bySourceRowId;
+  const sourceKey = String(issue.sourceMediaKey || issue.sourcePlaystateKey || issue.mediaKey || "").trim();
+  const bySourceKey = sourceKey && candidates.find((row) => String(row.media_key || "").trim() === sourceKey);
+  if (bySourceKey) return bySourceKey;
+
+  const sourceIds = issue.sourceIds && typeof issue.sourceIds === "object" ? issue.sourceIds : issue.ids || {};
+  const byProviderId = candidates.find((row) => ["imdb", "tmdb", "tvdb"].some((name) => (
+    sourceIds?.[name]
+    && String(row[`${name}_id`] || "").trim() === String(sourceIds[name]).trim()
+  )));
+
+  if (type === "episode") {
+    const season = Number(issue.sourceSeason ?? issue.season);
+    const episode = Number(issue.sourceEpisode ?? issue.episode);
+    if (!Number.isInteger(season) || !Number.isInteger(episode)) return byProviderId || null;
+    const coordinateRows = candidates.filter((row) => (
+      Number(row.season) === season && Number(row.episode) === episode
+    ));
+    const showKey = canonicalShowTitleKey(restoreIssueShowTitle(issue));
+    const byShow = showKey && coordinateRows.find((row) => (
+      canonicalShowTitleKey(row.show_title || showTitleFrom(row.title || "")) === showKey
+    ));
+    return byShow || coordinateRows[0] || byProviderId || null;
+  }
+
+  const titleKey = canonicalTitleKey(issue.sourceTitle || issue.title || "");
+  return candidates.find((row) => canonicalTitleKey(row.title || "") === titleKey)
+    || byProviderId
+    || null;
+}
+
 async function retryRestoreProjectionItem(row, target, state, ownerId = "") {
   const config = await loadMediaConfig();
   if (!["plex", "emby", "jellyfin"].includes(target)) {
@@ -288,11 +361,11 @@ async function updateRestoreIssue(item, issue, runtime, resolution) {
 
   const provider = restoreIssueProvider(storedIssue)
     || (item.kind === "restore_trakt_rejections" || /trakt rejected/i.test(String(previous.error || "")) ? "trakt" : "");
-  const hasSourceRow = Boolean(storedIssue.sourceRowId || storedIssue.sourcePlaystateKey || storedIssue.sourceMediaKey);
-  if (issue.canRepair !== true || !hasSourceRow) {
+  if (!restoreIssueCanRepair(storedIssue) && !restoreIssueCanRepair(issue)) {
     return {
       status: 409,
-      error: "This failed run did not retain enough row data to retry this item. Open the Plembfin link to correct it, then run the restore again to capture an item-level repair.",
+      requiresMatch: true,
+      error: "This restore item could not be retried because the failed run did not retain enough row data. Use Fix match to correct the local title or provider IDs, then retry this item with the corrected identity.",
     };
   }
 
@@ -311,22 +384,29 @@ async function updateRestoreIssue(item, issue, runtime, resolution) {
     repair = await retryTraktRestoreItem(row, { rows });
   } else if (["plex", "emby", "jellyfin"].includes(provider)) {
     const sourceKey = String(storedIssue.sourcePlaystateKey || storedIssue.sourceMediaKey || "").trim();
-    if (sourceKey) row = requireDb().prepare("SELECT * FROM playstate WHERE media_key = ?").get(sourceKey) || null;
+    const historyRow = restoreHistoryRowForIssue(storedIssue);
+    const currentMediaKey = String(historyRow?.media_key || "").trim();
+    if (currentMediaKey) row = requireDb().prepare("SELECT * FROM playstate WHERE media_key = ?").get(currentMediaKey) || null;
+    if (!row && historyRow) row = historyRow;
+    if (!row && sourceKey) row = requireDb().prepare("SELECT * FROM playstate WHERE media_key = ?").get(sourceKey) || null;
     if (!row && storedIssue.sourceRowId) row = await getWatchRecordById(storedIssue.sourceRowId).catch(() => null);
     if (!row) return { status: 404, error: "The Plembfin playstate row for this issue no longer exists." };
-    if (storedIssue.sourceRowId) {
-      const historyRow = await getWatchRecordById(storedIssue.sourceRowId).catch(() => null);
-      if (historyRow) {
-        row = {
-          ...row,
-          title: historyRow.title || row.title,
-          show_title: historyRow.show_title || row.show_title,
-          episode_title: historyRow.episode_title || row.episode_title,
-          season: row.season ?? historyRow.season,
-          episode: row.episode ?? historyRow.episode,
-          watched_at: row.watched_at || historyRow.watched_at,
-        };
-      }
+    if (historyRow) {
+      row = {
+        ...row,
+        title: historyRow.title || row.title,
+        show_title: historyRow.show_title || row.show_title,
+        episode_title: historyRow.episode_title || row.episode_title,
+        season: historyRow.season ?? row.season,
+        episode: historyRow.episode ?? row.episode,
+        watched_at: row.watched_at || historyRow.watched_at,
+        // A Fix Match can intentionally clear the old provider identity.
+        // Preserve that explicit correction instead of retrying with stale
+        // ids from the failed playstate row.
+        ...(historyRow.imdb_id !== undefined ? { imdb_id: historyRow.imdb_id } : {}),
+        ...(historyRow.tmdb_id !== undefined ? { tmdb_id: historyRow.tmdb_id } : {}),
+        ...(historyRow.tvdb_id !== undefined ? { tvdb_id: historyRow.tvdb_id } : {}),
+      };
     }
     const state = String(row.state || row.sync_action || storedIssue.state || "watched").toLowerCase() === "unwatched" ? "unwatched" : "watched";
     repair = await retryRestoreProjectionItem(row, provider, state, String(runtime.restoreSyncRunId || item.context?.runId || ""));
@@ -374,6 +454,42 @@ async function updateRestoreIssue(item, issue, runtime, resolution) {
       : `The item was repaired on ${provider === "trakt" ? "Trakt" : provider}; the remaining restore issues are still blocking sync.`,
     media: repair.media,
   };
+}
+
+async function updateRestoreIssueKeys(item, itemKeys, runtime, resolution) {
+  if (!syncAttentionItemIsAuthoritativeRestore(item) || !itemRunMatches(item, runtime)) {
+    return { status: 409, error: "The restore changed before these issues could be updated." };
+  }
+  const previous = objectValue(runtime.restoreSyncResult);
+  const storedIssues = persistedRestoreIssues(previous);
+  const keySet = new Set((Array.isArray(itemKeys) ? itemKeys : [itemKeys]).map((k) => String(k).trim()).filter(Boolean));
+  const matched = storedIssues.filter((candidate) => keySet.has(restoreIssueKey(candidate)));
+  if (!matched.length) return { status: 404, error: "None of the specified restore issues are outstanding." };
+
+  const now = Date.now();
+  if (resolution === "skipped") {
+    const remaining = storedIssues.filter((candidate) => !keySet.has(restoreIssueKey(candidate)));
+    const skippedItems = matched.map((candidate) => ({
+      key: restoreIssueKey(candidate),
+      title: candidate.title || "Unknown media",
+      skippedAt: now,
+    }));
+    const nextResult = restoreResultWithRemainingIssues(previous, remaining, {
+      skipped: skippedItems,
+      finishedAt: now,
+    });
+    const persisted = await persistRestoreIssueResult(item, runtime, nextResult, now);
+    if (!persisted.persisted) return { status: 409, error: "The restore owner changed before these issues could be skipped." };
+    return {
+      ok: true,
+      resolved: "skipped",
+      released: persisted.released,
+      message: persisted.released
+        ? `The remaining restore issues were skipped and sync has resumed.`
+        : `${matched.length} restore issues were skipped; the remaining restore issues are still blocking sync.`,
+    };
+  }
+  return { status: 400, error: "Unsupported multi-issue action." };
 }
 
 async function skipRestoreAttention(item, runtime) {
@@ -506,8 +622,52 @@ export async function handleSyncAttention(req, res) {
   if (!item) return sendJson(res, { error: "That sync issue is no longer outstanding." }, 404);
 
   const requestedAction = String(body.action || "skip").trim().toLowerCase();
-  if (!["skip", "skip-item", "repair"].includes(requestedAction)) {
+  if (!["skip", "skip-item", "skip-items", "repair"].includes(requestedAction)) {
     return sendJson(res, { error: "Unsupported sync attention action." }, 400);
+  }
+
+  if (requestedAction === "skip-items") {
+    if (!syncAttentionItemIsAuthoritativeRestore(item)) {
+      return sendJson(res, { error: "Only individual authoritative restore issues can be repaired or skipped." }, 409);
+    }
+    const itemKeys = Array.isArray(body.itemKeys) ? body.itemKeys.map(String).filter(Boolean) : [];
+    if (!itemKeys.length) return sendJson(res, { error: "A list of restore issue keys is required." }, 400);
+
+    let issueAction;
+    try {
+      issueAction = await updateRestoreIssueKeys(item, itemKeys, before.runtime, "skipped");
+    } catch (error) {
+      issueAction = { status: 500, error: error.message || String(error) };
+    }
+    const after = await currentAttention();
+    if (!issueAction.ok) {
+      return sendJson(res, {
+        ok: false,
+        error: issueAction.error || "The restore issues could not be updated.",
+        attention: after.attention,
+        count: after.count,
+        status: after.status,
+      }, issueAction.status || 409);
+    }
+    writeAuditLog("sync.attention.skipped", {
+      detail: {
+        id: item.id,
+        itemKeys,
+        source: item.source,
+        kind: item.kind,
+        count: itemKeys.length,
+        released: issueAction.released === true,
+      },
+    });
+    return sendJson(res, {
+      ok: true,
+      resolved: { id: item.id, itemKeys, action: "skipped", resolvedAt: Date.now() },
+      released: issueAction.released === true,
+      message: issueAction.message,
+      attention: after.attention,
+      count: after.count,
+      status: after.status,
+    });
   }
 
   if (requestedAction === "repair" || requestedAction === "skip-item") {
@@ -530,6 +690,7 @@ export async function handleSyncAttention(req, res) {
     if (!issueAction.ok) {
       return sendJson(res, {
         ok: false,
+        ...(issueAction.requiresMatch ? { requiresMatch: true } : {}),
         error: issueAction.error || "The restore issue could not be updated.",
         attention: after.attention,
         count: after.count,

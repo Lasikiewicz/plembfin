@@ -1275,6 +1275,7 @@ export async function confirmAndMarkUnwatched(button) {
     // episode is left showing watched with no indication why.
     let succeeded = 0;
     let failed = 0;
+    let queued = 0;
     for (let index = 0; index < ids.length; index += IMPORT_BATCH_SIZE) {
       const batch = ids.slice(index, index + IMPORT_BATCH_SIZE);
       const response = await fetch("/api/manual-unwatch", {
@@ -1287,8 +1288,10 @@ export async function confirmAndMarkUnwatched(button) {
       if (bulk) {
         succeeded += Number(result.succeeded || 0);
         failed += Number(result.failed || 0);
+        queued += Number(result.queued || 0);
       } else {
         succeeded += 1;
+        if (result.queued) queued += 1;
       }
     }
 
@@ -1297,10 +1300,15 @@ export async function confirmAndMarkUnwatched(button) {
     // immediately instead of leaving the control on "Removing…" while the
     // detail page performs its comparatively expensive metadata refresh.
     button.textContent = "Removed";
+    const propagationMessage = queued
+      ? `${queued} item${queued === 1 ? "" : "s"} queued to sync after the current blocking operation completes`
+      : "pushed unplayed to media apps";
     _setMessage(
       bulk
-        ? `Marked ${succeeded} episode${succeeded === 1 ? "" : "s"} of "${label}" unwatched; pushed unplayed to media apps.${failed ? ` ${failed} failed.` : ""}`
-        : `Marked "${label}" unwatched; pushed unplayed to media apps.`,
+        ? `Marked ${succeeded} episode${succeeded === 1 ? "" : "s"} of "${label}" unwatched; ${propagationMessage}.${failed ? ` ${failed} failed.` : ""}`
+        : queued
+          ? `Marked "${label}" unwatched; sync queued until the current blocking operation completes.`
+          : `Marked "${label}" unwatched; ${propagationMessage}.`,
       failed ? "error" : "success",
     );
     const historyRefresh = _loadHistory({ force: true }).catch(() => null);

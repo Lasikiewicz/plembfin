@@ -457,6 +457,9 @@ function restoreMediaFromWatchRow(row = {}) {
     year: row.year == null ? undefined : Number(row.year),
     ids: restoreIdsFromRow(row),
     watched_at: row.watched_at || "",
+    ...(row.compound_episode ? { compound_episode: row.compound_episode } : {}),
+    ...(row.compound_source_episode != null ? { compound_source_episode: row.compound_source_episode } : {}),
+    ...(row.episode_title || row.episodeTitle ? { episodeTitle: row.episode_title || row.episodeTitle } : {}),
   };
 }
 
@@ -1146,15 +1149,18 @@ export async function primeTrackerWatchStateIntents(entries = [], {
   // prepared.
   const primaryHydrationCache = new Map();
   const titleFallbackCache = new Map();
-  const resolved = await Promise.all(eligible.map(async ({ media, state }) => ({
-    state,
-    candidates: await trackerDispatchMediaCandidates(media, {
-      includeTitleFallback: true,
-      primaryHydrationCache,
-      titleFallbackCache,
-      detailsResolver,
-    }),
-  })));
+  const resolved = await Promise.all(eligible.map(async ({ media, state }) => {
+    const canonicalMedia = canonicalCompoundEpisodeMedia(media);
+    return {
+      state,
+      candidates: await trackerDispatchMediaCandidates(canonicalMedia, {
+        includeTitleFallback: true,
+        primaryHydrationCache,
+        titleFallbackCache,
+        detailsResolver,
+      }),
+    };
+  }));
   const outboundByKey = new Map();
   for (const { state, candidates } of resolved) {
     for (const candidate of candidates) {

@@ -203,7 +203,16 @@ function restoreIssueItems(result = {}, trakt = null, runId = "", reason = "") {
     };
     item.localHref = localHrefForRestoreIssue(item);
     item.localLinkLabel = item.localHref?.startsWith("/search?") ? "Search in Plembfin" : "Open in Plembfin";
-    item.canRepair = Boolean(item.sourceRowId || item.sourcePlaystateKey)
+    // Media-server restore issues may only retain the playstate media key
+    // when the matching watch-history row was not available during the
+    // restore pass. That key is still enough for the repair route to reload
+    // the canonical playstate and retry the affected target. Trakt repairs
+    // still require the source watch-history row because its retry logic
+    // re-resolves that row's provider identity.
+    const hasRepairSource = item.provider === "trakt"
+      ? Boolean(item.sourceRowId)
+      : Boolean(item.sourceRowId || item.sourcePlaystateKey || item.sourceMediaKey);
+    item.canRepair = hasRepairSource
       && !item.candidate
       && item.type !== "unknown"
       && (item.provider === "trakt" || ["plex", "emby", "jellyfin"].includes(item.provider));
@@ -229,8 +238,24 @@ function restoreIssueItems(result = {}, trakt = null, runId = "", reason = "") {
   };
 }
 
-function recommendationsFor(reason, { source = "sync", provider = "" } = {}) {
+function restoreIssueRequiresMatch(issue = {}) {
+  return /not enough row data|fix match/i.test([
+    issue.reason,
+    issue.lastError,
+    issue.detail,
+  ].map((value) => String(value || "")).join(" "));
+}
+
+function recommendationsFor(reason, { source = "sync", provider = "", requiresMatch = false } = {}) {
   const lower = String(reason || "").toLowerCase();
+  if (source === "restore" && requiresMatch) {
+    const target = providerLabel(provider || "the affected app");
+    return [
+      `Use Fix match on each affected Plembfin item to confirm its title, season, episode, and provider IDs match the ${target} library.`,
+      "Retry each affected item after saving the match; the retry will use the corrected local identity.",
+      "If the item is intentionally unavailable on that app, skip the issue to let the remaining restore targets complete.",
+    ];
+  }
   if (provider === "trakt" && /rejected .*restored play|could not match|not_found/.test(lower)) {
     return [
       "Check the listed titles on Trakt and confirm their series, season, and episode numbering.",
@@ -284,6 +309,7 @@ function restoreAttention(runtime = {}) {
   const trakt = parseTraktRejection(reason);
   const restoreIssues = restoreIssueItems(result, trakt, runId, reason);
   const targetIssues = restoreIssues.items.filter((issue) => issue.provider && issue.provider !== "trakt");
+  const requiresMatch = restoreIssues.items.some(restoreIssueRequiresMatch);
   const storedTraktIssues = restoreIssues.items.filter((issue) => issue.provider === "trakt");
   const hasTraktIssues = Boolean(trakt || storedTraktIssues.length);
   const expectedSkipCount = restoreIssues.expectedSkipCount;
@@ -305,7 +331,7 @@ function restoreAttention(runtime = {}) {
   const explanation = traktOnly
     ? `${operationLabel} is still paused because Trakt rejected ${traktSummary.rejectedCount} restored play${traktSummary.rejectedCount === 1 ? "" : "s"}. This can happen when a source represents a split, combined, or special episode differently from Trakt (for example, two parts versus one longer episode), so Plembfin cannot confirm those records are the same plays. Normal sync is fenced so it cannot overwrite the partially restored state while this issue is unresolved.`
     : targetIssues.length
-      ? `${operationLabel} is still paused because ${providerSummary || "one or more connected apps"} did not confirm every restored item. ${expectedSkipCount ? `${expectedSkipCount} item${expectedSkipCount === 1 ? " was" : "s were"} absent from a connected library and was recorded as an expected skip. ` : ""}Other targets and Trakt may already have completed; normal sync remains fenced until each outstanding item is repaired or skipped.`
+      ? `${operationLabel} is still paused because ${providerSummary || "one or more connected apps"} did not confirm every restored item. ${expectedSkipCount ? `${expectedSkipCount} item${expectedSkipCount === 1 ? " was" : "s were"} absent from a connected library and was recorded as an expected skip. ` : ""}${requiresMatch ? "At least one failed item no longer has enough saved row data for a direct retry; fix its local match and run the restore again to capture a fresh item-level repair. " : ""}Other targets and Trakt may already have completed; normal sync remains fenced until each outstanding item is repaired or skipped.`
     : `${operationLabel} is still paused because this failure means the connected projections are not known to be complete. Normal sync is fenced so it cannot overwrite the partially restored state while this issue is unresolved.`;
 
   return {
@@ -323,6 +349,7 @@ function restoreAttention(runtime = {}) {
     recommendations: recommendationsFor(reason, {
       source: "restore",
       provider: traktOnly ? "trakt" : targetIssues.length === 1 ? targetIssues[0].provider : "the affected app",
+      requiresMatch,
     }),
     canSkip: true,
     skipLabel: traktOnly ? "Skip all remaining and resume sync" : "Skip and resume sync",

@@ -274,22 +274,40 @@ export async function applyUnwatchedTransition(media, config, loopStore, {
   force = false,
   lane = "sync",
   shouldDefer = null,
+  allowLocalDuringRestore = false,
 } = {}) {
-  if (restoreBlocksTransition(media)) return deferredUnwatchedResult();
+  // Explicit manual unwatches still commit the local canonical state while a
+  // restore owns outbound projection. Automatic/provider transitions keep the
+  // existing fence and are deferred until the restore is finished.
+  const localTransitionBlocked = () => restoreBlocksTransition(media) && !allowLocalDuringRestore;
+
+  if (localTransitionBlocked()) return deferredUnwatchedResult();
   const existingWatched = await findWatchedByAnyMediaKey(media).catch(() => null);
   const existingRecord = recordId
     ? await getWatchRecordByIdLight(recordId).catch(() => null)
     : await getWatchRecordByMediaKey(mediaKeyFor(media)).catch(() => null);
   const canonicalState = await getPlaystateForMedia(media).catch(() => null);
-  if (restoreBlocksTransition(media)) return deferredUnwatchedResult(existingRecord);
+  if (localTransitionBlocked()) return deferredUnwatchedResult(existingRecord);
   const alreadyUnwatchedLocally = !existingWatched && (canonicalState?.state === "unwatched" || existingRecord?.sync_action === "unwatched");
+
+  const syncMedia = { ...(includeSourcePlatform ? { ...media, source: "manual" } : media), lane };
+  const pendingSummary = {
+    skipped: false,
+    status: "pending",
+    details: restoreBlocksTransition(syncMedia)
+      ? "Unwatched state saved locally; outbound sync queued until the authoritative restore completes"
+      : "Unwatched propagation queued",
+    targetStates: [],
+  };
 
   if (alreadyUnwatchedLocally && force) {
     // Nothing to insert/delete - plembfin already has this as unwatched - but
     // still clear progress and push "unplayed" live to every connected target.
-    const local = runGuardedLocalTransaction(() => restoreBlocksTransition(media) || shouldDefer?.(), () => deletePlaybackProgressSync(media));
+    const local = runGuardedLocalTransaction(() => localTransitionBlocked() || shouldDefer?.(), () => deletePlaybackProgressSync(media, { allowDuringRestore: allowLocalDuringRestore }));
     if (local.deferred) return deferredUnwatchedResult(existingRecord);
-    const syncMedia = { ...(includeSourcePlatform ? { ...media, source: "manual" } : media), lane };
+    if (allowLocalDuringRestore && restoreBlocksTransition(syncMedia) && existingRecord?.id) {
+      await updateWatchTelemetry(existingRecord.id, unwatchedTelemetry(pendingSummary, syncMedia), { skipInvalidate: true }).catch(() => null);
+    }
     const summary = await syncMediaUnplayedPlaystate(syncMedia, config, loopStore, { trackDispatch, lane, shouldDefer: () => restoreBlocksTransition(syncMedia) || shouldDefer?.() }).catch((error) => ({
       skipped: false, status: "error", details: `Unwatched propagation failed: ${error.message || String(error)}`, targetStates: [],
     }));
@@ -304,7 +322,7 @@ export async function applyUnwatchedTransition(media, config, loopStore, {
     // Canonical state is already unwatched, but a partial-progress row can still
     // exist (e.g. a re-watch in progress after an earlier unwatch) - always clear
     // it so "Clear Progress" removes the item from the Part Watched list.
-    const local = runGuardedLocalTransaction(() => restoreBlocksTransition(media) || shouldDefer?.(), () => deletePlaybackProgressSync(media));
+    const local = runGuardedLocalTransaction(() => localTransitionBlocked() || shouldDefer?.(), () => deletePlaybackProgressSync(media, { allowDuringRestore: allowLocalDuringRestore }));
     if (local.deferred) return deferredUnwatchedResult(existingRecord);
     return {
       wasDeleted: false,
@@ -315,27 +333,26 @@ export async function applyUnwatchedTransition(media, config, loopStore, {
   }
 
   const supersededId = existingWatched?.id || existingRecord?.id || "";
-  const pendingSummary = { skipped: false, status: "pending", details: "Unwatched propagation queued", targetStates: [] };
   const unplayedRecord = mediaToWatchRecord({ ...media, syncAction: "unwatched" }, media.source);
   unplayedRecord.sync_action = "unwatched";
-  unplayedRecord.sync_dispatch_telemetry = unwatchedTelemetry(pendingSummary, media);
+  unplayedRecord.sync_dispatch_telemetry = unwatchedTelemetry(pendingSummary, syncMedia);
 
   let heldBackSuspiciousBurst = false;
   let deletedById = false;
   let deletedByKey = false;
-  const local = runGuardedLocalTransaction(() => restoreBlocksTransition(media) || shouldDefer?.(), () => {
+  const local = runGuardedLocalTransaction(() => localTransitionBlocked() || shouldDefer?.(), () => {
     if (automaticUnwatchBurstDetected(media)) {
       heldBackSuspiciousBurst = true;
       return null;
     }
     if (recordId) {
-      deletedById = deleteWatchRecordByIdSync(recordId);
+      deletedById = deleteWatchRecordByIdSync(recordId, { allowDuringRestore: allowLocalDuringRestore });
     }
-    deletedByKey = deleteWatchRecordSync(media);
+    deletedByKey = deleteWatchRecordSync(media, { allowDuringRestore: allowLocalDuringRestore });
     const reusableId = supersededId && !hasWatchRecordIdStmt.get(supersededId) ? supersededId : "";
-    const inserted = insertWatchRecordSync(unplayedRecord, { id: reusableId });
-    deletePlaybackProgressSync(media);
-    upsertPlaystateForMediaSync(media, "unwatched", unplayedRecord.watched_at);
+    const inserted = insertWatchRecordSync(unplayedRecord, { id: reusableId, allowDuringRestore: allowLocalDuringRestore });
+    deletePlaybackProgressSync(media, { allowDuringRestore: allowLocalDuringRestore });
+    upsertPlaystateForMediaSync(media, "unwatched", unplayedRecord.watched_at, { allowDuringRestore: allowLocalDuringRestore });
     return inserted;
   });
 
@@ -353,9 +370,8 @@ export async function applyUnwatchedTransition(media, config, loopStore, {
   void prefetchWatchRecordAssets(result);
   const wasDeleted = Boolean(deletedById || deletedByKey);
 
-  if (restoreBlocksTransition(media) || shouldDefer?.()) return { ...deferredUnwatchedResult(existingRecord), wasDeleted, id: result.id };
+  if (localTransitionBlocked() || shouldDefer?.()) return { ...deferredUnwatchedResult(existingRecord), wasDeleted, id: result.id };
 
-  const syncMedia = { ...(includeSourcePlatform ? { ...media, source: "manual" } : media), lane };
   const summary = await syncMediaUnplayedPlaystate(syncMedia, config, loopStore, { trackDispatch, lane, shouldDefer: () => restoreBlocksTransition(syncMedia) || shouldDefer?.() }).catch((error) => ({
     skipped: false,
     status: "error",

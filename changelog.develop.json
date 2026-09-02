@@ -1,18 +1,28 @@
 {
-  "build": 24,
+  "build": 26,
   "resetCommit": "0c9b251e3585a04ea7dc8da6ff7924a204b50475",
-  "updatedAt": "2026-09-02T14:19:47.892Z",
+  "updatedAt": "2026-09-02T16:37:29.299Z",
   "entries": [
     {
-      "build": 24,
-      "date": "2026-09-02T14:19:47.892Z",
-      "commit": "2d771b9194389fd0563bfc4abd5e87df1eb90d5b",
-      "message": "Feature - Improve sync restore and media integrations",
+      "build": 26,
+      "date": "2026-09-02T16:37:29.299Z",
+      "commit": "425b5f24b3c90ee73451d95982b23139bee633ef",
+      "message": "This update includes improve sync restore and media integrations and make restore issues repairable and episode sync safe.",
       "author": "Lasikiewicz",
       "details": [
         "Makes watch-history restore authoritative, target-aware, and safer while surfacing actionable sync attention details.",
         "Adds watchlist and up-next synchronization across connected media services with matching documentation and coverage.",
-        "Treats expected unavailable-library items as non-blocking restore skips while retaining real failures for repair or retry."
+        "Treats expected unavailable-library items as non-blocking restore skips while retaining real failures for repair or retry.",
+        "Repair blocked restore items per destination or show without releasing the restore fence prematurely",
+        "Add Fix Match recovery for restore failures with missing saved identities",
+        "Commit manual unwatches during restores and queue outbound unplayed propagation for later",
+        "Canonicalize split and combined episode numbering from titles and season metadata before Trakt dispatch",
+        "Keep Up Next artwork on cached local posters and authenticated provider fallbacks",
+        "Improve grouped Sync Activity controls, inline detail routing, and retry visibility"
+      ],
+      "messageFragments": [
+        "Feature - Improve sync restore and media integrations",
+        "Feature - Make restore issues repairable and episode sync safe"
       ]
     }
   ]

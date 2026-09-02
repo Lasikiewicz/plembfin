@@ -27,6 +27,28 @@ const selectProgressRowsStmt = db.prepare(
 const selectPlaystateRowsStmt = db.prepare(
   "SELECT * FROM playstate ORDER BY COALESCE(updated_at, 0) DESC, media_key DESC",
 );
+const selectShowPosterFromHistoryStmt = db.prepare(`
+  SELECT NULLIF(poster_url, '') AS poster_url
+  FROM watch_history
+  WHERE media_type = 'episode'
+    AND show_title IS NOT NULL
+    AND show_title != ''
+    AND LOWER(show_title) = LOWER(?)
+    AND NULLIF(poster_url, '') IS NOT NULL
+  ORDER BY watched_at DESC
+  LIMIT 1
+`);
+
+function showPosterFromHistory(item = {}) {
+  const title = text(item.show_title || showTitleFrom(item.title || ""));
+  if (!title) return "";
+  try {
+    const row = selectShowPosterFromHistoryStmt.get(title);
+    return text(row?.poster_url);
+  } catch {
+    return "";
+  }
+}
 
 function text(value = "") {
   return String(value ?? "").trim();
@@ -195,36 +217,37 @@ function publicItem(item) {
     : "";
   const rawPoster = String(safe.poster_url || "").trim();
   const rawShowPoster = String(safe.show_poster_url || "").trim();
-  // Canonical episode/playstate rows often have no provider observation and
-  // therefore no poster field. Reuse the shared show artwork cache in that
-  // case so a provider outage or an empty provider_items object cannot turn a
-  // known show into a blank dashboard tile.
-  const canonicalShowPoster = safe.media_type === "episode" && !rawPoster && !rawShowPoster
-    ? getCanonicalPosterUrl({
+  const isKnownPoster = (value) => Boolean(
+    value && (
+      /^\/media\/posters\//i.test(value)
+      || /^\/api\/tmdb-poster/i.test(value)
+      || /^https:\/\/image\.tmdb\.org\//i.test(value)
+    )
+  );
+  // Episodes in Up Next represent the series. Reuse the shared show artwork
+  // cache (and watch history show artwork) so known shows load their poster
+  // instantly from local storage/cache without querying the provider proxy.
+  const canonicalShowPoster = safe.media_type === "episode"
+    ? (getCanonicalPosterUrl({
       media_type: "episode",
       show_title: safe.show_title,
       show_imdb_id: safe.show_imdb_id,
       show_tmdb_id: safe.show_tmdb_id,
       show_tvdb_id: safe.show_tvdb_id,
-    })
+    }) || showPosterFromHistory(safe))
     : "";
-  const effectivePoster = rawPoster || canonicalShowPoster;
-  const effectiveShowPoster = rawShowPoster || canonicalShowPoster;
-  // A provider proxy URL is not a cached image by itself. Older snapshots
-  // stored the JSON lookup URL here, so always refresh provider-backed rows to
-  // the image variant unless a real local poster has already been cached.
-  const cachedPoster = (value) => /^\/media\/posters\//i.test(value);
+  const effectiveShowPoster = canonicalShowPoster || (isKnownPoster(rawShowPoster) ? rawShowPoster : "");
+  const effectivePoster = (safe.media_type === "episode" && effectiveShowPoster)
+    ? effectiveShowPoster
+    : (isKnownPoster(rawPoster) ? rawPoster : canonicalShowPoster);
   return {
     ...safe,
     id: item.id,
     media_key: item.media_key,
     queue_kind: item.queue_kind,
     media_type: item.media_type,
-    // Provider image paths need the provider token, which is deliberately not
-    // sent to the browser. Route those through /api/poster; already-cached
-    // local artwork can still be used directly.
-    poster_url: providerPosterUrl && !cachedPoster(rawPoster) ? providerPosterUrl : (effectivePoster || null),
-    show_poster_url: providerPosterUrl && !cachedPoster(rawShowPoster) ? providerPosterUrl : (effectiveShowPoster || null),
+    poster_url: effectivePoster || providerPosterUrl || null,
+    show_poster_url: effectiveShowPoster || providerPosterUrl || null,
     is_upcoming: false,
   };
 }

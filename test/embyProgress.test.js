@@ -4,10 +4,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { embyResumeLastPlayedDate, setEmbyProgress } from "../server/src/utils/embyClient.js";
-
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "plembfin-emby-progress-test-"));
 process.env.DATA_DIR = dataDir;
+
+const { embyResumeLastPlayedDate, setEmbyProgress } = await import("../server/src/utils/embyClient.js");
 
 const {
   listPlaybackProgressRowsForReplay,

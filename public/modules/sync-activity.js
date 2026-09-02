@@ -152,7 +152,7 @@ export function activityPlatform(value) {
 function platformIcon(platform, className = "sync-activity-icon") {
   if (platform.key === "plembfin") return platformIconMarkup("plembfin", className, "sync-activity-icon-set");
   if (!platform.icon) return "";
-  return `<img class="${className}" src="${escapeAttribute(platform.icon)}" alt="${escapeAttribute(platform.name)}" loading="lazy" />`;
+  return `<img class="${className}" src="${escapeAttribute(platform.icon)}" alt="${escapeAttribute(platform.name)}" loading="eager" decoding="async" />`;
 }
 
 function targetResults(entry = {}) {
@@ -952,11 +952,82 @@ function attentionIssueProvider(issue = {}) {
   return provider ? provider.charAt(0).toUpperCase() + provider.slice(1) : "";
 }
 
-function attentionIssueMarkup(parentId, issue = {}) {
+function attentionIssueFromState(parentId, issueKey) {
+  const parent = (state.syncAttention || []).find((item) => String(item.id || "") === String(parentId || ""));
+  return (Array.isArray(parent?.context?.issueItems) ? parent.context.issueItems : [])
+    .find((issue) => String(issue.key || issue.sourceRowId || "") === String(issueKey || ""));
+}
+
+function attentionIssueCanFixMatch(issue = {}) {
+  const provider = String(issue.provider || issue.target || "").trim().toLowerCase();
+  const type = String(issue.type || issue.mediaType || "").trim().toLowerCase();
+  return ["plex", "emby", "jellyfin"].includes(provider)
+    && ["episode", "movie"].includes(type)
+    && issue.candidate !== true;
+}
+
+function attentionIssueNeedsMatch(issue = {}, actionKey = "") {
+  const terminal = state.syncAttentionIssueRetryTerminal?.actionKey === actionKey
+    ? state.syncAttentionIssueRetryTerminal
+    : null;
+  return terminal?.requiresMatch === true || /not enough row data|fix match/i.test([
+    issue.reason,
+    issue.lastError,
+    issue.detail,
+  ].map((value) => String(value || "")).join(" "));
+}
+
+function attentionIssueTerminalTime(value = Date.now()) {
+  return new Date(value).toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
+}
+
+function attentionIssueRetryTerminalMarkup(parentId, issueKey) {
+  const terminal = state.syncAttentionIssueRetryTerminal;
+  const actionKey = `${parentId}:${issueKey}`;
+  if (!terminal || terminal.actionKey !== actionKey) return "";
+  const status = ["running", "success", "error"].includes(terminal.status) ? terminal.status : "running";
+  const statusLabel = status === "success" ? "Complete" : status === "error" ? "Failed" : "Running";
+  const lines = Array.isArray(terminal.lines) ? terminal.lines : [];
+  return `
+        <div class="sync-attention-issue-terminal" data-sync-attention-terminal="${escapeAttribute(actionKey)}" role="status" aria-live="polite" aria-busy="${status === "running" ? "true" : "false"}">
+          <div class="sync-attention-issue-terminal-header">
+            <span class="sync-attention-issue-terminal-prompt" aria-hidden="true">›</span>
+            <span class="sync-attention-issue-terminal-title">Retry terminal</span>
+            <span class="sync-attention-issue-terminal-target">${escapeHtml(terminal.provider || "Target")}</span>
+            <span class="sync-attention-issue-terminal-state sync-attention-issue-terminal-state--${status}">${statusLabel}</span>
+          </div>
+          <pre class="sync-attention-issue-terminal-output">${escapeHtml(lines.join("\n"))}</pre>
+        </div>`;
+}
+
+function attentionIssueCanRepair(issue = {}) {
+  const provider = String(issue.provider || issue.target || "").trim().toLowerCase();
+  if (!["trakt", "plex", "emby", "jellyfin"].includes(provider) || issue.candidate === true) return false;
+  const type = String(issue.type || issue.mediaType || "").trim().toLowerCase();
+  if (!["episode", "movie"].includes(type)) return false;
+  const sourceRowId = String(issue.sourceRowId || "").trim();
+  const sourcePlaystateKey = String(issue.sourcePlaystateKey || issue.mediaKey || "").trim();
+  const sourceMediaKey = String(issue.sourceMediaKey || "").trim();
+  const hasSource = provider === "trakt"
+    ? Boolean(sourceRowId)
+    : Boolean(sourceRowId || sourcePlaystateKey || sourceMediaKey);
+  return hasSource;
+}
+
+export function attentionIssueMarkup(parentId, issue = {}) {
   const issueKey = String(issue.key || issue.sourceRowId || "").trim();
   if (!issueKey) return "";
   const actionKey = `${parentId}:${issueKey}`;
   const skipping = state.syncAttentionIssueSkipping === actionKey;
+  const retrying = state.syncAttentionIssueRetrying === actionKey;
+  const actionBusy = Boolean(state.syncAttentionSkipping) || skipping || retrying;
+  const canRepair = attentionIssueCanRepair(issue);
+  const canFixMatch = attentionIssueCanFixMatch(issue);
+  const needsMatch = attentionIssueNeedsMatch(issue, actionKey);
   const code = attentionIssueCode(issue);
   const provider = attentionIssueProvider(issue);
   const metadata = [code, issue.watchedAt ? `Watched ${attentionIssueDate(issue)}` : "Date unavailable"]
@@ -968,7 +1039,16 @@ function attentionIssueMarkup(parentId, issue = {}) {
   const reason = String(issue.reason || (provider && provider !== "Trakt"
     ? `${provider} did not confirm the restored state.`
     : "Trakt could not match this restored play."));
-  const skipButton = `<button class="button-ghost sync-attention-issue-skip" type="button" data-sync-attention-skip-item="${escapeAttribute(parentId)}" data-sync-attention-item-key="${escapeAttribute(issueKey)}" ${skipping ? "disabled" : ""} ${skipping ? 'aria-busy="true"' : ""}>${escapeHtml(skipping ? "Skipping..." : "Skip this issue")}</button>`;
+  const retryButton = canRepair
+    ? `<button class="button-primary sync-attention-issue-retry" type="button" data-sync-attention-retry-item="${escapeAttribute(parentId)}" data-sync-attention-item-key="${escapeAttribute(issueKey)}" ${actionBusy ? "disabled" : ""} ${retrying ? 'aria-busy="true"' : ""} title="Retry this restored item on ${escapeAttribute(provider || "the affected target")}">${escapeHtml(retrying ? "Retrying..." : String(issue.repairLabel || "Retry this issue"))}</button>`
+    : "";
+  const fixMatchButton = canFixMatch
+    ? `<button class="button-ghost sync-attention-issue-fix-match" type="button" data-sync-attention-fix-match="${escapeAttribute(parentId)}" data-sync-attention-item-key="${escapeAttribute(issueKey)}" ${actionBusy ? "disabled" : ""} title="Correct the local title or provider IDs before retrying">Fix match</button>`
+    : "";
+  const skipButton = `<button class="button-ghost sync-attention-issue-skip" type="button" data-sync-attention-skip-item="${escapeAttribute(parentId)}" data-sync-attention-item-key="${escapeAttribute(issueKey)}" ${actionBusy ? "disabled" : ""} ${skipping ? 'aria-busy="true"' : ""}>${escapeHtml(skipping ? "Skipping..." : "Skip this issue")}</button>`;
+  const matchGuidance = needsMatch
+    ? `<p class="sync-attention-issue-match-guidance"><strong>Fix match required.</strong> This failed item no longer has enough saved row data for a direct retry. Correct the local match, then retry this item with the corrected identity.</p>`
+    : "";
   return `
     <article class="sync-attention-issue" data-sync-attention-issue="${escapeAttribute(issueKey)}">
       <div class="sync-attention-issue-copy">
@@ -981,9 +1061,142 @@ function attentionIssueMarkup(parentId, issue = {}) {
       </div>
       <div class="sync-attention-issue-actions">
         ${href ? `<a class="button-ghost sync-attention-issue-link" href="${escapeAttribute(href)}">${escapeHtml(linkLabel)}</a>` : '<span class="sync-attention-issue-unavailable">No local link available</span>'}
-        ${issue.canRepair === true ? skipButton : ""}
+        ${fixMatchButton}
+        ${canRepair ? `${retryButton}${skipButton}` : ""}
       </div>
+      ${matchGuidance}
+      ${attentionIssueRetryTerminalMarkup(parentId, issueKey)}
     </article>`;
+}
+
+function attentionRestoreIssueKey(issue = {}) {
+  return String(issue.key || issue.sourceRowId || "").trim();
+}
+
+export function issueShowTitle(issue = {}) {
+  const explicit = String(issue.showTitle || issue.show_title || "").trim();
+  if (explicit) return explicit;
+  const title = String(issue.title || "").trim();
+  const type = String(issue.type || issue.mediaType || "").trim().toLowerCase();
+  if (type === "episode" || /\bS\d{1,3}E\d{1,3}\b/i.test(title)) {
+    const stripped = title.replace(/\s*-?\s*S\d{1,3}E\d{1,3}\b.*$/i, "").trim();
+    if (stripped) return stripped;
+  }
+  return "";
+}
+
+export function canonicalShowKey(title) {
+  return String(title || "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "")
+    .trim();
+}
+
+export function groupAttentionIssues(issues = []) {
+  const groups = [];
+  const groupsByKey = new Map();
+
+  for (const issue of issues) {
+    const showTitle = issueShowTitle(issue);
+    if (showTitle) {
+      const key = canonicalShowKey(showTitle) || "unknown-show";
+      if (!groupsByKey.has(key)) {
+        const group = {
+          key,
+          kind: "show",
+          title: showTitle,
+          issues: [],
+        };
+        groupsByKey.set(key, group);
+        groups.push(group);
+      }
+      groupsByKey.get(key).issues.push(issue);
+    } else {
+      const issueKey = String(issue.key || issue.sourceRowId || Math.random());
+      const key = `movie:${issueKey}`;
+      const group = {
+        key,
+        kind: "movie",
+        title: String(issue.title || "Movie").trim(),
+        issues: [issue],
+      };
+      groups.push(group);
+    }
+  }
+
+  return groups;
+}
+
+function attentionShowRetryTerminalMarkup(parentId, showKey) {
+  const terminal = state.syncAttentionShowRetryTerminal;
+  const actionKey = `${parentId}:${showKey}`;
+  if (!terminal || terminal.actionKey !== actionKey) return "";
+  const status = ["running", "success", "error", "partial"].includes(terminal.status) ? terminal.status : "running";
+  const statusLabel = status === "success" ? "Complete" : status === "error" ? "Failed" : status === "partial" ? "Partial" : "Running";
+  const lines = Array.isArray(terminal.lines) ? terminal.lines : [];
+  return `
+        <div class="sync-attention-issue-terminal sync-attention-show-terminal" data-sync-attention-terminal="${escapeAttribute(actionKey)}" role="status" aria-live="polite" aria-busy="${status === "running" ? "true" : "false"}">
+          <div class="sync-attention-issue-terminal-header">
+            <span class="sync-attention-issue-terminal-prompt" aria-hidden="true">›</span>
+            <span class="sync-attention-issue-terminal-title">Show retry terminal</span>
+            <span class="sync-attention-issue-terminal-target">${escapeHtml(terminal.provider || "Target")}</span>
+            <span class="sync-attention-issue-terminal-state sync-attention-issue-terminal-state--${status}">${statusLabel}</span>
+          </div>
+          <pre class="sync-attention-issue-terminal-output">${escapeHtml(lines.join("\n"))}</pre>
+        </div>`;
+}
+
+function attentionShowGroupMarkup(parentId, group) {
+  const showKey = group.key;
+  const actionKey = `${parentId}:${showKey}`;
+  const isExpanded = state.syncAttentionExpandedShows instanceof Set
+    ? state.syncAttentionExpandedShows.has(actionKey)
+    : false;
+  const skipping = state.syncAttentionShowSkipping === actionKey;
+  const retrying = state.syncAttentionShowRetrying === actionKey;
+  const actionBusy = Boolean(state.syncAttentionSkipping || state.syncAttentionIssueSkipping || state.syncAttentionIssueRetrying || state.syncAttentionShowSkipping || state.syncAttentionShowRetrying);
+
+  const issueCount = group.issues.length;
+  const seasons = [...new Set(group.issues.map((i) => i.season).filter((s) => s != null))].sort((a, b) => a - b);
+  const seasonsText = seasons.length === 1 ? `Season ${seasons[0]}` : seasons.length > 1 ? `Seasons ${seasons.join(", ")}` : "";
+  const provider = attentionIssueProvider(group.issues[0]) || "Trakt";
+  const metaParts = [
+    `${issueCount} affected ${issueCount === 1 ? "play" : "plays"}`,
+    seasonsText,
+    provider ? `Target ${provider}` : "",
+  ].filter(Boolean);
+  const meta = metaParts.join(" · ");
+
+  const canRepair = group.issues.some((issue) => attentionIssueCanRepair(issue));
+  const retryButton = canRepair
+    ? `<button class="button-primary sync-attention-show-retry" type="button" data-sync-attention-retry-show="${escapeAttribute(parentId)}" data-sync-attention-show-key="${escapeAttribute(showKey)}" ${actionBusy ? "disabled" : ""} ${retrying ? 'aria-busy="true"' : ""} title="Retry all ${issueCount} plays for ${escapeAttribute(group.title)}">${escapeHtml(retrying ? "Retrying show..." : "Retry this show")}</button>`
+    : "";
+  const skipButton = `<button class="button-ghost sync-attention-show-skip" type="button" data-sync-attention-skip-show="${escapeAttribute(parentId)}" data-sync-attention-show-key="${escapeAttribute(showKey)}" ${actionBusy ? "disabled" : ""} ${skipping ? 'aria-busy="true"' : ""} title="Skip all ${issueCount} plays for ${escapeAttribute(group.title)}">${escapeHtml(skipping ? "Skipping show..." : "Skip this show")}</button>`;
+
+  const terminalMarkup = attentionShowRetryTerminalMarkup(parentId, showKey);
+
+  return `
+    <div class="sync-attention-show-group ${isExpanded ? "is-expanded" : ""}" data-sync-attention-show="${escapeAttribute(showKey)}">
+      <div class="sync-attention-show-header" role="button" tabindex="0" aria-expanded="${isExpanded ? "true" : "false"}" data-sync-attention-toggle-show="${escapeAttribute(parentId)}" data-sync-attention-show-key="${escapeAttribute(showKey)}">
+        <div class="sync-attention-show-header-left">
+          <span class="sync-attention-show-chevron ${isExpanded ? "is-expanded" : ""}" aria-hidden="true">›</span>
+          <div class="sync-attention-show-title-copy">
+            <h4 class="sync-attention-show-title">${escapeHtml(group.title)}</h4>
+            <span class="sync-attention-show-meta">${escapeHtml(meta)}</span>
+          </div>
+        </div>
+        <div class="sync-attention-show-actions">
+          ${retryButton}
+          ${skipButton}
+        </div>
+      </div>
+      ${terminalMarkup}
+      ${isExpanded ? `
+        <div class="sync-attention-show-episodes">
+          ${group.issues.map((issue) => attentionIssueMarkup(parentId, issue)).join("")}
+        </div>
+      ` : ""}
+    </div>`;
 }
 
 function attentionIssueList(item = {}) {
@@ -997,25 +1210,39 @@ function attentionIssueList(item = {}) {
   if (!issueCount && !issues.length) return attentionExamples(item);
   const listed = issues.length;
   const complete = context.issueItemsComplete === true && listed >= issueCount;
+  const groups = groupAttentionIssues(issues);
+  const showCount = groups.filter((g) => g.kind === "show").length;
   const description = complete
-    ? `All ${issueCount} affected ${itemWord}${issueCount === 1 ? " is" : "s are"} listed below.`
+    ? `All ${issueCount} affected ${itemWord}${issueCount === 1 ? " is" : "s are"} grouped by show below. Click a show to view its episodes and fix options.`
     : listed
-      ? `${listed} of ${issueCount} affected ${itemWord}s are listed. The failed run retained only these examples; run a new restore to capture any missing item-level details.`
+      ? `${listed} of ${issueCount} affected ${itemWord}s are listed below. The failed run retained only these examples; run a new restore to capture any missing item-level details.`
       : `${issueCount} affected ${itemWord}s were reported, but the failed run did not retain item-level details. Run a new restore to capture them.`;
+  const countLabel = showCount > 0
+    ? `${showCount} ${showCount === 1 ? "show" : "shows"} · ${listed} listed · ${issueCount} total`
+    : `${listed} listed · ${issueCount} total`;
   return `
     <div class="sync-attention-issues">
       <div class="sync-attention-issues-heading">
         <h4>Affected plays</h4>
-        <span>${escapeHtml(`${listed} listed · ${issueCount} total`)}</span>
+        <span>${escapeHtml(countLabel)}</span>
       </div>
       <p class="sync-attention-issues-note">${escapeHtml(description)}</p>
-      ${listed ? `<div class="sync-attention-issue-list">${issues.map((issue) => attentionIssueMarkup(item.id, issue)).join("")}</div>` : ""}
+      ${listed ? `
+        <div class="sync-attention-issue-list">
+          ${groups.map((group) => (
+            group.kind === "show"
+              ? attentionShowGroupMarkup(item.id, group)
+              : attentionIssueMarkup(item.id, group.issues[0])
+          )).join("")}
+        </div>
+      ` : ""}
     </div>`;
 }
 
-function syncAttentionItemMarkup(item = {}) {
+export function syncAttentionItemMarkup(item = {}) {
   const recommendations = Array.isArray(item.recommendations) ? item.recommendations.filter(Boolean) : [];
   const skipping = state.syncAttentionSkipping === String(item.id || "");
+  const actionBusy = Boolean(state.syncAttentionSkipping || state.syncAttentionIssueSkipping || state.syncAttentionIssueRetrying);
   const skipLabel = skipping ? "Skipping..." : String(item.skipLabel || "Skip this issue");
   const tone = attentionToneForItem(item);
   const isBlocking = tone === "error";
@@ -1046,7 +1273,7 @@ function syncAttentionItemMarkup(item = {}) {
         <span class="sync-attention-detected">Detected ${escapeHtml(attentionCreatedAt(item))}</span>
         <div class="sync-attention-actions">
           <p>Skipping accepts this incomplete projection and lets normal sync resume; it does not create the missing remote records.</p>
-          <button class="button-ghost sync-attention-skip" type="button" data-sync-attention-skip="${escapeAttribute(item.id)}" ${skipping ? "disabled" : ""} ${skipping ? 'aria-busy="true"' : ""}>${escapeHtml(skipLabel)}</button>
+          <button class="button-ghost sync-attention-skip" type="button" data-sync-attention-skip="${escapeAttribute(item.id)}" ${actionBusy ? "disabled" : ""} ${skipping ? 'aria-busy="true"' : ""}>${escapeHtml(skipLabel)}</button>
         </div>
       </div>
     </article>`;
@@ -1177,7 +1404,7 @@ export async function loadSyncAttention({ force = false } = {}) {
 
 export async function skipSyncAttention(id) {
   const key = String(id || "").trim();
-  if (!key || state.syncAttentionSkipping) return null;
+  if (!key || state.syncAttentionSkipping || state.syncAttentionIssueSkipping || state.syncAttentionIssueRetrying) return null;
   state.syncAttentionSkipping = key;
   state.syncAttentionError = "";
   renderSyncAttention();
@@ -1203,7 +1430,7 @@ export async function skipSyncAttention(id) {
 export async function skipSyncAttentionItem(id, itemKey) {
   const parentId = String(id || "").trim();
   const issueKey = String(itemKey || "").trim();
-  if (!parentId || !issueKey || state.syncAttentionIssueSkipping) return null;
+  if (!parentId || !issueKey || state.syncAttentionSkipping || state.syncAttentionIssueSkipping || state.syncAttentionIssueRetrying) return null;
   const actionKey = `${parentId}:${issueKey}`;
   state.syncAttentionIssueSkipping = actionKey;
   state.syncAttentionError = "";
@@ -1225,6 +1452,220 @@ export async function skipSyncAttentionItem(id, itemKey) {
     if (state.syncAttentionIssueSkipping === actionKey) state.syncAttentionIssueSkipping = "";
     renderSyncAttention();
   }
+}
+
+export async function retrySyncAttentionItem(id, itemKey) {
+  const parentId = String(id || "").trim();
+  const issueKey = String(itemKey || "").trim();
+  if (!parentId || !issueKey || state.syncAttentionSkipping || state.syncAttentionIssueSkipping || state.syncAttentionIssueRetrying) return null;
+  const actionKey = `${parentId}:${issueKey}`;
+  const issue = attentionIssueFromState(parentId, issueKey) || {};
+  const provider = attentionIssueProvider(issue) || "Target";
+  const title = String(issue.title || "the restored item").trim();
+  state.syncAttentionIssueRetrying = actionKey;
+  state.syncAttentionIssueRetryTerminal = {
+    actionKey,
+    provider,
+    title,
+    status: "running",
+    requiresMatch: false,
+    lines: [
+      `[${attentionIssueTerminalTime()}] plembfin › retry restored item`,
+      `[${attentionIssueTerminalTime()}] target: ${provider}`,
+      `[${attentionIssueTerminalTime()}] Retrying "${title}"...`,
+    ],
+  };
+  state.syncAttentionError = "";
+  renderSyncAttention();
+  try {
+    const response = await fetch("/api/sync-attention", {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ id: parentId, itemKey: issueKey, action: "repair" }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const message = body.error || `Could not retry restore issue (${response.status})`;
+      state.syncAttentionIssueRetryTerminal = {
+        ...state.syncAttentionIssueRetryTerminal,
+        status: "error",
+        requiresMatch: body.requiresMatch === true || /not enough row data|fix match/i.test(message),
+        lines: [
+          ...(state.syncAttentionIssueRetryTerminal?.lines || []),
+          `[${attentionIssueTerminalTime()}] Retry failed: ${message}`,
+        ],
+      };
+      throw new Error(message);
+    }
+    state.syncAttentionIssueRetryTerminal = {
+      ...state.syncAttentionIssueRetryTerminal,
+      status: "success",
+      lines: [
+        ...(state.syncAttentionIssueRetryTerminal?.lines || []),
+        `[${attentionIssueTerminalTime()}] ${body.message || `Retry confirmed by ${provider}.`}`,
+      ],
+    };
+    await loadSyncAttention({ force: true });
+    return body;
+  } catch (error) {
+    if (state.syncAttentionIssueRetryTerminal?.actionKey === actionKey && state.syncAttentionIssueRetryTerminal.status === "running") {
+      state.syncAttentionIssueRetryTerminal = {
+        ...state.syncAttentionIssueRetryTerminal,
+        status: "error",
+        lines: [
+          ...(state.syncAttentionIssueRetryTerminal.lines || []),
+          `[${attentionIssueTerminalTime()}] Retry failed: ${error.message || "The request could not be completed."}`,
+        ],
+      };
+    }
+    state.syncAttentionError = error.message || "Could not retry restore issue.";
+    throw error;
+  } finally {
+    if (state.syncAttentionIssueRetrying === actionKey) state.syncAttentionIssueRetrying = "";
+    renderSyncAttention();
+  }
+}
+
+export async function skipSyncAttentionShow(id, showKey) {
+  const parentId = String(id || "").trim();
+  const key = String(showKey || "").trim();
+  if (!parentId || !key || state.syncAttentionSkipping || state.syncAttentionIssueSkipping || state.syncAttentionIssueRetrying || state.syncAttentionShowSkipping || state.syncAttentionShowRetrying) return null;
+  const parent = (state.syncAttention || []).find((c) => String(c.id) === parentId);
+  const allIssues = Array.isArray(parent?.context?.issueItems) ? parent.context.issueItems : [];
+  const showIssues = allIssues.filter((issue) => canonicalShowKey(issueShowTitle(issue)) === key);
+  if (!showIssues.length) return null;
+  const itemKeys = showIssues.map((i) => attentionRestoreIssueKey(i)).filter(Boolean);
+  if (!itemKeys.length) return null;
+
+  const actionKey = `${parentId}:${key}`;
+  state.syncAttentionShowSkipping = actionKey;
+  state.syncAttentionError = "";
+  renderSyncAttention();
+  try {
+    let result = null;
+    if (itemKeys.length === 1) {
+      const response = await fetch("/api/sync-attention", {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ id: parentId, itemKey: itemKeys[0], action: "skip-item" }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || `Could not skip issue (${response.status})`);
+      result = body;
+    } else {
+      const response = await fetch("/api/sync-attention", {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ id: parentId, itemKeys, action: "skip-items" }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (response.ok) {
+        result = body;
+      } else if (response.status === 400 && /unsupported/i.test(body.error || "")) {
+        for (const singleKey of itemKeys) {
+          const fallbackRes = await fetch("/api/sync-attention", {
+            method: "POST",
+            headers: { ...authHeaders(), "Content-Type": "application/json" },
+            body: JSON.stringify({ id: parentId, itemKey: singleKey, action: "skip-item" }),
+          });
+          const fallbackBody = await fallbackRes.json().catch(() => ({}));
+          if (!fallbackRes.ok) throw new Error(fallbackBody.error || `Could not skip issue (${fallbackRes.status})`);
+          result = fallbackBody;
+        }
+      } else {
+        throw new Error(body.error || `Could not skip show issues (${response.status})`);
+      }
+    }
+    await loadSyncAttention({ force: true });
+    return result;
+  } catch (error) {
+    state.syncAttentionError = error.message || "Could not skip show issues.";
+    throw error;
+  } finally {
+    if (state.syncAttentionShowSkipping === actionKey) state.syncAttentionShowSkipping = "";
+    renderSyncAttention();
+  }
+}
+
+export async function retrySyncAttentionShow(id, showKey) {
+  const parentId = String(id || "").trim();
+  const key = String(showKey || "").trim();
+  if (!parentId || !key || state.syncAttentionSkipping || state.syncAttentionIssueSkipping || state.syncAttentionIssueRetrying || state.syncAttentionShowSkipping || state.syncAttentionShowRetrying) return null;
+  const parent = (state.syncAttention || []).find((c) => String(c.id) === parentId);
+  const allIssues = Array.isArray(parent?.context?.issueItems) ? parent.context.issueItems : [];
+  const showIssues = allIssues.filter((issue) => canonicalShowKey(issueShowTitle(issue)) === key);
+  if (!showIssues.length) return null;
+  const showTitle = issueShowTitle(showIssues[0]) || "Show";
+  const repairable = showIssues.filter((issue) => attentionIssueCanRepair(issue));
+  if (!repairable.length) return null;
+
+  const actionKey = `${parentId}:${key}`;
+  if (!state.syncAttentionExpandedShows) state.syncAttentionExpandedShows = new Set();
+  state.syncAttentionExpandedShows.add(actionKey);
+  state.syncAttentionShowRetrying = actionKey;
+  state.syncAttentionError = "";
+
+  const provider = attentionIssueProvider(repairable[0]) || "Target";
+  state.syncAttentionShowRetryTerminal = {
+    actionKey,
+    showTitle,
+    provider,
+    status: "running",
+    lines: [
+      `[${attentionIssueTerminalTime()}] plembfin › retry show "${showTitle}"`,
+      `[${attentionIssueTerminalTime()}] target: ${provider}`,
+      `[${attentionIssueTerminalTime()}] Retrying ${repairable.length} plays...`,
+    ],
+  };
+  renderSyncAttention();
+
+  let succeeded = 0;
+  let failed = 0;
+
+  for (let index = 0; index < repairable.length; index++) {
+    const issue = repairable[index];
+    const issueTitle = String(issue.title || `Play ${index + 1}`).trim();
+    const issueKey = attentionRestoreIssueKey(issue);
+    try {
+      const response = await fetch("/api/sync-attention", {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ id: parentId, itemKey: issueKey, action: "repair" }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        failed += 1;
+        const msg = body.error || `Failed (${response.status})`;
+        state.syncAttentionShowRetryTerminal.lines.push(`[${attentionIssueTerminalTime()}] [${index + 1}/${repairable.length}] ${issueTitle}: Failed - ${msg}`);
+      } else {
+        succeeded += 1;
+        state.syncAttentionShowRetryTerminal.lines.push(`[${attentionIssueTerminalTime()}] [${index + 1}/${repairable.length}] ${issueTitle}: Repaired.`);
+      }
+    } catch (err) {
+      failed += 1;
+      state.syncAttentionShowRetryTerminal.lines.push(`[${attentionIssueTerminalTime()}] [${index + 1}/${repairable.length}] ${issueTitle}: Error - ${err.message || String(err)}`);
+    }
+    renderSyncAttention();
+  }
+
+  state.syncAttentionShowRetryTerminal.lines.push(
+    `[${attentionIssueTerminalTime()}] Completed: ${succeeded} repaired, ${failed} failed.`
+  );
+  state.syncAttentionShowRetryTerminal.status = failed > 0 ? (succeeded > 0 ? "partial" : "error") : "success";
+
+  try {
+    await loadSyncAttention({ force: true });
+  } finally {
+    if (state.syncAttentionShowRetrying === actionKey) state.syncAttentionShowRetrying = "";
+    renderSyncAttention();
+  }
+
+  return {
+    succeeded,
+    failed,
+    total: repairable.length,
+    message: failed > 0 ? `Completed with ${failed} ${failed === 1 ? "failure" : "failures"}.` : `All ${succeeded} ${succeeded === 1 ? "play was" : "plays were"} repaired.`,
+  };
 }
 
 export function setSyncActivityProgress({ total = 0, completed = 0, active = false, label = "" } = {}) {
@@ -1304,6 +1745,8 @@ export function resetSyncActivity() {
   loadRequestToken += 1;
   if (searchTimer) window.clearTimeout(searchTimer);
   searchTimer = null;
+  state.syncAttentionIssueRetrying = "";
+  state.syncAttentionIssueRetryTerminal = null;
   state.syncActivity = [];
   state.syncActivityLoaded = false;
   state.syncActivityLoading = false;

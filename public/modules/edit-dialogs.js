@@ -3,7 +3,7 @@ import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, format
 import { buildAuthHeaders } from "./auth.js";
 import { isWatchedHistoryAction } from "./sync.js";
 import { tmdbPoster, tmdbImage, proxiedArtworkUrl } from "./images.js?v=20260831m";
-import { dateAtMiddayIso, refreshShowAfterManualWatch } from "./watch-action.js?v=20260826c";
+import { dateAtMiddayIso, refreshShowAfterManualWatch } from "./watch-action.js?v=20260831b";
 import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js";
 
 // Callbacks injected by app.js at startup.
