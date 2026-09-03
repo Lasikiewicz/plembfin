@@ -137,6 +137,19 @@ may enter it:
 The selected scope applies to every review, documentation, staging, commit, and
 consolidation step. Never interpret either phrase as running `git push` by itself.
 
+### Git permission in the managed workspace
+
+When either **"Push to git"** or **"Push all to git"** is requested, request
+elevated repository access before the first Git command that mutates `.git`, and
+use that elevated access consistently for the rest of the workflow. This managed
+Windows workspace can protect `.git` metadata even when the worktree files are
+writable, so the affected commands include `git fetch`, `git checkout`, `git merge`,
+`git add`, `git commit`, `git reset --soft`, and `git push`. Read-only inspection
+commands such as `git status`, `git diff`, and `git log` may run without elevation.
+Do not work around the boundary with an alternate index, global Git configuration,
+or indirect file writes. If the elevation request is rejected, stop and ask the
+user to approve retrying the repository operation.
+
 ### 1 - Review the selected scope
 ```bash
 git diff --stat HEAD

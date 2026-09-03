@@ -18,6 +18,7 @@ function elements() {
     providerRows: document.querySelector("#ratingSyncProviderRows"),
     status: document.querySelector("#ratingSyncStatus"),
     help: document.querySelector("#ratingSyncHelp"),
+    syncNow: document.querySelector("#ratingSyncNow"),
   };
 }
 
@@ -57,6 +58,7 @@ function applyControls(config = currentConfig()) {
   const ui = elements();
   if (!ui.enabled) return;
   ui.enabled.checked = Boolean(config.enabled);
+  if (ui.syncNow) ui.syncNow.disabled = !config.enabled;
   renderProviderRows(config);
 }
 
@@ -92,6 +94,7 @@ function queueIssueDetails(queue = {}) {
 function setBusy(busy) {
   const ui = elements();
   if (ui.enabled) ui.enabled.disabled = Boolean(busy);
+  if (ui.syncNow) ui.syncNow.disabled = Boolean(busy) || !currentConfig().enabled;
   ui.panel?.toggleAttribute("aria-busy", Boolean(busy));
 }
 
@@ -194,12 +197,18 @@ async function runSync() {
   }
 }
 
+export function runRatingSyncNow() {
+  return runSync();
+}
+
 export function initRatingSyncSettings(nextCallbacks = {}) {
   callbacks = nextCallbacks;
   const ui = elements();
   if (!ui.panel || ui.panel.dataset.bound === "1") return;
   ui.panel.dataset.bound = "1";
   applyControls(currentConfig());
+  // Only meaningful while sync is on; a run with it off reconciles nothing.
+  ui.syncNow?.addEventListener("click", () => { runSync(); });
   ui.enabled?.addEventListener("change", () => {
     if (ui.status) ui.status.textContent = "Saving…";
     saveSettings().catch((error) => {

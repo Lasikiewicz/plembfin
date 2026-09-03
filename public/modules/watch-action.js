@@ -2,7 +2,7 @@ import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeCode, seasonLabel, formatSeasonTitle, formatTmdbDate, showEpisodeKey } from "./utils.js";
 import { buildAuthHeaders } from "./auth.js";
 import { isWatchedHistoryAction } from "./sync.js";
-import { mergeShowDetail } from "./explorer.js?v=20260903a";
+import { mergeShowDetail } from "./explorer.js?v=20260903m";
 import { dedupeMediaRecords, resetPartWatchedView, renderPartWatched } from "./dashboard.js?v=20260903b";
 import { tvSeasonAvailability } from "./media-detail-shared.js";
 import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js";

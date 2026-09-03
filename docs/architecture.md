@@ -60,7 +60,7 @@ new metadata requests.
 | Movie/show/person detail pages | `public/modules/media-detail*.js`, `media-person.js` | [media-detail.md](media-detail.md) |
 | Personal media pages | `public/modules/personal-media.js`, `handlePersonalMedia` in `routes/personal.js` | [frontend.md](frontend.md) |
 | Personal rating sync | `server/src/utils/personalRatingSync.js`, `personalRatingRepository.js`, provider clients, `public/modules/rating-sync-settings.js` | [personal-ratings.md](personal-ratings.md) |
-| Personal watchlist sync | `server/src/utils/personalWatchlistSync.js`, provider watchlist adapters, `routes/watchlistSync.js`, `public/modules/watchlist-sync-settings.js` | this document, [settings.md](settings.md) |
+| Plex watchlist sync | `server/src/utils/personalWatchlistSync.js`, `plexWatchlistClient.js`, `routes/watchlistSync.js`, `public/modules/watchlist-sync-settings.js` | this document, [personal-watchlist.md](personal-watchlist.md) |
 | History page, Search page | `public/modules/explorer.js`, `handleHistory` in `routes/media.js`, `handleMediaSearch` in `routes/metadata.js` | [history-search.md](history-search.md) |
 | Stats page | `public/modules/stats.js`, `getWatchStats` in `dataRepo.js` | [stats.md](stats.md) |
 | TMDB/TVDB/Fanart/OMDb metadata | `server/src/routes/metadata.js`, `server/src/utils/tmdbGateway.js`, `tvdbGateway.js`, `fanartGateway.js`, `omdbGateway.js` | [metadata.md](metadata.md) |
@@ -175,8 +175,6 @@ See [README.md](README.md) for the documentation index, including this file
 | `upNextRepository.js` | Generation-based SQLite source ledger for provider Resume/Continue Watching/Next Up feeds. Activates only complete snapshots, preserves last-good rows on failures, exposes redacted feed status, and advances `up_next` invalidation when active source content changes. |
 | `upNextService.js` | Builds the unified dashboard projection from canonical local resume/playstate, provider observations, and bounded released-episode metadata fallback; emits stable public queue items without raw provider payloads. |
 | `plexWatchlistClient.js` | Plex account-level Universal Watchlist adapter with native read/write capability probing and RSS read-only fallback. |
-| `embyWatchlistClient.js` | Emby user-scoped playlist/Favorites watchlist adapter with dedicated Plembfin playlist ownership. |
-| `jellyfinWatchlistClient.js` | Jellyfin user-scoped playlist/Favorites watchlist adapter with dedicated Plembfin playlist ownership. |
 | `traktAppConfig.js` | Supplies the bundled Plembfin Trakt device application, applies optional `TRAKT_CLIENT_ID` / `TRAKT_CLIENT_SECRET` overrides, validates the personal-app fallback, and hydrates runtime requests without persisting application credentials in tracker records. |
 | `credentialVault.js` | AES-256-GCM envelope for provider credentials, backed by `PLEMBFIN_CREDENTIAL_KEY` or the generated `data/credential.key`. |
 | `mediaConnectionRepo.js` | CRUD and runtime adaptation for encrypted Plex/Emby/Jellyfin account connections. |
@@ -256,8 +254,8 @@ See [README.md](README.md) for the documentation index, including this file
 | `settings.js` | Shared connection-label formatting. |
 | `settings-ui.js` | Reusable settings edit dialog, provider picker, and status-card grid primitives. |
 | `settings-services.js` | Media-server and metadata-provider card grids, edit dialogs, config saves, connection tests, and the inline Sync Tuning form. |
-| `rating-sync-settings.js` | Personal Rating Sync on/off control, provider summary, status polling, and queue feedback. |
-| `watchlist-sync-settings.js` | Personal Watchlist Sync on/off control, provider summary, and status polling. |
+| `rating-sync-settings.js` | Personal Rating Sync on/off control, provider summary, Sync now, status polling, and queue feedback. |
+| `watchlist-sync-settings.js` | Plex Watchlist Sync on/off control, Plex summary, Sync now, and status polling. |
 | `settings-shell.js` | Owns hierarchical settings routes (parent groups + child sections), multi-view panel aggregation, legacy aliases, the landing list, sidebar/mobile navigation, section-scoped scrolling, and tools disclosures. |
 | `tracker-settings.js` | Trakt device-code connection, initial baseline/import policy, connection state, personal-app fallback, and Sync Now controls. |
 | `live-updates.js` | Authenticated watch-state/personal-media, Up Next-cache, and Discover-cache version stream, reconnect/backoff, and debounced background data refresh with targeted visible-row reconciliation. |
@@ -442,14 +440,14 @@ watched-state work, but it has its own enabled flag, interval gate, queue, lease
 provider adapters, and error accounting. A rating provider outage cannot change
 watched state, play history, resume progress, or the watched-state Force Sync lock.
 
-Personal watchlist sync is a separate elected-worker pass. Local add/remove actions
-commit the canonical row or append-only tombstone and provider queue intents in one
-SQLite transaction. Provider snapshots are only allowed to infer removals after a
-successful complete snapshot; an initial publish requires a preview and explicit
-confirmation. Plex uses the account-level Universal Watchlist (native writes are
-opt-in; RSS is read-only), while Emby and Jellyfin use a Plembfin-owned playlist or
-an ownership-aware Favorites compatibility mode. Unavailable providers never delete
-the canonical row, and a restored watchlist remains paused until the user publishes it.
+Plex watchlist sync is a separate elected-worker pass, and Plex is its only provider -
+see [personal-watchlist.md](personal-watchlist.md) for why Emby and Jellyfin cannot
+represent a watchlist. Local add/remove actions commit the canonical row or append-only
+tombstone and the provider queue intent in one SQLite transaction. Snapshots are only
+allowed to infer removals after a successful complete snapshot. Plex uses the
+account-level Universal Watchlist (RSS is read-only). An unavailable provider never
+deletes the canonical row, and a restored watchlist takes a safe union before delivery
+resumes.
 
 The tick also runs the scheduled watch-history backup and encrypted backup jobs
 ([backups.md](backups.md)), refreshes the generation-based provider Up Next source ledger,

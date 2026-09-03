@@ -14,7 +14,7 @@ Desktop renders the grouped sidebar; mobile uses the **Settings section** select
 | Webhooks | `/settings/webhooks` | Setup Guides, Webhook Secret | `/settings/webhooks#setup-guides`, `/settings/webhooks#webhook-secret` |
 | Connections | `/settings/connections` | Trakt, Seerr | `/settings/connections#trakt`, `/settings/connections#seerr` |
 | Metadata | `/settings/metadata` | Metadata Providers, Refresh Metadata (TMDB, TVDB) | `/settings/metadata#metadata-providers`, `/settings/metadata#refresh-metadata` |
-| Sync | `/settings/sync` | Sync Tuning, Sync Tools (Repair Recent Items, Full Sync Watchstates, Force Sync, Personal Rating Sync, Personal Watchlist Sync), Sync Issues, Sync History | `/settings/sync#sync-tuning`, `/settings/sync#sync-tools`, `/settings/sync#sync-issues`, `/settings/sync#sync-history` |
+| Sync | `/settings/sync` | Sync Tuning, Sync Tools (Repair Recent Items, Full Sync Watchstates, Force Sync, Personal Rating Sync, Plex Watchlist Sync), Sync Issues, Sync History | `/settings/sync#sync-tuning`, `/settings/sync#sync-tools`, `/settings/sync#sync-issues`, `/settings/sync#sync-history` |
 | Backup | `/settings/backup` | Local (Watch History, Plembfin), Remote (Watch History, Plembfin) | `/settings/backup#backup-local`, `/settings/backup#backup-remote` |
 | Restore | `/settings/restore` | Local (Watch History, Plembfin), Remote (Watch History, Plembfin) | `/settings/restore#restore-local`, `/settings/restore#restore-remote` |
 | Tools | `/settings/tools` | Guided Setup, Database Repairs, Library Rebuilds and Backfills, Wipe data (Watch History, Personal Watchlist, Sync History & Logs, Everything Tracked, Wipe All / Fresh Start) | `/settings/tools#guided-setup`, `/settings/tools#database-repairs`, `/settings/tools#library-rebuilds`, `/settings/tools#wipe-data` |
@@ -197,8 +197,8 @@ footer visible while the body scrolls, and collapse to stacked fields on mobile.
 | `public/modules/settings-shell.js` | Hierarchical section/group registry, multi-view aggregation, legacy aliases, landing list, sidebar, mobile selector, panel visibility, section-scoped scrolling, and tools disclosures |
 | `public/modules/settings-ui.js` | Shared edit modal, picker modal, service-card grid, and the `renderFieldRow`/`collectFieldValues` primitives reused by both modal and inline forms |
 | `public/modules/settings-services.js` | Media-server and metadata definitions, config saves, connection tests, cards/dialogs, and the inline Sync Tuning form |
-| `public/modules/rating-sync-settings.js` | Personal Rating Sync on/off control, connection summary, and status polling |
-| `public/modules/watchlist-sync-settings.js` | Personal Watchlist Sync on/off control, connection summary, and status polling |
+| `public/modules/rating-sync-settings.js` | Personal Rating Sync on/off control, connection summary, Sync now, and status polling |
+| `public/modules/watchlist-sync-settings.js` | Plex Watchlist Sync on/off control, Plex connection summary, Sync now, and status polling |
 | `public/modules/settings.js` | Shared connection-label formatting |
 | `public/modules/tools.js` | Trakt import and compatibility exports for backup and maintenance behavior |
 | `public/modules/tools-backups.js` | Backup schedules, restore, destination cards/dialogs, and appearance behavior |
@@ -253,26 +253,25 @@ timeout. Blank fields inherit the matching environment variable or built-in defa
 saved values take precedence. The defaults remain 90%, 60 seconds, 5 minutes, and 10
 seconds respectively.
 
-**Personal Rating Sync** is disabled by default and has a single on/off control. When
+**Personal Rating Sync** is disabled by default and has a single on/off control, plus a
+**Sync now** button in the bottom right of the panel that runs an immediate sync. When
 enabled, every connected Plex, Emby, Jellyfin, and Trakt account participates in
 two-way sync every five minutes. Local rating changes are saved to Plembfin first and
 delivered through a durable queue; provider failures do not alter watched state, play
 history, resume positions, or lists. See
 [personal-ratings.md](personal-ratings.md).
 
-**Personal Watchlist Sync** is disabled by default and has a single on/off control.
-Plembfin is the canonical local present-set; Plex uses its account Universal Watchlist,
-while Emby and Jellyfin use a Plembfin-owned playlist. Enabling sync takes a safe union
-on the first run, imports provider-only additions, and fans each newer change out to the
-other connected services. Provider failures never delete the local list.
+**Plex Watchlist Sync** is disabled by default and has a single on/off control, plus a
+**Sync now** button that runs an immediate reconcile. Plembfin is the canonical local
+present-set and Plex uses its account Universal Watchlist. Enabling sync takes a safe union
+on the first run, imports Plex-only additions, and sends each newer local change to Plex.
+A Plex failure never deletes the local list. The same checkbox appears on the Plex card
+under Media Servers and on the Plex row of guided setup, where it is checked by default.
 
 The panel explains anything it cannot deliver instead of only reporting that attention is
-needed: a refused sign-in names the service and links to its connection settings, a
-rejected change shows the error the service returned and when the next attempt is due, and
-a title missing from an Emby or Jellyfin library is reported as expected rather than as a
-fault, since those services back a watchlist with a library-bound playlist. A **Retry
-queued changes** button reruns stuck work immediately. See
-[personal-watchlist.md](personal-watchlist.md).
+needed: a refused sign-in links to the Plex connection settings, and a rejected change
+shows the error Plex returned and when the next attempt is due. A **Retry queued changes**
+button reruns stuck work immediately. See [personal-watchlist.md](personal-watchlist.md).
 
 The same form's **Fast Local-Network Sync** checkbox controls the outbound pacing
 governor's profile (`server/src/utils/outboundGovernor.js`), stored as `pacing.profile`

@@ -445,12 +445,12 @@ export function savedCredentialNote() {
 export function watchlistSyncGuide() {
   return `
     <b>Plembfin is the canonical watchlist</b>
-    <p style="margin: 4px 0 0;">Turn sync on once to keep Plembfin and every connected media server aligned. Additions and removals save locally first, then use a durable delivery queue.</p>
+    <p style="margin: 4px 0 0;">Turn sync on once to keep Plembfin and your Plex account watchlist aligned in both directions. Additions and removals save in Plembfin first, then go out through a durable delivery queue.</p>
     <ul style="margin: 4px 0 0; padding-left: 1.1rem; line-height: 1.45;">
-      <li><b>Plex:</b> syncs with the account-level Universal Watchlist.</li>
-      <li><b>Emby/Jellyfin:</b> syncs through a Plembfin-owned <code>Plembfin Watchlist</code> playlist.</li>
-      <li>Provider-only additions are imported into Plembfin and sent to the other connected services.</li>
-      <li>Missing items remain queued for retry. A restored list first performs a safe union so an empty provider cannot erase it.</li>
+      <li>Syncs with the account-level Plex Universal Watchlist, so it can hold anything in the Plex catalogue - not only titles on your server.</li>
+      <li>Anything added in the Plex app is imported into Plembfin, and anything added in Plembfin is sent to Plex.</li>
+      <li>Failed items stay queued for retry. A restored list performs a safe union first, so an empty snapshot can never erase it.</li>
+      <li>Anything Plex refuses is explained above, with what it reported and what to do about it. <b>Sync now</b> runs a full reconcile immediately.</li>
     </ul>
   `;
 }

@@ -3,7 +3,7 @@ import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, format
 import { buildAuthHeaders } from "./auth.js";
 import { isWatchedHistoryAction } from "./sync.js";
 import { tmdbPoster, tmdbImage, proxiedArtworkUrl } from "./images.js?v=20260903b";
-import { dateAtMiddayIso, refreshShowAfterManualWatch } from "./watch-action.js?v=20260831b";
+import { dateAtMiddayIso, refreshShowAfterManualWatch } from "./watch-action.js?v=20260903m";
 import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js";
 
 // Callbacks injected by app.js at startup.
@@ -182,6 +182,141 @@ export function applyWatchedAtToLocalWatchRecord(id, watchedAt) {
   }
 
   return updated;
+}
+
+function normalizedArtworkIdentityValue(value) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function artworkIdentityValues(record = {}) {
+  const values = [];
+  for (const field of ["tmdb", "tvdb", "imdb"]) {
+    const scoped = normalizedArtworkIdentityValue(record[`show_${field}_id`]);
+    // Flat ids on an episode identify the episode, not the parent show. Only
+    // use them for show records and the explicit show identity payload.
+    const flat = record.media_type === "episode"
+      ? ""
+      : normalizedArtworkIdentityValue(record[`${field}_id`]);
+    const value = scoped || flat;
+    if (value) values.push(`${field}:${value}`);
+  }
+  return values;
+}
+
+function artworkTitleKey(record = {}) {
+  const rawTitle = typeof record === "string"
+    ? record
+    : record.show_title || record.title || "";
+  if (!String(rawTitle || "").trim()) return "";
+  return slug(showTitleFrom(rawTitle));
+}
+
+function matchesShowArtworkRecord(record, showIdentity = {}) {
+  const identityValues = artworkIdentityValues(showIdentity);
+  const recordValues = artworkIdentityValues(record);
+  if (identityValues.some((value) => recordValues.includes(value))) return true;
+  // A provider-identified record must not absorb a same-title reboot. A
+  // title fallback is only safe for records that carry no show identity.
+  if (recordValues.length) return false;
+  const titleKey = artworkTitleKey(showIdentity);
+  return Boolean(titleKey && titleKey === artworkTitleKey(record));
+}
+
+function applyShowArtworkToRecord(record, posterUrl) {
+  if (!record) return;
+  record.poster_url = posterUrl;
+  record.show_poster_url = posterUrl;
+  record.canonical_poster_url = posterUrl;
+  // Episode rows retain their own poster_url, but can use the new show poster
+  // whenever they have no episode-specific artwork.
+  for (const episode of record.episodes || []) {
+    if (!episode) continue;
+    episode.show_poster_url = posterUrl;
+    episode.canonical_poster_url = posterUrl;
+  }
+  if (record.representative_episode) {
+    record.representative_episode.show_poster_url = posterUrl;
+    record.representative_episode.canonical_poster_url = posterUrl;
+  }
+}
+
+function sameArtworkUrl(left, right) {
+  const normalize = (value) => String(value || "").trim().replace(/[?&]v=\d+(?=&|$)/i, "").replace(/[?&]$/, "");
+  const normalizedLeft = normalize(left);
+  const normalizedRight = normalize(right);
+  return Boolean(normalizedLeft && normalizedRight && normalizedLeft === normalizedRight);
+}
+
+// Keep the already-loaded library snapshots in step with an image edit. The
+// next server load is still important for other tabs, but it should not be the
+// first point at which the current Movies/TV Shows/History cards see the new
+// artwork.
+export function applyArtworkToLocalWatchRecords({
+  id = "",
+  mediaType = "movie",
+  posterUrl = "",
+  updatedIds = [],
+  showIdentity = {},
+  previousPosterUrl = "",
+} = {}) {
+  const url = String(posterUrl || "").trim();
+  if (!url) return { movies: 0, shows: 0, history: 0 };
+
+  const isMovie = String(mediaType || "").toLowerCase() === "movie";
+  const updatedIdSet = new Set(
+    [id, ...(Array.isArray(updatedIds) ? updatedIds : [updatedIds])]
+      .map(normalizedArtworkIdentityValue)
+      .filter(Boolean),
+  );
+  const result = { movies: 0, shows: 0, history: 0 };
+
+  if (isMovie) {
+    const matchesMovie = (row) => {
+      if (!row) return false;
+      if (updatedIdSet.has(normalizedArtworkIdentityValue(row.id))) return true;
+      if (updatedIdSet.has(normalizedArtworkIdentityValue(row.media_key))) return true;
+      return (row.playHistory || []).some((watch) => updatedIdSet.has(normalizedArtworkIdentityValue(watch?.id)));
+    };
+    for (const movie of state.moviesRaw || []) {
+      if (!matchesMovie(movie)) continue;
+      movie.poster_url = url;
+      result.movies += 1;
+    }
+    for (const rows of [state.history || [], state.historyViewRaw || []]) {
+      for (const row of rows) {
+        if (row?.media_type !== "movie" || !matchesMovie(row)) continue;
+        row.poster_url = url;
+        result.history += 1;
+      }
+    }
+    return result;
+  }
+
+  for (const show of state.showsRaw || []) {
+    if (!matchesShowArtworkRecord(show, showIdentity)) continue;
+    applyShowArtworkToRecord(show, url);
+    result.shows += 1;
+  }
+
+  const activeContextShow = state.activeShowRenderContext?.show;
+  if (activeContextShow && matchesShowArtworkRecord(activeContextShow, showIdentity)) {
+    applyShowArtworkToRecord(activeContextShow, url);
+  }
+
+  for (const rows of [state.history || [], state.historyViewRaw || []]) {
+    for (const row of rows) {
+      if (row?.media_type !== "episode" || !matchesShowArtworkRecord(row, showIdentity)) continue;
+      row.show_poster_url = url;
+      row.canonical_poster_url = url;
+      // Preview rows can contain the old shared poster in poster_url. Update
+      // that value only when it was the shared artwork; an episode-specific
+      // still must remain independent.
+      if (!row.poster_url || sameArtworkUrl(row.poster_url, previousPosterUrl)) row.poster_url = url;
+      result.history += 1;
+    }
+  }
+
+  return result;
 }
 
 export function editDateOptionsFromButton(button, entry = null, resolvedTmdbCacheFn = null) {
@@ -379,14 +514,20 @@ export function openEditDateDialog(_container, id, currentWatchedAt, onSaved, op
           .map((btn) => btn.dataset.watchedIso)
           .filter(Boolean)
           .sort();
-        if (remainingDates.length) await onSaved?.({ watched_at: remainingDates.at(-1) });
         // The dashboard's "N actual watches" count and the explorer's rewatch
         // summaries are read from in-memory snapshots (state.history, the
         // cached /api/movies rows) that a deleted row's own watched_at patch
         // never updates. Force a refetch so those counts drop immediately
         // instead of only after the next unrelated reload.
+        //
+        // This has to happen before onSaved: the detail-page callbacks look the
+        // edited record up in state.history and, when they find it, patch its
+        // watched_at and re-render from that snapshot rather than refetching.
+        // With the deleted row still in the snapshot, the removed watch was
+        // rendered straight back onto the page and only disappeared on reload.
         _clearDerivedUiCaches({ resetExplorer: true });
         await _loadHistory({ force: true }).catch(() => null);
+        if (remainingDates.length) await onSaved?.({ watched_at: remainingDates.at(-1) });
       } catch (err) {
         state.savingUnwatchIds.delete(rowId);
         if (status) status.textContent = `Error: ${err.message}`;

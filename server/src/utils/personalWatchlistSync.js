@@ -2,8 +2,6 @@ import crypto from "node:crypto";
 import { isAuthoritativeRestoreActive, loadMediaConfig } from "./configStore.js";
 import { getMediaConnection } from "./mediaConnectionRepo.js";
 import * as plexAdapter from "./plexWatchlistClient.js";
-import * as embyAdapter from "./embyWatchlistClient.js";
-import * as jellyfinAdapter from "./jellyfinWatchlistClient.js";
 import {
   WATCHLIST_PROVIDERS,
   applyWatchlistMutation,
@@ -38,12 +36,8 @@ import {
 } from "./personalWatchlistRepository.js";
 import { personalWatchlistMediaAliases, normalizePersonalWatchlistMedia } from "./personalWatchlistIdentity.js";
 
-const ADAPTERS = { plex: plexAdapter, emby: embyAdapter, jellyfin: jellyfinAdapter };
-const SNAPSHOT_FUNCTIONS = {
-  plex: plexAdapter.fetchPlexWatchlistSnapshot,
-  emby: embyAdapter.fetchEmbyWatchlistSnapshot,
-  jellyfin: jellyfinAdapter.fetchJellyfinWatchlistSnapshot,
-};
+const ADAPTERS = { plex: plexAdapter };
+const SNAPSHOT_FUNCTIONS = { plex: plexAdapter.fetchPlexWatchlistSnapshot };
 const WORKER_OWNER = `${process.env.PLEMBFIN_INSTANCE_ID || process.pid}:watchlist:${crypto.randomUUID()}`;
 const DEFAULT_BUDGET_MS = 45_000;
 
@@ -222,9 +216,25 @@ async function recordProviderSnapshot(scope, config, run, snapshot, { destructiv
   // Absence has meaning only after an earlier complete snapshot. An in-flight,
   // truncated, unauthorized, or empty-after-error response never reaches this
   // branch because fetchSnapshot must resolve with complete=true first.
+  // Inert while Plex is the only provider - the account watchlist has no
+  // container, so both sides of this comparison are always empty. It is kept
+  // because it encodes an invariant that a container-backed provider would
+  // need again, and because getting it wrong once deleted real entries:
+  //
+  // An item is only "missing" relative to the container it was recorded in.
+  // When the managed container changes identity - it was deleted and recreated,
+  // or a broken create left the ledger pointing at an id that no longer exists -
+  // every previously present row is absent from the new container without the
+  // user having removed anything. Comparing across that boundary once deleted a
+  // real watchlist entry from the canonical list and fanned the deletion out to
+  // every other provider, which is exactly what this whole snapshot path exists
+  // to prevent. Absence is therefore only evidence of removal within the same
+  // container; a container change means republish, not delete.
+  const scannedContainerId = clean(snapshot.container?.id || "", 300);
   if (previousRun?.complete_snapshot && previousRun.status === "succeeded") {
     for (const row of previousRows.filter((candidate) => candidate.remote_state === "present" && candidate.managed_by_plembfin && candidate.provider_item_id)) {
       if (seenProviderItems.has(row.provider_item_id)) continue;
+      if (clean(row.container_id || "", 300) !== scannedContainerId) continue;
       const latest = getLatestWatchlistMutation(row.media_key);
       if (latest?.desired_state === "present" && latest.canonical_revision > Number(previousRun.canonical_revision || 0)) continue;
       const removal = recordProviderWatchlistRemoval(row.media, {

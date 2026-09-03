@@ -1,6 +1,23 @@
 {
-  "build": 32,
+  "build": 33,
   "resetCommit": "7173b36accec9c93e5a90b0d7b98e23cced0e628",
-  "updatedAt": "2026-09-03T11:15:41.519Z",
-  "entries": []
+  "updatedAt": "2026-09-03T14:55:42.838Z",
+  "entries": [
+    {
+      "build": 33,
+      "date": "2026-09-03T14:55:42.838Z",
+      "commit": "9e72f283d05384867c267ad56433e5f65d26b6a9",
+      "message": "Docs - Consolidate watchlist sync simplification, retire Emby/Jellyfin clients",
+      "author": "Lasikiewicz",
+      "details": [
+        "Removed Emby and Jellyfin watchlist clients (library-specific playlists/favorites cannot hold unwatched titles and are operationally unsound)",
+        "Simplified Personal Rating and Watchlist sync to unified single toggle in Settings",
+        "Updated all docs to reflect Plex-only watchlist support with safe first-run union, durable retry queues, and provider-owned state tracking",
+        "Refactored watchlist sync settings UI into single cohesive panel with status, queue preview, manual sync, and provider recovery actions",
+        "Updated CLAUDE.md with managed Windows workspace Git permission requirements",
+        "Updated test suite for watchlist provider adapters and backup/restore scenarios",
+        "Aligned Settings, onboarding, and help-content modules with new unified sync flow"
+      ]
+    }
+  ]
 }

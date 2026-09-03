@@ -2,7 +2,7 @@ import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute, platformName, formatDate, formatNumber } from "./utils.js";
 import { categorizeIssues } from "./sync.js";
-import { openFixMatchDialog } from "./edit-dialogs.js?v=20260831b";
+import { openFixMatchDialog } from "./edit-dialogs.js?v=20260903m";
 
 let _setMessage = () => {};
 let _showConfirmModal = () => {};

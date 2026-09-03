@@ -484,6 +484,21 @@ function metadataBadges(id, config = {}) {
 // Posts one config section and mirrors the old per-section post-save behavior:
 // prefer the server's redacted echo, recompute `configured` locally when the
 // echo is missing, refresh Seerr capabilities, and repaint dependent UI.
+// The Plex card's watchlist checkbox saves on its own rather than waiting for
+// the card's Save button, which only submits the connection fields.
+async function saveWatchlistSyncEnabled(enabled) {
+  const response = await fetch("/api/config", {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ watchlistSync: { enabled: Boolean(enabled) } }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || `Watchlist setting save failed with ${response.status}`);
+  if (body.config) state.savedConfig = body.config;
+  document.dispatchEvent(new CustomEvent("plembfin:config-changed"));
+  return body.config;
+}
+
 async function saveServiceConfig(section, sectionPayload) {
   const response = await fetch("/api/config", {
     method: "POST",
@@ -624,6 +639,14 @@ function buildServiceEditOptions(serviceId) {
     deleteLabel: "Disconnect account",
     leadingAction: accountFlow ? { label: config.connection ? `Reconnect ${def.name}` : connectLabel, onClick: accountAction } : undefined,
     saveLabel: "Save",
+    // Plex is the only service with a real watchlist, so this is the only card
+    // that offers the toggle. It writes to watchlistSync, not to the Plex
+    // connection, which is why it is an extra toggle rather than a field.
+    extraToggles: serviceId === "plex" ? [{
+      label: "Sync Watchlist with Plembfin",
+      checked: Boolean(state.savedConfig?.watchlistSync?.enabled),
+      onChange: (enabled) => saveWatchlistSyncEnabled(enabled),
+    }] : [],
     optionalFieldsLabel: accountFlow ? "Optional manual credential setup" : "",
     helpHtml: `${accountFlow ? `<p class="tool-accordion-desc"><b>Recommended:</b> Connect ${serviceId === "emby" ? "an" : "a"} ${def.name} account to verify the remote user. Manual credentials below are a legacy compatibility option and do not prove user isolation.</p>` : ""}${def.help?.() || ""}`,
   };

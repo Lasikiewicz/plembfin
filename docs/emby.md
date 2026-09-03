@@ -31,20 +31,14 @@ mode is active: completing account setup removes the stored manual key, while sa
 manual setup switches Emby back to manual mode. Requests authenticate with the
 `X-Emby-Token` header.
 
-## Personal Watchlist Sync
+## Watchlist note
 
-Emby has no native user watchlist contract that Plembfin can rely on, so the optional
-watchlist projection offers two representations. **Plembfin playlist** uses a dedicated
-playlist named `Plembfin Watchlist` and is an exact, ownership-bounded projection.
-**Favorites compatibility** reads and writes the user's Favorites collection, but only
-Favorites previously marked as Plembfin-managed may be removed; unrelated Favorites are
-preserved. Both modes are scoped to the configured Emby user and use provider IDs first,
-then normalized title/year matching, with ambiguous matches held as unavailable.
-
-Initial publish always starts with a read-only preview and explicit confirmation. The
-worker paginates the user-scoped representation and interprets missing items as removals
-only after a complete snapshot follows an earlier complete snapshot. An unavailable
-Emby library or failed request never deletes Plembfin's canonical watchlist row.
+Emby is not a Personal Watchlist Sync provider. Emby has no native account-level
+watchlist contract; its playlist and Favorites equivalents are library-bound and cannot
+represent titles the user does not own. Plembfin therefore keeps the personal watchlist
+projection on Plex, whose account Universal Watchlist can hold the full catalogue. Emby's
+watched-state and personal-rating integrations remain independent of that feature; see
+[personal-watchlist.md](personal-watchlist.md) for the supported watchlist flow.
 
 ## Inbound: webhooks
 
@@ -136,14 +130,6 @@ platform that reported them.
 | `fetchEmbyWatchedItems` / `fetchEmbyResumableItems` / `fetchEmbyNextUpItems` | Watched, resume, and Next Up feeds for catch-up sync |
 | `fetchEmbyPersonalRatingSnapshot` | Reads rated movies, series, and episodes for the isolated personal-rating snapshot worker |
 | `setEmbyPersonalRating` / `clearEmbyPersonalRating` | Writes or clears a personal rating without changing played state or resume progress |
-
-The dedicated `embyWatchlistClient.js` owns playlist creation, user-scoped playlist/Favorites
-listing, identity resolution, and add/remove calls. Playlist container IDs and managed
-provider item IDs are retained in Plembfin's provider ledger so a later removal cannot
-touch another user's list or an unrelated Emby Favorite.
-
-A `not_found` result is reported as "skipped - no matching item" in sync telemetry:
-the item isn't in Emby's library, which is normal for non-mirrored libraries.
 
 ## Artwork
 

@@ -3,9 +3,9 @@ import { escapeHtml, escapeAttribute, formatDate, formatTmdbDate } from "./utils
 import { posterUrlFor, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=20260903b";
 import { isWatchedHistoryAction, getMediaTargetSyncStatus, renderSyncStatusDot } from "./sync.js";
 import { fetchTmdbDetails } from "./tmdb.js?v=20260823";
-import { renderWatchDatePrompt, isMovieSavingWatchAction } from "./watch-action.js?v=20260831b";
-import { authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=20260831c";
-import { personalRatingPillHtml, personalMediaActionsHtml } from "./personal-media.js?v=20260903b";
+import { renderWatchDatePrompt, isMovieSavingWatchAction } from "./watch-action.js?v=20260903m";
+import { authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=20260903m";
+import { personalRatingPillHtml, personalMediaActionsHtml } from "./personal-media.js?v=20260903c";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderMediaImagesSection, renderMediaFacts,
   renderExternalRatingPills, ratingPillHtml, renderSeerrRequestPill, fetchSeerrMediaStatus,
@@ -298,7 +298,7 @@ function _renderWatchedMovieContent(root, movie, {
         disabled: isSaving,
       })}
       ${mediaInfoActionHtml()}
-      <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || movieTitle || "")}" data-poster-url="${escapeAttribute(movie.poster_url || "")}" data-logo-url="${escapeAttribute(movie.logo_url || "")}" data-backdrop-url="${escapeAttribute(movie.backdrop_url || "")}">
+      <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-artwork-scope="movie" data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || movieTitle || "")}" data-poster-url="${escapeAttribute(movie.poster_url || "")}" data-logo-url="${escapeAttribute(movie.logo_url || "")}" data-backdrop-url="${escapeAttribute(movie.backdrop_url || "")}">
         ${imageIcon}
         <span>Edit <br>Images</span>
       </button>
@@ -429,7 +429,7 @@ export function patchMovieWatchedState(movie) {
         imdbId: movie.imdb_id || "",
       })}
       ${mediaInfoActionHtml()}
-      <button class="action-pill media-edit-image-btn" type="button" data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-poster-url="${escapeAttribute(movie.poster_url || "")}" data-logo-url="${escapeAttribute(movie.logo_url || "")}" data-backdrop-url="${escapeAttribute(movie.backdrop_url || "")}">
+      <button class="action-pill media-edit-image-btn" type="button" data-artwork-scope="movie" data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-poster-url="${escapeAttribute(movie.poster_url || "")}" data-logo-url="${escapeAttribute(movie.logo_url || "")}" data-backdrop-url="${escapeAttribute(movie.backdrop_url || "")}">
         ${imageIcon}
         <span>Edit <br>Images</span>
       </button>

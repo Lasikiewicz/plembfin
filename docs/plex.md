@@ -47,33 +47,46 @@ Every Plex HTTP request sends the token as an `X-Plex-Token` **header**
 single exception is the notification WebSocket, whose handshake cannot carry custom
 headers - there the token stays in the URL.
 
-## Personal Watchlist Sync
+## Plex Watchlist Sync
 
-Settings → Sync → Sync Tools can enable a separate Personal Watchlist Sync projection.
+Settings → Sync → Sync Tools can enable the separate Plex Watchlist Sync projection.
 The Plex adapter (`plexWatchlistClient.js`) uses the account-level Universal Watchlist,
 not a selected server library, so it authenticates with the connected Plex account JWT.
-It deliberately does not reuse a server token for account operations. Enabling Personal
+It deliberately does not reuse a server token for account operations. Enabling Plex
 Watchlist Sync authorizes native reads and writes; Plembfin no longer exposes separate
 representation or account-write controls.
 
-The account surface spans two hosts and they are not interchangeable. The watchlist
-collection and its mutations live on `metadata.provider.plex.tv`; catalog search lives on
-`discover.provider.plex.tv`. The adapter uses these endpoints:
+The whole account watchlist surface lives on `discover.provider.plex.tv`, not on the
+selected Plex Media Server and not on `metadata.provider.plex.tv`. The adapter uses these
+endpoints, each confirmed against the live account API:
 
 | Operation | Request |
 | --- | --- |
-| Read the watchlist | `GET metadata.provider.plex.tv/library/sections/watchlist/all` with `includeExternalMedia=1`, paged by `X-Plex-Container-Start` / `X-Plex-Container-Size` |
-| Resolve a target | `GET discover.provider.plex.tv/library/search` with `searchTypes=movies` or `tv` and `includeMetadata=1` |
-| Add | `PUT metadata.provider.plex.tv/actions/addToWatchlist?ratingKeys=<key>` |
-| Remove | `PUT metadata.provider.plex.tv/actions/removeFromWatchlist?ratingKeys=<key>` |
+| Read the watchlist | `GET discover.provider.plex.tv/library/sections/watchlist/all` with `includeExternalMedia=1` and `includeGuids=1`, paged by `X-Plex-Container-Start` / `X-Plex-Container-Size` |
+| Resolve a target | `GET discover.provider.plex.tv/library/search` with `searchTypes=movies` or `tv`, `searchProviders=discover`, and `includeMetadata=1` |
+| Add | `PUT discover.provider.plex.tv/actions/addToWatchlist?ratingKey=<key>` |
+| Remove | `PUT discover.provider.plex.tv/actions/removeFromWatchlist?ratingKey=<key>` |
 
-`includeExternalMedia` matters because most of a watchlist is titles no reachable server
-holds. Resolution searches the Plex catalog rather than a server library for the same
-reason: a watchlist exists to hold things the account does not own, so `/hubs/search` on a
-media server is the wrong question. Both mutations are `PUT`; a `DELETE` against the action
-endpoints does not remove. The rating key is the account catalog key, which is also the
-last segment of a `plex://movie/<key>` guid, and the adapter falls back to that guid when a
-target carries no resolved id.
+Each detail above is load-bearing, and getting one wrong fails quietly enough to look like
+a provider outage:
+
+- The **metadata host** answers the watchlist section with `404 Section 'watchlist' not
+  found!`, and the action endpoints with a bare `404`.
+- **`includeExternalMedia=1`** matters because most of a watchlist is titles no reachable
+  server holds.
+- **`includeGuids=1`** is what puts the `Guid` array in the response. Without it every
+  entry arrives with no imdb/tmdb/tvdb id and can only be matched on title and year.
+- **`searchProviders=discover`** is required; omitting it returns `400 Missing required
+  param searchProviders!`. Resolution searches the Plex catalog rather than a server
+  library because a watchlist exists to hold things the account does not own, so
+  `/hubs/search` on a media server is the wrong question.
+- The write parameter is **`ratingKey`, singular**. `ratingKeys` is rejected with `400
+  Invalid value provided for ratingKey!`.
+- Both mutations are **`PUT`**. `POST` answers `404`, and a `DELETE` does not remove.
+
+The rating key is the account catalog key, which is also the last segment of a
+`plex://movie/<key>` guid, and the adapter falls back to that guid when a target carries no
+resolved id.
 
 Plex does not publish a stable, fully documented account-watchlist mutation API in the
 PMS API reference. Plembfin therefore keeps native paths configurable - overriding

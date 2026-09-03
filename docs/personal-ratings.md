@@ -48,7 +48,8 @@ is rejected.
 
 ## API
 
-Enabling the Settings toggle starts a complete rating sync immediately. The title
+Enabling the Settings toggle starts a complete rating sync immediately, and a **Sync now**
+button in the panel runs one on demand. The title
 Force Sync modal retains its targeted **Push Personal Rating** troubleshooting
 action; it does not enter the watched-state Force Sync activity or operation lock.
 

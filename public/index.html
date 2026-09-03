@@ -17,7 +17,7 @@
     <link rel="preload" href="/icons/trakt.svg" as="image" type="image/svg+xml" />
     <link rel="preload" href="/icons/plembfin.png?v=20260824h" as="image" type="image/png" />
     <link rel="preload" href="/icons/plembfin-light.png?v=20260824h" as="image" type="image/png" />
-    <link rel="modulepreload" href="/app.js?v=20260903k" />
+    <link rel="modulepreload" href="/app.js?v=20260903m" />
     <link rel="modulepreload" href="/modules/auth.js" />
     <link rel="modulepreload" href="/modules/logs.js" />
     <link rel="modulepreload" href="/modules/settings.js" />
@@ -29,9 +29,9 @@
     <link rel="modulepreload" href="/modules/utils.js?v=20260903b" />
     <link rel="modulepreload" href="/modules/help-content.js" />
     <link rel="modulepreload" href="/modules/images.js?v=20260903b" />
-    <link rel="modulepreload" href="/modules/tools.js?v=20260831a" />
+    <link rel="modulepreload" href="/modules/tools.js?v=20260903m" />
     <link rel="modulepreload" href="/modules/tools-backups.js?v=20260810" />
-    <link rel="modulepreload" href="/modules/tools-maintenance.js?v=20260831a" />
+    <link rel="modulepreload" href="/modules/tools-maintenance.js?v=20260903m" />
     <link rel="modulepreload" href="/modules/tools-health.js" />
     <link rel="modulepreload" href="/modules/tools-duplicates.js" />
     <link rel="modulepreload" href="/modules/sync.js" />
@@ -41,25 +41,25 @@
     <link rel="modulepreload" href="/modules/media-card.js?v=20260903a" />
     <link rel="modulepreload" href="/modules/up-next.js?v=20260903c" />
     <link rel="modulepreload" href="/modules/discover.js?v=20260903b" />
-    <link rel="modulepreload" href="/modules/personal-media.js?v=20260903b" />
+    <link rel="modulepreload" href="/modules/personal-media.js?v=20260903c" />
     <link rel="modulepreload" href="/modules/stats.js" />
     <link rel="modulepreload" href="/modules/upcoming.js" />
-    <link rel="modulepreload" href="/modules/explorer.js?v=20260903a" />
+    <link rel="modulepreload" href="/modules/explorer.js?v=20260903m" />
     <link rel="modulepreload" href="/modules/calendar-picker.js" />
-    <link rel="modulepreload" href="/modules/edit-dialogs.js?v=20260831b" />
-    <link rel="modulepreload" href="/modules/watch-action.js?v=20260831b" />
+    <link rel="modulepreload" href="/modules/edit-dialogs.js?v=20260903m" />
+    <link rel="modulepreload" href="/modules/watch-action.js?v=20260903m" />
     <link rel="modulepreload" href="/modules/tmdb.js?v=20260823" />
-    <link rel="modulepreload" href="/modules/media-detail-context.js?v=20260831c" />
+    <link rel="modulepreload" href="/modules/media-detail-context.js?v=20260903m" />
     <link rel="modulepreload" href="/modules/media-info-summary.js" />
     <link rel="modulepreload" href="/modules/media-detail-shared.js?v=20260903b" />
-    <link rel="modulepreload" href="/modules/media-detail-show.js?v=20260901a" />
-    <link rel="modulepreload" href="/modules/media-detail-movie.js?v=20260831g" />
-    <link rel="modulepreload" href="/modules/media-detail.js?v=20260831g" />
-    <link rel="modulepreload" href="/modules/media-person.js?v=20260831f" />
+    <link rel="modulepreload" href="/modules/media-detail-show.js?v=20260903m" />
+    <link rel="modulepreload" href="/modules/media-detail-movie.js?v=20260903m" />
+    <link rel="modulepreload" href="/modules/media-detail.js?v=20260903m" />
+    <link rel="modulepreload" href="/modules/media-person.js?v=20260903m" />
     <link rel="modulepreload" href="/modules/media-lightbox.js" />
-    <link rel="modulepreload" href="/modules/media-detail-events.js?v=20260831h" />
+    <link rel="modulepreload" href="/modules/media-detail-events.js?v=20260903m" />
     <link rel="modulepreload" href="/modules/poster-menu.js?v=20260831l" />
-    <link rel="modulepreload" href="/modules/app-events.js?v=20260903g" />
+    <link rel="modulepreload" href="/modules/app-events.js?v=20260903m" />
     <link rel="stylesheet" href="/styles.css?v=20260903j" />
   </head>
   <body>
@@ -2109,26 +2109,29 @@
                             <div>
                               <small id="ratingSyncHelp">Two-way rating sync is enabled across all connected providers.</small>
                             </div>
+                            <button id="ratingSyncNow" class="button-ghost" type="button">Sync now</button>
                           </div>
                         </section>
 
                         <section id="watchlistSyncPanel" class="personal-watchlist-sync-panel" aria-labelledby="watchlistSyncHeading">
                           <div class="personal-watchlist-sync-heading">
                             <div>
-                              <strong id="watchlistSyncHeading">Personal Watchlist Sync</strong>
-                              <small>Add or remove an item in Plembfin or a connected service and Plembfin keeps every available watchlist aligned.</small>
+                              <strong id="watchlistSyncHeading">Plex Watchlist Sync</strong>
+                              <small>Add or remove an item in Plembfin or the Plex app and Plembfin keeps both watchlists aligned.</small>
                             </div>
                             <span id="watchlistSyncStatus" class="activity-log-state">Disabled</span>
                           </div>
                           <div class="personal-watchlist-sync-controls">
-                            <label class="checkbox-label"><input id="watchlistSyncEnabled" type="checkbox"> Sync personal watchlist</label>
+                            <label class="checkbox-label"><input id="watchlistSyncEnabled" type="checkbox"> Sync watchlist with Plex</label>
                           </div>
                           <div id="watchlistSyncProviderRows" class="personal-watchlist-sync-providers"></div>
                           <div id="watchlistSyncIssues" class="personal-watchlist-sync-issues hidden" aria-live="polite"></div>
                           <div class="personal-watchlist-sync-action-row">
                             <div>
+                              <div id="watchlistSyncSummary" class="watchlist-sync-summary" aria-live="polite"></div>
                               <div id="watchlistSyncHelp" class="watchlist-sync-help">Local watchlist actions always save in Plembfin first.</div>
                             </div>
+                            <button id="watchlistSyncNow" class="button-ghost" type="button">Sync now</button>
                           </div>
                         </section>
 
@@ -2671,6 +2674,6 @@
       </article>
     </div>
 
-    <script type="module" src="/app.js?v=20260903k"></script>
+    <script type="module" src="/app.js?v=20260903m"></script>
   </body>
 </html>

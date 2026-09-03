@@ -7,7 +7,13 @@ import {
   watchlistMediaForStorage,
 } from "./personalWatchlistIdentity.js";
 
-export const WATCHLIST_PROVIDERS = ["plex", "emby", "jellyfin"];
+// Plex-only: see the note on WATCHLIST_SYNC_PROVIDERS in configStore.js for why
+// Emby and Jellyfin cannot represent a watchlist at all.
+export const WATCHLIST_PROVIDERS = ["plex"];
+// The playlist/favorites representations belong to the retired Emby and
+// Jellyfin projections. They stay in the accepted set because stored rows and
+// restored backups from before this change still carry them, and normalizing
+// such a row must not throw while it is being cleaned up.
 export const WATCHLIST_REPRESENTATIONS = ["native", "playlist", "favorites", "rss"];
 export const WATCHLIST_DESIRED_STATES = ["present", "absent"];
 
@@ -152,6 +158,30 @@ const upsertRestoreStateStmt = db.prepare(`
   INSERT INTO settings (id, data, updated_at) VALUES ('personalWatchlistRestore', ?, ?)
   ON CONFLICT(id) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at
 `);
+
+// Watchlist sync used to project onto Emby and Jellyfin. Their rows are now
+// unreachable - every read normalizes the provider first and those names no
+// longer resolve - but they would still be counted by the unfiltered queue
+// summaries behind the settings panel, reporting issues for a projection that
+// no longer exists. Drop them once, on load. Only the provider projection is
+// removed; the canonical watchlist itself is never touched.
+function purgeRetiredWatchlistProviders() {
+  const placeholders = WATCHLIST_PROVIDERS.map(() => "?").join(", ");
+  for (const table of [
+    "personal_watchlist_provider_items",
+    "personal_watchlist_sync_queue",
+    "personal_watchlist_sync_runs",
+    "personal_watchlist_activity",
+  ]) {
+    try {
+      db.prepare(`DELETE FROM ${table} WHERE provider NOT IN (${placeholders})`).run(...WATCHLIST_PROVIDERS);
+    } catch {
+      // A fresh database may not have applied the schema yet; the next boot
+      // repeats this and nothing depends on it having run.
+    }
+  }
+}
+purgeRetiredWatchlistProviders();
 
 function normalizeProvider(provider) {
   const value = clean(provider, 30).toLowerCase();

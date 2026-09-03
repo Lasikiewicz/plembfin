@@ -5,12 +5,13 @@ import {
   openEditDateDialog,
   openEditShowDateDialog,
   openEditImageDialog,
+  applyArtworkToLocalWatchRecords,
   openFixMatchDialog,
   openMergeShowDialog,
   openEditSeasonDateDialog,
   applyWatchedAtToLocalWatchRecord,
   editDateOptionsFromButton,
-} from "./edit-dialogs.js?v=20260831b";
+} from "./edit-dialogs.js?v=20260903m";
 import {
   openWatchDatePrompt,
   closeWatchDatePrompt,
@@ -24,9 +25,9 @@ import {
   confirmAndMarkUnwatched,
   confirmAndDeleteMedia,
   toggleWatchDateIncludeSpecials,
-} from "./watch-action.js?v=20260831b";
+} from "./watch-action.js?v=20260903m";
 import { triggerRetrySync, loadSyncJobs, loadSyncHistory, showAvailIssuePopup } from "./sync.js";
-import { renderExplorer, renderHistoryView, resolvedTmdbCache, refreshMovieExplorerInPlace, refreshHistoryViewInPlace } from "./explorer.js?v=20260903a";
+import { renderExplorer, renderHistoryView, resolvedTmdbCache, refreshMovieExplorerInPlace, refreshHistoryViewInPlace } from "./explorer.js?v=20260903m";
 import {
   movieBySlugOrId,
   openShowInlineDetail,
@@ -37,9 +38,9 @@ import {
   renderMovieImmersiveModalContent,
   openHistoryDebugModal,
   openMediaInfoModal,
-} from "./media-detail.js?v=20260831g";
-import { fetchWatchedMovieByTmdb, syncRewatchHistoryToggle } from "./media-detail-movie.js?v=20260831g";
-import { addToWatchlist, removeFromWatchlist, openAddToListDialog, personalItemFromDetailDataset, refreshRenderedPersonalMediaControls, loadPersonalMedia } from "./personal-media.js?v=20260903b";
+} from "./media-detail.js?v=20260903m";
+import { fetchWatchedMovieByTmdb, syncRewatchHistoryToggle } from "./media-detail-movie.js?v=20260903m";
+import { addToWatchlist, removeFromWatchlist, openAddToListDialog, personalItemFromDetailDataset, refreshRenderedPersonalMediaControls, loadPersonalMedia } from "./personal-media.js?v=20260903c";
 
 // Callbacks injected by app-events.js (forwarded from app.js) to avoid circular imports.
 let _cb = {};
@@ -89,6 +90,16 @@ async function refreshActiveShowAfterDateEdit(entry = null) {
   if (state.activeShowModalKey) {
     await renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
   }
+}
+
+// An open movie/show detail page renders from its own fetched record, so a
+// history-version bump on the live-updates stream leaves it showing rows that
+// no longer exist - a watch date removed in this tab, in another tab, or by a
+// sync. Reconcile it from the same refetch the date-edit dialog uses; both
+// helpers no-op when their detail view is not the one on screen.
+export async function refreshActiveDetailView() {
+  await refreshActiveMovieAfterDateEdit().catch(() => null);
+  await refreshActiveShowAfterDateEdit().catch(() => null);
 }
 
 function mediaForceSyncAvailableSeasons(button) {
@@ -832,7 +843,23 @@ export function attachMediaDetailEvents() {
       // Resolve tmdbData - check both movie and TV caches
       let tmdbData = null;
       const entry = state.history.find((h) => h.id === id) || state.moviesRaw.find((m) => m.id === id);
-      const showForArtwork = state.activeShowModalKey ? activeShowRecord() : null;
+      // ID-based show routes do not set activeShowModalKey, but the show edit
+      // button still carries the canonical show ids. Treat either source as a
+      // show-artwork context so the PATCH writes media_artwork rather than the
+      // representative episode's poster_url.
+      const artworkScope = editImageBtn.dataset.artworkScope || "";
+      const hasShowArtworkIdentity = artworkScope === "show"
+        || (artworkScope !== "movie" && Boolean(
+          editImageBtn.dataset.showTmdbId
+          || editImageBtn.dataset.showTvdbId
+          || editImageBtn.dataset.showImdbId
+          || state.activeShowModalKey
+          || state.activeShowTmdbId
+          || state.activeShowTvdbId,
+        ));
+      const showForArtwork = hasShowArtworkIdentity
+        ? activeShowRecord() || state.activeShowRenderContext?.show
+        : null;
       if (entry) {
         const movieKey = `movie|${entry.tmdb_id || ""}|${String(entry.title || "").toLowerCase()}`;
         const cached = state.tmdbDetailsCache.get(movieKey);
@@ -857,7 +884,7 @@ export function attachMediaDetailEvents() {
           }
         }
       }
-      if (!tmdbData && state.activeShowModalKey) {
+      if (!tmdbData && hasShowArtworkIdentity) {
         const show = showForArtwork;
         if (show) {
           const tvKey = `tv|${show.tmdb_id || ""}|${String(show.title || "").toLowerCase()}`;
@@ -878,22 +905,49 @@ export function attachMediaDetailEvents() {
             };
           }
         }
+        if (!tmdbData) {
+          const showTmdbId = editImageBtn.dataset.showTmdbId || state.activeShowTmdbId || "";
+          const showTvdbId = editImageBtn.dataset.showTvdbId || state.activeShowTvdbId || "";
+          if (showTmdbId) {
+            tmdbData = {
+              id: showTmdbId,
+              name: showForArtwork?.title || editImageBtn.dataset.title || "",
+              media_type: "tv",
+              tvdb_id: showTvdbId,
+            };
+          } else if (showTvdbId) {
+            tmdbData = {
+              name: showForArtwork?.title || editImageBtn.dataset.title || "",
+              media_type: "tv",
+              tvdb_id: showTvdbId,
+            };
+          }
+        }
       }
       if (!tmdbData && entry?.tmdb_id && entry.media_type === "movie") {
         tmdbData = { id: entry.tmdb_id, title: entry.title, media_type: "movie" };
       }
       const imageDialogTitle = editImageBtn.dataset.title || tmdbData?.title || tmdbData?.name || entry?.title || "";
-      const showIdentity = showForArtwork
+      const showIdentity = hasShowArtworkIdentity
         ? {
           media_type: "tv",
-          title: showForArtwork.title || imageDialogTitle,
-          tmdb_id: editImageBtn.dataset.showTmdbId || tmdbData?.id || showForArtwork.tmdb_id || "",
-          tvdb_id: editImageBtn.dataset.showTvdbId || tmdbData?.external_ids?.tvdb_id || tmdbData?.tvdb_id || showForArtwork.tvdb_id || "",
-          imdb_id: editImageBtn.dataset.showImdbId || tmdbData?.external_ids?.imdb_id || showForArtwork.imdb_id || "",
+          title: showForArtwork?.title || imageDialogTitle,
+          tmdb_id: editImageBtn.dataset.showTmdbId || tmdbData?.id || showForArtwork?.tmdb_id || "",
+          tvdb_id: editImageBtn.dataset.showTvdbId || tmdbData?.external_ids?.tvdb_id || tmdbData?.tvdb_id || showForArtwork?.tvdb_id || "",
+          imdb_id: editImageBtn.dataset.showImdbId || tmdbData?.external_ids?.imdb_id || showForArtwork?.imdb_id || "",
         }
         : null;
+      const previousPosterUrl = editImageBtn.dataset.posterUrl || "";
       openEditImageDialog(container, id, editImageBtn.dataset.posterUrl, tmdbData, ({ poster_url, logo_url, backdrop_url, youtube_url, storage_url, updated_ids }) => {
         if (poster_url) {
+          applyArtworkToLocalWatchRecords({
+            id,
+            mediaType: showIdentity ? "tv" : "movie",
+            posterUrl: poster_url,
+            updatedIds: updated_ids,
+            showIdentity: showIdentity || {},
+            previousPosterUrl,
+          });
           editImageBtn.dataset.posterUrl = poster_url;
           const posterImg = container.querySelector(".immersive-poster-img");
           if (posterImg) posterImg.src = poster_url;
@@ -903,21 +957,29 @@ export function attachMediaDetailEvents() {
             // Show artwork is shared through the canonical show record. Do not
             // seed the episode id cache here: that would make this show poster
             // override the independent artwork of every episode card.
-            const activeShow = showForArtwork || activeShowRecord();
-            if (activeShow) {
+            const activeShows = new Set([
+              showForArtwork,
+              activeShowRecord(),
+              state.activeShowRenderContext?.show,
+            ].filter(Boolean));
+            for (const activeShow of activeShows) {
               activeShow.poster_url = poster_url;
               activeShow.show_poster_url = poster_url;
               activeShow.canonical_poster_url = poster_url;
             }
-            clearDerivedUiCaches({ resetExplorer: false });
-            loadHistory({ force: true }).catch(() => { });
-          } else if (storage_url && isCachedStorageImageUrl(storage_url)) {
-            // Movie edits still use the record-id poster cache for the related
-            // watch rows returned by the backend.
-            for (const updatedId of (Array.isArray(updated_ids) ? updated_ids : [id])) {
-              rememberPosterLookup(String(updatedId), storage_url);
+          }
+          // Drop cached explorer pages for both scopes, but retain and repaint
+          // the loaded arrays that applyArtworkToLocalWatchRecords just fixed.
+          clearDerivedUiCaches({ resetExplorer: false });
+          if (!showIdentity && storage_url && isCachedStorageImageUrl(storage_url)) {
+            const posterLookupIds = Array.isArray(updated_ids) && updated_ids.length ? updated_ids : [id];
+            for (const updatedId of posterLookupIds) {
+              rememberPosterLookup(String(updatedId), poster_url || storage_url);
             }
           }
+          loadHistory({ force: true }).catch(() => { });
+          if (state.activeView === "explorer" && !state.mediaDetailInline) renderExplorer();
+          else if (state.activeView === "history" && !state.mediaDetailInline) renderHistoryView();
         }
         if (logo_url !== undefined) {
           editImageBtn.dataset.logoUrl = logo_url;

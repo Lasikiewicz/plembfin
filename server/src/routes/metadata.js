@@ -754,15 +754,24 @@ export async function handleFixMatchSearch(req, res) {
   const results = [];
   const resultByIdentity = new Map();
 
-  const addResult = (candidate) => {
+  // A TV result is rematched by its TVDB series id, so that is the identity a
+  // show is deduplicated under; the TMDB id is only a second key so a result
+  // that knows both ids links the TVDB-only and TMDB-only entries for the same
+  // show into one card instead of listing it twice.
+  const identityKeysFor = (candidate) => {
     const tmdbId = String(candidate.tmdb_id || "").trim();
     const tvdbId = String(candidate.tvdb_id || "").trim();
-    const identity = tmdbId
-      ? `tmdb:${tmdbId}`
-      : (tvdbId ? `tvdb:${tvdbId}` : "");
-    if (!identity || !candidate.title) return;
+    const tmdbKey = tmdbId ? `tmdb:${tmdbId}` : "";
+    const tvdbKey = tvdbId ? `tvdb:${tvdbId}` : "";
+    const keys = mediaType === "tv" ? [tvdbKey, tmdbKey] : [tmdbKey, tvdbKey];
+    return keys.filter(Boolean);
+  };
 
-    const existing = resultByIdentity.get(identity);
+  const addResult = (candidate) => {
+    const keys = identityKeysFor(candidate);
+    if (!keys.length || !candidate.title) return;
+
+    const existing = keys.map((key) => resultByIdentity.get(key)).find(Boolean);
     if (existing) {
       const label = sourceLabels[candidate.source] || candidate.source;
       if (!existing.source_labels.includes(label)) existing.source_labels.push(label);
@@ -771,6 +780,14 @@ export async function handleFixMatchSearch(req, res) {
       if (!existing.image_url && candidate.image_url) existing.image_url = candidate.image_url;
       if (!existing.year && candidate.year) existing.year = candidate.year;
       if (!existing.imdb_id && candidate.imdb_id) existing.imdb_id = candidate.imdb_id;
+      // A later source can know an id the first one lacked - carry it onto the
+      // merged card so a local row with no TVDB id of its own still rematches
+      // directly by TVDB id, and register the key it arrived under.
+      if (!existing.tmdb_id && candidate.tmdb_id) existing.tmdb_id = candidate.tmdb_id;
+      if (!existing.tvdb_id && candidate.tvdb_id) existing.tvdb_id = candidate.tvdb_id;
+      for (const key of keys) {
+        if (!resultByIdentity.has(key)) resultByIdentity.set(key, existing);
+      }
       return;
     }
 
@@ -779,7 +796,7 @@ export async function handleFixMatchSearch(req, res) {
       source_labels: [sourceLabels[candidate.source] || candidate.source],
       media_type: mediaType,
     };
-    resultByIdentity.set(identity, result);
+    for (const key of keys) resultByIdentity.set(key, result);
     results.push(result);
   };
 
@@ -804,7 +821,10 @@ export async function handleFixMatchSearch(req, res) {
           poster_path: "",
           image_url: "",
           tmdb_id: item.tmdb_id || "",
-          tvdb_id: item.tvdb_id || "",
+          // A library row that only ever recorded a TMDB id still has a known
+          // TVDB series id whenever its metadata has been fetched before, and
+          // the TV rematch needs that id rather than the TMDB one.
+          tvdb_id: item.tvdb_id || (mediaType === "tv" ? getCachedTvdbId(item.tmdb_id) : ""),
           imdb_id: item.imdb_id || "",
           local_id: item.id || "",
         });

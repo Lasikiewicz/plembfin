@@ -29,13 +29,10 @@ const {
 
 const config = {
   plex: { baseUrl: "https://plex.example", accountToken: "plex-token" },
-  emby: { baseUrl: "https://emby.example", apiKey: "emby-token", userId: "emby-user" },
   watchlistSync: {
     enabled: true,
     providers: {
       plex: { enabled: true, representation: "native", writeEnabled: true, publishConfirmedAt: 1 },
-      emby: { enabled: true, representation: "playlist", publishConfirmedAt: 1 },
-      jellyfin: { enabled: false, representation: "playlist", publishConfirmedAt: 0 },
     },
   },
 };
@@ -64,7 +61,8 @@ test("local mutations are append-only, idempotent, and collapse provider deliver
     eventId: "add-201",
     timestamp: 1000,
   });
-  assert.equal(added.queued.length, 2);
+  // Plex is the only watchlist provider, so one local add is one queued delivery.
+  assert.equal(added.queued.length, 1);
   assert.equal(getCanonicalWatchlist(media).media_key, "movie:tmdb:201");
   const revisionAfterAdd = getWatchlistRevision();
 
@@ -137,21 +135,20 @@ test("provider removals and watched completion respect stale and show-level guar
   assert.equal(getCanonicalWatchlist(show), null);
 });
 
-test("provider ledger preserves playlist entry ids and restore state is explicit", () => {
+test("provider ledger preserves extra provider ids and restore state is explicit", () => {
   const media = normalizePersonalWatchlistMedia({ type: "movie", title: "Ledger Item", tmdb_id: "204" });
   upsertProviderWatchlistItem({
-    provider: "emby",
-    connectionId: "emby-1",
-    remoteScopeKey: "server:user",
-    representation: "playlist",
+    provider: "plex",
+    connectionId: "plex-1",
+    remoteScopeKey: "account:user",
+    representation: "native",
     media,
     providerItemId: "item-204",
     providerIds: { playlist_entry_id: "entry-204" },
-    containerId: "playlist-1",
     managedByPlembfin: true,
     timestamp: 4000,
   });
-  const ledger = listWatchlistProviderItems({ provider: "emby", connectionId: "emby-1", mediaKey: media.media_key });
+  const ledger = listWatchlistProviderItems({ provider: "plex", connectionId: "plex-1", mediaKey: media.media_key });
   assert.equal(ledger.length, 1);
   assert.equal(ledger[0].provider_ids.playlist_entry_id, "entry-204");
   const restore = markWatchlistRestorePending({ restoreId: "restore-204", timestamp: 4100 });

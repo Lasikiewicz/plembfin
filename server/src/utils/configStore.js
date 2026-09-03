@@ -17,11 +17,17 @@ export const DEFAULT_RATING_SYNC = Object.freeze({
   conflictPolicy: "local_wins",
   providers: Object.freeze({ plex: "bidirectional", emby: "bidirectional", jellyfin: "bidirectional", trakt: "bidirectional" }),
 });
-export const WATCHLIST_SYNC_PROVIDERS = ["plex", "emby", "jellyfin"];
+// Watchlist sync is Plex-only. Plex has a real account-level watchlist that can
+// hold anything in its catalog, which is what a watchlist means: titles you do
+// not own yet. Emby and Jellyfin have no watchlist concept, and the closest
+// stand-ins - a playlist or Favorites - can only reference items already in the
+// library, so an entry for something unowned has nowhere to go. Verified against
+// both live APIs: adding an id the library does not hold is accepted and then
+// silently ignored (`ItemAddedCount: 0`), and a playlist cannot hold a series
+// as a series, only its episodes.
+export const WATCHLIST_SYNC_PROVIDERS = ["plex"];
 export const WATCHLIST_SYNC_REPRESENTATIONS = Object.freeze({
   plex: ["native", "rss"],
-  emby: ["playlist", "favorites"],
-  jellyfin: ["playlist", "favorites"],
 });
 export const DEFAULT_WATCHLIST_SYNC = Object.freeze({
   enabled: false,
@@ -29,8 +35,6 @@ export const DEFAULT_WATCHLIST_SYNC = Object.freeze({
   importRemoteAdditions: false,
   providers: Object.freeze({
     plex: Object.freeze({ enabled: false, representation: "native", writeEnabled: false, publishConfirmedAt: 0 }),
-    emby: Object.freeze({ enabled: false, representation: "playlist", publishConfirmedAt: 0 }),
-    jellyfin: Object.freeze({ enabled: false, representation: "playlist", publishConfirmedAt: 0 }),
   }),
 });
 export const BACKGROUND_SYNC_PROGRESS_STALE_MS = 90_000;

@@ -1582,14 +1582,28 @@ export async function loadExplorerShows() {
 export function mergeShowDetail(show = {}) {
   if (!show?.title) return null;
   const showIds = providerIdentityTokens(show);
-  const existingIndex = state.showsRaw.findIndex((item) => {
+  const showKey = slug(show.title);
+  let existingIndex = state.showsRaw.findIndex((item) => {
     const itemIds = providerIdentityTokens(item);
     if (showIds.length && itemIds.length) return showIds.some((id) => itemIds.includes(id));
     // A provider-identified record must not absorb a title-only record: doing
     // so would make two same-title series share the first record's history.
     if (showIds.length || itemIds.length) return false;
-    return slug(item.title) === slug(show.title);
+    return slug(item.title) === showKey;
   });
+  // Two records can hold non-overlapping provider ids for the same series: a
+  // Fix Match rematch moves a show off its TMDB id onto a TVDB one, so a list
+  // record loaded before the rematch and the server record fetched after it
+  // share no id at all. Appending a second record for the title rather than
+  // replacing that one leaves the pre-rematch copy earlier in state.showsRaw,
+  // and every reader that resolves a show by title slug - renderImmersiveShowModal
+  // included - keeps finding the stale copy. That is what left a deleted watch
+  // date on an open detail page until a reload rebuilt the list: the refetch
+  // after the delete landed in a record nothing renders from. The server
+  // resolves /api/show by title, so a slug collision is the same group.
+  if (existingIndex < 0) {
+    existingIndex = state.showsRaw.findIndex((item) => slug(item.title) === showKey);
+  }
   if (existingIndex >= 0) {
     state.showsRaw[existingIndex] = { ...state.showsRaw[existingIndex], ...show };
     return state.showsRaw[existingIndex];
@@ -1762,6 +1776,23 @@ function showRecordDisplayTitle(show = {}) {
   return historyId ? `Unmatched show (${String(historyId).slice(0, 8)})` : "Unknown Show";
 }
 
+function showLibraryPosterEntry(show = {}, latestEpisode = {}) {
+  const showPoster = show.show_poster_url
+    || show.canonical_poster_url
+    || "";
+  const entry = { ...show, ...(latestEpisode || {}) };
+  if (showPoster) {
+    // The card represents the series, even when its representative episode
+    // carries a different still. Keep the episode id/title for the card
+    // identity, but make the shared show artwork the explicit poster source.
+    entry.poster_url = showPoster;
+    entry.show_poster_url = showPoster;
+    entry.canonical_poster_url = showPoster;
+    entry.prefer_raw_poster = true;
+  }
+  return entry;
+}
+
 export function renderShowRecord(show = {}) {
   const displayTitle = showRecordDisplayTitle(show);
   // Keep unresolved records on the existing history-linked shell. The label is
@@ -1790,7 +1821,7 @@ export function renderShowRecord(show = {}) {
     const sourceEl = latestEpisode?.source ? `<span class="source-badge ${sourceClass(latestEpisode.source)}">${escapeHtml(platformBadge(latestEpisode.source))}</span>` : "";
     return `
       <article class="explorer-list-card explorer-list-show-card" data-show-key="${escapeAttribute(showKey)}" data-show-href="${escapeAttribute(detailHref)}" data-alpha-letter="${firstAlphaLetter(displayTitle)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId)}" data-prefetch-title="${escapeAttribute(displayTitle)}">
-        ${posterMarkup(latestEpisode, "list-thumb-poster")}
+        ${posterMarkup(showLibraryPosterEntry(show, latestEpisode), "list-thumb-poster")}
         <span class="list-card-title">${escapeHtml(displayTitle)}</span>
         <span class="list-card-col${nextAiring.isStatus && nextAiring.text ? " list-next-air-status" : ""}" data-list-next-air>${escapeHtml(nextAiring.text)}</span>
         ${episodeProgressHtml}
@@ -1808,7 +1839,7 @@ export function renderShowRecord(show = {}) {
     return `
       <article class="explorer-overview-card explorer-overview-show-card" data-show-key="${escapeAttribute(showKey)}" data-show-href="${escapeAttribute(detailHref)}" data-alpha-letter="${firstAlphaLetter(displayTitle)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId)}" data-prefetch-title="${escapeAttribute(displayTitle)}">
         <button class="folder-trigger overview-show-poster-btn" type="button" data-show-key="${escapeAttribute(showKey)}" data-show-href="${escapeAttribute(detailHref)}" style="border:0;background:transparent;padding:0;display:block;">
-          ${posterMarkup(latestEpisode, "overview-thumb-poster")}
+          ${posterMarkup(showLibraryPosterEntry(show, latestEpisode), "overview-thumb-poster")}
         </button>
         <div class="overview-card-meta">
           <div class="overview-card-header">
@@ -1827,7 +1858,7 @@ export function renderShowRecord(show = {}) {
     <article class="folder-card" data-alpha-letter="${firstAlphaLetter(displayTitle)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId)}" data-prefetch-title="${escapeAttribute(displayTitle)}">
       <a class="folder-trigger" href="${escapeAttribute(detailHref)}" data-show-key="${escapeAttribute(showKey)}" data-show-href="${escapeAttribute(detailHref)}"${historyId ? ` data-show-record-id="${escapeAttribute(historyId)}"` : ""} style="border: 0; background: transparent; padding: 0; width: 100%; text-align: left; display: block; text-decoration: none; color: inherit;">
         <div class="poster-media-wrap">
-          ${posterMarkup(latestEpisode, "explorer-folder-poster")}
+          ${posterMarkup(showLibraryPosterEntry(show, latestEpisode), "explorer-folder-poster")}
           ${posterOverflowMenu(latestEpisode)}
         </div>
         <div class="movie-card-body" style="margin-top: 0.5rem;">

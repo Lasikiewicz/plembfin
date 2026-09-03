@@ -302,6 +302,11 @@ export function renderInlineServicePanel(container, {
   leadingAction,
   enabledKey = "",
   optionalFieldsLabel = "",
+  // Footer checkboxes that are not part of this service's own config payload,
+  // e.g. the Plex watchlist toggle, which writes to a different config section.
+  // They deliberately avoid `data-modal-field` so they are neither collected
+  // into the saved values nor disabled by the enable toggle.
+  extraToggles = [],
 } = {}) {
   if (!container) return null;
 
@@ -329,6 +334,7 @@ export function renderInlineServicePanel(container, {
     <p class="settings-modal-status message" role="status" aria-live="polite" data-tone="muted"></p>
     <div class="settings-inline-footer">
       ${enabledToggleHtml}
+      ${extraToggles.map((toggle, index) => `<label class="checkbox-label settings-inline-enabled"><input type="checkbox" data-inline-extra-toggle="${index}" ${toggle.checked ? "checked" : ""} /> ${escapeHtml(toggle.label)}</label>`).join("")}
       <div class="settings-inline-buttons">
         ${onDelete ? `<button class="button-danger settings-inline-delete" type="button">${escapeHtml(deleteLabel)}</button>` : ""}
         ${onTest ? `<button class="button-ghost settings-inline-test" type="button">${escapeHtml(testLabel)}</button>` : ""}
@@ -371,6 +377,24 @@ export function renderInlineServicePanel(container, {
     dialog.querySelector(`[data-modal-field="${enabledKey}"]`)?.addEventListener("change", syncEnabledState);
     syncEnabledState();
   }
+
+  dialog.querySelectorAll("[data-inline-extra-toggle]").forEach((input) => {
+    const toggle = extraToggles[Number(input.dataset.inlineExtraToggle)];
+    if (!toggle?.onChange) return;
+    input.addEventListener("change", async () => {
+      input.disabled = true;
+      try {
+        await toggle.onChange(input.checked, ui);
+      } catch (error) {
+        // Put the box back where it was so it never shows a state that was
+        // not actually saved.
+        input.checked = !input.checked;
+        setStatus(error?.message || "Could not save that option.", "error");
+      } finally {
+        input.disabled = false;
+      }
+    });
+  });
 
   saveButton.addEventListener("click", async () => {
     if (typeof onSave !== "function") return;

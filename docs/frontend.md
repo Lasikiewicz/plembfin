@@ -178,14 +178,24 @@ plus its season and episode number. The Ratings page consumes the canonical serv
 record, while the client also collapses any legacy aliases defensively. Episode
 artwork remains independent from the show's poster.
 
-### Personal Watchlist Sync settings
+### Plex Watchlist Sync settings
 
-The Personal Watchlist Sync panel lives in Settings → Sync → Sync Tools and is rendered
-by `watchlist-sync-settings.js`. It exposes one on/off control and a read-only summary
-of connected providers: Plex uses Universal Watchlist, while Emby and Jellyfin use a
-Plembfin-owned playlist. Status polling reports the overall sync state and provider
-capability. Enabling it immediately starts a safe-union sync, so provider-only additions
-are imported and fanned out without allowing an empty first snapshot to erase Plembfin.
+The Plex Watchlist Sync panel lives in Settings → Sync → Sync Tools and is rendered by
+`watchlist-sync-settings.js`. It exposes an on/off control, a read-only summary of the
+Plex connection, and a **Sync now** button in the bottom right of the panel's action row
+(the Personal Rating Sync panel above it carries the same control in the same place). Status polling reports the sync state and Plex
+capability. Enabling it immediately starts a safe-union sync, so Plex-only additions are
+imported without allowing an empty first snapshot to erase Plembfin.
+
+The same `watchlistSync.enabled` flag has two other entry points, so all three stay in
+step through the `plembfin:config-changed` event: the Plex card under Media Servers
+(an `extraToggles` entry on `renderInlineServicePanel`, which saves on change because the
+card's Save button only submits connection fields) and the Plex row of guided setup
+(checked by default, applied when that step completes).
+
+The panel writes its live one-line state to `#watchlistSyncSummary`, never to
+`#watchlistSyncHelp` - the latter belongs to `renderSettingsInlineHelp`'s static guide, and
+when both wrote to one element the 30-second status poll destroyed the guide every time.
 
 At mobile widths, Discover, Watchlist, Ratings, Custom Lists, and History use the
 dashboard's compact poster-first card geometry. Each feed or collection is a

@@ -1,8 +1,10 @@
 import { state } from "./state.js";
 import { escapeHtml } from "./utils.js";
 
-const PROVIDERS = ["plex", "emby", "jellyfin"];
-const PROVIDER_LABELS = { plex: "Plex", emby: "Emby", jellyfin: "Jellyfin" };
+// Plex-only: Emby and Jellyfin have no watchlist concept, so they were retired
+// from this projection. See the note on WATCHLIST_SYNC_PROVIDERS in configStore.js.
+const PROVIDERS = ["plex"];
+const PROVIDER_LABELS = { plex: "Plex" };
 let callbacks = {};
 let status = null;
 let refreshTimer = null;
@@ -18,14 +20,19 @@ function elements() {
     providerRows: document.querySelector("#watchlistSyncProviderRows"),
     status: document.querySelector("#watchlistSyncStatus"),
     issues: document.querySelector("#watchlistSyncIssues"),
-    help: document.querySelector("#watchlistSyncHelp"),
+    // The dynamic one-line state gets its own element. `#watchlistSyncHelp` is
+    // owned by renderSettingsInlineHelp's static guide, and writing both to one
+    // element meant whichever ran last destroyed the other - with status polling
+    // every 30 seconds, that was always the guide.
+    summary: document.querySelector("#watchlistSyncSummary"),
+    syncNow: document.querySelector("#watchlistSyncNow"),
   };
 }
 
 function defaultProviderConfig(provider) {
   return {
     enabled: false,
-    representation: provider === "plex" ? "native" : "playlist",
+    representation: "native",
     writeEnabled: false,
     publishConfirmedAt: 0,
   };
@@ -68,7 +75,7 @@ function renderProviderRows(config = currentConfig()) {
     return `<div class="personal-watchlist-sync-provider">
       <div class="personal-watchlist-sync-provider-copy">
         <strong>${escapeHtml(PROVIDER_LABELS[provider] || provider)}</strong>
-        <small>${entry.configured ? `${escapeHtml(connectionLabel(entry))} · ` : ""}${escapeHtml(syncState)}${pending ? ` · ${pending} queued` : ""}${Number(entry.unavailable || 0) ? ` · ${Number(entry.unavailable)} not in library` : ""}</small>
+        <small>${entry.configured ? `${escapeHtml(connectionLabel(entry))} · ` : ""}${escapeHtml(syncState)}${pending ? ` · ${pending} queued` : ""}${Number(entry.unavailable || 0) ? ` · ${Number(entry.unavailable)} unmatched` : ""}</small>
       </div>
     </div>`;
   }).join("");
@@ -84,7 +91,6 @@ function issueCopy(issue) {
   const label = PROVIDER_LABELS[issue.provider] || issue.provider;
   const count = Number(issue.count || 0);
   const items = `${count} item${count === 1 ? "" : "s"}`;
-  const isAre = count === 1 ? "is" : "are";
   const titles = (issue.titles || []).length ? `${(issue.titles || []).join(", ")}${count > (issue.titles || []).length ? ", and others" : ""}` : "";
   if (issue.status === "reauth_required") {
     return {
@@ -96,20 +102,12 @@ function issueCopy(issue) {
     };
   }
   if (issue.status === "not_available") {
-    // Emby and Jellyfin have no watchlist of their own, so Plembfin represents one
-    // as a playlist or favorites, which can only hold items that are already in the
-    // library. A watchlist entry you do not own yet therefore has nowhere to go on
-    // those services. That is the expected shape of the feature, not a fault, so
-    // this card explains it rather than asking for a fix. Plex is different: its
-    // watchlist is account-scoped over the whole Plex catalog, so a title missing
-    // there means Plembfin could not identify it, not that you do not own it.
-    const body = issue.provider === "plex"
-      ? `Plembfin could not find ${count === 1 ? "a matching title" : "matching titles"} in the Plex catalog, so ${count === 1 ? "it" : "they"} cannot be added to your Plex watchlist. This usually means the entry is missing the provider IDs Plex matches on. ${count === 1 ? "It stays" : "They stay"} on the Plembfin watchlist and Plembfin keeps trying.`
-      : `${label} has no watchlist of its own, so Plembfin keeps one as ${issue.representation === "favorites" ? `${label} favorites` : `a ${label} playlist`}, which can only hold items already in the ${label} library. ${count === 1 ? "This title is" : "These titles are"} not in it yet, which is normal for something you want to watch but do not own. ${count === 1 ? "It stays" : "They stay"} on the Plembfin watchlist, syncs to services that do have ${count === 1 ? "it" : "them"}, and Plembfin adds ${count === 1 ? "it" : "them"} to ${label} automatically once ${count === 1 ? "it appears" : "they appear"} in the library.`;
+    // Plex's watchlist is account-scoped over the whole Plex catalogue, so a
+    // title that cannot be placed there was not identified rather than not owned.
     return {
       tone: "info",
-      title: `${items} ${isAre} not in the ${label} library`,
-      body,
+      title: `${items} could not be matched in the Plex catalogue`,
+      body: `Plembfin could not find ${count === 1 ? "a matching title" : "matching titles"} in Plex, so ${count === 1 ? "it" : "they"} cannot be added to your Plex watchlist. This usually means the entry is missing the provider IDs Plex matches on. ${count === 1 ? "It stays" : "They stay"} on the Plembfin watchlist and Plembfin keeps trying.`,
       titles,
       action: null,
     };
@@ -181,6 +179,7 @@ function applyControls(config = currentConfig()) {
   const ui = elements();
   if (!ui.enabled) return;
   ui.enabled.checked = Boolean(config.enabled);
+  if (ui.syncNow) ui.syncNow.disabled = !config.enabled;
   renderProviderRows(config);
 }
 
@@ -208,6 +207,7 @@ function setBusy(busy) {
   if (ui.enabled) ui.enabled.disabled = Boolean(busy);
   const retry = ui.issues?.querySelector("#watchlistSyncRetry");
   if (retry) retry.disabled = Boolean(busy);
+  if (ui.syncNow) ui.syncNow.disabled = Boolean(busy) || !currentConfig().enabled;
   ui.panel?.toggleAttribute("aria-busy", Boolean(busy));
 }
 
@@ -220,21 +220,21 @@ function renderStatus(nextStatus = status) {
   const unavailable = Number(nextStatus.queue?.not_available || 0);
   if (!config.enabled) ui.status && (ui.status.textContent = "Disabled");
   else if (blocking) ui.status && (ui.status.textContent = "Needs attention");
-  else if (unavailable) ui.status && (ui.status.textContent = `Synced · ${unavailable} not in library`);
+  else if (unavailable) ui.status && (ui.status.textContent = `Synced · ${unavailable} unmatched`);
   else if (pending) ui.status && (ui.status.textContent = `${pending} queued`);
   else ui.status && (ui.status.textContent = "Synced");
 
   const enabled = (nextStatus.providers || []).filter((entry) => entry.configured && entry.read && entry.add && entry.remove).length;
-  if (ui.help) {
-    ui.help.textContent = !config.enabled
-      ? "Plembfin remains the canonical list. Turn sync on to include every connected service."
+  if (ui.summary) {
+    ui.summary.textContent = !config.enabled
+      ? "Plembfin remains the canonical list. Turn sync on to keep it aligned with your Plex account watchlist."
       : blocking
         ? `${blocking} watchlist change${blocking === 1 ? " needs" : "s need"} attention. The details below explain what each service reported and what to do about it.`
         : unavailable
-          ? `${unavailable} watchlist item${unavailable === 1 ? " is" : "s are"} not in a connected library yet, which is expected for something you want to watch but do not own. Plembfin holds ${unavailable === 1 ? "it" : "them"} and adds ${unavailable === 1 ? "it" : "them"} to that service once the library has ${unavailable === 1 ? "it" : "them"}.`
+          ? `${unavailable} watchlist item${unavailable === 1 ? "" : "s"} could not be matched in the Plex catalogue. The details below name ${unavailable === 1 ? "it" : "them"}.`
           : enabled
-            ? `Plembfin is syncing the watchlist across ${enabled} connected service${enabled === 1 ? "" : "s"}. Changes made anywhere are sent to the others.`
-            : "Connect Plex, Emby, or Jellyfin to sync your Plembfin watchlist.";
+            ? "Plembfin and your Plex watchlist are in sync. A change in either one is sent to the other."
+            : "Connect a Plex account to sync your Plembfin watchlist.";
   }
   renderProviderRows(config);
   renderIssues(nextStatus, config);
@@ -304,12 +304,19 @@ async function runSync(action = "run", { silent = false } = {}) {
   }
 }
 
+export function runWatchlistSyncNow() {
+  return runSync("run");
+}
+
 export function initWatchlistSyncSettings(nextCallbacks = {}) {
   callbacks = nextCallbacks;
   const ui = elements();
   if (!ui.panel || ui.panel.dataset.bound === "1") return;
   ui.panel.dataset.bound = "1";
   applyControls(currentConfig());
+  // Sync now is only meaningful while sync is on; a run with it off would
+  // reconcile nothing and read as a no-op failure.
+  ui.syncNow?.addEventListener("click", () => { runSync("run"); });
   ui.enabled?.addEventListener("change", () => {
     if (ui.status) ui.status.textContent = "Saving…";
     saveSettings().catch((error) => {

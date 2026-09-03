@@ -18,13 +18,11 @@ const { normalizePersonalWatchlistMedia } = await import("../server/src/utils/pe
 const { exportCollectionPage, getFullBackup, importCollectionBatch } = await import("../server/src/utils/backup.js");
 
 const config = {
-  emby: { baseUrl: "https://emby.example", apiKey: "emby-secret", userId: "user-1" },
+  plex: { baseUrl: "https://plex.example", accountToken: "plex-secret" },
   watchlistSync: {
     enabled: true,
     providers: {
-      plex: { enabled: false, representation: "native", publishConfirmedAt: 0 },
-      emby: { enabled: true, representation: "playlist", publishConfirmedAt: 1 },
-      jellyfin: { enabled: false, representation: "playlist", publishConfirmedAt: 0 },
+      plex: { enabled: true, representation: "native", writeEnabled: true, publishConfirmedAt: 1 },
     },
   },
 };
@@ -55,14 +53,13 @@ test("full watchlist export and staged restore preserve local state but require 
     timestamp: 1000,
   });
   upsertProviderWatchlistItem({
-    provider: "emby",
-    connectionId: "emby-backup",
-    remoteScopeKey: "https://emby.example:user-1",
-    representation: "playlist",
+    provider: "plex",
+    connectionId: "plex-backup",
+    remoteScopeKey: "account:user-1",
+    representation: "native",
     media,
-    providerItemId: "emby-801",
-    providerIds: { playlist_entry_id: "entry-801" },
-    containerId: "playlist-801",
+    providerItemId: "plex-801",
+    providerIds: { plex_rating_key: "plex-801" },
     managedByPlembfin: true,
     timestamp: 1100,
   });
@@ -86,6 +83,6 @@ test("full watchlist export and staged restore preserve local state but require 
 
   assert.equal(getCanonicalWatchlist(media).media_key, media.media_key);
   assert.equal(getWatchlistRestoreState().pending, true);
-  assert.ok(listWatchlistProviderItems({ provider: "emby" }).every((item) => item.remote_state === "unknown"));
+  assert.ok(listWatchlistProviderItems({ provider: "plex" }).every((item) => item.remote_state === "unknown"));
   assert.ok(listWatchlistQueue().every((row) => row.status === "pending" && row.succeeded_at === null));
 });

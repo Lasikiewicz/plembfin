@@ -35,12 +35,13 @@ async function accountToken(config = {}) {
 // deployment may provide an explicitly validated private/account base; otherwise
 // use Plex's account service hosts.
 //
-// Two hosts serve this account surface and they are not interchangeable in
-// practice: the watchlist collection and its add/remove actions live on the
-// metadata host, while catalog search lives on the discover host. Both stay
+// The watchlist section, its add/remove actions, and catalog search all live on
+// the discover host. Verified against the live account API: the metadata host
+// answers `/library/sections/watchlist/all` with 404 "Section 'watchlist' not
+// found!", while the discover host returns the account's watchlist. Both stay
 // overridable so a deployment can point them elsewhere.
 function baseUrl(config = {}) {
-  return trimTrailingSlash(config.watchlistBaseUrl || "https://metadata.provider.plex.tv");
+  return trimTrailingSlash(config.watchlistBaseUrl || "https://discover.provider.plex.tv");
 }
 
 function discoverUrl(config = {}) {
@@ -163,12 +164,16 @@ export async function listManagedItems(config, { cursor = null, pageSize = 100 }
   const representation = config.watchlistRepresentation || config.representation || "native";
   if (representation === "rss") return fetchPlexWatchlistRss(config);
   const startIndex = Number(cursor?.startIndex || 0);
-  // The Universal Watchlist is a section on the account metadata host, not an
-  // item lookup: `/library/metadata` with no rating key is not a valid endpoint
-  // there and answers 501, which silently failed every read, every write that
-  // needed the snapshot fallback, and every import of an addition made in Plex.
+  // The Universal Watchlist is an account-level section on the discover host,
+  // not an item lookup: `/library/metadata` with no rating key is not a valid
+  // endpoint there and answers 501, which silently failed every read, every
+  // write that needed the snapshot fallback, and every import of an addition
+  // made in Plex.
   // `includeExternalMedia` is required for entries whose title is not on any
-  // server the account can reach, which is most of a watchlist.
+  // server the account can reach, which is most of a watchlist. `includeGuids`
+  // is equally load-bearing: without it the response carries no Guid array at
+  // all, so every entry would arrive with no imdb/tmdb/tvdb id and could only
+  // be matched on title and year.
   const body = await plexRequest(config, config.watchlistListPath || "/library/sections/watchlist/all", {
     params: {
       includeCollections: 1,
@@ -253,6 +258,9 @@ async function searchPlex(config, media) {
     params: {
       query: normalized.title,
       searchTypes: normalized.media_type === "movie" ? "movies" : "tv",
+      // Required: without it the endpoint answers 400 "Missing required param
+      // searchProviders!". `discover` is the catalog that backs the watchlist.
+      searchProviders: "discover",
       includeMetadata: 1,
       includeGuids: 1,
       limit: 30,
@@ -313,13 +321,17 @@ function watchlistRatingKey(target = {}) {
 // Writes go through the account action endpoints. The older
 // `/library/metadata/{id}/watchlist` form is kept working for a deployment that
 // pins it: a configured path containing `{id}` is still substituted, while the
-// action endpoints take the key as a `ratingKeys` query parameter instead. Both
-// actions are PUT; remove is not a DELETE against these endpoints.
+// action endpoints take the key as a query parameter instead.
+//
+// Verified against the live account API: the parameter is `ratingKey`, singular
+// - `ratingKeys` is rejected with 400 "Invalid value provided for ratingKey!".
+// Both actions are PUT on the discover host; POST answers 404, as does the
+// metadata host.
 async function writeWatchlistAction(config, { path, method, id }) {
   const usesPathId = path.includes("{id}");
   await plexRequest(config, usesPathId ? pathWithId(path, id) : path, {
     method,
-    params: { ...(usesPathId ? {} : { ratingKeys: id }), ...(config.watchlistWriteParams || {}) },
+    params: { ...(usesPathId ? {} : { ratingKey: id }), ...(config.watchlistWriteParams || {}) },
   });
 }
 

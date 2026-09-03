@@ -84,29 +84,27 @@ records the first remote snapshot without importing it; Import mode seeds the lo
 canonical ratings. A missing-row clear is only considered after a complete previous
 snapshot.
 
-## Personal watchlist scheduler
+## Plex watchlist scheduler
 
-Personal Watchlist Sync is disabled globally and per provider until enabled from
-Settings → Sync → Sync Tools. The elected worker runs it after watched-state work and
-personal ratings, within its own bounded budget. Local add/remove mutations are already
-durable before this pass starts; the worker repairs provider queue rows, reads each
-enabled provider's configured representation, and delivers pending additions/removals
-with leases, retry backoff, and redacted errors.
+Plex Watchlist Sync is disabled globally until enabled from Settings → Sync → Sync Tools,
+the Plex media-server card, or guided setup. The elected worker runs it after watched-state
+work and personal ratings, within its own bounded budget. Local add/remove mutations are
+already durable before this pass starts; the worker repairs Plex queue rows, reads the
+account-level Universal Watchlist, and delivers pending additions/removals with leases,
+retry backoff, and redacted errors.
 
-The first run is intentionally two-stage. `POST /api/watchlist-sync/preview` performs a
-read-only provider snapshot and reports local items that can be resolved, unresolved
-items, and provider-only entries. `POST /api/watchlist-sync/run` with a confirmed
-`publish` then establishes the provider baseline. A Plembfin-owned Emby/Jellyfin
-playlist may be cleaned up during that explicit publish; unrelated Favorites and
-Plex's existing account watchlist entries remain unmanaged.
+The first run takes a safe union of the local and Plex lists. `POST
+/api/watchlist-sync/preview` remains available for a read-only snapshot and resolution
+check; `POST /api/watchlist-sync/run` performs the reconcile. Plex-only additions are
+imported into Plembfin, and a complete later snapshot is required before a missing
+previously managed item can be treated as a provider removal.
 
-Missing remote items only become provider-originated removals after a successful,
-complete snapshot has followed an earlier complete snapshot. Partial, empty-after-error,
+Missing remote items only become provider-originated removals after a successful, complete
+snapshot has followed an earlier complete snapshot. Partial, empty-after-error,
 unauthorized, or unavailable responses never remove the canonical local row. A confirmed
-provider removal does remove the canonical row and queues a global removal to every
-enabled provider. A completed movie watch, explicitly completed TV show, or show-progress
-completion follows the same global removal hook; watching one episode alone does not
-remove a TV show watchlist row.
+Plex removal does remove the canonical row and records the local change. A completed movie
+watch, explicitly completed TV show, or show-progress completion follows the same removal
+hook; watching one episode alone does not remove a TV show watchlist row.
 
 The worker records provider/user/representation scope, ownership, queue outcome, run
 generation, and removal reason in the watchlist ledger/activity tables. A full backup

@@ -1,20 +1,43 @@
-# Personal Watchlist Sync
+# Plex Watchlist Sync
 
 Plembfin stores the personal watchlist locally as the canonical present-set. A local
 watchlist add or removal commits to SQLite first and creates durable provider work; the
-browser does not wait for Plex, Emby, or Jellyfin.
+browser does not wait for Plex.
 
-## Provider projections
+## Why Plex is the only provider
 
-Watchlist sync is disabled by default and has one control in Settings → Sync Tools →
-Personal Watchlist Sync: on or off. Enabling it includes every connected writable media
-server on a five-minute cadence. Plex uses the account-level Universal Watchlist;
-Emby and Jellyfin use a dedicated `Plembfin Watchlist` playlist.
+Plex has a real account-level watchlist covering its whole catalogue, so it can hold what
+a watchlist is for: titles you do not own yet. Emby and Jellyfin have no watchlist concept.
+Their nearest equivalents, a playlist or Favorites, address items by library id and so can
+only hold media already on the server. Both were verified against their live APIs before
+being retired: adding an id the library does not hold is accepted and then silently ignored
+(`ItemAddedCount: 0`), and a playlist cannot hold a series as a series - Emby expands it
+into the episodes it happens to have. That last behaviour also made every later snapshot
+read the entry as removed, which deleted it from the canonical list and fanned the deletion
+out to Plex.
 
-The first sync takes a safe union of Plembfin and provider lists. Provider-only entries
-are imported into Plembfin and fanned out to the other connected providers. Later
-complete snapshots reconcile additions and removals; incomplete snapshots cannot delete
-canonical entries.
+`WATCHLIST_SYNC_PROVIDERS` in `configStore.js` and `WATCHLIST_PROVIDERS` in
+`personalWatchlistRepository.js` are both `["plex"]`. Rows left behind by the retired
+projections are deleted once on load by `purgeRetiredWatchlistProviders()`, so the
+unfiltered queue summaries behind the settings panel cannot keep reporting issues for a
+projection that no longer exists. The canonical watchlist itself is never touched by that
+cleanup.
+
+## Controls
+
+Watchlist sync is disabled by default and is turned on in any of three places, all writing
+the same `watchlistSync.enabled` flag:
+
+- **Guided setup** - a *Sync Watchlist with Plembfin* checkbox on the Plex row of the media
+  servers step, checked by default and applied when that step is completed.
+- **Settings → Media Servers → Plex** - the same checkbox, which saves on change rather than
+  waiting for the card's Save button (that button only submits connection fields).
+- **Settings → Sync → Sync Tools → Plex Watchlist Sync** - the on/off control, plus
+  **Sync now** for an immediate reconcile.
+
+The first sync takes a safe union of the Plembfin and Plex lists. Plex-only entries are
+imported into Plembfin. Later complete snapshots reconcile additions and removals;
+incomplete snapshots cannot delete canonical entries.
 
 ## Completion and removal
 
@@ -28,22 +51,23 @@ cannot immediately undo it.
 ## Recovery and status
 
 The queue, provider ownership ledger, snapshot generations, mutation history, and activity
-events live in separate SQLite tables. A provider outage, incomplete snapshot, ambiguous
-match, or unavailable library item never deletes the canonical local row. Status exposes
+events live in separate SQLite tables. A Plex outage, incomplete snapshot, or ambiguous
+match never deletes the canonical local row. Status exposes
 pending, unavailable, reauthentication, and failure states, with retry actions in Settings.
 
 `GET /api/watchlist-sync/status` returns an `issues` array, both per provider and for the
 whole queue. Each entry groups the stuck queue rows by provider and state and carries the
 count, up to three affected titles, the redacted provider error, the highest attempt count,
-and the next scheduled retry time. The Personal Watchlist Sync panel in Settings renders one
-card per group, so a service that refuses a change explains what it reported and what to do:
+and the next scheduled retry time. The Plex Watchlist Sync panel in Settings renders one
+card per group, so a refused change explains what Plex reported and what to do:
 
-- `reauth_required` names the service whose stored sign-in was refused and offers a button
-  that opens Settings → Media Servers to reconnect it.
-- `failed` shows the error the service returned, the failed attempt count, and when the next
+- `reauth_required` means the stored Plex sign-in was refused, and offers a button that opens
+  Settings → Media Servers to reconnect it.
+- `failed` shows the error Plex returned, the failed attempt count, and when the next
   automatic attempt is due.
-- `not_available` explains that the entry has nowhere to go on that service yet. It stays on
-  the Plembfin list and is added automatically once the service can hold it.
+- `not_available` means Plembfin could not match the title in the Plex catalogue, usually
+  because the entry carries none of the provider ids Plex matches on. It stays on the
+  Plembfin list and keeps retrying.
 
 A provider whose last snapshot run failed gets its own card, built from `providers[].lastRun`
 rather than the queue. Nothing can be queued against a list Plembfin could not read, so that
@@ -58,27 +82,6 @@ to pending and immediately runs a reconcile pass. Because `retry` mode deliberat
 provider snapshot, the button follows it with a plain `run` whenever a run failure is on
 screen, so a failed read is actually re-attempted. The panel header reads `Needs attention`
 only for failed or reauthentication rows.
-
-## Whether an item must exist in the connected library
-
-This depends on how each service represents a watchlist, and the two cases are different:
-
-- **Plex** has a real, account-scoped Universal Watchlist covering the whole Plex catalog, so
-  an item does not need to be on your Plex server to be added to it. Plembfin sends these
-  writes to the Plex account service, never to the selected Plex Media Server.
-- **Emby and Jellyfin** have no watchlist concept. Plembfin represents one as a playlist
-  (or favorites), and both can only contain items that already exist in that library. A
-  title you want to watch but do not own therefore has nowhere to go on those services.
-
-That makes `not_available` on Emby or Jellyfin the expected state for an unowned title, not a
-failure. The canonical Plembfin list keeps the entry, the queue row stays eligible for the
-next reconcile pass, and the item is added to that service on its own once the library
-contains it. The panel header reports this as `Synced · <n> not in library` rather than
-`Needs attention`, and the per-provider row reads `<n> not in library`.
-
-On Plex the same state means something else: Plembfin could not identify the title in the
-Plex catalog, which usually indicates the watchlist entry is missing the provider IDs Plex
-matches on.
 
 Full Plembfin backup/export includes the canonical watchlist and its non-secret sync state.
 Restoring it invalidates remote observations and forces another safe-union snapshot before

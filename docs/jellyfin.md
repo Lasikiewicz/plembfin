@@ -35,20 +35,14 @@ manual setup switches Jellyfin back to manual mode. Requests send both
 `X-Emby-Token` and `X-MediaBrowser-Token` headers so every Jellyfin version accepts
 them.
 
-## Personal Watchlist Sync
+## Watchlist note
 
-Jellyfin's optional watchlist projection mirrors Emby's two supported representations.
-**Plembfin playlist** owns a dedicated playlist named `Plembfin Watchlist`; **Favorites
-compatibility** uses the selected user's Favorites but preserves unrelated entries and
-only removes items previously recorded as Plembfin-managed. Requests are user-scoped,
-provider-ID-first, and ambiguity-safe. The adapter sends both Jellyfin token headers and
-never puts the API key in a URL.
-
-The initial publish flow is read-only preview followed by explicit confirmation. Complete
-paginated snapshots establish the removal baseline. A partial response, unavailable
-library, missing match, or failed request leaves the canonical local watchlist intact and
-keeps the provider queue item visible for retry. Restored local state is paused until a
-new explicit publish establishes fresh provider observations.
+Jellyfin is not a Personal Watchlist Sync provider. Jellyfin has no native account-level
+watchlist contract; playlists and Favorites are library-bound and cannot represent titles
+the user does not own. Plembfin therefore keeps the personal watchlist projection on Plex,
+whose account Universal Watchlist can hold the full catalogue. Jellyfin's watched-state
+and personal-rating integrations remain independent of that feature; see
+[personal-watchlist.md](personal-watchlist.md) for the supported watchlist flow.
 
 ## Inbound: webhooks
 
@@ -111,14 +105,6 @@ Playback positions use tick units (1 tick = 100 ns), converted in `scheduled.js`
 | `fetchJellyfinWatchedItems` / `fetchJellyfinResumableItems` / `fetchJellyfinNextUpItems` | Watched, resume, and Next Up feeds for catch-up sync |
 | `fetchJellyfinPersonalRatingSnapshot` | Reads rated movies, series, and episodes for the isolated personal-rating snapshot worker |
 | `setJellyfinPersonalRating` / `clearJellyfinPersonalRating` | Writes or clears a personal rating without changing played state or resume progress |
-
-The dedicated `jellyfinWatchlistClient.js` owns playlist discovery/creation, user-scoped
-playlist/Favorites snapshots, provider identity resolution, and add/remove calls. The
-worker stores the playlist container and managed item IDs in its provider ledger, so
-global removals remain limited to Plembfin-owned entries.
-
-A `not_found` result is reported as "skipped - no matching item" in sync telemetry:
-the item isn't in Jellyfin's library.
 
 ## Artwork
 

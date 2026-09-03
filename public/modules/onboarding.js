@@ -210,11 +210,31 @@ async function loadBackupSetupData({ force = false } = {}) {
 // then would defeat the point of being able to opt a server out first.
 const pendingServerImportChoice = new Map();
 let pendingTraktImportChoice = null;
+// Watchlist sync is on unless the user clears it here. This is first-run setup,
+// so an untouched box means "keep the default", not "the stored value" - the
+// stored value is still the pre-setup default of off at this point.
+let pendingWatchlistChoice = null;
 
 function serverImportPending(provider) {
   if (pendingServerImportChoice.has(provider)) return pendingServerImportChoice.get(provider);
   const existing = importState(provider);
   return existing ? existing.enabled !== false : true;
+}
+
+function watchlistSyncPending() {
+  return pendingWatchlistChoice === null ? true : pendingWatchlistChoice;
+}
+
+// Applied on Continue rather than on click, for the same reason the import
+// toggles are: the choice should not take effect until the step is finished.
+async function savePendingWatchlistChoice() {
+  const plex = (cachedStatus?.servers || []).find((server) => server.provider === "plex");
+  if (!plex?.connected && !plex?.tested) return;
+  const enabled = watchlistSyncPending();
+  if (state.savedConfig?.watchlistSync?.enabled === enabled) return;
+  await api("/api/config", { method: "POST", body: JSON.stringify({ watchlistSync: { enabled } }) })
+    .then((body) => { if (body?.config) state.savedConfig = body.config; })
+    .catch(() => {});
 }
 
 async function startPendingServerImports() {
@@ -225,6 +245,7 @@ async function startPendingServerImports() {
     await api("/api/setup/import", { method: "POST", body: JSON.stringify({ target: server.provider, action: "start" }) }).catch(() => {});
   }
   pendingServerImportChoice.clear();
+  await savePendingWatchlistChoice();
   await loadSetupStatus();
 }
 
@@ -557,6 +578,11 @@ function renderServers() {
               In Plex, under Settings &rarr; Scheduled Tasks, disable "Refresh library metadata periodically". This task can occasionally re-match and re-identify library items during its nightly maintenance window, which resets their viewed state to unwatched on Plex itself - and Plembfin will propagate that as a real unwatch to Emby, Jellyfin, and Trakt. Turning it off removes the most common trigger for a mass false-unwatch event.
             </p>
           </div>
+          <label class="field-label setup-import-toggle-label">
+            <input type="checkbox" data-setup-watchlist-toggle ${watchlistSyncPending() ? "checked" : ""} />
+            Sync Watchlist with Plembfin
+          </label>
+          <p class="muted-copy setup-server-detail">Keeps your Plex watchlist and Plembfin's watchlist aligned in both directions.</p>
         ` : ""}
         ${server.tested ? `
           <label class="field-label setup-import-toggle-label">
@@ -1179,6 +1205,10 @@ function handleSetupChange(event) {
   }
   if (event.target.matches("[data-setup-trakt-date-pref]")) {
     preferEarlierTraktDateChoice = event.target.checked;
+    return;
+  }
+  if (event.target.matches("[data-setup-watchlist-toggle]")) {
+    pendingWatchlistChoice = event.target.checked;
     return;
   }
   const importToggle = event.target.closest("[data-setup-import-toggle]");

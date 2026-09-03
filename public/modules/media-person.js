@@ -3,8 +3,8 @@ import { escapeHtml, escapeAttribute, slug, movieHref, movieTmdbHref, tvShowTmdb
 import { tmdbProfile, tmdbPoster, hydratePosters } from "./images.js?v=20260903b";
 import { isWatchedHistoryAction } from "./sync.js";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=20260823";
-import { movieBySlugOrId, clearMediaDetailState, mediaDetailRoot, mediaDetailLoaderHtml } from "./media-detail.js?v=20260831g";
-import { FILMOGRAPHY_PAGE_SIZE, resolvedTmdbCache } from "./explorer.js?v=20260903a";
+import { movieBySlugOrId, clearMediaDetailState, mediaDetailRoot, mediaDetailLoaderHtml } from "./media-detail.js?v=20260903m";
+import { FILMOGRAPHY_PAGE_SIZE, resolvedTmdbCache } from "./explorer.js?v=20260903m";
 
 let _cb = {};
 const PERSON_LIBRARY_CACHE_TTL_MS = 5 * 60 * 1000;

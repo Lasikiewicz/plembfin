@@ -61,7 +61,7 @@ None of these talk to each other - they all talk to Plembfin.
 - **Rich analytics & stats** - In-depth all-time and period reports, top shows, and platform playback distribution
 - **Personal media organization** - Save movies, shows, and episodes to a watch list or custom lists, and rate them from their media pages; episode ratings use one canonical show/season/episode identity everywhere
 - **Personal Rating Sync** - One-toggle, two-way rating sync with every connected Plex, Emby, Jellyfin, and Trakt account through an isolated durable queue, with Plembfin as the conflict authority
-- **Personal Watchlist Sync** - One-toggle, two-way watchlist sync across Plex Universal Watchlist and Plembfin-owned Emby/Jellyfin playlists, with safe first-run union, durable retries, and a plain-language explanation of anything a service refuses
+- **Plex Watchlist Sync** - One-toggle, two-way sync between Plembfin and the Plex account watchlist, with safe first-run union, durable retries, a Sync now action, and a plain-language explanation of anything Plex refuses
 - **Upcoming episodes calendar** - Air date schedule for upcoming and past releases, pre-cached for instant loading
 - **Discover hub** - Cached trending, now-playing, airing-today, and genre feeds paint immediately from saved data, then refresh live through the update stream with direct TMDB detail navigation
 - **Live Trakt sync** - Two-way Trakt integration with seamless device authorization, per-play history import, and resilient sync protection

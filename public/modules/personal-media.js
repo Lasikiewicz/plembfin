@@ -17,6 +17,7 @@ let _cb = {};
 let panelBound = false;
 let loadPromise = null;
 let dialogCleanup = null;
+let personalSyncBusy = "";
 
 function normalizeType(value) {
   const type = String(value || "").trim().toLowerCase();
@@ -606,8 +607,17 @@ function renderPersonalRatingSections(ratings) {
 
 function renderPersonalControls() {
   const createListSource = state.personalMediaTab === "lists" ? "custom-lists" : "";
+  const syncType = state.personalMediaTab === "ratings"
+    ? "ratings"
+    : state.personalMediaTab === "watchlist"
+      ? "watchlist"
+      : "";
+  const syncLabel = syncType === "ratings" ? "personal ratings" : "personal watchlist";
+  const syncButtonId = syncType === "ratings" ? "personalRatingSyncNow" : "personalWatchlistSyncNow";
+  const syncBusy = personalSyncBusy === syncType;
   return `
     <div class="personal-media-toolbar-actions">
+      ${syncType ? `<button id="${syncButtonId}" class="button-ghost personal-media-sync-button" type="button" data-personal-sync="${syncType}" aria-label="Sync ${syncLabel} now" title="Run a full ${syncLabel} sync now"${syncBusy ? ' disabled aria-busy="true"' : ""}>${syncBusy ? "Syncing…" : "Sync now"}</button>` : ""}
       ${createListSource ? `<button class="button-ghost" type="button" data-personal-create-list="${createListSource}">New list</button>` : ""}
     </div>
   `;
@@ -688,6 +698,23 @@ export function renderPersonalMedia() {
   panel.innerHTML = content;
   bindPersonalListWheelBehavior(panel);
   hydratePosters(panel);
+}
+
+async function runPersonalSync(type) {
+  if (personalSyncBusy || !["ratings", "watchlist"].includes(type)) return;
+  const syncPersonalMedia = _cb.syncPersonalMedia;
+  if (typeof syncPersonalMedia !== "function") return;
+  personalSyncBusy = type;
+  renderPersonalMedia();
+  try {
+    await syncPersonalMedia(type);
+    await loadPersonalMedia({ force: true });
+  } catch (error) {
+    setPersonalMessage(error?.message || `Personal ${type} sync failed.`, "error");
+  } finally {
+    personalSyncBusy = "";
+    renderPersonalMedia();
+  }
 }
 
 async function refreshPersonalViews() {
@@ -985,6 +1012,12 @@ export function openCreateListDialog(afterCreateItem = null) {
 }
 
 async function handlePanelClick(event) {
+  const syncButton = event.target.closest("[data-personal-sync]");
+  if (syncButton) {
+    event.preventDefault();
+    runPersonalSync(syncButton.dataset.personalSync);
+    return;
+  }
   const retry = event.target.closest("[data-personal-retry]");
   if (retry) {
     event.preventDefault();
