@@ -1,10 +1,58 @@
 {
   "baseVersion": "0.14.0",
-  "build": 13,
-  "version": "0.14.0.13",
-  "shortVersion": "0.14.0.13",
-  "updatedAt": "2026-09-03T11:15:41.519Z",
+  "build": 14,
+  "version": "0.14.0.14",
+  "shortVersion": "0.14.0.14",
+  "updatedAt": "2026-09-03T15:33:43.288Z",
   "entries": [
+    {
+      "build": 14,
+      "version": "0.14.0.14",
+      "shortVersion": "0.14.0.14",
+      "date": "2026-09-03T15:33:43.288Z",
+      "commit": "fbe635ddab3aae8fa08ebfb9f135aca81e47993f",
+      "message": "This update includes consolidate watchlist sync simplification, retire Emby/Jellyfin clients, keep sidebar footer visible and style scrollbars, and tighten and tidy the left sidebar layout.",
+      "author": "Lasikiewicz",
+      "details": [
+        "Tweak: This update includes consolidate watchlist sync simplification, retire Emby/Jellyfin clients, keep sidebar footer visible and style scrollbars, and tighten and tidy the left sidebar layout.",
+        "Tweak: Removed Emby and Jellyfin watchlist clients (library-specific playlists/favorites cannot hold unwatched titles and are operationally unsound)",
+        "Tweak: Simplified Personal Rating and Watchlist sync to unified single toggle in Settings",
+        "Tweak: Updated all docs to reflect Plex-only watchlist support with safe first-run union, durable retry queues, and provider-owned state tracking",
+        "Tweak: Refactored watchlist sync settings UI into single cohesive panel with status, queue preview, manual sync, and provider recovery actions",
+        "Tweak: Updated CLAUDE.md with managed Windows workspace Git permission requirements",
+        "Tweak: Updated test suite for watchlist provider adapters and backup/restore scenarios",
+        "Tweak: Aligned Settings, onboarding, and help-content modules with new unified sync flow",
+        "Tweak: Pin the sidebar footer to the bottom of the viewport so expanding navigation does not push controls below the fold",
+        "Tweak: Style the sidebar scrollbar with a slim profile matching the dark/light theme",
+        "Tweak: Flush the gap between the search box and the first nav item to a small 10px spacing",
+        "Tweak: Keep the sidebar footer (Sync - Idle, version, Appearance) below the nav so its scrollbar no longer overlaps it",
+        "Tweak: Constrain the sidebar scroll to vertical only so indented rows no longer surface a horizontal scrollbar"
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [],
+        "tweaks": [
+          "This update includes consolidate watchlist sync simplification, retire Emby/Jellyfin clients, keep sidebar footer visible and style scrollbars, and tighten and tidy the left sidebar layout.",
+          "Removed Emby and Jellyfin watchlist clients (library-specific playlists/favorites cannot hold unwatched titles and are operationally unsound)",
+          "Simplified Personal Rating and Watchlist sync to unified single toggle in Settings",
+          "Updated all docs to reflect Plex-only watchlist support with safe first-run union, durable retry queues, and provider-owned state tracking",
+          "Refactored watchlist sync settings UI into single cohesive panel with status, queue preview, manual sync, and provider recovery actions",
+          "Updated CLAUDE.md with managed Windows workspace Git permission requirements",
+          "Updated test suite for watchlist provider adapters and backup/restore scenarios",
+          "Aligned Settings, onboarding, and help-content modules with new unified sync flow",
+          "Pin the sidebar footer to the bottom of the viewport so expanding navigation does not push controls below the fold",
+          "Style the sidebar scrollbar with a slim profile matching the dark/light theme",
+          "Flush the gap between the search box and the first nav item to a small 10px spacing",
+          "Keep the sidebar footer (Sync - Idle, version, Appearance) below the nav so its scrollbar no longer overlaps it",
+          "Constrain the sidebar scroll to vertical only so indented rows no longer surface a horizontal scrollbar"
+        ]
+      },
+      "messageFragments": [
+        "Docs - Consolidate watchlist sync simplification, retire Emby/Jellyfin clients",
+        "Fix - Keep sidebar footer visible and style scrollbars",
+        "Fix - Tighten and tidy the left sidebar layout"
+      ]
+    },
     {
       "build": 13,
       "version": "0.14.0.13",
