@@ -102,7 +102,11 @@ already committed.
 Both promotion scripts run the same release-content check
 (`changelogEntryProcessViolations` in `scripts/changelog-message.js`) on the entry they
 just assembled and refuse to write it if any recognized release-process text survives -
-this is the only gate now; there is no separate CI validation step to wait for.
+this is the only CI-independent content gate. On top of it, "Force to main" requires a
+human confirmation of the changelog: the operator runs the non-mutating
+`node scripts/promote-alpha-to-main.js --preview`, shows the resulting release entry to
+the user, and only stages, commits, and force-pushes to `main` after the user approves
+in chat (see the "Force to main" command below).
 
 ### Before pushing anything: make sure GHCR Cleanup isn't running
 
@@ -413,7 +417,29 @@ git checkout -B alpha origin/alpha
 Not a stale local `alpha` branch, which may not exactly match `origin/alpha` - this
 resets the local branch to the remote tip every time.
 
-### 2 - Build the release, locally
+### 2 - Preview the release and get explicit approval for its changelog
+Before anything is staged or pushed, show the exact changelog that "Force to main"
+would publish, using the script's non-mutating preview pass:
+```bash
+node scripts/promote-alpha-to-main.js --preview
+```
+`--preview` runs the same release computation as the real promotion (see
+`computeAlphaToMainRelease()` in `scripts/promote-alpha-to-main.js`) but reads only -
+it does **not** write `changelog.json`, `package.json`, `package-lock.json`,
+`CHANGELOG.md`, or reset `changelog.alpha.json`/`changelog.develop.json`. It prints the
+new version (`v<version>` + 5-digit form) and the merged release entry (message, New
+Features, Major Bug Fixes, Tweaks) that will be committed to `main`.
+
+**Do not continue past this step until the user has confirmed the changelog in chat.**
+This is a required gate, not a formality: "Force to main" is a force-push onto the
+shared `main` branch, and the release notes in Settings → Changelog /
+`changelog.json` / `CHANGELOG.md` come from exactly this entry. Present the preview
+output to the user. Incorporate any wording changes the user dictates by refining the
+relevant committed `changelog.alpha.json` entry text (or reverting the offending
+`develop` commit and re-promoting to alpha), re-running `--preview` until the entry
+reads correctly, and only proceed once the user approves.
+
+### 3 - Build the release, locally, after approval
 ```bash
 node scripts/promote-alpha-to-main.js
 ```
@@ -427,13 +453,14 @@ regenerates `CHANGELOG.md`, then resets `changelog.alpha.json` and
 `changelog.develop.json` for the next cycle. If it refuses with a release-process
 violation, that means one of alpha's entries still contains recognized process text; fix
 the source commit on `develop`, repeat "Force to alpha", and restart this command.
-Otherwise stage and commit:
+Run it only after the step 2 approval - it is the first mutating step of promotion.
+Then stage and commit:
 ```bash
 git add changelog.json changelog.alpha.json changelog.develop.json CHANGELOG.md package.json package-lock.json
 git commit -m "chore: promote alpha to main v<version>"
 ```
 
-### 3 - Force main to match this commit
+### 4 - Force main to match this commit
 Show the user what is about to land before running this - it is a force push to the
 shared `main` branch:
 ```bash
@@ -459,7 +486,7 @@ in this commit, runs the build gate again in CI, and publishes `:latest` +
 gh run list --branch main --limit 1
 ```
 
-### 4 - Update local develop to the new main version
+### 5 - Update local develop to the new main version
 ```bash
 git fetch origin
 git checkout develop
@@ -467,7 +494,7 @@ git merge --ff-only origin/develop
 git merge origin/main --no-edit
 ```
 Local only - **do not push this to `origin/develop`**. This folds the release commit from
-step 2 into the local `develop` checkout, carrying forward its reset
+step 3 into the local `develop` checkout, carrying forward its reset
 `changelog.alpha.json`/`changelog.develop.json` and the new `changelog.json` version, so
 `package.json`/`changelog.json` read back locally as the version just released instead of
 the previous one. It is not required for correctness: the next "Force to alpha" already

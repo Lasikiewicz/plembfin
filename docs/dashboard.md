@@ -106,6 +106,12 @@ Times" for more) - `actualWatchLabel` in `dashboard.js`, driven by the same watc
 figure (`watch_count`, falling back to `playHistory.length`) as the movie detail page's
 rewatch history.
 
+Episode cards always prefer the episode *name* stored on the watch record
+(backfilled to a real name at ingest when a media server only reported a coordinate).
+Installations that recorded watches before that ingest behaviour can run
+Settings → Tools → Database Repairs → **Restore Missing Episode Names** to fill in the
+first stored/cached name for any rows still showing a bare coordinate.
+
 ### Watch History and legacy progress compatibility
 
 `GET /api/playback-progress` lists positive resume records from the
@@ -130,6 +136,19 @@ the card's DOM node. The mixed Up Next rail uses stable canonical IDs and the sa
 no-flash refresh behavior; a resume-to-next-up transition is a deliberate membership
 and priority change, so it is refreshed from the server instead of being hidden by a
 client-side dismissal.
+
+Removing an item from Up Next animates the dismissed tile out of the rail before the
+fresh snapshot replaces it: the exit runs in place (`dashboard-card-exit`), and an
+overlapping refresh waits for the animation to finish before repainting, so the tile is
+never yanked away mid-fade. Items that become watched somewhere else (e.g. completed on
+a connected media server or marked watched from a detail page) leave Up Next the same way:
+the server projection is authoritative and drops them, and the `/api/live-updates`
+`up-next-version`/history events pull the updated snapshot in. The rail never paints the
+same episode twice: the merge unifies the same next-up episode even when it is keyed
+under two identity sources (a native server series id, e.g. `series:jellyfin:…`, versus
+the verified external show id), reuniting them into one card when the show, season/episode,
+episode title, and resolved airing year all agree - while a re-release/reboot that shares a
+title and coordinate but aired a different year (or is a different episode) stays its own card.
 
 ### Version badge / update check
 

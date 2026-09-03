@@ -1356,6 +1356,25 @@
                             </div>
                           </div>
                         </details>
+
+                        <!-- Inner Box 4: Restore Missing Episode Names -->
+                        <details id="episode-title-gap-fix" class="sync-tool-details">
+                          <summary class="accordion-header">
+                            <div class="sync-tool-summary-title">
+                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                              <b>Restore Missing Episode Names</b>
+                              <span id="episodeTitleStatus" class="status-pill status-muted">Idle</span>
+                            </div>
+                            <span>Backfill real episode names onto watch rows that only stored a coordinate like &ldquo;8&rdquo;</span>
+                          </summary>
+                          <div class="tool-item-row">
+                            <div id="episodeTitleLog" class="import-terminal compact-terminal hidden" style="margin-top: var(--space-2);">Results will appear here.</div>
+                            <div class="settings-actions" style="margin-top: var(--space-2);">
+                              <button id="episodeTitleAuditButton" class="button-ghost sync-action-btn sync-tool-button" type="button">Audit Missing Episode Names</button>
+                              <button id="episodeTitleBackfillButton" class="button-danger sync-tools-cancel-button" type="button">Restore Episode Names</button>
+                            </div>
+                          </div>
+                        </details>
                       </div>
                     </article>
                   </div>
@@ -1382,6 +1401,11 @@
                         <p style="margin: 0; line-height: 1.4;">Finds every movie or episode with more than one watch recorded, and keeps only the oldest date.</p>
                         <p style="margin: 4px 0 0; line-height: 1.4;">The rest are deleted for good, and the correction is pushed out to every connected platform.</p>
                         <p style="margin: 4px 0 0; line-height: 1.4;">You'll always see the exact number of watches affected before confirming. <b>This cannot be undone.</b></p>
+                      </div>
+                      <div style="margin-top: var(--space-2);">
+                        <b style="display: block; margin-bottom: 2px;">Restore Missing Episode Names</b>
+                        <p style="margin: 0; line-height: 1.4;">Looks at watch history for TV episodes whose stored episode name is missing or is just a coordinate (such as <code>8</code> or <code>Episode 08</code>).</p>
+                        <p style="margin: 4px 0 0; line-height: 1.4;">Audit is read-only and reports how many rows are affected. Restore fills in the real name using other stored rows and cached season metadata first, then a metadata lookup when needed. Runs in batches - run it again until it reports none remaining.</p>
                       </div>
                     </article>
                   </div>

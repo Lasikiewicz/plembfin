@@ -7,6 +7,7 @@ import { cachedNextAiringFor, readNextAiringCache } from "./nextAiringCache.js";
 import { buildWatchProvenance, normalizeWatchProvenance } from "./watchProvenance.js";
 import { recordWatchAuditEvent, recordWatchAuditEvents } from "./watchAudit.js";
 import { remoteEpisodeImportError } from "./episodeImportGuard.js";
+import { episodeNameFromSeason, isPlaceholderEpisodeTitleValue, resolvedEpisodeTitleForRecord } from "./episodeTitleRepair.js";
 import { getCanonicalPosterUrl, saveCanonicalPoster } from "./mediaArtwork.js";
 import {
   initShowProgressCache,
@@ -434,6 +435,22 @@ export function normalizeWatchRecord(record = {}, fallbackSource = "trakt_import
     }),
     episode_title: emptyToNull(record.episode_title || record.episodeTitle || record.episode?.title),
   };
+  // A media server sometimes reports only the episode coordinate ("8",
+  // "Episode 08") instead of the real episode name. Persisting that makes the
+  // dashboard's TV "recently watched" row and /history show a coordinate
+  // instead of the name shown on the media page. When the incoming value is
+  // not a real name (a coordinate or synthesised "Episode N"), prefer whatever
+  // real name is already stored (a sibling watch row or cached season metadata);
+  // when none exists, store null so the UI falls back to a label from the
+  // season/episode numbers and a later Database Repairs backfill can fill the
+  // real name. A row that already carries a genuine name is left untouched so
+  // these hot paths do not pay a sibling-row DB lookup.
+  if (
+    normalized.media_type === "episode"
+    && (!normalized.episode_title || isPlaceholderEpisodeTitleValue(normalized.episode_title))
+  ) {
+    normalized.episode_title = resolvedEpisodeTitleForRecord(normalized);
+  }
   return normalized;
 }
 
@@ -3959,6 +3976,111 @@ export async function backfillUnknownShowTitles() {
     console.log(`[dataRepo] backfillUnknownShowTitles: fixed ${fixed} of ${rows.length} records`);
   }
   return fixed;
+}
+
+const selectEpisodeTitleGapRowsStmt = db.prepare(`
+  SELECT id, title, media_type, watched_at, show_title, imdb_id, tmdb_id, tvdb_id, season, episode, episode_title
+  FROM watch_history
+  WHERE media_type = 'episode'
+    AND (episode_title IS NULL OR episode_title = '' OR episode_title GLOB '[0-9]*' OR episode_title LIKE 'Episode %')
+  ORDER BY watched_at DESC
+  LIMIT ?
+`);
+const updateEpisodeTitleStmt = db.prepare("UPDATE watch_history SET episode_title = ?, updated_at = ? WHERE id = ?");
+
+// ---- backfill of placeholder episode titles (Settings → Database Repairs) ----
+
+// Rows whose stored episode_title is absent or a coordinate placeholder ("8",
+// "Episode 08") would show that in the dashboard's TV "recently watched" row
+// instead of the episode name shown on the media page. The ingest path now
+// avoids persisting placeholders, but rows recorded earlier still carry them.
+// Audit is read-only (safe to show a count) and returns the newest `limit`
+// gap rows so the caller can let a user see exactly what a repair will touch.
+export function auditEpisodeTitleGaps({ limit = 100 } = {}) {
+  const numericLimit = Math.max(1, Math.min(Number(limit) || 100, 500));
+  const rows = selectEpisodeTitleGapRowsStmt.all(numericLimit);
+  return {
+    total: rows.length,
+    rows: rows
+      .filter((row) => !row.episode_title || isPlaceholderEpisodeTitleValue(row.episode_title))
+      .map((row) => ({
+        id: row.id,
+        title: row.title,
+        show_title: row.show_title || null,
+        season: row.season ?? null,
+        episode: row.episode ?? null,
+        episode_title: row.episode_title || null,
+        watched_at: row.watched_at || null,
+      })),
+  };
+}
+
+// Rewrite a bounded set of the newest gap rows. Each row is resolved from data
+// that requires no network first (a sibling watch row or cached season
+// metadata); when `allowFetch` is set, a row that is still unresolved falls
+// back to a live provider season fetch (getTmdbSeason). Best-effort: a row we
+// cannot resolve is left as-is and counted in `unresolved`. Callers re-run this
+// to make progress until they accept `remaining === 0`, mirroring how the
+// existing batching repair tools work.
+export async function backfillEpisodeTitleGaps({ limit = 200, allowFetch = false } = {}) {
+  const candidates = selectEpisodeTitleGapRowsStmt.all(Math.max(1, Math.min(Number(limit) || 200, 1000)))
+    .filter((row) => !row.episode_title || isPlaceholderEpisodeTitleValue(row.episode_title));
+  if (!candidates.length) return { scanned: 0, backfilled: 0, unresolved: 0, remaining: 0 };
+
+  const namesByRow = new Map();
+  let unresolved = [];
+
+  // Pass 1 (synchronous): resolve every row from stored data only. This never
+  // blocks and handles the overwhelmingly common case where a sibling row or
+  // cached season metadata already holds the real name.
+  transaction(() => {
+    for (const row of candidates) {
+      const stored = resolvedEpisodeTitleForRecord(row);
+      if (stored) namesByRow.set(row.id, stored);
+      else unresolved.push(row);
+    }
+  });
+
+  // Pass 2 (async): only when the caller opted in and only for rows the stored
+  // pass could not name, do live provider season fetches. Each fetch may hit the
+  // network, so it runs outside the synchronous transaction and is best-effort.
+  if (allowFetch && unresolved.length) {
+    const fetchedNames = new Map();
+    await Promise.all(unresolved.map(async (row) => {
+      if (row.season == null || row.episode == null) return;
+      try {
+        const seasonDetails = await getTmdbSeason({
+          tmdbId: row.tmdb_id || "",
+          tvdbId: row.tvdb_id || "",
+          seasonNumber: row.season,
+        });
+        const name = episodeNameFromSeason(seasonDetails, row.episode);
+        if (name) fetchedNames.set(row.id, name);
+      } catch {
+        // A row we cannot resolve from the provider is left as-is.
+      }
+    }));
+    // Merge, but do not let a stored resolution be replaced by a fetched one.
+    for (const [id, name] of fetchedNames) {
+      if (!namesByRow.has(id)) namesByRow.set(id, name);
+    }
+  }
+
+  if (namesByRow.size) {
+    const now = Date.now();
+    transaction(() => {
+      for (const [id, name] of namesByRow) updateEpisodeTitleStmt.run(name, now, id);
+    });
+    await invalidateHistoryDerivedCaches();
+  }
+
+  const allGaps = auditEpisodeTitleGaps({ limit: 1000 });
+  return {
+    scanned: candidates.length,
+    backfilled: namesByRow.size,
+    unresolved: candidates.length - namesByRow.size,
+    remaining: allGaps.total,
+  };
 }
 
 export function deleteWatchRecordByIdSync(id, { allowDuringRestore = false } = {}) {

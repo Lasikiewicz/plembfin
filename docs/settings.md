@@ -297,7 +297,9 @@ server reached over the public internet from being overwhelmed by a large sync.
 - Storage & Cache (under Advanced) displays and clears image cache categories.
 - Tools retains history repair, deduplication, full watch-state sync, metadata refresh,
   TV rematching, and Trakt poster backfill with their confirmations and logs, split
-  across the Database Repairs and Library Rebuilds and Backfills accordions.
+  across the Database Repairs and Library Rebuilds and Backfills accordions. Database
+  Repairs also includes **Restore Missing Episode Names**, which backfills real episode
+  names onto watch rows that only stored a coordinate ("8" / "Episode 08").
 - Trakt owns the Trakt/CSV importer; Backup and Restore own their respective workflows.
 - Wipe data (`server/src/routes/wipeData.js`, `GET/POST /api/wipe-data(/preview)`) offers four
   destructive scopes: Watch History, Sync History & Logs, Everything Tracked (both together),

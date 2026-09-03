@@ -10,11 +10,17 @@ const UP_NEXT_TIMEOUT_MS = 20000;
 const UP_NEXT_DISMISSED_KEY = "plembfin:upNextDismissed:v1";
 const UP_NEXT_CACHE_KEY = "plembfin:upNextCache:v4";
 const UP_NEXT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+// Mirrors dashboard.js's DASHBOARD_CARD_EXIT_MS so overlapping refreshes wait
+// for a removal exit to finish before repainting the rail with a fresh
+// snapshot (otherwise the exit is cut short by the immediate innerHTML swap).
+const UP_NEXT_EXIT_MS = 200;
 
 let _cb = {};
 let actionsBound = false;
 let cacheHydrated = false;
 let dismissedUpNext = readDismissedUpNext();
+let upNextExitDeferred = false;
+let upNextExitRepaintTimer = null;
 
 function readDismissedUpNext() {
   try {
@@ -221,9 +227,49 @@ function hydrateUpNextCache() {
   state.upNextFromCache = true;
 }
 
+function upNextItemKey(item) {
+  return String(item?.id || item?.media_key || item?.mediaKey || "").trim();
+}
+
+// The server projection is authoritative and already de-duplicates its own
+// candidate merge, but a stale cached/filtered snapshot can still hold two
+// rows that resolve to the same card. Collapse by stable key so the rendered
+// rail never paints a duplicate tile regardless of which pass produced it.
+function dedupeUpNextItems(items = []) {
+  const seen = new Set();
+  const out = [];
+  for (const item of items) {
+    const key = upNextItemKey(item);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    out.push(item);
+  }
+  return out;
+}
+
+function upNextExitStillAnimating() {
+  return Boolean(elements.upNextPanel?.querySelector?.(".dashboard-card-exit"));
+}
+
+// An overlapping refresh (forced load, SSE revalidate, history rebuild) can
+// arrive while a removed tile is mid-flight. The exit's own scheduled swap
+// paints the pre-exchange state, then this trailing repaint applies the
+// freshest snapshot once the animation has finished - so the tile is never
+// yanked away mid-fade but the updated rail is still applied right after it.
+function scheduleUpNextExitRepaint() {
+  if (upNextExitDeferred) return;
+  upNextExitDeferred = true;
+  if (upNextExitRepaintTimer) window.clearTimeout(upNextExitRepaintTimer);
+  upNextExitRepaintTimer = window.setTimeout(() => {
+    upNextExitRepaintTimer = null;
+    upNextExitDeferred = false;
+    renderUpNext();
+  }, UP_NEXT_EXIT_MS + 40);
+}
+
 function visibleUpNextItems() {
   const items = Array.isArray(state.upNextItems) ? state.upNextItems : [];
-  return items.filter((item) => !isUpNextItemDismissed(item));
+  return dedupeUpNextItems(items.filter((item) => !isUpNextItemDismissed(item)));
 }
 
 export function initUpNext(callbacks = {}) {
@@ -240,6 +286,11 @@ export function initUpNext(callbacks = {}) {
 }
 
 export function resetUpNext({ preserveItems = false } = {}) {
+  if (upNextExitRepaintTimer) {
+    window.clearTimeout(upNextExitRepaintTimer);
+    upNextExitRepaintTimer = null;
+  }
+  upNextExitDeferred = false;
   state.upNextRequestVersion += 1;
   state.upNextAbortController?.abort();
   state.upNextAbortController = null;
@@ -290,6 +341,15 @@ export function renderUpNext({ exitIds = [] } = {}) {
     ...(Array.isArray(exitIds) ? exitIds : []),
   ].map((id) => String(id || "").trim()).filter(Boolean))];
   state.upNextExitIds = [];
+
+  // A removed tile keeps its exit animation until the scheduled swap fires.
+  // If an overlapping refresh tries to repaint while that tile is still
+  // mid-fade, defer and repaint once the exit has finished instead of yanking
+  // the card off the rail before it animates away.
+  if (!pendingExitIds.length && upNextExitStillAnimating()) {
+    scheduleUpNextExitRepaint();
+    return;
+  }
 
   const commitPanel = (html, onCommitted) => updateDashboardRowWithMotion(panel, html, {
     exitKeys: pendingExitIds,

@@ -119,7 +119,9 @@ values already committed" - none of them write anything back to their branch.
   getting the correct file onto `origin/develop` for the app's own live remote-fetch
   changelog comparison (`fetchRemoteDevelopChangelog` in `routes/maintenance.js`), not a
   new image. `secret-scan.yml` still runs regardless of which files changed.
-- **"Force to main"** checks out `alpha`'s actual tip locally, runs
+- **"Force to main"** checks out `alpha`'s actual tip locally, first runs
+  `scripts/promote-alpha-to-main.js --preview` so the would-be release entry can be shown
+  to the user and confirmed, then (only after approval) runs
   `scripts/promote-alpha-to-main.js` (consolidates every alpha build entry accumulated
   this cycle into one clean release entry - bumps the real semver, writes
   `changelog.json`/`package.json`/`package-lock.json`/`CHANGELOG.md`, and resets alpha
@@ -156,6 +158,7 @@ git push origin develop
 # Promote alpha to main
 git fetch origin
 git checkout -B alpha origin/alpha
+node scripts/promote-alpha-to-main.js --preview   # show the release changelog and get user approval before continuing
 node scripts/promote-alpha-to-main.js && git add changelog.json changelog.alpha.json changelog.develop.json CHANGELOG.md package.json package-lock.json && git commit -m "chore: promote alpha to main"
 git log origin/main..HEAD --oneline
 git push origin HEAD:main --force
@@ -170,7 +173,7 @@ The alpha workflow reads the alpha build metadata already committed and publishe
 `:alpha` plus an `alpha-<build>` tag. The main workflow reads the version already
 committed and publishes `:latest` plus the version tag. After that commit lands, merging
 `origin/main` into local `develop` is optional and local-only (not pushed) - see CLAUDE.md's
-"Force to main" step 4 for why it isn't required for correctness.
+"Force to main" step 5 for why it isn't required for correctness.
 
 ## Release pipeline (push to `main`)
 

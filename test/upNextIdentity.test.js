@@ -210,6 +210,114 @@ test("native series identity keeps same-title series separate when external ids 
   assert.equal(mergeUpNextCandidates([first, second]).length, 2);
 });
 
+test("native-series next-up bridges the identical episode keyed only by an external show id", () => {
+  // Mirrors two same-show observations in a real rail: a Jellyfin "next up" row
+  // keyed only by its native series id, plus a local observation keyed by the
+  // verified external (IMDb) show id, both describing Ted Lasso S04E03 with an
+  // apostrophe that differs only by typographic character.
+  const native = {
+    provider: "jellyfin",
+    feed_kind: "next_up",
+    provider_item_id: "native-episode-x",
+    series_provider_item_id: "native-series-x",
+    media_type: "episode",
+    title: "Ted Lasso - S04E03",
+    show_title: "Ted Lasso",
+    episode_title: "Richmond's Got Talent",
+    season: 4,
+    episode: 3,
+    queue_kind: "next_up",
+    air_date: "2026-08-17T23:00:00.0000000Z",
+  };
+  const external = {
+    source: "local",
+    media_type: "episode",
+    title: "Ted Lasso - S04E03",
+    show_title: "Ted Lasso",
+    episode_title: "Richmond’s Got Talent",
+    season: 4,
+    episode: 3,
+    queue_kind: "next_up",
+    show_ids: { imdb: "tt10986410" },
+    air_date: "2026-08-17",
+  };
+
+  const merged = mergeUpNextCandidates([native, external]);
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].canonical_key, "episode|series:imdb:tt10986410|s:4|e:3");
+  // The native Jellyfin provider item is folded into the surviving card.
+  assert.deepEqual(merged[0].provider_items.jellyfin, ["native-episode-x"]);
+});
+
+test("native-series next-up does not bridge a different show that shares the title and coordinate", () => {
+  // 2001 "Scrubs" S01E03 and a 2026 "Scrubs" reboot S01E03 live in the same
+  // library as distinct native series. They share a show name and coordinate
+  // but are different episodes (different titles and years) - they must stay
+  // separate just as they do without an external-id bridge.
+  const original = {
+    provider: "jellyfin",
+    feed_kind: "next_up",
+    provider_item_id: "episode-2001",
+    series_provider_item_id: "series-2001",
+    media_type: "episode",
+    title: "Scrubs - S01E03",
+    show_title: "Scrubs",
+    episode_title: "My Best Friend's Mistake",
+    season: 1,
+    episode: 3,
+    queue_kind: "next_up",
+    year: 2001,
+    air_date: "2001-10-08",
+  };
+  const reboot = {
+    source: "local",
+    media_type: "episode",
+    title: "Scrubs - S01E03",
+    show_title: "Scrubs",
+    episode_title: "My Rom-Com",
+    season: 1,
+    episode: 3,
+    queue_kind: "next_up",
+    show_ids: { imdb: "tt40197357" },
+    year: 2026,
+    air_date: "2026-03-04",
+  };
+  const merged = mergeUpNextCandidates([original, reboot]);
+  assert.equal(merged.length, 2);
+});
+
+test("native-series next-up does not bridge a same-title reboot that aired a different year", () => {
+  const original = {
+    provider: "jellyfin",
+    feed_kind: "next_up",
+    provider_item_id: "episode-x",
+    series_provider_item_id: "series-2001",
+    media_type: "episode",
+    title: "Showcase - S01E01",
+    show_title: "Showcase",
+    episode_title: "Episode One",
+    season: 1,
+    episode: 1,
+    queue_kind: "next_up",
+    year: 2001,
+    air_date: "2001-02-01",
+  };
+  const reboot = {
+    source: "local",
+    media_type: "episode",
+    title: "Showcase - S01E01",
+    show_title: "Showcase",
+    episode_title: "Episode One",
+    season: 1,
+    episode: 1,
+    queue_kind: "next_up",
+    show_ids: { imdb: "tt999000" },
+    year: 2026,
+    air_date: "2026-02-01",
+  };
+  assert.equal(mergeUpNextCandidates([original, reboot]).length, 2);
+});
+
 test("same-title movies only merge with a verified identity or matching year", () => {
   const remake = { media_type: "movie", title: "The Thing", year: 1982, source: "plex", provider_item_id: "movie-1982" };
   const newer = { media_type: "movie", title: "The Thing", year: 2011, source: "emby", provider_item_id: "movie-2011" };

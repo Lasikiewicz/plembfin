@@ -91,6 +91,8 @@ import {
   setWatchMediaType,
   deleteMovieByWatchId,
   deletePosterCacheByMediaKey,
+  auditEpisodeTitleGaps,
+  backfillEpisodeTitleGaps,
   backfillUnknownShowTitles,
   clearWatchArtworkUrls,
 } from "../utils/dataRepo.js";
@@ -415,6 +417,50 @@ export async function handlePhantomWatchRepair(req, res) {
   } catch (error) {
     console.error("Phantom watch repair failed", error);
     return sendJson(res, { error: "Phantom watch repair failed" }, 500);
+  }
+}
+
+// Read-only counterpart to handleEpisodeTitleBackfill, shown in the Database
+// Repairs tool: reports how many episode watch rows are missing a real episode
+// name and returns the newest `limit` of them so a user can see what a repair
+// would touch before confirming.
+export async function handleEpisodeTitleAudit(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const limit = Number(new URL(req.url, "http://localhost").searchParams.get("limit")) || 100;
+    const result = auditEpisodeTitleGaps({ limit });
+    return sendJson(res, { ok: true, ...result }, 200, { "Cache-Control": "no-store" });
+  } catch (error) {
+    console.error("Episode title audit failed", error);
+    return sendJson(res, { error: "Episode title audit failed" }, 500);
+  }
+}
+
+// The on-demand backfill for the Database Repairs tool. Resolves rows that
+// lack a real stored episode name: stored data first (sibling watch rows and
+// cached season metadata), then - when the caller opts in with `allow_fetch` -
+// a live provider season fetch for rows nothing stored could name. Bounded per
+// call; re-run to keep making progress until it reports no remaining rows.
+export async function handleEpisodeTitleBackfill(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const body = await readJson(req).catch(() => ({}));
+    const limit = Number(body.limit) || 200;
+    const allowFetch = body.allow_fetch === true || body.allowFetch === true;
+    const result = await backfillEpisodeTitleGaps({ limit, allowFetch });
+    writeAuditLog("history.episode_title_backfill", {
+      ip: req.ip || req.socket?.remoteAddress,
+      detail: { ...result, allowFetch },
+    });
+    if (result.backfilled) await invalidateHistoryDerivedCaches().catch(() => null);
+    return sendJson(res, { ok: true, ...result }, 200, { "Cache-Control": "no-store" });
+  } catch (error) {
+    console.error("Episode title backfill failed", error);
+    return sendJson(res, { error: "Episode title backfill failed" }, 500);
   }
 }
 

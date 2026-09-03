@@ -595,6 +595,18 @@ function episodeTitlesMatch(unresolvedRows = [], identifiedRows = []) {
   return unresolvedTitles.some((left) => identifiedTitles.includes(left));
 }
 
+function groupYearDisagrees(unresolvedGroup, identifiedGroup) {
+  // Two same-coordinate episodes that resolve to conflicting calendar years
+  // are different releases/reboots (e.g. a 2001 "Scrubs" S01E03 vs a 2026
+  // reboot S01E03), not duplicate observations - never fold one into the
+  // other. When either side cannot resolve a year, fall back to the existing
+  // lenient behaviour so date-less observations still merge.
+  const left = episodeDateIdentity(representativeRow(unresolvedGroup.rows));
+  const right = episodeDateIdentity(representativeRow(identifiedGroup.rows));
+  if (!left || !right) return false;
+  return left.value !== right.value;
+}
+
 function reconcileTitleOnlyEpisodeGroups(groups) {
   const titleBuckets = new Map();
   for (const group of groups) {
@@ -619,6 +631,7 @@ function reconcileTitleOnlyEpisodeGroups(groups) {
             nativeSeriesBridgesExternalIdentity(unresolvedGroup.rows, identifiedGroup.rows)
               || episodeTitlesMatch(unresolvedGroup.rows, identifiedGroup.rows)
           )
+          && !groupYearDisagrees(unresolvedGroup, identifiedGroup)
       ));
       // More than one compatible verified series means the title-only row is
       // ambiguous (a reboot with the same SxxExx is a valid case). Keep it as
@@ -650,6 +663,115 @@ export function sortUpNextItems(items = []) {
   });
 }
 
+function normalizedComparableName(value = "") {
+  // Fold case, punctuation, and word-space apostrophes/quotes so "Richmond's
+  // Got Talent" (straight apostrophe) and "Richmond’s Got Talent" (U+2019)
+  // compare equal while real title differences are still preserved.
+  return lower(value)
+    .replace(/['\u2019\u2018\u201C\u201D\u02BC]/g, "")
+    .replace(/[\u2014\u2013\u2010]/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim()
+    .replace(/\s+/g, " ");
+}
+
+function representativeRow(rows = []) {
+  // Prefer the row that carries the richest usable metadata (external series
+  // identity first for a shareable canonical key, then any completed title).
+  return [...rows].sort((left, right) => (
+    Number(hasExternalSeriesIdentity(right)) - Number(hasExternalSeriesIdentity(left))
+      || Number(hasNativeSeriesIdentity(right)) - Number(hasNativeSeriesIdentity(left))
+      || Number(right.episode_title ? 1 : 0) - Number(left.episode_title ? 1 : 0)
+      || Number(right.year ? 1 : 0) - Number(left.year ? 1 : 0)
+  ))[0] || rows[0] || {};
+}
+
+function airDateYear(value = "") {
+  const match = text(value).match(/(19|20)\d{2}/);
+  return match ? match[0] : "";
+}
+
+function episodeDateIdentity(row = {}) {
+  // A strict, bounded date signature resolved to a calendar year. Prefer the
+  // explicit year field; otherwise derive it from a full air date. Two rows
+  // only unify when they resolve to the same year.
+  const explicitYear = numberOrNull(row.year);
+  if (explicitYear >= 1800 && explicitYear <= 3000) return { value: String(explicitYear) };
+  const airYear = airDateYear(row.air_date);
+  if (airYear) return { value: airYear };
+  return null;
+}
+
+function sameEpisodeForReal(left, right) {
+  if (left.media_type !== "episode" || right.media_type !== "episode") return false;
+  if (left.queue_kind !== "next_up" || right.queue_kind !== "next_up") return false;
+  const season = numberOrNull(left.season);
+  const episode = numberOrNull(left.episode);
+  if (season === null || episode === null) return false;
+  if (numberOrNull(right.season) !== season || numberOrNull(right.episode) !== episode) return false;
+
+  const show = normalizedComparableName(left.show_title);
+  const rightShow = normalizedComparableName(right.show_title);
+  if (!show || show !== rightShow) return false;
+
+  const title = normalizedComparableName(left.episode_title);
+  const rightTitle = normalizedComparableName(right.episode_title);
+  // Same-name reboots share a show name and coordinate but have distinct
+  // episode titles (e.g. 2001 "Scrubs" S01E03 vs a 2026 reboot S01E03), so
+  // require an identical, non-empty episode title before they may unify.
+  if (!title || !rightTitle || title !== rightTitle) return false;
+
+  const leftDate = episodeDateIdentity(left);
+  const rightDate = episodeDateIdentity(right);
+  if (!leftDate || !rightDate) return false;
+  if (leftDate.value !== rightDate.value) return false;
+  return true;
+}
+
+// Merge next-up cards that represent the same actual series episode but were
+// keyed under different identity sources - a provider row carrying only the
+// native server series id (e.g. `series:jellyfin:...`) alongside a local
+// observation keyed by a verified external show id for the same episode. They
+// only unify when show name, season/episode, episode title, AND a bounded
+// year/air-date signature all agree, so a genuine re-release/reboot that shares
+// the title and coordinate but aired elsewhere or is a different episode stays
+// its own card rather than being falsely merged.
+function reconcileNativeVersusExternalNextUpGroups(groups) {
+  let mergedAny = true;
+  while (mergedAny) {
+    mergedAny = false;
+    // Only reconcile groups composed purely of next_up rows (never resume
+    // precedence). Work over a stable snapshot because merging removes groups.
+    const pure = groups.filter((group) => (group.rows || []).every((row) => row.queue_kind === "next_up"));
+    for (let a = 0; a < pure.length && !mergedAny; a += 1) {
+      const groupA = pure[a];
+      if (!groups.includes(groupA)) continue;
+      for (let b = a + 1; b < pure.length; b += 1) {
+        const groupB = pure[b];
+        if (!groups.includes(groupB)) continue;
+        if (!sameEpisodeForReal(representativeRow(groupA.rows), representativeRow(groupB.rows))) continue;
+
+        // Only bridge a series that lacks a verified external identity (but has
+        // a native provider series id, e.g. `series:jellyfin:...`) into the
+        // verified external one - never join two different native keys into
+        // one, since those are distinct library shows even when their metadata
+        // coincide. Target is the external-identity holder so the merged card
+        // keeps the most shareable canonical key.
+        const aHasExternal = groupA.rows.some(hasExternalSeriesIdentity);
+        const bHasExternal = groupB.rows.some(hasExternalSeriesIdentity);
+        if (aHasExternal === bHasExternal) continue;
+        const target = aHasExternal ? groupA : groupB;
+        const donor = aHasExternal ? groupB : groupA;
+        target.rows.push(...donor.rows);
+        const index = groups.indexOf(donor);
+        if (index >= 0) groups.splice(index, 1);
+        mergedAny = true;
+        break;
+      }
+    }
+  }
+}
+
 export function mergeUpNextCandidates(candidates = [], { limit = 0 } = {}) {
   const groups = [];
   const aliasToGroup = new Map();
@@ -669,6 +791,7 @@ export function mergeUpNextCandidates(candidates = [], { limit = 0 } = {}) {
     for (const alias of normalized._aliases) aliasToGroup.set(alias, group);
   }
   reconcileTitleOnlyEpisodeGroups(groups);
+  reconcileNativeVersusExternalNextUpGroups(groups);
   const merged = sortUpNextItems(groups.map((group) => mergeGroup(group.rows)));
   return limit > 0 ? merged.slice(0, Math.max(1, Math.round(Number(limit)))) : merged;
 }

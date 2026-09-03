@@ -8,6 +8,11 @@
 // next cycle. Run locally as part of "Force to main", before the force-push,
 // so the pushed commit already carries the finished release; CI no longer
 // needs to generate or fix up changelog content afterward.
+//
+// Passing --preview runs the same release computation read-only (no files are
+// written or reset) and prints the version + merged release entry that would be
+// committed to main, so a human can confirm the changelog before "Force to main"
+// stages, commits, and force-pushes it.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -42,7 +47,14 @@ function semverGt(a, b) {
   return false;
 }
 
-export function promoteAlphaToMain({ targetVersion = "", sourceDate = new Date().toISOString(), sourceAuthor = "system", commit = "" } = {}) {
+// Pure step shared by preview and the real promotion: read the current
+// changelog, alpha, and package.json and return the release entry that would
+// be written (new version + the merged main entry), refusing to proceed if the
+// assembled entry still contains recognized release-process text. Nothing here
+// touches disk other than reading the source files, so it can back a
+// non-mutating --preview pass used to show the changelog to a human before
+// "Force to main" is allowed to stage and push it.
+function computeAlphaToMainRelease({ targetVersion = "", sourceDate = new Date().toISOString(), sourceAuthor = "system", commit = "" } = {}) {
   let changelog = { version: "0.8.6", entries: [] };
   try {
     changelog = JSON.parse(fs.readFileSync(changelogPath, "utf8"));
@@ -109,6 +121,35 @@ export function promoteAlphaToMain({ targetVersion = "", sourceDate = new Date()
     throw new Error(`Refusing to promote alpha to main: the entry contains release-process notes:\n${violations.map((v) => `- ${v}`).join("\n")}`);
   }
 
+  return { changelog, alpha, newMainVersion, new5DigitVersion, mainEntry };
+}
+
+// Renders the would-be release for a human review pass. Used by --preview so
+// the changelog can be confirmed before "Force to main" actually promotes.
+function renderReleasePreview({ newMainVersion, new5DigitVersion, mainEntry }) {
+  const lines = [];
+  lines.push("=== PREVIEW: Force-to-main release (nothing written yet) ===");
+  lines.push(`Version: v${newMainVersion}  (5-digit: ${new5DigitVersion})`);
+  lines.push("");
+  lines.push("Message:");
+  lines.push(`  ${mainEntry.message}`);
+  lines.push("");
+  const renderSection = (title, values) => {
+    if (!values || values.length === 0) return;
+    lines.push(`${title}:`);
+    for (const value of values) lines.push(`  - ${value}`);
+    lines.push("");
+  };
+  renderSection("New Features", mainEntry.sections?.newFeatures);
+  renderSection("Major Bug Fixes", mainEntry.sections?.majorBugFixes);
+  renderSection("Tweaks", mainEntry.sections?.tweaks);
+  lines.push("(details[] carries the same items each prefixed Feature:/Fix:/Tweak:.)");
+  console.log(lines.join("\n"));
+}
+
+export function promoteAlphaToMain({ targetVersion = "", sourceDate = new Date().toISOString(), sourceAuthor = "system", commit = "" } = {}) {
+  const { changelog, alpha, newMainVersion, new5DigitVersion, mainEntry } = computeAlphaToMainRelease({ targetVersion, sourceDate, sourceAuthor, commit });
+
   changelog.version = newMainVersion;
   changelog.updatedAt = sourceDate;
   changelog.entries.unshift(mainEntry);
@@ -127,7 +168,7 @@ export function promoteAlphaToMain({ targetVersion = "", sourceDate = new Date()
   } catch { }
 
   // Reset alpha changelog for the new release cycle
-  alpha = {
+  const resetAlpha = {
     baseVersion: newMainVersion,
     build: 0,
     version: `${newMainVersion}.0.0`,
@@ -148,18 +189,32 @@ export function promoteAlphaToMain({ targetVersion = "", sourceDate = new Date()
   develop = { build: develop.build || 0, resetCommit: commit || develop.resetCommit || "", updatedAt: sourceDate, entries: [] };
 
   fs.writeFileSync(changelogPath, `${JSON.stringify(changelog, null, 2)}\n`);
-  fs.writeFileSync(alphaChangelogPath, `${JSON.stringify(alpha, null, 2)}\n`);
+  fs.writeFileSync(alphaChangelogPath, `${JSON.stringify(resetAlpha, null, 2)}\n`);
   fs.writeFileSync(developChangelogPath, `${JSON.stringify(develop, null, 2)}\n`);
   generateChangelogMarkdown();
 
   console.log(`Promoted Alpha to Main release v${newMainVersion} (${new5DigitVersion})`);
-  return { changelog, alpha, develop };
+  return { changelog, alpha: resetAlpha, develop };
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  promoteAlphaToMain({
-    targetVersion: process.argv[2] || process.env.TARGET_VERSION || "",
-    commit: gitHeadCommit(root),
-    sourceAuthor: gitHeadAuthor(root),
-  });
+  const args = process.argv.slice(2);
+  const preview = args.includes("--preview");
+  const targetArg = args.find((arg) => arg && !arg.startsWith("--"));
+  const targetVersion = targetArg || process.env.TARGET_VERSION || "";
+
+  if (preview) {
+    // Non-mutating review pass: show exactly what "Force to main" would write
+    // (version + the merged release entry) so the operator can confirm the
+    // changelog with the user before anything is staged or pushed.
+    const pending = computeAlphaToMainRelease({ targetVersion });
+    renderReleasePreview(pending);
+    console.log("\n[preview only - nothing written. Run without --preview to promote.]");
+  } else {
+    promoteAlphaToMain({
+      targetVersion,
+      commit: gitHeadCommit(root),
+      sourceAuthor: gitHeadAuthor(root),
+    });
+  }
 }

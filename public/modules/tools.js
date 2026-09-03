@@ -353,4 +353,5 @@ export async function startImport() {
 // keep working unchanged.
 export { runRepairWorkflow, runPhantomWatchAudit, runPhantomWatchRepair, runTraktBackfill, runRematchTvShows, runFullSyncWatchstates, cancelFullSyncWatchstates, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory } from "./tools-maintenance.js?v=20260903m";
 export { runDuplicateWatchCleanup } from "./tools-duplicates.js";
+export { runEpisodeTitleAudit, runEpisodeTitleBackfill } from "./tools-maintenance.js?v=20260903m";
 export { loadWipeDataPreview, runWipeData } from "./tools-wipe-data.js";

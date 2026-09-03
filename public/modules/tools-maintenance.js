@@ -1014,6 +1014,98 @@ export async function runPhantomWatchRepair() {
   }
 }
 
+// Read-only: how many episode watch rows lack a real stored name. Shows a
+// friendly summary and previews the newest rows so a user knows what a restore
+// would touch before confirming.
+export async function runEpisodeTitleAudit() {
+  const button = elements.episodeTitleAuditButton;
+  const status = elements.episodeTitleStatus;
+  const logEl = elements.episodeTitleLog;
+  if (!button || !status) return;
+  button.disabled = true;
+  button.textContent = "Auditing...";
+  setStatusPill(status, "Scanning history...", "warning");
+  if (logEl) { logEl.classList.remove("hidden"); logEl.textContent = ""; }
+  try {
+    const response = await fetch("/api/episode-title-audit", { headers: authHeaders(), cache: "no-store" });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+    const total = Number(body.total || 0);
+    setStatusPill(status, total ? `${total.toLocaleString()} row(s) missing a name` : "No rows missing a name", total ? "warning" : "ready");
+    if (logEl) {
+      const rows = Array.isArray(body.rows) ? body.rows.slice(0, 20) : [];
+      logEl.textContent = total
+        ? `${total.toLocaleString()} episode watch row(s) store no real episode name (showing the newest ${rows.length}). Audits never change anything - use Restore to fill them in.`
+        : "No episode watch rows are missing a real episode name. Audits never change anything.";
+      logEl.textContent += rows.map((row) =>
+        `\n[${row.show_title || row.title || "Unknown"}] S${String(row.season ?? "").padStart(2, "0")}E${String(row.episode ?? "").padStart(2, "0")} — "${row.episode_title || "no title"}"`
+      ).join("");
+    }
+    return body;
+  } catch (error) {
+    setStatusPill(status, `Audit failed: ${error.message}`, "error");
+    if (logEl) logEl.textContent = error.message;
+    throw error;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Audit Missing Episode Names";
+  }
+}
+
+// Backfill: replace rows that stored a coordinate with the real episode name,
+// using stored data first and a metadata lookup for the rest. Runs in bounded
+// batches like the other repair tools; a confirmation shows the current count
+// first, then it loops a few batches and reports what remains to re-run.
+export async function runEpisodeTitleBackfill() {
+  const button = elements.episodeTitleBackfillButton;
+  const status = elements.episodeTitleStatus;
+  const logEl = elements.episodeTitleLog;
+  if (!button || !status) return;
+
+  const confirmRestore = typeof window !== "undefined" && window.confirm
+    ? window.confirm("Restore missing episode names? This updates watch-history rows using stored data and a metadata lookup. It cannot be undone.")
+    : true;
+  if (!confirmRestore) return;
+
+  button.disabled = true;
+  button.textContent = "Restoring...";
+  setStatusPill(status, "Backfilling episode names...", "warning");
+  if (logEl) { logEl.classList.remove("hidden"); logEl.textContent = ""; }
+  try {
+    const maxBatches = 8;
+    let batch = 0;
+    let totalBackfilled = 0;
+    let remaining = Infinity;
+    for (; batch < maxBatches && remaining > 0; batch++) {
+      setStatusPill(status, `Backfill batch #${batch + 1}...`, "warning");
+      const response = await fetch("/api/episode-title-backfill", {
+        method: "POST",
+        headers: { ...authHeaders(), "Content-Type": "application/json" },
+        body: JSON.stringify({ limit: 200, allow_fetch: true }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+      totalBackfilled += Number(body.backfilled || 0);
+      remaining = Number(body.remaining || 0);
+    }
+    setStatusPill(status, totalBackfilled ? `${totalBackfilled} name(s) restored` : "No names restored", totalBackfilled ? "ready" : "muted");
+    if (logEl) {
+      logEl.textContent = totalBackfilled
+        ? `Restored ${totalBackfilled} episode name(s) across ${batch} batch(es).`
+        : "No rows could be restored - nothing real was stored or reachable for the remaining episodes.";
+      if (remaining > 0) logEl.textContent += ` ${remaining.toLocaleString()} row(s) remain; run Restore again to continue.`;
+    }
+    return { totalBackfilled, remaining };
+  } catch (error) {
+    setStatusPill(status, `Restore failed: ${error.message}`, "error");
+    if (logEl) logEl.textContent = error.message;
+    throw error;
+  } finally {
+    button.disabled = false;
+    button.textContent = "Restore Episode Names";
+  }
+}
+
 export async function runTraktBackfill() {
   const button = elements.traktBackfillButton;
   const status = elements.traktBackfillStatus;
