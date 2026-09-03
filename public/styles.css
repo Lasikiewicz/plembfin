@@ -1302,6 +1302,11 @@ a.media-fact-chip:hover {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* Vertical-only scroll container: next to overflow-y: auto, a missing
+     overflow-x would compute to `auto`, and a stray wide item (e.g. an
+     indented Settings sub-item) would surface an unwanted horizontal
+     scrollbar in the left menu. */
+  overflow-x: hidden;
   /* Keep the sidebar's own scrollbar slim (e.g. when the Settings menu
      expands past the viewport) instead of using the thick browser default. */
   scrollbar-width: thin;
@@ -10840,7 +10845,7 @@ body {
   align-items: stretch;
   gap: 0.8rem;
   margin: 0;
-  padding: 0 0 0.7rem;
+  padding: 0 0 0;
 }
 
 .topbar-actions {
@@ -11389,7 +11394,7 @@ h1 {
   flex-direction: column;
   align-items: stretch;
   justify-content: flex-start;
-  gap: 1.35rem;
+  gap: 0.65rem;
   overflow: visible;
   border: 0;
   border-right: 1px solid rgba(255, 255, 255, 0.06);
@@ -12927,7 +12932,8 @@ html.light-mode #timeline-view .part-watched-app-badge {
   }
 
   .topnav.nav-closed .global-search,
-  .topnav.nav-closed .sidebar-scrollable {
+  .topnav.nav-closed .sidebar-scrollable,
+  .topnav.nav-closed .sidebar-footer {
     visibility: hidden;
   }
 
@@ -14098,6 +14104,16 @@ html.light-mode #timeline-view .part-watched-app-badge {
 .sidebar-sub-menu .settings-group-grandchild:focus-visible {
   color: var(--text);
   background: rgba(255, 255, 255, 0.04);
+}
+
+/* The indented Settings rows are grid items of .sidebar-sub-menu with left
+   margins for the hierarchy indentation. Stretch them (width: auto) instead
+   of forcing width: 100%, which would add the margin on top of the full
+   width and push the rows past the sidebar's right edge, surfacing an
+   unwanted horizontal scrollbar on .sidebar-scrollable. */
+.sidebar-scrollable .sidebar-sub-menu .settings-group-child,
+.sidebar-scrollable .sidebar-sub-menu .settings-group-grandchild {
+  width: auto;
 }
 
 .sidebar-sub-menu .help-menu-group {
@@ -17597,18 +17613,24 @@ html.light-mode .theme-toggle-label--dark {
   gap: var(--space-2);
   align-items: stretch;
   padding: var(--space-3);
-  /* Pin the footer (Sync - Idle, version, Appearance) to the bottom of the
-     sidebar while the nav above it scrolls. Without this, expanding the
-     Settings menu pushes the footer below the fold. `margin-top: auto` (set
-     earlier) still centers it in the available space when there is no
-     overflow. */
-  position: sticky;
-  bottom: 0;
-  z-index: 2;
-  /* Matches .topnav's dark-mode background (#1a1a1a) so scrolling nav items
-     don't show through behind the pinned footer. Light mode overrides this
-     below via `html.light-mode .sidebar-footer`. */
-  background: #1a1a1a;
+}
+
+/* On desktop, pin the footer (Sync - Idle, version, Appearance) to the bottom
+   of the sidebar while the nav above it scrolls. Without this, expanding the
+   Settings menu pushes the footer below the fold. `margin-top: auto` (set
+   earlier) still centers it in the available space when there is no overflow.
+   Mobile is excluded: there the topnav itself becomes a clipped, fixed-height
+   shell, and a sticky footer would be pulled over the brand/search bar. */
+@media (min-width: 761px) {
+  .sidebar-footer {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    /* Matches .topnav's dark-mode background (#1a1a1a) so scrolling nav items
+       don't show through behind the pinned footer. Light mode overrides this
+       via `html.light-mode .sidebar-footer`. */
+    background: #1a1a1a;
+  }
 }
 
 /* Media details page specific overrides */
