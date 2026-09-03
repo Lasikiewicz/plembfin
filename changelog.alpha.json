@@ -1,10 +1,35 @@
 {
   "baseVersion": "0.14.0",
-  "build": 14,
-  "version": "0.14.0.14",
-  "shortVersion": "0.14.0.14",
-  "updatedAt": "2026-09-03T15:33:43.288Z",
+  "build": 15,
+  "version": "0.14.0.15",
+  "shortVersion": "0.14.0.15",
+  "updatedAt": "2026-09-03T16:42:23.584Z",
   "entries": [
+    {
+      "build": 15,
+      "version": "0.14.0.15",
+      "shortVersion": "0.14.0.15",
+      "date": "2026-09-03T16:42:23.584Z",
+      "commit": "e2c52626404c9c1d0d1af4bc355b4a97eff41225",
+      "message": "Fix - Show real episode names on watched shows and polish the Up Next rail",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix: Show real episode names on watched shows and polish the Up Next rail",
+        "Fix: Dashboard and history episode cards now use the actual episode name stored on the watch record; watches received from a media server as only a coordinate (\"S1E5\") get the real name resolved from stored metadata at ingest so the card never falls back to a placeholder",
+        "Fix: Database Repairs gains a Restore Missing Episode Names tool that backfills a real episode name onto watch rows that only stored a coordinate (audit shows affected rows first; restore resolves stored data then a metadata lookup when needed)",
+        "Fix: The Up Next rail no longer paints the same next-up episode twice and stops wrongly merging re-releases/reboots that share a title but aired in a different year; removing a tile now animates it out before an overlapping refresh repaints"
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Show real episode names on watched shows and polish the Up Next rail",
+          "Dashboard and history episode cards now use the actual episode name stored on the watch record; watches received from a media server as only a coordinate (\"S1E5\") get the real name resolved from stored metadata at ingest so the card never falls back to a placeholder",
+          "Database Repairs gains a Restore Missing Episode Names tool that backfills a real episode name onto watch rows that only stored a coordinate (audit shows affected rows first; restore resolves stored data then a metadata lookup when needed)",
+          "The Up Next rail no longer paints the same next-up episode twice and stops wrongly merging re-releases/reboots that share a title but aired in a different year; removing a tile now animates it out before an overlapping refresh repaints"
+        ],
+        "tweaks": []
+      }
+    },
     {
       "build": 14,
       "version": "0.14.0.14",

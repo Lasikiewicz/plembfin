@@ -1,19 +1,6 @@
 {
   "build": 37,
-  "resetCommit": "fbe635ddab3aae8fa08ebfb9f135aca81e47993f",
-  "updatedAt": "2026-09-03T16:40:59.420Z",
-  "entries": [
-    {
-      "build": 37,
-      "date": "2026-09-03T16:40:59.420Z",
-      "commit": "10f322215232e23775abd35bf5f24a376267b421",
-      "message": "Fix - Show real episode names on watched shows and polish the Up Next rail",
-      "author": "Lasikiewicz",
-      "details": [
-        "Dashboard and history episode cards now use the actual episode name stored on the watch record; watches received from a media server as only a coordinate (\"S1E5\") get the real name resolved from stored metadata at ingest so the card never falls back to a placeholder",
-        "Database Repairs gains a Restore Missing Episode Names tool that backfills a real episode name onto watch rows that only stored a coordinate (audit shows affected rows first; restore resolves stored data then a metadata lookup when needed)",
-        "The Up Next rail no longer paints the same next-up episode twice and stops wrongly merging re-releases/reboots that share a title but aired in a different year; removing a tile now animates it out before an overlapping refresh repaints"
-      ]
-    }
-  ]
+  "resetCommit": "e2c52626404c9c1d0d1af4bc355b4a97eff41225",
+  "updatedAt": "2026-09-03T16:42:23.584Z",
+  "entries": []
 }
