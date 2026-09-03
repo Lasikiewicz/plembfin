@@ -1,6 +1,6 @@
 import { db } from "../db.js";
-import { getCachedShows, queryShowDetail, showTitleFrom } from "./dataRepo.js";
-import { getTmdbDetails, getTmdbSeason } from "./tmdbGateway.js";
+import { getCachedShows, loadTrackedEpisodeRows, queryShowDetail, showTitleFrom } from "./dataRepo.js";
+import { getCachedTmdbDetails, getCachedTmdbSeason } from "./tmdbGateway.js";
 import { getCanonicalPosterUrl } from "./mediaArtwork.js";
 import { minResumePositionMs, watchedThresholdPercent } from "./tuning.js";
 import {
@@ -112,16 +112,44 @@ function aliasesIntersect(left, right) {
   return [...(left instanceof Set ? left : new Set(left || []))].some((alias) => rightSet.has(alias));
 }
 
-function newestStateFor(candidate, playstateRows) {
-  const aliases = aliasesFor(candidate);
-  return playstateRows
-    .map((row) => ({ row, candidate: rowCandidate(row, { queueKind: "next_up" }) }))
-    .filter(({ candidate: other }) => aliasesIntersect(aliases, aliasesFor(other)))
-    .sort((left, right) => number(right.row.updated_at) - number(left.row.updated_at))[0]?.row || null;
+// Resolving a candidate's playstate used to re-derive an identity for every
+// playstate row on every lookup: a full map + aliasesFor over the whole table,
+// then a sort, per episode examined. With a real library that is 8k rows
+// rebuilt tens of thousands of times, and because better-sqlite3 and this
+// normalization are synchronous it blocked the event loop for a full minute -
+// long enough to stall every HTTP request and to let the 60s scheduler lease
+// expire, which is what surfaced as the app freezing.
+//
+// The rows are instead normalized once per projection into an alias index.
+// Lookup then touches only the candidate's own aliases.
+function buildPlaystateIndex(playstateRows = []) {
+  const byAlias = new Map();
+  playstateRows.forEach((row, order) => {
+    const updatedAt = number(row.updated_at);
+    for (const alias of upNextIdentityAliases(rowCandidate(row, { queueKind: "next_up" }))) {
+      const existing = byAlias.get(alias);
+      if (!existing || updatedAt > existing.updatedAt) byAlias.set(alias, { row, updatedAt, order });
+    }
+  });
+  return byAlias;
 }
 
-function stateBlocksCandidate(candidate, playstateRows, { progressUpdatedAt = 0 } = {}) {
-  const state = newestStateFor(candidate, playstateRows);
+function newestStateFor(candidate, playstateIndex) {
+  let best = null;
+  for (const alias of upNextIdentityAliases(candidate)) {
+    const entry = playstateIndex.get(alias);
+    if (!entry) continue;
+    // Ties resolve to the row that came first in the query's own ordering,
+    // matching the stable sort this replaced.
+    if (!best || entry.updatedAt > best.updatedAt || (entry.updatedAt === best.updatedAt && entry.order < best.order)) {
+      best = entry;
+    }
+  }
+  return best?.row || null;
+}
+
+function stateBlocksCandidate(candidate, playstateIndex, { progressUpdatedAt = 0 } = {}) {
+  const state = newestStateFor(candidate, playstateIndex);
   if (!state) return false;
   const stateTime = number(state.updated_at);
   // A newer explicit watched or unwatched transition wins over a stale feed
@@ -130,8 +158,8 @@ function stateBlocksCandidate(candidate, playstateRows, { progressUpdatedAt = 0 
   return stateTime <= 0 || progressUpdatedAt <= 0 || stateTime >= progressUpdatedAt;
 }
 
-function stateIsWatched(candidate, playstateRows) {
-  return newestStateFor(candidate, playstateRows)?.state === "watched";
+function stateIsWatched(candidate, playstateIndex) {
+  return newestStateFor(candidate, playstateIndex)?.state === "watched";
 }
 
 function actionableResume(candidate) {
@@ -227,7 +255,8 @@ function publicItem(item) {
   // Episodes in Up Next represent the series. Reuse the shared show artwork
   // cache (and watch history show artwork) so known shows load their poster
   // instantly from local storage/cache without querying the provider proxy.
-  const canonicalShowPoster = safe.media_type === "episode"
+  // Movies similarly resolve their canonical poster from metadata/cache.
+  const canonicalPoster = safe.media_type === "episode"
     ? (getCanonicalPosterUrl({
       media_type: "episode",
       show_title: safe.show_title,
@@ -235,11 +264,18 @@ function publicItem(item) {
       show_tmdb_id: safe.show_tmdb_id,
       show_tvdb_id: safe.show_tvdb_id,
     }) || showPosterFromHistory(safe))
+    : getCanonicalPosterUrl({
+      media_type: "movie",
+      title: safe.title,
+      tmdb_id: safe.tmdb_id,
+      imdb_id: safe.imdb_id,
+    });
+  const effectiveShowPoster = safe.media_type === "episode"
+    ? (canonicalPoster || (isKnownPoster(rawShowPoster) ? rawShowPoster : ""))
     : "";
-  const effectiveShowPoster = canonicalShowPoster || (isKnownPoster(rawShowPoster) ? rawShowPoster : "");
-  const effectivePoster = (safe.media_type === "episode" && effectiveShowPoster)
-    ? effectiveShowPoster
-    : (isKnownPoster(rawPoster) ? rawPoster : canonicalShowPoster);
+  const effectivePoster = safe.media_type === "episode"
+    ? (effectiveShowPoster || (isKnownPoster(rawPoster) ? rawPoster : ""))
+    : (isKnownPoster(rawPoster) ? rawPoster : canonicalPoster);
   return {
     ...safe,
     id: item.id,
@@ -257,12 +293,14 @@ export function publicUpNextItems(items = []) {
 }
 
 async function localNextUpForShow(show, {
-  playstateRows,
+  playstateIndex,
   progressCandidates,
   providerCandidates = [],
+  episodeRows,
   today,
 }) {
   const detail = await queryShowDetail({
+    episodeRows,
     id: show.id,
     title: show.title,
     tmdbId: show.tmdb_id,
@@ -273,7 +311,7 @@ async function localNextUpForShow(show, {
   const watched = new Set();
   for (const row of episodes) {
     const candidate = rowCandidate(row, { queueKind: "next_up" });
-    const canonicalState = newestStateFor(candidate, playstateRows)?.state;
+    const canonicalState = newestStateFor(candidate, playstateIndex)?.state;
     const isWatched = canonicalState === "watched"
       || (!canonicalState && String(row.sync_action || "watched").toLowerCase() !== "unwatched");
     if (isWatched) {
@@ -282,13 +320,12 @@ async function localNextUpForShow(show, {
     }
   }
 
-  const metadata = await getTmdbDetails({
+  const metadata = getCachedTmdbDetails({
     mediaType: "tv",
     tmdbId: show.tmdb_id,
     title: show.title,
     ids: { tvdbId: show.tvdb_id, imdbId: show.imdb_id },
-    light: true,
-  }).catch(() => null);
+  });
   const tmdbId = text(show.tmdb_id || metadata?.id);
   const tvdbId = text(show.tvdb_id || metadata?.external_ids?.tvdb_id);
   if (!tmdbId && !tvdbId) return null;
@@ -304,7 +341,7 @@ async function localNextUpForShow(show, {
     : [firstSeason, firstSeason + 1];
 
   for (const seasonNumber of [...new Set(candidateSeasons)].slice(0, 3)) {
-    const season = await getTmdbSeason({ tmdbId, tvdbId, seasonNumber }).catch(() => null);
+    const season = getCachedTmdbSeason({ tmdbId, tvdbId, seasonNumber });
     const seasonEpisodes = [...(season?.episodes || [])]
       .filter((episode) => number(episode.episode_number, 0) > 0)
       .sort((left, right) => number(left.episode_number) - number(right.episode_number));
@@ -328,7 +365,7 @@ async function localNextUpForShow(show, {
         air_date: episode.air_date || "",
         source: "local",
       });
-      if (stateIsWatched(candidate, playstateRows)) continue;
+      if (stateIsWatched(candidate, playstateIndex)) continue;
       if (progressCandidates.some((resume) => aliasesIntersect(aliasesFor(candidate), aliasesFor(resume)))) continue;
       // Local history and TMDB metadata can tell us what should come next, but
       // cannot prove that the episode still exists in a configured media
@@ -344,11 +381,14 @@ async function localNextUpForShow(show, {
 
 async function localNextUpCandidates({
   shows,
-  playstateRows,
+  playstateIndex,
   progressCandidates,
   providerCandidates = [],
   today,
 }) {
+  // Every show resolves against the same episode snapshot, so read and dedupe
+  // the episode table once for the whole pass rather than once per show.
+  const episodeRows = loadTrackedEpisodeRows();
   const selectedShows = (Array.isArray(shows) ? shows : [])
     .filter((show) => Number(show.episode_count || 0) > 0)
     .sort((left, right) => (
@@ -363,9 +403,10 @@ async function localNextUpCandidates({
     while (cursor < selectedShows.length) {
       const show = selectedShows[cursor++];
       const candidate = await localNextUpForShow(show, {
-        playstateRows,
+        playstateIndex,
         progressCandidates,
         providerCandidates,
+        episodeRows,
         today,
       });
       if (candidate) results.push(candidate);
@@ -387,22 +428,22 @@ export async function buildUpNextProjection({
   localFallback = true,
 } = {}) {
   const rawProgressRows = progressRows || selectProgressRowsStmt.all();
-  const rawPlaystateRows = playstateRows || selectPlaystateRowsStmt.all();
+  const playstateIndex = buildPlaystateIndex(playstateRows || selectPlaystateRowsStmt.all());
   const canonicalResume = rawProgressRows
     .map((row) => rowCandidate(row, { queueKind: "resume", canonical: true }))
     .filter(actionableResume)
-    .filter((candidate) => !stateBlocksCandidate(candidate, rawPlaystateRows, { progressUpdatedAt: candidate.updated_at }));
+    .filter((candidate) => !stateBlocksCandidate(candidate, playstateIndex, { progressUpdatedAt: candidate.updated_at }));
   const canonicalResumeAliases = canonicalResume.map(aliasesFor);
 
   const observations = (providerItems || listActiveUpNextProviderItems()).slice(0, MAX_PROVIDER_OBSERVATIONS);
   const providerCandidates = observations.map((item) => normalizeUpNextCandidate(item));
   const providerResume = providerCandidates
     .filter((candidate) => candidate.queue_kind === "resume" && actionableResume(candidate))
-    .filter((candidate) => !stateBlocksCandidate(candidate, rawPlaystateRows, { progressUpdatedAt: candidate.updated_at }))
-    .filter((candidate) => !stateIsWatched(candidate, rawPlaystateRows));
+    .filter((candidate) => !stateBlocksCandidate(candidate, playstateIndex, { progressUpdatedAt: candidate.updated_at }))
+    .filter((candidate) => !stateIsWatched(candidate, playstateIndex));
   const providerNextUp = providerCandidates
     .filter((candidate) => candidate.queue_kind === "next_up" && released(candidate.air_date, new Date(now).toISOString().slice(0, 10)))
-    .filter((candidate) => !stateIsWatched(candidate, rawPlaystateRows))
+    .filter((candidate) => !stateIsWatched(candidate, playstateIndex))
     .filter((candidate) => !canonicalResumeAliases.some((aliases) => aliasesIntersect(aliases, aliasesFor(candidate))))
     .map((candidate) => ({ ...candidate, position_ms: 0, duration_ms: null, progress: 0 }));
 
@@ -411,7 +452,7 @@ export async function buildUpNextProjection({
     const localShows = shows || await getCachedShows();
     localNextUp = await localNextUpCandidates({
       shows: localShows,
-      playstateRows: rawPlaystateRows,
+      playstateIndex,
       progressCandidates: canonicalResume,
       providerCandidates,
       today: new Date(now).toISOString().slice(0, 10),

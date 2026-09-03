@@ -5,10 +5,11 @@ import {
   movieHref,
   movieTmdbHref,
   slug,
+  tvShowHrefFromEpisode,
   tvShowTmdbHref,
   tvShowTvdbHref,
-} from "./utils.js?v=20260824h";
-import { posterMarkup, posterOverflowMenu, proxiedArtworkUrl, tmdbPoster } from "./images.js?v=20260831m";
+} from "./utils.js?v=20260903a";
+import { posterMarkup, posterOverflowMenu, proxiedArtworkUrl, tmdbPoster } from "./images.js?v=20260903b";
 
 function normalizedType(item = {}) {
   const raw = String(item.media_type || item.mediaType || item.type || "").toLowerCase();
@@ -21,17 +22,14 @@ function titleFor(item, type) {
   return item.title || item.name || "Untitled";
 }
 
-function episodeDetailHref(showHref, item = {}) {
-  const season = Number(item.season ?? item.seasonNumber);
-  const episode = Number(item.episode ?? item.episodeNumber);
-  if (!Number.isInteger(season) || season < 0 || !Number.isInteger(episode) || episode < 1) return showHref;
-  return `${showHref}/season/${season}/episode/${episode}`;
-}
-
 export function mediaCardHref(item = {}) {
-  if (item.href) return String(item.href);
   const type = normalizedType(item);
   const title = titleFor(item, type);
+  // Recompute episode links from the identity contract instead of trusting a
+  // prebuilt href that may have been assembled from an episode-level provider
+  // id by an older payload/cache.
+  if (type === "episode") return tvShowHrefFromEpisode(item);
+  if (item.href) return String(item.href);
   if (type === "movie") {
     return item.tmdb_id || item.tmdbId
       ? movieTmdbHref(item.tmdb_id || item.tmdbId, title)
@@ -39,9 +37,9 @@ export function mediaCardHref(item = {}) {
   }
   const showTmdbId = item.show_tmdb_id || item.showTmdbId || "";
   const showTvdbId = item.show_tvdb_id || item.showTvdbId || "";
-  if (showTmdbId) return episodeDetailHref(tvShowTmdbHref(showTmdbId, title), item);
-  if (showTvdbId) return episodeDetailHref(tvShowTvdbHref(showTvdbId, title), item);
-  return episodeDetailHref(`/tvshow/${encodeURIComponent(slug(title))}`, item);
+  if (showTmdbId) return tvShowTmdbHref(showTmdbId, title);
+  if (showTvdbId) return tvShowTvdbHref(showTvdbId, title);
+  return `/tvshow/${encodeURIComponent(slug(title))}`;
 }
 
 function mediaYear(item = {}) {

@@ -254,6 +254,7 @@ export function queuePersonalRatingMutation(media, rating, { config = {}, source
   const canonicalVersion = Number(timestamp) || Date.now();
   for (const provider of PERSONAL_RATING_PROVIDERS) {
     if (!directionAllows(settings.ratingSync.providers[provider], "send")) continue;
+    if (!providerConfigured(settings, provider)) continue;
     ensureRatingSourceRow(provider, normalized, { now: canonicalVersion });
     enqueuePersonalRatingMutation({
       provider,
@@ -275,6 +276,7 @@ function queueImportedFanout(media, rating, sourceProvider, config, timestamp) {
   const queued = [];
   for (const provider of PERSONAL_RATING_PROVIDERS) {
     if (provider === sourceProvider || !directionAllows(settings.ratingSync.providers[provider], "send")) continue;
+    if (!providerConfigured(settings, provider)) continue;
     ensureRatingSourceRow(provider, media, { now: timestamp });
     enqueuePersonalRatingMutation({
       provider,
@@ -327,10 +329,16 @@ function applyRemoteObservation({ provider, media, rating, previous, config, mod
   const echo = Boolean(previous
     && previous.last_outbound_state === remoteState
     && Number(previous.last_outbound_rating ?? 0) === Number(rating ?? 0));
-  const localIsNewer = Boolean(existing && previous && currentLocalTimestamp(existing) > Number(previous.last_inbound_at || 0));
+  const localIsNewer = Boolean(existing && (!previous || currentLocalTimestamp(existing) > Number(previous.last_inbound_at || 0)));
   if (!echo && settings.ratingSync.conflictPolicy === "local_wins" && localIsNewer) {
     updateRatingSourceSyncStatus(provider, media.media_key, "conflict", "Local rating retained over a newer remote observation");
-    return { changed: true, imported: false, cleared: false, conflict: true, queued: [] };
+    const localRating = Number(existing.rating);
+    const queued = queuePersonalRatingMutation(remoteMedia, Number.isInteger(localRating) ? localRating : null, {
+      config: settings,
+      source: "reconcile",
+      timestamp: currentLocalTimestamp(existing),
+    }).providers;
+    return { changed: true, imported: false, cleared: false, conflict: true, queued };
   }
 
   if (remoteState === "rated") {
@@ -687,7 +695,9 @@ export async function runRatingSyncScheduler({ logger = () => {} } = {}) {
   if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active" };
   const config = await loadMediaConfig();
   if (!config.ratingSync?.enabled) return { skipped: true, reason: "disabled" };
-  const providers = RATING_SYNC_PROVIDERS.filter((provider) => config.ratingSync.providers[provider] !== "off");
+  const providers = RATING_SYNC_PROVIDERS.filter((provider) => (
+    config.ratingSync.providers[provider] !== "off" && providerConfigured(config, provider)
+  ));
   if (!providers.length) return { skipped: true, reason: "no-providers" };
   const status = await getRatingSyncStatus({ config });
   const dueAt = providers.some((provider) => {

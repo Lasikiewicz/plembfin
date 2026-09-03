@@ -6,7 +6,7 @@ import { makeTempDataDir } from "./helpers.js";
 makeTempDataDir("plembfin-personal-watchlist-sync-");
 
 const { db } = await import("../server/src/db.js");
-const { applyWatchlistMutation, getWatchlistRestoreState, listWatchlistProviderItems, listWatchlistQueue, markWatchlistRestorePending, clearWatchlistRestorePending, upsertProviderWatchlistItem, watchlistProviderScope } = await import("../server/src/utils/personalWatchlistRepository.js");
+const { applyWatchlistMutation, getCanonicalWatchlist, getWatchlistRestoreState, listWatchlistProviderItems, listWatchlistQueue, markWatchlistRestorePending, upsertProviderWatchlistItem, watchlistProviderScope } = await import("../server/src/utils/personalWatchlistRepository.js");
 const { normalizePersonalWatchlistMedia } = await import("../server/src/utils/personalWatchlistIdentity.js");
 const { processWatchlistQueue, runWatchlistSync } = await import("../server/src/utils/personalWatchlistSync.js");
 
@@ -32,8 +32,16 @@ test("watchlist queue resolves an unambiguous provider target and records outbou
   const calls = [];
   globalThis.fetch = async (url, options = {}) => {
     calls.push({ url: String(url), options });
-    if (String(url).includes("/hubs/search")) {
-      return jsonResponse({ MediaContainer: { Metadata: [{ type: "movie", ratingKey: "plex-601", title: "Queue Target", guid: "tmdb://601", year: 2025 }] } });
+    // Target resolution searches the Plex catalog on the discover host, which
+    // answers with nested SearchResults rather than a plain Metadata list.
+    if (String(url).includes("/library/search")) {
+      return jsonResponse({
+        MediaContainer: {
+          SearchResults: [{
+            SearchResult: [{ Metadata: { type: "movie", ratingKey: "plex-601", title: "Queue Target", guid: "tmdb://601", year: 2025 } }],
+          }],
+        },
+      });
     }
     return new Response(null, { status: 204 });
   };
@@ -49,15 +57,31 @@ test("watchlist queue resolves an unambiguous provider target and records outbou
   assert.equal(calls.every((call) => !call.url.includes("account-secret")), true);
 });
 
-test("restored watchlist work is held until an explicit publish", async () => {
+test("restored watchlist performs a safe union without an explicit publish", async () => {
   markWatchlistRestorePending({ restoreId: "restore-sync", timestamp: 2000 });
   assert.equal(getWatchlistRestoreState().pending, true);
+  globalThis.fetch = async () => jsonResponse({ MediaContainer: { Metadata: [], totalSize: 0 } });
   const result = await runWatchlistSync({ mode: "reconcile", config });
-  assert.equal(result.requiresPublish, true);
-  assert.deepEqual(result.results, []);
+  assert.equal(result.ok, true);
+  assert.equal(result.results[0].snapshot.status, "succeeded");
+  assert.equal(getWatchlistRestoreState().pending, false);
   const queueResult = await processWatchlistQueue({ config, provider: "plex" });
-  assert.equal(queueResult.skipped, "restore-publish-required");
-  clearWatchlistRestorePending({ timestamp: 2100 });
+  assert.notEqual(queueResult.skipped, "restore-publish-required");
+});
+
+test("a provider-only watchlist addition becomes canonical and is queued for fanout", async () => {
+  globalThis.fetch = async () => jsonResponse({
+    MediaContainer: {
+      Metadata: [{ type: "movie", ratingKey: "plex-603", title: "Remote Addition", guid: "tmdb://603", year: 2026 }],
+      totalSize: 1,
+    },
+  });
+  const result = await runWatchlistSync({ mode: "reconcile", config });
+  assert.equal(result.ok, true);
+  assert.equal(result.results[0].snapshot.added, 1);
+  const media = normalizePersonalWatchlistMedia({ type: "movie", title: "Remote Addition", tmdb_id: "603" });
+  assert.equal(getCanonicalWatchlist(media)?.media_key, media.media_key);
+  assert.equal(listWatchlistQueue({ provider: "plex" }).find((row) => row.media_key === media.media_key)?.status, "succeeded");
 });
 
 test("a confirmed provider presence satisfies an add without duplicating the remote item", async () => {

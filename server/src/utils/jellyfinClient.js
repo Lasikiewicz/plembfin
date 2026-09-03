@@ -537,6 +537,16 @@ export async function markJellyfinUnplayedById(config, itemId, { lane = "sync" }
   return { platform: "jellyfin", status: "fulfilled", itemId, httpStatus: response.status };
 }
 
+export async function hideJellyfinFromResume(config, itemId, { lane = "interactive" } = {}) {
+  requireJellyfinConfig(config);
+  if (!itemId) return { platform: "jellyfin", status: "not_found" };
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${encodeURIComponent(config.userId)}/Items/${encodeURIComponent(itemId)}/HideFromResume`);
+  url.searchParams.set("Hide", "true");
+  const response = await fetchWithTimeout(url, { method: "POST", headers: authHeaders(config), lane });
+  if (!response.ok) throw new Error(`Jellyfin resume removal failed with status ${response.status} for item ${itemId}`);
+  return { platform: "jellyfin", status: "fulfilled", itemId: String(itemId), httpStatus: response.status };
+}
+
 function buildJellyfinWatchedItemsUrl(config, { limit = 0, parentId = "" } = {}) {
   const apiKey = jellyfinApiKey(config);
   const baseUrl = trimTrailingSlash(config.baseUrl);

@@ -544,6 +544,16 @@ export async function markEmbyUnplayedById(config, itemId, { lane = "sync" } = {
   return { platform: "emby", status: "fulfilled", itemId, httpStatus: response.status };
 }
 
+export async function hideEmbyFromResume(config, itemId, { lane = "interactive" } = {}) {
+  requireEmbyConfig(config);
+  if (!itemId) return { platform: "emby", status: "not_found" };
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${encodeURIComponent(config.userId)}/Items/${encodeURIComponent(itemId)}/HideFromResume`);
+  url.searchParams.set("Hide", "true");
+  const response = await fetchWithTimeout(url, { method: "POST", headers: authHeaders(config), lane });
+  if (!response.ok) throw new Error(`Emby resume removal failed with status ${response.status} for item ${itemId}`);
+  return { platform: "emby", status: "fulfilled", itemId: String(itemId), httpStatus: response.status };
+}
+
 function buildEmbyWatchedItemsUrl(config, { limit = 0, parentId = "" } = {}) {
   const baseUrl = trimTrailingSlash(config.baseUrl);
   const url = new URL(`${baseUrl}/Users/${config.userId}/Items`);

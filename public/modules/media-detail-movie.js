@@ -1,6 +1,6 @@
 import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute, formatDate, formatTmdbDate } from "./utils.js";
-import { posterUrlFor, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=20260831m";
+import { posterUrlFor, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=20260903b";
 import { isWatchedHistoryAction, getMediaTargetSyncStatus, renderSyncStatusDot } from "./sync.js";
 import { fetchTmdbDetails } from "./tmdb.js?v=20260823";
 import { renderWatchDatePrompt, isMovieSavingWatchAction } from "./watch-action.js?v=20260831b";
@@ -11,7 +11,7 @@ import {
   renderExternalRatingPills, ratingPillHtml, renderSeerrRequestPill, fetchSeerrMediaStatus,
   refreshActiveMediaDetailAfterSeerrStatus, rankedRecommendations, recommendedTvShowsForMovie,
   renderRecommendationSection, hydrateMediaAppLinks, renderCollectionSection, mediaAppLinksHtml,
-} from "./media-detail-shared.js?v=20260831j";
+} from "./media-detail-shared.js?v=20260903b";
 
 // Watch history list - playHistory (every { id, watched_at, source } entry for
 // this movie, collapsed server-side in dedupeMovies/collapseMovieCluster) has

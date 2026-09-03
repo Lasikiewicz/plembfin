@@ -300,6 +300,22 @@ function buildDropdown(button) {
         upNextProviderItems: providerItems,
       }));
     }
+    dropdown.appendChild(menuItem("poster-overflow-item-danger", "Remove from up next", {
+      upNextRemove: d.posterMenuUpNextWatch || d.posterMenuId || "",
+      upNextMediaType: mediaType,
+      upNextQueueKind: queueKind,
+      upNextTitle: itemTitle,
+      upNextShowTitle: showTitle,
+      upNextTmdbId: d.posterMenuUpNextTmdbId || "",
+      upNextTvdbId: d.posterMenuUpNextTvdbId || "",
+      upNextImdbId: d.posterMenuUpNextImdbId || "",
+      upNextSeason: isEpisode ? d.posterMenuUpNextSeason || "" : "",
+      upNextEpisode: isEpisode ? d.posterMenuUpNextEpisode || "" : "",
+      upNextEpisodeTitle: d.posterMenuUpNextEpisodeTitle || "",
+      upNextAirDate: d.posterMenuUpNextAirDate || "",
+      upNextPosterUrl: d.posterMenuUpNextPosterUrl || "",
+      upNextProviderItems: providerItems,
+    }));
     return dropdown;
   }
 

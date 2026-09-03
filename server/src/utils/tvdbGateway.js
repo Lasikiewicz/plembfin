@@ -485,6 +485,18 @@ export async function getTvdbSeasonEpisodes({ tvdbId, seasonNumber }) {
   });
 }
 
+// Up Next is a read path and must not turn a dashboard render into a provider
+// fan-out. Return whatever season data is already in SQLite, including a stale
+// row; the normal metadata warm-up path is responsible for refreshing it.
+export function getCachedTvdbSeasonEpisodes({ tvdbId, seasonNumber }) {
+  const id = normalizeTvdbId(tvdbId);
+  const number = Number(seasonNumber);
+  if (!id || !Number.isInteger(number) || number < 0) return null;
+  const row = seasonGetStmt.get(`${id}_${number}`);
+  const details = row ? parseJson(row.details) : null;
+  return details && typeof details === "object" ? shapeEpisodes(details) : null;
+}
+
 function shapeEpisodes(seasonDetails) {
   const episodes = Array.isArray(seasonDetails?.episodes) ? seasonDetails.episodes : [];
   return {

@@ -1,8 +1,8 @@
 import { state } from "./state.js";
-import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, formatDate, actualWatchHistory, sourceBadgeHtml } from "./utils.js?v=20260824h";
+import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, formatDate, actualWatchHistory, sourceBadgeHtml } from "./utils.js?v=20260903a";
 import { buildAuthHeaders } from "./auth.js";
 import { isWatchedHistoryAction } from "./sync.js";
-import { tmdbPoster, tmdbImage, proxiedArtworkUrl } from "./images.js?v=20260831m";
+import { tmdbPoster, tmdbImage, proxiedArtworkUrl } from "./images.js?v=20260903b";
 import { dateAtMiddayIso, refreshShowAfterManualWatch } from "./watch-action.js?v=20260831b";
 import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js";
 

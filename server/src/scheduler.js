@@ -242,7 +242,10 @@ export async function runScheduledTick({ isLeader = () => true } = {}) {
   await runWithTimeBudget("Scheduled Plembfin backup", () => runScheduledPlembfinBackup(), 30_000);
   if (!isLeader()) return { skipped: true, reason: "lease-lost" };
   if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active" };
-  await runWithTimeBudget("TMDB prewarm", () => prewarmTmdbLibrary({ limit: 4 }), 30_000);
+  // The gateway queues missing/stale library metadata on a single background
+  // worker. Keep this broad scan as a restart/import backstop; it does not
+  // hold the scheduler tick open on TMDB/TVDB requests.
+  await runWithTimeBudget("TMDB metadata warm-up", () => prewarmTmdbLibrary(), 30_000);
   if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active" };
   if (Date.now() - lastNextAiringRefreshAt > NEXT_AIRING_REFRESH_INTERVAL_MS) {
     if (!isLeader()) return { skipped: true, reason: "lease-lost" };

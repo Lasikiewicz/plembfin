@@ -1,6 +1,6 @@
 import { state, elements } from "./state.js";
 import { slug, movieSlug, movieHref, movieTmdbHref, tvShowTmdbHref, showName, showTitleFrom } from "./utils.js";
-import { dedupeMediaRecords } from "./dashboard.js?v=20260831m";
+import { dedupeMediaRecords } from "./dashboard.js?v=20260903b";
 import { isWatchedHistoryAction } from "./sync.js";
 import {
   initMediaDetail, authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions,
@@ -15,7 +15,7 @@ import {
 import {
   renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, patchMovieWatchedState,
 } from "./media-detail-movie.js?v=20260831g";
-import { fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail-shared.js?v=20260831j";
+import { fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail-shared.js?v=20260903b";
 import { fetchTmdbDetails } from "./tmdb.js?v=20260823";
 
 export {

@@ -2,7 +2,7 @@ import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute, platformName, formatDate } from "./utils.js";
 import { historyAction, syncStatus, telemetryLineValue } from "./sync.js";
-import { syncInlineMediaDetailHeading } from "./explorer.js?v=20260831c";
+import { syncInlineMediaDetailHeading } from "./explorer.js?v=20260903a";
 import { auditEventsForRecord, infoSyncSummary, infoSyncTargetStates, infoWatchDetails, mediaInfoGlanceEntries, renderInfoWatchSync } from "./media-info-summary.js";
 
 let _cb = {};

@@ -1,21 +1,24 @@
 import { db, parseJson, transaction } from "../db.js";
 
-// Show artwork is deliberately stored separately from watch_history.poster_url.
+// Show and movie artwork is deliberately stored separately from watch_history.poster_url.
 // The latter belongs to the recorded media item (and can be an episode still),
-// while this table represents the poster chosen for the show as a whole.
+// while this table represents the poster chosen for the show or movie as a whole.
 const selectArtworkByIdentityStmt = db.prepare(
-  "SELECT poster_url FROM media_artwork WHERE media_type = 'tv' AND identity_key = ? LIMIT 1",
+  "SELECT poster_url FROM media_artwork WHERE identity_key = ? LIMIT 1",
 );
 const selectArtworkRecordByIdentityStmt = db.prepare(
-  "SELECT poster_url, poster_source FROM media_artwork WHERE media_type = 'tv' AND identity_key = ? LIMIT 1",
+  "SELECT poster_url, poster_source FROM media_artwork WHERE identity_key = ? LIMIT 1",
 );
 const selectTmdbMetadataStmt = db.prepare("SELECT details FROM tmdb_metadata_cache WHERE id = ?");
+const selectPosterCacheStmt = db.prepare(
+  "SELECT url FROM poster_cache WHERE media_key = ? AND variant = 'poster' AND status = 'cached' LIMIT 1",
+);
 const selectTvdbMetadataStmt = db.prepare("SELECT details FROM tvdb_metadata_cache WHERE id = ?");
 const selectCachedTvMetadataStmt = db.prepare("SELECT details FROM tmdb_metadata_cache WHERE media_type = 'tv'");
 const upsertArtworkStmt = db.prepare(`
   INSERT INTO media_artwork
     (identity_key, media_type, title, tmdb_id, tvdb_id, imdb_id, poster_url, poster_source, updated_at)
-  VALUES (@identity_key, 'tv', @title, @tmdb_id, @tvdb_id, @imdb_id, @poster_url, @poster_source, @updated_at)
+  VALUES (@identity_key, @media_type, @title, @tmdb_id, @tvdb_id, @imdb_id, @poster_url, @poster_source, @updated_at)
   ON CONFLICT(identity_key) DO UPDATE SET
     media_type = excluded.media_type,
     title = excluded.title,
@@ -85,29 +88,31 @@ export function showArtworkIdentity(item = {}, { allowEpisodeProviderIds = false
 
 export function mediaArtworkIdentityKeys(item = {}, { allowEpisodeProviderIds = false, includeTitle = true } = {}) {
   const identity = showArtworkIdentity(item, { allowEpisodeProviderIds });
-  if (identity.media_type !== "tv") return [];
+  const type = identity.media_type === "movie" ? "movie" : "tv";
   const keys = [];
-  if (identity.tmdb_id) keys.push(`tv:tmdb:${identity.tmdb_id}`);
-  if (identity.tvdb_id) keys.push(`tv:tvdb:${identity.tvdb_id}`);
-  if (identity.imdb_id) keys.push(`tv:imdb:${identity.imdb_id.toLowerCase()}`);
+  if (identity.tmdb_id) keys.push(`${type}:tmdb:${identity.tmdb_id}`);
+  if (identity.tvdb_id) keys.push(`${type}:tvdb:${identity.tvdb_id}`);
+  if (identity.imdb_id) keys.push(`${type}:imdb:${identity.imdb_id.toLowerCase()}`);
   if (includeTitle && identity.title) {
     const key = titleKey(identity.title);
-    if (key) keys.push(`tv:title:${key}`);
+    if (key) keys.push(`${type}:title:${key}`);
   }
   return [...new Set(keys)];
 }
 
 export function canonicalMediaArtworkCacheKey(item = {}) {
-  return mediaArtworkIdentityKeys(item, { includeTitle: true })[0] || "tv:title:unknown-show";
+  const identity = showArtworkIdentity(item);
+  const prefix = identity.media_type === "movie" ? "movie" : "tv";
+  return mediaArtworkIdentityKeys(item, { includeTitle: true })[0] || `${prefix}:title:unknown`;
 }
 
-function posterUrlFromTmdbDetails(details, tmdbId = "") {
+function posterUrlFromTmdbDetails(details, tmdbId = "", mediaType = "tv") {
   if (!details) return "";
   const cached = clean(details.cached_poster_url || details.cachedPosterUrl);
   if (cached) return cached;
   const path = clean(details.poster_path || details.posterPath);
   if (path) {
-    return `/api/tmdb-poster?path=${encodeURIComponent(path)}&tmdbId=${encodeURIComponent(tmdbId)}&mediaType=tv`;
+    return `/api/tmdb-poster?path=${encodeURIComponent(path)}&tmdbId=${encodeURIComponent(tmdbId)}&mediaType=${encodeURIComponent(mediaType)}`;
   }
   const tvdbPoster = clean(details.tvdb_poster_url || details.tvdbPosterUrl || details.image_url || details.imageUrl || details.image);
   if (tvdbPoster) return remoteArtworkUrl(tvdbPoster);
@@ -129,6 +134,13 @@ function cachedTmdbDetails(tmdbId) {
   const id = clean(tmdbId);
   if (!id) return null;
   const row = selectTmdbMetadataStmt.get(`tv_${id}`);
+  return row?.details ? parseJson(row.details) : null;
+}
+
+function cachedTmdbMovieDetails(tmdbId) {
+  const id = clean(tmdbId);
+  if (!id) return null;
+  const row = selectTmdbMetadataStmt.get(`movie_${id}`);
   return row?.details ? parseJson(row.details) : null;
 }
 
@@ -156,16 +168,28 @@ function tmdbDetailsForTvdbId(tvdbId) {
 }
 
 function metadataPosterForIdentity(identity) {
+  if (identity.media_type === "movie") {
+    const tmdbDetails = cachedTmdbMovieDetails(identity.tmdb_id);
+    const tmdbPoster = posterUrlFromTmdbDetails(tmdbDetails, identity.tmdb_id, "movie");
+    if (tmdbPoster) return tmdbPoster;
+
+    if (identity.tmdb_id) {
+      const cached = selectPosterCacheStmt.get(`tmdb:movie:${identity.tmdb_id}`);
+      if (cached?.url) return cached.url;
+    }
+    return "";
+  }
+
   const tmdbDetails = cachedTmdbDetails(identity.tmdb_id);
-  const tmdbPoster = posterUrlFromTmdbDetails(tmdbDetails, identity.tmdb_id);
+  const tmdbPoster = posterUrlFromTmdbDetails(tmdbDetails, identity.tmdb_id, "tv");
   if (tmdbPoster) return tmdbPoster;
 
   const tvdbDetails = cachedTvdbDetails(identity.tvdb_id);
-  const tvdbPoster = posterUrlFromTmdbDetails(tvdbDetails, identity.tmdb_id);
+  const tvdbPoster = posterUrlFromTmdbDetails(tvdbDetails, identity.tmdb_id, "tv");
   if (tvdbPoster) return tvdbPoster;
 
   const mappedTmdbDetails = tmdbDetailsForTvdbId(identity.tvdb_id);
-  return posterUrlFromTmdbDetails(mappedTmdbDetails, clean(mappedTmdbDetails?.id));
+  return posterUrlFromTmdbDetails(mappedTmdbDetails, clean(mappedTmdbDetails?.id), "tv");
 }
 
 function storedPosterForKeys(keys = []) {
@@ -177,13 +201,12 @@ function storedPosterForKeys(keys = []) {
   return "";
 }
 
-// Resolve the show poster used by shared cards and detail pages. Manual artwork
+// Resolve the show or movie poster used by shared cards and detail pages. Manual artwork
 // wins over provider metadata. A title key is used only when the caller has no
 // trusted show-level provider identity, which is necessary for legacy episode
 // rows that only know their show title.
 export function getCanonicalPosterUrl(item = {}, options = {}) {
   const identity = showArtworkIdentity(item, options);
-  if (identity.media_type !== "tv") return "";
   const stableKeys = mediaArtworkIdentityKeys(identity, { includeTitle: false });
   const lookupKeys = stableKeys.length
     ? stableKeys
@@ -193,13 +216,13 @@ export function getCanonicalPosterUrl(item = {}, options = {}) {
   return metadataPosterForIdentity(identity);
 }
 
-// Save all known aliases to the same canonical value. This lets a show found
+// Save all known aliases to the same canonical value. This lets a show or movie found
 // via TMDB, TVDB, IMDb, or a legacy title-only personal row converge on the
 // same edited poster without copying it into any episode record.
 export function saveCanonicalPoster(item = {}, posterUrl = "", { source = "manual", preserveExisting = false } = {}) {
   const identity = showArtworkIdentity(item);
   const url = clean(posterUrl);
-  if (identity.media_type !== "tv" || !url) return { ok: false, identity_keys: [] };
+  if (!url) return { ok: false, identity_keys: [] };
   const keys = mediaArtworkIdentityKeys(identity, { includeTitle: true });
   if (!keys.length) return { ok: false, identity_keys: [] };
   const timestamp = Date.now();
@@ -210,6 +233,7 @@ export function saveCanonicalPoster(item = {}, posterUrl = "", { source = "manua
       if (preserveExisting && existing?.poster_url) continue;
       upsertArtworkStmt.run({
         identity_key: identityKey,
+        media_type: identity.media_type,
         title: identity.title || null,
         tmdb_id: identity.tmdb_id || null,
         tvdb_id: identity.tvdb_id || null,

@@ -8,18 +8,18 @@ import {
   HISTORY_VIEW_MODES, HISTORY_FILTERS,
 } from "./state.js";
 import {
-  escapeHtml, escapeAttribute, slug, showTitleFrom, showName,
+  escapeHtml, escapeAttribute, slug, showTitleFrom, showName, tvShowBaseHrefFromEpisode,
   movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, platformBadge, sourceClass, sourceBadgeHtml, formatDate,
   computeProgress, sanitizeTitle, episodeTitle, episodeCode,
-} from "./utils.js?v=20260824h";
-import { posterMarkup, posterOverflowMenu, hydratePosters, bindPosterImageErrorHandler, tmdbPoster, tmdbProfile, proxiedArtworkUrl } from "./images.js?v=20260831m";
+} from "./utils.js?v=20260903a";
+import { posterMarkup, posterOverflowMenu, hydratePosters, bindPosterImageErrorHandler, tmdbPoster, tmdbProfile, proxiedArtworkUrl } from "./images.js?v=20260903b";
 import {
   historySyncPill, renderSyncStatusDot, renderMediaSyncPills,
   renderAvailabilityPills, renderShowAvailabilityPills, showAvailIssuePopup,
   isWatchedHistoryAction,
 } from "./sync.js";
-import { dedupeMediaRecords, renderHistoryCard } from "./dashboard.js?v=20260831m";
-import { renderMediaCard } from "./media-card.js?v=20260831d";
+import { dedupeMediaRecords, renderHistoryCard } from "./dashboard.js?v=20260903b";
+import { renderMediaCard } from "./media-card.js?v=20260903a";
 import { nextAiringCell, nextAiringDateValue, formatListDate, futureListDate } from "./stats.js";
 // ---------------------------------------------------------------------------
 // Callback injection - functions defined outside the 2636-4016 range in app.js
@@ -1325,15 +1325,7 @@ function historyEntryDisplay(entry) {
       }, 50);
     }
     const canonicalShowName = entry.show_title || showName(entry.title);
-    href = entry.show_tmdb_id
-      ? tvShowTmdbHref(entry.show_tmdb_id, canonicalShowName)
-      : entry.show_tvdb_id
-        ? tvShowTvdbHref(entry.show_tvdb_id, canonicalShowName)
-        : entry.tmdb_id
-          ? tvShowTmdbHref(entry.tmdb_id, canonicalShowName)
-          : entry.tvdb_id
-            ? tvShowTvdbHref(entry.tvdb_id, canonicalShowName)
-            : `/tvshow/${slug(canonicalShowName)}`;
+    href = tvShowBaseHrefFromEpisode(entry, canonicalShowName);
   } else {
     href = entry.tmdb_id ? movieTmdbHref(entry.tmdb_id, entry.title) : movieHref(entry);
   }
@@ -1345,7 +1337,7 @@ function historyEntryDisplay(entry) {
 function renderHistoryGridCard(entry) {
   const { isEpisode, displayTitle, epTitle, href, mediaLabel } = historyEntryDisplay(entry);
   return `
-    <a class="history-grid-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="${isEpisode ? "tv" : "movie"}" data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(displayTitle || "")}">
+    <a class="history-grid-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="${isEpisode ? "tv" : "movie"}" data-prefetch-tmdb="${escapeAttribute(isEpisode ? (entry.show_tmdb_id || "") : (entry.tmdb_id || ""))}" data-prefetch-title="${escapeAttribute(displayTitle || "")}">
       <div class="poster-media-wrap">
         ${posterMarkup(entry, "history-grid-poster")}
         ${posterOverflowMenu(entry, isEpisode ? { showTitle: displayTitle, label: displayTitle } : {})}
@@ -1361,7 +1353,7 @@ function renderHistoryGridCard(entry) {
 function renderHistoryListRow(entry) {
   const { isEpisode, displayTitle, epTitle, href, sourceBadge, mediaLabel, seasonEpisode } = historyEntryDisplay(entry);
   return `
-    <a class="history-list-row" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="${isEpisode ? "tv" : "movie"}" data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(displayTitle || "")}">
+    <a class="history-list-row" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="${isEpisode ? "tv" : "movie"}" data-prefetch-tmdb="${escapeAttribute(isEpisode ? (entry.show_tmdb_id || "") : (entry.tmdb_id || ""))}" data-prefetch-title="${escapeAttribute(displayTitle || "")}">
       ${posterMarkup(entry, "history-list-poster")}
       <span class="history-list-title" title="${escapeAttribute(displayTitle)}">${escapeHtml(displayTitle)}</span>
       <span class="history-list-col" title="${escapeAttribute(epTitle || mediaLabel)}">${escapeHtml(epTitle || mediaLabel)}</span>
@@ -1386,7 +1378,7 @@ function renderHistoryListHeader() {
 function renderHistoryPageCard(entry) {
   const { isEpisode, displayTitle, epTitle, href, sourceBadge } = historyEntryDisplay(entry);
   return `
-    <a class="history-page-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="${isEpisode ? "tv" : "movie"}" data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(displayTitle || "")}">
+    <a class="history-page-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="${isEpisode ? "tv" : "movie"}" data-prefetch-tmdb="${escapeAttribute(isEpisode ? (entry.show_tmdb_id || "") : (entry.tmdb_id || ""))}" data-prefetch-title="${escapeAttribute(displayTitle || "")}">
       <div class="history-card-poster-wrapper">
         ${posterMarkup(entry, "history-page-poster")}
         ${posterOverflowMenu(entry, isEpisode ? { showTitle: displayTitle, label: displayTitle } : {})}

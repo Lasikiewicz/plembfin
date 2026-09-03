@@ -1,8 +1,8 @@
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel, formatSeasonTitle, sourceBadgeHtml, platformSourceValues, actualWatchHistory } from "./utils.js?v=20260824h";
-import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=20260831m";
+import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel, formatSeasonTitle, sourceBadgeHtml, platformSourceValues, actualWatchHistory } from "./utils.js?v=20260903a";
+import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=20260903b";
 import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js";
-import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading } from "./explorer.js?v=20260831c";
+import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading } from "./explorer.js?v=20260903a";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=20260823";
 import { renderWatchDatePrompt, seasonUnwatchButtonHtml, showUnwatchButtonHtml, savingEpisodeKeysForShow } from "./watch-action.js?v=20260831b";
 import { authHeaders, setMessage, syncPageTopbar, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=20260831c";
@@ -13,7 +13,7 @@ import {
   renderSeasonSeerrControls, renderSeerrRequestPill, fetchSeerrMediaStatus,
   refreshActiveMediaDetailAfterSeerrStatus, tvSeasonAvailabilityHtml, episodeResolutionPillHtml,
   hydrateMediaAppLinks, mediaAppLinksHtml,
-} from "./media-detail-shared.js?v=20260831j";
+} from "./media-detail-shared.js?v=20260903b";
 
 let _playbackProgressRows = [];
 let _playbackProgressLoaded = false;

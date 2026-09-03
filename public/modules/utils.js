@@ -68,6 +68,32 @@ export function tvShowTvdbHref(id, title) {
   return `/tvshow/tvdb/${id}${idSlugSuffix(title)}`;
 }
 
+// Episode records often carry provider ids for the episode itself in the
+// flat tmdb_id/tvdb_id fields. Those ids must never be used to build a series
+// route. Only the explicit show_* fields are valid series identity; when they
+// are absent, the title route is the safe fallback.
+export function tvShowBaseHrefFromEpisode(entry = {}, title = "") {
+  const showTitle = String(
+    title || entry.show_title || entry.showTitle || showTitleFrom(entry.title || "")
+  ).trim();
+  const showTmdbId = String(entry.show_tmdb_id || entry.showTmdbId || "").trim();
+  const showTvdbId = String(entry.show_tvdb_id || entry.showTvdbId || "").trim();
+
+  if (showTmdbId) return tvShowTmdbHref(showTmdbId, showTitle);
+  if (showTvdbId) return tvShowTvdbHref(showTvdbId, showTitle);
+  return `/tvshow/${slug(showTitle)}`;
+}
+
+export function tvShowHrefFromEpisode(entry = {}, title = "") {
+  const href = tvShowBaseHrefFromEpisode(entry, title);
+  const season = Number(entry.season ?? entry.seasonNumber);
+  const episode = Number(entry.episode ?? entry.episodeNumber);
+  if (Number.isInteger(season) && season >= 0 && Number.isInteger(episode) && episode >= 1) {
+    return `${href}/season/${season}/episode/${episode}`;
+  }
+  return href;
+}
+
 export function movieTmdbHref(id, title) {
   return `/movie/tmdb/${id}${idSlugSuffix(title)}`;
 }
@@ -254,7 +280,7 @@ export function platformIconUrl(value) {
   const normalized = normalizePlatformSource(value);
   if (normalized === "plembfin") return "/icons/plembfin.png?v=20260824h";
   const extension = "svg";
-  return `/icons/${normalized}.${extension}`;
+  return `/icons/${normalized}.${extension}?v=20260903a`;
 }
 
 export function platformIconMarkup(value, className = "source-badge-icon", wrapperClass = "source-badge-icon-set") {

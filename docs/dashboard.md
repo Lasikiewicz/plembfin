@@ -29,17 +29,19 @@ Part Watched, while the green Live indicator remains a semantic playback-status 
 
 The dashboard's Up Next section is a single mixed queue of movies and TV episodes.
 `GET /api/up-next` combines actionable canonical resume progress with released `next_up`
-episodes from provider observations and a local TVDB/TMDB fallback. A local fallback episode
+episodes from provider observations and a local cache-backed fallback. A local fallback episode
 is included only when an active provider observation confirms that exact show and season/episode
 coordinate exists in a connected media-server library; local history and metadata alone do not
 create a Watch now card. Resume cards always come first and are ordered by authoritative
 progress-update time; next-up cards follow in a stable show/season/episode order. A matching
 resume and next-up observation becomes one resume card. The builder is bounded to the most
-recently active shows and a small number of candidate seasons, so a large library cannot create
-an unbounded metadata request burst. Canonical local resume cards remain usable without a
-provider connection.
+recently active shows and a small number of candidate seasons, and reads TMDB/TVDB metadata
+only from SQLite. Missing or stale metadata is queued by library-added/provider-feed discovery
+and refreshed by the single background warm-up worker, so a dashboard render cannot create an
+outbound provider burst. Canonical local resume cards remain usable without a provider
+connection.
 
-The browser hydrates the rail from the 24-hour `plembfin:upNextCache:v3` localStorage
+The browser hydrates the rail from the 24-hour `plembfin:upNextCache:v4` localStorage
 snapshot before requesting the network. The server also keeps the completed mixed snapshot
 in `data/up-next-cache.json`, so a restart can serve warm data immediately. Dashboard loads
 request `/api/up-next?revalidate=1`: a stale snapshot is returned while one background
@@ -48,13 +50,43 @@ rebuild runs, and a changed projection advances the `up_next` cache generation. 
 events also refresh Up Next after watched/progress changes. Existing cards remain painted
 while a refresh is in flight, then the refreshed snapshot is reconciled into the rail.
 
+Building the projection is synchronous work on the shared event loop, so its cost is a
+whole-process cost: while it runs, nothing else is served and no timer fires. That includes
+the "background" rebuild, which is background only in the sense that the request does not
+wait for its result. Resolving a candidate's playstate therefore normalizes the `playstate`
+table once per projection into an alias index (`buildPlaystateIndex` in `upNextService.js`)
+rather than re-deriving an identity for every row on every lookup. Keep it that way: the
+per-row form ran tens of thousands of times per build, which on a library of a few thousand
+rows blocked the process for around a minute per rebuild - long enough to stall every HTTP
+request and to expire the 60-second scheduler lease, so the symptom presented as the whole
+app freezing rather than as a slow rail.
+
+For the same reason the local-fallback pass reads the episode table once for the whole pass.
+`queryShowDetail` reads and dedupes every tracked episode row before narrowing to the show
+it was asked about, which is correct for a detail page resolving one show but repeats a
+full-table read and dedupe per show when Up Next resolves up to 24 of them. It accepts an
+`episodeRows` snapshot for that case, produced once by `loadTrackedEpisodeRows`
+(`dataRepo.js`); `groupShowRows` copies every row it keeps, so the shared snapshot is never
+mutated by the calls consuming it. Any new caller that resolves many shows in one pass
+should hand the same snapshot to each call rather than letting each one re-read.
+
 Resume cards show progress, source badges, app links, Watch now, Mark watched, and Clear
-progress. Clearing an episode deletes its positive progress and marks it unwatched, so a
-refresh moves it below remaining resumes as a zero-progress next-up card. Clearing a movie
-removes it from the queue. Mark watched commits locally first, deletes the resume row, adds
-completed history, and then dispatches to connected providers. A failed or partial provider
-feed keeps the last good observations and displays a compact source-status message; future
-episodes remain in the Upcoming view.
+progress. The three-dot menu on all Up Next cards provides Mark watched, Rate, watchlist
+actions, Clear progress (for resume items), and Remove from up next (to dismiss the card from
+the queue and clear progress across connected servers). Clearing an episode deletes its
+positive progress and marks it unwatched, so a refresh moves it below remaining resumes as a
+zero-progress next-up card. Clearing a movie removes it from the queue. Mark watched commits
+locally first, deletes the resume row, adds completed history, and then dispatches to connected
+providers. A failed or partial provider feed keeps the last good observations and displays a
+compact source-status message; future episodes remain in the Upcoming view.
+
+Episode cards build series routes only from explicit `show_*` identities. An episode-level
+`tmdb_id`, `tvdb_id`, or `imdb_id` is never substituted into a `/tvshow/<provider>/<id>`
+route; if the series identity is unavailable, the card uses the title route and keeps the
+episode coordinates. Dashboard history cards render from the local payload and cached artwork;
+they do not prefetch TMDB or resolve missing posters during the dashboard render (a missing
+poster remains a placeholder). Visible detail requests remain isolated and immediate when a
+user opens a media page.
 
 ### Recent history
 

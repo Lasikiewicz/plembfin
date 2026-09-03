@@ -445,12 +445,12 @@ export function savedCredentialNote() {
 export function watchlistSyncGuide() {
   return `
     <b>Plembfin is the canonical watchlist</b>
-    <p style="margin: 4px 0 0;">Watchlist add/remove actions save locally first, then queue provider delivery. Preview is read-only; use <b>Publish local list</b> only after reviewing the provider changes.</p>
+    <p style="margin: 4px 0 0;">Turn sync on once to keep Plembfin and every connected media server aligned. Additions and removals save locally first, then use a durable delivery queue.</p>
     <ul style="margin: 4px 0 0; padding-left: 1.1rem; line-height: 1.45;">
-      <li><b>Plex:</b> Universal Watchlist native mode can write only after <b>Allow account writes</b>; RSS mode is read-only.</li>
-      <li><b>Emby/Jellyfin:</b> playlist mode owns <code>Plembfin Watchlist</code>; Favorites mode preserves unrelated Favorites.</li>
-      <li>Provider-only additions are not imported automatically. Missing or unavailable items stay local and remain visible for retry.</li>
-      <li>A restored list is paused until you explicitly publish it again. A completed movie/show watch removes it from every enabled provider.</li>
+      <li><b>Plex:</b> syncs with the account-level Universal Watchlist.</li>
+      <li><b>Emby/Jellyfin:</b> syncs through a Plembfin-owned <code>Plembfin Watchlist</code> playlist.</li>
+      <li>Provider-only additions are imported into Plembfin and sent to the other connected services.</li>
+      <li>Missing items remain queued for retry. A restored list first performs a safe union so an empty provider cannot erase it.</li>
     </ul>
   `;
 }

@@ -56,6 +56,26 @@ test("provider episode observations share one canonical identity and keep native
   });
 });
 
+test("Plex parent GUID aliases preserve the series identity", () => {
+  const candidate = normalizeUpNextCandidate({
+    provider: "plex",
+    feed_kind: "next_up",
+    item: {
+      type: "episode",
+      ratingKey: "plex-episode-upper-case",
+      grandparentRatingKey: "plex-series-upper-case",
+      grandparentTitle: "The Expanse",
+      grandparentGUID: "tmdb://123",
+      parentIndex: 2,
+      index: 5,
+      title: "Home",
+    },
+  });
+
+  assert.equal(candidate.show_tmdb_id, "123");
+  assert.equal(candidate.canonical_key, "episode|series:tmdb:123|s:2|e:5");
+});
+
 test("title-only episode observations merge into the one compatible verified series", () => {
   const merged = mergeUpNextCandidates([
     {

@@ -60,8 +60,8 @@ None of these talk to each other - they all talk to Plembfin.
 - **Sync Activity hub** - Live grouped activity by movie/show, with all resume checkpoints and destination results preserved behind each row, targeted retry for failed or skipped destinations (individually or all at once as a background job that survives closing the tab), blocked-restore repair grouped by show with Fix Match and skip controls, and downloadable group logs
 - **Rich analytics & stats** - In-depth all-time and period reports, top shows, and platform playback distribution
 - **Personal media organization** - Save movies, shows, and episodes to a watch list or custom lists, and rate them from their media pages; episode ratings use one canonical show/season/episode identity everywhere
-- **Personal Rating Sync** - Optional, disabled-by-default rating exchange with Plex, Emby, Jellyfin, and Trakt through an isolated durable queue; local ratings are committed first and never share the watched-state Force Sync path
-- **Personal Watchlist Sync** - Optional, disabled-by-default canonical watchlist projection to Plex Universal Watchlist, Emby playlists/Favorites, and Jellyfin playlists/Favorites, with explicit first publish, ownership-safe removals, durable retries, and restore gating
+- **Personal Rating Sync** - One-toggle, two-way rating sync with every connected Plex, Emby, Jellyfin, and Trakt account through an isolated durable queue, with Plembfin as the conflict authority
+- **Personal Watchlist Sync** - One-toggle, two-way watchlist sync across Plex Universal Watchlist and Plembfin-owned Emby/Jellyfin playlists, with safe first-run union, durable retries, and a plain-language explanation of anything a service refuses
 - **Upcoming episodes calendar** - Air date schedule for upcoming and past releases, pre-cached for instant loading
 - **Discover hub** - Cached trending, now-playing, airing-today, and genre feeds paint immediately from saved data, then refresh live through the update stream with direct TMDB detail navigation
 - **Live Trakt sync** - Two-way Trakt integration with seamless device authorization, per-play history import, and resilient sync protection
@@ -72,7 +72,7 @@ None of these talk to each other - they all talk to Plembfin.
 - **Guided first-run setup** - A one-time account claim replaces the old generated-password dead end, followed by a resumable `/setup` wizard that connects media servers, adds metadata, configures webhooks, and optionally connects Trakt
 - **Self-hosted & private** - Runs entirely on your own hardware with dedicated SQLite storage and full data ownership
 - **Enterprise-grade security** - Hardened with strict Content Security Policy (CSP), scrypt password hashing, rate limiting, and HMAC session signing
-- **High-performance artwork cache** - Fast local caching for high-resolution posters, backdrops, and logos from TMDB, TheTVDB, and Fanart.tv
+- **High-performance artwork cache** - Fast local caching for high-resolution posters, backdrops, and logos from TMDB, TheTVDB, and Fanart.tv; metadata is warmed in the background as media is discovered so the dashboard stays cache-first
 - **Comprehensive metadata** - Precision episode titles, season numbering, and air dates from TheTVDB paired with rich cast, trailers, and reviews from TMDB
 - **Unified multi-source search** - Blazingly fast search across your local libraries, TMDB movies/shows/collections, and TheTVDB with local media prioritized
 - **Progressive Web App (PWA)** - Installable directly on iOS, Android, macOS, and Windows with a native app experience

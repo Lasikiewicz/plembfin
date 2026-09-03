@@ -4,7 +4,7 @@ import { fetchWithTimeout } from "./outbound.js";
 import { loadMediaConfig, loadRuntimeState, setRuntimeState } from "./configStore.js";
 import { cacheBackdropFromUrl, cacheLogoFromUrl, cachePosterFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "./posterCache.js";
 import { getFanartMovieArt, getFanartTvArt } from "./fanartGateway.js";
-import { resolveTvdbSeriesId, resolveTvdbSeriesIdFromEpisodeId, getTvdbSeriesExtended, getTvdbSeasonEpisodes, shapeTvdbSeriesAsTmdb, tvdbSeriesTitleMatches } from "./tvdbGateway.js";
+import { resolveTvdbSeriesId, resolveTvdbSeriesIdFromEpisodeId, getTvdbSeriesExtended, getTvdbSeasonEpisodes, getCachedTvdbSeasonEpisodes, shapeTvdbSeriesAsTmdb, tvdbSeriesTitleMatches } from "./tvdbGateway.js";
 
 const API_ROOT = "https://api.themoviedb.org/3";
 const IMAGE_ROOT = "https://image.tmdb.org/t/p";
@@ -19,6 +19,13 @@ const PREWARM_INTERVAL_MS = 15 * 60 * 1000;
 const inflight = new Map();
 const discoveryRefreshes = new Map();
 const discoveryRefreshRequestedAt = new Map();
+const metadataWarmupQueue = [];
+const metadataWarmupQueued = new Set();
+const metadataWarmupAttemptedAt = new Map();
+const METADATA_WARMUP_RETRY_MS = 15 * 60 * 1000;
+const MAX_METADATA_WARMUP_QUEUE = 1000;
+let metadataWarmupDrain = null;
+let metadataWarmupEnabled = false;
 let nextRequestAt = 0;
 let throttleTail = Promise.resolve();
 
@@ -63,7 +70,12 @@ const personSetStmt = db.prepare(
      schema_version=excluded.schema_version, updated_at_ms=excluded.updated_at_ms`,
 );
 
-const recentWatchStmt = db.prepare("SELECT media_type, tmdb_id, title, show_title FROM watch_history ORDER BY watched_at DESC LIMIT 30");
+const recentWatchStmt = db.prepare(`
+  SELECT media_type, tmdb_id, tvdb_id, imdb_id, title, show_title
+  FROM watch_history
+  ORDER BY watched_at DESC
+  LIMIT 2000
+`);
 
 function hash(value) {
   return crypto.createHash("sha1").update(String(value)).digest("hex");
@@ -89,6 +101,48 @@ function mediaTypeFor(value) {
   return String(value).toLowerCase() === "movie" ? "movie" : "tv";
 }
 
+function warmupMediaType(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "movie") return "movie";
+  if (["tv", "episode", "series", "show", "season"].includes(normalized)) return "tv";
+  return "";
+}
+
+function normalizeMetadataWarmupItem(item = {}, reason = "") {
+  const rawType = String(item.mediaType || item.media_type || item.type || "").trim().toLowerCase();
+  const mediaType = warmupMediaType(rawType);
+  const isLeafType = rawType === "episode" || rawType === "season";
+  if (!mediaType) return null;
+  const sourceIds = item.ids || item.show_ids || item.showIds || {};
+  const title = mediaType === "tv"
+    ? String(item.show_title || item.showTitle || item.series_title || item.seriesTitle || item.title || item.name || "").trim()
+    : String(item.title || item.name || "").trim();
+  const tmdbId = String(
+    mediaType === "tv"
+      ? item.show_tmdb_id || item.showTmdbId || (!isLeafType && (item.tmdbId || item.tmdb_id || sourceIds.tmdbId || sourceIds.tmdb_id || sourceIds.tmdb)) || ""
+      : item.tmdbId || item.tmdb_id || sourceIds.tmdbId || sourceIds.tmdb_id || sourceIds.tmdb || "",
+  ).trim();
+  const tvdbId = String(
+    mediaType === "tv"
+      ? item.show_tvdb_id || item.showTvdbId || item.tvdbId || item.tvdb_id || sourceIds.tvdbId || sourceIds.tvdb_id || sourceIds.tvdb || ""
+      : item.tvdbId || item.tvdb_id || sourceIds.tvdbId || sourceIds.tvdb_id || sourceIds.tvdb || "",
+  ).trim();
+  const imdbId = String(
+    mediaType === "tv"
+      ? item.show_imdb_id || item.showImdbId || (!isLeafType && (item.imdbId || item.imdb_id || sourceIds.imdbId || sourceIds.imdb_id || sourceIds.imdb)) || ""
+      : item.imdbId || item.imdb_id || sourceIds.imdbId || sourceIds.imdb_id || sourceIds.imdb || "",
+  ).trim();
+  if (!title && !tmdbId && !tvdbId && !imdbId) return null;
+  return {
+    mediaType,
+    tmdbId,
+    title,
+    ids: { tvdbId, imdbId },
+    verifyTvdbTitle: Boolean(item.verifyTvdbTitle),
+    reason: String(reason || item.reason || "discovery"),
+  };
+}
+
 function detailsTtl(details) {
   if (["Returning Series", "In Production", "Post Production", "Planned", "Pilot"].includes(details?.status)) return DAY_MS;
   if (["Ended", "Canceled", "Released"].includes(details?.status)) return 30 * DAY_MS;
@@ -106,6 +160,52 @@ function cacheSatisfies(cached, { light = false } = {}) {
   if (!cached?.details) return false;
   if (!light && cached.details.details_light) return false;
   return cached.schemaVersion >= DETAILS_SCHEMA_VERSION && fresh(cached, detailsTtl(cached.details));
+}
+
+function metadataCacheIds(item = {}) {
+  const ids = [];
+  if (item.mediaType === "movie") {
+    if (item.tmdbId) ids.push(`movie_${item.tmdbId}`);
+  } else {
+    if (item.tmdbId) ids.push(`tv_${item.tmdbId}`);
+    if (item.ids?.tvdbId) ids.push(`tv_tvdb_${item.ids.tvdbId}`);
+  }
+
+  // A title lookup first stores a small title -> provider-id row. Follow that
+  // pointer when it exists so cache-only consumers can still find details for
+  // records that do not carry a provider id themselves.
+  if (item.title) {
+    const parts = titleSearchParts(item.title);
+    const normalizedTitle = canonicalTitle(parts.title || item.title);
+    if (normalizedTitle) {
+      const titleKey = `title_${item.mediaType}_${hash(`${normalizedTitle}|${parts.year || ""}`)}`;
+      const titleRow = metaGet(titleKey);
+      if (titleRow?.tmdbId) ids.push(`${item.mediaType}_${titleRow.tmdbId}`);
+    }
+  }
+  return [...new Set(ids)];
+}
+
+function metadataCacheRow(item = {}) {
+  const requestedTvdbId = String(item.ids?.tvdbId || "").trim();
+  for (const cacheId of metadataCacheIds(item)) {
+    const cached = metaGet(cacheId);
+    if (!cached?.details) continue;
+    const cachedTvdbId = String(cached.details.external_ids?.tvdb_id || "").trim();
+    // A TMDB slot can have been populated by an older, incorrect match. Do
+    // not let a cache-only read turn that stale identity into another show.
+    if (item.mediaType === "tv" && requestedTvdbId && cachedTvdbId !== requestedTvdbId) continue;
+    return cached;
+  }
+  return null;
+}
+
+// Synchronous and deliberately cache-only. Interactive detail routes call
+// getTmdbDetails when they need a fresh record; dashboard projections use this
+// helper so a missing/stale provider row can never hold the HTTP request open.
+export function getCachedTmdbDetails({ mediaType, tmdbId = "", title = "", ids = {} } = {}) {
+  const item = normalizeMetadataWarmupItem({ mediaType, tmdbId, title, ids });
+  return item ? metadataCacheRow(item)?.details || null : null;
 }
 
 function boundedResults(resource, limit) {
@@ -401,6 +501,80 @@ export async function getTmdbDetails({ mediaType, tmdbId = "", title = "", ids =
   return getMovieDetails({ tmdbId, title, ids, force, light: light && !force });
 }
 
+async function drainMetadataWarmupQueue() {
+  let warmed = 0;
+  let failed = 0;
+  let firstError = "";
+  while (metadataWarmupQueue.length) {
+    const item = metadataWarmupQueue.shift();
+    metadataWarmupQueued.delete(item.key);
+    const attemptedAt = Number(metadataWarmupAttemptedAt.get(item.key) || 0);
+    if (attemptedAt && Date.now() - attemptedAt < METADATA_WARMUP_RETRY_MS) continue;
+    metadataWarmupAttemptedAt.set(item.key, Date.now());
+    try {
+      await getTmdbDetails(item);
+      warmed += 1;
+    } catch (error) {
+      failed += 1;
+      if (!firstError) firstError = String(error?.message || error || "metadata request failed");
+    }
+  }
+  if (warmed || failed) {
+    console.log(`TMDB metadata warm-up complete: ${warmed} succeeded, ${failed} failed${firstError ? ` (first: ${firstError})` : ""}.`);
+  }
+}
+
+function startMetadataWarmupDrain() {
+  if (!metadataWarmupEnabled || metadataWarmupDrain || !metadataWarmupQueue.length) return;
+  metadataWarmupDrain = drainMetadataWarmupQueue()
+    .catch((error) => console.warn(`TMDB metadata warm-up failed: ${error?.message || error}`))
+    .finally(() => {
+      metadataWarmupDrain = null;
+      startMetadataWarmupDrain();
+    });
+}
+
+// Keep imported modules and direct repository tests side-effect free. The
+// application entrypoint enables this worker once the real server process has
+// initialized; discovery can still queue work before then, and it will drain
+// as soon as the process is enabled.
+export function enableTmdbMetadataWarmup() {
+  metadataWarmupEnabled = true;
+  startMetadataWarmupDrain();
+}
+
+// Queue provider work away from request handlers. New library events and
+// provider-feed observations call this function, while the dashboard only
+// reads the SQLite cache. A single worker preserves the gateway throttle and
+// keeps a large first import from creating a provider/API or event-loop burst.
+export function queueTmdbMetadataWarmup(items = [], { reason = "discovery" } = {}) {
+  const input = Array.isArray(items) ? items : [items];
+  const accepted = [];
+  for (const raw of input) {
+    const normalized = normalizeMetadataWarmupItem(raw, reason);
+    if (!normalized) continue;
+    const key = `${normalized.mediaType}:${normalized.mediaType === "movie"
+      ? normalized.tmdbId || canonicalTitle(normalized.title)
+      : normalized.tmdbId || normalized.ids.tvdbId || normalized.ids.imdbId || canonicalTitle(normalized.title)}`.toLowerCase();
+    if (!key || metadataWarmupQueued.has(key)) continue;
+    const cached = metadataCacheRow(normalized);
+    if (cacheSatisfies(cached, { light: false })) continue;
+    metadataWarmupQueued.add(key);
+    accepted.push({ ...normalized, key });
+  }
+  // Put newly discovered media ahead of a broad backfill already in flight,
+  // then cap retained work so an unusually large library cannot grow memory
+  // without bound. Dropped entries are rediscovered by the next scheduler/feed
+  // pass and are not treated as successfully warmed.
+  for (const item of accepted.reverse()) metadataWarmupQueue.unshift(item);
+  while (metadataWarmupQueue.length > MAX_METADATA_WARMUP_QUEUE) {
+    const dropped = metadataWarmupQueue.pop();
+    metadataWarmupQueued.delete(dropped.key);
+  }
+  if (accepted.length) startMetadataWarmupDrain();
+  return { queued: accepted.length, pending: metadataWarmupQueue.length };
+}
+
 async function getMovieDetails({ tmdbId = "", title = "", ids = {}, force = false, light = false }) {
   const type = "movie";
   const resolvedId = await resolveTmdbId(type, tmdbId, title, ids);
@@ -589,7 +763,12 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
 
         Object.assign(details, await cacheCanonicalArtwork("tv", resolvedTmdbId || `tvdb-${seriesTvdbId}`, details));
       }
-      metaSet(cacheId, { tmdbId: resolvedTmdbId, mediaType: "tv", details, schemaVersion: DETAILS_SCHEMA_VERSION, updatedAtMs: Date.now() });
+      const cacheValue = { tmdbId: resolvedTmdbId, mediaType: "tv", details, schemaVersion: DETAILS_SCHEMA_VERSION, updatedAtMs: Date.now() };
+      metaSet(cacheId, cacheValue);
+      // Keep a TVDB-keyed alias as well. A library row may only know the
+      // series TVDB id, and cache-only Up Next must be able to find this fully
+      // warmed record without repeating a title/provider lookup.
+      if (resolvedTmdbId && seriesTvdbId) metaSet(`tv_tvdb_${seriesTvdbId}`, cacheValue);
       return details;
     } catch (error) {
       if (cached?.details && cachedTitleIsSafe) return { ...cached.details, cache_stale: true };
@@ -817,6 +996,20 @@ export async function getTmdbSeason({ tmdbId, tvdbId: requestedTvdbId = "", seas
   return getTvdbSeasonEpisodes({ tvdbId, seasonNumber: number });
 }
 
+// Cache-only companion for Up Next. It deliberately accepts stale season rows:
+// a background metadata warm-up will refresh them, but a dashboard request must
+// never block on TVDB when a season is missing or past its freshness window.
+export function getCachedTmdbSeason({ tmdbId = "", tvdbId: requestedTvdbId = "", seasonNumber } = {}) {
+  const id = String(tmdbId || "");
+  const directTvdbId = String(requestedTvdbId || "");
+  const number = Number(seasonNumber);
+  if ((!id && !directTvdbId) || !Number.isInteger(number) || number < 0) return null;
+  const metadata = getCachedTmdbDetails({ mediaType: "tv", tmdbId: id, ids: { tvdbId: directTvdbId } });
+  const tvdbId = directTvdbId || String(metadata?.external_ids?.tvdb_id || "");
+  if (!tvdbId) return null;
+  return getCachedTvdbSeasonEpisodes({ tvdbId, seasonNumber: number });
+}
+
 export async function getTmdbPerson(personId) {
   const id = String(personId || "");
   return collapse(`person:${id}`, async () => {
@@ -857,7 +1050,7 @@ export async function getTmdbImages({ mediaType, tmdbId, title = "", ids = {} })
   }
 }
 
-export async function prewarmTmdbLibrary({ limit = 4 } = {}) {
+export async function prewarmTmdbLibrary({ limit = 0 } = {}) {
   const runtime = await loadRuntimeState().catch(() => ({}));
   if (runtime.lastTmdbPrewarmAt && Date.now() - Number(runtime.lastTmdbPrewarmAt) < PREWARM_INTERVAL_MS) return { skipped: true };
   const rows = recentWatchStmt.all();
@@ -865,17 +1058,32 @@ export async function prewarmTmdbLibrary({ limit = 4 } = {}) {
   const seen = new Set();
   for (const data of rows) {
     const mediaType = data.media_type === "movie" ? "movie" : data.media_type === "episode" ? "tv" : "";
-    const tmdbId = String(data.tmdb_id || "");
+    // Episode rows commonly carry episode-level ids. Leave TMDB empty for TV
+    // here so getTvShowDetails can resolve a TVDB episode id to its parent
+    // series instead of caching an episode id as the show id.
+    const tmdbId = String(mediaType === "tv" ? "" : data.tmdb_id || "");
+    // watch_history stores the media-server's leaf identifiers on episode
+    // rows. They are useful for watch identity, but are not safe show ids for
+    // a scheduler backstop, so let the title resolve path find the parent
+    // series. Library-added/provider-feed events supply explicit show ids when
+    // they have them.
+    const tvdbId = String(mediaType === "tv" ? "" : data.tvdb_id || "");
+    const imdbId = String(mediaType === "tv" ? "" : data.imdb_id || "");
     const title = mediaType === "tv" ? data.show_title || data.title : data.title;
-    const key = `${mediaType}:${tmdbId || canonicalTitle(title)}`;
+    // Watched episode rows usually contain episode-level TVDB/IMDb ids, not
+    // the parent show's identity. Deduplicate the title-only TV backstop so a
+    // binge-watched series does not enqueue one provider lookup per episode.
+    const key = mediaType === "tv"
+      ? `${mediaType}:${canonicalTitle(title)}`
+      : `${mediaType}:${tmdbId || tvdbId || imdbId || canonicalTitle(title)}`;
     if (!mediaType || seen.has(key)) continue;
     seen.add(key);
-    items.push({ mediaType, tmdbId, title });
-    if (items.length >= limit) break;
+    items.push({ mediaType, tmdbId, title, ids: { tvdbId, imdbId } });
+    if (Number(limit) > 0 && items.length >= Number(limit)) break;
   }
-  for (const item of items) await getTmdbDetails(item).catch(() => null);
+  const queued = queueTmdbMetadataWarmup(items, { reason: "scheduled-library-backstop" });
   await setRuntimeState({ lastTmdbPrewarmAt: Date.now() });
-  return { warmed: items.length };
+  return { queued: queued.queued, pending: queued.pending, scanned: items.length };
 }
 
 export function getCachedTvdbId(tmdbId) {

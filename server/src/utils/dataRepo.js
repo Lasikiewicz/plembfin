@@ -3061,7 +3061,19 @@ export async function queryWatchHistoryPreview({ limit = 120 } = {}) {
       show_tvdb_id: show.tvdb_id || null,
     };
   });
-  const movieDeduped = dedupeHistory(movieRows).slice(0, safeLimit).map(compactHistoryPreviewRow);
+  const movieDeduped = dedupeHistory(movieRows).slice(0, safeLimit).map((row) => {
+    const compact = compactHistoryPreviewRow(row);
+    const canonicalPoster = getCanonicalPosterUrl({
+      media_type: "movie",
+      title: row.title,
+      tmdb_id: row.tmdb_id,
+      imdb_id: row.imdb_id,
+    });
+    return {
+      ...compact,
+      poster_url: compact.poster_url || canonicalPoster || null,
+    };
+  });
 
   const combined = [...tvDeduped, ...movieDeduped];
   combined.sort((a, b) => b.watched_at.localeCompare(a.watched_at));
@@ -4671,6 +4683,14 @@ function collapseMovieCluster(clusterRows = []) {
     if (!base.tvdb_id && row.tvdb_id) base.tvdb_id = row.tvdb_id;
     if (!base.poster_url && row.poster_url) base.poster_url = row.poster_url;
   }
+  if (!base.poster_url) {
+    base.poster_url = getCanonicalPosterUrl({
+      media_type: "movie",
+      title: base.title,
+      tmdb_id: base.tmdb_id,
+      imdb_id: base.imdb_id,
+    }) || null;
+  }
   return base;
 }
 
@@ -5026,8 +5046,20 @@ function groupShowRows(rows = []) {
 // were deliberately left un-deduped for the History page.
 async function enrichHistoryRowsWithShowArtwork(rows = []) {
   const input = Array.isArray(rows) ? rows : [];
-  const episodeRows = input.filter((row) => row?.media_type === "episode");
-  if (!episodeRows.length) return input;
+  const movieEnriched = input.map((row) => {
+    if (row?.media_type === "movie" && !row.poster_url) {
+      const canonicalPoster = getCanonicalPosterUrl({
+        media_type: "movie",
+        title: row.title,
+        tmdb_id: row.tmdb_id,
+        imdb_id: row.imdb_id,
+      });
+      return canonicalPoster ? { ...row, poster_url: canonicalPoster } : row;
+    }
+    return row;
+  });
+  const episodeRows = movieEnriched.filter((row) => row?.media_type === "episode");
+  if (!episodeRows.length) return movieEnriched;
 
   const allEpisodeRows = (await getCachedHistory()).filter((row) => (
     row?.media_type === "episode" && isPlembfinTrackedEpisodeRow(row)
@@ -5049,7 +5081,7 @@ async function enrichHistoryRowsWithShowArtwork(rows = []) {
     }
   }
 
-  return input.map((row) => {
+  return movieEnriched.map((row) => {
     if (row?.media_type !== "episode") return row;
     const titleKey = canonicalTitleKey(row.show_title || showTitleFrom(row.title));
     const coordinateKey = titleKey && row.season != null && row.episode != null
@@ -5172,7 +5204,17 @@ export async function queryShows({ search = "", sort = "title_asc", limit = 6, o
   return sorted.slice(safeOffset, safeOffset + safeLimit);
 }
 
-export async function queryShowDetail({ id = "", title = "", tmdbId = "", tvdbId = "", imdbId = "" } = {}) {
+// Reads and dedupes every tracked episode row. This is the shared prefix of
+// queryShowDetail and does not depend on which show is being asked about, so a
+// caller resolving many shows in one pass can compute it once and hand the same
+// snapshot to each call instead of repeating a full-table read and dedupe per
+// show. groupShowRows copies each row it keeps, so a shared snapshot is never
+// mutated by the calls that consume it.
+export function loadTrackedEpisodeRows() {
+  return dedupeHistory(selectAllEpisodesStmt.all().map(rowToWatch).filter(isPlembfinTrackedEpisodeRow));
+}
+
+export async function queryShowDetail({ id = "", title = "", tmdbId = "", tvdbId = "", imdbId = "", episodeRows = null } = {}) {
   const requestedId = cleanString(id);
   const requestedTmdbId = cleanString(tmdbId);
   const requestedTvdbId = cleanString(tvdbId);
@@ -5221,8 +5263,7 @@ export async function queryShowDetail({ id = "", title = "", tmdbId = "", tvdbId
   // cache: a manual watch can be committed and visible through /api/history
   // while another request still holds the previous aggregate generation,
   // making the button immediately revert despite the correct stored row.
-  const currentEpisodeRows = selectAllEpisodesStmt.all().map(rowToWatch);
-  const rows = dedupeHistory(currentEpisodeRows.filter(isPlembfinTrackedEpisodeRow))
+  const rows = (episodeRows || loadTrackedEpisodeRows())
     .filter((row) => {
       const titleMatches = key && canonicalTitleKey(showTitleFrom(row.show_title || row.title)) === key;
       if (titleMatches) return true;

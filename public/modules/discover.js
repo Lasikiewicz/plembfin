@@ -1,8 +1,8 @@
 import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
-import { escapeHtml, formatTmdbDate } from "./utils.js?v=20260824h";
-import { hydratePosters } from "./images.js?v=20260831m";
-import { renderMediaCard } from "./media-card.js?v=20260831d";
+import { escapeHtml, formatTmdbDate } from "./utils.js?v=20260903a";
+import { hydratePosters } from "./images.js?v=20260903b";
+import { renderMediaCard } from "./media-card.js?v=20260903a";
 import { mediaKeyForPersonalItem } from "./personal-media.js?v=20260903b";
 
 const DISCOVER_TTL_MS = 10 * 60 * 1000;

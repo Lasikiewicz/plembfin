@@ -8,21 +8,16 @@ its own durable queue and scheduler cadence.
 ## Settings
 
 Open **Settings → Sync → Sync Tools → Personal Rating Sync**. It is disabled by
-default. When enabled, each provider can independently use one of these directions:
+default and has one control: on or off. When enabled, every connected Plex, Emby,
+Jellyfin, and Trakt account participates in two-way sync on a five-minute cadence.
+The first complete snapshot imports provider ratings; later snapshots reconcile
+additions, changes, and removals. A partial or failed snapshot cannot clear local
+ratings through missing rows.
 
-- **Off** - keep ratings local only.
-- **Send local ratings** - queue Plembfin changes for that provider.
-- **Receive remote ratings** - import that provider's ratings into Plembfin.
-- **Two-way sync** - receive remote changes and send canonical changes back out.
-
-The first snapshot uses **Baseline** by default. Baseline records the provider's
-current ratings without changing local ratings; choose **Import** when the provider
-should seed Plembfin. Later complete snapshots reconcile additions and removals. A
-partial or failed snapshot cannot clear local ratings through missing rows.
-
-`local_wins` keeps a newer local rating when a remote observation conflicts with it;
-`remote_wins` applies the remote observation. Outbound intent markers suppress an
-echo of a change Plembfin just sent.
+Plembfin remains the source of truth. A newer canonical Plembfin value wins a
+conflict and is queued back to the provider. A provider value with no newer local
+change is imported and fanned out to the other connected providers. Outbound intent
+markers suppress an echo of a change Plembfin just sent.
 
 ## Local writes and queue behavior
 
@@ -51,12 +46,11 @@ Plembfin can resolve a Trakt leaf ID from show identity and season/episode
 coordinates, then retry with the canonical episode ID when an external episode ID
 is rejected.
 
-## Manual actions and API
+## API
 
-The Settings panel can run a complete rating snapshot or push local ratings. The
-title Force Sync modal also has a **Push Personal Rating** row for the currently
-open title. Both actions target one provider or all enabled send providers and do
-not enter the watched-state Force Sync activity or operation lock.
+Enabling the Settings toggle starts a complete rating sync immediately. The title
+Force Sync modal retains its targeted **Push Personal Rating** troubleshooting
+action; it does not enter the watched-state Force Sync activity or operation lock.
 
 The authenticated endpoints are:
 

@@ -30,16 +30,25 @@ async function accountToken(config = {}) {
   return String(config.token || "");
 }
 
+// `config.baseUrl` is the selected Plex Media Server URL. Universal Watchlist is
+// account-scoped, so never silently send account requests to that server. A
+// deployment may provide an explicitly validated private/account base; otherwise
+// use Plex's account service hosts.
+//
+// Two hosts serve this account surface and they are not interchangeable in
+// practice: the watchlist collection and its add/remove actions live on the
+// metadata host, while catalog search lives on the discover host. Both stay
+// overridable so a deployment can point them elsewhere.
 function baseUrl(config = {}) {
-  // `baseUrl` is the selected Plex Media Server URL. Universal Watchlist is
-  // account-scoped, so never silently send account requests to that server.
-  // A deployment may provide an explicitly validated private/account base;
-  // otherwise use Plex's account service host.
-  return trimTrailingSlash(config.watchlistBaseUrl || "https://discover.provider.plex.tv");
+  return trimTrailingSlash(config.watchlistBaseUrl || "https://metadata.provider.plex.tv");
 }
 
-function urlFor(config, pathname, params = {}) {
-  const url = new URL(`${baseUrl(config)}${pathname.startsWith("/") ? pathname : `/${pathname}`}`);
+function discoverUrl(config = {}) {
+  return trimTrailingSlash(config.watchlistDiscoverUrl || config.watchlistBaseUrl || "https://discover.provider.plex.tv");
+}
+
+function urlFor(config, pathname, params = {}, host = baseUrl(config)) {
+  const url = new URL(`${host}${pathname.startsWith("/") ? pathname : `/${pathname}`}`);
   for (const [key, value] of Object.entries(params)) {
     if (value !== undefined && value !== null && value !== "") url.searchParams.set(key, String(value));
   }
@@ -61,9 +70,9 @@ async function plexHeaders(config) {
   };
 }
 
-async function plexRequest(config, pathname, { method = "GET", params = {}, body } = {}) {
+async function plexRequest(config, pathname, { method = "GET", params = {}, body, host } = {}) {
   const headers = await plexHeaders(config);
-  return requestJson(urlFor(config, pathname, params), {
+  return requestJson(urlFor(config, pathname, params, host || baseUrl(config)), {
     method,
     headers,
     ...(body === undefined ? {} : { body }),
@@ -136,6 +145,17 @@ function plexItemsFromBody(body) {
   if (Array.isArray(body?.MediaContainer?.Metadata)) return body.MediaContainer.Metadata;
   if (Array.isArray(body?.Metadata)) return body.Metadata;
   if (Array.isArray(body?.MediaContainer?.Hub)) return body.MediaContainer.Hub.flatMap((hub) => hub.Metadata || []);
+  // Discover search nests each hit one or two levels deep, as
+  // SearchResults[].SearchResult[].Metadata. Some responses omit the outer
+  // grouping and return SearchResult directly.
+  const searchResults = body?.MediaContainer?.SearchResults || body?.SearchResults;
+  if (Array.isArray(searchResults)) {
+    return searchResults.flatMap((group) => (Array.isArray(group?.SearchResult) ? group.SearchResult : []))
+      .map((result) => result?.Metadata || result)
+      .filter(Boolean);
+  }
+  const searchResult = body?.MediaContainer?.SearchResult || body?.SearchResult;
+  if (Array.isArray(searchResult)) return searchResult.map((result) => result?.Metadata || result).filter(Boolean);
   return listItems(body);
 }
 
@@ -143,9 +163,16 @@ export async function listManagedItems(config, { cursor = null, pageSize = 100 }
   const representation = config.watchlistRepresentation || config.representation || "native";
   if (representation === "rss") return fetchPlexWatchlistRss(config);
   const startIndex = Number(cursor?.startIndex || 0);
-  const body = await plexRequest(config, config.watchlistListPath || "/library/metadata", {
+  // The Universal Watchlist is a section on the account metadata host, not an
+  // item lookup: `/library/metadata` with no rating key is not a valid endpoint
+  // there and answers 501, which silently failed every read, every write that
+  // needed the snapshot fallback, and every import of an addition made in Plex.
+  // `includeExternalMedia` is required for entries whose title is not on any
+  // server the account can reach, which is most of a watchlist.
+  const body = await plexRequest(config, config.watchlistListPath || "/library/sections/watchlist/all", {
     params: {
-      type: "1,4",
+      includeCollections: 1,
+      includeExternalMedia: 1,
       includeGuids: 1,
       "X-Plex-Container-Start": startIndex,
       "X-Plex-Container-Size": pageSize,
@@ -154,7 +181,10 @@ export async function listManagedItems(config, { cursor = null, pageSize = 100 }
   });
   const rawItems = plexItemsFromBody(body);
   const normalized = rawItems.map((item) => normalizePlexItem(item)).filter(Boolean);
-  const page = pageResult(body?.MediaContainer || body, rawItems, startIndex, pageSize);
+  // `pageResult` reads the total from `MediaContainer.totalSize`, so it needs the
+  // whole response: handing it the already-unwrapped container hid the total and
+  // left pagination on the page-size heuristic.
+  const page = pageResult(body, rawItems, startIndex, pageSize);
   return { ...page, complete: !page.nextCursor, items: normalized, container: null };
 }
 
@@ -212,10 +242,22 @@ export async function fetchPlexWatchlistRss(config) {
   return parsePlexRss(await response.text());
 }
 
+// `/hubs/search` is a Plex Media Server endpoint. Resolving a watchlist target
+// has to search the Plex catalog instead, because the whole point is to add
+// titles the account does not own; that search lives on the discover host and
+// answers with SearchResults rather than a plain Metadata list.
 async function searchPlex(config, media) {
   const normalized = normalizePersonalWatchlistMedia(media);
-  const body = await plexRequest(config, config.watchlistSearchPath || "/hubs/search", {
-    params: { query: normalized.title, type: normalized.media_type === "movie" ? 1 : 4, includeGuids: 1, ...(config.watchlistSearchParams || {}) },
+  const body = await plexRequest(config, config.watchlistSearchPath || "/library/search", {
+    host: discoverUrl(config),
+    params: {
+      query: normalized.title,
+      searchTypes: normalized.media_type === "movie" ? "movies" : "tv",
+      includeMetadata: 1,
+      includeGuids: 1,
+      limit: 30,
+      ...(config.watchlistSearchParams || {}),
+    },
   });
   return plexItemsFromBody(body);
 }
@@ -257,14 +299,39 @@ function pathWithId(template, id) {
   return String(template).replace(/\{id\}/g, encodeURIComponent(id));
 }
 
+// A watchlist rating key is the account catalog's key, which is also the last
+// segment of a `plex://movie/<key>` guid. Prefer the resolved item id and fall
+// back to the guid so a target carrying only a guid still resolves.
+function watchlistRatingKey(target = {}) {
+  const id = String(target.id || target.provider_item_id || target.rating_key || "");
+  if (id) return id;
+  const guid = String(target.media?.provider_ids?.plex || target.item?.guid || target.media?.guid || "");
+  const match = guid.match(/^plex:\/\/[^/]+\/(.+)$/);
+  return match ? match[1] : "";
+}
+
+// Writes go through the account action endpoints. The older
+// `/library/metadata/{id}/watchlist` form is kept working for a deployment that
+// pins it: a configured path containing `{id}` is still substituted, while the
+// action endpoints take the key as a `ratingKeys` query parameter instead. Both
+// actions are PUT; remove is not a DELETE against these endpoints.
+async function writeWatchlistAction(config, { path, method, id }) {
+  const usesPathId = path.includes("{id}");
+  await plexRequest(config, usesPathId ? pathWithId(path, id) : path, {
+    method,
+    params: { ...(usesPathId ? {} : { ratingKeys: id }), ...(config.watchlistWriteParams || {}) },
+  });
+}
+
 export async function add(config, { target } = {}) {
   const representation = config.watchlistRepresentation || config.representation || "native";
   if (representation !== "native") throw Object.assign(new Error("Plex RSS watchlists are read-only"), { code: "WATCHLIST_READ_ONLY", status: 405 });
-  const id = String(target?.id || target?.provider_item_id || "");
+  const id = watchlistRatingKey(target);
   if (!id) throw new Error("Plex watchlist add needs an item id");
-  await plexRequest(config, pathWithId(config.watchlistAddPath || "/library/metadata/{id}/watchlist", id), {
+  await writeWatchlistAction(config, {
+    path: config.watchlistAddPath || "/actions/addToWatchlist",
     method: config.watchlistAddMethod || "PUT",
-    params: config.watchlistWriteParams || {},
+    id,
   });
   return { id, representation };
 }
@@ -272,11 +339,12 @@ export async function add(config, { target } = {}) {
 export async function remove(config, { target } = {}) {
   const representation = config.watchlistRepresentation || config.representation || "native";
   if (representation !== "native") throw Object.assign(new Error("Plex RSS watchlists are read-only"), { code: "WATCHLIST_READ_ONLY", status: 405 });
-  const id = String(target?.id || target?.provider_item_id || "");
+  const id = watchlistRatingKey(target);
   if (!id) return { removed: false, reason: "missing_provider_item_id" };
-  await plexRequest(config, pathWithId(config.watchlistRemovePath || "/library/metadata/{id}/watchlist", id), {
-    method: config.watchlistRemoveMethod || "DELETE",
-    params: config.watchlistWriteParams || {},
+  await writeWatchlistAction(config, {
+    path: config.watchlistRemovePath || "/actions/removeFromWatchlist",
+    method: config.watchlistRemoveMethod || "PUT",
+    id,
   });
   return { removed: true, id, representation };
 }

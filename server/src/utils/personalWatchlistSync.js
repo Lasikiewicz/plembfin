@@ -1,11 +1,12 @@
 import crypto from "node:crypto";
-import { isAuthoritativeRestoreActive, loadMediaConfig, saveMediaConfig } from "./configStore.js";
+import { isAuthoritativeRestoreActive, loadMediaConfig } from "./configStore.js";
 import { getMediaConnection } from "./mediaConnectionRepo.js";
 import * as plexAdapter from "./plexWatchlistClient.js";
 import * as embyAdapter from "./embyWatchlistClient.js";
 import * as jellyfinAdapter from "./jellyfinWatchlistClient.js";
 import {
   WATCHLIST_PROVIDERS,
+  applyWatchlistMutation,
   beginWatchlistSyncRun,
   enabledWatchlistProviderScopes,
   watchlistProviderScopes,
@@ -27,6 +28,7 @@ import {
   updateWatchlistSyncRun,
   upsertProviderWatchlistItem,
   watchlistQueueCounts,
+  watchlistQueueIssues,
   listWatchlistSyncRuns,
   watchlistProviderScope,
   retryWatchlistQueue,
@@ -153,19 +155,19 @@ async function recordProviderSnapshot(scope, config, run, snapshot, { destructiv
   const previousRows = previousRemoteRows(scope);
   const seenProviderItems = new Set();
   const seenCanonicalKeys = new Set();
-  const unmatchedManaged = [];
   let presentCount = 0;
+  let addedCount = 0;
 
   for (const item of snapshot.items || []) {
     const normalizedRemote = remoteMedia(item);
     if (!normalizedRemote) continue;
-    const canonicalMedia = matchingCanonical(normalizedRemote, aliases);
-    const media = canonicalMedia || normalizedRemote;
+    let canonicalMedia = matchingCanonical(normalizedRemote, aliases);
+    let media = canonicalMedia || normalizedRemote;
     const existing = canonicalMedia
       ? previousRows.find((row) => row.media_key === canonicalMedia.media_key)
       : null;
     const isFavorites = scope.representation === "favorites";
-    const managed = isFavorites ? Boolean(existing?.managed_by_plembfin) : item.managed !== false;
+    let managed = isFavorites ? Boolean(existing?.managed_by_plembfin) : item.managed !== false;
     const providerItemId = clean(item.provider_item_id || item.providerItemId || item.rating_key || item.id, 300);
     const providerIds = {
       ...(item.provider_ids || item.providerIds || {}),
@@ -173,7 +175,30 @@ async function recordProviderSnapshot(scope, config, run, snapshot, { destructiv
     };
     if (providerItemId) seenProviderItems.add(providerItemId);
     if (canonicalMedia) seenCanonicalKeys.add(canonicalMedia.media_key);
-    if (!canonicalMedia && managed) unmatchedManaged.push({ item, media, providerItemId });
+    if (!canonicalMedia) {
+      const latest = getLatestWatchlistMutation(media.media_key);
+      const newerLocalRemoval = latest?.desired_state === "absent"
+        && latest.canonical_revision > Number(previousRun?.canonical_revision || 0);
+      if (!newerLocalRemoval) {
+        const addition = applyWatchlistMutation(media, "present", {
+          config,
+          origin: scope.provider,
+          reason: "provider_added",
+          eventFingerprint: `snapshot:${run.run_id}:present:${providerItemId || media.media_key}`,
+          eventAt: item.added_at || item.addedAt || item.updated_at || item.updatedAt || Date.now(),
+          timestamp: Date.now(),
+          guardStale: true,
+        });
+        if (!addition.stale && !addition.duplicate) {
+          addedCount += 1;
+          canonicalMedia = addition.media;
+          media = addition.media;
+          managed = true;
+          seenCanonicalKeys.add(media.media_key);
+          for (const alias of personalWatchlistMediaAliases(media)) aliases.set(alias, media);
+        }
+      }
+    }
     upsertProviderWatchlistItem({
       provider: scope.provider,
       connectionId: scope.connectionId,
@@ -236,42 +261,6 @@ async function recordProviderSnapshot(scope, config, run, snapshot, { destructiv
     }
   }
 
-  // A dedicated Plembfin playlist has an ownership boundary. On explicit
-  // initial publish, provider-only entries in that playlist may be removed;
-  // remote favorites and native Plex watchlist entries remain unmanaged.
-  let queuedExtras = 0;
-  const cleanManagedExtras = ["playlist", "favorites"].includes(scope.representation)
-    && (destructive || (previousRun?.status === "succeeded" && previousRun.complete_snapshot));
-  if (cleanManagedExtras) {
-    for (const extra of unmatchedManaged) {
-      queueWatchlistMutationForProvider({
-        provider: scope.provider,
-        connectionId: scope.connectionId,
-        remoteScopeKey: scope.remoteScopeKey,
-        representation: scope.representation,
-        media: extra.media,
-        desiredState: "absent",
-        canonicalRevision: getWatchlistRevision(),
-        providerItemId: extra.providerItemId,
-        timestamp: Date.now(),
-      });
-      queuedExtras += 1;
-      recordWatchlistActivity({
-        provider: scope.provider,
-        connectionId: scope.connectionId,
-        remoteScopeKey: scope.remoteScopeKey,
-        representation: scope.representation,
-        media: extra.media,
-        mediaKey: extra.media.media_key,
-        action: "provider_extra",
-        origin: "reconcile",
-        reason: destructive ? "initial_publish" : "provider_extra",
-        status: "queued",
-        details: "Provider-only item in the Plembfin-owned playlist queued for removal after explicit confirmation.",
-      });
-    }
-  }
-
   const complete = updateWatchlistSyncRun({
     ...scope,
     status: "succeeded",
@@ -284,7 +273,7 @@ async function recordProviderSnapshot(scope, config, run, snapshot, { destructiv
     snapshotHash: snapshotHash(snapshot.items || []),
     cursor: null,
   });
-  return { run: complete, scannedCount: presentCount, presentCount, removedCount, queuedExtras, seenCanonicalKeys };
+  return { run: complete, scannedCount: presentCount, presentCount, addedCount, removedCount, queuedExtras: 0, seenCanonicalKeys };
 }
 
 async function runProviderSnapshot(scope, config, { mode = "reconcile", destructive = false } = {}) {
@@ -431,20 +420,10 @@ async function processQueueRow(row, config) {
   }
 }
 
-export async function processWatchlistQueue({ config = null, provider = "", limit = 25, budgetMs = DEFAULT_BUDGET_MS, allowUnpublished = false } = {}) {
+export async function processWatchlistQueue({ config = null, provider = "", limit = 25, budgetMs = DEFAULT_BUDGET_MS } = {}) {
   if (isAuthoritativeRestoreActive()) return { claimed: 0, counts: {}, skipped: "authoritative-restore-active" };
   const effectiveConfig = config || await loadMediaConfig();
-  if (!allowUnpublished && getWatchlistRestoreState().pending) {
-    return { claimed: 0, counts: {}, skipped: "restore-publish-required" };
-  }
-  if (!allowUnpublished) {
-    const published = new Set(watchlistProviderScopes(effectiveConfig, { publishedOnly: true }).map((scope) => `${scope.provider}:${scope.connectionId}:${scope.remoteScopeKey}:${scope.representation}`));
-    const configured = watchlistProviderScopes(effectiveConfig).filter((scope) => !provider || scope.provider === provider);
-    if (configured.length && !configured.some((scope) => published.has(`${scope.provider}:${scope.connectionId}:${scope.remoteScopeKey}:${scope.representation}`))) {
-      return { claimed: 0, counts: {}, skipped: "publish-required" };
-    }
-  }
-  const allowedScopes = watchlistProviderScopes(effectiveConfig, { publishedOnly: !allowUnpublished })
+  const allowedScopes = watchlistProviderScopes(effectiveConfig)
     .filter((scope) => !provider || scope.provider === provider);
   if (!allowedScopes.length) return { claimed: 0, counts: {}, skipped: "no-enabled-provider" };
   const allowedKeys = new Set(allowedScopes.map((scope) => `${scope.provider}:${scope.connectionId}:${scope.remoteScopeKey}:${scope.representation}`));
@@ -508,10 +487,11 @@ export function getWatchlistSyncStatus(config = {}) {
       ...capability,
       enabled: Boolean(setting.enabled),
       publishConfirmedAt: Number(setting.publishConfirmedAt || 0),
-      awaitingPublish: Boolean(setting.enabled && !Number(setting.publishConfirmedAt || 0)),
+      awaitingPublish: false,
       queue,
       pending: Number(queue.pending || 0) + Number(queue.processing || 0),
       unavailable: items.filter((item) => item.remote_state === "unavailable" || item.sync_status === "not_available").length,
+      issues: watchlistQueueIssues({ provider }),
       lastRun: run,
     };
   });
@@ -523,6 +503,7 @@ export function getWatchlistSyncStatus(config = {}) {
     revision: getWatchlistRevision(),
     canonicalCount: listCanonicalWatchlist().length,
     queue: watchlistQueueCounts(),
+    issues: watchlistQueueIssues(),
     providers,
     runs: listWatchlistSyncRuns(),
   };
@@ -571,32 +552,27 @@ export async function previewWatchlistSync({ config = null, providers = [] } = {
 export async function runWatchlistSync({ mode = "reconcile", confirm = false, providers = [], config = null, budgetMs = DEFAULT_BUDGET_MS } = {}) {
   if (isAuthoritativeRestoreActive()) return { ok: true, skipped: true, reason: "authoritative-restore-active", mode, results: [], elapsedMs: 0 };
   const normalizedMode = mode === "publish" ? "publish" : mode === "retry" ? "retry" : "reconcile";
-  if (normalizedMode === "publish" && confirm !== true) {
-    const error = new Error("Initial watchlist publish requires explicit confirmation");
-    error.status = 400;
-    throw error;
-  }
   const effectiveConfig = config || await loadMediaConfig();
   const restorePending = getWatchlistRestoreState().pending;
-  if (restorePending && normalizedMode !== "publish") {
-    return { ok: false, mode: normalizedMode, requiresPublish: true, restorePending: true, results: [], elapsedMs: 0 };
-  }
-  if (normalizedMode === "publish" && restorePending) clearWatchlistRemoteProjection();
+  // A restored canonical list performs the same non-destructive union as a
+  // first activation. Clearing stale observations prevents an old absence
+  // from being mistaken for a new provider removal.
+  if (restorePending) clearWatchlistRemoteProjection();
   const startedAt = Date.now();
   const results = [];
   if (normalizedMode === "retry") retryWatchlistQueue({ timestamp: startedAt });
   else reconcileWatchlistQueueForConfig(effectiveConfig, { timestamp: startedAt });
-  for (const scope of scopesForRequest(effectiveConfig, providers, { publishedOnly: normalizedMode !== "publish" })) {
+  for (const scope of scopesForRequest(effectiveConfig, providers)) {
     if (Date.now() - startedAt >= budgetMs) break;
     const capability = capabilityFor(scope, effectiveConfig);
-    if (normalizedMode === "publish" && (!capability.add || !capability.remove)) {
+    if (!capability.read || !capability.add || !capability.remove) {
       const reason = capability.reason || "This provider representation cannot publish watchlist changes.";
       recordWatchlistActivity({
         provider: scope.provider,
         connectionId: scope.connectionId,
         remoteScopeKey: scope.remoteScopeKey,
         representation: scope.representation,
-        action: "publish",
+        action: "sync",
         origin: "system",
         reason: "capability",
         status: "not_available",
@@ -612,18 +588,12 @@ export async function runWatchlistSync({ mode = "reconcile", confirm = false, pr
     }
     let snapshotResult = null;
     if (normalizedMode !== "retry") {
-      snapshotResult = await runProviderSnapshot(scope, effectiveConfig, {
-        mode: normalizedMode === "publish" ? "initial_publish" : "reconcile",
-        destructive: normalizedMode === "publish" && confirm === true,
-      });
+      snapshotResult = await runProviderSnapshot(scope, effectiveConfig, { mode: "reconcile", destructive: false });
     }
-    const processed = await processWatchlistQueue({ config: effectiveConfig, provider: scope.provider, limit: 50, allowUnpublished: normalizedMode === "publish", budgetMs: Math.max(1000, budgetMs - (Date.now() - startedAt)) });
-    results.push({ provider: scope.provider, representation: scope.representation, snapshot: snapshotResult ? { status: snapshotResult.run?.status || "failed", scanned: snapshotResult.scannedCount, removed: snapshotResult.removedCount, queuedExtras: snapshotResult.queuedExtras, error: snapshotResult.error ? redactError(snapshotResult.error) : "" } : null, processed });
-    if (normalizedMode === "publish" && snapshotResult?.run?.status === "succeeded") {
-      await saveMediaConfig({ watchlistSync: { providers: { [scope.provider]: { publishConfirmedAt: Date.now() } } } });
-    }
+    const processed = await processWatchlistQueue({ config: effectiveConfig, provider: scope.provider, limit: 50, budgetMs: Math.max(1000, budgetMs - (Date.now() - startedAt)) });
+    results.push({ provider: scope.provider, representation: scope.representation, snapshot: snapshotResult ? { status: snapshotResult.run?.status || "failed", scanned: snapshotResult.scannedCount, added: snapshotResult.addedCount, removed: snapshotResult.removedCount, error: snapshotResult.error ? redactError(snapshotResult.error) : "" } : null, processed });
   }
-  if (normalizedMode === "publish" && results.length && results.every((result) => !result.snapshot?.error && result.snapshot?.status === "succeeded")) {
+  if (restorePending && results.length && results.every((result) => !result.snapshot?.error && result.snapshot?.status === "succeeded")) {
     clearWatchlistRestorePending();
   }
   return { ok: results.every((result) => !result.snapshot?.error), mode: normalizedMode, results, elapsedMs: Date.now() - startedAt };
@@ -633,12 +603,13 @@ export async function runWatchlistSyncScheduler({ budgetMs = DEFAULT_BUDGET_MS }
   if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active" };
   const config = await loadMediaConfig();
   if (config.watchlistSync?.enabled !== true) return { skipped: true, reason: "disabled" };
-  if (getWatchlistRestoreState().pending) return { skipped: true, reason: "restore-publish-required" };
   const startedAt = Date.now();
   reconcileWatchlistQueueForConfig(config, { timestamp: startedAt });
   const results = [];
   const intervalMs = Math.max(5, Number(config.watchlistSync.intervalMinutes || 5)) * 60_000;
-  for (const scope of watchlistProviderScopes(config, { publishedOnly: true })) {
+  const restorePending = getWatchlistRestoreState().pending;
+  if (restorePending) clearWatchlistRemoteProjection();
+  for (const scope of watchlistProviderScopes(config)) {
     if (Date.now() - startedAt >= budgetMs) break;
     const lastRun = getWatchlistSyncRun(scope);
     let snapshot = null;
@@ -647,6 +618,9 @@ export async function runWatchlistSyncScheduler({ budgetMs = DEFAULT_BUDGET_MS }
     }
     const processed = await processWatchlistQueue({ config, provider: scope.provider, limit: 25, budgetMs: Math.max(1000, budgetMs - (Date.now() - startedAt)) });
     results.push({ provider: scope.provider, snapshot: snapshot ? snapshot.run?.status || "failed" : "not_due", processed });
+  }
+  if (restorePending && results.length && results.every((result) => result.snapshot === "succeeded" || result.snapshot === "not_due")) {
+    clearWatchlistRestorePending();
   }
   return { skipped: false, results, elapsedMs: Date.now() - startedAt };
 }

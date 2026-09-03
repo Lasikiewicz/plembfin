@@ -132,7 +132,7 @@ stays set to the slug throughout, so the address bar keeps the `/tvshow/:key` fo
   locally across restarts, while search can prefetch the next 12 months to list matches
   outside the visible range - see [upcoming.md](upcoming.md).
 - Up Next loads through `/api/up-next` only while the dashboard is visible, hydrates a
-  24-hour `plembfin:upNextCache:v2` localStorage snapshot for instant first paint, and
+  24-hour `plembfin:upNextCache:v4` localStorage snapshot for instant first paint, and
   uses a durable mixed movie/episode server snapshot with stale-while-revalidate. Resume
   cards are ordered by canonical progress updates and released provider/local `next_up`
   cards follow a stable order; a matching resume/next-up observation renders once. A
@@ -181,14 +181,11 @@ artwork remains independent from the show's poster.
 ### Personal Watchlist Sync settings
 
 The Personal Watchlist Sync panel lives in Settings → Sync → Sync Tools and is rendered
-by `watchlist-sync-settings.js`. It keeps the global feature and each provider's
-enablement/representation controls separate from the media-server connection cards:
-Plex offers Universal Watchlist native mode or RSS read-only mode, while Emby and
-Jellyfin offer a Plembfin-owned playlist or an ownership-aware Favorites mode. Status
-polling shows the canonical count, pending delivery, unavailable items, provider user
-scope, last complete snapshot, and recent activity. Preview reads remote state without
-writing; Publish local list is a separate confirmation-gated action. A restored local
-watchlist remains visibly blocked until that publish action is completed.
+by `watchlist-sync-settings.js`. It exposes one on/off control and a read-only summary
+of connected providers: Plex uses Universal Watchlist, while Emby and Jellyfin use a
+Plembfin-owned playlist. Status polling reports the overall sync state and provider
+capability. Enabling it immediately starts a safe-union sync, so provider-only additions
+are imported and fanned out without allowing an empty first snapshot to erase Plembfin.
 
 At mobile widths, Discover, Watchlist, Ratings, Custom Lists, and History use the
 dashboard's compact poster-first card geometry. Each feed or collection is a

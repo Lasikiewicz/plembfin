@@ -1,18 +1,82 @@
 import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
-import { escapeHtml } from "./utils.js?v=20260824h";
-import { hydratePosters } from "./images.js?v=20260831m";
-import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=20260831j";
-import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=20260831m";
+import { escapeHtml } from "./utils.js?v=20260903b";
+import { hydratePosters } from "./images.js?v=20260903b";
+import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=20260903b";
+import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=20260903c";
 
 const UP_NEXT_TTL_MS = 2 * 60 * 1000;
 const UP_NEXT_TIMEOUT_MS = 20000;
-const UP_NEXT_CACHE_KEY = "plembfin:upNextCache:v3";
+const UP_NEXT_DISMISSED_KEY = "plembfin:upNextDismissed:v1";
+const UP_NEXT_CACHE_KEY = "plembfin:upNextCache:v4";
 const UP_NEXT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 let _cb = {};
 let actionsBound = false;
 let cacheHydrated = false;
+let dismissedUpNext = readDismissedUpNext();
+
+function readDismissedUpNext() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(UP_NEXT_DISMISSED_KEY) || "{}");
+    if (Array.isArray(raw)) {
+      const map = {};
+      for (const id of raw) {
+        if (id) map[String(id).trim()] = Date.now();
+      }
+      return map;
+    }
+    if (raw && typeof raw === "object") return raw;
+    return {};
+  } catch {
+    return {};
+  }
+}
+
+function persistDismissedUpNext() {
+  try {
+    const entries = Object.entries(dismissedUpNext);
+    const bounded = Object.fromEntries(entries.slice(-300));
+    localStorage.setItem(UP_NEXT_DISMISSED_KEY, JSON.stringify(bounded));
+  } catch {
+  }
+}
+
+export function isUpNextItemDismissed(item) {
+  if (!item) return false;
+  const id = String(item.id || "").trim();
+  const mediaKey = String(item.media_key || item.mediaKey || "").trim();
+  const dismissedAt = (id && dismissedUpNext[id]) || (mediaKey && dismissedUpNext[mediaKey]);
+  if (!dismissedAt) return false;
+
+  const updatedAt = Number(item.updated_at || item.updatedAt || 0);
+  if (updatedAt && updatedAt > dismissedAt && (Number(item.position_ms) > 0 || Number(item.progress) > 0)) {
+    if (id) delete dismissedUpNext[id];
+    if (mediaKey) delete dismissedUpNext[mediaKey];
+    persistDismissedUpNext();
+    return false;
+  }
+  return true;
+}
+
+export function dismissUpNextId(id, mediaKey = "") {
+  const cleanId = String(id || "").trim();
+  const cleanKey = String(mediaKey || "").trim();
+  if (cleanId) dismissedUpNext[cleanId] = Date.now();
+  if (cleanKey) dismissedUpNext[cleanKey] = Date.now();
+  persistDismissedUpNext();
+}
+
+export function removeUpNextItem(itemId, details = {}) {
+  const id = String(itemId || "").trim();
+  const mediaKey = String(details.media_key || details.mediaKey || "").trim();
+  if (!id && !mediaKey) return;
+  dismissUpNextId(id, mediaKey);
+  state.upNextExitIds = [id || mediaKey];
+  state.upNextItems = state.upNextItems.filter((item) => String(item?.id || "") !== id && String(item?.media_key || "") !== mediaKey);
+  persistUpNextCache(visibleUpNextItems());
+  renderUpNext();
+}
 
 const UP_NEXT_PROVIDER_LABELS = {
   plex: "Plex",
@@ -158,7 +222,8 @@ function hydrateUpNextCache() {
 }
 
 function visibleUpNextItems() {
-  return Array.isArray(state.upNextItems) ? state.upNextItems : [];
+  const items = Array.isArray(state.upNextItems) ? state.upNextItems : [];
+  return items.filter((item) => !isUpNextItemDismissed(item));
 }
 
 export function initUpNext(callbacks = {}) {
@@ -264,8 +329,8 @@ export function renderUpNext({ exitIds = [] } = {}) {
     eager_poster: index < 12,
   })).join("");
   commitPanel(html, () => {
-    hydratePosters(panel);
-    hydrateMediaAppLinks(panel).catch(() => { });
+    hydratePosters(panel, { allowNetwork: false });
+    hydrateMediaAppLinks(panel, { allowNetwork: false }).catch(() => { });
   });
 }
 
@@ -308,7 +373,7 @@ export async function loadUpNext({ force = false, fromSse = false } = {}) {
     if (requestVersion !== state.upNextRequestVersion) return;
     const previousIds = new Set(visibleUpNextItems().map((item) => String(item?.id || "")).filter(Boolean));
     const nextItems = Array.isArray(body.items) ? body.items : [];
-    const nextIds = new Set(nextItems.map((item) => String(item?.id || "")).filter(Boolean));
+    const nextIds = new Set(nextItems.filter((item) => !isUpNextItemDismissed(item)).map((item) => String(item?.id || "")).filter(Boolean));
     state.upNextExitIds = [...previousIds].filter((id) => !nextIds.has(id));
     state.upNextItems = nextItems;
     const responseVersion = Number(body.upNextVersion);
@@ -317,7 +382,7 @@ export async function loadUpNext({ force = false, fromSse = false } = {}) {
     state.upNextSourceStatus = Array.isArray(body.sourceStatus) ? body.sourceStatus : [];
     state.upNextFromCache = body.cacheStale === true;
     state.upNextLoadedAt = state.upNextFromCache ? 0 : Date.now();
-    persistUpNextCache(state.upNextItems, {
+    persistUpNextCache(visibleUpNextItems(), {
       savedAt: state.upNextFromCache ? Number(body.builtAt || 0) || Date.now() : Date.now(),
       version: state.upNextVersion,
       sourceVersion: state.upNextSourceVersion,

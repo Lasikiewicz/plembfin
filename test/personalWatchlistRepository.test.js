@@ -28,6 +28,8 @@ const {
 } = await import("../server/src/utils/personalWatchlistIdentity.js");
 
 const config = {
+  plex: { baseUrl: "https://plex.example", accountToken: "plex-token" },
+  emby: { baseUrl: "https://emby.example", apiKey: "emby-token", userId: "emby-user" },
   watchlistSync: {
     enabled: true,
     providers: {

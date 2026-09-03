@@ -1,5 +1,6 @@
 import { db, getDataVersion, bumpUpNextVersion, parseJson, toJson } from "../db.js";
 import { normalizeUpNextCandidate } from "./upNextIdentity.js";
+import { queueTmdbMetadataWarmup } from "./tmdbGateway.js";
 
 const PROVIDERS = new Set(["plex", "emby", "jellyfin"]);
 const FEED_KINDS = new Set(["resume", "next_up"]);
@@ -231,6 +232,25 @@ function contentSignature(items = []) {
   })));
 }
 
+function metadataWarmupItems(candidates = []) {
+  return candidates.map((candidate) => {
+    const isMovie = candidate.media_type === "movie";
+    return {
+      mediaType: isMovie ? "movie" : "tv",
+      // A TV feed item can carry the episode's TMDB id in tmdb_id. Only pass
+      // an explicit show id to the warm-up path; the gateway can safely
+      // resolve a TVDB episode id, while a TMDB episode id must not become a
+      // series cache key.
+      tmdbId: isMovie ? candidate.tmdb_id || "" : candidate.show_tmdb_id || "",
+      title: isMovie ? candidate.title || "" : candidate.show_title || candidate.title || "",
+      ids: isMovie
+        ? { imdbId: candidate.imdb_id || "", tvdbId: candidate.tvdb_id || "" }
+        : { imdbId: candidate.show_imdb_id || "", tvdbId: candidate.show_tvdb_id || "" },
+      verifyTvdbTitle: !isMovie,
+    };
+  });
+}
+
 export function startUpNextProviderFeed(provider, feedKind, { now = Date.now(), cursor = null } = {}) {
   const normalized = assertFeed(provider, feedKind);
   const current = selectFeedStateStmt.get(normalized.provider, normalized.feedKind);
@@ -321,6 +341,19 @@ export function completeUpNextProviderFeed(provider, feedKind, generation, items
     });
   }).immediate();
 
+  // Metadata enrichment belongs to the background discovery path, never to
+  // the dashboard projection. Keep it outside the SQLite transaction so a
+  // provider outage cannot hold the feed tables open.
+  if (candidates.length) {
+    try {
+      queueTmdbMetadataWarmup(metadataWarmupItems(candidates), { reason: "up-next-provider-discovery" });
+    } catch (error) {
+      // A cache enqueue failure must not turn an already-committed provider
+      // snapshot into a failed feed run. The scheduler backstop will retry the
+      // metadata discovery later.
+      console.warn(`Up Next metadata warm-up queue failed: ${error?.message || error}`);
+    }
+  }
   if (changed) bumpUpNextVersion();
   return { changed, ignored: false, generation, itemCount: candidates.length };
 }

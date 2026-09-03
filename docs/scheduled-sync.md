@@ -24,7 +24,7 @@ The same logic runs on demand via:
   and `GET /api/force-sync/media/status?id=...` exposes live log lines and the
   final result for the popup terminal.
 - `GET /api/rating-sync/status` - reports the independent personal-rating queue,
-  provider directions, and per-provider snapshot runs.
+  connected providers, and per-provider snapshot runs.
 - `POST /api/rating-sync/run`, `/api/rating-sync/push`, and
   `/api/rating-sync/retry` - run a rating snapshot, explicitly push local ratings,
   or retry failed/not-found/reauthorization-required rating work.

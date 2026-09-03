@@ -1,6 +1,6 @@
 import { HIDE_EPISODE_SPOILERS_KEY, state } from "./state.js";
 import { escapeAttribute, formatDate, showTitleFrom, showName, slug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js";
-import { isCachedStorageImageUrl, proxiedArtworkUrl, rememberPosterLookup } from "./images.js?v=20260831m";
+import { isCachedStorageImageUrl, proxiedArtworkUrl, rememberPosterLookup } from "./images.js?v=20260903b";
 import {
   openEditDateDialog,
   openEditShowDateDialog,
@@ -26,7 +26,7 @@ import {
   toggleWatchDateIncludeSpecials,
 } from "./watch-action.js?v=20260831b";
 import { triggerRetrySync, loadSyncJobs, loadSyncHistory, showAvailIssuePopup } from "./sync.js";
-import { renderExplorer, renderHistoryView, resolvedTmdbCache, refreshMovieExplorerInPlace, refreshHistoryViewInPlace } from "./explorer.js?v=20260831c";
+import { renderExplorer, renderHistoryView, resolvedTmdbCache, refreshMovieExplorerInPlace, refreshHistoryViewInPlace } from "./explorer.js?v=20260903a";
 import {
   movieBySlugOrId,
   openShowInlineDetail,

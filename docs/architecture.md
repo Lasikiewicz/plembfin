@@ -137,7 +137,7 @@ See [README.md](README.md) for the documentation index, including this file
 | `src/env.js` | Minimal `.env` loader (`loadLocalEnv`) - parses `<repo>/.env` without a dotenv dependency; env vars already set take precedence. |
 | `src/paths.js` | Resolves `DATA_DIR` and every path under it (`MEDIA_DIR`, `POSTERS_DIR`, `BACKDROPS_DIR`, `PROFILES_DIR`, backup dirs, `DB_PATH`, `CONFIG_PATH`, `PUBLIC_DIR`); `ensureDataDirs()` creates them. |
 | `src/scheduled.js` | The background sync engine: live-session polling → `live_tracking_cache`, completed-session detection, resume-progress replication, per-platform catch-up sync (recently watched + resumable + provider Up Next feeds), Plembfin-canonical dispatch/reconciliation queue, Plex drift repair, `runScheduledSync` and `runForceSync`. See [scheduled-sync.md](scheduled-sync.md). |
-| `src/scheduler.js` | Scheduler wrapper and Plex notification listener lifecycle: per-minute tick orchestration, scheduled backup runs, watchlist/rating worker hooks, next-airing cache refresh, startup/shutdown listener control, and Plex library-item unwatch callback. |
+| `src/scheduler.js` | Scheduler wrapper and Plex notification listener lifecycle: per-minute tick orchestration, scheduled backup runs, watchlist/rating worker hooks, cache-backed metadata warm-up/backfill, next-airing cache refresh, startup/shutdown listener control, and Plex library-item unwatch callback. |
 
 ### `server/src/routes/`
 
@@ -149,7 +149,7 @@ See [README.md](README.md) for the documentation index, including this file
 | `metadata.js` | Poster proxy and metadata/search handlers: TMDB details/search/season/images/person/poster/profile, the remote-artwork caching proxy, TVDB search/images, Fanart images, media search, Upcoming episodes, cached Up Next, YouTube metadata, and OMDb ratings. |
 | `sync.js` | Sync/runtime handlers: webhook ingestion, manual watch/unwatch, playback progress, retry sync, sync job/history listing, Now Playing, active sessions, cron sync, library-wide planner Force Sync, Settings library Force Sync modes and status polling, title-scoped detail-page Force Sync modes and status polling, and stop-force-sync. |
 | `ratingSync.js` | Authenticated personal-rating status, snapshot, local-push, and retry actions. |
-| `watchlistSync.js` | Authenticated personal-watchlist status, non-destructive preview, publish/reconcile/retry actions, and paged activity. |
+| `watchlistSync.js` | Authenticated personal-watchlist status, reconcile/retry actions, compatibility preview endpoint, and paged activity. |
 | `maintenance.js` | Maintenance/admin utility handlers: ping, changelog/update check, diagnostic logs, cross-platform match reporting, backfill/repair/dedup/rematch, cache stats, and cache clearing. |
 | `wipeData.js` | Wipe data handlers (`GET /api/wipe-data/preview`, `POST /api/wipe-data`): Watch History, Personal Watchlist, Sync History & Logs, Everything Tracked, and Wipe All / Fresh Start (also clears every remaining table, deletes cached artwork, and resets `data/config.json` via `appConfig.js`'s `resetAdminAccount()`). Kept separate from `maintenance.js`, which is already near its size limit. |
 | `mediaAuth.js` | Browser-session-only Plex account, Emby account, and Jellyfin Quick Connect/account flows; verifies identities and persists encrypted managed connections. |
@@ -167,10 +167,10 @@ See [README.md](README.md) for the documentation index, including this file
 | `syncOrchestrator.js` | Cross-platform propagation: `syncMediaPlaystate` / `syncMediaUnplayedPlaystate` / `syncMediaProgress` fan out normal events to the other platforms' clients, while `syncCanonicalPlaystate` replays Plembfin's state to every configured destination; all use `TARGETS_BY_SOURCE` routing, echo-loop detection via `loopStore.checkAndClaim`, and result summaries written to telemetry. |
 | `personalRatingIdentity.js` | Normalizes movie/show/episode rating identity; episode keys use parent show identity plus season/episode while retaining leaf provider IDs for writes. |
 | `personalRatingRepository.js` | SQLite repository for canonical rating source observations, latest-intent queue rows, provider echo markers, and per-provider sync runs. |
-| `personalRatingSync.js` | Optional personal-rating snapshots, conflict policy, complete-snapshot clears, durable queue delivery, retries, and the independent scheduler hook. |
+| `personalRatingSync.js` | Optional two-way personal-rating snapshots, Plembfin-authoritative conflict handling, complete-snapshot clears, durable queue delivery, retries, and the independent scheduler hook. |
 | `personalWatchlistIdentity.js` | Canonical movie/TV watchlist identity and provider/title aliases; episode rows are intentionally excluded from the first watchlist release. |
 | `personalWatchlistRepository.js` | Canonical watchlist mutations/tombstones, provider ownership ledger, durable queue, sync runs, activity, restore gate, and completed-watch removal hook. |
-| `personalWatchlistSync.js` | Bounded provider snapshots, complete-snapshot removal safety, initial-publish preview/confirmation, owned-container cleanup, queue delivery, retries, and scheduler integration. |
+| `personalWatchlistSync.js` | Bounded provider snapshots, safe first-run union, complete-snapshot removal safety, provider-addition fanout, owned-container cleanup, queue delivery, retries, and scheduler integration. |
 | `upNextIdentity.js` | Shared Up Next identity normalizer and deterministic ordering/merge rules: verified movie IDs, provider-series-plus-SxxExx episode keys, native-ID fallbacks, source-ID preservation, and resume-over-next-up reconciliation. |
 | `upNextRepository.js` | Generation-based SQLite source ledger for provider Resume/Continue Watching/Next Up feeds. Activates only complete snapshots, preserves last-good rows on failures, exposes redacted feed status, and advances `up_next` invalidation when active source content changes. |
 | `upNextService.js` | Builds the unified dashboard projection from canonical local resume/playstate, provider observations, and bounded released-episode metadata fallback; emits stable public queue items without raw provider payloads. |
@@ -256,8 +256,8 @@ See [README.md](README.md) for the documentation index, including this file
 | `settings.js` | Shared connection-label formatting. |
 | `settings-ui.js` | Reusable settings edit dialog, provider picker, and status-card grid primitives. |
 | `settings-services.js` | Media-server and metadata-provider card grids, edit dialogs, config saves, connection tests, and the inline Sync Tuning form. |
-| `rating-sync-settings.js` | Personal Rating Sync settings, provider directions, status polling, snapshot/push actions, and queue feedback. |
-| `watchlist-sync-settings.js` | Personal Watchlist Sync provider enablement, representation choices, publish preview/confirmation, queue/status/activity polling, and retry actions. |
+| `rating-sync-settings.js` | Personal Rating Sync on/off control, provider summary, status polling, and queue feedback. |
+| `watchlist-sync-settings.js` | Personal Watchlist Sync on/off control, provider summary, and status polling. |
 | `settings-shell.js` | Owns hierarchical settings routes (parent groups + child sections), multi-view panel aggregation, legacy aliases, the landing list, sidebar/mobile navigation, section-scoped scrolling, and tools disclosures. |
 | `tracker-settings.js` | Trakt device-code connection, initial baseline/import policy, connection state, personal-app fallback, and Sync Now controls. |
 | `live-updates.js` | Authenticated watch-state/personal-media, Up Next-cache, and Discover-cache version stream, reconnect/backoff, and debounced background data refresh with targeted visible-row reconciliation. |
@@ -430,12 +430,12 @@ The same logic runs on demand via:
 - `POST /api/rating-sync/push` and `POST /api/rating-sync/retry` - explicitly
   queue local ratings or retry durable rating work.
 - `GET /api/watchlist-sync/status` and `GET /api/watchlist-sync/activity` - inspect
-  canonical count, provider capabilities, queue/run state, restore gating, and recent
+  canonical count, provider capabilities, queue/run state, and recent
   watchlist-specific activity.
 - `POST /api/watchlist-sync/preview` - read a provider snapshot and show local items
   that can be resolved plus provider-only items without changing state.
-- `POST /api/watchlist-sync/run` - run `reconcile`, `retry`, or explicitly confirmed
-  `publish` work for selected providers.
+- `POST /api/watchlist-sync/run` - run reconciliation or compatibility retry/publish
+  actions; the one-toggle UI always reconciles every connected provider.
 
 Personal rating sync is invoked by the same elected scheduler tick only after the
 watched-state work, but it has its own enabled flag, interval gate, queue, leases,

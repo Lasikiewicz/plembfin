@@ -19,6 +19,7 @@ process.env.ROLE = ROLE;
 const { DATA_DIR, PUBLIC_DIR, MEDIA_DIR, ensureDataDirs } = await import("./src/paths.js");
 const { dispatch } = await import("./src/index.js");
 const { db } = await import("./src/db.js");
+const { enableTmdbMetadataWarmup } = await import("./src/utils/tmdbGateway.js");
 const { clearRestoreSyncState, loadMediaConfig, loadRuntimeState, RESTORE_KIND_FULL_SYNC } = await import("./src/utils/configStore.js");
 const { recoverInterruptedBackgroundImports } = await import("./src/utils/onboardingStore.js");
 const { schedulerLeaseStatus } = await import("./src/utils/schedulerLease.js");
@@ -26,6 +27,7 @@ const { createWorkerCoordinator } = await import("./src/workerCoordinator.js");
 const { flushPending: flushDiagnosticLogs } = await import("./src/utils/diagnosticLogger.js");
 
 ensureDataDirs();
+enableTmdbMetadataWarmup();
 
 if (roleHasWeb(ROLE)) {
   const recoveredImports = recoverInterruptedBackgroundImports();

@@ -714,6 +714,20 @@ export async function markPlexUnplayedByRatingKey(config, ratingKey, { lane = "s
   return { platform: "plex", status: "fulfilled", itemId: ratingKey, httpStatus: response.status };
 }
 
+// Plex stores Continue Watching dismissal separately from playstate. Apply the
+// native dismissal as well as Plembfin's canonical progress clear so the item
+// disappears from both dashboards without pretending that one implies the other.
+export async function hidePlexFromContinueWatching(config, ratingKey, { lane = "interactive" } = {}) {
+  requirePlexConfig(config);
+  if (!ratingKey) return { platform: "plex", status: "not_found" };
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/actions/removeFromContinueWatching`);
+  url.searchParams.set("ratingKey", String(ratingKey));
+  await addConfiguredPlexAccountId(url, config, { lane });
+  const response = await fetchPlexWithRefresh(config, url, { method: "PUT", lane });
+  if (!response.ok) throw new Error(`Plex Continue Watching removal failed with status ${response.status} for ratingKey ${ratingKey}`);
+  return { platform: "plex", status: "fulfilled", itemId: String(ratingKey), httpStatus: response.status };
+}
+
 // Fetches a single library item by its native ratingKey, including provider GUIDs and
 // the requesting token's user data (viewCount / viewOffset). Used by the notification
 // listener to resolve a changed ratingKey into a media object and decide whether the

@@ -1,9 +1,9 @@
 import { buildAuthHeaders } from "./auth.js";
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, sourceBadgeHtml, formatDate, formatTmdbDate, resolveEpisodeTitle, episodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress } from "./utils.js?v=20260824h";
-import { posterMarkup, posterOverflowMenu, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, tmdbPoster, isLocalArtworkUrl } from "./images.js?v=20260831m";
+import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowHrefFromEpisode, sourceBadgeHtml, formatDate, formatTmdbDate, resolveEpisodeTitle, episodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress } from "./utils.js?v=20260903b";
+import { posterMarkup, posterOverflowMenu, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, isLocalArtworkUrl } from "./images.js?v=20260903b";
 import { renderDashboardChecklist } from "./onboarding.js";
-import { initialMediaAppLinksContent } from "./media-detail-shared.js?v=20260831j";
+import { initialMediaAppLinksContent } from "./media-detail-shared.js?v=20260903b";
 
 const PART_WATCHED_DASHBOARD_LIMIT = 30;
 const EXPLORER_PAGE_SIZE = 240;
@@ -145,33 +145,6 @@ export function partWatchedProgress(entry = {}) {
   return Number.isFinite(progress) ? Math.max(0, Math.min(100, Math.round(progress))) : 0;
 }
 
-function prefetchDashboardHistoryTmdb(tvEntries, movieEntries) {
-  if (!state.token) return;
-  const seen = new Set();
-  for (const entry of movieEntries) {
-    const key = `movie|${entry.tmdb_id || ""}|${String(entry.title || "").toLowerCase()}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      _cb.fetchTmdbDetails?.("movie", entry.tmdb_id, entry.title);
-    }
-  }
-  for (const entry of tvEntries) {
-    const showTitle = entry.show_title || showTitleFrom(entry.title);
-    const showKeySlug = slug(showTitle);
-    const show = state.showsRaw.find((s) => (
-      (entry.show_tmdb_id && String(s.tmdb_id || "") === String(entry.show_tmdb_id))
-      || (entry.show_tvdb_id && String(s.tvdb_id || "") === String(entry.show_tvdb_id))
-      || (!entry.show_tmdb_id && !entry.show_tvdb_id && slug(s.title) === showKeySlug)
-    ));
-    const tmdbId = show?.tmdb_id || entry.show_tmdb_id || entry.tmdb_id;
-    const key = `tv|${tmdbId || ""}|${String(showTitle || "").toLowerCase()}`;
-    if (!seen.has(key)) {
-      seen.add(key);
-      _cb.fetchTmdbDetails?.("tv", tmdbId, showTitle);
-    }
-  }
-}
-
 function actualWatchCount(entry = {}) {
   const explicit = Number(entry.watch_count);
   if (Number.isFinite(explicit) && explicit > 0) return explicit;
@@ -270,23 +243,16 @@ export function renderHistoryCard(entry) {
 
   if (isEpisode) {
     const showTitle = entry.show_title || showTitleFrom(entry.title);
-    const { epTitle, needsResolve } = resolveEpisodeTitle(entry);
-
-    if (needsResolve) {
-      setTimeout(() => {
-        const el = document.querySelector(`[data-history-id="${entry.id}"] .history-card-episode-title`);
-        _cb.resolveEpisodeTitleFromTmdb?.(entry, el);
-      }, 50);
-    }
+    const { epTitle } = resolveEpisodeTitle(entry);
 
     const canonicalShowName = entry.show_title || showName(entry.title);
     const href = tvShowHrefFromHistoryEntry(entry, canonicalShowName);
     const posterEntry = entry.show_poster_url
-      ? { ...entry, poster_url: entry.show_poster_url, prefer_raw_poster: true }
-      : entry;
+      ? { ...entry, poster_url: entry.show_poster_url, prefer_raw_poster: true, cache_only_artwork: true }
+      : { ...entry, cache_only_artwork: true };
 
     return `
-      <a class="history-mini-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(showTitle || "")}">
+      <a class="history-mini-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}">
         <span class="history-mini-card-poster-wrapper">
           ${posterMarkup(posterEntry, "history-mini-poster")}
           ${posterOverflowMenu(entry, { showTitle, label: showTitle })}
@@ -301,9 +267,9 @@ export function renderHistoryCard(entry) {
   } else {
     const href = entry.tmdb_id ? movieTmdbHref(entry.tmdb_id, entry.title) : movieHref(entry);
     return `
-      <a class="history-mini-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}" data-prefetch-type="movie" data-prefetch-tmdb="${escapeAttribute(entry.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(entry.title || "")}">
+      <a class="history-mini-card" data-history-id="${entry.id}" href="${escapeAttribute(href)}">
         <span class="history-mini-card-poster-wrapper">
-          ${posterMarkup(entry, "history-mini-poster")}
+          ${posterMarkup({ ...entry, cache_only_artwork: true }, "history-mini-poster")}
           ${posterOverflowMenu(entry)}
         </span>
         <div class="history-mini-card-details">
@@ -316,24 +282,7 @@ export function renderHistoryCard(entry) {
 }
 
 function tvShowHrefFromHistoryEntry(entry = {}, title = "") {
-  let href = "";
-  if (entry.show_tmdb_id) href = tvShowTmdbHref(entry.show_tmdb_id, title);
-  else if (entry.show_tvdb_id) href = tvShowTvdbHref(entry.show_tvdb_id, title);
-  else if (entry.tmdb_id) href = tvShowTmdbHref(entry.tmdb_id, title);
-  else if (entry.tvdb_id) href = tvShowTvdbHref(entry.tvdb_id, title);
-  else href = `/tvshow/${slug(title || entry.show_title || showTitleFrom(entry.title))}`;
-
-  const season = Number(entry.season ?? entry.seasonNumber);
-  const episode = Number(entry.episode ?? entry.episodeNumber);
-  if (Number.isInteger(season) && season >= 0 && Number.isInteger(episode) && episode >= 1) {
-    return `${href}/season/${season}/episode/${episode}`;
-  }
-  return href;
-}
-
-function cssSelectorValue(value = "") {
-  if (globalThis.CSS?.escape) return globalThis.CSS.escape(String(value));
-  return String(value).replace(/[^a-zA-Z0-9_-]/g, (character) => `\\${character}`);
+  return tvShowHrefFromEpisode(entry, title);
 }
 
 function dashboardCardIdentity(entry = {}) {
@@ -369,9 +318,9 @@ function dashboardUpNextEpisodeTitle(entry, showTitle) {
 function findKnownShowPoster(entry = {}) {
   if (!entry || entry.media_type !== "episode") return "";
   const showTitle = slug(entry.show_title || showTitleFrom(entry.title) || "");
-  const showTmdb = String(entry.show_tmdb_id || entry.tmdb_id || "").trim();
-  const showTvdb = String(entry.show_tvdb_id || entry.tvdb_id || "").trim();
-  const showImdb = String(entry.show_imdb_id || entry.imdb_id || "").trim().toLowerCase();
+  const showTmdb = String(entry.show_tmdb_id || "").trim();
+  const showTvdb = String(entry.show_tvdb_id || "").trim();
+  const showImdb = String(entry.show_imdb_id || "").trim().toLowerCase();
 
   const match = (state.history || []).find((h) => {
     if (h.media_type !== "episode") return false;
@@ -403,16 +352,6 @@ export function renderDashboardHistoryPageCard(entry, options = {}) {
       : resolveEpisodeTitle(entry);
     epTitle = resolved.epTitle;
 
-    if (resolved.needsResolve) {
-      setTimeout(() => {
-        const attribute = isPartWatched
-          ? "data-part-watched-card-id"
-          : "data-history-id";
-        const el = document.querySelector(`[${attribute}="${cssSelectorValue(cardId)}"] .history-card-episode`);
-        _cb.resolveEpisodeTitleFromTmdb?.(entry, el);
-      }, 50);
-    }
-
     const canonicalShowName = entry.show_title || showName(entry.title);
     href = tvShowHrefFromHistoryEntry(entry, canonicalShowName);
   } else {
@@ -424,8 +363,6 @@ export function renderDashboardHistoryPageCard(entry, options = {}) {
     ? (sources.map((source) => renderPartWatchedAppBadge(source, entry, isEpisode ? displayTitle : entry.title)).join(" ") || "None")
     : historySourceBadges(entry);
   const isInteractive = isPartWatched || isUpNext;
-  const prefetchType = isEpisode ? "tv" : "movie";
-  const prefetchTmdb = isEpisode ? (entry.show_tmdb_id || entry.tmdb_id || "") : (entry.tmdb_id || "");
   const posterLabel = `View ${displayTitle || "media"}`;
   // Playback-progress rows use their stable media key as the identity that
   // /api/poster can resolve. A progress row's generic `id` can be a watch
@@ -440,6 +377,7 @@ export function renderDashboardHistoryPageCard(entry, options = {}) {
     ...(isEpisode && effectiveShowPoster
       ? { poster_url: effectiveShowPoster, show_poster_url: effectiveShowPoster, prefer_raw_poster: true }
       : {}),
+    cache_only_artwork: true,
     ...(isPartWatched && entry.media_key ? { id: entry.media_key } : {}),
   };
   const posterHtml = posterMarkup(posterEntry, "history-page-poster");
@@ -453,10 +391,10 @@ export function renderDashboardHistoryPageCard(entry, options = {}) {
     ? posterOverflowMenu(entry, { menuMode: "up-next", showTitle: displayTitle, title: displayTitle, label: displayTitle, mediaType: isEpisode ? "tv" : "movie", kind: isEpisode ? "episode" : "movie", queueKind: entry.queue_kind })
     : (!isPartWatched ? posterOverflowMenu(entry, isEpisode ? { showTitle: displayTitle, label: displayTitle } : {}) : "");
   const cardOpen = isPartWatched
-    ? `<article class="history-page-card dashboard-history-page-card dashboard-part-watched-card" data-part-watched-card-id="${escapeAttribute(cardId)}" data-part-watched-media-key="${escapeAttribute(entry.media_key || "")}" data-prefetch-type="${prefetchType}" data-prefetch-tmdb="${escapeAttribute(prefetchTmdb)}" data-prefetch-title="${escapeAttribute(displayTitle || "")}">`
+    ? `<article class="history-page-card dashboard-history-page-card dashboard-part-watched-card" data-part-watched-card-id="${escapeAttribute(cardId)}" data-part-watched-media-key="${escapeAttribute(entry.media_key || "")}">`
     : isUpNext
-      ? `<article class="history-page-card dashboard-history-page-card dashboard-up-next-card" data-up-next-card-id="${escapeAttribute(cardId)}" data-prefetch-type="${prefetchType}" data-prefetch-tmdb="${escapeAttribute(prefetchTmdb)}" data-prefetch-title="${escapeAttribute(displayTitle || "")}">`
-      : `<a class="history-page-card dashboard-history-page-card" data-history-id="${escapeAttribute(cardId)}" href="${escapeAttribute(href)}" data-prefetch-type="${prefetchType}" data-prefetch-tmdb="${escapeAttribute(prefetchTmdb)}" data-prefetch-title="${escapeAttribute(displayTitle || "")}">`;
+      ? `<article class="history-page-card dashboard-history-page-card dashboard-up-next-card" data-up-next-card-id="${escapeAttribute(cardId)}">`
+      : `<a class="history-page-card dashboard-history-page-card" data-history-id="${escapeAttribute(cardId)}" href="${escapeAttribute(href)}">`;
   const cardClose = isInteractive ? "</article>" : "</a>";
   const watchedAt = isPartWatched ? entry.updated_at : entry.watched_at;
   const partProgress = isResume ? partWatchedProgress(entry) : 0;
@@ -473,9 +411,9 @@ export function renderDashboardHistoryPageCard(entry, options = {}) {
             data-media-type="${isEpisode ? "episode" : "movie"}"
             data-app-link-style="source-badge"
             data-all-apps="true"
-            data-tmdb-id="${escapeAttribute(isEpisode ? (entry.show_tmdb_id || entry.tmdb_id || "") : (entry.tmdb_id || ""))}"
-            data-imdb-id="${escapeAttribute(isEpisode ? (entry.show_imdb_id || entry.imdb_id || "") : (entry.imdb_id || ""))}"
-            data-tvdb-id="${escapeAttribute(isEpisode ? (entry.show_tvdb_id || entry.tvdb_id || "") : (entry.tvdb_id || ""))}"
+            data-tmdb-id="${escapeAttribute(isEpisode ? (entry.show_tmdb_id || "") : (entry.tmdb_id || ""))}"
+            data-imdb-id="${escapeAttribute(isEpisode ? (entry.show_imdb_id || "") : (entry.imdb_id || ""))}"
+            data-tvdb-id="${escapeAttribute(isEpisode ? (entry.show_tvdb_id || "") : (entry.tvdb_id || ""))}"
             data-season="${escapeAttribute(isEpisode ? (entry.season ?? "") : "")}"
             data-episode="${escapeAttribute(isEpisode ? (entry.episode ?? "") : "")}"
             data-provider-items="${escapeAttribute(JSON.stringify(entry.provider_items || entry.providerItems || {}))}"
@@ -483,9 +421,9 @@ export function renderDashboardHistoryPageCard(entry, options = {}) {
               mediaType: isEpisode ? "episode" : "movie",
               appLinkStyle: "source-badge",
               allApps: true,
-              tmdbId: isEpisode ? (entry.show_tmdb_id || entry.tmdb_id || "") : (entry.tmdb_id || ""),
-              imdbId: isEpisode ? (entry.show_imdb_id || entry.imdb_id || "") : (entry.imdb_id || ""),
-              tvdbId: isEpisode ? (entry.show_tvdb_id || entry.tvdb_id || "") : (entry.tvdb_id || ""),
+              tmdbId: isEpisode ? (entry.show_tmdb_id || "") : (entry.tmdb_id || ""),
+              imdbId: isEpisode ? (entry.show_imdb_id || "") : (entry.imdb_id || ""),
+              tvdbId: isEpisode ? (entry.show_tvdb_id || "") : (entry.tvdb_id || ""),
               season: isEpisode ? (entry.season ?? "") : "",
               episode: isEpisode ? (entry.episode ?? "") : "",
               providerItems: entry.provider_items || entry.providerItems || {},
@@ -569,13 +507,13 @@ export function observeDashboardPosters() {
         const posterId = fallback.dataset.posterId;
         if (!posterId || state.posterLookupCache.has(posterId)) return;
 
-        const posterUrl = await lookupPosterUrl(posterId);
+        const posterUrl = await lookupPosterUrl(posterId, { allowNetwork: false });
         const safeUrl = safePosterElementUrl(posterUrl);
         if (!safeUrl || !fallback.isConnected || !fallback.classList.contains("poster-fallback")) return;
 
         const image = document.createElement("img");
         image.className = fallback.className.replace(/\bposter-fallback\b/g, "").trim() || fallback.className;
-        bindPosterImageErrorHandler(image);
+        bindPosterImageErrorHandler(image, { allowNetwork: false });
         image.src = encodeURI(safeUrl);
         image.alt = `${fallback.getAttribute("aria-label") || "Media poster"}`;
         image.loading = "lazy";
@@ -685,7 +623,7 @@ function renderDashboardHistoryRow(row, nextHtml, visibleItems = []) {
   updateDashboardRowWithMotion(row, nextHtml, {
     onCommitted: () => {
       bindPartWatchedAppBadges(row);
-      hydratePosters(row);
+      hydratePosters(row, { allowNetwork: false });
     },
   });
 }
@@ -800,10 +738,6 @@ function renderDashboardHistoryRows() {
         .join("");
       renderDashboardHistoryRow(elements.movieHistoryRow, nextMovieHtml, visibleMovies);
     }
-  }
-
-  if (visibleTv.length || visibleMovies.length) {
-    prefetchDashboardHistoryTmdb(visibleTv, visibleMovies);
   }
 
   observeDashboardPosters();
@@ -993,8 +927,7 @@ function renderPartWatchedBucket(target, items) {
     })).join("");
     target.row.innerHTML = nextHtml;
     bindPartWatchedAppBadges(target.row);
-    hydratePosters(target.row);
-    _cb.observeExplorerTmdbPrefetch?.(target.row);
+    hydratePosters(target.row, { allowNetwork: false });
   } else {
     const nodesById = new Map(existingCards.map((el) => [el.dataset.partWatchedCardId, el]));
     for (const entry of visibleItems) patchPartWatchedCardProgress(nodesById.get(partWatchedCardIdentity(entry)), entry);

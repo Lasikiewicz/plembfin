@@ -1,7 +1,7 @@
 import { state } from "./state.js";
 import { buildAuthHeaders } from "./auth.js";
 import { escapeHtml, escapeAttribute, slug, formatTmdbDate, tvShowTmdbHref, movieTmdbHref } from "./utils.js";
-import { tmdbImage, tmdbPoster, tmdbProfile } from "./images.js?v=20260831m";
+import { tmdbImage, tmdbPoster, tmdbProfile } from "./images.js?v=20260903b";
 import { fetchTmdbDetails } from "./tmdb.js?v=20260823";
 
 function authHeaders() {
@@ -584,7 +584,7 @@ function appLinkHtml(link, { disabled = false, label = "", pillStyle = "" } = {}
   if (disabled) {
     return `
       <span class="${pillClasses.filter(Boolean).map(escapeAttribute).join(" ")}" title="${escapeAttribute(`${displayLabel} unavailable`)}" aria-label="${escapeAttribute(`${displayLabel} unavailable`)}" aria-disabled="true">
-        <img class="${escapeAttribute(iconClass)}" src="/icons/${escapeAttribute(target)}.svg" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
+        <img class="${escapeAttribute(iconClass)}" src="/icons/${escapeAttribute(target)}.svg?v=20260903a" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
         <span>${escapeHtml(displayLabel)}</span>
       </span>
     `;
@@ -612,7 +612,7 @@ function appLinkRowHtml(links = [], { includeUnavailable = false, pillStyle = ""
   `;
 }
 
-export async function hydrateMediaAppLinks(root = document) {
+export async function hydrateMediaAppLinks(root = document, { allowNetwork = true } = {}) {
   const containers = [...root.querySelectorAll("[data-media-app-links]")];
   if (!containers.length) return;
 
@@ -635,15 +635,15 @@ export async function hydrateMediaAppLinks(root = document) {
       : `
         <b class="media-app-link-row">
           <a class="media-app-link media-app-link--plex media-app-link--disabled" title="Checking Plex..." aria-label="Checking Plex..." style="opacity: 0.4; cursor: not-allowed;">
-            <img class="media-app-link-logo" src="/icons/plex.svg" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
+            <img class="media-app-link-logo" src="/icons/plex.svg?v=20260903a" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
             <span>Plex</span>
           </a>
           <a class="media-app-link media-app-link--emby media-app-link--disabled" title="Checking Emby..." aria-label="Checking Emby..." style="opacity: 0.4; cursor: not-allowed;">
-            <img class="media-app-link-logo" src="/icons/emby.svg" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
+            <img class="media-app-link-logo" src="/icons/emby.svg?v=20260903a" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
             <span>Emby</span>
           </a>
           <a class="media-app-link media-app-link--jellyfin media-app-link--disabled" title="Checking Jellyfin..." aria-label="Checking Jellyfin..." style="opacity: 0.4; cursor: not-allowed;">
-            <img class="media-app-link-logo" src="/icons/jellyfin.svg" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
+            <img class="media-app-link-logo" src="/icons/jellyfin.svg?v=20260903a" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
             <span>Jellyfin</span>
           </a>
         </b>
@@ -660,6 +660,11 @@ export async function hydrateMediaAppLinks(root = document) {
     if (container.innerHTML !== targetInitialHtml) {
       container.innerHTML = targetInitialHtml;
     }
+
+    // Dashboard cards use the saved localStorage snapshot only. Resolving
+    // missing links requires live Plex/Emby/Jellyfin lookups and must not make
+    // the dashboard wait on a provider while it is rendering.
+    if (!allowNetwork) return;
 
     // A detail page re-renders several times as metadata arrives; refresh a
     // known result over the network at most once per TTL window.

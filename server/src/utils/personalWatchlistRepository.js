@@ -113,6 +113,12 @@ const upsertQueueStmt = db.prepare(`
 const selectQueueRowStmt = db.prepare("SELECT * FROM personal_watchlist_sync_queue WHERE provider = ? AND connection_id = ? AND remote_scope_key = ? AND representation = ? AND media_key = ?");
 const selectQueueStmt = db.prepare("SELECT * FROM personal_watchlist_sync_queue WHERE (@provider = '' OR provider = @provider) AND (@status = '' OR status = @status) ORDER BY updated_at ASC, provider ASC, media_key ASC LIMIT @limit");
 const queueCountsStmt = db.prepare("SELECT status, COUNT(*) AS count FROM personal_watchlist_sync_queue GROUP BY status");
+const selectQueueIssuesStmt = db.prepare(`
+  SELECT provider, status, representation, media_json, last_error, attempt_count, next_attempt_at, updated_at
+  FROM personal_watchlist_sync_queue
+  WHERE status IN ('failed', 'not_available', 'reauth_required') AND (@provider = '' OR provider = @provider)
+  ORDER BY updated_at DESC, provider ASC, media_key ASC LIMIT @limit
+`);
 const releaseExpiredQueueLeasesStmt = db.prepare("UPDATE personal_watchlist_sync_queue SET status = 'pending', lease_owner = NULL, lease_expires_at = NULL, updated_at = ? WHERE status = 'processing' AND lease_expires_at < ?");
 const selectDueQueueStmt = db.prepare("SELECT * FROM personal_watchlist_sync_queue WHERE (@provider = '' OR provider = @provider) AND status IN ('pending', 'failed', 'not_available') AND next_attempt_at <= @now ORDER BY updated_at ASC, provider ASC, media_key ASC LIMIT @limit");
 const claimQueueStmt = db.prepare("UPDATE personal_watchlist_sync_queue SET status = 'processing', attempt_count = attempt_count + 1, lease_owner = ?, lease_expires_at = ?, updated_at = ? WHERE provider = ? AND connection_id = ? AND remote_scope_key = ? AND representation = ? AND media_key = ? AND status IN ('pending', 'failed', 'not_available') AND next_attempt_at <= ?");
@@ -121,7 +127,7 @@ const acknowledgeQueueStmt = db.prepare("UPDATE personal_watchlist_sync_queue SE
 const releaseQueueStmt = db.prepare("UPDATE personal_watchlist_sync_queue SET status = 'pending', lease_owner = NULL, lease_expires_at = NULL, updated_at = ? WHERE provider = ? AND connection_id = ? AND remote_scope_key = ? AND representation = ? AND media_key = ? AND status = 'processing'");
 const deleteQueueRowStmt = db.prepare("DELETE FROM personal_watchlist_sync_queue WHERE provider = ? AND connection_id = ? AND remote_scope_key = ? AND representation = ? AND media_key = ?");
 const failQueueStmt = db.prepare("UPDATE personal_watchlist_sync_queue SET status = ?, next_attempt_at = ?, lease_owner = NULL, lease_expires_at = NULL, last_error = ?, updated_at = ? WHERE provider = ? AND connection_id = ? AND remote_scope_key = ? AND representation = ? AND media_key = ? AND intent_id = ? AND status = 'processing'");
-const retryQueueStmt = db.prepare("UPDATE personal_watchlist_sync_queue SET status = 'pending', next_attempt_at = 0, lease_owner = NULL, lease_expires_at = NULL, last_error = NULL, updated_at = ? WHERE status IN ('failed', 'not_available', 'reauth_required') AND (@provider = '' OR provider = @provider)");
+const retryQueueStmt = db.prepare("UPDATE personal_watchlist_sync_queue SET status = 'pending', next_attempt_at = 0, lease_owner = NULL, lease_expires_at = NULL, last_error = NULL, updated_at = @updated_at WHERE status IN ('failed', 'not_available', 'reauth_required') AND (@provider = '' OR provider = @provider)");
 
 const selectRunStmt = db.prepare("SELECT * FROM personal_watchlist_sync_runs WHERE provider = ? AND connection_id = ? AND remote_scope_key = ? AND representation = ?");
 const upsertRunStmt = db.prepare(`
@@ -170,13 +176,23 @@ export function watchlistProviderScope(provider, config = {}, setting = {}) {
   const server = clean(providerConfig.serverId || providerConfig.server_id || providerConfig.baseUrl || connection?.serverId || connection?.baseUrl || "default", 300) || "default";
   return { provider: normalizedProvider, connectionId, remoteScopeKey: clean(`${server}:${remoteUser}`, 500), representation: normalizeWatchlistRepresentation(normalizedProvider, setting.representation || providerConfig.watchlistRepresentation) };
 }
+function watchlistProviderConfigured(provider, config = {}) {
+  const connection = getMediaConnection(provider);
+  if (connection && ["connected", "legacy", "reauth_required"].includes(connection.status)) return true;
+  const providerConfig = config?.[provider] || {};
+  if (provider === "plex") {
+    return Boolean(providerConfig.baseUrl && (providerConfig.accountToken || providerConfig.watchlistToken || providerConfig.token));
+  }
+  const token = providerConfig.apiKey || providerConfig.api_key || providerConfig.token;
+  return Boolean(providerConfig.baseUrl && token && (providerConfig.userId || providerConfig.remoteUserId));
+}
 export function watchlistProviderScopes(config = {}, { publishedOnly = false } = {}) {
   const section = config?.watchlistSync || {};
-  if (section.enabled === false) return [];
+  if (section.enabled !== true) return [];
   return WATCHLIST_PROVIDERS.map((provider) => {
     const setting = watchlistProviderSettings(config, provider);
-    if (setting.enabled !== true) return null;
-    if (publishedOnly && Number(setting.publishConfirmedAt || setting.publish_confirmed_at || 0) <= 0) return null;
+    if (!watchlistProviderConfigured(provider, config)) return null;
+    void publishedOnly;
     return { ...watchlistProviderScope(provider, config, setting), providerConfig: config?.[provider] || {}, setting };
   }).filter(Boolean);
 }
@@ -337,6 +353,24 @@ export function getWatchlistQueueRow({ provider, connectionId = "", remoteScopeK
 export function watchlistQueueCounts({ provider = "" } = {}) {
   const rows = provider ? db.prepare("SELECT status, COUNT(*) AS count FROM personal_watchlist_sync_queue WHERE provider = ? GROUP BY status").all(normalizeProvider(provider)) : queueCountsStmt.all();
   return rows.reduce((result, row) => ({ ...result, [row.status]: Number(row.count || 0) }), {});
+}
+export function watchlistQueueIssues({ provider = "", limit = 500 } = {}) {
+  const rows = selectQueueIssuesStmt.all({ provider: normalizeProvider(provider), limit: Math.min(2000, Math.max(1, positiveInteger(limit, 500))) });
+  const groups = new Map();
+  for (const row of rows) {
+    const key = `${row.provider}:${row.status}`;
+    const group = groups.get(key) || { provider: row.provider, status: row.status, representation: row.representation, count: 0, titles: [], lastError: "", attemptCount: 0, retryAt: 0, updatedAt: 0 };
+    group.count += 1;
+    const title = clean(jsonObject(row.media_json)?.title, 200);
+    if (title && group.titles.length < 3 && !group.titles.includes(title)) group.titles.push(title);
+    if (!group.lastError && row.last_error) group.lastError = redactWatchlistError(row.last_error);
+    group.attemptCount = Math.max(group.attemptCount, Number(row.attempt_count || 0));
+    const retryAt = Number(row.next_attempt_at || 0);
+    if (retryAt && (!group.retryAt || retryAt < group.retryAt)) group.retryAt = retryAt;
+    group.updatedAt = Math.max(group.updatedAt, Number(row.updated_at || 0));
+    groups.set(key, group);
+  }
+  return [...groups.values()].sort((a, b) => b.count - a.count || a.provider.localeCompare(b.provider));
 }
 export function claimWatchlistQueue({ provider = "", owner = crypto.randomUUID(), now = Date.now(), leaseMs = 120_000, limit = 25 } = {}) {
   const p = normalizeProvider(provider); const safeNow = timestampValue(now); const rows = [];

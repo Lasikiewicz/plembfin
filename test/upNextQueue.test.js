@@ -145,3 +145,92 @@ test("canonical episode rows reuse the cached show poster when no provider poste
   assert.equal(projection.items[0].poster_url, "/media/posters/reacher.webp");
   assert.equal(projection.items[0].show_poster_url, "/media/posters/reacher.webp");
 });
+
+test("canonical movie rows reuse the cached movie poster when no provider poster exists", async () => {
+  saveCanonicalPoster({ media_type: "movie", title: "Arrival", tmdb_id: "329865" }, "/media/posters/arrival.webp", { source: "test" });
+  const projection = await buildUpNextProjection({
+    now: Date.parse("2026-09-01T12:00:00.000Z"),
+    localFallback: false,
+    progressRows: [{
+      media_key: "movie:tmdb:329865",
+      media_type: "movie",
+      title: "Arrival",
+      tmdb_id: "329865",
+      position_ms: 300000,
+      duration_ms: 6000000,
+      progress: 5,
+      updated_at: 300,
+      source: "local",
+    }],
+    playstateRows: [],
+    providerItems: [],
+  });
+
+  assert.equal(projection.items.length, 1);
+  assert.equal(projection.items[0].poster_url, "/media/posters/arrival.webp");
+});
+
+test("handleUpNextRemove clears positive playback progress and marks unplayed", async () => {
+  const { handleUpNextRemove } = await import("../server/src/routes/sync.js");
+  const { upsertPlaybackProgress } = await import("../server/src/utils/dataRepo.js");
+  const { AUTH } = await import("../server/src/appConfig.js");
+  const { db } = await import("../server/src/db.js");
+
+  const mediaKey = "episode:1:2:tmdb:999";
+  upsertPlaybackProgress({
+    media_key: mediaKey,
+    media_type: "episode",
+    title: "Test Show - S01E02",
+    show_title: "Test Show",
+    season: 1,
+    episode: 2,
+    tmdb_id: "999",
+    position_ms: 500000,
+    duration_ms: 2000000,
+    progress: 25,
+  });
+
+  const req = {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${AUTH.apiKey}`,
+    },
+    get(name) {
+      return this.headers[name.toLowerCase()];
+    },
+    body: {
+      media_key: mediaKey,
+      media_type: "episode",
+      title: "Test Show - S01E02",
+      show_title: "Test Show",
+      season: 1,
+      episode: 2,
+      tmdb_id: "999",
+    },
+  };
+
+  let statusCode = 200;
+  let responseData = null;
+  const res = {
+    status(code) {
+      statusCode = code;
+      return this;
+    },
+    set() {
+      return this;
+    },
+    send(data) {
+      if (data) responseData = JSON.parse(data);
+      return this;
+    },
+  };
+
+  await handleUpNextRemove(req, res);
+  assert.equal(statusCode, 200);
+  assert.equal(responseData?.ok, true);
+
+  const remaining = db.prepare("SELECT * FROM playback_progress WHERE media_key = ?").get(mediaKey);
+  assert.equal(remaining, undefined);
+});
+

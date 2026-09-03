@@ -2,12 +2,12 @@ import { state, elements } from "./state.js";
 import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeCode, seasonLabel, formatSeasonTitle, formatTmdbDate, showEpisodeKey } from "./utils.js";
 import { buildAuthHeaders } from "./auth.js";
 import { isWatchedHistoryAction } from "./sync.js";
-import { mergeShowDetail } from "./explorer.js?v=20260831c";
-import { dedupeMediaRecords, resetPartWatchedView, renderPartWatched } from "./dashboard.js?v=20260831m";
+import { mergeShowDetail } from "./explorer.js?v=20260903a";
+import { dedupeMediaRecords, resetPartWatchedView, renderPartWatched } from "./dashboard.js?v=20260903b";
 import { tvSeasonAvailability } from "./media-detail-shared.js";
 import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=20260823";
-import { tmdbPoster } from "./images.js?v=20260831m";
+import { tmdbPoster } from "./images.js?v=20260903b";
 
 // Callbacks injected by app.js at startup to break circular-import chains.
 let _setMessage = () => {};

@@ -24,6 +24,7 @@ import { cacheBackdropFromUrl, cacheLogoFromUrl, cachePosterFromUrl, cacheProfil
 import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, searchTmdb, searchTmdbCollections, getTmdbCollection, getTmdbDiscovery, getCachedTvdbId } from "../utils/tmdbGateway.js";
 import { searchTvdbSeriesList, resolveTvdbSeriesId, getTvdbSeriesArtwork } from "../utils/tvdbGateway.js";
 import { getUpcomingCalendarMonth } from "../utils/upcomingCalendarCache.js";
+import { getCanonicalPosterUrl } from "../utils/mediaArtwork.js";
 import { getUpNextCacheSnapshot } from "../utils/upNextCache.js";
 import { buildUpNextProjection } from "../utils/upNextService.js";
 import { getActiveUpNextProviderItemById } from "../utils/upNextRepository.js";
@@ -231,12 +232,49 @@ export async function handlePoster(req, res) {
     if (!row) {
       row = await findLiveSessionPosterRow(rowId).catch(() => null);
     }
+    if (!row && rowId.includes("tmdb:")) {
+      const tmdbIdMatch = rowId.match(/tmdb:(\d+)/i);
+      if (tmdbIdMatch) {
+        const tmdbId = tmdbIdMatch[1];
+        const isMovie = !rowId.includes("episode") && !rowId.includes("tv");
+        const progressRow = db.prepare("SELECT * FROM playback_progress WHERE tmdb_id = ? LIMIT 1").get(tmdbId);
+        if (progressRow) {
+          row = {
+            id: rowId,
+            media_key: progressRow.media_key,
+            title: progressRow.title,
+            media_type: progressRow.media_type,
+            source: progressRow.source,
+            imdb_id: progressRow.imdb_id,
+            tmdb_id: progressRow.tmdb_id,
+            tvdb_id: progressRow.tvdb_id,
+            season: progressRow.season,
+            episode: progressRow.episode,
+            poster_url: null,
+          };
+        } else {
+          row = {
+            id: rowId,
+            media_key: `tmdb:${isMovie ? "movie" : "tv"}:${tmdbId}`,
+            title: "",
+            media_type: isMovie ? "movie" : "episode",
+            tmdb_id: tmdbId,
+            poster_url: null,
+          };
+        }
+      }
+    }
     if (!row) return respondPoster({ error: "not found" }, 404);
 
     const fallbackRequested = ["1", "true", "yes"].includes(String(req.query.fallback || "").toLowerCase());
     const config = await loadMediaConfig().catch(() => ({}));
     const mediaKey = row.media_key || mediaKeyFor(row);
     const posterUpdateId = row.id || rowId;
+
+    if (!fallbackRequested) {
+      const canonicalPoster = getCanonicalPosterUrl(row);
+      if (canonicalPoster) return respondPoster({ url: canonicalPoster, cached: true, source: "canonical" }, 200);
+    }
 
     // Check for fresh cached result first (before deduplication check).
     // However, ignore negative cache for items without poster_url - these should retry TMDB fallback.

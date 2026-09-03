@@ -18,6 +18,7 @@ const { normalizePersonalWatchlistMedia } = await import("../server/src/utils/pe
 const { exportCollectionPage, getFullBackup, importCollectionBatch } = await import("../server/src/utils/backup.js");
 
 const config = {
+  emby: { baseUrl: "https://emby.example", apiKey: "emby-secret", userId: "user-1" },
   watchlistSync: {
     enabled: true,
     providers: {

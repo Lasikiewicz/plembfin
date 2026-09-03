@@ -5647,6 +5647,68 @@ details.sync-tool-details[open] > summary {
   line-height: 1.35;
 }
 
+.personal-watchlist-sync-issues {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.personal-watchlist-sync-issue {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-3);
+}
+
+.personal-watchlist-sync-issue > div {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
+.personal-watchlist-sync-issue small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.personal-watchlist-sync-issue-titles {
+  font-style: italic;
+}
+
+.personal-watchlist-sync-issue-error {
+  border-color: color-mix(in srgb, var(--red) 45%, var(--line));
+  background: color-mix(in srgb, var(--red) 8%, var(--panel-3));
+}
+
+.personal-watchlist-sync-issue-warning {
+  border-color: color-mix(in srgb, var(--yellow) 45%, var(--line));
+  background: color-mix(in srgb, var(--yellow) 8%, var(--panel-3));
+}
+
+.personal-watchlist-sync-issue-info {
+  border-color: var(--line);
+  background: var(--panel-3);
+}
+
+.personal-watchlist-sync-issue-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 760px) {
+  .personal-watchlist-sync-issue {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .personal-watchlist-sync-issue [data-settings-path] {
+    justify-self: start;
+  }
+}
+
 .personal-watchlist-sync-representation {
   color: var(--muted);
   font-size: 0.8rem;
@@ -12244,9 +12306,18 @@ h1 {
   gap: 0;
 }
 
-#timeline-view .dashboard-up-next-card .up-next-app-links .source-badge--icon {
+#timeline-view .dashboard-up-next-card .up-next-app-links .source-badge--icon,
+#timeline-view .history-card-apps .source-badge,
+#timeline-view .part-watched-app-badge {
+  background: transparent;
   gap: var(--space-1);
   padding-inline: var(--space-1);
+}
+
+html.light-mode #timeline-view .dashboard-up-next-card .up-next-app-links .source-badge--icon,
+html.light-mode #timeline-view .history-card-apps .source-badge,
+html.light-mode #timeline-view .part-watched-app-badge {
+  background: transparent;
 }
 
 .up-next-apps-empty {

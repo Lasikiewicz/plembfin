@@ -1,7 +1,7 @@
 import { buildAuthHeaders, buildNowPlayingUrl } from "./auth.js";
 import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, platformBadge, sourceClass, sourceBadgeHtml, computeProgress, formatDate, formatPlaybackClock, showName } from "./utils.js?v=20260824h";
-import { hydratePosters, posterMarkup } from "./images.js?v=20260831m";
+import { escapeHtml, escapeAttribute, platformBadge, sourceClass, sourceBadgeHtml, computeProgress, formatDate, formatPlaybackClock, showName } from "./utils.js?v=20260903a";
+import { hydratePosters, posterMarkup } from "./images.js?v=20260903b";
 
 const NOW_PLAYING_POLL_MS = 10000;
 
@@ -723,12 +723,12 @@ export function setActiveSessions(sessions = [], { force = false } = {}) {
 function nowPlayingPosterItem(session = {}) {
   const posterId = session.media_key || session.mediaKey || "";
   if (posterId) {
-    return { ...session, id: posterId, media_key: posterId, prefer_raw_poster: true };
+    return { ...session, id: posterId, media_key: posterId, prefer_raw_poster: true, cache_only_artwork: true };
   }
 
   const item = { ...session };
   delete item.id;
-  return item;
+  return { ...item, cache_only_artwork: true };
 }
 
 export function renderActiveSessions() {
@@ -795,7 +795,7 @@ export function renderActiveSessions() {
   if (elements.nowPlayingGrid.dataset.renderedHtml !== nextHtml) {
     elements.nowPlayingGrid.dataset.renderedHtml = nextHtml;
     elements.nowPlayingGrid.innerHTML = nextHtml;
-    hydratePosters(elements.nowPlayingGrid);
+    hydratePosters(elements.nowPlayingGrid, { allowNetwork: false });
   }
 
   if (elements.nowPlayingStatus) {

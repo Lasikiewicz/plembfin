@@ -92,7 +92,16 @@ function plexItemGuidIds(item = {}) {
 
 function plexParentGuidIds(item = {}) {
   const ids = {};
-  for (const raw of [item.parentGuid, item.grandparentGuid]) {
+  for (const raw of [
+    item.parentGuid,
+    item.grandparentGuid,
+    item.parentGUID,
+    item.grandparentGUID,
+    item.ParentGuid,
+    item.GrandparentGuid,
+    item.ParentGUID,
+    item.GrandparentGUID,
+  ]) {
     const value = text(raw?.id || raw);
     const match = value.match(/(?:^|\.)(imdb|tmdb|tvdb|themoviedb|thetvdb):\/\/([^/?#]+)/i);
     if (!match) continue;

@@ -51,6 +51,9 @@ picker every date/time control in the app is built on).
 Direct URL loads work identically - routing hydrates the same UI without needing
 in-app navigation state. TV URLs support deep links:
 `/tvshow/<key>/season/2/episode/5` (and a legacy `#season2ep5` hash form).
+Episode cards use explicit series provider ids when available. Episode-level provider ids
+are never promoted into `/tvshow/tmdb/:id` or `/tvshow/tvdb/:id`; cards without a trusted
+series id use the title route, preserving the season/episode coordinates safely.
 Legacy movie title routes such as `/movie/the-flash` remain resolvable after the
 movie is marked unwatched: when no watched library row exists, the route resolves
 the title through TMDB and renders the normal unwatched detail page. Canonical

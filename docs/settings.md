@@ -197,8 +197,8 @@ footer visible while the body scrolls, and collapse to stacked fields on mobile.
 | `public/modules/settings-shell.js` | Hierarchical section/group registry, multi-view aggregation, legacy aliases, landing list, sidebar, mobile selector, panel visibility, section-scoped scrolling, and tools disclosures |
 | `public/modules/settings-ui.js` | Shared edit modal, picker modal, service-card grid, and the `renderFieldRow`/`collectFieldValues` primitives reused by both modal and inline forms |
 | `public/modules/settings-services.js` | Media-server and metadata definitions, config saves, connection tests, cards/dialogs, and the inline Sync Tuning form |
-| `public/modules/rating-sync-settings.js` | Personal Rating Sync settings, provider direction controls, status polling, and manual actions |
-| `public/modules/watchlist-sync-settings.js` | Personal Watchlist Sync provider controls, representation choices, preview/publish confirmation, status, activity, and retry actions |
+| `public/modules/rating-sync-settings.js` | Personal Rating Sync on/off control, connection summary, and status polling |
+| `public/modules/watchlist-sync-settings.js` | Personal Watchlist Sync on/off control, connection summary, and status polling |
 | `public/modules/settings.js` | Shared connection-label formatting |
 | `public/modules/tools.js` | Trakt import and compatibility exports for backup and maintenance behavior |
 | `public/modules/tools-backups.js` | Backup schedules, restore, destination cards/dialogs, and appearance behavior |
@@ -253,22 +253,26 @@ timeout. Blank fields inherit the matching environment variable or built-in defa
 saved values take precedence. The defaults remain 90%, 60 seconds, 5 minutes, and 10
 seconds respectively.
 
-**Personal Rating Sync** is a separate optional form in Sync Tools and is disabled by
-default. It has an independent enabled flag, 5-minute-to-24-hour interval, baseline or
-import first-snapshot mode, local-wins or remote-wins conflict policy, and a direction
-selector for Plex, Emby, Jellyfin, and Trakt. Local rating changes are saved to
-Plembfin first and delivered through a durable queue; provider failures do not alter
-watched state, play history, resume positions, or lists. See
+**Personal Rating Sync** is disabled by default and has a single on/off control. When
+enabled, every connected Plex, Emby, Jellyfin, and Trakt account participates in
+two-way sync every five minutes. Local rating changes are saved to Plembfin first and
+delivered through a durable queue; provider failures do not alter watched state, play
+history, resume positions, or lists. See
 [personal-ratings.md](personal-ratings.md).
 
-**Personal Watchlist Sync** is disabled globally and per provider by default. Plembfin
-is the canonical local present-set; Plex can use its account Universal Watchlist in
-native mode (writes are separately opt-in) or RSS read-only mode, while Emby and Jellyfin
-use a Plembfin-owned playlist or an ownership-aware Favorites compatibility mode. The
-Preview action is read-only. **Publish local list** is the explicit first-publish step,
-and a restored list remains paused until it is published. Provider-only additions are
-not imported automatically, unrelated Favorites are preserved, and provider failures
-never delete the local list.
+**Personal Watchlist Sync** is disabled by default and has a single on/off control.
+Plembfin is the canonical local present-set; Plex uses its account Universal Watchlist,
+while Emby and Jellyfin use a Plembfin-owned playlist. Enabling sync takes a safe union
+on the first run, imports provider-only additions, and fans each newer change out to the
+other connected services. Provider failures never delete the local list.
+
+The panel explains anything it cannot deliver instead of only reporting that attention is
+needed: a refused sign-in names the service and links to its connection settings, a
+rejected change shows the error the service returned and when the next attempt is due, and
+a title missing from an Emby or Jellyfin library is reported as expected rather than as a
+fault, since those services back a watchlist with a library-bound playlist. A **Retry
+queued changes** button reruns stuck work immediately. See
+[personal-watchlist.md](personal-watchlist.md).
 
 The same form's **Fast Local-Network Sync** checkbox controls the outbound pacing
 governor's profile (`server/src/utils/outboundGovernor.js`), stored as `pacing.profile`

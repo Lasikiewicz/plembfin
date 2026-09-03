@@ -52,16 +52,37 @@ headers - there the token stays in the URL.
 Settings → Sync → Sync Tools can enable a separate Personal Watchlist Sync projection.
 The Plex adapter (`plexWatchlistClient.js`) uses the account-level Universal Watchlist,
 not a selected server library, so it authenticates with the connected Plex account JWT.
-It deliberately does not reuse a server token for account operations. A native
-representation can read and write only when **Allow account writes** is enabled; the
-RSS representation is read-only and is useful for observation/preview only.
+It deliberately does not reuse a server token for account operations. Enabling Personal
+Watchlist Sync authorizes native reads and writes; Plembfin no longer exposes separate
+representation or account-write controls.
+
+The account surface spans two hosts and they are not interchangeable. The watchlist
+collection and its mutations live on `metadata.provider.plex.tv`; catalog search lives on
+`discover.provider.plex.tv`. The adapter uses these endpoints:
+
+| Operation | Request |
+| --- | --- |
+| Read the watchlist | `GET metadata.provider.plex.tv/library/sections/watchlist/all` with `includeExternalMedia=1`, paged by `X-Plex-Container-Start` / `X-Plex-Container-Size` |
+| Resolve a target | `GET discover.provider.plex.tv/library/search` with `searchTypes=movies` or `tv` and `includeMetadata=1` |
+| Add | `PUT metadata.provider.plex.tv/actions/addToWatchlist?ratingKeys=<key>` |
+| Remove | `PUT metadata.provider.plex.tv/actions/removeFromWatchlist?ratingKeys=<key>` |
+
+`includeExternalMedia` matters because most of a watchlist is titles no reachable server
+holds. Resolution searches the Plex catalog rather than a server library for the same
+reason: a watchlist exists to hold things the account does not own, so `/hubs/search` on a
+media server is the wrong question. Both mutations are `PUT`; a `DELETE` against the action
+endpoints does not remove. The rating key is the account catalog key, which is also the
+last segment of a `plex://movie/<key>` guid, and the adapter falls back to that guid when a
+target carries no resolved id.
 
 Plex does not publish a stable, fully documented account-watchlist mutation API in the
-PMS API reference. Plembfin therefore keeps native write paths configurable, probes
+PMS API reference. Plembfin therefore keeps native paths configurable - overriding
+`watchlistAddPath` with a template containing `{id}` still substitutes into the path
+instead of sending `ratingKeys` - probes
 capability before delivery, and leaves the canonical local row intact when the account
-or target is unavailable. Initial publish is previewed and explicitly confirmed. A
-complete snapshot is required before a missing previously managed item can be treated
-as a provider removal; unrelated account-watchlist entries are never removed.
+or target is unavailable. The initial snapshot takes a safe union and imports Plex-only
+additions. A complete later snapshot is required before a missing previously managed
+item can be treated as a provider removal.
 
 ## Inbound channel 1: webhooks
 

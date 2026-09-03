@@ -28,30 +28,30 @@ const { queuePersonalRatingMutation } = await import("../server/src/utils/person
 
 test.after(() => db.close());
 
-test("rating sync defaults off and normalizes its independent provider directions", () => {
+test("rating sync is one on/off policy across every provider", () => {
   assert.equal(DEFAULT_RATING_SYNC.enabled, false);
   assert.deepEqual(
     normalizeRatingSyncSection({
       enabled: true,
       intervalMinutes: 2,
       initialSyncMode: "import",
-      conflictPolicy: "remote_wins",
+      conflictPolicy: "local_wins",
       providers: { plex: "send", trakt: "bidirectional", emby: "invalid" },
     }),
     {
       enabled: true,
       intervalMinutes: 5,
       initialSyncMode: "import",
-      conflictPolicy: "remote_wins",
-      providers: { plex: "send", emby: "off", jellyfin: "off", trakt: "bidirectional" },
+      conflictPolicy: "local_wins",
+      providers: { plex: "bidirectional", emby: "bidirectional", jellyfin: "bidirectional", trakt: "bidirectional" },
     },
   );
   assert.deepEqual(
     normalizeRatingSyncSection({ enabled: true }),
     {
       enabled: true,
-      intervalMinutes: 15,
-      initialSyncMode: "baseline",
+      intervalMinutes: 5,
+      initialSyncMode: "import",
       conflictPolicy: "local_wins",
       providers: { plex: "bidirectional", emby: "bidirectional", jellyfin: "bidirectional", trakt: "bidirectional" },
     },
@@ -87,6 +87,7 @@ test("local rating mutations queue independently and collapse to the latest inte
     tmdb_id: "901",
   });
   const config = {
+    plex: { baseUrl: "https://plex.example", token: "plex-token" },
     ratingSync: {
       enabled: true,
       providers: { plex: "send", emby: "off", jellyfin: "off", trakt: "off" },

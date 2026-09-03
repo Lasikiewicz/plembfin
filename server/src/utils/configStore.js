@@ -12,8 +12,8 @@ export const RATING_SYNC_PROVIDERS = ["plex", "emby", "jellyfin", "trakt"];
 export const RATING_SYNC_DIRECTIONS = ["off", "send", "receive", "bidirectional"];
 export const DEFAULT_RATING_SYNC = Object.freeze({
   enabled: false,
-  intervalMinutes: 15,
-  initialSyncMode: "baseline",
+  intervalMinutes: 5,
+  initialSyncMode: "import",
   conflictPolicy: "local_wins",
   providers: Object.freeze({ plex: "bidirectional", emby: "bidirectional", jellyfin: "bidirectional", trakt: "bidirectional" }),
 });
@@ -78,61 +78,44 @@ export function normalizePacing(section = {}) {
 
 export function normalizeRatingSyncSection(section = {}) {
   const enabled = Boolean(section.enabled);
-  const providers = {};
-  const hasExplicitProviders = Boolean(section.providers && typeof section.providers === "object");
-  for (const provider of RATING_SYNC_PROVIDERS) {
-    const raw = section.providers?.[provider] ?? section[provider];
-    if (raw !== undefined && RATING_SYNC_DIRECTIONS.includes(String(raw).trim().toLowerCase())) {
-      providers[provider] = String(raw).trim().toLowerCase();
-    } else if (hasExplicitProviders) {
-      providers[provider] = "off";
-    } else {
-      providers[provider] = enabled ? "bidirectional" : "off";
-    }
-  }
-  if (enabled && Object.values(providers).every((direction) => direction === "off")) {
-    for (const provider of RATING_SYNC_PROVIDERS) {
-      providers[provider] = "bidirectional";
-    }
-  }
-  const intervalValue = Number(section.intervalMinutes);
-  const intervalMinutes = Number.isInteger(intervalValue)
-    ? Math.max(5, Math.min(1440, intervalValue))
-    : DEFAULT_RATING_SYNC.intervalMinutes;
+  // Rating sync is one policy: when it is on, every connected provider both
+  // contributes observations and receives the canonical Plembfin value.
+  // Keep the legacy fields in the stored shape for backwards compatibility,
+  // but do not allow an old per-provider direction to weaken that contract.
+  const providers = Object.fromEntries(RATING_SYNC_PROVIDERS.map((provider) => [
+    provider,
+    enabled ? "bidirectional" : "off",
+  ]));
   return {
     enabled,
-    intervalMinutes,
-    initialSyncMode: section.initialSyncMode === "import" ? "import" : "baseline",
-    conflictPolicy: section.conflictPolicy === "remote_wins" ? "remote_wins" : "local_wins",
+    intervalMinutes: DEFAULT_RATING_SYNC.intervalMinutes,
+    initialSyncMode: "import",
+    conflictPolicy: "local_wins",
     providers,
   };
 }
 
 export function normalizeWatchlistSyncSection(section = {}) {
-  const intervalValue = Number(section.intervalMinutes);
-  const intervalMinutes = Number.isInteger(intervalValue)
-    ? Math.max(5, Math.min(1440, intervalValue))
-    : DEFAULT_WATCHLIST_SYNC.intervalMinutes;
+  const enabled = Boolean(section.enabled);
   const providers = {};
   for (const provider of WATCHLIST_SYNC_PROVIDERS) {
     const raw = section.providers?.[provider] ?? section[provider] ?? {};
     const value = raw && typeof raw === "object" ? raw : {};
-    const allowed = WATCHLIST_SYNC_REPRESENTATIONS[provider];
-    const representation = allowed.includes(String(value.representation || "").toLowerCase())
-      ? String(value.representation).toLowerCase()
-      : DEFAULT_WATCHLIST_SYNC.providers[provider].representation;
+    const representation = DEFAULT_WATCHLIST_SYNC.providers[provider].representation;
     const confirmed = Number(value.publishConfirmedAt || value.publish_confirmed_at || 0);
     providers[provider] = {
-      enabled: Boolean(value.enabled),
+      enabled,
       representation,
-      ...(provider === "plex" ? { writeEnabled: Boolean(value.writeEnabled || value.write_enabled) } : {}),
+      // Enabling this domain is the user's authorization to keep every
+      // connected provider in sync, including the Plex account watchlist.
+      ...(provider === "plex" ? { writeEnabled: enabled } : {}),
       publishConfirmedAt: Number.isFinite(confirmed) && confirmed > 0 ? Math.round(confirmed) : 0,
     };
   }
   return {
-    enabled: Boolean(section.enabled),
-    intervalMinutes,
-    importRemoteAdditions: Boolean(section.importRemoteAdditions || section.import_remote_additions),
+    enabled,
+    intervalMinutes: DEFAULT_WATCHLIST_SYNC.intervalMinutes,
+    importRemoteAdditions: enabled,
     providers,
   };
 }

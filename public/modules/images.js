@@ -194,6 +194,14 @@ export function posterUrlFor(item = {}) {
   const idValue = item.id != null ? item.id : item.media_key;
   const raw = item.poster_url || item.posterUrl || item.imageUrl || item.thumb || "";
   const showRaw = item.show_poster_url || item.showPosterUrl || item.canonical_poster_url || item.canonicalPosterUrl || "";
+  const cacheOnly = Boolean(item.cache_only_artwork || item.cacheOnlyArtwork);
+  if (cacheOnly) {
+    // Cache-first surfaces must not turn a stored TMDB path, remote CDN URL,
+    // or provider proxy into a new request while they render. Background
+    // discovery owns filling local artwork; until then a placeholder is the
+    // honest state.
+    return [raw, showRaw].find((value) => isCachedStorageImageUrl(value)) || "";
+  }
   // A same-origin poster supplied by the API is a deliberate source of truth,
   // not another candidate for an older negative lookup. This is especially
   // important after a show poster is edited: the old id-keyed miss must not
@@ -269,27 +277,27 @@ export function posterOverflowMenu(item = {}, options = {}) {
     : "");
   const ratingSeason = options.ratingSeason ?? (isEpisodeRating ? (item.season ?? item.seasonNumber ?? "") : "");
   const ratingEpisode = options.ratingEpisode ?? (isEpisodeRating ? (item.episode ?? item.episodeNumber ?? "") : "");
-  // Episode watch-history rows can carry the provider's episode id in
-  // `tmdb_id`/`tvdb_id`, while the media detail page rates the episode using
+  // Episode watch-history and Up Next rows can carry the provider's episode id
+  // in `tmdb_id`/`tvdb_id`, while the media detail page rates the episode using
   // the show's series id. Prefer the explicit show identity for episode
-  // ratings; Up Next rows are already show-level, so retain their fallback.
+  // ratings and leave it blank when no trusted series id exists.
   const ratingTmdbId = options.ratingTmdbId || (isEpisodeRating
-    ? (item.show_tmdb_id || item.showTmdbId || (menuMode === "up-next" ? item.tmdb_id || item.tmdbId : ""))
+    ? (item.show_tmdb_id || item.showTmdbId || "")
     : (item.tmdb_id || item.tmdbId || item.show_tmdb_id || item.showTmdbId || ""));
   const ratingTvdbId = options.ratingTvdbId || (isEpisodeRating
-    ? (item.show_tvdb_id || item.showTvdbId || (menuMode === "up-next" ? item.tvdb_id || item.tvdbId : ""))
+    ? (item.show_tvdb_id || item.showTvdbId || "")
     : (item.tvdb_id || item.tvdbId || item.show_tvdb_id || item.showTvdbId || ""));
   const ratingImdbId = options.ratingImdbId || (isEpisodeRating
-    ? (item.show_imdb_id || item.showImdbId || (menuMode === "up-next" ? item.imdb_id || item.imdbId : ""))
+    ? (item.show_imdb_id || item.showImdbId || "")
     : (item.imdb_id || item.imdbId || ""));
   const ratingShowTmdbId = options.ratingShowTmdbId || (isEpisodeRating
-    ? (item.show_tmdb_id || item.showTmdbId || (menuMode === "up-next" ? item.tmdb_id || item.tmdbId : ""))
+    ? (item.show_tmdb_id || item.showTmdbId || "")
     : "");
   const ratingShowTvdbId = options.ratingShowTvdbId || (isEpisodeRating
-    ? (item.show_tvdb_id || item.showTvdbId || (menuMode === "up-next" ? item.tvdb_id || item.tvdbId : ""))
+    ? (item.show_tvdb_id || item.showTvdbId || "")
     : "");
   const ratingShowImdbId = options.ratingShowImdbId || (isEpisodeRating
-    ? (item.show_imdb_id || item.showImdbId || (menuMode === "up-next" ? item.imdb_id || item.imdbId : ""))
+    ? (item.show_imdb_id || item.showImdbId || "")
     : "");
   const ratingEpisodeTmdbId = options.ratingEpisodeTmdbId || item.episode_tmdb_id || item.episodeTmdbId || "";
   const ratingEpisodeTvdbId = options.ratingEpisodeTvdbId || item.episode_tvdb_id || item.episodeTvdbId || "";
@@ -330,9 +338,9 @@ export function posterOverflowMenu(item = {}, options = {}) {
       data-poster-menu-up-next-queue-kind="${escapeAttribute(options.queueKind || item.queue_kind || "next_up")}"
       data-poster-menu-up-next-title="${escapeAttribute(item.title || title)}"
       data-poster-menu-up-next-show-title="${escapeAttribute(showTitle || title)}"
-      data-poster-menu-up-next-tmdb-id="${escapeAttribute(isEpisode ? (item.show_tmdb_id || item.tmdb_id || "") : (item.tmdb_id || ""))}"
-      data-poster-menu-up-next-tvdb-id="${escapeAttribute(isEpisode ? (item.show_tvdb_id || item.tvdb_id || "") : (item.tvdb_id || ""))}"
-      data-poster-menu-up-next-imdb-id="${escapeAttribute(isEpisode ? (item.show_imdb_id || item.imdb_id || "") : (item.imdb_id || ""))}"
+      data-poster-menu-up-next-tmdb-id="${escapeAttribute(isEpisode ? (item.show_tmdb_id || "") : (item.tmdb_id || ""))}"
+      data-poster-menu-up-next-tvdb-id="${escapeAttribute(isEpisode ? (item.show_tvdb_id || "") : (item.tvdb_id || ""))}"
+      data-poster-menu-up-next-imdb-id="${escapeAttribute(isEpisode ? (item.show_imdb_id || "") : (item.imdb_id || ""))}"
       data-poster-menu-up-next-episode-tmdb-id="${escapeAttribute(ratingEpisodeTmdbId)}"
       data-poster-menu-up-next-episode-tvdb-id="${escapeAttribute(ratingEpisodeTvdbId)}"
       data-poster-menu-up-next-episode-imdb-id="${escapeAttribute(ratingEpisodeImdbId)}"
@@ -378,12 +386,16 @@ export function posterFallbackElement(className = "media-poster", posterId = "")
   return fallback;
 }
 
-export async function lookupPosterUrl(posterId, { fallback = false } = {}) {
+export async function lookupPosterUrl(posterId, { fallback = false, allowNetwork = true } = {}) {
   if (!posterId) return "";
   if (!fallback) {
     const cached = cachedPosterLookup(posterId);
     if (cached !== undefined) return cached || "";
   }
+  // Some surfaces, notably the dashboard, are intentionally cache-only. A
+  // missing poster there should stay a cheap placeholder rather than starting
+  // a provider lookup while the page is rendering.
+  if (!allowNetwork) return "";
   if (!state.token) {
     return "";
   }
@@ -408,7 +420,7 @@ export async function lookupPosterUrl(posterId, { fallback = false } = {}) {
         }
         const usableUrl = compactPosterUrl(body.url);
         if (usableUrl || fallback) return usableUrl;
-        return lookupPosterUrl(posterId, { fallback: true });
+        return lookupPosterUrl(posterId, { fallback: true, allowNetwork });
       })
       .catch((error) => {
         console.warn("Poster lookup failed", error);
@@ -435,7 +447,7 @@ function shouldHydratePosterElement(element) {
   return rect.bottom >= -120 && rect.right >= -120 && rect.top <= viewportHeight + 360 && rect.left <= viewportWidth + 120;
 }
 
-export async function hydratePosterFallbacks(container = document.body) {
+export async function hydratePosterFallbacks(container = document.body, { allowNetwork = true } = {}) {
   if (!container) return;
   const fallbacks = [...container.querySelectorAll("[data-poster-id].poster-fallback")].filter((fallback) => {
     const posterId = fallback.dataset.posterId;
@@ -447,13 +459,13 @@ export async function hydratePosterFallbacks(container = document.body) {
     const posterId = fallback.dataset.posterId;
     if (!posterId || state.posterLookupCache.has(posterId)) return;
 
-    const posterUrl = await lookupPosterUrl(posterId);
+    const posterUrl = await lookupPosterUrl(posterId, { allowNetwork });
     const safeUrl = safePosterElementUrl(posterUrl);
     if (!safeUrl || !fallback.isConnected || !fallback.classList.contains("poster-fallback")) return;
 
     const image = document.createElement("img");
     image.className = `${fallback.className.replace(/\bposter-fallback\b/g, "").trim() || fallback.className} poster-img`;
-    bindPosterImageErrorHandler(image);
+    bindPosterImageErrorHandler(image, { allowNetwork });
     image.src = encodeURI(safeUrl);
     image.alt = `${fallback.getAttribute("aria-label") || "Media poster"}`;
     image.loading = "eager";
@@ -472,7 +484,7 @@ export async function hydratePosterFallbacks(container = document.body) {
   await Promise.allSettled(workers);
 }
 
-export function bindPosterImageErrorHandler(image) {
+export function bindPosterImageErrorHandler(image, { allowNetwork = true } = {}) {
   if (image.dataset.posterErrorBound) return;
   image.dataset.posterErrorBound = "1";
   image.addEventListener("error", async () => {
@@ -485,7 +497,7 @@ export function bindPosterImageErrorHandler(image) {
 
     image.dataset.posterFallbackAttempted = "1";
     const brokenUrl = image.currentSrc || image.src;
-    const fallbackUrl = await lookupPosterUrl(posterId, { fallback: true });
+    const fallbackUrl = await lookupPosterUrl(posterId, { fallback: true, allowNetwork });
     const safeFallbackUrl = safePosterElementUrl(fallbackUrl);
     if (safeFallbackUrl && safeFallbackUrl !== brokenUrl && image.isConnected) {
       image.src = encodeURI(safeFallbackUrl);
@@ -497,16 +509,16 @@ export function bindPosterImageErrorHandler(image) {
   });
 }
 
-export function hydratePosterImages(container = document.body) {
+export function hydratePosterImages(container = document.body, { allowNetwork = true } = {}) {
   if (!container) return;
   for (const image of container.querySelectorAll("img[data-poster-id]")) {
-    bindPosterImageErrorHandler(image);
+    bindPosterImageErrorHandler(image, { allowNetwork });
   }
 }
 
-export function hydratePosters(container = document.body) {
-  hydratePosterImages(container);
-  hydratePosterFallbacks(container).catch(() => { });
+export function hydratePosters(container = document.body, { allowNetwork = true } = {}) {
+  hydratePosterImages(container, { allowNetwork });
+  hydratePosterFallbacks(container, { allowNetwork }).catch(() => { });
 }
 
 export function tmdbImage(path, size = "w300") {

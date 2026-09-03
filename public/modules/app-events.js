@@ -4,13 +4,13 @@ import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchD
 import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS, EXPLORER_VIEW_KEY_MOVIES, EXPLORER_VIEW_KEY_SHOWS, HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS, HISTORY_VIEW_KEY, HISTORY_FILTER_KEY, HISTORY_VIEW_MODES, HISTORY_FILTERS, PRIMARY_VIEWS } from "./state.js";
 import { escapeHtml, sanitizeTitle, safeImageUrl, movieSlug, showTitleFrom, slug, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel } from "./utils.js";
 import { renderSettingsInlineHelp } from "./help-content.js";
-import { compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, markArtworkUnavailable, tmdbProfile } from "./images.js?v=20260831m";
+import { compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, markArtworkUnavailable, tmdbProfile } from "./images.js?v=20260903b";
 import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, restoreRemoteBackupFromCard, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runTraktBackfill, runRematchTvShows, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, appendImportLog, loadPlembfinBackups, savePlembfinBackupSettings, createPlembfinBackupNow, downloadPlembfinBackup, deletePlembfinBackupFile, restorePlembfinBackupFromServer, restoreRemotePlembfinBackup, renderPlembfinBackups, updatePlembfinButtonsState, savePlembfinBackupRemoteSettings, createPlembfinBackupRemoteNow, createRemoteWatchBackupNow, saveRemoteWatchBackupSettings } from "./tools.js?v=20260831a";
 import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerCronSync, triggerStopSync } from "./sync.js";
-import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched } from "./dashboard.js?v=20260831m";
-import { loadUpNext } from "./up-next.js?v=20260903b";
+import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched } from "./dashboard.js?v=20260903b";
+import { loadUpNext, removeUpNextItem } from "./up-next.js?v=20260903c";
 import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, renderRankingTable } from "./stats.js";
-import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, triggerSearchPage, loadMoreSearchPeople, loadSearchCollection, renderSearchPage, renderExplorer, explorerQueryKey, updateAlphaFilter, handleAlphaFilterClick, resetMovieExplorer, resetShowExplorer, renderExplorerSentinel, observeExplorerSentinel, observeExplorerTmdbPrefetch, scheduleNextAirResort, currentExplorerView, currentExplorerSort, currentPosterWidthKey, setCurrentExplorerSort, applyExplorerPosterWidth, applyListHeaderSort, renderMovieCard, renderMovieExplorer, loadExplorerMovies, applyHistoryPosterWidth, resetHistoryView, renderHistoryItems, renderHistoryView, loadHistoryView, observeHistorySentinel, renderShowExplorer, loadExplorerShows, mergeShowDetail, loadShowDetail, matchesExplorerSearch, sortExplorerItems, renderShowRecord, renderShowFolder, renderSeasonFolder, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, emptyExplorer, FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver } from "./explorer.js?v=20260831c";
+import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, triggerSearchPage, loadMoreSearchPeople, loadSearchCollection, renderSearchPage, renderExplorer, explorerQueryKey, updateAlphaFilter, handleAlphaFilterClick, resetMovieExplorer, resetShowExplorer, renderExplorerSentinel, observeExplorerSentinel, observeExplorerTmdbPrefetch, scheduleNextAirResort, currentExplorerView, currentExplorerSort, currentPosterWidthKey, setCurrentExplorerSort, applyExplorerPosterWidth, applyListHeaderSort, renderMovieCard, renderMovieExplorer, loadExplorerMovies, applyHistoryPosterWidth, resetHistoryView, renderHistoryItems, renderHistoryView, loadHistoryView, observeHistorySentinel, renderShowExplorer, loadExplorerShows, mergeShowDetail, loadShowDetail, matchesExplorerSearch, sortExplorerItems, renderShowRecord, renderShowFolder, renderSeasonFolder, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, emptyExplorer, FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver } from "./explorer.js?v=20260903a";
 import { openWatchDatePrompt, markDiscoverWatched, submitSeerrRequest } from "./watch-action.js?v=20260831b";
 import { addToWatchlist, removeFromWatchlist, openRatingDialog, openAddToListDialog, addToCustomList, removeFromCustomList, openCreateListDialog, personalItemFromPosterMenuDataset } from "./personal-media.js?v=20260903b";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails, resolveEpisodeTitleFromTmdb } from "./tmdb.js?v=20260823";
@@ -616,7 +616,7 @@ function attachEvents() {
     const title = d.upNextTitle || d.upNextMenuTitle || d.title || "Untitled";
     const showTitle = d.showTitle || d.upNextShowTitle || (isEpisode ? title : "");
     return {
-      id: d.upNextWatch || d.upNextMenuWatch || d.upNextClear || "",
+      id: d.upNextWatch || d.upNextMenuWatch || d.upNextClear || d.upNextRemove || "",
       mediaType,
       isEpisode,
       title,
@@ -761,7 +761,92 @@ function attachEvents() {
     }
   };
 
+  const removeUpNextItemAction = async (removeBtn, event = null) => {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const d = removeBtn?.dataset || {};
+    const itemId = d.upNextRemove || "";
+    const item = state.upNextItems.find((candidate) => String(candidate?.id || "") === String(itemId)) || null;
+    const payload = item
+      ? {
+          ...item,
+          providerItems: item.provider_items || item.providerItems || {},
+        }
+      : upNextPayloadFromButton(removeBtn);
+    if (!payload.id && !payload.media_key && !itemId) return;
+
+    const payloadMediaType = payload.media_type || payload.mediaType || (payload.season != null ? "episode" : "movie");
+    const isEpisode = payloadMediaType === "episode";
+    const title = isEpisode
+      ? (payload.show_title || payload.showTitle || payload.title || "this episode")
+      : (payload.title || "this movie");
+    const confirmed = await openConfirmDialog({
+      title: "Remove from Up Next",
+      body: `Remove "${title}" from Up Next in Plembfin and every connected media app?`,
+      confirmLabel: "Remove from Up Next",
+      danger: true,
+    });
+    if (!confirmed) return;
+
+    const originalText = removeBtn.textContent;
+    const originalLabel = removeBtn.getAttribute("aria-label");
+    removeBtn.disabled = true;
+    removeBtn.textContent = "…";
+    removeBtn.setAttribute("aria-label", "Removing from Up Next");
+
+    try {
+      const response = await fetch("/api/up-next/remove", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...authHeaders() },
+        body: JSON.stringify({
+          media_key: payload.media_key || payload.id || itemId,
+          media_type: payloadMediaType,
+          queue_kind: payload.queue_kind || payload.queueKind || d.upNextQueueKind || "",
+          title: payload.title || payload.episode_title || payload.show_title || payload.showTitle || "Untitled",
+          show_title: payload.show_title || payload.showTitle || "",
+          tmdb_id: payload.tmdb_id || payload.tmdbId || payload.show_tmdb_id || payload.showTmdbId || "",
+          imdb_id: payload.imdb_id || payload.imdbId || payload.show_imdb_id || payload.showImdbId || "",
+          tvdb_id: payload.tvdb_id || payload.tvdbId || payload.show_tvdb_id || payload.showTvdbId || "",
+          season: isEpisode ? (payload.season ?? "") : "",
+          episode: isEpisode ? (payload.episode ?? "") : "",
+          provider_items: payload.provider_items || payload.providerItems || {},
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+      removeUpNextItem(payload.id || itemId, payload);
+      const dismissals = Array.isArray(body.providerDismissals) ? body.providerDismissals : [];
+      const synced = dismissals.filter((entry) => entry.status === "fulfilled").length;
+      const issues = dismissals.filter((entry) => entry.status !== "fulfilled").length;
+      setMessage(
+        issues
+          ? `Removed "${title}" in Plembfin and ${synced} connected app${synced === 1 ? "" : "s"}; ${issues} app${issues === 1 ? " needs" : "s need"} attention`
+          : body.queued
+          ? `Removed "${title}" from Up Next; sync queued until the current blocking operation completes`
+          : synced
+            ? `Removed "${title}" from Up Next in Plembfin and ${synced} connected app${synced === 1 ? "" : "s"}`
+            : `Removed "${title}" from Up Next in Plembfin`,
+        issues ? "muted" : "success",
+      );
+      await loadHistory({ force: true, silent: true }).catch(() => null);
+      await loadUpNext({ force: true });
+      renderDashboard();
+    } catch (error) {
+      showErrorExplainModal(`Failed to remove "${title}" from Up Next`, error.message);
+    } finally {
+      removeBtn.disabled = false;
+      removeBtn.textContent = originalText;
+      if (originalLabel === null) removeBtn.removeAttribute("aria-label");
+      else removeBtn.setAttribute("aria-label", originalLabel);
+    }
+  };
+
   elements.upNextPanel?.addEventListener("click", (event) => {
+    const removeBtn = event.target.closest("[data-up-next-remove]");
+    if (removeBtn) {
+      removeUpNextItemAction(removeBtn, event);
+      return;
+    }
     const clearBtn = event.target.closest("[data-up-next-clear]");
     if (clearBtn) {
       clearUpNextProgress(clearBtn, event);
@@ -775,6 +860,12 @@ function attachEvents() {
   // Overflow menus are portaled to <body>, so their Up Next actions cannot be
   // delegated from the horizontal row itself.
   document.addEventListener("click", (event) => {
+    const removeBtn = event.target.closest("[data-up-next-remove]");
+    if (removeBtn) {
+      removeUpNextItemAction(removeBtn, event);
+      return;
+    }
+
     const clearBtn = event.target.closest("[data-up-next-clear]");
     if (clearBtn) {
       clearUpNextProgress(clearBtn, event);

@@ -22,11 +22,11 @@ import {
   workerAvailable,
   BACKGROUND_JOB_STALE_MS,
 } from "../utils/backgroundJobs.js";
-import { findPlexItem, markPlexPlayed, setPlexProgress, markPlexUnplayedByRatingKey, fetchPlexWatchedItems, fetchPlexMetadataItem, fetchPlexSeriesEpisodes, listPlexLibraries } from "../utils/plexClient.js";
+import { findPlexItem, markPlexPlayed, setPlexProgress, markPlexUnplayedByRatingKey, hidePlexFromContinueWatching, fetchPlexWatchedItems, fetchPlexMetadataItem, fetchPlexSeriesEpisodes, listPlexLibraries } from "../utils/plexClient.js";
 import { probePlexNotificationSocket } from "../utils/plexNotificationListener.js";
 import { pokeLiveSessionPoller } from "../scheduler.js";
-import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes, listEmbyLibraries } from "../utils/embyClient.js";
-import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes, listJellyfinLibraries } from "../utils/jellyfinClient.js";
+import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, hideEmbyFromResume, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes, listEmbyLibraries } from "../utils/embyClient.js";
+import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, hideJellyfinFromResume, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes, listJellyfinLibraries } from "../utils/jellyfinClient.js";
 import { buildPlexMediaFromMetadata, normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook } from "../utils/parsers.js";
 import { completeDispatchTracking, finishDispatchTracking, getTargetsForSource, isRecentOutboundPlayedEcho, isRecentOutboundPlayedFlagEcho, isRecentOutboundProgressEcho, isRecentOutboundUnplayedFlagEcho, recordOutboundPlayedMarks, reserveDispatchBatch, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
 import { canReceiveState } from "../utils/syncRoles.js";
@@ -48,7 +48,7 @@ import { applyUnwatchedTransition } from "../utils/watchStateTransitions.js";
 import { recordWatchAuditEvent, recordWatchAuditEvents } from "../utils/watchAudit.js";
 import { fetchPosterFromTmdb } from "../utils/tmdbClient.js";
 import { cacheBackdropFromUrl, cachePosterFromUrl, cacheProfileFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "../utils/posterCache.js";
-import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, searchTmdb, getCachedTvdbId } from "../utils/tmdbGateway.js";
+import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, searchTmdb, getCachedTvdbId, queueTmdbMetadataWarmup } from "../utils/tmdbGateway.js";
 import { searchTvdbSeriesList, resolveTvdbSeriesId, getTvdbSeriesArtwork } from "../utils/tvdbGateway.js";
 import { getFanartMovieArt, getFanartTvArt, getAllFanartMovieImages, getAllFanartTvImages } from "../utils/fanartGateway.js";
 import { getOmdbRating } from "../utils/omdbGateway.js";
@@ -1810,21 +1810,64 @@ export async function handlePlaybackProgressUnwatch(req, res) {
   }
 }
 
-// Compatibility endpoint for older clients. Up Next clearing is a canonical
-// unwatch transition: there is no durable client-side dismissal state.
+function directUpNextProviderIds(body = {}, provider) {
+  const raw = body.provider_items?.[provider] ?? body.providerItems?.[provider];
+  const values = Array.isArray(raw) ? raw : raw ? [raw] : [];
+  return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
+}
+
+async function resolveUpNextProviderIds(provider, config, media, body) {
+  const direct = directUpNextProviderIds(body, provider);
+  if (direct.length) return direct;
+  if (provider === "plex") {
+    const item = await findPlexItem(config.plex, media);
+    return item?.ratingKey ? [String(item.ratingKey)] : [];
+  }
+  if (provider === "emby") {
+    const items = await findEmbyItems(config.emby, media);
+    return [...new Set((items || []).map((item) => String(item?.Id || "").trim()).filter(Boolean))];
+  }
+  const items = await findJellyfinItems(config.jellyfin, media);
+  return [...new Set((items || []).map((item) => String(item?.Id || "").trim()).filter(Boolean))];
+}
+
+async function hideUpNextAcrossProviders(config, media, body) {
+  const definitions = [
+    { provider: "plex", configured: Boolean(config.plex?.baseUrl && config.plex?.token), hide: (id) => hidePlexFromContinueWatching(config.plex, id) },
+    { provider: "emby", configured: Boolean(config.emby?.baseUrl && config.emby?.apiKey && config.emby?.userId), hide: (id) => hideEmbyFromResume(config.emby, id) },
+    { provider: "jellyfin", configured: Boolean(config.jellyfin?.baseUrl && (config.jellyfin?.apiKey || config.jellyfin?.token) && config.jellyfin?.userId), hide: (id) => hideJellyfinFromResume(config.jellyfin, id) },
+  ].filter((entry) => entry.configured);
+
+  return Promise.all(definitions.map(async ({ provider, hide }) => {
+    try {
+      const ids = await resolveUpNextProviderIds(provider, config, media, body);
+      if (!ids.length) return { target: provider, status: "not_found", details: "No matching provider item was found" };
+      const results = await Promise.allSettled(ids.map((id) => hide(id)));
+      const failed = results.find((result) => result.status === "rejected");
+      if (failed) return { target: provider, status: "failed", details: failed.reason?.message || "Provider removal failed" };
+      return { target: provider, status: "fulfilled", details: `Removed from ${provider === "plex" ? "Continue Watching" : "Resume"}` };
+    } catch (error) {
+      return { target: provider, status: "failed", details: error?.message || "Provider removal failed" };
+    }
+  }));
+}
+
+// Up Next removal combines Plembfin's canonical progress clear with each
+// connected server's native Continue Watching / Resume dismissal.
 export async function handleUpNextRemove(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
 
   const body = await readJson(req).catch(() => ({}));
-  const mediaKey = String(body.media_key || "").trim();
+  const mediaKey = String(body.media_key || body.id || "").trim();
   try {
     const config = await loadMediaConfig();
     const progressRow = mediaKey ? db.prepare("SELECT * FROM playback_progress WHERE media_key = ?").get(mediaKey) : null;
     const media = mediaFromProgressRequest(progressRow, body, mediaKey);
     if (!media.isValid) return sendJson(res, { error: "A valid media item is required" }, 400);
     const loopStore = createLoopStore();
+    const providerDismissals = await hideUpNextAcrossProviders(config, media, body);
     const { id: unwatchedId, summary } = await applyManualUnwatch(
       media,
       config,
@@ -1840,10 +1883,13 @@ export async function handleUpNextRemove(req, res) {
       status: summary.status,
       queued: Boolean(summary.deferred),
       targetStates: summary.targetStates || [],
+      providerDismissals,
     });
   } catch (error) {
     console.error("Up Next clear failed", error);
     return sendJson(res, { error: "Up Next clear failed" }, 500);
+  } finally {
+    await invalidateHistoryDerivedCaches().catch(() => null);
   }
 }
 
@@ -2454,6 +2500,33 @@ export async function handleWebhook(req, res) {
   // reads any non-`unplayed` phase as a play event and would file watches for
   // every episode of a newly added show.
   if (media.phase === "added") {
+    const isMovie = media.type === "movie";
+    const isEpisode = media.type === "episode";
+    // Season notifications often carry a season-level id and a label such as
+    // "Season 1", neither of which is a safe show identity. Episode/series
+    // notifications and movies have enough context; the scheduler/provider
+    // backstop will discover a season-only event later.
+    if (isMovie || isEpisode || media.type === "series") {
+      try {
+        queueTmdbMetadataWarmup([{
+          mediaType: isMovie ? "movie" : "tv",
+          // Episode notifications can carry an episode-level TMDB id. Let the
+          // TVDB/show identity resolve the parent series instead of trusting that
+          // leaf id as a series cache key.
+          tmdbId: isMovie ? media.ids?.tmdb || "" : media.type === "series" ? media.ids?.tmdb || "" : "",
+          title: isEpisode ? showTitleFrom(media.title) : media.title,
+          ids: {
+            imdbId: media.ids?.imdb || "",
+            tvdbId: media.ids?.tvdb || "",
+          },
+          verifyTvdbTitle: !isMovie,
+        }], { reason: "library-added-webhook" });
+      } catch (error) {
+        // Metadata is an enrichment side effect. Do not reject a valid library
+        // webhook or skip its watched-state handling when the cache is busy.
+        console.warn(`Library-added metadata warm-up queue failed: ${error?.message || error}`);
+      }
+    }
     const applied = await applyWatchedStateToNewItem(media, config).catch((error) => {
       console.error("New-item watched-state apply failed", error);
       return { applied: false, reason: error.message || "apply failed" };

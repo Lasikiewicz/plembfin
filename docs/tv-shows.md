@@ -39,6 +39,13 @@ its full episode list (`mergeShowWithLoadedHistory()` in `media-detail-show.js`)
 whose explicit show provider id contradicts the show's is excluded, while episode-level
 provider ids on history rows are preserved.
 
+`queryShowDetail()` reads and dedupes every tracked episode row before narrowing to the
+requested show, reading SQLite directly rather than the process-wide history cache so an
+interactive detail page cannot show a stale watched state right after a manual watch. A
+caller resolving many shows in one pass should not pay that per show: pass a single
+`loadTrackedEpisodeRows()` snapshot as `episodeRows` instead (see the Up Next note in
+[dashboard.md](dashboard.md)).
+
 A title lookup with no id to disambiguate by (`queryShowDetail({ title })`) can still
 resolve more than one real cluster under an exact title match - two distinct shows
 sharing a name, or a single mismatched import (an ambiguous Trakt title resolving to the
@@ -64,6 +71,11 @@ search that was never written back onto any row (see the matching comment in
 `rematchShowWatchRecords()`); `cachedShowTmdbId()` only returns a candidate that already
 has TMDB metadata cached under it, so without this ordering a wrong-but-cached id could
 keep permanently overriding a correct-but-not-yet-cached one.
+
+Episode history and Up Next cards have a stricter URL contract than show summaries:
+`show_tmdb_id`, `show_tvdb_id`, and `show_imdb_id` are the only fields eligible for a
+series URL. The flat `tmdb_id`/`tvdb_id`/`imdb_id` fields may identify the episode, so a
+card with no explicit series identity falls back to a title route instead of guessing.
 
 On the client, `renderShowDetailFromMetadata()` (`media-detail-show.js`) matches the
 freshly-fetched provider metadata against the show already cached in `state.showsRaw` by
