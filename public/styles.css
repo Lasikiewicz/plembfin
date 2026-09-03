@@ -1302,6 +1302,23 @@ a.media-fact-chip:hover {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
+  /* Keep the sidebar's own scrollbar slim (e.g. when the Settings menu
+     expands past the viewport) instead of using the thick browser default. */
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-strong) transparent;
+}
+
+.sidebar-scrollable::-webkit-scrollbar {
+  width: 6px;
+}
+
+.sidebar-scrollable::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-scrollable::-webkit-scrollbar-thumb {
+  background-color: var(--line-strong);
+  border-radius: 3px;
 }
 
 @media (max-width: 760px) {
@@ -17580,6 +17597,18 @@ html.light-mode .theme-toggle-label--dark {
   gap: var(--space-2);
   align-items: stretch;
   padding: var(--space-3);
+  /* Pin the footer (Sync - Idle, version, Appearance) to the bottom of the
+     sidebar while the nav above it scrolls. Without this, expanding the
+     Settings menu pushes the footer below the fold. `margin-top: auto` (set
+     earlier) still centers it in the available space when there is no
+     overflow. */
+  position: sticky;
+  bottom: 0;
+  z-index: 2;
+  /* Matches .topnav's dark-mode background (#1a1a1a) so scrolling nav items
+     don't show through behind the pinned footer. Light mode overrides this
+     below via `html.light-mode .sidebar-footer`. */
+  background: #1a1a1a;
 }
 
 /* Media details page specific overrides */
