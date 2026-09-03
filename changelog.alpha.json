@@ -1,10 +1,45 @@
 {
   "baseVersion": "0.14.0",
-  "build": 12,
-  "version": "0.14.0.12",
-  "shortVersion": "0.14.0.12",
-  "updatedAt": "2026-09-02T21:01:25.133Z",
+  "build": 13,
+  "version": "0.14.0.13",
+  "shortVersion": "0.14.0.13",
+  "updatedAt": "2026-09-03T11:15:41.519Z",
   "entries": [
+    {
+      "build": 13,
+      "version": "0.14.0.13",
+      "shortVersion": "0.14.0.13",
+      "date": "2026-09-03T11:15:41.519Z",
+      "commit": "7173b36accec9c93e5a90b0d7b98e23cced0e628",
+      "message": "Feature - Simplify rating and watchlist sync to one toggle and fix Plex watchlist delivery",
+      "author": "Lasikiewicz",
+      "details": [
+        "Feature: Simplify rating and watchlist sync to one toggle and fix Plex watchlist delivery",
+        "Feature: Personal Rating Sync and Personal Watchlist Sync each collapse to a single on/off control that syncs two-way with every connected Plex, Emby, Jellyfin, and Trakt account, with Plembfin as the conflict authority and a safe first-run union an empty provider snapshot cannot erase",
+        "Feature: Watchlist sync now explains anything a service refuses instead of only saying attention is needed: a refused sign-in names the service and links to its connection settings, a rejected change shows the provider's own error and when the next attempt is due, and a title missing from an Emby or Jellyfin library is reported as expected rather than a fault, with a Retry queued changes button",
+        "Feature: Fixed Plex watchlist sync end to end: reading the watchlist, resolving a title, adding, and removing all used endpoints Plex does not serve, so nothing reached Plex and additions made there were never imported into Plembfin",
+        "Feature: Fixed the app freezing for up to a minute at a time, which also dropped the background scheduler and stalled every page: building the dashboard Up Next rail blocked the whole server and now completes in under a second",
+        "Feature: Metadata is warmed in the background as media is discovered through library webhooks and provider Up Next feeds, so dashboards and detail pages stay cache-first instead of downloading during a request",
+        "Feature: Up Next cards gained Remove from up next, which dismisses the item through each provider's own native endpoint and clears local progress",
+        "Feature: Episode cards no longer route through episode-level provider ids, so a deep link from a card opens the correct show instead of an unrelated one",
+        "Feature: Discover, Watchlist, Ratings, Custom Lists, and History now use the compact poster-first card geometry at mobile widths"
+      ],
+      "sections": {
+        "newFeatures": [
+          "Simplify rating and watchlist sync to one toggle and fix Plex watchlist delivery",
+          "Personal Rating Sync and Personal Watchlist Sync each collapse to a single on/off control that syncs two-way with every connected Plex, Emby, Jellyfin, and Trakt account, with Plembfin as the conflict authority and a safe first-run union an empty provider snapshot cannot erase",
+          "Watchlist sync now explains anything a service refuses instead of only saying attention is needed: a refused sign-in names the service and links to its connection settings, a rejected change shows the provider's own error and when the next attempt is due, and a title missing from an Emby or Jellyfin library is reported as expected rather than a fault, with a Retry queued changes button",
+          "Fixed Plex watchlist sync end to end: reading the watchlist, resolving a title, adding, and removing all used endpoints Plex does not serve, so nothing reached Plex and additions made there were never imported into Plembfin",
+          "Fixed the app freezing for up to a minute at a time, which also dropped the background scheduler and stalled every page: building the dashboard Up Next rail blocked the whole server and now completes in under a second",
+          "Metadata is warmed in the background as media is discovered through library webhooks and provider Up Next feeds, so dashboards and detail pages stay cache-first instead of downloading during a request",
+          "Up Next cards gained Remove from up next, which dismisses the item through each provider's own native endpoint and clears local progress",
+          "Episode cards no longer route through episode-level provider ids, so a deep link from a card opens the correct show instead of an unrelated one",
+          "Discover, Watchlist, Ratings, Custom Lists, and History now use the compact poster-first card geometry at mobile widths"
+        ],
+        "majorBugFixes": [],
+        "tweaks": []
+      }
+    },
     {
       "build": 12,
       "version": "0.14.0.12",
