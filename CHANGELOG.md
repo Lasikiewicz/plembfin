@@ -4,18 +4,48 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
-## Unreleased
+## v0.15.0 - 3 September 2026
+
+v0.15.0 brings a Discover feed, a private watchlist and ratings, personal lists as their own rails, faster Now Playing, a cleaner setup flow, and episode names that always show.
 
 ### New Features
 
-- Add an optional Personal Watchlist Sync domain with Plembfin as the canonical local
-  list, explicit initial-publish confirmation, durable provider queues, complete-snapshot
-  removal safety, and watched-completion auto-removal.
-- Add Plex Universal Watchlist, Emby playlist/Favorites, and Jellyfin playlist/Favorites
-  adapters with provider/user scoping, ownership-aware cleanup, unavailable-item status,
-  retry controls, and local-first Watchlist feedback.
-- Include watchlist state and non-secret sync metadata in full backups, require explicit
-  republish after restore, and expose watchlist rows in Wipe Data.
+- Discover - browse cached TMDB discovery rails for movies and TV with type and genre filters, plus direct actions from each result.
+- Personal watchlist - keep your own list of movies, shows, and episodes without ever changing your canonical watch history.
+- Personal ratings - rate titles privately; an optional Personal Rating Sync pushes and pulls ratings two-way with Plex, Emby, Jellyfin, and Trakt with Plembfin as the conflict authority.
+- Custom lists - render every custom list you keep as its own horizontal rail with four fixed desktop rows and additional lists below.
+- Ratings and Watchlist sync - each collapsed to a single on/off Settings toggle that syncs with every connected service.
+- Up Next rail - a mixed queue of the movies and episodes to continue next; each card can remove itself through the provider's own endpoint.
+- Sync Activity - every sync attempt grouped by movie or show with the full event history preserved, targeted Retry, and a Retry-all-failed background job.
+- Now Playing - live sessions appear and disappear within seconds, opening the dashboard refreshes immediately, and resume progress no longer makes the cards flicker.
+- Guided setup - a cleaner, centered first-run wizard that no longer requires a media server; title watching can carry you through on its own.
+- Fix Match from restore - resume a blocked restore by re-matching an item that lost its saved provider identity.
+- Mobile media pages - Discover, Watchlist, Ratings, Custom Lists, and History use the same poster-first rails as the dashboard on phones.
+
+### Major Bug Fixes
+
+- Dashboard and history cards now show the real episode name stored on the watch record - a watch reported by a media server as only a coordinate gets its name resolved at ingest, and Database Repairs can backfill names onto older rows.
+- Up Next no longer paints the same next-up episode twice and no longer merges a re-release or reboot that aired a different year; dismissing a tile animates it out before the rail refreshes.
+- Fixed the app freezing for up to a minute, which also stalled every page and the background scheduler - building the Up Next rail now finishes in under a second.
+- Now Playing no longer marks a still-playing session as stopped after one failed check, or after Plex switches video quality mid-playback.
+- Sync Activity retries resolve in place instead of leaving a stale duplicate error, and unconfigured servers are reported as skipped rather than failed.
+- Dashboard Continue Watching posters no longer reload whenever a playing item's resume progress updates.
+- Prevented scheduled Jellyfin polling from incorrectly undoing watched state during sync.
+- Plex state notifications are coalesced so one library action does not fan out into repeated work.
+- Scheduled every-season episode fetches so a show with many seasons no longer holds its detail page open for 10+ seconds.
+- Personal rating sync resolves provider identities and reads ratings with your authenticated provider account.
+- Shared TV cache rebuilds across concurrent readers, keeping bursts of history changes from starving the live health check.
+
+### Tweaks
+
+- Personal Rating and Watchlist sync are each a single Settings toggle in one unified panel with status, queue, and provider recovery controls.
+- Since Plex is the only service that can hold an unplayed watchlist, the Emby and Jellyfin watchlist clients were removed.
+- Sidebar pinned to the viewport: footer stays visible below the nav, scroll stays vertical, and the scrollbar matches the theme.
+- Watch-history restore is authoritative and target-aware, treating expected missing-library items as non-blocking skips.
+- Split/combined episode numbering is canonicalized before dispatch; manual unwatches commit during restores.
+- Episode cards and notifications resolve through their exact parent show so deep links open the right series.
+- Up Next artwork prefers cached local posters and authenticated provider fallbacks.
+- Sync Activity lets you expand a group inline, jump to the media, and retry without leaving the page.
 
 ## v0.14.0 - 29 August 2026
 
