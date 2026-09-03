@@ -482,6 +482,31 @@ npm run dev
 docker compose up --build
 ```
 
+### Network-backed local testing
+
+Provider-backed flows (TMDB, TVDB, Plex, Emby, Jellyfin, or Trakt) must be tested
+with the local server started using the approved network-enabled execution path on
+Windows. A server started inside the restricted sandbox can report `EACCES` while
+opening an outbound provider connection even though the application and provider
+are healthy. Stop that process, start the same command with approved elevated
+network access, confirm `http://localhost:5055` responds, and only then diagnose
+provider or application behavior. Treat an outbound-fetch `EACCES` from the
+restricted process as an execution-environment failure, not an application result.
+
+### Restricted Windows Git checks
+
+The managed workspace may deny Git access to the user-level excludes file at
+`C:\Users\<user>\.config\git\ignore`. For read-only status checks in that
+environment, use a per-command repository-local excludes file instead of changing
+global Git configuration:
+
+```powershell
+git -c core.excludesFile=C:\path\to\plembfin\.git\info\exclude status --short --branch
+```
+
+Do not modify global Git configuration or the repository config to work around that
+host permission boundary.
+
 `npm test` runs the focused `node:test` suite under `test/`. `npm run build` runs the
 syntax check, the same `node:test` suite, JSON validation, the server-side outbound-fetch guard, and a
 one-shot server boot against a temp `DATA_DIR`. There is no separate linter configured.
