@@ -18,7 +18,7 @@ import {
   renderAvailabilityPills, renderShowAvailabilityPills, showAvailIssuePopup,
   isWatchedHistoryAction,
 } from "./sync.js";
-import { dedupeMediaRecords, renderHistoryCard } from "./dashboard.js?v=20260903b";
+import { dedupeMediaRecords, renderHistoryCard } from "./dashboard.js?v=20260904a";
 import { renderMediaCard } from "./media-card.js?v=20260903a";
 import { nextAiringCell, nextAiringDateValue, formatListDate, futureListDate } from "./stats.js";
 // ---------------------------------------------------------------------------

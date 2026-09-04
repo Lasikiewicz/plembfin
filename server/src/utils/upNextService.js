@@ -6,6 +6,7 @@ import { minResumePositionMs, watchedThresholdPercent } from "./tuning.js";
 import {
   mergeUpNextCandidates,
   normalizeUpNextCandidate,
+  sortUpNextItems,
   upNextIdentityAliases,
 } from "./upNextIdentity.js";
 import {
@@ -168,6 +169,16 @@ function actionableResume(candidate) {
   return position >= minResumePositionMs() && progress < watchedThresholdPercent();
 }
 
+function providerResumeMembership(candidate) {
+  // Plex and Emby both expose a provider-curated Continue Watching rail whose
+  // list items can omit playback position. Membership in that native feed is
+  // still authoritative for Up Next, even when it cannot be used to
+  // propagate a numeric checkpoint to another provider.
+  return candidate?.queue_kind === "resume"
+    && ["plex", "emby", "jellyfin"].includes(String(candidate?.source || "").toLowerCase())
+    && Boolean(candidate?.provider_item_id);
+}
+
 function released(airDate, today) {
   const date = text(airDate);
   return !date || date <= today;
@@ -182,6 +193,50 @@ function episodeCoordinateForCandidate(candidate = {}) {
 
 function normalizedTitle(value = "") {
   return text(value).toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function showRecencyKeys(item = {}) {
+  const keys = [];
+  for (const [kind, values] of [
+    ["imdb", [item.show_imdb_id, item.imdb_id]],
+    ["tmdb", [item.show_tmdb_id, item.tmdb_id]],
+    ["tvdb", [item.show_tvdb_id, item.tvdb_id]],
+  ]) {
+    for (const value of values) {
+      const normalized = text(value).toLowerCase();
+      if (normalized) keys.push(`${kind}:${normalized}`);
+    }
+  }
+  const title = normalizedTitle(item.show_title || showTitleFrom(item.title || ""));
+  if (title) keys.push(`title:${title}`);
+  return [...new Set(keys)];
+}
+
+function showRecencyIndex(shows = []) {
+  const index = new Map();
+  for (const show of Array.isArray(shows) ? shows : []) {
+    const latest = text(show.latest_watched_at || show.latestWatchedAt);
+    if (!latest) continue;
+    for (const key of showRecencyKeys({
+      show_title: show.title,
+      show_imdb_id: show.imdb_id,
+      show_tmdb_id: show.tmdb_id,
+      show_tvdb_id: show.tvdb_id,
+    })) {
+      const current = index.get(key);
+      if (!current || String(latest).localeCompare(String(current)) > 0) index.set(key, latest);
+    }
+  }
+  return index;
+}
+
+function decorateShowRecency(candidate, index) {
+  if (candidate?.media_type !== "episode") return candidate;
+  const latest = showRecencyKeys(candidate)
+    .map((key) => index.get(key))
+    .filter(Boolean)
+    .sort((left, right) => String(right).localeCompare(String(left)))[0] || null;
+  return latest ? { ...candidate, show_latest_watched_at: latest } : candidate;
 }
 
 function providerObservationMatches(candidate, providerCandidate) {
@@ -213,6 +268,25 @@ function providerObservationMatches(candidate, providerCandidate) {
   const candidateTitle = normalizedTitle(candidate.show_title || showTitleFrom(candidate.title || ""));
   const providerTitle = normalizedTitle(providerCandidate.show_title || showTitleFrom(providerCandidate.title || ""));
   return Boolean(candidateTitle && candidateTitle === providerTitle);
+}
+
+function providerItemsFromTrackedEpisode(row = {}) {
+  const provenance = row.watch_provenance && typeof row.watch_provenance === "object"
+    ? row.watch_provenance
+    : {};
+  const provider = text(provenance.source || row.source).toLowerCase();
+  const itemId = text(provenance.item_id || provenance.itemId);
+  if (!itemId || !["plex", "emby", "jellyfin"].includes(provider)) return {};
+  return { [provider]: [itemId] };
+}
+
+function episodeIdsFromTrackedEpisode(row = {}, showIds = {}) {
+  const ids = {};
+  for (const provider of ["imdb", "tmdb", "tvdb"]) {
+    const value = text(row[`${provider}_id`]);
+    if (value && value.toLowerCase() !== text(showIds[provider]).toLowerCase()) ids[provider] = value;
+  }
+  return ids;
 }
 
 function publicItem(item) {
@@ -334,7 +408,13 @@ async function localNextUpForShow(show, {
     .map((season) => number(season.season_number, NaN))
     .filter((season) => Number.isInteger(season) && season > 0))]
     .sort((left, right) => left - right);
-  const maxWatchedSeason = Math.max(0, ...episodes.map((row) => number(row.season, 0)));
+  // Episode rows also include provider-supplied unplayed/future rows. They
+  // must not make the fallback jump from the last watched S03 episode to an
+  // unrelated S04 placeholder; choose the season from watched coordinates
+  // only, then scan later seasons if that season is exhausted.
+  const maxWatchedSeason = Math.max(0, ...episodes
+    .filter((row) => watched.has(coordinate(row)))
+    .map((row) => number(row.season, 0)));
   const firstSeason = maxWatchedSeason || seasonNumbers[0] || 1;
   const candidateSeasons = seasonNumbers.length
     ? [firstSeason, ...seasonNumbers.filter((season) => season > firstSeason)]
@@ -349,6 +429,8 @@ async function localNextUpForShow(show, {
       const episodeNumber = number(episode.episode_number, 0);
       const key = `${seasonNumber}:${episodeNumber}`;
       if (!released(episode.air_date, today) || watched.has(key)) continue;
+      const trackedEpisode = episodes.find((row) => coordinate(row) === key) || null;
+      const showIds = { tmdb: tmdbId, tvdb: tvdbId, imdb: show.imdb_id };
       const candidate = normalizeUpNextCandidate({
         queue_kind: "next_up",
         media_type: "episode",
@@ -357,9 +439,10 @@ async function localNextUpForShow(show, {
         episode_title: episode.name || "",
         season: seasonNumber,
         episode: episodeNumber,
-        show_ids: { tmdb: tmdbId, tvdb: tvdbId, imdb: show.imdb_id },
-        tmdb_id: tmdbId,
-        tvdb_id: tvdbId,
+        show_ids: showIds,
+        ids: episodeIdsFromTrackedEpisode(trackedEpisode || {}, showIds),
+        provider_items: providerItemsFromTrackedEpisode(trackedEpisode || {}),
+        show_latest_watched_at: show.latest_watched_at,
         poster_url: show.poster_url || metadata?.cached_poster_url
           || (metadata?.poster_path ? `/api/tmdb-poster?path=${encodeURIComponent(metadata.poster_path)}` : ""),
         air_date: episode.air_date || "",
@@ -368,15 +451,65 @@ async function localNextUpForShow(show, {
       if (stateIsWatched(candidate, playstateIndex)) continue;
       if (progressCandidates.some((resume) => aliasesIntersect(aliasesFor(candidate), aliasesFor(resume)))) continue;
       // Local history and TMDB metadata can tell us what should come next, but
-      // cannot prove that the episode still exists in a configured media
-      // server library. Require a matching active provider observation before
-      // allowing the fallback into Up Next; otherwise the card renders with
-      // no provider items and every Watch now badge is misleadingly greyed.
-      if (!providerCandidates.some((providerCandidate) => providerObservationMatches(candidate, providerCandidate))) continue;
+      // cannot prove that a guessed episode still exists in a configured media
+      // server library. A matching provider observation already contributes
+      // the authoritative card; otherwise require a native item id from a
+      // trusted provider-history row before adding the fallback. This keeps a
+      // real Reacher S03E04 visible while avoiding grey cards for TMDB-only
+      // episodes that are not in any configured library.
+      if (providerCandidates.some((providerCandidate) => providerObservationMatches(candidate, providerCandidate))) return null;
+      if (!Object.keys(candidate.provider_items || {}).length) continue;
       return candidate;
     }
   }
   return null;
+}
+
+function queueShowKey(item = {}) {
+  if (item.media_type !== "episode") return "";
+  const title = normalizedTitle(
+    showTitleFrom(item.show_title || showTitleFrom(item.title || "")).replace(/\(\d{4}\)/g, " "),
+  );
+  return title ? `title:${title}` : "";
+}
+
+function uncertainEpisodeQueueItem(item = {}) {
+  return item.media_type === "episode"
+    && (item.queue_kind === "next_up" || (item.queue_kind === "resume" && item.playback_position_known === false));
+}
+
+function furthestEpisode(left = {}, right = {}) {
+  return Number(right.season || 0) - Number(left.season || 0)
+    || Number(right.episode || 0) - Number(left.episode || 0)
+    || Number(right.updated_at || 0) - Number(left.updated_at || 0)
+    || String(left.id || "").localeCompare(String(right.id || ""));
+}
+
+function collapseUncertainEpisodeQueues(items = []) {
+  const groups = new Map();
+  const ungrouped = [];
+  for (const item of Array.isArray(items) ? items : []) {
+    const key = queueShowKey(item);
+    if (!key) {
+      ungrouped.push(item);
+      continue;
+    }
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(item);
+  }
+
+  const collapsed = [...ungrouped];
+  for (const rows of groups.values()) {
+    const knownResume = rows.filter((row) => row.queue_kind === "resume" && row.playback_position_known !== false);
+    const uncertain = rows.filter(uncertainEpisodeQueueItem);
+    if (!knownResume.length && uncertain.length > 1) {
+      const winner = [...uncertain].sort(furthestEpisode)[0];
+      collapsed.push(...rows.filter((row) => !uncertain.includes(row)), winner);
+    } else {
+      collapsed.push(...rows);
+    }
+  }
+  return sortUpNextItems(collapsed);
 }
 
 async function localNextUpCandidates({
@@ -429,16 +562,22 @@ export async function buildUpNextProjection({
 } = {}) {
   const rawProgressRows = progressRows || selectProgressRowsStmt.all();
   const playstateIndex = buildPlaystateIndex(playstateRows || selectPlaystateRowsStmt.all());
+  const observations = (providerItems || listActiveUpNextProviderItems()).slice(0, MAX_PROVIDER_OBSERVATIONS);
+  const rawProviderCandidates = observations.map((item) => normalizeUpNextCandidate(item));
+  const showRows = shows || ((localFallback || rawProviderCandidates.some((candidate) => candidate.queue_kind === "next_up"))
+    ? await getCachedShows()
+    : []);
+  const showRecency = showRecencyIndex(showRows);
   const canonicalResume = rawProgressRows
     .map((row) => rowCandidate(row, { queueKind: "resume", canonical: true }))
+    .map((candidate) => decorateShowRecency(candidate, showRecency))
     .filter(actionableResume)
     .filter((candidate) => !stateBlocksCandidate(candidate, playstateIndex, { progressUpdatedAt: candidate.updated_at }));
   const canonicalResumeAliases = canonicalResume.map(aliasesFor);
 
-  const observations = (providerItems || listActiveUpNextProviderItems()).slice(0, MAX_PROVIDER_OBSERVATIONS);
-  const providerCandidates = observations.map((item) => normalizeUpNextCandidate(item));
+  const providerCandidates = rawProviderCandidates.map((candidate) => decorateShowRecency(candidate, showRecency));
   const providerResume = providerCandidates
-    .filter((candidate) => candidate.queue_kind === "resume" && actionableResume(candidate))
+    .filter((candidate) => candidate.queue_kind === "resume" && (actionableResume(candidate) || providerResumeMembership(candidate)))
     .filter((candidate) => !stateBlocksCandidate(candidate, playstateIndex, { progressUpdatedAt: candidate.updated_at }))
     .filter((candidate) => !stateIsWatched(candidate, playstateIndex));
   const providerNextUp = providerCandidates
@@ -449,9 +588,8 @@ export async function buildUpNextProjection({
 
   let localNextUp = [];
   if (localFallback) {
-    const localShows = shows || await getCachedShows();
     localNextUp = await localNextUpCandidates({
-      shows: localShows,
+      shows: showRows,
       playstateIndex,
       progressCandidates: canonicalResume,
       providerCandidates,
@@ -459,12 +597,12 @@ export async function buildUpNextProjection({
     });
   }
 
-  const merged = mergeUpNextCandidates([
+  const merged = collapseUncertainEpisodeQueues(mergeUpNextCandidates([
     ...canonicalResume,
     ...providerResume,
     ...providerNextUp,
     ...localNextUp,
-  ]);
+  ]));
   const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
   const sourceStatus = listUpNextProviderFeedStates().map(({ cursor: _cursor, ...feed }) => feed);
   return {

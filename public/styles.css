@@ -1398,6 +1398,34 @@ a.media-fact-chip:hover {
   font-size: 0.95rem;
 }
 
+.up-next-sync-button {
+  width: 1.85rem;
+  min-height: 1.85rem;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+.up-next-sync-button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.up-next-sync-icon {
+  display: block;
+  width: 1rem;
+  height: 1rem;
+  fill: currentColor;
+}
+
+.up-next-sync-button[aria-busy="true"] .up-next-sync-icon {
+  animation: up-next-sync-spin 850ms linear infinite;
+}
+
+@keyframes up-next-sync-spin {
+  to { transform: rotate(360deg); }
+}
+
 .button-ghost:hover,
 .nav-tab:hover,
 .settings-tab:hover,
@@ -8229,17 +8257,21 @@ html.light-mode .poster-overflow-btn {
   width: 100%;
   text-align: left;
   padding: 0.45rem 0.6rem;
-  border: none;
-  border-radius: calc(var(--radius) - 2px);
+  border: 0;
+  border-left: 3px solid transparent;
+  border-radius: 0;
   background: transparent;
   color: var(--text);
   font-size: 0.85rem;
   cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, color 140ms ease;
 }
 
 .poster-overflow-item:hover,
 .poster-overflow-item:focus-visible {
-  background: var(--panel-3);
+  border-left-color: rgba(229, 160, 13, 0.55);
+  background: rgba(255, 255, 255, 0.05);
+  color: #fff;
 }
 
 .poster-overflow-item-danger {
@@ -8248,7 +8280,9 @@ html.light-mode .poster-overflow-btn {
 
 .poster-overflow-item-danger:hover,
 .poster-overflow-item-danger:focus-visible {
+  border-left-color: color-mix(in srgb, var(--red) 70%, transparent);
   background: color-mix(in srgb, var(--red) 14%, transparent);
+  color: var(--red);
 }
 
 .poster-overflow-item-has-submenu {
@@ -8267,13 +8301,19 @@ html.light-mode .poster-overflow-btn {
   transform: translateY(-50%);
 }
 
+.poster-overflow-item-has-submenu:hover::after,
+.poster-overflow-item-has-submenu:focus-visible::after {
+  color: #fff;
+}
+
 .poster-overflow-item-has-submenu[aria-expanded="true"],
 .poster-overflow-item-has-submenu[aria-expanded="true"]::after {
   color: var(--accent);
 }
 
 .poster-overflow-item-has-submenu[aria-expanded="true"] {
-  background: color-mix(in srgb, var(--accent), transparent 88%);
+  border-left-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .poster-overflow-submenu {
@@ -12404,6 +12444,7 @@ html.light-mode #timeline-view .part-watched-app-badge {
 .dashboard-card-exit {
   animation: dashboard-card-exit 200ms cubic-bezier(0.4, 0, 1, 1) both;
   pointer-events: none;
+  transform-origin: center left;
 }
 
 @keyframes dashboard-card-enter {
@@ -12424,7 +12465,8 @@ html.light-mode #timeline-view .part-watched-app-badge {
 
 @media (prefers-reduced-motion: reduce) {
   .dashboard-card-enter,
-  .dashboard-card-exit {
+  .dashboard-card-exit,
+  .up-next-sync-button[aria-busy="true"] .up-next-sync-icon {
     animation: none;
   }
 }
@@ -17188,6 +17230,33 @@ html.light-mode .nav-tab.active {
   border-left-color: var(--blue);
 }
 
+/* Keep portaled three-dot menus in the same navigation visual language as the
+   left menu when the light theme is active. */
+html.light-mode .poster-overflow-item:hover,
+html.light-mode .poster-overflow-item:focus-visible {
+  border-left-color: rgba(37, 99, 235, 0.3);
+  background: rgba(37, 99, 235, 0.04);
+  color: var(--blue);
+}
+
+html.light-mode .poster-overflow-item-danger:hover,
+html.light-mode .poster-overflow-item-danger:focus-visible {
+  border-left-color: rgba(220, 38, 38, 0.55);
+  background: rgba(220, 38, 38, 0.08);
+  color: var(--red);
+}
+
+html.light-mode .poster-overflow-item-has-submenu:hover::after,
+html.light-mode .poster-overflow-item-has-submenu:focus-visible::after {
+  color: var(--blue);
+}
+
+html.light-mode .poster-overflow-item-has-submenu[aria-expanded="true"] {
+  border-left-color: var(--blue);
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--blue);
+}
+
 html.light-mode .sidebar-appearance-list-item {
   color: var(--text);
 }
@@ -17284,6 +17353,19 @@ html.light-mode .button-ghost:hover {
   background: var(--panel-2);
   border-color: var(--line-strong);
   box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.08);
+}
+
+html.light-mode .up-next-sync-button:hover,
+html.light-mode .up-next-sync-button:focus-visible {
+  border-color: var(--accent);
+  background: rgba(37, 99, 235, 0.08);
+  color: var(--accent);
+}
+
+html.light-mode .up-next-sync-button:disabled:hover {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
 }
 
 html.light-mode .button-danger {

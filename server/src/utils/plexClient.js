@@ -908,6 +908,61 @@ function selectPlexSections(directories, libraryIds) {
   });
 }
 
+// Full, paginated library inventory used by the scheduled availability
+// reconciliation. Unlike fetchPlexWatchedItems this intentionally includes
+// unplayed items, because a newly added quality/library variant is normally
+// unplayed on Plex even when Plembfin already knows the episode was watched.
+export async function fetchPlexLibraryItems(config, { libraryIds } = {}) {
+  requirePlexConfig(config);
+  const baseUrl = trimTrailingSlash(config.baseUrl);
+  const accountId = await resolvePlexAccountId(config);
+  const directories = await fetchPlexLibraryDirectories(config);
+  const libraryItems = [];
+  const pageSize = 200;
+
+  for (const dir of selectPlexSections(directories, libraryIds)) {
+    let start = 0;
+    let totalSize = 0;
+    const seen = new Set();
+    while (start <= 10_000_000) {
+      const allUrl = new URL(`${baseUrl}/library/sections/${dir.key}/all`);
+      allUrl.searchParams.set("type", dir.type === "movie" ? "1" : "4");
+      allUrl.searchParams.set("unwatched", "1");
+      allUrl.searchParams.set("includeGuids", "1");
+      allUrl.searchParams.set("includeMedia", "1");
+      allUrl.searchParams.set("includeUserState", "1");
+      allUrl.searchParams.set("X-Plex-Container-Start", String(start));
+      allUrl.searchParams.set("X-Plex-Container-Size", String(pageSize));
+      if (accountId != null) allUrl.searchParams.set("accountID", String(accountId));
+
+      const response = await fetchPlexWithRefresh(config, allUrl, { lane: "sync" });
+      if (!response.ok) {
+        throw new Error(`Plex library inventory failed with status ${response.status} for section ${dir.key}`);
+      }
+      const body = await response.json();
+      const container = body?.MediaContainer || {};
+      const page = Array.isArray(container.Metadata) ? container.Metadata : [];
+      let newItems = 0;
+      for (const item of page) {
+        const id = String(item?.ratingKey || item?.key || "").trim();
+        if (id && seen.has(id)) continue;
+        if (id) seen.add(id);
+        // Keep the evidence that this item came from the explicit
+        // `unwatched=1` inventory. A few Plex versions omit viewCount when a
+        // filtered library feed is requested, even with includeUserState=1.
+        libraryItems.push({ ...item, __plembfinUnwatchedFeed: true });
+        newItems += 1;
+      }
+
+      totalSize = Number(container.totalSize || 0);
+      if (!page.length || !newItems || (totalSize > 0 && start + page.length >= totalSize) || (totalSize <= 0 && page.length < pageSize)) break;
+      start += page.length;
+    }
+  }
+
+  return libraryItems;
+}
+
 export async function fetchPlexWatchedItems(config, { libraryIds } = {}) {
   requirePlexConfig(config);
   const baseUrl = trimTrailingSlash(config.baseUrl);
@@ -1021,34 +1076,58 @@ export async function fetchPlexResumableItems(config, { limit = 0 } = {}) {
 function plexContinueWatchingItems(body) {
   const hubs = body?.MediaContainer?.Hub || body?.Hub || [];
   const normalizedHubs = Array.isArray(hubs) ? hubs : [hubs];
+  // Continue Watching is already a provider-curated membership feed. Plex's
+  // hub response does not consistently include viewOffset (the connected
+  // Plex app's response omits it entirely), so filtering on that field would
+  // discard every valid item from the native rail.
   return normalizedHubs.flatMap((hub) => Array.isArray(hub?.Metadata) ? hub.Metadata : [])
     .filter((item) => ["movie", "episode"].includes(String(item.type || "").toLowerCase()))
-    .filter((item) => Number(item.viewOffset || 0) > 0);
+    .filter((item) => String(item.ratingKey || item.key || "").trim());
 }
 
-// Plex exposes Continue Watching as an account-scoped home hub. Some older
-// servers do not expose that hub, so the section scan remains the fallback.
+// Plex exposes Continue Watching as an account-scoped hub. Some older servers
+// do not expose that hub, so the section scan remains the fallback.
 export async function fetchPlexContinueWatchingItems(config, { limit = 0 } = {}) {
   requirePlexConfig(config);
   const baseUrl = trimTrailingSlash(config.baseUrl);
   const accountId = await resolvePlexAccountId(config);
-  const url = new URL(`${baseUrl}/hubs/home/continueWatching`);
-  url.searchParams.set("includeGuids", "1");
-  url.searchParams.set("includeUserState", "1");
-  url.searchParams.set("sort", "lastViewedAt:desc");
-  url.searchParams.set("X-Plex-Container-Start", "0");
-  url.searchParams.set("X-Plex-Container-Size", String(Math.max(1, Math.round(Number(limit) || 100))));
-  if (accountId != null) url.searchParams.set("accountID", String(accountId));
-
   try {
-    const response = await fetchPlexWithRefresh(config, url);
-    if (response.ok) {
+    const requestedLimit = Number(limit) > 0 ? Math.max(1, Math.round(Number(limit))) : 0;
+    const pageSize = requestedLimit ? Math.min(requestedLimit, 100) : 100;
+    const collected = [];
+    const seen = new Set();
+    let foundHub = false;
+    for (let start = 0; start <= 10_000_000; start += pageSize) {
+      const url = new URL(`${baseUrl}/hubs/continueWatching`);
+      url.searchParams.set("includeGuids", "1");
+      url.searchParams.set("includeUserState", "1");
+      url.searchParams.set("includeMeta", "1");
+      url.searchParams.set("sort", "lastViewedAt:desc");
+      url.searchParams.set("X-Plex-Container-Start", String(start));
+      url.searchParams.set("X-Plex-Container-Size", String(pageSize));
+      if (accountId != null) url.searchParams.set("accountID", String(accountId));
+
+      const response = await fetchPlexWithRefresh(config, url);
+      if (!response.ok) break;
       const body = await response.json();
-      const items = plexContinueWatchingItems(body);
       const hub = body?.MediaContainer?.Hub ?? body?.Hub;
-      if (Array.isArray(hub) || (hub && typeof hub === "object")) {
-        return Number(limit) > 0 ? items.slice(0, Math.round(Number(limit))) : items;
+      if (!(Array.isArray(hub) || (hub && typeof hub === "object"))) break;
+      foundHub = true;
+      const page = plexContinueWatchingItems(body);
+      let newItems = 0;
+      for (const item of page) {
+        const id = String(item?.ratingKey || item?.key || "").trim();
+        if (id && seen.has(id)) continue;
+        if (id) seen.add(id);
+        collected.push(item);
+        newItems++;
+        if (requestedLimit && collected.length >= requestedLimit) return collected.slice(0, requestedLimit);
       }
+      const total = Number(body?.MediaContainer?.totalSize || 0);
+      if (!page.length || !newItems || (total > 0 && start + page.length >= total) || (total <= 0 && page.length < pageSize)) break;
+    }
+    if (foundHub) {
+      return requestedLimit ? collected.slice(0, requestedLimit) : collected;
     }
   } catch (error) {
     console.warn(`Plex Continue Watching feed unavailable; using section fallback: ${error.message}`);

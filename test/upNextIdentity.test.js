@@ -5,6 +5,7 @@ import {
   canonicalUpNextKey,
   mergeUpNextCandidates,
   normalizeUpNextCandidate,
+  sortUpNextItems,
 } from "../server/src/utils/upNextIdentity.js";
 
 function plexEpisode(overrides = {}) {
@@ -210,6 +211,62 @@ test("native series identity keeps same-title series separate when external ids 
   assert.equal(mergeUpNextCandidates([first, second]).length, 2);
 });
 
+test("shared episode external ids merge provider-native series identities", () => {
+  const rows = [
+    {
+      provider: "plex",
+      feed_kind: "resume",
+      provider_item_id: "plex-episode",
+      series_provider_item_id: "plex-series",
+      media_type: "episode",
+      title: "Ted Lasso - S04E03",
+      show_title: "Ted Lasso",
+      episode_title: "Richmond's Got Talent",
+      season: 4,
+      episode: 3,
+      ids: { imdb: "tt38494464", tvdb: "11767183" },
+      position_ms: 1,
+      duration_ms: 100,
+    },
+    {
+      provider: "emby",
+      feed_kind: "resume",
+      provider_item_id: "emby-episode",
+      series_provider_item_id: "emby-series",
+      media_type: "episode",
+      title: "Ted Lasso - S04E03",
+      show_title: "Ted Lasso",
+      episode_title: "Richmond’s Got Talent",
+      season: 4,
+      episode: 3,
+      ids: { imdb: "tt38494464", tvdb: "11767183" },
+    },
+    {
+      provider: "jellyfin",
+      feed_kind: "next_up",
+      provider_item_id: "jellyfin-episode",
+      series_provider_item_id: "jellyfin-series",
+      media_type: "episode",
+      title: "Ted Lasso - S04E03",
+      show_title: "Ted Lasso",
+      episode_title: "Richmond's Got Talent",
+      season: 4,
+      episode: 3,
+      ids: { imdb: "tt38494464", tvdb: "11767183" },
+    },
+  ];
+
+  const merged = mergeUpNextCandidates(rows);
+
+  assert.equal(merged.length, 1);
+  assert.deepEqual(merged[0].provider_items, {
+    emby: ["emby-episode"],
+    jellyfin: ["jellyfin-episode"],
+    plex: ["plex-episode"],
+  });
+  assert.equal(merged[0].queue_kind, "resume");
+});
+
 test("native-series next-up bridges the identical episode keyed only by an external show id", () => {
   // Mirrors two same-show observations in a real rail: a Jellyfin "next up" row
   // keyed only by its native series id, plus a local observation keyed by the
@@ -340,4 +397,13 @@ test("resume cards sort before stable next-up cards", () => {
   ]);
 
   assert.deepEqual(items.map((item) => item.title), ["Newer resume", "Older resume", "Show A - S01E01", "Show B - S01E02"]);
+});
+
+test("next-up cards prioritize the show watched most recently", () => {
+  const items = mergeUpNextCandidates([
+    { media_type: "episode", title: "Ted Lasso - S03E02", show_title: "Ted Lasso", show_ids: { tmdb: "97546" }, season: 3, episode: 2, queue_kind: "next_up", show_latest_watched_at: "2026-08-28T20:00:00.000Z" },
+    { media_type: "episode", title: "Reacher - S03E08", show_title: "Reacher", show_ids: { tmdb: "108978" }, season: 3, episode: 8, queue_kind: "next_up", show_latest_watched_at: "2026-09-03T20:00:00.000Z" },
+  ]);
+
+  assert.deepEqual(items.map((item) => item.show_title), ["Reacher", "Ted Lasso"]);
 });

@@ -133,6 +133,7 @@ export const state = {
   partWatchedAbortController: null,
   upNextItems: [],
   upNextLoading: false,
+  upNextSyncing: false,
   upNextLoadedAt: 0,
   upNextError: "",
   upNextErrorCode: "",

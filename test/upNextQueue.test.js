@@ -45,6 +45,110 @@ test("queue projection keeps canonical resumes first and provider next-up after 
   assert.deepEqual(projection.items[1].provider_items, { jellyfin: ["episode-next"] });
 });
 
+test("queue projection carries show watch recency into provider next-up ordering", async () => {
+  const projection = await buildUpNextProjection({
+    now: Date.parse("2026-09-04T12:00:00.000Z"),
+    localFallback: false,
+    progressRows: [],
+    playstateRows: [],
+    shows: [
+      { title: "Ted Lasso", tmdb_id: "97546", latest_watched_at: "2026-08-28T20:00:00.000Z" },
+      { title: "Reacher", tmdb_id: "108978", latest_watched_at: "2026-09-03T20:00:00.000Z" },
+    ],
+    providerItems: [
+      { provider: "jellyfin", feed_kind: "next_up", provider_item_id: "ted-next", media_type: "episode", title: "Ted Lasso - S03E02", show_title: "Ted Lasso", show_ids: { tmdb: "97546" }, season: 3, episode: 2, air_date: "2026-08-01" },
+      { provider: "jellyfin", feed_kind: "next_up", provider_item_id: "reacher-next", media_type: "episode", title: "Reacher - S03E08", show_title: "Reacher", show_ids: { tmdb: "108978" }, season: 3, episode: 8, air_date: "2026-08-01" },
+    ],
+  });
+
+  assert.deepEqual(projection.items.map((item) => item.show_title), ["Reacher", "Ted Lasso"]);
+});
+
+test("native provider resume membership remains visible when position is omitted", async () => {
+  const projection = await buildUpNextProjection({
+    now: Date.parse("2026-09-04T12:00:00.000Z"),
+    localFallback: false,
+    progressRows: [],
+    playstateRows: [],
+    providerItems: [{
+      provider: "emby",
+      feed_kind: "resume",
+      provider_item_id: "emby-resume-without-position",
+      media_type: "episode",
+      title: "Ted Lasso - S04E03",
+      show_title: "Ted Lasso",
+      episode_title: "Richmond's Got Talent",
+      season: 4,
+      episode: 3,
+      show_ids: { tmdb: "97546" },
+    }],
+  });
+
+  assert.equal(projection.items.length, 1);
+  assert.equal(projection.items[0].queue_kind, "resume");
+  assert.equal(projection.items[0].progress, 0);
+  assert.equal(projection.items[0].playback_position_known, false);
+  assert.deepEqual(projection.items[0].provider_items, { emby: ["emby-resume-without-position"] });
+});
+
+test("uncertain provider membership keeps only the furthest episode for a show", async () => {
+  const projection = await buildUpNextProjection({
+    now: Date.parse("2026-09-04T12:00:00.000Z"),
+    localFallback: false,
+    progressRows: [],
+    playstateRows: [],
+    providerItems: [
+      {
+        provider: "emby",
+        feed_kind: "resume",
+        provider_item_id: "emby-ludwig-1",
+        series_provider_item_id: "emby-ludwig",
+        media_type: "episode",
+        title: "Ludwig (2024) - S02E01",
+        show_title: "Ludwig (2024)",
+        episode_title: "Episode 1",
+        season: 2,
+        episode: 1,
+      },
+      {
+        provider: "plex",
+        feed_kind: "resume",
+        provider_item_id: "plex-ludwig-2",
+        series_provider_item_id: "plex-ludwig",
+        media_type: "episode",
+        title: "Ludwig (2024) - S02E02",
+        show_title: "Ludwig (2024)",
+        episode_title: "Episode 2",
+        season: 2,
+        episode: 2,
+        ids: { imdb: "tt-ludwig-episode-2" },
+      },
+      {
+        provider: "jellyfin",
+        feed_kind: "next_up",
+        provider_item_id: "jellyfin-ludwig-2",
+        series_provider_item_id: "jellyfin-ludwig",
+        media_type: "episode",
+        title: "Ludwig - S02E02",
+        show_title: "Ludwig",
+        episode_title: "Episode 2",
+        season: 2,
+        episode: 2,
+        ids: { imdb: "tt-ludwig-episode-2" },
+      },
+    ],
+  });
+
+  assert.equal(projection.items.length, 1);
+  assert.equal(projection.items[0].show_title, "Ludwig (2024)");
+  assert.equal(projection.items[0].season, 2);
+  assert.equal(projection.items[0].episode, 2);
+  assert.deepEqual(projection.items[0].provider_items, {
+    jellyfin: ["jellyfin-ludwig-2"],
+    plex: ["plex-ludwig-2"],
+  });
+});
+
 test("a matching provider next-up observation does not duplicate a canonical resume", async () => {
   const projection = await buildUpNextProjection({
     now: Date.parse("2026-09-01T12:00:00.000Z"),
@@ -233,4 +337,3 @@ test("handleUpNextRemove clears positive playback progress and marks unplayed", 
   const remaining = db.prepare("SELECT * FROM playback_progress WHERE media_key = ?").get(mediaKey);
   assert.equal(remaining, undefined);
 });
-

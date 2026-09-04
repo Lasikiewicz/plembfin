@@ -1031,14 +1031,18 @@ export async function runEpisodeTitleAudit() {
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
     const total = Number(body.total || 0);
-    setStatusPill(status, total ? `${total.toLocaleString()} row(s) missing a name` : "No rows missing a name", total ? "warning" : "ready");
+    const noTitleProvided = Number(body.noTitleProvided || 0);
+    const retryable = Number(body.retryable || 0);
+    setStatusPill(status, total ? `${total.toLocaleString()} row(s) need checking` : "No rows need checking", total ? "warning" : "ready");
     if (logEl) {
       const rows = Array.isArray(body.rows) ? body.rows.slice(0, 20) : [];
       logEl.textContent = total
-        ? `${total.toLocaleString()} episode watch row(s) store no real episode name (showing the newest ${rows.length}). Audits never change anything - use Restore to fill them in.`
-        : "No episode watch rows are missing a real episode name. Audits never change anything.";
+        ? `${total.toLocaleString()} episode watch row(s) still need a title check (showing the newest ${rows.length}). Audits never change anything - use Restore to scan the full library.`
+        : "No episode watch rows need a title check. Audits never change anything.";
+      if (noTitleProvided) logEl.textContent += `\n${noTitleProvided.toLocaleString()} row(s) were verified with no title provided and are not listed for repair.`;
+      if (retryable) logEl.textContent += `\n${retryable.toLocaleString()} row(s) have a retryable metadata error.`;
       logEl.textContent += rows.map((row) =>
-        `\n[${row.show_title || row.title || "Unknown"}] S${String(row.season ?? "").padStart(2, "0")}E${String(row.episode ?? "").padStart(2, "0")} — "${row.episode_title || "no title"}"`
+        `\n[${row.show_title || row.title || "Unknown"}] S${String(row.season ?? "").padStart(2, "0")}E${String(row.episode ?? "").padStart(2, "0")} — "${row.episode_title || "No title provided"}"`
       ).join("");
     }
     return body;
@@ -1053,9 +1057,8 @@ export async function runEpisodeTitleAudit() {
 }
 
 // Backfill: replace rows that stored a coordinate with the real episode name,
-// using stored data first and a metadata lookup for the rest. Runs in bounded
-// batches like the other repair tools; a confirmation shows the current count
-// first, then it loops a few batches and reports what remains to re-run.
+// using stored data first and a grouped metadata lookup for the rest. The
+// server scans the entire actionable set in one request.
 export async function runEpisodeTitleBackfill() {
   const button = elements.episodeTitleBackfillButton;
   const status = elements.episodeTitleStatus;
@@ -1072,28 +1075,25 @@ export async function runEpisodeTitleBackfill() {
   setStatusPill(status, "Backfilling episode names...", "warning");
   if (logEl) { logEl.classList.remove("hidden"); logEl.textContent = ""; }
   try {
-    const maxBatches = 8;
-    let batch = 0;
-    let totalBackfilled = 0;
-    let remaining = Infinity;
-    for (; batch < maxBatches && remaining > 0; batch++) {
-      setStatusPill(status, `Backfill batch #${batch + 1}...`, "warning");
-      const response = await fetch("/api/episode-title-backfill", {
-        method: "POST",
-        headers: { ...authHeaders(), "Content-Type": "application/json" },
-        body: JSON.stringify({ limit: 200, allow_fetch: true }),
-      });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
-      totalBackfilled += Number(body.backfilled || 0);
-      remaining = Number(body.remaining || 0);
-    }
+    setStatusPill(status, "Scanning the full library...", "warning");
+    const response = await fetch("/api/episode-title-backfill", {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ limit: 200, allow_fetch: true }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+    const totalBackfilled = Number(body.backfilled || 0);
+    const remaining = Number(body.remaining || 0);
+    const retryable = Number(body.retryable || 0);
     setStatusPill(status, totalBackfilled ? `${totalBackfilled} name(s) restored` : "No names restored", totalBackfilled ? "ready" : "muted");
     if (logEl) {
       logEl.textContent = totalBackfilled
-        ? `Restored ${totalBackfilled} episode name(s) across ${batch} batch(es).`
-        : "No rows could be restored - nothing real was stored or reachable for the remaining episodes.";
-      if (remaining > 0) logEl.textContent += ` ${remaining.toLocaleString()} row(s) remain; run Restore again to continue.`;
+        ? `Scanned ${Number(body.scanned || 0).toLocaleString()} row(s) and restored ${totalBackfilled.toLocaleString()} episode name(s).`
+        : `Scanned ${Number(body.scanned || 0).toLocaleString()} row(s); no real names were available for the checked rows.`;
+      const noTitleProvided = Number(body.no_title_provided || 0);
+      if (noTitleProvided) logEl.textContent += ` ${noTitleProvided.toLocaleString()} row(s) were verified with no title provided and were left out of the repair list.`;
+      if (retryable || remaining > 0) logEl.textContent += ` ${remaining.toLocaleString()} row(s) remain because their metadata lookup needs a retry.`;
     }
     return { totalBackfilled, remaining };
   } catch (error) {

@@ -438,11 +438,12 @@ export async function handleEpisodeTitleAudit(req, res) {
   }
 }
 
-// The on-demand backfill for the Database Repairs tool. Resolves rows that
-// lack a real stored episode name: stored data first (sibling watch rows and
-// cached season metadata), then - when the caller opts in with `allow_fetch` -
-// a live provider season fetch for rows nothing stored could name. Bounded per
-// call; re-run to keep making progress until it reports no remaining rows.
+// The on-demand backfill for the Database Repairs tool. Resolves every row
+// that lacks a real stored episode name: stored data first (sibling watch rows
+// and cached season metadata), then - when the caller opts in with
+// `allow_fetch` - one grouped live provider season fetch per show/season.
+// The repository owns the full scan; the request limit is only a concurrency
+// chunk size and is never a row cap.
 export async function handleEpisodeTitleBackfill(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);

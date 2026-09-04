@@ -30,6 +30,9 @@ CREATE TABLE IF NOT EXISTS watch_history (
   show_title TEXT,
   show_title_lower TEXT,
   episode_title TEXT,
+  episode_title_status TEXT NOT NULL DEFAULT 'missing',
+  episode_title_checked_at INTEGER,
+  episode_title_resolution_error TEXT,
   created_at INTEGER,
   updated_at INTEGER
 );

@@ -20,6 +20,7 @@ import { recordWatchAuditEvent, recordWatchAuditEvents } from "./utils/watchAudi
 import { canReceiveState } from "./utils/syncRoles.js";
 import { earliestTraktWatchedAt, loadTraktWatchedDateIndex } from "./utils/mediaForceSync.js";
 import { startUpNextProviderFeed, completeUpNextProviderFeed, failUpNextProviderFeed, redactUpNextProviderError } from "./utils/upNextRepository.js";
+import { reconcileAvailableWatchedItems } from "./utils/libraryAvailabilitySync.js";
 
 // A library-history endpoint exposes the server's current played snapshot; it
 // does not prove another viewing occurred. A canonical Plembfin playstate can
@@ -69,7 +70,9 @@ import {
 } from "./utils/dataRepo.js";
 
 const SCHEDULED_RECENT_WATCH_LIMIT = 50;
-const SCHEDULED_RESUME_LIMIT = 50;
+// Provider feed snapshots are complete; only canonical resume propagation is
+// bounded so a large Continue Watching list cannot create an outbound burst.
+const SCHEDULED_RESUME_SYNC_LIMIT = 50;
 const RECENT_UNWATCH_IMPORT_GUARD_MS = 5 * 60 * 1000;
 
 export function recentUnwatchBlocksLibraryImport(playstate = null, now = Date.now()) {
@@ -1001,11 +1004,12 @@ async function syncRecentlyResumableFromPlex(config, loopStore, logger = console
     const raw = await fetchAndRecordUpNextFeed(
       "plex",
       "resume",
-      () => fetchPlexContinueWatchingItems(config.plex, { limit: SCHEDULED_RESUME_LIMIT }),
+      () => fetchPlexContinueWatchingItems(config.plex, { limit: 0 }),
       logger,
     );
-    logger(`Plex: fetched ${raw.length} resumable library items.`);
-    for (const item of raw) {
+    const propagationItems = raw.slice(0, SCHEDULED_RESUME_SYNC_LIMIT);
+    logger(`Plex: fetched ${raw.length} Continue Watching item(s); propagating the newest ${propagationItems.length}.`);
+    for (const item of propagationItems) {
       if (isAuthoritativeRestoreActive()) return syncedCount;
       if (await syncResumableMedia(mediaFromPlexResumableItem(item), config, loopStore, logger)) syncedCount++;
     }
@@ -1029,11 +1033,12 @@ async function syncRecentlyResumableFromEmby(config, loopStore, logger = console
     const raw = await fetchAndRecordUpNextFeed(
       "emby",
       "resume",
-      () => fetchEmbyResumableItems(config.emby, { limit: SCHEDULED_RESUME_LIMIT }),
+      () => fetchEmbyResumableItems(config.emby, { limit: 0 }),
       logger,
     );
-    logger(`Emby: fetched ${raw.length} resumable library items.`);
-    for (const item of raw) {
+    const propagationItems = raw.slice(0, SCHEDULED_RESUME_SYNC_LIMIT);
+    logger(`Emby: fetched ${raw.length} Continue Watching item(s); propagating the newest ${propagationItems.length}.`);
+    for (const item of propagationItems) {
       if (isAuthoritativeRestoreActive()) return syncedCount;
       if (await syncResumableMedia(mediaFromEmbyLikeResumableItem(item, "emby", normalizeProviderIds), config, loopStore, logger)) syncedCount++;
     }
@@ -1057,11 +1062,12 @@ async function syncRecentlyResumableFromJellyfin(config, loopStore, logger = con
     const raw = await fetchAndRecordUpNextFeed(
       "jellyfin",
       "resume",
-      () => fetchJellyfinResumableItems(config.jellyfin, { limit: SCHEDULED_RESUME_LIMIT }),
+      () => fetchJellyfinResumableItems(config.jellyfin, { limit: 0 }),
       logger,
     );
-    logger(`Jellyfin: fetched ${raw.length} resumable library items.`);
-    for (const item of raw) {
+    const propagationItems = raw.slice(0, SCHEDULED_RESUME_SYNC_LIMIT);
+    logger(`Jellyfin: fetched ${raw.length} Continue Watching item(s); propagating the newest ${propagationItems.length}.`);
+    for (const item of propagationItems) {
       if (isAuthoritativeRestoreActive()) return syncedCount;
       if (await syncResumableMedia(mediaFromEmbyLikeResumableItem(item, "jellyfin", normalizeProviderIds), config, loopStore, logger)) syncedCount++;
     }
@@ -1079,7 +1085,7 @@ async function syncRecentlyNextUpFromEmby(config, logger = console.log) {
     const raw = await fetchAndRecordUpNextFeed(
       "emby",
       "next_up",
-      () => fetchEmbyNextUpItems(config.emby, { limit: SCHEDULED_RESUME_LIMIT }),
+      () => fetchEmbyNextUpItems(config.emby, { limit: 0 }),
       logger,
     );
     logger(`Emby: fetched ${raw.length} next-up items.`);
@@ -1098,7 +1104,7 @@ async function syncRecentlyNextUpFromJellyfin(config, logger = console.log) {
     const raw = await fetchAndRecordUpNextFeed(
       "jellyfin",
       "next_up",
-      () => fetchJellyfinNextUpItems(config.jellyfin, { limit: SCHEDULED_RESUME_LIMIT }),
+      () => fetchJellyfinNextUpItems(config.jellyfin, { limit: 0 }),
       logger,
     );
     logger(`Jellyfin: fetched ${raw.length} next-up items.`);
@@ -2007,6 +2013,7 @@ async function runScheduledSyncCore(logger = console.log, { forceCatchup = false
   let jellyfinResumeSynced = 0;
   let embyNextUpFetched = 0;
   let jellyfinNextUpFetched = 0;
+  let availabilityRepairs = 0;
   let manualSynced = 0;
 
   const shouldRunCatchup = forceCatchup || !lastCatchupSyncAt || (Date.now() - lastCatchupSyncAt >= CATCHUP_SYNC_INTERVAL_MS);
@@ -2044,6 +2051,27 @@ async function runScheduledSyncCore(logger = console.log, { forceCatchup = false
         jellyfinSynced = await syncRecentlyWatchedFromJellyfin(config, loopStore, logger, traktWatchedDateIndex);
       } catch (error) {
         logger(`Scheduled Sync ERROR: Jellyfin sync failed: ${error.message}`);
+      }
+    }
+
+    // A bulk library refresh usually creates provider items with an unplayed
+    // user flag. Watched-only history feeds cannot see those items, so run a
+    // full, paginated availability pass after watched imports. It is
+    // intentionally positive-only: an item must be present in the provider's
+    // own successful inventory and already watched in Plembfin before we send
+    // a played mark. No provider absence is ever converted into an unwatch.
+    if (watchedPlayedSyncEnabled()) {
+      try {
+        trace("Scheduled Sync: reconciling watched state on newly available library items...");
+        const availability = await reconcileAvailableWatchedItems(config, {
+          loopStore,
+          logger: trace,
+          shouldStop: async () => isAuthoritativeRestoreActive(),
+          onMarked: (media, summary) => recordSyncHistory(media, summary, "watched"),
+        });
+        availabilityRepairs = availability.marked;
+      } catch (error) {
+        logger(`Scheduled Sync ERROR: library availability reconciliation failed: ${error.message}`);
       }
     }
 
@@ -2107,7 +2135,7 @@ async function runScheduledSyncCore(logger = console.log, { forceCatchup = false
   // benefit, so this tick only reads the cache it already keeps current for bookkeeping.
   const liveSessionSnapshot = await loadLiveTrackingCache({ includeCompleted: false }).catch(() => []);
 
-  const totalSynced = plexSynced + embySynced + jellyfinSynced + plexResumeSynced + embyResumeSynced + jellyfinResumeSynced + manualSynced;
+  const totalSynced = plexSynced + embySynced + jellyfinSynced + availabilityRepairs + plexResumeSynced + embyResumeSynced + jellyfinResumeSynced + manualSynced;
   const hasActivity = totalSynced > 0 || liveSessionSnapshot.length > 0 || shouldRunCatchup;
 
   if (totalSynced > 0) {
@@ -2115,7 +2143,7 @@ async function runScheduledSyncCore(logger = console.log, { forceCatchup = false
   }
 
   if (hasActivity) {
-    logger(`Scheduled Sync complete! Synced Plex: ${plexSynced}, Emby: ${embySynced}, Jellyfin: ${jellyfinSynced}, Resume Plex: ${plexResumeSynced}, Resume Emby: ${embyResumeSynced}, Resume Jellyfin: ${jellyfinResumeSynced}, Next Up Emby: ${embyNextUpFetched}, Next Up Jellyfin: ${jellyfinNextUpFetched}, Manual: ${manualSynced}`);
+    logger(`Scheduled Sync complete! Synced Plex: ${plexSynced}, Emby: ${embySynced}, Jellyfin: ${jellyfinSynced}, Library availability repairs: ${availabilityRepairs}, Resume Plex: ${plexResumeSynced}, Resume Emby: ${embyResumeSynced}, Resume Jellyfin: ${jellyfinResumeSynced}, Next Up Emby: ${embyNextUpFetched}, Next Up Jellyfin: ${jellyfinNextUpFetched}, Manual: ${manualSynced}`);
   }
   return {
     sessions: liveSessionSnapshot.length,
@@ -2126,6 +2154,7 @@ async function runScheduledSyncCore(logger = console.log, { forceCatchup = false
     plexHistorySynced: plexSynced,
     embyHistorySynced: embySynced,
     jellyfinHistorySynced: jellyfinSynced,
+    availabilityRepairs,
     plexResumeSynced,
     embyResumeSynced,
     jellyfinResumeSynced,

@@ -133,6 +133,12 @@ For TV shows, grouped show summaries expose the canonical poster from `media_art
 when one exists; episode rows retain their own poster so episode stills remain
 independent.
 
+Episode title repair state is stored alongside each episode row:
+- `episode_title_status` - `resolved`, `missing`, `retryable_error`, or
+  `no_title_provided`; verified title-less rows are excluded from the actionable repair list
+- `episode_title_checked_at` - epoch-ms time of the last authoritative repair check
+- `episode_title_resolution_error` - bounded, non-secret error text for a retryable lookup
+
 ## `media_artwork`
 
 Show-level poster overrides are stored separately from `watch_history`:

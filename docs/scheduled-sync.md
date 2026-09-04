@@ -329,13 +329,18 @@ already in flight is not cancelled; the guard only prevents new competing outbou
      still completes normally.
 4. **Catch-up library sync** - **runs every 15 minutes** (configurable via `CATCHUP_SYNC_INTERVAL_MS` env variable) to avoid heavy redundant API queries:
    - Pulls recently-watched and continue-watching (resumable) items from each active server: `syncRecentlyWatchedFromPlex`/`syncRecentlyResumableFromPlex` (and Emby/Jellyfin equivalents) in `scheduled.js`.
+   - Runs a full paginated availability reconciliation after watched imports. For every active provider, an item must be present in that provider's successful library inventory, explicitly unplayed there, and canonically watched in Plembfin before the scheduler marks it played. This catches bulk-added 4K/alternate-library copies, uses the exact native item id, and is positive-only: missing items, failed/partial scans, and canonical unwatches never trigger an unwatch.
    - Refreshes the provider Up Next feeds in the same catch-up window. Plex uses the
-     account-scoped Continue Watching hub and falls back to the configured library
-     sections; Emby and Jellyfin use their user-scoped Resume and Next Up endpoints.
-     These responses are stored as source observations in `up_next_provider_items`, not
-     as watched-state authority. Each feed is generation-based: only a complete response
-     becomes active, while a failed or partial response leaves the last good generation
-     available and records a redacted status for the dashboard.
+     account-scoped **Continue Watching** hub and falls back to the configured library
+     sections; Emby uses user-scoped **Continue Watching/Resume** and **Next Up** endpoints;
+     Jellyfin uses user-scoped **Continue Watching/Resume** and **Next Up** endpoints.
+     Provider clients paginate these feeds, so the stored snapshot is not capped at the
+     first 50 items. The responses are stored as source observations in
+     `up_next_provider_items`, not as watched-state authority. Each feed is generation-based:
+     only a complete response becomes active, while a failed or partial response leaves the
+     last good generation available and records a redacted status for the dashboard.
+     The newest 50 resume rows are propagated into Plembfin's canonical progress table in
+     that pass; the complete provider observation remains available to the queue.
    - The queue builder merges those observations by verified provider identity and
      episode coordinates, keeps resume cards ahead of released next-up episodes, and
      uses bounded local TVDB/TMDB lookup when a configured provider has no usable Next Up

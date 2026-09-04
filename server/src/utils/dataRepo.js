@@ -72,7 +72,8 @@ const WATCH_COLUMNS = [
   "id", "title", "title_lower", "media_type", "watched_at", "source",
   "imdb_id", "tmdb_id", "tvdb_id", "season", "episode", "poster_url", "logo_url",
   "backdrop_url", "youtube_url", "sync_action", "sync_dispatch_telemetry", "media_key",
-  "watch_provenance", "show_title", "show_title_lower", "episode_title", "created_at", "updated_at",
+  "watch_provenance", "show_title", "show_title_lower", "episode_title", "episode_title_status",
+  "episode_title_checked_at", "episode_title_resolution_error", "created_at", "updated_at",
 ];
 
 const insertWatchStmt = db.prepare(
@@ -554,6 +555,11 @@ function watchRowParams(record) {
     show_title: showTitle,
     show_title_lower: showTitle ? showTitle.toLowerCase() : null,
     episode_title: record.episode_title || null,
+    episode_title_status: record.media_type === "episode" && (!record.episode_title || isPlaceholderEpisodeTitleValue(record.episode_title))
+      ? "missing"
+      : "resolved",
+    episode_title_checked_at: null,
+    episode_title_resolution_error: null,
   };
 }
 
@@ -587,6 +593,12 @@ function rowToWatch(row) {
   const title = row.media_type === "episode"
     ? repairedEpisodeTitle(row.title || "")
     : decodeBasicHtmlEntities(row.title || "");
+  const storedEpisodeTitle = row.episode_title ? decodeBasicHtmlEntities(row.episode_title) : null;
+  const episodeTitleStatus = row.media_type !== "episode"
+    ? "resolved"
+    : storedEpisodeTitle && !isPlaceholderEpisodeTitleValue(storedEpisodeTitle)
+      ? "resolved"
+      : row.episode_title_status || "missing";
   return {
     id: row.id,
     title,
@@ -609,7 +621,10 @@ function rowToWatch(row) {
     sync_next_retry_at: Number(row.sync_next_retry_at || 0),
     media_key: row.media_key || null,
     show_title: row.show_title ? decodeBasicHtmlEntities(row.show_title) : null,
-    episode_title: row.episode_title ? decodeBasicHtmlEntities(row.episode_title) : null,
+    episode_title: storedEpisodeTitle,
+    episode_title_status: episodeTitleStatus,
+    episode_title_checked_at: Number(row.episode_title_checked_at || 0) || null,
+    episode_title_resolution_error: row.episode_title_resolution_error || null,
     created_at: Number(row.created_at || 0),
     updated_at: Number(row.updated_at || 0),
   };
@@ -3978,15 +3993,64 @@ export async function backfillUnknownShowTitles() {
   return fixed;
 }
 
+const EPISODE_TITLE_PLACEHOLDER_SQL = `(
+  episode_title IS NULL
+  OR TRIM(episode_title) = ''
+  OR (TRIM(episode_title) NOT GLOB '*[^0-9]*')
+  OR LOWER(TRIM(episode_title)) = 'episode'
+  OR (
+    LOWER(TRIM(episode_title)) GLOB 'episode [0-9]*'
+    AND SUBSTR(TRIM(episode_title), 9) <> ''
+    AND SUBSTR(TRIM(episode_title), 9) NOT GLOB '*[^0-9]*'
+  )
+)`;
+const EPISODE_TITLE_ACTIONABLE_SQL = `(episode_title_status IS NULL OR episode_title_status IN ('missing', 'retryable_error')) AND ${EPISODE_TITLE_PLACEHOLDER_SQL}`;
 const selectEpisodeTitleGapRowsStmt = db.prepare(`
-  SELECT id, title, media_type, watched_at, show_title, imdb_id, tmdb_id, tvdb_id, season, episode, episode_title
+  SELECT id, title, media_type, watched_at, show_title, imdb_id, tmdb_id, tvdb_id, season, episode,
+    episode_title, episode_title_status, sync_dispatch_telemetry
   FROM watch_history
-  WHERE media_type = 'episode'
-    AND (episode_title IS NULL OR episode_title = '' OR episode_title GLOB '[0-9]*' OR episode_title LIKE 'Episode %')
-  ORDER BY watched_at DESC
+  WHERE media_type = 'episode' AND ${EPISODE_TITLE_ACTIONABLE_SQL}
+  ORDER BY watched_at DESC, id DESC
+`);
+const selectEpisodeTitleGapPreviewStmt = db.prepare(`
+  SELECT id, title, media_type, watched_at, show_title, imdb_id, tmdb_id, tvdb_id, season, episode,
+    episode_title, episode_title_status
+  FROM watch_history
+  WHERE media_type = 'episode' AND ${EPISODE_TITLE_ACTIONABLE_SQL}
+  ORDER BY watched_at DESC, id DESC
   LIMIT ?
 `);
-const updateEpisodeTitleStmt = db.prepare("UPDATE watch_history SET episode_title = ?, updated_at = ? WHERE id = ?");
+const countEpisodeTitleGapsStmt = db.prepare(`
+  SELECT COUNT(*) AS total
+  FROM watch_history
+  WHERE media_type = 'episode' AND ${EPISODE_TITLE_ACTIONABLE_SQL}
+`);
+const countEpisodeTitleNoTitleStmt = db.prepare(`
+  SELECT COUNT(*) AS total
+  FROM watch_history
+  WHERE media_type = 'episode'
+    AND episode_title_status = 'no_title_provided'
+    AND ${EPISODE_TITLE_PLACEHOLDER_SQL}
+`);
+const countEpisodeTitleRetryableStmt = db.prepare(`
+  SELECT COUNT(*) AS total
+  FROM watch_history
+  WHERE media_type = 'episode'
+    AND episode_title_status = 'retryable_error'
+    AND ${EPISODE_TITLE_PLACEHOLDER_SQL}
+`);
+const updateEpisodeTitleResolvedStmt = db.prepare(`
+  UPDATE watch_history
+  SET episode_title = ?, episode_title_status = 'resolved', episode_title_checked_at = ?,
+    episode_title_resolution_error = NULL, updated_at = ?
+  WHERE id = ?
+`);
+const updateEpisodeTitleDispositionStmt = db.prepare(`
+  UPDATE watch_history
+  SET episode_title = NULL, episode_title_status = ?, episode_title_checked_at = ?,
+    episode_title_resolution_error = ?, updated_at = ?
+  WHERE id = ?
+`);
 
 // ---- backfill of placeholder episode titles (Settings → Database Repairs) ----
 
@@ -3994,13 +4058,17 @@ const updateEpisodeTitleStmt = db.prepare("UPDATE watch_history SET episode_titl
 // "Episode 08") would show that in the dashboard's TV "recently watched" row
 // instead of the episode name shown on the media page. The ingest path now
 // avoids persisting placeholders, but rows recorded earlier still carry them.
-// Audit is read-only (safe to show a count) and returns the newest `limit`
-// gap rows so the caller can let a user see exactly what a repair will touch.
+// Audit is read-only (safe to show a count). The count is exact; only the
+// newest `limit` actionable rows are returned as a preview. Rows that have
+// already been checked and genuinely have no title are kept out of the repair
+// list and reported separately.
 export function auditEpisodeTitleGaps({ limit = 100 } = {}) {
   const numericLimit = Math.max(1, Math.min(Number(limit) || 100, 500));
-  const rows = selectEpisodeTitleGapRowsStmt.all(numericLimit);
+  const rows = selectEpisodeTitleGapPreviewStmt.all(numericLimit);
   return {
-    total: rows.length,
+    total: Number(countEpisodeTitleGapsStmt.get()?.total || 0),
+    noTitleProvided: Number(countEpisodeTitleNoTitleStmt.get()?.total || 0),
+    retryable: Number(countEpisodeTitleRetryableStmt.get()?.total || 0),
     rows: rows
       .filter((row) => !row.episode_title || isPlaceholderEpisodeTitleValue(row.episode_title))
       .map((row) => ({
@@ -4009,23 +4077,31 @@ export function auditEpisodeTitleGaps({ limit = 100 } = {}) {
         show_title: row.show_title || null,
         season: row.season ?? null,
         episode: row.episode ?? null,
-        episode_title: row.episode_title || null,
+        episode_title: isPlaceholderEpisodeTitleValue(row.episode_title) ? null : row.episode_title || null,
+        episode_title_status: row.episode_title_status || "missing",
         watched_at: row.watched_at || null,
       })),
   };
 }
 
-// Rewrite a bounded set of the newest gap rows. Each row is resolved from data
-// that requires no network first (a sibling watch row or cached season
-// metadata); when `allowFetch` is set, a row that is still unresolved falls
-// back to a live provider season fetch (getTmdbSeason). Best-effort: a row we
-// cannot resolve is left as-is and counted in `unresolved`. Callers re-run this
-// to make progress until they accept `remaining === 0`, mirroring how the
-// existing batching repair tools work.
+// Rewrite every actionable gap in one operation. `limit` is now only the
+// network/concurrency chunk size; it is never a scan cap. That makes the
+// Settings action a genuine full-library repair instead of an eight-batch
+// workflow that silently leaves older rows for the user to discover.
 export async function backfillEpisodeTitleGaps({ limit = 200, allowFetch = false } = {}) {
-  const candidates = selectEpisodeTitleGapRowsStmt.all(Math.max(1, Math.min(Number(limit) || 200, 1000)))
-    .filter((row) => !row.episode_title || isPlaceholderEpisodeTitleValue(row.episode_title));
-  if (!candidates.length) return { scanned: 0, backfilled: 0, unresolved: 0, remaining: 0 };
+  const chunkSize = Math.max(1, Math.min(Number(limit) || 200, 1000));
+  const candidates = selectEpisodeTitleGapRowsStmt.all();
+  if (!candidates.length) {
+    const audit = auditEpisodeTitleGaps({ limit: 20 });
+    return {
+      scanned: 0,
+      backfilled: 0,
+      unresolved: audit.total,
+      remaining: audit.total,
+      no_title_provided: audit.noTitleProvided,
+      retryable: audit.retryable,
+    };
+  }
 
   const namesByRow = new Map();
   let unresolved = [];
@@ -4044,42 +4120,72 @@ export async function backfillEpisodeTitleGaps({ limit = 200, allowFetch = false
   // Pass 2 (async): only when the caller opted in and only for rows the stored
   // pass could not name, do live provider season fetches. Each fetch may hit the
   // network, so it runs outside the synchronous transaction and is best-effort.
+  const noTitleRows = new Set();
+  const retryableRows = new Map();
+
   if (allowFetch && unresolved.length) {
     const fetchedNames = new Map();
-    await Promise.all(unresolved.map(async (row) => {
-      if (row.season == null || row.episode == null) return;
-      try {
-        const seasonDetails = await getTmdbSeason({
+    const seasonFetches = new Map();
+    const fetchSeason = (row) => {
+      const providerId = row.tmdb_id || row.tvdb_id || "";
+      if (!providerId || row.season == null) return null;
+      const key = `${row.tmdb_id || ""}:${row.tvdb_id || ""}:${Number(row.season)}`;
+      if (!seasonFetches.has(key)) {
+        seasonFetches.set(key, getTmdbSeason({
           tmdbId: row.tmdb_id || "",
           tvdbId: row.tvdb_id || "",
           seasonNumber: row.season,
-        });
-        const name = episodeNameFromSeason(seasonDetails, row.episode);
-        if (name) fetchedNames.set(row.id, name);
-      } catch {
-        // A row we cannot resolve from the provider is left as-is.
+        }));
       }
-    }));
+      return seasonFetches.get(key);
+    };
+    for (let start = 0; start < unresolved.length; start += chunkSize) {
+      const chunk = unresolved.slice(start, start + chunkSize);
+      await Promise.all(chunk.map(async (row) => {
+        if (row.season == null || row.episode == null || !(row.tmdb_id || row.tvdb_id)) {
+          noTitleRows.add(row.id);
+          return;
+        }
+        try {
+          const seasonDetails = await fetchSeason(row);
+          const name = episodeNameFromSeason(seasonDetails, row.episode);
+          if (name) fetchedNames.set(row.id, name);
+          else noTitleRows.add(row.id);
+        } catch (error) {
+          retryableRows.set(row.id, String(error?.message || error || "Metadata lookup failed").slice(0, 240));
+        }
+      }));
+    }
     // Merge, but do not let a stored resolution be replaced by a fetched one.
     for (const [id, name] of fetchedNames) {
       if (!namesByRow.has(id)) namesByRow.set(id, name);
     }
   }
 
-  if (namesByRow.size) {
+  if (namesByRow.size || (allowFetch && (noTitleRows.size || retryableRows.size))) {
     const now = Date.now();
     transaction(() => {
-      for (const [id, name] of namesByRow) updateEpisodeTitleStmt.run(name, now, id);
+      for (const [id, name] of namesByRow) updateEpisodeTitleResolvedStmt.run(name, now, now, id);
+      if (allowFetch) {
+        for (const id of noTitleRows) {
+          if (!namesByRow.has(id)) updateEpisodeTitleDispositionStmt.run("no_title_provided", now, null, now, id);
+        }
+        for (const [id, error] of retryableRows) {
+          if (!namesByRow.has(id) && !noTitleRows.has(id)) updateEpisodeTitleDispositionStmt.run("retryable_error", now, error, now, id);
+        }
+      }
     });
     await invalidateHistoryDerivedCaches();
   }
 
-  const allGaps = auditEpisodeTitleGaps({ limit: 1000 });
+  const allGaps = auditEpisodeTitleGaps({ limit: 20 });
   return {
     scanned: candidates.length,
     backfilled: namesByRow.size,
     unresolved: candidates.length - namesByRow.size,
     remaining: allGaps.total,
+    no_title_provided: allGaps.noTitleProvided,
+    retryable: allGaps.retryable,
   };
 }
 

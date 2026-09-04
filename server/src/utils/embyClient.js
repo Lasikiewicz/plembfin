@@ -47,6 +47,33 @@ async function fetchJson(url, config, media = null) {
   return response.json();
 }
 
+async function fetchPagedFeed(config, buildUrl, limit = 0, { pageSize: preferredPageSize = 100 } = {}) {
+  const requestedLimit = Number(limit) > 0 ? Math.max(1, Math.round(Number(limit))) : 0;
+  const maximumPageSize = Math.min(Math.max(1, Math.round(Number(preferredPageSize) || 100)), 500);
+  const pageSize = requestedLimit ? Math.min(requestedLimit, maximumPageSize) : maximumPageSize;
+  const items = [];
+  const seen = new Set();
+  for (let start = 0; start <= 10_000_000;) {
+    const data = await fetchJson(buildUrl(start, pageSize), config);
+    const page = Array.isArray(data?.Items) ? data.Items : [];
+    let newItems = 0;
+    for (const item of page) {
+      const id = String(item?.Id || item?.id || "").trim();
+      if (id && seen.has(id)) continue;
+      if (id) seen.add(id);
+      items.push(item);
+      newItems++;
+      if (requestedLimit && items.length >= requestedLimit) return items.slice(0, requestedLimit);
+    }
+    const total = Number(data?.TotalRecordCount || 0);
+    if (!page.length || !newItems || (total > 0 && start + page.length >= total) || (total <= 0 && page.length < pageSize)) break;
+    // Some Emby-compatible servers cap Limit below the requested size. Move
+    // by the response length so a server-side cap cannot skip a range.
+    start += page.length;
+  }
+  return requestedLimit ? items.slice(0, requestedLimit) : items;
+}
+
 function nativeEmbyItems(media = {}) {
   const configured = media.provider_items || media.providerItems || {};
   const values = Array.isArray(configured.emby) ? configured.emby : configured.emby ? [configured.emby] : [];
@@ -580,6 +607,44 @@ export async function fetchEmbyWatchedItems(config, { limit = 0, libraryIds } = 
   return items;
 }
 
+function buildEmbyLibraryItemsUrl(config, { parentId = "" } = {}) {
+  const baseUrl = trimTrailingSlash(config.baseUrl);
+  const url = new URL(`${baseUrl}/Users/${config.userId}/Items`);
+  url.searchParams.set("Recursive", "true");
+  url.searchParams.set("Filters", "IsUnplayed");
+  url.searchParams.set("IncludeItemTypes", "Movie,Episode");
+  url.searchParams.set("Fields", "ProviderIds,SeriesProviderIds,UserData,PremiereDate,ProductionYear");
+  url.searchParams.set("EnableUserData", "true");
+  url.searchParams.set("StartIndex", "0");
+  url.searchParams.set("EnableTotalRecordCount", "true");
+  if (parentId) url.searchParams.set("ParentId", String(parentId));
+  url.searchParams.set("api_key", config.apiKey);
+  return url;
+}
+
+// Full paginated unplayed inventory used by the scheduled availability
+// reconciliation. A new duplicate/quality variant is normally unplayed on
+// Emby even when Plembfin already knows that the same episode was watched.
+export async function fetchEmbyLibraryItems(config, { limit = 0, libraryIds } = {}) {
+  requireEmbyConfig(config);
+  const parents = Array.isArray(libraryIds) && libraryIds.length ? libraryIds : [""];
+  const items = [];
+  for (const parentId of parents) {
+    items.push(...await fetchPagedFeed(
+      config,
+      (start, pageSize) => {
+        const url = buildEmbyLibraryItemsUrl(config, { parentId });
+        url.searchParams.set("StartIndex", String(start));
+        url.searchParams.set("Limit", String(pageSize));
+        return url;
+      },
+      limit,
+      { pageSize: 500 },
+    ));
+  }
+  return items;
+}
+
 // User-visible libraries (views) with their stable ids, for sync scope selection.
 export async function listEmbyLibraries(config) {
   requireEmbyConfig(config);
@@ -612,32 +677,58 @@ export async function countEmbyWatchedItems(config, { libraryIds } = {}) {
 export async function fetchEmbyResumableItems(config, { limit = 0 } = {}) {
   requireEmbyConfig(config);
   const baseUrl = trimTrailingSlash(config.baseUrl);
-  const url = new URL(`${baseUrl}/Users/${config.userId}/Items`);
-  url.searchParams.set("Recursive", "true");
-  url.searchParams.set("Filters", "IsResumable");
-  url.searchParams.set("IncludeItemTypes", "Movie,Episode");
-  url.searchParams.set("Fields", "ProviderIds,SeriesProviderIds,UserData,PremiereDate,ProductionYear,RunTimeTicks");
-  url.searchParams.set("SortBy", "DatePlayed");
-  url.searchParams.set("SortOrder", "Descending");
-  if (Number(limit) > 0) url.searchParams.set("Limit", String(Math.max(1, Math.round(Number(limit)))));
-  url.searchParams.set("api_key", config.apiKey);
+  const buildNativeResumeUrl = (start, pageSize) => {
+    const url = new URL(`${baseUrl}/Users/${encodeURIComponent(config.userId)}/Items/Resume`);
+    url.searchParams.set("Recursive", "true");
+    // Emby exposes Continue Watching through the dedicated Resume endpoint.
+    // The generic Items?Filters=IsResumable query returns an empty snapshot on
+    // some Emby versions even while the native Continue Watching rail is full.
+    url.searchParams.set("MediaTypes", "Video");
+    url.searchParams.set("Fields", "ProviderIds,SeriesProviderIds,UserData,PremiereDate,ProductionYear,RunTimeTicks");
+    url.searchParams.set("StartIndex", String(start));
+    url.searchParams.set("Limit", String(pageSize));
+    url.searchParams.set("EnableTotalRecordCount", "true");
+    url.searchParams.set("api_key", config.apiKey);
+    return url;
+  };
 
-  const data = await fetchJson(url, config);
-  return data?.Items || [];
+  try {
+    return await fetchPagedFeed(config, buildNativeResumeUrl, limit);
+  } catch (error) {
+    // Keep compatibility with older Emby-compatible servers that do not
+    // implement /Items/Resume. Only a missing route should select the legacy
+    // query; a real auth/upstream failure must remain visible to the caller.
+    if (Number(error?.status) !== 404) throw error;
+    return fetchPagedFeed(config, (start, pageSize) => {
+      const url = new URL(`${baseUrl}/Users/${encodeURIComponent(config.userId)}/Items`);
+      url.searchParams.set("Recursive", "true");
+      url.searchParams.set("Filters", "IsResumable");
+      url.searchParams.set("IncludeItemTypes", "Movie,Episode");
+      url.searchParams.set("Fields", "ProviderIds,SeriesProviderIds,UserData,PremiereDate,ProductionYear,RunTimeTicks");
+      url.searchParams.set("SortBy", "DatePlayed");
+      url.searchParams.set("SortOrder", "Descending");
+      url.searchParams.set("StartIndex", String(start));
+      url.searchParams.set("Limit", String(pageSize));
+      url.searchParams.set("api_key", config.apiKey);
+      return url;
+    }, limit);
+  }
 }
 
 export async function fetchEmbyNextUpItems(config, { limit = 0 } = {}) {
   requireEmbyConfig(config);
   const baseUrl = trimTrailingSlash(config.baseUrl);
-  const url = new URL(`${baseUrl}/Shows/NextUp`);
-  url.searchParams.set("UserId", config.userId);
-  url.searchParams.set("Fields", "ProviderIds,SeriesProviderIds,UserData,PremiereDate,ProductionYear,RunTimeTicks,MediaSources");
-  url.searchParams.set("EnableResumable", "true");
-  url.searchParams.set("EnableUserData", "true");
-  if (Number(limit) > 0) url.searchParams.set("Limit", String(Math.max(1, Math.round(Number(limit)))));
-  url.searchParams.set("api_key", config.apiKey);
-  const data = await fetchJson(url, config);
-  return data?.Items || [];
+  return fetchPagedFeed(config, (start, pageSize) => {
+    const url = new URL(`${baseUrl}/Shows/NextUp`);
+    url.searchParams.set("UserId", config.userId);
+    url.searchParams.set("Fields", "ProviderIds,SeriesProviderIds,UserData,PremiereDate,ProductionYear,RunTimeTicks,MediaSources");
+    url.searchParams.set("EnableResumable", "true");
+    url.searchParams.set("EnableUserData", "true");
+    url.searchParams.set("StartIndex", String(start));
+    url.searchParams.set("Limit", String(pageSize));
+    url.searchParams.set("api_key", config.apiKey);
+    return url;
+  }, limit);
 }
 
 // ---------------------------------------------------------------------------

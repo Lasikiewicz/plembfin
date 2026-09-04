@@ -27,7 +27,7 @@ import { probePlexNotificationSocket } from "../utils/plexNotificationListener.j
 import { pokeLiveSessionPoller } from "../scheduler.js";
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, hideEmbyFromResume, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes, listEmbyLibraries } from "../utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, hideJellyfinFromResume, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes, listJellyfinLibraries } from "../utils/jellyfinClient.js";
-import { buildPlexMediaFromMetadata, normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook } from "../utils/parsers.js";
+import { buildPlexMediaFromMetadata, normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexMediaIds, parsePlexWebhook } from "../utils/parsers.js";
 import { completeDispatchTracking, finishDispatchTracking, getTargetsForSource, isRecentOutboundPlayedEcho, isRecentOutboundPlayedFlagEcho, isRecentOutboundProgressEcho, isRecentOutboundUnplayedFlagEcho, recordOutboundPlayedMarks, reserveDispatchBatch, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
 import { canReceiveState } from "../utils/syncRoles.js";
 import {
@@ -53,6 +53,7 @@ import { searchTvdbSeriesList, resolveTvdbSeriesId, getTvdbSeriesArtwork } from 
 import { getFanartMovieArt, getFanartTvArt, getAllFanartMovieImages, getAllFanartTvImages } from "../utils/fanartGateway.js";
 import { getOmdbRating } from "../utils/omdbGateway.js";
 import { getCanonicalPosterUrl } from "../utils/mediaArtwork.js";
+import { syncUpNextToProviders } from "../utils/upNextProviderSync.js";
 import { POSTERS_DIR, BACKDROPS_DIR, PROFILES_DIR, PUBLIC_DIR } from "../paths.js";
 import {
   countPlaybackProgressRows,
@@ -540,21 +541,37 @@ async function applyWatchedStateToNewContainer(media, config, target) {
     return { applied: false, reason: `Could not read episodes of the new ${media.type}: ${error.message || String(error)}` };
   }
 
-  const pending = episodes.filter((ep) => ep?.UserData?.Played !== true && ep?.viewCount == null);
+  const pending = episodes.filter((ep) => {
+    if (target === "plex") {
+      return Object.prototype.hasOwnProperty.call(ep || {}, "viewCount") && Number(ep.viewCount || 0) <= 0;
+    }
+    return Boolean(ep?.UserData && typeof ep.UserData === "object")
+      && ep.UserData.Played !== true
+      && Number(ep.UserData.PlayCount || 0) <= 0;
+  });
   let applied = 0;
   for (const ep of pending) {
     const season = ep.ParentIndexNumber ?? ep.parentIndex;
     const episodeNumber = ep.IndexNumber ?? ep.index;
     const showTitle = ep.SeriesName || ep.grandparentTitle || media.title || "Unknown Show";
+    const itemId = ep.Id || ep.ratingKey;
+    const rawIds = target === "plex"
+      ? parsePlexMediaIds(ep, "episode")
+      : { ...(ep.ProviderIds || {}), ...(ep.SeriesProviderIds || {}) };
     const episodeMedia = {
       title: `${showTitle} - S${String(season ?? "?").padStart(2, "0")}E${String(episodeNumber ?? "?").padStart(2, "0")}`,
       show_title: showTitle,
+      showTitle,
       type: "episode",
       source: target,
-      ids: normalizeProviderIds(ep.ProviderIds || {}),
+      ids: target === "plex" ? rawIds : normalizeProviderIds(rawIds),
       season,
       episode: episodeNumber,
-      itemId: ep.Id || ep.ratingKey,
+      episodeTitle: ep.Name || ep.name || ep.title || null,
+      itemId,
+      provider_item_id: itemId,
+      provider_items: { [target]: itemId ? [String(itemId)] : [] },
+      providerItems: { [target]: itemId ? [String(itemId)] : [] },
       isValid: true,
     };
     const result = await applyWatchedStateToNewItem(episodeMedia, config).catch(() => ({ applied: false }));
@@ -1888,6 +1905,33 @@ export async function handleUpNextRemove(req, res) {
   } catch (error) {
     console.error("Up Next clear failed", error);
     return sendJson(res, { error: "Up Next clear failed" }, 500);
+  } finally {
+    await invalidateHistoryDerivedCaches().catch(() => null);
+  }
+}
+
+// Reconcile the current visible Plembfin Up Next snapshot with the native
+// provider feeds. The browser sends only the cards it is currently showing;
+// that matters because local Up Next dismissals are intentionally kept in the
+// browser until the provider confirms the removal.
+export async function handleUpNextSync(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const body = await readJson(req).catch(() => ({}));
+  if (!Array.isArray(body.items)) return sendJson(res, { error: "Up Next items are required" }, 400);
+
+  try {
+    const config = await loadMediaConfig();
+    const summary = await syncUpNextToProviders({
+      desiredItems: body.items.slice(0, 100),
+      config,
+    });
+    return sendJson(res, summary);
+  } catch (error) {
+    console.error("Up Next provider sync failed", error);
+    return sendJson(res, { error: "Up Next provider sync failed" }, 500);
   } finally {
     await invalidateHistoryDerivedCaches().catch(() => null);
   }

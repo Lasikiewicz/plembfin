@@ -133,9 +133,12 @@ export function episodeTitle(title, episodeNumber) {
 // history title. `needsResolve` signals the caller should kick off an async
 // TMDB lookup (title wasn't stored and couldn't be parsed from the row).
 export function resolveEpisodeTitle(entry) {
+  if (String(entry.episode_title_status || "").toLowerCase() === "no_title_provided") {
+    return { epTitle: "No title provided", needsResolve: false };
+  }
   let epTitle = entry.episode_title;
   let needsResolve = false;
-  if (!epTitle || /^Episode \d+$/i.test(String(epTitle).trim())) {
+  if (!epTitle || /^Episode \d+$/i.test(String(epTitle).trim()) || /^\d{1,3}$/.test(String(epTitle).trim())) {
     const text = String(entry.title || "").trim();
     const suffixMatch = text.match(/S\d{1,2}E\d{1,2}\s+-\s+(.+)$/i);
     if (suffixMatch?.[1]) {

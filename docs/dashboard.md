@@ -33,7 +33,8 @@ episodes from provider observations and a local cache-backed fallback. A local f
 is included only when an active provider observation confirms that exact show and season/episode
 coordinate exists in a connected media-server library; local history and metadata alone do not
 create a Watch now card. Resume cards always come first and are ordered by authoritative
-progress-update time; next-up cards follow in a stable show/season/episode order. A matching
+progress-update time; next-up cards then prioritize the show whose episode was watched most
+recently, with show/season/episode order as the deterministic tie-breaker. A matching
 resume and next-up observation becomes one resume card. The builder is bounded to the most
 recently active shows and a small number of candidate seasons, and reads TMDB/TVDB metadata
 only from SQLite. Missing or stale metadata is queued by library-added/provider-feed discovery
@@ -107,10 +108,16 @@ figure (`watch_count`, falling back to `playHistory.length`) as the movie detail
 rewatch history.
 
 Episode cards always prefer the episode *name* stored on the watch record
-(backfilled to a real name at ingest when a media server only reported a coordinate).
+(backfilled to a real name at ingest when a media server only reported a coordinate). When a
+dashboard history row has only a coordinate, its existing metadata enrichment path runs once in
+the background and updates the visible episode label without repainting the card. A row that has
+been explicitly verified as title-less displays "No title provided" rather than a misleading
+episode number.
 Installations that recorded watches before that ingest behaviour can run
-Settings → Tools → Database Repairs → **Restore Missing Episode Names** to fill in the
-first stored/cached name for any rows still showing a bare coordinate.
+Settings → Tools → Database Repairs → **Restore Missing Episode Names** to scan the full
+library, filling names from stored/cached metadata and provider seasons. The repair tracks
+resolved, retryable, and verified-no-title rows separately, so a confirmed absence is not shown
+again as an actionable missing-name row.
 
 ### Watch History and legacy progress compatibility
 

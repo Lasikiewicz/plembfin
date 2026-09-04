@@ -848,6 +848,26 @@ const migrations = [
       if (!columns.has("show_poster_url")) database.exec("ALTER TABLE up_next_provider_items ADD COLUMN show_poster_url TEXT");
     },
   },
+  {
+    id: 25,
+    up(database) {
+      const columns = new Set(database.pragma("table_info(watch_history)").map((column) => column.name));
+      if (!columns.has("episode_title")) database.exec("ALTER TABLE watch_history ADD COLUMN episode_title TEXT");
+      if (!columns.has("episode_title_status")) database.exec("ALTER TABLE watch_history ADD COLUMN episode_title_status TEXT NOT NULL DEFAULT 'missing'");
+      if (!columns.has("episode_title_checked_at")) database.exec("ALTER TABLE watch_history ADD COLUMN episode_title_checked_at INTEGER");
+      if (!columns.has("episode_title_resolution_error")) database.exec("ALTER TABLE watch_history ADD COLUMN episode_title_resolution_error TEXT");
+      database.exec(`
+        UPDATE watch_history
+        SET episode_title_status = CASE
+          WHEN media_type = 'episode' AND (episode_title IS NULL OR TRIM(episode_title) = '' OR episode_title GLOB '[0-9]*' OR episode_title LIKE 'Episode %') THEN 'missing'
+          ELSE 'resolved'
+        END
+        WHERE episode_title_status IS NULL OR episode_title_status = '' OR episode_title_status = 'missing';
+        CREATE INDEX IF NOT EXISTS idx_watch_history_episode_title_status
+          ON watch_history(media_type, episode_title_status, watched_at DESC);
+      `);
+    },
+  },
 ];
 
 function parseJsonValue(value, fallback) {

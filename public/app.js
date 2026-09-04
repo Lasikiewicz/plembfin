@@ -11,8 +11,8 @@ import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinB
 import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, showAvailIssuePopup, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerRetrySync, triggerCronSync, triggerStopSync, triggerForceSync, isSyncProgressActive } from "./modules/sync.js";
 import { renderSyncActivity, renderSyncActivityStatus, setSyncActivityProgress, setSyncAttentionSummary, loadSyncAttention, renderSyncAttention, skipSyncAttention, skipSyncAttentionItem, retrySyncAttentionItem, skipSyncAttentionShow, retrySyncAttentionShow, recordClientAttention, clearClientAttention, clearClientAttentionForRoute, setSyncActivitySearch, resetSyncActivity, loadSyncActivity, downloadSyncActivityLog, retrySyncActivity, startRetryAllSyncActivity, resumeRetryAllSyncActivityIfRunning, fetchAllRetryableSyncActivityIds, toggleSyncActivityRowLog, loadOlderSyncActivityGroup, toggleSyncActivityFailedOnly, startSyncActivityRefresh, stopSyncActivityRefresh } from "./modules/sync-activity.js?v=20260903j";
 import { initSyncPreview } from "./modules/sync-preview.js";
-import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, refreshDashboardHistoryInPlace, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched } from "./modules/dashboard.js?v=20260903b";
-import { initUpNext, renderUpNext, loadUpNext, resetUpNext } from "./modules/up-next.js?v=20260903c";
+import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, refreshDashboardHistoryInPlace, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched } from "./modules/dashboard.js?v=20260904a";
+import { initUpNext, renderUpNext, loadUpNext, resetUpNext } from "./modules/up-next.js?v=20260904b";
 import { initDiscover, renderDiscover, loadDiscover, resetDiscover } from "./modules/discover.js?v=20260903b";
 import { initPersonalMedia, renderPersonalMedia, loadPersonalMedia, resetPersonalMedia } from "./modules/personal-media.js?v=20260903c";
 import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, loadStats, renderRankingTable } from "./modules/stats.js";
@@ -290,6 +290,7 @@ function bindElements() {
     nowPlayingStatus: document.querySelector("#nowPlayingStatus"),
     upNextPanel: document.querySelector("#upNextPanel"),
     upNextSection: document.querySelector("#upNextDashboardSection"),
+    upNextSyncButton: document.querySelector("#upNextSyncButton"),
     upNextSourceStatus: document.querySelector("#upNextSourceStatus"),
     discoverPanel: document.querySelector("#discoverPanel"),
     discoverTopbarControls: document.querySelector("#discoverTopbarControls"),
@@ -2876,6 +2877,7 @@ function initialize() {
   });
   initDashboard({
     setMessage,
+    resolveEpisodeTitleFromTmdb,
   });
   initUpNext({ setMessage });
   initDiscover({ setMessage, navigateTo });

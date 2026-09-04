@@ -30,9 +30,11 @@ function insertEpisodeRow({ show_title = "The Expanse", tmdb_id = "63639", seaso
 test("auditEpisodeTitleGaps reports rows with no real stored episode name", () => {
   insertEpisodeRow({ tmdb_id: "7001", season: 1, episode: 1, episode_title: "Dulcinea" });
   insertEpisodeRow({ tmdb_id: "7001", season: 1, episode: 2, episode_title: null });
+  insertEpisodeRow({ show_title: "Numeric Title", tmdb_id: "7004", season: 1, episode: 1, episode_title: "9-1-1" });
   const audit = auditEpisodeTitleGaps({ limit: 100 });
   // Only the null-title row is a gap; the row with the real name is not.
   assert.equal(audit.rows.some((row) => row.episode_title === "Dulcinea"), false);
+  assert.equal(audit.rows.some((row) => row.show_title === "Numeric Title"), false);
   assert.equal(audit.rows.some((row) => row.episode === 2 && row.episode_title === null), true);
 });
 
@@ -62,4 +64,28 @@ test("backfillEpisodeTitleGaps leaves rows unresolved when nothing real is store
   // No stored name anywhere and no fetch allowed: the row stays unresolved.
   assert.equal(after?.episode_title, null);
   assert.equal(result.unresolved >= 1, true);
+});
+
+test("backfillEpisodeTitleGaps scans more than the old 100-row audit cap in one operation", async () => {
+  insertEpisodeRow({ tmdb_id: "full-scan", season: 1, episode: 4, episode_title: "The Full Scan" });
+  for (let i = 0; i < 105; i++) {
+    insertEpisodeRow({ tmdb_id: "full-scan", season: 1, episode: 4, episode_title: null });
+  }
+
+  const result = await backfillEpisodeTitleGaps({ limit: 20, allowFetch: false });
+  assert.ok(result.scanned >= 105);
+  assert.ok(result.backfilled >= 105);
+  assert.equal(
+    db.prepare("SELECT COUNT(*) AS c FROM watch_history WHERE tmdb_id = 'full-scan' AND episode_title IS NULL").get().c,
+    0,
+  );
+});
+
+test("verified title-less rows are counted separately and omitted from the repair preview", () => {
+  insertEpisodeRow({ tmdb_id: "verified-no-title", season: 1, episode: 1, episode_title: null });
+  db.prepare("UPDATE watch_history SET episode_title_status = 'no_title_provided', episode_title_checked_at = ? WHERE tmdb_id = 'verified-no-title'").run(Date.now());
+
+  const audit = auditEpisodeTitleGaps({ limit: 500 });
+  assert.equal(audit.rows.some((row) => row.show_title === "The Expanse" && row.episode_title_status === "no_title_provided"), false);
+  assert.ok(audit.noTitleProvided >= 1);
 });

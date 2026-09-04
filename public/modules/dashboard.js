@@ -10,9 +10,62 @@ const EXPLORER_PAGE_SIZE = 240;
 const PART_WATCHED_REQUEST_TIMEOUT_MS = 15000;
 
 let _cb = {};
+const dashboardEpisodeTitleCache = new Map();
+const dashboardEpisodeTitleInflight = new Map();
 
 export function initDashboard(callbacks) {
   _cb = callbacks;
+}
+
+function dashboardEpisodeTitleKey(entry = {}) {
+  if (entry.media_type !== "episode") return "";
+  const season = Number(entry.season);
+  const episode = Number(entry.episode);
+  if (!Number.isInteger(season) || season < 0 || !Number.isInteger(episode) || episode <= 0) return "";
+  const showTitle = slug(entry.show_title || showTitleFrom(entry.title || ""));
+  const showId = entry.show_tmdb_id || entry.show_tvdb_id || entry.show_imdb_id
+    || entry.tmdb_id || entry.tvdb_id || entry.imdb_id || showTitle;
+  if (!showId) return "";
+  return `dashboard-episode:${String(showId).toLowerCase()}|s:${season}|e:${episode}`;
+}
+
+function updateDashboardEpisodeTitleElements(key, title) {
+  if (!key || typeof document === "undefined") return;
+  for (const element of document.querySelectorAll("[data-episode-title-key]")) {
+    if (element.dataset.episodeTitleKey !== key) continue;
+    element.textContent = title;
+    element.title = title;
+  }
+}
+
+function scheduleDashboardEpisodeTitleResolution(entry = {}) {
+  const key = dashboardEpisodeTitleKey(entry);
+  if (!key || typeof _cb.resolveEpisodeTitleFromTmdb !== "function") return;
+  const resolved = resolveEpisodeTitle(entry);
+  if (!resolved.needsResolve) return;
+  const cached = dashboardEpisodeTitleCache.get(key);
+  if (cached) {
+    updateDashboardEpisodeTitleElements(key, cached);
+    return;
+  }
+  if (dashboardEpisodeTitleInflight.has(key)) return;
+
+  const request = Promise.resolve(_cb.resolveEpisodeTitleFromTmdb(entry, null))
+    .then(() => {
+      const title = String(entry.episode_title || entry.episodeTitle || "").trim();
+      if (!title || /^Episode \d+$/i.test(title) || /^\d{1,3}$/.test(title)) return;
+      dashboardEpisodeTitleCache.set(key, title);
+      for (const historyEntry of state.history || []) {
+        if (dashboardEpisodeTitleKey(historyEntry) !== key) continue;
+        historyEntry.episode_title = title;
+        historyEntry.episodeTitle = title;
+        historyEntry.episode_title_status = "resolved";
+      }
+      updateDashboardEpisodeTitleElements(key, title);
+    })
+    .catch(() => { })
+    .finally(() => dashboardEpisodeTitleInflight.delete(key));
+  dashboardEpisodeTitleInflight.set(key, request);
 }
 
 function authHeaders() {
@@ -259,7 +312,7 @@ export function renderHistoryCard(entry) {
         </span>
         <div class="history-mini-card-details">
           <b class="history-mini-card-title" title="${escapeAttribute(showTitle)}">${escapeHtml(showTitle)}</b>
-          <span class="history-mini-card-sub history-card-episode-title" title="${escapeAttribute(epTitle)}">${escapeHtml(epTitle)}</span>
+          <span class="history-mini-card-sub history-card-episode-title" data-episode-title-key="${escapeAttribute(dashboardEpisodeTitleKey(entry))}" title="${escapeAttribute(epTitle)}">${escapeHtml(epTitle)}</span>
           <span class="history-mini-card-sub">${escapeHtml(episodeCode(entry.season, entry.episode))} · ${formatDate(entry.watched_at)}${actualWatchText(entry)}</span>
         </div>
       </a>
@@ -289,7 +342,20 @@ function dashboardCardIdentity(entry = {}) {
   return String(entry.id ?? entry.media_key ?? progressRecordIdentity(entry));
 }
 
+function upNextPlaybackPositionKnown(entry = {}) {
+  if (entry.playback_position_known === true) return true;
+  if (entry.playback_position_known === false) return false;
+  if (String(entry.queue_kind || "") !== "resume") return false;
+  const providerItems = entry.provider_items || entry.providerItems || {};
+  const hasProviderMembership = Object.entries(providerItems).some(([provider, ids]) => (
+    ["plex", "emby", "jellyfin"].includes(String(provider || "").toLowerCase())
+      && (Array.isArray(ids) ? ids.length : Boolean(ids))
+  ));
+  return !hasProviderMembership || Number(entry.position_ms || entry.positionMs || 0) > 0;
+}
+
 function upNextAvailabilityLabel(entry = {}) {
+  if (String(entry.queue_kind || "") === "resume" && !upNextPlaybackPositionKnown(entry)) return "Continue watching";
   const airDate = entry.air_date || entry.airDate || "";
   if (!airDate) return "Ready to watch";
   const airDateKey = String(airDate).trim().slice(0, 10);
@@ -340,6 +406,7 @@ export function renderDashboardHistoryPageCard(entry, options = {}) {
   const isUpNext = Boolean(options.upNext || entry.isUpNext || entry.up_next);
   const isEpisode = entry.media_type === "episode";
   const isResume = isPartWatched || (isUpNext && String(entry.queue_kind || "") === "resume");
+  const playbackPositionKnown = !isUpNext || upNextPlaybackPositionKnown(entry);
   let displayTitle = entry.title;
   let epTitle = "";
   let href = "";
@@ -397,7 +464,7 @@ export function renderDashboardHistoryPageCard(entry, options = {}) {
       : `<a class="history-page-card dashboard-history-page-card" data-history-id="${escapeAttribute(cardId)}" href="${escapeAttribute(href)}">`;
   const cardClose = isInteractive ? "</article>" : "</a>";
   const watchedAt = isPartWatched ? entry.updated_at : entry.watched_at;
-  const partProgress = isResume ? partWatchedProgress(entry) : 0;
+  const partProgress = isResume && playbackPositionKnown ? partWatchedProgress(entry) : 0;
   const partActions = isPartWatched ? `
         <div class="part-watched-card-actions history-card-actions">
           <button class="button-primary part-watched-action-btn" type="button" data-action-watch="${escapeAttribute(entry.media_key || "")}" data-title="${escapeAttribute(entry.title || displayTitle)}">Watched</button>
@@ -446,7 +513,7 @@ export function renderDashboardHistoryPageCard(entry, options = {}) {
       <div class="history-card-details">
         <div class="history-card-header">
           ${titleHtml}
-          ${isEpisode ? `<span class="history-card-episode" title="${escapeAttribute(epTitle)}">${escapeHtml(epTitle)}</span>` : ""}
+          ${isEpisode ? `<span class="history-card-episode"${!isUpNext ? ` data-episode-title-key="${escapeAttribute(dashboardEpisodeTitleKey(entry))}"` : ""} title="${escapeAttribute(epTitle)}">${escapeHtml(epTitle)}</span>` : ""}
         </div>
         <div class="history-card-meta">
           ${isEpisode ? `
@@ -473,7 +540,7 @@ export function renderDashboardHistoryPageCard(entry, options = {}) {
           ` : ""}
         </div>
         ${watchNowFooter}
-        ${isResume ? `
+        ${isResume && playbackPositionKnown ? `
           <div class="part-watched-progress-container${isUpNext ? " up-next-progress-container" : ""}">
             ${isUpNext ? `<div class="up-next-progress-row">` : ""}
             <div class="part-watched-progress-bar"><div class="part-watched-progress-fill" style="width: ${partProgress}%;"></div></div>
@@ -624,6 +691,11 @@ function renderDashboardHistoryRow(row, nextHtml, visibleItems = []) {
     onCommitted: () => {
       bindPartWatchedAppBadges(row);
       hydratePosters(row, { allowNetwork: false });
+      for (const entry of visibleItems) {
+        if (entry?.media_type === "episode" && !entry.isPartWatched && !entry.part_watched) {
+          scheduleDashboardEpisodeTitleResolution(entry);
+        }
+      }
     },
   });
 }

@@ -367,6 +367,19 @@ export function upNextIdentityAliases(candidate = {}) {
     ? Boolean(normalized.imdb_id || normalized.tmdb_id || normalized.tvdb_id)
     : Boolean(normalized.show_imdb_id || normalized.show_tmdb_id || normalized.show_tvdb_id);
   if (mediaKey && !hasVerifiedIdentity) aliases.add(`legacy:${lower(mediaKey)}`);
+  if (normalized.media_type === "episode") {
+    // Provider libraries commonly expose different native series ids for the
+    // same episode. An episode-level external id is globally specific, so it
+    // is the safest cross-provider bridge and lets one card retain every
+    // matching Plex, Emby, and Jellyfin action.
+    for (const [provider, value] of [
+      ["imdb", normalized.episode_imdb_id],
+      ["tmdb", normalized.episode_tmdb_id],
+      ["tvdb", normalized.episode_tvdb_id],
+    ]) {
+      if (text(value)) aliases.add(`episode:${provider}:${lower(value)}`);
+    }
+  }
   for (const [provider, ids] of Object.entries(normalized.provider_items || {})) {
     for (const id of ids || []) aliases.add(`native:${provider}:${lower(id)}`);
   }
@@ -399,6 +412,8 @@ export function normalizeUpNextCandidate(candidate = {}) {
     : rawTitle;
   const provider = nativeProvider(candidate);
   const providerItemId = nativeItemId(candidate);
+  const queueKind = lower(candidate.queue_kind || candidate.queueKind || candidate.feed_kind || candidate.feedKind) === "next_up" ? "next_up" : "resume";
+  const providerItems = providerItemsFromCandidate(candidate, provider, providerItemId);
   const rawPosition = candidate.position_ms ?? candidate.positionMs ?? candidate.offsetMs ?? item.viewOffset;
   const rawDuration = candidate.duration_ms ?? candidate.durationMs ?? item.duration;
   const positionMs = Math.max(0, Math.round(rawPosition !== undefined && rawPosition !== null
@@ -410,11 +425,21 @@ export function normalizeUpNextCandidate(candidate = {}) {
   const progressValue = candidate.progress == null
     ? (durationMs > 0 ? (positionMs / durationMs) * 100 : 0)
     : numberOrZero(candidate.progress);
+  const explicitPositionKnown = candidate.playback_position_known ?? candidate.playbackPositionKnown;
+  const providerResumeObservation = queueKind === "resume"
+    && (Boolean(provider) || Object.keys(providerItems).some((name) => PROVIDERS.includes(name)));
+  // Native Continue Watching feeds are membership feeds first. Plex can omit
+  // viewOffset entirely and Emby can return a zero PlaybackPositionTicks for a
+  // resume item, so neither should be rendered as an actual 0% checkpoint.
+  // A positive provider offset (or a canonical local progress row) remains a
+  // real, displayable playback position.
+  const playbackPositionKnown = typeof explicitPositionKnown === "boolean"
+    ? explicitPositionKnown
+    : queueKind === "resume" && (!providerResumeObservation || positionMs > 0);
   const updatedAt = parseDateMs(candidate.updated_at ?? candidate.updatedAt ?? candidate.source_updated_at ?? candidate.sourceUpdatedAt ?? item.lastViewedAt ?? item.viewedAt ?? item.UpdatedAt ?? item.UserData?.LastPlayedDate ?? item.UserData?.PlayedDate);
   const airDate = text(candidate.air_date || candidate.airDate || candidate.premiere_date || candidate.premiereDate || item.air_date || item.PremiereDate || item.parentPremiereDate);
   const year = parseYear(candidate.year || candidate.production_year || candidate.productionYear || item.ProductionYear, rawTitle);
   const canonicalKey = canonicalUpNextKey({ ...candidate, item, media_type: mediaType, title, show_title: showTitle, ids, series_ids: seriesIds, season: coordinates.season, episode: coordinates.episode });
-  const queueKind = lower(candidate.queue_kind || candidate.queueKind || candidate.feed_kind || candidate.feedKind) === "next_up" ? "next_up" : "resume";
   const artwork = providerArtworkPathsForCandidate({ ...candidate, item, provider, media_type: mediaType });
   const explicitPoster = text(candidate.poster_url || candidate.posterUrl || item.poster_url || item.posterUrl || item.thumb || item.Thumb);
   const explicitShowPoster = text(candidate.show_poster_url || candidate.showPosterUrl || item.show_poster_url || item.showPosterUrl);
@@ -447,12 +472,14 @@ export function normalizeUpNextCandidate(candidate = {}) {
     position_ms: queueKind === "resume" ? positionMs : 0,
     duration_ms: queueKind === "resume" && durationMs > 0 ? durationMs : null,
     progress: queueKind === "resume" ? Math.max(0, Math.min(100, progressValue)) : 0,
+    playback_position_known: playbackPositionKnown,
     updated_at: updatedAt,
     source_updated_at: parseDateMs(candidate.source_updated_at ?? candidate.sourceUpdatedAt) || updatedAt,
+    show_latest_watched_at: text(candidate.show_latest_watched_at || candidate.showLatestWatchedAt || candidate.latest_watched_at || candidate.latestWatchedAt) || null,
     air_date: airDate,
     source: provider || text(candidate.source) || "local",
     sources: [...new Set([...(Array.isArray(candidate.sources) ? candidate.sources : []), provider || text(candidate.source)].map(lower).filter(Boolean))].sort(),
-    provider_items: providerItemsFromCandidate(candidate, provider, providerItemId),
+    provider_items: providerItems,
     provider_item_id: providerItemId || null,
     parent_provider_item_id: text(candidate.parent_provider_item_id || candidate.parentProviderItemId || item.parentRatingKey || item.ParentId) || null,
     series_provider_item_id: text(candidate.series_provider_item_id || candidate.seriesProviderItemId || item.grandparentRatingKey || item.SeriesId) || null,
@@ -477,6 +504,7 @@ function mergeGroup(rows) {
   const representative = [...pool].sort((left, right) => (
     Number(hasExternalSeriesIdentity(right)) - Number(hasExternalSeriesIdentity(left))
       || Number(right.is_canonical) - Number(left.is_canonical)
+      || Number(right.playback_position_known === true) - Number(left.playback_position_known === true)
       || Number(right.updated_at || 0) - Number(left.updated_at || 0)
       || Number(right.position_ms || 0) - Number(left.position_ms || 0)
       || String(left.canonical_key).localeCompare(String(right.canonical_key))
@@ -489,6 +517,10 @@ function mergeGroup(rows) {
     mergeProviderItems(providerItems, row.provider_items);
   }
   const queueKind = resumes.length ? "resume" : "next_up";
+  const latestShowWatch = [...normalized]
+    .map((row) => row.show_latest_watched_at)
+    .filter(Boolean)
+    .sort((left, right) => parseDateMs(right) - parseDateMs(left) || String(right).localeCompare(String(left)))[0] || null;
   const output = {
     ...representative,
     id: representative.canonical_key,
@@ -496,6 +528,9 @@ function mergeGroup(rows) {
     position_ms: queueKind === "resume" ? Number(representative.position_ms || 0) : 0,
     duration_ms: queueKind === "resume" ? representative.duration_ms : null,
     progress: queueKind === "resume" ? Number(representative.progress || 0) : 0,
+    playback_position_known: queueKind === "resume"
+      ? normalized.some((row) => row.playback_position_known === true)
+      : false,
     media_key: [...normalized]
       .sort((left, right) => Number(right.is_canonical) - Number(left.is_canonical))
       .map((row) => text(row.media_key))
@@ -503,6 +538,7 @@ function mergeGroup(rows) {
     title: [...normalized].map((row) => text(row.title)).find(Boolean) || representative.title,
     show_title: [...normalized].map((row) => text(row.show_title)).find(Boolean) || representative.show_title,
     episode_title: [...normalized].map((row) => text(row.episode_title)).find(Boolean) || representative.episode_title,
+    show_latest_watched_at: latestShowWatch,
     poster_url: [...normalized].map((row) => text(row.poster_url)).find(Boolean) || null,
     show_poster_url: [...normalized].map((row) => text(row.show_poster_url)).find(Boolean) || null,
     imdb_id: [...normalized].map((row) => text(row.imdb_id)).find(Boolean) || null,
@@ -647,12 +683,19 @@ function reconcileTitleOnlyEpisodeGroups(groups) {
 
 export function sortUpNextItems(items = []) {
   return [...items].sort((left, right) => {
-    const leftResume = left.queue_kind === "resume";
-    const rightResume = right.queue_kind === "resume";
-    if (leftResume !== rightResume) return leftResume ? -1 : 1;
-    if (leftResume) {
+    const leftKnownResume = left.queue_kind === "resume" && left.playback_position_known !== false;
+    const rightKnownResume = right.queue_kind === "resume" && right.playback_position_known !== false;
+    if (leftKnownResume !== rightKnownResume) return leftKnownResume ? -1 : 1;
+    if (leftKnownResume) {
       return Number(right.updated_at || 0) - Number(left.updated_at || 0)
         || String(left.id || left.canonical_key || "").localeCompare(String(right.id || right.canonical_key || ""));
+    }
+    const leftShowWatchedAt = parseDateMs(left.show_latest_watched_at || left.showLatestWatchedAt);
+    const rightShowWatchedAt = parseDateMs(right.show_latest_watched_at || right.showLatestWatchedAt);
+    if (leftShowWatchedAt !== rightShowWatchedAt) {
+      if (!leftShowWatchedAt) return 1;
+      if (!rightShowWatchedAt) return -1;
+      return rightShowWatchedAt - leftShowWatchedAt;
     }
     return lower(left.show_title || left.title).localeCompare(lower(right.show_title || right.title))
       || Number(left.season || 0) - Number(right.season || 0)

@@ -394,7 +394,7 @@ export function initialMediaAppLinksContent({
 
   if (includeUnavailable) {
     return pillStyle === "source-badge"
-      ? appLinkRowHtml([], { includeUnavailable: true, pillStyle })
+      ? appLinkRowHtml([], { includeUnavailable: true, checking: true, pillStyle })
       : "";
   }
   return "";
@@ -572,18 +572,19 @@ const APP_LINK_TARGETS = [
   ["jellyfin", "Jellyfin"],
 ];
 
-function appLinkHtml(link, { disabled = false, label = "", pillStyle = "" } = {}) {
+function appLinkHtml(link, { disabled = false, checking = false, label = "", pillStyle = "" } = {}) {
   const target = link?.target || "";
   const displayLabel = link?.label || label || target;
   const useSourceBadgeStyle = pillStyle === "source-badge";
   const pillClasses = useSourceBadgeStyle
-    ? ["source-badge", "source-badge--icon", disabled ? "source-badge--disabled" : "source-badge--link"]
+    ? ["source-badge", "source-badge--icon", disabled ? "source-badge--disabled" : "source-badge--link", checking ? "source-badge--checking" : ""]
     : ["media-app-link", disabled ? "media-app-link--disabled" : ""];
   pillClasses.push(`media-app-link--${target}`);
   const iconClass = useSourceBadgeStyle ? "source-badge-icon" : "media-app-link-logo";
   if (disabled) {
+    const availabilityLabel = checking ? `Checking ${displayLabel}...` : `${displayLabel} unavailable`;
     return `
-      <span class="${pillClasses.filter(Boolean).map(escapeAttribute).join(" ")}" title="${escapeAttribute(`${displayLabel} unavailable`)}" aria-label="${escapeAttribute(`${displayLabel} unavailable`)}" aria-disabled="true">
+      <span class="${pillClasses.filter(Boolean).map(escapeAttribute).join(" ")}" title="${escapeAttribute(availabilityLabel)}" aria-label="${escapeAttribute(availabilityLabel)}" aria-disabled="true">
         <img class="${escapeAttribute(iconClass)}" src="/icons/${escapeAttribute(target)}.svg?v=20260903a" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
         <span>${escapeHtml(displayLabel)}</span>
       </span>
@@ -597,12 +598,12 @@ function appLinkHtml(link, { disabled = false, label = "", pillStyle = "" } = {}
   `;
 }
 
-function appLinkRowHtml(links = [], { includeUnavailable = false, pillStyle = "" } = {}) {
+function appLinkRowHtml(links = [], { includeUnavailable = false, checking = false, pillStyle = "" } = {}) {
   const linkMap = new Map(links.map((link) => [link.target, link]));
   const activeLinkHtml = includeUnavailable
     ? APP_LINK_TARGETS.map(([target, label]) => linkMap.has(target)
       ? appLinkHtml(linkMap.get(target), { pillStyle })
-      : appLinkHtml({ target, label }, { disabled: true, pillStyle })).join("")
+      : appLinkHtml({ target, label }, { disabled: true, checking, pillStyle })).join("")
     : [...linkMap.values()].map((link) => appLinkHtml(link, { pillStyle })).join("");
   if (!activeLinkHtml) return "";
   return `
@@ -631,7 +632,7 @@ export async function hydrateMediaAppLinks(root = document, { allowNetwork = tru
 
     const pillStyle = container.dataset.appLinkStyle === "source-badge" ? "source-badge" : "";
     const greyedOutHtml = pillStyle === "source-badge"
-      ? appLinkRowHtml([], { includeUnavailable: true, pillStyle })
+      ? appLinkRowHtml([], { includeUnavailable: true, checking: true, pillStyle })
       : `
         <b class="media-app-link-row">
           <a class="media-app-link media-app-link--plex media-app-link--disabled" title="Checking Plex..." aria-label="Checking Plex..." style="opacity: 0.4; cursor: not-allowed;">
@@ -661,9 +662,9 @@ export async function hydrateMediaAppLinks(root = document, { allowNetwork = tru
       container.innerHTML = targetInitialHtml;
     }
 
-    // Dashboard cards use the saved localStorage snapshot only. Resolving
-    // missing links requires live Plex/Emby/Jellyfin lookups and must not make
-    // the dashboard wait on a provider while it is rendering.
+    // Detail pages and dashboard cards both refresh missing/stale links in the
+    // background. The dashboard does not wait for the provider lookup because
+    // this function is fired from its post-render hydration callback.
     if (!allowNetwork) return;
 
     // A detail page re-renders several times as metadata arrives; refresh a

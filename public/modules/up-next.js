@@ -3,13 +3,14 @@ import { state, elements } from "./state.js";
 import { escapeHtml } from "./utils.js?v=20260903b";
 import { hydratePosters } from "./images.js?v=20260903b";
 import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=20260903b";
-import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=20260903c";
+import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=20260904a";
 
 const UP_NEXT_TTL_MS = 2 * 60 * 1000;
 const UP_NEXT_TIMEOUT_MS = 20000;
 const UP_NEXT_DISMISSED_KEY = "plembfin:upNextDismissed:v1";
 const UP_NEXT_CACHE_KEY = "plembfin:upNextCache:v4";
 const UP_NEXT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const UP_NEXT_SYNC_TIMEOUT_MS = 60_000;
 // Mirrors dashboard.js's DASHBOARD_CARD_EXIT_MS so overlapping refreshes wait
 // for a removal exit to finish before repainting the rail with a fresh
 // snapshot (otherwise the exit is cut short by the immediate innerHTML swap).
@@ -48,28 +49,64 @@ function persistDismissedUpNext() {
   }
 }
 
+function upNextCoordinateDismissalKey(item = {}) {
+  const mediaType = String(item.media_type || item.mediaType || "").trim().toLowerCase();
+  if (mediaType !== "episode") return "";
+  const showTitle = String(item.show_title || item.showTitle || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\(\d{4}\)/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  const season = Number(item.season);
+  const episode = Number(item.episode);
+  if (!showTitle || item.season == null || item.episode == null || item.season === "" || item.episode === "" || !Number.isInteger(season) || !Number.isInteger(episode) || season < 0 || episode < 0) return "";
+  return `episode:${showTitle}:s${season}:e${episode}`;
+}
+
+function upNextDismissalKeys(item = {}, mediaKey = "") {
+  const keys = new Set();
+  const id = String(item.id || "").trim();
+  const itemMediaKey = String(item.media_key || item.mediaKey || mediaKey || "").trim();
+  if (id) keys.add(id);
+  if (itemMediaKey) keys.add(itemMediaKey);
+  const providerItemId = String(item.provider_item_id || item.providerItemId || "").trim();
+  if (providerItemId) keys.add(providerItemId);
+  const providerItems = item.provider_items || item.providerItems || {};
+  for (const values of Object.values(providerItems)) {
+    for (const value of (Array.isArray(values) ? values : [values])) {
+      const providerId = String(value || "").trim();
+      if (providerId) keys.add(providerId);
+    }
+  }
+  const coordinate = upNextCoordinateDismissalKey(item);
+  if (coordinate) keys.add(coordinate);
+  return [...keys].filter(Boolean);
+}
+
 export function isUpNextItemDismissed(item) {
   if (!item) return false;
-  const id = String(item.id || "").trim();
-  const mediaKey = String(item.media_key || item.mediaKey || "").trim();
-  const dismissedAt = (id && dismissedUpNext[id]) || (mediaKey && dismissedUpNext[mediaKey]);
+  const keys = upNextDismissalKeys(item);
+  const dismissedAt = keys.map((key) => dismissedUpNext[key]).find(Boolean);
   if (!dismissedAt) return false;
 
   const updatedAt = Number(item.updated_at || item.updatedAt || 0);
   if (updatedAt && updatedAt > dismissedAt && (Number(item.position_ms) > 0 || Number(item.progress) > 0)) {
-    if (id) delete dismissedUpNext[id];
-    if (mediaKey) delete dismissedUpNext[mediaKey];
+    for (const key of keys) delete dismissedUpNext[key];
     persistDismissedUpNext();
     return false;
   }
   return true;
 }
 
-export function dismissUpNextId(id, mediaKey = "") {
+export function dismissUpNextId(id, mediaKey = "", details = {}) {
   const cleanId = String(id || "").trim();
   const cleanKey = String(mediaKey || "").trim();
   if (cleanId) dismissedUpNext[cleanId] = Date.now();
   if (cleanKey) dismissedUpNext[cleanKey] = Date.now();
+  for (const key of upNextDismissalKeys({ ...details, id: cleanId, media_key: cleanKey })) {
+    dismissedUpNext[key] = Date.now();
+  }
   persistDismissedUpNext();
 }
 
@@ -77,9 +114,32 @@ export function removeUpNextItem(itemId, details = {}) {
   const id = String(itemId || "").trim();
   const mediaKey = String(details.media_key || details.mediaKey || "").trim();
   if (!id && !mediaKey) return;
-  dismissUpNextId(id, mediaKey);
+  const removedIndex = state.upNextItems.findIndex((item) => String(item?.id || "") === id || String(item?.media_key || "") === mediaKey);
+  const removedItem = removedIndex >= 0
+    ? state.upNextItems[removedIndex]
+    : { ...details, id: details.id || id, media_key: details.media_key || mediaKey || id };
+  dismissUpNextId(id, mediaKey, details);
   state.upNextExitIds = [id || mediaKey];
   state.upNextItems = state.upNextItems.filter((item) => String(item?.id || "") !== id && String(item?.media_key || "") !== mediaKey);
+  persistUpNextCache(visibleUpNextItems());
+  renderUpNext();
+  return { item: removedItem, index: Math.max(0, removedIndex) };
+}
+
+export function restoreUpNextItem(removal = {}) {
+  const item = removal?.item;
+  if (!item || typeof item !== "object") return;
+  for (const key of upNextDismissalKeys(item)) delete dismissedUpNext[key];
+  persistDismissedUpNext();
+  const itemId = String(item.id || item.media_key || "").trim();
+  if (!itemId || state.upNextItems.some((candidate) => String(candidate?.id || candidate?.media_key || "") === itemId)) return;
+  const index = Math.max(0, Math.min(Number(removal.index) || 0, state.upNextItems.length));
+  state.upNextItems = [
+    ...state.upNextItems.slice(0, index),
+    item,
+    ...state.upNextItems.slice(index),
+  ];
+  state.upNextExitIds = [];
   persistUpNextCache(visibleUpNextItems());
   renderUpNext();
 }
@@ -272,17 +332,131 @@ function visibleUpNextItems() {
   return dedupeUpNextItems(items.filter((item) => !isUpNextItemDismissed(item)));
 }
 
+function renderUpNextSyncControl() {
+  const button = elements.upNextSyncButton;
+  if (!button) return;
+  const syncing = state.upNextSyncing === true;
+  const loading = state.upNextLoading === true;
+  const signedIn = Boolean(state.token);
+  button.disabled = !signedIn || syncing || loading;
+  button.setAttribute("aria-busy", String(syncing));
+  button.title = syncing
+    ? "Syncing Plembfin's Up Next list to connected media apps…"
+    : signedIn
+      ? "Sync Plembfin's Up Next list to Plex, Emby, and Jellyfin"
+      : "Sign in to sync Up Next to connected media apps";
+  button.setAttribute("aria-label", syncing ? "Syncing Up Next to connected media apps" : "Sync Up Next to connected media apps");
+}
+
+function upNextSyncPayloadItem(item = {}) {
+  return {
+    id: item.id || item.media_key || "",
+    media_key: item.media_key || item.mediaKey || item.id || "",
+    media_type: item.media_type || item.mediaType || "",
+    queue_kind: item.queue_kind || item.queueKind || "",
+    title: item.title || item.episode_title || item.show_title || "",
+    show_title: item.show_title || item.showTitle || "",
+    episode_title: item.episode_title || item.episodeTitle || "",
+    season: item.season ?? "",
+    episode: item.episode ?? "",
+    imdb_id: item.imdb_id || item.imdbId || "",
+    tmdb_id: item.tmdb_id || item.tmdbId || "",
+    tvdb_id: item.tvdb_id || item.tvdbId || "",
+    position_ms: item.position_ms ?? item.positionMs ?? 0,
+    duration_ms: item.duration_ms ?? item.durationMs ?? 0,
+    progress: item.progress ?? 0,
+    provider_items: item.provider_items || item.providerItems || {},
+    provider: item.provider || item.source || "",
+    provider_item_id: item.provider_item_id || item.providerItemId || "",
+  };
+}
+
+function upNextSyncMessage(body = {}) {
+  const providerNames = { plex: "Plex", emby: "Emby", jellyfin: "Jellyfin" };
+  const configuredFeeds = Array.isArray(body.feeds) ? body.feeds : [];
+  const syncedProviders = [...new Set(configuredFeeds
+    .filter((feed) => feed?.status === "succeeded")
+    .map((feed) => providerNames[String(feed.provider || "").toLowerCase()])
+    .filter(Boolean))];
+  const failedFeeds = configuredFeeds.filter((feed) => feed?.status === "failed");
+  const dismissals = Array.isArray(body.providerDismissals) ? body.providerDismissals : [];
+  const dismissed = dismissals.filter((entry) => entry?.status === "fulfilled").length;
+  const dismissalFailures = dismissals.filter((entry) => entry?.status !== "fulfilled").length;
+  const unsupportedFeeds = [...new Set((Array.isArray(body.unsupported) ? body.unsupported : [])
+    .map((entry) => `${providerNames[String(entry?.provider || "").toLowerCase()] || entry?.provider || "Provider"} ${entry?.feed_kind === "next_up" ? "Next Up" : "feed"}`))];
+  const progressTargets = new Set();
+  for (const result of (Array.isArray(body.progress) ? body.progress : [])) {
+    for (const target of (result?.targetStates || [])) {
+      if (target?.status === "success" && providerNames[target.target]) progressTargets.add(providerNames[target.target]);
+    }
+  }
+  const intro = syncedProviders.length
+    ? `Plembfin Up Next synced with ${upNextListLabel(syncedProviders)}.`
+    : "Plembfin Up Next sync completed.";
+  const details = [];
+  if (dismissed) details.push(`${dismissed} removed item${dismissed === 1 ? "" : "s"} hidden on connected apps`);
+  if (progressTargets.size) details.push(`resume position sent to ${upNextListLabel([...progressTargets])}`);
+  if (unsupportedFeeds.length) details.push(`${upNextListLabel(unsupportedFeeds)} cannot be rewritten by their native APIs`);
+  if (failedFeeds.length) {
+    details.push(`${upNextListLabel([...new Set(failedFeeds.map((feed) => providerNames[String(feed.provider || "").toLowerCase()] || feed.provider || "provider"))])} feed refresh failed`);
+  }
+  if (dismissalFailures) details.push(`${dismissalFailures} provider dismissal${dismissalFailures === 1 ? "" : "s"} failed`);
+  return {
+    text: [intro, ...details].join(" "),
+    tone: unsupportedFeeds.length || failedFeeds.length || dismissalFailures ? "muted" : "success",
+  };
+}
+
+export async function syncUpNextToProviders() {
+  if (!state.token || state.upNextSyncing) return null;
+  const items = visibleUpNextItems().slice(0, 30).map(upNextSyncPayloadItem);
+  state.upNextSyncing = true;
+  renderUpNextSyncControl();
+  const controller = new AbortController();
+  const timeout = window.setTimeout(() => controller.abort(), UP_NEXT_SYNC_TIMEOUT_MS);
+  try {
+    const response = await fetch("/api/up-next/sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...buildAuthHeaders(state.token) },
+      body: JSON.stringify({ items }),
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `Up Next sync failed (${response.status})`);
+    const message = upNextSyncMessage(body);
+    _cb.setMessage?.(message.text, message.tone);
+    // Re-read the provider snapshots after the outbound reconciliation. Local
+    // dismissals still filter cards while the provider feeds catch up.
+    await loadUpNext({ force: true });
+    return body;
+  } catch (error) {
+    const detail = error?.name === "AbortError" ? "The provider sync timed out." : (error?.message || "Try again later.");
+    _cb.setMessage?.(`Could not sync Plembfin Up Next to connected media apps: ${detail}`, "muted");
+    return null;
+  } finally {
+    window.clearTimeout(timeout);
+    state.upNextSyncing = false;
+    renderUpNextSyncControl();
+  }
+}
+
 export function initUpNext(callbacks = {}) {
   _cb = callbacks;
   hydrateUpNextCache();
-  if (actionsBound || !elements.upNextPanel) return;
+  if (actionsBound) return;
   actionsBound = true;
-  elements.upNextPanel.addEventListener("click", (event) => {
+  elements.upNextPanel?.addEventListener("click", (event) => {
     const retry = event.target.closest("[data-up-next-retry]");
     if (!retry) return;
     event.preventDefault();
     loadUpNext({ force: true }).catch(() => { });
   });
+  elements.upNextSyncButton?.addEventListener("click", (event) => {
+    event.preventDefault();
+    syncUpNextToProviders().catch(() => { });
+  });
+  renderUpNextSyncControl();
 }
 
 export function resetUpNext({ preserveItems = false } = {}) {
@@ -303,6 +477,7 @@ export function resetUpNext({ preserveItems = false } = {}) {
     cacheHydrated = false;
   }
   state.upNextLoading = false;
+  state.upNextSyncing = false;
   state.upNextLoadedAt = 0;
   state.upNextError = "";
   state.upNextErrorCode = "";
@@ -329,6 +504,7 @@ function upNextErrorPresentation() {
 export function renderUpNext({ exitIds = [] } = {}) {
   const panel = elements.upNextPanel;
   const section = elements.upNextSection;
+  renderUpNextSyncControl();
   if (!panel) return;
 
   hydrateUpNextCache();
@@ -390,7 +566,7 @@ export function renderUpNext({ exitIds = [] } = {}) {
   })).join("");
   commitPanel(html, () => {
     hydratePosters(panel, { allowNetwork: false });
-    hydrateMediaAppLinks(panel, { allowNetwork: false }).catch(() => { });
+    hydrateMediaAppLinks(panel, { allowNetwork: true }).catch(() => { });
   });
 }
 
