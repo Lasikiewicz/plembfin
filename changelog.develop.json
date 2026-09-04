@@ -1,6 +1,17 @@
 {
-  "build": 37,
+  "build": 38,
   "resetCommit": "b6b10b691c2de5c1316f1b619a2d840ebc1ddde8",
-  "updatedAt": "2026-09-03T16:48:52.056Z",
-  "entries": []
+  "updatedAt": "2026-09-04T12:25:51.905Z",
+  "entries": [
+    {
+      "build": 38,
+      "date": "2026-09-04T12:25:51.905Z",
+      "commit": "e5f1e7db233d1d7b2dd193dd18d7d45ae17141e2",
+      "message": "Fix - Sync up next and watched state across providers",
+      "author": "Lasikiewicz",
+      "details": [
+        "Keep Up Next and watched state aligned across Plex, Emby, and Jellyfin, repair newly available provider episodes, preserve accurate progress, restore episode titles, and polish refresh/menu controls."
+      ]
+    }
+  ]
 }
