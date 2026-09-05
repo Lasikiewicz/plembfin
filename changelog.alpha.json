@@ -1,7 +1,44 @@
 {
   "baseVersion": "0.15.0",
-  "build": 0,
-  "version": "0.15.0.0.0",
-  "updatedAt": "2026-09-03T16:48:52.056Z",
-  "entries": []
+  "build": 1,
+  "version": "0.15.0.1",
+  "updatedAt": "2026-09-05T15:57:04.053Z",
+  "entries": [
+    {
+      "build": 1,
+      "version": "0.15.0.1",
+      "shortVersion": "0.15.0.1",
+      "date": "2026-09-05T15:57:04.053Z",
+      "commit": "d589dbad931e73e86fc50f6b5a0a6a5ebb042e0f",
+      "message": "This update includes sync up next and watched state across providers and prevent stale media renders and harden sync performance.",
+      "author": "Lasikiewicz",
+      "details": [
+        "Tweak: This update includes sync up next and watched state across providers and prevent stale media renders and harden sync performance.",
+        "Tweak: Keep Up Next and watched state aligned across Plex, Emby, and Jellyfin, repair newly available provider episodes, preserve accurate progress, restore episode titles, and polish refresh/menu controls.",
+        "Tweak: Prevent stale media detail responses from repainting the dashboard after rapid navigation.",
+        "Tweak: Keep show and movie detail hydration, watch actions, and provider-derived state consistent during asynchronous loads.",
+        "Tweak: Improve scheduler, live-session, and incremental provider-sync behavior for reliable updates.",
+        "Tweak: Bound and instrument derived-cache rebuilds and add repeatable large-library performance baselines.",
+        "Tweak: Harden response caching, compression, and asset-version handling for safer browser loads."
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [],
+        "tweaks": [
+          "This update includes sync up next and watched state across providers and prevent stale media renders and harden sync performance.",
+          "Keep Up Next and watched state aligned across Plex, Emby, and Jellyfin, repair newly available provider episodes, preserve accurate progress, restore episode titles, and polish refresh/menu controls.",
+          "Prevent stale media detail responses from repainting the dashboard after rapid navigation.",
+          "Keep show and movie detail hydration, watch actions, and provider-derived state consistent during asynchronous loads.",
+          "Improve scheduler, live-session, and incremental provider-sync behavior for reliable updates.",
+          "Bound and instrument derived-cache rebuilds and add repeatable large-library performance baselines.",
+          "Harden response caching, compression, and asset-version handling for safer browser loads."
+        ]
+      },
+      "messageFragments": [
+        "Fix - Sync up next and watched state across providers",
+        "Fix - Prevent stale media renders and harden sync performance"
+      ]
+    }
+  ],
+  "shortVersion": "0.15.0.1"
 }
