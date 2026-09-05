@@ -7,7 +7,7 @@ import path from "node:path";
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "plembfin-tvdb-match-test-"));
 process.env.DATA_DIR = dataDir;
 
-const { selectTvdbSeriesMatch, tvdbSeriesTitleMatches } = await import("../server/src/utils/tvdbGateway.js");
+const { selectTvdbSeriesMatch, tvdbSeriesTitleKey, tvdbSeriesTitleMatches } = await import("../server/src/utils/tvdbGateway.js");
 
 test("TVDB title matching ignores ranked distractors but requires an exact unique series", () => {
   const result = selectTvdbSeriesMatch([
@@ -32,6 +32,10 @@ test("TVDB title matching can disambiguate a year-qualified title", () => {
   ], "The Office (2020)");
 
   assert.equal(result?.tvdb_id, "456");
+});
+
+test("TVDB title keys handle whitespace around a year suffix", () => {
+  assert.equal(tvdbSeriesTitleKey(`The Office${" ".repeat(1000)}(2020)`), "the office");
 });
 
 test("TVDB series verification accepts the canonical name and aliases only", () => {

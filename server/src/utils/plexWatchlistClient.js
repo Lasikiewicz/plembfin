@@ -210,11 +210,11 @@ export async function fetchPlexWatchlistSnapshot(config, options = {}) {
 
 function xmlEntity(value) {
   return String(value || "")
-    .replace(/&amp;/g, "&")
     .replace(/&quot;/g, '"')
     .replace(/&apos;/g, "'")
     .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">");
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
 }
 
 function parsePlexRss(text) {

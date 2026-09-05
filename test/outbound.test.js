@@ -56,6 +56,25 @@ test("fetchWithTimeout validates redirects and does not forward credentials acro
   assert.equal(requests[1].headers.has("x-api-key"), false);
 });
 
+test("fetchWithTimeout replaces upstream exception objects with a safe error", async (t) => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    const error = new Error("sensitive upstream stack marker");
+    error.stack = "Error: sensitive upstream stack marker\\n    at provider.internal/request.js:1:1";
+    throw error;
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  await assert.rejects(
+    fetchWithTimeout("https://media.example.test/image.jpg"),
+    (error) => {
+      assert.equal(error.message, "Upstream request failed");
+      assert.doesNotMatch(error.stack, /sensitive upstream stack marker/);
+      return true;
+    },
+  );
+});
+
 test("fetchWithTimeout falls back to the tunable default when no explicit timeout is given", async (t) => {
   t.after(() => resetTuningForTests());
   applyTuningConfig({ outboundTimeoutSec: 2 }); // clamp minimum, 2000ms

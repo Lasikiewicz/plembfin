@@ -22,3 +22,13 @@ test("diagnostic logs classify messages into categories correctly", () => {
   assert.equal(logger.categorizeLog("syncRecentlyWatchedFromPlex starting"), "scheduled-poll");
   assert.equal(logger.categorizeLog("Random server startup event"), "system");
 });
+
+test("diagnostic logs keep error messages without exposing stack traces", () => {
+  const marker = "diagnostic-stack-redaction-test";
+  console.error(new Error(marker));
+  const result = logger.getLogs({ level: "error", limit: 20 });
+  const line = result.logs.find((entry) => entry.includes(marker));
+
+  assert.ok(line);
+  assert.equal(line.includes("at diagnosticLogger.test.js"), false);
+});

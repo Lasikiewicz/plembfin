@@ -127,7 +127,10 @@ function scheduleFlush() {
 function addLog(level, args) {
   if (!isCapturing) return;
   const message = args.map((arg) => {
-    if (arg instanceof Error) return redactSecrets(arg.stack || arg.message || String(arg));
+    // Diagnostic logs are exposed through the admin logs endpoint. Keep the
+    // error message for troubleshooting, but never persist a stack trace that
+    // could disclose server-side paths or implementation details to a client.
+    if (arg instanceof Error) return redactSecrets(arg.message || String(arg));
     if (typeof arg === "object") return redactSecrets(util.inspect(arg, { depth: 6, breakLength: 120, compact: false }));
     return redactSecrets(arg);
   }).join(" ");
