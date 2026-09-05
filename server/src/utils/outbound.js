@@ -3,6 +3,30 @@ import { acquireOutboundSlot, noteOutboundResponse, configureOutboundGovernor } 
 
 const DEFAULT_FETCH_TIMEOUT_MS = 10_000;
 const MAX_OUTBOUND_REDIRECTS = 5;
+const OUTBOUND_POLICY_CODES = Object.freeze({
+  INVALID_URL: "OUTBOUND_INVALID_URL",
+  UNSUPPORTED_SCHEME: "OUTBOUND_UNSUPPORTED_SCHEME",
+  CREDENTIALS: "OUTBOUND_CREDENTIALS",
+  METADATA: "OUTBOUND_METADATA",
+  REDIRECT_LIMIT: "OUTBOUND_REDIRECT_LIMIT",
+});
+
+function outboundPolicyError(message, code) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}
+
+function publicOutboundPolicyError(code) {
+  const messages = {
+    [OUTBOUND_POLICY_CODES.INVALID_URL]: "Outbound URL must be valid",
+    [OUTBOUND_POLICY_CODES.UNSUPPORTED_SCHEME]: "Outbound URL must use http or https",
+    [OUTBOUND_POLICY_CODES.CREDENTIALS]: "Outbound URL must not contain embedded credentials",
+    [OUTBOUND_POLICY_CODES.METADATA]: "Outbound URL targets a blocked metadata endpoint",
+    [OUTBOUND_POLICY_CODES.REDIRECT_LIMIT]: "Upstream request exceeded the redirect limit",
+  };
+  return messages[code] ? outboundPolicyError(messages[code], code) : null;
+}
 
 export function createUpstreamTimeoutError(timeoutMs = DEFAULT_FETCH_TIMEOUT_MS) {
   const error = new Error(`Upstream request timed out after ${timeoutMs}ms`);
@@ -49,17 +73,17 @@ export function assertSafeOutboundUrl(value, { label = "URL" } = {}) {
   try {
     url = new URL(String(value));
   } catch {
-    throw new Error(`${label} must be a valid URL`);
+    throw outboundPolicyError(`${label} must be a valid URL`, OUTBOUND_POLICY_CODES.INVALID_URL);
   }
   if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new Error(`${label} must use http or https`);
+    throw outboundPolicyError(`${label} must use http or https`, OUTBOUND_POLICY_CODES.UNSUPPORTED_SCHEME);
   }
   if (url.username || url.password) {
-    throw new Error(`${label} must not contain embedded credentials`);
+    throw outboundPolicyError(`${label} must not contain embedded credentials`, OUTBOUND_POLICY_CODES.CREDENTIALS);
   }
   const host = url.hostname.toLowerCase().replace(/^\[|\]$/g, "");
   if (BLOCKED_HOSTS.has(host)) {
-    throw new Error(`${label} targets a blocked metadata endpoint`);
+    throw outboundPolicyError(`${label} targets a blocked metadata endpoint`, OUTBOUND_POLICY_CODES.METADATA);
   }
   return url;
 }
@@ -97,7 +121,7 @@ async function fetchFollowingSafeRedirects(url, options) {
 
     const location = response.headers.get("location");
     if (!location) return response;
-    if (redirects === MAX_OUTBOUND_REDIRECTS) throw new Error("Upstream request exceeded the redirect limit");
+    if (redirects === MAX_OUTBOUND_REDIRECTS) throw outboundPolicyError("Upstream request exceeded the redirect limit", OUTBOUND_POLICY_CODES.REDIRECT_LIMIT);
 
     const nextUrl = assertSafeOutboundUrl(new URL(location, currentUrl), { label: "Outbound redirect URL" });
     await response.body?.cancel();
@@ -105,17 +129,7 @@ async function fetchFollowingSafeRedirects(url, options) {
     currentUrl = nextUrl;
   }
 
-  throw new Error("Upstream request exceeded the redirect limit");
-}
-
-function upstreamCauseCode(error) {
-  let current = error;
-  for (let depth = 0; depth < 5 && current; depth += 1) {
-    const code = String(current?.code || "").trim().toUpperCase();
-    if (/^[A-Z][A-Z0-9_:-]{1,48}$/.test(code)) return code;
-    current = current?.cause;
-  }
-  return "";
+  throw outboundPolicyError("Upstream request exceeded the redirect limit", OUTBOUND_POLICY_CODES.REDIRECT_LIMIT);
 }
 
 // Set PLEMBFIN_DEBUG_OUTBOUND=1 to log a per-host outbound request count once
@@ -173,14 +187,14 @@ export async function fetchWithTimeout(url, options = {}, timeoutMs = undefined)
     return response;
   } catch (error) {
     if (controller.signal.aborted && controller.signal.reason === timeoutError) throw timeoutError;
-    const message = String(error?.message || "").trim();
-    const causeCode = upstreamCauseCode(error);
-    if (causeCode && /^fetch failed$/i.test(message)) {
-      const wrapped = new Error(`Upstream request failed (${causeCode})`);
-      wrapped.code = causeCode;
-      throw wrapped;
+    const policyError = publicOutboundPolicyError(error?.code);
+    if (policyError) throw policyError;
+    if (controller.signal.aborted) {
+      const cancelled = new Error("Upstream request cancelled");
+      cancelled.name = "AbortError";
+      throw cancelled;
     }
-    throw error;
+    throw new Error("Upstream request failed");
   } finally {
     clearTimeout(timeout);
     if (upstreamSignal) upstreamSignal.removeEventListener("abort", abortFromUpstream);
