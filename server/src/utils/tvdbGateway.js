@@ -58,8 +58,9 @@ function canonicalTitle(value = "") {
 }
 
 function titleParts(value = "") {
-  const text = String(value || "").trim().replace(/\s*\(\d{4}\)\s*$/, "");
-  const yearMatch = String(value || "").trim().match(/\((\d{4})\)\s*$/);
+  const trimmed = String(value || "").trim();
+  const yearMatch = trimmed.match(/\((\d{4})\)$/);
+  const text = yearMatch ? trimmed.slice(0, yearMatch.index).trim() : trimmed;
   return { title: text, year: yearMatch?.[1] || "" };
 }
 
