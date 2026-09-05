@@ -1,4 +1,4 @@
-import { buildAuthHeaders } from "./auth.js";
+import { buildAuthHeaders } from "./auth.js?v=0.15.0";
 import {
   state, elements,
   EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS,
@@ -6,21 +6,21 @@ import {
   HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS,
   HISTORY_VIEW_KEY, HISTORY_FILTER_KEY,
   HISTORY_VIEW_MODES, HISTORY_FILTERS,
-} from "./state.js";
+} from "./state.js?v=0.15.0";
 import {
   escapeHtml, escapeAttribute, slug, showTitleFrom, showName, tvShowBaseHrefFromEpisode,
   movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, platformBadge, sourceClass, sourceBadgeHtml, formatDate,
   computeProgress, sanitizeTitle, episodeTitle, episodeCode,
-} from "./utils.js?v=20260903a";
-import { posterMarkup, posterOverflowMenu, hydratePosters, bindPosterImageErrorHandler, tmdbPoster, tmdbProfile, proxiedArtworkUrl } from "./images.js?v=20260903b";
+} from "./utils.js?v=0.15.0";
+import { posterMarkup, posterOverflowMenu, hydratePosters, bindPosterImageErrorHandler, tmdbPoster, tmdbProfile, proxiedArtworkUrl } from "./images.js?v=0.15.0";
 import {
   historySyncPill, renderSyncStatusDot, renderMediaSyncPills,
   renderAvailabilityPills, renderShowAvailabilityPills, showAvailIssuePopup,
   isWatchedHistoryAction,
-} from "./sync.js";
-import { dedupeMediaRecords, renderHistoryCard } from "./dashboard.js?v=20260904a";
-import { renderMediaCard } from "./media-card.js?v=20260903a";
-import { nextAiringCell, nextAiringDateValue, formatListDate, futureListDate } from "./stats.js";
+} from "./sync.js?v=0.15.0";
+import { dedupeMediaRecords, renderHistoryCard } from "./dashboard.js?v=0.15.0";
+import { renderMediaCard } from "./media-card.js?v=0.15.0";
+import { nextAiringCell, nextAiringDateValue, formatListDate, futureListDate } from "./stats.js?v=0.15.0";
 // ---------------------------------------------------------------------------
 // Callback injection - functions defined outside the 2636-4016 range in app.js
 // ---------------------------------------------------------------------------

@@ -1,5 +1,6 @@
 import crypto from "node:crypto";
-import { db, getDataVersion, bumpDataVersion, parseJson, toJson, transaction } from "../db.js";
+import { db, getDataVersion, bumpDataVersion, dataVersionTrigger, parseJson, toJson, transaction } from "../db.js";
+import { recordCacheRebuild, timeCacheRebuild, timeCacheRebuildAsync } from "./cacheTelemetry.js";
 import { isAuthoritativeRestoreActive, loadMediaConfig } from "./configStore.js";
 import { fetchPosterFromTmdb } from "./tmdbClient.js";
 import { getTmdbDetails, getTmdbSeason } from "./tmdbGateway.js";
@@ -855,7 +856,9 @@ function finalizeStatsPeriod(period) {
 export async function getCachedHistory() {
   const version = getDataVersion();
   if (historyCache.version === version) return historyCache.rows;
-  const rows = selectAllHistoryStmt.all().map(rowToWatch);
+  const rows = timeCacheRebuild("history", version, dataVersionTrigger(version), () => (
+    selectAllHistoryStmt.all().map(rowToWatch)
+  ));
   historyCache = { version, rows };
   return rows;
 }
@@ -863,7 +866,9 @@ export async function getCachedHistory() {
 export async function getCachedMovies() {
   const version = getDataVersion();
   if (movieCache.version === version && Array.isArray(movieCache.rows)) return movieCache.rows;
-  const rows = selectMoviesStmt.all().map(rowToWatch).filter(isPlembfinTrackedWatchRow);
+  const rows = timeCacheRebuild("movies", version, dataVersionTrigger(version), () => (
+    selectMoviesStmt.all().map(rowToWatch).filter(isPlembfinTrackedWatchRow)
+  ));
   movieCache = { version, rows };
   return rows;
 }
@@ -885,7 +890,7 @@ export async function getCachedShows({ includeScheduledLibraryHistory = false } 
       continue;
     }
 
-    const buildPromise = (async () => {
+    const buildPromise = timeCacheRebuildAsync(cacheKey === "scheduled" ? "scheduledShows" : "shows", version, dataVersionTrigger(version), async () => {
       // The default (non-scheduled) branch is not watched-state filtered: a show
       // whose every episode has been marked unwatched still needs its own group
       // here (with 0 watched) so it stays visible in the TV Shows grid/dashboard
@@ -969,7 +974,7 @@ export async function getCachedShows({ includeScheduledLibraryHistory = false } 
       if (includeScheduledLibraryHistory) scheduledShowCache = { version, shows };
       else showCache = { version, shows };
       return shows;
-    })();
+    });
 
     showCacheBuilds.set(cacheKey, buildPromise);
     try {
@@ -1095,7 +1100,7 @@ export function upsertPlaystateSync(record, stateOverride = undefined, { allowDu
 
 export async function upsertPlaystate(record, stateOverride = undefined, { skipInvalidate = false, allowDuringRestore = false } = {}) {
   const result = upsertPlaystateSync(record, stateOverride, { allowDuringRestore });
-  if (!skipInvalidate) await invalidateHistoryDerivedCaches();
+  if (!skipInvalidate) await invalidateHistoryDerivedCaches("upsertPlaystate");
   return result;
 }
 
@@ -1204,11 +1209,14 @@ function queueProgressUpdateForRecord(record) {
   }
 }
 
-export async function invalidateHistoryDerivedCaches() {
+// `reason` labels the generation change for the rebuild telemetry in
+// cacheTelemetry.js. It is optional: an unlabelled call is reported as
+// "observed", exactly like a version a SQLite trigger or another process moved.
+export async function invalidateHistoryDerivedCaches(reason = "") {
   await flushShowProgressUpdates().catch((err) => {
     console.error("[dataRepo] Failed to flush show progress updates", err);
   });
-  bumpDataVersion();
+  bumpDataVersion(reason);
 }
 
 function patchCachedRow(rows, freshRow) {
@@ -1378,7 +1386,7 @@ export function prefetchWatchRecordAssets({ id = "", record = null } = {}) {
 
 export async function insertWatchRecord(record, { skipInvalidate = false, id: presetId = "", watchlistConfig = null, allowDuringRestore = false } = {}) {
   const result = insertWatchRecordSync(record, { id: presetId, watchlistConfig, allowDuringRestore });
-  if (!skipInvalidate) await invalidateHistoryDerivedCaches();
+  if (!skipInvalidate) await invalidateHistoryDerivedCaches("insertWatchRecord");
 
   // Eagerly pull + store TMDB metadata/artwork at ingest (fire-and-forget;
   // returned so the webhook can await it before responding if it wants to).
@@ -1526,7 +1534,7 @@ export async function batchInsertWatchRecords(records) {
         prefetchTmdbMetadataBackground(normalized.media_type, normalized.tmdb_id, normalized.title, normalized.id, normalized).catch(() => null);
       }
     }
-    await invalidateHistoryDerivedCaches();
+    await invalidateHistoryDerivedCaches("batchInsertWatchRecords");
     return { inserted, updated: 0, skipped, rejected };
   }
   return { inserted, updated: 0, skipped, rejected };
@@ -1769,7 +1777,7 @@ export async function addWatchDate(id, watchedAtInput) {
     }
   }
 
-  await invalidateHistoryDerivedCaches();
+  await invalidateHistoryDerivedCaches("addWatchDate");
   return { ok: true, id: newId };
 }
 
@@ -2128,7 +2136,7 @@ export async function deleteWatchDate(id) {
   }
   reconcilePlaystateAfterWatchDateRemovalSync(remainingRow, rowsToDelete);
 
-  await invalidateHistoryDerivedCaches();
+  await invalidateHistoryDerivedCaches("deleteWatchDate");
   return { ok: true, remainingRow, deletedRow: existing, deletedRows: rowsToDelete };
 }
 
@@ -2211,7 +2219,7 @@ export async function deleteWatchDates(ids = []) {
     reconcilePlaystateAfterWatchDateRemovalSync(media.remainingRow, media.deletedRows);
   }
 
-  if (deleted.length) await invalidateHistoryDerivedCaches();
+  if (deleted.length) await invalidateHistoryDerivedCaches("deleteWatchDates");
   return { ok: true, deleted, notFound, affectedMedia };
 }
 
@@ -3180,6 +3188,7 @@ export async function querySyncJobs({ limit = 100, offset = 0, status = "outstan
 export async function getWatchStats() {
   const version = getDataVersion();
   if (statsCache.version === version && statsCache.stats) return statsCache.stats;
+  const statsRebuildStartedAt = performance.now();
 
   // Same-event echoes (e.g. a media server firing its "played" webhook several
   // times for one viewing) must not inflate play counts here - every other
@@ -3250,6 +3259,12 @@ export async function getWatchStats() {
       months: monthlyReports,
     },
   };
+  recordCacheRebuild("stats", {
+    version,
+    trigger: dataVersionTrigger(version),
+    durationMs: performance.now() - statsRebuildStartedAt,
+    items: stats?.reports?.months?.length ?? null,
+  });
   statsCache = { version, stats };
   return stats;
 }
@@ -3288,7 +3303,7 @@ export async function clearRelatedWatchArtworkUrls(id) {
   transaction(() => {
     for (const row of rows) clearArtworkStmt.run(now, String(row.id));
   });
-  await invalidateHistoryDerivedCaches();
+  await invalidateHistoryDerivedCaches("clearRelatedWatchArtworkUrls");
   return true;
 }
 
@@ -3561,7 +3576,7 @@ export async function updateWatchRecord(id, fields = {}, { preserveDispatchState
     }
   }
 
-  await invalidateHistoryDerivedCaches();
+  await invalidateHistoryDerivedCaches("updateWatchRecord");
   return { ok: true };
 }
 
@@ -3643,7 +3658,7 @@ export async function updateWatchDates(updates = []) {
     }
   });
 
-  await invalidateHistoryDerivedCaches();
+  await invalidateHistoryDerivedCaches("updateWatchDates");
   return { ok: true, updated_ids: resolved.map(({ existing }) => existing.id) };
 }
 
@@ -3804,7 +3819,7 @@ export async function rematchShowWatchRecords({ id = "", showTitle = "", tvdbId 
 
   queueShowProgressUpdate(renameTo || resolvedTitle);
   bumpDataVersion();
-  await invalidateHistoryDerivedCaches();
+  await invalidateHistoryDerivedCaches("rematchShowWatchRecords");
   setImmediate(() => {
     flushShowProgressUpdates().catch((error) => {
       console.error("[dataRepo] Background show progress refresh failed after Fix Match", error);
@@ -3860,7 +3875,7 @@ export async function mergeShows(sourceTitle, targetTitle) {
       updateShowTitleStmt.run(newTitle, newTitle.toLowerCase(), targetTitle, targetTitle.toLowerCase(), Date.now(), row.id);
     }
   });
-  await invalidateHistoryDerivedCaches();
+  await invalidateHistoryDerivedCaches("mergeShows");
   return { id: mergeId, merged: docs.length };
 }
 
@@ -3898,7 +3913,7 @@ export async function unmergeShow(mergeId = "") {
   });
   queueShowProgressUpdate(merge.source_title);
   queueShowProgressUpdate(merge.target_title);
-  await invalidateHistoryDerivedCaches();
+  await invalidateHistoryDerivedCaches("unmergeShow");
   return { restored, sourceTitle: merge.source_title, targetTitle: merge.target_title };
 }
 
@@ -3954,7 +3969,7 @@ export async function backfillMissingEpisodeSeasons() {
   });
 
   if (fixed) {
-    await invalidateHistoryDerivedCaches();
+    await invalidateHistoryDerivedCaches("backfillMissingEpisodeSeasons");
     console.log(`[dataRepo] backfillMissingEpisodeSeasons: recovered ${fixed} of ${rows.length} season numbers`);
   }
   return fixed;
@@ -3987,7 +4002,7 @@ export async function backfillUnknownShowTitles() {
     }
   });
   if (fixed) {
-    await invalidateHistoryDerivedCaches();
+    await invalidateHistoryDerivedCaches("backfillUnknownShowTitles");
     console.log(`[dataRepo] backfillUnknownShowTitles: fixed ${fixed} of ${rows.length} records`);
   }
   return fixed;
@@ -4175,7 +4190,7 @@ export async function backfillEpisodeTitleGaps({ limit = 200, allowFetch = false
         }
       }
     });
-    await invalidateHistoryDerivedCaches();
+    await invalidateHistoryDerivedCaches("backfillEpisodeTitleGaps");
   }
 
   const allGaps = auditEpisodeTitleGaps({ limit: 20 });
@@ -4234,7 +4249,7 @@ export function deleteWatchRecordByIdSync(id, { allowDuringRestore = false } = {
 
 export async function deleteWatchRecordById(id, { skipInvalidate = false, allowDuringRestore = false } = {}) {
   const deleted = deleteWatchRecordByIdSync(id, { allowDuringRestore });
-  if (deleted && !skipInvalidate) await invalidateHistoryDerivedCaches();
+  if (deleted && !skipInvalidate) await invalidateHistoryDerivedCaches("deleteWatchRecordById");
   return deleted;
 }
 
@@ -4281,7 +4296,7 @@ export function deleteWatchRecordSync(media, { allowDuringRestore = false } = {}
 
 export async function deleteWatchRecord(media, { skipInvalidate = false, allowDuringRestore = false } = {}) {
   const deleted = deleteWatchRecordSync(media, { allowDuringRestore });
-  if (deleted && !skipInvalidate) await invalidateHistoryDerivedCaches();
+  if (deleted && !skipInvalidate) await invalidateHistoryDerivedCaches("deleteWatchRecord");
   return deleted;
 }
 
@@ -4497,7 +4512,7 @@ export async function repairSplitIdentityUnwatches() {
     await upsertPlaystateForMedia(media, "watched", watchedRow.watched_at, { skipInvalidate: true });
     restored.push(media);
   }
-  if (restored.length) await invalidateHistoryDerivedCaches();
+  if (restored.length) await invalidateHistoryDerivedCaches("repairSplitIdentityUnwatches");
   return { repaired: restored.length, media: restored };
 }
 
@@ -4599,7 +4614,7 @@ export async function repairLikelyFalseUnwatches() {
     await upsertPlaystateForMedia(media, "watched", bestEvidence.watched_at, { skipInvalidate: true });
     restored.push(media);
   }
-  if (restored.length) await invalidateHistoryDerivedCaches();
+  if (restored.length) await invalidateHistoryDerivedCaches("repairLikelyFalseUnwatches");
   return { repaired: restored.length, media: restored };
 }
 
@@ -4761,7 +4776,7 @@ export async function deleteMovieByWatchId(id, { skipInvalidate = false } = {}) 
     }
   });
 
-  if (!skipInvalidate) await invalidateHistoryDerivedCaches();
+  if (!skipInvalidate) await invalidateHistoryDerivedCaches("deleteMovieByWatchId");
   return { found: true, deleted: matches.length, title: anchor.title };
 }
 
@@ -4804,7 +4819,7 @@ export async function deleteShowByWatchId(id, { skipInvalidate = false } = {}) {
     }
   });
 
-  if (!skipInvalidate) await invalidateHistoryDerivedCaches();
+  if (!skipInvalidate) await invalidateHistoryDerivedCaches("deleteShowByWatchId");
   return { found: true, deleted: matches.length, title: showTitle || anchor.title };
 }
 
@@ -5781,7 +5796,7 @@ async function prefetchTmdbMetadataBackground(mediaType, tmdbId, title, recordId
         tvdb_id: details.external_ids?.tvdb_id || record.tvdb_id || "",
         imdb_id: details.external_ids?.imdb_id || record.imdb_id || "",
       }, details.cached_poster_url, { source: "metadata", preserveExisting: true });
-      if (savedShowArtwork.changed) await invalidateHistoryDerivedCaches().catch(() => null);
+      if (savedShowArtwork.changed) await invalidateHistoryDerivedCaches("prefetchTmdbMetadataBackground").catch(() => null);
     }
     // TV episode rows may carry episode-specific stills. The metadata cache
     // remains available to the shared show-poster resolver, but its series

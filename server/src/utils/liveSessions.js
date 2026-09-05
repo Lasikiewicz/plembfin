@@ -45,6 +45,19 @@ function embyLikePosterUrl(item = {}, mediaType = "unknown") {
   });
 }
 
+// Plex can leave a completed item in /status/sessions for a short time while
+// the client tears down playback. It is no longer useful in the dashboard's
+// Now Playing rail once only a few seconds remain.
+export const NOW_PLAYING_TERMINAL_GRACE_MS = 10_000;
+
+export function isTerminalLiveSession(session = {}) {
+  const durationMs = Number(session.durationMs ?? session.duration_ms ?? 0);
+  const offsetMs = Number(session.offsetMs ?? session.offset_ms ?? 0);
+  if (!Number.isFinite(durationMs) || durationMs <= 0) return false;
+  if (!Number.isFinite(offsetMs) || offsetMs < 0) return false;
+  return durationMs - offsetMs <= NOW_PLAYING_TERMINAL_GRACE_MS;
+}
+
 export function normalizeStoredConfig(stored = {}) {
   return {
     plex: {

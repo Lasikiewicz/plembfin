@@ -1,22 +1,23 @@
-import { state, elements } from "./state.js";
-import { slug, movieSlug, movieHref, movieTmdbHref, tvShowTmdbHref, showName, showTitleFrom } from "./utils.js";
-import { dedupeMediaRecords } from "./dashboard.js?v=20260904a";
-import { isWatchedHistoryAction } from "./sync.js";
+import { state, elements } from "./state.js?v=0.15.0";
+import { slug, movieSlug, movieHref, movieTmdbHref, tvShowTmdbHref, showName, showTitleFrom } from "./utils.js?v=0.15.0";
+import { dedupeMediaRecords } from "./dashboard.js?v=0.15.0";
+import { isWatchedHistoryAction } from "./sync.js?v=0.15.0";
 import {
   initMediaDetail, authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions,
   prepareInlineMediaDetail, syncMediaActionsMenuState, syncTopbarControlsMenuState,
   openDebugModal, closeDebugModal, clearMediaDetailState, closeMediaDetail,
   openMediaInfoModal, closeMediaInfoModal,
-} from "./media-detail-context.js?v=20260903m";
+  bumpMediaRenderToken, currentMediaRenderToken,
+} from "./media-detail-context.js?v=0.15.0";
 import {
   openShowImmersiveModalByTitle, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openShowInlineDetail,
   renderImmersiveShowModal, renderShowModalContent, scrollSeasonAccordionIntoView,
-} from "./media-detail-show.js?v=20260903m";
+} from "./media-detail-show.js?v=0.15.0";
 import {
   renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, patchMovieWatchedState,
-} from "./media-detail-movie.js?v=20260903m";
-import { fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail-shared.js?v=20260903b";
-import { fetchTmdbDetails } from "./tmdb.js?v=20260823";
+} from "./media-detail-movie.js?v=0.15.0";
+import { fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail-shared.js?v=0.15.0";
+import { fetchTmdbDetails } from "./tmdb.js?v=0.15.0";
 
 export {
   initMediaDetail,
@@ -113,6 +114,7 @@ export function nowPlayingHref(session = {}) {
 }
 
 export async function openImmersiveModal(id) {
+  const renderToken = bumpMediaRenderToken();
   setMediaDetailActions("");
   if (!state.mediaDetailInline) {
     elements.debugModal.classList.remove("hidden");
@@ -141,6 +143,7 @@ export async function openImmersiveModal(id) {
       console.error("Failed to fetch watch history item", error);
     }
   }
+  if (currentMediaRenderToken() !== renderToken) return;
   if (!entry) {
     root.innerHTML = `
       <div class="immersive-container">
@@ -176,7 +179,12 @@ export async function openMovieImmersiveModal(id) {
 }
 export async function openMovieInlineDetail(id) {
   prepareInlineMediaDetail("movies");
+  const renderToken = bumpMediaRenderToken();
+  const requestStillCurrent = () => currentMediaRenderToken() === renderToken
+    && state.mediaDetailInline
+    && state.activeView === "explorer";
   const movie = await resolveMovieBySlugOrId(id);
+  if (!requestStillCurrent()) return;
   if (movie) {
     await renderMovieImmersiveModalContent(movie);
     return;
@@ -189,11 +197,12 @@ export async function openMovieInlineDetail(id) {
   const legacyTitle = movieSearchFromRouteValue(id);
   if (legacyTitle) {
     const details = await fetchTmdbDetails("movie", null, legacyTitle, {}, { immediate: true }).catch(() => null);
-    if (details?.id) {
+    if (details?.id && requestStillCurrent()) {
       await openMovieImmersiveModalByTmdbId(details.id);
       return;
     }
   }
+  if (!requestStillCurrent()) return;
   await openImmersiveModal(id);
 }
 export async function openRecommendedMovieInlineDetail(tmdbId) {

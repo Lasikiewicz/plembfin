@@ -625,10 +625,35 @@ function episodeTitlesMatch(unresolvedRows = [], identifiedRows = []) {
   // Emby/Jellyfin can expose a native series id without the external series
   // ids that local metadata uses. An exact episode-title match is a useful
   // bridge in that case; a different title keeps same-name reboots separate.
-  const unresolvedTitles = unresolvedRows.map((row) => lower(row.episode_title)).filter(Boolean);
-  const identifiedTitles = identifiedRows.map((row) => lower(row.episode_title)).filter(Boolean);
-  if (!unresolvedTitles.length || !identifiedTitles.length) return false;
-  return unresolvedTitles.some((left) => identifiedTitles.includes(left));
+  // Some provider feeds only return a coordinate placeholder (or no title at
+  // all), so an otherwise-unidentified native row can use the single verified
+  // series candidate in the same show/coordinate bucket as its bridge.
+  const unresolvedTitles = unresolvedRows
+    .map((row) => ({ title: normalizedComparableName(row.episode_title), episode: rowEpisode(row) }))
+    .filter(({ title, episode }) => title && !isPlaceholderEpisodeTitle(title, episode))
+    .map(({ title }) => title);
+  const identifiedTitles = identifiedRows
+    .map((row) => ({ title: normalizedComparableName(row.episode_title), episode: rowEpisode(row) }))
+    .filter(({ title, episode }) => title && !isPlaceholderEpisodeTitle(title, episode))
+    .map(({ title }) => title);
+  if (unresolvedTitles.length && identifiedTitles.length) {
+    return unresolvedTitles.some((left) => identifiedTitles.includes(left));
+  }
+  if (!identifiedTitles.length) return false;
+  return unresolvedRows.some((row) => isPlaceholderEpisodeTitle(row.episode_title, rowEpisode(row)));
+}
+
+function rowEpisode(row = {}) {
+  return numberOrNull(row.episode);
+}
+
+function isPlaceholderEpisodeTitle(value = "", episode = null) {
+  const normalized = normalizedComparableName(value);
+  if (!normalized || /^\d{1,3}$/.test(normalized)) return true;
+  const match = normalized.match(/^(?:episode|ep)\s*0*(\d{1,3})$/);
+  if (!match) return false;
+  const placeholderEpisode = Number(match[1]);
+  return episode === null || placeholderEpisode === episode;
 }
 
 function groupYearDisagrees(unresolvedGroup, identifiedGroup) {

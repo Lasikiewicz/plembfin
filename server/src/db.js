@@ -932,7 +932,27 @@ export function getDataVersion() {
   }
   return dataVersion;
 }
-export function bumpDataVersion() {
+// Which caller advanced a given generation, for the rebuild telemetry in
+// cacheTelemetry.js. A version can also move without any call here - a
+// canonical SQLite write advances it by trigger, and another process advances
+// it independently - so an unlabelled generation is reported as "observed"
+// rather than guessed at.
+const DATA_VERSION_TRIGGER_LIMIT = 64;
+const dataVersionTriggers = new Map();
+function noteDataVersionTrigger(version, reason) {
+  const label = String(reason || "").trim();
+  if (!label) return;
+  dataVersionTriggers.set(version, label);
+  if (dataVersionTriggers.size > DATA_VERSION_TRIGGER_LIMIT) {
+    const oldest = dataVersionTriggers.keys().next().value;
+    dataVersionTriggers.delete(oldest);
+  }
+}
+export function dataVersionTrigger(version) {
+  return dataVersionTriggers.get(version) || "observed";
+}
+
+export function bumpDataVersion(reason = "") {
   const sharedBeforeBump = Number(selectHistoryVersion.get()?.version || 1);
   // Canonical SQLite writes advance the version atomically via triggers. Adopt
   // that generation instead of double-bumping, which preserves the safe
@@ -941,11 +961,13 @@ export function bumpDataVersion() {
   if (sharedBeforeBump > dataVersion) {
     dataVersion = sharedBeforeBump;
     lastDataVersionCheckAt = Date.now();
+    noteDataVersionTrigger(dataVersion, reason);
     return dataVersion;
   }
   const row = bumpHistoryVersion.get(Date.now());
   dataVersion = Math.max(dataVersion + 1, Number(row?.version || 1));
   lastDataVersionCheckAt = Date.now();
+  noteDataVersionTrigger(dataVersion, reason);
   return dataVersion;
 }
 

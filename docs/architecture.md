@@ -212,6 +212,7 @@ See [README.md](README.md) for the documentation index, including this file
 | `requestBody.js` | `readJson` and `readFormData` (urlencoded + multipart via busboy) over the raw body captured by `server.js`. |
 | `diagnosticLogger.js` | Wraps `console.log/warn/error` and writes captured lines (secrets redacted) to the `diagnostic_log` table for Settings → Logs (`/api/diagnostic-logs`). Batches writes, caps the table at 20,000 rows, and prunes the `data/logs` JSONL archive on boot. |
 | `logVerbose.js` | `LOG_VERBOSE` flag plus `traceLog()`, used to keep per-request tracing (Plex GUID lookups, search fallbacks) out of the log unless explicitly enabled. |
+| `cacheTelemetry.js` | Derived-cache rebuild counters: per cache, how many rebuilds, total/max/mean milliseconds, and which labelled generation change each was for. `timeCacheRebuild`/`timeCacheRebuildAsync` wrap the rebuild itself, so a cache hit costs nothing. Logs per rebuild under `PLEMBFIN_DEBUG_CACHE_REBUILDS`; `cacheRebuildTelemetry()` returns the snapshot. |
 | `posterCache.js` | Artwork fetch-resize-store pipeline: downloads a remote image (Plex token moved to a header), resizes with sharp to webp (poster 340w / backdrop 1600w / profile 780w / logo 800w), writes to `data/media/<variant>s/`, records metadata in `poster_cache` with negative caching for missing/failed. See [posters-artwork.md](posters-artwork.md). |
 | `tmdbGateway.js` | TMDB API gateway + SQLite caches (`tmdb_metadata_cache`, `tmdb_search_cache`, `tmdb_person_cache`): details, search, seasons, people, images, library prewarm, request throttling and in-flight dedupe. For TV it merges TVDB structural data - see [metadata.md](metadata.md). |
 | `tvdbGateway.js` | TheTVDB v4 gateway (built-in shared project key, optional personal key): series/season/episode data, title search, artwork; raw responses cached in `tvdb_metadata_cache` / `tvdb_season_cache`; `shapeTvdbSeriesAsTmdb` adapts TVDB shapes to TMDB-style fields. |
@@ -309,6 +310,8 @@ See [README.md](README.md) for the documentation index, including this file
 | `exportPlexHistory.js` | Standalone one-shot importer: reads a Plex server's watch history over its API and posts it to `/api/import` in chunks. Driven by env vars (`PLEX_URL`, `PLEX_TOKEN`, `API_KEY`). |
 | `forcePushHistory.js` | Standalone one-shot replicator: fetches Plembfin's `/api/history` and replays every row against Plex/Emby/Jellyfin as mark-played calls. |
 | `seed-demo-content.js` | `npm run seed:demo` - inserts fictional movies/shows with generated poster art for demo screenshots/dev. |
+| `generate-synthetic-library.js` | Builds a disposable library at a stated scale for performance measurement, parameterized by movies, shows, episodes per show, history rows, TMDB cache blob size, and poster pool. Writes only to the `--data-dir` it is given, refuses a directory holding a database it did not create, and drops a `synthetic-library.json` marker recording the parameters and resulting counts. |
+| `benchmark-surfaces.js` | Records the server-side surface baseline against a generated library (dashboard payload, stats, movies page N, shows page N, and a cold full cache rebuild) and writes it to `docs/benchmarks/`. Makes no database writes: the cold rebuild is measured from a fresh process's first read of each cache rather than by forcing a miss. |
 
 ### `test/`
 
@@ -639,7 +642,15 @@ atomic replacement and re-read their on-disk snapshot when another process updat
 Gotcha: `getCachedHistory()`, `getCachedMovies()`, and `getCachedShows()` rebuild full
 history-derived result sets after invalidation. That is acceptable for current local
 install sizes, but large datasets should move hot paths to indexed SQL with
-`LIMIT`/`OFFSET` before adding more full-table caches.
+`LIMIT`/`OFFSET` before adding more full-table caches. `PLEMBFIN_DEBUG_CACHE_REBUILDS=1`
+reports what each rebuild actually costs and which caller's invalidation caused it.
+
+Scale limit: `getCachedHistory()` reads the newest 25,000 watch rows (`MAX_HISTORY_LIMIT`).
+Everything derived from it - the dashboard preview, watch stats, and the TV Shows library -
+therefore describes that window on a larger library, and a show whose episodes all fall
+outside it drops out of the TV Shows listing. `getCachedMovies()` queries movies directly
+and is not capped, so the Movies library is unaffected. See
+[capacity.md](capacity.md).
 
 Concurrent readers share one in-flight `getCachedShows()` rebuild per show-set variant,
 and an empty result is cached by version just like a non-empty result. This keeps a burst
@@ -699,15 +710,20 @@ TheTVDB images, sets `frame-ancestors 'none'`, and permits YouTube embeds only i
 
 The `img-src` directive is extended dynamically at request time: `server.js` reads the
 stored media config and appends the origins of any configured Plex, Emby, Jellyfin, and
-Seerr server URLs to the whitelist. This ensures artwork served directly by those servers
-(e.g. backdrop images) is not blocked by the CSP, without permanently whitelisting
-arbitrary external origins.
+Seerr server URLs to the whitelist. The computed origin list is memoized against the
+`mediaConfig.updated_at` revision, so ordinary requests do not repeatedly parse and merge
+the settings row while a settings save is visible on the next response. This ensures
+artwork served directly by those servers (e.g. backdrop images) is not blocked by the CSP,
+without permanently whitelisting arbitrary external origins.
 
 Every response carries: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`,
 `Referrer-Policy: same-origin`, `Permissions-Policy: camera=(), microphone=(),
 geolocation=()`, and a `Content-Security-Policy` that allows frames only from YouTube.
 `Strict-Transport-Security` is added when `COOKIE_SECURE=true`. `x-powered-by` is
-suppressed.
+suppressed. Eligible responses are gzip-compressed by the application when requested by the
+client; the authenticated `text/event-stream` live-update response remains uncompressed and
+is marked `no-transform`. `index.html` and managed public assets use safe revalidation
+headers; long-lived immutable caching is a separate, not-yet-enabled deployment decision.
 
 Startup runs `logSecuritySummary()` (in `appConfig.js`) which warns if the admin password
 is still the default, or if any pinned secret is shorter than the minimum length. A
@@ -764,6 +780,8 @@ WebSocket listener is stopped, `server.close()` drains in-flight HTTP requests, 
 - `FANART_PROJECT_KEY` - advanced: replace the built-in shared Fanart.tv project key. Only needed if the built-in key is revoked or exhausted.
 - `FANART_API_KEY` - optional personal Fanart.tv key (raises the rate limit as a `client_key`)
 - `PLEMBFIN_DEBUG_OUTBOUND` - set to `1` to log a per-host outbound HTTP request count once a minute (visible in Settings → Logs); for measuring upstream traffic
+- `PLEMBFIN_DEBUG_CACHE_REBUILDS` - set to `1` to log one line per derived-cache rebuild (visible in Settings → Logs), recording which cache rebuilt, how long it took, and which generation change it was for. A version bump on its own is free; what costs is a bump that invalidates a cache which is then read
+- `PLEMBFIN_DEBUG_SCHEDULER` - set to `1` to log per-step scheduler timing (visible in Settings → Logs): each step's name, where in the tick it started, how long it ran, whether it exhausted its time budget, plus a per-tick summary carrying the achieved interval between tick starts
 - `BUILD_CHANNEL` - baked into the Docker image at build time (`release` by default, `alpha` in the `ghcr.io/lasikiewicz/plembfin:alpha` image); appends "alpha" to the version shown in the sidebar badge and Settings → About so a pre-release build is visually distinct from a tagged release. Not meant to be set manually
 
 Environment variables act as **defaults** for connection and sync-tuning settings:
@@ -777,7 +795,8 @@ env values (`mergeEnvDefaults` in `configStore.js`).
 - `server/src/utils/forceSyncExecutor.js` validates plan freshness, creates verified destructive-run snapshots, and executes confirmed actions.
 - `server/src/utils/syncPlans.js` stores plan summaries/actions, confirmation state, snapshots, and retention.
 - `server/src/utils/outboundGovernor.js` coordinates per-host pacing, lanes, cooldowns, and safe telemetry.
-- `server/src/routes/maintenance.js` exposes `/api/health/sync`; `scripts/benchmark-sync.js` provides the repeatable planner benchmark.
+- `server/src/routes/maintenance.js` exposes `/api/health/sync`; `scripts/benchmark-sync.js` provides the repeatable planner benchmark, and `scripts/benchmark-surfaces.js` the server-side surface baseline.
+- `docs/benchmarks/` holds committed benchmark output, so a result travels with the workload that produced it. Each file records the library scale, the hardware, and the spread across repeated runs.
 
 `GET /api/health/sync` returns row counts, per-platform `matchFailures` with samples,
 outbound governor telemetry, and a `dataQuality` block from `watchHistoryQualityCounts()`

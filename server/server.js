@@ -21,6 +21,7 @@ const { dispatch } = await import("./src/index.js");
 const { db } = await import("./src/db.js");
 const { enableTmdbMetadataWarmup } = await import("./src/utils/tmdbGateway.js");
 const { clearRestoreSyncState, loadMediaConfig, loadRuntimeState, RESTORE_KIND_FULL_SYNC } = await import("./src/utils/configStore.js");
+const { createCspImageOriginMemo, createResponseCompression, setPublicAssetCacheHeaders } = await import("./src/utils/httpPerformance.js");
 const { recoverInterruptedBackgroundImports } = await import("./src/utils/onboardingStore.js");
 const { schedulerLeaseStatus } = await import("./src/utils/schedulerLease.js");
 const { createWorkerCoordinator } = await import("./src/workerCoordinator.js");
@@ -78,6 +79,11 @@ setGlobalDispatcher(new Agent({ keepAliveTimeout: 15000, connections: 64 }));
 const PORT = Number(process.env.PORT || 5055);
 const app = express();
 app.disable("x-powered-by");
+const mediaConfigRevisionStmt = db.prepare("SELECT updated_at FROM settings WHERE id = 'mediaConfig'");
+const getCspImageOrigins = createCspImageOriginMemo({
+  readRevision: () => Number(mediaConfigRevisionStmt.get()?.updated_at || 0),
+  loadConfig: () => loadMediaConfig({ resolveConnections: false }),
+});
 
 function redactedUrl(req) {
   try {
@@ -125,23 +131,7 @@ app.use(async (_req, res, next) => {
 
   let extraImgSrc = "";
   try {
-    const config = await loadMediaConfig();
-    const urls = [];
-    if (config.plex?.serverUrl) urls.push(config.plex.serverUrl);
-    if (config.emby?.serverUrl) urls.push(config.emby.serverUrl);
-    if (config.jellyfin?.serverUrl) urls.push(config.jellyfin.serverUrl);
-    if (config.seerr?.baseUrl) urls.push(config.seerr.baseUrl);
-    
-    const origins = urls
-      .map(url => {
-        try {
-          return new URL(url).origin;
-        } catch {
-          return "";
-        }
-      })
-      .filter(Boolean);
-      
+    const origins = await getCspImageOrigins();
     if (origins.length) {
       extraImgSrc = " " + [...new Set(origins)].join(" ");
     }
@@ -158,6 +148,11 @@ app.use(async (_req, res, next) => {
   );
   next();
 });
+
+// Compress ordinary HTTP responses in the app when a self-hosted deployment
+// has no compressing proxy. The live update stream opts out explicitly; its
+// no-transform cache directive remains a second independent safeguard.
+app.use(createResponseCompression());
 
 // Rate limiting - applied before any route handler.
 app.use("/api/login", rateLimit({ windowMs: 15 * 60 * 1000, max: 10, standardHeaders: true, legacyHeaders: false }));
@@ -323,7 +318,7 @@ app.all(["/health", "/health/"], (req, res) => {
 });
 
 // Static SPA assets, then SPA fallback to index.html for client-side routes.
-app.use(express.static(PUBLIC_DIR, { extensions: ["html"] }));
+app.use(express.static(PUBLIC_DIR, { extensions: ["html"], setHeaders: setPublicAssetCacheHeaders }));
 app.get("/*name", (req, res) => {
   res.sendFile(path.join(PUBLIC_DIR, "index.html"));
 });

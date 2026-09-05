@@ -1,0 +1,187 @@
+{
+  "version": 1,
+  "generatedAt": "2026-09-05T11:40:40.873Z",
+  "durationMs": 4865,
+  "workload": {
+    "dataDir": "C:\\Users\\lasik\\AppData\\Local\\Temp\\plembfin-synthetic-10x",
+    "runsPerSurface": 5,
+    "explorerPageSize": 240,
+    "dashboardPreviewLimit": 120,
+    "library": {
+      "generatedAt": "2026-09-05T11:38:24.653Z",
+      "parameters": {
+        "movies": 6000,
+        "shows": 1200,
+        "episodesPerShow": 24,
+        "historyRows": 90000,
+        "tmdbEntries": 2000,
+        "tmdbBlobKb": 24,
+        "posters": 12,
+        "seed": 1
+      },
+      "counts": {
+        "watchHistoryRows": 90000,
+        "playstateRows": 34800,
+        "distinctMovies": 6000,
+        "distinctEpisodes": 28800,
+        "distinctShows": 1200,
+        "tmdbCacheRows": 2000,
+        "posterCacheRows": 34800
+      }
+    },
+    "observedCounts": {
+      "watchHistoryRows": 90000,
+      "distinctMovies": 6000,
+      "distinctEpisodes": 28800,
+      "distinctShows": 1200,
+      "tmdbCacheRows": 2000
+    },
+    "historyCache": {
+      "rows": 25000,
+      "ceiling": 25000,
+      "ceilingHit": true,
+      "note": "getCachedHistory() is capped at MAX_HISTORY_LIMIT. Above the ceiling the shows, stats and dashboard surfaces describe the newest 25,000 rows, not the whole library."
+    },
+    "databaseBytes": 155340800
+  },
+  "hardware": {
+    "platform": "win32 10.0.26200",
+    "cpu": "12th Gen Intel(R) Core(TM) i7-12700KF",
+    "cores": 20,
+    "totalMemoryBytes": 68498657280,
+    "node": "v22.23.1"
+  },
+  "fullCacheRebuild": {
+    "runs": 1,
+    "totalMs": 1555.936,
+    "perCache": [
+      {
+        "cache": "stats",
+        "rebuilds": 1,
+        "totalMs": 670.136,
+        "trigger": "observed"
+      },
+      {
+        "cache": "shows",
+        "rebuilds": 1,
+        "totalMs": 394.839,
+        "trigger": "observed"
+      },
+      {
+        "cache": "scheduledShows",
+        "rebuilds": 1,
+        "totalMs": 306.336,
+        "trigger": "observed"
+      },
+      {
+        "cache": "history",
+        "rebuilds": 1,
+        "totalMs": 113.186,
+        "trigger": "observed"
+      },
+      {
+        "cache": "movies",
+        "rebuilds": 1,
+        "totalMs": 69.818,
+        "trigger": "observed"
+      }
+    ]
+  },
+  "instrumentationOverhead": {
+    "probe": "recordCacheRebuild",
+    "iterations": 200000,
+    "perCallNs": 501.388,
+    "atWorstMeasuredChurnMsPerMinute": 0.577,
+    "note": "1,150 rebuilds per minute is test 5 part 1's worst measured window (an import), used here as an upper bound."
+  },
+  "surfaces": [
+    {
+      "surface": "dashboard-payload",
+      "runs": 5,
+      "medianMs": 435.697,
+      "minMs": 412.466,
+      "maxMs": 438.177,
+      "spreadPercent": 5.901,
+      "spreadRule": "pass",
+      "payloadBytes": 211456,
+      "items": 240
+    },
+    {
+      "surface": "stats-cached-read",
+      "runs": 5,
+      "medianMs": 0.001,
+      "minMs": 0,
+      "maxMs": 0.016,
+      "spreadPercent": 3220,
+      "spreadRule": "below-50ms-floor",
+      "payloadBytes": 88961,
+      "items": null
+    },
+    {
+      "surface": "movies-page-1",
+      "runs": 5,
+      "medianMs": 60.93,
+      "minMs": 58.331,
+      "maxMs": 74.559,
+      "spreadPercent": 26.635,
+      "spreadRule": "fail",
+      "payloadBytes": 334238,
+      "items": 240
+    },
+    {
+      "surface": "shows-page-1",
+      "runs": 5,
+      "medianMs": 2.488,
+      "minMs": 0.616,
+      "maxMs": 15.325,
+      "spreadPercent": 591.087,
+      "spreadRule": "below-50ms-floor",
+      "payloadBytes": 290272,
+      "items": 240
+    },
+    {
+      "surface": "movies-page-5",
+      "runs": 5,
+      "medianMs": 59.137,
+      "minMs": 57.446,
+      "maxMs": 61.892,
+      "spreadPercent": 7.519,
+      "spreadRule": "pass",
+      "payloadBytes": 334729,
+      "items": 240
+    },
+    {
+      "surface": "shows-page-5",
+      "runs": 5,
+      "medianMs": 0.983,
+      "minMs": 0.612,
+      "maxMs": 2.696,
+      "spreadPercent": 211.929,
+      "spreadRule": "below-50ms-floor",
+      "payloadBytes": 2,
+      "items": 0
+    },
+    {
+      "surface": "movies-page-10",
+      "runs": 5,
+      "medianMs": 58.912,
+      "minMs": 58.408,
+      "maxMs": 62.695,
+      "spreadPercent": 7.278,
+      "spreadRule": "pass",
+      "payloadBytes": 334520,
+      "items": 240
+    },
+    {
+      "surface": "shows-page-10",
+      "runs": 5,
+      "medianMs": 0.555,
+      "minMs": 0.449,
+      "maxMs": 14.059,
+      "spreadPercent": 2454.445,
+      "spreadRule": "below-50ms-floor",
+      "payloadBytes": 2,
+      "items": 0
+    }
+  ]
+}

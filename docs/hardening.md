@@ -74,6 +74,16 @@ Then point the tunnel to `http://localhost:5055`.
 
 Once HTTPS is in place, set `COOKIE_SECURE=true` in your environment. This adds `Strict-Transport-Security` and the `Secure` attribute to the session cookie, preventing it from being sent over HTTP.
 
+### Transport behavior
+
+Plembfin is self-hosted: it can run directly on a host, in Docker, or behind a reverse
+proxy chosen by the operator. The application compresses eligible responses when the client
+advertises gzip, keeps `index.html` and managed static assets on safe revalidation headers,
+and deliberately does not compress the authenticated `text/event-stream` live-update
+connection. A proxy must pass through an already encoded response and must not recompress
+responses marked `no-transform`; its own buffering and compression settings remain the
+operator's responsibility.
+
 ---
 
 ## 3. Docker hardening

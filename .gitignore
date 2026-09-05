@@ -17,4 +17,6 @@ data/
 
 # Local editor/agent tooling
 .claude/
+.reasonix/
 .Jules/
+reasonix.toml

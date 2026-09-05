@@ -1,10 +1,10 @@
-import { state } from "./state.js";
-import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, formatDate, actualWatchHistory, sourceBadgeHtml } from "./utils.js?v=20260903a";
-import { buildAuthHeaders } from "./auth.js";
-import { isWatchedHistoryAction } from "./sync.js";
-import { tmdbPoster, tmdbImage, proxiedArtworkUrl } from "./images.js?v=20260903b";
-import { dateAtMiddayIso, refreshShowAfterManualWatch } from "./watch-action.js?v=20260903m";
-import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js";
+import { state } from "./state.js?v=0.15.0";
+import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, formatDate, actualWatchHistory, sourceBadgeHtml } from "./utils.js?v=0.15.0";
+import { buildAuthHeaders } from "./auth.js?v=0.15.0";
+import { isWatchedHistoryAction } from "./sync.js?v=0.15.0";
+import { tmdbPoster, tmdbImage, proxiedArtworkUrl } from "./images.js?v=0.15.0";
+import { dateAtMiddayIso, refreshShowAfterManualWatch } from "./watch-action.js?v=0.15.0";
+import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=0.15.0";
 
 // Callbacks injected by app.js at startup.
 let _setMessage = () => {};

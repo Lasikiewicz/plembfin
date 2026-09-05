@@ -9,7 +9,7 @@ import { db, parseJson, toJson, writeAuditLog } from "../db.js";
 import { createLoopStore } from "../utils/loopStore.js";
 import { runWithConcurrency } from "../utils/concurrency.js";
 import { listActiveSessions, deleteActiveSession, upsertActiveSession } from "../utils/activeSessions.js";
-import { hydrateCachedSession, loadLiveTrackingCache } from "../utils/liveSessions.js";
+import { hydrateCachedSession, isTerminalLiveSession, loadLiveTrackingCache } from "../utils/liveSessions.js";
 import { activeSyncOperation, appendSyncHistory, clearSyncOperation, isAuthoritativeRestoreActive, loadMediaConfig, mergeIncomingConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistoryById, getSyncHistoryPage, getSyncActivityGroupsPage, getSyncActivityGroupEvents, updateSyncHistoryStatus, loadRuntimeState, setRuntimeState, appendRuntimeLog, SYNC_OPERATION_FORCE, SYNC_OPERATION_SCHEDULED } from "../utils/configStore.js";
 import { forceSyncStopAction } from "../utils/forceSyncControl.js";
 import { getSyncPlanActionsPage, getSyncPlanSummary, confirmSyncPlan } from "../utils/syncPlans.js";
@@ -1416,7 +1416,7 @@ export async function handleManualUnwatch(req, res) {
     }, MANUAL_SYNC_ITEM_CONCURRENCY);
   } finally {
     finishDispatchTracking(trackingReservation);
-    await invalidateHistoryDerivedCaches().catch(() => null);
+    await invalidateHistoryDerivedCaches("handleManualUnwatch").catch(() => null);
   }
 
   if (ids.length === 1) {
@@ -1557,7 +1557,7 @@ export async function handleManualWatch(req, res) {
     }
   }
 
-  await invalidateHistoryDerivedCaches().catch(() => null);
+  await invalidateHistoryDerivedCaches("handleManualWatch").catch(() => null);
 
   // Awaited rather than backgrounded: the UI shows a "Syncing..." state and
   // only flips a row to watched once this response comes back, so the client
@@ -1603,7 +1603,7 @@ export async function handleManualWatch(req, res) {
     } finally {
       finishDispatchTracking(trackingReservation);
     }
-    await invalidateHistoryDerivedCaches().catch(() => null);
+    await invalidateHistoryDerivedCaches("handleManualWatch").catch(() => null);
   }
 
   return sendJson(res, { ok: true, inserted, skipped, rejected, propagated, syncQueued: syncTasks.length, results });
@@ -1744,11 +1744,11 @@ export async function handlePlaybackProgressWatch(req, res) {
       } catch (err) {
         console.error("Background sync for progress watch failed:", err);
       } finally {
-        await invalidateHistoryDerivedCaches().catch(() => null);
+        await invalidateHistoryDerivedCaches("handlePlaybackProgressWatch").catch(() => null);
       }
     })().catch((error) => console.error("Background sync loop crashed:", error));
 
-    await invalidateHistoryDerivedCaches().catch(() => null);
+    await invalidateHistoryDerivedCaches("handlePlaybackProgressWatch").catch(() => null);
     return sendJson(res, { ok: true, id });
   } catch (error) {
     console.error("Mark watch from progress failed", error);
@@ -1823,7 +1823,7 @@ export async function handlePlaybackProgressUnwatch(req, res) {
     console.error("Playback progress unwatch failed", error);
     return sendJson(res, { error: "Playback progress unwatch failed" }, 500);
   } finally {
-    await invalidateHistoryDerivedCaches().catch(() => null);
+    await invalidateHistoryDerivedCaches("handlePlaybackProgressUnwatch").catch(() => null);
   }
 }
 
@@ -1906,7 +1906,7 @@ export async function handleUpNextRemove(req, res) {
     console.error("Up Next clear failed", error);
     return sendJson(res, { error: "Up Next clear failed" }, 500);
   } finally {
-    await invalidateHistoryDerivedCaches().catch(() => null);
+    await invalidateHistoryDerivedCaches("handleUpNextRemove").catch(() => null);
   }
 }
 
@@ -1933,7 +1933,7 @@ export async function handleUpNextSync(req, res) {
     console.error("Up Next provider sync failed", error);
     return sendJson(res, { error: "Up Next provider sync failed" }, 500);
   } finally {
-    await invalidateHistoryDerivedCaches().catch(() => null);
+    await invalidateHistoryDerivedCaches("handleUpNextSync").catch(() => null);
   }
 }
 
@@ -2024,9 +2024,13 @@ export async function handleNowPlaying(req, res) {
     return { ...session, media_key: mediaKey, mediaKey };
   };
 
-  const sessions = cacheRows.map(hydrateCachedSession).filter((session) => !session.completedAt).map(withMediaKey);
+  const sessions = cacheRows
+    .map(hydrateCachedSession)
+    .filter((session) => !session.completedAt && !isTerminalLiveSession(session))
+    .map(withMediaKey);
   const merged = [...sessions];
   for (const active of activeRows) {
+    if (isTerminalLiveSession(active)) continue;
     const isDuplicate = merged.some(
       (s) =>
         s.source === active.source &&
@@ -2686,7 +2690,7 @@ export async function handleWebhook(req, res) {
       })
     );
 
-    await invalidateHistoryDerivedCaches().catch(() => null);
+    await invalidateHistoryDerivedCaches("embyLikeUserDataState").catch(() => null);
 
     return sendJson(res, {
       ok: true,
@@ -2806,7 +2810,7 @@ export async function handleWebhook(req, res) {
       }
       return sendJson(res, { ok: true, deleted: wasDeleted, unplayed: true, inserted: true, id, ...(wasDeleted ? {} : { reason: "No previous watched record found to delete" }) });
     } finally {
-      await invalidateHistoryDerivedCaches().catch(() => null);
+      await invalidateHistoryDerivedCaches("embyLikeUserDataState").catch(() => null);
     }
   }
 
@@ -3077,11 +3081,11 @@ export async function handleWebhook(req, res) {
     // Ensure TMDB metadata + artwork finish caching before the instance freezes,
     // so the detail page is instant on first click. Overlaps with the sync above.
     await result.assetPrefetch?.catch(() => null);
-    await invalidateHistoryDerivedCaches().catch(() => null);
+    await invalidateHistoryDerivedCaches("embyLikeUserDataState").catch(() => null);
     return sendJson(res, { ok: true, inserted: true, id: result.id, record: result.record });
   } catch (error) {
     console.error("Webhook insert failed", error);
-    await invalidateHistoryDerivedCaches().catch(() => null);
+    await invalidateHistoryDerivedCaches("embyLikeUserDataState").catch(() => null);
     return sendJson(res, { error: "Webhook insert failed" }, 500);
   }
 }

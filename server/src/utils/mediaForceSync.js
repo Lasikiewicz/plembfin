@@ -768,7 +768,7 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
   }
 
   cancelled = cancelled || Boolean(isCancelled()) || isAuthoritativeRestoreActive();
-  await invalidateHistoryDerivedCaches().catch(() => null);
+  await invalidateHistoryDerivedCaches("forceSyncMediaState").catch(() => null);
   logger(cancelled
     ? `[${requested.mode}] ${modeLabel(requested.mode)} cancelled after ${results.length} item${results.length === 1 ? "" : "s"}.`
     : `[${requested.mode}] ${modeLabel(requested.mode)} finished: ${results.length} item${results.length === 1 ? "" : "s"}.`);

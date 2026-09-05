@@ -6,6 +6,14 @@ Agent instructions for working with this codebase.
 > It is the master guide: the big picture, a complete map of every file in the repo,
 > and a task router that points to the feature doc covering the area you are touching.
 
+> **For website update requests, also follow [`docs/websiteupdate.md`](docs/websiteupdate.md).**
+> Start by discovering the verification baseline recorded by the website, then review
+> and document all changes after that baseline and visually check affected pages locally.
+
+> **For website publishing setup, follow [`docs/website-deployment.md`](docs/website-deployment.md).**
+> The website is a static Astro site in `website/`; do not push or deploy it without an
+> explicit user request.
+
 ## Local testing context
 
 When local-server or connected-browser testing is explicitly requested, check whether
@@ -409,6 +417,19 @@ for the app's own live remote-fetch changelog comparison, not producing a new im
 When the user says **"Force to main"** (exactly), promote `alpha`'s actual current tip
 onto `main` as a single release:
 
+### 0 - Ask about the website check immediately
+
+Before checking out a branch, previewing the release, staging files, or force-pushing,
+ask the user exactly:
+
+> Should I run the website update check before this Force to main operation?
+
+Wait for the answer. If the user says yes, complete [`docs/websiteupdate.md`](docs/websiteupdate.md)
+end to end: discover the baseline, review changes after it, start the local app and website
+preview, verify affected content and images, run the privacy/inventory/check/build gates,
+and report the visual findings. If the user says no, record that the website check was
+declined and continue with the remaining Force to main gates. Never infer the answer.
+
 ### 1 - Check out alpha's actual current tip
 ```bash
 git fetch origin
@@ -512,15 +533,24 @@ there now is simply overwritten rather than built on.
 # Install dependencies (native modules better-sqlite3 + sharp install via prebuilt binaries)
 npm install
 
-# Run the app locally (serves UI + API + scheduler on http://localhost:5055)
+# Run the app locally (serves UI + API + scheduler on http://localhost:5055).
+# On Windows, use the approved elevated network-enabled execution path.
 npm start
 
-# Run with auto-reload during development
+# Run with auto-reload during development (also use the elevated path on Windows)
 npm run dev
 
 # Build & run as a container
 docker compose up --build
 ```
+
+### Local-server launch standard
+
+On Windows, every local server opened for browser, provider-backed, or connected-service
+testing must be started through the approved elevated network-enabled execution path by
+default. Do not start `npm start` or `npm run dev` inside the restricted sandbox: outbound
+provider requests can fail with `EACCES` even when the application and provider are healthy.
+Offline unit tests and static checks may still run in the restricted sandbox.
 
 ### Network-backed local testing
 

@@ -1,17 +1,17 @@
-import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, formatDate, formatTmdbDate } from "./utils.js";
-import { posterUrlFor, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=20260903b";
-import { isWatchedHistoryAction, getMediaTargetSyncStatus, renderSyncStatusDot } from "./sync.js";
-import { fetchTmdbDetails } from "./tmdb.js?v=20260823";
-import { renderWatchDatePrompt, isMovieSavingWatchAction } from "./watch-action.js?v=20260903m";
-import { authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=20260903m";
-import { personalRatingPillHtml, personalMediaActionsHtml } from "./personal-media.js?v=20260903c";
+import { state, elements } from "./state.js?v=0.15.0";
+import { escapeHtml, escapeAttribute, formatDate, formatTmdbDate } from "./utils.js?v=0.15.0";
+import { posterUrlFor, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=0.15.0";
+import { isWatchedHistoryAction, getMediaTargetSyncStatus, renderSyncStatusDot } from "./sync.js?v=0.15.0";
+import { fetchTmdbDetails } from "./tmdb.js?v=0.15.0";
+import { renderWatchDatePrompt, isMovieSavingWatchAction } from "./watch-action.js?v=0.15.0";
+import { authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=0.15.0";
+import { personalRatingPillHtml, personalMediaActionsHtml } from "./personal-media.js?v=0.15.0";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderMediaImagesSection, renderMediaFacts,
   renderExternalRatingPills, ratingPillHtml, renderSeerrRequestPill, fetchSeerrMediaStatus,
   refreshActiveMediaDetailAfterSeerrStatus, rankedRecommendations, recommendedTvShowsForMovie,
   renderRecommendationSection, hydrateMediaAppLinks, renderCollectionSection, mediaAppLinksHtml,
-} from "./media-detail-shared.js?v=20260903b";
+} from "./media-detail-shared.js?v=0.15.0";
 
 // Watch history list - playHistory (every { id, watched_at, source } entry for
 // this movie, collapsed server-side in dedupeMovies/collapseMovieCluster) has
@@ -98,19 +98,25 @@ export async function fetchWatchedMovieByTmdb(tmdbId, title) {
 }
 
 export async function renderMovieImmersiveModalContent(movie) {
+  // Half of a two-token handshake with media-detail-show.js - capture this
+  // before any rehydration request. If navigation clears the detail while the
+  // request is in flight, its response must not become a new render by taking
+  // a token after the user has already left the page.
+  const renderToken = bumpMediaRenderToken();
+  state.showModalRequestToken += 1; // invalidate any in-flight show hydrate
+  state.activeMovieModalId = movie?.id || null;
+  state.activeMovieTmdbId = movie?.tmdb_id ? String(movie.tmdb_id) : null;
+
   // Route state can contain the lightweight latest-play record rather than the
   // server's collapsed movie record. Rehydrate before the first paint so every
   // detail entry point shows the same complete watch history.
   if (movie && (!Array.isArray(movie.playHistory) || movie.playHistory.length < 2)) {
     const fullMovie = await fetchWatchedMovieByTmdb(movie.tmdb_id, movie.title);
+    if (currentMediaRenderToken() !== renderToken) return false;
     if (fullMovie && Array.isArray(fullMovie.playHistory) && fullMovie.playHistory.length > (movie.playHistory?.length || 0)) {
       movie = fullMovie;
     }
   }
-  // Half of a two-token handshake with media-detail-show.js - see the
-  // bumpMediaRenderToken doc comment in media-detail-context.js before changing this.
-  const renderToken = bumpMediaRenderToken();
-  state.showModalRequestToken += 1; // invalidate any in-flight show hydrate
   state.activeMovieModalId = movie.id;
   state.activeMovieTmdbId = movie.tmdb_id ? String(movie.tmdb_id) : null;
   if (!state.mediaDetailInline) {
@@ -130,7 +136,7 @@ export async function renderMovieImmersiveModalContent(movie) {
 
   // Fetch TMDB details (primary enrichment).
   const tmdbData = await fetchTmdbDetails("movie", movie.tmdb_id, movie.title, {}, { immediate: true });
-  if (currentMediaRenderToken() !== renderToken) return; // navigated away while loading
+  if (currentMediaRenderToken() !== renderToken) return false; // navigated away while loading
 
   if (tmdbData && tmdbData.id) {
     state.activeMovieTmdbId = String(tmdbData.id);
@@ -144,7 +150,7 @@ export async function renderMovieImmersiveModalContent(movie) {
       const ytData = await ytRes.json();
       if (!ytData.error) youtubeMeta = ytData;
     } catch { /* non-fatal */ }
-    if (currentMediaRenderToken() !== renderToken) return; // navigated away while loading
+    if (currentMediaRenderToken() !== renderToken) return false; // navigated away while loading
   }
 
   // Phase 2: Render with TMDB data immediately - don't wait for OMDb/TV recs.
@@ -158,7 +164,7 @@ export async function renderMovieImmersiveModalContent(movie) {
       : Promise.resolve(null),
     tmdbData ? recommendedTvShowsForMovie(movie.title, tmdbData).catch(() => []) : Promise.resolve([]),
   ]);
-  if (currentMediaRenderToken() !== renderToken) return;
+  if (currentMediaRenderToken() !== renderToken) return false;
 
   let imdbPillHtml = "";
   if (omdbRes?.ok) {
@@ -172,7 +178,7 @@ export async function renderMovieImmersiveModalContent(movie) {
       });
     }
   }
-  if (currentMediaRenderToken() !== renderToken) return;
+  if (currentMediaRenderToken() !== renderToken) return false;
 
   // Phase 3 render: patch in OMDb pill and TV recommendations if anything new arrived.
   if (imdbPillHtml || tvRecommendations.length) {
@@ -185,6 +191,7 @@ export async function renderMovieImmersiveModalContent(movie) {
       .then((status) => { if (status) refreshActiveMediaDetailAfterSeerrStatus("movie", movieSeerrTmdbId); });
   }
   hydratePosters(root);
+  return true;
 }
 
 // Shared renderer for a watched movie. Called up to three times per navigation:
@@ -476,9 +483,12 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
     // the deduped playHistory array. Paint it immediately, then replace it
     // with the authoritative movie record so rewatches are visible on first
     // open instead of only after editing/saving a watch date.
-    await renderMovieImmersiveModalContent(existingWatched);
+    const rendered = await renderMovieImmersiveModalContent(existingWatched);
+    if (!rendered) return;
+    const firstRenderToken = currentMediaRenderToken();
     const fullMovie = await fetchWatchedMovieByTmdb(tmdbId, existingWatched.title);
-    if (fullMovie && state.activeMovieTmdbId === String(tmdbId)) {
+    if (currentMediaRenderToken() !== firstRenderToken || state.activeMovieTmdbId !== String(tmdbId)) return;
+    if (fullMovie) {
       await renderMovieImmersiveModalContent(fullMovie);
     }
     return;

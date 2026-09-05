@@ -305,7 +305,7 @@ async function importTraktPlayHistory(connection, publicConnection, previousStat
     }
   }
 
-  if (touchedKeys.size) await invalidateHistoryDerivedCaches();
+  if (touchedKeys.size) await invalidateHistoryDerivedCaches("importTraktPlayHistory");
   updateTrackerConnectionStatus("trakt", { historySyncedAt: latestWatchedAt });
 }
 
@@ -463,7 +463,7 @@ async function pollTrakt({ reconcile = false } = {}) {
   // Tracker transitions deliberately skip per-item invalidation so a whole
   // show does not rebuild the same derived data dozens of times. Flush once
   // after the batch or the TV detail page can continue showing stale progress.
-  if (watched.length - deferredWatched || appliedUnwatched) await invalidateHistoryDerivedCaches();
+  if (watched.length - deferredWatched || appliedUnwatched) await invalidateHistoryDerivedCaches("pollTrakt");
 
   if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active", watched: 0, unwatched: 0 };
 

@@ -1,16 +1,25 @@
 {
-  "build": 38,
+  "build": 40,
   "resetCommit": "b6b10b691c2de5c1316f1b619a2d840ebc1ddde8",
-  "updatedAt": "2026-09-04T12:25:51.905Z",
+  "updatedAt": "2026-09-05T15:55:13.228Z",
   "entries": [
     {
-      "build": 38,
-      "date": "2026-09-04T12:25:51.905Z",
-      "commit": "e5f1e7db233d1d7b2dd193dd18d7d45ae17141e2",
-      "message": "Fix - Sync up next and watched state across providers",
+      "build": 40,
+      "date": "2026-09-05T15:55:13.228Z",
+      "commit": "a5a5548d2144f78bdd651309f8165f07ea5e15aa",
+      "message": "This update includes sync up next and watched state across providers and prevent stale media renders and harden sync performance.",
       "author": "Lasikiewicz",
       "details": [
-        "Keep Up Next and watched state aligned across Plex, Emby, and Jellyfin, repair newly available provider episodes, preserve accurate progress, restore episode titles, and polish refresh/menu controls."
+        "Keep Up Next and watched state aligned across Plex, Emby, and Jellyfin, repair newly available provider episodes, preserve accurate progress, restore episode titles, and polish refresh/menu controls.",
+        "Prevent stale media detail responses from repainting the dashboard after rapid navigation.",
+        "Keep show and movie detail hydration, watch actions, and provider-derived state consistent during asynchronous loads.",
+        "Improve scheduler, live-session, and incremental provider-sync behavior for reliable updates.",
+        "Bound and instrument derived-cache rebuilds and add repeatable large-library performance baselines.",
+        "Harden response caching, compression, and asset-version handling for safer browser loads."
+      ],
+      "messageFragments": [
+        "Fix - Sync up next and watched state across providers",
+        "Fix - Prevent stale media renders and harden sync performance"
       ]
     }
   ]

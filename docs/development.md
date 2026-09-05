@@ -296,6 +296,33 @@ It has its own build/deploy tooling independent of this repo's CI - see
 | `scripts/exportPlexHistory.js` | Import a Plex server's watch history into Plembfin via `/api/import` (env: `PLEX_URL`, `PLEX_TOKEN`, `API_KEY`) |
 | `scripts/forcePushHistory.js` | Replay Plembfin's `/api/history` against Plex/Emby/Jellyfin as mark-played calls (env: all three platforms' credentials + `API_KEY`) |
 | `scripts/seed-demo-content.js` | Seed fictional demo content for screenshots/dev |
+| `scripts/generate-synthetic-library.js` | Build a disposable library at a stated scale for performance measurement: `node scripts/generate-synthetic-library.js --data-dir <path> [--movies 3000] [--shows 400] [--episodes-per-show 24] [--history-rows N] [--tmdb-entries N] [--tmdb-blob-kb 24] [--posters 8] [--seed 1]`. Refuses the repository's own `data/` directory and any directory holding a database it did not create. |
+| `scripts/benchmark-surfaces.js` | Record the server-side surface baseline against a generated library: `node scripts/benchmark-surfaces.js --data-dir <path> [--runs 5] [--output docs/benchmarks/<file>.json]` |
+
+## Performance measurement
+
+Two debug env flags produce numbers without a profiler, in the same style as
+`PLEMBFIN_DEBUG_OUTBOUND`. Both log through the diagnostic logger, so their output is
+visible in Settings → Logs as well as the console.
+
+- `PLEMBFIN_DEBUG_CACHE_REBUILDS=1` logs one line per derived-cache rebuild: which cache,
+  the generation it rebuilt for, the labelled caller that advanced that generation, and
+  how long the rebuild took. Counting invalidations alone cannot tell an expensive one
+  from a free one, because a bump only costs something when a cache it invalidated is
+  then read.
+- `PLEMBFIN_DEBUG_SCHEDULER=1` logs each scheduler step's name, its start offset within
+  the tick, its duration, and whether it exhausted its time budget, plus a per-tick
+  summary carrying the achieved interval between tick starts.
+
+The counters behind both are collected whether or not the flag is set; the flag only
+controls logging. They cost one timestamp pair per rebuild or per step, never per row.
+
+Repeatable benchmarks live in `docs/benchmarks/`, which is committed so a result travels
+with the workload that produced it. `scripts/benchmark-surfaces.js` records the
+server-side surfaces against a library from `scripts/generate-synthetic-library.js`; see
+[`capacity.md`](capacity.md) for the two commands and the one scale limit worth knowing
+before reading a result. Frontend first-paint timing is a manual browser protocol and is
+deliberately not scripted here.
 
 ## Conventions that CI enforces or assumes
 

@@ -306,6 +306,52 @@ test("native-series next-up bridges the identical episode keyed only by an exter
   assert.deepEqual(merged[0].provider_items.jellyfin, ["native-episode-x"]);
 });
 
+test("native resume rows with a missing provider title bridge the sole verified episode", () => {
+  // Jellyfin's live row for this episode has the native series id and
+  // coordinate, but no episode title or external show id. The Emby row is the
+  // only verified series candidate for that exact show/coordinate.
+  const native = {
+    provider: "jellyfin",
+    feed_kind: "resume",
+    provider_item_id: "744045b1f1ea66e3a79f3b0d6cdee74",
+    series_provider_item_id: "9d3ab079af5db78c86bf06b38c5982a5",
+    media_type: "episode",
+    title: "The Grand Tour - S07E01",
+    show_title: "The Grand Tour",
+    episode_title: "",
+    season: 7,
+    episode: 1,
+    queue_kind: "resume",
+    position_ms: 30_000,
+    duration_ms: 600_000,
+    progress: 5,
+  };
+  const verified = {
+    provider: "emby",
+    feed_kind: "resume",
+    provider_item_id: "127534",
+    media_type: "episode",
+    title: "The Grand Tour - S07E01",
+    show_title: "The Grand Tour",
+    episode_title: "The Next Generation",
+    season: 7,
+    episode: 1,
+    queue_kind: "resume",
+    show_ids: { tvdb: "11884343" },
+    position_ms: 36_000,
+    duration_ms: 600_000,
+    progress: 6,
+  };
+
+  const merged = mergeUpNextCandidates([native, verified]);
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].episode_title, "The Next Generation");
+  assert.deepEqual(merged[0].provider_items, {
+    emby: ["127534"],
+    jellyfin: ["744045b1f1ea66e3a79f3b0d6cdee74"],
+  });
+});
+
 test("native-series next-up does not bridge a different show that shares the title and coordinate", () => {
   // 2001 "Scrubs" S01E03 and a 2026 "Scrubs" reboot S01E03 live in the same
   // library as distinct native series. They share a show name and coordinate

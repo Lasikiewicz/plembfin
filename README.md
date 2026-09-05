@@ -410,6 +410,8 @@ is in [`.env.example`](.env.example).
 | `OUTBOUND_TIMEOUT_SEC` | `10` | Default outbound request timeout (2-120s). |
 | `OUTBOUND_PACING_PROFILE` | `standard` | Outbound request pacing: `gentle`, `standard`, or `fast`. Settings → Sync → Sync Tuning's **Fast Local-Network Sync** checkbox toggles between `standard` and `fast` and takes precedence; only enable `fast` when Plex, Emby, and Jellyfin are all self-hosted on the same trusted local network as Plembfin. |
 | `PLEMBFIN_DEBUG_OUTBOUND` | _off_ | Set `1` to log per-host outbound request counts once a minute. |
+| `PLEMBFIN_DEBUG_CACHE_REBUILDS` | _off_ | Set `1` to log one line per derived-cache rebuild: which cache, how long it took, and which change caused it. |
+| `PLEMBFIN_DEBUG_SCHEDULER` | _off_ | Set `1` to log per-step scheduler timing, plus a per-tick summary carrying the real interval between ticks. |
 
 ---
 

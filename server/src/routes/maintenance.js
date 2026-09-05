@@ -228,7 +228,7 @@ export async function handleBackfillTrakt(req, res) {
       }
     }
 
-    if (tried) await invalidateHistoryDerivedCaches().catch(() => null);
+    if (tried) await invalidateHistoryDerivedCaches("handleBackfillTrakt").catch(() => null);
     return sendJson(res, { ok: true, tried, backfilled });
   } catch (error) {
     console.error("Trakt backfill execution failed", error);
@@ -347,7 +347,7 @@ export async function handleAdminFixHistory(req, res) {
       }
     }
 
-    await invalidateHistoryDerivedCaches().catch(() => null);
+    await invalidateHistoryDerivedCaches("handleAdminFixHistory").catch(() => null);
 
     return sendJson(res, {
       ok: true,
@@ -401,7 +401,7 @@ export async function handlePhantomWatchRepair(req, res) {
     const result = repairPhantomWatchBursts(db, { activeTargets });
     const malformed = repairMalformedScheduledEpisodeRows(db);
     const deleted = result.deleted + malformed.deleted;
-    if (deleted) await invalidateHistoryDerivedCaches().catch(() => null);
+    if (deleted) await invalidateHistoryDerivedCaches("handlePhantomWatchRepair").catch(() => null);
     writeAuditLog("history.phantom_burst_repair", {
       ip: req.ip || req.socket?.remoteAddress,
       detail: { deleted, burstDeleted: result.deleted, malformedEpisodeDeleted: malformed.deleted, bursts: result.bursts, malformedRows: malformed.rows },
@@ -457,7 +457,7 @@ export async function handleEpisodeTitleBackfill(req, res) {
       ip: req.ip || req.socket?.remoteAddress,
       detail: { ...result, allowFetch },
     });
-    if (result.backfilled) await invalidateHistoryDerivedCaches().catch(() => null);
+    if (result.backfilled) await invalidateHistoryDerivedCaches("handleEpisodeTitleBackfill").catch(() => null);
     return sendJson(res, { ok: true, ...result }, 200, { "Cache-Control": "no-store" });
   } catch (error) {
     console.error("Episode title backfill failed", error);
@@ -794,7 +794,7 @@ export async function runTmdbMetadataRefreshJob(log, { isCancelled } = {}) {
   }
 
   if (posterUpdates.length) postersWritten += await setWatchPosterUrls(posterUpdates).catch(() => 0);
-  await invalidateHistoryDerivedCaches().catch(() => null);
+  await invalidateHistoryDerivedCaches("runTmdbMetadataRefreshJob").catch(() => null);
 
   return { success: true, total, refreshed: success, failed, postersWritten };
 }
@@ -995,7 +995,7 @@ export async function handleRematchTvShows(req, res) {
   for (const mediaKey of changedMediaKeys) {
     await deletePosterCacheByMediaKey(mediaKey).catch(() => null);
   }
-  if (updatedRows) await invalidateHistoryDerivedCaches().catch(() => null);
+  if (updatedRows) await invalidateHistoryDerivedCaches("handleRematchTvShows").catch(() => null);
 
   const nextOffset = offset + processed;
   return sendJson(res, {

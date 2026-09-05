@@ -540,7 +540,7 @@ export async function forceSyncLibraryState(input, { config = null, now = Date.n
   }
 
   cancelled = cancelled || Boolean(isCancelled()) || isAuthoritativeRestoreActive();
-  await invalidateHistoryDerivedCaches().catch(() => null);
+  await invalidateHistoryDerivedCaches("forceSyncLibraryState").catch(() => null);
   logger(cancelled
     ? `[${requested.mode}] ${modeLabel(requested.mode)} cancelled after ${results.length} item${results.length === 1 ? "" : "s"}.`
     : `[${requested.mode}] ${modeLabel(requested.mode)} finished: ${results.length} item${results.length === 1 ? "" : "s"}.`);

@@ -165,32 +165,204 @@ async function refreshNextAiringCache({ limit = NEXT_AIRING_REFRESH_LIMIT, force
 
 const scheduledTasksInFlight = new Map();
 
+// ---------------------------------------------------------------------------
+// Per-step scheduler timing.
+//
+// The tick runs its steps one after another against a once-a-minute cadence,
+// and each step carries its own time budget. Whether a later step is actually
+// starved by an earlier one is a question about wall-clock offsets within a
+// tick, so that is what this records: for every step, where in the tick it
+// started, how long it took, whether it exhausted its budget, and whether it
+// was skipped because the previous tick's copy was still running, and whether
+// it actually had work to do. The tick itself records the achieved interval,
+// which is the gap between consecutive tick starts rather than the nominal 60
+// seconds. `didWork` is deliberately derived from the task result: a task that
+// returns a skipped/no-provider/no-due result is not the same as a task that
+// ran out of time.
+//
+// Set PLEMBFIN_DEBUG_SCHEDULER=1 to log a line per step and a tick summary
+// (visible in Settings → Logs), in the same style as PLEMBFIN_DEBUG_OUTBOUND.
+// The in-process history below is always collected: it is one timestamp pair
+// per step, never per row.
+// ---------------------------------------------------------------------------
+const DEBUG_SCHEDULER = ["1", "true"].includes(String(process.env.PLEMBFIN_DEBUG_SCHEDULER || "").toLowerCase());
+const SCHEDULER_TICK_HISTORY_LIMIT = 60;
+const schedulerTickHistory = [];
+let schedulerTickSeq = 0;
+let schedulerTickStartedAt = 0;
+let lastSchedulerTickStartedAtMs = 0;
+let currentTickSteps = null;
+
+function beginSchedulerTick() {
+  const startedAtMs = Date.now();
+  const achievedIntervalMs = lastSchedulerTickStartedAtMs ? startedAtMs - lastSchedulerTickStartedAtMs : null;
+  lastSchedulerTickStartedAtMs = startedAtMs;
+  schedulerTickSeq += 1;
+  schedulerTickStartedAt = performance.now();
+  currentTickSteps = [];
+  return { tick: schedulerTickSeq, startedAtMs, achievedIntervalMs };
+}
+
+function endSchedulerTick(context, outcome) {
+  const steps = currentTickSteps || [];
+  currentTickSteps = null;
+  const durationMs = Math.round((performance.now() - schedulerTickStartedAt) * 1000) / 1000;
+  const entry = {
+    tick: context.tick,
+    startedAt: new Date(context.startedAtMs).toISOString(),
+    achievedIntervalMs: context.achievedIntervalMs,
+    durationMs,
+    skipped: Boolean(outcome?.skipped),
+    reason: outcome?.reason || null,
+    steps,
+  };
+  schedulerTickHistory.push(entry);
+  if (schedulerTickHistory.length > SCHEDULER_TICK_HISTORY_LIMIT) {
+    schedulerTickHistory.splice(0, schedulerTickHistory.length - SCHEDULER_TICK_HISTORY_LIMIT);
+  }
+  if (DEBUG_SCHEDULER) {
+    const interval = context.achievedIntervalMs === null ? "first" : `${context.achievedIntervalMs}ms`;
+    const tail = entry.skipped ? ` skipped=${entry.reason || "yes"}` : "";
+    console.log(`[scheduler] tick=${entry.tick} steps=${steps.length} duration=${durationMs.toFixed(1)}ms achievedInterval=${interval}${tail}`);
+  }
+  return entry;
+}
+
+function recordSchedulerStep(step) {
+  if (currentTickSteps) currentTickSteps.push(step);
+  if (DEBUG_SCHEDULER) {
+    console.log(`[scheduler] tick=${schedulerTickSeq} step="${step.step}" startOffsetMs=${step.startOffsetMs.toFixed(1)}ms durationMs=${step.durationMs.toFixed(1)}ms budgetMs=${step.budgetMs}ms budgetExhausted=${step.budgetExhausted} didWork=${step.didWork}`);
+  }
+}
+
+function schedulerStepDidWork(result) {
+  if (result == null) return false;
+  if (typeof result === "boolean") return result;
+  if (typeof result !== "object") return true;
+  if (result.didWork !== undefined) return Boolean(result.didWork);
+  if (result.skipped === true) return false;
+  if (Array.isArray(result)) return result.length > 0;
+
+  // Scheduler tasks return summaries rather than a shared result type. Count
+  // only fields that represent observed or changed work, not configuration or
+  // status fields. This keeps a no-provider/no-due return false while still
+  // marking a provider scan or cache refresh that found records as work.
+  const workKeys = [
+    "sessions", "completions", "progressUpdates", "removed", "cached",
+    "plexHistorySynced", "embyHistorySynced", "jellyfinHistorySynced",
+    "availabilityRepairs", "plexResumeSynced", "embyResumeSynced",
+    "jellyfinResumeSynced", "manualDispatchesSynced", "watched", "unwatched",
+    "remoteItems", "queued", "pending", "scanned", "changed", "written",
+    "refreshed", "items", "results",
+  ];
+  return workKeys.some((key) => {
+    const value = result[key];
+    if (Array.isArray(value)) return value.length > 0;
+    if (typeof value === "boolean") return value;
+    return Number.isFinite(Number(value)) && Number(value) > 0;
+  });
+}
+
+// A snapshot of recent ticks, for the benchmark scripts and test 6.
+export function schedulerTimingTelemetry() {
+  const ticks = schedulerTickHistory.map((tick) => ({ ...tick, steps: tick.steps.map((step) => ({ ...step })) }));
+  const byStep = new Map();
+  for (const tick of ticks) {
+    for (const step of tick.steps) {
+      const entry = byStep.get(step.step) || { step: step.step, runs: 0, didWork: 0, skipped: 0, budgetExhausted: 0, failed: 0, totalMs: 0, maxMs: 0 };
+      entry.runs += 1;
+      if (step.didWork) entry.didWork += 1;
+      if (step.skipped) entry.skipped += 1;
+      if (step.budgetExhausted) entry.budgetExhausted += 1;
+      if (step.failed) entry.failed += 1;
+      entry.totalMs += step.durationMs;
+      entry.maxMs = Math.max(entry.maxMs, step.durationMs);
+      byStep.set(step.step, entry);
+    }
+  }
+  const intervals = ticks.map((tick) => tick.achievedIntervalMs).filter((value) => Number.isFinite(value));
+  return {
+    debugEnabled: DEBUG_SCHEDULER,
+    ticksObserved: ticks.length,
+    achievedIntervalMs: intervals.length
+      ? {
+        min: Math.min(...intervals),
+        max: Math.max(...intervals),
+        mean: Math.round(intervals.reduce((sum, value) => sum + value, 0) / intervals.length),
+      }
+      : null,
+    steps: [...byStep.values()]
+      .map((entry) => ({
+        ...entry,
+        totalMs: Math.round(entry.totalMs * 1000) / 1000,
+        maxMs: Math.round(entry.maxMs * 1000) / 1000,
+        meanMs: entry.runs ? Math.round((entry.totalMs / entry.runs) * 1000) / 1000 : 0,
+      }))
+      .sort((a, b) => b.totalMs - a.totalMs),
+    ticks,
+  };
+}
+
 async function runWithTimeBudget(label, task, timeoutMs) {
+  const startOffsetMs = schedulerTickStartedAt ? performance.now() - schedulerTickStartedAt : 0;
   if (scheduledTasksInFlight.has(label)) {
     console.warn(`${label} is still running from a previous tick; skipping this tick.`);
+    recordSchedulerStep({ step: label, startOffsetMs, durationMs: 0, budgetMs: timeoutMs, skipped: true, budgetExhausted: false, failed: false, didWork: false });
     return;
   }
   let timeout;
+  let budgetExhausted = false;
+  let failed = false;
+  let result;
+  const startedAt = performance.now();
   const taskPromise = Promise.resolve()
     .then(task)
     .finally(() => scheduledTasksInFlight.delete(label));
   scheduledTasksInFlight.set(label, taskPromise);
   try {
-    await Promise.race([
+    result = await Promise.race([
       taskPromise,
       new Promise((_, reject) => {
-        timeout = setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs);
+        timeout = setTimeout(() => {
+          budgetExhausted = true;
+          reject(new Error(`${label} timed out after ${timeoutMs}ms`));
+        }, timeoutMs);
       }),
     ]);
   } catch (error) {
+    failed = true;
     console.error(`${label} failed`, error);
   } finally {
     clearTimeout(timeout);
+    recordSchedulerStep({
+      step: label,
+      startOffsetMs,
+      durationMs: performance.now() - startedAt,
+      budgetMs: timeoutMs,
+      skipped: false,
+      budgetExhausted,
+      failed,
+      didWork: !failed && !budgetExhausted && schedulerStepDidWork(result),
+    });
   }
 }
 
-// Invoked once per minute by the elected worker coordinator.
-export async function runScheduledTick({ isLeader = () => true } = {}) {
+// Invoked once per minute by the elected worker coordinator. The wrapper opens
+// and closes the per-step timing window; every early return inside the tick
+// body still lands in `finally`, so a lease-lost or restore-paused tick is
+// recorded rather than silently missing from the history.
+export async function runScheduledTick(options = {}) {
+  const context = beginSchedulerTick();
+  let outcome;
+  try {
+    outcome = await runScheduledTickSteps(options);
+    return outcome;
+  } finally {
+    endSchedulerTick(context, outcome);
+  }
+}
+
+async function runScheduledTickSteps({ isLeader = () => true } = {}) {
   if (!isLeader()) return { skipped: true, reason: "lease-lost" };
   if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active" };
   pruneSyncPlans();
@@ -506,7 +678,7 @@ async function processPlexLibraryItemChange(ratingKey, metadataOverride = null) 
     }).catch(() => null);
     await deletePlaybackProgress(media).catch(() => null);
     await result.assetPrefetch?.catch(() => null);
-    await invalidateHistoryDerivedCaches().catch(() => null);
+    await invalidateHistoryDerivedCaches("processPlexLibraryItemChange").catch(() => null);
     await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
     return;
   }
@@ -576,7 +748,7 @@ async function processPlexLibraryItemChange(ratingKey, metadataOverride = null) 
   } catch (error) {
     console.error(`Plex notification unwatched-state propagation failed for "${media.title}"`, error);
   } finally {
-    await invalidateHistoryDerivedCaches().catch(() => null);
+    await invalidateHistoryDerivedCaches("processPlexLibraryItemChange").catch(() => null);
     await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
   }
 }
@@ -735,7 +907,7 @@ async function checkPlexUnwatchedFast(plexConfig) {
               rawPayloadDebug: { ratingKey: plexMedia.itemId, ids: plexMedia.ids || {} },
             }).catch(() => null);
           }
-          await invalidateHistoryDerivedCaches().catch(() => null);
+          await invalidateHistoryDerivedCaches("checkPlexUnwatchedFast").catch(() => null);
           await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
           return true;
         }

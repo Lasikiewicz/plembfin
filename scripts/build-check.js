@@ -113,6 +113,7 @@ for (const file of sourceRoots.flatMap(javascriptFiles)) {
 }
 
 run(process.execPath, ["scripts/docs-check.js"]);
+run(process.execPath, ["scripts/asset-versions.js"]);
 
 run(process.execPath, ["--test"]);
 

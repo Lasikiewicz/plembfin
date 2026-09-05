@@ -1,24 +1,25 @@
-import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel, formatSeasonTitle, sourceBadgeHtml, platformSourceValues, actualWatchHistory } from "./utils.js?v=20260903a";
-import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=20260903b";
-import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js";
-import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading } from "./explorer.js?v=20260903m";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=20260823";
-import { renderWatchDatePrompt, seasonUnwatchButtonHtml, showUnwatchButtonHtml, savingEpisodeKeysForShow } from "./watch-action.js?v=20260903m";
-import { authHeaders, setMessage, syncPageTopbar, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=20260903m";
-import { personalRatingPillHtml, personalEpisodeRatingButtonHtml, personalMediaActionsHtml } from "./personal-media.js?v=20260903c";
+import { state, elements } from "./state.js?v=0.15.0";
+import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel, formatSeasonTitle, sourceBadgeHtml, platformSourceValues, actualWatchHistory } from "./utils.js?v=0.15.0";
+import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=0.15.0";
+import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js?v=0.15.0";
+import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading } from "./explorer.js?v=0.15.0";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=0.15.0";
+import { renderWatchDatePrompt, seasonUnwatchButtonHtml, showUnwatchButtonHtml, savingEpisodeKeysForShow } from "./watch-action.js?v=0.15.0";
+import { authHeaders, setMessage, syncPageTopbar, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=0.15.0";
+import { personalRatingPillHtml, personalEpisodeRatingButtonHtml, personalMediaActionsHtml } from "./personal-media.js?v=0.15.0";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderRelatedShowsSection,
   renderMediaFacts, renderMediaImagesSection, renderExternalRatingPills, ratingPillHtml,
   renderSeasonSeerrControls, renderSeerrRequestPill, fetchSeerrMediaStatus,
   refreshActiveMediaDetailAfterSeerrStatus, tvSeasonAvailabilityHtml, episodeResolutionPillHtml,
   hydrateMediaAppLinks, mediaAppLinksHtml,
-} from "./media-detail-shared.js?v=20260903b";
+} from "./media-detail-shared.js?v=0.15.0";
 
 let _playbackProgressRows = [];
 let _playbackProgressLoaded = false;
 let _playbackProgressLoadPromise = null;
 const _seasonDetailsInflight = new Set();
+const SEASON_HYDRATION_CONCURRENCY = 4;
 
 // The page's actual scrollable element is <main class="page-shell">
 // (window/document never scroll - the app shell layout keeps the sidebar
@@ -145,6 +146,35 @@ function localShowSeedForTmdbId(tmdbId) {
   };
 }
 
+function localShowSeedForTvdbId(tvdbId) {
+  const requestedId = String(tvdbId || "");
+  if (!requestedId) return null;
+  const show = (state.showsRaw || []).find((entry) => String(entry.tvdb_id || "") === requestedId);
+  if (show) return show;
+
+  const rows = [
+    ...(Array.isArray(state.upNextItems) ? state.upNextItems : []),
+    ...(Array.isArray(state.history) ? state.history : []),
+    ...(Array.isArray(state.partWatchedRaw) ? state.partWatchedRaw : []),
+    ...(Array.isArray(state.historyViewRaw) ? state.historyViewRaw : []),
+  ];
+  const row = rows.find((entry) => (
+    entry?.media_type === "episode"
+      && String(entry.show_tvdb_id || entry.tvdb_id || "") === requestedId
+  ));
+  if (!row) return null;
+  const title = row.show_title || showTitleFrom(row.title || "");
+  return {
+    title,
+    tvdb_id: row.show_tvdb_id || row.tvdb_id || requestedId,
+    tmdb_id: row.show_tmdb_id || row.tmdb_id || "",
+    imdb_id: row.show_imdb_id || row.imdb_id || "",
+    episodes: [row],
+    episode_count: 1,
+    season_count: row.season == null ? 0 : 1,
+  };
+}
+
 async function fetchLocalShowByTmdbId(tmdbId) {
   const seed = localShowSeedForTmdbId(tmdbId);
   if (seed) return seed;
@@ -152,6 +182,27 @@ async function fetchLocalShowByTmdbId(tmdbId) {
   const timeout = setTimeout(() => controller.abort(), 4000);
   try {
     const response = await fetch(`/api/show?tmdbId=${encodeURIComponent(String(tmdbId || ""))}`, {
+      headers: authHeaders(),
+      cache: "no-store",
+      signal: controller.signal,
+    });
+    if (!response.ok) return null;
+    const body = await response.json().catch(() => ({}));
+    return body.show || null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function fetchLocalShowByTvdbId(tvdbId) {
+  const seed = localShowSeedForTvdbId(tvdbId);
+  if (seed) return seed;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 4000);
+  try {
+    const response = await fetch(`/api/show?tvdbId=${encodeURIComponent(String(tvdbId || ""))}`, {
       headers: authHeaders(),
       cache: "no-store",
       signal: controller.signal,
@@ -277,7 +328,11 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
   state.showModalRequestToken += 1;
   setMediaDetailActions("");
   state.activeShowTmdbId = String(tmdbId);
-  const localSeedPromise = fetchLocalShowByTmdbId(tmdbId);
+  const initialLocalSeed = localShowSeedForTmdbId(tmdbId);
+  const localDetailPromise = initialLocalSeed
+    ? loadShowDetail(initialLocalSeed).catch(() => initialLocalSeed)
+    : fetchLocalShowByTmdbId(tmdbId);
+  const localSeedPromise = initialLocalSeed ? Promise.resolve(initialLocalSeed) : localDetailPromise;
   state.activeShowTvdbId = null;
   syncInlineMediaDetailHeading("shows");
   if (!state.mediaDetailInline) {
@@ -298,10 +353,23 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
     `;
   }
 
-  const localSeed = await localSeedPromise;
-  const lookupIds = tmdbLookupIdsFromShow(localSeed || {});
+  // Library cards already carry the local watched record. Paint that record
+  // before the canonical TMDB route asks the provider gateway for enrichment;
+  // the metadata request must not be the first-paint gate.
+  if (initialLocalSeed && currentMediaRenderToken() === renderToken) {
+    state.activeShowModalKey = slug(initialLocalSeed.title);
+    state.activeShowModalTitle = initialLocalSeed.title;
+    renderShowModalContent(initialLocalSeed, {
+      activeSeasonNum: state.activeShowModalSeason,
+      tmdbData: null,
+      seasonDetailsByNumber: new Map(),
+      loading: true,
+    });
+  }
+
+  const lookupIds = tmdbLookupIdsFromShow(initialLocalSeed || {});
   state.activeShowTvdbId = lookupIds.tvdbId || null;
-  let tmdbData = await fetchTmdbDetails("tv", tmdbId, localSeed?.title || "", lookupIds, { immediate: true });
+  let tmdbData = await fetchTmdbDetails("tv", tmdbId, initialLocalSeed?.title || "", lookupIds, { immediate: true });
   if (currentMediaRenderToken() !== renderToken) return;
   if (!tmdbData) {
     // The stored TMDB ID may not map to a valid show (e.g. episode-level ID from
@@ -323,6 +391,7 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
     // unreachable. Fall back to the local library record so the episode
     // history remains visible and the user can use Fix Match to repair the
     // identity that caused the lookup to fail.
+    const localSeed = await localSeedPromise.catch(() => null);
     let fallbackShow = localSeed || state.showsRaw.find((show) => String(show.tmdb_id || "") === String(tmdbId));
     if (!fallbackShow) {
       const matchingRows = (state.history || []).filter((row) => (
@@ -342,7 +411,7 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
     }
 
     if (fallbackShow) {
-      const detailedShow = await loadShowDetail(fallbackShow).catch(() => null);
+      const detailedShow = await localDetailPromise.catch(() => null) || await loadShowDetail(fallbackShow).catch(() => null);
       const localShow = detailedShow || fallbackShow;
       const localShowKey = slug(localShow.title);
       state.activeShowModalKey = localShowKey;
@@ -353,6 +422,7 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
         tmdbData: null,
         seasonDetailsByNumber: new Map(),
         loading: false,
+        patchExisting: Boolean(root.querySelector(".media-detail-page")),
       });
       return;
     }
@@ -367,16 +437,14 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
     `;
     return;
   }
-  await renderShowDetailFromMetadata(tmdbData, renderToken);
+  await renderShowDetailFromMetadata(tmdbData, renderToken, localDetailPromise);
 }
 
 // Renders a show from a resolved metadata document. The document is TVDB-backed
 // with TMDB merged in where available, so it renders the same whether it was
 // reached by TMDB id or by TVDB id.
-async function renderShowDetailFromMetadata(tmdbData, renderToken) {
+async function renderShowDetailFromMetadata(tmdbData, renderToken, localShowPromise = null) {
   if (tmdbData?.id) state.activeShowTmdbId = String(tmdbData.id);
-  const lookupId = showSeasonLookupId(tmdbData);
-
   const showTitle = tmdbData.name || "Untitled TV Show";
   const tvdbIdCandidate = String(tmdbData.external_ids?.tvdb_id || state.activeShowTvdbId || "");
   state.activeShowModalTitle = showTitle;
@@ -390,32 +458,6 @@ async function renderShowDetailFromMetadata(tmdbData, renderToken) {
     (tmdbData.id && String(show.tmdb_id || "") === String(tmdbData.id))
     || (tvdbIdCandidate && String(show.tvdb_id || "") === tvdbIdCandidate)
   ));
-  // Only the season about to be expanded (if any) needs its episode data before
-  // first paint. Fetching every season upfront fires one TVDB request per
-  // season, all serialized behind the shared 350ms rate-limit throttle in
-  // tvdbGateway.js - for a long-running show that can hold the loading screen
-  // up for 10+ seconds. renderShowModalContent's own hydrate* calls fill in
-  // every other season lazily, in the background, once it's actually expanded.
-  const initialSeasonNum = state.activeShowModalSeason == null ? null : Number(state.activeShowModalSeason);
-  await Promise.all([
-    // Pull persisted watched state from the server so a fresh page load - where
-    // state.showsRaw/state.history aren't populated yet - still reflects what is
-    // already marked watched (otherwise the show looks unwatched after a refresh).
-    loadShowDetail({
-      id: localShow?.id || "",
-      title: showTitle,
-      tmdb_id: tmdbData.id ? String(tmdbData.id) : "",
-      tvdb_id: tvdbIdCandidate,
-    }).catch(() => null),
-    ensurePlaybackProgressLoaded(),
-    Number.isFinite(initialSeasonNum)
-      ? fetchTmdbSeasonDetails(lookupId, initialSeasonNum).then((details) => {
-        if (details) seasonDetailsByNumber.set(initialSeasonNum, details);
-      })
-      : Promise.resolve(),
-  ]);
-  if (currentMediaRenderToken() !== renderToken) return;
-
   // A show's own tmdb_id/tvdb_id can be temporarily unresolved right after a
   // Fix Match rematch (the identity fields are cleared and re-backfilled in
   // the background), and its display title can legitimately differ from the
@@ -439,16 +481,51 @@ async function renderShowDetailFromMetadata(tmdbData, renderToken) {
     episode_count: 0,
     season_count: seasons.length,
   });
-  const imdbPillHtml = await fetchShowImdbPillHtml(show, tmdbData, () => String(state.activeShowTmdbId || "") === String(tmdbData.id || ""));
-  if (currentMediaRenderToken() !== renderToken) return;
+  // The detail request is deliberately still no-store: it contains mutable
+  // per-episode watch state. It runs beside the first render, not before it.
+  const detailPromise = localShowPromise
+    ? Promise.resolve(localShowPromise).catch(() => null)
+    : loadShowDetail({
+      id: localShow?.id || "",
+      title: showTitle,
+      tmdb_id: tmdbData.id ? String(tmdbData.id) : "",
+      tvdb_id: tvdbIdCandidate,
+    }).catch(() => null);
+  const playbackProgressPromise = ensurePlaybackProgressLoaded();
+  const imdbPillPromise = fetchShowImdbPillHtml(
+    show,
+    tmdbData,
+    () => currentMediaRenderToken() === renderToken && String(state.activeShowTmdbId || "") === String(tmdbData.id || "")
+  );
 
+  // The canonical-id path now paints its metadata shell immediately. Watched
+  // rows already in memory are visible now; a fresh page can show the shell
+  // while its no-store local detail request catches up.
   renderShowModalContent(show, {
     activeSeasonNum: state.activeShowModalSeason,
     tmdbData,
     seasonDetailsByNumber,
     loading: false,
     tmdbOnly: !existingShow,
+    imdbPillHtml: "",
+    patchExisting: Boolean(mediaDetailRoot().querySelector(".media-detail-page")),
+  });
+  if (currentMediaRenderToken() !== renderToken) return;
+
+  const [detailedShow, imdbPillHtml] = await Promise.all([detailPromise, imdbPillPromise]);
+  await playbackProgressPromise;
+  if (currentMediaRenderToken() !== renderToken) return;
+
+  const hydratedShow = mergeShowWithLoadedHistory(detailedShow || show);
+  state.activeShowModalTitle = hydratedShow.title || showTitle;
+  renderShowModalContent(hydratedShow, {
+    activeSeasonNum: state.activeShowModalSeason,
+    tmdbData,
+    seasonDetailsByNumber,
+    loading: false,
+    tmdbOnly: !detailedShow && !existingShow,
     imdbPillHtml,
+    patchExisting: true,
   });
 }
 
@@ -480,9 +557,37 @@ export async function openShowImmersiveModalByTvdbId(tvdbId) {
     `;
   }
 
-  const tmdbData = await fetchTmdbDetails("tv", null, null, { tvdbId }, { immediate: true });
+  const initialLocalSeed = localShowSeedForTvdbId(tvdbId);
+  const localDetailPromise = initialLocalSeed
+    ? loadShowDetail(initialLocalSeed).catch(() => initialLocalSeed)
+    : fetchLocalShowByTvdbId(tvdbId);
+  if (initialLocalSeed && currentMediaRenderToken() === renderToken) {
+    state.activeShowModalKey = slug(initialLocalSeed.title);
+    state.activeShowModalTitle = initialLocalSeed.title;
+    renderShowModalContent(initialLocalSeed, {
+      activeSeasonNum: state.activeShowModalSeason,
+      tmdbData: null,
+      seasonDetailsByNumber: new Map(),
+      loading: true,
+    });
+  }
+
+  const tmdbData = await fetchTmdbDetails("tv", null, initialLocalSeed?.title || "", { tvdbId }, { immediate: true });
   if (currentMediaRenderToken() !== renderToken) return;
   if (!tmdbData) {
+    const localShow = await localDetailPromise.catch(() => null);
+    if (localShow) {
+      state.activeShowModalKey = slug(localShow.title);
+      state.activeShowModalTitle = localShow.title;
+      renderShowModalContent(localShow, {
+        activeSeasonNum: state.activeShowModalSeason,
+        tmdbData: null,
+        seasonDetailsByNumber: new Map(),
+        loading: false,
+        patchExisting: Boolean(root.querySelector(".media-detail-page")),
+      });
+      return;
+    }
     root.innerHTML = `
       <div class="immersive-container">
         <div style="display: flex; justify-content: center; align-items: center; min-height: 200px; flex-direction: column; gap: var(--space-2);">
@@ -493,7 +598,7 @@ export async function openShowImmersiveModalByTvdbId(tvdbId) {
     `;
     return;
   }
-  await renderShowDetailFromMetadata(tmdbData, renderToken);
+  await renderShowDetailFromMetadata(tmdbData, renderToken, localDetailPromise);
 }
 
 function watchedEpisodesByKey(show = {}) {
@@ -596,6 +701,7 @@ function hydrateMissingSeasonDetails(show, activeSeasonNum, tmdbData, seasonDeta
         tmdbData,
         seasonDetailsByNumber,
         loading: false,
+        patchExisting: true,
       });
     })
     .finally(() => _seasonDetailsInflight.delete(cacheKey));
@@ -604,7 +710,7 @@ function hydrateMissingSeasonDetails(show, activeSeasonNum, tmdbData, seasonDeta
 function hydrateAllSeasonEpisodeDetails(show, tmdbData, seasonDetailsByNumber, loading, seasonsList = []) {
   const lookupId = showSeasonLookupId(tmdbData);
   if (loading || !lookupId || !seasonsList.length) return;
-  const requests = [];
+  const pending = [];
   const cacheKeys = [];
 
   for (const season of seasonsList) {
@@ -616,20 +722,26 @@ function hydrateAllSeasonEpisodeDetails(show, tmdbData, seasonDetailsByNumber, l
 
     _seasonDetailsInflight.add(cacheKey);
     cacheKeys.push(cacheKey);
-    requests.push(
-      fetchTmdbSeasonDetails(lookupId, seasonNumber)
-        .then((details) => ({ seasonNumber, details }))
-        .catch((error) => {
-          console.error(`Failed to hydrate season ${seasonNumber} episodes`, error);
-          return { seasonNumber, details: null };
-        })
-    );
+    pending.push({ seasonNumber, cacheKey });
   }
 
-  if (!requests.length) return;
+  if (!pending.length) return;
 
-  Promise.all(requests)
-    .then((results) => {
+  const results = [];
+  let nextIndex = 0;
+  const worker = async () => {
+    while (nextIndex < pending.length) {
+      const entry = pending[nextIndex++];
+      try {
+        results.push({ seasonNumber: entry.seasonNumber, details: await fetchTmdbSeasonDetails(lookupId, entry.seasonNumber) });
+      } catch (error) {
+        console.error(`Failed to hydrate season ${entry.seasonNumber} episodes`, error);
+        results.push({ seasonNumber: entry.seasonNumber, details: null });
+      }
+    }
+  };
+  Promise.all(Array.from({ length: Math.min(SEASON_HYDRATION_CONCURRENCY, pending.length) }, () => worker()))
+    .then(() => {
       let changed = false;
       for (const { seasonNumber, details } of results) {
         if (!details) continue;
@@ -645,6 +757,7 @@ function hydrateAllSeasonEpisodeDetails(show, tmdbData, seasonDetailsByNumber, l
         tmdbData,
         seasonDetailsByNumber,
         loading: false,
+        patchExisting: true,
       });
     })
     .catch((error) => console.error("Failed to hydrate all season episodes", error))
@@ -656,7 +769,7 @@ function hydrateAllSeasonEpisodeDetails(show, tmdbData, seasonDetailsByNumber, l
 function hydrateUnknownSeasonSummaryDetails(show, tmdbData, seasonDetailsByNumber, loading, seasonsList = []) {
   const lookupId = showSeasonLookupId(tmdbData);
   if (loading || !lookupId || !seasonsList.length) return;
-  const requests = [];
+  const pending = [];
   const cacheKeys = [];
 
   for (const season of seasonsList) {
@@ -669,20 +782,26 @@ function hydrateUnknownSeasonSummaryDetails(show, tmdbData, seasonDetailsByNumbe
 
     _seasonDetailsInflight.add(cacheKey);
     cacheKeys.push(cacheKey);
-    requests.push(
-      fetchTmdbSeasonDetails(lookupId, seasonNumber)
-        .then((details) => ({ seasonNumber, details }))
-        .catch((error) => {
-          console.error(`Failed to hydrate season ${seasonNumber} summary`, error);
-          return { seasonNumber, details: null };
-        })
-    );
+    pending.push({ seasonNumber, cacheKey });
   }
 
-  if (!requests.length) return;
+  if (!pending.length) return;
 
-  Promise.all(requests)
-    .then((results) => {
+  const results = [];
+  let nextIndex = 0;
+  const worker = async () => {
+    while (nextIndex < pending.length) {
+      const entry = pending[nextIndex++];
+      try {
+        results.push({ seasonNumber: entry.seasonNumber, details: await fetchTmdbSeasonDetails(lookupId, entry.seasonNumber) });
+      } catch (error) {
+        console.error(`Failed to hydrate season ${entry.seasonNumber} summary`, error);
+        results.push({ seasonNumber: entry.seasonNumber, details: null });
+      }
+    }
+  };
+  Promise.all(Array.from({ length: Math.min(SEASON_HYDRATION_CONCURRENCY, pending.length) }, () => worker()))
+    .then(() => {
       let changed = false;
       for (const { seasonNumber, details } of results) {
         if (!details) continue;
@@ -698,6 +817,7 @@ function hydrateUnknownSeasonSummaryDetails(show, tmdbData, seasonDetailsByNumbe
         tmdbData,
         seasonDetailsByNumber,
         loading: false,
+        patchExisting: true,
       });
     })
     .catch((error) => console.error("Failed to refresh season summaries", error))
@@ -892,6 +1012,104 @@ function showModalStatus(loading, hasTmdbData) {
   return "";
 }
 
+function directChildWithClass(parent, className) {
+  return [...(parent?.children || [])].find((child) => child.classList?.contains(className)) || null;
+}
+
+function cloneChildNodes(node) {
+  return [...(node?.childNodes || [])].map((child) => child.cloneNode(true));
+}
+
+// Metadata arrives after the local watched record. Replacing the complete
+// detail subtree for every enrichment pass recreated posters, episode images,
+// and the scrollable season list. Build the next markup off-DOM, then patch the
+// independently hydratable regions in place. The first render still uses the
+// normal full markup path; only later enrichment passes use this function.
+function patchShowModalDom(root, nextMarkup) {
+  const currentPage = directChildWithClass(root, "media-detail-page");
+  if (!currentPage) {
+    root.innerHTML = nextMarkup;
+    return;
+  }
+
+  const template = document.createElement("template");
+  template.innerHTML = String(nextMarkup || "").trim();
+  const nextPage = template.content.querySelector(".media-detail-page");
+  if (!nextPage) {
+    root.innerHTML = nextMarkup;
+    return;
+  }
+
+  const scrollHost = nearestScrollableAncestor(currentPage);
+  const scrollTop = scrollHost?.scrollTop;
+  const currentBackdrop = directChildWithClass(root, "modal-backdrop-image");
+  const nextBackdrop = directChildWithClass(template.content, "modal-backdrop-image");
+  if (currentBackdrop && nextBackdrop) currentBackdrop.setAttribute("style", nextBackdrop.getAttribute("style") || "");
+
+  const currentHeader = directChildWithClass(currentPage, "immersive-header");
+  const nextHeader = directChildWithClass(nextPage, "immersive-header");
+  if (currentHeader && nextHeader) {
+    const currentMeta = currentHeader.querySelector(".immersive-meta");
+    const nextMeta = nextHeader.querySelector(".immersive-meta");
+    const currentBottom = currentMeta?.querySelector(".media-detail-bottom-stack");
+    const nextBottom = nextMeta?.querySelector(".media-detail-bottom-stack");
+
+    if (currentMeta && nextMeta && currentBottom && nextBottom) {
+      // The title/logo is a small identity region. Replace only that region;
+      // the poster itself stays mounted, so its request and lightbox state live.
+      [...currentMeta.children]
+        .filter((child) => child !== currentBottom)
+        .forEach((child) => child.remove());
+      const nextIdentity = [...nextMeta.children].filter((child) => child !== nextBottom);
+      nextIdentity.forEach((child) => currentMeta.insertBefore(child.cloneNode(true), currentBottom));
+
+      currentBottom.replaceChildren(...cloneChildNodes(nextBottom));
+    }
+
+    const currentSidebar = currentHeader.querySelector(".immersive-sidebar");
+    const nextSidebar = nextHeader.querySelector(".immersive-sidebar");
+    if (currentSidebar && nextSidebar) {
+      const wasOpen = currentSidebar.querySelector(".media-facts-details")?.open;
+      const replacement = nextSidebar.cloneNode(true);
+      const replacementDetails = replacement.querySelector(".media-facts-details");
+      if (wasOpen != null && replacementDetails) replacementDetails.open = wasOpen;
+      currentSidebar.replaceWith(replacement);
+    } else if (!currentSidebar && nextSidebar) {
+      currentHeader.appendChild(nextSidebar.cloneNode(true));
+    } else if (currentSidebar && !nextSidebar) {
+      currentSidebar.remove();
+    }
+  }
+
+  const sectionClasses = [
+    "season-accordions",
+    "cast-section",
+    "media-images-section",
+    "trailers-section",
+    "reviews-section",
+    "related-section",
+  ];
+  for (const className of sectionClasses) {
+    const currentSection = directChildWithClass(currentPage, className);
+    const nextSection = directChildWithClass(nextPage, className);
+    if (currentSection && nextSection) {
+      currentSection.replaceWith(nextSection.cloneNode(true));
+    } else if (currentSection && !nextSection) {
+      currentSection.remove();
+    } else if (!currentSection && nextSection) {
+      const nextIndex = sectionClasses.indexOf(className);
+      const following = [...currentPage.children].find((child) => {
+        const existingClass = sectionClasses.find((candidate) => child.classList?.contains(candidate));
+        return existingClass && sectionClasses.indexOf(existingClass) > nextIndex;
+      });
+      currentPage.insertBefore(nextSection.cloneNode(true), following || null);
+    }
+  }
+
+  if (scrollHost && Number.isFinite(scrollTop)) scrollHost.scrollTop = scrollTop;
+  return true;
+}
+
 function seasonEpisodeTotal(seasonNumber, seasonEpisodes, season, seasonDetailsByNumber) {
   const tmdbSeason = seasonDetailsByNumber?.get(Number(seasonNumber));
   const tmdbEpisodeCount = Array.isArray(tmdbSeason?.episodes) ? tmdbSeason.episodes.length : 0;
@@ -1045,6 +1263,7 @@ export function renderShowModalContent(show, {
   loading = false,
   tmdbOnly = false,
   imdbPillHtml = "",
+  patchExisting = false,
 } = {}) {
   const root = mediaDetailRoot();
   show = mergeShowWithLoadedHistory(show);
@@ -1318,7 +1537,7 @@ export function renderShowModalContent(show, {
     `)}
   `);
 
-  root.innerHTML = `
+  const modalMarkup = `
       <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(backdropUrl || posterUrl || "")}');"></div>
       <div class="immersive-container media-detail-page">
 
@@ -1360,6 +1579,8 @@ export function renderShowModalContent(show, {
       </div>
       ${renderWatchDatePrompt(state.pendingWatchAction)}
     `;
+  if (patchExisting) patchShowModalDom(root, modalMarkup);
+  else root.innerHTML = modalMarkup;
   // A season named in the URL on navigation (path segment or #seasonN hash)
   // scrolls into view once, here - not via the click handler, since no click
   // happened. The flag is consumed and cleared immediately so a later
@@ -1393,6 +1614,7 @@ export function renderShowModalContent(show, {
             tmdbData: current.tmdbData,
             seasonDetailsByNumber: current.seasonDetailsByNumber,
             loading: current.loading,
+            patchExisting: true,
           });
           return;
         }
@@ -1505,7 +1727,14 @@ async function hydrateImmersiveShowModal(showKey, activeSeasonNum, requestToken)
   // hydrateMissingSeasonDetails, and the IMDb pill is folded in below, so
   // neither has to hold up the first complete render.
   const seasonDetailsByNumber = new Map();
-  renderShowModalContent(show, { activeSeasonNum: state.activeShowModalSeason, tmdbData, seasonDetailsByNumber, loading: false, imdbPillHtml: "" });
+  renderShowModalContent(show, {
+    activeSeasonNum: state.activeShowModalSeason,
+    tmdbData,
+    seasonDetailsByNumber,
+    loading: false,
+    imdbPillHtml: "",
+    patchExisting: Boolean(mediaDetailRoot().querySelector(".media-detail-page")),
+  });
 
   const imdbPillHtml = await fetchShowImdbPillHtml(show, tmdbData, stillCurrent);
   if (!imdbPillHtml || !stillCurrent()) return;
@@ -1517,6 +1746,7 @@ async function hydrateImmersiveShowModal(showKey, activeSeasonNum, requestToken)
     seasonDetailsByNumber: current?.seasonDetailsByNumber || seasonDetailsByNumber,
     loading: false,
     imdbPillHtml,
+    patchExisting: true,
   });
 }
 
@@ -1546,6 +1776,30 @@ export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, 
   const root = mediaDetailRoot();
 
   let show = state.showsRaw.find((s) => slug(s.title) === showKey);
+  if (!show) {
+    const rows = [
+      ...(Array.isArray(state.upNextItems) ? state.upNextItems : []),
+      ...(Array.isArray(state.history) ? state.history : []),
+      ...(Array.isArray(state.partWatchedRaw) ? state.partWatchedRaw : []),
+      ...(Array.isArray(state.historyViewRaw) ? state.historyViewRaw : []),
+    ];
+    const row = rows.find((entry) => (
+      entry?.media_type === "episode"
+        && slug(entry.show_title || showTitleFrom(entry.title || "")) === showKey
+    ));
+    if (row) {
+      const title = row.show_title || showTitleFrom(row.title || showKey);
+      show = {
+        title,
+        tmdb_id: row.show_tmdb_id || row.tmdb_id || "",
+        tvdb_id: row.show_tvdb_id || row.tvdb_id || "",
+        imdb_id: row.show_imdb_id || row.imdb_id || "",
+        episodes: [{ ...row, show_title: title }],
+        episode_count: 1,
+        season_count: row.season == null ? 0 : 1,
+      };
+    }
+  }
   // Set only when the history link points at a row with no resolvable series,
   // so the orphan shell below is what ends up on screen.
   let orphanShell = false;
@@ -1714,15 +1968,13 @@ export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, 
 
   if (currentMediaRenderToken() !== renderToken) return;
   if (!Array.isArray(show.episodes) || !show.episodes.length) {
-    root.innerHTML = `
-      <div class="modal-backdrop-image"></div>
-      <div class="immersive-container media-detail-page">
-        <div class="empty-log">
-          <b>Loading episodes...</b>
-          <span>Loading episode history.</span>
-        </div>
-      </div>
-    `;
+    state.activeShowModalSeason = activeSeasonNum;
+    renderShowModalContent(show, {
+      activeSeasonNum,
+      tmdbData: null,
+      seasonDetailsByNumber: new Map(),
+      loading: Boolean(state.savedConfig.tmdb?.configured),
+    });
     hydratePosters(root);
     const detailedShow = await loadShowDetail(show).catch((error) => {
       console.error("Failed to load show detail", error);
@@ -1765,6 +2017,7 @@ export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, 
     tmdbData: null,
     seasonDetailsByNumber: new Map(),
     loading: Boolean(state.savedConfig.tmdb?.configured),
+    patchExisting: Boolean(root.querySelector(".media-detail-page")),
   });
   // Progress is secondary to the first paint. Refresh it after the shell is
   // visible so a slow/no-store progress request cannot block artwork and
@@ -1773,7 +2026,7 @@ export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, 
     if (requestToken !== state.showModalRequestToken || state.activeShowModalKey !== showKey) return;
     const current = state.activeShowRenderContext;
     if (!current) return;
-    renderShowModalContent(current.show, { ...current, activeSeasonNum: state.activeShowModalSeason });
+    renderShowModalContent(current.show, { ...current, activeSeasonNum: state.activeShowModalSeason, patchExisting: true });
   }).catch(() => { });
   // A history-linked orphan has an intentionally identifiable local shell;
   // do not let the background title lookup replace it with the stale
@@ -1781,7 +2034,7 @@ export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, 
   if (!orphanShell) hydrateImmersiveShowModal(showKey, activeSeasonNum, requestToken).catch((error) => {
     console.error("Failed to hydrate show modal", error);
     if (requestToken === state.showModalRequestToken && state.activeShowModalKey === showKey) {
-      renderShowModalContent(show, { activeSeasonNum, tmdbData: null, seasonDetailsByNumber: new Map(), loading: false });
+      renderShowModalContent(show, { activeSeasonNum, tmdbData: null, seasonDetailsByNumber: new Map(), loading: false, patchExisting: true });
     }
   });
   hydratePosters(root);

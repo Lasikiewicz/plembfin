@@ -292,7 +292,7 @@ export async function handleClearMissingTelemetry(req, res) {
       WHERE sync_dispatch_telemetry IS NULL OR sync_dispatch_telemetry = ''
     `);
     const result = clearStmt.run();
-    await invalidateHistoryDerivedCaches();
+    await invalidateHistoryDerivedCaches("handleClearMissingTelemetry");
     return sendJson(res, { cleared: result.changes });
   } catch (err) {
     console.error("[clearMissingTelemetry] Error:", err);
@@ -1142,7 +1142,7 @@ export async function handleUpdateWatch(req, res) {
           if (savedCanonical.ok) {
             customPosterUrl = versionedUrl;
             customPosterIds = [];
-            await invalidateHistoryDerivedCaches().catch(() => null);
+            await invalidateHistoryDerivedCaches("handleUpdateWatch").catch(() => null);
           }
         } else {
           customPosterUrl = versionedUrl;
@@ -1161,7 +1161,7 @@ export async function handleUpdateWatch(req, res) {
             }
           }
           await setWatchPosterUrls(related.map((row) => ({ id: row.id, posterUrl: versionedUrl }))).catch(() => null);
-          await invalidateHistoryDerivedCaches().catch(() => null);
+          await invalidateHistoryDerivedCaches("handleUpdateWatch").catch(() => null);
           customPosterIds = related.map((row) => row.id);
         }
       }

@@ -48,10 +48,10 @@ test("frontend platform and title helpers normalize user-facing labels", () => {
   );
   assert.match(sourceBadgeHtml("plembfin"), /source-plembfin/);
   assert.match(platformIconMarkup("plembfin"), /source-badge-icon-set/);
-  assert.match(platformIconMarkup("plembfin"), /plembfin-light\.png\?v=20260824h/);
-  assert.match(platformIconMarkup("plembfin"), /plembfin\.png\?v=20260824h/);
+  assert.match(platformIconMarkup("plembfin"), /plembfin-light\.png\?v=0\.15\.0/);
+  assert.match(platformIconMarkup("plembfin"), /plembfin\.png\?v=0\.15\.0/);
   assert.match(sourceBadgeHtml("plembfin"), />Plembfin<\/span>/);
-  assert.equal(platformIconUrl("manual"), "/icons/plembfin.png?v=20260824h");
+  assert.equal(platformIconUrl("manual"), "/icons/plembfin.png?v=0.15.0");
   assert.equal(platformName("jellyfin_webhook"), "Jellyfin");
   assert.equal(showName("Harbor Nine - S02E03 - Low Tide"), "Harbor Nine");
   assert.equal(episodeCode(2, 3), "S02E03");

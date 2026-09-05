@@ -86,12 +86,20 @@ change when the show being navigated to is the one already open, not into a link
 global search result, for instance) that names a different show without supplying its
 own.
 
-The show page paints as soon as the show's own metadata arrives. Only the season the
-page is about to expand (if any) is fetched before that first render; every other
-season's episode list, along with the IMDb rating pill, hydrates in afterward rather
-than holding up the first complete render. A season expanded before its own episode
-list has arrived shows a loading placeholder instead of a premature "no episodes"
-message.
+The show page uses a two-stage first paint. When the local show summary or watched rows
+are already in client state, it paints the local shell - including the title, artwork,
+watched counts, and season headings - before either the mutable `/api/show` detail request
+or provider metadata. A direct route with no local summary paints the provider shell as
+soon as that metadata resolves. The mutable `/api/show` response remains `private,
+no-store`; it is started in parallel and is never used as a first-paint gate.
+
+Metadata, local watch detail, playback progress, and the optional IMDb pill enrich the
+existing page afterward. Enrichment patches the header, facts, and independently loaded
+sections instead of replacing the whole detail root, so the mounted poster/backdrop and
+the internal scroll position survive. Only the season the page is about to expand (if
+any) is fetched before that first render; other season episode lists hydrate lazily. An
+"Expand All" request uses a four-worker cap, and a season expanded before its own episode
+list arrives shows a loading placeholder instead of a premature "no episodes" message.
 
 ## What's on the page
 

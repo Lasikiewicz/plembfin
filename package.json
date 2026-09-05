@@ -14,12 +14,15 @@
     "test:multiprocess": "node --test test/multiprocess.test.js",
     "build": "node scripts/build-check.js",
     "docs:check": "node scripts/docs-check.js",
+    "assets:check": "node scripts/asset-versions.js",
+    "assets:update": "node scripts/asset-versions.js --write",
     "seed:demo": "node scripts/seed-demo-content.js",
     "prepare": "node scripts/install-git-hooks.js"
   },
   "dependencies": {
     "better-sqlite3": "^13.0.1",
     "busboy": "^1.6.0",
+    "compression": "^1.8.1",
     "cookie-parser": "^1.4.7",
     "express": "^5.2.1",
     "express-rate-limit": "^8.6.0",

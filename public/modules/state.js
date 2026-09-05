@@ -1,5 +1,5 @@
-import { readStoredAdminToken } from "./auth.js";
-import { readStoredDebugLogs } from "./logs.js";
+import { readStoredAdminToken } from "./auth.js?v=0.15.0";
+import { readStoredDebugLogs } from "./logs.js?v=0.15.0";
 
 const TOKEN_KEY = "adminToken";
 const LEGACY_UPPER_TOKEN_KEY = "ADMIN_TOKEN";
@@ -32,7 +32,11 @@ function _startOfWeek(value) {
   return date;
 }
 
-export const state = {
+// Query-versioned browser imports and bare imports used by offline tests can
+// resolve this source file as different module URLs. Keep the mutable client
+// store shared across those URLs so cache-busting never creates two frontends
+// with diverging state.
+const initialState = {
   token: readStoredAdminToken([TOKEN_KEY, LEGACY_UPPER_TOKEN_KEY, LEGACY_TOKEN_KEY]),
   authReady: false,
   mustChangePassword: false,
@@ -267,4 +271,13 @@ export const state = {
   internalHistoryCount: history.state?.index || 0,
 };
 
-export const elements = {};
+const moduleQuery = new URL(import.meta.url).search;
+const sharesWithProductionStore = !moduleQuery || /^\?v=[A-Za-z0-9._-]+$/.test(moduleQuery);
+const storeKey = sharesWithProductionStore
+  ? "__PLEMBFIN_FRONTEND_STATE__"
+  : `__PLEMBFIN_FRONTEND_STATE__${moduleQuery}`;
+const sharedStore = globalThis[storeKey] || { state: initialState, elements: {} };
+globalThis[storeKey] = sharedStore;
+
+export const state = sharedStore.state;
+export const elements = sharedStore.elements;

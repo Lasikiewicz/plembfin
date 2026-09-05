@@ -514,7 +514,7 @@ async function checkPlexUnwatchedStatus(config, loopStore) {
           console.log("Cron detected Plex item marked unwatched; storing and propagating", { title: record.title });
           const result = await applyUnwatchedTransition(plexMedia, config, loopStore, { recordId: record.id });
           if (!result.alreadyUnwatched) await recordSyncHistory(plexMedia, result.summary, "unwatched");
-          await invalidateHistoryDerivedCaches().catch(() => null);
+          await invalidateHistoryDerivedCaches("checkPlexUnwatchedStatus").catch(() => null);
         }
       }
     } catch (error) {
@@ -576,7 +576,7 @@ async function checkEmbyUnwatchedStatus(config, loopStore) {
           console.log("Cron detected Emby item marked unwatched; storing and propagating", { title: record.title });
           const result = await applyUnwatchedTransition(embyMedia, config, loopStore, { recordId: record.id });
           if (!result.alreadyUnwatched) await recordSyncHistory(embyMedia, result.summary, "unwatched");
-          await invalidateHistoryDerivedCaches().catch(() => null);
+          await invalidateHistoryDerivedCaches("checkEmbyUnwatchedStatus").catch(() => null);
         }
       }
     } catch (error) {
@@ -658,7 +658,7 @@ async function checkJellyfinUnwatchedStatus(config, loopStore) {
       const result = await applyUnwatchedTransition(jellyfinMedia, config, loopStore, { recordId: record.id });
       if (!result.alreadyUnwatched) await recordSyncHistory(jellyfinMedia, result.summary, "unwatched");
       await clearJellyfinUnwatchedObservation(media, loopStore);
-      await invalidateHistoryDerivedCaches().catch(() => null);
+      await invalidateHistoryDerivedCaches("checkJellyfinUnwatchedStatus").catch(() => null);
     } catch (error) {
       console.error(`Error checking Jellyfin unwatched status for '${record.title}':`, error);
     }
@@ -784,7 +784,7 @@ async function processCompletedSession(row, config, loopStore) {
   await deletePlaybackProgress(media).catch((error) => {
     console.error("Failed to clear completed resume progress", { sessionId: row.session_id, error });
   });
-  await invalidateHistoryDerivedCaches().catch(() => null);
+  await invalidateHistoryDerivedCaches("processCompletedSession").catch(() => null);
 
   return { ...inserted, telemetry };
 }
@@ -1350,7 +1350,7 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
   if (skippedMalformed.length) {
     logger(`Plex: skipped ${skippedMalformed.length} malformed watched item(s) (${summariseTitles(skippedMalformed)}).`);
   }
-  if (syncedCount) await invalidateHistoryDerivedCaches().catch(() => null);
+  if (syncedCount) await invalidateHistoryDerivedCaches("syncRecentlyWatchedFromPlex").catch(() => null);
   return syncedCount;
 }
 
@@ -1484,7 +1484,7 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
   if (skippedMalformed.length) {
     logger(`Emby: skipped ${skippedMalformed.length} malformed watched item(s) (${summariseTitles(skippedMalformed)}).`);
   }
-  if (syncedCount) await invalidateHistoryDerivedCaches().catch(() => null);
+  if (syncedCount) await invalidateHistoryDerivedCaches("syncRecentlyWatchedFromEmby").catch(() => null);
   return syncedCount;
 }
 
@@ -1615,7 +1615,7 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
   if (skippedMalformed.length) {
     logger(`Jellyfin: skipped ${skippedMalformed.length} malformed watched item(s) (${summariseTitles(skippedMalformed)}).`);
   }
-  if (syncedCount) await invalidateHistoryDerivedCaches().catch(() => null);
+  if (syncedCount) await invalidateHistoryDerivedCaches("syncRecentlyWatchedFromJellyfin").catch(() => null);
   return syncedCount;
 }
 
@@ -1836,7 +1836,7 @@ export async function syncPendingManualDispatches(config, loopStore, logger = co
   } catch (error) {
     logger(`Pending Queue dispatcher failed: ${error.message}`);
   }
-  if (syncedCount) await invalidateHistoryDerivedCaches().catch(() => null);
+  if (syncedCount) await invalidateHistoryDerivedCaches("syncPendingManualDispatches").catch(() => null);
   return syncedCount;
 }
 
@@ -2795,7 +2795,7 @@ export async function runForceSync(logger = console.log, {
   };
   } finally {
     clearInterval(heartbeatTimer);
-    await invalidateHistoryDerivedCaches().catch(() => null);
+    await invalidateHistoryDerivedCaches("runForceSync").catch(() => null);
     await releaseSyncOperation({
       kind: SYNC_OPERATION_FORCE,
       ownerId,

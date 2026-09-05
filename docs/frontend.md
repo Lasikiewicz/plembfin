@@ -357,15 +357,18 @@ Responsive behavior:
 
 ### Cache-busting version strings
 
-Some modules carry a `?v=<date>` suffix on their import and `modulepreload` URLs. A
-module URL is a module identity to the browser: the same file imported under two
-different suffixes is loaded and instantiated twice, so any module-level state exists
-twice over. When bumping a suffix, change every import of that file **and** its
-`modulepreload` link in `index.html` together, so the whole app keeps referring to one
-URL per module.
+Every local bundle, stylesheet, icon, and manifest reference under `public/` carries the
+same `?v=<package-version>` token. A module URL is a module identity to the browser: the
+same file imported under two different suffixes is loaded and instantiated twice, so any
+module-level state exists twice over. The `assets:check` build guard rejects both bare local
+asset references and mismatched tokens.
 
-`styles.css` carries the same kind of `?v=<date>` suffix on its `<link rel="stylesheet">`
-in `index.html`. Bump it whenever `styles.css` changes - without a bump, a browser that
-already loaded the page can keep serving its cached copy of the old stylesheet across
-reloads, which reads as the edit "not taking effect" even though the file on disk is
-correct.
+When the package version changes, run `npm run assets:update`. It rewrites every local
+reference and its `modulepreload` link in `index.html` together, so the whole app keeps
+referring to one URL per module. Do not hand-bump one import or preload in isolation.
+
+The server compresses eligible API and static responses when the client requests gzip.
+`index.html` and managed public assets use revalidation rather than a long-lived cache
+policy, while the authenticated live-update stream remains uncompressed and carries
+`Cache-Control: no-cache, no-transform`. A reverse proxy may be selected by the operator,
+but it must not recompress an already encoded response or transform the live stream.

@@ -209,7 +209,7 @@ export async function handleWipeData(req, res) {
     if (def.resetAuth) imagesDeleted = await deleteAllCachedImages();
 
     if (def.tables.includes("watch_history")) {
-      await invalidateHistoryDerivedCaches().catch(() => null);
+      await invalidateHistoryDerivedCaches("handleWipeData").catch(() => null);
     } else {
       bumpDataVersion();
     }

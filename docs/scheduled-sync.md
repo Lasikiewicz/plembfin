@@ -458,6 +458,11 @@ addresses.
   (the response streams a line-by-line log identical to what the scheduler runs).
 - Or watch the server process stdout. A background tick that changed nothing logs
   nothing, so silence between ticks is normal - errors and completed work still log.
+- Set `PLEMBFIN_DEBUG_SCHEDULER=1` to log each step's name, where in the tick it started,
+  how long it ran, and whether it exhausted its time budget, followed by a per-tick summary
+  carrying the achieved interval between tick starts. That is the measurement to reach for
+  when a later step looks starved by an earlier one, because the claim is about wall-clock
+  offsets inside a tick rather than about any one step's own duration.
 - Set `LOG_VERBOSE=true` to add the per-phase narration, including
   `"live sessions: N, cached sessions in tracking: M"`, which tells you whether the
   poller is seeing anything. A user-triggered catch-up run logs those phases to its

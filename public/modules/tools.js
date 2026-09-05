@@ -1,11 +1,11 @@
-import { buildAuthHeaders } from "./auth.js";
-import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, formatNumber, formatDate, csvRows, normalizeHeader, episodeCode } from "./utils.js";
-import { initBackupTools } from "./tools-backups.js?v=20260810";
-import { initMaintenanceTools } from "./tools-maintenance.js?v=20260903m";
-import { initHealthTools } from "./tools-health.js";
-import { initDuplicateWatchTools } from "./tools-duplicates.js";
-import { initWipeDataTools } from "./tools-wipe-data.js";
+import { buildAuthHeaders } from "./auth.js?v=0.15.0";
+import { state, elements } from "./state.js?v=0.15.0";
+import { escapeHtml, escapeAttribute, formatNumber, formatDate, csvRows, normalizeHeader, episodeCode } from "./utils.js?v=0.15.0";
+import { initBackupTools } from "./tools-backups.js?v=0.15.0";
+import { initMaintenanceTools } from "./tools-maintenance.js?v=0.15.0";
+import { initHealthTools } from "./tools-health.js?v=0.15.0";
+import { initDuplicateWatchTools } from "./tools-duplicates.js?v=0.15.0";
+import { initWipeDataTools } from "./tools-wipe-data.js?v=0.15.0";
 // Callbacks injected by app.js at startup to avoid circular imports.
 let _setMessage = () => {};
 let _openConfirmDialog = async () => false;
@@ -75,9 +75,9 @@ export {
   setBackupTransferState,
   updatePlembfinButtonsState,
   uploadWatchBackupFile,
-} from "./tools-backups.js?v=20260810";
-export { loadCacheStats, renderCachePanel, resetFullSyncWatchstates } from "./tools-maintenance.js?v=20260903m";
-export { loadSyncHealth } from "./tools-health.js";
+} from "./tools-backups.js?v=0.15.0";
+export { loadCacheStats, renderCachePanel, resetFullSyncWatchstates } from "./tools-maintenance.js?v=0.15.0";
+export { loadSyncHealth } from "./tools-health.js?v=0.15.0";
 // ── Trakt / CSV import ─────────────────────────────────────────────────────
 export async function parseSelectedFiles(files) {
   const selectedFiles = [...files];
@@ -349,9 +349,9 @@ export async function startImport() {
 // ── Maintenance tools ──────────────────────────────────────────────────────
 // History repair, dedup, Trakt backfill, full-sync, and system integrity
 // checks live in tools-maintenance.js (per CLAUDE.md's module table) and are
-// re-exported here so existing imports of these names from "./tools.js"
+// re-exported here so existing imports of these names from "./tools.js?v=0.15.0"
 // keep working unchanged.
-export { runRepairWorkflow, runPhantomWatchAudit, runPhantomWatchRepair, runTraktBackfill, runRematchTvShows, runFullSyncWatchstates, cancelFullSyncWatchstates, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory } from "./tools-maintenance.js?v=20260903m";
-export { runDuplicateWatchCleanup } from "./tools-duplicates.js";
-export { runEpisodeTitleAudit, runEpisodeTitleBackfill } from "./tools-maintenance.js?v=20260903m";
-export { loadWipeDataPreview, runWipeData } from "./tools-wipe-data.js";
+export { runRepairWorkflow, runPhantomWatchAudit, runPhantomWatchRepair, runTraktBackfill, runRematchTvShows, runFullSyncWatchstates, cancelFullSyncWatchstates, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory } from "./tools-maintenance.js?v=0.15.0";
+export { runDuplicateWatchCleanup } from "./tools-duplicates.js?v=0.15.0";
+export { runEpisodeTitleAudit, runEpisodeTitleBackfill } from "./tools-maintenance.js?v=0.15.0";
+export { loadWipeDataPreview, runWipeData } from "./tools-wipe-data.js?v=0.15.0";

@@ -1,7 +1,7 @@
-import { buildAuthHeaders, buildNowPlayingUrl } from "./auth.js";
-import { state, elements } from "./state.js";
-import { escapeHtml, escapeAttribute, platformBadge, sourceClass, sourceBadgeHtml, computeProgress, formatDate, formatPlaybackClock, showName } from "./utils.js?v=20260903a";
-import { hydratePosters, posterMarkup } from "./images.js?v=20260903b";
+import { buildAuthHeaders, buildNowPlayingUrl } from "./auth.js?v=0.15.0";
+import { state, elements } from "./state.js?v=0.15.0";
+import { escapeHtml, escapeAttribute, platformBadge, sourceClass, sourceBadgeHtml, computeProgress, formatDate, formatPlaybackClock, showName } from "./utils.js?v=0.15.0";
+import { hydratePosters, posterMarkup } from "./images.js?v=0.15.0";
 
 const NOW_PLAYING_POLL_MS = 10000;
 
@@ -795,7 +795,10 @@ export function renderActiveSessions() {
   if (elements.nowPlayingGrid.dataset.renderedHtml !== nextHtml) {
     elements.nowPlayingGrid.dataset.renderedHtml = nextHtml;
     elements.nowPlayingGrid.innerHTML = nextHtml;
-    hydratePosters(elements.nowPlayingGrid, { allowNetwork: false });
+    // Live-session cards may not have a cached poster yet. Resolve their
+    // fallback through the authenticated server proxy so provider artwork can
+    // be cached without exposing provider credentials in the browser.
+    hydratePosters(elements.nowPlayingGrid, { allowNetwork: true });
   }
 
   if (elements.nowPlayingStatus) {
