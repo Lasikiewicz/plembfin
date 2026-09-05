@@ -29,22 +29,25 @@ export function loadCredentialKey({ keyPath = CREDENTIAL_KEY_PATH, database = db
   const environmentKey = decodeEnvironmentKey(env.PLEMBFIN_CREDENTIAL_KEY);
   if (environmentKey) return environmentKey;
 
+  let key = null;
   try {
-    const key = fs.readFileSync(keyPath);
-    if (key.length !== KEY_BYTES) throw new Error(`Credential key at ${keyPath} is invalid; expected exactly 32 bytes`);
+    key = fs.readFileSync(keyPath);
+  } catch {
+    if (fs.existsSync(keyPath)) throw new Error("Credential key could not be read");
+  }
+  if (key) {
+    if (key.length !== KEY_BYTES) throw new Error("Credential key is invalid; expected exactly 32 bytes");
     return key;
-  } catch (error) {
-    if (error?.code !== "ENOENT") throw error;
   }
 
   if (encryptedCredentialsExist(database)) {
     throw new Error("Credential key is missing while encrypted media credentials exist; restore credential.key or set PLEMBFIN_CREDENTIAL_KEY");
   }
 
-  const key = crypto.randomBytes(KEY_BYTES);
-  fs.writeFileSync(keyPath, key, { mode: 0o600, flag: "wx" });
+  const generatedKey = crypto.randomBytes(KEY_BYTES);
+  fs.writeFileSync(keyPath, generatedKey, { mode: 0o600, flag: "wx" });
   try { fs.chmodSync(keyPath, 0o600); } catch { /* non-POSIX filesystem */ }
-  return key;
+  return generatedKey;
 }
 
 export function encryptCredential(value, options = {}) {

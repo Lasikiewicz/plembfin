@@ -2,7 +2,7 @@ import { requireAdmin } from "../utils/auth.js";
 import { readJson } from "../utils/requestBody.js";
 import { methodNotAllowed, sendJson, sendOptions } from "../utils/http.js";
 import { loadMediaConfig } from "../utils/configStore.js";
-import { listWatchlistActivity, redactWatchlistError } from "../utils/personalWatchlistRepository.js";
+import { listWatchlistActivity } from "../utils/personalWatchlistRepository.js";
 import { getWatchlistSyncStatus, previewWatchlistSync, runWatchlistSync } from "../utils/personalWatchlistSync.js";
 
 function clean(value) { return String(value ?? "").trim().toLowerCase(); }
@@ -40,6 +40,8 @@ export async function handleWatchlistSync(req, res) {
     const confirm = body.confirm === true || body.confirmed === true || body.confirmPublish === true;
     return sendJson(res, await runWatchlistSync({ mode, confirm, providers, config }));
   } catch (error) {
-    return sendJson(res, { error: redactWatchlistError(error) }, Number(error.status) || 500);
+    const status = Number(error?.status);
+    const responseStatus = Number.isInteger(status) && status >= 400 && status < 500 ? status : 500;
+    return sendJson(res, { error: "Watchlist sync failed" }, responseStatus);
   }
 }

@@ -37,6 +37,24 @@ test("credential key is created once and missing-key recovery fails safely", () 
   }
 });
 
+test("invalid credential keys do not expose their filesystem path", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "plembfin-vault-invalid-"));
+  const keyPath = path.join(directory, "credential.key");
+  const database = new Database(":memory:");
+  database.exec("CREATE TABLE media_connections (credential_ciphertext TEXT)");
+  fs.writeFileSync(keyPath, Buffer.alloc(8));
+  try {
+    assert.throws(() => loadCredentialKey({ keyPath, database, env: {} }), (error) => {
+      assert.match(error.message, /Credential key is invalid/);
+      assert.doesNotMatch(error.message, /credential\.key/);
+      return true;
+    });
+  } finally {
+    database.close();
+    fs.rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 test("secret-bearing diagnostic fields are recursively redacted", () => {
   assert.deepEqual(redactSecrets({ user: "a", accessToken: "x", nested: { privateKey: "y", ok: true } }), { user: "a", accessToken: "[redacted]", nested: { privateKey: "[redacted]", ok: true } });
 });

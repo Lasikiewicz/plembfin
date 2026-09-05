@@ -49,11 +49,10 @@ function claimRefreshLease(connectionId, owner, now) {
     WHERE id=? AND (refresh_lease_expires_at IS NULL OR refresh_lease_expires_at<=? OR refresh_lease_owner=?)`).run(owner, now + LEASE_MS, now, connectionId, now, owner).changes === 1;
 }
 
-function releaseFailedLease(row, owner, error, now) {
-  const rejected = [401, 403, 422].includes(Number(error?.status));
+function releaseFailedLease(row, owner, reauthRequired, now) {
   db.prepare(`UPDATE media_connections SET refresh_lease_owner=NULL,refresh_lease_expires_at=NULL,
     refresh_failure_count=refresh_failure_count+1,status=CASE WHEN ? THEN 'reauth_required' ELSE status END,updated_at=?
-    WHERE id=? AND refresh_lease_owner=?`).run(rejected ? 1 : 0, now, row.id, owner);
+    WHERE id=? AND refresh_lease_owner=?`).run(reauthRequired ? 1 : 0, now, row.id, owner);
 }
 
 function delay(ms) {
@@ -100,12 +99,16 @@ export async function getValidPlexToken({ force = false, fetchImpl, now = () => 
     if (updated.changes !== 1) throw new Error("Plex token refresh lease was lost before the credential could be saved");
     return refreshed.token;
   } catch (error) {
-    releaseFailedLease(row, owner, error, now());
+    const status = Number(error?.status);
+    const reauthRequired = [401, 403, 422].includes(status);
+    releaseFailedLease(row, owner, reauthRequired, now());
     const latest = activePlexRow();
-    if (!force && latest && Number(latest.access_token_expires_at || 0) > now() && ![401, 403, 422].includes(Number(error?.status))) {
+    if (!force && latest && Number(latest.access_token_expires_at || 0) > now() && !reauthRequired) {
       return decryptedToken(latest, vaultOptions);
     }
-    throw error;
+    const safeError = new Error("Plex token refresh failed");
+    if (reauthRequired) safeError.status = status;
+    throw safeError;
   }
 }
 
