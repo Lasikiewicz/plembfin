@@ -93,6 +93,12 @@ or provider metadata. A direct route with no local summary paints the provider s
 soon as that metadata resolves. The mutable `/api/show` response remains `private,
 no-store`; it is started in parallel and is never used as a first-paint gate.
 
+On a direct `/movie/...` or `/tvshow/...` reload, the app also seeds the detail state from
+the short-lived persisted dashboard history snapshot when one is available. Known artwork,
+summaries, watched rows, and watch dates remain visible while the no-store detail request
+and provider metadata revalidate; the authoritative responses replace that snapshot when
+they complete.
+
 Metadata, local watch detail, playback progress, and the optional IMDb pill enrich the
 existing page afterward. Enrichment patches the header, facts, and independently loaded
 sections instead of replacing the whole detail root, so the mounted poster/backdrop and

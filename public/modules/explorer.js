@@ -1625,6 +1625,9 @@ function providerIdentityTokens(show = {}) {
 
 export async function loadShowDetail(show = {}) {
   const showTitle = show.title || "";
+  const showTmdbId = show.tmdb_id || show.show_tmdb_id || "";
+  const showTvdbId = show.tvdb_id || show.show_tvdb_id || "";
+  const showImdbId = show.imdb_id || show.show_imdb_id || "";
   const showKey = slug(showTitle);
   const identityKey = providerIdentityTokens(show)[0] || "";
   const cacheKey = identityKey || show.id || showKey || showTitle;
@@ -1634,14 +1637,24 @@ export async function loadShowDetail(show = {}) {
     const url = new URL("/api/show", window.location.origin);
     if (show.id) url.searchParams.set("id", show.id);
     if (showTitle) url.searchParams.set("title", showTitle);
-    if (show.tmdb_id) url.searchParams.set("tmdbId", show.tmdb_id);
-    if (show.tvdb_id) url.searchParams.set("tvdbId", show.tvdb_id);
-    if (show.imdb_id) url.searchParams.set("imdbId", show.imdb_id);
+    if (showTmdbId) url.searchParams.set("tmdbId", showTmdbId);
+    if (showTvdbId) url.searchParams.set("tvdbId", showTvdbId);
+    if (showImdbId) url.searchParams.set("imdbId", showImdbId);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 15000);
     try {
-      const response = await fetch(url, { headers: authHeaders(), cache: "no-store", signal: controller.signal });
-      const body = await response.json().catch(() => ({}));
+      let response = await fetch(url, { headers: authHeaders(), cache: "no-store", signal: controller.signal });
+      let body = await response.json().catch(() => ({}));
+      // Episode rows can carry a provider id for the episode rather than the
+      // series. If that stale identity cannot resolve, retry by the trusted
+      // show title so the detail page can still receive its authoritative
+      // watched rows and dates.
+      if (!response.ok && response.status === 404 && showTitle && url.searchParams.get("title")) {
+        const titleUrl = new URL("/api/show", window.location.origin);
+        titleUrl.searchParams.set("title", showTitle);
+        response = await fetch(titleUrl, { headers: authHeaders(), cache: "no-store", signal: controller.signal });
+        body = await response.json().catch(() => ({}));
+      }
       if (!response.ok) throw new Error(body.error || `Show detail failed ${response.status}`);
       return mergeShowDetail(body.show || null);
     } catch (error) {
@@ -1750,8 +1763,11 @@ function summaryEpisodeFromShow(show = {}) {
 export function tmdbLookupIdsFromShow(show = {}, seasons = null) {
   const representative = show.representative_episode || show.representativeEpisode || representativeEpisode(seasons || seasonsFromShowRecord(show));
   return {
-    imdbId: show.imdb_id || representative?.imdb_id || "",
-    tvdbId: show.tvdb_id || representative?.tvdb_id || "",
+    // A flat episode tvdb_id is not a valid series lookup id. Prefer the
+    // explicit show-level fields; an episode may only contribute these fields
+    // when the upstream record provided them explicitly.
+    imdbId: show.imdb_id || show.show_imdb_id || representative?.show_imdb_id || "",
+    tvdbId: show.tvdb_id || show.show_tvdb_id || representative?.show_tvdb_id || "",
   };
 }
 // ---------------------------------------------------------------------------

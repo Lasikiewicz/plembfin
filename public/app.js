@@ -3071,6 +3071,15 @@ function initialize() {
       if (isConfigSensitiveRoute(fullPath) && !state.mustChangePassword) {
         primeSensitiveRouteState(fullPath);
         applyActiveView();
+        const isMediaDetailPath = fullPath.startsWith("/movie/") || fullPath.startsWith("/tvshow/");
+        if (isMediaDetailPath) {
+          // A direct detail reload has no in-memory history yet. Reuse the
+          // short-lived local dashboard snapshot synchronously so the detail
+          // renderer can show every known watched row while the authoritative
+          // history request and provider metadata revalidate in the background.
+          applyCachedDashboardHistory();
+          loadHistory({ silent: true }).catch((error) => logDebug(`Initial detail history load failed: ${error.message}`));
+        }
         // Paint the media detail immediately using local data (e.g. /api/show)
         // instead of waiting for loadSavedConfig() - which is three sequential
         // round-trips (/api/config → /api/seerr/status → /api/appearance). The

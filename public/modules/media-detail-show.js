@@ -131,15 +131,15 @@ function localShowSeedForTmdbId(tmdbId) {
   ];
   const row = rows.find((entry) => (
     entry?.media_type === "episode"
-      && String(entry.show_tmdb_id || entry.tmdb_id || "") === requestedId
+      && String(entry.show_tmdb_id || "") === requestedId
   ));
   if (!row) return null;
   const title = row.show_title || showTitleFrom(row.title || "");
   return {
     title,
-    tmdb_id: row.show_tmdb_id || row.tmdb_id || requestedId,
-    tvdb_id: row.show_tvdb_id || row.tvdb_id || "",
-    imdb_id: row.show_imdb_id || row.imdb_id || "",
+    tmdb_id: row.show_tmdb_id || "",
+    tvdb_id: row.show_tvdb_id || "",
+    imdb_id: row.show_imdb_id || "",
     episodes: [row],
     episode_count: 1,
     season_count: row.season == null ? 0 : 1,
@@ -160,15 +160,15 @@ function localShowSeedForTvdbId(tvdbId) {
   ];
   const row = rows.find((entry) => (
     entry?.media_type === "episode"
-      && String(entry.show_tvdb_id || entry.tvdb_id || "") === requestedId
+      && String(entry.show_tvdb_id || "") === requestedId
   ));
   if (!row) return null;
   const title = row.show_title || showTitleFrom(row.title || "");
   return {
     title,
-    tvdb_id: row.show_tvdb_id || row.tvdb_id || requestedId,
-    tmdb_id: row.show_tmdb_id || row.tmdb_id || "",
-    imdb_id: row.show_imdb_id || row.imdb_id || "",
+    tvdb_id: row.show_tvdb_id || "",
+    tmdb_id: row.show_tmdb_id || "",
+    imdb_id: row.show_imdb_id || "",
     episodes: [row],
     episode_count: 1,
     season_count: row.season == null ? 0 : 1,
@@ -231,7 +231,10 @@ export async function openShowImmersiveModalByTitle(showTitle, seedEpisode = nul
       season_count: seedEpisode.season != null ? 1 : 0,
       latest_watched_at: seedEpisode.watched_at,
       earliest_watched_at: seedEpisode.watched_at,
-      tmdb_id: seedEpisode.tmdb_id || null,
+      // Episode-level ids belong to the episode row, not the series route.
+      tmdb_id: seedEpisode.show_tmdb_id || null,
+      tvdb_id: seedEpisode.show_tvdb_id || null,
+      imdb_id: seedEpisode.show_imdb_id || null,
       episodes: [{ ...seedEpisode, show_title: normalizedTitle }],
     };
     state.showsRaw.push(show);
@@ -330,7 +333,7 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
   state.activeShowTmdbId = String(tmdbId);
   const initialLocalSeed = localShowSeedForTmdbId(tmdbId);
   const localDetailPromise = initialLocalSeed
-    ? loadShowDetail(initialLocalSeed).catch(() => initialLocalSeed)
+    ? loadShowDetail(initialLocalSeed).catch(() => null)
     : fetchLocalShowByTmdbId(tmdbId);
   const localSeedPromise = initialLocalSeed ? Promise.resolve(initialLocalSeed) : localDetailPromise;
   state.activeShowTvdbId = null;
@@ -364,6 +367,7 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
       tmdbData: null,
       seasonDetailsByNumber: new Map(),
       loading: true,
+      watchHistoryLoading: true,
     });
   }
 
@@ -402,7 +406,9 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
         const title = firstRow.show_title || showTitleFrom(firstRow.title) || "Unknown Show";
         fallbackShow = {
           title,
-          tmdb_id: tmdbId,
+          tmdb_id: firstRow.show_tmdb_id || "",
+          tvdb_id: firstRow.show_tvdb_id || "",
+          imdb_id: firstRow.show_imdb_id || "",
           episodes: matchingRows,
           episode_count: matchingRows.length,
           season_count: new Set(matchingRows.map((row) => row.season).filter((value) => value != null)).size,
@@ -422,6 +428,7 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
         tmdbData: null,
         seasonDetailsByNumber: new Map(),
         loading: false,
+        watchHistoryLoading: false,
         patchExisting: Boolean(root.querySelector(".media-detail-page")),
       });
       return;
@@ -483,14 +490,19 @@ async function renderShowDetailFromMetadata(tmdbData, renderToken, localShowProm
   });
   // The detail request is deliberately still no-store: it contains mutable
   // per-episode watch state. It runs beside the first render, not before it.
-  const detailPromise = localShowPromise
+  const detailLookup = {
+    id: localShow?.id || "",
+    title: showTitle,
+    tmdb_id: tmdbData.id ? String(tmdbData.id) : "",
+    tvdb_id: tvdbIdCandidate,
+  };
+  const detailPromise = (localShowPromise
     ? Promise.resolve(localShowPromise).catch(() => null)
-    : loadShowDetail({
-      id: localShow?.id || "",
-      title: showTitle,
-      tmdb_id: tmdbData.id ? String(tmdbData.id) : "",
-      tvdb_id: tvdbIdCandidate,
-    }).catch(() => null);
+    : Promise.resolve(null)
+  ).then((resolvedShow) => {
+    if (resolvedShow || currentMediaRenderToken() !== renderToken) return resolvedShow;
+    return loadShowDetail(detailLookup).catch(() => null);
+  });
   const playbackProgressPromise = ensurePlaybackProgressLoaded();
   const imdbPillPromise = fetchShowImdbPillHtml(
     show,
@@ -505,7 +517,8 @@ async function renderShowDetailFromMetadata(tmdbData, renderToken, localShowProm
     activeSeasonNum: state.activeShowModalSeason,
     tmdbData,
     seasonDetailsByNumber,
-    loading: false,
+    loading: true,
+    watchHistoryLoading: true,
     tmdbOnly: !existingShow,
     imdbPillHtml: "",
     patchExisting: Boolean(mediaDetailRoot().querySelector(".media-detail-page")),
@@ -523,6 +536,7 @@ async function renderShowDetailFromMetadata(tmdbData, renderToken, localShowProm
     tmdbData,
     seasonDetailsByNumber,
     loading: false,
+    watchHistoryLoading: false,
     tmdbOnly: !detailedShow && !existingShow,
     imdbPillHtml,
     patchExisting: true,
@@ -559,7 +573,7 @@ export async function openShowImmersiveModalByTvdbId(tvdbId) {
 
   const initialLocalSeed = localShowSeedForTvdbId(tvdbId);
   const localDetailPromise = initialLocalSeed
-    ? loadShowDetail(initialLocalSeed).catch(() => initialLocalSeed)
+    ? loadShowDetail(initialLocalSeed).catch(() => null)
     : fetchLocalShowByTvdbId(tvdbId);
   if (initialLocalSeed && currentMediaRenderToken() === renderToken) {
     state.activeShowModalKey = slug(initialLocalSeed.title);
@@ -569,6 +583,7 @@ export async function openShowImmersiveModalByTvdbId(tvdbId) {
       tmdbData: null,
       seasonDetailsByNumber: new Map(),
       loading: true,
+      watchHistoryLoading: true,
     });
   }
 
@@ -584,6 +599,7 @@ export async function openShowImmersiveModalByTvdbId(tvdbId) {
         tmdbData: null,
         seasonDetailsByNumber: new Map(),
         loading: false,
+        watchHistoryLoading: false,
         patchExisting: Boolean(root.querySelector(".media-detail-page")),
       });
       return;
@@ -953,13 +969,22 @@ function episodeReleaseLabel(airDate) {
   return airDate ? `Released ${formatTmdbDate(airDate)}` : "Release date unknown";
 }
 
+function episodeWatchHistoryLoadingHtml() {
+  return `
+    <div class="episode-watch-history episode-watch-history--loading" role="status" aria-label="Loading watch dates">
+      <span class="episode-watch-history-skeleton episode-watch-history-skeleton--date" aria-hidden="true"></span>
+      <span class="episode-watch-history-skeleton episode-watch-history-skeleton--source" aria-hidden="true"></span>
+    </div>
+  `;
+}
+
 // Full watch history list (each play's date + source app) shown below the
 // release metadata for every watched episode - see playHistory
 // ({ id, watched_at, source }[]) built server-side in dedupeHistory
 // (server/src/utils/dataRepo.js).
-function episodeWatchHistoryHtml(watched) {
+function episodeWatchHistoryHtml(watched, { loading = false } = {}) {
   const history = actualWatchHistory(watched);
-  if (!history.length) return "";
+  if (!history.length) return loading ? episodeWatchHistoryLoadingHtml() : "";
   const aggregateSources = platformSourceValues(watched);
   const rows = [...history]
     .sort((a, b) => String(b.watched_at).localeCompare(String(a.watched_at)))
@@ -1007,8 +1032,7 @@ function episodeProgressBarHtml(episode) {
 }
 
 function showModalStatus(loading, hasTmdbData) {
-  if (loading) return `<span class="show-load-pill">Loading episode metadata...</span>`;
-  if (!hasTmdbData) return `<span class="show-load-pill muted">Season and episode metadata was unavailable.</span>`;
+  if (!loading && !hasTmdbData) return `<span class="show-load-pill muted">Season and episode metadata was unavailable.</span>`;
   return "";
 }
 
@@ -1018,6 +1042,22 @@ function directChildWithClass(parent, className) {
 
 function cloneChildNodes(node) {
   return [...(node?.childNodes || [])].map((child) => child.cloneNode(true));
+}
+
+function syncPosterLoadingState(currentHeader, nextHeader) {
+  const currentFrame = currentHeader?.querySelector(".immersive-poster-frame");
+  const nextFrame = nextHeader?.querySelector(".immersive-poster-frame");
+  if (!currentFrame || !nextFrame) return;
+
+  const isLoading = nextFrame.classList.contains("is-loading");
+  currentFrame.classList.toggle("is-loading", isLoading);
+  if (isLoading) currentFrame.setAttribute("aria-busy", "true");
+  else currentFrame.removeAttribute("aria-busy");
+
+  const currentStatus = currentFrame.querySelector(".immersive-poster-loading");
+  const nextStatus = nextFrame.querySelector(".immersive-poster-loading");
+  if (nextStatus && !currentStatus) currentFrame.appendChild(nextStatus.cloneNode(true));
+  else if (!nextStatus) currentStatus?.remove();
 }
 
 // Metadata arrives after the local watched record. Replacing the complete
@@ -1049,6 +1089,9 @@ function patchShowModalDom(root, nextMarkup) {
   const currentHeader = directChildWithClass(currentPage, "immersive-header");
   const nextHeader = directChildWithClass(nextPage, "immersive-header");
   if (currentHeader && nextHeader) {
+    // Keep the poster image mounted across metadata passes, but still update
+    // its loading overlay when the authoritative detail request settles.
+    syncPosterLoadingState(currentHeader, nextHeader);
     const currentMeta = currentHeader.querySelector(".immersive-meta");
     const nextMeta = nextHeader.querySelector(".immersive-meta");
     const currentBottom = currentMeta?.querySelector(".media-detail-bottom-stack");
@@ -1143,7 +1186,7 @@ function showSeasonSummary(seasonNumber, seasonEpisodes, season, showTitle = "",
   return { ...watchSummary, watchedInSeason, seasonTotal, nextAiring, nextAiringText };
 }
 
-function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitle, tmdbData, seasonDetailsByNumber, tvSeerrTmdbId, tvSeerrStatus, savingEpisodeKeys, isUnreleased, loading, hideSpoilers) {
+function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitle, tmdbData, seasonDetailsByNumber, tvSeerrTmdbId, tvSeerrStatus, savingEpisodeKeys, isUnreleased, loading, hideSpoilers, watchHistoryLoading) {
   if (!seasonRecord) return "";
   // This season's own episode data hasn't come back yet (it's fetched lazily,
   // one season at a time, once expanded - see hydrateMissingSeasonDetails).
@@ -1167,6 +1210,7 @@ function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitl
   // action" is enough to know the season (or the whole show) is mid-sync -
   // other seasons stay clickable in the meantime.
   const seasonBusy = seasonEpisodes.some((episode) => savingEpisodeKeys.has(episode.key));
+  const episodeTilesLoading = Boolean(loading || watchHistoryLoading || seasonDataPending);
   return `
     <section class="show-season-block" id="showSeason${seasonNumber}">
       <div class="show-season-head">
@@ -1190,6 +1234,7 @@ function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitl
     const episodeIsUnreleased = isUnreleased(episode);
     const playHistory = actualWatchHistory(episode.watched);
     const hasWatchHistory = playHistory.length > 0;
+    const episodeWatchHistoryPending = Boolean(watchHistoryLoading && episode.watched && !hasWatchHistory);
     const episodeBusy = savingEpisodeKeys.has(episode.key);
     const episodeUnwatching = Boolean(episode.watched && state.savingUnwatchIds.has(episode.watched.id));
     const personalEpisodeRatingHtml = personalEpisodeRatingButtonHtml({
@@ -1211,7 +1256,7 @@ function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitl
       episode: episode.episodeNumber,
     });
     return `
-            <article class="immersive-episode-row ${episode.watched ? "is-watched" : ""} ${episodeIsUnreleased ? "is-unreleased" : ""} ${isHighlighted ? "is-highlighted" : ""} ${(episodeBusy || episodeUnwatching) ? "is-saving" : ""}" ${isHighlighted ? 'id="highlightedEpisode"' : ""} data-immersive-episode-num="${episode.episodeNumber}" data-immersive-season-num="${episode.seasonNumber}">
+            <article class="immersive-episode-row ${episode.watched ? "is-watched" : ""} ${episodeIsUnreleased ? "is-unreleased" : ""} ${isHighlighted ? "is-highlighted" : ""} ${(episodeBusy || episodeUnwatching) ? "is-saving" : ""} ${episodeTilesLoading ? "is-loading-data" : ""}" ${isHighlighted ? 'id="highlightedEpisode"' : ""} ${episodeTilesLoading ? 'aria-busy="true"' : ""} data-immersive-episode-num="${episode.episodeNumber}" data-immersive-season-num="${episode.seasonNumber}">
               <div class="episode-thumb-wrap">
                 ${episodeThumbMarkup(episode, hideSpoilers)}
                 ${(episodeBusy || episodeUnwatching) ? `<span class="episode-thumb-syncing">Syncing…</span>` : ""}
@@ -1244,7 +1289,7 @@ function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitl
             : `<button class="action-pill action-pill-ghost" type="button" ${episodeBusy ? "disabled" : ""} data-unwatch-id="${escapeAttribute(episode.watched.id)}" data-unwatch-kind="episode" data-unwatch-label="${escapeAttribute(`${episodeCode(episode.seasonNumber, episode.episodeNumber)} ${episode.title}`)}" data-show-title="${escapeAttribute(episode.showTitle || showTitle)}">Mark unwatched</button>`}
                   </span>
                 </div>
-                ${hasWatchHistory ? episodeWatchHistoryHtml(episode.watched) : ""}
+                ${hasWatchHistory ? episodeWatchHistoryHtml(episode.watched) : episodeWatchHistoryPending ? episodeWatchHistoryLoadingHtml() : ""}
               </div>
             </article>
           `;
@@ -1261,6 +1306,7 @@ export function renderShowModalContent(show, {
   tmdbData = null,
   seasonDetailsByNumber = new Map(),
   loading = false,
+  watchHistoryLoading = false,
   tmdbOnly = false,
   imdbPillHtml = "",
   patchExisting = false,
@@ -1370,7 +1416,7 @@ export function renderShowModalContent(show, {
 
   state.showModalEpisodes = episodeRows;
   state.showModalEpisodeIndex = new Map(episodeRows.map((episode) => [episode.key, episode]));
-  state.activeShowRenderContext = { show, activeSeasonNum, tmdbData, seasonDetailsByNumber, loading, imdbPillHtml };
+  state.activeShowRenderContext = { show, activeSeasonNum, tmdbData, seasonDetailsByNumber, loading, watchHistoryLoading, imdbPillHtml };
 
   const allSeasonsExpanded = state.showModalAllSeasonsExpanded;
   const selectedSeasonRecord = selectedSeason == null
@@ -1406,10 +1452,10 @@ export function renderShowModalContent(show, {
   if (allSeasonsExpanded) {
     for (const season of seasonsList) {
       const seasonNumber = Number(season.season_number);
-      seasonPanelsByNumber.set(seasonNumber, renderSeasonPanelHtml(seasonNumber, season, episodeRows, showTitle, tmdbData, seasonDetailsByNumber, tvSeerrTmdbId, tvSeerrStatus, savingEpisodeKeys, isUnreleased, loading, hideSpoilers));
+      seasonPanelsByNumber.set(seasonNumber, renderSeasonPanelHtml(seasonNumber, season, episodeRows, showTitle, tmdbData, seasonDetailsByNumber, tvSeerrTmdbId, tvSeerrStatus, savingEpisodeKeys, isUnreleased, loading, hideSpoilers, watchHistoryLoading));
     }
   } else if (selectedSeasonRecord) {
-    seasonPanelsByNumber.set(selectedSeasonNumber, renderSeasonPanelHtml(selectedSeasonNumber, selectedSeasonRecord, episodeRows, showTitle, tmdbData, seasonDetailsByNumber, tvSeerrTmdbId, tvSeerrStatus, savingEpisodeKeys, isUnreleased, loading, hideSpoilers));
+    seasonPanelsByNumber.set(selectedSeasonNumber, renderSeasonPanelHtml(selectedSeasonNumber, selectedSeasonRecord, episodeRows, showTitle, tmdbData, seasonDetailsByNumber, tvSeerrTmdbId, tvSeerrStatus, savingEpisodeKeys, isUnreleased, loading, hideSpoilers, watchHistoryLoading));
   }
 
   if (allSeasonsExpanded) {
@@ -1542,7 +1588,10 @@ export function renderShowModalContent(show, {
       <div class="immersive-container media-detail-page">
 
         <header class="immersive-header">
-          <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || "/favicon.svg")}" alt="${escapeAttribute(showTitle)} poster" data-err="fav" loading="eager" fetchpriority="high" decoding="async" ${posterUrl ? `data-lightbox-src="${escapeAttribute(posterUrl)}"` : ""} />
+          <div class="immersive-poster-frame${loading ? " is-loading" : ""}"${loading ? ' aria-busy="true"' : ""}>
+            <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || "/favicon.svg")}" alt="${escapeAttribute(showTitle)} poster" data-err="fav" loading="eager" fetchpriority="high" decoding="async" ${posterUrl ? `data-lightbox-src="${escapeAttribute(posterUrl)}"` : ""} />
+            ${loading ? `<span class="immersive-poster-loading" role="status" aria-label="Loading data"><span class="immersive-poster-loading-label"><span class="immersive-poster-loading-dot" aria-hidden="true"></span><span>Loading data</span></span></span>` : ""}
+          </div>
           <div class="immersive-meta">
             ${logoUrl ? `<img class="immersive-logo" data-err="logo-title" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(showTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(showTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(showTitle)}</h2>`}
             <div class="media-detail-bottom-stack">
@@ -1713,12 +1762,18 @@ function fallbackSeasonList(seasonsMap) {
 }
 
 async function hydrateImmersiveShowModal(showKey, activeSeasonNum, requestToken) {
-  const show = mergeShowWithLoadedHistory(state.showsRaw.find((s) => slug(s.title) === showKey));
-  if (!show) return;
+  const seededShow = state.showsRaw.find((s) => slug(s.title) === showKey);
+  if (!seededShow) return;
+  const show = mergeShowWithLoadedHistory(seededShow);
+  if (!show?.title) return;
   const stillCurrent = () => requestToken === state.showModalRequestToken && state.activeShowModalKey === showKey;
   // Detail views bypass the shared prefetch batch: that batch only answers once
-  // its slowest item resolves, which left the loading pill on screen long after
-  // this show's own metadata was available from the server cache.
+  // its slowest item resolves. Load the mutable local record in parallel so
+  // watch dates can replace a summary row as soon as the detail view settles.
+  const detailPromise = loadShowDetail(show).catch((error) => {
+    console.error("Failed to load show watch history", error);
+    return null;
+  });
   const tmdbData = await fetchTmdbDetails("tv", show.tmdb_id, show.title, tmdbLookupIdsFromShow(show), { immediate: true });
   if (!stillCurrent()) return;
   if (tmdbData?.id) state.activeShowTmdbId = String(tmdbData.id);
@@ -1731,21 +1786,27 @@ async function hydrateImmersiveShowModal(showKey, activeSeasonNum, requestToken)
     activeSeasonNum: state.activeShowModalSeason,
     tmdbData,
     seasonDetailsByNumber,
-    loading: false,
+    loading: true,
+    watchHistoryLoading: true,
     imdbPillHtml: "",
     patchExisting: Boolean(mediaDetailRoot().querySelector(".media-detail-page")),
   });
 
-  const imdbPillHtml = await fetchShowImdbPillHtml(show, tmdbData, stillCurrent);
-  if (!imdbPillHtml || !stillCurrent()) return;
+  const [detailedShow, imdbPillHtml] = await Promise.all([
+    detailPromise,
+    fetchShowImdbPillHtml(show, tmdbData, stillCurrent),
+  ]);
+  if (!stillCurrent()) return;
   const current = state.activeShowRenderContext;
-  renderShowModalContent(current?.show || show, {
-    ...current,
+  const hydratedShow = mergeShowWithLoadedHistory(detailedShow || current?.show || show);
+  renderShowModalContent(hydratedShow, {
+    ...(current || {}),
     activeSeasonNum: state.activeShowModalSeason,
     tmdbData,
     seasonDetailsByNumber: current?.seasonDetailsByNumber || seasonDetailsByNumber,
     loading: false,
-    imdbPillHtml,
+    watchHistoryLoading: false,
+    imdbPillHtml: imdbPillHtml || "",
     patchExisting: true,
   });
 }
@@ -1789,15 +1850,16 @@ export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, 
     ));
     if (row) {
       const title = row.show_title || showTitleFrom(row.title || showKey);
-      show = {
+      const rowShow = {
         title,
-        tmdb_id: row.show_tmdb_id || row.tmdb_id || "",
-        tvdb_id: row.show_tvdb_id || row.tvdb_id || "",
-        imdb_id: row.show_imdb_id || row.imdb_id || "",
+        tmdb_id: row.show_tmdb_id || "",
+        tvdb_id: row.show_tvdb_id || "",
+        imdb_id: row.show_imdb_id || "",
         episodes: [{ ...row, show_title: title }],
         episode_count: 1,
         season_count: row.season == null ? 0 : 1,
       };
+      show = mergeShowDetail(rowShow) || rowShow;
     }
   }
   // Set only when the history link points at a row with no resolvable series,
@@ -1973,7 +2035,8 @@ export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, 
       activeSeasonNum,
       tmdbData: null,
       seasonDetailsByNumber: new Map(),
-      loading: Boolean(state.savedConfig.tmdb?.configured),
+      loading: true,
+      watchHistoryLoading: true,
     });
     hydratePosters(root);
     const detailedShow = await loadShowDetail(show).catch((error) => {
@@ -1991,6 +2054,7 @@ export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, 
           tmdbData: null,
           seasonDetailsByNumber: new Map(),
           loading: false,
+          watchHistoryLoading: false,
         });
         hydratePosters(root);
         return;
@@ -2016,7 +2080,8 @@ export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, 
     activeSeasonNum,
     tmdbData: null,
     seasonDetailsByNumber: new Map(),
-    loading: Boolean(state.savedConfig.tmdb?.configured),
+    loading: true,
+    watchHistoryLoading: true,
     patchExisting: Boolean(root.querySelector(".media-detail-page")),
   });
   // Progress is secondary to the first paint. Refresh it after the shell is

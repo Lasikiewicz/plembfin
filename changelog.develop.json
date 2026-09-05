@@ -1,6 +1,20 @@
 {
-  "build": 40,
+  "build": 41,
   "resetCommit": "d589dbad931e73e86fc50f6b5a0a6a5ebb042e0f",
-  "updatedAt": "2026-09-05T15:57:04.053Z",
-  "entries": []
+  "updatedAt": "2026-09-05T19:04:27.533Z",
+  "entries": [
+    {
+      "build": 41,
+      "date": "2026-09-05T19:04:27.533Z",
+      "commit": "7c8155a12799d00a871cbaa8b14c112b53b96031",
+      "message": "Fix - Keep media details visible during reload",
+      "author": "Lasikiewicz",
+      "details": [
+        "Keep cached artwork, summaries, watched rows, and watch dates visible on direct detail reloads",
+        "Revalidate local history and provider metadata in the background without blanking the page",
+        "Show prominent loading motion on the poster, episode tiles, and pending watch-date areas",
+        "Keep episode-level provider identities from being promoted into the wrong series route"
+      ]
+    }
+  ]
 }
