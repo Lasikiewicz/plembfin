@@ -1,9 +1,36 @@
 {
   "baseVersion": "0.15.0",
-  "build": 1,
-  "version": "0.15.0.1",
-  "updatedAt": "2026-09-05T15:57:04.053Z",
+  "build": 2,
+  "version": "0.15.0.2",
+  "updatedAt": "2026-09-05T19:07:22.284Z",
   "entries": [
+    {
+      "build": 2,
+      "version": "0.15.0.2",
+      "shortVersion": "0.15.0.2",
+      "date": "2026-09-05T19:07:22.284Z",
+      "commit": "d095f28d0e0d8245e92dd9bea04f3589e61189df",
+      "message": "Fix - Keep media details visible during reload",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix: Keep media details visible during reload",
+        "Fix: Keep cached artwork, summaries, watched rows, and watch dates visible on direct detail reloads",
+        "Fix: Revalidate local history and provider metadata in the background without blanking the page",
+        "Fix: Show prominent loading motion on the poster, episode tiles, and pending watch-date areas",
+        "Fix: Keep episode-level provider identities from being promoted into the wrong series route"
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Keep media details visible during reload",
+          "Keep cached artwork, summaries, watched rows, and watch dates visible on direct detail reloads",
+          "Revalidate local history and provider metadata in the background without blanking the page",
+          "Show prominent loading motion on the poster, episode tiles, and pending watch-date areas",
+          "Keep episode-level provider identities from being promoted into the wrong series route"
+        ],
+        "tweaks": []
+      }
+    },
     {
       "build": 1,
       "version": "0.15.0.1",
@@ -40,5 +67,5 @@
       ]
     }
   ],
-  "shortVersion": "0.15.0.1"
+  "shortVersion": "0.15.0.2"
 }
