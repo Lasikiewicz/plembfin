@@ -371,9 +371,15 @@ Stop and ask the user if this step produces a real conflict.
 ### 2 - Add develop's changelog as a new alpha build entry, locally
 ```bash
 node scripts/promote-develop-to-alpha.js
-git add changelog.alpha.json changelog.develop.json
+git add changelog.alpha.json changelog.develop.json public
 git commit -m "chore: promote develop changelog to alpha"
 ```
+
+`public` is staged because the promotion also restamps every local asset reference
+with the new build's version (`?v=0.15.0.5`). Versioned assets are served with a
+one-year immutable cache, so without that restamp every build in a cycle shares
+one asset URL and a tester who pulls a new image keeps running the previous
+build's JavaScript. Expect a large, entirely mechanical diff across `public/`.
 This is `promoteDevelopToAlpha()` in `scripts/promote-develop-to-alpha.js`: it packages
 develop's current entry as its own standalone alpha build entry and prepends it to
 alpha's `entries` array (or starts a fresh array if main has moved on since the last
