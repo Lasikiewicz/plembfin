@@ -1,9 +1,34 @@
 {
   "baseVersion": "0.15.0",
-  "build": 8,
-  "version": "0.15.0.8",
-  "updatedAt": "2026-09-06T18:21:17.598Z",
+  "build": 9,
+  "version": "0.15.0.9",
+  "updatedAt": "2026-09-06T18:44:36.683Z",
   "entries": [
+    {
+      "build": 9,
+      "version": "0.15.0.9",
+      "shortVersion": "0.15.0.9",
+      "date": "2026-09-06T18:44:36.683Z",
+      "commit": "2d3250a386afdc6d340e6865f95d221b65020f2c",
+      "message": "Fix - Defer off-screen media page artwork until it is scrolled into view",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix: Defer off-screen media page artwork until it is scrolled into view",
+        "Fix: Opening a movie or show page no longer downloads its whole cast row, poster rails and trailer thumbnails before you have scrolled to them",
+        "Fix: Those images load as they come into view, so the details, watch state and app links on screen settle sooner on a first visit",
+        "Fix: Revisiting a title is unchanged, since its artwork was already served from the browser cache"
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Defer off-screen media page artwork until it is scrolled into view",
+          "Opening a movie or show page no longer downloads its whole cast row, poster rails and trailer thumbnails before you have scrolled to them",
+          "Those images load as they come into view, so the details, watch state and app links on screen settle sooner on a first visit",
+          "Revisiting a title is unchanged, since its artwork was already served from the browser cache"
+        ],
+        "tweaks": []
+      }
+    },
     {
       "build": 8,
       "version": "0.15.0.8",
@@ -258,5 +283,5 @@
       ]
     }
   ],
-  "shortVersion": "0.15.0.8"
+  "shortVersion": "0.15.0.9"
 }

@@ -1,7 +1,7 @@
-import { buildAuthHeaders, buildNowPlayingUrl } from "./auth.js?v=0.15.0.8";
-import { state, elements } from "./state.js?v=0.15.0.8";
-import { escapeHtml, escapeAttribute, platformBadge, sourceClass, sourceBadgeHtml, computeProgress, formatDate, formatPlaybackClock, showName } from "./utils.js?v=0.15.0.8";
-import { hydratePosters, posterMarkup } from "./images.js?v=0.15.0.8";
+import { buildAuthHeaders, buildNowPlayingUrl } from "./auth.js?v=0.15.0.9";
+import { state, elements } from "./state.js?v=0.15.0.9";
+import { escapeHtml, escapeAttribute, platformBadge, sourceClass, sourceBadgeHtml, computeProgress, formatDate, formatPlaybackClock, showName } from "./utils.js?v=0.15.0.9";
+import { hydratePosters, posterMarkup } from "./images.js?v=0.15.0.9";
 
 const NOW_PLAYING_POLL_MS = 10000;
 

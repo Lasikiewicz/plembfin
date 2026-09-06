@@ -1,19 +1,6 @@
 {
   "build": 60,
-  "resetCommit": "8a71d619b2653273138378ed3a41f15ea5a83c33",
-  "updatedAt": "2026-09-06T18:44:00.408Z",
-  "entries": [
-    {
-      "build": 60,
-      "date": "2026-09-06T18:44:00.408Z",
-      "commit": "bb52f0cfb608f689f4e0438d74802b1d48d80394",
-      "message": "Fix - Defer off-screen media page artwork until it is scrolled into view",
-      "author": "Lasikiewicz",
-      "details": [
-        "Opening a movie or show page no longer downloads its whole cast row, poster rails and trailer thumbnails before you have scrolled to them",
-        "Those images load as they come into view, so the details, watch state and app links on screen settle sooner on a first visit",
-        "Revisiting a title is unchanged, since its artwork was already served from the browser cache"
-      ]
-    }
-  ]
+  "resetCommit": "2d3250a386afdc6d340e6865f95d221b65020f2c",
+  "updatedAt": "2026-09-06T18:44:36.683Z",
+  "entries": []
 }

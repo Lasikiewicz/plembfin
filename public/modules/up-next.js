@@ -1,9 +1,9 @@
-import { buildAuthHeaders } from "./auth.js?v=0.15.0.8";
-import { state, elements } from "./state.js?v=0.15.0.8";
-import { escapeHtml } from "./utils.js?v=0.15.0.8";
-import { hydratePosters } from "./images.js?v=0.15.0.8";
-import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=0.15.0.8";
-import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=0.15.0.8";
+import { buildAuthHeaders } from "./auth.js?v=0.15.0.9";
+import { state, elements } from "./state.js?v=0.15.0.9";
+import { escapeHtml } from "./utils.js?v=0.15.0.9";
+import { hydratePosters } from "./images.js?v=0.15.0.9";
+import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=0.15.0.9";
+import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=0.15.0.9";
 
 const UP_NEXT_TTL_MS = 2 * 60 * 1000;
 const UP_NEXT_TIMEOUT_MS = 20000;
