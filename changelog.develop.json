@@ -1,20 +1,6 @@
 {
   "build": 51,
-  "resetCommit": "a71f60d02c3d2089940aff50d68959495319666f",
-  "updatedAt": "2026-09-06T11:54:20.090Z",
-  "entries": [
-    {
-      "build": 51,
-      "date": "2026-09-06T11:54:20.090Z",
-      "commit": "5169e52015790abc99bcfc11cbaa7f58c5c55280",
-      "message": "Fix - Stop resume positions discarding library caches, and version assets per build",
-      "author": "Lasikiewicz",
-      "details": [
-        "Saving a resume position no longer throws away the cached history, movies, shows and stats data, none of which depends on it; with a dashboard open during playback that was spending 22% of the time rebuilding on a normal library and 47% on a very large one, and is now zero",
-        "Open pages still see resume progress move, because the change signal the browser watches now covers both watch history and resume positions",
-        "Marking something watched still refreshes every derived view exactly as before",
-        "Each build now serves its own asset URLs, so pulling a new build no longer leaves the browser running the previous build's JavaScript from cache"
-      ]
-    }
-  ]
+  "resetCommit": "a61a414c6dfee72744def34cb5b7b5f2defee238",
+  "updatedAt": "2026-09-06T11:55:07.620Z",
+  "entries": []
 }

@@ -1,9 +1,36 @@
 {
   "baseVersion": "0.15.0",
-  "build": 4,
-  "version": "0.15.0.4",
-  "updatedAt": "2026-09-06T11:28:32.654Z",
+  "build": 5,
+  "version": "0.15.0.5",
+  "updatedAt": "2026-09-06T11:55:07.620Z",
   "entries": [
+    {
+      "build": 5,
+      "version": "0.15.0.5",
+      "shortVersion": "0.15.0.5",
+      "date": "2026-09-06T11:55:07.620Z",
+      "commit": "a61a414c6dfee72744def34cb5b7b5f2defee238",
+      "message": "Fix - Stop resume positions discarding library caches, and version assets per build",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix: Stop resume positions discarding library caches, and version assets per build",
+        "Fix: Saving a resume position no longer throws away the cached history, movies, shows and stats data, none of which depends on it; with a dashboard open during playback that was spending 22% of the time rebuilding on a normal library and 47% on a very large one, and is now zero",
+        "Fix: Open pages still see resume progress move, because the change signal the browser watches now covers both watch history and resume positions",
+        "Fix: Marking something watched still refreshes every derived view exactly as before",
+        "Fix: Each build now serves its own asset URLs, so pulling a new build no longer leaves the browser running the previous build's JavaScript from cache"
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Stop resume positions discarding library caches, and version assets per build",
+          "Saving a resume position no longer throws away the cached history, movies, shows and stats data, none of which depends on it; with a dashboard open during playback that was spending 22% of the time rebuilding on a normal library and 47% on a very large one, and is now zero",
+          "Open pages still see resume progress move, because the change signal the browser watches now covers both watch history and resume positions",
+          "Marking something watched still refreshes every derived view exactly as before",
+          "Each build now serves its own asset URLs, so pulling a new build no longer leaves the browser running the previous build's JavaScript from cache"
+        ],
+        "tweaks": []
+      }
+    },
     {
       "build": 4,
       "version": "0.15.0.4",
@@ -142,5 +169,5 @@
       ]
     }
   ],
-  "shortVersion": "0.15.0.4"
+  "shortVersion": "0.15.0.5"
 }
