@@ -1,8 +1,8 @@
-import { buildAuthHeaders } from "./auth.js?v=0.15.0.7";
-import { state, elements } from "./state.js?v=0.15.0.7";
-import { escapeAttribute, escapeHtml, formatTmdbDate, episodeCode } from "./utils.js?v=0.15.0.7";
-import { hydratePosters } from "./images.js?v=0.15.0.7";
-import { normalizeMediaCardRecord, renderMediaCard } from "./media-card.js?v=0.15.0.7";
+import { buildAuthHeaders } from "./auth.js?v=0.15.0.8";
+import { state, elements } from "./state.js?v=0.15.0.8";
+import { escapeAttribute, escapeHtml, formatTmdbDate, episodeCode } from "./utils.js?v=0.15.0.8";
+import { hydratePosters } from "./images.js?v=0.15.0.8";
+import { normalizeMediaCardRecord, renderMediaCard } from "./media-card.js?v=0.15.0.8";
 
 const PERSONAL_MEDIA_TTL_MS = 2 * 60 * 1000;
 const PERSONAL_MEDIA_TIMEOUT_MS = 15000;

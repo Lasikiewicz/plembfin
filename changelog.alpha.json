@@ -1,9 +1,34 @@
 {
   "baseVersion": "0.15.0",
-  "build": 7,
-  "version": "0.15.0.7",
-  "updatedAt": "2026-09-06T17:58:15.973Z",
+  "build": 8,
+  "version": "0.15.0.8",
+  "updatedAt": "2026-09-06T18:21:17.598Z",
   "entries": [
+    {
+      "build": 8,
+      "version": "0.15.0.8",
+      "shortVersion": "0.15.0.8",
+      "date": "2026-09-06T18:21:17.598Z",
+      "commit": "8a71d619b2653273138378ed3a41f15ea5a83c33",
+      "message": "Fix - Repair Up Next cards built from raw media-server data",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix: Repair Up Next cards built from raw media-server data",
+        "Fix: An Up Next card whose provider data carried the episode's own ID in place of the show's now links to the correct show page instead of one that cannot load",
+        "Fix: Those cards show their poster again rather than a blank placeholder, where the media server had supplied an image address only it could resolve",
+        "Fix: A card left with no usable show identity links by title instead of to a page that resolves to nothing"
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Repair Up Next cards built from raw media-server data",
+          "An Up Next card whose provider data carried the episode's own ID in place of the show's now links to the correct show page instead of one that cannot load",
+          "Those cards show their poster again rather than a blank placeholder, where the media server had supplied an image address only it could resolve",
+          "A card left with no usable show identity links by title instead of to a page that resolves to nothing"
+        ],
+        "tweaks": []
+      }
+    },
     {
       "build": 7,
       "version": "0.15.0.7",
@@ -233,5 +258,5 @@
       ]
     }
   ],
-  "shortVersion": "0.15.0.7"
+  "shortVersion": "0.15.0.8"
 }

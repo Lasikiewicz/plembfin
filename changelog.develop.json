@@ -1,19 +1,6 @@
 {
   "build": 58,
-  "resetCommit": "1e94b25482241219a3218a4014e4a3fa012eca25",
-  "updatedAt": "2026-09-06T18:20:40.928Z",
-  "entries": [
-    {
-      "build": 58,
-      "date": "2026-09-06T18:20:40.928Z",
-      "commit": "ca1dd91685f4706a0bed41c547cdcf273d0c2a35",
-      "message": "Fix - Repair Up Next cards built from raw media-server data",
-      "author": "Lasikiewicz",
-      "details": [
-        "An Up Next card whose provider data carried the episode's own ID in place of the show's now links to the correct show page instead of one that cannot load",
-        "Those cards show their poster again rather than a blank placeholder, where the media server had supplied an image address only it could resolve",
-        "A card left with no usable show identity links by title instead of to a page that resolves to nothing"
-      ]
-    }
-  ]
+  "resetCommit": "8a71d619b2653273138378ed3a41f15ea5a83c33",
+  "updatedAt": "2026-09-06T18:21:17.598Z",
+  "entries": []
 }
