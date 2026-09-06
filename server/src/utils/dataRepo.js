@@ -82,7 +82,13 @@ const insertWatchStmt = db.prepare(
   `INSERT INTO watch_history (${WATCH_COLUMNS.join(", ")})
    VALUES (${WATCH_COLUMNS.map((c) => "@" + c).join(", ")})`,
 );
-const selectAllHistoryStmt = db.prepare(`SELECT * FROM watch_history ORDER BY watched_at DESC LIMIT ${MAX_HISTORY_LIMIT}`);
+// Uncapped deliberately. This previously read only the newest 25,000 rows, and
+// everything derived from it inherited that ceiling: above it a show whose
+// episodes were all older simply vanished from the TV Shows list, with no
+// error. `selectMoviesStmt` below has always been uncapped for the same
+// reason. Note that `getWatchStats` does not read this statement and is still
+// capped through `loadHistoryRows`; see docs/capacity.md.
+const selectAllHistoryStmt = db.prepare("SELECT * FROM watch_history ORDER BY watched_at DESC");
 const selectMoviesStmt = db.prepare("SELECT * FROM watch_history WHERE media_type = 'movie'");
 const selectRecentStmt = db.prepare("SELECT * FROM watch_history ORDER BY watched_at DESC LIMIT ?");
 const selectRecentlyUpdatedStmt = db.prepare("SELECT * FROM watch_history ORDER BY updated_at DESC, created_at DESC LIMIT ?");
@@ -121,6 +127,7 @@ const findWatchedByKeyStmt = db.prepare("SELECT * FROM watch_history WHERE media
 const findWatchedByCoordinatesStmt = db.prepare("SELECT * FROM watch_history WHERE media_type = ? AND (season IS ? OR season = ?) AND (episode IS ? OR episode = ?) AND title_lower = ? AND sync_action = 'watched' LIMIT 1");
 const findWatchedByShowCoordinatesStmt = db.prepare("SELECT * FROM watch_history WHERE media_type = 'episode' AND season = ? AND episode = ? AND show_title_lower = ? AND sync_action = 'watched' LIMIT 1");
 const getTmdbShowDetailsStmt = db.prepare("SELECT details FROM tmdb_metadata_cache WHERE id = ?");
+const getTmdbShowSummaryStmt = db.prepare("SELECT status, poster_path FROM tmdb_metadata_cache WHERE id = ?");
 const recoverShowTitleByTmdbStmt = db.prepare("SELECT show_title FROM watch_history WHERE media_type = 'episode' AND tmdb_id = ? AND show_title IS NOT NULL AND show_title_lower != 'unknown show' LIMIT 1");
 const recoverShowTitleByTvdbStmt = db.prepare("SELECT show_title FROM watch_history WHERE media_type = 'episode' AND tvdb_id = ? AND show_title IS NOT NULL AND show_title_lower != 'unknown show' LIMIT 1");
 const selectUnknownShowRowsStmt = db.prepare("SELECT id, title, tmdb_id, tvdb_id, sync_dispatch_telemetry FROM watch_history WHERE media_type = 'episode' AND show_title_lower = 'unknown show'");
@@ -150,10 +157,33 @@ function cachedTmdbShowDetails(tmdbId) {
   return row?.details ? parseJson(row.details) : null;
 }
 
+// The TV Shows library needs exactly two fields per show, `status` and
+// `poster_path`, but they live inside a details blob that averages 64KB for a
+// TV entry in a real library. Parsing the whole blob once per show cost about
+// 240ms of the shows rebuild at 1,200 shows. Both fields are mirrored into
+// their own columns (migrations 27 and 29, backfilled from the stored blob
+// without re-fetching anything), so the grid path reads those and only detail
+// pages parse the blob.
+function cachedTmdbShowSummary(tmdbId) {
+  const id = cleanString(tmdbId);
+  if (!id) return null;
+  const summary = getTmdbShowSummaryStmt.get(`tv_${id}`);
+  if (!summary) return null;
+  // A row written before the columns existed, or by a build that predates them,
+  // still has the fields only inside the blob. Falling back keeps the grid
+  // correct during an upgrade; the row repopulates its columns the next time
+  // the gateway refreshes it.
+  if (summary.status == null && summary.poster_path == null) {
+    const details = cachedTmdbShowDetails(id);
+    if (details) return { status: details.status || null, poster_path: details.poster_path || null };
+  }
+  return summary;
+}
+
 function cachedShowTmdbId(...candidates) {
   for (const candidate of candidates) {
     const id = cleanString(candidate);
-    if (id && cachedTmdbShowDetails(id)) return id;
+    if (id && cachedTmdbShowSummary(id)) return id;
   }
   return "";
 }
@@ -950,10 +980,10 @@ export async function getCachedShows({ includeScheduledLibraryHistory = false } 
         let status = "";
         if (tmdbId) {
           try {
-            const details = cachedTmdbShowDetails(tmdbId);
-            if (details) {
-              status = details.status || "";
-              if (!posterUrl && details.poster_path) posterUrl = `/api/tmdb-poster?path=${encodeURIComponent(details.poster_path)}`;
+            const summary = cachedTmdbShowSummary(tmdbId);
+            if (summary) {
+              status = summary.status || "";
+              if (!posterUrl && summary.poster_path) posterUrl = `/api/tmdb-poster?path=${encodeURIComponent(summary.poster_path)}`;
             }
           } catch (err) {
             console.error(`Failed to get TV show details for tv_${tmdbId}`, err);

@@ -932,6 +932,60 @@ const migrations = [
       database.exec("ANALYZE watch_history; ANALYZE playstate; ANALYZE playback_progress;");
     },
   },
+  {
+    id: 29,
+    up(database) {
+      const columns = new Set(database.pragma("table_info(tmdb_metadata_cache)").map((column) => column.name));
+      if (!columns.has("status")) database.exec("ALTER TABLE tmdb_metadata_cache ADD COLUMN status TEXT");
+      // Backfilled from the blob already stored, so no title is re-fetched from
+      // TMDB and DETAILS_SCHEMA_VERSION is deliberately not bumped.
+      database.exec(`
+        UPDATE tmdb_metadata_cache
+        SET status = COALESCE(status, CASE WHEN json_valid(details) THEN json_extract(details, '$.status') END)
+        WHERE details IS NOT NULL
+      `);
+    },
+  },
+  {
+    id: 30,
+    up(database) {
+      // The cached TMDB blob carried streaming availability for every country
+      // TMDB knows about, and a release-dates block nothing reads. Together
+      // those were about 40% of the metadata cache. New rows are trimmed on
+      // write; this rewrites the rows already stored so existing titles get the
+      // smaller payload immediately instead of waiting to be refreshed. It
+      // reads only what is already on disk and makes no provider request.
+      const rows = database.prepare("SELECT id, details FROM tmdb_metadata_cache WHERE details IS NOT NULL").all();
+      const update = database.prepare("UPDATE tmdb_metadata_cache SET details = ? WHERE id = ?");
+      for (const row of rows) {
+        let details;
+        try {
+          details = JSON.parse(row.details);
+        } catch {
+          continue; // a malformed legacy row is left exactly as it is
+        }
+        if (!details || typeof details !== "object") continue;
+        const trimmed = { ...details };
+        let changed = false;
+        if (trimmed["watch/providers"]?.results && typeof trimmed["watch/providers"].results === "object") {
+          const results = trimmed["watch/providers"].results;
+          const kept = {};
+          for (const region of ["GB", "US"]) {
+            if (results[region]) kept[region] = results[region];
+          }
+          if (Object.keys(kept).length !== Object.keys(results).length) {
+            trimmed["watch/providers"] = { ...trimmed["watch/providers"], results: kept };
+            changed = true;
+          }
+        }
+        if (trimmed.release_dates !== undefined) {
+          delete trimmed.release_dates;
+          changed = true;
+        }
+        if (changed) update.run(JSON.stringify(trimmed), row.id);
+      }
+    },
+  },
 ];
 
 function parseJsonValue(value, fallback) {

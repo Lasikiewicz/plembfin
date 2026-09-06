@@ -16,6 +16,30 @@ caches every source (the CSP is `connect-src 'self'`).
 | `server/src/utils/tmdbClient.js` | Thin poster-URL helper for the poster pipeline's TMDB fallback |
 | `public/modules/tmdb.js` | Frontend fetch + in-memory cache over the `/api/tmdb-*` endpoints |
 
+## What the cached TMDB document holds
+
+The cached document is trimmed before it is stored, so the detail pages are not
+paying to carry data nothing renders:
+
+- Streaming availability is kept only for the regions the detail page reads
+  (`GB` and `US`). TMDB returns every country it knows about, which was the single
+  largest field in a movie document.
+- The release-dates block is dropped; nothing in the server or the SPA reads it.
+- `status`, `poster_path`, `backdrop_path` and the cached artwork URLs are mirrored
+  into their own columns on every write, so grid and card paths read those instead
+  of parsing the whole document.
+
+Existing rows were rewritten in place on upgrade rather than being re-fetched, so
+no title is requested from TMDB again to gain the smaller shape.
+
+**Resolving a show's TVDB id.** TV details are cached against the TVDB series id,
+so that id has to be known before the cache can answer. When a caller supplies only
+a TMDB id, the id is read from the already-cached document first; the upstream
+lookup runs only when it genuinely is not known yet. That lookup asks TMDB for the
+full appended payload, so leaving it on the hot path cost roughly 300ms on every
+show and episode page load, cached or not.
+
+
 ## Who provides what
 
 | Data | Movies | TV shows |

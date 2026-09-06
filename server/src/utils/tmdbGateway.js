@@ -31,11 +31,22 @@ let throttleTail = Promise.resolve();
 
 // --- SQLite-backed cache helpers ---
 const metaGetStmt = db.prepare("SELECT * FROM tmdb_metadata_cache WHERE id = ?");
+// `status`, `poster_path` and the backdrop/poster URLs are mirrored out of the
+// details blob into their own columns so grid and card paths can read the two
+// or three fields they need without parsing a blob that averages 64KB for a TV
+// entry. They must be written on every cache write, not only backfilled by the
+// migration, or a title refreshed after the upgrade would read back NULL and
+// lose its poster and status.
 const metaSetStmt = db.prepare(
-  `INSERT INTO tmdb_metadata_cache (id, tmdb_id, media_type, title, details, schema_version, updated_at_ms)
-   VALUES (@id, @tmdb_id, @media_type, @title, @details, @schema_version, @updated_at_ms)
+  `INSERT INTO tmdb_metadata_cache (id, tmdb_id, media_type, title, details, status, poster_path, cached_poster_url,
+     backdrop_path, cached_backdrop_url, tvdb_poster_url, schema_version, updated_at_ms)
+   VALUES (@id, @tmdb_id, @media_type, @title, @details, @status, @poster_path, @cached_poster_url,
+     @backdrop_path, @cached_backdrop_url, @tvdb_poster_url, @schema_version, @updated_at_ms)
    ON CONFLICT(id) DO UPDATE SET tmdb_id=excluded.tmdb_id, media_type=excluded.media_type, title=excluded.title,
-     details=excluded.details, schema_version=excluded.schema_version, updated_at_ms=excluded.updated_at_ms`,
+     details=excluded.details, status=excluded.status, poster_path=excluded.poster_path,
+     cached_poster_url=excluded.cached_poster_url, backdrop_path=excluded.backdrop_path,
+     cached_backdrop_url=excluded.cached_backdrop_url, tvdb_poster_url=excluded.tvdb_poster_url,
+     schema_version=excluded.schema_version, updated_at_ms=excluded.updated_at_ms`,
 );
 function metaGet(id) {
   const row = metaGetStmt.get(id);
@@ -43,12 +54,21 @@ function metaGet(id) {
   return { tmdbId: row.tmdb_id, mediaType: row.media_type, title: row.title, details: parseJson(row.details), schemaVersion: row.schema_version, updatedAtMs: row.updated_at_ms };
 }
 function metaSet(id, value) {
+  const details = value.details != null && typeof value.details === "object" && !Array.isArray(value.details)
+    ? value.details
+    : {};
   metaSetStmt.run({
     id,
     tmdb_id: value.tmdbId != null ? String(value.tmdbId) : null,
     media_type: value.mediaType || null,
     title: value.title || null,
     details: value.details != null ? toJson(value.details) : null,
+    status: details.status || null,
+    poster_path: details.poster_path || null,
+    cached_poster_url: details.cached_poster_url || details.cachedPosterUrl || null,
+    backdrop_path: details.backdrop_path || null,
+    cached_backdrop_url: details.cached_backdrop_url || details.cachedBackdropUrl || null,
+    tvdb_poster_url: details.tvdb_poster_url || details.tvdbPosterUrl || null,
     schema_version: value.schemaVersion ?? null,
     updated_at_ms: value.updatedAtMs ?? Date.now(),
   });
@@ -247,6 +267,9 @@ function mainCastFromAggregate(aggregateCredits) {
     }));
 }
 
+// The detail page's watch-provider row reads these regions and no others.
+const WATCH_PROVIDER_REGIONS = ["GB", "US"];
+
 function compactDetails(details = {}) {
   const compact = { ...details };
   const aggregateCast = mainCastFromAggregate(details.aggregate_credits);
@@ -271,6 +294,23 @@ function compactDetails(details = {}) {
       logos: (details.images.logos || []).slice(0, 20),
     };
   }
+  // TMDB returns streaming availability for every country it knows about, which
+  // was 22KB of a 100KB movie detail payload - the single largest field. The
+  // detail page reads exactly two of those regions (see the watch-provider row
+  // in media-detail-shared.js), so the rest is stored and shipped to the browser
+  // for nothing.
+  if (details["watch/providers"]?.results) {
+    const results = details["watch/providers"].results;
+    const kept = {};
+    for (const region of WATCH_PROVIDER_REGIONS) {
+      if (results[region]) kept[region] = results[region];
+    }
+    compact["watch/providers"] = { ...details["watch/providers"], results: kept };
+  }
+  // Fetched as part of the appended response but read by nothing, in either the
+  // server or the SPA. Keeping it only inflates the cached row and the detail
+  // page's payload.
+  delete compact.release_dates;
   return compact;
 }
 
@@ -627,6 +667,18 @@ async function getMovieDetails({ tmdbId = "", title = "", ids = {}, force = fals
 async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = false, forceTvdb = force, light = false, verifyTvdbTitle = false }) {
   let tvdbId = String(ids.tvdbId || ids.tvdb_id || ids.tvdb || "").trim();
   if (!tvdbId) tvdbId = await resolveTvdbSeriesId({ title });
+  // The cache below is keyed by TVDB id, so nothing can be served from it until
+  // that id is known. When the caller has only a TMDB id, this used to resolve
+  // it with `fetchTmdbRaw`, which is uncached and asks TMDB for the entire
+  // appended payload (credits, videos, reviews, similar, images, aggregate
+  // credits) purely to read `external_ids.tvdb_id` - about 300ms of upstream
+  // work on *every* show and episode page load, even a fully cached one. The
+  // mapping is already sitting in the cached details, so read it from there
+  // first and only go upstream when it genuinely is not known yet.
+  if (!tvdbId && tmdbId && !force) {
+    const cachedMapping = metaGet(`tv_${tmdbId}`);
+    tvdbId = String(cachedMapping?.details?.external_ids?.tvdb_id || "").trim();
+  }
   if (!tvdbId && tmdbId) {
     const fallback = await fetchTmdbRaw("tv", tmdbId).catch(() => null);
     tvdbId = String(fallback?.external_ids?.tvdb_id || "");

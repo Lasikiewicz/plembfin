@@ -117,6 +117,32 @@ const SYNTHETIC_TELEMETRY = [
   "Target jellyfin status: skipped - Historical import; not re-propagated",
 ].join("\n");
 
+// Every row in a real library carries a `watch_provenance` blob, and
+// `rowToWatch` JSON.parses it on every cache rebuild. A fixture that leaves the
+// column NULL therefore measures a cheaper rebuild than any real install has,
+// which is exactly the kind of unrepresentative baseline this generator exists
+// to avoid. The shape and size here match a real historical-import row.
+function syntheticProvenance(watchedAtIso) {
+  return JSON.stringify({
+    version: 1,
+    source: "synthetic_library",
+    ingest_path: "historical_import",
+    event: "",
+    phase: "",
+    item_id: "",
+    session_id: "",
+    user: "",
+    device: "",
+    device_id: "",
+    client: "",
+    client_version: "",
+    source_timestamp: "",
+    captured_at: watchedAtIso,
+    confidence: "exact",
+    note: "",
+  });
+}
+
 function assertDisposableDirectory(dataDir) {
   const resolved = path.resolve(dataDir);
   const repoData = path.resolve(repoRoot, "data");
@@ -180,6 +206,14 @@ function tmdbDetailsBlob(title, tmdbId, mediaType, targetBytes) {
     name: title,
     overview: `${title} is a synthetic entry generated for performance measurement.`,
     media_type: mediaType,
+    // `cachedTmdbShowDetails` consumers read `status` and `poster_path` out of
+    // this blob, and the poster pipeline reads the backdrop fields. A blob
+    // without them measures a cache read that never resolves anything.
+    status: mediaType === "tv" ? "Returning Series" : "Released",
+    poster_path: `/synthetic-${tmdbId}-poster.jpg`,
+    backdrop_path: `/synthetic-${tmdbId}-backdrop.jpg`,
+    first_air_date: "2019-04-02",
+    release_date: "2019-04-02",
     vote_average: 7.1,
     runtime: 104,
     genres: [{ id: 18, name: "Drama" }, { id: 878, name: "Science Fiction" }],
@@ -245,12 +279,12 @@ async function main() {
     INSERT INTO watch_history (
       id, title, title_lower, media_type, watched_at, source, tmdb_id, season, episode,
       poster_url, sync_action, sync_dispatch_telemetry, sync_retry_count, sync_next_retry_at,
-      media_key, show_title, show_title_lower, episode_title, ${optionalHistoryColumnSql}
+      media_key, show_title, show_title_lower, episode_title, watch_provenance, ${optionalHistoryColumnSql}
       created_at, updated_at
     ) VALUES (
       @id, @title, @titleLower, @mediaType, @watchedAt, 'synthetic', @tmdbId, @season, @episode,
       @posterUrl, 'watched', @telemetry, 0, 0,
-      @mediaKey, @showTitle, @showTitleLower, @episodeTitle, ${optionalHistoryValueSql}
+      @mediaKey, @showTitle, @showTitleLower, @episodeTitle, @watchProvenance, ${optionalHistoryValueSql}
       @createdAt, @updatedAt
     )
   `);
@@ -272,9 +306,13 @@ async function main() {
       @storagePath, 'image/webp', @sizeBytes, @url, @updatedAt
     )
   `);
+  // The gateway mirrors `status` and `poster_path` into their own columns on
+  // every write, so a fixture that leaves them NULL measures the upgrade
+  // fallback path rather than the one a running install actually takes.
   const insertTmdb = db.prepare(`
-    INSERT OR REPLACE INTO tmdb_metadata_cache (id, tmdb_id, media_type, title, details, schema_version, updated_at_ms)
-    VALUES (@id, @tmdbId, @mediaType, @title, @details, 1, @updatedAt)
+    INSERT OR REPLACE INTO tmdb_metadata_cache (id, tmdb_id, media_type, title, details, status, poster_path,
+      backdrop_path, schema_version, updated_at_ms)
+    VALUES (@id, @tmdbId, @mediaType, @title, @details, @status, @posterPath, @backdropPath, 1, @updatedAt)
   `);
 
   // Build the item list first so watch rows can be spread across it. Watch
@@ -349,6 +387,7 @@ async function main() {
         showTitleLower: item.showTitle ? item.showTitle.toLowerCase() : null,
         episodeTitle: item.episodeTitle,
         episodeTitleStatus: item.episodeTitle ? "resolved" : "missing",
+        watchProvenance: syntheticProvenance(watchedAt),
         createdAt: watchedAtMs,
         updatedAt: watchedAtMs,
       });
@@ -385,14 +424,23 @@ async function main() {
 
   const writeTmdbCache = db.transaction(() => {
     for (let index = 0; index < tmdbEntries; index += 1) {
-      const item = items[index % items.length];
+      // Spread across the whole item list rather than taking the first N.
+      // `items` is ordered movies-first, so `index % items.length` wrote only
+      // movie rows and the TV Shows path never found a cached entry at all.
+      const item = items[Math.floor((index * items.length) / Math.max(tmdbEntries, 1)) % items.length];
       const mediaType = item.kind === "movie" ? "movie" : "tv";
       insertTmdb.run({
-        id: `${mediaType}:${item.tmdbId}`,
+        // Must match the gateway's own key shape (`tv_123` / `movie_123`).
+        // A different separator here means every lookup misses, and the
+        // fixture silently measures a cache that is never read.
+        id: `${mediaType}_${item.tmdbId}`,
         tmdbId: item.tmdbId,
         mediaType,
         title: item.showTitle || item.title,
         details: tmdbDetailsBlob(item.showTitle || item.title, item.tmdbId, mediaType, tmdbBlobBytes),
+        status: mediaType === "tv" ? "Returning Series" : "Released",
+        posterPath: `/synthetic-${item.tmdbId}-poster.jpg`,
+        backdropPath: `/synthetic-${item.tmdbId}-backdrop.jpg`,
         updatedAt: now,
       });
     }

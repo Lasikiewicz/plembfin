@@ -669,15 +669,30 @@ export async function hydrateMediaAppLinks(root = document, { allowNetwork = tru
 
     // A detail page re-renders several times as metadata arrives; refresh a
     // known result over the network at most once per TTL window.
-    if (cachedLinks && Date.now() - (appLinksRefreshedAt.get(cacheKey) || 0) < APP_LINKS_REFRESH_TTL_MS) return;
+    //
+    // The window has to come from the persisted entry's own timestamp, not just
+    // the in-memory map: that map is empty again after every full page load, so
+    // opening a media page by URL always re-ran the lookup. For a series that
+    // lookup enumerates every episode from Plex, Emby and Jellyfin and measured
+    // 2.9-4.3s directly, and 13.8s on a page that was competing with its own
+    // other provider work. The links are rendered from cache either way, so
+    // this only changes how often the background refresh runs.
+    const lastRefreshedAt = Math.max(appLinksRefreshedAt.get(cacheKey) || 0, Number(cachedEntry?.ts) || 0);
+    if (cachedLinks && Date.now() - lastRefreshedAt < APP_LINKS_REFRESH_TTL_MS) return;
 
     try {
       const response = await fetch(`/api/media-app-links?${params.toString()}`, { headers: authHeaders(), cache: "no-store" });
       const body = await response.json().catch(() => ({}));
       if (!response.ok || !Array.isArray(body.links)) return;
       appLinksRefreshedAt.set(cacheKey, Date.now());
-      if (JSON.stringify(body.links) === JSON.stringify(cachedLinks)) return;
+      // Persist the entry even when nothing changed. Its `ts` is what the
+      // refresh window above reads after a page reload, and returning early on
+      // an unchanged result used to leave that timestamp stuck at whenever the
+      // links last *differed* - so a stable title re-ran this whole 3-provider
+      // lookup on every single page load.
+      const linksUnchanged = JSON.stringify(body.links) === JSON.stringify(cachedLinks);
       writeAppLinksCacheEntry(cacheKey, body.links);
+      if (linksUnchanged) return;
       const freshRowHtml = appLinkRowHtml(body.links, { includeUnavailable, pillStyle });
       if (freshRowHtml) {
         if (container.innerHTML !== freshRowHtml) container.innerHTML = freshRowHtml;

@@ -5,7 +5,7 @@ import { makeTempDataDir } from "./helpers.js";
 makeTempDataDir("plembfin-poster-route-");
 
 const { AUTH } = await import("../server/src/appConfig.js");
-const { handlePoster } = await import("../server/src/routes/metadata.js");
+const { handlePoster, handlePosterBatch } = await import("../server/src/routes/metadata.js");
 const { cachePosterFromUrl } = await import("../server/src/utils/posterCache.js");
 const { getActiveUpNextProviderItemById, recordUpNextProviderFeed } = await import("../server/src/utils/upNextRepository.js");
 
@@ -73,4 +73,60 @@ test("poster image mode redirects to cached artwork while JSON mode stays compat
     cached: true,
     source: "test",
   });
+});
+
+function batchRequest(items, { authorized = true } = {}) {
+  return {
+    method: "POST",
+    query: {},
+    cookies: {},
+    body: { items },
+    get(name) {
+      if (String(name || "").toLowerCase() !== "x-api-key") return "";
+      return authorized ? AUTH.apiKey : "";
+    },
+  };
+}
+
+function jsonCapture() {
+  const capture = { body: null, headers: {}, status: 200 };
+  return {
+    capture,
+    status(code) { capture.status = code; return this; },
+    set(headers) { Object.assign(capture.headers, headers); return this; },
+    send(body) { capture.body = body; return this; },
+    redirect(status, location) { capture.status = status; capture.redirect = location; return this; },
+  };
+}
+
+// A library page coalesces a viewport's poster lookups into one request. The
+// batch must answer per input position so the client can map results back.
+test("poster batch returns one result per requested id", async () => {
+  const response = jsonCapture();
+  await handlePosterBatch(batchRequest([{ id: "poster-route-item" }, { id: "no-such-id" }]), response);
+  assert.equal(response.capture.status, 200);
+  const body = JSON.parse(response.capture.body);
+  assert.equal(body.results.length, 2);
+  assert.equal(body.results[0].id, "poster-route-item");
+  assert.ok(body.results[0].payload);
+  assert.equal(body.results[1].id, "no-such-id");
+});
+
+// Same size cap as the tmdb-details-batch convention it mirrors: an unbounded
+// list would let one request fan out into arbitrarily many lookups.
+test("poster batch caps the number of items it will resolve", async () => {
+  const response = jsonCapture();
+  const items = Array.from({ length: 300 }, (_, index) => ({ id: `bulk-${index}` }));
+  await handlePosterBatch(batchRequest(items), response);
+  const body = JSON.parse(response.capture.body);
+  assert.equal(body.results.length, 240);
+});
+
+// The batch resolves posters, so it must not be reachable without admin auth.
+test("poster batch requires admin authentication", async () => {
+  const response = jsonCapture();
+  let unauthorized = false;
+  const res = { ...response, status(code) { if (code === 401) unauthorized = true; response.capture.status = code; return this; } };
+  await handlePosterBatch(batchRequest([{ id: "poster-route-item" }], { authorized: false }), res);
+  assert.ok(unauthorized || response.capture.status === 401, "unauthenticated batch must be rejected");
 });

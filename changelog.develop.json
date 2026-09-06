@@ -1,6 +1,24 @@
 {
-  "build": 44,
+  "build": 46,
   "resetCommit": "64a0fa9bec513b1b0bf8844080a0ef60ec6733e7",
-  "updatedAt": "2026-09-06T09:35:09.239Z",
-  "entries": []
+  "updatedAt": "2026-09-06T11:22:35.156Z",
+  "entries": [
+    {
+      "build": 46,
+      "date": "2026-09-06T11:22:35.156Z",
+      "commit": "1737f076ff59407382f867e89a3a2693d1164827",
+      "message": "Fix - Make the media and library pages substantially faster",
+      "author": "Lasikiewicz",
+      "details": [
+        "TV shows whose episodes all fall outside the most recent 25,000 watches no longer disappear from the TV Shows library; on a 90,000 watch test library that restored 408 missing shows",
+        "Opening a TV show or episode page no longer makes an external metadata request just to look up an id the app already stored, and no longer re-asks Plex, Emby and Jellyfin whether the title is available on every single load",
+        "An episode page asked the server for the same show record four times and now asks once, cutting about 1.1 seconds and 84KB from the load",
+        "Movie and show pages no longer carry streaming availability for every country in the world when only two are shown, taking a movie page's metadata from 100KB to 76KB and the stored metadata here from 105MB to 63MB",
+        "Movies pages answer from a cached projection instead of re-deriving the whole library each time: pages 1, 5 and 10 went from about 60ms to under 1ms on a 90,000 row library",
+        "Library pages load all of a screen's posters in one request rather than one per card, and adding another page of results now appends the new cards instead of rebuilding every card already on screen",
+        "The Stats page no longer downloads every period's report to display one, and the restore screen no longer re-downloads the whole restore report on every poll",
+        "Library reads are backed by new database indexes, taking season lookups from 798ms to 28ms and recent-order reads from 767ms to 48ms"
+      ]
+    }
+  ]
 }

@@ -5,6 +5,27 @@ cached, and rendered. This pipeline exists so the browser never loads images dir
 from media servers (mixed content, LAN-only addresses, tokens in URLs) and so remote
 artwork is fetched once, not per page view.
 
+## Batch poster lookup (`POST /api/poster-batch`)
+
+A library page renders many cards at once, and each missing poster used to be
+its own `GET /api/poster` request: one `requireAdmin`, one media-config load and
+one full lookup chain per card. `hydratePosterFallbacks` now coalesces a
+viewport's worth of unresolved posters into a single `POST /api/poster-batch`
+call before it hydrates any card.
+
+The endpoint mirrors the existing `tmdb-details-batch` convention: `POST` only,
+`requireAdmin`, at most 240 items, a bounded worker pool, and one result per
+input position (`{ id, payload }`). Both routes share one resolver, so the
+lookup order, the in-flight dedupe and the negative caching cannot drift apart
+between them.
+
+Only resolved URLs are written into the client's lookup cache. A miss is left
+untouched so the per-card path can still run its own fallback lookup, and a
+failed batch is not an error state: every card simply falls back to the
+behaviour that existed before. The `format=image` redirect stays a single
+request, since it is used directly as an `<img>` source and cannot be batched.
+
+
 ## Files
 
 | File | Role |

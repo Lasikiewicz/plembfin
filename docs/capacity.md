@@ -24,10 +24,17 @@ The generator writes only to the directory it is given and refuses one holding a
 it did not create. Results land in `docs/benchmarks/`, each carrying the library scale and
 the hardware it was taken on, so a number always travels with its workload.
 
-**One scale limit is worth knowing before reading a result.** The in-memory history cache
-reads the newest 25,000 watch rows (`MAX_HISTORY_LIMIT` in
-[`dataRepo.js`](../server/src/utils/dataRepo.js)). Above that, the surfaces derived from
-it - the dashboard preview, watch stats, and the TV Shows library - describe that window
-rather than the whole library, and a show whose episodes all fall outside the window drops
-out of the TV Shows listing. The Movies library is queried separately and is not capped.
-The benchmark report records where a library sits against that ceiling.
+**One scale limit is worth knowing before reading a result.** The Movies and TV Shows
+libraries and the dashboard preview read the whole watch history and are not capped.
+**Watch stats are.** `getWatchStats` loads rows through `loadHistoryRows`, which clamps to
+`MAX_HISTORY_LIMIT` (25,000, in [`dataRepo.js`](../server/src/utils/dataRepo.js)), so a
+library holding more than 25,000 watches reports its totals, per-period reports and source
+breakdown over the newest 25,000 rows rather than over everything. On a 90,000-row test
+library that means Stats reports 25,000 lifetime watches. Nothing warns about this on
+screen; the benchmark report records where a library sits against the ceiling.
+
+Reading the full history instead of a 25,000-row window costs memory and rebuild time, and
+both grow with the library. Measured on a 90,000-row library (6,000 movies, 1,200 shows,
+28,800 episodes): heap after building every derived cache rose from 221.2MB to 283.7MB, the
+history cache build from 107.4ms to 392.5ms, and the TV Shows build from 362.7ms to
+1,002.4ms. A library below the ceiling pays none of this, because the cap never engages.

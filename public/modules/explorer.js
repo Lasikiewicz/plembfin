@@ -107,6 +107,8 @@ export const FILMOGRAPHY_PAGE_SIZE = 40;
 // ---------------------------------------------------------------------------
 let _explorerPrefetchObserver = null;
 let _filmographyObserver = null;
+let movieExplorerRenderKey = "";
+let movieExplorerRenderedCount = 0;
 export function getFilmographyObserver() { return _filmographyObserver; }
 export function setFilmographyObserver(v) { _filmographyObserver = v; }
 // ---------------------------------------------------------------------------
@@ -746,6 +748,8 @@ export function resetMovieExplorer(key = explorerQueryKey("movies")) {
   state.moviesLoading = false;
   state.moviesQueryKey = key;
   state.explorerScrollArmed = false;
+  movieExplorerRenderKey = "";
+  movieExplorerRenderedCount = 0;
 }
 export function resetShowExplorer(key = explorerQueryKey("shows")) {
   state.showsRequestVersion += 1;
@@ -1076,6 +1080,43 @@ function commitMovieExplorerHtml(html) {
 
   elements.explorerPanel.replaceChildren(...template.content.childNodes);
 }
+
+function syncMovieExplorerSentinel() {
+  const current = elements.explorerPanel.querySelector('[data-explorer-sentinel="movies"]');
+  const html = renderExplorerSentinel("movies", state.moviesHasMore, state.moviesLoading);
+  if (!html) {
+    current?.remove();
+    return;
+  }
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  const next = template.content.firstElementChild;
+  if (current) current.replaceWith(next);
+  else elements.explorerPanel.append(next);
+}
+
+function movieExplorerCanAppend(viewKey) {
+  if (movieExplorerRenderKey !== viewKey || !movieExplorerRenderedCount) return false;
+  if (state.moviesRaw.length <= movieExplorerRenderedCount) return false;
+  const currentGrid = elements.explorerPanel.firstElementChild;
+  if (!currentGrid || currentGrid.className !== explorerGridClass()) return false;
+  const currentCards = [...currentGrid.querySelectorAll(":scope > .movie-card[data-history-id]")];
+  if (currentCards.length !== movieExplorerRenderedCount) return false;
+  return currentCards.every((card, index) => String(card.dataset.historyId) === String(state.moviesRaw[index]?.id));
+}
+
+function appendMovieExplorerCards(viewKey) {
+  if (!movieExplorerCanAppend(viewKey)) return false;
+  const currentGrid = elements.explorerPanel.firstElementChild;
+  const newCards = state.moviesRaw.slice(movieExplorerRenderedCount).map(renderMovieCard).join("");
+  const currentSentinel = elements.explorerPanel.querySelector('[data-explorer-sentinel="movies"]');
+  currentSentinel?.remove();
+  if (newCards) currentGrid.insertAdjacentHTML("beforeend", newCards);
+  movieExplorerRenderedCount = state.moviesRaw.length;
+  syncMovieExplorerSentinel();
+  return true;
+}
+
 function renderListHeader(isShows) {
   if (isShows) {
     return `
@@ -1154,13 +1195,33 @@ export function renderMovieExplorer() {
     loadExplorerMovies().catch((error) => setMessage(error.message, "error"));
   }
   if (!state.moviesRaw.length && state.moviesLoading) {
+    movieExplorerRenderKey = "";
+    movieExplorerRenderedCount = 0;
     elements.explorerPanel.innerHTML = emptyExplorer("Loading movies...");
+    return;
+  }
+  const viewKey = `${key}|${currentExplorerView()}|${currentExplorerSort()}`;
+  // Pagination only changes the tail of the list. Keep the existing grid and
+  // poster nodes mounted, append the new cards, and refresh the sentinel in
+  // place. A loading-state render also lands here, so it never rebuilds the
+  // already-visible page just to change "Loading...".
+  if (state.moviesRaw.length && state.moviesLoading && movieExplorerRenderKey === viewKey) {
+    syncMovieExplorerSentinel();
+    return;
+  }
+  if (appendMovieExplorerCards(viewKey)) {
+    hydratePosters(elements.explorerPanel);
+    observeExplorerSentinel("movies");
+    observeExplorerTmdbPrefetch(elements.explorerPanel);
+    updateAlphaFilter();
     return;
   }
   const movieGrid = state.moviesRaw.length
     ? `<div class="${explorerGridClass()}">${currentExplorerView() === "list" ? renderListHeader(false) : ""}${state.moviesRaw.map(renderMovieCard).join("")}</div>${renderExplorerSentinel("movies", state.moviesHasMore, state.moviesLoading)}`
     : emptyExplorer("No movies logged yet");
   commitMovieExplorerHtml(movieGrid);
+  movieExplorerRenderKey = viewKey;
+  movieExplorerRenderedCount = state.moviesRaw.length;
   hydratePosters(elements.explorerPanel);
   observeExplorerSentinel("movies");
   observeExplorerTmdbPrefetch(elements.explorerPanel);
@@ -1623,6 +1684,53 @@ function providerIdentityTokens(show = {}) {
   return ids;
 }
 
+// One episode-page load asked /api/show four times, through different code
+// paths and with two different parameter shapes, and got the same 27,912-byte
+// answer every time. In-flight dedupe alone could not collapse that: the calls
+// are not all concurrent, and a URL key does not match across the shapes. These
+// index a resolved show under every identifier that resolves to it, so a later
+// lookup by any one of them hits the same entry.
+//
+// The window is deliberately short. /api/show carries authoritative watched
+// rows and dates, so this exists to collapse one page's worth of duplicate
+// lookups, not to hold state across a user's actions - and any mutation clears
+// it through clearDerivedUiCaches().
+const SHOW_DETAIL_CACHE_TTL_MS = 10_000;
+
+function showLookupTokens(show = {}) {
+  const tokens = providerIdentityTokens(show);
+  const id = show.id || show.show_id;
+  if (id) tokens.push(`id:${String(id).toLowerCase()}`);
+  const title = show.title || show.show_title;
+  if (title) tokens.push(`title:${slug(title)}`);
+  return tokens;
+}
+
+export function cachedShowDetail(hints = {}) {
+  for (const token of showLookupTokens(hints)) {
+    const cacheKey = state.showDetailAliases.get(token);
+    if (!cacheKey) continue;
+    const entry = state.showDetailCache.get(cacheKey);
+    if (!entry) continue;
+    if (Date.now() - entry.ts > SHOW_DETAIL_CACHE_TTL_MS) {
+      state.showDetailCache.delete(cacheKey);
+      continue;
+    }
+    return entry.show;
+  }
+  return null;
+}
+
+export function rememberShowDetail(show) {
+  if (!show) return show;
+  const tokens = showLookupTokens(show);
+  if (!tokens.length) return show;
+  const cacheKey = tokens[0];
+  state.showDetailCache.set(cacheKey, { show, ts: Date.now() });
+  for (const token of tokens) state.showDetailAliases.set(token, cacheKey);
+  return show;
+}
+
 export async function loadShowDetail(show = {}) {
   const showTitle = show.title || "";
   const showTmdbId = show.tmdb_id || show.show_tmdb_id || "";
@@ -1632,6 +1740,8 @@ export async function loadShowDetail(show = {}) {
   const identityKey = providerIdentityTokens(show)[0] || "";
   const cacheKey = identityKey || show.id || showKey || showTitle;
   if (!cacheKey) return null;
+  const alreadyResolved = cachedShowDetail(show);
+  if (alreadyResolved) return alreadyResolved;
   if (state.showDetailInflight.has(cacheKey)) return state.showDetailInflight.get(cacheKey);
   const request = (async () => {
     const url = new URL("/api/show", window.location.origin);
@@ -1656,7 +1766,7 @@ export async function loadShowDetail(show = {}) {
         body = await response.json().catch(() => ({}));
       }
       if (!response.ok) throw new Error(body.error || `Show detail failed ${response.status}`);
-      return mergeShowDetail(body.show || null);
+      return rememberShowDetail(mergeShowDetail(body.show || null));
     } catch (error) {
       if (error?.name === "AbortError") throw new Error("Show detail request timed out");
       throw error;

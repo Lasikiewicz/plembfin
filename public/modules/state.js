@@ -225,6 +225,12 @@ const initialState = {
   showModalEpisodeIndex: new Map(),
   activeShowRenderContext: null,
   showDetailInflight: new Map(),
+  // A resolved show, indexed by every identifier that resolves to it. The
+  // detail page asks for the same show through several different code paths
+  // and parameter shapes, so a URL-keyed cache misses; this is keyed on
+  // identity instead. Cleared by clearDerivedUiCaches() on any mutation.
+  showDetailCache: new Map(),
+  showDetailAliases: new Map(),
   mediaDetailInline: false,
   mediaDetailReturnView: "explorer",
   mediaDetailReturnExplorerMode: "movies",

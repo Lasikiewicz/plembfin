@@ -2241,6 +2241,11 @@ async function loadHistory({ force = false, silent = false } = {}) {
 
 function clearDerivedUiCaches({ resetExplorer = true } = {}) {
   state.explorerPageCache.clear();
+  // /api/show carries authoritative watched rows and dates, so the short
+  // identity-keyed cache that collapses one page's duplicate lookups must not
+  // outlive a mutation.
+  state.showDetailCache.clear();
+  state.showDetailAliases.clear();
   clearPersistentExplorerPageCache();
   state.posterLookupCache.clear();
   state.posterLookupInflight.clear();

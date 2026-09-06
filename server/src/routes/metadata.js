@@ -186,24 +186,13 @@ async function findLiveSessionPosterRow(mediaKey) {
   return null;
 }
 
-export async function handlePoster(req, res) {
-  if (req.method === "OPTIONS") return sendOptions(res);
-  if (req.method !== "GET") return methodNotAllowed(res);
-  if (!(await requireAdmin(req, res))) return;
-  const cacheHeaders = { "Cache-Control": "private, max-age=3600, stale-while-revalidate=86400" };
-  const imageRequested = String(req.query.format || "").trim().toLowerCase() === "image";
-  const providerImageRequested = imageRequested && Boolean(String(req.query.provider || "").trim());
-  const respondPoster = (payload, status = 200) => {
-    if (!imageRequested) return sendJson(res, payload, status, cacheHeaders);
-    if (payload?.url && isCachedStorageUrl(payload.url)) {
-      return res.set(cacheHeaders).redirect(302, payload.url);
-    }
-    return res.status(status >= 400 ? status : 404).set(cacheHeaders).send("");
-  };
-
+// One poster lookup, independent of how the answer is delivered. `handlePoster`
+// renders it as a single JSON body or an image redirect; `handlePosterBatch`
+// collects a page's worth of them into one response. Both share this so the
+// lookup order, the in-flight dedupe and the negative caching cannot drift
+// apart between the two routes.
+async function resolvePosterPayload({ rowId, provider = "", fallbackRequested = false, providerImageRequested = false }) {
   try {
-    const rowId = String(req.query.id || "");
-    const provider = String(req.query.provider || "").trim().toLowerCase();
     let row = provider ? getActiveUpNextProviderItemById(provider, rowId) : null;
     if (!row) {
       row = await getWatchRecordByIdLight(rowId);
@@ -264,33 +253,32 @@ export async function handlePoster(req, res) {
         }
       }
     }
-    if (!row) return respondPoster({ error: "not found" }, 404);
+    if (!row) return { payload: { error: "not found" }, status: 404 };
 
-    const fallbackRequested = ["1", "true", "yes"].includes(String(req.query.fallback || "").toLowerCase());
     const config = await loadMediaConfig().catch(() => ({}));
     const mediaKey = row.media_key || mediaKeyFor(row);
     const posterUpdateId = row.id || rowId;
 
     if (!fallbackRequested) {
       const canonicalPoster = getCanonicalPosterUrl(row);
-      if (canonicalPoster) return respondPoster({ url: canonicalPoster, cached: true, source: "canonical" }, 200);
+      if (canonicalPoster) return { payload: { url: canonicalPoster, cached: true, source: "canonical" }, status: 200 };
     }
 
     // Check for fresh cached result first (before deduplication check).
     // However, ignore negative cache for items without poster_url - these should retry TMDB fallback.
     const cached = usableCachedPoster(await getPosterCache(mediaKey));
-    if (cached?.url) return respondPoster(cached, 200);
+    if (cached?.url) return { payload: cached, status: 200 };
     // Provider image URLs are rendered directly by the browser. A previous
     // transient provider outage must not turn that image into a long-lived
     // blank placeholder; let the authenticated provider lookup retry it.
-    if (cached?.cached && row.poster_url && !providerImageRequested) return respondPoster(cached, 200);
+    if (cached?.cached && row.poster_url && !providerImageRequested) return { payload: cached, status: 200 };
 
     // If another request is already processing this mediaKey, wait for it to complete.
     if (inflight.has(mediaKey)) {
       await inflight.get(mediaKey);
       const recheck = usableCachedPoster(await getPosterCache(mediaKey));
-      if (recheck?.url || recheck?.cached) return respondPoster(recheck, 200);
-      return respondPoster({ url: null, cached: true, source: "missing" }, 200);
+      if (recheck?.url || recheck?.cached) return { payload: recheck, status: 200 };
+      return { payload: { url: null, cached: true, source: "missing" }, status: 200 };
     }
 
     // Mark this mediaKey as inflight and process it.
@@ -413,20 +401,88 @@ export async function handlePoster(req, res) {
     inflight.delete(mediaKey);
 
     if (result) {
-      return respondPoster(result, 200);
+      return { payload: result, status: 200 };
     }
 
     // If result is null (error occurred), try to return cached result or error response.
     const fallback = usableCachedPoster(await getPosterCache(mediaKey));
     if (fallback?.url || fallback?.cached) {
-      return respondPoster(fallback, 200);
+      return { payload: fallback, status: 200 };
     }
-    return respondPoster({ url: null, cached: false, source: "error" }, 200);
+    return { payload: { url: null, cached: false, source: "error" }, status: 200 };
   } catch (error) {
-    inflight.delete(String(req.query.id || ""));
-    console.error("Poster lookup failed", { id: String(req.query.id || ""), error: error.message || String(error) });
-    return respondPoster({ url: null, cached: false, source: "error" }, 200);
+    inflight.delete(rowId);
+    console.error("Poster lookup failed", { id: rowId, error: error.message || String(error) });
+    return { payload: { url: null, cached: false, source: "error" }, status: 200 };
   }
+}
+
+// A library page asks for one poster per card. Each of those was a separate
+// request running requireAdmin, the full lookup chain and loadMediaConfig();
+// a viewport's worth of cards therefore paid all of that N times over. This
+// mirrors the existing tmdb-details-batch convention: bounded item list,
+// bounded worker pool, one result per input position.
+export async function handlePosterBatch(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+
+  const body = await readJson(req).catch(() => ({}));
+  const items = Array.isArray(body.items) ? body.items.slice(0, 240) : [];
+  if (!items.length) return sendJson(res, { results: [] });
+
+  const BATCH_CONCURRENCY = 6;
+  const results = new Array(items.length);
+  let nextIndex = 0;
+  async function worker() {
+    while (nextIndex < items.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      const item = items[index];
+      const rowId = String(item?.id ?? item ?? "").trim();
+      if (!rowId) {
+        results[index] = { id: "", payload: { url: null, cached: false, source: "invalid" } };
+        continue;
+      }
+      try {
+        const { payload } = await resolvePosterPayload({
+          rowId,
+          provider: String(item?.provider || "").trim().toLowerCase(),
+          fallbackRequested: item?.fallback === true,
+        });
+        results[index] = { id: rowId, payload };
+      } catch (error) {
+        results[index] = { id: rowId, payload: { url: null, cached: false, source: "error" }, error: error.message || "failed" };
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(BATCH_CONCURRENCY, items.length) }, worker));
+
+  return sendJson(res, { results }, 200, { "Cache-Control": "private, max-age=3600, stale-while-revalidate=86400", Vary: "Authorization" });
+}
+
+export async function handlePoster(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  const cacheHeaders = { "Cache-Control": "private, max-age=3600, stale-while-revalidate=86400" };
+  const imageRequested = String(req.query.format || "").trim().toLowerCase() === "image";
+  const providerImageRequested = imageRequested && Boolean(String(req.query.provider || "").trim());
+  const respondPoster = (payload, status = 200) => {
+    if (!imageRequested) return sendJson(res, payload, status, cacheHeaders);
+    if (payload?.url && isCachedStorageUrl(payload.url)) {
+      return res.set(cacheHeaders).redirect(302, payload.url);
+    }
+    return res.status(status >= 400 ? status : 404).set(cacheHeaders).send("");
+  };
+
+  const { payload, status } = await resolvePosterPayload({
+    rowId: String(req.query.id || ""),
+    provider: String(req.query.provider || "").trim().toLowerCase(),
+    fallbackRequested: ["1", "true", "yes"].includes(String(req.query.fallback || "").toLowerCase()),
+    providerImageRequested,
+  });
+  return respondPoster(payload, status);
 }
 
 // Concurrency limiter for TMDB image downloads to avoid hitting rate limits.

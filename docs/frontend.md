@@ -38,6 +38,17 @@ manual: change state, call the relevant `renderX()`.
 Preferences persist in localStorage under `plembfin:*` keys (view modes, sort orders,
 filters, theme, cached pages); the constants at the top of `state.js` list them all.
 
+Two of those caches exist to stop one page load asking for the same thing repeatedly.
+`state.showDetailCache`/`showDetailAliases` index a resolved show under every
+identifier it is known by, so the detail page's separate lookups by TMDB id, TVDB id
+and title share one `/api/show` answer. Both are short-lived and cleared by
+`clearDerivedUiCaches()`, because that response carries authoritative watch state.
+
+Explorer paging appends only the newly loaded cards rather than re-rendering the whole
+accumulated list, guarded by a check that the grid on screen still matches the prefix
+already rendered; anything else (sort, view change, refresh) falls back to a full
+redraw.
+
 ## Routing
 
 SPA navigation via `history.pushState`:

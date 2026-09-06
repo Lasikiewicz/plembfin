@@ -10,6 +10,7 @@ const selectArtworkRecordByIdentityStmt = db.prepare(
   "SELECT poster_url, poster_source FROM media_artwork WHERE identity_key = ? LIMIT 1",
 );
 const selectTmdbMetadataStmt = db.prepare("SELECT details FROM tmdb_metadata_cache WHERE id = ?");
+const selectTmdbPosterFieldsStmt = db.prepare("SELECT poster_path, cached_poster_url, tvdb_poster_url FROM tmdb_metadata_cache WHERE id = ?");
 const selectPosterCacheStmt = db.prepare(
   "SELECT url FROM poster_cache WHERE media_key = ? AND variant = 'poster' AND status = 'cached' LIMIT 1",
 );
@@ -137,6 +138,16 @@ function cachedTmdbDetails(tmdbId) {
   return row?.details ? parseJson(row.details) : null;
 }
 
+// Resolving a poster needs three fields, but they live inside a details blob
+// that averages 64KB for a TV entry, and a library page resolves one per row.
+// The same three fields are mirrored into their own columns on every cache
+// write, so read those and only parse the blob when the row predates them.
+function cachedTmdbPosterFields(cacheId, blobLoader) {
+  const row = selectTmdbPosterFieldsStmt.get(cacheId);
+  if (row && (row.poster_path || row.cached_poster_url || row.tvdb_poster_url)) return row;
+  return blobLoader();
+}
+
 function cachedTmdbMovieDetails(tmdbId) {
   const id = clean(tmdbId);
   if (!id) return null;
@@ -169,7 +180,10 @@ function tmdbDetailsForTvdbId(tvdbId) {
 
 function metadataPosterForIdentity(identity) {
   if (identity.media_type === "movie") {
-    const tmdbDetails = cachedTmdbMovieDetails(identity.tmdb_id);
+    const movieId = clean(identity.tmdb_id);
+    const tmdbDetails = movieId
+      ? cachedTmdbPosterFields(`movie_${movieId}`, () => cachedTmdbMovieDetails(movieId))
+      : null;
     const tmdbPoster = posterUrlFromTmdbDetails(tmdbDetails, identity.tmdb_id, "movie");
     if (tmdbPoster) return tmdbPoster;
 
@@ -180,7 +194,10 @@ function metadataPosterForIdentity(identity) {
     return "";
   }
 
-  const tmdbDetails = cachedTmdbDetails(identity.tmdb_id);
+  const showId = clean(identity.tmdb_id);
+  const tmdbDetails = showId
+    ? cachedTmdbPosterFields(`tv_${showId}`, () => cachedTmdbDetails(showId))
+    : null;
   const tmdbPoster = posterUrlFromTmdbDetails(tmdbDetails, identity.tmdb_id, "tv");
   if (tmdbPoster) return tmdbPoster;
 

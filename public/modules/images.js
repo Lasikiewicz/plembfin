@@ -447,6 +447,43 @@ function shouldHydratePosterElement(element) {
   return rect.bottom >= -120 && rect.right >= -120 && rect.top <= viewportHeight + 360 && rect.left <= viewportWidth + 120;
 }
 
+async function prefillPosterLookups(fallbacks, { allowNetwork = true } = {}) {
+  if (!allowNetwork || !state.token) return;
+  const ids = [];
+  const seen = new Set();
+  for (const fallback of fallbacks) {
+    const posterId = fallback.dataset.posterId;
+    if (!posterId || seen.has(posterId)) continue;
+    if (cachedPosterLookup(posterId) !== undefined) continue;
+    if (state.posterLookupInflight.has(posterId)) continue;
+    seen.add(posterId);
+    ids.push(posterId);
+  }
+  if (ids.length < 2) return;
+
+  try {
+    const response = await fetch("/api/poster-batch", {
+      method: "POST",
+      headers: { ...buildAuthHeaders(state.token), "Content-Type": "application/json" },
+      body: JSON.stringify({ items: ids.map((id) => ({ id })) }),
+    });
+    if (!response.ok) return;
+    const body = await response.json().catch(() => ({}));
+    for (const result of Array.isArray(body.results) ? body.results : []) {
+      const id = String(result?.id || "");
+      if (!id) continue;
+      // Only a resolved URL is cached here. A miss is left alone so the
+      // per-card path can still try its fallback lookup, exactly as before.
+      const usableUrl = compactPosterUrl(result?.payload?.url || "");
+      if (usableUrl) rememberPosterLookup(id, usableUrl);
+    }
+  } catch (error) {
+    // A failed batch is not an error state: every card falls back to its own
+    // lookup, which is the behaviour that existed before this optimization.
+    console.warn("Poster batch lookup failed", error);
+  }
+}
+
 export async function hydratePosterFallbacks(container = document.body, { allowNetwork = true } = {}) {
   if (!container) return;
   const fallbacks = [...container.querySelectorAll("[data-poster-id].poster-fallback")].filter((fallback) => {
@@ -454,6 +491,13 @@ export async function hydratePosterFallbacks(container = document.body, { allowN
     return posterId && !state.posterLookupCache.has(posterId) && shouldHydratePosterElement(fallback);
   });
   if (!fallbacks.length) return;
+
+  // One request for the whole viewport instead of one per card. Each
+  // individual /api/poster call re-ran requireAdmin, the full lookup chain and
+  // the media config load, so a grid paid all of that once per visible poster.
+  // The results are written into the same lookup cache the per-card path
+  // already consults, so everything below is unchanged and simply hits it.
+  await prefillPosterLookups(fallbacks, { allowNetwork });
 
   const hydrateOne = async (fallback) => {
     const posterId = fallback.dataset.posterId;

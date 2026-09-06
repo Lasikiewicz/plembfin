@@ -316,6 +316,7 @@ CREATE TABLE IF NOT EXISTS tmdb_metadata_cache (
   title TEXT,
   details TEXT,           -- JSON
   poster_path TEXT,
+  status TEXT,
   cached_poster_url TEXT,
   backdrop_path TEXT,
   cached_backdrop_url TEXT,

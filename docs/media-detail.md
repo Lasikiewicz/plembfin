@@ -314,8 +314,20 @@ list arrives shows a loading placeholder instead of a premature "no episodes" me
   `GET /api/media-app-links`. The last known links per title are persisted in
   localStorage (`plembfin:appLinksCache:v1`) and rendered instantly; a background
   refresh (at most once per 5 minutes per title) updates the buttons only on change.
+  That window is read from the persisted entry's own timestamp, which is rewritten
+  on every successful check including one that found nothing changed, so it holds
+  across a page reload. For a series the lookup enumerates every episode from each
+  configured server, so repeating it per page load was the slowest request on a
+  show page by a wide margin.
   The pills render (`mediaAppLinksHtml` in `media-detail-shared.js`) as their own
   "Watch Now" row inside the Media facts panel, the last row on the page.
+- **One show lookup per page.** A detail page resolves its show through several
+  paths - by TMDB id, by TVDB id, and by title - which previously meant up to four
+  identical `GET /api/show` calls for one page. A resolved show is now indexed
+  under every identifier it is known by (imdb/tmdb/tvdb id, record id, title slug)
+  in `state.showDetailCache`, so a lookup by any of them reuses the first answer.
+  `/api/show` carries authoritative watched rows and dates, so the entry lives for
+  10 seconds and `clearDerivedUiCaches()` drops it on any mutation.
 - **Media facts panel** (`renderMediaFacts` in `media-detail-shared.js`) - a
   transparent, borderless panel next to the poster listing Status/First aired/
   Language on one line, then Runtime/Genres, then Network paired with the Ratings

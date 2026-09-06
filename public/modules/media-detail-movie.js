@@ -156,14 +156,21 @@ export async function renderMovieImmersiveModalContent(movie) {
   // Phase 2: Render with TMDB data immediately - don't wait for OMDb/TV recs.
   _renderWatchedMovieContent(root, movie, { tmdbData, youtubeMeta, loading: false, imdbPillHtml: "", tvRecommendations: [], isSaving });
 
-  // Phase 3: Fetch OMDb rating and TV recommendations in parallel.
+  // Phase 3: Fetch the OMDb rating. The "Recommended TV Shows" rail is started
+  // here but deliberately NOT awaited: it asks TMDB "is there a series named
+  // like this film?" for up to four title candidates, one after another, and a
+  // cold candidate measured 241-380ms against the live API - up to about a
+  // second of speculative lookups for a rail below the fold that usually ends
+  // up empty. Awaiting it here held the IMDb rating pill back for that whole
+  // time. It now patches itself in when it arrives, the same way the unwatched
+  // path below already did.
   const imdbId = movie.imdb_id || tmdbData?.imdb_id || "";
-  const [omdbRes, tvRecommendations] = await Promise.all([
-    imdbId && state.savedConfig?.omdb?.configured
-      ? fetch(`/api/omdb-rating?imdbId=${encodeURIComponent(imdbId)}`, { headers: authHeaders() }).catch(() => null)
-      : Promise.resolve(null),
-    tmdbData ? recommendedTvShowsForMovie(movie.title, tmdbData).catch(() => []) : Promise.resolve([]),
-  ]);
+  const tvRecommendationsPromise = tmdbData
+    ? recommendedTvShowsForMovie(movie.title, tmdbData).catch(() => [])
+    : Promise.resolve([]);
+  const omdbRes = await (imdbId && state.savedConfig?.omdb?.configured
+    ? fetch(`/api/omdb-rating?imdbId=${encodeURIComponent(imdbId)}`, { headers: authHeaders() }).catch(() => null)
+    : Promise.resolve(null));
   if (currentMediaRenderToken() !== renderToken) return false;
 
   let imdbPillHtml = "";
@@ -180,10 +187,18 @@ export async function renderMovieImmersiveModalContent(movie) {
   }
   if (currentMediaRenderToken() !== renderToken) return false;
 
-  // Phase 3 render: patch in OMDb pill and TV recommendations if anything new arrived.
-  if (imdbPillHtml || tvRecommendations.length) {
-    _renderWatchedMovieContent(root, movie, { tmdbData, youtubeMeta, loading: false, imdbPillHtml, tvRecommendations, isSaving });
+  // Phase 3 render: patch in the OMDb pill as soon as it is known.
+  if (imdbPillHtml) {
+    _renderWatchedMovieContent(root, movie, { tmdbData, youtubeMeta, loading: false, imdbPillHtml, tvRecommendations: [], isSaving });
   }
+
+  // Phase 4: the speculative rail, whenever it finishes. Re-rendering only when
+  // it actually found something keeps an empty result completely free.
+  tvRecommendationsPromise.then((tvRecommendations) => {
+    if (!tvRecommendations.length) return;
+    if (currentMediaRenderToken() !== renderToken) return;
+    _renderWatchedMovieContent(root, movie, { tmdbData, youtubeMeta, loading: false, imdbPillHtml, tvRecommendations, isSaving });
+  }).catch(() => { /* non-fatal: the rail simply stays absent */ });
 
   const movieSeerrTmdbId = tmdbData?.id || movie.tmdb_id;
   if (movieSeerrTmdbId) {
