@@ -23,6 +23,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { changelogEntryProcessViolations, filterChangelogEntries, synthesizeHeadline } from "./changelog-message.js";
 import { gitHeadAuthor, gitHeadCommit } from "./changelog-git-helpers.js";
+import { spawnSync } from "node:child_process";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const changelogPath = path.join(root, "changelog.json");
@@ -216,6 +217,19 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
 
   fs.writeFileSync(alphaChangelogPath, `${JSON.stringify(alpha, null, 2)}\n`);
   fs.writeFileSync(developChangelogPath, `${JSON.stringify(develop, null, 2)}\n`);
+
+  // Public assets are cached immutably for a year against their `?v=` query, so
+  // the query has to move whenever the build does. Without this every alpha
+  // build in a cycle shared one asset version, and a tester who pulled a new
+  // image could still be running the previous build's JavaScript.
+  const assetResult = spawnSync(process.execPath, [path.join(root, "scripts", "asset-versions.js"), "--write", `--version=${alphaVersion}`], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  if (assetResult.status !== 0) {
+    throw new Error(`Failed to stamp public assets with ${alphaVersion}: ${assetResult.stderr || assetResult.stdout}`);
+  }
+  console.log(String(assetResult.stdout || "").trim());
 
   console.log(`Promoted develop to Alpha build ${nextAlphaBuild} (v${alphaVersion})`);
   return { alpha, develop };

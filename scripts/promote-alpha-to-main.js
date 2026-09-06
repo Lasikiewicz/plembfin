@@ -21,6 +21,7 @@ import { changelogEntryProcessViolations, filterChangelogEntries, synthesizeHead
 import { formatSections, mergeSections } from "./promote-develop-to-alpha.js";
 import { generateChangelogMarkdown } from "./generate-changelog-md.js";
 import { gitHeadAuthor, gitHeadCommit } from "./changelog-git-helpers.js";
+import { spawnSync } from "node:child_process";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const changelogPath = path.join(root, "changelog.json");
@@ -192,6 +193,18 @@ export function promoteAlphaToMain({ targetVersion = "", sourceDate = new Date()
   fs.writeFileSync(alphaChangelogPath, `${JSON.stringify(resetAlpha, null, 2)}\n`);
   fs.writeFileSync(developChangelogPath, `${JSON.stringify(develop, null, 2)}\n`);
   generateChangelogMarkdown();
+
+  // Alpha's build number is gone once this release resets it, so the public
+  // assets have to move to the new release version here or the version check
+  // fails and browsers keep serving the last alpha build's JavaScript.
+  const assetResult = spawnSync(process.execPath, [path.join(root, "scripts", "asset-versions.js"), "--write", `--version=${newMainVersion}`], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  if (assetResult.status !== 0) {
+    throw new Error(`Failed to stamp public assets with ${newMainVersion}: ${assetResult.stderr || assetResult.stdout}`);
+  }
+  console.log(String(assetResult.stdout || "").trim());
 
   console.log(`Promoted Alpha to Main release v${newMainVersion} (${new5DigitVersion})`);
   return { changelog, alpha: resetAlpha, develop };

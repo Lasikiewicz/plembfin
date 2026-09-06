@@ -6,7 +6,7 @@ import { makeTempDataDir } from "./helpers.js";
 
 makeTempDataDir("plembfin-live-updates-");
 
-const { db, getDataVersion, bumpDataVersion, getUpNextVersion, bumpUpNextVersion } = await import("../server/src/db.js");
+const { db, getDataVersion, getProgressVersion, bumpDataVersion, getUpNextVersion, bumpUpNextVersion } = await import("../server/src/db.js");
 const { AUTH } = await import("../server/src/appConfig.js");
 const { BACKGROUND_SYNC_PROGRESS_STALE_MS, loadRuntimeState, setRuntimeState } = await import("../server/src/utils/configStore.js");
 const { getOnboardingState, saveOnboardingState } = await import("../server/src/utils/onboardingStore.js");
@@ -111,7 +111,10 @@ test("liveUpdates rejects non-GET methods", async () => {
 });
 
 test("liveUpdates establishes SSE stream and sends ready event", async () => {
-  const initialVersion = getDataVersion();
+  // The stream's version is deliberately broader than the derived-cache
+  // generation: resume-position writes no longer invalidate any cache but an
+  // open page still has to see them, so both generations are summed.
+  const initialVersion = getDataVersion() + getProgressVersion();
   const { req, res, getOutput, getHeaders, getStatusCode } = createMockReqRes({
     method: "GET",
     headers: { "x-api-key": AUTH.apiKey },

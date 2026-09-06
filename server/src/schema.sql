@@ -443,6 +443,10 @@ CREATE TABLE IF NOT EXISTS cache_versions (
 INSERT OR IGNORE INTO cache_versions (id, version, updated_at) VALUES ('history', 1, 0);
 INSERT OR IGNORE INTO cache_versions (id, version, updated_at) VALUES ('discover', 1, 0);
 INSERT OR IGNORE INTO cache_versions (id, version, updated_at) VALUES ('up_next', 1, 0);
+-- Resume positions change constantly during playback but no history-derived
+-- cache reads playback_progress, so they get their own generation. The browser
+-- still sees a change through the aggregate in getHistoryCacheVersion().
+INSERT OR IGNORE INTO cache_versions (id, version, updated_at) VALUES ('progress', 1, 0);
 
 -- Keep cache invalidation in the same transaction as canonical state writes.
 -- Explicit bumpDataVersion() calls remain useful for file-backed derived data;
@@ -466,13 +470,13 @@ CREATE TRIGGER IF NOT EXISTS trg_playstate_cache_delete AFTER DELETE ON playstat
   UPDATE cache_versions SET version=version+1, updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id='history';
 END;
 CREATE TRIGGER IF NOT EXISTS trg_playback_progress_cache_insert AFTER INSERT ON playback_progress BEGIN
-  UPDATE cache_versions SET version=version+1, updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id='history';
+  UPDATE cache_versions SET version=version+1, updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id='progress';
 END;
 CREATE TRIGGER IF NOT EXISTS trg_playback_progress_cache_update AFTER UPDATE ON playback_progress BEGIN
-  UPDATE cache_versions SET version=version+1, updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id='history';
+  UPDATE cache_versions SET version=version+1, updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id='progress';
 END;
 CREATE TRIGGER IF NOT EXISTS trg_playback_progress_cache_delete AFTER DELETE ON playback_progress BEGIN
-  UPDATE cache_versions SET version=version+1, updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id='history';
+  UPDATE cache_versions SET version=version+1, updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id='progress';
 END;
 
 CREATE TABLE IF NOT EXISTS scheduler_lease (

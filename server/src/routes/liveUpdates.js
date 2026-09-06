@@ -1,4 +1,4 @@
-import { getDataVersion, getDiscoverVersion, getUpNextVersion } from "../db.js";
+import { getDataVersion, getProgressVersion, getDiscoverVersion, getUpNextVersion } from "../db.js";
 import { requireAdmin } from "../utils/auth.js";
 import { methodNotAllowed } from "../utils/http.js";
 import {
@@ -77,6 +77,17 @@ function syncEventFields(status) {
 // Streams shared SQLite cache versions rather than relying on an in-process
 // event emitter. This keeps browser updates working when Plembfin's web and
 // scheduler roles run in separate processes.
+// What an open page needs to be told about. Broader than the derived-cache
+// generation on purpose: resume-position writes no longer invalidate any
+// history-derived cache, but a page showing a progress bar still has to see
+// them, so both generations are combined here.
+function clientFacingVersion() {
+  // A sum, not a dotted pair: the client parses this with Number(), where
+  // "5.10" and "5.1" collapse to the same value. Both generations only ever
+  // increase, so the sum advances on every bump of either.
+  return getDataVersion() + getProgressVersion();
+}
+
 export async function handleLiveUpdates(req, res) {
   if (req.method !== "GET") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
@@ -85,7 +96,7 @@ export async function handleLiveUpdates(req, res) {
   // allowed to react to a version change. This matters on reconnect: the tab
   // still holds its previous sync-busy flag until this new stream corrects it.
   const initialSyncStatus = await loadSyncStatus();
-  const initialVersion = getDataVersion();
+  const initialVersion = clientFacingVersion();
   const initialDiscoverVersion = getDiscoverVersion();
   const initialUpNextVersion = getUpNextVersion();
 
@@ -136,7 +147,7 @@ export async function handleLiveUpdates(req, res) {
         if (syncProgressChanged) lastSyncStatus = syncStatus;
 
         // --- History version ---
-        const version = getDataVersion();
+        const version = clientFacingVersion();
         const discoverVersion = getDiscoverVersion();
         const upNextVersion = getUpNextVersion();
         const discoverVersionChanged = discoverVersion !== lastDiscoverVersion;

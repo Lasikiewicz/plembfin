@@ -298,6 +298,7 @@ It has its own build/deploy tooling independent of this repo's CI - see
 | `scripts/seed-demo-content.js` | Seed fictional demo content for screenshots/dev |
 | `scripts/generate-synthetic-library.js` | Build a disposable library at a stated scale for performance measurement: `node scripts/generate-synthetic-library.js --data-dir <path> [--movies 3000] [--shows 400] [--episodes-per-show 24] [--history-rows N] [--tmdb-entries N] [--tmdb-blob-kb 24] [--posters 8] [--seed 1]`. Refuses the repository's own `data/` directory and any directory holding a database it did not create. |
 | `scripts/benchmark-surfaces.js` | Record the server-side surface baseline against a generated library: `node scripts/benchmark-surfaces.js --data-dir <path> [--runs 5] [--output docs/benchmarks/<file>.json]` |
+| `npm run assets:update` | Restamp every local `public/` asset reference with the current build's version. Both promotion scripts run it automatically; run it by hand after editing frontend files locally, since versioned assets are cached immutably and the browser will otherwise keep the previous copy |
 
 ## Performance measurement
 
@@ -323,6 +324,24 @@ server-side surfaces against a library from `scripts/generate-synthetic-library.
 [`capacity.md`](capacity.md) for the two commands and the one scale limit worth knowing
 before reading a result. Frontend first-paint timing is a manual browser protocol and is
 deliberately not scripted here.
+
+## Asset versions track the build
+
+Public assets are referenced at a canonical `?v=<version>` query and served with a one-year
+immutable cache, so that query has to change whenever the files do.
+
+The version is **the alpha build's version while a cycle is open** (`0.15.0.4`), and the
+package version once a release to main resets alpha (`0.15.1`). `scripts/asset-versions.js`
+derives it, and both `promote-develop-to-alpha.js` and `promote-alpha-to-main.js` restamp
+every reference while promoting, so each published build serves its own asset URLs.
+
+Before this, every alpha build in a cycle shared one asset version: a tester who pulled a new
+image could still be running the previous build's JavaScript, and the same caught local
+development after editing a module. If you edit frontend files and the browser does not pick
+them up, run `npm run assets:update`.
+
+Tests must not assert a specific asset version for this reason - assert that a URL is
+versioned, not which version it carries today.
 
 ## Conventions that CI enforces or assumes
 

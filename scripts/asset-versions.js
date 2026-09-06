@@ -7,8 +7,32 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const publicDir = path.join(root, "public");
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
+
+// Versioned assets are cached immutably for a year, so the query has to change
+// whenever the served files change or a browser keeps the old module forever.
+// package.json only moves on a release to main, which left every alpha build in
+// a cycle sharing one asset version: an alpha tester (and anyone developing
+// locally) could pull a new build and still be running the previous build's
+// JavaScript. Track the alpha build's own version while a cycle is open, and
+// fall back to the package version once alpha has been reset by a release.
+export function currentAssetVersion() {
+  const packageVersion = String(packageJson.version || "dev").trim();
+  try {
+    const alpha = JSON.parse(fs.readFileSync(path.join(root, "changelog.alpha.json"), "utf8"));
+    const alphaVersion = String(alpha?.version || "").trim();
+    const baseVersion = String(alpha?.baseVersion || "").trim();
+    // Only trust alpha's version while it is still building on this release.
+    // After "Force to main" bumps the package version, alpha's stale entry must
+    // not hold the assets back on the previous release's number.
+    if (alphaVersion && baseVersion === packageVersion && alphaVersion.startsWith(`${packageVersion}.`)) {
+      return alphaVersion;
+    }
+  } catch { /* no alpha changelog: fall back to the package version */ }
+  return packageVersion;
+}
+
 const requestedVersion = process.argv.find((argument) => argument.startsWith("--version="))?.slice("--version=".length);
-const assetVersion = String(requestedVersion || process.env.ASSET_VERSION || packageJson.version || "dev").trim();
+const assetVersion = String(requestedVersion || process.env.ASSET_VERSION || currentAssetVersion()).trim();
 const write = process.argv.includes("--write");
 
 if (!/^[A-Za-z0-9._-]+$/.test(assetVersion)) {

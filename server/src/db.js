@@ -986,6 +986,25 @@ const migrations = [
       }
     },
   },
+  {
+    id: 31,
+    up(database) {
+      // Give resume positions their own generation. Every history-derived cache
+      // was being thrown away by a write none of them reads.
+      database.exec("INSERT OR IGNORE INTO cache_versions (id, version, updated_at) VALUES ('progress', 1, 0)");
+      // The triggers are recreated rather than edited in place: SQLite has no
+      // ALTER TRIGGER, and dropping first means a database that already has the
+      // repointed version cannot end up with two.
+      for (const event of ["insert", "update", "delete"]) {
+        database.exec(`DROP TRIGGER IF EXISTS trg_playback_progress_cache_${event}`);
+        database.exec(`
+          CREATE TRIGGER trg_playback_progress_cache_${event} AFTER ${event.toUpperCase()} ON playback_progress BEGIN
+            UPDATE cache_versions SET version=version+1, updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id='progress';
+          END;
+        `);
+      }
+    },
+  },
 ];
 
 function parseJsonValue(value, fallback) {
@@ -1035,6 +1054,7 @@ try {
 const CACHE_VERSION_POLL_MS = 500;
 const selectHistoryVersion = db.prepare("SELECT version FROM cache_versions WHERE id = 'history'");
 const bumpHistoryVersion = db.prepare("UPDATE cache_versions SET version = version + 1, updated_at = ? WHERE id = 'history' RETURNING version");
+const selectProgressVersion = db.prepare("SELECT version FROM cache_versions WHERE id = 'progress'");
 const selectDiscoverVersion = db.prepare("SELECT version FROM cache_versions WHERE id = 'discover'");
 const bumpDiscoverVersionStmt = db.prepare("UPDATE cache_versions SET version = version + 1, updated_at = ? WHERE id = 'discover' RETURNING version");
 const selectUpNextVersion = db.prepare("SELECT version FROM cache_versions WHERE id = 'up_next'");
@@ -1066,6 +1086,16 @@ function noteDataVersionTrigger(version, reason) {
     dataVersionTriggers.delete(oldest);
   }
 }
+// Resume-position writes advance this instead of the shared history generation.
+// No history-derived cache reads playback_progress, so rebuilding them for a
+// resume ping was pure waste: with a dashboard open during playback it spent
+// 21.9% of wall clock rebuilding on a 7,458-row library and 46.8% on a 90,000-row
+// one. The browser still learns about the change through the aggregate in
+// getHistoryCacheVersion(), so resume positions refresh exactly as before.
+export function getProgressVersion() {
+  return Number(selectProgressVersion.get()?.version || 1);
+}
+
 export function dataVersionTrigger(version) {
   return dataVersionTriggers.get(version) || "observed";
 }

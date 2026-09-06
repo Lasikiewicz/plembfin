@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { db, getDataVersion, bumpDataVersion, dataVersionTrigger, parseJson, toJson, transaction } from "../db.js";
+import { db, getDataVersion, getProgressVersion, bumpDataVersion, dataVersionTrigger, parseJson, toJson, transaction } from "../db.js";
 import { recordCacheRebuild, timeCacheRebuild, timeCacheRebuildAsync } from "./cacheTelemetry.js";
 import { isAuthoritativeRestoreActive, loadMediaConfig } from "./configStore.js";
 import { fetchPosterFromTmdb } from "./tmdbClient.js";
@@ -57,8 +57,15 @@ function assertRestoreWriteAllowed(source = "", { allowDuringRestore = false } =
   throw error;
 }
 
+// The browser's change contract, deliberately broader than the derived-cache
+// generation. A resume-position write no longer invalidates any history-derived
+// cache, but an open page still has to notice it, so this aggregates both
+// generations: it advances for everything it advanced for before the split.
 export async function getHistoryCacheVersion() {
-  return getDataVersion();
+  // A sum, not a dotted pair: the browser parses this with Number(), where
+  // "5.10" and "5.1" are the same value. Both generations only ever increase,
+  // so their sum increases on every bump of either and never collides in time.
+  return getDataVersion() + getProgressVersion();
 }
 
 // Advance the browser-facing change contract without flushing expensive

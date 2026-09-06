@@ -1,6 +1,6 @@
-import { HIDE_EPISODE_SPOILERS_KEY, state } from "./state.js?v=0.15.0";
-import { escapeAttribute, formatDate, showTitleFrom, showName, slug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js?v=0.15.0";
-import { isCachedStorageImageUrl, proxiedArtworkUrl, rememberPosterLookup } from "./images.js?v=0.15.0";
+import { HIDE_EPISODE_SPOILERS_KEY, state } from "./state.js?v=0.15.0.4";
+import { escapeAttribute, formatDate, showTitleFrom, showName, slug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js?v=0.15.0.4";
+import { isCachedStorageImageUrl, proxiedArtworkUrl, rememberPosterLookup } from "./images.js?v=0.15.0.4";
 import {
   openEditDateDialog,
   openEditShowDateDialog,
@@ -11,7 +11,7 @@ import {
   openEditSeasonDateDialog,
   applyWatchedAtToLocalWatchRecord,
   editDateOptionsFromButton,
-} from "./edit-dialogs.js?v=0.15.0";
+} from "./edit-dialogs.js?v=0.15.0.4";
 import {
   openWatchDatePrompt,
   closeWatchDatePrompt,
@@ -25,9 +25,9 @@ import {
   confirmAndMarkUnwatched,
   confirmAndDeleteMedia,
   toggleWatchDateIncludeSpecials,
-} from "./watch-action.js?v=0.15.0";
-import { triggerRetrySync, loadSyncJobs, loadSyncHistory, showAvailIssuePopup } from "./sync.js?v=0.15.0";
-import { renderExplorer, renderHistoryView, resolvedTmdbCache, refreshMovieExplorerInPlace, refreshHistoryViewInPlace } from "./explorer.js?v=0.15.0";
+} from "./watch-action.js?v=0.15.0.4";
+import { triggerRetrySync, loadSyncJobs, loadSyncHistory, showAvailIssuePopup } from "./sync.js?v=0.15.0.4";
+import { renderExplorer, renderHistoryView, resolvedTmdbCache, refreshMovieExplorerInPlace, refreshHistoryViewInPlace } from "./explorer.js?v=0.15.0.4";
 import {
   movieBySlugOrId,
   openShowInlineDetail,
@@ -38,9 +38,9 @@ import {
   renderMovieImmersiveModalContent,
   openHistoryDebugModal,
   openMediaInfoModal,
-} from "./media-detail.js?v=0.15.0";
-import { fetchWatchedMovieByTmdb, syncRewatchHistoryToggle } from "./media-detail-movie.js?v=0.15.0";
-import { addToWatchlist, removeFromWatchlist, openAddToListDialog, personalItemFromDetailDataset, refreshRenderedPersonalMediaControls, loadPersonalMedia } from "./personal-media.js?v=0.15.0";
+} from "./media-detail.js?v=0.15.0.4";
+import { fetchWatchedMovieByTmdb, syncRewatchHistoryToggle } from "./media-detail-movie.js?v=0.15.0.4";
+import { addToWatchlist, removeFromWatchlist, openAddToListDialog, personalItemFromDetailDataset, refreshRenderedPersonalMediaControls, loadPersonalMedia } from "./personal-media.js?v=0.15.0.4";
 
 // Callbacks injected by app-events.js (forwarded from app.js) to avoid circular imports.
 let _cb = {};

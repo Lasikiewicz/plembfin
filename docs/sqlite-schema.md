@@ -17,7 +17,7 @@ Reference for `data/plembfin.db`. The full authoritative schema is in
 | `sync_history` | Permanent log of sync dispatch results, with `activity_group_key` for grouped movie/show activity | sync outcome changes | sync-history and sync-activity endpoints |
 | `runtime_state` | Single-row JSON blob - last cron time, force-sync state/log, `nowPlayingRefresh` signal | scheduler, force-sync, webhooks | dashboard polling |
 | `restore_reports` | A completed authoritative restore's full result and log, keyed by run id | restore job | restore status view, on request |
-| `cache_versions` | Monotone cross-process cache generations (`history` for canonical watch state, `discover` for changed TMDB feed snapshots, `up_next` for changed dashboard queue snapshots) | SQLite triggers and explicit invalidation | every web/worker process |
+| `cache_versions` | Monotone cross-process cache generations (`history` for canonical watch state, `progress` for resume positions, `discover` for changed TMDB feed snapshots, `up_next` for changed dashboard queue snapshots) | SQLite triggers and explicit invalidation | every web/worker process |
 | `scheduler_lease` | Current worker leader, fencing generation, heartbeat and tick time | worker coordinator | health and worker coordination |
 | `background_jobs` / `background_job_logs` | Durable cron/force-sync queue, state, results and ordered logs | web enqueues; leader claims | sync APIs and worker |
 | `settings` | Single-row JSON blob - Plex/Emby/Jellyfin/TMDB/TVDB connection settings | config endpoint | everything that talks to servers |
@@ -52,6 +52,24 @@ Reference for `data/plembfin.db`. The full authoritative schema is in
 | `audit_log` | Security-relevant event log (login, credential change, rotation) | `writeAuditLog()` in `db.js` | ops/debugging only |
 | `diagnostic_log` | Captured console output, bounded ring buffer of 20,000 rows | `diagnosticLogger.js` | Settings → Logs panel |
 | `schema_migrations` | Ordered migration ledger (`id`, `applied_at`) | `db.js` at startup | startup only |
+
+## Why resume positions have their own generation
+
+`playback_progress` writes arrive constantly while something is playing, and they used to
+advance the same `history` generation that the watch-history derived caches key on. None of
+those caches - history, movies, shows, stats - reads `playback_progress`, so every resume
+ping threw away work it could not have invalidated. Measured with a dashboard open during
+playback, the process spent **21.9%** of wall clock rebuilding on a 7,458-row library and
+**46.8%** on a 90,000-row one; after giving resume positions the `progress` generation, both
+are **0%**.
+
+The browser's change contract is deliberately *broader* than the cache generation. An open
+page still has to notice a resume position moving, so the live-update stream and
+`getHistoryCacheVersion()` report the **sum** of the two generations. A sum rather than a
+dotted pair because the client parses the value with `Number()`, where `5.10` and `5.1` are
+the same number; both generations only increase, so their sum advances on every bump of
+either.
+
 
 ## Schema migrations
 

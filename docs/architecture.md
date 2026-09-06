@@ -154,7 +154,7 @@ See [README.md](README.md) for the documentation index, including this file
 | `wipeData.js` | Wipe data handlers (`GET /api/wipe-data/preview`, `POST /api/wipe-data`): Watch History, Personal Watchlist, Sync History & Logs, Everything Tracked, and Wipe All / Fresh Start (also clears every remaining table, deletes cached artwork, and resets `data/config.json` via `appConfig.js`'s `resetAdminAccount()`). Kept separate from `maintenance.js`, which is already near its size limit. |
 | `mediaAuth.js` | Browser-session-only Plex account, Emby account, and Jellyfin Quick Connect/account flows; verifies identities and persists encrypted managed connections. |
 | `trackerAuth.js` | Trakt device authorization, initial-state policy, connection status/disconnect, and manual tracker synchronization. |
-| `liveUpdates.js` | Authenticated streaming endpoint that emits shared history, Up Next-cache, and Discover-cache version changes so open pages refresh as local state or feed snapshots change. |
+| `liveUpdates.js` | Authenticated streaming endpoint that emits shared history, Up Next-cache, and Discover-cache version changes so open pages refresh as local state or feed snapshots change. The history version it reports is the sum of the watch-history and resume-position generations, so a page still sees a resume position move even though that write no longer invalidates any derived cache. |
 | `onboarding.js` | Guided-setup API: aggregated `/api/setup/status`, step/acknowledgement persistence, background-import start/cancel, completion, restart, and checklist dismissal. |
 
 ### `server/src/utils/`

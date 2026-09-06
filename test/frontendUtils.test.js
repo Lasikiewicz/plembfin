@@ -51,7 +51,10 @@ test("frontend platform and title helpers normalize user-facing labels", () => {
   assert.match(platformIconMarkup("plembfin"), /plembfin-light\.png\?v=0\.15\.0/);
   assert.match(platformIconMarkup("plembfin"), /plembfin\.png\?v=0\.15\.0/);
   assert.match(sourceBadgeHtml("plembfin"), />Plembfin<\/span>/);
-  assert.equal(platformIconUrl("manual"), "/icons/plembfin.png?v=0.15.0");
+  // The asset version tracks the build (see scripts/asset-versions.js), so it
+  // changes on every alpha promotion. Assert that the icon is versioned, not
+  // which version it happens to carry today.
+  assert.match(platformIconUrl("manual"), /^\/icons\/plembfin\.png\?v=.+$/);
   assert.equal(platformName("jellyfin_webhook"), "Jellyfin");
   assert.equal(showName("Harbor Nine - S02E03 - Low Tide"), "Harbor Nine");
   assert.equal(episodeCode(2, 3), "S02E03");
