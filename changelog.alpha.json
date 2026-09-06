@@ -1,9 +1,44 @@
 {
   "baseVersion": "0.15.0",
-  "build": 5,
-  "version": "0.15.0.5",
-  "updatedAt": "2026-09-06T11:55:07.620Z",
+  "build": 6,
+  "version": "0.15.0.6",
+  "updatedAt": "2026-09-06T17:28:59.243Z",
   "entries": [
+    {
+      "build": 6,
+      "version": "0.15.0.6",
+      "shortVersion": "0.15.0.6",
+      "date": "2026-09-06T17:28:59.243Z",
+      "commit": "c991c38b991627b680787be41107ee63529995a3",
+      "message": "Fix - Report full watch history everywhere and cut per-page work",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix: Report full watch history everywhere and cut per-page work",
+        "Fix: History page now loads in milliseconds instead of around seven tenths of a second on large libraries, with same-day rewatch collapsing unchanged",
+        "Fix: Stats reports your entire watch history instead of silently describing only the newest 25,000 watches",
+        "Fix: TV Shows and the dashboard list every show in the library rather than stopping at the same 25,000-watch ceiling",
+        "Fix: Media pages no longer re-check for app updates or refetch diagnostic logs on every load",
+        "Fix: Platform icons are fetched once per page instead of three times under three different addresses",
+        "Fix: The background scheduler holds its once-a-minute cadence instead of drifting further behind with every slow tick",
+        "Fix: Restore progress logs and login errors no longer display garbled characters",
+        "Fix: Watch history caches rebuild faster after a watch is recorded"
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Report full watch history everywhere and cut per-page work",
+          "History page now loads in milliseconds instead of around seven tenths of a second on large libraries, with same-day rewatch collapsing unchanged",
+          "Stats reports your entire watch history instead of silently describing only the newest 25,000 watches",
+          "TV Shows and the dashboard list every show in the library rather than stopping at the same 25,000-watch ceiling",
+          "Media pages no longer re-check for app updates or refetch diagnostic logs on every load",
+          "Platform icons are fetched once per page instead of three times under three different addresses",
+          "The background scheduler holds its once-a-minute cadence instead of drifting further behind with every slow tick",
+          "Restore progress logs and login errors no longer display garbled characters",
+          "Watch history caches rebuild faster after a watch is recorded"
+        ],
+        "tweaks": []
+      }
+    },
     {
       "build": 5,
       "version": "0.15.0.5",
@@ -169,5 +204,5 @@
       ]
     }
   ],
-  "shortVersion": "0.15.0.5"
+  "shortVersion": "0.15.0.6"
 }
