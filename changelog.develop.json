@@ -1,21 +1,6 @@
 {
   "build": 56,
-  "resetCommit": "c991c38b991627b680787be41107ee63529995a3",
-  "updatedAt": "2026-09-06T17:57:32.197Z",
-  "entries": [
-    {
-      "build": 56,
-      "date": "2026-09-06T17:57:32.197Z",
-      "commit": "5db853a0cc6320803905e4b7c9a82e815b154c82",
-      "message": "Fix - Correct Up Next show links and speed up titles outside your library",
-      "author": "Lasikiewicz",
-      "details": [
-        "Up Next now links an episode to the same show page as your watch history does; it previously built that link from the episode's own ID, opening a page that could not resolve and was slow to load",
-        "Opening a show that is not in your library is far quicker: the page's slowest request drops from about 8.9 seconds to under 0.7",
-        "Such a show is no longer looked up over and over during one page load, so its details settle sooner",
-        "The open-in-Plex/Emby/Jellyfin lookup runs once per page instead of three times, and a title found in no connected server is remembered briefly rather than re-searching every server each time",
-        "A show sharing its name with another in your library keeps linking by title rather than risking the wrong show's page"
-      ]
-    }
-  ]
+  "resetCommit": "1e94b25482241219a3218a4014e4a3fa012eca25",
+  "updatedAt": "2026-09-06T17:58:15.973Z",
+  "entries": []
 }

@@ -1,5 +1,5 @@
-import { readStoredAdminToken } from "./auth.js?v=0.15.0.6";
-import { readStoredDebugLogs } from "./logs.js?v=0.15.0.6";
+import { readStoredAdminToken } from "./auth.js?v=0.15.0.7";
+import { readStoredDebugLogs } from "./logs.js?v=0.15.0.7";
 
 const TOKEN_KEY = "adminToken";
 const LEGACY_UPPER_TOKEN_KEY = "ADMIN_TOKEN";

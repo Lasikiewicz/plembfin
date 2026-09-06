@@ -1,9 +1,38 @@
 {
   "baseVersion": "0.15.0",
-  "build": 6,
-  "version": "0.15.0.6",
-  "updatedAt": "2026-09-06T17:28:59.243Z",
+  "build": 7,
+  "version": "0.15.0.7",
+  "updatedAt": "2026-09-06T17:58:15.973Z",
   "entries": [
+    {
+      "build": 7,
+      "version": "0.15.0.7",
+      "shortVersion": "0.15.0.7",
+      "date": "2026-09-06T17:58:15.973Z",
+      "commit": "1e94b25482241219a3218a4014e4a3fa012eca25",
+      "message": "Fix - Correct Up Next show links and speed up titles outside your library",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix: Correct Up Next show links and speed up titles outside your library",
+        "Fix: Up Next now links an episode to the same show page as your watch history does; it previously built that link from the episode's own ID, opening a page that could not resolve and was slow to load",
+        "Fix: Opening a show that is not in your library is far quicker: the page's slowest request drops from about 8.9 seconds to under 0.7",
+        "Fix: Such a show is no longer looked up over and over during one page load, so its details settle sooner",
+        "Fix: The open-in-Plex/Emby/Jellyfin lookup runs once per page instead of three times, and a title found in no connected server is remembered briefly rather than re-searching every server each time",
+        "Fix: A show sharing its name with another in your library keeps linking by title rather than risking the wrong show's page"
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Correct Up Next show links and speed up titles outside your library",
+          "Up Next now links an episode to the same show page as your watch history does; it previously built that link from the episode's own ID, opening a page that could not resolve and was slow to load",
+          "Opening a show that is not in your library is far quicker: the page's slowest request drops from about 8.9 seconds to under 0.7",
+          "Such a show is no longer looked up over and over during one page load, so its details settle sooner",
+          "The open-in-Plex/Emby/Jellyfin lookup runs once per page instead of three times, and a title found in no connected server is remembered briefly rather than re-searching every server each time",
+          "A show sharing its name with another in your library keeps linking by title rather than risking the wrong show's page"
+        ],
+        "tweaks": []
+      }
+    },
     {
       "build": 6,
       "version": "0.15.0.6",
@@ -204,5 +233,5 @@
       ]
     }
   ],
-  "shortVersion": "0.15.0.6"
+  "shortVersion": "0.15.0.7"
 }
