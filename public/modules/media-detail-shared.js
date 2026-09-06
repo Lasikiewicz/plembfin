@@ -95,7 +95,7 @@ export function renderCastSection(tmdbData) {
     const avatarUrl = tmdbProfile(actor.profile_path) || "/favicon.svg";
     return `
             <div class="cast-member-card" style="cursor: pointer;" data-person-id="${actor.id}" data-person-name="${escapeAttribute(actor.name)}">
-              <img class="cast-avatar-img" src="${escapeAttribute(avatarUrl)}" alt="${escapeAttribute(actor.name)}" data-err="fav" />
+              <img class="cast-avatar-img" src="${escapeAttribute(avatarUrl)}" alt="${escapeAttribute(actor.name)}" loading="lazy" decoding="async" data-err="fav" />
               <span class="cast-actor-name">${escapeHtml(actor.name)}</span>
               <span class="cast-character-name">${escapeHtml(actor.character)}</span>
             </div>
@@ -116,7 +116,7 @@ export function renderTrailersSection(tmdbData) {
         ${trailers.map((video) => `
           <div class="trailer-card">
             <div class="trailer-thumb-container" data-video-key="${video.key}" data-video-name="${escapeAttribute(video.name)}">
-              <img class="trailer-thumb" src="https://img.youtube.com/vi/${video.key}/mqdefault.jpg" alt="${escapeAttribute(video.name)}" data-err="fav" />
+              <img class="trailer-thumb" src="https://img.youtube.com/vi/${video.key}/mqdefault.jpg" alt="${escapeAttribute(video.name)}" loading="lazy" decoding="async" data-err="fav" />
               <div class="play-overlay"><svg viewBox="0 0 24 24" width="40" height="40" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
             </div>
             <span class="trailer-title" title="${escapeAttribute(video.name)}">${escapeHtml(video.name)}</span>
@@ -198,7 +198,7 @@ export function renderRelatedShowsSection(tmdbData) {
     const year = (item.first_air_date || "").slice(0, 4);
     return `
             <a class="season-poster-card related-show-card" data-immersive-related-tmdb="${item.id}" href="${escapeAttribute(tvShowTmdbHref(item.id, item.name))}">
-              <img class="season-poster-img" src="${escapeAttribute(poster)}" alt="${escapeAttribute(item.name || "")}" data-err="fav" />
+              <img class="season-poster-img" src="${escapeAttribute(poster)}" alt="${escapeAttribute(item.name || "")}" loading="lazy" decoding="async" data-err="fav" />
               <span class="season-poster-name">${escapeHtml(item.name || "")}${year ? ` <small>(${escapeHtml(year)})</small>` : ""}</span>
             </a>
           `;
@@ -296,7 +296,7 @@ export function renderRecommendationSection({ title, items = [], mediaType = "mo
     const poster = item.poster_path ? tmdbPoster(item.poster_path, item.id, mediaType) : "/favicon.svg";
     return `
                   <a class="season-poster-card" ${isTv ? `data-immersive-related-tmdb="${escapeAttribute(String(item.id))}" href="${escapeAttribute(tvShowTmdbHref(item.id, itemTitle))}"` : `data-immersive-movie-id="${escapeAttribute(String(item.id))}" href="${escapeAttribute(movieTmdbHref(item.id, itemTitle))}"`}>
-                    <img class="season-poster-img" src="${escapeAttribute(poster)}" alt="${escapeAttribute(itemTitle)}" data-err="fav" />
+                    <img class="season-poster-img" src="${escapeAttribute(poster)}" alt="${escapeAttribute(itemTitle)}" loading="lazy" decoding="async" data-err="fav" />
                     <span class="season-poster-name">${escapeHtml(itemTitle)}${year ? ` <small>(${escapeHtml(year)})</small>` : ""}</span>
                   </a>
                 `;
@@ -354,7 +354,7 @@ export function renderCollectionSection(tmdbData) {
     const title = movie.title || movie.original_title || "";
     return `
             <a class="season-poster-card collection-movie" data-immersive-movie-id="${escapeAttribute(String(movie.id))}" href="${escapeAttribute(movieTmdbHref(movie.id, title))}">
-              <img class="season-poster-img" src="${escapeAttribute(poster)}" alt="${escapeAttribute(title)}" data-err="fav" />
+              <img class="season-poster-img" src="${escapeAttribute(poster)}" alt="${escapeAttribute(title)}" loading="lazy" decoding="async" data-err="fav" />
               <span class="season-poster-name">${escapeHtml(title)}${year ? ` <small>(${escapeHtml(year)})</small>` : ""}</span>
             </a>
           `;

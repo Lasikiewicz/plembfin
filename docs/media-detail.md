@@ -120,6 +120,15 @@ list arrives shows a loading placeholder instead of a premature "no episodes" me
   played in the lightbox.
 - **Cast** - profile images proxied/cached via `GET /api/tmdb-profile`; clicking opens
   `/person/:id`.
+- **Artwork below the fold is lazy-loaded.** Cast avatars, the related/recommendation/images
+  poster rails, and trailer thumbnails all carry `loading="lazy" decoding="async"`. A first
+  view of a title issues around 78 API requests, roughly 49 of them one-per-image proxies, and
+  on a normal viewport every cast avatar sits below the fold - fetching them eagerly made the
+  page's genuinely slow provider calls queue behind the burst, to the point where
+  `/api/setup/status`, which answers in 9ms on its own, took over two seconds. The app-link
+  pills in the Watch Now row stay `eager`: they are small, always above the fold, and part of
+  the first paint. Repeat views are unaffected either way, since these proxies already send
+  `public, max-age=31536000, immutable` and come from the browser cache.
 - **Watch state & actions** - mark watched (with date prompt: today / release date /
   episode-relative date / custom), mark unwatched, delete; episode- season- and
   show-level for TV (`watch-action.js`, `POST /api/manual-watch` in batches of 100,
