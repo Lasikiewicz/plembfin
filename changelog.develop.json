@@ -1,6 +1,29 @@
 {
-  "build": 42,
+  "build": 44,
   "resetCommit": "d095f28d0e0d8245e92dd9bea04f3589e61189df",
-  "updatedAt": "2026-09-05T19:07:22.284Z",
-  "entries": []
+  "updatedAt": "2026-09-06T00:05:09.605Z",
+  "entries": [
+    {
+      "build": 44,
+      "date": "2026-09-06T00:05:09.605Z",
+      "commit": "f791f915980b1f6d339d0a491805d09727f241e5",
+      "message": "This update includes resolve code scanning alerts (#27), close remaining stack trace exposure (#28), and cut the cost of the Movies, Stats and restore screens.",
+      "author": "Lasikiewicz",
+      "details": [
+        "Keep stack traces out of admin-visible diagnostics and harden provider parsing and logging against CodeQL findings.",
+        "Normalize caught provider, credential, outbound, and watchlist errors before they can reach API responses.",
+        "Movies pages now answer from a cached projection instead of re-deriving the whole library on every request: pages 1, 5 and 10 went from about 60ms to under 1ms on a 90,000-row library, and the page number no longer changes the cost",
+        "The Stats page no longer downloads every period's report just to display one; it receives the totals, a short list of the available years and months, and only the report being viewed, fetching a different period when you pick one",
+        "A completed restore's full result and log are stored separately from the live status row, so the restore screen stops re-downloading the entire report on every poll while still showing the whole log",
+        "Library reads are backed by new database indexes covering season and title lookups, provider ids and recent ordering, with planner statistics refreshed once after they are created",
+        "Poster and backdrop paths are stored as their own columns on the metadata cache, so artwork no longer requires parsing the full details blob",
+        "Versioned assets are now cached for a year while the app entry page and manifest keep revalidating, so a new release is still picked up immediately"
+      ],
+      "messageFragments": [
+        "Fix - Resolve code scanning alerts (#27)",
+        "Fix - Close remaining stack trace exposure (#28)",
+        "Fix - Cut the cost of the Movies, Stats and restore screens"
+      ]
+    }
+  ]
 }

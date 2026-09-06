@@ -268,6 +268,18 @@ CREATE TABLE IF NOT EXISTS runtime_state (
   updated_at INTEGER
 );
 
+-- Completed authoritative restore reports live outside the hot runtime row.
+-- The runtime row keeps only the active cursor and a small terminal summary;
+-- the full result/log is fetched explicitly when an administrator asks for it.
+CREATE TABLE IF NOT EXISTS restore_reports (
+  run_id TEXT PRIMARY KEY,
+  result_json TEXT,
+  log_json TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_restore_reports_updated ON restore_reports(updated_at DESC);
+
 CREATE TABLE IF NOT EXISTS settings (
   id TEXT PRIMARY KEY,
   data TEXT,              -- JSON
@@ -303,6 +315,11 @@ CREATE TABLE IF NOT EXISTS tmdb_metadata_cache (
   media_type TEXT,
   title TEXT,
   details TEXT,           -- JSON
+  poster_path TEXT,
+  cached_poster_url TEXT,
+  backdrop_path TEXT,
+  cached_backdrop_url TEXT,
+  tvdb_poster_url TEXT,
   schema_version INTEGER,
   updated_at_ms INTEGER
 );

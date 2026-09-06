@@ -16,6 +16,7 @@ Reference for `data/plembfin.db`. The full authoritative schema is in
 | `playstate` | Per-item watched/unwatched state for sync targets | sync orchestrator | sync orchestrator |
 | `sync_history` | Permanent log of sync dispatch results, with `activity_group_key` for grouped movie/show activity | sync outcome changes | sync-history and sync-activity endpoints |
 | `runtime_state` | Single-row JSON blob - last cron time, force-sync state/log, `nowPlayingRefresh` signal | scheduler, force-sync, webhooks | dashboard polling |
+| `restore_reports` | A completed authoritative restore's full result and log, keyed by run id | restore job | restore status view, on request |
 | `cache_versions` | Monotone cross-process cache generations (`history` for canonical watch state, `discover` for changed TMDB feed snapshots, `up_next` for changed dashboard queue snapshots) | SQLite triggers and explicit invalidation | every web/worker process |
 | `scheduler_lease` | Current worker leader, fencing generation, heartbeat and tick time | worker coordinator | health and worker coordination |
 | `background_jobs` / `background_job_logs` | Durable cron/force-sync queue, state, results and ordered logs | web enqueues; leader claims | sync APIs and worker |
@@ -39,7 +40,7 @@ Reference for `data/plembfin.db`. The full authoritative schema is in
 | `personal_watchlist_activity` | Redacted watchlist-specific activity and removal reasons | watchlist repository/worker | Watchlist settings activity feed |
 | `loop_keys` | Loop-detection KV with TTL | sync orchestrator | sync orchestrator |
 | `poster_cache` | Cached artwork metadata (binaries in `data/media/`) | poster handler | poster resolution |
-| `tmdb_metadata_cache` | Movie details (pure TMDB) or TV show details (TVDB structure + TMDB extras merged), key `${mediaType}_${tmdbId}` (or `tv_tvdb_${tvdbId}` if no TMDB match) | tmdb-details handler | detail pages, prefetch |
+| `tmdb_metadata_cache` | Movie details (pure TMDB) or TV show details (TVDB structure + TMDB extras merged), key `${mediaType}_${tmdbId}` (or `tv_tvdb_${tvdbId}` if no TMDB match). Poster and backdrop paths are also stored as their own columns so artwork can be read without parsing the details blob | tmdb-details handler | detail pages, prefetch |
 | `tmdb_search_cache` | TMDB search results and versioned Discover feed snapshots | tmdb-search/discover handlers | TMDB search and Discover |
 | `tmdb_season_cache` | Unused compatibility table; season data is stored in `tvdb_season_cache` | - (unused) | - |
 | `tmdb_person_cache` | TMDB person details, key `person_${personId}` | tmdb-person handler | cast pages |

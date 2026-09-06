@@ -36,6 +36,7 @@ let showCache = { version: null, shows: [] };
 // on every call - the Upcoming calendar asks for it once per month requested.
 let scheduledShowCache = { version: null, shows: [] };
 let movieCache = { version: null, rows: null };
+let movieSummaryCache = { version: null, rows: null };
 let statsCache = { version: null, stats: null };
 // A cache invalidation can wake several API requests at once (for example while
 // a Plex season notification is updating sibling episodes). Keep one rebuild in
@@ -870,6 +871,17 @@ export async function getCachedMovies() {
     selectMoviesStmt.all().map(rowToWatch).filter(isPlembfinTrackedWatchRow)
   ));
   movieCache = { version, rows };
+  return rows;
+}
+
+// `/api/movies` repeatedly asks for different pages and sorts over the same
+// immutable generation. Collapse the expensive identity clustering once, then
+// let each request only filter/sort/slice that list.
+async function getCachedMovieSummaries() {
+  const version = getDataVersion();
+  if (movieSummaryCache.version === version && Array.isArray(movieSummaryCache.rows)) return movieSummaryCache.rows;
+  const rows = dedupeMovies(await getCachedMovies());
+  movieSummaryCache = { version, rows };
   return rows;
 }
 
@@ -4896,10 +4908,9 @@ export function countTraktImportPendingDispatch() {
 export async function queryMovies({ search = "", sort = "title_asc", limit = 100, offset = 0 } = {}) {
   const safeLimit = Math.min(Number(limit) || 100, 5000);
   const safeOffset = Number(offset) || 0;
-  const movies = await getCachedMovies();
+  const movies = await getCachedMovieSummaries();
   const filtered = movies.filter((row) => titleContainsSearch(row.title, search));
-  const deduped = dedupeMovies(filtered);
-  const sorted = sortRows(deduped, sort);
+  const sorted = sortRows(filtered, sort);
   return sorted.slice(safeOffset, safeOffset + safeLimit);
 }
 

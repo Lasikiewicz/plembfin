@@ -868,6 +868,70 @@ const migrations = [
       `);
     },
   },
+  {
+    id: 26,
+    up(database) {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS restore_reports (
+          run_id TEXT PRIMARY KEY,
+          result_json TEXT,
+          log_json TEXT,
+          created_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_restore_reports_updated ON restore_reports(updated_at DESC);
+      `);
+    },
+  },
+  {
+    id: 27,
+    up(database) {
+      const columns = new Set(database.pragma("table_info(tmdb_metadata_cache)").map((column) => column.name));
+      for (const column of ["poster_path", "cached_poster_url", "backdrop_path", "cached_backdrop_url", "tvdb_poster_url"]) {
+        if (!columns.has(column)) database.exec(`ALTER TABLE tmdb_metadata_cache ADD COLUMN ${column} TEXT`);
+      }
+      // Backfill from the existing JSON blob without making a provider call.
+      // json_extract is available in the SQLite build used by better-sqlite3;
+      // malformed legacy blobs simply leave the compact field NULL.
+      database.exec(`
+        UPDATE tmdb_metadata_cache
+        SET poster_path = COALESCE(poster_path, CASE WHEN json_valid(details) THEN json_extract(details, '$.poster_path') END),
+            cached_poster_url = COALESCE(cached_poster_url, CASE WHEN json_valid(details) THEN json_extract(details, '$.cached_poster_url') END),
+            backdrop_path = COALESCE(backdrop_path, CASE WHEN json_valid(details) THEN json_extract(details, '$.backdrop_path') END),
+            cached_backdrop_url = COALESCE(cached_backdrop_url, CASE WHEN json_valid(details) THEN json_extract(details, '$.cached_backdrop_url') END),
+            tvdb_poster_url = COALESCE(tvdb_poster_url, CASE WHEN json_valid(details) THEN json_extract(details, '$.tvdb_poster_url') END)
+        WHERE details IS NOT NULL
+      `);
+    },
+  },
+  {
+    id: 28,
+    up(database) {
+      // Very old imported databases can predate some watch-history columns.
+      // Create each index only after confirming its columns exist; this keeps
+      // the compatibility boot path safe while still upgrading normal installs.
+      const columns = (table) => new Set(database.pragma(`table_info(${table})`).map((column) => column.name));
+      const create = (table, required, sql) => {
+        if (required.every((column) => columns(table).has(column))) database.exec(sql);
+      };
+      create("watch_history", ["media_type", "season", "episode"], "CREATE INDEX IF NOT EXISTS idx_watch_history_media_season_episode ON watch_history(media_type, season, episode)");
+      create("watch_history", ["media_type", "title_lower"], "CREATE INDEX IF NOT EXISTS idx_watch_history_media_title_lower ON watch_history(media_type, title_lower)");
+      create("watch_history", ["tmdb_id"], "CREATE INDEX IF NOT EXISTS idx_watch_history_tmdb_id ON watch_history(tmdb_id)");
+      create("watch_history", ["tvdb_id"], "CREATE INDEX IF NOT EXISTS idx_watch_history_tvdb_id ON watch_history(tvdb_id)");
+      create("watch_history", ["updated_at", "created_at"], "CREATE INDEX IF NOT EXISTS idx_watch_history_updated_created ON watch_history(updated_at DESC, created_at DESC)");
+      create("playstate", ["media_type", "title_lower"], "CREATE INDEX IF NOT EXISTS idx_playstate_media_title_lower ON playstate(media_type, title_lower)");
+      create("playstate", ["media_type", "imdb_id"], "CREATE INDEX IF NOT EXISTS idx_playstate_media_imdb_id ON playstate(media_type, imdb_id)");
+      create("playstate", ["media_type", "tmdb_id"], "CREATE INDEX IF NOT EXISTS idx_playstate_media_tmdb_id ON playstate(media_type, tmdb_id)");
+      create("playstate", ["media_type", "tvdb_id"], "CREATE INDEX IF NOT EXISTS idx_playstate_media_tvdb_id ON playstate(media_type, tvdb_id)");
+      create("playstate", ["season", "episode"], "CREATE INDEX IF NOT EXISTS idx_playstate_season_episode ON playstate(season, episode)");
+      create("playback_progress", ["tmdb_id"], "CREATE INDEX IF NOT EXISTS idx_playback_progress_tmdb_id ON playback_progress(tmdb_id)");
+
+      // Keep planner statistics current after the targeted identity/order
+      // indexes are created. This runs once per database rather than on every
+      // boot and does not change durability settings.
+      database.exec("ANALYZE watch_history; ANALYZE playstate; ANALYZE playback_progress;");
+    },
+  },
 ];
 
 function parseJsonValue(value, fallback) {

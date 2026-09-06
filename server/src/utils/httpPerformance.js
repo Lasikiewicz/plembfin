@@ -39,18 +39,26 @@ export function createCspImageOriginMemo({ readRevision, loadConfig }) {
   };
 }
 
-// Keep the index and manifest revalidating. Other public assets are also
-// explicitly revalidated in 2a; long immutable max-age belongs to phase 2b,
-// after the asset-version inventory has passed.
+// Keep the index and manifest revalidating: they are how a browser discovers
+// that everything else changed, so they must never be cached hard.
+//
+// Every other public asset is referenced through scripts/asset-versions.js at a
+// canonical `?v=<version>` URL, which changes when the release does. A request
+// carrying that query is therefore asking for one immutable version of a file
+// and can be cached indefinitely; a request without it may be any version, so
+// it still has to revalidate.
 export function setPublicAssetCacheHeaders(response, filePath) {
   const fileName = path.basename(filePath).toLowerCase();
   if (fileName === "index.html" || fileName === "manifest.webmanifest") {
     response.setHeader("Cache-Control", "no-cache");
     return;
   }
-  if (STATIC_ASSET_EXTENSIONS.test(fileName)) {
-    response.setHeader("Cache-Control", "public, max-age=0, must-revalidate");
-  }
+  if (!STATIC_ASSET_EXTENSIONS.test(fileName)) return;
+  const versioned = Boolean(String(response.req?.query?.v || "").trim());
+  response.setHeader(
+    "Cache-Control",
+    versioned ? "public, max-age=31536000, immutable" : "public, max-age=0, must-revalidate",
+  );
 }
 
 export function createResponseCompression() {

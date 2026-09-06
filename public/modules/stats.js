@@ -68,6 +68,7 @@ export function statsReports() {
     all: reports.all || null,
     years: Array.isArray(reports.years) ? reports.years : [],
     months: Array.isArray(reports.months) ? reports.months : [],
+    selected: reports.selected || null,
   };
 }
 
@@ -103,6 +104,7 @@ export function syncStatsPeriodOptions() {
 
 export function selectedStatsReport() {
   const reports = statsReports();
+  if (state.statsPeriodType !== "all" && reports.selected?.period === state.statsPeriodValue) return reports.selected;
   if (state.statsPeriodType === "year") {
     return reports.years.find((report) => report.period === state.statsPeriodValue) || reports.years[0] || reports.all;
   }
@@ -456,6 +458,9 @@ export async function loadStats({ force = false } = {}) {
   try {
     const url = new URL("/api/history", window.location.origin);
     url.searchParams.set("stats", "only");
+    if (state.statsPeriodType !== "all" && state.statsPeriodValue) {
+      url.searchParams.set("period", state.statsPeriodValue);
+    }
     const response = await fetch(url, { headers: authHeaders() });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || `Stats load failed with ${response.status}`);

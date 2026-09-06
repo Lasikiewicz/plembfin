@@ -1279,7 +1279,9 @@ async function pollRestoreProgress(terminal) {
   for (let i = 0; i < MAX_TICKS; i++) {
     let data;
     try {
-      const response = await fetch("/api/watch-backups", { headers: authHeaders(), cache: "no-store" });
+      const url = new URL("/api/watch-backups", window.location.origin);
+      url.searchParams.set("since", String(printed));
+      const response = await fetch(url, { headers: authHeaders(), cache: "no-store" });
       data = await response.json().catch(() => ({}));
     } catch {
       await sleep(2000);
@@ -1287,10 +1289,10 @@ async function pollRestoreProgress(terminal) {
     }
     const rs = data.restoreSync || {};
     const log = Array.isArray(rs.log) ? rs.log : [];
-    if (terminal && log.length > printed) {
-      for (let j = printed; j < log.length; j++) terminal.textContent += `${log[j]}\n`;
+    if (terminal && log.length) {
+      for (const line of log) terminal.textContent += `${line}\n`;
       terminal.scrollTop = terminal.scrollHeight;
-      printed = log.length;
+      printed += log.length;
     }
     if (rs.active !== true) {
       if (terminal && rs.result && rs.result.success === false) {

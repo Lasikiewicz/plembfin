@@ -27,6 +27,7 @@ import { getOmdbRating } from "../utils/omdbGateway.js";
 import { canonicalMediaArtworkCacheKey, saveCanonicalPoster } from "../utils/mediaArtwork.js";
 import { POSTERS_DIR, BACKDROPS_DIR, PROFILES_DIR, PUBLIC_DIR } from "../paths.js";
 import { formatDispatchTelemetry, recordSyncHistory } from "./sync.js";
+import { statsPayloadForPeriod } from "../utils/statsPayload.js";
 import {
   countPlaybackProgressRows,
   countWatchedPlaystateRows,
@@ -177,7 +178,9 @@ export async function handleHistory(req, res) {
 
   const statsMode = String(req.query.stats || "").toLowerCase();
   if (statsMode === "only") {
-    return sendJson(res, { stats: await getWatchStats(requireDb()) });
+    return sendJson(res, {
+      stats: statsPayloadForPeriod(await getWatchStats(requireDb()), req.query.period || "all"),
+    });
   }
 
   const previewMode = String(req.query.preview || "").toLowerCase();

@@ -555,10 +555,14 @@ function attachEvents() {
     state.statsPeriodType = elements.statsPeriodType.value || "all";
     state.statsPeriodValue = state.statsPeriodType === "all" ? "all" : "";
     renderStats();
+    // The stats response now carries only the selected period's report, so a
+    // period change has to refetch rather than re-render what is already held.
+    loadStats({ force: true }).catch((error) => setMessage(error.message, "error"));
   });
   elements.statsPeriodValue?.addEventListener("change", () => {
     state.statsPeriodValue = elements.statsPeriodValue.value || "all";
     renderStats();
+    loadStats({ force: true }).catch((error) => setMessage(error.message, "error"));
   });
   document.querySelector("#stats-view")?.addEventListener("click", (event) => {
     const card = event.target.closest("[data-stats-media-href]");

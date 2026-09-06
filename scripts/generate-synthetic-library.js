@@ -231,16 +231,26 @@ async function main() {
   const posters = await generatePosterPool(posterPoolSize, POSTERS_DIR);
   const posterFor = (index) => (posters.length ? posters[index % posters.length] : null);
 
+  // Branches carry different optional `watch_history` columns, so the insert is
+  // built from the table the database actually has rather than from a fixed
+  // column list. A generator that only runs on the branch it was written on is
+  // no use for comparing one branch against another.
+  const historyColumns = new Set(db.prepare("PRAGMA table_info(watch_history)").all().map((row) => row.name));
+  const optionalHistory = [
+    { column: "episode_title_status", binding: "@episodeTitleStatus" },
+  ].filter((entry) => historyColumns.has(entry.column));
+  const optionalHistoryColumnSql = optionalHistory.map((entry) => `${entry.column}, `).join("");
+  const optionalHistoryValueSql = optionalHistory.map((entry) => `${entry.binding}, `).join("");
   const insertHistory = db.prepare(`
     INSERT INTO watch_history (
       id, title, title_lower, media_type, watched_at, source, tmdb_id, season, episode,
       poster_url, sync_action, sync_dispatch_telemetry, sync_retry_count, sync_next_retry_at,
-      media_key, show_title, show_title_lower, episode_title, episode_title_status,
+      media_key, show_title, show_title_lower, episode_title, ${optionalHistoryColumnSql}
       created_at, updated_at
     ) VALUES (
       @id, @title, @titleLower, @mediaType, @watchedAt, 'synthetic', @tmdbId, @season, @episode,
       @posterUrl, 'watched', @telemetry, 0, 0,
-      @mediaKey, @showTitle, @showTitleLower, @episodeTitle, @episodeTitleStatus,
+      @mediaKey, @showTitle, @showTitleLower, @episodeTitle, ${optionalHistoryValueSql}
       @createdAt, @updatedAt
     )
   `);

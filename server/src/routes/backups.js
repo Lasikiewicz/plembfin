@@ -48,6 +48,54 @@ import {
 } from "../utils/plembfinBackups.js";
 import { deviceCodeEndpoint, tokenEndpoint, ONEDRIVE_SCOPE } from "../utils/backupDestinations/onedrive.js";
 
+const insertRestoreReportStmt = db.prepare(`
+  INSERT INTO restore_reports (run_id, result_json, log_json, created_at, updated_at)
+  VALUES (?, ?, ?, ?, ?)
+  ON CONFLICT(run_id) DO UPDATE SET
+    result_json = excluded.result_json,
+    log_json = excluded.log_json,
+    updated_at = excluded.updated_at
+`);
+const selectRestoreReportStmt = db.prepare("SELECT result_json, log_json, created_at, updated_at FROM restore_reports WHERE run_id = ?");
+const pruneRestoreReportsStmt = db.prepare("DELETE FROM restore_reports WHERE run_id NOT IN (SELECT run_id FROM restore_reports ORDER BY updated_at DESC LIMIT 10)");
+
+function summarizeRestoreResult(result) {
+  if (!result || typeof result !== "object") return null;
+  return {
+    success: result.success !== false,
+    runId: result.runId || null,
+    finishedAt: result.finishedAt || null,
+    ...(result.clearMode ? { clearMode: result.clearMode } : {}),
+    ...(result.error ? { error: String(result.error) } : {}),
+    ...(result.restoreIssueCount != null ? { restoreIssueCount: Number(result.restoreIssueCount) || 0 } : {}),
+    ...(result.cancelled ? { cancelled: true } : {}),
+  };
+}
+
+function saveRestoreReport(runId, result, log = []) {
+  const now = Date.now();
+  db.transaction(() => {
+    insertRestoreReportStmt.run(
+      String(runId),
+      JSON.stringify(result || null),
+      JSON.stringify(Array.isArray(log) ? log : []),
+      now,
+      now,
+    );
+    pruneRestoreReportsStmt.run();
+  }).immediate();
+}
+
+function loadRestoreReport(runId) {
+  const row = selectRestoreReportStmt.get(String(runId || ""));
+  if (!row) return null;
+  let result = null;
+  let log = [];
+  try { result = row.result_json ? JSON.parse(row.result_json) : null; } catch { /* ignore corrupt report */ }
+  try { log = row.log_json ? JSON.parse(row.log_json) : []; } catch { /* ignore corrupt report */ }
+  return { result, log: Array.isArray(log) ? log : [], createdAt: row.created_at, updatedAt: row.updated_at };
+}
+
 export async function handleImport(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);
@@ -864,6 +912,12 @@ async function runRestoreReconcileJob(clearMode, ownerId) {
       log(`Stamped lastRestoreAt = ${new Date(stampedAt).toISOString()}; cron will skip app history up to this point.`);
       log("âœ“ Authoritative restore complete.");
       await stop();
+      const completedRuntime = await loadRuntimeState().catch(() => ({}));
+      try {
+        saveRestoreReport(ownerId, result, completedRuntime.restoreSyncLog);
+      } catch (error) {
+        console.error("Failed to persist completed restore report", error);
+      }
       await releaseSyncOperation({
         kind: RESTORE_KIND_BACKUP,
         ownerId,
@@ -873,17 +927,29 @@ async function runRestoreReconcileJob(clearMode, ownerId) {
           restoreSyncKind: "",
           restoreSyncCancelRequested: false,
           restoreSyncHeartbeat: Date.now(),
-          restoreSyncResult: result,
+          restoreSyncResult: null,
+          restoreSyncLog: [],
+          restoreSyncReportId: ownerId,
+          restoreSyncSummary: summarizeRestoreResult(result),
         },
       }).catch(() => null);
     } else {
       log("Restore remains paused after the failure. Retry the restore or clear its status before resuming normal sync.");
       await stop();
+      const failedRuntime = await loadRuntimeState().catch(() => ({}));
+      try {
+        saveRestoreReport(ownerId, result || { success: false }, failedRuntime.restoreSyncLog);
+      } catch (error) {
+        console.error("Failed to persist failed restore report", error);
+      }
       await touchSyncOperation({
         kind: RESTORE_KIND_BACKUP,
         ownerId,
         values: {
-          restoreSyncResult: result || { success: false },
+          restoreSyncResult: null,
+          restoreSyncLog: [],
+          restoreSyncReportId: ownerId,
+          restoreSyncSummary: summarizeRestoreResult(result || { success: false }),
           restoreSyncHeartbeat: Date.now(),
         },
       }).catch(() => null);
@@ -910,6 +976,8 @@ async function startAuthoritativeRestore(filename, clearMode) {
       restoreSyncStartedAt: startedAt,
       restoreSyncHeartbeat: startedAt,
       restoreSyncResult: null,
+      restoreSyncSummary: null,
+      restoreSyncReportId: "",
       restoreSyncLog: [`Authoritative restore started (${clearMode}) from ${filename}...`],
     },
   });
@@ -934,6 +1002,8 @@ async function startAuthoritativeRestore(filename, clearMode) {
     writeAuditLog("backup.restored", { detail: { filename, clearMode, records: restore?.imported } });
   } catch (error) {
     const finishedAt = Date.now();
+    const failedResult = { success: false, runId: restoreRunId, finishedAt, error: error.message };
+    try { saveRestoreReport(restoreRunId, failedResult, [`Authoritative restore started (${clearMode}) from ${filename}...`]); } catch { /* retain the small summary below */ }
     await releaseSyncOperation({
       kind: RESTORE_KIND_BACKUP,
       ownerId: restoreRunId,
@@ -943,7 +1013,10 @@ async function startAuthoritativeRestore(filename, clearMode) {
         restoreSyncKind: "",
         restoreSyncCancelRequested: false,
         restoreSyncHeartbeat: finishedAt,
-        restoreSyncResult: { success: false, runId: restoreRunId, finishedAt, error: error.message },
+        restoreSyncResult: null,
+        restoreSyncLog: [],
+        restoreSyncReportId: restoreRunId,
+        restoreSyncSummary: summarizeRestoreResult(failedResult),
       },
     }).catch(() => null);
     return { status: 400, body: { error: error.message } };
@@ -965,12 +1038,28 @@ export async function handleWatchBackups(req, res) {
     const filename = String(req.query?.download || "").trim();
     if (!filename) {
       const runtime = await loadRuntimeState();
+      const since = Math.min(Math.max(Number(req.query?.since) || 0, 0), 1_000_000);
+      const reportId = String(runtime.restoreSyncReportId || "");
+      const includeReport = ["1", "true", "yes"].includes(String(req.query?.report || req.query?.includeReport || "").toLowerCase());
+      const active = runtime.restoreSyncActive === true;
+      let log = active && Array.isArray(runtime.restoreSyncLog)
+        ? runtime.restoreSyncLog.slice(since)
+        : [];
+      let result = active ? null : (runtime.restoreSyncSummary || runtime.restoreSyncResult || null);
+      if (includeReport && reportId) {
+        const report = loadRestoreReport(reportId);
+        if (report) {
+          log = report.log.slice(since);
+          result = report.result || result;
+        }
+      }
       return sendJson(res, {
         ...watchBackupStatus(),
         restoreSync: {
-          active: runtime.restoreSyncActive === true,
-          log: Array.isArray(runtime.restoreSyncLog) ? runtime.restoreSyncLog : [],
-          result: runtime.restoreSyncResult || null,
+          active,
+          log,
+          result,
+          reportId: reportId || null,
           startedAt: runtime.restoreSyncStartedAt || null,
         },
       });
