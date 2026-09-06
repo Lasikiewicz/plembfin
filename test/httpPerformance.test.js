@@ -97,3 +97,27 @@ test("public static headers revalidate index and manifest without starting long 
   setPublicAssetCacheHeaders(response, "/public/app.js");
   assert.equal(headers.get("Cache-Control"), "public, max-age=0, must-revalidate");
 });
+
+// Versioned assets are referenced through scripts/asset-versions.js at a URL
+// that changes every release, so one of those URLs is safe to cache forever.
+// An unversioned request may be any release and must still revalidate, and the
+// entry document must never be cached hard or a release is never discovered.
+test("only a versioned asset request is cached immutably", () => {
+  const headers = new Map();
+  const respond = (query) => ({ setHeader: (k, v) => headers.set(k, v), req: { query } });
+
+  setPublicAssetCacheHeaders(respond({ v: "0.15.0" }), "/public/app.js");
+  assert.equal(headers.get("Cache-Control"), "public, max-age=31536000, immutable");
+
+  setPublicAssetCacheHeaders(respond({}), "/public/app.js");
+  assert.equal(headers.get("Cache-Control"), "public, max-age=0, must-revalidate");
+
+  setPublicAssetCacheHeaders(respond({ v: "   " }), "/public/app.js");
+  assert.equal(headers.get("Cache-Control"), "public, max-age=0, must-revalidate");
+
+  // A version query must not buy the entry document long-lived caching.
+  setPublicAssetCacheHeaders(respond({ v: "0.15.0" }), "/public/index.html");
+  assert.equal(headers.get("Cache-Control"), "no-cache");
+  setPublicAssetCacheHeaders(respond({ v: "0.15.0" }), "/public/manifest.webmanifest");
+  assert.equal(headers.get("Cache-Control"), "no-cache");
+});
