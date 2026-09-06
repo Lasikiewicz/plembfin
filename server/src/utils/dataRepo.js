@@ -18,6 +18,12 @@ import {
   flushShowProgressUpdates,
 } from "./showProgressCache.js";
 import { recordWatchlistMutation } from "./personalWatchlistRepository.js";
+import {
+  decodeStoredWatchTitle as decodeBasicHtmlEntities,
+  episodeCoordinatesFromStoredTitle as episodeCoordinatesFromTitleWithLegacyRepair,
+  persistedWatchDerivedFields,
+  repairedStoredEpisodeTitle as repairedEpisodeTitle,
+} from "./watchDerivedFields.js";
 
 // Initialize TV show progress cache on startup
 initShowProgressCache().catch((err) => {
@@ -93,8 +99,8 @@ const insertWatchStmt = db.prepare(
 // everything derived from it inherited that ceiling: above it a show whose
 // episodes were all older simply vanished from the TV Shows list, with no
 // error. `selectMoviesStmt` below has always been uncapped for the same
-// reason. Note that `getWatchStats` does not read this statement and is still
-// capped through `loadHistoryRows`; see docs/capacity.md.
+// reason. Stats deliberately reuses this same uncapped cache so its lifetime
+// totals remain truthful above the API pagination safety limit.
 const selectAllHistoryStmt = db.prepare("SELECT * FROM watch_history ORDER BY watched_at DESC");
 const selectMoviesStmt = db.prepare("SELECT * FROM watch_history WHERE media_type = 'movie'");
 const selectRecentStmt = db.prepare("SELECT * FROM watch_history ORDER BY watched_at DESC LIMIT ?");
@@ -264,16 +270,6 @@ function normalizeKeyPart(value) {
   return String(value ?? "none").trim().toLowerCase().replace(/[^a-z0-9._:-]+/g, "-");
 }
 
-function decodeBasicHtmlEntities(value) {
-  return String(value ?? "")
-    .replace(/&#(\d+);/g, (_, code) => String.fromCharCode(Number(code)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, code) => String.fromCharCode(parseInt(code, 16)))
-    .replace(/&apos;/gi, "'")
-    .replace(/&#39;/g, "'")
-    .replace(/&quot;/gi, '"')
-    .replace(/&amp;/gi, "&");
-}
-
 export function canonicalTitleKey(value) {
   return decodeBasicHtmlEntities(value)
     .trim()
@@ -337,31 +333,7 @@ export function showTitleFrom(title = "") {
 }
 
 function episodeCoordinatesFromTitle(title = "") {
-  const text = cleanString(decodeBasicHtmlEntities(title));
-  const match = text.match(/\bS(\d{1,3})E(\d{1,3})\b/i);
-  if (!match) return {};
-  return {
-    season: Number(match[1]),
-    episode: Number(match[2]),
-  };
-}
-
-function repairedEpisodeTitle(title = "") {
-  return cleanString(decodeBasicHtmlEntities(title)).replace(
-    /\bS0\?E(\d{1,3})\b/gi,
-    (_, episode) => `S00E${String(Number(episode)).padStart(2, "0")}`,
-  );
-}
-
-function episodeCoordinatesFromTitleWithLegacyRepair(title = "") {
-  const exact = episodeCoordinatesFromTitle(title);
-  if (exact.season != null || exact.episode != null) return exact;
-  const match = cleanString(decodeBasicHtmlEntities(title)).match(/\bS0\?E(\d{1,3})\b/i);
-  if (!match) return {};
-  return {
-    season: 0,
-    episode: Number(match[1]),
-  };
+  return episodeCoordinatesFromTitleWithLegacyRepair(title);
 }
 
 export function mediaKeyFor(record = {}) {
@@ -567,22 +539,23 @@ function recoverTitleFromTelemetry(telemetry) {
 
 // Build the column params for a watch_history row (excludes id/created_at).
 function watchRowParams(record) {
+  const derived = persistedWatchDerivedFields(record);
   let showTitle = record.media_type === "episode" ? showTitleFrom(record.show_title || record.title) : null;
   if (record.media_type === "episode" && (!showTitle || showTitle === "Unknown Show")) {
     const recovered = recoverShowTitle(record.tmdb_id, record.tvdb_id);
     if (recovered) showTitle = recovered;
   }
   return {
-    title: record.title,
-    title_lower: record.title.toLowerCase(),
+    title: derived.title,
+    title_lower: derived.title_lower,
     media_type: record.media_type,
     watched_at: record.watched_at,
     source: record.source,
     imdb_id: record.imdb_id || null,
     tmdb_id: record.tmdb_id || null,
     tvdb_id: record.tvdb_id || null,
-    season: record.season,
-    episode: record.episode,
+    season: derived.season,
+    episode: derived.episode,
     poster_url: record.poster_url || null,
     logo_url: record.logo_url || null,
     backdrop_url: record.backdrop_url || null,
@@ -628,10 +601,6 @@ function rowToWatch(row) {
       }
     }
   }
-  const titleCoordinates = episodeCoordinatesFromTitleWithLegacyRepair(row.title);
-  const title = row.media_type === "episode"
-    ? repairedEpisodeTitle(row.title || "")
-    : decodeBasicHtmlEntities(row.title || "");
   const storedEpisodeTitle = row.episode_title ? decodeBasicHtmlEntities(row.episode_title) : null;
   const episodeTitleStatus = row.media_type !== "episode"
     ? "resolved"
@@ -640,15 +609,15 @@ function rowToWatch(row) {
       : row.episode_title_status || "missing";
   return {
     id: row.id,
-    title,
+    title: row.title || "",
     media_type: row.media_type || "",
     watched_at: row.watched_at || "",
     source: row.source || "",
     imdb_id: row.imdb_id || null,
     tmdb_id: tmdbId,
     tvdb_id: row.tvdb_id || null,
-    season: row.season ?? titleCoordinates.season ?? null,
-    episode: row.episode ?? titleCoordinates.episode ?? null,
+    season: row.season ?? null,
+    episode: row.episode ?? null,
     poster_url: row.poster_url || null,
     logo_url: row.logo_url || null,
     backdrop_url: row.backdrop_url || null,
@@ -2998,83 +2967,87 @@ export async function listRecentlyUpdatedTrackedWatchRows({ limit = 100, scanLim
   return dedupeHistory(rows).slice(0, safeLimit);
 }
 
+function trackedHistoryWhereSql(alias = "") {
+  const column = (name) => alias ? `${alias}.${name}` : name;
+  return `
+    (${column("sync_action")} IS NULL OR LOWER(${column("sync_action")}) NOT IN ('unwatched', 'unplayed'))
+    AND (
+      ${column("sync_dispatch_telemetry")} IS NULL
+      OR (
+        ${column("sync_dispatch_telemetry")} NOT LIKE '%Watch event fetched from Plex library history%'
+        AND ${column("sync_dispatch_telemetry")} NOT LIKE '%Watch event fetched from Emby library history%'
+        AND ${column("sync_dispatch_telemetry")} NOT LIKE '%Watch event fetched from Jellyfin library history%'
+      )
+      OR CASE
+        WHEN json_valid(COALESCE(${column("watch_provenance")}, '')) THEN
+          NULLIF(json_extract(${column("watch_provenance")}, '$.event'), '') = 'library_history'
+          AND NULLIF(json_extract(${column("watch_provenance")}, '$.user'), '') IS NOT NULL
+          AND NULLIF(json_extract(${column("watch_provenance")}, '$.source_timestamp'), '') IS NOT NULL
+        ELSE 0
+      END
+    )
+  `;
+}
+
+function historySearchWhereSql(alias = "") {
+  const column = (name) => alias ? `${alias}.${name}` : name;
+  return `LOWER(
+    COALESCE(${column("title")}, '') || ' ' ||
+    COALESCE(${column("source")}, '') || ' ' ||
+    COALESCE(${column("imdb_id")}, '') || ' ' ||
+    COALESCE(${column("tmdb_id")}, '') || ' ' ||
+    COALESCE(${column("tvdb_id")}, '') || ' ' ||
+    COALESCE(${column("sync_dispatch_telemetry")}, '')
+  ) LIKE @search`;
+}
+
 export async function queryWatchHistory({ search = "", mediaType = "", limit = 50, offset = 0, dedupe = true } = {}) {
   const safeLimit = Math.min(Number(limit) || 50, MAX_HISTORY_LIMIT);
   const safeOffset = Math.max(Number(offset) || 0, 0);
   const normalizedMediaType = ["movie", "episode"].includes(String(mediaType || "").toLowerCase()) ? String(mediaType).toLowerCase() : "";
 
   if (!dedupe) {
-    const titleKeySql = (column) => `
-      CASE
-        WHEN COALESCE(${column}, '') GLOB '* ([0-9][0-9][0-9][0-9])'
-          THEN LOWER(TRIM(SUBSTR(COALESCE(${column}, ''), 1, LENGTH(COALESCE(${column}, '')) - 7)))
-        ELSE LOWER(TRIM(COALESCE(${column}, '')))
-      END
-    `;
-    const showTitleKey = titleKeySql("COALESCE(show_title_lower, show_title)");
-    const titleKey = titleKeySql("COALESCE(title_lower, title)");
-    const where = [
-      "(sync_action IS NULL OR LOWER(sync_action) NOT IN ('unwatched', 'unplayed'))",
-      `(
-        sync_dispatch_telemetry IS NULL
-        OR (
-          sync_dispatch_telemetry NOT LIKE '%Watch event fetched from Plex library history%'
-          AND sync_dispatch_telemetry NOT LIKE '%Watch event fetched from Emby library history%'
-          AND sync_dispatch_telemetry NOT LIKE '%Watch event fetched from Jellyfin library history%'
-        )
-        OR CASE
-          WHEN json_valid(COALESCE(watch_provenance, '')) THEN
-            NULLIF(json_extract(watch_provenance, '$.event'), '') = 'library_history'
-            AND NULLIF(json_extract(watch_provenance, '$.user'), '') IS NOT NULL
-            AND NULLIF(json_extract(watch_provenance, '$.source_timestamp'), '') IS NOT NULL
-          ELSE 0
-        END
-      )`,
-    ];
+    const where = [trackedHistoryWhereSql("history_row")];
+    const newerWhere = [trackedHistoryWhereSql("newer")];
     const params = {};
 
     if (normalizedMediaType) {
-      where.push("media_type = @mediaType");
+      where.push("history_row.media_type = @mediaType");
+      newerWhere.push("newer.media_type = @mediaType");
       params.mediaType = normalizedMediaType;
     }
 
     const searchText = cleanString(search).toLowerCase();
     if (searchText) {
-      where.push("(LOWER(COALESCE(title, '') || ' ' || COALESCE(source, '') || ' ' || COALESCE(imdb_id, '') || ' ' || COALESCE(tmdb_id, '') || ' ' || COALESCE(tvdb_id, '') || ' ' || COALESCE(sync_dispatch_telemetry, '')) LIKE @search)");
+      where.push(historySearchWhereSql("history_row"));
+      newerWhere.push(historySearchWhereSql("newer"));
       params.search = `%${searchText}%`;
     }
 
     const historyRows = db.prepare(`
-      WITH ranked_history AS (
-        SELECT
-          watch_history.*,
-          ROW_NUMBER() OVER (
-            PARTITION BY
-              SUBSTR(COALESCE(watched_at, ''), 1, 10),
-              CASE
-                WHEN media_type = 'episode' THEN
-                  'episode|show:' || COALESCE(NULLIF(${showTitleKey}, ''), NULLIF(${titleKey}, ''), 'unknown')
-                    || '|s:' || COALESCE(CAST(season AS TEXT), 'unknown')
-                    || '|e:' || COALESCE(CAST(episode AS TEXT), 'unknown')
-                WHEN media_type = 'movie' THEN
-                  'movie|' || COALESCE(
-                    NULLIF('imdb:' || COALESCE(imdb_id, ''), 'imdb:'),
-                    NULLIF('tmdb:' || COALESCE(tmdb_id, ''), 'tmdb:'),
-                    NULLIF('tvdb:' || COALESCE(tvdb_id, ''), 'tvdb:'),
-                    NULLIF('title:' || ${titleKey}, 'title:'),
-                    'unknown'
-                  )
-                ELSE
-                  COALESCE(media_type, 'unknown') || '|' || COALESCE(NULLIF(${titleKey}, ''), 'unknown')
-              END
-            ORDER BY watched_at DESC, updated_at DESC
-          ) AS daily_rank
-        FROM watch_history
-        WHERE ${where.join(" AND ")}
-      )
-      SELECT * FROM ranked_history
-      WHERE daily_rank = 1
-      ORDER BY watched_at DESC
+      SELECT history_row.*
+      FROM watch_history AS history_row
+      WHERE ${where.join(" AND ")}
+        AND NOT EXISTS (
+          SELECT 1
+          FROM watch_history AS newer
+          WHERE newer.history_day = history_row.history_day
+            AND newer.history_daily_key = history_row.history_daily_key
+            AND ${newerWhere.join(" AND ")}
+            AND (
+              COALESCE(newer.watched_at, '') > COALESCE(history_row.watched_at, '')
+              OR (
+                COALESCE(newer.watched_at, '') = COALESCE(history_row.watched_at, '')
+                AND COALESCE(newer.updated_at, 0) > COALESCE(history_row.updated_at, 0)
+              )
+              OR (
+                COALESCE(newer.watched_at, '') = COALESCE(history_row.watched_at, '')
+                AND COALESCE(newer.updated_at, 0) = COALESCE(history_row.updated_at, 0)
+                AND newer.rowid < history_row.rowid
+              )
+            )
+        )
+      ORDER BY history_row.watched_at DESC
       LIMIT @limit OFFSET @offset
     `).all({ ...params, limit: safeLimit, offset: safeOffset }).map(rowToWatch);
     return enrichHistoryRowsWithShowArtwork(historyRows);
@@ -3244,8 +3217,11 @@ export async function getWatchStats() {
   // consumer of watch_history already collapses these via
   // filterSameEventDuplicateRows, so Stats needs to match or it overcounts
   // titles the dedup tool correctly sees as having nothing left to remove.
+  // getCachedHistory is intentionally uncapped: the TV Shows library already
+  // needs the complete identity context, and reusing it here preserves the
+  // exact JS grouping/echo semantics instead of reimplementing them in SQL.
   const rows = await enrichHistoryRowsWithShowArtwork(filterSameEventDuplicateRows(
-    (await loadHistoryRows({ limit: MAX_HISTORY_LIMIT, offset: 0 })).filter(isPlembfinTrackedWatchRow),
+    (await getCachedHistory()).filter(isPlembfinTrackedWatchRow),
   ));
   const statsMovieKeys = buildStatsMovieKeys(rows);
   const movieKeys = new Set();
@@ -3511,7 +3487,13 @@ export async function updateWatchRecord(id, fields = {}, { preserveDispatchState
     params.push("Identity updated via Fix Match. Pending outbound sync.", 0, 0);
   }
   if (fields.title != null) {
-    const title = String(fields.title).trim();
+    const derivedTitle = persistedWatchDerivedFields({
+      title: String(fields.title).trim(),
+      media_type: existing.media_type,
+      season: existing.season,
+      episode: existing.episode,
+    });
+    const title = derivedTitle.title;
     if (title) { sets.push("title = ?", "title_lower = ?"); params.push(title, title.toLowerCase()); }
     // Queue new show title
     if (existing.media_type === "episode") {

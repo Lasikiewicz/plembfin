@@ -1,6 +1,6 @@
 import { state } from "./state.js?v=0.15.0.5";
 import { buildAuthHeaders } from "./auth.js?v=0.15.0.5";
-import { escapeHtml, escapeAttribute, slug, formatTmdbDate, tvShowTmdbHref, movieTmdbHref } from "./utils.js?v=0.15.0.5";
+import { escapeHtml, escapeAttribute, slug, formatTmdbDate, tvShowTmdbHref, movieTmdbHref, platformIconUrl } from "./utils.js?v=0.15.0.5";
 import { tmdbImage, tmdbPoster, tmdbProfile } from "./images.js?v=0.15.0.5";
 import { fetchTmdbDetails } from "./tmdb.js?v=0.15.0.5";
 
@@ -585,14 +585,14 @@ function appLinkHtml(link, { disabled = false, checking = false, label = "", pil
     const availabilityLabel = checking ? `Checking ${displayLabel}...` : `${displayLabel} unavailable`;
     return `
       <span class="${pillClasses.filter(Boolean).map(escapeAttribute).join(" ")}" title="${escapeAttribute(availabilityLabel)}" aria-label="${escapeAttribute(availabilityLabel)}" aria-disabled="true">
-        <img class="${escapeAttribute(iconClass)}" src="/icons/${escapeAttribute(target)}.svg?v=20260903a" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
+        <img class="${escapeAttribute(iconClass)}" src="${escapeAttribute(platformIconUrl(target))}" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
         <span>${escapeHtml(displayLabel)}</span>
       </span>
     `;
   }
   return `
     <a class="${pillClasses.filter(Boolean).map(escapeAttribute).join(" ")}" href="${escapeAttribute(link.url)}" target="_blank" rel="noopener noreferrer" title="${escapeAttribute(`Open in ${displayLabel}`)}" aria-label="${escapeAttribute(`Open in ${displayLabel}`)}">
-      ${link.iconUrl ? `<img class="${escapeAttribute(iconClass)}" src="${escapeAttribute(link.iconUrl)}" alt="" loading="eager" decoding="async" data-err="hide-show-next" />` : ""}
+      ${link.iconUrl ? `<img class="${escapeAttribute(iconClass)}" src="${escapeAttribute(platformIconUrl(target))}" alt="" loading="eager" decoding="async" data-err="hide-show-next" />` : ""}
       <span>${escapeHtml(displayLabel)}</span>
     </a>
   `;

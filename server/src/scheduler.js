@@ -235,7 +235,7 @@ function recordSchedulerStep(step) {
   }
 }
 
-function schedulerStepDidWork(result) {
+export function schedulerStepDidWork(result) {
   if (result == null) return false;
   if (typeof result === "boolean") return result;
   if (typeof result !== "object") return true;

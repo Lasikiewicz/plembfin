@@ -1,6 +1,8 @@
 # Scheduled Sync
 
-The elected background worker runs `runScheduledTick()` **every minute**. In the
+The elected background worker runs `runScheduledTick()` **every minute**, timed from the start
+of each tick so the cadence holds regardless of how long a tick takes; a tick that overruns a
+full minute skips the periods it consumed rather than running back to back. In the
 default `ROLE=all` deployment this is the same server process as the UI. A SQLite
 lease ensures only one `all` or `worker` process runs scheduler work and the Plex
 notification listener. The lease is renewed every 10 seconds and expires after 60.

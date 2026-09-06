@@ -29,6 +29,12 @@ derived caches):
 The payload lands in `state.stats`; `loadStats({ force })` skips the fetch when already
 loaded and history hasn't changed.
 
+Stats aggregates the uncapped `getCachedHistory()` result and retains the same
+`filterSameEventDuplicateRows` echo-suppression path as history-derived views. This is
+intentional: lifetime totals remain accurate beyond the 25,000-row API pagination safety
+limit without duplicating watch-identity rules in SQL. See [capacity.md](capacity.md) for
+the measured 90,000-row rebuild cost.
+
 ## Frontend behavior (`stats.js`)
 
 - **Period picker** - all time / a year / a month (`state.statsPeriodType` /

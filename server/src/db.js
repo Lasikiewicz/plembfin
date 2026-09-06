@@ -5,6 +5,7 @@ import Database from "better-sqlite3";
 import { DB_PATH, ensureDataDirs } from "./paths.js";
 import { repairPhantomWatchBursts } from "./utils/phantomWatchRepair.js";
 import { activityGroupKeyFor } from "./utils/syncActivityIdentity.js";
+import { persistedWatchDerivedFields } from "./utils/watchDerivedFields.js";
 
 ensureDataDirs();
 
@@ -1002,6 +1003,111 @@ const migrations = [
             UPDATE cache_versions SET version=version+1, updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id='progress';
           END;
         `);
+      }
+    },
+  },
+  {
+    id: 32,
+    up(database) {
+      // History paging keeps the existing whole-library, same-day collapse,
+      // but stores its deterministic expressions as virtual columns so the
+      // correlated newest-row lookup can use an index. Virtual columns avoid
+      // duplicating derived data in every writer and are calculated for
+      // existing rows without a backfill.
+      const columns = new Set(database.pragma("table_xinfo(watch_history)").map((column) => column.name));
+      const required = ["title", "title_lower", "media_type", "watched_at", "imdb_id", "tmdb_id", "tvdb_id", "season", "episode", "show_title", "show_title_lower", "updated_at"];
+      if (!required.every((column) => columns.has(column))) return;
+      if (!columns.has("history_day")) {
+        database.exec("ALTER TABLE watch_history ADD COLUMN history_day TEXT GENERATED ALWAYS AS (SUBSTR(COALESCE(watched_at, ''), 1, 10)) VIRTUAL");
+      }
+      if (!columns.has("history_daily_key")) {
+        database.exec(`
+          ALTER TABLE watch_history ADD COLUMN history_daily_key TEXT GENERATED ALWAYS AS (
+            CASE
+              WHEN media_type = 'episode' THEN
+                'episode|show:' || COALESCE(
+                  NULLIF(
+                    CASE
+                      WHEN COALESCE(show_title_lower, show_title, '') GLOB '* ([0-9][0-9][0-9][0-9])'
+                        THEN LOWER(TRIM(SUBSTR(COALESCE(show_title_lower, show_title, ''), 1, LENGTH(COALESCE(show_title_lower, show_title, '')) - 7)))
+                      ELSE LOWER(TRIM(COALESCE(show_title_lower, show_title, '')))
+                    END,
+                    ''
+                  ),
+                  NULLIF(
+                    CASE
+                      WHEN COALESCE(title_lower, title, '') GLOB '* ([0-9][0-9][0-9][0-9])'
+                        THEN LOWER(TRIM(SUBSTR(COALESCE(title_lower, title, ''), 1, LENGTH(COALESCE(title_lower, title, '')) - 7)))
+                      ELSE LOWER(TRIM(COALESCE(title_lower, title, '')))
+                    END,
+                    ''
+                  ),
+                  'unknown'
+                )
+                || '|s:' || COALESCE(CAST(season AS TEXT), 'unknown')
+                || '|e:' || COALESCE(CAST(episode AS TEXT), 'unknown')
+              WHEN media_type = 'movie' THEN
+                'movie|' || COALESCE(
+                  NULLIF('imdb:' || COALESCE(imdb_id, ''), 'imdb:'),
+                  NULLIF('tmdb:' || COALESCE(tmdb_id, ''), 'tmdb:'),
+                  NULLIF('tvdb:' || COALESCE(tvdb_id, ''), 'tvdb:'),
+                  NULLIF(
+                    'title:' || CASE
+                      WHEN COALESCE(title_lower, title, '') GLOB '* ([0-9][0-9][0-9][0-9])'
+                        THEN LOWER(TRIM(SUBSTR(COALESCE(title_lower, title, ''), 1, LENGTH(COALESCE(title_lower, title, '')) - 7)))
+                      ELSE LOWER(TRIM(COALESCE(title_lower, title, '')))
+                    END,
+                    'title:'
+                  ),
+                  'unknown'
+                )
+              ELSE
+                COALESCE(media_type, 'unknown') || '|' || COALESCE(
+                  NULLIF(
+                    CASE
+                      WHEN COALESCE(title_lower, title, '') GLOB '* ([0-9][0-9][0-9][0-9])'
+                        THEN LOWER(TRIM(SUBSTR(COALESCE(title_lower, title, ''), 1, LENGTH(COALESCE(title_lower, title, '')) - 7)))
+                      ELSE LOWER(TRIM(COALESCE(title_lower, title, '')))
+                    END,
+                    ''
+                  ),
+                  'unknown'
+                )
+            END
+          ) VIRTUAL
+        `);
+      }
+      database.exec(`
+        CREATE INDEX IF NOT EXISTS idx_watch_history_daily_key_order
+          ON watch_history(history_day, history_daily_key, watched_at DESC, updated_at DESC);
+        ANALYZE watch_history;
+      `);
+    },
+  },
+  {
+    id: 33,
+    up(database) {
+      // rowToWatch historically repaired malformed specials coordinates and
+      // decoded titles on every cache rebuild. Persist that projection once
+      // for existing rows; all normal writers use the same pure helper.
+      const columns = new Set(database.pragma("table_info(watch_history)").map((column) => column.name));
+      const required = ["id", "title", "title_lower", "media_type", "season", "episode"];
+      if (!required.every((column) => columns.has(column))) return;
+      const rows = database.prepare("SELECT id, title, title_lower, media_type, season, episode FROM watch_history").all();
+      const update = database.prepare(`
+        UPDATE watch_history
+        SET title = @title, title_lower = @title_lower, season = @season, episode = @episode
+        WHERE id = @id
+      `);
+      for (const row of rows) {
+        const derived = persistedWatchDerivedFields(row);
+        if (
+          derived.title === row.title
+          && derived.title_lower === row.title_lower
+          && derived.season === row.season
+          && derived.episode === row.episode
+        ) continue;
+        update.run({ id: row.id, ...derived });
       }
     },
   },

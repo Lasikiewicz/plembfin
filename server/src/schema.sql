@@ -34,7 +34,63 @@ CREATE TABLE IF NOT EXISTS watch_history (
   episode_title_checked_at INTEGER,
   episode_title_resolution_error TEXT,
   created_at INTEGER,
-  updated_at INTEGER
+  updated_at INTEGER,
+  history_day TEXT GENERATED ALWAYS AS (
+    SUBSTR(COALESCE(watched_at, ''), 1, 10)
+  ) VIRTUAL,
+  history_daily_key TEXT GENERATED ALWAYS AS (
+    CASE
+      WHEN media_type = 'episode' THEN
+        'episode|show:' || COALESCE(
+          NULLIF(
+            CASE
+              WHEN COALESCE(show_title_lower, show_title, '') GLOB '* ([0-9][0-9][0-9][0-9])'
+                THEN LOWER(TRIM(SUBSTR(COALESCE(show_title_lower, show_title, ''), 1, LENGTH(COALESCE(show_title_lower, show_title, '')) - 7)))
+              ELSE LOWER(TRIM(COALESCE(show_title_lower, show_title, '')))
+            END,
+            ''
+          ),
+          NULLIF(
+            CASE
+              WHEN COALESCE(title_lower, title, '') GLOB '* ([0-9][0-9][0-9][0-9])'
+                THEN LOWER(TRIM(SUBSTR(COALESCE(title_lower, title, ''), 1, LENGTH(COALESCE(title_lower, title, '')) - 7)))
+              ELSE LOWER(TRIM(COALESCE(title_lower, title, '')))
+            END,
+            ''
+          ),
+          'unknown'
+        )
+        || '|s:' || COALESCE(CAST(season AS TEXT), 'unknown')
+        || '|e:' || COALESCE(CAST(episode AS TEXT), 'unknown')
+      WHEN media_type = 'movie' THEN
+        'movie|' || COALESCE(
+          NULLIF('imdb:' || COALESCE(imdb_id, ''), 'imdb:'),
+          NULLIF('tmdb:' || COALESCE(tmdb_id, ''), 'tmdb:'),
+          NULLIF('tvdb:' || COALESCE(tvdb_id, ''), 'tvdb:'),
+          NULLIF(
+            'title:' || CASE
+              WHEN COALESCE(title_lower, title, '') GLOB '* ([0-9][0-9][0-9][0-9])'
+                THEN LOWER(TRIM(SUBSTR(COALESCE(title_lower, title, ''), 1, LENGTH(COALESCE(title_lower, title, '')) - 7)))
+              ELSE LOWER(TRIM(COALESCE(title_lower, title, '')))
+            END,
+            'title:'
+          ),
+          'unknown'
+        )
+      ELSE
+        COALESCE(media_type, 'unknown') || '|' || COALESCE(
+          NULLIF(
+            CASE
+              WHEN COALESCE(title_lower, title, '') GLOB '* ([0-9][0-9][0-9][0-9])'
+                THEN LOWER(TRIM(SUBSTR(COALESCE(title_lower, title, ''), 1, LENGTH(COALESCE(title_lower, title, '')) - 7)))
+              ELSE LOWER(TRIM(COALESCE(title_lower, title, '')))
+            END,
+            ''
+          ),
+          'unknown'
+        )
+    END
+  ) VIRTUAL
 );
 CREATE INDEX IF NOT EXISTS idx_watch_history_watched_at ON watch_history(watched_at DESC);
 CREATE INDEX IF NOT EXISTS idx_watch_history_type_watched ON watch_history(media_type, watched_at DESC);

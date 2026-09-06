@@ -632,5 +632,9 @@ export async function runWatchlistSyncScheduler({ budgetMs = DEFAULT_BUDGET_MS }
   if (restorePending && results.length && results.every((result) => result.snapshot === "succeeded" || result.snapshot === "not_due")) {
     clearWatchlistRestorePending();
   }
-  return { skipped: false, results, elapsedMs: Date.now() - startedAt };
+  const didWork = results.some((result) => (
+    result.snapshot !== "not_due"
+    || Number(result.processed?.claimed || 0) > 0
+  ));
+  return { skipped: false, didWork, results, elapsedMs: Date.now() - startedAt };
 }

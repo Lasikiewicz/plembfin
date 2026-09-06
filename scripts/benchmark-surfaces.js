@@ -26,6 +26,7 @@
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { createHash } from "node:crypto";
 import { performance } from "node:perf_hooks";
 
 const EXPLORER_PAGE_SIZE = 240;
@@ -71,19 +72,22 @@ async function measure(label, runs, task) {
   const samples = [];
   let payloadBytes = null;
   let items = null;
+  let resultHash = null;
   for (let run = 0; run < runs; run += 1) {
     const started = performance.now();
     const result = await task();
     samples.push(performance.now() - started);
     if (run === runs - 1) {
-      payloadBytes = Buffer.byteLength(JSON.stringify(result ?? null));
+      const serialized = JSON.stringify(result ?? null);
+      payloadBytes = Buffer.byteLength(serialized);
+      resultHash = createHash("sha256").update(serialized).digest("hex");
       items = Array.isArray(result) ? result.length
         : Array.isArray(result?.rows) ? result.rows.length
           : Array.isArray(result?.items) ? result.items.length
             : null;
     }
   }
-  return { surface: label, ...summarize(samples), payloadBytes, items };
+  return { surface: label, ...summarize(samples), payloadBytes, items, resultHash };
 }
 
 async function main() {
@@ -123,11 +127,9 @@ async function main() {
   const fullCacheRebuildMs = performance.now() - coldRebuildStarted;
   const rebuildTelemetry = cacheRebuildTelemetry();
 
-  // getCachedHistory() reads `SELECT * FROM watch_history ORDER BY watched_at
-  // DESC LIMIT 25000`, so every surface derived from it sees only the newest
-  // 25,000 rows however large the library is. Record where the library sits
-  // against that ceiling: above it, the shows, stats and dashboard numbers
-  // below describe a 25,000-row window rather than the whole library.
+  // Record the materialized history size so reports prove whether the fixture
+  // crossed the old 25,000-row ceiling. The cache and Stats are both uncapped;
+  // MAX_HISTORY_LIMIT remains only an API pagination safety bound.
   const historyCacheRows = (await dataRepo.getCachedHistory()).length;
 
   const surfaces = [];
@@ -137,6 +139,11 @@ async function main() {
   surfaces.push(await measure("stats-cached-read", runs, () => dataRepo.getWatchStats()));
   for (const page of [1, 5, 10]) {
     const offset = (page - 1) * EXPLORER_PAGE_SIZE;
+    surfaces.push(await measure(`history-page-${page}`, runs, () => dataRepo.queryWatchHistory({
+      limit: EXPLORER_PAGE_SIZE,
+      offset,
+      dedupe: false,
+    })));
     surfaces.push(await measure(`movies-page-${page}`, runs, () => dataRepo.queryMovies({ limit: EXPLORER_PAGE_SIZE, offset })));
     surfaces.push(await measure(`shows-page-${page}`, runs, () => dataRepo.queryShows({ limit: EXPLORER_PAGE_SIZE, offset })));
   }
@@ -175,9 +182,9 @@ async function main() {
       observedCounts: counts,
       historyCache: {
         rows: historyCacheRows,
-        ceiling: 25000,
-        ceilingHit: historyCacheRows >= 25000,
-        note: "getCachedHistory() is capped at MAX_HISTORY_LIMIT. Above the ceiling the shows, stats and dashboard surfaces describe the newest 25,000 rows, not the whole library.",
+        capped: false,
+        oldCeilingCrossed: historyCacheRows > 25000,
+        note: "getCachedHistory() and Stats are uncapped. MAX_HISTORY_LIMIT remains an API pagination safety bound only.",
       },
       databaseBytes: fs.existsSync(path.join(dataDir, "plembfin.db")) ? fs.statSync(path.join(dataDir, "plembfin.db")).size : null,
     },

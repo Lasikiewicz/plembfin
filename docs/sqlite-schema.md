@@ -141,6 +141,21 @@ OMDb key, and Seerr credentials. Managed account and Trakt tokens live encrypted
 dedicated connection tables and are adapted into runtime configuration only in memory.
 Written by `POST /api/config`, read by everything that calls the media server APIs.
 
+## `watch_history` History-page columns
+
+History paging also exposes two virtual, derived columns used only for indexed same-day
+collapse: `history_day` (the calendar date from `watched_at`) and `history_daily_key`
+(the existing movie or show/season/episode identity expression). The composite
+`idx_watch_history_daily_key_order` index lets the History page keep whole-library
+same-day semantics without sorting the whole table for every page. Because both columns
+are virtual, inserts, edits, imports, restores, merges, and rematches cannot leave a stored
+key stale.
+
+Migration 33 also normalizes existing base fields that used to be repaired on every read:
+HTML entities in `title`, malformed specials coordinates such as `S0?E03`, and missing
+`season`/`episode` values recoverable from the title. New inserts, title edits, and watch-
+history restores apply the same pure projection before writing.
+
 ## `watch_history` artwork columns
 
 Custom artwork selected from media detail pages is stored on each watch row:

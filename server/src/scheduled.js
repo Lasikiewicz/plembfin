@@ -2146,6 +2146,7 @@ async function runScheduledSyncCore(logger = console.log, { forceCatchup = false
     logger(`Scheduled Sync complete! Synced Plex: ${plexSynced}, Emby: ${embySynced}, Jellyfin: ${jellyfinSynced}, Library availability repairs: ${availabilityRepairs}, Resume Plex: ${plexResumeSynced}, Resume Emby: ${embyResumeSynced}, Resume Jellyfin: ${jellyfinResumeSynced}, Next Up Emby: ${embyNextUpFetched}, Next Up Jellyfin: ${jellyfinNextUpFetched}, Manual: ${manualSynced}`);
   }
   return {
+    didWork: hasActivity,
     sessions: liveSessionSnapshot.length,
     completions: 0,
     progressUpdates: 0,
@@ -2158,6 +2159,8 @@ async function runScheduledSyncCore(logger = console.log, { forceCatchup = false
     plexResumeSynced,
     embyResumeSynced,
     jellyfinResumeSynced,
+    embyNextUpFetched,
+    jellyfinNextUpFetched,
     manualDispatchesSynced: manualSynced,
   };
 }

@@ -343,6 +343,15 @@ them up, run `npm run assets:update`.
 Tests must not assert a specific asset version for this reason - assert that a URL is
 versioned, not which version it carries today.
 
+The checker reads references two ways, because a URL built at runtime is not a literal. The
+first pass matches a complete quoted reference such as `"/modules/utils.js?v=0.15.0.5"`. The
+second reads the version query on its own, wherever it sits on a managed `/icons/`,
+`/modules/`, `/app.js` or `/styles.css` path, so an assembled URL like
+`` `/icons/${target}.svg?v=0.15.0.5` `` is checked and restamped as well. Both passes run in
+`npm run assets:check` and in `--write`. A reference the first pass cannot see is exactly how
+a hardcoded token once survived several releases while the browser fetched the same icon
+under two different URLs.
+
 ## Conventions that CI enforces or assumes
 
 - Commit messages follow `type: summary` with `- ` bullet bodies. The commit hook and

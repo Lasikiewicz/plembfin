@@ -49,6 +49,22 @@ const TICK_MS = timing("PLEMBFIN_TEST_TICK_MS", 60_000);
 const FIRST_TICK_MS = timing("PLEMBFIN_TEST_FIRST_TICK_MS", 10_000);
 const JOB_POLL_MS = timing("PLEMBFIN_TEST_JOB_POLL_MS", 1_000);
 
+// How long to wait before the next tick, given how long the current one has
+// already taken. Timing from the tick's start keeps the period at `tickMs`
+// whatever the tick costs; waiting `tickMs` after it *finishes* makes the real
+// period `tickMs + tick duration`, which compounds - a 60-tick provider-backed
+// run drifted to 68.19 minutes of wall clock instead of 59, a 15.6% shortfall
+// in how often everything scheduled runs (finding AH).
+//
+// A tick that overruns its period skips the periods it consumed rather than
+// firing a catch-up burst, and an exact multiple returns a whole period rather
+// than 0 so the timer can never schedule a same-instant re-entry.
+export function nextTickDelayMs(elapsedMs, tickMs) {
+  const elapsed = Number.isFinite(elapsedMs) && elapsedMs > 0 ? elapsedMs : 0;
+  if (elapsed < tickMs) return tickMs - elapsed;
+  return tickMs - (elapsed % tickMs);
+}
+
 export function createWorkerCoordinator({ holderId, role }) {
   let lease = null;
   let stopped = false;
@@ -117,8 +133,21 @@ export function createWorkerCoordinator({ holderId, role }) {
     later(maintainLease, lease ? RENEW_MS : ACQUIRE_MS);
   }
 
+  // The next tick is timed from this tick's START, not from when it finishes.
+  // Waiting a full TICK_MS after completion makes the real period
+  // `TICK_MS + tick duration`, so every slow tick permanently delays every
+  // later one and the drift compounds: a 60-tick provider-backed run took
+  // 68.19 minutes of wall clock instead of 59, a 15.6% shortfall in how often
+  // everything scheduled actually runs.
+  //
+  // A tick that overruns its own period does not fire a catch-up burst. The
+  // whole periods it consumed are skipped and the next tick lands on the
+  // following boundary, so a slow tick costs the ticks it overran and nothing
+  // more. An exact multiple returns a full period rather than 0, so the timer
+  // never schedules a same-instant re-entry.
   async function runTick() {
     if (stopped) return;
+    const startedAt = Date.now();
     if (!tickRunning && isLeader()) {
       tickRunning = true;
       try {
@@ -132,7 +161,7 @@ export function createWorkerCoordinator({ holderId, role }) {
         activeTickPromise = null;
       }
     }
-    later(runTick, TICK_MS);
+    later(runTick, nextTickDelayMs(Date.now() - startedAt, TICK_MS));
   }
 
   async function executeJob(job) {

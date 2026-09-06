@@ -250,10 +250,10 @@ async function startOneDriveDeviceAuth(destination) {
 
 async function pollOneDriveDeviceAuth(pendingId) {
   const session = deviceCodeSessions.get(pendingId);
-  if (!session) return { status: "error", error: "Login session expired â€” start again" };
+  if (!session) return { status: "error", error: "Login session expired - start again" };
   if (session.expiresAt < Date.now()) {
     deviceCodeSessions.delete(pendingId);
-    return { status: "error", error: "Login code expired â€” start again" };
+    return { status: "error", error: "Login code expired - start again" };
   }
   const params = new URLSearchParams({
     client_id: session.clientId,
@@ -822,12 +822,12 @@ async function runRestoreReconcileJob(clearMode, ownerId) {
     if (!(await restoreStillOwned())) throw new Error("Authoritative restore was cancelled before app reconciliation started");
     let cleared = null;
     if (clearMode === "wipe") {
-      log("Clear mode: full wipe â€” marking every watched item on each app as unwatched.");
+      log("Clear mode: full wipe - marking every watched item on each app as unwatched.");
       cleared = await clearAppWatchstates(config, log, { shouldCancel: async () => !(await restoreStillOwned()) });
       if (cleared.cancelled || !(await restoreStillOwned())) throw new Error("Authoritative restore was cancelled during app watch-state clearing");
       log(`Clear complete: Plex ${cleared.plex}, Emby ${cleared.emby}, Jellyfin ${cleared.jellyfin}, failed ${cleared.failed}.`);
     } else {
-      log("Clear mode: reconcile â€” pushing only items tracked by the backup.");
+      log("Clear mode: reconcile - pushing only items tracked by the backup.");
     }
     const pushed = await pushRestoredStateToApps(config, log, { shouldCancel: async () => !(await restoreStillOwned()) });
     if (pushed.cancelled || !(await restoreStillOwned())) throw new Error("Authoritative restore was cancelled during app reconciliation");
@@ -910,7 +910,7 @@ async function runRestoreReconcileJob(clearMode, ownerId) {
       const stampedAt = Date.now() + RESTORE_SKEW_BUFFER_MS;
       setLastRestoreAt(stampedAt);
       log(`Stamped lastRestoreAt = ${new Date(stampedAt).toISOString()}; cron will skip app history up to this point.`);
-      log("âœ“ Authoritative restore complete.");
+      log("✓ Authoritative restore complete.");
       await stop();
       const completedRuntime = await loadRuntimeState().catch(() => ({}));
       try {

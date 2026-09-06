@@ -425,8 +425,9 @@ crontab needed) handles sync reconciliation, cache maintenance, and nightly back
 exponential backoff for offline targets. Large watched-state bursts defer competing
 scheduled media/tracker polling while backups and metadata maintenance continue; Plex
 notification bursts are coalesced and bounded, including bulk episode fan-out, while
-pending items dispatch concurrently across distinct media identities. Every push runs `npm run build` - a syntax
-check plus a clean-directory boot test - before it ships. Personal watchlist delivery uses
+pending items dispatch concurrently across distinct media identities. Every push runs `npm run build` - a syntax check, the
+test suite, documentation and JSON validation, an outbound-fetch guard, an asset-version
+check, and a clean-directory boot test - before it ships. Personal watchlist delivery uses
 its own leased queue, provider ownership ledger, complete-snapshot gate, and failure budget,
 so a provider watchlist outage cannot pause watched-state or rating synchronization.
 

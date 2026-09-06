@@ -448,17 +448,26 @@ function updateVersionBadge(data) {
         : "Open changelog";
 }
 
-// Quick update check on dashboard load: refreshes the GitHub update status so
-// the sidebar badge flags new releases as soon as the changelog commit lands.
+// A detail-page boot only needs the bundled version for the sidebar badge.
+// Reserve the remote GitHub update check for the dashboard; Settings performs
+// its own fetch when the changelog panel is opened.
 async function loadAppVersion() {
   if (!elements.appVersion) return;
   try {
-    const response = await fetch("/api/changelog?refresh=1", { cache: "no-store", headers: authHeaders() });
+    const pathname = window.location.pathname.replace(/\/+$/, "") || "/";
+    const checksForUpdates = pathname === "/" || pathname === "/dashboard";
+    const response = await fetch(checksForUpdates ? "/api/changelog?refresh=1" : "/changelog.json", {
+      cache: "no-store",
+      headers: authHeaders(),
+    });
     const data = await response.json();
     if (response.ok) {
-      state.changelog = data;
-      updateVersionBadge(data);
-      if (state.activeView === "settings" && state.activeSettingsRoute?.panel === "changelog") renderChangelog().catch(() => { });
+      if (checksForUpdates) {
+        state.changelog = data;
+        updateVersionBadge(data);
+      } else {
+        updateVersionBadge({ current: data.version });
+      }
     }
   } catch {
     // Keep the HTML fallback version when release metadata is unavailable.
@@ -1036,7 +1045,9 @@ async function loadGlobalDiscovery(query) {
 
 function logDebug(message, details) {
   state.debugLogs = appendDebugLog(state.debugLogs, message, details);
-  renderLogs().catch(() => { });
+  if (state.activeView === "settings" && state.activeSettingsRoute?.panel === "logs") {
+    renderLogs().catch(() => { });
+  }
   return state.debugLogs.at(-1);
 }
 
@@ -2480,8 +2491,7 @@ async function renderLogs(forceScrollToBottom = false) {
 function syncLogsRefresh() {
   const shouldRefresh = state.activeView === "settings" && state.activeSettingsRoute?.panel === "logs" && state.token;
   if (shouldRefresh && !state.logsRefreshInterval) {
-    state.hasLoadedLogsOnce = false;
-    renderLogs(true).catch(() => { });
+    if (!state.hasLoadedLogsOnce) renderLogs(true).catch(() => { });
     state.logsRefreshInterval = window.setInterval(() => {
       if (state.activeView === "settings" && state.activeSettingsRoute?.panel === "logs") {
         renderLogs().catch(() => { });
@@ -2994,7 +3004,6 @@ function initialize() {
   renderActiveSessions();
   renderStats();
   if (!state.mediaDetailInline) renderExplorer();
-  renderLogs().catch(() => { });
   renderImportPreview();
   renderWatchBackups();
   renderPlembfinBackups();

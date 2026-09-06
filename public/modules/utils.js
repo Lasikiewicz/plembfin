@@ -283,7 +283,7 @@ export function platformIconUrl(value) {
   const normalized = normalizePlatformSource(value);
   if (normalized === "plembfin") return "/icons/plembfin.png?v=0.15.0.5";
   const extension = "svg";
-  return `/icons/${normalized}.${extension}?v=20260903a`;
+  return `/icons/${normalized}.${extension}?v=0.15.0.5`;
 }
 
 export function platformIconMarkup(value, className = "source-badge-icon", wrapperClass = "source-badge-icon-set") {

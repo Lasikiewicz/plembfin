@@ -313,7 +313,7 @@ See [README.md](README.md) for the documentation index, including this file
 | `forcePushHistory.js` | Standalone one-shot replicator: fetches Plembfin's `/api/history` and replays every row against Plex/Emby/Jellyfin as mark-played calls. |
 | `seed-demo-content.js` | `npm run seed:demo` - inserts fictional movies/shows with generated poster art for demo screenshots/dev. |
 | `generate-synthetic-library.js` | Builds a disposable library at a stated scale for performance measurement, parameterized by movies, shows, episodes per show, history rows, TMDB cache blob size, and poster pool. Writes only to the `--data-dir` it is given, refuses a directory holding a database it did not create, and drops a `synthetic-library.json` marker recording the parameters and resulting counts. |
-| `benchmark-surfaces.js` | Records the server-side surface baseline against a generated library (dashboard payload, stats, movies page N, shows page N, and a cold full cache rebuild) and writes it to `docs/benchmarks/`. Makes no database writes: the cold rebuild is measured from a fresh process's first read of each cache rather than by forcing a miss. |
+| `benchmark-surfaces.js` | Records the server-side surface baseline against a generated library (dashboard payload, stats, History/Movies/Shows page N, and a cold full cache rebuild) and writes it to `docs/benchmarks/`. Each measured result includes a SHA-256 payload fingerprint so before/after timing runs can also prove byte-identical output. Makes no database writes: the cold rebuild is measured from a fresh process's first read of each cache rather than by forcing a miss. |
 
 ### `test/`
 
@@ -410,10 +410,16 @@ Full detail: [webhooks.md](webhooks.md).
 
 ## Scheduler
 
-`server.js` runs `setInterval(tick, 60000)` once the server is up, calling
+The elected worker coordinator (`server/src/workerCoordinator.js`) drives the tick, calling
 `runScheduledTick()` from `server/src/scheduler.js` (wrapping `runScheduledSync` from
-`scheduled.js`). The tick is guarded against overlap: if the previous tick is still
-running when the next fires, the new tick is skipped.
+`scheduled.js`) once a minute. The tick is guarded against overlap: if the previous tick is
+still running when the next fires, the new tick is skipped.
+
+Each tick is scheduled from the **start** of the previous one, so the period stays 60 seconds
+whatever a tick costs. `nextTickDelayMs()` computes the delay: a tick that finishes inside its
+period waits out the remainder, and a tick that overruns skips the whole periods it consumed
+rather than firing a catch-up burst. Timing the wait from a tick's completion instead would
+make the real period `60s + tick duration`, which compounds across every later tick.
 
 The same logic runs on demand via:
 - `GET /api/cron-sync/status` - returns the last cron trigger/result as JSON for automation.
@@ -647,12 +653,10 @@ install sizes, but large datasets should move hot paths to indexed SQL with
 `LIMIT`/`OFFSET` before adding more full-table caches. `PLEMBFIN_DEBUG_CACHE_REBUILDS=1`
 reports what each rebuild actually costs and which caller's invalidation caused it.
 
-Scale limit: `getCachedHistory()` reads the newest 25,000 watch rows (`MAX_HISTORY_LIMIT`).
-Everything derived from it - the dashboard preview, watch stats, and the TV Shows library -
-therefore describes that window on a larger library, and a show whose episodes all fall
-outside it drops out of the TV Shows listing. `getCachedMovies()` queries movies directly
-and is not capped, so the Movies library is unaffected. See
-[capacity.md](capacity.md).
+Scale behavior: `getCachedHistory()` is uncapped, and the dashboard preview, Stats, and TV
+Shows library therefore describe the full history. `MAX_HISTORY_LIMIT` remains an API
+pagination safety bound, not a derived-cache ceiling. Full rebuild cost grows with library
+size; measured guidance is in [capacity.md](capacity.md).
 
 Concurrent readers share one in-flight `getCachedShows()` rebuild per show-set variant,
 and an empty result is cached by version just like a non-empty result. This keeps a burst

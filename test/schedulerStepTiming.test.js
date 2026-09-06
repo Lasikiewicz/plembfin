@@ -4,7 +4,13 @@ import { makeTempDataDir } from "./helpers.js";
 
 makeTempDataDir("plembfin-scheduler-step-timing-");
 
-const { runScheduledTick, schedulerTimingTelemetry } = await import("../server/src/scheduler.js");
+const { runScheduledTick, schedulerStepDidWork, schedulerTimingTelemetry } = await import("../server/src/scheduler.js");
+
+test("scheduler work detection honors explicit provider result contracts", () => {
+  assert.equal(schedulerStepDidWork({ didWork: true, jellyfinNextUpFetched: 24 }), true);
+  assert.equal(schedulerStepDidWork({ didWork: false, results: [{ snapshot: "not_due" }] }), false);
+  assert.equal(schedulerStepDidWork({ skipped: true, reason: "not-due" }), false);
+});
 
 test("a tick is recorded even when it returns before running a step", async () => {
   const before = schedulerTimingTelemetry().ticksObserved;

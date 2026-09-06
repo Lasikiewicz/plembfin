@@ -1,0 +1,4812 @@
+{
+  "test": "test 6, scheduler per-step timing",
+  "measuredAt": "2026-09-06T16:34:38.638Z",
+  "workload": "live DATA_DIR, provider-backed (Plex, Emby, Jellyfin, Trakt), 7458 watch_history rows",
+  "flag": "PLEMBFIN_DEBUG_SCHEDULER=1",
+  "ticks": 60,
+  "tickIntervalMs": {
+    "min": 61903,
+    "max": 122954,
+    "mean": 69344.288
+  },
+  "elapsedMinutes": 68.19,
+  "intendedMinutes": 59,
+  "budgetExhaustions": 0,
+  "overrunTicks": [
+    {
+      "tick": 3,
+      "durationMs": 62950
+    },
+    {
+      "tick": 17,
+      "durationMs": 62449.6
+    },
+    {
+      "tick": 31,
+      "durationMs": 61928.8
+    },
+    {
+      "tick": 45,
+      "durationMs": 62555.9
+    },
+    {
+      "tick": 59,
+      "durationMs": 62121.9
+    }
+  ],
+  "conclusion": "No starvation: every recurring step ran on all 60 ticks with zero budget exhaustions. Phase 7 dropped. Tick period is 60s + tick duration (finding AH).",
+  "tickSummaries": [
+    {
+      "tick": 1,
+      "steps": 10,
+      "durationMs": 12522.5,
+      "achievedIntervalMs": null
+    },
+    {
+      "tick": 2,
+      "steps": 8,
+      "durationMs": 2254.2,
+      "achievedIntervalMs": 72535
+    },
+    {
+      "tick": 3,
+      "steps": 8,
+      "durationMs": 62950,
+      "achievedIntervalMs": 62258
+    },
+    {
+      "tick": 4,
+      "steps": 8,
+      "durationMs": 2516.7,
+      "achievedIntervalMs": 122954
+    },
+    {
+      "tick": 5,
+      "steps": 8,
+      "durationMs": 9592.5,
+      "achievedIntervalMs": 62523
+    },
+    {
+      "tick": 6,
+      "steps": 8,
+      "durationMs": 2548.3,
+      "achievedIntervalMs": 69593
+    },
+    {
+      "tick": 7,
+      "steps": 8,
+      "durationMs": 2092,
+      "achievedIntervalMs": 62553
+    },
+    {
+      "tick": 8,
+      "steps": 8,
+      "durationMs": 1980.7,
+      "achievedIntervalMs": 62094
+    },
+    {
+      "tick": 9,
+      "steps": 8,
+      "durationMs": 2351.3,
+      "achievedIntervalMs": 61988
+    },
+    {
+      "tick": 10,
+      "steps": 9,
+      "durationMs": 10971.6,
+      "achievedIntervalMs": 62352
+    },
+    {
+      "tick": 11,
+      "steps": 8,
+      "durationMs": 1932.7,
+      "achievedIntervalMs": 70985
+    },
+    {
+      "tick": 12,
+      "steps": 8,
+      "durationMs": 2048.8,
+      "achievedIntervalMs": 61946
+    },
+    {
+      "tick": 13,
+      "steps": 8,
+      "durationMs": 2444.1,
+      "achievedIntervalMs": 62059
+    },
+    {
+      "tick": 14,
+      "steps": 8,
+      "durationMs": 2292.1,
+      "achievedIntervalMs": 62454
+    },
+    {
+      "tick": 15,
+      "steps": 8,
+      "durationMs": 10851.8,
+      "achievedIntervalMs": 62305
+    },
+    {
+      "tick": 16,
+      "steps": 8,
+      "durationMs": 2004.1,
+      "achievedIntervalMs": 70857
+    },
+    {
+      "tick": 17,
+      "steps": 8,
+      "durationMs": 62449.6,
+      "achievedIntervalMs": 62009
+    },
+    {
+      "tick": 18,
+      "steps": 8,
+      "durationMs": 3756.3,
+      "achievedIntervalMs": 122452
+    },
+    {
+      "tick": 19,
+      "steps": 9,
+      "durationMs": 10853.1,
+      "achievedIntervalMs": 63765
+    },
+    {
+      "tick": 20,
+      "steps": 8,
+      "durationMs": 2291.9,
+      "achievedIntervalMs": 70862
+    },
+    {
+      "tick": 21,
+      "steps": 8,
+      "durationMs": 2463.6,
+      "achievedIntervalMs": 62305
+    },
+    {
+      "tick": 22,
+      "steps": 8,
+      "durationMs": 2057.3,
+      "achievedIntervalMs": 62465
+    },
+    {
+      "tick": 23,
+      "steps": 8,
+      "durationMs": 1934,
+      "achievedIntervalMs": 62060
+    },
+    {
+      "tick": 24,
+      "steps": 8,
+      "durationMs": 10953.3,
+      "achievedIntervalMs": 61941
+    },
+    {
+      "tick": 25,
+      "steps": 8,
+      "durationMs": 2562.2,
+      "achievedIntervalMs": 70956
+    },
+    {
+      "tick": 26,
+      "steps": 8,
+      "durationMs": 2187.2,
+      "achievedIntervalMs": 62576
+    },
+    {
+      "tick": 27,
+      "steps": 8,
+      "durationMs": 2403.6,
+      "achievedIntervalMs": 62187
+    },
+    {
+      "tick": 28,
+      "steps": 9,
+      "durationMs": 1991.1,
+      "achievedIntervalMs": 62415
+    },
+    {
+      "tick": 29,
+      "steps": 9,
+      "durationMs": 10844.2,
+      "achievedIntervalMs": 61995
+    },
+    {
+      "tick": 30,
+      "steps": 8,
+      "durationMs": 1919.5,
+      "achievedIntervalMs": 70846
+    },
+    {
+      "tick": 31,
+      "steps": 8,
+      "durationMs": 61928.8,
+      "achievedIntervalMs": 61927
+    },
+    {
+      "tick": 32,
+      "steps": 8,
+      "durationMs": 2763.9,
+      "achievedIntervalMs": 121937
+    },
+    {
+      "tick": 33,
+      "steps": 8,
+      "durationMs": 11500.5,
+      "achievedIntervalMs": 62768
+    },
+    {
+      "tick": 34,
+      "steps": 8,
+      "durationMs": 2084.3,
+      "achievedIntervalMs": 71514
+    },
+    {
+      "tick": 35,
+      "steps": 8,
+      "durationMs": 2150.5,
+      "achievedIntervalMs": 62087
+    },
+    {
+      "tick": 36,
+      "steps": 8,
+      "durationMs": 1968,
+      "achievedIntervalMs": 62162
+    },
+    {
+      "tick": 37,
+      "steps": 8,
+      "durationMs": 2104.7,
+      "achievedIntervalMs": 61976
+    },
+    {
+      "tick": 38,
+      "steps": 9,
+      "durationMs": 11850,
+      "achievedIntervalMs": 62108
+    },
+    {
+      "tick": 39,
+      "steps": 8,
+      "durationMs": 2379.9,
+      "achievedIntervalMs": 71863
+    },
+    {
+      "tick": 40,
+      "steps": 8,
+      "durationMs": 2462.8,
+      "achievedIntervalMs": 62386
+    },
+    {
+      "tick": 41,
+      "steps": 8,
+      "durationMs": 2196.2,
+      "achievedIntervalMs": 62472
+    },
+    {
+      "tick": 42,
+      "steps": 8,
+      "durationMs": 1977,
+      "achievedIntervalMs": 62198
+    },
+    {
+      "tick": 43,
+      "steps": 8,
+      "durationMs": 10965.4,
+      "achievedIntervalMs": 61987
+    },
+    {
+      "tick": 44,
+      "steps": 8,
+      "durationMs": 2322.2,
+      "achievedIntervalMs": 70968
+    },
+    {
+      "tick": 45,
+      "steps": 8,
+      "durationMs": 62555.9,
+      "achievedIntervalMs": 62326
+    },
+    {
+      "tick": 46,
+      "steps": 8,
+      "durationMs": 2228.9,
+      "achievedIntervalMs": 122554
+    },
+    {
+      "tick": 47,
+      "steps": 9,
+      "durationMs": 12319.6,
+      "achievedIntervalMs": 62237
+    },
+    {
+      "tick": 48,
+      "steps": 8,
+      "durationMs": 2106.1,
+      "achievedIntervalMs": 72329
+    },
+    {
+      "tick": 49,
+      "steps": 8,
+      "durationMs": 2478.4,
+      "achievedIntervalMs": 62118
+    },
+    {
+      "tick": 50,
+      "steps": 8,
+      "durationMs": 2528.5,
+      "achievedIntervalMs": 62488
+    },
+    {
+      "tick": 51,
+      "steps": 8,
+      "durationMs": 2114,
+      "achievedIntervalMs": 62529
+    },
+    {
+      "tick": 52,
+      "steps": 8,
+      "durationMs": 10851.1,
+      "achievedIntervalMs": 62113
+    },
+    {
+      "tick": 53,
+      "steps": 8,
+      "durationMs": 1897.1,
+      "achievedIntervalMs": 70861
+    },
+    {
+      "tick": 54,
+      "steps": 8,
+      "durationMs": 2292.6,
+      "achievedIntervalMs": 61903
+    },
+    {
+      "tick": 55,
+      "steps": 9,
+      "durationMs": 2370.1,
+      "achievedIntervalMs": 62300
+    },
+    {
+      "tick": 56,
+      "steps": 8,
+      "durationMs": 2586.5,
+      "achievedIntervalMs": 62377
+    },
+    {
+      "tick": 57,
+      "steps": 9,
+      "durationMs": 11671.6,
+      "achievedIntervalMs": 62592
+    },
+    {
+      "tick": 58,
+      "steps": 8,
+      "durationMs": 2123.4,
+      "achievedIntervalMs": 71680
+    },
+    {
+      "tick": 59,
+      "steps": 8,
+      "durationMs": 62121.9,
+      "achievedIntervalMs": 62136
+    },
+    {
+      "tick": 60,
+      "steps": 8,
+      "durationMs": 2399.6,
+      "achievedIntervalMs": 122127
+    }
+  ],
+  "stepSamples": [
+    {
+      "tick": 1,
+      "step": "Scheduled sync",
+      "startOffsetMs": 8.1,
+      "durationMs": 9.9,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 1,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 21.8,
+      "durationMs": 1927.5,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 1,
+      "step": "Personal rating sync",
+      "startOffsetMs": 1953.7,
+      "durationMs": 8710.7,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 1,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 10668.9,
+      "durationMs": 189.6,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 1,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 10863.2,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 1,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 10867.8,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 1,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 10872.2,
+      "durationMs": 0.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 1,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 10877.2,
+      "durationMs": 92.7,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 1,
+      "step": "Next airing cache refresh",
+      "startOffsetMs": 10976.8,
+      "durationMs": 1243.1,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 1,
+      "step": "Upcoming calendar cache refresh",
+      "startOffsetMs": 12220,
+      "durationMs": 302.3,
+      "budgetMs": 50000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 2,
+      "step": "Scheduled sync",
+      "startOffsetMs": 9.6,
+      "durationMs": 10.7,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 2,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 25.5,
+      "durationMs": 2162.2,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 2,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2192.3,
+      "durationMs": 6.7,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 2,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2204.2,
+      "durationMs": 16.6,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 2,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2227.8,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 2,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2234.2,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 2,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2239.1,
+      "durationMs": 0.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 2,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2244,
+      "durationMs": 5.5,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 3,
+      "step": "Scheduled sync",
+      "startOffsetMs": 9.9,
+      "durationMs": 60994.3,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 3,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 61009.7,
+      "durationMs": 1875.7,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 3,
+      "step": "Personal rating sync",
+      "startOffsetMs": 62890.1,
+      "durationMs": 6.8,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 3,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 62901.4,
+      "durationMs": 16.7,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 3,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 62923,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 3,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 62930,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 3,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 62934.8,
+      "durationMs": 0.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 3,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 62939.6,
+      "durationMs": 4.8,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 4,
+      "step": "Scheduled sync",
+      "startOffsetMs": 10.1,
+      "durationMs": 269.8,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 4,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 283.9,
+      "durationMs": 2171.9,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 4,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2460.5,
+      "durationMs": 7.1,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 4,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2472.3,
+      "durationMs": 15.9,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 4,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2493.8,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 4,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2498.5,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 4,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2503,
+      "durationMs": 0.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 4,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2507.8,
+      "durationMs": 4.4,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 5,
+      "step": "Scheduled sync",
+      "startOffsetMs": 9.8,
+      "durationMs": 223.8,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 5,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 237.8,
+      "durationMs": 1772.3,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 5,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2015,
+      "durationMs": 7381.5,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 5,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 9401.3,
+      "durationMs": 159.7,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 5,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 9565.9,
+      "durationMs": 0.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 5,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 9570.9,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 5,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 9576.1,
+      "durationMs": 0.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 5,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 9581.4,
+      "durationMs": 6.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 6,
+      "step": "Scheduled sync",
+      "startOffsetMs": 9.6,
+      "durationMs": 317.8,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 6,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 332.1,
+      "durationMs": 2150.1,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 6,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2486.8,
+      "durationMs": 7.3,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 6,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2500,
+      "durationMs": 16.9,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 6,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2521.6,
+      "durationMs": 0.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 6,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2526.7,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 6,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2531.3,
+      "durationMs": 0.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 6,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2538,
+      "durationMs": 5,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 7,
+      "step": "Scheduled sync",
+      "startOffsetMs": 10,
+      "durationMs": 303.5,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 7,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 318.6,
+      "durationMs": 1706.4,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 7,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2030.4,
+      "durationMs": 7.2,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 7,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2042.7,
+      "durationMs": 17.3,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 7,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2064.8,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 7,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2072.3,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 7,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2077.2,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 7,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2082.5,
+      "durationMs": 4.7,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 8,
+      "step": "Scheduled sync",
+      "startOffsetMs": 9.9,
+      "durationMs": 256.1,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 8,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 270,
+      "durationMs": 1644.6,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 8,
+      "step": "Personal rating sync",
+      "startOffsetMs": 1919.7,
+      "durationMs": 8.4,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 8,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 1933.1,
+      "durationMs": 15.9,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 8,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 1954.4,
+      "durationMs": 0,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 8,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 1960.9,
+      "durationMs": 0,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 8,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 1965.5,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 8,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 1970.7,
+      "durationMs": 5.6,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 9,
+      "step": "Scheduled sync",
+      "startOffsetMs": 10.8,
+      "durationMs": 263,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 9,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 277.8,
+      "durationMs": 2011.5,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 9,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2293.9,
+      "durationMs": 7.4,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 9,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2305.7,
+      "durationMs": 17.4,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 9,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2327.9,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 9,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2332.6,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 9,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2337.2,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 9,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2342.1,
+      "durationMs": 4.4,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 10,
+      "step": "Scheduled sync",
+      "startOffsetMs": 10,
+      "durationMs": 279.4,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 10,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 293.6,
+      "durationMs": 1452,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 10,
+      "step": "Personal rating sync",
+      "startOffsetMs": 1750.6,
+      "durationMs": 8628.1,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 10,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 10383.3,
+      "durationMs": 173.1,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 10,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 10562.3,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 10,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 10566.8,
+      "durationMs": 0,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 10,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 10571.4,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 10,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 10577,
+      "durationMs": 4.6,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 10,
+      "step": "Upcoming calendar cache refresh",
+      "startOffsetMs": 10586.4,
+      "durationMs": 385.2,
+      "budgetMs": 50000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 11,
+      "step": "Scheduled sync",
+      "startOffsetMs": 10.8,
+      "durationMs": 286.7,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 11,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 301.3,
+      "durationMs": 1565,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 11,
+      "step": "Personal rating sync",
+      "startOffsetMs": 1872.7,
+      "durationMs": 6.6,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 11,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 1885.1,
+      "durationMs": 16.5,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 11,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 1906.3,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 11,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 1911.8,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 11,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 1916.5,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 11,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 1921.2,
+      "durationMs": 6.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 12,
+      "step": "Scheduled sync",
+      "startOffsetMs": 11.6,
+      "durationMs": 287.4,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 12,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 303.5,
+      "durationMs": 1676.2,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 12,
+      "step": "Personal rating sync",
+      "startOffsetMs": 1984.9,
+      "durationMs": 7.5,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 12,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 1997.5,
+      "durationMs": 18.6,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 12,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2021,
+      "durationMs": 0.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 12,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2026.3,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 12,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2031.9,
+      "durationMs": 0.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 12,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2037.3,
+      "durationMs": 6.5,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 13,
+      "step": "Scheduled sync",
+      "startOffsetMs": 9.8,
+      "durationMs": 252.9,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 13,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 267.4,
+      "durationMs": 2117.3,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 13,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2389.4,
+      "durationMs": 6.6,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 13,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2400.9,
+      "durationMs": 15.2,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 13,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2421.7,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 13,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2426,
+      "durationMs": 0,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 13,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2430.4,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 13,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2435,
+      "durationMs": 4.6,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 14,
+      "step": "Scheduled sync",
+      "startOffsetMs": 11.1,
+      "durationMs": 268.6,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 14,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 283.9,
+      "durationMs": 1946.9,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 14,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2235.4,
+      "durationMs": 6.5,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 14,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2246.2,
+      "durationMs": 16.8,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 14,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2267.7,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 14,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2273.7,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 14,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2278.5,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 14,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2283.2,
+      "durationMs": 4.4,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 15,
+      "step": "Scheduled sync",
+      "startOffsetMs": 10.4,
+      "durationMs": 309.5,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 15,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 323.8,
+      "durationMs": 1634.4,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 15,
+      "step": "Personal rating sync",
+      "startOffsetMs": 1963.1,
+      "durationMs": 8624.2,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 15,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 10592.6,
+      "durationMs": 166.8,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 15,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 10763.7,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 15,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 10768.3,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 15,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 10772.6,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 15,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 10778.4,
+      "durationMs": 67.7,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 16,
+      "step": "Scheduled sync",
+      "startOffsetMs": 10,
+      "durationMs": 314.7,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 16,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 328.8,
+      "durationMs": 1613.9,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 16,
+      "step": "Personal rating sync",
+      "startOffsetMs": 1947.5,
+      "durationMs": 7.3,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 16,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 1959.2,
+      "durationMs": 16.7,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 16,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 1980.7,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 16,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 1985.4,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 16,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 1989.8,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 16,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 1994.3,
+      "durationMs": 4.5,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 17,
+      "step": "Scheduled sync",
+      "startOffsetMs": 9.6,
+      "durationMs": 60422.9,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 17,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 60436.8,
+      "durationMs": 1950,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 17,
+      "step": "Personal rating sync",
+      "startOffsetMs": 62391.3,
+      "durationMs": 7.6,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 17,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 62403.9,
+      "durationMs": 16.1,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 17,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 62424.8,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 17,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 62430.2,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 17,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 62434.7,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 17,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 62440.7,
+      "durationMs": 4.4,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 18,
+      "step": "Scheduled sync",
+      "startOffsetMs": 8.8,
+      "durationMs": 1720.7,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 18,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 1733.2,
+      "durationMs": 1960.4,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 18,
+      "step": "Personal rating sync",
+      "startOffsetMs": 3698,
+      "durationMs": 6.3,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 18,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 3708.5,
+      "durationMs": 18.2,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 18,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 3731.8,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 18,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 3736.3,
+      "durationMs": 0,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 18,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 3741.1,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 18,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 3745.8,
+      "durationMs": 4.9,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 19,
+      "step": "Scheduled sync",
+      "startOffsetMs": 9.3,
+      "durationMs": 357,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 19,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 370.7,
+      "durationMs": 1944.8,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 19,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2320.1,
+      "durationMs": 7944.4,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 19,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 10269.6,
+      "durationMs": 170.4,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 19,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 10444.7,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 19,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 10449.9,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 19,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 10455.7,
+      "durationMs": 0.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 19,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 10461,
+      "durationMs": 4.7,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 19,
+      "step": "Upcoming calendar cache refresh",
+      "startOffsetMs": 10470.1,
+      "durationMs": 382.9,
+      "budgetMs": 50000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 20,
+      "step": "Scheduled sync",
+      "startOffsetMs": 9.9,
+      "durationMs": 269.8,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 20,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 283.9,
+      "durationMs": 1943.9,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 20,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2232.5,
+      "durationMs": 8.1,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 20,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2245.2,
+      "durationMs": 15.9,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 20,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2267.3,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 20,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2272.1,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 20,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2276.5,
+      "durationMs": 0.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 20,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2281,
+      "durationMs": 5.4,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 21,
+      "step": "Scheduled sync",
+      "startOffsetMs": 11.6,
+      "durationMs": 336.9,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 21,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 352.3,
+      "durationMs": 2046.5,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 21,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2404.1,
+      "durationMs": 6.7,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 21,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2416.6,
+      "durationMs": 16.3,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 21,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2437.5,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 21,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2442.3,
+      "durationMs": 0,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 21,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2447.2,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 21,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2452.1,
+      "durationMs": 6.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 22,
+      "step": "Scheduled sync",
+      "startOffsetMs": 9.8,
+      "durationMs": 239.6,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 22,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 253.5,
+      "durationMs": 1742.1,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 22,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2001.7,
+      "durationMs": 6.3,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 22,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2012.7,
+      "durationMs": 15.4,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 22,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2032.4,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 22,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2038.9,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 22,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2043.3,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 22,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2047.5,
+      "durationMs": 5.4,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 23,
+      "step": "Scheduled sync",
+      "startOffsetMs": 8.8,
+      "durationMs": 258.4,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 23,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 271.6,
+      "durationMs": 1598,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 23,
+      "step": "Personal rating sync",
+      "startOffsetMs": 1874.5,
+      "durationMs": 8.4,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 23,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 1887.5,
+      "durationMs": 16.4,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 23,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 1909.8,
+      "durationMs": 0.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 23,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 1914.9,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 23,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 1919.5,
+      "durationMs": 0.4,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 23,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 1925.1,
+      "durationMs": 4.5,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 24,
+      "step": "Scheduled sync",
+      "startOffsetMs": 9.9,
+      "durationMs": 278.7,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 24,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 292.5,
+      "durationMs": 1690.2,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 24,
+      "step": "Personal rating sync",
+      "startOffsetMs": 1987.2,
+      "durationMs": 8709.4,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 24,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 10700.9,
+      "durationMs": 224.6,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 24,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 10930,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 24,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 10935.2,
+      "durationMs": 0.2,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 24,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 10940.1,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 24,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 10944.8,
+      "durationMs": 4.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 25,
+      "step": "Scheduled sync",
+      "startOffsetMs": 10.8,
+      "durationMs": 307.9,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 25,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 322.5,
+      "durationMs": 2178.2,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 25,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2505.9,
+      "durationMs": 6.9,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 25,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2517.4,
+      "durationMs": 16.2,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 25,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2539.4,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 25,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2544.5,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 25,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2548.8,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 25,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2553.6,
+      "durationMs": 4.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 26,
+      "step": "Scheduled sync",
+      "startOffsetMs": 9.9,
+      "durationMs": 348.7,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 26,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 362.6,
+      "durationMs": 1765.7,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 26,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2132.9,
+      "durationMs": 6.4,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 26,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2143.8,
+      "durationMs": 16,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 26,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2164.3,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 26,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2169.8,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 26,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2174.1,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 26,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2178.5,
+      "durationMs": 4.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 27,
+      "step": "Scheduled sync",
+      "startOffsetMs": 9.8,
+      "durationMs": 355.4,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 27,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 369.5,
+      "durationMs": 1971.3,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 27,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2345.4,
+      "durationMs": 7.2,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 27,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2357.4,
+      "durationMs": 15.3,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 27,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2377.4,
+      "durationMs": 0,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 27,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2383.7,
+      "durationMs": 0,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 27,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2388.8,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 27,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2393.5,
+      "durationMs": 4.8,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 28,
+      "step": "Scheduled sync",
+      "startOffsetMs": 9.6,
+      "durationMs": 255.3,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 28,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 269,
+      "durationMs": 1424.9,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 28,
+      "step": "Personal rating sync",
+      "startOffsetMs": 1698.7,
+      "durationMs": 6.2,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 28,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 1709.4,
+      "durationMs": 21.6,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 28,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 1735.6,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 28,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 1740.1,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 28,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 1744.5,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 28,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 1749,
+      "durationMs": 4.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 28,
+      "step": "Next airing cache refresh",
+      "startOffsetMs": 1758.8,
+      "durationMs": 232.3,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 29,
+      "step": "Scheduled sync",
+      "startOffsetMs": 9.7,
+      "durationMs": 339.1,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 29,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 352.5,
+      "durationMs": 1923.9,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 29,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2281.1,
+      "durationMs": 7918.5,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 29,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 10203.9,
+      "durationMs": 175.3,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 29,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 10383.6,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 29,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 10388,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 29,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 10394.5,
+      "durationMs": 0.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 29,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 10399.4,
+      "durationMs": 73.5,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 29,
+      "step": "Upcoming calendar cache refresh",
+      "startOffsetMs": 10477.6,
+      "durationMs": 366.5,
+      "budgetMs": 50000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 30,
+      "step": "Scheduled sync",
+      "startOffsetMs": 9.1,
+      "durationMs": 363.7,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 30,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 377,
+      "durationMs": 1479.9,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 30,
+      "step": "Personal rating sync",
+      "startOffsetMs": 1861.3,
+      "durationMs": 7.1,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 30,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 1873,
+      "durationMs": 17.3,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 30,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 1894.9,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 30,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 1899.5,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 30,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 1904,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 30,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 1909.3,
+      "durationMs": 4.6,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 31,
+      "step": "Scheduled sync",
+      "startOffsetMs": 13.4,
+      "durationMs": 59794.5,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 31,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 59811.9,
+      "durationMs": 2058.9,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 31,
+      "step": "Personal rating sync",
+      "startOffsetMs": 61875.3,
+      "durationMs": 6.3,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 31,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 61886.5,
+      "durationMs": 15.1,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 31,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 61906,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 31,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 61911.4,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 31,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 61915.8,
+      "durationMs": 0.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 31,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 61920.3,
+      "durationMs": 4.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 32,
+      "step": "Scheduled sync",
+      "startOffsetMs": 10.8,
+      "durationMs": 252,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 32,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 267.7,
+      "durationMs": 2436,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 32,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2708.1,
+      "durationMs": 6.3,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 32,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2718.7,
+      "durationMs": 16.8,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 32,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2740,
+      "durationMs": 0,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 32,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2744.7,
+      "durationMs": 0,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 32,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2749.3,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 32,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2753.8,
+      "durationMs": 4.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 33,
+      "step": "Scheduled sync",
+      "startOffsetMs": 8.7,
+      "durationMs": 259.3,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 33,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 271.9,
+      "durationMs": 1742.2,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 33,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2019.6,
+      "durationMs": 9282.6,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 33,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 11306.9,
+      "durationMs": 162.8,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 33,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 11474.3,
+      "durationMs": 0,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 33,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 11479.5,
+      "durationMs": 0,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 33,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 11484.8,
+      "durationMs": 0.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 33,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 11489.5,
+      "durationMs": 5.6,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 34,
+      "step": "Scheduled sync",
+      "startOffsetMs": 10.3,
+      "durationMs": 306.9,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 34,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 321.1,
+      "durationMs": 1703.8,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 34,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2029.6,
+      "durationMs": 6.7,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 34,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2041.2,
+      "durationMs": 15,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 34,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2061.5,
+      "durationMs": 0,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 34,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2065.9,
+      "durationMs": 0,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 34,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2070.2,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 34,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2075,
+      "durationMs": 4.6,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 35,
+      "step": "Scheduled sync",
+      "startOffsetMs": 10.1,
+      "durationMs": 317.5,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 35,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 331.9,
+      "durationMs": 1754.3,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 35,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2091,
+      "durationMs": 8.3,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 35,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2103.8,
+      "durationMs": 18.9,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 35,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2127.4,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 35,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2132.1,
+      "durationMs": 0,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 35,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2136.5,
+      "durationMs": 0.9,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 35,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2141.8,
+      "durationMs": 4.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 36,
+      "step": "Scheduled sync",
+      "startOffsetMs": 9.4,
+      "durationMs": 253.5,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 36,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 267,
+      "durationMs": 1638,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 36,
+      "step": "Personal rating sync",
+      "startOffsetMs": 1909.9,
+      "durationMs": 6.4,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 36,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 1922.2,
+      "durationMs": 16.6,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 36,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 1943.4,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 36,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 1948.1,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 36,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 1952.5,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 36,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 1957.8,
+      "durationMs": 5.9,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 37,
+      "step": "Scheduled sync",
+      "startOffsetMs": 11,
+      "durationMs": 249.4,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 37,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 264.9,
+      "durationMs": 1771.6,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 37,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2041.6,
+      "durationMs": 7.7,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 37,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2054.1,
+      "durationMs": 17.7,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 37,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2076.8,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 37,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2083.3,
+      "durationMs": 0.4,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 37,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2088.4,
+      "durationMs": 0.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 37,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2093.9,
+      "durationMs": 5.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 38,
+      "step": "Scheduled sync",
+      "startOffsetMs": 9.2,
+      "durationMs": 450.7,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 38,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 464.1,
+      "durationMs": 2174.7,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 38,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2643.6,
+      "durationMs": 8607,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 38,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 11255.4,
+      "durationMs": 192.5,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 38,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 11453.4,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 38,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 11457.9,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 38,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 11462.3,
+      "durationMs": 0.4,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 38,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 11467,
+      "durationMs": 4.5,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 38,
+      "step": "Upcoming calendar cache refresh",
+      "startOffsetMs": 11475.7,
+      "durationMs": 374.2,
+      "budgetMs": 50000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 39,
+      "step": "Scheduled sync",
+      "startOffsetMs": 10.8,
+      "durationMs": 332.5,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 39,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 347.1,
+      "durationMs": 1970.4,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 39,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2322.1,
+      "durationMs": 6.7,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 39,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2334.1,
+      "durationMs": 17.1,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 39,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2355.9,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 39,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2361.9,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 39,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2366.4,
+      "durationMs": 0.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 39,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2371.3,
+      "durationMs": 4.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 40,
+      "step": "Scheduled sync",
+      "startOffsetMs": 8.8,
+      "durationMs": 202.1,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 40,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 214.7,
+      "durationMs": 2185.9,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 40,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2406.4,
+      "durationMs": 6.7,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 40,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2417.6,
+      "durationMs": 15.8,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 40,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2437.8,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 40,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2443.6,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 40,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2448.6,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 40,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2453.8,
+      "durationMs": 4.5,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 41,
+      "step": "Scheduled sync",
+      "startOffsetMs": 8.8,
+      "durationMs": 255.2,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 41,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 268,
+      "durationMs": 1866.2,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 41,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2139.2,
+      "durationMs": 6.8,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 41,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2150.5,
+      "durationMs": 15.6,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 41,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2170.4,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 41,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2177.2,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 41,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2181.6,
+      "durationMs": 0.5,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 41,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2186.4,
+      "durationMs": 4.7,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 42,
+      "step": "Scheduled sync",
+      "startOffsetMs": 9.3,
+      "durationMs": 258.4,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 42,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 271.6,
+      "durationMs": 1642.5,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 42,
+      "step": "Personal rating sync",
+      "startOffsetMs": 1920.6,
+      "durationMs": 6.6,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 42,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 1931.8,
+      "durationMs": 16,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 42,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 1953.8,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 42,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 1958.2,
+      "durationMs": 0,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 42,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 1962.9,
+      "durationMs": 0.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 42,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 1967.4,
+      "durationMs": 4.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 43,
+      "step": "Scheduled sync",
+      "startOffsetMs": 11.5,
+      "durationMs": 261.1,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 43,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 276.5,
+      "durationMs": 1715.3,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 43,
+      "step": "Personal rating sync",
+      "startOffsetMs": 1996.6,
+      "durationMs": 8710.2,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 43,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 10711.4,
+      "durationMs": 151.9,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 43,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 10867.7,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 43,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 10873.7,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 43,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 10879.4,
+      "durationMs": 0.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 43,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 10884.3,
+      "durationMs": 74.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 44,
+      "step": "Scheduled sync",
+      "startOffsetMs": 9.7,
+      "durationMs": 394.9,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 44,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 409.1,
+      "durationMs": 1851.5,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 44,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2265,
+      "durationMs": 7.7,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 44,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2277,
+      "durationMs": 15.4,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 44,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2298.3,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 44,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2303.6,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 44,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2308.2,
+      "durationMs": 0.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 44,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2312.7,
+      "durationMs": 4.8,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 45,
+      "step": "Scheduled sync",
+      "startOffsetMs": 9.2,
+      "durationMs": 60031.2,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 45,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 60045.3,
+      "durationMs": 2446.8,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 45,
+      "step": "Personal rating sync",
+      "startOffsetMs": 62496.7,
+      "durationMs": 7,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 45,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 62508.3,
+      "durationMs": 17.2,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 45,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 62530.1,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 45,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 62535.7,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 45,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 62540.3,
+      "durationMs": 0.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 45,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 62545.4,
+      "durationMs": 4.5,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 46,
+      "step": "Scheduled sync",
+      "startOffsetMs": 9.2,
+      "durationMs": 267.6,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 46,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 280.9,
+      "durationMs": 1885.2,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 46,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2170.6,
+      "durationMs": 7,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 46,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2182.1,
+      "durationMs": 15.7,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 46,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2202.8,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 46,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2209.8,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 46,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2214.5,
+      "durationMs": 0.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 46,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2219.4,
+      "durationMs": 4.7,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 47,
+      "step": "Scheduled sync",
+      "startOffsetMs": 11.4,
+      "durationMs": 322.1,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 47,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 337.5,
+      "durationMs": 2180.4,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 47,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2522.4,
+      "durationMs": 9222.7,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 47,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 11749.8,
+      "durationMs": 170.5,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 47,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 11924.6,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 47,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 11928.9,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 47,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 11934.4,
+      "durationMs": 0.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 47,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 11939.2,
+      "durationMs": 4.4,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 47,
+      "step": "Upcoming calendar cache refresh",
+      "startOffsetMs": 11948.4,
+      "durationMs": 371.2,
+      "budgetMs": 50000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 48,
+      "step": "Scheduled sync",
+      "startOffsetMs": 9.3,
+      "durationMs": 330.8,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 48,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 344.7,
+      "durationMs": 1701.3,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 48,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2050.9,
+      "durationMs": 6.6,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 48,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2062.1,
+      "durationMs": 15.6,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 48,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2082.4,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 48,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2088,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 48,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2092.4,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 48,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2096.9,
+      "durationMs": 4.4,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 49,
+      "step": "Scheduled sync",
+      "startOffsetMs": 9,
+      "durationMs": 326.3,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 49,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 339.1,
+      "durationMs": 2081.9,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 49,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2425.8,
+      "durationMs": 6.3,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 49,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2436.5,
+      "durationMs": 15.4,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 49,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2457.1,
+      "durationMs": 0,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 49,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2461.4,
+      "durationMs": 0,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 49,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2465.6,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 49,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2470,
+      "durationMs": 4.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 50,
+      "step": "Scheduled sync",
+      "startOffsetMs": 8.8,
+      "durationMs": 400.9,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 50,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 413.7,
+      "durationMs": 2056.8,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 50,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2475.4,
+      "durationMs": 6.9,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 50,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2486.8,
+      "durationMs": 15.3,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 50,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2506.4,
+      "durationMs": 0,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 50,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2510.6,
+      "durationMs": 0,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 50,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2514.8,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 50,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2519.1,
+      "durationMs": 4.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 51,
+      "step": "Scheduled sync",
+      "startOffsetMs": 9.9,
+      "durationMs": 286.4,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 51,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 300.2,
+      "durationMs": 1750.8,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 51,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2055.9,
+      "durationMs": 6.8,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 51,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2067.2,
+      "durationMs": 16.3,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 51,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2088.1,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 51,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2095.5,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 51,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2100.1,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 51,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2104.8,
+      "durationMs": 4.7,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 52,
+      "step": "Scheduled sync",
+      "startOffsetMs": 8.8,
+      "durationMs": 277.3,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 52,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 290.1,
+      "durationMs": 1653.5,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 52,
+      "step": "Personal rating sync",
+      "startOffsetMs": 1948.5,
+      "durationMs": 8693.5,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 52,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 10646.8,
+      "durationMs": 174.4,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 52,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 10825.8,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 52,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 10830.5,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 52,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 10835.3,
+      "durationMs": 0.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 52,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 10840.6,
+      "durationMs": 4.6,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 53,
+      "step": "Scheduled sync",
+      "startOffsetMs": 10.2,
+      "durationMs": 348.9,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 53,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 363,
+      "durationMs": 1476,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 53,
+      "step": "Personal rating sync",
+      "startOffsetMs": 1843.3,
+      "durationMs": 6.3,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 53,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 1854.1,
+      "durationMs": 14.2,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 53,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 1873.8,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 53,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 1878.9,
+      "durationMs": 0,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 53,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 1883.4,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 53,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 1888,
+      "durationMs": 4.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 54,
+      "step": "Scheduled sync",
+      "startOffsetMs": 9.4,
+      "durationMs": 269.9,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 54,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 283.3,
+      "durationMs": 1950.5,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 54,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2238.2,
+      "durationMs": 6.5,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 54,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2250,
+      "durationMs": 15.1,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 54,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2269.3,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 54,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2273.9,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 54,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2278.2,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 54,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2282.6,
+      "durationMs": 5.6,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 55,
+      "step": "Scheduled sync",
+      "startOffsetMs": 9.4,
+      "durationMs": 211.5,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 55,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 224.7,
+      "durationMs": 1843.8,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 55,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2074.6,
+      "durationMs": 7.3,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 55,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2086.3,
+      "durationMs": 16.4,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 55,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2108.6,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 55,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2113.6,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 55,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2118.7,
+      "durationMs": 0.4,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 55,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2124.3,
+      "durationMs": 4.5,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 55,
+      "step": "Next airing cache refresh",
+      "startOffsetMs": 2133.6,
+      "durationMs": 236.4,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 56,
+      "step": "Scheduled sync",
+      "startOffsetMs": 10.4,
+      "durationMs": 331,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 56,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 345.5,
+      "durationMs": 2180.2,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 56,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2530.5,
+      "durationMs": 6.7,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 56,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2541.9,
+      "durationMs": 16.3,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 56,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2562.7,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 56,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2567.2,
+      "durationMs": 0,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 56,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2571.8,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 56,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2576.4,
+      "durationMs": 4.4,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 57,
+      "step": "Scheduled sync",
+      "startOffsetMs": 11.4,
+      "durationMs": 350.4,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 57,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 365.9,
+      "durationMs": 1948.8,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 57,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2319.2,
+      "durationMs": 8606.2,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 57,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 10930.7,
+      "durationMs": 252.4,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 57,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 11188.7,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 57,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 11193.6,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 57,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 11199.5,
+      "durationMs": 0.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 57,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 11204.3,
+      "durationMs": 86.4,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 57,
+      "step": "Upcoming calendar cache refresh",
+      "startOffsetMs": 11296.2,
+      "durationMs": 375.3,
+      "budgetMs": 50000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 58,
+      "step": "Scheduled sync",
+      "startOffsetMs": 10.1,
+      "durationMs": 292.7,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 58,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 307.1,
+      "durationMs": 1750.2,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 58,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2062.1,
+      "durationMs": 7.1,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 58,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2075.4,
+      "durationMs": 16.7,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 58,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2096.9,
+      "durationMs": 0.2,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 58,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2102.1,
+      "durationMs": 0.2,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 58,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2107,
+      "durationMs": 0.4,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 58,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2113.6,
+      "durationMs": 5,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 59,
+      "step": "Scheduled sync",
+      "startOffsetMs": 9.3,
+      "durationMs": 60349.1,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 59,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 60362.2,
+      "durationMs": 1698.1,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 59,
+      "step": "Personal rating sync",
+      "startOffsetMs": 62064.7,
+      "durationMs": 6.2,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 59,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 62076.9,
+      "durationMs": 15.9,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 59,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 62097.3,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 59,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 62102,
+      "durationMs": 0.1,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 59,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 62106.6,
+      "durationMs": 0.3,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 59,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 62111.5,
+      "durationMs": 5.9,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 60,
+      "step": "Scheduled sync",
+      "startOffsetMs": 8.9,
+      "durationMs": 272.5,
+      "budgetMs": 120000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 60,
+      "step": "Tracker watched-state poll",
+      "startOffsetMs": 285.3,
+      "durationMs": 2057.6,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": true
+    },
+    {
+      "tick": 60,
+      "step": "Personal rating sync",
+      "startOffsetMs": 2347.4,
+      "durationMs": 6.7,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 60,
+      "step": "Personal watchlist sync",
+      "startOffsetMs": 2358.6,
+      "durationMs": 14.2,
+      "budgetMs": 45000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 60,
+      "step": "Scheduled watch-history backup",
+      "startOffsetMs": 2377.1,
+      "durationMs": 0,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 60,
+      "step": "Scheduled remote watch-history backup",
+      "startOffsetMs": 2382.3,
+      "durationMs": 0,
+      "budgetMs": 60000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 60,
+      "step": "Scheduled Plembfin backup",
+      "startOffsetMs": 2386.5,
+      "durationMs": 0.1,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    },
+    {
+      "tick": 60,
+      "step": "TMDB metadata warm-up",
+      "startOffsetMs": 2390.8,
+      "durationMs": 4.4,
+      "budgetMs": 30000,
+      "budgetExhausted": false,
+      "didWork": false
+    }
+  ]
+}

@@ -41,6 +41,14 @@ if (!/^[A-Za-z0-9._-]+$/.test(assetVersion)) {
 
 const assetReferencePattern = /(["'`])((?:\/|\.{1,2}\/)[^"'`)\s]+?\.(?:m?js|css|svg|png|jpe?g|webp|gif|ico|webmanifest|woff2?))(?:\?([^"'`)\s]*))?(["'`])/gi;
 
+// The pattern above only recognizes a URL written as one complete literal, so a
+// path assembled at runtime - `/icons/${target}.svg?v=...` - was invisible to
+// both the check and the rewrite. Two of those kept a hardcoded token through
+// several releases, and the browser then fetched the same icon under both that
+// token and the canonical one. This second pass reads the version query alone,
+// wherever it appears on a managed path, so a dynamic reference cannot drift.
+const dynamicVersionPattern = /(\/(?:icons|modules)\/[^"'`\s>]*?|\/app\.js|\/styles\.css)\?v=([A-Za-z0-9._-]+)/g;
+
 function textFiles(directory) {
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
     const absolute = path.join(directory, entry.name);
@@ -84,6 +92,7 @@ function inspectFile(filePath) {
 const files = textFiles(publicDir);
 const violations = [];
 let references = 0;
+let dynamicVersions = 0;
 let changedFiles = 0;
 for (const filePath of files) {
   const { source, references: fileReferences } = inspectFile(filePath);
@@ -94,13 +103,23 @@ for (const filePath of files) {
       violations.push(`${relative}: ${reference.assetPath}${reference.query ? `?${reference.query}` : " (unversioned)"}`);
     }
   }
-  if (!write || !fileReferences.some((reference) => reference.query !== `v=${assetVersion}`)) continue;
+  let dynamicMatch;
+  while ((dynamicMatch = dynamicVersionPattern.exec(source))) {
+    const [, assetPath, version] = dynamicMatch;
+    dynamicVersions += 1;
+    if (version !== assetVersion) violations.push(`${relative}: ${assetPath}?v=${version}`);
+  }
+  dynamicVersionPattern.lastIndex = 0;
 
-  const rewritten = source.replace(assetReferencePattern, (full, quote, assetPath, query, closingQuote) => {
+  if (!write) continue;
+
+  let rewritten = source.replace(assetReferencePattern, (full, quote, assetPath, query, closingQuote) => {
     if (!managesAsset(assetPath)) return full;
     return `${quote}${assetPath}?v=${assetVersion}${closingQuote}`;
   });
   assetReferencePattern.lastIndex = 0;
+  rewritten = rewritten.replace(dynamicVersionPattern, (full, assetPath) => `${assetPath}?v=${assetVersion}`);
+  dynamicVersionPattern.lastIndex = 0;
   if (rewritten !== source) {
     fs.writeFileSync(filePath, rewritten);
     changedFiles += 1;
@@ -108,7 +127,7 @@ for (const filePath of files) {
 }
 
 if (write) {
-  console.log(`Updated ${references} local public asset references in ${changedFiles} files to ?v=${assetVersion}.`);
+  console.log(`Updated ${references + dynamicVersions} local public asset references in ${changedFiles} files to ?v=${assetVersion}.`);
   process.exit(0);
 }
 
@@ -118,4 +137,4 @@ if (violations.length) {
   process.exit(1);
 }
 
-console.log(`Public asset version check passed: ${references} references use ?v=${assetVersion}.`);
+console.log(`Public asset version check passed: ${references} literal and ${dynamicVersions} dynamic references use ?v=${assetVersion}.`);

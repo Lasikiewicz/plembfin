@@ -31,6 +31,23 @@ test("watch history reads use their intended indexes", () => {
   const recentPlan = plan("SELECT * FROM watch_history ORDER BY updated_at DESC, created_at DESC LIMIT 50");
   assert.match(recentPlan, /idx_watch_history_updated_created/, recentPlan);
   assert.doesNotMatch(recentPlan, /TEMP B-TREE/i, recentPlan);
+
+  const dailyHistoryPlan = plan(`
+    SELECT history_row.id
+    FROM watch_history AS history_row
+    WHERE NOT EXISTS (
+      SELECT 1
+      FROM watch_history AS newer
+      WHERE newer.history_day = history_row.history_day
+        AND newer.history_daily_key = history_row.history_daily_key
+        AND newer.watched_at > history_row.watched_at
+    )
+    ORDER BY history_row.watched_at DESC
+    LIMIT 240
+  `);
+  assert.match(dailyHistoryPlan, /idx_watch_history_watched_at/, dailyHistoryPlan);
+  assert.match(dailyHistoryPlan, /idx_watch_history_daily_key_order/, dailyHistoryPlan);
+  assert.doesNotMatch(dailyHistoryPlan, /TEMP B-TREE/i, dailyHistoryPlan);
 });
 
 test("playstate and progress reads use their intended indexes", () => {

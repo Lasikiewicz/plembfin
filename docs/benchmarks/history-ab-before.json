@@ -1,0 +1,231 @@
+{
+  "version": 1,
+  "generatedAt": "2026-09-06T12:33:47.329Z",
+  "durationMs": 20847,
+  "workload": {
+    "dataDir": "C:\\Github\\plembfin\\scratch\\perf-history-ab-next",
+    "runsPerSurface": 5,
+    "explorerPageSize": 240,
+    "dashboardPreviewLimit": 120,
+    "library": {
+      "generatedAt": "2026-09-06T12:32:09.441Z",
+      "parameters": {
+        "movies": 6000,
+        "shows": 1200,
+        "episodesPerShow": 24,
+        "historyRows": 90000,
+        "tmdbEntries": 2000,
+        "tmdbBlobKb": 64,
+        "posters": 2600,
+        "seed": 1
+      },
+      "counts": {
+        "watchHistoryRows": 90000,
+        "playstateRows": 34800,
+        "distinctMovies": 6000,
+        "distinctEpisodes": 28800,
+        "distinctShows": 1200,
+        "tmdbCacheRows": 1545,
+        "posterCacheRows": 34800
+      }
+    },
+    "observedCounts": {
+      "watchHistoryRows": 90000,
+      "distinctMovies": 6000,
+      "distinctEpisodes": 28800,
+      "distinctShows": 1200,
+      "tmdbCacheRows": 1545
+    },
+    "historyCache": {
+      "rows": 90000,
+      "capped": false,
+      "oldCeilingCrossed": true,
+      "note": "getCachedHistory() is uncapped. At this baseline point Stats still applied the 25,000-row API pagination limit separately."
+    },
+    "databaseBytes": 253063168
+  },
+  "hardware": {
+    "platform": "win32 10.0.26200",
+    "cpu": "12th Gen Intel(R) Core(TM) i7-12700KF",
+    "cores": 20,
+    "totalMemoryBytes": 68498657280,
+    "node": "v22.23.1"
+  },
+  "fullCacheRebuild": {
+    "runs": 1,
+    "totalMs": 4475.492,
+    "perCache": [
+      {
+        "cache": "stats",
+        "rebuilds": 1,
+        "totalMs": 1359.786,
+        "trigger": "observed"
+      },
+      {
+        "cache": "shows",
+        "rebuilds": 1,
+        "totalMs": 1165.119,
+        "trigger": "observed"
+      },
+      {
+        "cache": "scheduledShows",
+        "rebuilds": 1,
+        "totalMs": 1061.983,
+        "trigger": "observed"
+      },
+      {
+        "cache": "history",
+        "rebuilds": 1,
+        "totalMs": 746.421,
+        "trigger": "observed"
+      },
+      {
+        "cache": "movies",
+        "rebuilds": 1,
+        "totalMs": 140.932,
+        "trigger": "observed"
+      }
+    ]
+  },
+  "instrumentationOverhead": {
+    "probe": "recordCacheRebuild",
+    "iterations": 200000,
+    "perCallNs": 442.42,
+    "atWorstMeasuredChurnMsPerMinute": 0.509,
+    "note": "1,150 rebuilds per minute is test 5 part 1's worst measured window (an import), used here as an upper bound."
+  },
+  "surfaces": [
+    {
+      "surface": "dashboard-payload",
+      "runs": 5,
+      "medianMs": 1143.738,
+      "minMs": 1109.558,
+      "maxMs": 1178.945,
+      "spreadPercent": 6.067,
+      "spreadRule": "pass",
+      "payloadBytes": 289336,
+      "items": 240,
+      "resultHash": "220e2a3a0c7f22e05e9dd8c8a4947874e3dfc8417c108525884ab7c1b12650d2"
+    },
+    {
+      "surface": "stats-cached-read",
+      "runs": 5,
+      "medianMs": 0.001,
+      "minMs": 0,
+      "maxMs": 0.071,
+      "spreadPercent": 14120,
+      "spreadRule": "below-50ms-floor",
+      "payloadBytes": 104948,
+      "items": null,
+      "resultHash": "24ff31661786c11f0267f112381cdcece2daa48b64f1d36e5b40c803dfba7e7a"
+    },
+    {
+      "surface": "history-page-1",
+      "runs": 5,
+      "medianMs": 671.026,
+      "minMs": 664.358,
+      "maxMs": 677.017,
+      "spreadPercent": 1.886,
+      "spreadRule": "pass",
+      "payloadBytes": 320331,
+      "items": 240,
+      "resultHash": "35adce08c5c02359e3f11f74db078bc0008b3eb7cbf7d9f4030bfcf763a51d73"
+    },
+    {
+      "surface": "movies-page-1",
+      "runs": 5,
+      "medianMs": 0.722,
+      "minMs": 0.657,
+      "maxMs": 67.22,
+      "spreadPercent": 9225.599,
+      "spreadRule": "below-50ms-floor",
+      "payloadBytes": 403014,
+      "items": 240,
+      "resultHash": "c89eac84d4573b002db584abd55742e625ab04114d00a24a1559fcae4de4e271"
+    },
+    {
+      "surface": "shows-page-1",
+      "runs": 5,
+      "medianMs": 0.947,
+      "minMs": 0.769,
+      "maxMs": 6.154,
+      "spreadPercent": 568.959,
+      "spreadRule": "below-50ms-floor",
+      "payloadBytes": 342497,
+      "items": 240,
+      "resultHash": "290de5d20d5c0f69264d9f703f0d53b38bddddcc0c0c1538933b2527996a6473"
+    },
+    {
+      "surface": "history-page-5",
+      "runs": 5,
+      "medianMs": 686.416,
+      "minMs": 680.413,
+      "maxMs": 707.422,
+      "spreadPercent": 3.935,
+      "spreadRule": "pass",
+      "payloadBytes": 321165,
+      "items": 240,
+      "resultHash": "6f454219d5de800de8e4e6acfa24dd86091a9ab984764a6723e53029125d8424"
+    },
+    {
+      "surface": "movies-page-5",
+      "runs": 5,
+      "medianMs": 0.777,
+      "minMs": 0.648,
+      "maxMs": 1.212,
+      "spreadPercent": 72.532,
+      "spreadRule": "below-50ms-floor",
+      "payloadBytes": 403496,
+      "items": 240,
+      "resultHash": "d6d0a4d84ca7db45bb905f29c51718997873158419060529b4cf4e0df28c4f1b"
+    },
+    {
+      "surface": "shows-page-5",
+      "runs": 5,
+      "medianMs": 1.487,
+      "minMs": 1.025,
+      "maxMs": 14.257,
+      "spreadPercent": 889.559,
+      "spreadRule": "below-50ms-floor",
+      "payloadBytes": 342198,
+      "items": 240,
+      "resultHash": "1c160562e60a652569bc51d95710a6b834cc74dbd01d32659baa341b2081c70c"
+    },
+    {
+      "surface": "history-page-10",
+      "runs": 5,
+      "medianMs": 696.733,
+      "minMs": 690.365,
+      "maxMs": 701.906,
+      "spreadPercent": 1.657,
+      "spreadRule": "pass",
+      "payloadBytes": 321289,
+      "items": 240,
+      "resultHash": "b1fa4387470a789a58145e8a716b21753f5b5e7eaa4cc3288a6635ad166d9e95"
+    },
+    {
+      "surface": "movies-page-10",
+      "runs": 5,
+      "medianMs": 0.706,
+      "minMs": 0.643,
+      "maxMs": 1.01,
+      "spreadPercent": 51.968,
+      "spreadRule": "below-50ms-floor",
+      "payloadBytes": 403295,
+      "items": 240,
+      "resultHash": "3d596bf0f2be8b269b5a1fec249fe8223319f93dbaebdcb026c1c198377a9b1b"
+    },
+    {
+      "surface": "shows-page-10",
+      "runs": 5,
+      "medianMs": 0.855,
+      "minMs": 0.66,
+      "maxMs": 2.936,
+      "spreadPercent": 266.413,
+      "spreadRule": "below-50ms-floor",
+      "payloadBytes": 2,
+      "items": 0,
+      "resultHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    }
+  ]
+}

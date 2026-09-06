@@ -1,6 +1,24 @@
 {
-  "build": 51,
-  "resetCommit": "a61a414c6dfee72744def34cb5b7b5f2defee238",
-  "updatedAt": "2026-09-06T11:55:07.620Z",
-  "entries": []
+  "build": 54,
+  "resetCommit": "d6fd6d39adf19a4a09c72b53afd2a02ff90b3e16",
+  "updatedAt": "2026-09-06T17:21:57.531Z",
+  "entries": [
+    {
+      "build": 54,
+      "date": "2026-09-06T17:21:57.531Z",
+      "commit": "90f7a7ccac8ac211ac67c46f84e32d7dbc4de513",
+      "message": "Fix - Report full watch history everywhere and cut per-page work",
+      "author": "Lasikiewicz",
+      "details": [
+        "History page now loads in milliseconds instead of around seven tenths of a second on large libraries, with same-day rewatch collapsing unchanged",
+        "Stats reports your entire watch history instead of silently describing only the newest 25,000 watches",
+        "TV Shows and the dashboard list every show in the library rather than stopping at the same 25,000-watch ceiling",
+        "Media pages no longer re-check for app updates or refetch diagnostic logs on every load",
+        "Platform icons are fetched once per page instead of three times under three different addresses",
+        "The background scheduler holds its once-a-minute cadence instead of drifting further behind with every slow tick",
+        "Restore progress logs and login errors no longer display garbled characters",
+        "Watch history caches rebuild faster after a watch is recorded"
+      ]
+    }
+  ]
 }

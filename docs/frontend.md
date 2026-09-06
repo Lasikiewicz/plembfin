@@ -372,7 +372,14 @@ Every local bundle, stylesheet, icon, and manifest reference under `public/` car
 same `?v=<package-version>` token. A module URL is a module identity to the browser: the
 same file imported under two different suffixes is loaded and instantiated twice, so any
 module-level state exists twice over. The `assets:check` build guard rejects both bare local
-asset references and mismatched tokens.
+asset references and mismatched tokens, and it checks URLs assembled at runtime as well as
+fully literal ones.
+
+Build an icon URL through `platformIconUrl()` in `utils.js` rather than writing the path
+inline, and never render an icon URL that arrived from the server or from a persisted cache.
+Markup held in `localStorage` outlives the release that produced it, so a stored URL pins an
+old asset version indefinitely; rebuilding the markup from the platform target keeps every
+reference on the current one.
 
 When the package version changes, run `npm run assets:update`. It rewrites every local
 reference and its `modulepreload` link in `index.html` together, so the whole app keeps

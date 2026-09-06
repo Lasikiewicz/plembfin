@@ -6,6 +6,7 @@ import { bumpDataVersion, db, parseJson, toJson } from "../db.js";
 import { FULL_BACKUPS_DIR, WATCH_HISTORY_BACKUPS_DIR } from "../paths.js";
 import { createAdapter, DESTINATION_TYPES } from "./backupDestinations/index.js";
 import { protectedSnapshotFiles } from "./syncPlans.js";
+import { persistedWatchDerivedFields } from "./watchDerivedFields.js";
 
 const FORMAT = "plembfin-watch-history-backup";
 const VERSION = 1;
@@ -652,8 +653,10 @@ export function restoreWatchHistoryBackup(filename, { mode = "merge", dryRun = f
       db.prepare("DELETE FROM playback_progress").run();
     }
     for (const row of document.data.watchHistory) {
+      const derived = persistedWatchDerivedFields(row);
       insertWatch.run({
         ...row,
+        ...derived,
         sync_dispatch_telemetry: row.sync_dispatch_telemetry || null,
         watch_provenance: row.watch_provenance || null,
         episode_title_status: row.episode_title_status || (
