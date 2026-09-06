@@ -248,19 +248,63 @@ export function showIdentityIndex(shows = []) {
   return index;
 }
 
+const SERIES_ID_FIELDS = [
+  ["show_imdb_id", "imdb_id"],
+  ["show_tmdb_id", "tmdb_id"],
+  ["show_tvdb_id", "tvdb_id"],
+];
+
+// A series id can never equal one of its own episodes' ids, so a series field
+// holding the episode's id is a provider observation that was stored raw rather
+// than resolved. Reacher S04E02 arrived that way - series and episode both
+// 7438862 - and the route built from it resolved to nothing and loaded slowly
+// before falling back. Discarding it lets the local identity below fill the gap,
+// and falling back to a title route is in any case better than a broken one.
+function withoutSelfReferentialSeriesIds(item = {}) {
+  let cleaned = item;
+  for (const [showKey, ownKey] of SERIES_ID_FIELDS) {
+    const showId = item[showKey];
+    const ownId = item[ownKey];
+    if (!showId || !ownId || String(showId) !== String(ownId)) continue;
+    if (cleaned === item) cleaned = { ...item };
+    cleaned[showKey] = null;
+  }
+  return cleaned;
+}
+
 export function withLocalShowIdentity(item = {}, index) {
-  if (!index?.size) return item;
   if (item.media_type !== "episode") return item;
+  const cleaned = withoutSelfReferentialSeriesIds(item);
+  if (!index?.size) return cleaned;
   // Never overwrite an identity the provider actually supplied.
-  if (item.show_imdb_id || item.show_tmdb_id || item.show_tvdb_id) return item;
-  const ids = index.get(text(showTitleFrom(item.show_title || item.title || "")).toLowerCase());
-  if (!ids) return item;
+  if (cleaned.show_imdb_id || cleaned.show_tmdb_id || cleaned.show_tvdb_id) return cleaned;
+  const ids = index.get(text(showTitleFrom(cleaned.show_title || cleaned.title || "")).toLowerCase());
+  if (!ids) return cleaned;
   return {
-    ...item,
-    show_imdb_id: item.show_imdb_id || ids.imdb,
-    show_tmdb_id: item.show_tmdb_id || ids.tmdb,
-    show_tvdb_id: item.show_tvdb_id || ids.tvdb,
+    ...cleaned,
+    show_imdb_id: cleaned.show_imdb_id || ids.imdb,
+    show_tmdb_id: cleaned.show_tmdb_id || ids.tmdb,
+    show_tvdb_id: cleaned.show_tvdb_id || ids.tvdb,
   };
+}
+
+// Artwork that only resolves against the media server itself - a bare Plex
+// `/library/metadata/.../thumb/...` path, say - is served from Plembfin's own
+// origin by the browser, where it hits the SPA fallback and silently renders no
+// image at all. Dropping it lets the client's normal poster resolution take
+// over (`/api/poster`, then the cached artwork), which produces a real poster
+// instead of a permanent placeholder.
+const USABLE_ARTWORK_URL = /^(?:https?:\/\/|\/media\/|\/api\/)/;
+
+export function withUsableArtwork(item = {}) {
+  let cleaned = item;
+  for (const key of ["poster_url", "show_poster_url"]) {
+    const value = text(item[key]);
+    if (!value || USABLE_ARTWORK_URL.test(value)) continue;
+    if (cleaned === item) cleaned = { ...item };
+    cleaned[key] = null;
+  }
+  return cleaned;
 }
 
 function showRecencyIndex(shows = []) {
@@ -658,7 +702,7 @@ export async function buildUpNextProjection({
   const sourceStatus = listUpNextProviderFeedStates().map(({ cursor: _cursor, ...feed }) => feed);
   const showIdentities = showIdentityIndex(showRows);
   return {
-    items: publicUpNextItems(merged.slice(0, safeLimit).map((item) => withLocalShowIdentity(item, showIdentities))),
+    items: publicUpNextItems(merged.slice(0, safeLimit).map((item) => withUsableArtwork(withLocalShowIdentity(item, showIdentities)))),
     sourceStatus,
     sourceVersion: getUpNextFeedSourceVersion(),
   };

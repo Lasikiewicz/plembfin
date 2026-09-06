@@ -52,6 +52,19 @@ than guessed, because inheriting the wrong series id would link to a different s
 ids are preserved unchanged. The result is that Up Next and Watch History link the same
 episode to the same route.
 
+Two provider-raw values are rejected before the projection is returned, because both reach
+the browser as a visible failure:
+
+- **A series id equal to the episode's own id.** A series id can never equal one of its own
+  episodes', so a series field holding the episode id is an observation stored raw rather than
+  resolved. It is discarded and the local identity fills the gap; with no local match the item
+  falls back to a title route, which beats a route that resolves to nothing.
+- **Artwork that only resolves against the media server**, such as a bare Plex
+  `/library/metadata/.../thumb/...` path. The browser requests it from Plembfin's own origin,
+  where it hits the SPA fallback and renders no image. Dropping it hands the card back to the
+  normal poster resolution (`/api/poster`, then cached artwork). Cached `/media/...`, `/api/...`
+  and absolute `http(s)` URLs are kept as they are.
+
 The browser hydrates the rail from the 24-hour `plembfin:upNextCache:v4` localStorage
 snapshot before requesting the network. The server also keeps the completed mixed snapshot
 in `data/up-next-cache.json`, so a restart can serve warm data immediately. Dashboard loads

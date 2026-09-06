@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { showIdentityIndex, withLocalShowIdentity } from "../server/src/utils/upNextService.js";
+import { showIdentityIndex, withLocalShowIdentity, withUsableArtwork } from "../server/src/utils/upNextService.js";
 
 // Provider Next Up feeds often omit series-level provider ids. Reacher S04E02
 // arrived carrying only its episode ids (tmdb 7438862) while the series is
@@ -83,4 +83,72 @@ test("the episode title is used when no separate show title is carried", () => {
     show_tmdb_id: null,
   }, index);
   assert.equal(enriched.show_tmdb_id, "108978");
+});
+
+test("a series id equal to the episode's own id is discarded, not trusted", () => {
+  // Reacher S04E02 arrived from a provider with the episode id in both fields.
+  // A series id can never equal one of its own episodes' ids.
+  const index = showIdentityIndex([REACHER]);
+  const enriched = withLocalShowIdentity({
+    media_type: "episode",
+    title: "Reacher - S04E02",
+    show_title: "Reacher",
+    tmdb_id: "7438862",
+    tvdb_id: "11867797",
+    show_tmdb_id: "7438862",
+    show_tvdb_id: "11867797",
+  }, index);
+
+  assert.equal(enriched.show_tmdb_id, "108978");
+  assert.equal(enriched.show_tvdb_id, "366924");
+  assert.equal(enriched.tmdb_id, "7438862");
+});
+
+test("a self-referential series id is dropped even with no library match", () => {
+  // Falling back to the title route beats a route that resolves to nothing.
+  const enriched = withLocalShowIdentity({
+    media_type: "episode",
+    title: "Unknown Show - S01E01",
+    show_title: "Unknown Show",
+    tmdb_id: "999",
+    show_tmdb_id: "999",
+  }, showIdentityIndex([]));
+  assert.equal(enriched.show_tmdb_id, null);
+});
+
+test("a genuinely different series id is left alone", () => {
+  const enriched = withLocalShowIdentity({
+    media_type: "episode",
+    show_title: "Reacher",
+    tmdb_id: "7438862",
+    show_tmdb_id: "108978",
+  }, showIdentityIndex([REACHER]));
+  assert.equal(enriched.show_tmdb_id, "108978");
+});
+
+test("artwork that cannot resolve from this origin is dropped", () => {
+  // A bare Plex path is served by the SPA fallback, so it renders no image at
+  // all; dropping it lets /api/poster resolve a real one.
+  const cleaned = withUsableArtwork({
+    poster_url: "/library/metadata/4680/thumb/1756",
+    show_poster_url: "/library/metadata/4680/thumb/1756",
+  });
+  assert.equal(cleaned.poster_url, null);
+  assert.equal(cleaned.show_poster_url, null);
+});
+
+test("cached, api and absolute artwork URLs are preserved", () => {
+  for (const url of [
+    "/media/posters/e7375ed5ca67b147c19ca115b65944c92ef65104.webp",
+    "/media/posters/abc.webp?v=1788428110506",
+    "/api/poster?id=1234",
+    "https://image.tmdb.org/t/p/w500/abc.jpg",
+  ]) {
+    assert.equal(withUsableArtwork({ poster_url: url }).poster_url, url, `should keep ${url}`);
+  }
+});
+
+test("an item with no artwork is returned untouched", () => {
+  const item = { media_type: "episode", title: "Reacher - S04E02" };
+  assert.deepEqual(withUsableArtwork(item), item);
 });
