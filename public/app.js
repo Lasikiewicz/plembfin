@@ -2257,6 +2257,7 @@ function clearDerivedUiCaches({ resetExplorer = true } = {}) {
   // outlive a mutation.
   state.showDetailCache.clear();
   state.showDetailAliases.clear();
+  state.showDetailMisses.clear();
   clearPersistentExplorerPageCache();
   state.posterLookupCache.clear();
   state.posterLookupInflight.clear();

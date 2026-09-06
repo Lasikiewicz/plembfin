@@ -22,6 +22,15 @@ const APP_LINKS_REFRESH_TTL_MS = 5 * 60 * 1000;
 // Lookup key → when it was last refreshed over the network this session, so
 // the repeated re-renders of one detail page don't each refetch app links.
 const appLinksRefreshedAt = new Map();
+// Lookup key → the in-flight request for it. The timestamp map above only
+// suppresses a refresh once one has *completed*, so a detail page that renders
+// its shell, then re-renders as metadata arrives, fired the whole lookup again
+// before the first had returned. On a title that is not in the library that is
+// the worst case: the lookup finds nothing to cache, so nothing suppresses the
+// next one, and three concurrent 3-provider searches ran for one page - each
+// measured at 2.4s directly and 8-9s under the page's own load. Sharing the
+// in-flight promise collapses them to one.
+const appLinksInflight = new Map();
 
 (function seedSeerrStatusCacheFromStorage() {
   try {
@@ -681,9 +690,18 @@ export async function hydrateMediaAppLinks(root = document, { allowNetwork = tru
     if (cachedLinks && Date.now() - lastRefreshedAt < APP_LINKS_REFRESH_TTL_MS) return;
 
     try {
-      const response = await fetch(`/api/media-app-links?${params.toString()}`, { headers: authHeaders(), cache: "no-store" });
-      const body = await response.json().catch(() => ({}));
-      if (!response.ok || !Array.isArray(body.links)) return;
+      // Share one request per lookup key across concurrent re-renders. Without
+      // this, a title with no links never populates the cache the timestamp
+      // guard reads, so every re-render started its own provider search.
+      let request = appLinksInflight.get(cacheKey);
+      if (!request) {
+        request = fetch(`/api/media-app-links?${params.toString()}`, { headers: authHeaders(), cache: "no-store" })
+          .then(async (response) => ({ ok: response.ok, body: await response.json().catch(() => ({})) }))
+          .finally(() => appLinksInflight.delete(cacheKey));
+        appLinksInflight.set(cacheKey, request);
+      }
+      const { ok, body } = await request;
+      if (!ok || !Array.isArray(body.links)) return;
       appLinksRefreshedAt.set(cacheKey, Date.now());
       // Persist the entry even when nothing changed. Its `ts` is what the
       // refresh window above reads after a page reload, and returning early on

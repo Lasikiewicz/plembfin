@@ -231,6 +231,9 @@ const initialState = {
   // identity instead. Cleared by clearDerivedUiCaches() on any mutation.
   showDetailCache: new Map(),
   showDetailAliases: new Map(),
+  // Identity token -> timestamp of a /api/show lookup that returned 404, so a
+  // title absent from the library is not re-asked for on every re-render.
+  showDetailMisses: new Map(),
   mediaDetailInline: false,
   mediaDetailReturnView: "explorer",
   mediaDetailReturnExplorerMode: "movies",

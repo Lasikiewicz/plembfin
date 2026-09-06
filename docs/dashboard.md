@@ -42,6 +42,16 @@ and refreshed by the single background warm-up worker, so a dashboard render can
 outbound provider burst. Canonical local resume cards remain usable without a provider
 connection.
 
+Series identity is filled in from the local library before the projection is returned
+(`showIdentityIndex` / `withLocalShowIdentity` in `upNextService.js`). Provider Next Up feeds
+regularly omit series-level provider ids, leaving an episode carrying only its own - and an
+episode's TMDB id is not its show's, so a series route built from one resolves to nothing and
+pays a full cold lookup before falling back. An id the provider did supply is never
+overwritten, and a title held by more than one show with differing ids is left empty rather
+than guessed, because inheriting the wrong series id would link to a different show. Episode
+ids are preserved unchanged. The result is that Up Next and Watch History link the same
+episode to the same route.
+
 The browser hydrates the rail from the 24-hour `plembfin:upNextCache:v4` localStorage
 snapshot before requesting the network. The server also keeps the completed mixed snapshot
 in `data/up-next-cache.json`, so a restart can serve warm data immediately. Dashboard loads

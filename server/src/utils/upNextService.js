@@ -212,6 +212,57 @@ function showRecencyKeys(item = {}) {
   return [...new Set(keys)];
 }
 
+// Provider Next Up feeds routinely omit series-level provider ids, so an
+// episode can arrive carrying only its own. An episode's TMDB id is not its
+// show's - Reacher S04E02 came through as 7438862 while the series is 108978 -
+// and building a series route from one produces a URL that resolves to nothing
+// and pays the full cold-lookup cost before falling back. The library already
+// knows the series identity from its own watch history, so fill it in here.
+//
+// Matched on title, which is only safe while the title is unambiguous: two
+// different shows sharing a name must not inherit each other's ids, so a key
+// that maps to more than one distinct identity is dropped rather than guessed.
+export function showIdentityIndex(shows = []) {
+  const index = new Map();
+  const ambiguous = new Set();
+  for (const show of Array.isArray(shows) ? shows : []) {
+    const key = text(showTitleFrom(show.title || show.show_title || "")).toLowerCase();
+    if (!key || ambiguous.has(key)) continue;
+    const ids = {
+      imdb: text(show.imdb_id) || null,
+      tmdb: text(show.tmdb_id) || null,
+      tvdb: text(show.tvdb_id) || null,
+    };
+    if (!ids.imdb && !ids.tmdb && !ids.tvdb) continue;
+    const existing = index.get(key);
+    if (!existing) {
+      index.set(key, ids);
+      continue;
+    }
+    const differs = existing.imdb !== ids.imdb || existing.tmdb !== ids.tmdb || existing.tvdb !== ids.tvdb;
+    if (differs) {
+      index.delete(key);
+      ambiguous.add(key);
+    }
+  }
+  return index;
+}
+
+export function withLocalShowIdentity(item = {}, index) {
+  if (!index?.size) return item;
+  if (item.media_type !== "episode") return item;
+  // Never overwrite an identity the provider actually supplied.
+  if (item.show_imdb_id || item.show_tmdb_id || item.show_tvdb_id) return item;
+  const ids = index.get(text(showTitleFrom(item.show_title || item.title || "")).toLowerCase());
+  if (!ids) return item;
+  return {
+    ...item,
+    show_imdb_id: item.show_imdb_id || ids.imdb,
+    show_tmdb_id: item.show_tmdb_id || ids.tmdb,
+    show_tvdb_id: item.show_tvdb_id || ids.tvdb,
+  };
+}
+
 function showRecencyIndex(shows = []) {
   const index = new Map();
   for (const show of Array.isArray(shows) ? shows : []) {
@@ -605,8 +656,9 @@ export async function buildUpNextProjection({
   ]));
   const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
   const sourceStatus = listUpNextProviderFeedStates().map(({ cursor: _cursor, ...feed }) => feed);
+  const showIdentities = showIdentityIndex(showRows);
   return {
-    items: publicUpNextItems(merged.slice(0, safeLimit)),
+    items: publicUpNextItems(merged.slice(0, safeLimit).map((item) => withLocalShowIdentity(item, showIdentities))),
     sourceStatus,
     sourceVersion: getUpNextFeedSourceVersion(),
   };

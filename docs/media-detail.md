@@ -319,6 +319,15 @@ list arrives shows a loading placeholder instead of a premature "no episodes" me
   across a page reload. For a series the lookup enumerates every episode from each
   configured server, so repeating it per page load was the slowest request on a
   show page by a wide margin.
+  Concurrent renders of one page share a single request per lookup key: the
+  timestamp above only suppresses a refresh once one has completed, so a page that
+  paints its shell and then re-renders as metadata arrives used to start the whole
+  lookup again before the first returned. A title that is in no connected library
+  is the worst case, because an empty result leaves nothing for the timestamp guard
+  to read. The server also remembers an empty result for 60 seconds
+  (`clearEmptyAppLinksCache()` drops it when the media configuration changes, since
+  connecting a server changes what can be found); a populated result is never
+  cached server-side, so a link can never go stale.
   The pills render (`mediaAppLinksHtml` in `media-detail-shared.js`) as their own
   "Watch Now" row inside the Media facts panel, the last row on the page.
 - **One show lookup per page.** A detail page resolves its show through several
@@ -328,6 +337,15 @@ list arrives shows a loading placeholder instead of a premature "no episodes" me
   in `state.showDetailCache`, so a lookup by any of them reuses the first answer.
   `/api/show` carries authoritative watched rows and dates, so the entry lives for
   10 seconds and `clearDerivedUiCaches()` drops it on any mutation.
+  A lookup that finds nothing is remembered too, in `state.showDetailMisses` under
+  the same identity tokens and for the same 10 seconds. Without it a title absent
+  from the library - which is what a recommendation rail usually links to - was
+  re-asked on every re-render, six times for one page load, each one a 404 in the
+  browser console. The window has to cover a slow page load: at 5 seconds a page
+  whose provider work took 5.4 seconds outlived its own entries and asked again.
+  Each lookup shape is remembered separately, because a miss by TMDB id does not
+  prove a miss by title - a record may exist with a title and no provider id - so
+  one page load asks at most once per shape rather than once in total.
 - **Media facts panel** (`renderMediaFacts` in `media-detail-shared.js`) - a
   transparent, borderless panel next to the poster listing Status/First aired/
   Language on one line, then Runtime/Genres, then Network paired with the Ratings

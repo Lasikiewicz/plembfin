@@ -2,7 +2,7 @@ import { state, elements } from "./state.js?v=0.15.0.6";
 import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel, formatSeasonTitle, sourceBadgeHtml, platformSourceValues, actualWatchHistory } from "./utils.js?v=0.15.0.6";
 import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=0.15.0.6";
 import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js?v=0.15.0.6";
-import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading, cachedShowDetail, rememberShowDetail } from "./explorer.js?v=0.15.0.6";
+import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading, cachedShowDetail, rememberShowDetail, cachedShowDetailMiss, rememberShowDetailMiss } from "./explorer.js?v=0.15.0.6";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=0.15.0.6";
 import { renderWatchDatePrompt, seasonUnwatchButtonHtml, showUnwatchButtonHtml, savingEpisodeKeysForShow } from "./watch-action.js?v=0.15.0.6";
 import { authHeaders, setMessage, syncPageTopbar, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=0.15.0.6";
@@ -180,6 +180,7 @@ async function fetchLocalShowByTmdbId(tmdbId) {
   if (seed) return seed;
   const alreadyResolved = cachedShowDetail({ tmdb_id: tmdbId });
   if (alreadyResolved) return alreadyResolved;
+  if (cachedShowDetailMiss({ tmdb_id: tmdbId })) return null;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 4000);
   try {
@@ -188,9 +189,16 @@ async function fetchLocalShowByTmdbId(tmdbId) {
       cache: "no-store",
       signal: controller.signal,
     });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      if (response.status === 404) rememberShowDetailMiss({ tmdb_id: tmdbId });
+      return null;
+    }
     const body = await response.json().catch(() => ({}));
-    return body.show ? rememberShowDetail(body.show) : null;
+    if (!body.show) {
+      rememberShowDetailMiss({ tmdb_id: tmdbId });
+      return null;
+    }
+    return rememberShowDetail(body.show);
   } catch {
     return null;
   } finally {
@@ -203,6 +211,7 @@ async function fetchLocalShowByTvdbId(tvdbId) {
   if (seed) return seed;
   const alreadyResolved = cachedShowDetail({ tvdb_id: tvdbId });
   if (alreadyResolved) return alreadyResolved;
+  if (cachedShowDetailMiss({ tvdb_id: tvdbId })) return null;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 4000);
   try {
@@ -211,9 +220,16 @@ async function fetchLocalShowByTvdbId(tvdbId) {
       cache: "no-store",
       signal: controller.signal,
     });
-    if (!response.ok) return null;
+    if (!response.ok) {
+      if (response.status === 404) rememberShowDetailMiss({ tvdb_id: tvdbId });
+      return null;
+    }
     const body = await response.json().catch(() => ({}));
-    return body.show ? rememberShowDetail(body.show) : null;
+    if (!body.show) {
+      rememberShowDetailMiss({ tvdb_id: tvdbId });
+      return null;
+    }
+    return rememberShowDetail(body.show);
   } catch {
     return null;
   } finally {
@@ -272,13 +288,15 @@ export async function openShowImmersiveModalByTitle(showTitle, seedEpisode = nul
   const resolvedFromCache = cachedShowDetail({ title: normalizedTitle });
   if (resolvedFromCache) {
     show = resolvedFromCache;
-  } else {
+  } else if (!cachedShowDetailMiss({ title: normalizedTitle })) {
     try {
       const response = await fetch(`/api/show?title=${encodeURIComponent(normalizedTitle)}`, { headers: authHeaders(), cache: "no-store" });
       const body = await response.json().catch(() => ({}));
       if (response.ok && body.show) {
         mergeShowDetail(body.show);
         show = rememberShowDetail(body.show);
+      } else if (response.status === 404 || !body.show) {
+        rememberShowDetailMiss({ title: normalizedTitle });
       }
     } catch (error) {
       console.error("Failed to fetch show details by title", error);

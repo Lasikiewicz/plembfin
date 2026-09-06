@@ -1731,6 +1731,39 @@ export function rememberShowDetail(show) {
   return show;
 }
 
+// The cache above can only index a show that resolved, so a title that is not
+// in the library was never remembered and every re-render re-asked for it. A
+// detail page opened from a recommendation rail did this six times in one load
+// - the same three lookup shapes twice over - and each one is a 404 in the
+// browser console. Remember the miss too, under the same identity tokens, so
+// one page load asks once.
+//
+// A miss is at least as perishable as a hit - importing or syncing a title
+// turns it into a real record - so this matches, and never exceeds, the
+// positive cache's window, and is cleared by clearDerivedUiCaches() on any
+// mutation just as that one is. It cannot be much shorter than a page load: at
+// 5s a detail page whose provider work took 5.4s outlived its own miss entries
+// and asked again on the re-render.
+const SHOW_DETAIL_MISS_TTL_MS = SHOW_DETAIL_CACHE_TTL_MS;
+
+export function cachedShowDetailMiss(hints = {}) {
+  for (const token of showLookupTokens(hints)) {
+    const ts = state.showDetailMisses.get(token);
+    if (ts === undefined) continue;
+    if (Date.now() - ts > SHOW_DETAIL_MISS_TTL_MS) {
+      state.showDetailMisses.delete(token);
+      continue;
+    }
+    return true;
+  }
+  return false;
+}
+
+export function rememberShowDetailMiss(hints = {}) {
+  const now = Date.now();
+  for (const token of showLookupTokens(hints)) state.showDetailMisses.set(token, now);
+}
+
 export async function loadShowDetail(show = {}) {
   const showTitle = show.title || "";
   const showTmdbId = show.tmdb_id || show.show_tmdb_id || "";

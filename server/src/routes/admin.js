@@ -217,6 +217,9 @@ export async function handleConfig(req, res) {
     const errors = validateConfig(toValidate);
     if (errors.length) return sendJson(res, { error: "Invalid configuration", details: errors }, 400);
     await saveMediaConfig(config);
+    // Connecting or re-pointing a media server changes what can be found, so a
+    // remembered "not in any library" answer must not outlive the change.
+    clearEmptyAppLinksCache();
     writeAuditLog("settings.saved", { ip: req.ip || req.socket?.remoteAddress });
     const storedConfig = await loadMediaConfig({ resolveConnections: false });
     return sendJson(res, { ok: true, config: publicMediaConfig(storedConfig) });
@@ -705,6 +708,36 @@ async function fetchConfiguredAppLinks(config = {}, media = {}) {
   return (await Promise.all(jobs)).filter(Boolean);
 }
 
+// A title that is in none of the connected libraries still costs a full search
+// on all three providers - measured at 2.4s - because absence can only be
+// established by asking. Nothing was cached for it either, since there were no
+// links to store, so every repeat asked again: opening a show from a
+// recommendation rail re-ran the whole 3-provider search on each visit.
+//
+// Only the empty result is cached, and only briefly. A positive result is left
+// uncached because a library path or item id can change and the link must stay
+// correct; the cost of being wrong about an absent title is merely that it
+// stays absent for up to this window after being added.
+const EMPTY_APP_LINKS_TTL_MS = 60_000;
+const emptyAppLinksCache = new Map();
+
+function appLinksLookupKey(media = {}) {
+  const ids = media.ids || {};
+  return JSON.stringify([
+    String(media.type || ""),
+    String(ids.imdb || ""),
+    String(ids.tmdb || ""),
+    String(ids.tvdb || ""),
+    String(media.title || "").trim().toLowerCase(),
+    media.season ?? "",
+    media.episode ?? "",
+  ]);
+}
+
+export function clearEmptyAppLinksCache() {
+  emptyAppLinksCache.clear();
+}
+
 export async function handleMediaAppLinks(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "GET") return methodNotAllowed(res);
@@ -715,8 +748,25 @@ export async function handleMediaAppLinks(req, res) {
     return sendJson(res, { ok: false, error: "A title or external ID is required." }, 400);
   }
 
+  const lookupKey = appLinksLookupKey(media);
+  const cachedEmptyAt = emptyAppLinksCache.get(lookupKey);
+  if (cachedEmptyAt !== undefined) {
+    if (Date.now() - cachedEmptyAt < EMPTY_APP_LINKS_TTL_MS) {
+      return sendJson(res, { ok: true, links: [] }, 200, { "Cache-Control": "no-store" });
+    }
+    emptyAppLinksCache.delete(lookupKey);
+  }
+
   const config = await loadMediaConfig();
   const links = await fetchConfiguredAppLinks(config, media);
+  if (!links.length) {
+    // Bound the map so a long browsing session cannot grow it without limit.
+    if (emptyAppLinksCache.size >= 500) {
+      const oldest = emptyAppLinksCache.keys().next().value;
+      if (oldest !== undefined) emptyAppLinksCache.delete(oldest);
+    }
+    emptyAppLinksCache.set(lookupKey, Date.now());
+  }
   return sendJson(res, { ok: true, links }, 200, { "Cache-Control": "no-store" });
 }
 
