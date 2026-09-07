@@ -1,9 +1,40 @@
 {
   "baseVersion": "0.15.0",
-  "build": 13,
-  "version": "0.15.0.13",
-  "updatedAt": "2026-09-07T14:15:48.204Z",
+  "build": 14,
+  "version": "0.15.0.14",
+  "updatedAt": "2026-09-07T13:48:27.761Z",
   "entries": [
+    {
+      "build": 14,
+      "version": "0.15.0.14",
+      "shortVersion": "0.15.0.14",
+      "date": "2026-09-07T13:48:27.761Z",
+      "commit": "db59126e4768ed9c38309c0fc7ec5fee296a0c22",
+      "message": "Feature - Complete watch sync and media detail workflows",
+      "author": "Lasikiewicz",
+      "details": [
+        "Feature: Complete watch sync and media detail workflows",
+        "Feature: Add configurable app-marked watch policies with a manual review queue, show grouping, bulk decisions, and custom watch dates",
+        "Feature: Keep Plex, Emby, Jellyfin, and Plembfin watched/unwatched state synchronized with reliable now-playing and Up Next refreshes",
+        "Feature: Restore complete TV show metadata and canonical show navigation from dashboard and history",
+        "Feature: Improve TV and movie detail loading, episode layouts, artwork handling, and incremental live updates",
+        "Feature: Add onboarding and Settings controls for sync tuning, watch thresholds, and fast local-network sync",
+        "Feature: Harden large-library history, caching, sync retries, and provider identity matching with regression coverage"
+      ],
+      "sections": {
+        "newFeatures": [
+          "Complete watch sync and media detail workflows",
+          "Add configurable app-marked watch policies with a manual review queue, show grouping, bulk decisions, and custom watch dates",
+          "Keep Plex, Emby, Jellyfin, and Plembfin watched/unwatched state synchronized with reliable now-playing and Up Next refreshes",
+          "Restore complete TV show metadata and canonical show navigation from dashboard and history",
+          "Improve TV and movie detail loading, episode layouts, artwork handling, and incremental live updates",
+          "Add onboarding and Settings controls for sync tuning, watch thresholds, and fast local-network sync",
+          "Harden large-library history, caching, sync retries, and provider identity matching with regression coverage"
+        ],
+        "majorBugFixes": [],
+        "tweaks": []
+      }
+    },
     {
       "build": 13,
       "version": "0.15.0.13",
@@ -370,5 +401,5 @@
       ]
     }
   ],
-  "shortVersion": "0.15.0.9"
+  "shortVersion": "0.15.0.14"
 }

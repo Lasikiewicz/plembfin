@@ -4,17 +4,17 @@
 // echoes credentials, only a `configured` flag per section, and a blank secret
 // on save means "keep the stored credential" (except Seerr, whose key is only
 // sent when non-empty).
-import { state } from "./state.js?v=0.15.0.13";
-import { buildAuthHeaders } from "./auth.js?v=0.15.0.13";
-import { openSettingsEditModal, openSettingsPickerModal, renderServiceCardGrid, renderFieldRow, collectFieldValues, renderInlineServicePanel } from "./settings-ui.js?v=0.15.0.13";
-import { prepareHelpReadMore } from "./settings-shell.js?v=0.15.0.13";
-import { escapeAttribute, escapeHtml } from "./utils.js?v=0.15.0.13";
+import { state } from "./state.js?v=0.15.0.14";
+import { buildAuthHeaders } from "./auth.js?v=0.15.0.14";
+import { openSettingsEditModal, openSettingsPickerModal, renderServiceCardGrid, renderFieldRow, collectFieldValues, renderInlineServicePanel } from "./settings-ui.js?v=0.15.0.14";
+import { prepareHelpReadMore } from "./settings-shell.js?v=0.15.0.14";
+import { escapeAttribute, escapeHtml } from "./utils.js?v=0.15.0.14";
 import {
   plexCredentialGuide,
   embyCredentialGuide,
   jellyfinCredentialGuide,
   savedCredentialNote,
-} from "./help-content.js?v=0.15.0.13";
+} from "./help-content.js?v=0.15.0.14";
 
 let _cb = {};
 export function initSettingsServices(callbacks = {}) {

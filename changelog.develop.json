@@ -1,22 +1,6 @@
 {
   "build": 61,
-  "resetCommit": "2d3250a386afdc6d340e6865f95d221b65020f2c",
-  "updatedAt": "2026-09-07T13:45:32.907Z",
-  "entries": [
-    {
-      "build": 61,
-      "date": "2026-09-07T13:45:32.907Z",
-      "commit": "693e84bb88f47d8eacd7a7a1ebd0a423de65db97",
-      "message": "Feature - Complete watch sync and media detail workflows",
-      "author": "Lasikiewicz",
-      "details": [
-        "Add configurable app-marked watch policies with a manual review queue, show grouping, bulk decisions, and custom watch dates",
-        "Keep Plex, Emby, Jellyfin, and Plembfin watched/unwatched state synchronized with reliable now-playing and Up Next refreshes",
-        "Restore complete TV show metadata and canonical show navigation from dashboard and history",
-        "Improve TV and movie detail loading, episode layouts, artwork handling, and incremental live updates",
-        "Add onboarding and Settings controls for sync tuning, watch thresholds, and fast local-network sync",
-        "Harden large-library history, caching, sync retries, and provider identity matching with regression coverage"
-      ]
-    }
-  ]
+  "resetCommit": "db59126e4768ed9c38309c0fc7ec5fee296a0c22",
+  "updatedAt": "2026-09-07T13:48:27.761Z",
+  "entries": []
 }

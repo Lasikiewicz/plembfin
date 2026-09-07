@@ -1,23 +1,23 @@
-import { state, elements } from "./state.js?v=0.15.0.13";
-import { slug, movieSlug, movieHref, movieTmdbHref, tvShowTmdbHref, showName, showTitleFrom } from "./utils.js?v=0.15.0.13";
-import { dedupeMediaRecords } from "./dashboard.js?v=0.15.0.13";
-import { isWatchedHistoryAction } from "./sync.js?v=0.15.0.13";
+import { state, elements } from "./state.js?v=0.15.0.14";
+import { slug, movieSlug, movieHref, movieTmdbHref, tvShowTmdbHref, showName, showTitleFrom } from "./utils.js?v=0.15.0.14";
+import { dedupeMediaRecords } from "./dashboard.js?v=0.15.0.14";
+import { isWatchedHistoryAction } from "./sync.js?v=0.15.0.14";
 import {
   initMediaDetail, authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions,
   prepareInlineMediaDetail, syncMediaActionsMenuState, syncTopbarControlsMenuState,
   openDebugModal, closeDebugModal, clearMediaDetailState, closeMediaDetail,
   openMediaInfoModal, closeMediaInfoModal,
   bumpMediaRenderToken, currentMediaRenderToken,
-} from "./media-detail-context.js?v=0.15.0.13";
+} from "./media-detail-context.js?v=0.15.0.14";
 import {
   openShowImmersiveModalByTitle, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openShowInlineDetail,
   renderImmersiveShowModal, renderShowModalContent, patchShowModalEpisodeFromLive, scrollSeasonAccordionIntoView,
-} from "./media-detail-show.js?v=0.15.0.13";
+} from "./media-detail-show.js?v=0.15.0.14";
 import {
   renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, patchMovieWatchedState,
-} from "./media-detail-movie.js?v=0.15.0.13";
-import { fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail-shared.js?v=0.15.0.13";
-import { fetchTmdbDetails } from "./tmdb.js?v=0.15.0.13";
+} from "./media-detail-movie.js?v=0.15.0.14";
+import { fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail-shared.js?v=0.15.0.14";
+import { fetchTmdbDetails } from "./tmdb.js?v=0.15.0.14";
 
 export {
   initMediaDetail,

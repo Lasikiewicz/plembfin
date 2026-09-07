@@ -1,5 +1,5 @@
-import { buildAuthHeaders } from "./auth.js?v=0.15.0.13";
-import { state, elements } from "./state.js?v=0.15.0.13";
+import { buildAuthHeaders } from "./auth.js?v=0.15.0.14";
+import { state, elements } from "./state.js?v=0.15.0.14";
 
 // ── Library-wide duplicate watch cleanup ────────────────────────────────────
 // The per-season "remove duplicate watches" cleanup (edit-dialogs.js) only
