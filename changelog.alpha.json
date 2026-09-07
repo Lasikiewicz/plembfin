@@ -1,9 +1,36 @@
 {
   "baseVersion": "0.15.0",
-  "build": 14,
-  "version": "0.15.0.14",
-  "updatedAt": "2026-09-07T13:48:27.761Z",
+  "build": 15,
+  "version": "0.15.0.15",
+  "updatedAt": "2026-09-07T14:33:31.773Z",
   "entries": [
+    {
+      "build": 15,
+      "version": "0.15.0.15",
+      "shortVersion": "0.15.0.15",
+      "date": "2026-09-07T14:33:31.773Z",
+      "commit": "29878691d6e6eec3306aad0ec64e044f99c498a4",
+      "message": "Fix - Repair watched state and localized TV matching",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix: Repair watched state and localized TV matching",
+        "Fix: Repair watched reports across Plex, Emby, and Jellyfin when Plembfin already has the canonical watched state",
+        "Fix: Preserve canonical watch dates and explicit unwatched decisions across provider identities",
+        "Fix: Match TVDB series by English translations and slugs when the primary title is localized",
+        "Fix: Hide stale manual-review rows after the canonical watched state is confirmed"
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Repair watched state and localized TV matching",
+          "Repair watched reports across Plex, Emby, and Jellyfin when Plembfin already has the canonical watched state",
+          "Preserve canonical watch dates and explicit unwatched decisions across provider identities",
+          "Match TVDB series by English translations and slugs when the primary title is localized",
+          "Hide stale manual-review rows after the canonical watched state is confirmed"
+        ],
+        "tweaks": []
+      }
+    },
     {
       "build": 14,
       "version": "0.15.0.14",
@@ -401,5 +428,5 @@
       ]
     }
   ],
-  "shortVersion": "0.15.0.14"
+  "shortVersion": "0.15.0.15"
 }

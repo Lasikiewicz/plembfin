@@ -1,20 +1,6 @@
 {
   "build": 65,
-  "resetCommit": "db59126e4768ed9c38309c0fc7ec5fee296a0c22",
-  "updatedAt": "2026-09-07T14:31:33.563Z",
-  "entries": [
-    {
-      "build": 65,
-      "date": "2026-09-07T14:31:33.563Z",
-      "commit": "73250764f8ac5437fae386c4c26a2171a2a0a46d",
-      "message": "Fix - Repair watched state and localized TV matching",
-      "author": "Lasikiewicz",
-      "details": [
-        "Repair watched reports across Plex, Emby, and Jellyfin when Plembfin already has the canonical watched state",
-        "Preserve canonical watch dates and explicit unwatched decisions across provider identities",
-        "Match TVDB series by English translations and slugs when the primary title is localized",
-        "Hide stale manual-review rows after the canonical watched state is confirmed"
-      ]
-    }
-  ]
+  "resetCommit": "29878691d6e6eec3306aad0ec64e044f99c498a4",
+  "updatedAt": "2026-09-07T14:33:31.773Z",
+  "entries": []
 }
