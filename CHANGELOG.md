@@ -4,6 +4,17 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v0.16.1 - 7 September 2026
+
+hotfix
+
+### Tweaks
+
+- This update includes only update unwatched episodes when marking a season watched.
+- Partially watched seasons update only the episodes that are still unwatched
+- Existing watched episodes remain unchanged when completing a season
+- Fully watched seasons retain the explicit Resync season action
+
 ## v0.16.0 - 7 September 2026
 
 This update delivers broad performance improvements across media, library, history, metadata, caching, sync, and large-library workflows, with faster artwork loading and a new manual watch feature.
