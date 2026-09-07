@@ -150,7 +150,8 @@ before they're officially released.
 | `ghcr.io/lasikiewicz/plembfin:alpha` | `alpha` | Pre-release; queued fixes not yet a numbered version | Testers who want fixes early and don't mind rough edges |
 | `ghcr.io/lasikiewicz/plembfin:develop` | `develop` | Bleeding edge; every commit, least tested | Contributors and the most adventurous testers |
 
-Each channel shows its own version in the sidebar and **Settings → About**. See
+Each channel shows its own version in the sidebar and **Settings → About**. Develop builds
+include the current release version and cycle number (for example, `0.16.0 Build 1`). See
 [`CHANGELOG.md`](CHANGELOG.md) for numbered releases, and
 [`docs/development.md`](docs/development.md) for how the three channels relate.
 

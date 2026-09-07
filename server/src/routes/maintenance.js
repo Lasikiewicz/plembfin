@@ -1120,15 +1120,14 @@ function readLocalChangelog() {
 }
 
 // Bundled only on the develop channel build; see docker-publish-develop.yml and
-// scripts/rebuild-develop-changelog.js. Tracks a standalone rolling develop
-// build counter, deliberately independent of alpha's or main's version - it
-// never borrows a parent version string, so it can never appear to regress
-// relative to a branch it was promoted from.
+// scripts/rebuild-develop-changelog.js. Tracks the current main release version
+// and the rolling develop build number for that release cycle.
 function readLocalDevelopChangelog() {
   try {
     const raw = fs.readFileSync(nodePath.resolve(PUBLIC_DIR, "..", "changelog.develop.json"), "utf8");
     const data = JSON.parse(raw);
     return {
+      version: String(data.version || "").trim() || null,
       build: Number(data.build) || 0,
       entries: Array.isArray(data.entries) ? data.entries : [],
     };
@@ -1138,11 +1137,16 @@ function readLocalDevelopChangelog() {
 }
 
 export function describePendingDevelopBuild(localDevelopBuild, remoteDevelop) {
+  const localBuild = Number(localDevelopBuild?.build) || 0;
   const remoteBuild = Number(remoteDevelop?.build) || 0;
+  const localVersion = String(localDevelopBuild?.version || "").trim();
+  const remoteVersion = String(remoteDevelop?.version || "").trim();
   const remoteEntries = Array.isArray(remoteDevelop?.entries) ? remoteDevelop.entries : [];
-  const newerBuildAvailable = remoteBuild > localDevelopBuild.build;
+  const versionComparison = localVersion && remoteVersion ? compareSemver(remoteVersion, localVersion) : 0;
+  const newerBuildAvailable = versionComparison > 0
+    || (versionComparison === 0 && remoteBuild > localBuild);
   const pendingEntries = newerBuildAvailable
-    ? remoteEntries.filter((entry) => Number(entry.build) > localDevelopBuild.build)
+    ? remoteEntries.filter((entry) => versionComparison > 0 || Number(entry.build) > localBuild)
     : [];
   return { latestBuild: remoteBuild, newerBuildAvailable, pendingEntries };
 }

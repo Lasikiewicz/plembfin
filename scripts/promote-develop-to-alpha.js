@@ -206,12 +206,12 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
   // across the cycle until promoteAlphaToMain consolidates and resets it.
   alpha.entries = [alphaEntry, ...alpha.entries];
 
-  // Reset develop for the next cycle: build never resets (it counts pushes
-  // for the lifetime of the branch - see rebuild-develop-changelog.js),
-  // but resetCommit moves to this promotion's own commit so the next
-  // rebuild's git-history walk starts counting fresh from here, and entries
-  // is cleared since that work is now folded into the alpha entry above.
+  // Reset develop's rolling entry for the next alpha build. The release
+  // version is carried alongside the build counter so the local develop
+  // label stays tied to the main release it is testing. A completed Force to
+  // main resets that counter to build 1 for the new released version.
   develop = {
+    version: develop.version || mainVersion,
     build: develop.build || 0,
     resetCommit: resetAnchorCommit || commit || develop.resetCommit || "",
     updatedAt: sourceDate,

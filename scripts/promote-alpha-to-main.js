@@ -38,6 +38,16 @@ export function bumpPatchVersion(currentVersion = "0.0.0") {
   return `${major}.${minor}.${patch}`;
 }
 
+export function createDevelopReset({ version = "0.0.0", resetCommit = "", updatedAt = "" } = {}) {
+  return {
+    version: String(version || "0.0.0"),
+    build: 1,
+    resetCommit: String(resetCommit || ""),
+    updatedAt,
+    entries: [],
+  };
+}
+
 function semverGt(a, b) {
   const pa = String(a || "0.0.0").split(".").map(Number);
   const pb = String(b || "0.0.0").split(".").map(Number);
@@ -180,17 +190,18 @@ export function promoteAlphaToMain({ targetVersion = "", sourceDate = new Date()
     entries: [],
   };
 
-  // Clear develop's entry list for the new release cycle and move its
-  // rebuild anchor to this promotion commit, so the next rebuild only walks
-  // commits made after it. The build counter is never reset (see
-  // rebuild-develop-changelog.js): it counts pushes to develop for the
-  // lifetime of the branch, independent of alpha/main's version, so it can
-  // never appear to regress relative to a branch it was promoted from.
+  // Start local develop at the released version's first build for the new
+  // cycle. The rebuild anchor moves to this promotion commit, so the next
+  // rebuild only walks commits made after it.
   let develop = { build: 0, resetCommit: "", entries: [] };
   try {
     develop = JSON.parse(fs.readFileSync(developChangelogPath, "utf8"));
   } catch { }
-  develop = { build: develop.build || 0, resetCommit: commit || develop.resetCommit || "", updatedAt: sourceDate, entries: [] };
+  develop = createDevelopReset({
+    version: newMainVersion,
+    resetCommit: commit || develop.resetCommit || "",
+    updatedAt: sourceDate,
+  });
 
   fs.writeFileSync(changelogPath, `${JSON.stringify(changelog, null, 2)}\n`);
   fs.writeFileSync(alphaChangelogPath, `${JSON.stringify(resetAlpha, null, 2)}\n`);

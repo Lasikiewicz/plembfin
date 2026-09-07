@@ -408,13 +408,13 @@ function authHeaders() {
   return buildAuthHeaders(state.token);
 }
 
-// Purely cosmetic: appends the build channel (and rolling build counter)
-// to a displayed version string without touching the raw semver. Develop's
-// build counter is deliberately standalone (not derived from alpha/main's
-// version), so it's shown as "Build N" rather than a borrowed version string -
-// see describePendingDevelopBuild in server/src/routes/maintenance.js.
+// Purely cosmetic: appends the build channel and rolling build counter to a
+// displayed version string without touching the raw semver. Develop's label
+// identifies both the main release it is based on and its cycle build.
 function versionDisplayLabel(version, channel, alphaBuild, developBuild) {
   if (channel === "develop") {
+    const developVersion = String(developBuild?.version || "").trim();
+    if (developVersion && developBuild?.build != null) return `${developVersion} Build ${developBuild.build}`;
     return developBuild?.build != null ? `Develop Build ${developBuild.build}` : "Develop";
   }
   if (channel === "alpha") {
@@ -544,7 +544,7 @@ async function renderChangelog(force = false) {
       banner = `
         <div class="changelog-status changelog-status-update">
           <b>Newer develop build available - build ${escapeHtml(String(data.developBuild.latestBuild))}</b>
-          <span>You're running build ${escapeHtml(String(data.developBuild.build))}. See what's new below, then pull the latest ghcr.io/lasikiewicz/plembfin:develop image to update.</span>
+          <span>You're running ${escapeHtml(currentLabel)}. See what's new below, then pull the latest ghcr.io/lasikiewicz/plembfin:develop image to update.</span>
         </div>`;
     } else if (data.channel === "develop") {
       banner = `
@@ -627,9 +627,12 @@ async function renderChangelog(force = false) {
       const tag = pending
         ? `<span class="changelog-tag changelog-tag-new">Not pulled yet</span>`
         : isCurrent ? `<span class="changelog-tag changelog-tag-current">Current</span>` : "";
+      const developVersion = String(data.developBuild?.version || "").trim();
       const versionTitle = entry.version
         ? `v${escapeHtml(entry.version)} (Develop)`
-        : `Develop Build ${escapeHtml(String(entry.build ?? ""))}`;
+        : developVersion
+          ? `${escapeHtml(developVersion)} Build ${escapeHtml(String(entry.build ?? ""))} (Develop)`
+          : `Develop Build ${escapeHtml(String(entry.build ?? ""))}`;
       return `
         <article class="changelog-entry${isCurrent ? " changelog-entry-current" : ""}${pending ? " changelog-entry-new" : ""}">
           <div class="changelog-entry-head">

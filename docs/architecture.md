@@ -307,7 +307,7 @@ See [README.md](README.md) for the documentation index, including this file
 | `validate-commit-message.js` | CLI used by the commit-message hook to reject user-visible release commits with missing or title-repeating details. |
 | `rebuild-develop-changelog.js` | Run locally as part of "Push to git" (CLAUDE.md), before the push: fully recomputes `changelog.develop.json`'s single entry from every real commit between its `resetCommit` anchor and HEAD, replacing it rather than appending. Its `--check <commit>` mode validates the committed changelog tree used by the develop pre-push guard without modifying files. |
 | `promote-develop-to-alpha.js` | Run locally as part of "Force to alpha", before the force-push: packages develop's current entry as its own standalone alpha build entry, prepended to alpha's `entries` (`promoteDevelopToAlpha`), bumps the alpha build, and resets develop for the next cycle. Also exports `categorizeEntries`/`simplifyEntries`/`formatSections`/`mergeSections`, shared with the script below. |
-| `promote-alpha-to-main.js` | Run locally as part of "Force to main", before the force-push: consolidates every alpha build entry accumulated this cycle into one release entry (`promoteAlphaToMain`), bumps the real semver (honouring a manually-set higher `package.json` version), writes `changelog.json`/`package.json`/`package-lock.json`/`CHANGELOG.md`, and resets alpha and develop for the next cycle. `--preview` runs the same computation read-only and prints the would-be release entry so a human can approve the changelog before anything is staged or pushed. |
+| `promote-alpha-to-main.js` | Run locally as part of "Force to main", before the force-push: consolidates every alpha build entry accumulated this cycle into one release entry (`promoteAlphaToMain`), bumps the real semver (honouring a manually-set higher `package.json` version), writes `changelog.json`/`package.json`/`package-lock.json`/`CHANGELOG.md`, resets alpha, and resets develop to the released version at build 1 for the next cycle. `--preview` runs the same computation read-only and prints the would-be release entry so a human can approve the changelog before anything is staged or pushed. |
 | `notify-discord-release.js` | CI helper called by `update-changelog.yml` (`main`) and `docker-publish-alpha.yml` (`alpha`): builds a Discord embed from the newest `changelog.json`/`changelog.alpha.json` entry and posts it to the `DISCORD_RELEASES_WEBHOOK` secret. No-ops if the secret isn't set; supports `--dry-run` to print the embed instead of posting. |
 | `install-git-hooks.js` | Sets `core.hooksPath` to `.githooks` (runs automatically via npm `prepare`). |
 | `docker-entrypoint.sh` | Container entrypoint: chowns `/data` when starting as root, then drops to the `plembfin` user via gosu. |
@@ -619,20 +619,17 @@ newest first, not just the one this instance has installed) whenever either is n
 so a newer build's changes are visible without updating first.
 
 `developBuild` (populated only on the `develop` channel, read from `changelog.develop.json`
-via `readLocalDevelopChangelog()`) works the same way but is deliberately **not** derived
-from alpha's or main's version at all - it is a standalone rolling counter,
-`{ build, resetCommit, entries }`. `scripts/rebuild-develop-changelog.js`, run locally as
-part of "Push to git" (before the push), fully recomputes the single entry from every real
-commit between `resetCommit` and HEAD, rather than appending one entry per push - there is
-only ever one entry to read, and it is always current. `build` bumps by one on every
-rebuild that finds real content and otherwise counts up for the lifetime of the branch: it
-never compares against a parent branch's version string, so it can't appear to regress.
-`resetCommit` and `entries` are the only fields `promoteDevelopToAlpha()` (run as part of
-the "Force to alpha" promotion) resets - `build` is not, the same safe shape as alpha's own
-reset-on-promotion-to-main, never an inferred reset from comparing against a value that
-might be stale. `describePendingDevelopBuild()` mirrors `describePendingAlphaBuild()` but
-compares only `build` numbers. The sidebar/About label shows this as `Develop Build <n>`
-rather than a version string.
+via `readLocalDevelopChangelog()`) carries the current main release and its rolling cycle
+counter, `{ version, build, resetCommit, entries }`. `scripts/rebuild-develop-changelog.js`,
+run locally as part of "Push to git" (before the push), fully recomputes the single entry
+from every real commit between `resetCommit` and HEAD, rather than appending one entry per
+push - there is only ever one entry to read, and it is always current. `build` starts at 1
+when "Force to main" completes and bumps by one on every later rebuild that finds real
+content. `promoteDevelopToAlpha()` clears the current entry and moves the anchor while
+carrying the version/build; `promoteAlphaToMain()` sets the released version and starts
+develop at build 1 for the next cycle. `describePendingDevelopBuild()` compares release
+versions before build numbers so an older remote cycle cannot look newer merely because its
+counter is higher. The sidebar/About label shows this as `<version> Build <n>`.
 
 ## Data layer (`server/src/db.js` + `schema.sql`)
 

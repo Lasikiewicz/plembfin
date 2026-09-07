@@ -16,11 +16,9 @@
 // commits, changelog-process commits, and non-release-type commits (test:,
 // chore:, refactor:, style:, ci:) are excluded, same rules as before.
 //
-// The `build` counter is unrelated to content and keeps counting up across
-// the whole lifetime of the branch (see the comment on promoteDevelopToAlpha
-// for why it never chases a parent version string) - it bumps by one on every
-// rebuild that finds real content, independent of how many commits that
-// rebuild covers.
+// The `build` counter starts at 1 when Force to main begins a new release
+// cycle, then bumps by one on every rebuild that finds real content. The
+// manifest's `version` identifies the main release that cycle is based on.
 
 import fs from "node:fs";
 import path from "node:path";

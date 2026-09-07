@@ -10,7 +10,7 @@ import { makeTempDataDir } from "./helpers.js";
 makeTempDataDir("plembfin-versioning-");
 
 const { categorizeEntries, simplifyEntries } = await import("../scripts/promote-develop-to-alpha.js");
-const { bumpPatchVersion } = await import("../scripts/promote-alpha-to-main.js");
+const { bumpPatchVersion, createDevelopReset } = await import("../scripts/promote-alpha-to-main.js");
 const { buildDevelopEntry, validateDevelopChangelog } = await import("../scripts/rebuild-develop-changelog.js");
 const { synthesizeHeadline, isReleaseToolingText, filterChangelogDetails } = await import("../scripts/changelog-message.js");
 const { describePendingDevelopBuild, describePendingAlphaBuild, handleChangelog } = await import("../server/src/routes/maintenance.js");
@@ -110,6 +110,20 @@ test("bumpPatchVersion increments only the patch (3rd segment)", () => {
   assert.equal(bumpPatchVersion("0.8.6"), "0.8.7");
   assert.equal(bumpPatchVersion("0.8.6.0.0"), "0.8.7");
   assert.equal(bumpPatchVersion("1.2.9"), "1.2.10");
+});
+
+test("createDevelopReset starts the released cycle at build 1", () => {
+  assert.deepEqual(createDevelopReset({
+    version: "0.16.1",
+    resetCommit: "release-commit",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+  }), {
+    version: "0.16.1",
+    build: 1,
+    resetCommit: "release-commit",
+    updatedAt: "2026-01-01T00:00:00.000Z",
+    entries: [],
+  });
 });
 
 test("buildDevelopEntry consolidates every real commit since the reset anchor into one entry", () => {
@@ -241,12 +255,12 @@ test("describePendingDevelopBuild identifies newer builds", () => {
   assert.deepEqual(pending.pendingEntries.map((e) => e.build), [4, 3]);
 });
 
-test("describePendingDevelopBuild never regresses just because entries were cleared after a promotion", () => {
-  // develop's build counter is standalone and never reset (see
-  // rebuild-develop-changelog.js) - a promotion only clears the entries list,
-  // so a local build higher than or equal to remote must never report pending.
-  const local = { build: 5 };
-  const remote = { build: 1, entries: [{ build: 1, message: "New cycle build 1" }] };
+test("describePendingDevelopBuild ignores an older remote cycle after a main promotion", () => {
+  // The local develop checkout moves to the released version/build 1 when
+  // Force to main completes. The remote develop branch can briefly retain the
+  // previous release's higher build number until the next normal push.
+  const local = { version: "0.16.1", build: 1 };
+  const remote = { version: "0.16.0", build: 68, entries: [{ build: 68, message: "Previous cycle" }] };
 
   const pending = describePendingDevelopBuild(local, remote);
   assert.equal(pending.newerBuildAvailable, false);

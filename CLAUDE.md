@@ -55,12 +55,13 @@ already committed.
   fully recomputes `changelog.develop.json`'s single entry from every real commit between
   `changelog.develop.json`'s own `resetCommit` anchor and `HEAD` - not an accumulating
   list of one entry per push. There is only ever one entry to read, and it is always
-  current; nothing needs a later consolidation pass. `build` bumps by one on every
-  rebuild that finds real content and otherwise counts up for the lifetime of the
-  branch - it never compares against alpha's or main's version, so it can't appear to
-  regress. `resetCommit` and `entries` are the only fields "Force to alpha" resets;
-  `build` is not. The running develop build shows this as `Develop Build <n>` in the
-  sidebar and Settings → About. `docker-publish-develop.yml` publishes a rolling image to
+  current; nothing needs a later consolidation pass. `version` identifies the main
+  release that the develop cycle is based on. `build` starts at 1 when "Force to main"
+  completes and bumps by one on every later rebuild that finds real content.
+  "Force to alpha" resets `resetCommit` and `entries` while carrying the version/build;
+  "Force to main" sets the version to the released semver and starts build 1. The
+  running develop build shows this as `<version> Build <n>` in the sidebar and Settings
+  → About. `docker-publish-develop.yml` publishes a rolling image to
   `ghcr.io/lasikiewicz/plembfin:develop` (also tagged `develop-<build>`) on every push
   that changes real content, reading the build number that's already in the pushed
   commit - it skips the build (`paths-ignore`) when a push only changes
@@ -385,7 +386,7 @@ This is `promoteDevelopToAlpha()` in `scripts/promote-develop-to-alpha.js`: it p
 develop's current entry as its own standalone alpha build entry and prepends it to
 alpha's `entries` array (or starts a fresh array if main has moved on since the last
 promotion), bumps the alpha build, and resets develop's `entries` and `resetCommit` for
-the next cycle - `build` is not reset (see the branching model section above). If it
+the next cycle while carrying its release version and build number. If it
 refuses with a release-process violation, that means a commit folded into develop's entry
 still contains recognized process text; fix it on `develop` and repeat from step 1. There
 is nothing to review afterward - the entry this writes is what will actually publish.
@@ -484,8 +485,8 @@ each entry's own already-categorized sections and using the approved concise
 `releaseMessage` as the headline - bumps the real semver (honouring a
 manually-set higher `package.json` version instead of overwriting it with a patch
 increment), and writes `changelog.json`, `package.json`, `package-lock.json`, and
-regenerates `CHANGELOG.md`, then resets `changelog.alpha.json` and
-`changelog.develop.json` for the next cycle. If it refuses with a release-process
+regenerates `CHANGELOG.md`, then resets `changelog.alpha.json` and resets
+`changelog.develop.json` to the released version at build 1 for the next cycle. If it refuses with a release-process
 violation, that means one of alpha's entries still contains recognized process text; fix
 the source commit on `develop`, repeat "Force to alpha", and restart this command.
 The command also refuses to run without `--confirm`; use that flag only after the step 2
@@ -532,13 +533,11 @@ git merge origin/main --no-edit
 Local only - **do not push this to `origin/develop`**. This folds the release commit from
 step 3 into the local `develop` checkout, carrying forward its reset
 `changelog.alpha.json`/`changelog.develop.json` and the new `changelog.json` version, so
-`package.json`/`changelog.json` read back locally as the version just released instead of
-the previous one. It is not required for correctness: the next "Force to alpha" already
-merges `origin/main` into `develop` as its own step 1, so `origin/develop` picks up main's
-new state automatically the next time that command runs, whether or not this step ran
-first - skipping it just means `origin/develop`'s bundled `changelog.json` (what a running
-develop-channel build's Settings → About reads) shows the previous release as latest until
-then, which is cosmetic only. Don't bother folding it into `alpha` either - the next
+`package.json`/`changelog.json` and the develop metadata read back locally as the version
+just released, with `changelog.develop.json` at build 1. `origin/develop` retains the
+pre-release reset state until the next normal develop push; the next "Force to alpha"
+already merges `origin/main` into `develop` as its own step 1, so that remote state is
+reconciled automatically. Don't bother folding it into `alpha` either - the next
 "Force to alpha" force-pushes develop's tip onto alpha regardless, so anything synced
 there now is simply overwritten rather than built on.
 

@@ -93,11 +93,12 @@ values already committed" - none of them write anything back to their branch.
   every user-facing commit before allowing the push. `docker-publish-develop.yml` checks README
   consistency, then builds, verifies, and publishes a rolling image to
   `ghcr.io/lasikiewicz/plembfin:develop` (also tagged `develop-<build>`) using the build
-  number already in the pushed commit. `develop` never touches
-  `changelog.json`/`changelog.alpha.json` or the package version. Its build counter is
-  never inferred from a comparison against a parent branch's version - it only resets
-  (specifically its `resetCommit` anchor and `entries`, not `build` itself) when a
-  "Force to alpha" promotion explicitly does so, so it can never appear to regress.
+  number already in the pushed commit. `develop` carries the current main release in
+  `changelog.develop.json` and starts each release cycle at build 1. Its build counter
+  increments when a rebuild finds user-facing work; "Force to alpha" clears the current
+  entry and anchor while carrying the version/build, and "Force to main" resets the
+  version to the released semver and the build to 1. The sidebar and Settings → About
+  show this as `<version> Build <n>`.
   **`develop` is covered by `secret-scan.yml`** (while `security.yml` runs on `main` and
   `alpha` alongside scheduled scans).
 - **"Force to alpha"** runs `scripts/promote-develop-to-alpha.js` locally (packages
@@ -125,15 +126,17 @@ values already committed" - none of them write anything back to their branch.
   shown to the user and confirmed. Only after approval does the operator run
   `scripts/promote-alpha-to-main.js --confirm` (consolidates every alpha build entry
   accumulated this cycle into one clean release entry - bumps the real semver, writes
-  `changelog.json`/`package.json`/`package-lock.json`/`CHANGELOG.md`, and resets alpha
-  and develop for the next cycle), commit, and force-push that commit to `main`
+  `changelog.json`/`package.json`/`package-lock.json`/`CHANGELOG.md`, resets alpha, and
+  resets develop to the released version at build 1 for the next cycle), commit, and
+  force-push that commit to `main`
   (`git push origin HEAD:main --force`), which triggers the release pipeline below. A
   first pre-push test failure follows the bounded retry procedure above instead of
   bypassing the gate or prematurely ending the promotion. The promotion command
   refuses to mutate anything without `--confirm`.
-- After the release pipeline publishes from that commit, both `alpha` and `develop` merge
-  `origin/main` back in and push, so the next round of work starts from a matching base
-  instead of immediately diverging.
+- After the release pipeline publishes from that commit, the local `develop` checkout can
+  merge `origin/main` to carry the released version and build 1 into local development.
+  `origin/develop` retains its pre-release reset state until the next normal develop push;
+  the next "Force to alpha" reconciles it with `origin/main` before promotion.
 
 ### Promotion commands
 
