@@ -26,7 +26,8 @@ test("episode links never promote leaf provider ids into a TV show route", () =>
   assert.equal(mediaCardHref(episodeWithLeafIds), expected);
 
   const html = renderDashboardHistoryPageCard(episodeWithLeafIds, { upNext: true });
-  assert.match(html, /data-media-card-href="\/tvshow\/the-war-between-the-land-and-the-sea\/season\/1\/episode\/5"/);
+  assert.match(html, /data-media-card-href="\/tvshow\/the-war-between-the-land-and-the-sea#season1"/);
+  assert.doesNotMatch(html, /\/season\/1\/episode\/5/);
   assert.doesNotMatch(html, /tvshow\/(?:tmdb\/6278773|tvdb\/10652667)/);
   assert.doesNotMatch(html, /data-prefetch-tmdb="6278773"/);
 });

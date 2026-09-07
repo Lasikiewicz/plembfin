@@ -6,7 +6,7 @@ import { makeTempDataDir } from "./helpers.js";
 makeTempDataDir("plembfin-config-tuning-test-");
 
 const { loadMediaConfig, saveMediaConfig, validateConfig, mergeIncomingConfig, publicMediaConfig, mediaAccountAuthEnabled } = await import("../server/src/utils/configStore.js");
-const { applyTuningConfig, watchedThresholdPercent, resetTuningForTests } = await import("../server/src/utils/tuning.js");
+const { applyTuningConfig, watchedThresholdPercent, watchImportMode, resetTuningForTests } = await import("../server/src/utils/tuning.js");
 const { listActiveSessions, upsertActiveSession } = await import("../server/src/utils/activeSessions.js");
 const { db } = await import("../server/src/db.js");
 
@@ -25,6 +25,18 @@ test("saveMediaConfig persists a tuning override and refreshes the effective get
   // loadMediaConfig() itself calls applyTuningConfig(), so the getter reflects
   // the round-tripped value too, not just the value set by saveMediaConfig().
   assert.equal(watchedThresholdPercent(), 75);
+});
+
+test("saveMediaConfig persists the watched-flag policy and exposes its browser-safe options", async () => {
+  await saveMediaConfig({ tuning: { watchImportMode: "release_day" } });
+  assert.equal(watchImportMode(), "release_day");
+  const config = await loadMediaConfig();
+  assert.equal(config.tuning.watchImportMode, "release_day");
+
+  const publicConfig = publicMediaConfig(config);
+  assert.equal(publicConfig.tuning.watchImportMode.value, "release_day");
+  assert.equal(publicConfig.tuning.watchImportMode.overridden, true);
+  assert.deepEqual(publicConfig.tuning.watchImportMode.options, ["now", "release_day", "episode_timing", "review"]);
 });
 
 test("publicMediaConfig reports overridden vs default tuning fields", async () => {
@@ -63,6 +75,12 @@ test("validateConfig accepts in-range tuning fields", async () => {
   const merged = await mergeIncomingConfig({ tuning: { outboundTimeoutSec: 30 } });
   const errors = validateConfig({ tuning: merged.tuning });
   assert.deepEqual(errors, []);
+});
+
+test("validateConfig rejects an unknown watched-flag policy", async () => {
+  const merged = await mergeIncomingConfig({ tuning: { watchImportMode: "later" } });
+  const errors = validateConfig({ tuning: { ...merged.tuning, watchImportMode: "later" } });
+  assert.ok(errors.some((message) => message.includes("tuning.watchImportMode")));
 });
 
 test("an explicit null override clears back to the default on the next save", async () => {

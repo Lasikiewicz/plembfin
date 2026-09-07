@@ -122,6 +122,10 @@ export async function handleSetupStatus(req, res) {
       tmdbConfigured: Boolean(config.tmdb?.configured),
       builtInAvailable: { tvdb: tvdbBuiltInAvailable(), fanart: fanartBuiltInAvailable() },
     },
+    options: {
+      watchImportMode: config.tuning?.watchImportMode || null,
+      fastLocalPacing: config.pacing?.profile === "fast",
+    },
     watchHistoryCount,
     pushSyncAvailable: watchHistoryCount > 0 && servers.some((s) => s.tested),
     syncLocked: Boolean(activeSyncOperation(runtime)),

@@ -1,23 +1,23 @@
-import { state, elements } from "./state.js?v=0.15.0.9";
-import { slug, movieSlug, movieHref, movieTmdbHref, tvShowTmdbHref, showName, showTitleFrom } from "./utils.js?v=0.15.0.9";
-import { dedupeMediaRecords } from "./dashboard.js?v=0.15.0.9";
-import { isWatchedHistoryAction } from "./sync.js?v=0.15.0.9";
+import { state, elements } from "./state.js?v=0.15.0.13";
+import { slug, movieSlug, movieHref, movieTmdbHref, tvShowTmdbHref, showName, showTitleFrom } from "./utils.js?v=0.15.0.13";
+import { dedupeMediaRecords } from "./dashboard.js?v=0.15.0.13";
+import { isWatchedHistoryAction } from "./sync.js?v=0.15.0.13";
 import {
   initMediaDetail, authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions,
   prepareInlineMediaDetail, syncMediaActionsMenuState, syncTopbarControlsMenuState,
   openDebugModal, closeDebugModal, clearMediaDetailState, closeMediaDetail,
   openMediaInfoModal, closeMediaInfoModal,
   bumpMediaRenderToken, currentMediaRenderToken,
-} from "./media-detail-context.js?v=0.15.0.9";
+} from "./media-detail-context.js?v=0.15.0.13";
 import {
   openShowImmersiveModalByTitle, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openShowInlineDetail,
-  renderImmersiveShowModal, renderShowModalContent, scrollSeasonAccordionIntoView,
-} from "./media-detail-show.js?v=0.15.0.9";
+  renderImmersiveShowModal, renderShowModalContent, patchShowModalEpisodeFromLive, scrollSeasonAccordionIntoView,
+} from "./media-detail-show.js?v=0.15.0.13";
 import {
   renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, patchMovieWatchedState,
-} from "./media-detail-movie.js?v=0.15.0.9";
-import { fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail-shared.js?v=0.15.0.9";
-import { fetchTmdbDetails } from "./tmdb.js?v=0.15.0.9";
+} from "./media-detail-movie.js?v=0.15.0.13";
+import { fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail-shared.js?v=0.15.0.13";
+import { fetchTmdbDetails } from "./tmdb.js?v=0.15.0.13";
 
 export {
   initMediaDetail,
@@ -33,6 +33,7 @@ export {
   openShowInlineDetail,
   renderImmersiveShowModal,
   renderShowModalContent,
+  patchShowModalEpisodeFromLive,
   scrollSeasonAccordionIntoView,
   openShowImmersiveModalByTmdbId,
   openShowImmersiveModalByTvdbId,

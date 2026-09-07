@@ -137,3 +137,150 @@ export function resolvePlexWatchDate(item = {}, { hasPlaybackEvidence = false } 
     note: "Plex reported a watched library flag without a reliable playback timestamp or release date.",
   };
 }
+
+function normalizeShowKey(value = "") {
+  return String(value || "")
+    .trim()
+    .replace(/\s*\(\d{4}\)\s*$/, "")
+    .toLowerCase();
+}
+
+function showTitleForTiming(media = {}) {
+  return media.showTitle
+    || media.show_title
+    || String(media.title || "").split(/\s+-\s+S\d{1,2}E\d{1,2}(?:\s+-\s+.*)?$/i)[0]
+    || "";
+}
+
+function runtimeMinutesForTiming(value) {
+  const minutes = Number(value);
+  return Number.isFinite(minutes) && minutes > 0 ? minutes : 0;
+}
+
+function timingSeparationMs(reference = {}, target = {}) {
+  const runtimeMinutes = runtimeMinutesForTiming(
+    reference.runtimeMinutes
+      ?? reference.runtime_minutes
+      ?? target.runtimeMinutes
+      ?? target.runtime_minutes,
+  );
+  // Match the media-page date picker: one minute of breathing room is added
+  // after a reference episode, and the same gap is subtracted before a later
+  // reference episode. If runtime is unavailable, keep the same one-minute
+  // fallback used by the page.
+  return (runtimeMinutes * 60_000) + 60_000 || 60_000;
+}
+
+function validTimingRow(row = {}) {
+  if (!row || String(row.sync_action || row.syncAction || "watched").toLowerCase() !== "watched") return false;
+  const watchedAt = isoDateTime(row.watched_at || row.watchedAt);
+  return Boolean(watchedAt);
+}
+
+/**
+ * Find the same-season watched episode used by the media-page "before/after"
+ * picker. The scanner has less metadata than the page, so runtime falls back
+ * to the incoming provider item and then to a one-minute separation.
+ */
+export function episodeTimingWatchDate(media = {}, historyRows = [], fallbackDate = "") {
+  if (String(media.type || media.media_type || "").toLowerCase() !== "episode") {
+    return isoDateTime(fallbackDate) || "";
+  }
+  const season = Number(media.season);
+  const episode = Number(media.episode);
+  if (!Number.isFinite(season) || !Number.isFinite(episode)) return isoDateTime(fallbackDate) || "";
+
+  const targetShowKey = normalizeShowKey(showTitleForTiming(media));
+  if (!targetShowKey) return isoDateTime(fallbackDate) || "";
+
+  const candidates = (Array.isArray(historyRows) ? historyRows : [])
+    .filter(validTimingRow)
+    .filter((row) => Number(row.season) === season && Number(row.episode) !== episode)
+    .filter((row) => normalizeShowKey(row.show_title || row.showTitle || row.title) === targetShowKey)
+    .map((row) => ({ ...row, watchedAt: isoDateTime(row.watched_at || row.watchedAt) }))
+    .filter((row) => row.watchedAt);
+
+  const previous = candidates
+    .filter((row) => Number(row.episode) < episode)
+    .sort((a, b) => Number(b.episode) - Number(a.episode))[0];
+  if (previous) {
+    return new Date(Date.parse(previous.watchedAt) + timingSeparationMs(previous, media)).toISOString();
+  }
+
+  const next = candidates
+    .filter((row) => Number(row.episode) > episode)
+    .sort((a, b) => Number(a.episode) - Number(b.episode))[0];
+  if (next) {
+    return new Date(Date.parse(next.watchedAt) - timingSeparationMs(next, media)).toISOString();
+  }
+
+  return isoDateTime(fallbackDate) || "";
+}
+
+/**
+ * Apply the configured policy to a provider watched snapshot. A real playback
+ * timestamp is always trusted; the policy only decides what to do with a
+ * manual/library flag that has no threshold-reaching playback evidence.
+ */
+export function resolveWatchImportDate({
+  mode = "review",
+  manualMark = false,
+  sourceTimestamp = "",
+  releaseDate = "",
+  fallbackDate = "",
+  media = {},
+  historyRows = [],
+  now = Date.now(),
+} = {}) {
+  const observedAt = isoDateTime(sourceTimestamp);
+  const fallback = isoDateTime(fallbackDate);
+  if (!manualMark && observedAt) {
+    return { watchedAt: observedAt, previewWatchedAt: observedAt, requiresReview: false, reason: "source timestamp" };
+  }
+
+  const normalizedMode = ["now", "release_day", "episode_timing", "review"].includes(String(mode || "").toLowerCase())
+    ? String(mode).toLowerCase()
+    : "review";
+  const release = dateOnlyIso(releaseDate);
+  const nowIso = new Date(Number.isFinite(Number(now)) ? Number(now) : Date.now()).toISOString();
+  if (normalizedMode === "review") {
+    return {
+      watchedAt: release || fallback || nowIso,
+      previewWatchedAt: release || fallback || nowIso,
+      requiresReview: true,
+      reason: "manual flag requires review",
+    };
+  }
+  if (normalizedMode === "release_day") {
+    return {
+      watchedAt: release || fallback || nowIso,
+      previewWatchedAt: release || fallback || nowIso,
+      requiresReview: false,
+      reason: release ? "release day" : "release day unavailable; now used",
+    };
+  }
+  if (normalizedMode === "episode_timing") {
+    const timed = episodeTimingWatchDate(media, historyRows, release || fallback || nowIso);
+    return {
+      watchedAt: timed || release || fallback || nowIso,
+      previewWatchedAt: timed || release || fallback || nowIso,
+      requiresReview: false,
+      reason: timed ? "episode timing" : "episode timing unavailable; now used",
+    };
+  }
+  return { watchedAt: nowIso, previewWatchedAt: nowIso, requiresReview: false, reason: "now" };
+}
+
+export function runtimeMinutesForSourceItem(item = {}, source = "") {
+  const normalizedSource = String(source || "").toLowerCase();
+  if (normalizedSource === "plex") {
+    const milliseconds = Number(item.durationMs ?? item.duration);
+    return Number.isFinite(milliseconds) && milliseconds > 0 ? milliseconds / 60_000 : 0;
+  }
+  const durationMs = Number(item.durationMs ?? item.Duration);
+  if (Number.isFinite(durationMs) && durationMs > 0) return durationMs / 60_000;
+  const ticks = Number(item.RunTimeTicks);
+  if (Number.isFinite(ticks) && ticks > 0) return ticks / 600_000_000;
+  const runtime = Number(item.RunTime ?? item.Runtime);
+  return Number.isFinite(runtime) && runtime > 0 ? runtime : 0;
+}

@@ -7,6 +7,7 @@ export const BACKUP_VERSION = 1;
 export const BACKUP_COLLECTIONS = [
   "watchHistory",
   "playstate",
+  "manualWatchReviews",
   "playbackProgress",
   "activeSessions",
   "liveTrackingCache",
@@ -146,6 +147,7 @@ const collections = {
     insert: db.prepare("INSERT OR REPLACE INTO playstate (media_key,title,title_lower,media_type,state,watched_at,last_source,sources,imdb_id,tmdb_id,tvdb_id,season,episode,poster_url,updated_at) VALUES (@media_key,@title,@title_lower,@media_type,@state,@watched_at,@last_source,@sources,@imdb_id,@tmdb_id,@tvdb_id,@season,@episode,@poster_url,@updated_at)"),
     dataToRow: (id, d) => ({ media_key: d.mediaKey || id, title: d.title || "", title_lower: d.titleLower || String(d.title || "").toLowerCase(), media_type: d.mediaType || "", state: d.state || "watched", watched_at: d.watchedAt || "", last_source: d.lastSource || d.source || "", sources: toJson(Array.isArray(d.sources) ? d.sources : []), imdb_id: d.ids?.imdb || null, tmdb_id: d.ids?.tmdb || null, tvdb_id: d.ids?.tvdb || null, season: d.season ?? null, episode: d.episode ?? null, poster_url: d.posterUrl || null, updated_at: toMs(d.updatedAt) }),
   },
+  manualWatchReviews: rawCollection("manual_watch_reviews", "id", ["media_key", "source", "source_item_id", "title", "media_type", "show_title", "episode_title", "season", "episode", "release_date", "observed_watched_at", "source_fingerprint", "media_json", "status", "decision_mode", "created_at", "updated_at", "reviewed_at"]),
   playbackProgress: {
     table: "playback_progress", key: "media_key",
     rowToData: (r) => ({ mediaKey: r.media_key, title: r.title || "", mediaType: r.media_type || "", source: r.source || "", ids: ids(r), season: r.season, episode: r.episode, positionMs: r.position_ms, durationMs: r.duration_ms, progress: r.progress, updatedAt: r.updated_at, syncDispatchTelemetry: r.sync_dispatch_telemetry }),

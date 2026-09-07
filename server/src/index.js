@@ -18,6 +18,7 @@ import { handleSetupStatus, handleSetupStep, handleSetupImport, handleSetupCompl
 import { handlePersonalMedia } from "./routes/personal.js";
 import { handleRatingSync } from "./routes/ratingSync.js";
 import { handleWatchlistSync } from "./routes/watchlistSync.js";
+import { handleManualWatchReview } from "./routes/manualWatchReview.js";
 
 function routePath(req) {
   const path = req.path || new URL(req.originalUrl || req.url, "https://local").pathname;
@@ -94,6 +95,7 @@ async function dispatch(req, res) {
     if (path === "plembfin-backups") return handlePlembfinBackups(req, res);
     if (path === "manual-watch") return handleManualWatch(req, res);
     if (path === "manual-unwatch") return handleManualUnwatch(req, res);
+    if (path === "manual-watch-review" || path.startsWith("manual-watch-review/")) return handleManualWatchReview(req, res, path);
     if (path === "playback-progress") return handlePlaybackProgressList(req, res);
     if (path === "playback-progress/watch") return handlePlaybackProgressWatch(req, res);
     if (path === "playback-progress/unwatch") return handlePlaybackProgressUnwatch(req, res);

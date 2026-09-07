@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { fetchWithTimeout } from "./utils/outbound.js";
-import { watchedThresholdPercent } from "./utils/tuning.js";
+import { watchedThresholdPercent, watchImportMode } from "./utils/tuning.js";
 import { lastOutboundPlayedMarkAt, recordOutboundPlayedMarks, recordOutboundUnplayedMarks, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
 import { applyUnwatchedTransition } from "./utils/watchStateTransitions.js";
 import { parsePlexMediaIds } from "./utils/parsers.js";
@@ -12,7 +12,7 @@ import { createLoopStore } from "./utils/loopStore.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
 import { isCronSyncPaused, loadWatchBackupRuntime } from "./utils/watchHistoryBackups.js";
 import { executeForceSyncPlan } from "./utils/forceSyncExecutor.js";
-import { isEmbyLikePlayed, resolvePlexWatchDate, watchedAtForEmbyLikeItem, watchedAtForPlexItem } from "./utils/watchDates.js";
+import { isEmbyLikePlayed, releaseDateForSourceItem, resolvePlexWatchDate, resolveWatchImportDate, runtimeMinutesForSourceItem, watchedAtForEmbyLikeItem, watchedAtForPlexItem } from "./utils/watchDates.js";
 import { remoteEpisodeImportError } from "./utils/episodeImportGuard.js";
 import { isVerboseLogging } from "./utils/logVerbose.js";
 import { buildWatchProvenance, provenanceTelemetryLines } from "./utils/watchProvenance.js";
@@ -68,6 +68,7 @@ import {
   upsertPlaybackProgress,
   upsertPlaystateForMedia,
 } from "./utils/dataRepo.js";
+import { enqueueManualWatchReview } from "./utils/manualWatchReview.js";
 
 const SCHEDULED_RECENT_WATCH_LIMIT = 50;
 // Provider feed snapshots are complete; only canonical resume propagation is
@@ -89,6 +90,36 @@ function scheduledMediaInScope(config, media) {
   if (scope.watchedAfter && (!watchedAt || watchedAt < new Date(scope.watchedAfter).getTime())) return false;
   if (scope.watchedBefore && (!watchedAt || watchedAt > new Date(scope.watchedBefore).getTime())) return false;
   return true;
+}
+
+function currentWatchImportMode() {
+  return watchImportMode();
+}
+
+export function providerWatchFingerprint(item = {}, source = "", kind = "") {
+  const userData = item.UserData || {};
+  return [
+    String(source || "").toLowerCase(),
+    kind,
+    item.ratingKey || item.key || item.Id || "",
+    item.lastViewedAt ?? item.viewedAt ?? "",
+    userData.LastPlayedDate ?? userData.PlayedDate ?? item.LastPlayedDate ?? item.PlayedDate ?? "",
+    userData.PlayCount ?? item.PlayCount ?? "",
+    userData.Played ?? userData.IsPlayed ?? item.Played ?? item.IsPlayed ?? "",
+    item.viewCount ?? "",
+  ].join("|");
+}
+
+function addTimingHistoryRow(historyRows, media, watchedAt) {
+  if (!Array.isArray(historyRows) || !media || !watchedAt) return;
+  historyRows.push({
+    ...media,
+    media_type: media.type,
+    sync_action: "watched",
+    watched_at: watchedAt,
+    show_title: media.showTitle,
+    runtime_minutes: media.runtimeMinutes,
+  });
 }
 
 // Fallback cadence for the legacy Plex unwatch poll. Primary detection is the realtime
@@ -1125,6 +1156,8 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
 
   const baseUrl = config.plex.baseUrl.replace(/\/+$/, "");
   const username = configuredPlexUsername(config);
+  const importMode = currentWatchImportMode();
+  const timingHistory = importMode === "episode_timing" ? await getCachedHistory().catch(() => []) : [];
   let syncedCount = 0;
   const skippedMalformed = [];
 
@@ -1221,10 +1254,6 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
       // established playback evidence.
       const watchDate = resolvePlexWatchDate(item, { hasPlaybackEvidence: kind === "history" });
       const watchedAt = watchDate.watchedAt;
-      if (!watchedAt) {
-        logger(`Plex: skipped watched item without a source view timestamp or release date: ${item.title || item.grandparentTitle || "unknown"}`);
-        continue;
-      }
 
       const dedupeKey = `${item.ratingKey || item.key}-${watchedAt}`;
       if (seenKeys.has(dedupeKey)) continue;
@@ -1233,7 +1262,21 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
       uniqueItems.push({ item, watchedAt, watchDate });
     }
 
-    for (const { item, watchedAt, watchDate } of uniqueItems) {
+    const orderedItems = importMode === "episode_timing"
+      ? uniqueItems.slice().sort((left, right) => {
+        const leftIsEpisode = left.item.type === "episode";
+        const rightIsEpisode = right.item.type === "episode";
+        if (leftIsEpisode !== rightIsEpisode) return leftIsEpisode ? -1 : 1;
+        if (!leftIsEpisode) return 0;
+        const leftShow = String(left.item.grandparentTitle || left.item.parentTitle || "").toLowerCase();
+        const rightShow = String(right.item.grandparentTitle || right.item.parentTitle || "").toLowerCase();
+        return leftShow.localeCompare(rightShow)
+          || Number(left.item.parentIndex || 0) - Number(right.item.parentIndex || 0)
+          || Number(left.item.index || 0) - Number(right.item.index || 0);
+      })
+      : uniqueItems;
+
+    for (const { item, watchedAt, watchDate } of orderedItems) {
       if (isAuthoritativeRestoreActive()) return syncedCount;
       const media = {
         title: item.title,
@@ -1247,16 +1290,28 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
       };
 
       if (item.type === "episode") {
+        media.showTitle = item.grandparentTitle || item.parentTitle || "";
         media.season = Number(item.parentIndex);
         media.episode = Number(item.index);
-        media.title = `${item.grandparentTitle} - S${String(media.season ?? "?").padStart(2, "0")}E${String(media.episode ?? "?").padStart(2, "0")}`;
+        media.title = `${media.showTitle || "Unknown Show"} - S${String(media.season ?? "?").padStart(2, "0")}E${String(media.episode ?? "?").padStart(2, "0")}`;
         media.episodeTitle = item.title;
       }
 
-      media.watched_at = watchedAt;
+      media.runtimeMinutes = runtimeMinutesForSourceItem(item, "plex");
+      const releaseDate = releaseDateForSourceItem(item, "plex");
+      const dateChoice = resolveWatchImportDate({
+        mode: importMode,
+        manualMark: watchDate.manualMark,
+        sourceTimestamp: watchDate.sourceTimestamp,
+        releaseDate,
+        fallbackDate: watchedAt,
+        media,
+        historyRows: timingHistory,
+      });
+      media.watched_at = dateChoice.previewWatchedAt;
       media.watchProvenance = buildWatchProvenance(
         { source: "plex", event: "library_history", phase: "completed", itemId: item.ratingKey, user: username },
-        { ingestPath: "plex_scheduled_library_history", sourceTimestamp: watchDate.sourceTimestamp, note: watchDate.note },
+        { ingestPath: "plex_scheduled_library_history", sourceTimestamp: watchDate.sourceTimestamp, note: [watchDate.note, `Import policy: ${dateChoice.reason}.`].filter(Boolean).join(" ") },
       );
       if (skipMalformedLibraryHistoryItem(media, "Plex", logger, skippedMalformed)) continue;
       if (!scheduledMediaInScope(config, media)) continue;
@@ -1281,6 +1336,17 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
         continue;
       }
 
+      if (dateChoice.requiresReview) {
+        const queued = enqueueManualWatchReview(media, {
+          releaseDate,
+          observedWatchedAt: watchDate.sourceTimestamp,
+          sourceFingerprint: providerWatchFingerprint(item, "plex", item.type === "episode" ? "section_or_history" : "item"),
+          reason: watchDate.note || "Plex reported a watched library flag without playback evidence.",
+        });
+        if (queued.queued) logger(`Plex: queued manual watch review: ${media.title}`);
+        continue;
+      }
+
       // Marking an item played on Plex bumps its lastViewedAt, so plembfin's own
       // outbound sync makes an already-recorded watch look freshly viewed on the
       // next poll. Only an item with no watch record at all counts as a new watch
@@ -1296,18 +1362,19 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
       if (!existing) {
         if (isAuthoritativeRestoreActive()) return syncedCount;
         const lastRestoreAt = Number(loadWatchBackupRuntime().lastRestoreAt || 0);
-        if (lastRestoreAt && new Date(watchedAt).getTime() <= lastRestoreAt) {
-          logger(`Plex: skipped pre-restore item (played ${watchedAt}): ${media.title}`);
+        if (lastRestoreAt && new Date(media.watched_at).getTime() <= lastRestoreAt) {
+          logger(`Plex: skipped pre-restore item (played ${media.watched_at}): ${media.title}`);
           continue;
         }
-        logger(`Plex: detected new watched item: ${media.title} (watched at ${watchedAt}${watchDate.manualMark ? "; manual flag anchored to release date" : ""})`);
-        const traktWatchedAt = earliestTraktWatchedAt(traktWatchedDateIndex, media);
-        const effectiveWatchedAt = traktWatchedAt != null && traktWatchedAt < Date.parse(watchedAt)
+        logger(`Plex: detected new watched item: ${media.title} (watched at ${media.watched_at}; ${dateChoice.reason})`);
+        const traktWatchedAt = watchDate.manualMark ? null : earliestTraktWatchedAt(traktWatchedDateIndex, media);
+        const effectiveWatchedAt = traktWatchedAt != null && traktWatchedAt < Date.parse(media.watched_at)
           ? new Date(traktWatchedAt).toISOString()
-          : watchedAt;
-        if (effectiveWatchedAt !== watchedAt) {
-          logger(`Plex: ${media.title} reported ${watchedAt}, but Trakt has an earlier watch - using Trakt's date instead.`);
+          : media.watched_at;
+        if (effectiveWatchedAt !== media.watched_at) {
+          logger(`Plex: ${media.title} reported ${media.watched_at}, but Trakt has an earlier watch - using Trakt's date instead.`);
         }
+        media.watched_at = effectiveWatchedAt;
         const watchRecord = mediaToWatchRecord(media, "plex");
         watchRecord.watched_at = effectiveWatchedAt;
         watchRecord.sync_action = "watched";
@@ -1340,6 +1407,7 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
 
         await updateWatchTelemetry(result.id, telemetry, { skipInvalidate: true });
         await recordSyncHistory(media, summary, "watched");
+        addTimingHistoryRow(timingHistory, media, effectiveWatchedAt);
         syncedCount++;
       }
     }
@@ -1362,9 +1430,9 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
   }
   if (!config.emby?.baseUrl || !config.emby?.apiKey || !config.emby?.userId) return 0;
   let syncedCount = 0;
-  const skippedNoPlayedDate = [];
   const skippedMalformed = [];
-  let skippedApiMarked = 0;
+  const importMode = currentWatchImportMode();
+  const timingHistory = importMode === "episode_timing" ? await getCachedHistory().catch(() => []) : [];
   try {
     const { fetchEmbyWatchedItems } = await import("./utils/embyClient.js");
     const { normalizeProviderIds } = await import("./utils/parsers.js");
@@ -1379,6 +1447,7 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
       const ids = normalizeProviderIds(rawIds);
       const media = {
         title: item.Type === "Episode" ? `${item.SeriesName} - S${String(item.ParentIndexNumber ?? "?").padStart(2, "0")}E${String(item.IndexNumber ?? "?").padStart(2, "0")}` : item.Name,
+        showTitle: item.Type === "Episode" ? (item.SeriesName || "") : null,
         type: item.Type === "Episode" ? "episode" : "movie",
         season: item.ParentIndexNumber != null ? Number(item.ParentIndexNumber) : null,
         episode: item.IndexNumber != null ? Number(item.IndexNumber) : null,
@@ -1392,22 +1461,30 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
         isValid: true,
       };
       const { watchedAt, reason: watchedAtReason } = watchedAtForEmbyLikeItem(item);
+      const manualMark = !watchedAt && watchedAtReason === "marked without playback";
+      if (!watchedAt && !manualMark) {
+        logger(`Emby: skipped watched item without a reliable played date: ${media.title}`);
+        continue;
+      }
+      const releaseDate = releaseDateForSourceItem(item, "emby");
+      media.runtimeMinutes = runtimeMinutesForSourceItem(item, "emby");
+      const dateChoice = resolveWatchImportDate({
+        mode: importMode,
+        manualMark,
+        sourceTimestamp: watchedAt,
+        releaseDate,
+        fallbackDate: watchedAt,
+        media,
+        historyRows: timingHistory,
+      });
+      media.watched_at = dateChoice.previewWatchedAt;
 
       media.watchProvenance = buildWatchProvenance(
         { source: "emby", event: "library_history", phase: "completed", itemId: item.Id, user: config.emby.userId },
-        { ingestPath: "emby_scheduled_library_history", sourceTimestamp: watchedAt },
+        { ingestPath: "emby_scheduled_library_history", sourceTimestamp: watchedAt, note: `Import policy: ${dateChoice.reason}.` },
       );
       if (skipMalformedLibraryHistoryItem(media, "Emby", logger, skippedMalformed)) continue;
       if (!scheduledMediaInScope(config, media)) continue;
-
-      if (!watchedAt) {
-        // "marked without playback" means we (or another tool) set the played
-        // flag over the API, so there is nothing to ingest and nothing wrong.
-        // Only a genuinely missing date is worth naming.
-        if (watchedAtReason === "marked without playback") skippedApiMarked++;
-        else skippedNoPlayedDate.push(media.title);
-        continue;
-      }
 
       const playstate = await getPlaystateForMedia(media).catch(() => null);
       if (recentUnwatchBlocksLibraryImport(playstate)) {
@@ -1422,21 +1499,35 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
         continue;
       }
 
+      if (dateChoice.requiresReview) {
+        const queued = enqueueManualWatchReview(media, {
+          releaseDate,
+          observedWatchedAt: watchedAt,
+          sourceFingerprint: providerWatchFingerprint(item, "emby", "watched_library"),
+          reason: watchedAtReason === "marked without playback"
+            ? "Emby reported an API-marked watched flag without playback evidence."
+            : "Emby reported a watched flag without a usable playback timestamp.",
+        });
+        if (queued.queued) logger(`Emby: queued manual watch review: ${media.title}`);
+        continue;
+      }
+
       if (!existing) {
         if (isAuthoritativeRestoreActive()) return syncedCount;
         const lastRestoreAt = Number(loadWatchBackupRuntime().lastRestoreAt || 0);
-        if (lastRestoreAt && new Date(watchedAt).getTime() <= lastRestoreAt) {
-          logger(`Emby: skipped pre-restore item (played ${watchedAt}): ${media.title}`);
+        if (lastRestoreAt && new Date(media.watched_at).getTime() <= lastRestoreAt) {
+          logger(`Emby: skipped pre-restore item (played ${media.watched_at}): ${media.title}`);
           continue;
         }
-        logger(`Emby: detected new watched item: ${media.title} (${watchedAtReason} ${watchedAt})`);
-        const traktWatchedAt = earliestTraktWatchedAt(traktWatchedDateIndex, media);
-        const effectiveWatchedAt = traktWatchedAt != null && traktWatchedAt < Date.parse(watchedAt)
+        logger(`Emby: detected new watched item: ${media.title} (${dateChoice.reason} ${media.watched_at})`);
+        const traktWatchedAt = !watchedAt ? null : earliestTraktWatchedAt(traktWatchedDateIndex, media);
+        const effectiveWatchedAt = traktWatchedAt != null && traktWatchedAt < Date.parse(media.watched_at)
           ? new Date(traktWatchedAt).toISOString()
-          : watchedAt;
-        if (effectiveWatchedAt !== watchedAt) {
-          logger(`Emby: ${media.title} reported ${watchedAt}, but Trakt has an earlier watch - using Trakt's date instead.`);
+          : media.watched_at;
+        if (effectiveWatchedAt !== media.watched_at) {
+          logger(`Emby: ${media.title} reported ${media.watched_at}, but Trakt has an earlier watch - using Trakt's date instead.`);
         }
+        media.watched_at = effectiveWatchedAt;
         const watchRecord = mediaToWatchRecord(media, "emby");
         watchRecord.watched_at = effectiveWatchedAt;
         watchRecord.sync_action = "watched";
@@ -1469,17 +1560,12 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
 
         await updateWatchTelemetry(result.id, telemetry, { skipInvalidate: true });
         await recordSyncHistory(media, summary, "watched");
+        addTimingHistoryRow(timingHistory, media, effectiveWatchedAt);
         syncedCount++;
       }
     }
   } catch (error) {
     logger(`Emby sync recently watched failed: ${error.message}`);
-  }
-  if (skippedNoPlayedDate.length) {
-    logger(`Emby: skipped ${skippedNoPlayedDate.length} watched item(s) without a played date (${summariseTitles(skippedNoPlayedDate)}).`);
-  }
-  if (skippedApiMarked && isVerboseLogging()) {
-    logger(`Emby: ignored ${skippedApiMarked} item(s) flagged played without playback (marked over the API, nothing to ingest).`);
   }
   if (skippedMalformed.length) {
     logger(`Emby: skipped ${skippedMalformed.length} malformed watched item(s) (${summariseTitles(skippedMalformed)}).`);
@@ -1496,9 +1582,9 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
   }
   if (!config.jellyfin?.baseUrl || !config.jellyfin?.apiKey || !config.jellyfin?.userId) return 0;
   let syncedCount = 0;
-  const skippedNoPlayedDate = [];
   const skippedMalformed = [];
-  let skippedApiMarked = 0;
+  const importMode = currentWatchImportMode();
+  const timingHistory = importMode === "episode_timing" ? await getCachedHistory().catch(() => []) : [];
   try {
     const { fetchJellyfinWatchedItems } = await import("./utils/jellyfinClient.js");
     const { normalizeProviderIds } = await import("./utils/parsers.js");
@@ -1513,6 +1599,7 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
       const ids = normalizeProviderIds(rawIds);
       const media = {
         title: item.Type === "Episode" ? `${item.SeriesName} - S${String(item.ParentIndexNumber ?? "?").padStart(2, "0")}E${String(item.IndexNumber ?? "?").padStart(2, "0")}` : item.Name,
+        showTitle: item.Type === "Episode" ? (item.SeriesName || "") : null,
         type: item.Type === "Episode" ? "episode" : "movie",
         season: item.ParentIndexNumber != null ? Number(item.ParentIndexNumber) : null,
         episode: item.IndexNumber != null ? Number(item.IndexNumber) : null,
@@ -1526,19 +1613,30 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
         isValid: true,
       };
       const { watchedAt, reason: watchedAtReason } = watchedAtForEmbyLikeItem(item);
+      const manualMark = !watchedAt && watchedAtReason === "marked without playback";
+      if (!watchedAt && !manualMark) {
+        logger(`Jellyfin: skipped watched item without a reliable played date: ${media.title}`);
+        continue;
+      }
+      const releaseDate = releaseDateForSourceItem(item, "jellyfin");
+      media.runtimeMinutes = runtimeMinutesForSourceItem(item, "jellyfin");
+      const dateChoice = resolveWatchImportDate({
+        mode: importMode,
+        manualMark,
+        sourceTimestamp: watchedAt,
+        releaseDate,
+        fallbackDate: watchedAt,
+        media,
+        historyRows: timingHistory,
+      });
+      media.watched_at = dateChoice.previewWatchedAt;
 
       media.watchProvenance = buildWatchProvenance(
         { source: "jellyfin", event: "library_history", phase: "completed", itemId: item.Id, user: config.jellyfin.userId },
-        { ingestPath: "jellyfin_scheduled_library_history", sourceTimestamp: watchedAt },
+        { ingestPath: "jellyfin_scheduled_library_history", sourceTimestamp: watchedAt, note: `Import policy: ${dateChoice.reason}.` },
       );
       if (skipMalformedLibraryHistoryItem(media, "Jellyfin", logger, skippedMalformed)) continue;
       if (!scheduledMediaInScope(config, media)) continue;
-
-      if (!watchedAt) {
-        if (watchedAtReason === "marked without playback") skippedApiMarked++;
-        else skippedNoPlayedDate.push(media.title);
-        continue;
-      }
 
       const playstate = await getPlaystateForMedia(media).catch(() => null);
       if (recentUnwatchBlocksLibraryImport(playstate)) {
@@ -1553,21 +1651,35 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
         continue;
       }
 
+      if (dateChoice.requiresReview) {
+        const queued = enqueueManualWatchReview(media, {
+          releaseDate,
+          observedWatchedAt: watchedAt,
+          sourceFingerprint: providerWatchFingerprint(item, "jellyfin", "watched_library"),
+          reason: watchedAtReason === "marked without playback"
+            ? "Jellyfin reported an API-marked watched flag without playback evidence."
+            : "Jellyfin reported a watched flag without a usable playback timestamp.",
+        });
+        if (queued.queued) logger(`Jellyfin: queued manual watch review: ${media.title}`);
+        continue;
+      }
+
       if (!existing) {
         if (isAuthoritativeRestoreActive()) return syncedCount;
         const lastRestoreAt = Number(loadWatchBackupRuntime().lastRestoreAt || 0);
-        if (lastRestoreAt && new Date(watchedAt).getTime() <= lastRestoreAt) {
-          logger(`Jellyfin: skipped pre-restore item (played ${watchedAt}): ${media.title}`);
+        if (lastRestoreAt && new Date(media.watched_at).getTime() <= lastRestoreAt) {
+          logger(`Jellyfin: skipped pre-restore item (played ${media.watched_at}): ${media.title}`);
           continue;
         }
-        logger(`Jellyfin: detected new watched item: ${media.title} (${watchedAtReason} ${watchedAt})`);
-        const traktWatchedAt = earliestTraktWatchedAt(traktWatchedDateIndex, media);
-        const effectiveWatchedAt = traktWatchedAt != null && traktWatchedAt < Date.parse(watchedAt)
+        logger(`Jellyfin: detected new watched item: ${media.title} (${dateChoice.reason} ${media.watched_at})`);
+        const traktWatchedAt = !watchedAt ? null : earliestTraktWatchedAt(traktWatchedDateIndex, media);
+        const effectiveWatchedAt = traktWatchedAt != null && traktWatchedAt < Date.parse(media.watched_at)
           ? new Date(traktWatchedAt).toISOString()
-          : watchedAt;
-        if (effectiveWatchedAt !== watchedAt) {
-          logger(`Jellyfin: ${media.title} reported ${watchedAt}, but Trakt has an earlier watch - using Trakt's date instead.`);
+          : media.watched_at;
+        if (effectiveWatchedAt !== media.watched_at) {
+          logger(`Jellyfin: ${media.title} reported ${media.watched_at}, but Trakt has an earlier watch - using Trakt's date instead.`);
         }
+        media.watched_at = effectiveWatchedAt;
         const watchRecord = mediaToWatchRecord(media, "jellyfin");
         watchRecord.watched_at = effectiveWatchedAt;
         watchRecord.sync_action = "watched";
@@ -1600,17 +1712,12 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
 
         await updateWatchTelemetry(result.id, telemetry, { skipInvalidate: true });
         await recordSyncHistory(media, summary, "watched");
+        addTimingHistoryRow(timingHistory, media, effectiveWatchedAt);
         syncedCount++;
       }
     }
   } catch (error) {
     logger(`Jellyfin sync recently watched failed: ${error.message}`);
-  }
-  if (skippedNoPlayedDate.length) {
-    logger(`Jellyfin: skipped ${skippedNoPlayedDate.length} watched item(s) without a played date (${summariseTitles(skippedNoPlayedDate)}).`);
-  }
-  if (skippedApiMarked && isVerboseLogging()) {
-    logger(`Jellyfin: ignored ${skippedApiMarked} item(s) flagged played without playback (marked over the API, nothing to ingest).`);
   }
   if (skippedMalformed.length) {
     logger(`Jellyfin: skipped ${skippedMalformed.length} malformed watched item(s) (${summariseTitles(skippedMalformed)}).`);

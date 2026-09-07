@@ -5117,6 +5117,122 @@ html.light-mode #syncTuningFields > .settings-modal-field:focus-within {
   text-align: center;
 }
 
+/* The watched-flag policy has four meaningful choices, so keep them visible
+   instead of hiding them inside the browser's native select popup. The radio
+   inputs preserve keyboard and screen-reader semantics while the option tiles
+   make the active choice obvious before the form is saved. */
+#syncTuningFields > .settings-modal-field--choice {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: var(--space-3) !important;
+  padding: var(--space-3) !important;
+}
+
+#syncTuningFields > .settings-modal-field--choice .settings-modal-field-label {
+  display: flex !important;
+  align-items: flex-start !important;
+  justify-content: space-between !important;
+  gap: var(--space-3) !important;
+}
+
+#syncTuningFields > .settings-modal-field--choice .settings-field-help {
+  max-width: 48rem;
+}
+
+.settings-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-2);
+  width: 100%;
+}
+
+.settings-choice-option {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: 4.2rem;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color 160ms ease, background 160ms ease, box-shadow 160ms ease;
+}
+
+.settings-choice-option:hover {
+  border-color: var(--blue);
+  background: var(--panel-3);
+}
+
+.settings-choice-option:has(input:checked) {
+  border-color: var(--blue);
+  background: color-mix(in srgb, var(--blue), var(--panel-2) 88%);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--blue), transparent 55%);
+}
+
+.settings-choice-option:has(input:focus-visible) {
+  outline: 2px solid var(--blue);
+  outline-offset: 2px;
+}
+
+.settings-choice-option input[type="radio"] {
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 1rem;
+  margin: 0.15rem 0 0;
+  accent-color: var(--blue);
+}
+
+.settings-choice-option-body {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.settings-choice-option-title,
+.settings-choice-option-description {
+  overflow-wrap: anywhere;
+}
+
+.settings-choice-option-title {
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.settings-choice-option-description {
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+html.light-mode .settings-choice-option {
+  background: var(--panel);
+}
+
+html.light-mode .settings-choice-option:hover,
+html.light-mode .settings-choice-option:has(input:checked) {
+  background: var(--panel-2);
+}
+
+@media (max-width: 760px) {
+  .settings-choice-grid {
+    grid-template-columns: 1fr;
+  }
+
+  #syncTuningFields > .settings-modal-field--choice .settings-modal-field-label {
+    flex-direction: column;
+    gap: var(--space-1);
+  }
+
+  #syncTuningFields > .settings-modal-field--choice .settings-field-help {
+    max-width: none;
+  }
+}
+
 .sync-health-metric,
 .sync-health-dest-row,
 .sync-preview-warning-card,
@@ -10414,7 +10530,7 @@ html.light-mode .progress-bar-fill {
 
 .watch-date-options {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
   gap: var(--space-2);
 }
 
@@ -11850,6 +11966,43 @@ h1 {
 
 .sync-progress-indicator.hidden {
   display: none;
+}
+
+.manual-watch-review-nav {
+  color: var(--yellow);
+}
+
+.manual-watch-review-nav:hover,
+.manual-watch-review-nav:focus-visible {
+  color: var(--yellow);
+}
+
+.manual-watch-review-nav.hidden {
+  display: none;
+}
+
+.manual-watch-review-nav .sync-progress-dot {
+  animation: none;
+  opacity: 1;
+}
+
+.manual-watch-review-nav-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.manual-watch-review-nav-count {
+  display: inline;
+  min-width: 0;
+  height: auto;
+  padding: 0;
+  border-radius: 0;
+  color: inherit;
+  background: none;
+  font-size: inherit;
+  line-height: inherit;
 }
 
 .sync-progress-dot {
@@ -16408,10 +16561,11 @@ html.light-mode .history-mini-card-title {
   align-items: start;
   height: 100%;
   min-height: 0;
+  overflow: hidden;
   border: 1px solid var(--line);
   border-radius: 6px;
   background: color-mix(in srgb, var(--panel-2), transparent 48%);
-  padding: var(--space-2);
+  padding: 0;
   box-shadow: none;
   cursor: pointer;
 }
@@ -16442,6 +16596,8 @@ html.light-mode .history-mini-card-title {
 .season-accordion-panel .episode-thumb {
   width: 100%;
   max-width: none;
+  border: 0;
+  border-radius: 0;
 }
 
 .season-accordion-panel .immersive-episode-copy {
@@ -16450,6 +16606,7 @@ html.light-mode .history-mini-card-title {
   grid-area: copy;
   height: 100%;
   min-height: 0;
+  padding: 0 var(--space-2) var(--space-2);
 }
 
 /* Keep the release/action row aligned when an episode synopsis is shorter
@@ -16595,9 +16752,11 @@ html:not(.light-mode) .episode-progress-fill {
   }
 
   .media-detail-page .season-accordion-panel .immersive-episode-row {
-    grid-template-columns: 7rem minmax(0, 1fr);
-    grid-template-rows: auto;
-    grid-template-areas: "thumb copy";
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      "thumb"
+      "copy";
     min-height: 0;
     gap: var(--space-3);
   }
@@ -21127,6 +21286,63 @@ html.light-mode .settings-group-section:focus-visible {
 .setup-overview-item-heading { display: flex; align-items: center; justify-content: space-between; gap: var(--space-2); }
 .setup-overview-item p { margin: 0; }
 .setup-overview-intro { text-align: center; }
+.setup-options-fields { display: grid; gap: var(--space-3); }
+.setup-step-body .setup-options-card {
+  min-height: 0;
+  justify-content: flex-start;
+  gap: var(--space-3);
+}
+.setup-options-heading { display: grid; gap: var(--space-1); }
+.setup-options-heading b { font-size: 1.05rem; }
+.setup-options-heading p { max-width: 75ch; margin: 0; font-size: 0.9rem; line-height: 1.45; }
+.setup-options-radio-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.setup-options-radio-grid .settings-choice-option { min-height: 4.7rem; }
+.setup-step-body .setup-options-toggle {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+}
+.setup-options-toggle-copy { display: grid; gap: var(--space-1); min-width: 0; }
+.setup-options-toggle-copy b { font-size: 1.05rem; }
+.setup-options-toggle-copy span { max-width: 75ch; color: var(--muted); font-size: 0.9rem; line-height: 1.45; }
+.setup-options-switch {
+  appearance: none;
+  flex: 0 0 auto;
+  width: 2.6rem;
+  height: 1.4rem;
+  margin: 0;
+  border: 1px solid color-mix(in srgb, var(--line-strong), transparent 25%);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--line-strong), transparent 20%);
+  cursor: pointer;
+  position: relative;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+.setup-options-switch::before {
+  content: "";
+  position: absolute;
+  top: 0.1rem;
+  left: 0.1rem;
+  width: 1.1rem;
+  height: 1.1rem;
+  border-radius: 50%;
+  background: var(--muted);
+  box-shadow: 0 2px 4px color-mix(in srgb, var(--text), transparent 75%);
+  transition: transform 160ms ease, background 160ms ease;
+}
+.setup-options-switch:checked {
+  border-color: color-mix(in srgb, var(--blue), transparent 15%);
+  background: var(--blue);
+}
+.setup-options-switch:checked::before {
+  transform: translateX(1.2rem);
+  background: var(--panel);
+}
+.setup-options-switch:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 3px;
+}
 .setup-restore-choice {
   width: 100%;
   font: inherit;
@@ -21261,6 +21477,8 @@ html.light-mode .settings-group-section:focus-visible {
   .dashboard-setup-checklist-head { align-items: stretch; }
   .dashboard-setup-checklist-title { align-items: flex-start; flex-direction: column; gap: var(--space-2); }
   .dashboard-setup-actions { grid-template-columns: minmax(0, 1fr); }
+  .setup-options-radio-grid { grid-template-columns: minmax(0, 1fr); }
+  .setup-step-body .setup-options-toggle { align-items: flex-start; }
   .setup-import-row { align-items: flex-start; flex-direction: column; gap: var(--space-2); }
   .setup-import-result { width: 100%; min-width: 0; text-align: left; }
   .setup-import-result-head { justify-content: flex-start; flex-wrap: wrap; }
@@ -24197,5 +24415,504 @@ html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
 
   body .page-topbar-actions::-webkit-scrollbar {
     display: none;
+  }
+}
+/* Manual Watch review page */
+.manual-watch-review-page {
+  min-width: 0;
+}
+
+.manual-watch-review-rows {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.manual-watch-review-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.manual-watch-review-toolbar-status {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  min-height: 1.9rem;
+  text-align: right;
+}
+
+.manual-watch-review-search-field {
+  width: min(100%, 28rem);
+  min-width: min(100%, 18rem);
+}
+
+.manual-watch-review-search-field input {
+  min-width: 0;
+}
+
+.manual-watch-review-filter-status {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.manual-watch-review-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--yellow) 38%, var(--line));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--yellow) 4%, var(--panel-2));
+  transition: opacity 160ms ease, border-color 160ms ease;
+}
+
+.manual-watch-review-card.is-busy {
+  opacity: 0.6;
+}
+
+.manual-watch-review-poster-wrap {
+  flex: 0 0 clamp(7.5rem, 12vw, 10rem);
+  width: clamp(7.5rem, 12vw, 10rem);
+  align-self: flex-start;
+  aspect-ratio: 2 / 3;
+  height: auto;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--panel-3, var(--panel-2));
+  border-radius: var(--poster-radius, 8px) 0 0 var(--poster-radius, 8px);
+}
+
+.manual-watch-review-poster-link {
+  display: block;
+  width: 100%;
+  height: 100%;
+  color: inherit;
+  text-decoration: none;
+}
+
+.manual-watch-review-poster {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: 0;
+  background: var(--panel-3, var(--panel-2));
+}
+
+.manual-watch-review-poster--empty {
+  display: grid;
+  place-items: center;
+  color: var(--muted);
+  font-size: 1.4rem;
+}
+
+.manual-watch-review-main {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-3);
+}
+
+.manual-watch-review-heading,
+.manual-watch-review-meta,
+.manual-watch-review-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.manual-watch-review-heading {
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.manual-watch-review-heading h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.98rem;
+  overflow-wrap: anywhere;
+}
+
+.manual-watch-review-title-link {
+  color: inherit;
+  text-decoration: none;
+}
+
+.manual-watch-review-title-link:hover,
+.manual-watch-review-title-link:focus-visible {
+  color: var(--yellow);
+  text-decoration: underline;
+  text-underline-offset: 0.15em;
+}
+
+.manual-watch-review-episode {
+  margin: 0.25rem 0 0;
+  color: var(--soft);
+  font-size: 0.8rem;
+}
+
+.manual-watch-review-meta {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.manual-watch-review-meta > span + span::before {
+  content: "•";
+  margin-right: var(--space-2);
+  color: var(--line-strong);
+}
+
+.manual-watch-review-copy {
+  max-width: 72rem;
+  margin: 0;
+  color: var(--soft);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+.manual-watch-review-actions {
+  margin-top: 0.15rem;
+}
+
+.manual-watch-review-actions button {
+  min-height: 2rem;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.76rem;
+}
+
+.manual-watch-review-show {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  min-width: 0;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--yellow) 38%, var(--line));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--yellow) 4%, var(--panel-2));
+  transition: opacity 160ms ease, border-color 160ms ease;
+}
+
+.manual-watch-review-show.is-busy {
+  opacity: 0.6;
+}
+
+.manual-watch-review-card.is-busy,
+.manual-watch-review-show.is-busy,
+.manual-watch-review-episode-row.is-busy {
+  pointer-events: none;
+  animation: manual-watch-review-saving-pulse 950ms cubic-bezier(0.25, 1, 0.5, 1) infinite alternate;
+  will-change: opacity, transform;
+}
+
+@keyframes manual-watch-review-saving-pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+
+  50% {
+    opacity: 0.62;
+    transform: translate3d(0, 1px, 0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .manual-watch-review-card.is-busy,
+  .manual-watch-review-show.is-busy,
+  .manual-watch-review-episode-row.is-busy {
+    animation: none;
+    opacity: 0.7;
+    transform: none;
+    will-change: auto;
+  }
+}
+
+.manual-watch-review-show-poster-wrap {
+  border-radius: var(--poster-radius, 8px) 0 0 var(--poster-radius, 8px);
+}
+
+.manual-watch-review-show-content {
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: var(--space-3);
+}
+
+.manual-watch-review-show-header {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: 0;
+}
+
+.manual-watch-review-show-copy {
+  display: grid;
+  flex: 1 1 auto;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.manual-watch-review-show-copy h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.manual-watch-review-show-actions {
+  flex: 0 1 auto;
+  justify-content: flex-end;
+}
+
+.manual-watch-review-show-actions button {
+  min-height: 2rem;
+}
+
+.manual-watch-review-episodes {
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  border-top: 1px solid var(--line);
+}
+
+.manual-watch-review-more-episodes {
+  margin-top: var(--space-3);
+  border-top: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+}
+
+.manual-watch-review-episodes > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0.7rem 0 0.15rem;
+  color: var(--soft);
+  cursor: pointer;
+  font-size: 0.78rem;
+  font-weight: 700;
+  list-style: none;
+}
+
+.manual-watch-review-episodes > summary::-webkit-details-marker {
+  display: none;
+}
+
+.manual-watch-review-episodes > summary::after {
+  content: "⌄";
+  margin-left: auto;
+  color: var(--yellow);
+  font-size: 1rem;
+  line-height: 1;
+  transform: translateY(-1px);
+  transition: transform 160ms ease;
+}
+
+.manual-watch-review-episodes[open] > summary::after {
+  transform: rotate(180deg) translateY(-1px);
+}
+
+.manual-watch-review-more-episodes > summary {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-2) 0 0;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.75rem;
+  font-weight: 700;
+  list-style: none;
+}
+
+.manual-watch-review-more-episodes > summary::-webkit-details-marker {
+  display: none;
+}
+
+.manual-watch-review-more-episodes > summary::before {
+  content: "＋";
+  color: var(--yellow);
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.manual-watch-review-more-episodes[open] > summary::before {
+  content: "−";
+}
+
+.manual-watch-review-episode-list {
+  display: grid;
+  gap: 0;
+}
+
+.manual-watch-review-episode-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3) 0 0;
+  margin-top: var(--space-3);
+  border-top: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+}
+
+.manual-watch-review-episode-copy {
+  display: grid;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.manual-watch-review-episode-heading {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.manual-watch-review-episode-heading h4 {
+  min-width: 0;
+  margin: 0;
+  color: var(--text);
+  font-size: 0.88rem;
+  overflow-wrap: anywhere;
+}
+
+.manual-watch-review-episode-code {
+  color: var(--yellow);
+  font-size: 0.76rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+.manual-watch-review-episode-actions {
+  justify-content: flex-end;
+}
+
+.manual-watch-review-episode-actions button {
+  min-height: 1.9rem;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.72rem;
+}
+
+.manual-watch-review-date-field {
+  display: grid;
+  gap: var(--space-2);
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-weight: 750;
+}
+
+.manual-watch-review-date-field .field {
+  width: 100%;
+  min-height: 2.4rem;
+  color-scheme: dark;
+}
+
+html.light-mode .manual-watch-review-date-field .field {
+  color-scheme: light;
+}
+
+.manual-watch-review-date-help {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.45;
+}
+
+html.light-mode .manual-watch-review-card {
+  background: color-mix(in srgb, var(--yellow) 6%, var(--panel-2));
+}
+
+html.light-mode .manual-watch-review-show {
+  background: color-mix(in srgb, var(--yellow) 6%, var(--panel-2));
+}
+
+@media (max-width: 760px) {
+  .manual-watch-review-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .manual-watch-review-search-field {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .manual-watch-review-filter-status {
+    align-self: flex-start;
+  }
+
+  .manual-watch-review-toolbar-status {
+    align-items: flex-start;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+    min-height: 0;
+    text-align: left;
+  }
+
+  .manual-watch-review-card {
+    align-items: flex-start;
+  }
+
+  .manual-watch-review-card > .manual-watch-review-poster-wrap,
+  .manual-watch-review-show-poster-wrap {
+    flex-basis: 5.6rem;
+    width: 5.6rem;
+  }
+
+  .manual-watch-review-poster {
+    min-height: 0;
+  }
+
+  .manual-watch-review-main,
+  .manual-watch-review-show-content {
+    padding: var(--space-2);
+  }
+
+  .manual-watch-review-episodes {
+    padding: 0;
+  }
+
+  .manual-watch-review-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .manual-watch-review-actions button {
+    width: 100%;
+  }
+
+  .manual-watch-review-show-header {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 0;
+  }
+
+  .manual-watch-review-episode-row {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .manual-watch-review-show-actions,
+  .manual-watch-review-episode-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .manual-watch-review-show-actions button,
+  .manual-watch-review-episode-actions button {
+    width: 100%;
   }
 }

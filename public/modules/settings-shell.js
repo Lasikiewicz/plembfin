@@ -74,10 +74,11 @@ const SECTIONS = {
   },
   "sync-tuning": {
     label: "Sync tuning",
-    description: "Configure watched threshold, resume position, and timeouts",
+    description: "Configure watched-flag timing, review, and sync thresholds",
     panel: "sync",
     subPanels: ["sync-tuning"],
     subSections: [
+      { id: "sync-field-watch_import_mode", label: "Watched Flag Policy", description: "Choose now, release day, episode timing, or manual review for app-marked watches" },
       { id: "sync-field-watched_threshold", label: "Watched Threshold (%)", description: "Playback progress percentage at which a play counts as watched" },
       { id: "sync-field-min_resume_position", label: "Minimum Resume Position (sec)", description: "Minimum playback position before a stopped play is saved as a resume point" },
       { id: "sync-field-active_session_ttl", label: "Active Session TTL (min)", description: "How long a now playing session is kept without an update before it's considered stale" },

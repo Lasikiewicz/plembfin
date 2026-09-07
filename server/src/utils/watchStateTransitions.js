@@ -341,7 +341,12 @@ export async function applyUnwatchedTransition(media, config, loopStore, {
   let deletedById = false;
   let deletedByKey = false;
   const local = runGuardedLocalTransaction(() => localTransitionBlocked() || shouldDefer?.(), () => {
-    if (automaticUnwatchBurstDetected(media)) {
+    // `syncMedia` deliberately normalizes explicit/manual actions to source
+    // "manual". Use that normalized payload for the burst guard as well, or a
+    // manual action on a record originally imported from Plex/Emby/Jellyfin
+    // would be mistaken for another automatic provider burst once the batch
+    // crosses the safety threshold.
+    if (automaticUnwatchBurstDetected(syncMedia)) {
       heldBackSuspiciousBurst = true;
       return null;
     }

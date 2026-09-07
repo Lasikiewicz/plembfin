@@ -10,6 +10,7 @@ const { db, getDataVersion, getProgressVersion, bumpDataVersion, getUpNextVersio
 const { AUTH } = await import("../server/src/appConfig.js");
 const { BACKGROUND_SYNC_PROGRESS_STALE_MS, loadRuntimeState, setRuntimeState } = await import("../server/src/utils/configStore.js");
 const { getOnboardingState, saveOnboardingState } = await import("../server/src/utils/onboardingStore.js");
+const { enqueueManualWatchReview } = await import("../server/src/utils/manualWatchReview.js");
 const { handleLiveUpdates } = await import("../server/src/routes/liveUpdates.js");
 const { startLiveUpdates, stopLiveUpdates } = await import("../public/modules/live-updates.js");
 
@@ -135,6 +136,94 @@ test("liveUpdates establishes SSE stream and sends ready event", async () => {
   assert.ok(output.includes('"upNextVersion":' + getUpNextVersion()));
 
   res.close();
+});
+
+test("liveUpdates includes the changed media item in history version events", async () => {
+  const { req, res, getOutput } = createMockReqRes({
+    method: "GET",
+    headers: { "x-api-key": AUTH.apiKey },
+  });
+
+  const id = "live-sse-watch-row";
+  const mediaKey = "episode:2:1:tvdb:404604";
+  try {
+    await handleLiveUpdates(req, res);
+    db.prepare(`
+      INSERT INTO watch_history (id, title, title_lower, media_type, watched_at, source, season, episode, media_key, show_title, sync_action, created_at, updated_at)
+      VALUES (?, ?, ?, 'episode', ?, 'test', 2, 1, ?, 'Ted', 'watched', ?, ?)
+    `).run(id, "Ted - S02E01", "ted - s02e01", "2026-09-06T12:00:00.000Z", mediaKey, Date.now(), Date.now());
+
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    const events = getOutput()
+      .split("\n\n")
+      .map((block) => block.split("\n").find((line) => line.startsWith("data:"))?.slice(5).trim())
+      .filter(Boolean)
+      .map((data) => JSON.parse(data));
+    const historyEvent = events.find((event) => event.type === "history-version" && event.changes?.some((change) => change.mediaKey === mediaKey));
+    assert.ok(historyEvent);
+    assert.deepEqual(historyEvent.changes.find((change) => change.mediaKey === mediaKey), {
+      changeId: historyEvent.changes.find((change) => change.mediaKey === mediaKey).changeId,
+      sourceTable: "watch_history",
+      changeKind: "upsert",
+      mediaKey,
+      recordId: id,
+      mediaType: "episode",
+      title: "Ted - S02E01",
+      showTitle: "Ted",
+      season: 2,
+      episode: 1,
+      createdAt: historyEvent.changes.find((change) => change.mediaKey === mediaKey).createdAt,
+    });
+  } finally {
+    res.close();
+    db.prepare("DELETE FROM watch_history WHERE id = ?").run(id);
+  }
+});
+
+test("liveUpdates includes manual watch review changes without coalescing watch history", async () => {
+  const { req, res, getOutput } = createMockReqRes({
+    method: "GET",
+    headers: { "x-api-key": AUTH.apiKey },
+  });
+
+  let reviewId = "";
+  try {
+    await handleLiveUpdates(req, res);
+    const queued = enqueueManualWatchReview({
+      title: "Ted - S02E02",
+      type: "episode",
+      source: "plex",
+      ids: { tvdb: "404604" },
+      season: 2,
+      episode: 2,
+      showTitle: "Ted",
+      episodeTitle: "The New Episode",
+      itemId: "review-live-episode",
+    }, {
+      releaseDate: "2026-09-07",
+      sourceFingerprint: "live-review-test",
+    });
+    reviewId = queued.review.id;
+
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    const events = getOutput()
+      .split("\n\n")
+      .map((block) => block.split("\n").find((line) => line.startsWith("data:"))?.slice(5).trim())
+      .filter(Boolean)
+      .map((data) => JSON.parse(data));
+    const historyEvent = events.find((event) => event.type === "history-version" && event.changes?.some(
+      (change) => change.sourceTable === "manual_watch_reviews" && change.recordId === reviewId,
+    ));
+    assert.ok(historyEvent);
+    const reviewChange = historyEvent.changes.find((change) => change.sourceTable === "manual_watch_reviews" && change.recordId === reviewId);
+    assert.equal(reviewChange.mediaKey, "");
+    assert.equal(reviewChange.changeKind, "upsert");
+    assert.equal(reviewChange.title, "Ted - S02E02");
+  } finally {
+    res.close();
+    if (reviewId) db.prepare("DELETE FROM manual_watch_reviews WHERE id = ?").run(reviewId);
+    if (reviewId) db.prepare("DELETE FROM live_change_events WHERE source_table = 'manual_watch_reviews' AND record_id = ?").run(reviewId);
+  }
 });
 
 test("liveUpdates broadcasts history version changes", async () => {
@@ -317,12 +406,13 @@ test("liveUpdates recovers and broadcasts idle after an interrupted sync heartbe
 
 test("client live-updates parses SSE stream and invokes callbacks", async () => {
   let receivedVersion = null;
+  let receivedChanges = null;
   let receivedProgress = null;
 
   const mockStream = new ReadableStream({
     start(controller) {
       controller.enqueue(new TextEncoder().encode('data: {"type":"ready","version":1,"syncTotal":0,"syncCompleted":0}\n\n'));
-      controller.enqueue(new TextEncoder().encode('data: {"type":"history-version","version":2}\n\n'));
+      controller.enqueue(new TextEncoder().encode('data: {"type":"history-version","version":2,"changes":[{"mediaKey":"episode:2:1:tvdb:404604","sourceTable":"watch_history","changeKind":"upsert"}]}\n\n'));
       controller.enqueue(new TextEncoder().encode('data: {"type":"sync-progress","total":10,"completed":4}\n\n'));
       controller.close();
     },
@@ -338,13 +428,14 @@ test("client live-updates parses SSE stream and invokes callbacks", async () => 
   try {
     startLiveUpdates({
       authHeaders: () => ({ Authorization: "Bearer test" }),
-      onHistoryVersion: (ver) => { receivedVersion = ver; },
+      onHistoryVersion: (ver, details) => { receivedVersion = ver; receivedChanges = details.changes; },
       onSyncProgress: (prog) => { receivedProgress = prog; },
     });
 
     await new Promise((resolve) => setTimeout(resolve, 100));
 
     assert.equal(receivedVersion, 2);
+    assert.deepEqual(receivedChanges, [{ mediaKey: "episode:2:1:tvdb:404604", sourceTable: "watch_history", changeKind: "upsert" }]);
     assert.deepEqual(receivedProgress, { total: 10, completed: 4 });
   } finally {
     stopLiveUpdates();

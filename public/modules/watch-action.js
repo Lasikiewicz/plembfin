@@ -1,13 +1,13 @@
-import { state, elements } from "./state.js?v=0.15.0.9";
-import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeCode, seasonLabel, formatSeasonTitle, formatTmdbDate, showEpisodeKey } from "./utils.js?v=0.15.0.9";
-import { buildAuthHeaders } from "./auth.js?v=0.15.0.9";
-import { isWatchedHistoryAction } from "./sync.js?v=0.15.0.9";
-import { mergeShowDetail } from "./explorer.js?v=0.15.0.9";
-import { dedupeMediaRecords, resetPartWatchedView, renderPartWatched } from "./dashboard.js?v=0.15.0.9";
-import { tvSeasonAvailability } from "./media-detail-shared.js?v=0.15.0.9";
-import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=0.15.0.9";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=0.15.0.9";
-import { tmdbPoster } from "./images.js?v=0.15.0.9";
+import { state, elements } from "./state.js?v=0.15.0.13";
+import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeCode, seasonLabel, formatSeasonTitle, formatTmdbDate, showEpisodeKey } from "./utils.js?v=0.15.0.13";
+import { buildAuthHeaders } from "./auth.js?v=0.15.0.13";
+import { isWatchedHistoryAction } from "./sync.js?v=0.15.0.13";
+import { mergeShowDetail } from "./explorer.js?v=0.15.0.13";
+import { dedupeMediaRecords, resetPartWatchedView, renderPartWatched } from "./dashboard.js?v=0.15.0.13";
+import { tvSeasonAvailability } from "./media-detail-shared.js?v=0.15.0.13";
+import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=0.15.0.13";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=0.15.0.13";
+import { tmdbPoster } from "./images.js?v=0.15.0.13";
 
 // Callbacks injected by app.js at startup to break circular-import chains.
 let _setMessage = () => {};
@@ -25,6 +25,7 @@ let _openShowImmersiveModalByTmdbId = async () => {};
 let _openShowImmersiveModalByTvdbId = async () => {};
 let _openMovieImmersiveModalByTmdbId = async () => {};
 let _patchMovieWatchedState = () => false;
+let _refreshUpNext = async () => {};
 
 export function initWatchAction(callbacks) {
   if (callbacks.setMessage) _setMessage = callbacks.setMessage;
@@ -42,6 +43,19 @@ export function initWatchAction(callbacks) {
   if (callbacks.openShowImmersiveModalByTvdbId) _openShowImmersiveModalByTvdbId = callbacks.openShowImmersiveModalByTvdbId;
   if (callbacks.openMovieImmersiveModalByTmdbId) _openMovieImmersiveModalByTmdbId = callbacks.openMovieImmersiveModalByTmdbId;
   if (callbacks.patchMovieWatchedState) _patchMovieWatchedState = callbacks.patchMovieWatchedState;
+  if (callbacks.refreshUpNext) _refreshUpNext = callbacks.refreshUpNext;
+}
+
+// Up Next is derived from both playback progress and canonical watch state.
+// Refresh only after the awaited provider dispatch has settled so a dashboard
+// cannot briefly repaint from the pre-watch projection.
+async function refreshUpNextAfterWatchSync() {
+  try {
+    await _refreshUpNext();
+  } catch {
+    // A watch action remains successful if this secondary derived-cache
+    // refresh is unavailable; the next dashboard load will retry it.
+  }
 }
 
 function authHeaders() {
@@ -455,6 +469,7 @@ export async function runResyncWatchAction(action) {
     const result = await postManualWatchRecords(records);
     state.savingWatchActions.delete(action);
     _clearDerivedUiCaches({ resetExplorer: false });
+    await refreshUpNextAfterWatchSync();
     const syncText = result.syncQueued
       ? `sync queued for ${result.syncQueued} item${result.syncQueued === 1 ? "" : "s"}`
       : `pushed ${result.propagated} to media apps`;
@@ -950,6 +965,7 @@ async function applyMovieWatchDateChoice(choice) {
   try {
     const result = await postManualWatchRecords([record]);
     state.savingWatchActions.delete(action);
+    await refreshUpNextAfterWatchSync();
     const savedId = result.results?.[0]?.id || "";
     const watchedMovie = localWatchRowFromMovie(movie, watchedAt, savedId);
     rememberLocalWatchedMovie(watchedMovie);
@@ -1064,6 +1080,7 @@ async function applyPartWatchedWatchDateChoice(choice) {
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+    await refreshUpNextAfterWatchSync();
     _setMessage(`"${action.title}" marked as watched`, "success");
     resetPartWatchedView("default");
     await _loadHistory({ force: true }).catch(() => null);
@@ -1128,6 +1145,7 @@ export async function applyWatchDateChoice(choice) {
       if (all > 1) _setMessage(`Syncing ${all} episodes to your media apps… ${done}/${all}`, "muted");
     });
     state.savingWatchActions.delete(action);
+    await refreshUpNextAfterWatchSync();
     applyOptimisticWatchedEpisodes(action, watchedRows);
     _clearDerivedUiCaches({ resetExplorer: false });
     const totalMarked = result.inserted + result.skipped;
@@ -1295,6 +1313,7 @@ export async function confirmAndMarkUnwatched(button) {
       }
     }
 
+    await refreshUpNextAfterWatchSync();
     for (const id of ids) state.savingUnwatchIds.delete(id);
     // The server has committed the unwatch at this point. Reflect that success
     // immediately instead of leaving the control on "Removing…" while the

@@ -14,6 +14,7 @@ Reference for `data/plembfin.db`. The full authoritative schema is in
 | `up_next_provider_items` | Latest generation of provider Resume/Continue Watching/Next Up observations, keyed by provider feed and native item ID | scheduled provider feed sync | unified Up Next builder, source-ledger mutation lookup |
 | `up_next_provider_feed_state` | Per-provider/feed generation, completion, freshness, count, cursor, retry, and redacted error state | scheduled provider feed sync | Up Next cache/status response |
 | `playstate` | Per-item watched/unwatched state for sync targets | sync orchestrator | sync orchestrator |
+| `manual_watch_reviews` | Deduplicated provider watched flags awaiting an administrator date decision | scheduled library sync, Manual Watch review page | Manual Watch review page |
 | `sync_history` | Permanent log of sync dispatch results, with `activity_group_key` for grouped movie/show activity | sync outcome changes | sync-history and sync-activity endpoints |
 | `runtime_state` | Single-row JSON blob - last cron time, force-sync state/log, `nowPlayingRefresh` signal | scheduler, force-sync, webhooks | dashboard polling |
 | `restore_reports` | A completed authoritative restore's full result and log, keyed by run id | restore job | restore status view, on request |

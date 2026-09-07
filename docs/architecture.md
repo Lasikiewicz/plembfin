@@ -195,7 +195,8 @@ See [README.md](README.md) for the documentation index, including this file
 | `libraryForceSync.js` | Settings Force Sync: library-wide push (Set Plembfin as Source of Truth)/pull (Import Watched Status) operations, remote watched-state collection, and target-filtered canonical propagation. Also processes items and resume positions with bounded concurrency. |
 | `concurrency.js` | `runWithConcurrency(items, handler, limit)` - a small bounded worker pool used by Force Sync to process multiple items at once. Safe to raise: outbound HTTP calls are still throttled per host by the outbound governor (`outboundGovernor.js`), so this only shortens wall-clock time. |
 | `mediaForceSyncActivity.js` | Bounded in-memory activity ledger used by the detail-page and Settings Force Sync status/cancellation endpoints to stream operation lines, cancellation state, and final results to the UI. |
-| `tuning.js` | Import-free runtime accessors for watched threshold, minimum resume position, active-session TTL, and outbound timeout; reads environment defaults and applies validated Settings overrides. |
+| `tuning.js` | Import-free runtime accessors for watched threshold, minimum resume position, active-session TTL, outbound timeout, and the app-marked watched-flag policy; reads environment defaults and applies validated Settings overrides. |
+| `manualWatchReview.js` | Durable deduplicated queue for provider watched flags that require an administrator decision, including safe media snapshots and review status. |
 | `plexClient.js` | Plex HTTP client: find items by GUID/title, mark played/unplayed, set resume progress, fetch watched/resumable/account-scoped Continue Watching/metadata/episodes, and read/write personal ratings; username→accountID resolution with memoization. Token always sent as `X-Plex-Token` header. See [plex.md](plex.md). |
 | `plexNotificationListener.js` | Plex real-time WebSocket listener (`/:/websockets/notifications`): detects watched/unwatched changes the webhook can never deliver, reconnects with backoff, debounces per ratingKey; also recognizes the `playing` notification type to poke the live session poller (see `liveSessionPoller.js`) the instant a session's state changes; plus `probePlexNotificationSocket` for the System Integrity Check. |
 | `embyClient.js` | Emby HTTP client (same operation set as Plex client, `X-Emby-Token` auth, provider-ID `AnyProviderIdEquals` lookups), including user-scoped Resume/Next Up feeds and personal rating snapshots/writes. See [emby.md](emby.md). |
@@ -253,10 +254,11 @@ See [README.md](README.md) for the documentation index, including this file
 | `state.js` | The single shared `state` object, the `elements` registry, localStorage keys, view/tab constants. No logic. |
 | `utils.js` | Formatting/escaping/date helpers (`escapeHtml`, `formatDate`, `platformBadge`, `slug`, show/episode title parsing, duration/progress formatting…). |
 | `auth.js` | Login/logout/status against `/api/auth/*`, `onAuthChange`, credential updates, webhook-secret rotation, auth header building, one-time account claim. See [auth.md](auth.md). |
-| `onboarding.js` | The `/setup` page (steps, status polling, background-import toggles, Trakt connect), the account-claim form handlers, and the dashboard checklist. See [onboarding.md](onboarding.md). |
+| `onboarding.js` | The `/setup` page (steps, status polling, background-import toggles, sync options, Trakt connect), the account-claim form handlers, and the dashboard checklist. See [onboarding.md](onboarding.md). |
 | `settings.js` | Shared connection-label formatting. |
 | `settings-ui.js` | Reusable settings edit dialog, provider picker, and status-card grid primitives. |
-| `settings-services.js` | Media-server and metadata-provider card grids, edit dialogs, config saves, connection tests, and the inline Sync Tuning form. |
+| `settings-services.js` | Media-server and metadata-provider card grids, edit dialogs, config saves, connection tests, and the inline Sync Tuning form, including the app-marked watched-flag policy. |
+| `manual-watch-review.js` | Manual Watch review page, sidebar count, policy actions, and quiet pending-item polling. |
 | `rating-sync-settings.js` | Personal Rating Sync on/off control, provider summary, Sync now, status polling, and queue feedback. |
 | `watchlist-sync-settings.js` | Plex Watchlist Sync on/off control, Plex summary, Sync now, and status polling. |
 | `settings-shell.js` | Owns hierarchical settings routes (parent groups + child sections), multi-view panel aggregation, legacy aliases, the landing list, sidebar/mobile navigation, section-scoped scrolling, and tools disclosures. |
@@ -772,6 +774,7 @@ WebSocket listener is stopped, `server.close()` drains in-flight HTTP requests, 
 - `EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED` - set to `false` to disable Emby's/Jellyfin's equivalent of the Plex unwatched-reconciliation poll (enabled by default; their per-item lookup, `findEpisode`, costs several outbound requests, so each checked batch is capped lower than Plex's, at `EMBY_LIKE_UNWATCHED_BATCH_SIZE = 5`, and records are checked sequentially rather than concurrently)
 - `EMBY_UNWATCHED_POLL_INTERVAL_MS` / `JELLYFIN_UNWATCHED_POLL_INTERVAL_MS` - cadence of that poll (default 5 minutes)
 - `WATCHED_THRESHOLD_PERCENT` - playback percentage that counts as watched (default `90`, range 50-100)
+- `WATCH_IMPORT_MODE` - default policy for app-marked watched flags: `review` (default), `now`, `release_day`, or `episode_timing`; Settings overrides it
 - `MIN_RESUME_POSITION_SEC` - minimum stopped-play position saved as resume progress (default `60`, range 0-3600 seconds)
 - `ACTIVE_SESSION_TTL_MIN` - time without a webhook update before an active session is stale (default `5`, range 1-120 minutes)
 - `OUTBOUND_TIMEOUT_SEC` - default timeout for outbound media-server requests (default `10`, range 2-120 seconds)
@@ -788,6 +791,7 @@ WebSocket listener is stopped, `server.close()` drains in-flight HTTP requests, 
 - `PLEMBFIN_DEBUG_OUTBOUND` - set to `1` to log a per-host outbound HTTP request count once a minute (visible in Settings → Logs); for measuring upstream traffic
 - `PLEMBFIN_DEBUG_CACHE_REBUILDS` - set to `1` to log one line per derived-cache rebuild (visible in Settings → Logs), recording which cache rebuilt, how long it took, and which generation change it was for. A version bump on its own is free; what costs is a bump that invalidates a cache which is then read
 - `PLEMBFIN_DEBUG_SCHEDULER` - set to `1` to log per-step scheduler timing (visible in Settings → Logs): each step's name, where in the tick it started, how long it ran, whether it exhausted its time budget, plus a per-tick summary carrying the achieved interval between tick starts
+- `PLEMBFIN_PAUSE_SCHEDULED_WORKER` - set to `1` only for diagnostics that need real-time provider listeners without scheduled sync ticks or background-job polling; the default is off
 - `BUILD_CHANNEL` - baked into the Docker image at build time (`release` by default, `alpha` in the `ghcr.io/lasikiewicz/plembfin:alpha` image); appends "alpha" to the version shown in the sidebar badge and Settings → About so a pre-release build is visually distinct from a tagged release. Not meant to be set manually
 
 Environment variables act as **defaults** for connection and sync-tuning settings:

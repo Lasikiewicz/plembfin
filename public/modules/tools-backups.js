@@ -1,7 +1,7 @@
-import { buildAuthHeaders } from "./auth.js?v=0.15.0.9";
-import { state, elements } from "./state.js?v=0.15.0.9";
-import { escapeHtml, escapeAttribute, formatNumber, formatDate } from "./utils.js?v=0.15.0.9";
-import { openSettingsEditModal, openSettingsPickerModal, renderServiceCardGrid } from "./settings-ui.js?v=0.15.0.9";
+import { buildAuthHeaders } from "./auth.js?v=0.15.0.13";
+import { state, elements } from "./state.js?v=0.15.0.13";
+import { escapeHtml, escapeAttribute, formatNumber, formatDate } from "./utils.js?v=0.15.0.13";
+import { openSettingsEditModal, openSettingsPickerModal, renderServiceCardGrid } from "./settings-ui.js?v=0.15.0.13";
 
 let _setMessage = () => {};
 let _openConfirmDialog = async () => false;
@@ -34,7 +34,7 @@ const BACKUP_VERSION = 1;
 const ENCRYPTED_BACKUP_FORMAT = "plembfin-encrypted-backup";
 const ENCRYPTED_BACKUP_VERSION = 1;
 const BACKUP_KDF_ITERATIONS = 250000;
-const BACKUP_COLLECTIONS = ["watchHistory", "playstate", "playbackProgress", "activeSessions", "liveTrackingCache", "syncHistory", "watchAuditEvents", "trackerItemState", "settings", "runtimeState", "loopKeys", "mediaArtwork", "personalWatchlist", "personalWatchlistMutations", "personalWatchlistProviderItems", "personalWatchlistSyncQueue", "personalWatchlistSyncRuns", "personalWatchlistActivity"];
+const BACKUP_COLLECTIONS = ["watchHistory", "playstate", "manualWatchReviews", "playbackProgress", "activeSessions", "liveTrackingCache", "syncHistory", "watchAuditEvents", "trackerItemState", "settings", "runtimeState", "loopKeys", "mediaArtwork", "personalWatchlist", "personalWatchlistMutations", "personalWatchlistProviderItems", "personalWatchlistSyncQueue", "personalWatchlistSyncRuns", "personalWatchlistActivity"];
 // ── Backup transfer state ──────────────────────────────────────────────────
 export function setBackupTransferState(label, tone = "muted", log = "", area = "restore") {
   const status = area === "export" ? elements.backupExportStatus : elements.backupRestoreStatus;
@@ -1077,14 +1077,14 @@ export async function saveAppearanceSettings() {
   applyAppearanceToBody(prefs);
 
   if (state.activeShowModalKey) {
-    const { openShowInlineDetail, renderImmersiveShowModal } = await import("./media-detail-show.js?v=0.15.0.9");
+    const { openShowInlineDetail, renderImmersiveShowModal } = await import("./media-detail-show.js?v=0.15.0.13");
     if (state.mediaDetailInline) {
       openShowInlineDetail(state.activeShowModalKey, state.activeShowModalSeason).catch(() => null);
     } else {
       renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason).catch(() => null);
     }
   } else if (state.activeMovieTmdbId || state.activeMovieModalId) {
-    const { openMovieImmersiveModalByTmdbId, openMovieImmersiveModal } = await import("./media-detail-movie.js?v=0.15.0.9");
+    const { openMovieImmersiveModalByTmdbId, openMovieImmersiveModal } = await import("./media-detail-movie.js?v=0.15.0.13");
     if (state.activeMovieTmdbId) {
       openMovieImmersiveModalByTmdbId(state.activeMovieTmdbId).catch(() => null);
     } else if (state.activeMovieModalId) {

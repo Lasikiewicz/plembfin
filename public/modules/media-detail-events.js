@@ -1,6 +1,6 @@
-import { HIDE_EPISODE_SPOILERS_KEY, state } from "./state.js?v=0.15.0.9";
-import { escapeAttribute, formatDate, showTitleFrom, showName, slug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js?v=0.15.0.9";
-import { isCachedStorageImageUrl, proxiedArtworkUrl, rememberPosterLookup } from "./images.js?v=0.15.0.9";
+import { HIDE_EPISODE_SPOILERS_KEY, state } from "./state.js?v=0.15.0.13";
+import { escapeAttribute, formatDate, showTitleFrom, showName, slug, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js?v=0.15.0.13";
+import { isCachedStorageImageUrl, proxiedArtworkUrl, rememberPosterLookup } from "./images.js?v=0.15.0.13";
 import {
   openEditDateDialog,
   openEditShowDateDialog,
@@ -11,7 +11,7 @@ import {
   openEditSeasonDateDialog,
   applyWatchedAtToLocalWatchRecord,
   editDateOptionsFromButton,
-} from "./edit-dialogs.js?v=0.15.0.9";
+} from "./edit-dialogs.js?v=0.15.0.13";
 import {
   openWatchDatePrompt,
   closeWatchDatePrompt,
@@ -25,22 +25,24 @@ import {
   confirmAndMarkUnwatched,
   confirmAndDeleteMedia,
   toggleWatchDateIncludeSpecials,
-} from "./watch-action.js?v=0.15.0.9";
-import { triggerRetrySync, loadSyncJobs, loadSyncHistory, showAvailIssuePopup } from "./sync.js?v=0.15.0.9";
-import { renderExplorer, renderHistoryView, resolvedTmdbCache, refreshMovieExplorerInPlace, refreshHistoryViewInPlace } from "./explorer.js?v=0.15.0.9";
+} from "./watch-action.js?v=0.15.0.13";
+import { triggerRetrySync, loadSyncJobs, loadSyncHistory, showAvailIssuePopup, isWatchedHistoryAction } from "./sync.js?v=0.15.0.13";
+import { renderExplorer, renderHistoryView, resolvedTmdbCache, refreshMovieExplorerInPlace, refreshHistoryViewInPlace } from "./explorer.js?v=0.15.0.13";
 import {
   movieBySlugOrId,
   openShowInlineDetail,
   closeMediaDetail,
   renderImmersiveShowModal,
   renderShowModalContent,
+  patchShowModalEpisodeFromLive,
   scrollSeasonAccordionIntoView,
   renderMovieImmersiveModalContent,
+  patchMovieWatchedState,
   openHistoryDebugModal,
   openMediaInfoModal,
-} from "./media-detail.js?v=0.15.0.9";
-import { fetchWatchedMovieByTmdb, syncRewatchHistoryToggle } from "./media-detail-movie.js?v=0.15.0.9";
-import { addToWatchlist, removeFromWatchlist, openAddToListDialog, personalItemFromDetailDataset, refreshRenderedPersonalMediaControls, loadPersonalMedia } from "./personal-media.js?v=0.15.0.9";
+} from "./media-detail.js?v=0.15.0.13";
+import { fetchWatchedMovieByTmdb, syncRewatchHistoryToggle } from "./media-detail-movie.js?v=0.15.0.13";
+import { addToWatchlist, removeFromWatchlist, openAddToListDialog, personalItemFromDetailDataset, refreshRenderedPersonalMediaControls, loadPersonalMedia } from "./personal-media.js?v=0.15.0.13";
 
 // Callbacks injected by app-events.js (forwarded from app.js) to avoid circular imports.
 let _cb = {};
@@ -90,6 +92,142 @@ async function refreshActiveShowAfterDateEdit(entry = null) {
   if (state.activeShowModalKey) {
     await renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
   }
+}
+
+function liveChangeValue(change = {}, camelName, snakeName = camelName) {
+  return change[camelName] ?? change[snakeName];
+}
+
+function liveChangeKey(change = {}) {
+  return String(liveChangeValue(change, "mediaKey", "media_key") || "").trim();
+}
+
+function historyRowMatchesLiveChange(row = {}, change = {}) {
+  const mediaKey = liveChangeKey(change);
+  const recordId = String(liveChangeValue(change, "recordId", "record_id") || "");
+  if (mediaKey && String(row.media_key || "") === mediaKey) return true;
+  if (recordId && String(row.id || "") === recordId) return true;
+  const season = liveChangeValue(change, "season");
+  const episode = liveChangeValue(change, "episode");
+  const mediaType = String(liveChangeValue(change, "mediaType", "media_type") || "").toLowerCase();
+  return mediaType === "episode"
+    && season != null
+    && episode != null
+    && Number(row.season) === Number(season)
+    && Number(row.episode) === Number(episode)
+    && slug(showTitleFrom(row.show_title || row.title || "")) === slug(showTitleFrom(liveChangeValue(change, "showTitle", "show_title") || ""));
+}
+
+function mergeLiveHistoryState({ change = {}, row = null, progress = null } = {}) {
+  const sourceTable = String(liveChangeValue(change, "sourceTable", "source_table") || "");
+  const mediaKey = liveChangeKey(change) || String(row?.media_key || progress?.media_key || "");
+  const matches = (candidate) => (
+    (mediaKey && String(candidate.media_key || "") === mediaKey)
+      || historyRowMatchesLiveChange(candidate, change)
+  );
+
+  if (sourceTable !== "playback_progress") {
+    const currentIndex = state.history.findIndex(matches);
+    if (row && isWatchedHistoryAction(row)) {
+      const current = currentIndex >= 0 ? state.history[currentIndex] : {};
+      const next = { ...current, ...row };
+      if (currentIndex >= 0) state.history[currentIndex] = next;
+      else state.history.unshift(next);
+    } else if (currentIndex >= 0 || String(liveChangeValue(change, "changeKind", "change_kind") || "") === "delete") {
+      state.history = state.history.filter((candidate) => !matches(candidate));
+    }
+    state.history.sort((left, right) => String(right.watched_at || "").localeCompare(String(left.watched_at || "")));
+  }
+
+  if (sourceTable === "playback_progress") {
+    const progressKey = mediaKey;
+    const progressMatches = (candidate) => (
+      (progressKey && String(candidate.media_key || "") === progressKey)
+        || (progress?.season != null && progress?.episode != null
+          && Number(candidate.season) === Number(progress.season)
+          && Number(candidate.episode) === Number(progress.episode)
+          && slug(showTitleFrom(candidate.show_title || candidate.title || "")) === slug(showTitleFrom(progress.title || "")))
+    );
+    const progressIndex = state.partWatchedRaw.findIndex(progressMatches);
+    if (progress && Number(progress.progress || 0) > 0) {
+      const current = progressIndex >= 0 ? state.partWatchedRaw[progressIndex] : {};
+      const next = { ...current, ...progress };
+      if (progressIndex >= 0) state.partWatchedRaw[progressIndex] = next;
+      else state.partWatchedRaw.unshift(next);
+    } else if (progressIndex >= 0) {
+      state.partWatchedRaw = state.partWatchedRaw.filter((candidate) => !progressMatches(candidate));
+    }
+  }
+
+  if (row?.media_type !== "episode") return;
+  const rowShowTitle = row.show_title || showTitleFrom(row.title || "");
+  for (const show of state.showsRaw) {
+    if (rowShowTitle && slug(showTitleFrom(show.title || "")) !== slug(showTitleFrom(rowShowTitle))) continue;
+    if (!Array.isArray(show.episodes)) continue;
+    const episodeIndex = show.episodes.findIndex((episode) => (
+      (mediaKey && String(episode.media_key || "") === mediaKey)
+        || (Number(episode.season) === Number(row.season) && Number(episode.episode) === Number(row.episode))
+    ));
+    if (isWatchedHistoryAction(row)) {
+      if (episodeIndex >= 0) show.episodes[episodeIndex] = { ...show.episodes[episodeIndex], ...row };
+      else show.episodes.push(row);
+    } else if (episodeIndex >= 0) {
+      show.episodes.splice(episodeIndex, 1);
+    }
+  }
+}
+
+async function fetchLiveHistoryItems(changes = []) {
+  const keyed = changes.filter((change) => liveChangeKey(change));
+  const unkeyed = changes.filter((change) => !liveChangeKey(change) && liveChangeValue(change, "recordId", "record_id"));
+  const items = [];
+  const batchSize = 100;
+  for (let offset = 0; offset < keyed.length; offset += batchSize) {
+    const batch = keyed.slice(offset, offset + batchSize);
+    const url = new URL("/api/history", window.location.origin);
+    for (const change of batch) url.searchParams.append("mediaKey", liveChangeKey(change));
+    try {
+      const response = await fetch(url, { headers: authHeaders(), cache: "no-store" });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) continue;
+      const byKey = new Map((Array.isArray(body.items) ? body.items : []).map((item) => [String(item.mediaKey || ""), item]));
+      for (const change of batch) {
+        const item = byKey.get(liveChangeKey(change));
+        items.push({ change, row: item?.row || null, progress: item?.progress || null });
+      }
+    } catch {
+      // A transient item request should not turn the live stream into a page
+      // refresh. The next canonical mutation will carry the item again.
+    }
+  }
+  await Promise.all(unkeyed.map(async (change) => {
+    const recordId = String(liveChangeValue(change, "recordId", "record_id") || "");
+    try {
+      const response = await fetch(`/api/history?id=${encodeURIComponent(recordId)}`, { headers: authHeaders(), cache: "no-store" });
+      const body = await response.json().catch(() => ({}));
+      if (response.ok) items.push({ change, row: body.row || null, progress: body.progress || null });
+    } catch {
+      // Ignore one failed item; the stream remains healthy.
+    }
+  }));
+  return items;
+}
+
+// Reconcile only the media keys named by the SSE journal. This is deliberately
+// separate from refreshActiveDetailView(), whose full show render is still
+// useful after a manual date edit but is too broad for a background tick.
+export async function applyLiveHistoryChanges(changes = []) {
+  const normalized = Array.isArray(changes) ? changes.filter((change) => change && typeof change === "object") : [];
+  if (!normalized.length) return 0;
+  const items = await fetchLiveHistoryItems(normalized);
+  for (const item of items) {
+    mergeLiveHistoryState(item);
+    patchShowModalEpisodeFromLive(item);
+    if (item.row?.media_type === "movie" && isWatchedHistoryAction(item.row)) {
+      patchMovieWatchedState(item.row);
+    }
+  }
+  return items.length;
 }
 
 // An open movie/show detail page renders from its own fetched record, so a
@@ -1517,15 +1655,15 @@ export function attachMediaDetailEvents() {
             state.showsRaw.push(showObj);
           }
 
-          const showHref = showObj.tmdb_id
-            ? tvShowTmdbHref(showObj.tmdb_id, canonicalShowName)
-            : showObj.tvdb_id
-              ? tvShowTvdbHref(showObj.tvdb_id, canonicalShowName)
-              : `/tvshow/${showKeySlug}`;
+          const showHref = tvShowBaseHrefFromEpisode({
+            ...entry,
+            show_title: canonicalShowName,
+            show_tmdb_id: entry.show_tmdb_id || showObj.tmdb_id || "",
+            show_tvdb_id: entry.show_tvdb_id || showObj.tvdb_id || "",
+          }, canonicalShowName);
           const season = Number(entry.season);
-          const episode = Number(entry.episode);
-          navigateTo(Number.isInteger(season) && season >= 0 && Number.isInteger(episode) && episode >= 1
-            ? `${showHref}/season/${season}/episode/${episode}`
+          navigateTo(Number.isInteger(season) && season >= 0
+            ? `${showHref}#season${season}`
             : showHref);
         }
       } else if (event.target.closest(".movie-card") && event.button === 0 && !event.ctrlKey && !event.metaKey) {

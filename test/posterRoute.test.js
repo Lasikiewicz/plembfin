@@ -7,6 +7,7 @@ makeTempDataDir("plembfin-poster-route-");
 const { AUTH } = await import("../server/src/appConfig.js");
 const { handlePoster, handlePosterBatch } = await import("../server/src/routes/metadata.js");
 const { cachePosterFromUrl } = await import("../server/src/utils/posterCache.js");
+const { enqueueManualWatchReview } = await import("../server/src/utils/manualWatchReview.js");
 const { getActiveUpNextProviderItemById, recordUpNextProviderFeed } = await import("../server/src/utils/upNextRepository.js");
 
 function request(format = "") {
@@ -110,6 +111,33 @@ test("poster batch returns one result per requested id", async () => {
   assert.equal(body.results[0].id, "poster-route-item");
   assert.ok(body.results[0].payload);
   assert.equal(body.results[1].id, "no-such-id");
+});
+
+test("poster batch resolves a pending manual review id from its media cache", async () => {
+  const queued = enqueueManualWatchReview({
+    title: "Manual Review Poster Show - S01E01",
+    showTitle: "Manual Review Poster Show",
+    type: "episode",
+    source: "plex",
+    season: 1,
+    episode: 1,
+    ids: { tvdb: "manual-review-poster-tvdb" },
+  }, { sourceFingerprint: "poster-route-manual-review" });
+  assert.ok(queued.review?.id);
+
+  const cached = await cachePosterFromUrl(
+    queued.review.media_key,
+    "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+    "manual-review-test",
+  );
+  assert.ok(cached?.url);
+
+  const response = jsonCapture();
+  await handlePosterBatch(batchRequest([{ id: queued.review.id }]), response);
+  const body = JSON.parse(response.capture.body);
+  assert.equal(body.results.length, 1);
+  assert.equal(body.results[0].id, queued.review.id);
+  assert.equal(body.results[0].payload.url, cached.url);
 });
 
 // Same size cap as the tmdb-details-batch convention it mirrors: an unbounded

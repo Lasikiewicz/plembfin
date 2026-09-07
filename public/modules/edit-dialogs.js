@@ -1,10 +1,10 @@
-import { state } from "./state.js?v=0.15.0.9";
-import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, formatDate, actualWatchHistory, sourceBadgeHtml } from "./utils.js?v=0.15.0.9";
-import { buildAuthHeaders } from "./auth.js?v=0.15.0.9";
-import { isWatchedHistoryAction } from "./sync.js?v=0.15.0.9";
-import { tmdbPoster, tmdbImage, proxiedArtworkUrl } from "./images.js?v=0.15.0.9";
-import { dateAtMiddayIso, refreshShowAfterManualWatch } from "./watch-action.js?v=0.15.0.9";
-import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=0.15.0.9";
+import { state } from "./state.js?v=0.15.0.13";
+import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, formatDate, actualWatchHistory, sourceBadgeHtml } from "./utils.js?v=0.15.0.13";
+import { buildAuthHeaders } from "./auth.js?v=0.15.0.13";
+import { isWatchedHistoryAction } from "./sync.js?v=0.15.0.13";
+import { tmdbPoster, tmdbImage, proxiedArtworkUrl } from "./images.js?v=0.15.0.13";
+import { dateAtMiddayIso, refreshShowAfterManualWatch, watchedAtForChoice, watchedReferenceFor } from "./watch-action.js?v=0.15.0.13";
+import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=0.15.0.13";
 
 // Callbacks injected by app.js at startup.
 let _setMessage = () => {};
@@ -319,9 +319,55 @@ export function applyArtworkToLocalWatchRecords({
   return result;
 }
 
+// The date editor is also used for an already-watched episode, so it cannot
+// rely on the mark-watched prompt to offer the media-page timing choice. Use
+// the same in-memory season rows and directional reference calculation here.
+export function episodeTimingFromButton(button) {
+  const row = button?.closest(".immersive-episode-row");
+  if (!row) return null;
+
+  const seasonNumber = Number(row.dataset?.immersiveSeasonNum);
+  const episodeNumber = Number(row.dataset?.immersiveEpisodeNum);
+  if (!Number.isFinite(seasonNumber) || !Number.isFinite(episodeNumber)) return null;
+
+  const episode = state.showModalEpisodes.find((candidate) => (
+    Number(candidate?.seasonNumber) === seasonNumber
+    && Number(candidate?.episodeNumber) === episodeNumber
+  ));
+  if (!episode) return null;
+
+  const seasonEpisodes = state.showModalEpisodes.filter((candidate) => (
+    Number(candidate?.seasonNumber) === seasonNumber
+  ));
+  const reference = watchedReferenceFor(seasonEpisodes, episode);
+  if (!reference?.watchedAt) return null;
+
+  const watchedAt = watchedAtForChoice(
+    "match_watched",
+    episode,
+    "",
+    0,
+    reference.watchedAt,
+    reference.direction,
+    reference.runtime,
+  );
+  if (!watchedAt || Number.isNaN(Date.parse(watchedAt))) return null;
+
+  return {
+    watchedAt,
+    referenceLabel: reference.label || "",
+    direction: reference.direction || "",
+  };
+}
+
 export function editDateOptionsFromButton(button, entry = null, resolvedTmdbCacheFn = null) {
-  const releaseDateFromRow = button?.closest(".immersive-episode-row")?.querySelector(".immersive-episode-dates time[datetime]")?.getAttribute("datetime");
-  if (releaseDateFromRow) return { releaseDate: releaseDateFromRow };
+  const row = button?.closest(".immersive-episode-row");
+  const releaseDateFromRow = row?.querySelector(".immersive-episode-dates time[datetime]")?.getAttribute("datetime");
+  const episodeTiming = episodeTimingFromButton(button);
+  const episodeOptions = {};
+  if (releaseDateFromRow) episodeOptions.releaseDate = releaseDateFromRow;
+  if (episodeTiming) episodeOptions.episodeTiming = episodeTiming;
+  if (Object.keys(episodeOptions).length) return episodeOptions;
 
   // A movie's detail page can be opened directly (deep link, refresh) without
   // ever populating state.history, so `entry` may be missing even though the
@@ -358,6 +404,15 @@ export function openEditDateDialog(_container, id, currentWatchedAt, onSaved, op
   const releaseLabel = releaseDate
     ? new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(new Date(`${releaseDate}T12:00:00`))
     : "Release date unavailable";
+  const episodeTiming = options.episodeTiming && typeof options.episodeTiming === "object"
+    ? options.episodeTiming
+    : null;
+  const episodeTimingWatchedAt = String(episodeTiming?.watchedAt || "");
+  const episodeTimingReference = String(episodeTiming?.referenceLabel || "");
+  const episodeTimingDirection = episodeTiming?.direction === "before_next" ? "Before" : "After";
+  const episodeTimingLabel = episodeTimingWatchedAt
+    ? `${episodeTimingReference ? `${episodeTimingDirection} ${episodeTimingReference} · ` : ""}${formatDate(episodeTimingWatchedAt)}`
+    : "Episode timing unavailable";
 
   const overlay = document.createElement("div");
   overlay.className = "edit-dialog-overlay";
@@ -407,6 +462,11 @@ export function openEditDateDialog(_container, id, currentWatchedAt, onSaved, op
           <span class="watch-date-pick-title">On release date</span>
           <span class="watch-date-pick-sub">${escapeHtml(releaseLabel)}</span>
         </button>
+        ${episodeTimingWatchedAt ? `
+        <button class="watch-date-pick edit-date-choice" type="button" data-edit-date-choice="episode-timing">
+          <span class="watch-date-pick-title">Same as other episodes</span>
+          <span class="watch-date-pick-sub">${escapeHtml(episodeTimingLabel)}</span>
+        </button>` : ""}
         <button class="watch-date-pick edit-date-choice" type="button" data-edit-date-choice="now">
           <span class="watch-date-pick-title">Now</span>
           <span class="watch-date-pick-sub">Today, ${escapeHtml(new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" }).format(new Date()))}</span>
@@ -548,6 +608,7 @@ export function openEditDateDialog(_container, id, currentWatchedAt, onSaved, op
         closeAnyOpenCalendar();
         const choice = button.dataset.editDateChoice;
         if (choice === "release" && releaseDate) setRowValue(rowEl, dateAtMiddayIso(releaseDate));
+        if (choice === "episode-timing" && episodeTimingWatchedAt) setRowValue(rowEl, episodeTimingWatchedAt);
         if (choice === "now") setRowValue(rowEl, new Date().toISOString());
       });
     });

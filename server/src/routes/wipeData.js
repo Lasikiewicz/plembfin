@@ -36,6 +36,7 @@ const WIPE_SCOPES = {
     tables: [
       "watch_history",
       "playstate",
+      "manual_watch_reviews",
       "playback_progress",
       "active_sessions",
       "live_tracking_cache",
@@ -83,6 +84,7 @@ WIPE_SCOPES.factory = {
     "show_merge_history",
     "watch_history",
     "playstate",
+    "manual_watch_reviews",
     "playback_progress",
     "outbound_state_leases",
     "active_sessions",

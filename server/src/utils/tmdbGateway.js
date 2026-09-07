@@ -9,7 +9,7 @@ import { resolveTvdbSeriesId, resolveTvdbSeriesIdFromEpisodeId, getTvdbSeriesExt
 const API_ROOT = "https://api.themoviedb.org/3";
 const IMAGE_ROOT = "https://image.tmdb.org/t/p";
 const DAY_MS = 24 * 60 * 60 * 1000;
-const DETAILS_SCHEMA_VERSION = 14; // bumped: preserve TMDB network logo data when TVDB supplies the structural show record
+const DETAILS_SCHEMA_VERSION = 15; // bumped: refetch structural-only TV rows so full metadata append data is restored
 const PERSON_SCHEMA_VERSION = 5;
 const SEARCH_TTL_MS = 15 * 60 * 1000;
 const DISCOVERY_REVALIDATE_MIN_INTERVAL_MS = 10 * 60 * 1000;
@@ -31,6 +31,7 @@ let throttleTail = Promise.resolve();
 
 // --- SQLite-backed cache helpers ---
 const metaGetStmt = db.prepare("SELECT * FROM tmdb_metadata_cache WHERE id = ?");
+const metaGetByTmdbIdStmt = db.prepare("SELECT * FROM tmdb_metadata_cache WHERE media_type = 'tv' AND tmdb_id = ? ORDER BY updated_at_ms DESC LIMIT 1");
 // `status`, `poster_path` and the backdrop/poster URLs are mirrored out of the
 // details blob into their own columns so grid and card paths can read the two
 // or three fields they need without parsing a blob that averages 64KB for a TV
@@ -50,6 +51,11 @@ const metaSetStmt = db.prepare(
 );
 function metaGet(id) {
   const row = metaGetStmt.get(id);
+  if (!row) return null;
+  return { tmdbId: row.tmdb_id, mediaType: row.media_type, title: row.title, details: parseJson(row.details), schemaVersion: row.schema_version, updatedAtMs: row.updated_at_ms };
+}
+function metaGetByTmdbId(tmdbId) {
+  const row = metaGetByTmdbIdStmt.get(String(tmdbId || ""));
   if (!row) return null;
   return { tmdbId: row.tmdb_id, mediaType: row.media_type, title: row.title, details: parseJson(row.details), schemaVersion: row.schema_version, updatedAtMs: row.updated_at_ms };
 }
@@ -1038,7 +1044,13 @@ export async function getTmdbSeason({ tmdbId, tvdbId: requestedTvdbId = "", seas
   }
   // Shows that only exist on TVDB are cached under `tv_tvdb_<id>` because they
   // have no TMDB id to key on, so accept the TVDB id directly as well.
-  const cached = id ? (metaGet(`tv_${id}`) || metaGet(`tv_tvdb_${id}`)) : null;
+  // TV metadata can be cached under the TVDB alias when the provider resolved
+  // the show through TVDB first. Still accept a TMDB-id season request by
+  // looking up that alias through the mirrored tmdb_id column; otherwise the
+  // client receives a valid merged show but its episode list stays empty.
+  const cached = id
+    ? (metaGet(`tv_${id}`) || metaGet(`tv_tvdb_${id}`) || metaGetByTmdbId(id))
+    : null;
   const tvdbId = directTvdbId || String(cached?.details?.external_ids?.tvdb_id || "");
   if (!tvdbId) {
     const error = new Error("TVDB ID not resolved for this show yet");

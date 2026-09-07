@@ -1,6 +1,6 @@
-import { buildAuthHeaders } from "./auth.js?v=0.15.0.9";
-import { state } from "./state.js?v=0.15.0.9";
-import { showTitleFrom, slug } from "./utils.js?v=0.15.0.9";
+import { buildAuthHeaders } from "./auth.js?v=0.15.0.13";
+import { state } from "./state.js?v=0.15.0.13";
+import { showTitleFrom, slug } from "./utils.js?v=0.15.0.13";
 
 let _tmdbBatchQueue = [];
 let _tmdbBatchTimer = null;
@@ -68,6 +68,26 @@ function cacheResolvedDetails(mediaType, requestedKey, details) {
   for (const key of aliases) state.tmdbDetailsCache.set(key, details);
 }
 
+// A full TV detail response must include the optional TMDB sections as arrays
+// (they can legitimately be empty for a title with no reviews or related
+// shows). Older cached rows can contain only TVDB's structural show data and
+// would otherwise satisfy the browser cache forever, leaving the detail page
+// with no cast, images, trailers, or related sections.
+function hasFullTvMetadata(details) {
+  if (!details || details.id == null) return true;
+  return Boolean(
+    details.credits && Array.isArray(details.credits.cast)
+      && details.images
+      && Array.isArray(details.images.backdrops)
+      && Array.isArray(details.images.posters)
+      && Array.isArray(details.images.logos)
+      && details.videos && Array.isArray(details.videos.results)
+      && details.reviews && Array.isArray(details.reviews.results)
+      && details.similar && Array.isArray(details.similar.results)
+      && details.recommendations && Array.isArray(details.recommendations.results)
+  );
+}
+
 // `light: true` is used by grid prefetch: the server skips next-airing and
 // artwork enrichment on cold items. Light results are cached under their own
 // key so a later full request (detail pages) still fetches complete data;
@@ -75,7 +95,11 @@ function cacheResolvedDetails(mediaType, requestedKey, details) {
 export async function fetchTmdbDetails(mediaType, tmdbId, title, ids = {}, { light = false, immediate = false } = {}) {
   const lookupIds = normalizeTmdbLookupIds(ids);
   const baseKey = `${mediaType}|${tmdbId || ""}|${String(title || "").toLowerCase()}|${lookupIds.imdbId.toLowerCase()}|${lookupIds.tvdbId.toLowerCase()}`;
-  if (state.tmdbDetailsCache.has(baseKey)) return state.tmdbDetailsCache.get(baseKey);
+  if (state.tmdbDetailsCache.has(baseKey)) {
+    const cached = state.tmdbDetailsCache.get(baseKey);
+    if (mediaType !== "tv" || light || typeof cached?.then === "function" || hasFullTvMetadata(cached)) return cached;
+    state.tmdbDetailsCache.delete(baseKey);
+  }
   const cacheKey = light ? `${baseKey}|light` : baseKey;
   if (light && state.tmdbDetailsCache.has(cacheKey)) return state.tmdbDetailsCache.get(cacheKey);
   if (!state.savedConfig.tmdb?.configured && !tmdbId && !title && !lookupIds.imdbId && !lookupIds.tvdbId) return null;

@@ -4,21 +4,28 @@
 // echoes credentials, only a `configured` flag per section, and a blank secret
 // on save means "keep the stored credential" (except Seerr, whose key is only
 // sent when non-empty).
-import { state } from "./state.js?v=0.15.0.9";
-import { buildAuthHeaders } from "./auth.js?v=0.15.0.9";
-import { openSettingsEditModal, openSettingsPickerModal, renderServiceCardGrid, renderFieldRow, collectFieldValues, renderInlineServicePanel } from "./settings-ui.js?v=0.15.0.9";
-import { prepareHelpReadMore } from "./settings-shell.js?v=0.15.0.9";
-import { escapeAttribute, escapeHtml } from "./utils.js?v=0.15.0.9";
+import { state } from "./state.js?v=0.15.0.13";
+import { buildAuthHeaders } from "./auth.js?v=0.15.0.13";
+import { openSettingsEditModal, openSettingsPickerModal, renderServiceCardGrid, renderFieldRow, collectFieldValues, renderInlineServicePanel } from "./settings-ui.js?v=0.15.0.13";
+import { prepareHelpReadMore } from "./settings-shell.js?v=0.15.0.13";
+import { escapeAttribute, escapeHtml } from "./utils.js?v=0.15.0.13";
 import {
   plexCredentialGuide,
   embyCredentialGuide,
   jellyfinCredentialGuide,
   savedCredentialNote,
-} from "./help-content.js?v=0.15.0.9";
+} from "./help-content.js?v=0.15.0.13";
 
 let _cb = {};
 export function initSettingsServices(callbacks = {}) {
   _cb = callbacks;
+  // The onboarding Options step saves the same Sync Tuning fields while the
+  // Settings DOM remains mounted in the background. Refresh only that form
+  // for its explicit event so unrelated config changes cannot wipe another
+  // field the user is currently editing.
+  document.addEventListener("plembfin:config-changed", (event) => {
+    if (event.detail?.refreshSyncTuning) renderSyncTuningCard();
+  });
 }
 const setMessage = (...args) => _cb.setMessage?.(...args);
 const clearDerivedUiCaches = (...args) => _cb.clearDerivedUiCaches?.(...args);
@@ -188,6 +195,19 @@ const TUNING_FIELD_DEFS = [
   { key: "activeSessionTtlMin", label: "Active Session TTL", unit: "min", help: `How long a "now playing" session is kept without an update before it's considered stale.` },
   { key: "outboundTimeoutSec", label: "Outbound Request Timeout", unit: "sec", help: "How long Plembfin waits for a response from Plex, Emby, or Jellyfin before giving up." },
 ];
+const WATCH_IMPORT_FIELD = {
+  key: "watchImportMode",
+  id: "sync-field-watch_import_mode",
+  label: "When you manually mark an item as watched in Plex / Emby / Jellyfin",
+  type: "choice",
+  options: [
+    { value: "now", label: "Mark as watched now", description: "Use the time the scanner sees the watched flag." },
+    { value: "release_day", label: "Mark as watched on release day", description: "Use the movie or episode release date." },
+    { value: "episode_timing", label: "Mark as watched at the same time as other episodes", description: "Use the before/after from the media pages." },
+    { value: "review", label: "Require review", description: "Hold the item for a decision in Manual Watch review." },
+  ],
+  help: "Controls watched flags found by the scheduled scanner when the app does not provide threshold-reaching playback evidence.",
+};
 const EXTRA_SERVICE_NAMES = { tuning: "Sync Tuning" };
 
 // Opt-in toggle for the outbound pacing governor's "fast" profile
@@ -205,13 +225,23 @@ const PACING_FIELD = {
 };
 
 function tuningBadges(tuning = {}) {
-  const overriddenCount = TUNING_FIELD_DEFS.filter((field) => tuning[field.key]?.overridden).length;
+  const overriddenCount = [WATCH_IMPORT_FIELD, ...TUNING_FIELD_DEFS].filter((field) => tuning[field.key]?.overridden).length;
   if (!overriddenCount) return [{ label: "Defaults", tone: "muted" }];
   return [{ label: `${overriddenCount} customized`, tone: "ready" }];
 }
 
 function syncTuningFieldSpecs(tuning = {}) {
-  return TUNING_FIELD_DEFS.map((field) => {
+  const modeInfo = tuning[WATCH_IMPORT_FIELD.key] || {};
+  const modeDefaultValue = modeInfo.default || "review";
+  const modeDefaultLabel = WATCH_IMPORT_FIELD.options.find((option) => option.value === modeDefaultValue)?.label || "Require review";
+  const modeField = {
+    ...WATCH_IMPORT_FIELD,
+    value: modeInfo.value || modeDefaultValue,
+    help: `${WATCH_IMPORT_FIELD.help}<br>Default: ${modeDefaultLabel}. Manual review items appear in the sidebar above Sync - Idle.`,
+    helpIsHtml: true,
+  };
+  return [modeField, ...TUNING_FIELD_DEFS].map((field) => {
+    if (field.type === "select" || field.type === "choice") return field;
     const info = tuning[field.key] || {};
     return {
       key: field.key,
@@ -230,6 +260,7 @@ function syncTuningFieldSpecs(tuning = {}) {
 // to the environment variable or built-in default" (see server/src/utils/tuning.js).
 function syncTuningPayload(values = {}) {
   const payload = {};
+  payload.watchImportMode = String(values.watchImportMode || "review").trim() || null;
   for (const field of TUNING_FIELD_DEFS) {
     const raw = String(values[field.key] ?? "").trim();
     payload[field.key] = raw === "" ? null : Number(raw);
@@ -259,19 +290,33 @@ export function renderSyncTuningCard() {
     statusEl.style.display = text ? "block" : "none";
     statusEl.className = `message ${tone}`;
   };
+  const markDirty = () => {
+    if (form.dataset.saving === "true") return;
+    form.dataset.dirty = "true";
+    setStatus("Unsaved changes.", "muted");
+  };
+  // The fields are re-rendered after a save, so listen on the stable container
+  // rather than on individual inputs. This also keeps radio-button changes from
+  // leaving a misleading "Saved." message on screen.
+  fieldsContainer.addEventListener("input", markDirty);
+  fieldsContainer.addEventListener("change", markDirty);
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const saveButton = document.querySelector("#saveSyncTuningButton");
+    form.dataset.saving = "true";
     if (saveButton) saveButton.disabled = true;
     setStatus("Saving...", "muted");
     try {
       const values = collectFieldValues(fieldsContainer);
       await saveServiceConfig("tuning", syncTuningPayload(values));
       await saveServiceConfig("pacing", { profile: values.fastLocalPacing ? "fast" : "standard" });
+      form.dataset.dirty = "false";
       setStatus("Saved.", "success");
     } catch (error) {
+      form.dataset.dirty = "true";
       setStatus(error?.message || "Save failed.", "error");
     } finally {
+      delete form.dataset.saving;
       if (saveButton) saveButton.disabled = false;
     }
   });

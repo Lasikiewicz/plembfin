@@ -126,6 +126,34 @@ CREATE TABLE IF NOT EXISTS playstate (
 );
 CREATE INDEX IF NOT EXISTS idx_playstate_state ON playstate(state);
 
+-- Provider watched flags that need an administrator decision before they are
+-- copied into canonical history. The normalized media payload is retained so
+-- approving a review does not need the source server to repeat the original
+-- library scan.
+CREATE TABLE IF NOT EXISTS manual_watch_reviews (
+  id TEXT PRIMARY KEY,
+  media_key TEXT NOT NULL,
+  source TEXT NOT NULL,
+  source_item_id TEXT,
+  title TEXT NOT NULL,
+  media_type TEXT NOT NULL CHECK (media_type IN ('movie', 'episode')),
+  show_title TEXT,
+  episode_title TEXT,
+  season INTEGER,
+  episode INTEGER,
+  release_date TEXT,
+  observed_watched_at TEXT,
+  source_fingerprint TEXT NOT NULL,
+  media_json TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'dismissed')),
+  decision_mode TEXT,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  reviewed_at INTEGER
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_manual_watch_reviews_media_key ON manual_watch_reviews(media_key);
+CREATE INDEX IF NOT EXISTS idx_manual_watch_reviews_pending ON manual_watch_reviews(status, updated_at DESC);
+
 CREATE TABLE IF NOT EXISTS playback_progress (
   media_key TEXT PRIMARY KEY,
   title TEXT,
@@ -143,6 +171,26 @@ CREATE TABLE IF NOT EXISTS playback_progress (
   sync_dispatch_telemetry TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_playback_progress_updated ON playback_progress(updated_at DESC);
+
+-- A compact durable journal for SSE consumers. Cache versions tell a browser
+-- that something changed, while these rows identify the media item that can be
+-- patched in place. The journal is intentionally append-only here; db.js
+-- keeps it bounded as streams observe new changes.
+CREATE TABLE IF NOT EXISTS live_change_events (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  source_table TEXT NOT NULL,
+  change_kind TEXT NOT NULL CHECK (change_kind IN ('upsert', 'delete')),
+  media_key TEXT,
+  record_id TEXT,
+  media_type TEXT,
+  title TEXT,
+  show_title TEXT,
+  season INTEGER,
+  episode INTEGER,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_live_change_events_cursor ON live_change_events(id);
+CREATE INDEX IF NOT EXISTS idx_live_change_events_created ON live_change_events(created_at, id);
 
 -- Provider feed observations used to explain and rebuild the unified Up Next
 -- projection. These rows are deliberately not canonical watch state: the
@@ -533,6 +581,15 @@ CREATE TRIGGER IF NOT EXISTS trg_playback_progress_cache_update AFTER UPDATE ON 
 END;
 CREATE TRIGGER IF NOT EXISTS trg_playback_progress_cache_delete AFTER DELETE ON playback_progress BEGIN
   UPDATE cache_versions SET version=version+1, updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id='progress';
+END;
+CREATE TRIGGER IF NOT EXISTS trg_manual_watch_reviews_cache_insert AFTER INSERT ON manual_watch_reviews BEGIN
+  UPDATE cache_versions SET version=version+1, updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id='history';
+END;
+CREATE TRIGGER IF NOT EXISTS trg_manual_watch_reviews_cache_update AFTER UPDATE ON manual_watch_reviews BEGIN
+  UPDATE cache_versions SET version=version+1, updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id='history';
+END;
+CREATE TRIGGER IF NOT EXISTS trg_manual_watch_reviews_cache_delete AFTER DELETE ON manual_watch_reviews BEGIN
+  UPDATE cache_versions SET version=version+1, updated_at=CAST(unixepoch('subsec')*1000 AS INTEGER) WHERE id='history';
 END;
 
 CREATE TABLE IF NOT EXISTS scheduler_lease (

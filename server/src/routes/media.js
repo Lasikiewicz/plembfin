@@ -48,6 +48,7 @@ import {
   getWatchRecordById,
   getWatchRecordByIdLight,
   getWatchRecordByMediaKey,
+  getPlaybackProgressForMedia,
   getHistoryCacheVersion,
   getWatchStats,
   invalidateHistoryDerivedCaches,
@@ -174,7 +175,25 @@ export async function handleHistory(req, res) {
   if (!(await requireAdmin(req, res))) return;
 
   const id = String(req.query.id || "");
-  if (id) return sendJson(res, { row: await getWatchRecordById(id) });
+  if (id) {
+    const row = await getWatchRecordById(id);
+    const progress = row?.media_key ? await getPlaybackProgressForMedia(row).catch(() => null) : null;
+    return sendJson(res, { row, progress });
+  }
+
+  const mediaKeys = queryList(req.query.mediaKey || req.query.media_key || req.query.mediaKeys);
+  if (mediaKeys.length) {
+    const items = await Promise.all(mediaKeys.map(async (mediaKey) => {
+      const latestRow = await getWatchRecordByMediaKey(mediaKey);
+      // The media-key lookup intentionally stays lightweight for its many sync
+      // callers. SSE uses this path for a single changed item, so hydrate the
+      // full playHistory array before the browser patches that item's detail.
+      const row = latestRow?.id ? await getWatchRecordById(latestRow.id) : latestRow;
+      const progress = await getPlaybackProgressForMedia(row || { media_key: mediaKey }).catch(() => null);
+      return { mediaKey, row, progress };
+    }));
+    return sendJson(res, { items });
+  }
 
   const statsMode = String(req.query.stats || "").toLowerCase();
   if (statsMode === "only") {

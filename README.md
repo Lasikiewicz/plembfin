@@ -406,6 +406,7 @@ is in [`.env.example`](.env.example).
 | `EMBY_UNWATCHED_POLL_INTERVAL_MS` / `JELLYFIN_UNWATCHED_POLL_INTERVAL_MS` | `300000` (5m) each | Cadence of each fallback poll when enabled. |
 | `JELLYFIN_UNWATCHED_CONFIRMATION_WINDOW_MS` | `1200000` (20m) | Window in which Jellyfin must report the same false state twice before the fallback propagates it. |
 | `WATCHED_THRESHOLD_PERCENT` | `90` | Playback % counted as watched (50-100). Settings takes precedence. |
+| `WATCH_IMPORT_MODE` | `review` | Default policy for app-marked watched flags: `review`, `now`, `release_day`, or `episode_timing`. Settings takes precedence. |
 | `MIN_RESUME_POSITION_SEC` | `60` | Minimum position saved as resume progress (0-3600s). Settings takes precedence. |
 | `ACTIVE_SESSION_TTL_MIN` | `5` | Time before an active session goes stale (1-120 min). Settings takes precedence. |
 | `OUTBOUND_TIMEOUT_SEC` | `10` | Default outbound request timeout (2-120s). |
@@ -413,6 +414,7 @@ is in [`.env.example`](.env.example).
 | `PLEMBFIN_DEBUG_OUTBOUND` | _off_ | Set `1` to log per-host outbound request counts once a minute. |
 | `PLEMBFIN_DEBUG_CACHE_REBUILDS` | _off_ | Set `1` to log one line per derived-cache rebuild: which cache, how long it took, and which change caused it. |
 | `PLEMBFIN_DEBUG_SCHEDULER` | _off_ | Set `1` to log per-step scheduler timing, plus a per-tick summary carrying the real interval between ticks. |
+| `PLEMBFIN_PAUSE_SCHEDULED_WORKER` | _off_ | Diagnostic mode: keep real-time provider listeners available while pausing scheduled sync ticks and background-job polling. |
 
 ---
 

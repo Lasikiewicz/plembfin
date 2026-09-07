@@ -81,6 +81,21 @@ watched and unwatched state converges everywhere. Emby and Jellyfin Trakt plugin
 be disabled to keep Plembfin as the sole Trakt bridge. The browser subscribes to an
 authenticated update stream and refreshes the active page as imported changes commit.
 
+### Sync Tuning: app-marked watched flags
+
+The **When you manually mark an item as watched in Plex / Emby / Jellyfin** setting controls scheduled Plex, Emby, and
+Jellyfin library snapshots that report a watched flag without threshold-reaching playback
+evidence. The default is **Require review**. **Mark as watched on release day** uses
+the item's release date; **Mark as watched at the same time as other episodes** uses the
+nearest watched episode in the same season with the same runtime-plus-one-minute spacing
+as the media-page watch-date picker. A real provider playback timestamp is always kept.
+
+**Require review** leaves the item out of canonical watch history until an administrator
+chooses a policy on the **Manual Watch review** page. The page is linked in the sidebar
+above **Sync - Idle**, shows the provider evidence, and offers now, release-day, episode-
+timing, or dismiss actions. Leaving an item untouched defers it; repeated scans do not
+create duplicate review rows.
+
 Full Sync Watchstates replays Plembfin's canonical watched and resume rows in two phases. It takes a fixed snapshot for each phase, temporarily suppresses inbound media-server callbacks and scheduled catch-up work, and shows rows processed, throughput, and an estimated remaining time. The shared sync-operation lock prevents it from overlapping Force Sync or a backup restore. The Stop Restore control cancels future batches; already completed batches remain applied. Reset Restore Lock is an administrator-confirmed recovery action for a run abandoned by a browser or server restart; it stops any in-flight restore before allowing another run to start.
 
 Force Sync contains the same two controls and live activity terminal used by media detail
@@ -160,8 +175,8 @@ help, and Save/Cancel actions. Media-server dialogs also provide **Test** and an
 switch. Fixed services can be disabled but not deleted because the config API has no
 credential-clear operation.
 
-**Sync Tuning is the one exception**: its four numeric fields (watched threshold,
-minimum resume position, active-session TTL, outbound timeout) plus the Fast
+**Sync Tuning is the one exception**: its watched-flag policy, four numeric fields
+(watched threshold, minimum resume position, active-session TTL, outbound timeout) plus the Fast
 Local-Network Sync checkbox render directly inline on the Sync page in a plain form
 with its own Save button - not behind a card + edit modal - since there's only ever
 one instance to edit and no add/remove/test workflow.

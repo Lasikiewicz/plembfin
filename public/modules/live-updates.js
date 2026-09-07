@@ -136,7 +136,8 @@ export function startLiveUpdates({ authHeaders, onHistoryVersion, onDiscoverVers
     // If the server piggybacked sync-progress onto this version bump, apply it
     // first so the client's sync-busy flag is current before onHistoryVersion
     // decides whether to queue a dashboard refresh.
-    onHistoryVersion?.(version);
+    const changes = Array.isArray(event.changes) ? event.changes : [];
+    onHistoryVersion?.(version, { changes, initial: false, event });
   };
 
   const connect = async () => {

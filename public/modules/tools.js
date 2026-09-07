@@ -1,11 +1,11 @@
-import { buildAuthHeaders } from "./auth.js?v=0.15.0.9";
-import { state, elements } from "./state.js?v=0.15.0.9";
-import { escapeHtml, escapeAttribute, formatNumber, formatDate, csvRows, normalizeHeader, episodeCode } from "./utils.js?v=0.15.0.9";
-import { initBackupTools } from "./tools-backups.js?v=0.15.0.9";
-import { initMaintenanceTools } from "./tools-maintenance.js?v=0.15.0.9";
-import { initHealthTools } from "./tools-health.js?v=0.15.0.9";
-import { initDuplicateWatchTools } from "./tools-duplicates.js?v=0.15.0.9";
-import { initWipeDataTools } from "./tools-wipe-data.js?v=0.15.0.9";
+import { buildAuthHeaders } from "./auth.js?v=0.15.0.13";
+import { state, elements } from "./state.js?v=0.15.0.13";
+import { escapeHtml, escapeAttribute, formatNumber, formatDate, csvRows, normalizeHeader, episodeCode } from "./utils.js?v=0.15.0.13";
+import { initBackupTools } from "./tools-backups.js?v=0.15.0.13";
+import { initMaintenanceTools } from "./tools-maintenance.js?v=0.15.0.13";
+import { initHealthTools } from "./tools-health.js?v=0.15.0.13";
+import { initDuplicateWatchTools } from "./tools-duplicates.js?v=0.15.0.13";
+import { initWipeDataTools } from "./tools-wipe-data.js?v=0.15.0.13";
 // Callbacks injected by app.js at startup to avoid circular imports.
 let _setMessage = () => {};
 let _openConfirmDialog = async () => false;
@@ -75,9 +75,9 @@ export {
   setBackupTransferState,
   updatePlembfinButtonsState,
   uploadWatchBackupFile,
-} from "./tools-backups.js?v=0.15.0.9";
-export { loadCacheStats, renderCachePanel, resetFullSyncWatchstates } from "./tools-maintenance.js?v=0.15.0.9";
-export { loadSyncHealth } from "./tools-health.js?v=0.15.0.9";
+} from "./tools-backups.js?v=0.15.0.13";
+export { loadCacheStats, renderCachePanel, resetFullSyncWatchstates } from "./tools-maintenance.js?v=0.15.0.13";
+export { loadSyncHealth } from "./tools-health.js?v=0.15.0.13";
 // ── Trakt / CSV import ─────────────────────────────────────────────────────
 export async function parseSelectedFiles(files) {
   const selectedFiles = [...files];
@@ -349,9 +349,9 @@ export async function startImport() {
 // ── Maintenance tools ──────────────────────────────────────────────────────
 // History repair, dedup, Trakt backfill, full-sync, and system integrity
 // checks live in tools-maintenance.js (per CLAUDE.md's module table) and are
-// re-exported here so existing imports of these names from "./tools.js?v=0.15.0.9"
+// re-exported here so existing imports of these names from "./tools.js?v=0.15.0.13"
 // keep working unchanged.
-export { runRepairWorkflow, runPhantomWatchAudit, runPhantomWatchRepair, runTraktBackfill, runRematchTvShows, runFullSyncWatchstates, cancelFullSyncWatchstates, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory } from "./tools-maintenance.js?v=0.15.0.9";
-export { runDuplicateWatchCleanup } from "./tools-duplicates.js?v=0.15.0.9";
-export { runEpisodeTitleAudit, runEpisodeTitleBackfill } from "./tools-maintenance.js?v=0.15.0.9";
-export { loadWipeDataPreview, runWipeData } from "./tools-wipe-data.js?v=0.15.0.9";
+export { runRepairWorkflow, runPhantomWatchAudit, runPhantomWatchRepair, runTraktBackfill, runRematchTvShows, runFullSyncWatchstates, cancelFullSyncWatchstates, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory } from "./tools-maintenance.js?v=0.15.0.13";
+export { runDuplicateWatchCleanup } from "./tools-duplicates.js?v=0.15.0.13";
+export { runEpisodeTitleAudit, runEpisodeTitleBackfill } from "./tools-maintenance.js?v=0.15.0.13";
+export { loadWipeDataPreview, runWipeData } from "./tools-wipe-data.js?v=0.15.0.13";

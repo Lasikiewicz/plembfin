@@ -152,6 +152,38 @@ test("outbound played marks are keyed per target and per item", async () => {
   assert.equal(await lastOutboundPlayedMarkAt({ ...media, episode: 4 }, "emby", kv), 0);
 });
 
+test("provider unwatches can clear stale outbound played marks", async () => {
+  const { clearOutboundPlayedMarks, lastOutboundPlayedMarkAt, recordOutboundPlayedMarks } = await import(
+    "../server/src/utils/syncOrchestrator.js"
+  );
+  const store = new Map();
+  const kv = {
+    async get(key) {
+      return store.has(key) ? store.get(key) : null;
+    },
+    async put(key, value) {
+      store.set(key, String(value));
+    },
+    async delete(key) {
+      store.delete(key);
+    },
+  };
+  const media = {
+    isValid: true,
+    type: "episode",
+    source: "emby",
+    title: "Ludwig - S02E03",
+    season: 2,
+    episode: 3,
+    ids: { tvdb: "11756904" },
+  };
+
+  await recordOutboundPlayedMarks(media, ["emby"], kv);
+  assert.ok(await lastOutboundPlayedMarkAt(media, "emby", kv) > 0);
+  await clearOutboundPlayedMarks(media, "emby", kv);
+  assert.equal(await lastOutboundPlayedMarkAt(media, "emby", kv), 0);
+});
+
 test("played-flag echoes match Jellyfin item ids even when provider ids are absent", async () => {
   const { isRecentOutboundPlayedFlagEcho, recordOutboundPlayedMarks } = await import(
     "../server/src/utils/syncOrchestrator.js"

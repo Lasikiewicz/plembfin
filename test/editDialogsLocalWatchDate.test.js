@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import "./domStubs.js";
 
 import { state } from "../public/modules/state.js";
-import { applyArtworkToLocalWatchRecords, applyWatchedAtToLocalWatchRecord } from "../public/modules/edit-dialogs.js";
+import { applyArtworkToLocalWatchRecords, applyWatchedAtToLocalWatchRecord, editDateOptionsFromButton } from "../public/modules/edit-dialogs.js";
 import { renderShowRecord } from "../public/modules/explorer.js";
 
 test("editing a movie watch date updates the retained Movies page record", () => {
@@ -24,6 +24,39 @@ test("editing a movie watch date updates the retained Movies page record", () =>
   assert.equal(record, state.moviesRaw[0]);
   assert.equal(state.moviesRaw[0].watched_at, updated);
   assert.equal(state.moviesRaw[0].playHistory[0].watched_at, updated);
+});
+
+test("an existing watched episode exposes the same-as-other-episodes date choice", () => {
+  const previousEpisodes = state.showModalEpisodes;
+  const watchedAt = "2026-08-12T12:00:00.000Z";
+  const releaseDate = "2026-08-08";
+  const row = {
+    dataset: { immersiveSeasonNum: "1", immersiveEpisodeNum: "2" },
+    querySelector: (selector) => selector === ".immersive-episode-dates time[datetime]"
+      ? { getAttribute: () => releaseDate }
+      : null,
+  };
+  const button = {
+    dataset: { editId: "episode-2" },
+    closest: (selector) => selector === ".immersive-episode-row" ? row : null,
+  };
+  state.showModalEpisodes = [
+    { seasonNumber: 1, episodeNumber: 1, runtime: 23, watched: { watched_at: watchedAt } },
+    { seasonNumber: 1, episodeNumber: 2, runtime: 24, watched: { watched_at: "2026-08-12T12:30:00.000Z" } },
+  ];
+
+  try {
+    const options = editDateOptionsFromButton(button);
+
+    assert.equal(options.releaseDate, releaseDate);
+    assert.deepEqual(options.episodeTiming, {
+      watchedAt: "2026-08-12T12:24:00.000Z",
+      referenceLabel: "S01E01",
+      direction: "after_last",
+    });
+  } finally {
+    state.showModalEpisodes = previousEpisodes;
+  }
 });
 
 test("editing one rewatch keeps the movie card on the latest remaining watch date", () => {

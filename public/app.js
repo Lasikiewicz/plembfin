@@ -1,35 +1,36 @@
-import { buildAuthHeaders, buildNowPlayingUrl, currentUser, getWebhookToken, onAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./modules/auth.js?v=0.15.0.9";
-import { initOnboarding, loadSetupStatus, renderSetupPage, setClaimRequired } from "./modules/onboarding.js?v=0.15.0.9";
-import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs, formatLogLineToHtml } from "./modules/logs.js?v=0.15.0.9";
-import { applySettingsRoute, focusSettingsRoute, parseSettingsRoute, prepareSettingsShell, scrollToSettingsSection, settingsPathForLegacy } from "./modules/settings-shell.js?v=0.15.0.9";
-import { initSettingsServices, applyConfigToSettingsUi, refreshSeerrCapabilities, renderMediaServerCards, renderMetadataCards } from "./modules/settings-services.js?v=0.15.0.9";
-import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS, EXPLORER_VIEW_KEY_MOVIES, EXPLORER_VIEW_KEY_SHOWS, HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS, HISTORY_VIEW_KEY, HISTORY_FILTER_KEY, HISTORY_VIEW_MODES, HISTORY_FILTERS, PERSONAL_MEDIA_VIEWS, PRIMARY_VIEWS } from "./modules/state.js?v=0.15.0.9";
-import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, movieSlug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, showName, showTitleFrom, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDate, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel } from "./modules/utils.js?v=0.15.0.9";
-import { buildWebhookUrl, renderSettingsInlineHelp } from "./modules/help-content.js?v=0.15.0.9";
-import { isCachedStorageImageUrl, compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, rememberPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, tmdbProfile, proxiedArtworkUrl } from "./modules/images.js?v=0.15.0.9";
-import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, loadRemotePlembfinBackupsForRestoreTab, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runPhantomWatchAudit, runPhantomWatchRepair, runTraktBackfill, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, loadPlembfinBackups, renderPlembfinBackups, runDuplicateWatchCleanup, loadWipeDataPreview, runWipeData } from "./modules/tools.js?v=0.15.0.9";
-import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, showAvailIssuePopup, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerRetrySync, triggerCronSync, triggerStopSync, triggerForceSync, isSyncProgressActive } from "./modules/sync.js?v=0.15.0.9";
-import { renderSyncActivity, renderSyncActivityStatus, setSyncActivityProgress, setSyncAttentionSummary, loadSyncAttention, renderSyncAttention, skipSyncAttention, skipSyncAttentionItem, retrySyncAttentionItem, skipSyncAttentionShow, retrySyncAttentionShow, recordClientAttention, clearClientAttention, clearClientAttentionForRoute, setSyncActivitySearch, resetSyncActivity, loadSyncActivity, downloadSyncActivityLog, retrySyncActivity, startRetryAllSyncActivity, resumeRetryAllSyncActivityIfRunning, fetchAllRetryableSyncActivityIds, toggleSyncActivityRowLog, loadOlderSyncActivityGroup, toggleSyncActivityFailedOnly, startSyncActivityRefresh, stopSyncActivityRefresh } from "./modules/sync-activity.js?v=0.15.0.9";
-import { initSyncPreview } from "./modules/sync-preview.js?v=0.15.0.9";
-import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, refreshDashboardHistoryInPlace, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched } from "./modules/dashboard.js?v=0.15.0.9";
-import { initUpNext, renderUpNext, loadUpNext, resetUpNext } from "./modules/up-next.js?v=0.15.0.9";
-import { initDiscover, renderDiscover, loadDiscover, resetDiscover } from "./modules/discover.js?v=0.15.0.9";
-import { initPersonalMedia, renderPersonalMedia, loadPersonalMedia, resetPersonalMedia } from "./modules/personal-media.js?v=0.15.0.9";
-import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, loadStats, renderRankingTable } from "./modules/stats.js?v=0.15.0.9";
-import { initUpcoming, openUpcomingToToday } from "./modules/upcoming.js?v=0.15.0.9";
-import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, triggerSearchPage, renderSearchPage, renderExplorer, explorerQueryKey, updateAlphaFilter, handleAlphaFilterClick, resetMovieExplorer, resetShowExplorer, renderExplorerSentinel, observeExplorerSentinel, observeExplorerTmdbPrefetch, scheduleNextAirResort, currentExplorerView, currentExplorerSort, currentPosterWidthKey, setCurrentExplorerSort, applyExplorerPosterWidth, applyListHeaderSort, renderMovieCard, renderMovieExplorer, loadExplorerMovies, applyHistoryPosterWidth, renderHistoryItems, renderHistoryView, resetHistoryView, loadHistoryView, observeHistorySentinel, renderShowExplorer, loadExplorerShows, loadShowDetail, matchesExplorerSearch, sortExplorerItems, renderShowRecord, renderShowFolder, renderSeasonFolder, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, emptyExplorer, FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver } from "./modules/explorer.js?v=0.15.0.9";
-import { initEditDialogs, openEditDateDialog, openEditShowDateDialog, openEditSeasonDateDialog, openEditImageDialog, openFixMatchDialog, openMergeShowDialog, applyWatchedAtToLocalWatchRecord, editDateOptionsFromButton } from "./modules/edit-dialogs.js?v=0.15.0.9";
-import { initWatchAction, openWatchDatePrompt, closeWatchDatePrompt, submitSeerrRequest, markMovieWatched, refreshShowAfterManualWatch, applyWatchDateChoice, confirmAndMarkUnwatched, confirmAndDeleteMedia } from "./modules/watch-action.js?v=0.15.0.9";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails, resolveEpisodeTitleFromTmdb } from "./modules/tmdb.js?v=0.15.0.9";
-import { initMediaDetail, movieBySlugOrId, nowPlayingHref, openMovieInlineDetail, openShowInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, renderImmersiveShowModal, renderShowModalContent, renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus, patchMovieWatchedState } from "./modules/media-detail.js?v=0.15.0.9";
-import { refreshActiveDetailView } from "./modules/media-detail-events.js?v=0.15.0.9";
-import { initMediaPerson, closePersonProfile, loadCastMemberDetails } from "./modules/media-person.js?v=0.15.0.9";
-import { initMediaLightbox } from "./modules/media-lightbox.js?v=0.15.0.9";
-import { initAppEvents, closeMobileMenu } from "./modules/app-events.js?v=0.15.0.9";
-import { initTrackerSettings, refreshTrackerSettings } from "./modules/tracker-settings.js?v=0.15.0.9";
-import { initRatingSyncSettings, applyRatingSyncConfig, refreshRatingSyncStatus, runRatingSyncNow } from "./modules/rating-sync-settings.js?v=0.15.0.9";
-import { initWatchlistSyncSettings, applyWatchlistSyncConfig, refreshWatchlistSyncStatus, runWatchlistSyncNow } from "./modules/watchlist-sync-settings.js?v=0.15.0.9";
-import { startLiveUpdates, stopLiveUpdates } from "./modules/live-updates.js?v=0.15.0.9";
+import { buildAuthHeaders, buildNowPlayingUrl, currentUser, getWebhookToken, onAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./modules/auth.js?v=0.15.0.13";
+import { initOnboarding, loadSetupStatus, renderSetupPage, setClaimRequired } from "./modules/onboarding.js?v=0.15.0.13";
+import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs, formatLogLineToHtml } from "./modules/logs.js?v=0.15.0.13";
+import { applySettingsRoute, focusSettingsRoute, parseSettingsRoute, prepareSettingsShell, scrollToSettingsSection, settingsPathForLegacy } from "./modules/settings-shell.js?v=0.15.0.13";
+import { initSettingsServices, applyConfigToSettingsUi, refreshSeerrCapabilities, renderMediaServerCards, renderMetadataCards } from "./modules/settings-services.js?v=0.15.0.13";
+import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS, EXPLORER_VIEW_KEY_MOVIES, EXPLORER_VIEW_KEY_SHOWS, HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS, HISTORY_VIEW_KEY, HISTORY_FILTER_KEY, HISTORY_VIEW_MODES, HISTORY_FILTERS, PERSONAL_MEDIA_VIEWS, PRIMARY_VIEWS } from "./modules/state.js?v=0.15.0.13";
+import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, movieSlug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, showName, showTitleFrom, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDate, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel } from "./modules/utils.js?v=0.15.0.13";
+import { buildWebhookUrl, renderSettingsInlineHelp } from "./modules/help-content.js?v=0.15.0.13";
+import { isCachedStorageImageUrl, compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, rememberPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, tmdbProfile, proxiedArtworkUrl } from "./modules/images.js?v=0.15.0.13";
+import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, loadRemotePlembfinBackupsForRestoreTab, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runPhantomWatchAudit, runPhantomWatchRepair, runTraktBackfill, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, loadPlembfinBackups, renderPlembfinBackups, runDuplicateWatchCleanup, loadWipeDataPreview, runWipeData } from "./modules/tools.js?v=0.15.0.13";
+import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, showAvailIssuePopup, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerRetrySync, triggerCronSync, triggerStopSync, triggerForceSync, isSyncProgressActive } from "./modules/sync.js?v=0.15.0.13";
+import { renderSyncActivity, renderSyncActivityStatus, setSyncActivityProgress, setSyncAttentionSummary, loadSyncAttention, renderSyncAttention, skipSyncAttention, skipSyncAttentionItem, retrySyncAttentionItem, skipSyncAttentionShow, retrySyncAttentionShow, recordClientAttention, clearClientAttention, clearClientAttentionForRoute, setSyncActivitySearch, resetSyncActivity, loadSyncActivity, downloadSyncActivityLog, retrySyncActivity, startRetryAllSyncActivity, resumeRetryAllSyncActivityIfRunning, fetchAllRetryableSyncActivityIds, toggleSyncActivityRowLog, loadOlderSyncActivityGroup, toggleSyncActivityFailedOnly, startSyncActivityRefresh, stopSyncActivityRefresh } from "./modules/sync-activity.js?v=0.15.0.13";
+import { initSyncPreview } from "./modules/sync-preview.js?v=0.15.0.13";
+import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, refreshDashboardHistoryInPlace, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched } from "./modules/dashboard.js?v=0.15.0.13";
+import { initUpNext, renderUpNext, loadUpNext, resetUpNext } from "./modules/up-next.js?v=0.15.0.13";
+import { initDiscover, renderDiscover, loadDiscover, resetDiscover } from "./modules/discover.js?v=0.15.0.13";
+import { initPersonalMedia, renderPersonalMedia, loadPersonalMedia, resetPersonalMedia } from "./modules/personal-media.js?v=0.15.0.13";
+import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, loadStats, renderRankingTable } from "./modules/stats.js?v=0.15.0.13";
+import { initUpcoming, openUpcomingToToday } from "./modules/upcoming.js?v=0.15.0.13";
+import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, triggerSearchPage, renderSearchPage, renderExplorer, explorerQueryKey, updateAlphaFilter, handleAlphaFilterClick, resetMovieExplorer, resetShowExplorer, renderExplorerSentinel, observeExplorerSentinel, observeExplorerTmdbPrefetch, scheduleNextAirResort, currentExplorerView, currentExplorerSort, currentPosterWidthKey, setCurrentExplorerSort, applyExplorerPosterWidth, applyListHeaderSort, renderMovieCard, renderMovieExplorer, loadExplorerMovies, applyHistoryPosterWidth, renderHistoryItems, renderHistoryView, resetHistoryView, loadHistoryView, observeHistorySentinel, renderShowExplorer, loadExplorerShows, loadShowDetail, matchesExplorerSearch, sortExplorerItems, renderShowRecord, renderShowFolder, renderSeasonFolder, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, emptyExplorer, FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver } from "./modules/explorer.js?v=0.15.0.13";
+import { initEditDialogs, openEditDateDialog, openEditShowDateDialog, openEditSeasonDateDialog, openEditImageDialog, openFixMatchDialog, openMergeShowDialog, applyWatchedAtToLocalWatchRecord, editDateOptionsFromButton } from "./modules/edit-dialogs.js?v=0.15.0.13";
+import { initWatchAction, openWatchDatePrompt, closeWatchDatePrompt, submitSeerrRequest, markMovieWatched, refreshShowAfterManualWatch, applyWatchDateChoice, confirmAndMarkUnwatched, confirmAndDeleteMedia } from "./modules/watch-action.js?v=0.15.0.13";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails, resolveEpisodeTitleFromTmdb } from "./modules/tmdb.js?v=0.15.0.13";
+import { initMediaDetail, movieBySlugOrId, nowPlayingHref, openMovieInlineDetail, openShowInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, renderImmersiveShowModal, renderShowModalContent, renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus, patchMovieWatchedState } from "./modules/media-detail.js?v=0.15.0.13";
+import { applyLiveHistoryChanges, refreshActiveDetailView } from "./modules/media-detail-events.js?v=0.15.0.13";
+import { initMediaPerson, closePersonProfile, loadCastMemberDetails } from "./modules/media-person.js?v=0.15.0.13";
+import { initMediaLightbox } from "./modules/media-lightbox.js?v=0.15.0.13";
+import { initAppEvents, closeMobileMenu } from "./modules/app-events.js?v=0.15.0.13";
+import { initTrackerSettings, refreshTrackerSettings } from "./modules/tracker-settings.js?v=0.15.0.13";
+import { initRatingSyncSettings, applyRatingSyncConfig, refreshRatingSyncStatus, runRatingSyncNow } from "./modules/rating-sync-settings.js?v=0.15.0.13";
+import { initWatchlistSyncSettings, applyWatchlistSyncConfig, refreshWatchlistSyncStatus, runWatchlistSyncNow } from "./modules/watchlist-sync-settings.js?v=0.15.0.13";
+import { startLiveUpdates, stopLiveUpdates } from "./modules/live-updates.js?v=0.15.0.13";
+import { initManualWatchReview, loadManualWatchReview, renderManualWatchReviewPage, renderManualWatchReviewSummary, startManualWatchReviewPolling, stopManualWatchReviewPolling } from "./modules/manual-watch-review.js?v=0.15.0.13";
 
 // Ping the backend the moment the app loads (no auth needed), so the server's
 // caches and upstream connections are warm by the time the user clicks into
@@ -1295,7 +1296,8 @@ function isConfigSensitiveRoute(path = "") {
     || path.startsWith("/watchlist")
     || path.startsWith("/ratings")
     || path.startsWith("/custom-lists")
-    || path.startsWith("/setup");
+    || path.startsWith("/setup")
+    || path.startsWith("/manual-watch-review");
 }
 
 function handleRouting(path) {
@@ -1501,6 +1503,10 @@ function handleRouting(path) {
     clearMediaDetailState();
   } else if (pathname === "/sync-activity") {
     state.activeView = "syncActivity";
+    state.mediaDetailInline = false;
+    clearMediaDetailState();
+  } else if (pathname === "/manual-watch-review") {
+    state.activeView = "manualWatchReview";
     state.mediaDetailInline = false;
     clearMediaDetailState();
   } else if (pathname === "/search") {
@@ -1724,6 +1730,8 @@ function selectView(view) {
   } else if (targetView === "search") {
     const q = state.searchQuery || new URLSearchParams(window.location.search).get("q") || "";
     url = `/search${q ? `?q=${encodeURIComponent(q)}` : ""}`;
+  } else if (targetView === "manualWatchReview") {
+    url = "/manual-watch-review";
   } else if (targetView !== "dashboard") {
     url = `/${targetView}`;
   }
@@ -1814,6 +1822,10 @@ function syncPageTopbar() {
     activeControls = elements.historyTopbarControls;
   } else if (state.activeView === "syncActivity") {
     title = "Sync Activity";
+    subtitle = "";
+    activeControls = null;
+  } else if (state.activeView === "manualWatchReview") {
+    title = "Manual Watch review";
     subtitle = "";
     activeControls = null;
   } else if (state.activeView === "stats") {
@@ -1999,6 +2011,10 @@ function applyActiveView() {
     }
   } else {
     stopSyncActivityRefresh();
+  }
+  if (state.activeView === "manualWatchReview") {
+    renderManualWatchReviewPage();
+    if (state.token) loadManualWatchReview().catch((error) => setMessage(error.message, "error"));
   }
   if (state.activeView !== "explorer") {
     state.explorerLoadObserver?.disconnect();
@@ -2345,8 +2361,30 @@ function handleSyncAttentionUpdate(summary = {}) {
 let liveHistoryRefreshTimer = null;
 let liveHistoryRefreshActive = false;
 let liveHistoryRefreshQueued = false;
+const pendingLiveHistoryChanges = new Map();
+let liveHistoryFullRefreshQueued = false;
 
-function queueLiveHistoryRefresh({ immediate = false } = {}) {
+function liveHistoryChangeKey(change = {}) {
+  return String(
+    change.mediaKey
+      ?? change.media_key
+      ?? change.recordId
+      ?? change.record_id
+      ?? `${change.sourceTable || change.source_table || "change"}:${change.season ?? ""}:${change.episode ?? ""}`,
+  ).trim();
+}
+
+function queueLiveHistoryRefresh({ immediate = false, changes = [] } = {}) {
+  const incomingChanges = Array.isArray(changes) ? changes.filter((change) => change && typeof change === "object") : [];
+  for (const change of incomingChanges) {
+    const key = liveHistoryChangeKey(change);
+    if (key) pendingLiveHistoryChanges.set(key, change);
+  }
+  // Calls from local actions and the sync-idle grace timer have no SSE item
+  // list. Preserve their existing conservative full refresh, but don't turn a
+  // queued item-level SSE patch into a full rebuild as well.
+  if (immediate && !pendingLiveHistoryChanges.size && !incomingChanges.length) liveHistoryFullRefreshQueued = true;
+  if (!pendingLiveHistoryChanges.size && !liveHistoryFullRefreshQueued) return;
   liveHistoryRefreshQueued = true;
 
   // While a sync job is actively writing rows in the background (force sync, cron repair, full sync,
@@ -2380,19 +2418,45 @@ function queueLiveHistoryRefresh({ immediate = false } = {}) {
       liveHistoryRefreshQueued = true;
       return;
     }
-    if (liveHistoryRefreshActive) {
-      queueLiveHistoryRefresh({ immediate });
-      return;
-    }
-    refreshLiveHistoryView().catch((error) => logDebug(`Live history refresh failed: ${error.message}`));
+    if (liveHistoryRefreshActive) return;
+    const changesToApply = [...pendingLiveHistoryChanges.values()];
+    const fullRefresh = liveHistoryFullRefreshQueued;
+    pendingLiveHistoryChanges.clear();
+    liveHistoryFullRefreshQueued = false;
+    refreshLiveHistoryView({ changes: changesToApply, fullRefresh }).catch((error) => logDebug(`Live history refresh failed: ${error.message}`));
   }, delayMs);
 }
 
-async function refreshLiveHistoryView() {
+async function refreshLiveHistoryView({ changes = [], fullRefresh = false } = {}) {
   if (liveHistoryRefreshActive) return;
   liveHistoryRefreshActive = true;
   liveHistoryRefreshQueued = false;
   try {
+    if (!fullRefresh && changes.length) {
+      const reviewChanges = changes.filter((change) => String(change.sourceTable || change.source_table || "").toLowerCase() === "manual_watch_reviews");
+      const historyChanges = changes.filter((change) => String(change.sourceTable || change.source_table || "").toLowerCase() !== "manual_watch_reviews");
+      if (historyChanges.length) await applyLiveHistoryChanges(historyChanges);
+      if (reviewChanges.length) {
+        await loadManualWatchReview({ summaryOnly: state.activeView !== "manualWatchReview" }).catch((error) => {
+          logDebug(`Background Manual Watch review refresh failed: ${error.message}`);
+        });
+      }
+      const upNextRelevantChange = changes.some((change) => ["watch_history", "playstate", "playback_progress"].includes(
+        String(change.sourceTable || change.source_table || "").toLowerCase(),
+      ));
+      if (upNextRelevantChange) {
+        await loadUpNext({ force: true }).catch((error) => {
+          logDebug(`Background Up Next refresh failed: ${error.message}`);
+        });
+      }
+      const hasPersonalChange = changes.some((change) => String(change.sourceTable || change.source_table || "") === "personal_watchlist");
+      if (hasPersonalChange && isPersonalMediaView(state.activeView)) {
+        await loadPersonalMedia({ force: true }).catch((error) => logDebug(`Background personal watchlist refresh failed: ${error.message}`));
+      }
+      if (state.activeView === "dashboard") refreshDashboardHistoryInPlace();
+      return;
+    }
+    if (!fullRefresh) return;
     clearDerivedUiCaches({ resetExplorer: false });
     // SSE only tells us that the shared data version changed. Fetch the
     // authoritative history/progress snapshots, then reconcile the visible
@@ -2417,8 +2481,10 @@ async function refreshLiveHistoryView() {
     await upNextRefresh;
   } finally {
     liveHistoryRefreshActive = false;
-    if (liveHistoryRefreshQueued && !isAnySyncRunning()) {
+    if ((pendingLiveHistoryChanges.size || liveHistoryFullRefreshQueued) && !isAnySyncRunning()) {
       queueLiveHistoryRefresh();
+    } else if (!pendingLiveHistoryChanges.size && !liveHistoryFullRefreshQueued) {
+      liveHistoryRefreshQueued = false;
     }
   }
 }
@@ -2567,6 +2633,14 @@ async function lockDashboard() {
   state.syncActivityLoaded = false;
   state.syncActivityLoading = false;
   state.syncActivitySearch = "";
+  state.manualWatchReviews = [];
+  state.manualWatchReviewCount = 0;
+  state.manualWatchReviewLoaded = false;
+  state.manualWatchReviewLoading = false;
+  state.manualWatchReviewError = "";
+  state.manualWatchReviewSearch = "";
+  stopManualWatchReviewPolling();
+  renderManualWatchReviewSummary();
   clearClientAttention();
   state.syncAttention = [];
   state.syncAttentionCount = 0;
@@ -2713,6 +2787,10 @@ function primeSensitiveRouteState(path = "") {
     state.activeView = "setup";
     return true;
   }
+  if (pathname === "/manual-watch-review") {
+    state.activeView = "manualWatchReview";
+    return true;
+  }
   if (pathname === "/discover") {
     state.activeView = "discover";
     return true;
@@ -2783,6 +2861,8 @@ function initialize() {
       state.savedConfig = config || state.savedConfig;
     },
   });
+  initManualWatchReview({ setMessage, navigateTo });
+  renderManualWatchReviewSummary();
   initOnboarding({ authHeaders, navigateTo, setMessage, setUnlocked, loadHistory, loadSavedConfig, startHistoryPolling, openConfirmDialog });
   initTools({
     setMessage,
@@ -2862,6 +2942,7 @@ function initialize() {
     openShowImmersiveModalByTvdbId,
     openMovieImmersiveModalByTmdbId,
     patchMovieWatchedState,
+    refreshUpNext: loadUpNext,
   });
   initMediaLightbox();
   initSync({
@@ -3019,7 +3100,7 @@ function initialize() {
     if (user && token) {
       startLiveUpdates({
         authHeaders,
-        onHistoryVersion: queueLiveHistoryRefresh,
+        onHistoryVersion: (version, { changes = [] } = {}) => queueLiveHistoryRefresh({ changes }),
         onUpNextVersion: (version, { initial = false, pairedWithHistory = false } = {}) => {
           const normalized = Number(version);
           if (!Number.isFinite(normalized)) return;
@@ -3043,6 +3124,8 @@ function initialize() {
         onSyncAttention: handleSyncAttentionUpdate,
         onError: (error) => logDebug(`Live update connection interrupted: ${error.message}`),
       });
+      startManualWatchReviewPolling();
+      loadManualWatchReview({ summaryOnly: true }).catch((error) => logDebug(`Initial manual watch review load failed: ${error.message}`));
       loadSyncAttention().catch((error) => logDebug(`Initial sync attention load failed: ${error.message}`));
       refreshTrackerSettings().catch(() => { });
       refreshRatingSyncStatus().catch(() => { });

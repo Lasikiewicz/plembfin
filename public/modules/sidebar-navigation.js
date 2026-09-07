@@ -10,6 +10,7 @@ export function sidebarNavigationPath(target) {
   if (view === "dashboard") return "/";
   if (view === "explorer") return target.dataset.explorerNav === "shows" ? "/tvshows" : "/movies";
   if (view === "settings") return "/settings";
+  if (view === "manualWatchReview") return "/manual-watch-review";
   return `/${view}`;
 }
 

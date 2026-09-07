@@ -1,4 +1,4 @@
-import { getDataVersion, getProgressVersion, getDiscoverVersion, getUpNextVersion } from "../db.js";
+import { getDataVersion, getProgressVersion, getDiscoverVersion, getUpNextVersion, latestLiveChangeId, liveChangesSince } from "../db.js";
 import { requireAdmin } from "../utils/auth.js";
 import { methodNotAllowed } from "../utils/http.js";
 import {
@@ -74,6 +74,49 @@ function syncEventFields(status) {
   };
 }
 
+function readLiveChangesSince(cursor) {
+  const rows = [];
+  let nextCursor = Math.max(Number(cursor) || 0, 0);
+  // A busy sync can write many rows between two 250ms polls. Drain the journal
+  // in bounded chunks so advancing the aggregate version never strands the
+  // tail of a batch for a future version bump.
+  for (let page = 0; page < 20; page += 1) {
+    const batch = liveChangesSince(nextCursor, 10_000);
+    if (!batch.length) break;
+    rows.push(...batch);
+    nextCursor = Number(batch[batch.length - 1].id) || nextCursor;
+    if (batch.length < 10_000) break;
+  }
+
+  // Multiple canonical tables often describe one logical media mutation (for
+  // example watch_history and playstate). The browser only needs the newest
+  // signal for each media key; the item endpoint then reads the authoritative
+  // current projection once.
+  const latestByTarget = new Map();
+  for (const row of rows) {
+    const target = row.media_key
+      ? `key:${row.media_key}`
+      : row.record_id
+        ? `record:${row.record_id}`
+        : "";
+    if (!target) continue;
+    latestByTarget.set(target, {
+      changeId: Number(row.id) || 0,
+      sourceTable: row.source_table || "",
+      changeKind: row.change_kind || "upsert",
+      mediaKey: row.media_key || "",
+      recordId: row.record_id || "",
+      mediaType: row.media_type || "",
+      title: row.title || "",
+      showTitle: row.show_title || "",
+      season: row.season ?? null,
+      episode: row.episode ?? null,
+      createdAt: Number(row.created_at) || 0,
+    });
+  }
+  return { changes: [...latestByTarget.values()], cursor: nextCursor };
+}
+
 // Streams shared SQLite cache versions rather than relying on an in-process
 // event emitter. This keeps browser updates working when Plembfin's web and
 // scheduler roles run in separate processes.
@@ -95,6 +138,7 @@ export async function handleLiveUpdates(req, res) {
   // Send a complete progress snapshot in `ready`, before the browser is
   // allowed to react to a version change. This matters on reconnect: the tab
   // still holds its previous sync-busy flag until this new stream corrects it.
+  let lastChangeId = latestLiveChangeId();
   const initialSyncStatus = await loadSyncStatus();
   const initialVersion = clientFacingVersion();
   const initialDiscoverVersion = getDiscoverVersion();
@@ -156,9 +200,11 @@ export async function handleLiveUpdates(req, res) {
           lastVersion = version;
           lastUpNextVersion = upNextVersion;
           lastWriteAt = Date.now();
+          const liveChanges = readLiveChangesSince(lastChangeId);
+          lastChangeId = Math.max(lastChangeId, liveChanges.cursor);
           // Include current sync state so the client knows whether a background
           // sync is active before it decides to act on the version change.
-          writeEvent(res, { type: "history-version", version, discoverVersion, upNextVersion, ...syncEventFields(syncStatus) });
+          writeEvent(res, { type: "history-version", version, discoverVersion, upNextVersion, changes: liveChanges.changes, ...syncEventFields(syncStatus) });
           return;
         }
 

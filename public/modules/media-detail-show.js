@@ -1,25 +1,48 @@
-import { state, elements } from "./state.js?v=0.15.0.9";
-import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel, formatSeasonTitle, sourceBadgeHtml, platformSourceValues, actualWatchHistory } from "./utils.js?v=0.15.0.9";
-import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=0.15.0.9";
-import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js?v=0.15.0.9";
-import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading, cachedShowDetail, rememberShowDetail, cachedShowDetailMiss, rememberShowDetailMiss } from "./explorer.js?v=0.15.0.9";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=0.15.0.9";
-import { renderWatchDatePrompt, seasonUnwatchButtonHtml, showUnwatchButtonHtml, savingEpisodeKeysForShow } from "./watch-action.js?v=0.15.0.9";
-import { authHeaders, setMessage, syncPageTopbar, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=0.15.0.9";
-import { personalRatingPillHtml, personalEpisodeRatingButtonHtml, personalMediaActionsHtml } from "./personal-media.js?v=0.15.0.9";
+import { state, elements } from "./state.js?v=0.15.0.13";
+import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel, formatSeasonTitle, sourceBadgeHtml, platformSourceValues, actualWatchHistory, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js?v=0.15.0.13";
+import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=0.15.0.13";
+import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js?v=0.15.0.13";
+import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading, cachedShowDetail, rememberShowDetail, cachedShowDetailMiss, rememberShowDetailMiss } from "./explorer.js?v=0.15.0.13";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=0.15.0.13";
+import { renderWatchDatePrompt, seasonUnwatchButtonHtml, showUnwatchButtonHtml, savingEpisodeKeysForShow } from "./watch-action.js?v=0.15.0.13";
+import { authHeaders, setMessage, syncPageTopbar, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=0.15.0.13";
+import { personalRatingPillHtml, personalEpisodeRatingButtonHtml, personalMediaActionsHtml } from "./personal-media.js?v=0.15.0.13";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderRelatedShowsSection,
   renderMediaFacts, renderMediaImagesSection, renderExternalRatingPills, ratingPillHtml,
   renderSeasonSeerrControls, renderSeerrRequestPill, fetchSeerrMediaStatus,
   refreshActiveMediaDetailAfterSeerrStatus, tvSeasonAvailabilityHtml, episodeResolutionPillHtml,
   hydrateMediaAppLinks, mediaAppLinksHtml,
-} from "./media-detail-shared.js?v=0.15.0.9";
+} from "./media-detail-shared.js?v=0.15.0.13";
 
 let _playbackProgressRows = [];
 let _playbackProgressLoaded = false;
 let _playbackProgressLoadPromise = null;
 const _seasonDetailsInflight = new Set();
 const SEASON_HYDRATION_CONCURRENCY = 4;
+
+function canonicalizeBareShowRoute(tmdbData, title = "", seasonNumber = null, episodeNumber = null, tvdbId = "") {
+  if (typeof window === "undefined" || !/^\/tvshow\/(?!tmdb\/|tvdb\/)/i.test(window.location.pathname)) return;
+  const resolvedTmdbId = String(tmdbData?.id || "").trim();
+  const resolvedTvdbId = String(tvdbId || tmdbData?.external_ids?.tvdb_id || "").trim();
+  const showTitle = String(title || tmdbData?.name || "").trim();
+  const base = resolvedTmdbId
+    ? tvShowTmdbHref(resolvedTmdbId, showTitle)
+    : resolvedTvdbId
+      ? tvShowTvdbHref(resolvedTvdbId, showTitle)
+      : "";
+  if (!base) return;
+
+  const currentHash = String(window.location.hash || "");
+  const season = Number(seasonNumber);
+  const episode = Number(episodeNumber);
+  const hash = currentHash || (Number.isInteger(season) && season >= 0
+    ? `#season${season}${Number.isInteger(episode) && episode >= 1 ? `ep${episode}` : ""}`
+    : "");
+  const nextUrl = `${base}${hash}`;
+  const currentUrl = `${window.location.pathname}${window.location.search}${window.location.hash}`;
+  if (nextUrl !== currentUrl) window.history.replaceState({}, document.title, nextUrl);
+}
 
 // The page's actual scrollable element is <main class="page-shell">
 // (window/document never scroll - the app shell layout keeps the sidebar
@@ -78,15 +101,15 @@ export function scrollSeasonAccordionIntoView(seasonNum, { duration = SCROLL_ANI
   animateScrollTop(container, Math.max(0, targetTop), duration);
 }
 
-// Season episode lists are keyed by TMDB id for the shows TMDB knows about, and
-// by `tvdb:<id>` for series that only exist on TVDB. Both forms are accepted by
-// fetchTmdbSeasonDetails, so one identity string covers the caching, the
-// in-flight guards, and the "is this still the show on screen?" checks below.
+// Season episode lists are TVDB-backed. Prefer the show's resolved TVDB id even
+// when the merged metadata also has a TMDB id: TVDB-only cache rows are a valid
+// source of the merged show document, but a TMDB-id season lookup cannot find
+// those rows and leaves the page stuck with only locally-watched episodes.
 export function showSeasonLookupId(tmdbData) {
-  const tmdbId = String(tmdbData?.id || "");
-  if (tmdbId) return tmdbId;
   const tvdbId = String(tmdbData?.external_ids?.tvdb_id || "");
-  return tvdbId ? `tvdb:${tvdbId}` : "";
+  if (tvdbId) return `tvdb:${tvdbId}`;
+  const tmdbId = String(tmdbData?.id || "");
+  return tmdbId;
 }
 
 function identifiableShowTitleFromRow(row, historyId = "") {
@@ -473,6 +496,13 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
     `;
     return;
   }
+  canonicalizeBareShowRoute(
+    tmdbData,
+    initialLocalSeed?.title || tmdbData.name || "",
+    state.activeShowModalSeason,
+    state.activeShowModalEpisode,
+    tmdbData.external_ids?.tvdb_id,
+  );
   await renderShowDetailFromMetadata(tmdbData, renderToken, localDetailPromise);
 }
 
@@ -643,6 +673,13 @@ export async function openShowImmersiveModalByTvdbId(tvdbId) {
     `;
     return;
   }
+  canonicalizeBareShowRoute(
+    tmdbData,
+    initialLocalSeed?.title || tmdbData.name || "",
+    state.activeShowModalSeason,
+    state.activeShowModalEpisode,
+    tvdbId,
+  );
   await renderShowDetailFromMetadata(tmdbData, renderToken, localDetailPromise);
 }
 
@@ -1215,6 +1252,84 @@ function showSeasonSummary(seasonNumber, seasonEpisodes, season, showTitle = "",
   return { ...watchSummary, watchedInSeason, seasonTotal, nextAiring, nextAiringText };
 }
 
+function renderEpisodeRowHtml(episode, {
+  showTitle = "",
+  tvSeerrStatus = {},
+  savingEpisodeKeys = new Set(),
+  isUnreleased = () => false,
+  loading = false,
+  hideSpoilers = false,
+  watchHistoryLoading = false,
+  seasonDataPending = false,
+} = {}) {
+  const isHighlighted = (Number(episode.seasonNumber) === Number(state.activeShowModalSeason))
+    && (Number(episode.episodeNumber) === Number(state.activeShowModalEpisode));
+  const syncStatusDotHtml = episode.watched ? renderSyncStatusDot(episode.watched) : "";
+  const episodeIsUnreleased = isUnreleased(episode);
+  const playHistory = actualWatchHistory(episode.watched);
+  const hasWatchHistory = playHistory.length > 0;
+  const episodeWatchHistoryPending = Boolean(watchHistoryLoading && episode.watched && !hasWatchHistory);
+  const episodeBusy = savingEpisodeKeys.has(episode.key);
+  const episodeUnwatching = Boolean(episode.watched && state.savingUnwatchIds.has(episode.watched.id));
+  const episodeTilesLoading = Boolean(loading || watchHistoryLoading || seasonDataPending);
+  const personalEpisodeRatingHtml = personalEpisodeRatingButtonHtml({
+    media_type: "episode",
+    title: episode.title,
+    show_title: episode.showTitle || showTitle,
+    tmdb_id: episode.showTmdbId || "",
+    tvdb_id: episode.showTvdbId || "",
+    show_tmdb_id: episode.showTmdbId || "",
+    show_tvdb_id: episode.showTvdbId || "",
+    show_imdb_id: episode.showImdbId || "",
+    episode_tmdb_id: episode.tmdbId || "",
+    episode_tvdb_id: episode.tvdbId || "",
+    episode_imdb_id: episode.imdbId || "",
+    poster_url: episode.stillUrl || episode.posterUrl || "",
+    overview: episode.overview,
+    release_date: episode.airDate,
+    season: episode.seasonNumber,
+    episode: episode.episodeNumber,
+  });
+  return `
+            <article class="immersive-episode-row ${episode.watched ? "is-watched" : ""} ${episodeIsUnreleased ? "is-unreleased" : ""} ${isHighlighted ? "is-highlighted" : ""} ${(episodeBusy || episodeUnwatching) ? "is-saving" : ""} ${episodeTilesLoading ? "is-loading-data" : ""}" ${isHighlighted ? 'id="highlightedEpisode"' : ""} ${episodeTilesLoading ? 'aria-busy="true"' : ""} data-immersive-episode-key="${escapeAttribute(episode.key)}" data-immersive-episode-num="${episode.episodeNumber}" data-immersive-season-num="${episode.seasonNumber}">
+              <div class="episode-thumb-wrap">
+                ${episodeThumbMarkup(episode, hideSpoilers)}
+                ${(episodeBusy || episodeUnwatching) ? `<span class="episode-thumb-syncing">Syncing…</span>` : ""}
+              </div>
+              <div class="immersive-episode-copy">
+                <div class="immersive-episode-title-row">
+                  <b class="immersive-episode-heading">
+                    ${escapeHtml(episodeCode(episode.seasonNumber, episode.episodeNumber))} ${escapeHtml(episode.title)}
+                    ${syncStatusDotHtml}
+                    ${episodeProgressHtml(episode)}
+                    ${episodeResolutionPillHtml(tvSeerrStatus, episode.seasonNumber, episode.episodeNumber)}
+                  </b>
+                  ${personalEpisodeRatingHtml}
+                </div>
+                <div class="immersive-episode-copy-wrap"><p>${escapeHtml(hideSpoilers && !episode.watched ? "Synopsis hidden to avoid spoilers." : episode.overview)}</p></div>
+                ${episodeProgressBarHtml(episode)}
+                <div class="immersive-episode-meta-row">
+                  <span class="immersive-episode-dates">
+                    <time datetime="${escapeAttribute(episode.airDate || "")}">${escapeHtml(episodeReleaseLabel(episode.airDate))}</time>
+                  </span>
+                  <span class="immersive-episode-actions">
+                    ${episodeIsUnreleased
+        ? `<span class="unreleased-pill">Not yet released</span>`
+        : !episode.watched
+          ? episodeBusy
+            ? `<button class="action-pill" type="button" disabled>Saving…</button>`
+            : `<button class="action-pill" type="button" data-watch-scope="episode" data-episode-key="${escapeAttribute(episode.key)}">Mark watched</button>`
+          : episodeUnwatching
+            ? `<button class="action-pill action-pill-ghost" type="button" disabled>Unwatching…</button>`
+            : `<button class="action-pill action-pill-ghost" type="button" ${episodeBusy ? "disabled" : ""} data-unwatch-id="${escapeAttribute(episode.watched.id)}" data-unwatch-kind="episode" data-unwatch-label="${escapeAttribute(`${episodeCode(episode.seasonNumber, episode.episodeNumber)} ${episode.title}`)}" data-show-title="${escapeAttribute(episode.showTitle || showTitle)}">Mark unwatched</button>`}
+                  </span>
+                </div>
+                ${hasWatchHistory ? episodeWatchHistoryHtml(episode.watched) : episodeWatchHistoryPending ? episodeWatchHistoryLoadingHtml() : ""}
+              </div>
+            </article>
+          `;
+}
+
 function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitle, tmdbData, seasonDetailsByNumber, tvSeerrTmdbId, tvSeerrStatus, savingEpisodeKeys, isUnreleased, loading, hideSpoilers, watchHistoryLoading) {
   if (!seasonRecord) return "";
   // This season's own episode data hasn't come back yet (it's fetched lazily,
@@ -1257,72 +1372,16 @@ function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitl
         </div>
       </div>
       <div class="show-episode-list">
-        ${seasonEpisodes.length ? seasonEpisodes.map((episode) => {
-    const isHighlighted = (Number(episode.seasonNumber) === Number(seasonNumber)) && (Number(episode.episodeNumber) === Number(state.activeShowModalEpisode));
-    const syncStatusDotHtml = episode.watched ? renderSyncStatusDot(episode.watched) : "";
-    const episodeIsUnreleased = isUnreleased(episode);
-    const playHistory = actualWatchHistory(episode.watched);
-    const hasWatchHistory = playHistory.length > 0;
-    const episodeWatchHistoryPending = Boolean(watchHistoryLoading && episode.watched && !hasWatchHistory);
-    const episodeBusy = savingEpisodeKeys.has(episode.key);
-    const episodeUnwatching = Boolean(episode.watched && state.savingUnwatchIds.has(episode.watched.id));
-    const personalEpisodeRatingHtml = personalEpisodeRatingButtonHtml({
-      media_type: "episode",
-      title: episode.title,
-      show_title: episode.showTitle || showTitle,
-      tmdb_id: episode.showTmdbId || "",
-      tvdb_id: episode.showTvdbId || "",
-      show_tmdb_id: episode.showTmdbId || "",
-      show_tvdb_id: episode.showTvdbId || "",
-      show_imdb_id: episode.showImdbId || "",
-      episode_tmdb_id: episode.tmdbId || "",
-      episode_tvdb_id: episode.tvdbId || "",
-      episode_imdb_id: episode.imdbId || "",
-      poster_url: episode.stillUrl || episode.posterUrl || "",
-      overview: episode.overview,
-      release_date: episode.airDate,
-      season: episode.seasonNumber,
-      episode: episode.episodeNumber,
-    });
-    return `
-            <article class="immersive-episode-row ${episode.watched ? "is-watched" : ""} ${episodeIsUnreleased ? "is-unreleased" : ""} ${isHighlighted ? "is-highlighted" : ""} ${(episodeBusy || episodeUnwatching) ? "is-saving" : ""} ${episodeTilesLoading ? "is-loading-data" : ""}" ${isHighlighted ? 'id="highlightedEpisode"' : ""} ${episodeTilesLoading ? 'aria-busy="true"' : ""} data-immersive-episode-num="${episode.episodeNumber}" data-immersive-season-num="${episode.seasonNumber}">
-              <div class="episode-thumb-wrap">
-                ${episodeThumbMarkup(episode, hideSpoilers)}
-                ${(episodeBusy || episodeUnwatching) ? `<span class="episode-thumb-syncing">Syncing…</span>` : ""}
-              </div>
-              <div class="immersive-episode-copy">
-                <div class="immersive-episode-title-row">
-                  <b class="immersive-episode-heading">
-                    ${escapeHtml(episodeCode(episode.seasonNumber, episode.episodeNumber))} ${escapeHtml(episode.title)}
-                    ${syncStatusDotHtml}
-                    ${episodeProgressHtml(episode)}
-                    ${episodeResolutionPillHtml(tvSeerrStatus, episode.seasonNumber, episode.episodeNumber)}
-                  </b>
-                  ${personalEpisodeRatingHtml}
-                </div>
-                <div class="immersive-episode-copy-wrap"><p>${escapeHtml(hideSpoilers && !episode.watched ? "Synopsis hidden to avoid spoilers." : episode.overview)}</p></div>
-                ${episodeProgressBarHtml(episode)}
-                <div class="immersive-episode-meta-row">
-                  <span class="immersive-episode-dates">
-                    <time datetime="${escapeAttribute(episode.airDate || "")}">${escapeHtml(episodeReleaseLabel(episode.airDate))}</time>
-                  </span>
-                  <span class="immersive-episode-actions">
-                    ${episodeIsUnreleased
-        ? `<span class="unreleased-pill">Not yet released</span>`
-        : !episode.watched
-          ? episodeBusy
-            ? `<button class="action-pill" type="button" disabled>Saving…</button>`
-            : `<button class="action-pill" type="button" data-watch-scope="episode" data-episode-key="${escapeAttribute(episode.key)}">Mark watched</button>`
-          : episodeUnwatching
-            ? `<button class="action-pill action-pill-ghost" type="button" disabled>Unwatching…</button>`
-            : `<button class="action-pill action-pill-ghost" type="button" ${episodeBusy ? "disabled" : ""} data-unwatch-id="${escapeAttribute(episode.watched.id)}" data-unwatch-kind="episode" data-unwatch-label="${escapeAttribute(`${episodeCode(episode.seasonNumber, episode.episodeNumber)} ${episode.title}`)}" data-show-title="${escapeAttribute(episode.showTitle || showTitle)}">Mark unwatched</button>`}
-                  </span>
-                </div>
-                ${hasWatchHistory ? episodeWatchHistoryHtml(episode.watched) : episodeWatchHistoryPending ? episodeWatchHistoryLoadingHtml() : ""}
-              </div>
-            </article>
-          `;
-  }).join("") : (loading || seasonDataPending)
+        ${seasonEpisodes.length ? seasonEpisodes.map((episode) => renderEpisodeRowHtml(episode, {
+          showTitle,
+          tvSeerrStatus,
+          savingEpisodeKeys,
+          isUnreleased,
+          loading,
+          hideSpoilers,
+          watchHistoryLoading,
+          seasonDataPending,
+        })).join("") : (loading || seasonDataPending)
     ? `<div class="empty-log empty-log--loading"><span class="empty-log-spinner" aria-hidden="true"></span><div><b>Loading episodes…</b><span>Fetching this season's episode details.</span></div></div>`
     : `<div class="empty-log"><b>No episode rows yet</b><span>No local or TVDB episodes were found for this season.</span></div>`}
       </div>
@@ -1703,6 +1762,149 @@ export function renderShowModalContent(show, {
   hydrateMediaAppLinks(root);
 }
 
+function liveChangeField(change = {}, camelName, snakeName = camelName) {
+  return change[camelName] ?? change[snakeName];
+}
+
+function liveEpisodeMatches(episode, { change = {}, row = null, progress = null } = {}) {
+  const mediaKey = String(liveChangeField(change, "mediaKey", "media_key") || row?.media_key || progress?.media_key || "");
+  const recordId = String(liveChangeField(change, "recordId", "record_id") || row?.id || "");
+  if (mediaKey && [episode.watched?.media_key, episode.progress?.media_key].some((value) => String(value || "") === mediaKey)) return true;
+  if (recordId && String(episode.watched?.id || "") === recordId) return true;
+
+  const mediaType = String(liveChangeField(change, "mediaType", "media_type") || row?.media_type || progress?.media_type || "").toLowerCase();
+  if (mediaType && mediaType !== "episode") return false;
+  const season = liveChangeField(change, "season") ?? row?.season ?? progress?.season;
+  const episodeNumber = liveChangeField(change, "episode") ?? row?.episode ?? progress?.episode;
+  if (season == null || episodeNumber == null) return false;
+  if (Number(episode.seasonNumber) !== Number(season) || Number(episode.episodeNumber) !== Number(episodeNumber)) return false;
+
+  const incomingShowTitle = row?.show_title
+    || liveChangeField(change, "showTitle", "show_title")
+    || (progress?.title ? showTitleFrom(progress.title) : "");
+  const activeShowTitle = state.activeShowRenderContext?.show?.title || "";
+  return Boolean(incomingShowTitle && activeShowTitle && slug(showTitleFrom(incomingShowTitle)) === slug(showTitleFrom(activeShowTitle)));
+}
+
+function updateLiveShowSummaryDom(root, current, changedSeasonNumber) {
+  const show = current?.show || {};
+  const tmdbData = current?.tmdbData || null;
+  const seasonDetailsByNumber = current?.seasonDetailsByNumber || new Map();
+  const showTitle = sanitizeTitle(show.title) || "Unknown Show";
+  const seasonsMap = seasonsFromShowRecord(show);
+  const tmdbSeasons = Array.isArray(tmdbData?.seasons) ? tmdbData.seasons : [];
+  const seasonRecord = tmdbSeasons.find((season) => Number(season.season_number) === Number(changedSeasonNumber))
+    || (seasonsMap.get(Number(changedSeasonNumber)) && {
+      season_number: Number(changedSeasonNumber),
+      episode_count: seasonsMap.get(Number(changedSeasonNumber)).length,
+      name: seasonLabel(Number(changedSeasonNumber)),
+    })
+    || { season_number: Number(changedSeasonNumber), episode_count: 0 };
+  const seasonEpisodes = state.showModalEpisodes.filter((episode) => Number(episode.seasonNumber) === Number(changedSeasonNumber));
+  const summary = showSeasonSummary(Number(changedSeasonNumber), seasonEpisodes, seasonRecord, showTitle, tmdbData, seasonDetailsByNumber);
+  const seasonBlock = root.querySelector(`#showSeason${Number(changedSeasonNumber)}`);
+  const seasonRemoving = seasonEpisodes.some((episode) => episode.watched && state.savingUnwatchIds.has(episode.watched.id));
+  const seasonLabelElement = seasonBlock?.querySelector(".show-season-label");
+  if (seasonLabelElement && !seasonRemoving) {
+    const watchCount = summary.totalWatches > summary.watchedInSeason ? ` · ${summary.totalWatches} actual watches` : "";
+    seasonLabelElement.textContent = `${summary.watchedInSeason} of ${summary.seasonTotal || "?"} episodes watched${watchCount}`;
+  }
+
+  const accordion = root.querySelector(`[data-season-accordion="${Number(changedSeasonNumber)}"]`)?.closest(".season-accordion");
+  if (accordion) {
+    const episodesCell = accordion.querySelector(".season-row-episodes");
+    const watchedCell = accordion.querySelector(".season-row-watched");
+    const nextCell = accordion.querySelector(".season-row-next");
+    if (episodesCell) episodesCell.textContent = `${summary.seasonTotal || "?"} episode${summary.seasonTotal === 1 ? "" : "s"}`;
+    if (watchedCell) watchedCell.textContent = summary.watchedInSeason
+      ? `${summary.watchedInSeason} watched${summary.totalWatches > summary.watchedInSeason ? ` · ${summary.totalWatches} plays` : ""}`
+      : "";
+    if (nextCell) nextCell.textContent = summary.nextAiringText || "";
+  }
+
+  const regularEpisodes = state.showModalEpisodes.filter((episode) => Number(episode.seasonNumber) > 0);
+  const regularSeasons = tmdbSeasons.filter((season) => Number(season.season_number) > 0);
+  const watchedEpisodes = regularEpisodes.filter((episode) => episode.watched);
+  const metadataEpisodeCount = regularSeasons.reduce((total, season) => total + Number(season.episode_count || 0), 0);
+  const totalCount = Math.max(regularEpisodes.length, metadataEpisodeCount, watchedEpisodes.length, 1);
+  const watchedCount = watchedEpisodes.length;
+  const totalWatches = watchSummaryForRows(regularEpisodes).totalWatches;
+  const watchHistoryLabel = totalWatches > watchedCount ? ` · ${totalWatches} actual watches` : "";
+  const progressPercent = Math.max(0, Math.min(100, Math.round((watchedCount / totalCount) * 100)));
+  const progressSection = root.querySelector(".immersive-meta .progress-section");
+  const progressLabels = progressSection?.querySelectorAll(".progress-label-row > span");
+  if (progressLabels?.[0]) progressLabels[0].textContent = `${watchedCount} of ${totalCount} episodes watched${watchHistoryLabel}`;
+  if (progressLabels?.[1]) progressLabels[1].textContent = `${progressPercent}% complete`;
+  const progressFill = progressSection?.querySelector(".progress-bar-fill");
+  if (progressFill) progressFill.style.width = `${progressPercent}%`;
+}
+
+// Apply a single SSE item update without calling renderShowModalContent. The
+// episode object, its state-history entry, and the one mounted article are
+// updated in place; all other episode nodes, artwork requests, and scroll
+// positions remain mounted.
+export function patchShowModalEpisodeFromLive({ change = {}, row = null, progress = null } = {}) {
+  const current = state.activeShowRenderContext;
+  if (!current?.show || !Array.isArray(state.showModalEpisodes) || !state.showModalEpisodes.length) return false;
+  const target = state.showModalEpisodes.find((episode) => liveEpisodeMatches(episode, { change, row, progress }));
+  if (!target) return false;
+
+  const sourceTable = String(liveChangeField(change, "sourceTable", "source_table") || "");
+  const progressOnly = sourceTable === "playback_progress";
+  if (!progressOnly) target.watched = row && isWatchedHistoryAction(row) ? row : null;
+  if (progressOnly) {
+    target.progress = progress && Number(progress.progress || 0) > 0 ? progress : null;
+  } else if (target.watched) {
+    target.progress = null;
+  } else if (progress) {
+    target.progress = Number(progress.progress || 0) > 0 ? progress : null;
+  }
+
+  const showEpisodes = Array.isArray(current.show.episodes) ? [...current.show.episodes] : [];
+  const existingIndex = showEpisodes.findIndex((episode) => (
+    (target.watched?.media_key && String(episode.media_key || "") === String(target.watched.media_key))
+      || (Number(episode.season) === Number(target.seasonNumber) && Number(episode.episode) === Number(target.episodeNumber))
+  ));
+  if (target.watched) {
+    if (existingIndex >= 0) showEpisodes[existingIndex] = target.watched;
+    else showEpisodes.push(target.watched);
+  } else if (existingIndex >= 0 && sourceTable === "watch_history") {
+    showEpisodes.splice(existingIndex, 1);
+  }
+  current.show = { ...current.show, episodes: showEpisodes };
+
+  const root = mediaDetailRoot();
+  const currentNode = [...(root?.querySelectorAll?.("[data-immersive-episode-key]") || [])]
+    .find((node) => node.dataset.immersiveEpisodeKey === target.key);
+  if (currentNode) {
+    const showTitle = sanitizeTitle(current.show.title) || "Unknown Show";
+    const tvSeerrTmdbId = current.tmdbData?.id || current.show.tmdb_id || "";
+    const tvSeerrStatus = state.seerrMediaStatusCache.get(`tv:${tvSeerrTmdbId}`) || {};
+    const isUnreleased = (episode) => {
+      if (episode.watched || !episode.airDate) return false;
+      const parts = String(episode.airDate).split("-");
+      if (parts.length !== 3) return false;
+      const air = new Date(parts[0], parts[1] - 1, parts[2]);
+      return !Number.isNaN(air.getTime()) && air > new Date();
+    };
+    const template = document.createElement("template");
+    template.innerHTML = renderEpisodeRowHtml(target, {
+      showTitle,
+      tvSeerrStatus,
+      savingEpisodeKeys: savingEpisodeKeysForShow(showTitle),
+      isUnreleased,
+      loading: Boolean(current.loading),
+      hideSpoilers: state.hideEpisodeSpoilers,
+      watchHistoryLoading: Boolean(current.watchHistoryLoading),
+    }).trim();
+    const replacement = template.content.firstElementChild;
+    if (replacement) currentNode.replaceWith(replacement);
+    hydratePosters(root);
+  }
+  updateLiveShowSummaryDom(root, current, target.seasonNumber);
+  return true;
+}
+
 // Provider ids present on both sides, lowercased, prefixed by type so an
 // imdb id never collides with a numeric tmdb id that happens to match.
 function providerIdTokens(obj = {}) {
@@ -1982,9 +2184,7 @@ export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, 
   // render pipeline the tmdb/tvdb routes use (season-by-season episode
   // details, cast, images, trailers, IMDb rating) instead of the lighter
   // local-only render below, which never fetched season-level metadata at
-  // all. state.activeShowModalKey stays set to this slug (neither delegate
-  // touches it), so the address bar keeps the nicer /tvshow/<key> form even
-  // though the data now comes from the same place the id-based routes use.
+  // all.
   // Skipped for an orphan history shell or the unknown-show placeholder -
   // neither has a real id to delegate with.
   if (show && !orphanShell && showKey !== "unknown-show") {
@@ -1995,6 +2195,40 @@ export async function renderImmersiveShowModal(showKey, activeSeasonNum = null, 
     if (show.tvdb_id) {
       await openShowImmersiveModalByTvdbId(show.tvdb_id);
       return;
+    }
+
+    // Older library rows can have a perfectly usable title and episode
+    // history but no series-level provider id. Resolve those rows through the
+    // full metadata path as well; otherwise the title route renders a local
+    // shell with no cast, artwork rails, trailers, reviews, or related shows.
+    const title = String(show.title || "").trim();
+    if (title) {
+      const localDetailPromise = loadShowDetail(show).catch((error) => {
+        console.error("Failed to load title-only show detail", error);
+        return null;
+      });
+      const titleMetadata = await fetchTmdbDetails(
+        "tv",
+        "",
+        title,
+        tmdbLookupIdsFromShow(show),
+        { immediate: true },
+      ).catch((error) => {
+        console.error("Failed to resolve title-only show metadata", error);
+        return null;
+      });
+      if (currentMediaRenderToken() !== renderToken) return;
+      if (titleMetadata?.id || titleMetadata?.external_ids?.tvdb_id) {
+        canonicalizeBareShowRoute(
+          titleMetadata,
+          title,
+          activeSeasonNum ?? state.activeShowModalSeason,
+          activeEpisodeNum ?? state.activeShowModalEpisode,
+          titleMetadata.external_ids?.tvdb_id,
+        );
+        await renderShowDetailFromMetadata(titleMetadata, renderToken, localDetailPromise);
+        return;
+      }
     }
   }
 

@@ -10,7 +10,7 @@ process.env.DATA_DIR = dataDir;
 
 const { db, toJson } = await import("../server/src/db.js");
 const { getFanartTvArt, getFanartMovieArt } = await import("../server/src/utils/fanartGateway.js");
-const { getTmdbDetails } = await import("../server/src/utils/tmdbGateway.js");
+const { getTmdbDetails, getTmdbSeason } = await import("../server/src/utils/tmdbGateway.js");
 
 // No TMDB API key is configured in this environment and fanart.tv is not
 // reachable synchronously, so any code path that misses the SQLite caches and
@@ -100,4 +100,27 @@ test("getTmdbDetails returns fresh cached TV details without upstream fetches", 
   // cache_stale is only stamped when the fresh-cache path was missed and the
   // upstream fetch failed - its absence proves the cache answered directly.
   assert.equal(result.cache_stale, undefined);
+});
+
+test("TMDB-id season requests find TVDB-keyed show metadata", async () => {
+  db.prepare(
+    `INSERT INTO tmdb_metadata_cache (id, tmdb_id, media_type, title, details, schema_version, updated_at_ms)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).run("tv_tvdb_777", "777", "tv", "TVDB Cached Show", toJson({
+    id: "777",
+    name: "TVDB Cached Show",
+    external_ids: { tvdb_id: "888", tmdb_id: "777" },
+  }), 9999, Date.now());
+  db.prepare(
+    `INSERT INTO tvdb_season_cache (id, tvdb_id, season_number, details, updated_at_ms)
+     VALUES (?, ?, ?, ?, ?)`,
+  ).run("888_1", "888", 1, toJson({
+    episodes: [
+      { number: 1, name: "Pilot", aired: "2026-01-01", image: "https://example.test/pilot.jpg" },
+      { number: 2, name: "Second", aired: "2026-01-08", image: "https://example.test/second.jpg" },
+    ],
+  }), Date.now());
+
+  const season = await getTmdbSeason({ tmdbId: "777", seasonNumber: 1 });
+  assert.deepEqual(season.episodes.map((episode) => episode.name), ["Pilot", "Second"]);
 });

@@ -1,5 +1,5 @@
-import { readStoredAdminToken } from "./auth.js?v=0.15.0.9";
-import { readStoredDebugLogs } from "./logs.js?v=0.15.0.9";
+import { readStoredAdminToken } from "./auth.js?v=0.15.0.13";
+import { readStoredDebugLogs } from "./logs.js?v=0.15.0.13";
 
 const TOKEN_KEY = "adminToken";
 const LEGACY_UPPER_TOKEN_KEY = "ADMIN_TOKEN";
@@ -19,7 +19,7 @@ export const HISTORY_FILTER_KEY = "plembfin:historyFilter";
 export const HISTORY_VIEW_MODES = ["grid", "list", "cards"];
 export const HISTORY_FILTERS = ["all", "movies", "shows"];
 export const PERSONAL_MEDIA_VIEWS = ["watchlist", "ratings", "custom-lists"];
-export const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "upcoming", "discover", ...PERSONAL_MEDIA_VIEWS, "settings", "help", "search", "history", "syncActivity", "setup"];
+export const PRIMARY_VIEWS = ["dashboard", "stats", "explorer", "upcoming", "discover", ...PERSONAL_MEDIA_VIEWS, "settings", "help", "search", "history", "syncActivity", "manualWatchReview", "setup"];
 export const SETTINGS_TABS = ["account", "connections", "metadata", "data", "system"];
 
 function _startOfWeek(value) {
@@ -66,6 +66,12 @@ const initialState = {
   syncActivity: [],
   syncActivityLoaded: false,
   syncActivityLoading: false,
+  manualWatchReviews: [],
+  manualWatchReviewCount: 0,
+  manualWatchReviewLoading: false,
+  manualWatchReviewLoaded: false,
+  manualWatchReviewError: "",
+  manualWatchReviewSearch: "",
   syncActivitySearch: "",
   syncActivityFailedOnly: false,
   syncActivityPagination: { page: 1, limit: 25, total: 0, totalPages: 1, from: 0, to: 0, hasPrevious: false, hasNext: false },
@@ -147,6 +153,7 @@ const initialState = {
   upNextSourceVersion: "",
   upNextSourceStatus: [],
   upNextRefreshQueued: false,
+  upNextForceRefreshQueued: false,
   upNextRequestVersion: 0,
   upNextAbortController: null,
   explorerViewMovies: localStorage.getItem(EXPLORER_VIEW_KEY_MOVIES) || "posters",

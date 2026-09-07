@@ -1,9 +1,9 @@
-import { buildAuthHeaders } from "./auth.js?v=0.15.0.9";
-import { state, elements } from "./state.js?v=0.15.0.9";
-import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowHrefFromEpisode, sourceBadgeHtml, formatDate, formatTmdbDate, resolveEpisodeTitle, episodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress } from "./utils.js?v=0.15.0.9";
-import { posterMarkup, posterOverflowMenu, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, isLocalArtworkUrl } from "./images.js?v=0.15.0.9";
-import { renderDashboardChecklist } from "./onboarding.js?v=0.15.0.9";
-import { initialMediaAppLinksContent } from "./media-detail-shared.js?v=0.15.0.9";
+import { buildAuthHeaders } from "./auth.js?v=0.15.0.13";
+import { state, elements } from "./state.js?v=0.15.0.13";
+import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, sourceBadgeHtml, formatDate, formatTmdbDate, resolveEpisodeTitle, episodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress } from "./utils.js?v=0.15.0.13";
+import { posterMarkup, posterOverflowMenu, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, isLocalArtworkUrl } from "./images.js?v=0.15.0.13";
+import { renderDashboardChecklist } from "./onboarding.js?v=0.15.0.13";
+import { initialMediaAppLinksContent } from "./media-detail-shared.js?v=0.15.0.13";
 
 const PART_WATCHED_DASHBOARD_LIMIT = 30;
 const EXPLORER_PAGE_SIZE = 240;
@@ -335,7 +335,11 @@ export function renderHistoryCard(entry) {
 }
 
 function tvShowHrefFromHistoryEntry(entry = {}, title = "") {
-  return tvShowHrefFromEpisode(entry, title);
+  const href = tvShowBaseHrefFromEpisode(entry, title);
+  const season = Number(entry.season ?? entry.seasonNumber ?? entry.season_number ?? entry.parentIndexNumber ?? entry.ParentIndexNumber);
+  return Number.isInteger(season) && season >= 0
+    ? `${href}#season${season}`
+    : href;
 }
 
 function dashboardCardIdentity(entry = {}) {
@@ -439,12 +443,18 @@ export function renderDashboardHistoryPageCard(entry, options = {}) {
     ? findKnownShowPoster(entry)
     : "";
   const effectiveShowPoster = knownShowPoster || entry.show_poster_url;
+  const posterIdentity = entry.id ?? entry.media_key ?? "";
+  const hasLocalArtwork = isLocalArtworkUrl(entry.poster_url) || isLocalArtworkUrl(effectiveShowPoster);
+  const directPosterUrl = !isPartWatched && !isUpNext && posterIdentity && !hasLocalArtwork
+    ? `/api/poster?format=image&id=${encodeURIComponent(String(posterIdentity))}`
+    : "";
   const posterEntry = {
     ...entry,
     ...(isEpisode && effectiveShowPoster
       ? { poster_url: effectiveShowPoster, show_poster_url: effectiveShowPoster, prefer_raw_poster: true }
       : {}),
-    cache_only_artwork: true,
+    ...(directPosterUrl ? { poster_url: directPosterUrl, show_poster_url: "", prefer_raw_poster: true } : {}),
+    cache_only_artwork: !directPosterUrl,
     ...(isPartWatched && entry.media_key ? { id: entry.media_key } : {}),
   };
   const posterHtml = posterMarkup(posterEntry, "history-page-poster");
@@ -572,16 +582,19 @@ export function observeDashboardPosters() {
 
       const hydrateOne = async (fallback) => {
         const posterId = fallback.dataset.posterId;
-        if (!posterId || state.posterLookupCache.has(posterId)) return;
+        if (!posterId) return;
 
-        const posterUrl = await lookupPosterUrl(posterId, { allowNetwork: false });
+        const posterUrl = await lookupPosterUrl(posterId, { allowNetwork: true });
         const safeUrl = safePosterElementUrl(posterUrl);
-        if (!safeUrl || !fallback.isConnected || !fallback.classList.contains("poster-fallback")) return;
+        if (!fallback.isConnected || !fallback.classList.contains("poster-fallback")) return;
 
         const image = document.createElement("img");
         image.className = fallback.className.replace(/\bposter-fallback\b/g, "").trim() || fallback.className;
-        bindPosterImageErrorHandler(image, { allowNetwork: false });
-        image.src = encodeURI(safeUrl);
+        bindPosterImageErrorHandler(image, { allowNetwork: true });
+        // Keep a visible dashboard gap recoverable even when an older negative
+        // lookup is cached in the browser: the image form re-runs the same
+        // authenticated server resolver and redirects to local artwork.
+        image.src = encodeURI(safeUrl || `/api/poster?format=image&id=${encodeURIComponent(posterId)}`);
         image.alt = `${fallback.getAttribute("aria-label") || "Media poster"}`;
         image.loading = "lazy";
         image.decoding = "async";
@@ -690,7 +703,7 @@ function renderDashboardHistoryRow(row, nextHtml, visibleItems = []) {
   updateDashboardRowWithMotion(row, nextHtml, {
     onCommitted: () => {
       bindPartWatchedAppBadges(row);
-      hydratePosters(row, { allowNetwork: false });
+      hydratePosters(row, { allowNetwork: true });
       for (const entry of visibleItems) {
         if (entry?.media_type === "episode" && !entry.isPartWatched && !entry.part_watched) {
           scheduleDashboardEpisodeTitleResolution(entry);

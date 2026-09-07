@@ -1,9 +1,9 @@
-import { buildAuthHeaders } from "./auth.js?v=0.15.0.9";
-import { state, elements } from "./state.js?v=0.15.0.9";
-import { escapeHtml } from "./utils.js?v=0.15.0.9";
-import { hydratePosters } from "./images.js?v=0.15.0.9";
-import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=0.15.0.9";
-import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=0.15.0.9";
+import { buildAuthHeaders } from "./auth.js?v=0.15.0.13";
+import { state, elements } from "./state.js?v=0.15.0.13";
+import { escapeHtml } from "./utils.js?v=0.15.0.13";
+import { hydratePosters } from "./images.js?v=0.15.0.13";
+import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=0.15.0.13";
+import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=0.15.0.13";
 
 const UP_NEXT_TTL_MS = 2 * 60 * 1000;
 const UP_NEXT_TIMEOUT_MS = 20000;
@@ -483,6 +483,7 @@ export function resetUpNext({ preserveItems = false } = {}) {
   state.upNextErrorCode = "";
   state.upNextExitIds = [];
   state.upNextRefreshQueued = false;
+  state.upNextForceRefreshQueued = false;
 }
 
 function upNextErrorPresentation() {
@@ -573,7 +574,8 @@ export function renderUpNext({ exitIds = [] } = {}) {
 export async function loadUpNext({ force = false, fromSse = false } = {}) {
   if (!state.token) return;
   if (state.upNextLoading) {
-    if (fromSse) state.upNextRefreshQueued = true;
+    if (fromSse || force) state.upNextRefreshQueued = true;
+    if (force) state.upNextForceRefreshQueued = true;
     return;
   }
   hydrateUpNextCache();
@@ -637,9 +639,11 @@ export async function loadUpNext({ force = false, fromSse = false } = {}) {
       state.upNextLoading = false;
       renderUpNext();
       const refreshQueued = state.upNextRefreshQueued;
+      const forceRefreshQueued = state.upNextForceRefreshQueued;
       state.upNextRefreshQueued = false;
-      if (refreshQueued && state.activeView === "dashboard") {
-        Promise.resolve().then(() => loadUpNext({ fromSse: true })).catch(() => { });
+      state.upNextForceRefreshQueued = false;
+      if (refreshQueued && (forceRefreshQueued || state.activeView === "dashboard")) {
+        Promise.resolve().then(() => loadUpNext({ force: forceRefreshQueued, fromSse: !forceRefreshQueued })).catch(() => { });
       }
     }
   }

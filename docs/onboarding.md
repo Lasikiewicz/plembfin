@@ -33,7 +33,7 @@ password directly.
 
 After claiming the account (or signing into a fresh environment-managed install), the app
 opens `/setup`: a step flow covering media servers, metadata, webhooks, an optional Trakt
-connection, background imports, and a final review. Every action in it calls the exact
+connection, background imports, sync options, and a final review. Every action in it calls the exact
 same endpoints and Settings dialogs used elsewhere in the app - there is no separate
 setup-only configuration path.
 
@@ -62,6 +62,12 @@ setup-only configuration path.
   launch a full import.
   Because the onboarding import is an in-process operation, a server restart cancels
   any stale `Importing` marker rather than silently starting it again.
+- **Options** - chooses how app-marked watched flags are dated or sent to Manual Watch
+  review. The default is **Require review**. It also includes the opt-in
+  **Fast Local-Network Sync** toggle, which is only appropriate when all connected
+  media services are on the same trusted local network. These choices are saved
+  together when continuing past the step and remain editable in Settings → Sync →
+  Sync Tuning.
 - **Setting Plembfin as the source of truth** (pushing local watch history outward) is
   intentionally *not* offered inline in the wizard. It's a destructive, confirm-gated
   action, so the wizard links to Settings → Sync → Sync Tools, where the existing

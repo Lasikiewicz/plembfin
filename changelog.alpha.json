@@ -1,9 +1,96 @@
 {
   "baseVersion": "0.15.0",
-  "build": 9,
-  "version": "0.15.0.9",
-  "updatedAt": "2026-09-06T18:44:36.683Z",
+  "build": 13,
+  "version": "0.15.0.13",
+  "updatedAt": "2026-09-07T14:15:48.204Z",
   "entries": [
+    {
+      "build": 13,
+      "version": "0.15.0.13",
+      "shortVersion": "0.15.0.13",
+      "date": "2026-09-07T14:15:48.204Z",
+      "commit": "966c12c6ddbcbcfacad93656adbf443a5142f8b5",
+      "message": "Fix - Return dismissed reviews as unwatched",
+      "author": "Codex",
+      "details": [
+        "Fix: Dismissing a manual watch review marks the item unwatched on the reporting media app before closing the review",
+        "Fix: A failed provider correction leaves the review pending for retry",
+        "Tweak: Make the dismiss action label explain that it also marks the item unwatched"
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Dismissing a manual watch review marks the item unwatched on the reporting media app before closing the review",
+          "A failed provider correction leaves the review pending for retry"
+        ],
+        "tweaks": [
+          "Make the dismiss action label explain that it also marks the item unwatched"
+        ]
+      }
+    },
+    {
+      "build": 12,
+      "version": "0.15.0.12",
+      "shortVersion": "0.15.0.12",
+      "date": "2026-09-07T13:59:57.286Z",
+      "commit": "966c12c6ddbcbcfacad93656adbf443a5142f8b5",
+      "message": "Tweak - Match manual review action styling",
+      "author": "Codex",
+      "details": [
+        "Tweak: Display Mark watched now actions with the same neutral treatment as the other review choices"
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [],
+        "tweaks": [
+          "Display Mark watched now actions with the same neutral treatment as the other review choices"
+        ]
+      }
+    },
+    {
+      "build": 11,
+      "version": "0.15.0.11",
+      "shortVersion": "0.15.0.11",
+      "date": "2026-09-07T13:36:29.140Z",
+      "commit": "966c12c6ddbcbcfacad93656adbf443a5142f8b5",
+      "message": "Fix - Restore complete TV show metadata",
+      "author": "Codex",
+      "details": [
+        "Fix: Invalidate structural-only TV metadata caches so cast, images, trailers, reviews, and related shows load again",
+        "Fix: Resolve title-only TV show pages through the full metadata pipeline and canonical provider route",
+        "Fix: Preserve the selected season when canonicalizing a title-only TV show route"
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Invalidate structural-only TV metadata caches so cast, images, trailers, reviews, and related shows load again",
+          "Resolve title-only TV show pages through the full metadata pipeline and canonical provider route",
+          "Preserve the selected season when canonicalizing a title-only TV show route"
+        ],
+        "tweaks": []
+      }
+    },
+    {
+      "build": 10,
+      "version": "0.15.0.10",
+      "shortVersion": "0.15.0.10",
+      "date": "2026-09-07T12:01:30.676Z",
+      "commit": "966c12c6ddbcbcfacad93656adbf443a5142f8b5",
+      "message": "Fix - Open dashboard TV entries at their show page",
+      "author": "Codex",
+      "details": [
+        "Fix: Clicking a TV show poster or title from Up Next or watch history opens the show page instead of an episode-specific route",
+        "Fix: Preserve the relevant season when opening a TV show from dashboard history surfaces"
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Clicking a TV show poster or title from Up Next or watch history opens the show page instead of an episode-specific route",
+          "Preserve the relevant season when opening a TV show from dashboard history surfaces"
+        ],
+        "tweaks": []
+      }
+    },
     {
       "build": 9,
       "version": "0.15.0.9",

@@ -11,10 +11,12 @@ import {
   tuningClamps,
   tuningDefaults,
   tuningEnvDefaults,
+  watchImportMode,
+  watchImportModeDefault,
   watchedThresholdPercent,
 } from "../server/src/utils/tuning.js";
 
-const ENV_VARS = ["WATCHED_THRESHOLD_PERCENT", "MIN_RESUME_POSITION_SEC", "ACTIVE_SESSION_TTL_MIN", "OUTBOUND_TIMEOUT_SEC"];
+const ENV_VARS = ["WATCHED_THRESHOLD_PERCENT", "MIN_RESUME_POSITION_SEC", "ACTIVE_SESSION_TTL_MIN", "OUTBOUND_TIMEOUT_SEC", "WATCH_IMPORT_MODE"];
 
 function clearTuningEnv() {
   for (const name of ENV_VARS) delete process.env[name];
@@ -25,12 +27,14 @@ test.afterEach(() => {
   resetTuningForTests();
 });
 
-test("defaults equal the previous hardcoded literals when nothing is configured", () => {
+test("defaults are used when nothing is configured", () => {
   resetTuningForTests();
   assert.equal(watchedThresholdPercent(), 90);
   assert.equal(minResumePositionMs(), 60_000);
   assert.equal(activeSessionTtlMs(), 5 * 60 * 1000);
   assert.equal(outboundTimeoutMs(), 10_000);
+  assert.equal(watchImportMode(), "review");
+  assert.equal(watchImportModeDefault(), "review");
 });
 
 test("tuningDefaults and tuningClamps expose the hardcoded ranges", () => {
@@ -89,6 +93,19 @@ test("applyTuningConfig overrides only non-null fields and falls back to env/def
   assert.equal(minResumePositionMs(), 60_000);
   assert.equal(activeSessionTtlMs(), 5 * 60 * 1000);
   assert.equal(outboundTimeoutMs(), 10_000);
+});
+
+test("watch-import mode accepts the four supported policies and resets to its env default", () => {
+  applyTuningConfig({ watchImportMode: "episode_timing" });
+  assert.equal(watchImportMode(), "episode_timing");
+
+  process.env.WATCH_IMPORT_MODE = "review";
+  resetTuningForTests();
+  assert.equal(watchImportMode(), "review");
+  assert.equal(watchImportModeDefault(), "review");
+
+  applyTuningConfig({ watchImportMode: null });
+  assert.equal(watchImportMode(), "review");
 });
 
 test("applyTuningConfig clamps out-of-range stored values as a safety net", () => {

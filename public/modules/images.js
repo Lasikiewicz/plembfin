@@ -1,6 +1,6 @@
-import { buildAuthHeaders } from "./auth.js?v=0.15.0.9";
-import { state } from "./state.js?v=0.15.0.9";
-import { safeImageUrl, escapeAttribute } from "./utils.js?v=0.15.0.9";
+import { buildAuthHeaders } from "./auth.js?v=0.15.0.13";
+import { state } from "./state.js?v=0.15.0.13";
+import { safeImageUrl, escapeAttribute } from "./utils.js?v=0.15.0.13";
 
 // /api/poster resolves most requests from an already-cached DB row or webp
 // file (no outbound API call); the actual TMDB fallback downloads are
@@ -8,7 +8,9 @@ import { safeImageUrl, escapeAttribute } from "./utils.js?v=0.15.0.9";
 // so this only needs to stay under the browser's per-origin connection cap -
 // it doesn't need to additionally protect TMDB itself.
 const POSTER_LOOKUP_CONCURRENCY = 6;
-const POSTER_LOOKUP_PERSISTED_CACHE_KEY = "plembfin:posterLookupCache:v3";
+// v4 drops persisted negative lookups created before dashboard/review surfaces
+// could resolve their record ids through the server poster pipeline.
+const POSTER_LOOKUP_PERSISTED_CACHE_KEY = "plembfin:posterLookupCache:v4";
 const POSTER_LOOKUP_PERSISTED_CACHE_TTL_MS = 14 * 24 * 60 * 60 * 1000;
 const POSTER_LOOKUP_PERSISTED_CACHE_LIMIT = 800;
 const TMDB_POSTER_SIZE = "w342";
@@ -488,7 +490,7 @@ export async function hydratePosterFallbacks(container = document.body, { allowN
   if (!container) return;
   const fallbacks = [...container.querySelectorAll("[data-poster-id].poster-fallback")].filter((fallback) => {
     const posterId = fallback.dataset.posterId;
-    return posterId && !state.posterLookupCache.has(posterId) && shouldHydratePosterElement(fallback);
+    return posterId && shouldHydratePosterElement(fallback);
   });
   if (!fallbacks.length) return;
 
@@ -501,9 +503,13 @@ export async function hydratePosterFallbacks(container = document.body, { allowN
 
   const hydrateOne = async (fallback) => {
     const posterId = fallback.dataset.posterId;
-    if (!posterId || state.posterLookupCache.has(posterId)) return;
+    if (!posterId) return;
 
-    const posterUrl = await lookupPosterUrl(posterId, { allowNetwork });
+    const cached = cachedPosterLookup(posterId);
+    if (cached === "") return;
+    const posterUrl = cached !== undefined
+      ? cached
+      : await lookupPosterUrl(posterId, { allowNetwork });
     const safeUrl = safePosterElementUrl(posterUrl);
     if (!safeUrl || !fallback.isConnected || !fallback.classList.contains("poster-fallback")) return;
 
@@ -557,6 +563,10 @@ export function hydratePosterImages(container = document.body, { allowNetwork = 
   if (!container) return;
   for (const image of container.querySelectorAll("img[data-poster-id]")) {
     bindPosterImageErrorHandler(image, { allowNetwork });
+    // A rerender can insert an image whose response is already in the browser
+    // cache before the delegated document-level load listener sees it. Keep
+    // those cards from remaining in the loading state until a full reload.
+    if (image.complete && image.naturalWidth > 0) image.classList.add("is-loaded");
   }
 }
 

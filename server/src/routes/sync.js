@@ -28,7 +28,7 @@ import { pokeLiveSessionPoller } from "../scheduler.js";
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, hideEmbyFromResume, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes, listEmbyLibraries } from "../utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, hideJellyfinFromResume, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes, listJellyfinLibraries } from "../utils/jellyfinClient.js";
 import { buildPlexMediaFromMetadata, normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexMediaIds, parsePlexWebhook } from "../utils/parsers.js";
-import { completeDispatchTracking, finishDispatchTracking, getTargetsForSource, isRecentOutboundPlayedEcho, isRecentOutboundPlayedFlagEcho, isRecentOutboundProgressEcho, isRecentOutboundUnplayedFlagEcho, recordOutboundPlayedMarks, reserveDispatchBatch, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
+import { clearOutboundPlayedMarks, completeDispatchTracking, finishDispatchTracking, getTargetsForSource, isRecentOutboundPlayedEcho, isRecentOutboundPlayedFlagEcho, isRecentOutboundProgressEcho, isRecentOutboundUnplayedFlagEcho, recordOutboundPlayedMarks, reserveDispatchBatch, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
 import { canReceiveState } from "../utils/syncRoles.js";
 import {
   playstateBlocksStoredResumeProgress,
@@ -43,7 +43,9 @@ import { forceSyncMediaState, normalizeMediaForceSyncRequest } from "../utils/me
 import { forceSyncLibraryState, normalizeLibraryForceSyncRequest } from "../utils/libraryForceSync.js";
 import { appendMediaForceSyncActivity, createMediaForceSyncActivity, finishMediaForceSyncActivity, getMediaForceSyncActivity, isMediaForceSyncCancellationRequested, requestMediaForceSyncCancellation } from "../utils/mediaForceSyncActivity.js";
 import { buildWatchProvenance, provenanceTelemetryLines } from "../utils/watchProvenance.js";
-import { releaseDateForItem } from "../utils/watchDates.js";
+import { releaseDateForItem, resolveWatchImportDate, runtimeMinutesForSourceItem } from "../utils/watchDates.js";
+import { watchImportMode } from "../utils/tuning.js";
+import { enqueueManualWatchReview } from "../utils/manualWatchReview.js";
 import { applyUnwatchedTransition } from "../utils/watchStateTransitions.js";
 import { recordWatchAuditEvent, recordWatchAuditEvents } from "../utils/watchAudit.js";
 import { fetchPosterFromTmdb } from "../utils/tmdbClient.js";
@@ -388,6 +390,40 @@ export async function recordSyncHistory(media = {}, summary = {}, action = "watc
 function platformLabel(value) {
   const text = String(value || "unknown");
   return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function webhookWatchFingerprint(media = {}, releaseDate = "") {
+  return [
+    media.source,
+    media.event,
+    media.itemId,
+    media.type,
+    media.season,
+    media.episode,
+    releaseDate,
+  ].map((value) => String(value ?? "").trim()).join(":");
+}
+
+function isExplicitPlayedFlagEvent(media = {}) {
+  const eventKey = String(media.event || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  return ["itemmarkplayed", "itemmarkedplayed", "itemmarkedasplayed", "itemplayed"].includes(eventKey);
+}
+
+async function resolveWebhookFlagWatchDate(media = {}) {
+  const mode = watchImportMode();
+  const historyRows = mode === "episode_timing" ? await getCachedHistory().catch(() => []) : [];
+  const dateChoice = resolveWatchImportDate({
+    mode,
+    manualMark: true,
+    releaseDate: media.releaseDate || "",
+    fallbackDate: "",
+    media: {
+      ...media,
+      runtimeMinutes: media.runtimeMinutes || runtimeMinutesForSourceItem(media, media.source),
+    },
+    historyRows,
+  });
+  return { mode, dateChoice };
 }
 
 function normalizedIdentity(value = "") {
@@ -1731,25 +1767,28 @@ export async function handlePlaybackProgressWatch(req, res) {
     await deletePlaybackProgress({ ...progressRow, media_key: mediaKey }).catch(() => null);
     await deletePlaybackProgress(media).catch(() => null);
 
-    (async () => {
-      try {
-        const summary = await syncMediaPlaystate(media, config, loopStore, { lane: "interactive" }).catch((error) => ({
-          skipped: false,
-          status: "error",
-          details: `Watch propagation failed: ${error.message || String(error)}`,
-          targetStates: [],
-        }));
-        await updateWatchTelemetry(id, formatDispatchTelemetry(summary, media, "watched"), { skipInvalidate: true });
-        await recordSyncHistory(media, summary, "watched");
-      } catch (err) {
-        console.error("Background sync for progress watch failed:", err);
-      } finally {
-        await invalidateHistoryDerivedCaches("handlePlaybackProgressWatch").catch(() => null);
-      }
-    })().catch((error) => console.error("Background sync loop crashed:", error));
+    const summary = await syncMediaPlaystate(media, config, loopStore, { lane: "interactive" }).catch((error) => ({
+      skipped: false,
+      status: "error",
+      details: `Watch propagation failed: ${error.message || String(error)}`,
+      targetStates: [],
+    }));
+    try {
+      await updateWatchTelemetry(id, formatDispatchTelemetry(summary, media, "watched"), { skipInvalidate: true });
+      await recordSyncHistory(media, summary, "watched");
+    } catch (error) {
+      console.error("Progress watch sync bookkeeping failed:", error);
+    } finally {
+      await invalidateHistoryDerivedCaches("handlePlaybackProgressWatch").catch(() => null);
+    }
 
-    await invalidateHistoryDerivedCaches("handlePlaybackProgressWatch").catch(() => null);
-    return sendJson(res, { ok: true, id });
+    return sendJson(res, {
+      ok: true,
+      id,
+      propagated: summary.status === "success" || summary.status === "partial",
+      status: summary.status,
+      targetStates: summary.targetStates || [],
+    });
   } catch (error) {
     console.error("Mark watch from progress failed", error);
     return sendJson(res, { error: "Mark watch from progress failed" }, 500);
@@ -2520,7 +2559,16 @@ export async function handleWebhook(req, res) {
   }
 
   if (media.phase === "unplayed") {
-    const ownUnplayedEcho = await isRecentOutboundUnplayedFlagEcho(media, media.source, loopStore).catch(() => false);
+    let ownUnplayedEcho = await isRecentOutboundUnplayedFlagEcho(media, media.source, loopStore).catch(() => false);
+    if (ownUnplayedEcho) {
+      // If Plembfin still considers the item watched, this is our outbound
+      // unwatch acknowledgement and can be ignored. Once the local state is
+      // already unwatched (or only a review is pending), let the provider
+      // transition through so a real user action is not swallowed by an old
+      // marker left by a previous sync.
+      const currentPlaystate = await getPlaystateForMedia(media).catch(() => null);
+      if (currentPlaystate?.state !== "watched") ownUnplayedEcho = false;
+    }
     if (ownUnplayedEcho) {
       console.log("Webhook: skipped outbound unplayed echo", {
         source: media.source,
@@ -2535,6 +2583,9 @@ export async function handleWebhook(req, res) {
         skipped: true,
         reason: "Unplayed callback followed Plembfin outbound mark",
       });
+    }
+    if (!ownUnplayedEcho) {
+      await clearOutboundPlayedMarks(media, media.source, loopStore).catch(() => null);
     }
   }
 
@@ -2607,6 +2658,10 @@ export async function handleWebhook(req, res) {
 
     const results = [];
     const targetPlayed = media.phase === "completed";
+    const flagImportMode = targetPlayed && media.playedFlagOnly ? watchImportMode() : "";
+    const flagTimingHistory = flagImportMode === "episode_timing"
+      ? await getCachedHistory().catch(() => [])
+      : [];
 
     const filteredEpisodes = episodes.filter((ep) => {
       const isPlayed = ep.UserData?.Played === true;
@@ -2633,9 +2688,32 @@ export async function handleWebhook(req, res) {
               : null,
             playedFlagOnly: Boolean(media.playedFlagOnly),
             releaseDate: media.playedFlagOnly ? releaseDateForItem(ep) : "",
+            runtimeMinutes: runtimeMinutesForSourceItem(ep, media.source),
             isValid: true,
           };
           episodeMedia.posterUrl = posterPathFromMedia(episodeMedia);
+
+          const flagDateChoice = episodeMedia.playedFlagOnly
+            ? resolveWatchImportDate({
+              mode: flagImportMode,
+              manualMark: true,
+              releaseDate: episodeMedia.releaseDate,
+              media: episodeMedia,
+              historyRows: flagTimingHistory,
+            })
+            : null;
+          if (flagDateChoice) {
+            episodeMedia.watched_at = flagDateChoice.previewWatchedAt;
+            const existingProvenance = episodeMedia.watchProvenance || {};
+            episodeMedia.watchProvenance = buildWatchProvenance(
+              { ...episodeMedia, playedAt: "" },
+              {
+                ingestPath: existingProvenance.ingest_path || `${media.source || "source"}_webhook`,
+                sourceTimestamp: "",
+                note: [existingProvenance.note, `Import policy: ${flagDateChoice.reason}.`].filter(Boolean).join(" "),
+              },
+            );
+          }
 
           if (media.phase === "unplayed") {
             await deleteActiveSession(episodeMedia).catch(() => null);
@@ -2664,6 +2742,24 @@ export async function handleWebhook(req, res) {
             }
             if (await shouldSkipPostRestoreCompletedWebhook(episodeMedia)) {
               results.push({ episodeId: ep.Id, title: episodeMedia.title, success: true, skipped: true, reason: "Post-restore completed webhook without active playback evidence" });
+              return;
+            }
+            if (flagDateChoice?.requiresReview) {
+              const queued = enqueueManualWatchReview(episodeMedia, {
+                releaseDate: episodeMedia.releaseDate,
+                observedWatchedAt: "",
+                sourceFingerprint: webhookWatchFingerprint(episodeMedia, episodeMedia.releaseDate),
+                reason: "The app reported a watched flag for this episode without playback evidence.",
+              });
+              await deletePlaybackProgress(episodeMedia).catch(() => null);
+              results.push({
+                episodeId: ep.Id,
+                title: episodeMedia.title,
+                success: true,
+                skipped: true,
+                queued: Boolean(queued.queued),
+                reason: "Manual watch review required",
+              });
               return;
             }
             const watchRecord = mediaToWatchRecord(episodeMedia, episodeMedia.source);
@@ -2838,7 +2934,15 @@ export async function handleWebhook(req, res) {
       // then. Emby/Jellyfin retain the stricter flag-only check so genuine
       // completed playback remains a rewatch.
       const echoCheck = source === "plex" ? isRecentOutboundPlayedEcho : isRecentOutboundPlayedFlagEcho;
-      const ownPlayedEcho = await echoCheck(media, media.source, loopStore).catch(() => false);
+      let ownPlayedEcho = await echoCheck(media, media.source, loopStore).catch(() => false);
+      if (ownPlayedEcho && media.playedFlagOnly) {
+        // A provider flag event after Plembfin has become unwatched is a new
+        // user decision, not the old outbound mark being acknowledged. The
+        // regular deleted-date guard below still suppresses stale generic
+        // callbacks, while explicit re-marks are allowed to reopen review.
+        const currentPlaystate = await getPlaystateForMedia(media).catch(() => null);
+        if (currentPlaystate?.state !== "watched") ownPlayedEcho = false;
+      }
       if (ownPlayedEcho) {
         console.log("Webhook: skipped outbound played echo", {
           source: media.source,
@@ -2860,37 +2964,29 @@ export async function handleWebhook(req, res) {
     // A played-flag event says that the source's watched bit changed, not that
     // playback crossed the configured threshold. Servers commonly update
     // LastPlayedDate to the moment of a manual "Mark watched" click, so that
-    // value must not become the historical watch date. Use the real release
-    // day for flag-only events; never fall through to mediaToWatchRecord's
-    // current-time default when the source has no release date.
+    // value must not become the historical watch date. Apply the configured
+    // watch-import policy here, just as the scheduled scanner does.
     if (media.playedFlagOnly) {
-      if (!media.releaseDate) {
-        console.log("Webhook: skipped manual played flag without a release date", {
-          source: media.source,
-          title: media.title,
-          event: media.event,
-        });
-        await deletePlaybackProgress(media).catch(() => null);
-        await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
-        return sendJson(res, {
-          ok: true,
-          inserted: false,
-          skipped: true,
-          reason: "Manual played flag had no release date to use as its historical watch date",
-        });
-      }
-      media.watched_at = media.releaseDate;
+      const { mode, dateChoice } = await resolveWebhookFlagWatchDate(media);
+      media.watched_at = dateChoice.previewWatchedAt;
       const existingProvenance = media.watchProvenance || media.watch_provenance || {};
       media.watchProvenance = buildWatchProvenance(
         { ...media, playedAt: "" },
         {
           ingestPath: existingProvenance.ingest_path || `${media.source || "source"}_webhook`,
           sourceTimestamp: "",
-          note: existingProvenance.note || "The source reported a manual played flag without playback evidence; the release date was used as the watch date.",
+          note: [
+            existingProvenance.note,
+            `Import policy: ${dateChoice.reason}.`,
+          ].filter(Boolean).join(" "),
         },
       );
 
-      if (isDeletedWatchSuppressed(media, media.watched_at)) {
+      // An explicit provider "Mark played" event is a new user decision even
+      // when the same item has a local delete tombstone. The tombstone still
+      // protects us from stale UserData/library echoes; the outbound-echo
+      // guard above protects this explicit path from Plembfin's own mark.
+      if (isDeletedWatchSuppressed(media, media.watched_at) && !isExplicitPlayedFlagEvent(media)) {
         console.log("Webhook: skipped a provider watch date explicitly deleted in Plembfin", {
           source: media.source,
           title: media.title,
@@ -2933,13 +3029,40 @@ export async function handleWebhook(req, res) {
           reason: "Played flag event for an item already present in watched history",
         });
       }
+
+      if (dateChoice.requiresReview) {
+        const queued = enqueueManualWatchReview(media, {
+          releaseDate: media.releaseDate,
+          observedWatchedAt: "",
+          sourceFingerprint: webhookWatchFingerprint(media, media.releaseDate),
+          reason: existingProvenance.note || `${media.source || "The app"} reported a watched flag without playback evidence.`,
+        });
+        if (queued.queued) {
+          console.log("Webhook: queued manual watch review", {
+            source: media.source,
+            title: media.title,
+            mode,
+          });
+        }
+        await deletePlaybackProgress(media).catch(() => null);
+        await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
+        return sendJson(res, {
+          ok: true,
+          inserted: false,
+          queued: Boolean(queued.queued),
+          reviewId: queued.review?.id || null,
+          reason: "Manual watch review required",
+        });
+      }
     }
 
     // Check if a recent watch record already exists (e.g., from full sync)
     // to avoid creating duplicates. Look for records watched in the last hour.
     const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
     const existingRecord = await getWatchRecordByMediaKey(mediaKeyFor(media), oneHourAgo).catch(() => null);
-    if (existingRecord) {
+    // An unwatch is retained as a tombstone so the state transition can be
+    // audited. It must not block a later real watch for the same provider key.
+    if (existingRecord?.sync_action === "watched") {
       console.log("Webhook: skipped duplicate watch record", {
         source: media.source,
         title: media.title,

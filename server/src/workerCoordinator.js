@@ -48,6 +48,12 @@ const LEASE_TTL_MS = timing("PLEMBFIN_TEST_LEASE_TTL_MS", 60_000);
 const TICK_MS = timing("PLEMBFIN_TEST_TICK_MS", 60_000);
 const FIRST_TICK_MS = timing("PLEMBFIN_TEST_FIRST_TICK_MS", 10_000);
 const JOB_POLL_MS = timing("PLEMBFIN_TEST_JOB_POLL_MS", 1_000);
+// Useful for diagnostics that need the real-time provider listeners without
+// letting an existing scheduled/backlog pass compete with the event under
+// test. The default remains the normal combined worker behavior.
+const SCHEDULED_WORKER_PAUSED = ["1", "true", "yes", "on"].includes(
+  String(process.env.PLEMBFIN_PAUSE_SCHEDULED_WORKER || "").trim().toLowerCase(),
+);
 
 // How long to wait before the next tick, given how long the current one has
 // already taken. Timing from the tick's start keeps the period at `tickMs`
@@ -98,8 +104,12 @@ export function createWorkerCoordinator({ holderId, role }) {
     // Warm the persisted Upcoming snapshot as soon as this process becomes the
     // scheduler leader. The refresh is intentionally detached so leadership
     // renewal and the HTTP server remain responsive while metadata is fetched.
-    later(() => refreshUpcomingCalendarCache({ forceCurrent: true }), 0);
-    later(runTick, FIRST_TICK_MS);
+    if (!SCHEDULED_WORKER_PAUSED) {
+      later(() => refreshUpcomingCalendarCache({ forceCurrent: true }), 0);
+      later(runTick, FIRST_TICK_MS);
+    } else {
+      console.log("[worker] scheduled sync and background jobs paused by PLEMBFIN_PAUSE_SCHEDULED_WORKER");
+    }
   }
 
   function loseLeadership(reason) {
@@ -257,7 +267,7 @@ export function createWorkerCoordinator({ holderId, role }) {
     async start() {
       stopped = false;
       await maintainLease();
-      later(pollJobs, 25);
+      if (!SCHEDULED_WORKER_PAUSED) later(pollJobs, 25);
     },
     async stop() {
       stopped = true;

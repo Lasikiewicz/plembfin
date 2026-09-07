@@ -29,6 +29,7 @@ import { getUpNextCacheSnapshot } from "../utils/upNextCache.js";
 import { buildUpNextProjection } from "../utils/upNextService.js";
 import { getActiveUpNextProviderItemById } from "../utils/upNextRepository.js";
 import { providerArtworkPathsForCandidate } from "../utils/upNextIdentity.js";
+import { getManualWatchReview } from "../utils/manualWatchReview.js";
 import { getFanartMovieArt, getFanartTvArt, getAllFanartMovieImages, getAllFanartTvImages } from "../utils/fanartGateway.js";
 import { getOmdbRating } from "../utils/omdbGateway.js";
 import { POSTERS_DIR, BACKDROPS_DIR, PROFILES_DIR, PUBLIC_DIR } from "../paths.js";
@@ -193,12 +194,48 @@ async function findLiveSessionPosterRow(mediaKey) {
 // apart between the two routes.
 async function resolvePosterPayload({ rowId, provider = "", fallbackRequested = false, providerImageRequested = false }) {
   try {
+    let manualReviewPoster = false;
     let row = provider ? getActiveUpNextProviderItemById(provider, rowId) : null;
     if (!row) {
       row = await getWatchRecordByIdLight(rowId);
     }
     if (!row) {
       row = await getWatchRecordByMediaKey(rowId).catch(() => null);
+    }
+    if (!row) {
+      const review = getManualWatchReview(rowId);
+      if (review) {
+        const media = review.media || {};
+        const ids = media.ids || {};
+        const showIds = media.showIds || media.show_ids || {};
+        const title = review.title || media.title || "Unknown media";
+        const showTitle = review.show_title
+          || media.showTitle
+          || media.show_title
+          || title.match(/^(.*?)(?:\s+-\s+S\d{1,2}E\d{1,2})(?:\s+-\s+.*)?$/i)?.[1]
+          || "";
+        row = {
+          id: review.id,
+          media_key: review.media_key,
+          title,
+          media_type: review.media_type || media.type || media.media_type,
+          source: review.source || media.source,
+          imdb_id: ids.imdb || null,
+          tmdb_id: ids.tmdb || null,
+          tvdb_id: ids.tvdb || null,
+          show_title: showTitle,
+          show_imdb_id: showIds.imdb || media.showImdbId || media.show_imdb_id || null,
+          show_tmdb_id: showIds.tmdb || media.showTmdbId || media.show_tmdb_id || null,
+          show_tvdb_id: showIds.tvdb || media.showTvdbId || media.show_tvdb_id || null,
+          season: review.season ?? media.season ?? null,
+          episode: review.episode ?? media.episode ?? null,
+          poster_url: media.posterUrl || media.poster_url || null,
+          show_poster_url: media.showPosterUrl || media.show_poster_url || null,
+          provider_item_id: review.source_item_id || media.itemId || media.item_id || media.providerItemId || media.provider_item_id || null,
+          provider_items: media.providerItems || media.provider_items || {},
+        };
+        manualReviewPoster = true;
+      }
     }
     if (!row) {
       const progressRow = db.prepare("SELECT * FROM playback_progress WHERE media_key = ?").get(rowId);
@@ -258,6 +295,12 @@ async function resolvePosterPayload({ rowId, provider = "", fallbackRequested = 
     const config = await loadMediaConfig().catch(() => ({}));
     const mediaKey = row.media_key || mediaKeyFor(row);
     const posterUpdateId = row.id || rowId;
+    const persistResolvedPoster = async (url) => {
+      if (manualReviewPoster) return;
+      await updateWatchPosterUrl(posterUpdateId, url, { invalidate: false }).catch((error) => {
+        console.error("Failed to persist cached poster URL", { id: row.id, title: row.title, error: error.message || String(error) });
+      });
+    };
 
     if (!fallbackRequested) {
       const canonicalPoster = getCanonicalPosterUrl(row);
@@ -374,17 +417,13 @@ async function resolvePosterPayload({ rowId, provider = "", fallbackRequested = 
 
           // If the URL is already a cached storage image, return it directly
           if (isCachedStorageUrl(candidate.url)) {
-            await updateWatchPosterUrl(posterUpdateId, candidate.url, { invalidate: false }).catch((error) => {
-              console.error("Failed to persist poster URL", { id: row.id, title: row.title, error: error.message || String(error) });
-            });
+            await persistResolvedPoster(candidate.url);
             return { url: candidate.url, cached: true, source: candidate.source };
           }
 
           const cachedPoster = await cachePosterFromUrl(mediaKey, candidate.url, candidate.source);
           if (cachedPoster?.url) {
-            await updateWatchPosterUrl(posterUpdateId, cachedPoster.url, { invalidate: false }).catch((error) => {
-              console.error("Failed to persist cached poster URL", { id: row.id, title: row.title, error: error.message || String(error) });
-            });
+            await persistResolvedPoster(cachedPoster.url);
             return cachedPoster;
           }
         }

@@ -59,6 +59,13 @@ test("all three show lookup shapes consult and record the miss", () => {
   }
 });
 
+test("TVDB-backed show metadata hydrates seasons through its TVDB identity", () => {
+  const lookup = showSource.match(/export function showSeasonLookupId[\s\S]*?\n}/)?.[0] || "";
+  assert.match(lookup, /external_ids\?\.tvdb_id/);
+  assert.match(lookup, /if \(tvdbId\) return `tvdb:\$\{tvdbId\}`/);
+  assert.match(lookup, /const tmdbId = String\(tmdbData\?\.id/);
+});
+
 test("the miss cache is cleared by the same mutation hook as the positive cache", () => {
   assert.match(stateSource, /showDetailMisses: new Map\(\)/);
   const clearBody = appSource.match(/function clearDerivedUiCaches[\s\S]*?\n}/)?.[0] || "";

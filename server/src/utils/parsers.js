@@ -607,6 +607,7 @@ export function buildPlexMediaFromMetadata(metadata = {}, { phase = "unplayed" }
     user: "",
     itemId: metadata.ratingKey,
     releaseDate,
+    durationMs: durationMillisecondsFrom(metadata),
     // This notification is a library-state change, not a playback lifecycle
     // payload. The caller may upgrade it to a real playback date when a recent
     // live session proves that the watched threshold was reached.

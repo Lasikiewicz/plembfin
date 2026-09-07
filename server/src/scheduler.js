@@ -7,9 +7,9 @@ import { fetchPlexContainerEpisodes, fetchPlexMetadataItem, findPlexItem, hydrat
 import { buildPlexMediaFromMetadata } from "./utils/parsers.js";
 import { buildWatchProvenance, provenanceTelemetryLines } from "./utils/watchProvenance.js";
 import { listActiveSessions } from "./utils/activeSessions.js";
-import { runScheduledSync } from "./scheduled.js";
+import { providerWatchFingerprint, runScheduledSync } from "./scheduled.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
-import { watchedThresholdPercent } from "./utils/tuning.js";
+import { watchedThresholdPercent, watchImportMode } from "./utils/tuning.js";
 import { isRecentOutboundPlayedEcho, isRecentOutboundUnplayedFlagEcho, lastOutboundPlayedMarkAt, syncCanonicalPlaystate, syncMediaPlaystate } from "./utils/syncOrchestrator.js";
 import { applyUnwatchedTransition } from "./utils/watchStateTransitions.js";
 import { shouldRepairRecentPlexUnwatch } from "./utils/plexWatchstate.js";
@@ -25,6 +25,7 @@ import { pruneSyncPlans } from "./utils/syncPlans.js";
 import {
   deletePlaybackProgress,
   findWatchedByAnyMediaKey,
+  getCachedHistory,
   getCachedShows,
   getPlaystateForMedia,
   insertWatchRecord,
@@ -37,7 +38,8 @@ import {
   upsertPlaystateForMedia,
   loadLiveTrackingCache,
 } from "./utils/dataRepo.js";
-import { resolvePlexWatchDate } from "./utils/watchDates.js";
+import { resolvePlexWatchDate, resolveWatchImportDate, runtimeMinutesForSourceItem } from "./utils/watchDates.js";
+import { enqueueManualWatchReview } from "./utils/manualWatchReview.js";
 
 const NEXT_AIRING_REFRESH_INTERVAL_MS = 30 * 60 * 1000;
 const UPCOMING_CALENDAR_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
@@ -547,7 +549,19 @@ async function processPlexLibraryItemChange(ratingKey, metadataOverride = null) 
     const watchDate = resolvePlexNotificationWatchDate(metadata, {
       hasPlaybackEvidence: await hasRecentPlexThresholdPlayback(media),
     });
-    const watchedAt = watchDate.watchedAt;
+    const importMode = watchImportMode();
+    const timingHistory = importMode === "episode_timing" ? await getCachedHistory().catch(() => []) : [];
+    media.runtimeMinutes = runtimeMinutesForSourceItem(metadata, "plex");
+    const dateChoice = resolveWatchImportDate({
+      mode: importMode,
+      manualMark: watchDate.manualMark,
+      sourceTimestamp: watchDate.sourceTimestamp,
+      releaseDate: media.releaseDate,
+      fallbackDate: watchDate.watchedAt,
+      media,
+      historyRows: timingHistory,
+    });
+    const watchedAt = dateChoice.watchedAt;
     if (!watchedAt) {
       console.log("Plex notifications: skipped watched item without a playback timestamp or release date", {
         title: media.title,
@@ -561,7 +575,11 @@ async function processPlexLibraryItemChange(ratingKey, metadataOverride = null) 
 
     media.watchProvenance = buildWatchProvenance(
       { source: "plex", event: "notification.viewstate", phase: "completed", itemId: ratingKey },
-      { ingestPath: "plex_notification", sourceTimestamp: watchDate.sourceTimestamp, note: watchDate.note },
+      {
+        ingestPath: "plex_notification",
+        sourceTimestamp: watchDate.sourceTimestamp,
+        note: [watchDate.note, `Import policy: ${dateChoice.reason}.`].filter(Boolean).join(" "),
+      },
     );
 
     // Plembfin is authoritative when an administrator explicitly removes a
@@ -625,6 +643,24 @@ async function processPlexLibraryItemChange(ratingKey, metadataOverride = null) 
       });
       await upsertPlaystateForMedia(media, "watched", existingByAnyKey.watched_at, { skipInvalidate: true });
       await deletePlaybackProgress(media).catch(() => null);
+      return;
+    }
+
+    if (dateChoice.requiresReview) {
+      const queued = enqueueManualWatchReview(media, {
+        releaseDate: media.releaseDate,
+        observedWatchedAt: watchDate.sourceTimestamp,
+        sourceFingerprint: providerWatchFingerprint(metadata, "plex", "notification"),
+        reason: watchDate.note || "Plex reported a watched library flag without playback evidence.",
+      });
+      if (queued.queued) {
+        console.log("Plex notifications: queued manual watch review", {
+          title: media.title,
+          ratingKey,
+        });
+      }
+      await deletePlaybackProgress(media).catch(() => null);
+      await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
       return;
     }
 
@@ -850,6 +886,9 @@ async function checkPlexUnwatchedFast(plexConfig) {
         type: record.media_type,
         source: "plex",
         isValid: true,
+        itemId: record.watch_provenance?.source === "plex"
+          ? record.watch_provenance.item_id || undefined
+          : undefined,
         ids: {
           imdb: record.imdb_id || undefined,
           tmdb: record.tmdb_id || undefined,
@@ -860,9 +899,17 @@ async function checkPlexUnwatchedFast(plexConfig) {
         watchProvenance: record.watch_provenance || null,
       };
 
-      const plexItem = await findPlexItem(plexConfig, media);
+      const plexItem = media.itemId
+        ? await fetchPlexMetadataItem(plexConfig, media.itemId).catch(() => null)
+        : await findPlexItem(plexConfig, media);
       if (plexItem) {
-        const isWatched = Boolean(plexItem.viewCount && Number(plexItem.viewCount) > 0);
+        // A metadata lookup without account-scoped user data is not evidence
+        // of an unwatch. Only an explicit numeric viewCount of zero can
+        // trigger the unwatch repair; otherwise a provider response that
+        // omitted viewCount would erase a freshly imported watch.
+        const viewCount = Number(plexItem.viewCount);
+        if (!Number.isFinite(viewCount)) continue;
+        const isWatched = viewCount > 0;
         if (!isWatched) {
           const plexMedia = { ...media, itemId: plexItem.ratingKey || plexItem.key || undefined };
           const config = await loadMediaConfig().catch(() => null);

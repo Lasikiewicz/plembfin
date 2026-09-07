@@ -3,7 +3,7 @@
 // Test / Cancel / Save footer. Consumers describe fields declaratively; secret
 // fields are never prefilled - a "Configured" placeholder stands in for the
 // stored credential (redacted-config semantics).
-import { escapeHtml, escapeAttribute } from "./utils.js?v=0.15.0.9";
+import { escapeHtml, escapeAttribute } from "./utils.js?v=0.15.0.13";
 
 const CONFIGURED_PLACEHOLDER = "Configured - enter a new key to replace it";
 
@@ -61,6 +61,53 @@ export function renderFieldRow(field, options = {}) {
       </label>
     `;
   }
+  if (field.type === "choice") {
+    const labelId = `${field.id || `sync-field-${field.key}`}-label`;
+    const options = (field.options || []).map((option) => {
+      const optionValue = typeof option === "string" ? option : option.value;
+      const optionLabel = typeof option === "string" ? option : option.label;
+      const optionDescription = typeof option === "string" ? "" : option.description;
+      return `
+        <label class="settings-choice-option">
+          <input type="radio" name="settings-choice-${escapeAttribute(field.key)}" value="${escapeAttribute(optionValue)}"
+            data-modal-field="${escapeAttribute(field.key)}" ${String(value) === String(optionValue) ? "checked" : ""} />
+          <span class="settings-choice-option-body">
+            <span class="settings-choice-option-title">${escapeHtml(optionLabel)}</span>
+            ${optionDescription ? `<span class="settings-choice-option-description">${escapeHtml(optionDescription)}</span>` : ""}
+          </span>
+        </label>
+      `;
+    }).join("");
+    return `
+      <div id="${escapeAttribute(field.id || `sync-field-${field.key}`)}" class="settings-modal-field settings-modal-field--choice" data-field-key="${escapeAttribute(field.key)}">
+        <div id="${escapeAttribute(labelId)}" class="settings-modal-field-label">
+          <span class="settings-modal-field-title">${escapeHtml(field.label)}${optionalTag}</span>
+          ${help}
+        </div>
+        <div class="settings-choice-grid" role="radiogroup" aria-labelledby="${escapeAttribute(labelId)}">
+          ${options}
+        </div>
+      </div>
+    `;
+  }
+  if (field.type === "select") {
+    const options = (field.options || []).map((option) => {
+      const optionValue = typeof option === "string" ? option : option.value;
+      const optionLabel = typeof option === "string" ? option : option.label;
+      return `<option value="${escapeAttribute(optionValue)}" ${String(value) === String(optionValue) ? "selected" : ""}>${escapeHtml(optionLabel)}</option>`;
+    }).join("");
+    return `
+      <label id="${escapeAttribute(field.id || `sync-field-${field.key}`)}" class="settings-modal-field" data-field-key="${escapeAttribute(field.key)}">
+        <span class="settings-modal-field-label">
+          <span class="settings-modal-field-title">${escapeHtml(field.label)}${optionalTag}</span>
+          ${help}
+        </span>
+        <span class="settings-modal-field-control">
+          <select class="field" data-modal-field="${escapeAttribute(field.key)}" autocomplete="${escapeAttribute(field.autocomplete || "off")}">${options}</select>
+        </span>
+      </label>
+    `;
+  }
   return `
     <label id="${escapeAttribute(field.id || `sync-field-${field.key}`)}" class="settings-modal-field" data-field-key="${escapeAttribute(field.key)}">
       <span class="settings-modal-field-label">
@@ -81,7 +128,12 @@ export function renderFieldRow(field, options = {}) {
 export function collectFieldValues(container) {
   const values = {};
   container.querySelectorAll("[data-modal-field]").forEach((input) => {
-    values[input.dataset.modalField] = input.type === "checkbox" ? input.checked : input.value.trim();
+    const key = input.dataset.modalField;
+    if (input.type === "radio") {
+      if (input.checked) values[key] = input.value.trim();
+      return;
+    }
+    values[key] = input.type === "checkbox" ? input.checked : input.value.trim();
   });
   return values;
 }

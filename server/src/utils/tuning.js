@@ -28,6 +28,24 @@ const ENV_VARS = {
   outboundTimeoutSec: "OUTBOUND_TIMEOUT_SEC",
 };
 
+// A watched flag coming from a media app is not always accompanied by a
+// trustworthy playback timestamp. Keep the import policy separate from the
+// numeric tuning values above so existing callers/tests that consume those
+// maps keep their original shape.
+export const WATCH_IMPORT_MODES = Object.freeze([
+  "now",
+  "release_day",
+  "episode_timing",
+  "review",
+]);
+export const DEFAULT_WATCH_IMPORT_MODE = "review";
+const WATCH_IMPORT_MODE_ENV = "WATCH_IMPORT_MODE";
+
+function readWatchImportModeEnv() {
+  const value = String(process.env[WATCH_IMPORT_MODE_ENV] || "").trim().toLowerCase();
+  return WATCH_IMPORT_MODES.includes(value) ? value : DEFAULT_WATCH_IMPORT_MODE;
+}
+
 function clamp(key, value) {
   const [min, max] = CLAMPS[key];
   return Math.min(max, Math.max(min, value));
@@ -55,6 +73,16 @@ let effective = {
   activeSessionTtlMin: envOrDefault("activeSessionTtlMin"),
   outboundTimeoutSec: envOrDefault("outboundTimeoutSec"),
 };
+let effectiveWatchImportMode = readWatchImportModeEnv();
+
+// Stored settings use null for "use the environment/default". Invalid values
+// are normalized to null here and rejected by configStore.validateConfig when
+// they arrive through the settings API.
+export function normalizeWatchImportMode(value) {
+  if (value === null || value === undefined || String(value).trim() === "") return null;
+  const normalized = String(value).trim().toLowerCase();
+  return WATCH_IMPORT_MODES.includes(normalized) ? normalized : null;
+}
 
 // Normalizes a raw stored/incoming tuning section (numbers-or-null/blank) into
 // { key: number|null } - null means "not overridden, fall back to env/default".
@@ -89,6 +117,7 @@ export function applyTuningConfig(section = {}) {
     next[key] = normalized[key] === null ? envOrDefault(key) : clamp(key, normalized[key]);
   }
   effective = next;
+  effectiveWatchImportMode = normalizeWatchImportMode(section?.watchImportMode) || readWatchImportModeEnv();
   return effective;
 }
 
@@ -102,6 +131,7 @@ export function resetTuningForTests() {
     activeSessionTtlMin: envOrDefault("activeSessionTtlMin"),
     outboundTimeoutSec: envOrDefault("outboundTimeoutSec"),
   };
+  effectiveWatchImportMode = readWatchImportModeEnv();
 }
 
 export function watchedThresholdPercent() {
@@ -118,6 +148,14 @@ export function activeSessionTtlMs() {
 
 export function outboundTimeoutMs() {
   return effective.outboundTimeoutSec * 1000;
+}
+
+export function watchImportMode() {
+  return effectiveWatchImportMode;
+}
+
+export function watchImportModeDefault() {
+  return readWatchImportModeEnv();
 }
 
 export function tuningDefaults() {

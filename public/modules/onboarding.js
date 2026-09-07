@@ -3,12 +3,12 @@
 // wherever possible - openServiceEditModal() for every provider connect/test
 // flow, and the webhook-guide functions - so setup and Settings never diverge
 // in behavior, only in presentation.
-import { state, elements } from "./state.js?v=0.15.0.9";
-import { escapeHtml, escapeAttribute } from "./utils.js?v=0.15.0.9";
-import { openServiceEditModal } from "./settings-services.js?v=0.15.0.9";
-import { embyWebhookSetup, jellyfinWebhookSetup, buildWebhookUrl } from "./help-content.js?v=0.15.0.9";
-import { claimAdminAccount } from "./auth.js?v=0.15.0.9";
-import { loadWatchBackups, loadPlembfinBackups } from "./tools-backups.js?v=0.15.0.9";
+import { state, elements } from "./state.js?v=0.15.0.13";
+import { escapeHtml, escapeAttribute } from "./utils.js?v=0.15.0.13";
+import { openServiceEditModal } from "./settings-services.js?v=0.15.0.13";
+import { embyWebhookSetup, jellyfinWebhookSetup, buildWebhookUrl } from "./help-content.js?v=0.15.0.13";
+import { claimAdminAccount } from "./auth.js?v=0.15.0.13";
+import { loadWatchBackups, loadPlembfinBackups } from "./tools-backups.js?v=0.15.0.13";
 
 let _cb = {};
 export function initOnboarding(callbacks = {}) {
@@ -119,6 +119,7 @@ const STEPS = [
   { id: "webhooks", label: "Webhooks" },
   { id: "backup", label: "Backup" },
   { id: "imports", label: "Import & sync" },
+  { id: "options", label: "Options" },
   { id: "review", label: "Review" },
 ];
 const SKIPPABLE_STEPS = new Set(["servers", "metadata", "webhooks", "backup"]);
@@ -129,6 +130,7 @@ const STEP_TITLES = {
   webhooks: "Enable reliable updates",
   trakt: "Connect Trakt",
   imports: "Import progress",
+  options: "Choose your options",
   backup: "Protect your Plembfin data",
   review: "Review and finish",
 };
@@ -214,6 +216,33 @@ let pendingTraktImportChoice = null;
 // so an untouched box means "keep the default", not "the stored value" - the
 // stored value is still the pre-setup default of off at this point.
 let pendingWatchlistChoice = null;
+// Options are applied together when the user continues past the Options step,
+// so a radio/toggle change is only an in-wizard choice until it is accepted.
+let pendingWatchImportMode = null;
+let pendingFastLocalPacing = null;
+
+const WATCH_IMPORT_MODES = Object.freeze([
+  { value: "now", label: "Mark as watched now", description: "Use the time the scanner sees the watched flag." },
+  { value: "release_day", label: "Mark as watched on release day", description: "Use the movie or episode release date." },
+  { value: "episode_timing", label: "Mark as watched at the same time as other episodes", description: "Use the before/after timing from the media pages." },
+  { value: "review", label: "Require review", description: "Hold the item for a decision in Manual Watch review." },
+]);
+
+function savedWatchImportMode() {
+  const configured = state.savedConfig?.tuning?.watchImportMode ?? cachedStatus?.options?.watchImportMode;
+  const value = typeof configured === "object" ? configured?.value : configured;
+  return WATCH_IMPORT_MODES.some((option) => option.value === value) ? value : "review";
+}
+
+function setupWatchImportMode() {
+  return pendingWatchImportMode || savedWatchImportMode();
+}
+
+function setupFastLocalPacing() {
+  if (pendingFastLocalPacing !== null) return pendingFastLocalPacing;
+  if (state.savedConfig?.pacing?.profile) return state.savedConfig.pacing.profile === "fast";
+  return cachedStatus?.options?.fastLocalPacing === true;
+}
 
 function serverImportPending(provider) {
   if (pendingServerImportChoice.has(provider)) return pendingServerImportChoice.get(provider);
@@ -235,6 +264,22 @@ async function savePendingWatchlistChoice() {
   await api("/api/config", { method: "POST", body: JSON.stringify({ watchlistSync: { enabled } }) })
     .then((body) => { if (body?.config) state.savedConfig = body.config; })
     .catch(() => {});
+}
+
+async function saveSetupOptions() {
+  const mode = setupWatchImportMode();
+  const fastLocalPacing = setupFastLocalPacing();
+  const body = await api("/api/config", {
+    method: "POST",
+    body: JSON.stringify({
+      tuning: { watchImportMode: mode },
+      pacing: { profile: fastLocalPacing ? "fast" : "standard" },
+    }),
+  });
+  if (body?.config) state.savedConfig = body.config;
+  pendingWatchImportMode = null;
+  pendingFastLocalPacing = null;
+  document.dispatchEvent(new CustomEvent("plembfin:config-changed", { detail: { refreshSyncTuning: true } }));
 }
 
 async function startPendingServerImports() {
@@ -293,6 +338,7 @@ function stepDone(id) {
   if (id === "webhooks") return servers.filter((s) => s.tested && webhookSetupRequired(s.provider)).every((s) => onboarding.acknowledgements.webhooks?.[s.provider]);
   if (id === "trakt") return trakt.connected || onboarding.acknowledgements.traktSkipped;
   if (id === "imports") return true;
+  if (id === "options") return Boolean(state.savedConfig?.tuning?.watchImportMode || cachedStatus.options?.watchImportMode);
   if (id === "backup") return Boolean(backupSetupData?.plembfin?.config?.enabled);
   return false;
 }
@@ -456,6 +502,7 @@ function renderStep(step, hasTestedServer) {
   if (step === "webhooks") return renderWebhooks();
   if (step === "trakt") return renderTrakt();
   if (step === "imports") return renderImports();
+  if (step === "options") return renderOptions();
   if (step === "backup") return renderBackup();
   if (step === "review") return renderReview(hasTestedServer);
   return "";
@@ -485,6 +532,10 @@ const OVERVIEW_STEPS = [
   {
     title: "Import & sync", tag: "Optional",
     detail: "Import each server's existing watch history, or start tracking fresh from today.",
+  },
+  {
+    title: "Options", tag: "Recommended",
+    detail: "Choose how app-marked watches are dated or reviewed, and optionally speed up trusted local-network sync.",
   },
 ];
 
@@ -786,6 +837,37 @@ function renderImports() {
   return `
     <div class="guide-callout setup-import-note">These imports will continue in the background - go ahead and continue with setup.</div>
     <div class="setup-import-list">${rows.join("") || `<p class="muted-copy">No imports were requested. Plembfin will track new activity from this point forward.</p>`}</div>`;
+}
+
+function renderOptions() {
+  const selectedMode = setupWatchImportMode();
+  const fastLocalPacing = setupFastLocalPacing();
+  return `
+    <div class="setup-options-fields">
+      <section class="settings-card setup-options-card setup-options-policy">
+        <div class="setup-options-heading">
+          <b>When you manually mark an item as watched in Plex / Emby / Jellyfin</b>
+          <p class="muted-copy">Choose whether Plembfin dates the watch automatically or sends it to Manual Watch review.</p>
+        </div>
+        <div class="settings-choice-grid setup-options-radio-grid" role="radiogroup" aria-label="When you manually mark an item as watched in Plex / Emby / Jellyfin">
+          ${WATCH_IMPORT_MODES.map((option) => `
+            <label class="settings-choice-option">
+              <input type="radio" name="setup-watch-import-mode" value="${escapeAttribute(option.value)}" data-setup-watch-import-mode="1" ${selectedMode === option.value ? "checked" : ""} />
+              <span class="settings-choice-option-body">
+                <span class="settings-choice-option-title">${escapeHtml(option.label)}</span>
+                <span class="settings-choice-option-description">${escapeHtml(option.description)}</span>
+              </span>
+            </label>`).join("")}
+        </div>
+      </section>
+      <label class="settings-card setup-options-card setup-options-toggle">
+        <span class="setup-options-toggle-copy">
+          <b>Fast Local-Network Sync</b>
+          <span>Speed up bulk sync operations when Plembfin, Plex, Emby, and Jellyfin are all on the same trusted local network. Leave this off for public or mixed networks.</span>
+        </span>
+        <input class="setup-options-switch" type="checkbox" role="switch" aria-label="Fast Local-Network Sync" data-setup-fast-local-sync="1" ${fastLocalPacing ? "checked" : ""} aria-checked="${fastLocalPacing ? "true" : "false"}" />
+      </label>
+    </div>`;
 }
 
 function importProgressBar(status) {
@@ -1111,6 +1193,11 @@ function renderReview(hasTestedServer) {
       status: runningImports ? `${runningImports} running` : `${completedImports} complete`, tone: runningImports ? "warning" : "success",
     },
     {
+      label: "Options",
+      detail: `${WATCH_IMPORT_MODES.find((option) => option.value === setupWatchImportMode())?.label || "Require review"}; fast local-network sync ${setupFastLocalPacing() ? "enabled" : "off"}`,
+      status: "Saved", tone: "success",
+    },
+    {
       label: "Backups",
       detail: backupConfig.enabled
         ? `Daily encrypted backup at ${backupConfig.time || "03:00"}${backupConfig.remoteEnabled ? ", mirrored to Backblaze B2" : ", stored locally"}`
@@ -1209,6 +1296,15 @@ function handleSetupChange(event) {
   }
   if (event.target.matches("[data-setup-watchlist-toggle]")) {
     pendingWatchlistChoice = event.target.checked;
+    return;
+  }
+  if (event.target.matches("[data-setup-watch-import-mode]")) {
+    pendingWatchImportMode = event.target.value;
+    return;
+  }
+  if (event.target.matches("[data-setup-fast-local-sync]")) {
+    pendingFastLocalPacing = event.target.checked;
+    event.target.setAttribute("aria-checked", event.target.checked ? "true" : "false");
     return;
   }
   const importToggle = event.target.closest("[data-setup-import-toggle]");
@@ -1314,6 +1410,14 @@ async function handleSetupClick(event) {
         return;
       }
     }
+    if (currentStep() === "options") {
+      try {
+        await saveSetupOptions();
+      } catch (error) {
+        setMessage(error.message, "error");
+        return;
+      }
+    }
     setCurrentStep(stepNeighbor(1));
   } else if (action === "back") {
     setCurrentStep(stepNeighbor(-1));
@@ -1336,4 +1440,3 @@ async function handleSetupClick(event) {
       .catch((error) => setMessage(error.message, "error"));
   }
 }
-

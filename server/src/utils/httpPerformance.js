@@ -54,6 +54,14 @@ export function setPublicAssetCacheHeaders(response, filePath) {
     return;
   }
   if (!STATIC_ASSET_EXTENSIONS.test(fileName)) return;
+  // Local source-mode QA can opt out of immutable asset caching without
+  // changing the release cache contract used by deployed builds. This keeps
+  // a browser with an older stamped query string from hiding current source
+  // changes while the elevated test server is running.
+  if (process.env.PLEMBFIN_DEV_NO_CACHE_ASSETS === "1") {
+    response.setHeader("Cache-Control", "no-store");
+    return;
+  }
   const versioned = Boolean(String(response.req?.query?.v || "").trim());
   response.setHeader(
     "Cache-Control",

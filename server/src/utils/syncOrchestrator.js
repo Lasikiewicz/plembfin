@@ -486,6 +486,22 @@ export async function recordOutboundPlayedMarks(media, targets = [], kv) {
   }
 }
 
+// A genuine provider-side unwatch is a new state transition. Clear any old
+// Plembfin played marker for that item on the same provider so a later manual
+// re-mark is not mistaken for a delayed echo of the original outbound mark.
+// Keep the marker when the unwatch itself was identified as our own echo; the
+// old played callback may still be in flight in that case.
+export async function clearOutboundPlayedMarks(media, target, kv) {
+  if (!kv?.delete || !target) return;
+  for (const key of targetCacheKeys(media, target, OUTBOUND_MARK_PREFIX)) {
+    try {
+      await kv.delete(key);
+    } catch (error) {
+      console.error("Failed to clear outbound played mark", { target, error });
+    }
+  }
+}
+
 // Unplayed callbacks do not carry a reliable timestamp on every server, so
 // keep a separate ledger for outbound unscrobble/delete-played writes. This
 // prevents a target's acknowledgement from being interpreted as a new source

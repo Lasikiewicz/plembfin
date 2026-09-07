@@ -63,15 +63,22 @@ test("automatic unwatch burst guard holds back automatic unwatches once the thre
   assert.equal(state?.state, "watched");
 });
 
-test("automatic unwatch burst guard never holds back an explicit manual unwatch", async () => {
+test("automatic unwatch burst guard never holds back an explicit manual unwatch from a provider-sourced record", async () => {
   const loopStore = createLoopStore();
   const seeded = [];
   for (let i = 100; i < 125; i++) {
-    seeded.push(await seedWatched(i, "manual"));
+    // Manual UI actions commonly target history rows that were originally
+    // imported from Plex/Emby/Jellyfin. This is the regression case: the
+    // action itself must be exempt even when the stored row's source is not
+    // "manual".
+    seeded.push(await seedWatched(i, "plex"));
   }
 
   for (const media of seeded) {
-    const result = await applyUnwatchedTransition(media, config, loopStore);
+    const result = await applyUnwatchedTransition(media, config, loopStore, {
+      includeSourcePlatform: true,
+      force: true,
+    });
     assert.notEqual(result.heldBackSuspiciousBurst, true, `manual unwatch for ${media.title} must never be held back`);
   }
 

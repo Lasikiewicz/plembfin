@@ -1,6 +1,6 @@
 import { db, parseJson, toJson } from "../db.js";
 import { assertSafeOutboundUrl, normalizeHttpUrl, configureOutboundGovernor } from "./outbound.js";
-import { applyTuningConfig, normalizeTuningSection, tuningClamps, tuningEnvDefaults } from "./tuning.js";
+import { applyTuningConfig, normalizeTuningSection, normalizeWatchImportMode, tuningClamps, tuningEnvDefaults, watchImportModeDefault, WATCH_IMPORT_MODES } from "./tuning.js";
 import { normalizeSyncRoles, validateSyncRolesSection, normalizeAuthority } from "./syncRoles.js";
 import { getMediaConnection, resolveConnectedProviderConfig } from "./mediaConnectionRepo.js";
 import { getValidPlexServerToken, getValidPlexToken } from "./plexTokenManager.js";
@@ -284,9 +284,13 @@ export function normalizeStoredConfig(stored = {}) {
     omdb: {
       apiKey: String(stored.omdb?.apiKey || "").trim(),
     },
-    // Numbers-or-null (null = not overridden, fall back to env/default) rather
-    // than the string-based normalization the other sections use above.
-    tuning: normalizeTuningSection(stored.tuning || {}),
+    // Numeric tuning fields use null for "not overridden". The watch-import
+    // mode follows the same contract but is normalized separately so the
+    // existing numeric tuning API remains backwards-compatible.
+    tuning: {
+      ...normalizeTuningSection(stored.tuning || {}),
+      watchImportMode: normalizeWatchImportMode(stored.tuning?.watchImportMode),
+    },
     syncScope: normalizeSyncScope(stored.syncScope || {}),
     authority: normalizeAuthority(stored.authority || {}),
     pacing: normalizePacing(stored.pacing || {}),
@@ -398,6 +402,14 @@ function publicTuningConfig(storedTuning = {}) {
       max: clamps[key][1],
     };
   }
+  const modeOverride = normalizeWatchImportMode(storedTuning.watchImportMode);
+  const modeDefault = watchImportModeDefault();
+  result.watchImportMode = {
+    value: modeOverride || modeDefault,
+    default: modeDefault,
+    overridden: Boolean(modeOverride),
+    options: [...WATCH_IMPORT_MODES],
+  };
   return result;
 }
 
@@ -564,6 +576,13 @@ export function validateConfig(config = {}) {
       if (value === null) continue;
       const [min, max] = clamps[key];
       if (value < min || value > max) errors.push(`tuning.${key} must be between ${min} and ${max}`);
+    }
+    const requestedWatchImportMode = config.tuning.watchImportMode;
+    if (requestedWatchImportMode !== null && requestedWatchImportMode !== undefined && String(requestedWatchImportMode).trim() !== "") {
+      const normalizedMode = String(requestedWatchImportMode).trim().toLowerCase();
+      if (!WATCH_IMPORT_MODES.includes(normalizedMode)) {
+        errors.push(`tuning.watchImportMode must be one of ${WATCH_IMPORT_MODES.join(", ")}`);
+      }
     }
   }
 

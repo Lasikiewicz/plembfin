@@ -1153,6 +1153,77 @@ try {
   if (!watchCols.includes("watch_provenance")) db.exec("ALTER TABLE watch_history ADD COLUMN watch_provenance TEXT");
 } catch { /* column already exists */ }
 
+// The main schema is executed before legacy migrations. Keep the item-level
+// triggers out of schema.sql so an old watch_history table without newer
+// columns can still be upgraded, then install the richest trigger shape the
+// resulting table supports once migrations have completed.
+function installLiveChangeTriggers() {
+  const columnsFor = (table) => new Set(db.pragma(`table_info(${table})`).map((column) => column.name));
+  const expr = (alias, column, columns) => columns.has(column) ? `${alias}.${column}` : "NULL";
+  const triggerNames = [
+    "watch_history", "playstate", "playback_progress", "personal_watchlist", "manual_watch_reviews",
+  ].flatMap((table) => ["insert", "update", "delete"].map((event) => `trg_${table}_live_${event}`));
+  for (const name of triggerNames) db.exec(`DROP TRIGGER IF EXISTS ${name}`);
+
+  const createTriggers = ({ table, source, recordIdColumn = null, updateOldKeyDelete = false, mediaKeyColumn = "media_key" }) => {
+    const columns = columnsFor(table);
+    if (!columns.has("media_key") || !columns.has("media_type") || !columns.has("title")) return;
+    const insertEvent = (kind, alias) => `
+      INSERT INTO live_change_events (source_table, change_kind, media_key, record_id, media_type, title, show_title, season, episode, created_at)
+      VALUES ('${source}', '${kind}', ${mediaKeyColumn ? expr(alias, mediaKeyColumn, columns) : "NULL"}, ${recordIdColumn ? expr(alias, recordIdColumn, columns) : "NULL"}, ${expr(alias, "media_type", columns)}, ${expr(alias, "title", columns)}, ${expr(alias, "show_title", columns)}, ${expr(alias, "season", columns)}, ${expr(alias, "episode", columns)}, CAST(unixepoch('subsec')*1000 AS INTEGER));
+    `;
+    db.exec(`
+      CREATE TRIGGER trg_${table}_live_insert AFTER INSERT ON ${table} BEGIN
+        ${insertEvent("upsert", "NEW")}
+      END;
+      CREATE TRIGGER trg_${table}_live_update AFTER UPDATE ON ${table} BEGIN
+        ${insertEvent("upsert", "NEW")}
+        ${updateOldKeyDelete ? `${insertEvent("delete", "OLD")} WHERE COALESCE(OLD.media_key, '') <> COALESCE(NEW.media_key, '');` : ""}
+      END;
+      CREATE TRIGGER trg_${table}_live_delete AFTER DELETE ON ${table} BEGIN
+        ${insertEvent("delete", "OLD")}
+      END;
+    `);
+  };
+
+  const watchColumns = columnsFor("watch_history");
+  if (watchColumns.has("id") && watchColumns.has("media_key") && watchColumns.has("media_type")) {
+    const insertEvent = (kind, alias) => `
+      INSERT INTO live_change_events (source_table, change_kind, media_key, record_id, media_type, title, show_title, season, episode, created_at)
+      VALUES ('watch_history', '${kind}', ${expr(alias, "media_key", watchColumns)}, ${expr(alias, "id", watchColumns)}, ${expr(alias, "media_type", watchColumns)}, ${expr(alias, "title", watchColumns)}, ${expr(alias, "show_title", watchColumns)}, ${expr(alias, "season", watchColumns)}, ${expr(alias, "episode", watchColumns)}, CAST(unixepoch('subsec')*1000 AS INTEGER));
+    `;
+    db.exec(`
+      CREATE TRIGGER trg_watch_history_live_insert AFTER INSERT ON watch_history BEGIN
+        ${insertEvent("upsert", "NEW")}
+      END;
+      CREATE TRIGGER trg_watch_history_live_update AFTER UPDATE ON watch_history BEGIN
+        ${insertEvent("upsert", "NEW")}
+        INSERT INTO live_change_events (source_table, change_kind, media_key, record_id, media_type, title, show_title, season, episode, created_at)
+        SELECT 'watch_history', 'delete', OLD.media_key, OLD.id, OLD.media_type, ${expr("OLD", "title", watchColumns)}, ${expr("OLD", "show_title", watchColumns)}, ${expr("OLD", "season", watchColumns)}, ${expr("OLD", "episode", watchColumns)}, CAST(unixepoch('subsec')*1000 AS INTEGER)
+        WHERE COALESCE(OLD.media_key, '') <> COALESCE(NEW.media_key, '');
+      END;
+      CREATE TRIGGER trg_watch_history_live_delete AFTER DELETE ON watch_history BEGIN
+        ${insertEvent("delete", "OLD")}
+      END;
+    `);
+  }
+
+  createTriggers({ table: "playstate", source: "playstate" });
+  createTriggers({ table: "playback_progress", source: "playback_progress" });
+  createTriggers({ table: "personal_watchlist", source: "personal_watchlist" });
+  // Review rows have their own identity so a status update cannot coalesce
+  // away the canonical watch-history event for the same media key. The
+  // source-specific event lets the browser refresh only the review item/list.
+  createTriggers({ table: "manual_watch_reviews", source: "manual_watch_reviews", recordIdColumn: "id", mediaKeyColumn: null });
+}
+
+try {
+  installLiveChangeTriggers();
+} catch (error) {
+  console.error("Live change trigger setup failed", error);
+  throw error;
+}
+
 // ---------------------------------------------------------------------------
 // Shared derived-cache version. Each process keeps a fast local copy and polls
 // SQLite at a bounded cadence so writes by another process invalidate caches.
@@ -1165,6 +1236,23 @@ const selectDiscoverVersion = db.prepare("SELECT version FROM cache_versions WHE
 const bumpDiscoverVersionStmt = db.prepare("UPDATE cache_versions SET version = version + 1, updated_at = ? WHERE id = 'discover' RETURNING version");
 const selectUpNextVersion = db.prepare("SELECT version FROM cache_versions WHERE id = 'up_next'");
 const bumpUpNextVersionStmt = db.prepare("UPDATE cache_versions SET version = version + 1, updated_at = ? WHERE id = 'up_next' RETURNING version");
+const selectLatestLiveChangeId = db.prepare("SELECT COALESCE(MAX(id), 0) AS id FROM live_change_events");
+const selectLiveChangesAfter = db.prepare(`
+  SELECT id, source_table, change_kind, media_key, record_id, media_type, title, show_title, season, episode, created_at
+  FROM live_change_events
+  WHERE id > ?
+  ORDER BY id ASC
+  LIMIT ?
+`);
+const pruneLiveChangesByAge = db.prepare("DELETE FROM live_change_events WHERE created_at < ?");
+const pruneLiveChangesByCount = db.prepare(`
+  DELETE FROM live_change_events
+  WHERE id < (SELECT MAX(id) - ? FROM live_change_events)
+`);
+let lastLiveChangePruneAt = 0;
+const LIVE_CHANGE_PRUNE_INTERVAL_MS = 60_000;
+const LIVE_CHANGE_RETENTION_MS = 24 * 60 * 60 * 1000;
+const LIVE_CHANGE_MAX_ROWS = 20_000;
 let dataVersion = Number(selectHistoryVersion.get()?.version || 1);
 let lastDataVersionCheckAt = 0;
 export function getDataVersion() {
@@ -1200,6 +1288,23 @@ function noteDataVersionTrigger(version, reason) {
 // getHistoryCacheVersion(), so resume positions refresh exactly as before.
 export function getProgressVersion() {
   return Number(selectProgressVersion.get()?.version || 1);
+}
+
+export function latestLiveChangeId() {
+  return Number(selectLatestLiveChangeId.get()?.id || 0);
+}
+
+export function liveChangesSince(cursor = 0, limit = 5000) {
+  const safeCursor = Math.max(Number(cursor) || 0, 0);
+  const safeLimit = Math.min(Math.max(Number(limit) || 5000, 1), 10_000);
+  const rows = selectLiveChangesAfter.all(safeCursor, safeLimit);
+  const now = Date.now();
+  if (now - lastLiveChangePruneAt >= LIVE_CHANGE_PRUNE_INTERVAL_MS) {
+    lastLiveChangePruneAt = now;
+    pruneLiveChangesByAge.run(now - LIVE_CHANGE_RETENTION_MS);
+    pruneLiveChangesByCount.run(LIVE_CHANGE_MAX_ROWS);
+  }
+  return rows;
 }
 
 export function dataVersionTrigger(version) {

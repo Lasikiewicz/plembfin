@@ -62,6 +62,9 @@ export function createLoopStore() {
     async get(key) {
       return getFresh(key);
     },
+    async delete(key) {
+      delStmt.run(encodeKey(key));
+    },
     async put(key, value, options = {}) {
       putValue(key, value, options.expirationTtl);
     },
