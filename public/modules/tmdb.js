@@ -4,6 +4,9 @@ import { showTitleFrom, slug } from "./utils.js?v=0.15.0.15";
 
 let _tmdbBatchQueue = [];
 let _tmdbBatchTimer = null;
+// Keep cold-cache background requests bounded so metadata prefetch does not
+// exceed the reverse proxy timeout while waiting on serialized TMDB calls.
+const TMDB_BACKGROUND_BATCH_SIZE = 8;
 
 function authHeaders() {
   return buildAuthHeaders(state.token);
@@ -115,7 +118,7 @@ export async function fetchTmdbDetails(mediaType, tmdbId, title, ids = {}, { lig
 
   const promise = immediate ? requestTmdbDetailsNow(request) : new Promise((resolve, reject) => {
     _tmdbBatchQueue.push({ request, resolve, reject });
-    if (_tmdbBatchQueue.length >= 40) {
+    if (_tmdbBatchQueue.length >= TMDB_BACKGROUND_BATCH_SIZE) {
       clearTimeout(_tmdbBatchTimer);
       flushTmdbBatch();
     } else if (!_tmdbBatchTimer) {

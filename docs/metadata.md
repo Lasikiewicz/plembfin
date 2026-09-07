@@ -149,8 +149,8 @@ from a bounded browser cache before the first request, then refreshed from the s
 cache when its SSE Discover version changes. Discover never depends on a media server
 or Trakt connection.
 
-Background frontend lookups are debounced into one batched request, and a batch answers only
-once its slowest item resolves. Detail pages therefore pass `{ immediate: true }` to
+Background frontend lookups are debounced into bounded batches of up to eight items, and a
+batch answers only once its slowest item resolves. Detail pages therefore pass `{ immediate: true }` to
 `fetchTmdbDetails`, which sends that single item on its own request so a visible page
 never waits behind explorer prefetch work. Dashboard history and Up Next rendering are
 cache-only: they use local rows, cached artwork, and cached metadata, and never initiate

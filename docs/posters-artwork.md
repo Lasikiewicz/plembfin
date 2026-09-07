@@ -93,6 +93,10 @@ recovered upstream host is still picked up promptly.
   skeleton until the bitmap decodes. A `load` listener in `app-events.js` adds
   `is-loaded` to end it; the error path clears it too, so a failed image does not keep
   animating. The skeleton honours `prefers-reduced-motion`.
+- Media detail artwork uses the same loading treatment for hero posters, season and episode
+  thumbnails, cast images, trailer thumbnails, and gallery images. Each image keeps its
+  reserved box while loading so a slow artwork response is visibly pending rather than blank;
+  reduced-motion users receive a static skeleton.
 - `proxiedArtworkUrl(url, variant)` rewrites fanart.tv and TVDB CDN URLs to
   `/api/remote-artwork`. Local `/media` and TMDB URLs pass through unchanged. Show and
   movie logos and the Edit Images gallery tiles all render through it, while the saved

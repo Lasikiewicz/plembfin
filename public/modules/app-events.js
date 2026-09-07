@@ -276,11 +276,13 @@ function attachEvents() {
   });
 
   // Posters render their skeleton until the bitmap is decoded. `load` does not
-  // bubble, so this listens in the capture phase and covers every poster the
-  // app renders, including ones swapped in after a lookup.
+  // bubble, so this listens in the capture phase and covers every poster and
+  // detail-page image the app renders, including ones swapped in after a lookup.
   document.addEventListener("load", (e) => {
     const img = e.target;
-    if (img.tagName === "IMG" && img.classList.contains("poster-img")) img.classList.add("is-loaded");
+    if (img.tagName === "IMG" && (img.classList.contains("poster-img") || img.closest(".media-detail-page"))) {
+      img.classList.add("is-loaded");
+    }
   }, true);
 
   document.addEventListener("error", (e) => {

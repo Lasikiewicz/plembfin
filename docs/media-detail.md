@@ -128,7 +128,10 @@ list arrives shows a loading placeholder instead of a premature "no episodes" me
   `/api/setup/status`, which answers in 9ms on its own, took over two seconds. The app-link
   pills in the Watch Now row stay `eager`: they are small, always above the fold, and part of
   the first paint. Repeat views are unaffected either way, since these proxies already send
-  `public, max-age=31536000, immutable` and come from the browser cache.
+  `public, max-age=31536000, immutable` and come from the browser cache. Detail-page artwork
+  reserves its layout box and shows the shared shimmer skeleton until the image load settles;
+  reduced-motion users receive the static skeleton, and failed images settle into the existing
+  fallback behavior.
 - **Watch state & actions** - mark watched (with date prompt: today / release date /
   episode-relative date / custom), mark unwatched, delete; episode- season- and
   show-level for TV (`watch-action.js`, `POST /api/manual-watch` in batches of 100,

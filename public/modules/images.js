@@ -570,8 +570,21 @@ export function hydratePosterImages(container = document.body, { allowNetwork = 
   }
 }
 
+export function hydrateMediaDetailImages(container = document.body) {
+  if (!container) return;
+  const images = [];
+  if (container.matches?.(".media-detail-page")) images.push(...container.querySelectorAll("img"));
+  images.push(...container.querySelectorAll(".media-detail-page img"));
+  for (const image of images) {
+    // A rerender can insert an image whose response is already in the browser
+    // cache before the delegated document-level load listener sees it.
+    if (image.complete && image.naturalWidth > 0) image.classList.add("is-loaded");
+  }
+}
+
 export function hydratePosters(container = document.body, { allowNetwork = true } = {}) {
   hydratePosterImages(container, { allowNetwork });
+  hydrateMediaDetailImages(container);
   hydratePosterFallbacks(container, { allowNetwork }).catch(() => { });
 }
 

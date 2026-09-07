@@ -90,6 +90,36 @@
   box-shadow: none;
 }
 
+/* Detail-page artwork can arrive after the surrounding metadata. Keep its
+   reserved box visually alive until the bitmap is ready instead of showing a
+   momentary empty rectangle. The load listener in app-events.js adds
+   `.is-loaded` as soon as the image resolves. */
+.media-detail-page :is(
+  .immersive-poster-img,
+  .season-poster-img,
+  .episode-thumb,
+  .cast-avatar-img,
+  .trailer-thumb,
+  .media-image-thumb
+):not(.is-loaded) {
+  background-color: var(--skeleton-base);
+  background-image: linear-gradient(
+    100deg,
+    transparent 20%,
+    var(--skeleton-sheen) 42%,
+    var(--skeleton-sheen) 56%,
+    transparent 78%
+  );
+  background-repeat: no-repeat;
+  background-size: 250% 100%;
+  animation: media-detail-image-skeleton 1.2s cubic-bezier(0.22, 0.61, 0.36, 1) infinite;
+}
+
+@keyframes media-detail-image-skeleton {
+  from { background-position: 150% 0; }
+  to { background-position: -50% 0; }
+}
+
 .media-detail-page .immersive-poster-frame.is-loading .immersive-poster-img {
   animation: media-detail-poster-loading 1500ms ease-in-out infinite;
 }
@@ -263,7 +293,15 @@
 @media (prefers-reduced-motion: reduce) {
   .media-detail-page .immersive-poster-frame.is-loading .immersive-poster-img,
   .immersive-poster-loading-dot,
-  .episode-watch-history-skeleton {
+  .episode-watch-history-skeleton,
+  .media-detail-page :is(
+    .immersive-poster-img,
+    .season-poster-img,
+    .episode-thumb,
+    .cast-avatar-img,
+    .trailer-thumb,
+    .media-image-thumb
+  ):not(.is-loaded) {
     animation: none;
   }
 

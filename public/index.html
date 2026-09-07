@@ -11,12 +11,6 @@
     <link rel="manifest" href="/manifest.webmanifest?v=0.15.0.15" />
     <meta name="theme-color" content="#05080c" />
     <link rel="preconnect" href="https://image.tmdb.org" />
-    <link rel="preload" href="/icons/plex.svg?v=0.15.0.15" as="image" type="image/svg+xml" />
-    <link rel="preload" href="/icons/jellyfin.svg?v=0.15.0.15" as="image" type="image/svg+xml" />
-    <link rel="preload" href="/icons/emby.svg?v=0.15.0.15" as="image" type="image/svg+xml" />
-    <link rel="preload" href="/icons/trakt.svg?v=0.15.0.15" as="image" type="image/svg+xml" />
-    <link rel="preload" href="/icons/plembfin.png?v=0.15.0.15" as="image" type="image/png" />
-    <link rel="preload" href="/icons/plembfin-light.png?v=0.15.0.15" as="image" type="image/png" />
     <link rel="modulepreload" href="/app.js?v=0.15.0.15" />
     <link rel="modulepreload" href="/modules/auth.js?v=0.15.0.15" />
     <link rel="modulepreload" href="/modules/logs.js?v=0.15.0.15" />
@@ -2005,12 +1999,12 @@
                               <span>Restore an encrypted full Plembfin backup mirrored to a remote destination</span>
                             </summary>
                             <div class="tool-item-row" style="padding: var(--space-3); width: 100%;">
-                              <div class="backup-settings-grid backup-settings-inline backup-passphrase-row">
+                              <form id="remotePlembfinRestoreForm" class="backup-settings-grid backup-settings-inline backup-passphrase-row backup-managed-form" autocomplete="off">
                                 <label class="field-label backup-passphrase-label">
                                   <span class="backup-passphrase-caption">Backup encryption passphrase - <span style="color: var(--muted); font-weight: normal; font-size: 0.8rem;">Required to restore full backups</span></span>
-                                  <input id="backupRestoreRemotePassphrase" class="field" type="password" autocomplete="new-password" />
+                                  <input id="backupRestoreRemotePassphrase" name="backupPassphrase" class="field" type="password" autocomplete="new-password" />
                                 </label>
-                              </div>
+                              </form>
                               <div id="remotePlembfinBackupList" class="watch-backup-list" data-watch-backup-list="remote" aria-live="polite" style="margin-top: var(--space-3);"></div>
                             </div>
                           </details>
