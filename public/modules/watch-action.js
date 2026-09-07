@@ -1,13 +1,13 @@
-import { state, elements } from "./state.js?v=0.15.0.15";
-import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeCode, seasonLabel, formatSeasonTitle, formatTmdbDate, showEpisodeKey } from "./utils.js?v=0.15.0.15";
-import { buildAuthHeaders } from "./auth.js?v=0.15.0.15";
-import { isWatchedHistoryAction } from "./sync.js?v=0.15.0.15";
-import { mergeShowDetail } from "./explorer.js?v=0.15.0.15";
-import { dedupeMediaRecords, resetPartWatchedView, renderPartWatched } from "./dashboard.js?v=0.15.0.15";
-import { tvSeasonAvailability } from "./media-detail-shared.js?v=0.15.0.15";
-import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=0.15.0.15";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=0.15.0.15";
-import { tmdbPoster } from "./images.js?v=0.15.0.15";
+import { state, elements } from "./state.js?v=0.15.0.16";
+import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeCode, seasonLabel, formatSeasonTitle, formatTmdbDate, showEpisodeKey } from "./utils.js?v=0.15.0.16";
+import { buildAuthHeaders } from "./auth.js?v=0.15.0.16";
+import { isWatchedHistoryAction } from "./sync.js?v=0.15.0.16";
+import { mergeShowDetail } from "./explorer.js?v=0.15.0.16";
+import { dedupeMediaRecords, resetPartWatchedView, renderPartWatched } from "./dashboard.js?v=0.15.0.16";
+import { tvSeasonAvailability } from "./media-detail-shared.js?v=0.15.0.16";
+import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=0.15.0.16";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=0.15.0.16";
+import { tmdbPoster } from "./images.js?v=0.15.0.16";
 
 // Callbacks injected by app.js at startup to break circular-import chains.
 let _setMessage = () => {};

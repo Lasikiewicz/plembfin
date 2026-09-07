@@ -1,20 +1,6 @@
 {
   "build": 66,
-  "resetCommit": "29878691d6e6eec3306aad0ec64e044f99c498a4",
-  "updatedAt": "2026-09-07T15:31:24.952Z",
-  "entries": [
-    {
-      "build": 66,
-      "date": "2026-09-07T15:31:24.952Z",
-      "commit": "f4de106d439d411be96fb2fdc3d81cdbd858c3c2",
-      "message": "Fix - Smooth media artwork loading and metadata prefetch",
-      "author": "Lasikiewicz",
-      "details": [
-        "Show a shimmer placeholder while media-page artwork loads.",
-        "Preserve reserved image space across posters, episodes, cast, trailers, and galleries while respecting reduced-motion preferences.",
-        "Bound background TMDB metadata prefetch batches to reduce cold-load timeouts.",
-        "Make the remote backup passphrase field form-compatible and remove unused icon preloads."
-      ]
-    }
-  ]
+  "resetCommit": "2fe7ef342b83b099399ca22eb70bfacbf6bb60ed",
+  "updatedAt": "2026-09-07T15:35:26.084Z",
+  "entries": []
 }

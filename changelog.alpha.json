@@ -1,9 +1,37 @@
 {
   "baseVersion": "0.15.0",
-  "build": 15,
-  "version": "0.15.0.15",
-  "updatedAt": "2026-09-07T14:33:31.773Z",
+  "build": 16,
+  "version": "0.15.0.16",
+  "updatedAt": "2026-09-07T15:35:26.084Z",
+  "releaseMessage": "",
   "entries": [
+    {
+      "build": 16,
+      "version": "0.15.0.16",
+      "shortVersion": "0.15.0.16",
+      "date": "2026-09-07T15:35:26.084Z",
+      "commit": "2fe7ef342b83b099399ca22eb70bfacbf6bb60ed",
+      "message": "Fix - Smooth media artwork loading and metadata prefetch",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix: Smooth media artwork loading and metadata prefetch",
+        "Fix: Show a shimmer placeholder while media-page artwork loads.",
+        "Fix: Preserve reserved image space across posters, episodes, cast, trailers, and galleries while respecting reduced-motion preferences.",
+        "Fix: Bound background TMDB metadata prefetch batches to reduce cold-load timeouts.",
+        "Fix: Make the remote backup passphrase field form-compatible and remove unused icon preloads."
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Smooth media artwork loading and metadata prefetch",
+          "Show a shimmer placeholder while media-page artwork loads.",
+          "Preserve reserved image space across posters, episodes, cast, trailers, and galleries while respecting reduced-motion preferences.",
+          "Bound background TMDB metadata prefetch batches to reduce cold-load timeouts.",
+          "Make the remote backup passphrase field form-compatible and remove unused icon preloads."
+        ],
+        "tweaks": []
+      }
+    },
     {
       "build": 15,
       "version": "0.15.0.15",
@@ -37,28 +65,27 @@
       "shortVersion": "0.15.0.14",
       "date": "2026-09-07T13:48:27.761Z",
       "commit": "db59126e4768ed9c38309c0fc7ec5fee296a0c22",
-      "message": "Feature - Complete watch sync and media detail workflows",
+      "message": "Feature - Add manual watch controls and redesign season and episode details",
       "author": "Lasikiewicz",
       "details": [
-        "Feature: Complete watch sync and media detail workflows",
-        "Feature: Add configurable app-marked watch policies with a manual review queue, show grouping, bulk decisions, and custom watch dates",
-        "Feature: Keep Plex, Emby, Jellyfin, and Plembfin watched/unwatched state synchronized with reliable now-playing and Up Next refreshes",
-        "Feature: Restore complete TV show metadata and canonical show navigation from dashboard and history",
-        "Feature: Improve TV and movie detail loading, episode layouts, artwork handling, and incremental live updates",
+        "Feature: Add a manual watch review queue with show grouping, bulk decisions, and custom watch dates",
+        "Feature: Redesign season and episode details with clearer layouts, season navigation, artwork, and incremental loading",
         "Feature: Add onboarding and Settings controls for sync tuning, watch thresholds, and fast local-network sync",
-        "Feature: Harden large-library history, caching, sync retries, and provider identity matching with regression coverage"
+        "Fix: Keep Plex, Emby, Jellyfin, and Plembfin watched/unwatched state synchronized with reliable now-playing and Up Next refreshes",
+        "Fix: Restore complete TV show metadata and canonical show navigation from dashboard and history",
+        "Fix: Harden large-library history, caching, sync retries, and provider identity matching"
       ],
       "sections": {
         "newFeatures": [
-          "Complete watch sync and media detail workflows",
-          "Add configurable app-marked watch policies with a manual review queue, show grouping, bulk decisions, and custom watch dates",
+          "Add a manual watch review queue with show grouping, bulk decisions, and custom watch dates",
+          "Redesign season and episode details with clearer layouts, season navigation, artwork, and incremental loading",
+          "Add onboarding and Settings controls for sync tuning, watch thresholds, and fast local-network sync"
+        ],
+        "majorBugFixes": [
           "Keep Plex, Emby, Jellyfin, and Plembfin watched/unwatched state synchronized with reliable now-playing and Up Next refreshes",
           "Restore complete TV show metadata and canonical show navigation from dashboard and history",
-          "Improve TV and movie detail loading, episode layouts, artwork handling, and incremental live updates",
-          "Add onboarding and Settings controls for sync tuning, watch thresholds, and fast local-network sync",
-          "Harden large-library history, caching, sync retries, and provider identity matching with regression coverage"
+          "Harden large-library history, caching, sync retries, and provider identity matching"
         ],
-        "majorBugFixes": [],
         "tweaks": []
       }
     },
@@ -155,10 +182,10 @@
       "shortVersion": "0.15.0.9",
       "date": "2026-09-06T18:44:36.683Z",
       "commit": "2d3250a386afdc6d340e6865f95d221b65020f2c",
-      "message": "Fix - Defer off-screen media page artwork until it is scrolled into view",
+      "message": "Fix - Speed up media pages by deferring off-screen artwork",
       "author": "Lasikiewicz",
       "details": [
-        "Fix: Defer off-screen media page artwork until it is scrolled into view",
+        "Fix: Speed up media pages by deferring off-screen artwork",
         "Fix: Opening a movie or show page no longer downloads its whole cast row, poster rails and trailer thumbnails before you have scrolled to them",
         "Fix: Those images load as they come into view, so the details, watch state and app links on screen settle sooner on a first visit",
         "Fix: Revisiting a title is unchanged, since its artwork was already served from the browser cache"
@@ -166,7 +193,7 @@
       "sections": {
         "newFeatures": [],
         "majorBugFixes": [
-          "Defer off-screen media page artwork until it is scrolled into view",
+          "Speed up media pages by deferring off-screen artwork",
           "Opening a movie or show page no longer downloads its whole cast row, poster rails and trailer thumbnails before you have scrolled to them",
           "Those images load as they come into view, so the details, watch state and app links on screen settle sooner on a first visit",
           "Revisiting a title is unchanged, since its artwork was already served from the browser cache"
@@ -205,10 +232,10 @@
       "shortVersion": "0.15.0.7",
       "date": "2026-09-06T17:58:15.973Z",
       "commit": "1e94b25482241219a3218a4014e4a3fa012eca25",
-      "message": "Fix - Correct Up Next show links and speed up titles outside your library",
+      "message": "Fix - Speed up non-library show pages and repair Up Next links",
       "author": "Lasikiewicz",
       "details": [
-        "Fix: Correct Up Next show links and speed up titles outside your library",
+        "Fix: Speed up non-library show pages and repair Up Next links",
         "Fix: Up Next now links an episode to the same show page as your watch history does; it previously built that link from the episode's own ID, opening a page that could not resolve and was slow to load",
         "Fix: Opening a show that is not in your library is far quicker: the page's slowest request drops from about 8.9 seconds to under 0.7",
         "Fix: Such a show is no longer looked up over and over during one page load, so its details settle sooner",
@@ -218,7 +245,7 @@
       "sections": {
         "newFeatures": [],
         "majorBugFixes": [
-          "Correct Up Next show links and speed up titles outside your library",
+          "Speed up non-library show pages and repair Up Next links",
           "Up Next now links an episode to the same show page as your watch history does; it previously built that link from the episode's own ID, opening a page that could not resolve and was slow to load",
           "Opening a show that is not in your library is far quicker: the page's slowest request drops from about 8.9 seconds to under 0.7",
           "Such a show is no longer looked up over and over during one page load, so its details settle sooner",
@@ -234,10 +261,10 @@
       "shortVersion": "0.15.0.6",
       "date": "2026-09-06T17:28:59.243Z",
       "commit": "c991c38b991627b680787be41107ee63529995a3",
-      "message": "Fix - Report full watch history everywhere and cut per-page work",
+      "message": "Fix - Speed up history and remove large-library limits",
       "author": "Lasikiewicz",
       "details": [
-        "Fix: Report full watch history everywhere and cut per-page work",
+        "Fix: Speed up history and remove large-library limits",
         "Fix: History page now loads in milliseconds instead of around seven tenths of a second on large libraries, with same-day rewatch collapsing unchanged",
         "Fix: Stats reports your entire watch history instead of silently describing only the newest 25,000 watches",
         "Fix: TV Shows and the dashboard list every show in the library rather than stopping at the same 25,000-watch ceiling",
@@ -250,7 +277,7 @@
       "sections": {
         "newFeatures": [],
         "majorBugFixes": [
-          "Report full watch history everywhere and cut per-page work",
+          "Speed up history and remove large-library limits",
           "History page now loads in milliseconds instead of around seven tenths of a second on large libraries, with same-day rewatch collapsing unchanged",
           "Stats reports your entire watch history instead of silently describing only the newest 25,000 watches",
           "TV Shows and the dashboard list every show in the library rather than stopping at the same 25,000-watch ceiling",
@@ -269,10 +296,10 @@
       "shortVersion": "0.15.0.5",
       "date": "2026-09-06T11:55:07.620Z",
       "commit": "a61a414c6dfee72744def34cb5b7b5f2defee238",
-      "message": "Fix - Stop resume positions discarding library caches, and version assets per build",
+      "message": "Fix - Stop resume updates rebuilding library caches",
       "author": "Lasikiewicz",
       "details": [
-        "Fix: Stop resume positions discarding library caches, and version assets per build",
+        "Fix: Stop resume updates rebuilding library caches",
         "Fix: Saving a resume position no longer throws away the cached history, movies, shows and stats data, none of which depends on it; with a dashboard open during playback that was spending 22% of the time rebuilding on a normal library and 47% on a very large one, and is now zero",
         "Fix: Open pages still see resume progress move, because the change signal the browser watches now covers both watch history and resume positions",
         "Fix: Marking something watched still refreshes every derived view exactly as before",
@@ -281,7 +308,7 @@
       "sections": {
         "newFeatures": [],
         "majorBugFixes": [
-          "Stop resume positions discarding library caches, and version assets per build",
+          "Stop resume updates rebuilding library caches",
           "Saving a resume position no longer throws away the cached history, movies, shows and stats data, none of which depends on it; with a dashboard open during playback that was spending 22% of the time rebuilding on a normal library and 47% on a very large one, and is now zero",
           "Open pages still see resume progress move, because the change signal the browser watches now covers both watch history and resume positions",
           "Marking something watched still refreshes every derived view exactly as before",
@@ -331,38 +358,32 @@
       "shortVersion": "0.15.0.3",
       "date": "2026-09-06T09:35:09.239Z",
       "commit": "64a0fa9bec513b1b0bf8844080a0ef60ec6733e7",
-      "message": "This update includes resolve code scanning alerts (#27), close remaining stack trace exposure (#28), and cut the cost of the Movies, Stats and restore screens.",
+      "message": "Fix - Harden error responses and speed up Movies, Stats, and restore",
       "author": "Lasikiewicz",
       "details": [
-        "Tweak: This update includes resolve code scanning alerts (#27), close remaining stack trace exposure (#28), and cut the cost of the Movies, Stats and restore screens.",
-        "Tweak: Keep stack traces out of admin-visible diagnostics and harden provider parsing and logging against CodeQL findings.",
-        "Tweak: Normalize caught provider, credential, outbound, and watchlist errors before they can reach API responses.",
-        "Tweak: Movies pages now answer from a cached projection instead of re-deriving the whole library on every request: pages 1, 5 and 10 went from about 60ms to under 1ms on a 90,000-row library, and the page number no longer changes the cost",
-        "Tweak: The Stats page no longer downloads every period's report just to display one; it receives the totals, a short list of the available years and months, and only the report being viewed, fetching a different period when you pick one",
-        "Tweak: A completed restore's full result and log are stored separately from the live status row, so the restore screen stops re-downloading the entire report on every poll while still showing the whole log",
-        "Tweak: Library reads are backed by new database indexes covering season and title lookups, provider ids and recent ordering, with planner statistics refreshed once after they are created",
-        "Tweak: Poster and backdrop paths are stored as their own columns on the metadata cache, so artwork no longer requires parsing the full details blob",
-        "Tweak: Versioned assets are now cached for a year while the app entry page and manifest keep revalidating, so a new release is still picked up immediately"
+        "Fix: Resolve code scanning alerts (#27) and close the remaining stack trace exposure (#28)",
+        "Fix: Normalize caught provider, credential, outbound, and watchlist errors before they can reach API responses",
+        "Fix: Movies pages now answer from a cached projection instead of re-deriving the whole library on every request: pages 1, 5 and 10 went from about 60ms to under 1ms on a 90,000-row library, and the page number no longer changes the cost",
+        "Fix: The Stats page no longer downloads every period's report just to display one; it receives the totals, a short list of the available years and months, and only the report being viewed, fetching a different period when you pick one",
+        "Fix: A completed restore's full result and log are stored separately from the live status row, so the restore screen stops re-downloading the entire report on every poll while still showing the whole log",
+        "Fix: Library reads are backed by new database indexes covering season and title lookups, provider ids and recent ordering, with planner statistics refreshed once after they are created",
+        "Fix: Poster and backdrop paths are stored as their own columns on the metadata cache, so artwork no longer requires parsing the full details blob"
       ],
       "sections": {
         "newFeatures": [],
-        "majorBugFixes": [],
-        "tweaks": [
-          "This update includes resolve code scanning alerts (#27), close remaining stack trace exposure (#28), and cut the cost of the Movies, Stats and restore screens.",
-          "Keep stack traces out of admin-visible diagnostics and harden provider parsing and logging against CodeQL findings.",
-          "Normalize caught provider, credential, outbound, and watchlist errors before they can reach API responses.",
+        "majorBugFixes": [
+          "Resolve code scanning alerts (#27) and close the remaining stack trace exposure (#28)",
+          "Normalize caught provider, credential, outbound, and watchlist errors before they can reach API responses",
           "Movies pages now answer from a cached projection instead of re-deriving the whole library on every request: pages 1, 5 and 10 went from about 60ms to under 1ms on a 90,000-row library, and the page number no longer changes the cost",
           "The Stats page no longer downloads every period's report just to display one; it receives the totals, a short list of the available years and months, and only the report being viewed, fetching a different period when you pick one",
           "A completed restore's full result and log are stored separately from the live status row, so the restore screen stops re-downloading the entire report on every poll while still showing the whole log",
           "Library reads are backed by new database indexes covering season and title lookups, provider ids and recent ordering, with planner statistics refreshed once after they are created",
-          "Poster and backdrop paths are stored as their own columns on the metadata cache, so artwork no longer requires parsing the full details blob",
-          "Versioned assets are now cached for a year while the app entry page and manifest keep revalidating, so a new release is still picked up immediately"
-        ]
+          "Poster and backdrop paths are stored as their own columns on the metadata cache, so artwork no longer requires parsing the full details blob"
+        ],
+        "tweaks": []
       },
       "messageFragments": [
-        "Fix - Resolve code scanning alerts (#27)",
-        "Fix - Close remaining stack trace exposure (#28)",
-        "Fix - Cut the cost of the Movies, Stats and restore screens"
+        "Fix - Harden error responses and speed up Movies, Stats, and restore"
       ]
     },
     {
@@ -377,7 +398,7 @@
         "Fix: Keep media details visible during reload",
         "Fix: Keep cached artwork, summaries, watched rows, and watch dates visible on direct detail reloads",
         "Fix: Revalidate local history and provider metadata in the background without blanking the page",
-        "Fix: Show prominent loading motion on the poster, episode tiles, and pending watch-date areas",
+        "Tweak: Show prominent loading motion on the poster, episode tiles, and pending watch-date areas",
         "Fix: Keep episode-level provider identities from being promoted into the wrong series route"
       ],
       "sections": {
@@ -386,10 +407,11 @@
           "Keep media details visible during reload",
           "Keep cached artwork, summaries, watched rows, and watch dates visible on direct detail reloads",
           "Revalidate local history and provider metadata in the background without blanking the page",
-          "Show prominent loading motion on the poster, episode tiles, and pending watch-date areas",
           "Keep episode-level provider identities from being promoted into the wrong series route"
         ],
-        "tweaks": []
+        "tweaks": [
+          "Show prominent loading motion on the poster, episode tiles, and pending watch-date areas"
+        ]
       }
     },
     {
@@ -398,35 +420,33 @@
       "shortVersion": "0.15.0.1",
       "date": "2026-09-05T15:57:04.053Z",
       "commit": "d589dbad931e73e86fc50f6b5a0a6a5ebb042e0f",
-      "message": "This update includes sync up next and watched state across providers and prevent stale media renders and harden sync performance.",
+      "message": "Fix - Speed up media and library pages and prevent stale renders",
       "author": "Lasikiewicz",
       "details": [
-        "Tweak: This update includes sync up next and watched state across providers and prevent stale media renders and harden sync performance.",
-        "Tweak: Keep Up Next and watched state aligned across Plex, Emby, and Jellyfin, repair newly available provider episodes, preserve accurate progress, restore episode titles, and polish refresh/menu controls.",
-        "Tweak: Prevent stale media detail responses from repainting the dashboard after rapid navigation.",
-        "Tweak: Keep show and movie detail hydration, watch actions, and provider-derived state consistent during asynchronous loads.",
-        "Tweak: Improve scheduler, live-session, and incremental provider-sync behavior for reliable updates.",
-        "Tweak: Bound and instrument derived-cache rebuilds and add repeatable large-library performance baselines.",
+        "Fix: Keep Up Next and watched state aligned across Plex, Emby, and Jellyfin, repair newly available provider episodes, preserve accurate progress, and restore episode titles",
+        "Fix: Prevent stale media detail responses from repainting the dashboard after rapid navigation",
+        "Fix: Keep show and movie detail hydration, watch actions, and provider-derived state consistent during asynchronous loads",
+        "Fix: Improve scheduler, live-session, and incremental provider-sync behavior for reliable updates",
+        "Tweak: Polish refresh and menu controls",
         "Tweak: Harden response caching, compression, and asset-version handling for safer browser loads."
       ],
       "sections": {
         "newFeatures": [],
-        "majorBugFixes": [],
+        "majorBugFixes": [
+          "Keep Up Next and watched state aligned across Plex, Emby, and Jellyfin, repair newly available provider episodes, preserve accurate progress, and restore episode titles",
+          "Prevent stale media detail responses from repainting the dashboard after rapid navigation",
+          "Keep show and movie detail hydration, watch actions, and provider-derived state consistent during asynchronous loads",
+          "Improve scheduler, live-session, and incremental provider-sync behavior for reliable updates"
+        ],
         "tweaks": [
-          "This update includes sync up next and watched state across providers and prevent stale media renders and harden sync performance.",
-          "Keep Up Next and watched state aligned across Plex, Emby, and Jellyfin, repair newly available provider episodes, preserve accurate progress, restore episode titles, and polish refresh/menu controls.",
-          "Prevent stale media detail responses from repainting the dashboard after rapid navigation.",
-          "Keep show and movie detail hydration, watch actions, and provider-derived state consistent during asynchronous loads.",
-          "Improve scheduler, live-session, and incremental provider-sync behavior for reliable updates.",
-          "Bound and instrument derived-cache rebuilds and add repeatable large-library performance baselines.",
+          "Polish refresh and menu controls",
           "Harden response caching, compression, and asset-version handling for safer browser loads."
         ]
       },
       "messageFragments": [
-        "Fix - Sync up next and watched state across providers",
-        "Fix - Prevent stale media renders and harden sync performance"
+        "Fix - Speed up media and library pages and prevent stale renders"
       ]
     }
   ],
-  "shortVersion": "0.15.0.15"
+  "shortVersion": "0.15.0.16"
 }
