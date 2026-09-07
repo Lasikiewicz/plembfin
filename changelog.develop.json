@@ -1,27 +1,7 @@
 {
   "version": "0.16.0",
   "build": 69,
-  "resetCommit": "391c4b8c345d75552dec5821574a0a81167744db",
-  "updatedAt": "2026-09-07T17:37:09.445Z",
-  "entries": [
-    {
-      "build": 69,
-      "date": "2026-09-07T17:37:09.445Z",
-      "commit": "aea2b32f0e220060ec0beb982f34cbc3e74705ec",
-      "message": "This update includes only update unwatched episodes when marking a season watched and reset develop identity after main releases.",
-      "author": "Lasikiewicz",
-      "details": [
-        "Partially watched seasons update only the episodes that are still unwatched",
-        "Existing watched episodes remain unchanged when completing a season",
-        "Fully watched seasons retain the explicit Resync season action",
-        "Develop builds display the released version alongside their cycle build number",
-        "Main promotions restart local develop metadata at the released version and build 1",
-        "Version-aware update checks ignore higher build counters from older release cycles"
-      ],
-      "messageFragments": [
-        "Fix - Only update unwatched episodes when marking a season watched",
-        "Fix - Reset develop identity after main releases"
-      ]
-    }
-  ]
+  "resetCommit": "183c43290b0e5147cf3b7b8380c75b9cdf8cc595",
+  "updatedAt": "2026-09-07T17:37:27.002Z",
+  "entries": []
 }
