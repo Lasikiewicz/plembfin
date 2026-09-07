@@ -34,6 +34,24 @@ test("TVDB title matching can disambiguate a year-qualified title", () => {
   assert.equal(result?.tvdb_id, "456");
 });
 
+test("TVDB title matching accepts English aliases for localized primary names", () => {
+  const result = selectTvdbSeriesMatch([
+    {
+      id: "449162",
+      name: "イクサガミ",
+      slug: "last-samurai-standing",
+      translations: { eng: "Last Samurai Standing" },
+      year: "2025",
+    },
+  ], "Last Samurai Standing (2025)");
+
+  assert.deepEqual(result, {
+    tvdb_id: "449162",
+    name: "Last Samurai Standing",
+    year: "2025",
+  });
+});
+
 test("TVDB title keys handle whitespace around a year suffix", () => {
   assert.equal(tvdbSeriesTitleKey(`The Office${" ".repeat(1000)}(2020)`), "the office");
 });

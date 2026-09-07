@@ -24,7 +24,11 @@ const ACTIVE_SEASON_TTL_MS = 7 * DAY_MS;
 const ARCHIVED_SEASON_TTL_MS = 180 * DAY_MS;
 const TOKEN_LIFETIME_MS = 25 * DAY_MS;
 const TVDB_ID_PATTERN = /^\d+$/;
-const SEARCH_MATCH_SCHEMA_VERSION = 2;
+// Bump this when the title/alias matching rules change so a cached miss from
+// an older resolver cannot keep a valid series invisible until its normal TTL
+// expires.
+const SEARCH_MATCH_SCHEMA_VERSION = 3;
+const SEARCH_LIST_SCHEMA_VERSION = 2;
 const inflight = new Map();
 let nextRequestAt = 0;
 let throttleTail = Promise.resolve();
@@ -73,9 +77,46 @@ function candidateYear(item = {}) {
   return String(item.year || item.first_air_time || item.firstAired || "").slice(0, 4);
 }
 
+function textFromTranslation(value) {
+  if (typeof value === "string") return value;
+  if (!value || typeof value !== "object") return "";
+  return String(value.name || value.title || value.translation || value.value || "").trim();
+}
+
+function translationEntries(item = {}) {
+  const translations = item && typeof item.translations === "object" ? item.translations : {};
+  return Object.entries(translations)
+    .map(([language, value]) => ({ language: String(language || ""), text: textFromTranslation(value) }))
+    .filter((entry) => entry.text);
+}
+
+function searchNameCandidates(item = {}) {
+  const names = [
+    ...translationEntries(item)
+      .filter(({ language }) => /^(?:eng|en|english)(?:[-_].*)?$/i.test(language))
+      .map(({ text }) => text),
+    item.name,
+    item.title,
+    item.englishName,
+    item.english_name,
+    item.originalName,
+    item.original_name,
+    ...translationEntries(item).map(({ text }) => text),
+    // TVDB search can return a localized primary name while still exposing the
+    // English series slug. This is especially common for Japanese Netflix
+    // titles such as Last Samurai Standing / イクサガミ.
+    String(item.slug || "").replace(/[-_]+/g, " "),
+  ];
+  return [...new Set(names.map((name) => String(name || "").trim()).filter(Boolean))];
+}
+
+function preferredSearchName(item = {}) {
+  return searchNameCandidates(item)[0] || "";
+}
+
 function normalizeSearchCandidate(item = {}) {
   const tvdbId = normalizeTvdbId(item.tvdb_id || item.tvdbId || item.id);
-  const name = String(item.name || item.title || item.translations?.eng || "").trim();
+  const name = preferredSearchName(item);
   if (!tvdbId || !name) return null;
   return { tvdb_id: tvdbId, name, year: candidateYear(item) };
 }
@@ -90,8 +131,12 @@ export function selectTvdbSeriesMatch(results = [], title = "") {
   if (!requestedKey) return null;
 
   const exact = (Array.isArray(results) ? results : [])
-    .map(normalizeSearchCandidate)
-    .filter((candidate) => candidate && tvdbSeriesTitleKey(candidate.name) === requestedKey);
+    .map((item) => {
+      const candidate = normalizeSearchCandidate(item);
+      return candidate ? { candidate, names: searchNameCandidates(item) } : null;
+    })
+    .filter((entry) => entry && entry.names.some((name) => tvdbSeriesTitleKey(name) === requestedKey))
+    .map(({ candidate }) => candidate);
   if (!exact.length) return null;
 
   if (requested.year) {
@@ -352,7 +397,7 @@ const SEARCH_LIST_MISS_TTL_MS = 60 * 60 * 1000;
 export async function searchTvdbSeriesList(query) {
   const cleaned = String(query || "").trim();
   if (!cleaned) return [];
-  const cacheKey = `searchlist_${hash(canonicalTitle(cleaned))}`;
+  const cacheKey = `searchlist_v${SEARCH_LIST_SCHEMA_VERSION}_${hash(canonicalTitle(cleaned))}`;
   return collapse(cacheKey, async () => {
     const row = seriesGetStmt.get(cacheKey);
     const cachedResults = row ? parseJson(row.details)?.results : null;
@@ -371,7 +416,7 @@ export async function searchTvdbSeriesList(query) {
     }
     const shaped = (Array.isArray(results) ? results : []).slice(0, 10).map((item) => ({
       tvdb_id: normalizeTvdbId(item.tvdb_id || item.id),
-      name: item.name || item.translations?.eng || "Unknown",
+      name: preferredSearchName(item) || "Unknown",
       year: item.year || (item.first_air_time || "").slice(0, 4) || "",
       image_url: item.image_url || item.thumbnail || "",
     })).filter((item) => item.tvdb_id);

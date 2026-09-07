@@ -8,6 +8,7 @@ import {
   getTargetsForSource,
   shouldSuppressPlexNotificationEpisodeUnwatch,
   shouldSyncResumeProgress,
+  syncCanonicalPlaystate,
   syncMediaPlaystate,
 } from "../server/src/utils/syncOrchestrator.js";
 import { applyTuningConfig, resetTuningForTests } from "../server/src/utils/tuning.js";
@@ -18,6 +19,56 @@ test("getTargetsForSource routes to every other enabled platform", () => {
   assert.deepEqual(getTargetsForSource("manual", { jellyfin: { disabled: true } }), ["plex", "emby"]);
   assert.deepEqual(getTargetsForSource("unknown_source"), ["plex", "emby", "jellyfin"]);
   assert.deepEqual(getTargetsForSource("plex_custom"), ["emby", "jellyfin"]);
+});
+
+test("canonical watch reconciliation writes to every enabled media app", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  globalThis.fetch = async (url, options = {}) => {
+    calls.push({ url: String(url), method: String(options.method || "GET") });
+    return {
+      ok: true,
+      status: 200,
+      headers: { get: () => "" },
+      json: async () => ({}),
+    };
+  };
+
+  const store = new Map();
+  const kv = {
+    checkAndClaim: () => ({ loopDetected: false }),
+    async get(key) { return store.has(key) ? store.get(key) : null; },
+    async put(key, value) { store.set(key, String(value)); },
+  };
+  const config = {
+    plex: { baseUrl: "http://plex-reconcile.test", token: "plex-token", disabled: false },
+    emby: { baseUrl: "http://emby-reconcile.test", apiKey: "emby-key", userId: "emby-user", disabled: false },
+    jellyfin: { baseUrl: "http://jellyfin-reconcile.test", apiKey: "jellyfin-key", userId: "jellyfin-user", disabled: false },
+  };
+
+  const result = await syncCanonicalPlaystate({
+    isValid: true,
+    type: "episode",
+    source: "plex",
+    title: "Canonical Repair - S01E01",
+    showTitle: "Canonical Repair",
+    season: 1,
+    episode: 1,
+    ids: { tvdb: "canonical-repair-tvdb" },
+    providerItems: {
+      plex: ["plex-episode-1"],
+      emby: ["emby-episode-1"],
+      jellyfin: ["jellyfin-episode-1"],
+    },
+  }, config, kv, "watched", { includeTrackers: false });
+
+  assert.equal(result.status, "success");
+  assert.deepEqual(result.targetStates.map((state) => state.target).sort(), ["emby", "jellyfin", "plex"]);
+  assert.ok(calls.some(({ url, method }) => method === "POST" && url.includes("emby-reconcile.test/Users/emby-user/PlayedItems/emby-episode-1")));
+  assert.ok(calls.some(({ url, method }) => method === "POST" && url.includes("jellyfin-reconcile.test/Users/jellyfin-user/PlayedItems/jellyfin-episode-1")));
+  assert.ok(calls.some(({ url }) => url.includes("plex-reconcile.test/:/scrobble") && url.includes("key=plex-episode-1")));
 });
 
 test("Plex notification episode unwatches do not reach Trakt when no LAN item matches", () => {

@@ -4662,7 +4662,11 @@ export async function findWatchedByMediaKey(mediaKey) {
 // then falls back to coordinate-based lookup (type+season+episode+title/show_title)
 // to match records that were imported with a different ID type (e.g. Trakt IMDB keys
 // vs Emby TVDB keys) or keyed by title.
-export async function findWatchedByAnyMediaKey(media) {
+//
+// Keep a synchronous variant for read-only decisions that already run entirely
+// against SQLite, such as filtering stale manual-review rows. The async wrapper
+// below remains the public compatibility path for callers that use `.catch()`.
+export function findWatchedByAnyMediaKeySync(media) {
   const ids = media.ids || {};
   const seen = new Set();
   const candidates = [
@@ -4732,6 +4736,10 @@ export async function findWatchedByAnyMediaKey(media) {
   }
 
   return null;
+}
+
+export async function findWatchedByAnyMediaKey(media) {
+  return findWatchedByAnyMediaKeySync(media);
 }
 
 const countMissingPosterStmt = db.prepare("SELECT COUNT(*) AS c FROM watch_history WHERE source = 'trakt_import' AND (poster_url IS NULL OR poster_url = '')");

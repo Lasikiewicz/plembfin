@@ -1,6 +1,27 @@
 {
-  "build": 61,
+  "build": 64,
   "resetCommit": "db59126e4768ed9c38309c0fc7ec5fee296a0c22",
-  "updatedAt": "2026-09-07T13:48:27.761Z",
-  "entries": []
+  "updatedAt": "2026-09-07T14:30:22.136Z",
+  "entries": [
+    {
+      "build": 64,
+      "date": "2026-09-07T14:30:22.136Z",
+      "commit": "5f330195e587a386ce4d05e69f45f1263ccb8273",
+      "message": "This update includes reconcile watched app reports and repair watched state and localized TV matching.",
+      "author": "Lasikiewicz",
+      "details": [
+        "Hide stale manual-review rows once Plembfin's canonical playstate is watched",
+        "Reconcile watched reports from Plex, Emby, and Jellyfin to every enabled media app",
+        "Preserve canonical watch dates and explicit unwatched decisions across provider identities",
+        "Add regression coverage for stale reviews and all-provider canonical repair",
+        "Repair watched reports across Plex, Emby, and Jellyfin when Plembfin already has the canonical watched state",
+        "Match TVDB series by English translations and slugs when the primary title is localized",
+        "Hide stale manual-review rows after the canonical watched state is confirmed"
+      ],
+      "messageFragments": [
+        "Fix - Reconcile watched app reports",
+        "Fix - Repair watched state and localized TV matching"
+      ]
+    }
+  ]
 }

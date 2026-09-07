@@ -1,13 +1,12 @@
 import crypto from "node:crypto";
 import { db, parseJson, toJson } from "../db.js";
-import { mediaKeyFor } from "./dataRepo.js";
+import { findWatchedByAnyMediaKeySync, getPlaystateForMediaSync, mediaKeyFor } from "./dataRepo.js";
 
 const selectPendingReviewsStmt = db.prepare(`
   SELECT * FROM manual_watch_reviews
   WHERE status = 'pending'
   ORDER BY created_at DESC, id DESC
 `);
-const countPendingReviewsStmt = db.prepare("SELECT COUNT(*) AS count FROM manual_watch_reviews WHERE status = 'pending'");
 const selectReviewByIdStmt = db.prepare("SELECT * FROM manual_watch_reviews WHERE id = ?");
 const selectReviewByMediaKeyStmt = db.prepare("SELECT * FROM manual_watch_reviews WHERE media_key = ?");
 const insertReviewStmt = db.prepare(`
@@ -130,11 +129,13 @@ function rowToReview(row) {
 }
 
 export function listPendingManualWatchReviews() {
-  return selectPendingReviewsStmt.all().map(rowToReview);
+  return selectPendingReviewsStmt.all()
+    .map(rowToReview)
+    .filter((review) => !reviewIsAlreadyWatched(review));
 }
 
 export function countPendingManualWatchReviews() {
-  return Number(countPendingReviewsStmt.get()?.count || 0);
+  return listPendingManualWatchReviews().length;
 }
 
 export function getManualWatchReview(id) {
@@ -201,4 +202,20 @@ export function setManualWatchReviewStatus(id, status, decisionMode = null) {
 
 export function manualWatchReviewMedia(review = {}) {
   return serializableMedia(review.media || review);
+}
+
+function reviewIsAlreadyWatched(review = {}) {
+  try {
+    const media = manualWatchReviewMedia(review);
+    const playstate = getPlaystateForMediaSync(media);
+    // An explicit current unwatch must win over an older watched history row;
+    // only use the history fallback for legacy records with no playstate yet.
+    if (playstate?.state === "watched") return true;
+    if (playstate?.state === "unwatched") return false;
+    return Boolean(findWatchedByAnyMediaKeySync(media));
+  } catch {
+    // A malformed legacy review should remain visible so it can be corrected
+    // manually instead of disappearing because a read-only filter failed.
+    return false;
+  }
 }

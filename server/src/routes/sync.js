@@ -28,7 +28,7 @@ import { pokeLiveSessionPoller } from "../scheduler.js";
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, hideEmbyFromResume, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes, listEmbyLibraries } from "../utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, hideJellyfinFromResume, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes, listJellyfinLibraries } from "../utils/jellyfinClient.js";
 import { buildPlexMediaFromMetadata, normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexMediaIds, parsePlexWebhook } from "../utils/parsers.js";
-import { clearOutboundPlayedMarks, completeDispatchTracking, finishDispatchTracking, getTargetsForSource, isRecentOutboundPlayedEcho, isRecentOutboundPlayedFlagEcho, isRecentOutboundProgressEcho, isRecentOutboundUnplayedFlagEcho, recordOutboundPlayedMarks, reserveDispatchBatch, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
+import { clearOutboundPlayedMarks, completeDispatchTracking, finishDispatchTracking, getTargetsForSource, isRecentOutboundPlayedEcho, isRecentOutboundPlayedFlagEcho, isRecentOutboundProgressEcho, isRecentOutboundUnplayedFlagEcho, recordOutboundPlayedMarks, reserveDispatchBatch, shouldSyncResumeProgress, syncCanonicalPlaystate, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
 import { canReceiveState } from "../utils/syncRoles.js";
 import {
   playstateBlocksStoredResumeProgress,
@@ -2940,8 +2940,12 @@ export async function handleWebhook(req, res) {
         // user decision, not the old outbound mark being acknowledged. The
         // regular deleted-date guard below still suppresses stale generic
         // callbacks, while explicit re-marks are allowed to reopen review.
-        const currentPlaystate = await getPlaystateForMedia(media).catch(() => null);
-        if (currentPlaystate?.state !== "watched") ownPlayedEcho = false;
+        // If the item is still canonically watched, fall through to the
+        // reconciliation branch below so a failed earlier target write can
+        // be repaired instead of being hidden by the echo guard. The history
+        // fallback also covers older rows that predate playstate pointers.
+        const currentCanonicalState = await getCanonicalWatchState(media).catch(() => null);
+        if (currentCanonicalState === "watched") ownPlayedEcho = false;
       }
       if (ownPlayedEcho) {
         console.log("Webhook: skipped outbound played echo", {
@@ -3013,20 +3017,42 @@ export async function handleWebhook(req, res) {
       // Use the full identity-aware history lookup before persistence so the
       // removed provider date cannot be recreated from its release date.
       const existingWatchedHistory = await findWatchedByAnyMediaKey(media).catch(() => null);
-      if (existingWatchedHistory) {
-        console.log("Webhook: skipped played flag for an item already present in watched history", {
+      const existingPlaystate = await getPlaystateForMedia(media).catch(() => null);
+      const existingCanonicalState = existingPlaystate?.state
+        || (existingWatchedHistory ? "watched" : null);
+      if (existingCanonicalState === "watched") {
+        // The local watch is authoritative, but the reporting app may be
+        // ahead of another connected app. Reconcile the canonical watched
+        // state to every configured destination, including the reporter, so
+        // an already-watched item cannot leave the other apps mismatched.
+        const canonicalMedia = {
+          ...media,
+          watched_at: existingPlaystate?.watched_at || existingWatchedHistory?.watched_at || media.watched_at,
+        };
+        const reconciliation = await syncCanonicalPlaystate(canonicalMedia, config, loopStore, "watched", { lane: "sync" }).catch((error) => ({
+          skipped: false,
+          status: "error",
+          details: `Canonical watch reconciliation failed: ${error.message || String(error)}`,
+          targetStates: [],
+        }));
+        console.log("Webhook: reconciled an already-watched item across connected apps", {
           source: media.source,
           title: media.title,
           event: media.event,
-          existingWatchId: existingWatchedHistory.id,
+          existingWatchId: existingWatchedHistory?.id || null,
+          canonicalState: existingCanonicalState,
+          status: reconciliation.status,
         });
         await deletePlaybackProgress(media).catch(() => null);
         await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
         return sendJson(res, {
           ok: true,
           inserted: false,
-          id: existingWatchedHistory.id,
-          reason: "Played flag event for an item already present in watched history",
+          id: existingWatchedHistory?.id || null,
+          reconciled: true,
+          syncStatus: reconciliation.status || "unknown",
+          targetStates: reconciliation.targetStates || [],
+          reason: "Already marked watched; reconciled to connected apps",
         });
       }
 

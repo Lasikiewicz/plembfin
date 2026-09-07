@@ -80,6 +80,34 @@ test("approved reviews stay closed when the same provider flag is seen again", (
   assert.equal(countPendingManualWatchReviews(), 0);
 });
 
+test("pending reviews are hidden after the item becomes canonically watched", async () => {
+  const reviewMedia = {
+    title: "Stale Review Show - S04E02",
+    showTitle: "Stale Review Show",
+    type: "episode",
+    season: 4,
+    episode: 2,
+    episodeTitle: "The Already Watched Episode",
+    source: "plex",
+    itemId: "plex-stale-review-402",
+    ids: { tvdb: "stale-review-tvdb-402" },
+    releaseDate: "2026-08-01",
+    isValid: true,
+  };
+  const queued = enqueueManualWatchReview(reviewMedia, {
+    releaseDate: "2026-08-01T00:00:00.000Z",
+    sourceFingerprint: "plex|stale-review-402|1",
+  });
+  assert.equal(queued.status, "pending");
+  assert.equal(listPendingManualWatchReviews().some((review) => review.id === queued.review.id), true);
+
+  await repo.upsertPlaystateForMedia(reviewMedia, "watched", "2026-09-07T12:00:00.000Z", { skipInvalidate: true });
+
+  assert.equal(listPendingManualWatchReviews().some((review) => review.id === queued.review.id), false);
+  assert.equal(countPendingManualWatchReviews(), 0);
+  setManualWatchReviewStatus(queued.review.id, "dismissed");
+});
+
 test("mark watched now updates an existing cross-key watch instead of keeping its old date", async () => {
   const title = "Existing Review Show - S01E01 - Pilot";
   const showTitle = "Existing Review Show";
