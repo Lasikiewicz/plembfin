@@ -460,6 +460,11 @@ Changelog content for every branch is generated locally, before each push, from 
 history - never by CI reading GitHub's push event - which also keeps release-process
 bookkeeping out of what publishes to `alpha` and `main`.
 
+Before a **"Force to main"**, the release workflow creates one concise `releaseMessage`,
+previews the complete categorized changelog, and waits for explicit user approval. The
+promotion command requires `--confirm` after that approval; without it, no main release
+files are written.
+
 The develop pre-push guard verifies that the changelog committed with the push covers
 the current user-facing commits; a push with a missing or stale local changelog is
 rejected before it reaches the remote.

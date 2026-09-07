@@ -1,6 +1,19 @@
 {
-  "build": 66,
-  "resetCommit": "2fe7ef342b83b099399ca22eb70bfacbf6bb60ed",
-  "updatedAt": "2026-09-07T15:35:26.084Z",
-  "entries": []
+  "build": 68,
+  "resetCommit": "391c4b8c345d75552dec5821574a0a81167744db",
+  "updatedAt": "2026-09-07T17:16:38.864Z",
+  "entries": [
+    {
+      "build": 68,
+      "date": "2026-09-07T17:16:38.864Z",
+      "commit": "076f101660f187dbc4c4a07ba0a6b0119eb2cc01",
+      "message": "Fix - Only update unwatched episodes when marking a season watched",
+      "author": "Lasikiewicz",
+      "details": [
+        "Partially watched seasons update only the episodes that are still unwatched",
+        "Existing watched episodes remain unchanged when completing a season",
+        "Fully watched seasons retain the explicit Resync season action"
+      ]
+    }
+  ]
 }

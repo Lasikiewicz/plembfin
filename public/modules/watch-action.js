@@ -1,13 +1,13 @@
-import { state, elements } from "./state.js?v=0.15.0.16";
-import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeCode, seasonLabel, formatSeasonTitle, formatTmdbDate, showEpisodeKey } from "./utils.js?v=0.15.0.16";
-import { buildAuthHeaders } from "./auth.js?v=0.15.0.16";
-import { isWatchedHistoryAction } from "./sync.js?v=0.15.0.16";
-import { mergeShowDetail } from "./explorer.js?v=0.15.0.16";
-import { dedupeMediaRecords, resetPartWatchedView, renderPartWatched } from "./dashboard.js?v=0.15.0.16";
-import { tvSeasonAvailability } from "./media-detail-shared.js?v=0.15.0.16";
-import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=0.15.0.16";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=0.15.0.16";
-import { tmdbPoster } from "./images.js?v=0.15.0.16";
+import { state, elements } from "./state.js?v=0.16.0.0.0";
+import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeCode, seasonLabel, formatSeasonTitle, formatTmdbDate, showEpisodeKey } from "./utils.js?v=0.16.0.0.0";
+import { buildAuthHeaders } from "./auth.js?v=0.16.0.0.0";
+import { isWatchedHistoryAction } from "./sync.js?v=0.16.0.0.0";
+import { mergeShowDetail } from "./explorer.js?v=0.16.0.0.0";
+import { dedupeMediaRecords, resetPartWatchedView, renderPartWatched } from "./dashboard.js?v=0.16.0.0.0";
+import { tvSeasonAvailability } from "./media-detail-shared.js?v=0.16.0.0.0";
+import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=0.16.0.0.0";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=0.16.0.0.0";
+import { tmdbPoster } from "./images.js?v=0.16.0.0.0";
 
 // Callbacks injected by app.js at startup to break circular-import chains.
 let _setMessage = () => {};
@@ -360,7 +360,10 @@ export function watchActionFromButton(button) {
     const seasonNumber = Number(button.dataset.seasonNumber);
     const seasonEpisodes = state.showModalEpisodes.filter((row) => row.seasonNumber === seasonNumber);
     episodes = seasonEpisodes.filter((episode) => !episode.watched && !isEpisodeUnreleased(episode));
-    resyncEpisodes = seasonEpisodes.filter((episode) => episode.watched);
+    // A mixed season action is intended to finish the season, not replay the
+    // episodes that are already watched. Keep the explicit resync path only
+    // when there are no eligible unwatched episodes left for this season.
+    resyncEpisodes = episodes.length ? [] : seasonEpisodes.filter((episode) => episode.watched);
     referenceScope = seasonEpisodes;
   } else if (scope === "show") {
     // Specials (season 0) are excluded from a whole-show "Mark watched" by
@@ -1105,9 +1108,9 @@ export async function applyWatchDateChoice(choice) {
     : watchedAtForEpisodeBatch(choice, action.episodes, customDate, action.referenceWatchedAt, action.referenceRuntime);
   const watchedRows = watchedEntries.map(({ episode, watchedAt }) => localWatchRowFromEpisode(episode, watchedAt));
   const records = watchedEntries.map(({ episode, watchedAt }) => watchRecordFromEpisode(episode, watchedAt));
-  // Episodes plembfin already has as watched ride along in the same batch so a
-  // season/show "mark watched" always re-pushes them too, without touching
-  // their existing watched_at.
+  // Explicit resync-only rows are used when a season/show has no new watch
+  // records to add. They re-push the existing watched_at without creating a
+  // new watch-history row.
   const resyncRecords = (action.resyncEpisodes || []).map((episode) => ({
     ...watchRecordFromEpisode(episode, episode.watched?.watched_at || new Date().toISOString()),
     resync_only: true,

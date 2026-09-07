@@ -143,6 +143,24 @@ test("episode watch actions carry the directional reference into the prompt", ()
   }
 });
 
+test("mixed season watch actions only include unwatched episodes", () => {
+  const previousEpisodes = state.showModalEpisodes;
+  const watchedEpisodes = [
+    { key: "S01E01", seasonNumber: 1, episodeNumber: 1, showTitle: "The Office", title: "Pilot", watched: { watched_at: "2026-08-12T12:00:00.000Z" } },
+    { key: "S01E02", seasonNumber: 1, episodeNumber: 2, showTitle: "The Office", title: "Dunder Mifflin Infinity" },
+    { key: "S01E03", seasonNumber: 1, episodeNumber: 3, showTitle: "The Office", title: "The Coup", watched: { watched_at: "2026-08-12T12:30:00.000Z" } },
+  ];
+  state.showModalEpisodes = watchedEpisodes;
+
+  try {
+    const action = watchActionFromButton({ dataset: { watchScope: "season", seasonNumber: "1" } });
+    assert.deepEqual(action.episodes.map((episode) => episode.key), ["S01E02"]);
+    assert.deepEqual(action.resyncEpisodes, []);
+  } finally {
+    state.showModalEpisodes = previousEpisodes;
+  }
+});
+
 test("watch-date selection renders the active show as Saving before sync resolves", async () => {
   const previousQuerySelectorAll = document.querySelectorAll;
   const previousQuerySelector = document.querySelector;

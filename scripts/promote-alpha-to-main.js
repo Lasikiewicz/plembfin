@@ -10,14 +10,14 @@
 // needs to generate or fix up changelog content afterward.
 //
 // Passing --preview runs the same release computation read-only (no files are
-// written or reset) and prints the version + merged release entry that would be
-// committed to main, so a human can confirm the changelog before "Force to main"
-// stages, commits, and force-pushes it.
+// written or reset) and prints the version + release entry that would be committed
+// to main. The mutating command requires --confirm, which is only run after a human
+// has approved that exact preview in the "Force to main" workflow.
 
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { changelogEntryProcessViolations, filterChangelogEntries, synthesizeHeadline } from "./changelog-message.js";
+import { changelogEntryProcessViolations, filterChangelogEntries } from "./changelog-message.js";
 import { formatSections, mergeSections } from "./promote-develop-to-alpha.js";
 import { generateChangelogMarkdown } from "./generate-changelog-md.js";
 import { gitHeadAuthor, gitHeadCommit } from "./changelog-git-helpers.js";
@@ -62,7 +62,7 @@ function computeAlphaToMainRelease({ targetVersion = "", sourceDate = new Date()
   } catch { }
   if (!Array.isArray(changelog.entries)) changelog.entries = [];
 
-  let alpha = { baseVersion: changelog.version, build: 0, entries: [] };
+  let alpha = { baseVersion: changelog.version, build: 0, releaseMessage: "", entries: [] };
   try {
     alpha = JSON.parse(fs.readFileSync(alphaChangelogPath, "utf8"));
   } catch { }
@@ -91,16 +91,18 @@ function computeAlphaToMainRelease({ targetVersion = "", sourceDate = new Date()
     { newFeatures: [], majorBugFixes: [], tweaks: [] },
   );
   const simplifiedDetails = formatSections(sections);
-  // alpha.entries is newest-first (see promoteDevelopToAlpha); read oldest-first here so
-  // the release headline narrates the cycle in the order the builds actually happened.
-  // Use each build's own atomic messageFragments when present rather than its single
-  // flattened `message` - a build's message is already a composite whenever that build
-  // bundled more than one develop commit/push - so synthesizeHeadline always gets the
-  // true flat list of every commit's own headline across the whole cycle to join,
-  // instead of treating an already-composite build message as one unsplittable piece.
-  const messageFragments = [...publicEntries].reverse().flatMap((entry) =>
-    Array.isArray(entry.messageFragments) && entry.messageFragments.length ? entry.messageFragments : [entry.message]);
-  const mainMessage = synthesizeHeadline(messageFragments) || `Release v${newMainVersion}`;
+  // Alpha entries remain detailed and build-specific, but the final Main release
+  // must carry one concise, human-approved headline instead of concatenating every
+  // alpha build into a paragraph. The Force-to-main workflow writes this field after
+  // reviewing the accumulated sections and before showing the preview.
+  const configuredReleaseMessage = String(alpha.releaseMessage || "").trim();
+  if (!configuredReleaseMessage) {
+    throw new Error("Refusing to promote alpha to main: changelog.alpha.json must contain a concise releaseMessage after review.");
+  }
+  if (configuredReleaseMessage.length > 240 || /[\r\n]/.test(configuredReleaseMessage)) {
+    throw new Error("Refusing to promote alpha to main: releaseMessage must be one line and at most 240 characters.");
+  }
+  const mainMessage = configuredReleaseMessage;
 
   const mainEntry = {
     version: newMainVersion,
@@ -174,6 +176,7 @@ export function promoteAlphaToMain({ targetVersion = "", sourceDate = new Date()
     build: 0,
     version: `${newMainVersion}.0.0`,
     updatedAt: sourceDate,
+    releaseMessage: "",
     entries: [],
   };
 
@@ -222,7 +225,11 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     // changelog with the user before anything is staged or pushed.
     const pending = computeAlphaToMainRelease({ targetVersion });
     renderReleasePreview(pending);
-    console.log("\n[preview only - nothing written. Run without --preview to promote.]");
+    console.log("\n[preview only - nothing written. After explicit approval, rerun with --confirm to promote.]");
+  } else if (!args.includes("--confirm")) {
+    console.error("Refusing to promote alpha to main without explicit confirmation.");
+    console.error("Run --preview, obtain approval for that exact changelog, then rerun with --confirm.");
+    process.exitCode = 1;
   } else {
     promoteAlphaToMain({
       targetVersion,

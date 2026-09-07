@@ -4,6 +4,99 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v0.16.0 - 7 September 2026
+
+This update delivers broad performance improvements across media, library, history, metadata, caching, sync, and large-library workflows, with faster artwork loading and a new manual watch feature.
+
+### New Features
+
+- Add a manual watch review queue with show grouping, bulk decisions, and custom watch dates
+- Redesign season and episode details with clearer layouts, season navigation, artwork, and incremental loading
+- Add onboarding and Settings controls for sync tuning, watch thresholds, and fast local-network sync
+
+### Major Bug Fixes
+
+- Smooth media artwork loading and metadata prefetch
+- Show a shimmer placeholder while media-page artwork loads.
+- Preserve reserved image space across posters, episodes, cast, trailers, and galleries while respecting reduced-motion preferences.
+- Bound background TMDB metadata prefetch batches to reduce cold-load timeouts.
+- Make the remote backup passphrase field form-compatible and remove unused icon preloads.
+- Repair watched state and localized TV matching
+- Repair watched reports across Plex, Emby, and Jellyfin when Plembfin already has the canonical watched state
+- Preserve canonical watch dates and explicit unwatched decisions across provider identities
+- Match TVDB series by English translations and slugs when the primary title is localized
+- Hide stale manual-review rows after the canonical watched state is confirmed
+- Keep Plex, Emby, Jellyfin, and Plembfin watched/unwatched state synchronized with reliable now-playing and Up Next refreshes
+- Restore complete TV show metadata and canonical show navigation from dashboard and history
+- Harden large-library history, caching, sync retries, and provider identity matching
+- Dismissing a manual watch review marks the item unwatched on the reporting media app before closing the review
+- A failed provider correction leaves the review pending for retry
+- Invalidate structural-only TV metadata caches so cast, images, trailers, reviews, and related shows load again
+- Resolve title-only TV show pages through the full metadata pipeline and canonical provider route
+- Preserve the selected season when canonicalizing a title-only TV show route
+- Clicking a TV show poster or title from Up Next or watch history opens the show page instead of an episode-specific route
+- Preserve the relevant season when opening a TV show from dashboard history surfaces
+- Speed up media pages by deferring off-screen artwork
+- Opening a movie or show page no longer downloads its whole cast row, poster rails and trailer thumbnails before you have scrolled to them
+- Those images load as they come into view, so the details, watch state and app links on screen settle sooner on a first visit
+- Revisiting a title is unchanged, since its artwork was already served from the browser cache
+- Repair Up Next cards built from raw media-server data
+- An Up Next card whose provider data carried the episode's own ID in place of the show's now links to the correct show page instead of one that cannot load
+- Those cards show their poster again rather than a blank placeholder, where the media server had supplied an image address only it could resolve
+- A card left with no usable show identity links by title instead of to a page that resolves to nothing
+- Speed up non-library show pages and repair Up Next links
+- Up Next now links an episode to the same show page as your watch history does; it previously built that link from the episode's own ID, opening a page that could not resolve and was slow to load
+- Opening a show that is not in your library is far quicker: the page's slowest request drops from about 8.9 seconds to under 0.7
+- Such a show is no longer looked up over and over during one page load, so its details settle sooner
+- The open-in-Plex/Emby/Jellyfin lookup runs once per page instead of three times, and a title found in no connected server is remembered briefly rather than re-searching every server each time
+- A show sharing its name with another in your library keeps linking by title rather than risking the wrong show's page
+- Speed up history and remove large-library limits
+- History page now loads in milliseconds instead of around seven tenths of a second on large libraries, with same-day rewatch collapsing unchanged
+- Stats reports your entire watch history instead of silently describing only the newest 25,000 watches
+- TV Shows and the dashboard list every show in the library rather than stopping at the same 25,000-watch ceiling
+- Media pages no longer re-check for app updates or refetch diagnostic logs on every load
+- Platform icons are fetched once per page instead of three times under three different addresses
+- The background scheduler holds its once-a-minute cadence instead of drifting further behind with every slow tick
+- Restore progress logs and login errors no longer display garbled characters
+- Watch history caches rebuild faster after a watch is recorded
+- Stop resume updates rebuilding library caches
+- Saving a resume position no longer throws away the cached history, movies, shows and stats data, none of which depends on it; with a dashboard open during playback that was spending 22% of the time rebuilding on a normal library and 47% on a very large one, and is now zero
+- Open pages still see resume progress move, because the change signal the browser watches now covers both watch history and resume positions
+- Marking something watched still refreshes every derived view exactly as before
+- Each build now serves its own asset URLs, so pulling a new build no longer leaves the browser running the previous build's JavaScript from cache
+- Make the media and library pages substantially faster
+- TV shows whose episodes all fall outside the most recent 25,000 watches no longer disappear from the TV Shows library; on a 90,000 watch test library that restored 408 missing shows
+- Opening a TV show or episode page no longer makes an external metadata request just to look up an id the app already stored, and no longer re-asks Plex, Emby and Jellyfin whether the title is available on every single load
+- An episode page asked the server for the same show record four times and now asks once, cutting about 1.1 seconds and 84KB from the load
+- Movie and show pages no longer carry streaming availability for every country in the world when only two are shown, taking a movie page's metadata from 100KB to 76KB and the stored metadata here from 105MB to 63MB
+- Movies pages answer from a cached projection instead of re-deriving the whole library each time: pages 1, 5 and 10 went from about 60ms to under 1ms on a 90,000 row library
+- Library pages load all of a screen's posters in one request rather than one per card, and adding another page of results now appends the new cards instead of rebuilding every card already on screen
+- The Stats page no longer downloads every period's report to display one, and the restore screen no longer re-downloads the whole restore report on every poll
+- Library reads are backed by new database indexes, taking season lookups from 798ms to 28ms and recent-order reads from 767ms to 48ms
+- Resolve code scanning alerts (#27) and close the remaining stack trace exposure (#28)
+- Normalize caught provider, credential, outbound, and watchlist errors before they can reach API responses
+- Movies pages now answer from a cached projection instead of re-deriving the whole library on every request: pages 1, 5 and 10 went from about 60ms to under 1ms on a 90,000-row library, and the page number no longer changes the cost
+- The Stats page no longer downloads every period's report just to display one; it receives the totals, a short list of the available years and months, and only the report being viewed, fetching a different period when you pick one
+- A completed restore's full result and log are stored separately from the live status row, so the restore screen stops re-downloading the entire report on every poll while still showing the whole log
+- Library reads are backed by new database indexes covering season and title lookups, provider ids and recent ordering, with planner statistics refreshed once after they are created
+- Poster and backdrop paths are stored as their own columns on the metadata cache, so artwork no longer requires parsing the full details blob
+- Keep media details visible during reload
+- Keep cached artwork, summaries, watched rows, and watch dates visible on direct detail reloads
+- Revalidate local history and provider metadata in the background without blanking the page
+- Keep episode-level provider identities from being promoted into the wrong series route
+- Keep Up Next and watched state aligned across Plex, Emby, and Jellyfin, repair newly available provider episodes, preserve accurate progress, and restore episode titles
+- Prevent stale media detail responses from repainting the dashboard after rapid navigation
+- Keep show and movie detail hydration, watch actions, and provider-derived state consistent during asynchronous loads
+- Improve scheduler, live-session, and incremental provider-sync behavior for reliable updates
+
+### Tweaks
+
+- Make the dismiss action label explain that it also marks the item unwatched
+- Display Mark watched now actions with the same neutral treatment as the other review choices
+- Show prominent loading motion on the poster, episode tiles, and pending watch-date areas
+- Polish refresh and menu controls
+- Harden response caching, compression, and asset-version handling for safer browser loads.
+
 ## v0.15.0 - 3 September 2026
 
 v0.15.0 brings a Discover feed, a private watchlist and ratings, personal lists as their own rails, faster Now Playing, a cleaner setup flow, and episode names that always show.

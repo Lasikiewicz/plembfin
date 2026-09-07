@@ -163,15 +163,17 @@ list arrives shows a loading placeholder instead of a premature "no episodes" me
   watch-history lookup still finds it. A non-watched bookkeeping row occupying the exact same
   media identity and timestamp (left behind by an unwatch transition) is separately replaced
   with the new watched record
-  instead of being mistaken for an existing one. Season- and show-level mark-watched
-  always dispatches sync for every episode in scope, not only the ones that were
-  actually unwatched - episodes plembfin already has as watched are folded into the
-  same batch and re-pushed to Plex/Emby/Jellyfin/Trakt using their existing
-  `watched_at` (no new watch-history row, no date prompt for them), so a target
-  whose own watched flag drifted after the original push (e.g. following a library
-  rescan) gets corrected without needing Force Sync. When a season or the whole show
-  has nothing left unwatched, the button relabels to "Resync season" / "Resync
-  Watched" instead of disabling, so it can still be clicked to re-push
+  instead of being mistaken for an existing one. A mixed season-level mark-watched
+  action dispatches only its eligible unwatched episodes, so episodes Plembfin already
+  has as watched are left untouched. When a season has nothing left unwatched, its
+  button relabels to "Resync season" so it can still be clicked to re-push the existing
+  watched state; show-level mark-watched similarly re-pushes already-watched episodes
+  when the whole show action includes them. These explicit resync rows use their
+  existing `watched_at` (no new watch-history row or date prompt), so a target whose
+  own watched flag drifted after the original push (e.g. following a library rescan)
+  gets corrected without needing Force Sync. When the whole show has nothing left
+  unwatched, its button relabels to "Resync Watched" instead of disabling, so it can
+  still be clicked to re-push
   (`watchActionFromButton`, `runResyncWatchAction` in `watch-action.js`). `POST
   /api/manual-watch` awaits the outbound dispatch to every target before responding
   (rather than backgrounding it), and a manual unwatch (`POST /api/manual-unwatch`,

@@ -48,8 +48,8 @@ test("frontend platform and title helpers normalize user-facing labels", () => {
   );
   assert.match(sourceBadgeHtml("plembfin"), /source-plembfin/);
   assert.match(platformIconMarkup("plembfin"), /source-badge-icon-set/);
-  assert.match(platformIconMarkup("plembfin"), /plembfin-light\.png\?v=0\.15\.0/);
-  assert.match(platformIconMarkup("plembfin"), /plembfin\.png\?v=0\.15\.0/);
+  assert.match(platformIconMarkup("plembfin"), /plembfin-light\.png\?v=[A-Za-z0-9._-]+/);
+  assert.match(platformIconMarkup("plembfin"), /plembfin\.png\?v=[A-Za-z0-9._-]+/);
   assert.match(sourceBadgeHtml("plembfin"), />Plembfin<\/span>/);
   // The asset version tracks the build (see scripts/asset-versions.js), so it
   // changes on every alpha promotion. Assert that the icon is versioned, not

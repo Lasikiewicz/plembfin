@@ -119,16 +119,18 @@ values already committed" - none of them write anything back to their branch.
   getting the correct file onto `origin/develop` for the app's own live remote-fetch
   changelog comparison (`fetchRemoteDevelopChangelog` in `routes/maintenance.js`), not a
   new image. `secret-scan.yml` still runs regardless of which files changed.
-- **"Force to main"** checks out `alpha`'s actual tip locally, first runs
-  `scripts/promote-alpha-to-main.js --preview` so the would-be release entry can be shown
-  to the user and confirmed, then (only after approval) runs
-  `scripts/promote-alpha-to-main.js` (consolidates every alpha build entry accumulated
-  this cycle into one clean release entry - bumps the real semver, writes
+- **"Force to main"** checks out `alpha`'s actual tip locally, writes a concise,
+  single-line `releaseMessage` to `changelog.alpha.json`, then runs
+  `scripts/promote-alpha-to-main.js --preview` so the would-be release entry can be
+  shown to the user and confirmed. Only after approval does the operator run
+  `scripts/promote-alpha-to-main.js --confirm` (consolidates every alpha build entry
+  accumulated this cycle into one clean release entry - bumps the real semver, writes
   `changelog.json`/`package.json`/`package-lock.json`/`CHANGELOG.md`, and resets alpha
-  and develop for the next cycle), commits, then force-pushes that commit to `main`
+  and develop for the next cycle), commit, and force-push that commit to `main`
   (`git push origin HEAD:main --force`), which triggers the release pipeline below. A
   first pre-push test failure follows the bounded retry procedure above instead of
-  bypassing the gate or prematurely ending the promotion.
+  bypassing the gate or prematurely ending the promotion. The promotion command
+  refuses to mutate anything without `--confirm`.
 - After the release pipeline publishes from that commit, both `alpha` and `develop` merge
   `origin/main` back in and push, so the next round of work starts from a matching base
   instead of immediately diverging.
@@ -158,8 +160,8 @@ git push origin develop
 # Promote alpha to main
 git fetch origin
 git checkout -B alpha origin/alpha
-node scripts/promote-alpha-to-main.js --preview   # show the release changelog and get user approval before continuing
-node scripts/promote-alpha-to-main.js && git add changelog.json changelog.alpha.json changelog.develop.json CHANGELOG.md package.json package-lock.json && git commit -m "chore: promote alpha to main"
+node scripts/promote-alpha-to-main.js --preview   # show the concise release changelog and get user approval before continuing
+node scripts/promote-alpha-to-main.js --confirm && git add changelog.json changelog.alpha.json changelog.develop.json CHANGELOG.md package.json package-lock.json && git commit -m "chore: promote alpha to main"
 git log origin/main..HEAD --oneline
 git push origin HEAD:main --force
 
@@ -191,9 +193,10 @@ in `scripts/promote-alpha-to-main.js`, run before the force-push:
    `promote-develop-to-alpha.js`) rather than re-running `categorizeEntries()` over the
    entries themselves - an entry's `message` is a synthesized cross-commit headline
    sentence, not a commit-message bullet, and re-categorizing it would land it in tweaks
-   as a garbled duplicate. Folds every build's headline into one sentence, in the order
-   the builds happened, with `synthesizeHeadline()` (`scripts/changelog-message.js`).
-   Bumps the real semver - the patch segment, honouring a manually-set higher
+   as a garbled duplicate. Uses the reviewed, single-line `releaseMessage` from
+   `changelog.alpha.json` as the Main headline instead of concatenating every alpha
+   build headline. The command refuses to mutate without `--confirm` after the preview
+   has been approved. Bumps the real semver - the patch segment, honouring a manually-set higher
    `package.json` version instead (a deliberate major/minor bump). `public/app.js` and
    `generate-changelog-md.js` render `entry.sections` -
    `newFeatures`/`majorBugFixes`/`tweaks` - as separate "New Features" / "Major Bug

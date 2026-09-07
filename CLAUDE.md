@@ -70,10 +70,9 @@ already committed.
   rebuilding and republishing an image over a changelog-only diff was pure overhead. When
   more than one
   commit lands in one entry, it carries `messageFragments` alongside `message` - the true
-  one-fragment-per-commit list, not just the folded sentence - so `promoteDevelopToAlpha`
-  and `promoteAlphaToMain` can later fold everything into one final headline from real
-  atomic fragments instead of re-wrapping an already-composite sentence as if it were one
-  unsplittable piece (see `synthesizeHeadline` in `scripts/changelog-message.js`).
+  one-fragment-per-commit list, not just the folded sentence, so `promoteDevelopToAlpha`
+  can retain the real source detail while an eventual Force to main uses its reviewed
+  concise `releaseMessage` as the single Main headline.
 
 - **`alpha`**: `scripts/promote-develop-to-alpha.js`, run as part of "Force to alpha"
   (before the force-push), packages develop's current entry as its own standalone alpha
@@ -100,10 +99,12 @@ already committed.
   the force-push), consolidates every alpha build entry accumulated this cycle into one
   clean release entry - merging each entry's already-categorized `sections` directly
   (`mergeSections`, exported from `promote-develop-to-alpha.js`) rather than
-  re-categorizing the entries themselves, and folding their headlines into one sentence
-  in the order the builds actually happened (`synthesizeHeadline` in
-  `scripts/changelog-message.js`) - then bumps the real semver and writes
-  `changelog.json`, `package.json`, `package-lock.json`, and `CHANGELOG.md`.
+  re-categorizing the entries themselves. Before the preview, the operator writes one
+  concise, human-readable `releaseMessage` sentence on the alpha changelog; that is the
+  Main release headline, while the merged sections supply the detailed bullets. The
+  mutating command refuses to run without an explicit `--confirm` after that exact
+  preview has been approved. It then bumps the real semver and writes `changelog.json`,
+  `package.json`, `package-lock.json`, and `CHANGELOG.md`.
   `update-changelog.yml` (workflow name "Publish Main Release") runs the full build gate
   against what was already committed and publishes `:latest` + `:<version>`.
 
@@ -444,9 +445,16 @@ git checkout -B alpha origin/alpha
 Not a stale local `alpha` branch, which may not exactly match `origin/alpha` - this
 resets the local branch to the remote tip every time.
 
-### 2 - Preview the release and get explicit approval for its changelog
-Before anything is staged or pushed, show the exact changelog that "Force to main"
-would publish, using the script's non-mutating preview pass:
+### 2 - Create the concise changelog, preview it, and get explicit approval
+Before anything is staged or pushed, review the accumulated alpha sections and write a
+single-line `releaseMessage` in `changelog.alpha.json`. It should summarize the main
+user-visible themes in one sentence (maximum 240 characters); do not concatenate every
+alpha build headline into it. For example:
+```json
+"releaseMessage": "This update makes media and library pages substantially faster, adds manual watch controls, and redesigns season and episode details."
+```
+Then show the exact changelog that "Force to main" would publish, using the script's
+non-mutating preview pass:
 ```bash
 node scripts/promote-alpha-to-main.js --preview
 ```
@@ -461,26 +469,27 @@ Features, Major Bug Fixes, Tweaks) that will be committed to `main`.
 This is a required gate, not a formality: "Force to main" is a force-push onto the
 shared `main` branch, and the release notes in Settings → Changelog /
 `changelog.json` / `CHANGELOG.md` come from exactly this entry. Present the preview
-output to the user. Incorporate any wording changes the user dictates by refining the
-relevant committed `changelog.alpha.json` entry text (or reverting the offending
-`develop` commit and re-promoting to alpha), re-running `--preview` until the entry
-reads correctly, and only proceed once the user approves.
+output to the user. Incorporate any wording changes the user dictates by refining
+`releaseMessage` or the relevant committed `changelog.alpha.json` entry text (or
+reverting the offending `develop` commit and re-promoting to alpha), re-running
+`--preview` until the entry reads correctly, and only proceed once the user approves.
 
 ### 3 - Build the release, locally, after approval
 ```bash
-node scripts/promote-alpha-to-main.js
+node scripts/promote-alpha-to-main.js --confirm
 ```
 This is `promoteAlphaToMain()` in `scripts/promote-alpha-to-main.js`: it consolidates
 every alpha build entry accumulated this cycle into one clean release entry - merging
-each entry's own already-categorized sections and folding their headlines into one
-sentence in the order the builds happened - bumps the real semver (honouring a
+each entry's own already-categorized sections and using the approved concise
+`releaseMessage` as the headline - bumps the real semver (honouring a
 manually-set higher `package.json` version instead of overwriting it with a patch
 increment), and writes `changelog.json`, `package.json`, `package-lock.json`, and
 regenerates `CHANGELOG.md`, then resets `changelog.alpha.json` and
 `changelog.develop.json` for the next cycle. If it refuses with a release-process
 violation, that means one of alpha's entries still contains recognized process text; fix
 the source commit on `develop`, repeat "Force to alpha", and restart this command.
-Run it only after the step 2 approval - it is the first mutating step of promotion.
+The command also refuses to run without `--confirm`; use that flag only after the step 2
+approval - it is the first mutating step of promotion.
 Then stage and commit:
 ```bash
 git add changelog.json changelog.alpha.json changelog.develop.json CHANGELOG.md package.json package-lock.json

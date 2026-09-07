@@ -132,14 +132,14 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
   try {
     alpha = JSON.parse(fs.readFileSync(alphaChangelogPath, "utf8"));
   } catch {
-    alpha = { baseVersion: mainVersion, build: 0, entries: [] };
+    alpha = { baseVersion: mainVersion, build: 0, releaseMessage: "", entries: [] };
   }
   if (!Array.isArray(alpha.entries)) alpha.entries = [];
 
   // main moved forward since the last promotion (a "Force to main" landed) -
   // start a fresh alpha cycle instead of merging into now-stale content.
   if (alpha.baseVersion !== mainVersion) {
-    alpha = { baseVersion: mainVersion, build: 0, entries: [] };
+    alpha = { baseVersion: mainVersion, build: 0, releaseMessage: "", entries: [] };
   }
 
   let develop;
@@ -199,6 +199,9 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
   alpha.version = alphaVersion;
   alpha.shortVersion = alphaVersion;
   alpha.updatedAt = sourceDate;
+  // A new alpha build changes the release scope, so any concise Main headline
+  // from an earlier review is stale and must be recreated before promotion.
+  alpha.releaseMessage = "";
   // Newest first, same convention as changelog.json's main entries - accumulates
   // across the cycle until promoteAlphaToMain consolidates and resets it.
   alpha.entries = [alphaEntry, ...alpha.entries];
