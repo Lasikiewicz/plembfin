@@ -222,13 +222,17 @@ function attachEvents() {
         const target = controlTab.dataset.target;
         const isActive = controlTab.classList.contains("active");
 
-        container.querySelectorAll(".mobile-control-tab").forEach(tab => tab.classList.remove("active"));
+        container.querySelectorAll(".mobile-control-tab").forEach(tab => {
+          tab.classList.remove("active");
+          tab.setAttribute("aria-pressed", "false");
+        });
         container.querySelectorAll(".compact-field, .explorer-view-toggle, #explorerHideWatchedLabel, #explorerHideEndedLabel").forEach(panel => {
           panel.classList.remove("active-mobile-panel");
         });
 
         if (!isActive) {
           controlTab.classList.add("active");
+          controlTab.setAttribute("aria-pressed", "true");
           if (target === "search") {
             container.querySelector(".explorer-search-box")?.classList.add("active-mobile-panel");
           } else if (target === "sort") {

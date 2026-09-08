@@ -25087,3 +25087,36 @@ html.light-mode .manual-watch-review-show {
     width: 100%;
   }
 }
+
+/* Mobile control bar final corrections ----------------------------------
+   The controls menu is retired while the active control group is mounted
+   inline. Its legacy ID rule above otherwise outranks the shared .hidden
+   utility. Keep the mobile tab strip usable across the full mobile range. */
+@media (max-width: 760px) {
+  body #topbarControlsMenu.hidden {
+    display: none !important;
+  }
+
+  body .mobile-controls-row {
+    align-items: stretch !important;
+    min-height: 3.5rem !important;
+    overflow: hidden !important;
+  }
+
+  body .mobile-controls-row .mobile-control-tab {
+    min-height: 3rem !important;
+    padding: 0.35rem 0.15rem !important;
+    gap: 0.2rem !important;
+  }
+
+  body .mobile-controls-row .mobile-control-tab span {
+    min-height: 0 !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+    overflow-wrap: normal !important;
+    word-break: normal !important;
+    line-height: 1.15 !important;
+  }
+}

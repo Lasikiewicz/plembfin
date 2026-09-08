@@ -1591,6 +1591,7 @@ function resetPageScrollPosition() {
 function resetMobileControlState() {
   for (const tab of document.querySelectorAll(".mobile-control-tab.active")) {
     tab.classList.remove("active");
+    tab.setAttribute("aria-pressed", "false");
   }
   for (const panel of document.querySelectorAll(".active-mobile-panel")) {
     panel.classList.remove("active-mobile-panel");
