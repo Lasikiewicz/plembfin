@@ -1,8 +1,38 @@
 {
   "baseVersion": "0.16.2",
-  "build": 0,
-  "version": "0.16.2.0.0",
-  "updatedAt": "2026-09-08T20:00:29.316Z",
+  "build": 1,
+  "version": "0.16.2.1",
+  "updatedAt": "2026-09-08T21:07:50.322Z",
   "releaseMessage": "",
-  "entries": []
+  "entries": [
+    {
+      "build": 1,
+      "version": "0.16.2.1",
+      "shortVersion": "0.16.2.1",
+      "date": "2026-09-08T21:07:50.322Z",
+      "commit": "704b904bca3cba0c20b2ed990f0e3dd19e8a1411",
+      "message": "Fix - Repair Trakt show matches and refresh metadata immediately",
+      "author": "Lasikiewicz",
+      "details": [
+        "Feature: Add dismiss controls for Trakt errors when a show is unavailable",
+        "Fix: Repair Trakt show matches and refresh metadata immediately",
+        "Fix: Rematch every episode in a show and retry all current failed entries",
+        "Fix: Warm corrected TV metadata and posters before returning to the dashboard",
+        "Fix: Document the new Sync Activity and artwork behavior"
+      ],
+      "sections": {
+        "newFeatures": [
+          "Add dismiss controls for Trakt errors when a show is unavailable"
+        ],
+        "majorBugFixes": [
+          "Repair Trakt show matches and refresh metadata immediately",
+          "Rematch every episode in a show and retry all current failed entries",
+          "Warm corrected TV metadata and posters before returning to the dashboard",
+          "Document the new Sync Activity and artwork behavior"
+        ],
+        "tweaks": []
+      }
+    }
+  ],
+  "shortVersion": "0.16.2.1"
 }

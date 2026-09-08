@@ -1,21 +1,7 @@
 {
   "version": "0.16.2",
   "build": 3,
-  "resetCommit": "d3e8d192e27a7eb0b8cdaf8246c232bf0e340895",
-  "updatedAt": "2026-09-08T20:59:49.431Z",
-  "entries": [
-    {
-      "build": 3,
-      "date": "2026-09-08T20:59:49.431Z",
-      "commit": "5de908e2b2af27792fd9e87e8f136b479e6d5d14",
-      "message": "Fix - Repair Trakt show matches and refresh metadata immediately",
-      "author": "Lasikiewicz",
-      "details": [
-        "Add dismiss controls for Trakt errors when a show is unavailable",
-        "Rematch every episode in a show and retry all current failed entries",
-        "Warm corrected TV metadata and posters before returning to the dashboard",
-        "Document the new Sync Activity and artwork behavior"
-      ]
-    }
-  ]
+  "resetCommit": "704b904bca3cba0c20b2ed990f0e3dd19e8a1411",
+  "updatedAt": "2026-09-08T21:07:50.322Z",
+  "entries": []
 }
