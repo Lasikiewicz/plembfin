@@ -3,7 +3,7 @@ import { db, getDataVersion, getProgressVersion, bumpDataVersion, dataVersionTri
 import { recordCacheRebuild, timeCacheRebuild, timeCacheRebuildAsync } from "./cacheTelemetry.js";
 import { isAuthoritativeRestoreActive, loadMediaConfig } from "./configStore.js";
 import { fetchPosterFromTmdb } from "./tmdbClient.js";
-import { getTmdbDetails, getTmdbSeason } from "./tmdbGateway.js";
+import { getTmdbDetails, getTmdbSeason, queueTmdbMetadataWarmup } from "./tmdbGateway.js";
 import { cachedNextAiringFor, readNextAiringCache } from "./nextAiringCache.js";
 import { buildWatchProvenance, normalizeWatchProvenance } from "./watchProvenance.js";
 import { recordWatchAuditEvent, recordWatchAuditEvents } from "./watchAudit.js";
@@ -3985,7 +3985,25 @@ export async function rematchShowWatchRecords({ id = "", showTitle = "", tvdbId 
   clearCachedShowProgress(resolvedTitle);
   if (renameTo) clearCachedShowProgress(renameTo);
 
-  queueShowProgressUpdate(renameTo || resolvedTitle);
+  const refreshedShowTitle = renameTo || resolvedTitle;
+  queueShowProgressUpdate(refreshedShowTitle);
+  // Fix Match clears the old provider ids and artwork synchronously. Queue the
+  // newly selected series identity separately so the homepage's cache-only
+  // cards can use the corrected show poster/details without requiring the user
+  // to visit the show page first. The progress refresh below also asks for
+  // metadata, but this explicit queue keeps artwork warm even when that cache
+  // update is delayed or is interrupted by a restart.
+  try {
+    queueTmdbMetadataWarmup([{
+      mediaType: "tv",
+      title: refreshedShowTitle,
+      ids: { tvdbId: cleanTvdbId },
+    }], { reason: "fix-match" });
+  } catch (error) {
+    // Metadata is an enrichment side effect. A successful identity rematch
+    // must not be rolled back because the optional warm-up queue is unavailable.
+    console.warn(`[dataRepo] Fix Match metadata warm-up queue failed for ${refreshedShowTitle}: ${error?.message || error}`);
+  }
   bumpDataVersion();
   await invalidateHistoryDerivedCaches("rematchShowWatchRecords");
   setImmediate(() => {

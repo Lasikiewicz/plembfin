@@ -1158,7 +1158,7 @@ export function getCachedTvdbId(tmdbId) {
   return String(details?.external_ids?.tvdb_id || "");
 }
 
-export async function getTmdbPosterUrl({ mediaType, tmdbId = "", title = "" }) {
-  const details = await getTmdbDetails({ mediaType, tmdbId, title });
+export async function getTmdbPosterUrl({ mediaType, tmdbId = "", title = "", ids = {} }) {
+  const details = await getTmdbDetails({ mediaType, tmdbId, title, ids });
   return details.cached_poster_url || (details.poster_path ? `${IMAGE_ROOT}/w500${details.poster_path}` : null);
 }

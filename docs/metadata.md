@@ -115,6 +115,15 @@ queue a whole-library refresh as a cancellable background job and return immedia
 whole pass server-side means it survives closing the settings panel, navigating away, or
 reloading the page - the poll just re-attaches to whatever job is already running.
 
+TV Fix Match uses the same queue with the selected TVDB series identity as an explicit
+warm-up item. It first clears stale show metadata and artwork associations, then queues
+the corrected series so cache-only dashboard cards can resolve the new poster without a
+prior show-page visit. The interactive dialog also requests the full merged details
+record and refreshes the compact dashboard snapshot before closing when that provider
+request succeeds; a provider outage leaves the rematch saved and the queued warm-up
+available for a later retry. `POST /api/rematch-show` reports this server-side work as
+`metadata_refresh: "queued"`.
+
 ## API endpoints (all admin-authenticated, all in `server/src/index.js`)
 
 | Endpoint | Backing |

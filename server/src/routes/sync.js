@@ -1061,6 +1061,22 @@ function isRetryableSyncActivityEntry(entry = {}) {
   return retryableSyncActivityTargets(entry).length > 0;
 }
 
+// A Trakt not_found for an episode means the stored show identity does not
+// resolve to a real Trakt series. It is safe to dismiss that target without
+// changing the local watched state, while other target failures (if present)
+// remain actionable.
+export function isTraktNotFoundSyncActivityEntry(entry = {}) {
+  if (String(entry.mediaType || "").trim().toLowerCase() !== "episode") return false;
+  return (entry.targetStates || []).some((target) => {
+    const targetName = String(target?.target || "").trim().toLowerCase();
+    const status = String(target?.status || "").trim().toLowerCase();
+    const detail = `${target?.detail || ""} ${entry.details || ""}`;
+    return targetName === "trakt"
+      && ["error", "failed"].includes(status)
+      && /not[_ -]?found/i.test(detail);
+  });
+}
+
 function syncActivityEntryTimestamp(entry = {}) {
   return Number(entry.timestamp || entry.createdAt || 0) || 0;
 }
@@ -1126,6 +1142,73 @@ function statusFromTargetStates(targetStates = []) {
   if (successCount === targetStates.length) return "success";
   if (failureCount) return successCount ? "partial" : "error";
   return successCount ? "partial" : "skipped";
+}
+
+const DISMISSED_TRAKT_NOT_FOUND_DETAIL = "Dismissed: Trakt does not have this show";
+
+// Mark only the Trakt not_found target as intentionally skipped. This keeps
+// the audit row and any unrelated target failures intact, but removes the
+// permanent Trakt mismatch from the current-issue count.
+export async function dismissSyncActivityEntry(rawId) {
+  if (isAuthoritativeRestoreActive()) {
+    throw Object.assign(new Error("An authoritative watch-history restore is active; sync activity changes are paused until it completes."), { status: 409 });
+  }
+  const id = String(rawId == null ? "" : rawId).trim();
+  if (!id) throw Object.assign(new Error("Missing required field: id"), { status: 400 });
+  if (id.startsWith("queued:")) {
+    throw Object.assign(new Error("Queued sync activity has no durable Trakt error to dismiss"), { status: 409 });
+  }
+
+  const entry = await getSyncHistoryById(id);
+  if (!entry) throw Object.assign(new Error("Sync activity entry not found"), { status: 404 });
+  const latest = await getLatestSyncActivityByItemKey(entry.activityItemKey);
+  if (latest && String(latest.id) !== String(entry.id)) {
+    throw Object.assign(new Error("This sync activity entry has been superseded by a newer result for the same item"), { status: 409 });
+  }
+  if (!isTraktNotFoundSyncActivityEntry(entry)) {
+    throw Object.assign(new Error("This entry does not contain a dismissible Trakt not-found error"), { status: 409 });
+  }
+
+  const dismissedAt = Date.now();
+  const targetStates = (entry.targetStates || []).map((target) => {
+    const targetName = String(target?.target || "").trim().toLowerCase();
+    const status = String(target?.status || "").trim().toLowerCase();
+    const detail = `${target?.detail || ""} ${entry.details || ""}`;
+    if (targetName !== "trakt" || !["error", "failed"].includes(status) || !/not[_ -]?found/i.test(detail)) {
+      return target;
+    }
+    return { ...target, target: "trakt", status: "skipped", detail: DISMISSED_TRAKT_NOT_FOUND_DETAIL };
+  });
+  const remainingFailures = targetStates
+    .filter((target) => ["error", "failed"].includes(String(target?.status || "").trim().toLowerCase()))
+    .map((target) => String(target?.target || "").trim().toLowerCase())
+    .filter(Boolean);
+  const details = `Trakt match error dismissed: Trakt does not have this show.${remainingFailures.length ? ` Remaining failed targets: ${[...new Set(remainingFailures)].join(", ")}.` : ""}`;
+  const previousDismissals = Array.isArray(entry.rawPayloadDebug?.dismissalHistory)
+    ? entry.rawPayloadDebug.dismissalHistory
+    : [];
+
+  await updateSyncHistoryStatus(entry.id, {
+    status: statusFromTargetStates(targetStates),
+    details,
+    action: entry.action,
+    targetStates,
+    rawPayloadDebug: {
+      ...entry.rawPayloadDebug,
+      dismissalHistory: [
+        ...previousDismissals,
+        { timestamp: dismissedAt, target: "trakt", reason: "not_found" },
+      ].slice(-10),
+    },
+  });
+
+  return {
+    id: String(entry.id),
+    title: entry.title,
+    status: statusFromTargetStates(targetStates),
+    details,
+    dismissedTarget: "trakt",
+  };
 }
 
 // Folds a retry's own target-level results back into the entry's original
@@ -1287,6 +1370,72 @@ async function retrySyncActivityEntry(rawId) {
   return { status: mergedStatus, details: summary.details, targetStates: mergedTargetStates, title: media.title };
 }
 
+async function listCurrentSyncActivityGroupRetryableEntries(groupKey) {
+  const key = String(groupKey || "").trim();
+  if (!key) throw Object.assign(new Error("Activity group key is required"), { status: 400 });
+
+  const entries = [];
+  const limit = 500;
+  let page = 1;
+  let group = null;
+  for (;;) {
+    const result = await getSyncActivityGroupEvents({
+      groupKey: key,
+      limit,
+      offset: (page - 1) * limit,
+      latestOnly: true,
+    });
+    group = result.group || group;
+    if (!group && page === 1) throw Object.assign(new Error("Sync activity group not found"), { status: 404 });
+    entries.push(...(Array.isArray(result.events) ? result.events : []));
+    const totalPages = Math.max(Math.ceil((Number(result.total) || 0) / limit), 1);
+    if (!result.events?.length || page >= totalPages) break;
+    page += 1;
+  }
+  return {
+    group,
+    entries: entries.filter(isRetryableSyncActivityEntry),
+  };
+}
+
+// Retry every current failed item in one show group after the group's stored
+// identity has been corrected. The loop is deliberately sequential so a
+// show-wide repair does not create a burst of Trakt requests.
+export async function retrySyncActivityGroup(groupKey) {
+  const { group, entries } = await listCurrentSyncActivityGroupRetryableEntries(groupKey);
+  let succeeded = 0;
+  let stillFailed = 0;
+  let skipped = 0;
+  let errored = 0;
+  const results = [];
+
+  for (const entry of entries) {
+    try {
+      const result = await retrySyncActivityEntry(entry.id);
+      if (result.status === "success") succeeded += 1;
+      else if (result.status === "skipped") skipped += 1;
+      else stillFailed += 1;
+      results.push({ id: String(entry.id), title: result.title || entry.title, status: result.status, details: result.details || "" });
+    } catch (error) {
+      errored += 1;
+      results.push({ id: String(entry.id), title: entry.title, status: "error", details: error.message || String(error) });
+    }
+  }
+
+  return {
+    success: true,
+    groupKey: String(groupKey || ""),
+    title: group?.title || entries[0]?.title || "this show",
+    total: entries.length,
+    processed: entries.length,
+    succeeded,
+    stillFailed,
+    skipped,
+    errored,
+    results,
+  };
+}
+
 export async function handleRetrySyncHistory(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);
@@ -1301,6 +1450,62 @@ export async function handleRetrySyncHistory(req, res) {
     return sendJson(res, { ok: true, ...result });
   } catch (error) {
     return sendJson(res, { error: error.message }, error.status || 500);
+  }
+}
+
+export async function handleDismissSyncHistory(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  if (isAuthoritativeRestoreActive()) {
+    return sendJson(res, { ok: false, error: "An authoritative watch-history restore is active; sync activity changes are paused until it completes." }, 409);
+  }
+
+  const body = await readJson(req);
+  const ids = Array.isArray(body.ids)
+    ? body.ids.map((value) => String(value || "").trim()).filter(Boolean)
+    : String(body.id || "").trim() ? [String(body.id).trim()] : [];
+  if (!ids.length) return sendJson(res, { error: "id or ids is required" }, 400);
+  if (ids.length > 500) return sendJson(res, { error: "Batch size must be 500 records or fewer" }, 413);
+
+  const results = [];
+  let dismissed = 0;
+  let failed = 0;
+  for (const id of ids) {
+    try {
+      const result = await dismissSyncActivityEntry(id);
+      dismissed += 1;
+      results.push({ id, status: "dismissed", ...result });
+    } catch (error) {
+      failed += 1;
+      results.push({ id, status: "error", error: error.message || String(error), code: error.status || 500 });
+    }
+  }
+
+  if (ids.length === 1) {
+    const only = results[0];
+    if (only.status === "error") return sendJson(res, { ok: false, error: only.error }, only.code || 500);
+    return sendJson(res, { ok: true, ...only });
+  }
+  return sendJson(res, { ok: true, dismissed, failed, results });
+}
+
+export async function handleRetrySyncActivityGroup(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  if (isAuthoritativeRestoreActive()) {
+    return sendJson(res, { ok: false, error: "An authoritative watch-history restore is active; retry sync is paused until it completes." }, 409);
+  }
+
+  const body = await readJson(req);
+  const groupKey = String(body.groupKey || body.group_key || "").trim();
+  if (!groupKey) return sendJson(res, { error: "groupKey is required" }, 400);
+  try {
+    const result = await retrySyncActivityGroup(groupKey);
+    return sendJson(res, { ok: true, ...result });
+  } catch (error) {
+    return sendJson(res, { ok: false, error: error.message || String(error) }, error.status || 500);
   }
 }
 

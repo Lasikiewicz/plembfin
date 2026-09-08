@@ -234,9 +234,15 @@ When an episode's Trakt target reports `not_found`, the current result explains 
 the show identity may need correcting and offers **Fix show match**. This opens the
 same source search used elsewhere in Plembfin; after the user chooses the correct
 series, every stored episode for that show is rematched and the failed Trakt update is
-retried automatically using the current local identity. If the group header's newest
-activity was a later skip, the failed-only group result says to expand the group so
-the actual failed episode is visible instead of presenting the later skip as the issue.
+retried automatically using the current local identity. A complete show group also
+offers **Fix show match & retry all**: one show-level match updates every stored
+episode, then the server retries every current failed entry sequentially. When Trakt
+does not contain the show, the episode and group actions also offer a dismiss option;
+dismissing marks only the Trakt target as intentionally skipped, preserves the local
+watched state, and removes that permanent mismatch from the current issue count. If
+the group header's newest activity was a later skip, the failed-only group result says
+to expand the group so the actual failed episode is visible instead of presenting the
+later skip as the issue.
 
 Clicking a row loads the current result for each movie or episode in that show, newest
 first. This is the actionable view: it is deliberately one row per item, so the issue
@@ -275,6 +281,14 @@ what it looked like before the retry isn't lost. A "queued:" row (a watch record
 locally with no durable activity row of its own yet) is retried the same way, but the
 outcome is written back onto the underlying watch record's own telemetry, since that is
 what the queued row is rendered from.
+
+`POST /api/sync-history/retry-group` accepts a show `groupKey` and applies the same
+current-item selection and retry logic to every failed episode in that group. The
+operation is sequential and returns per-entry results, so the UI can report how many
+episodes succeeded, remain failed, were skipped, or could not be processed. `POST
+/api/sync-history/dismiss` accepts one `id` or a batch of current episode ids and
+rewrites the matching Trakt target to an intentional skip; superseded audit rows and
+non-Trakt failures cannot be dismissed.
 
 When an authoritative watch-history restore is blocked, retained media-server projection
 failures appear in the Sync - Attention Needed panel grouped by show. A show can be
@@ -328,7 +342,11 @@ Dashboard posters use the standard fallback -> `/api/poster` hydration pipeline 
 dedicated IntersectionObserver (`observeDashboardPosters`) so only visible cards
 trigger lookups. Up Next episode cards prefer a cached show poster from the shared artwork
 cache or watched history before asking a provider proxy, so a known show keeps its artwork
-when a provider feed is unavailable. See [posters-artwork.md](posters-artwork.md).
+when a provider feed is unavailable. TV Fix Match clears stale identity artwork, queues
+the corrected TVDB/TMDB metadata and canonical poster, and refreshes the dashboard
+snapshot; the interactive dialog waits for the metadata response when the provider is
+available so the corrected poster is ready when the homepage is revisited. See
+[posters-artwork.md](posters-artwork.md).
 
 ## Gotchas
 

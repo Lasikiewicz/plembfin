@@ -1,7 +1,7 @@
-import { buildAuthHeaders } from "./auth.js?v=0.16.1.1";
-import { state, elements } from "./state.js?v=0.16.1.1";
-import { escapeHtml, escapeAttribute, formatDate, slug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, showTitleFrom, platformIconMarkup } from "./utils.js?v=0.16.1.1";
-import { syncHistoryTone, syncHistoryActionLabel } from "./sync.js?v=0.16.1.1";
+import { buildAuthHeaders } from "./auth.js?v=0.16.2.0.0";
+import { state, elements } from "./state.js?v=0.16.2.0.0";
+import { escapeHtml, escapeAttribute, formatDate, slug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, showTitleFrom, platformIconMarkup } from "./utils.js?v=0.16.2.0.0";
+import { syncHistoryTone, syncHistoryActionLabel } from "./sync.js?v=0.16.2.0.0";
 
 const REFRESH_MS = 15000;
 const SEARCH_DEBOUNCE_MS = 180;
@@ -53,6 +53,10 @@ const groupEventLoading = new Set();
 // movie/episode). The full audit stream is still available on demand and the
 // selected view survives the page's periodic refresh.
 const groupEventView = new Map();
+// A show-wide Fix Match action retries the group's current failed entries in
+// one server request. Keep a small local marker so the expanded group can
+// disable competing item actions while that request is in flight.
+const groupRetryProgress = new Map();
 
 function groupEventCacheKey(groupKey, latestOnly = true) {
   return `${String(groupKey || "")}\u0000${latestOnly ? "latest" : "history"}`;
@@ -164,10 +168,10 @@ function isActive() {
 // dispatch as Plex here. Sync activity names trackers as well as servers, so it
 // resolves platforms itself.
 const PLATFORMS = {
-  plex: { name: "Plex", icon: "/icons/plex.svg?v=0.16.1.1" },
-  emby: { name: "Emby", icon: "/icons/emby.svg?v=0.16.1.1" },
-  jellyfin: { name: "Jellyfin", icon: "/icons/jellyfin.svg?v=0.16.1.1" },
-  trakt: { name: "Trakt", icon: "/icons/trakt.svg?v=0.16.1.1" },
+  plex: { name: "Plex", icon: "/icons/plex.svg?v=0.16.2.0.0" },
+  emby: { name: "Emby", icon: "/icons/emby.svg?v=0.16.2.0.0" },
+  jellyfin: { name: "Jellyfin", icon: "/icons/jellyfin.svg?v=0.16.2.0.0" },
+  trakt: { name: "Trakt", icon: "/icons/trakt.svg?v=0.16.2.0.0" },
   plembfin: { name: "Plembfin", icon: "" },
 };
 
@@ -432,7 +436,7 @@ function activityGroupRow(group = {}) {
   `;
 }
 
-function syncActivityEventRow(entry = {}, index = 0) {
+function syncActivityEventRow(entry = {}, index = 0, groupKey = "") {
   const awaitingRetry = isAwaitingBulkRetry(entry);
   const historicalIssue = entry.isLatestForItem === false && hasRetryableActivityTarget(entry);
   const tone = awaitingRetry ? "pending" : historicalIssue ? "ready" : isFailedSyncActivityEntry(entry) ? "error" : syncHistoryTone(entry);
@@ -441,9 +445,11 @@ function syncActivityEventRow(entry = {}, index = 0) {
   const id = entry.id != null ? String(entry.id) : "";
   const retryable = !awaitingRetry && isRetryableActivity(entry);
   const retrying = retryingActivityIds.has(id);
+  const groupRetrying = groupRetryProgress.has(String(groupKey || entry.activityGroupKey || ""));
   const isEpisode = String(entry.mediaType || "").toLowerCase() === "episode";
   const showTitle = isEpisode ? showTitleFrom(entry.title || "") : "";
-  const canFixMatch = Boolean(id && showTitle && !awaitingRetry && isTraktNotFoundMatchIssue(entry));
+  const canFixMatch = Boolean(id && showTitle && !awaitingRetry && !groupRetrying && isTraktNotFoundMatchIssue(entry));
+  const canDismiss = Boolean(id && showTitle && !awaitingRetry && !groupRetrying && isTraktNotFoundMatchIssue(entry));
   const eventLabel = isEpisode && entry.title ? `${syncHistoryActionLabel(entry)} · ${entry.title}` : syncHistoryActionLabel(entry);
   const displayStatus = awaitingRetry ? "Awaiting retry" : historicalIssue ? "historical" : (entry.status || "unknown");
   return `
@@ -464,7 +470,8 @@ function syncActivityEventRow(entry = {}, index = 0) {
         <div class="sync-activity-row-results">${targetResults(entry, { failedOnly: Boolean(state.syncActivityFailedOnly) })}</div>
         <div class="sync-activity-row-actions">
           ${canFixMatch ? `<button class="button-ghost sync-activity-fix-match" type="button" data-sync-activity-fix-match="${escapeAttribute(id)}" data-sync-activity-fix-match-title="${escapeAttribute(showTitle)}" title="Correct the show match, then retry the Trakt update">Fix show match</button>` : ""}
-          ${retryable ? `<button class="button-ghost sync-activity-retry" type="button" data-sync-activity-retry="${escapeAttribute(id)}" ${retrying ? "disabled" : ""} title="Retry only the failed destinations">${retrying ? "Retrying..." : "Retry failed"}</button>` : ""}
+          ${canDismiss ? `<button class="button-ghost sync-activity-dismiss" type="button" data-sync-activity-dismiss="${escapeAttribute(id)}" data-sync-activity-dismiss-title="${escapeAttribute(showTitle)}" title="Mark the Trakt not-found error as intentionally skipped">Dismiss Trakt error</button>` : ""}
+          ${retryable && !groupRetrying ? `<button class="button-ghost sync-activity-retry" type="button" data-sync-activity-retry="${escapeAttribute(id)}" ${retrying ? "disabled" : ""} title="Retry only the failed destinations">${retrying ? "Retrying..." : "Retry failed"}</button>` : ""}
         </div>
         ${feedbackHtml(id)}
         <pre class="sync-activity-log">${escapeHtml(buildSyncActivityLog(entry))}</pre>
@@ -486,6 +493,37 @@ function renderGroupEvents(groupKey, payload, container) {
   const allViewCount = Number(pagination.total) || loadedEvents.length;
   const viewCount = failedOnly ? issueCount : allViewCount;
   const auditCount = Number(group.eventCount) || viewCount;
+  const showGroup = String(group.mediaType || "").trim().toLowerCase() === "show"
+    || loadedEvents.some((entry) => String(entry.mediaType || "").trim().toLowerCase() === "episode");
+  const traktMatchIssues = latestOnly ? loadedEvents.filter(isTraktNotFoundMatchIssue) : [];
+  const retryableEntries = latestOnly ? loadedEvents.filter(isRetryableActivity) : [];
+  const groupRetry = groupRetryProgress.get(String(groupKey || ""));
+  const groupEventsComplete = pagination.hasNext !== true;
+  const groupActionCount = retryableEntries.length || traktMatchIssues.length;
+  const groupActions = showGroup && latestOnly && groupEventsComplete && traktMatchIssues.length
+    ? `
+      <div class="sync-activity-group-bulk-actions">
+        <span>These Trakt match errors apply to the whole show. Fixing the match updates every stored episode, then retries all current failed entries.</span>
+        <div class="sync-activity-group-bulk-action-buttons">
+          <button class="button-ghost sync-activity-fix-show" type="button"
+            data-sync-activity-fix-show="${escapeAttribute(groupKey)}"
+            data-sync-activity-fix-show-title="${escapeAttribute(group.title || loadedEvents[0]?.title || "this show")}"
+            ${groupRetry ? "disabled" : ""}
+            title="Fix the show match, then retry every current failed entry in this show">
+            ${groupRetry ? `Retrying ${escapeHtml(pluralLabel(groupActionCount, "entry"))}...` : "Fix show match &amp; retry all"}
+          </button>
+          <button class="button-ghost sync-activity-dismiss-show" type="button"
+            data-sync-activity-dismiss-show="${escapeAttribute(groupKey)}"
+            data-sync-activity-dismiss-show-title="${escapeAttribute(group.title || loadedEvents[0]?.title || "this show")}"
+            data-sync-activity-dismiss-show-count="${traktMatchIssues.length}"
+            ${groupRetry ? "disabled" : ""}
+            title="Dismiss every Trakt not-found error in this show">
+            Dismiss Trakt errors (${traktMatchIssues.length})
+          </button>
+        </div>
+      </div>
+    `
+    : "";
   const detailSummary = latestOnly
     ? (failedOnly
       ? `${pluralLabel(issueCount, "current issue")} need attention`
@@ -513,8 +551,9 @@ function renderGroupEvents(groupKey, payload, container) {
       <span>${escapeHtml(detailSummary)}</span>
       ${viewButton}
     </div>
+    ${groupActions}
     <div class="sync-activity-event-list">
-      ${events.length ? events.map((entry, index) => syncActivityEventRow(entry, index)).join("") : `<div class="empty-log"><b>${emptyMessage}</b><span>${emptyHint}</span></div>`}
+      ${events.length ? events.map((entry, index) => syncActivityEventRow(entry, index, groupKey)).join("") : `<div class="empty-log"><b>${emptyMessage}</b><span>${emptyHint}</span></div>`}
     </div>
     ${olderButton}
   `;
@@ -571,6 +610,73 @@ export async function retrySyncActivity(id) {
     return result;
   } finally {
     retryingActivityIds.delete(key);
+    renderSyncActivity();
+  }
+}
+
+export async function dismissSyncActivity(id) {
+  const key = String(id || "").trim();
+  if (!key) return null;
+  const response = await fetch("/api/sync-history/dismiss", {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ id: key }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || `Dismiss failed with ${response.status}`);
+
+  setActivityFeedback(key, { text: body.details || "Trakt error dismissed.", tone: "muted" });
+  appendActivityNote(key, body.details || "Trakt error dismissed.");
+  for (const [cacheKey, cached] of groupEventCache.entries()) {
+    if ((cached.events || []).some((entry) => String(entry.id) === key)) groupEventCache.delete(cacheKey);
+  }
+  await loadSyncActivity({ force: true, page: 1 });
+  return body;
+}
+
+export async function dismissSyncActivityGroup(groupKey) {
+  const key = String(groupKey || "").trim();
+  if (!key) return null;
+  const cached = groupEventCache.get(groupEventCacheKey(key, true));
+  const ids = (cached?.events || [])
+    .filter(isTraktNotFoundMatchIssue)
+    .map((entry) => String(entry.id || "").trim())
+    .filter(Boolean);
+  if (!ids.length) return { ok: true, dismissed: 0, failed: 0, results: [] };
+
+  const response = await fetch("/api/sync-history/dismiss", {
+    method: "POST",
+    headers: { ...authHeaders(), "Content-Type": "application/json" },
+    body: JSON.stringify({ ids }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || `Dismiss failed with ${response.status}`);
+  clearGroupEventCache(key);
+  await loadSyncActivity({ force: true, page: 1 });
+  return body;
+}
+
+export async function retrySyncActivityGroup(groupKey) {
+  const key = String(groupKey || "").trim();
+  if (!key || groupRetryProgress.has(key)) return null;
+  const cached = groupEventCache.get(groupEventCacheKey(key, true));
+  const retryableCount = (cached?.events || []).filter(isRetryableActivity).length
+    || Math.max(Number(cached?.group?.problemCount) || 0, 0);
+  groupRetryProgress.set(key, { total: retryableCount });
+  renderSyncActivity();
+  try {
+    const response = await fetch("/api/sync-history/retry-group", {
+      method: "POST",
+      headers: { ...authHeaders(), "Content-Type": "application/json" },
+      body: JSON.stringify({ groupKey: key }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(body.error || `Show retry failed with ${response.status}`);
+    clearGroupEventCache(key);
+    await loadSyncActivity({ force: true, page: 1 });
+    return body;
+  } finally {
+    groupRetryProgress.delete(key);
     renderSyncActivity();
   }
 }
@@ -2012,6 +2118,7 @@ export function resetSyncActivity() {
   groupEventCache.clear();
   groupEventLoading.clear();
   groupEventView.clear();
+  groupRetryProgress.clear();
 }
 
 // The failed-only view is server-filtered so issues do not disappear just

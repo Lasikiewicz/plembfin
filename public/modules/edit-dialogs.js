@@ -1,10 +1,10 @@
-import { state } from "./state.js?v=0.16.1.1";
-import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, formatDate, actualWatchHistory, sourceBadgeHtml } from "./utils.js?v=0.16.1.1";
-import { buildAuthHeaders } from "./auth.js?v=0.16.1.1";
-import { isWatchedHistoryAction } from "./sync.js?v=0.16.1.1";
-import { tmdbPoster, tmdbImage, proxiedArtworkUrl } from "./images.js?v=0.16.1.1";
-import { dateAtMiddayIso, refreshShowAfterManualWatch, watchedAtForChoice, watchedReferenceFor } from "./watch-action.js?v=0.16.1.1";
-import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=0.16.1.1";
+import { state } from "./state.js?v=0.16.2.0.0";
+import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, formatDate, actualWatchHistory, sourceBadgeHtml } from "./utils.js?v=0.16.2.0.0";
+import { buildAuthHeaders } from "./auth.js?v=0.16.2.0.0";
+import { isWatchedHistoryAction } from "./sync.js?v=0.16.2.0.0";
+import { tmdbPoster, tmdbImage, proxiedArtworkUrl } from "./images.js?v=0.16.2.0.0";
+import { dateAtMiddayIso, refreshShowAfterManualWatch, watchedAtForChoice, watchedReferenceFor } from "./watch-action.js?v=0.16.2.0.0";
+import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=0.16.2.0.0";
 
 // Callbacks injected by app.js at startup.
 let _setMessage = () => {};
@@ -116,6 +116,22 @@ async function apiRematchShow(id, showTitle, tvdbId, newShowTitle = "") {
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+  return body;
+}
+
+// The rematch endpoint queues this work server-side so callers that do not
+// have a browser open are still covered. The interactive Fix Match flow also
+// waits for the same cached record when possible, which means returning to the
+// homepage immediately after saving does not race the metadata refresh.
+async function warmRematchedShowMetadata(tvdbId, title = "") {
+  const params = new URLSearchParams({ mediaType: "tv", tvdbId: String(tvdbId || "") });
+  if (title) params.set("title", title);
+  const res = await fetch(`/api/tmdb-details?${params.toString()}`, {
+    headers: authHeaders(),
+    cache: "no-store",
+  });
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || `Metadata refresh failed with ${res.status}`);
   return body;
 }
 
@@ -1584,6 +1600,17 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
     status.textContent = "";
     if (resultButton) setResultBusy(resultButton, "Updating show match...");
     const result = await apiRematchShow(id, currentTitle, tvdbId, title);
+    let metadataReady = false;
+    if (resultButton) setResultBusy(resultButton, "Loading show metadata...");
+    try {
+      await warmRematchedShowMetadata(tvdbId, title || currentTitle);
+      metadataReady = true;
+    } catch (error) {
+      // The identity update is already durable. Keep the successful Fix Match
+      // result even when TMDB/TVDB is temporarily unavailable; the server-side
+      // queue and the next show visit can retry the enrichment.
+      console.warn("Failed to warm metadata after Fix Match", error);
+    }
     const renamed = Boolean(result.renamed);
     const nextTitle = String(result.show_title || title || currentTitle);
     for (const row of rows) {
@@ -1610,9 +1637,19 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
     state.tmdbDetailsCache.clear();
     state.tmdbSeasonCache.clear();
     _clearDerivedUiCaches({ resetExplorer: true });
+    // Refresh the compact dashboard snapshot with the corrected identity and
+    // any newly cached show poster. `force` bypasses the 30-second dashboard
+    // response cache, while `silent` avoids repainting the page underneath the
+    // still-open Fix Match dialog.
+    await _loadHistory({ force: true, silent: true }).catch((error) => {
+      console.warn("Failed to refresh dashboard history after Fix Match", error);
+    });
     overlay.remove();
     const updatedRows = Number(result.updated_rows || rows.length || 1);
-    _setMessage(`Match updated for ${updatedRows} episode${updatedRows === 1 ? "" : "s"}. Refreshing metadata in the background.`, "success");
+    _setMessage(
+      `Match updated for ${updatedRows} episode${updatedRows === 1 ? "" : "s"}. ${metadataReady ? "Show metadata is ready." : "Metadata refresh will continue in the background."}`,
+      metadataReady ? "success" : "warning",
+    );
 
     // The show's route key is derived from its name, so a rename moves it to a
     // new URL - stay put and the current page no longer resolves to anything.

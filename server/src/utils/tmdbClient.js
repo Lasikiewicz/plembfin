@@ -13,5 +13,15 @@ function showTitleFrom(title = "") {
 export async function fetchPosterFromTmdb(row) {
   const mediaType = row.media_type === "movie" ? "movie" : "tv";
   const title = mediaType === "movie" ? row.title : row.show_title || showTitleFrom(row.title);
-  return getTmdbPosterUrl({ mediaType, tmdbId: row.tmdb_id, title }).catch(() => null);
+  // Episode rows often carry the episode-level TVDB id. Passing it through
+  // lets the TVDB-backed resolver find the parent series after Fix Match has
+  // cleared the old TMDB id, instead of falling back to an ambiguous title
+  // search and leaving dashboard posters blank while the metadata warm-up is
+  // still running.
+  return getTmdbPosterUrl({
+    mediaType,
+    tmdbId: row.tmdb_id,
+    title,
+    ids: mediaType === "tv" ? { tvdbId: row.tvdb_id } : {},
+  }).catch(() => null);
 }

@@ -24041,6 +24041,39 @@ html.light-mode .settings-pane .settings-card-grid .service-card:focus-visible {
   color: var(--muted);
 }
 
+.sync-activity-group-bulk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid color-mix(in srgb, var(--yellow) 38%, var(--line));
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--yellow) 5%, var(--panel-3));
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.sync-activity-group-bulk-actions > span {
+  flex: 1 1 26rem;
+  min-width: 0;
+}
+
+.sync-activity-group-bulk-action-buttons {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.sync-activity-dismiss,
+.sync-activity-dismiss-show {
+  color: var(--yellow);
+}
+
 .sync-activity-event-list {
   display: grid;
   gap: var(--space-1);

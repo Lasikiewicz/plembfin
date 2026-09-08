@@ -1276,7 +1276,7 @@ export async function handleRematchShow(req, res) {
     previous_show_title: result.previousShowTitle,
     renamed: result.renamed,
     tvdb_id: result.tvdbId,
-    metadata_refresh: "background",
+    metadata_refresh: "queued",
   }, 202);
 }
 

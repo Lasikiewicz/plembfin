@@ -72,6 +72,13 @@ trusts a `cached` row whose file still exists on disk.
 The cache key is the **mediaKey** (canonical title + type + IDs), so a live session, a
 history row, and a playstate row for the same item share one cached image.
 
+TV Fix Match invalidates poster rows keyed by the old episode identity and queues the
+selected TVDB series through the metadata warm-up path. The resolver passes the corrected
+TVDB identity through to the TV poster fallback, so a dashboard card can recover the
+canonical show poster by identity instead of waiting for an ambiguous title search. The
+interactive match dialog refreshes the dashboard snapshot after the warm-up request
+completes when the metadata provider is reachable.
+
 ## Backend: `GET /api/remote-artwork?url=<url>&variant=<poster|logo|backdrop>`
 
 fanart.tv and TVDB return absolute CDN URLs rather than image paths. `handleRemoteArtwork`

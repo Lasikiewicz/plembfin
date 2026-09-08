@@ -506,9 +506,11 @@ list arrives shows a loading placeholder instead of a premature "no episodes" me
   correction ran, not the corrected date itself - only Trakt's history reflects
   the actual corrected timestamp. TV Fix Match sends one `POST /api/rematch-show` request that
   updates every episode record in a transaction, renaming them onto the picked
-  series when that name differs; the dialog closes after that local update while
-  progress, artwork, and metadata refresh in the background. A rename changes the
-  show's route key, so the UI navigates to the new show URL. Movie Fix Match saves the picked
+  series when that name differs. The server clears stale identity artwork and queues a
+  metadata warm-up; when the provider responds, the interactive TV flow waits for the
+  corrected show metadata and refreshes the dashboard snapshot before closing. If the
+  provider is unavailable, the durable rematch is saved and the warm-up continues in the
+  background. A rename changes the show's route key, so the UI navigates to the new show URL. Movie Fix Match saves the picked
   TMDB id via `PATCH /api/update-watch` (`updateWatchRecord` in `dataRepo.js`, which also
   accepts an `imdb_id`). Because a row's `media_key` is derived from its identity fields,
   correcting them recomputes the key and moves the row onto it - merging it with any other
