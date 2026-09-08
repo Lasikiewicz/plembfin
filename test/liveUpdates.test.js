@@ -11,6 +11,7 @@ const { AUTH } = await import("../server/src/appConfig.js");
 const { BACKGROUND_SYNC_PROGRESS_STALE_MS, loadRuntimeState, setRuntimeState } = await import("../server/src/utils/configStore.js");
 const { getOnboardingState, saveOnboardingState } = await import("../server/src/utils/onboardingStore.js");
 const { enqueueManualWatchReview } = await import("../server/src/utils/manualWatchReview.js");
+const { appendBackgroundJobLog, enqueueBackgroundJob } = await import("../server/src/utils/backgroundJobs.js");
 const { handleLiveUpdates } = await import("../server/src/routes/liveUpdates.js");
 const { startLiveUpdates, stopLiveUpdates } = await import("../public/modules/live-updates.js");
 
@@ -283,6 +284,38 @@ test("liveUpdates broadcasts background sync progress", async () => {
   assert.ok(output.includes(`"completed":25`));
 
   res.close();
+});
+
+test("liveUpdates broadcasts retry-all background job progress", async () => {
+  const job = enqueueBackgroundJob("retry_all_sync_activity", {}, Date.now());
+  const { req, res, getOutput } = createMockReqRes({
+    method: "GET",
+    headers: { "x-api-key": AUTH.apiKey },
+  });
+
+  try {
+    await handleLiveUpdates(req, res);
+    assert.ok(getOutput().includes('"syncActive":true'));
+    assert.ok(getOutput().includes('"syncLabel":"Retrying failed sync items"'));
+
+    appendBackgroundJobLog(job.id, "Found 2 failed items to retry.");
+    appendBackgroundJobLog(job.id, "[1/2] Reacher - S04E03: success [activityId=retry-sse-1]");
+    await new Promise((resolve) => setTimeout(resolve, 600));
+
+    const events = getOutput()
+      .split("\n\n")
+      .map((block) => block.split("\n").find((line) => line.startsWith("data:"))?.slice(5).trim())
+      .filter(Boolean)
+      .map((data) => JSON.parse(data));
+    assert.ok(events.some((event) => event.type === "sync-progress"
+      && event.syncLabel === "Retrying failed sync items"
+      && event.syncTotal === 2
+      && event.syncCompleted === 1));
+  } finally {
+    res.close();
+    db.prepare("DELETE FROM background_job_logs WHERE job_id = ?").run(job.id);
+    db.prepare("DELETE FROM background_jobs WHERE id = ?").run(job.id);
+  }
 });
 
 test("liveUpdates reports an active onboarding import even without dispatch counts", async () => {

@@ -21,10 +21,10 @@ async function add(title, telemetry, retryAt = 0) {
 test("Trakt dispatch progress excludes terminal partial and skipped outcomes", async () => {
   await add("Not started", null);
   await add("Queued", "Dispatch status: pending");
-  await add("No library match", "Dispatch status: partial\nTarget plex status: skipped - No matching item found");
+  await add("No library match", "Dispatch status: partial\nTarget plex status: skipped - No matching item found", Date.now() + 60_000);
   await add("Skipped", "Dispatch status: skipped\nDetails: No eligible targets");
   await add("Succeeded", "Dispatch status: success");
-  await add("Retrying", "Dispatch status: error", Date.now() + 60_000);
+  await add("Trakt failure after library skip", "Dispatch status: partial\nTarget plex status: skipped - No matching item found\nTarget trakt status: error - HTTP 503", Date.now() + 60_000);
   await add("Exhausted", "Dispatch status: error");
   await add("Historical play", "Dispatch status: skipped\nDetails: Historical import; not re-propagated");
 

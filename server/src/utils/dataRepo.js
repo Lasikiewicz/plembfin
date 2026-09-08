@@ -1161,6 +1161,73 @@ function playstateRowsForIdentity(record = {}) {
   });
 }
 
+const updatePlaystateStateStmt = db.prepare(
+  `UPDATE playstate
+      SET state = ?, watched_at = ?, last_source = ?, sources = ?, updated_at = ?
+    WHERE media_key = ?`,
+);
+
+function playstateRowsForMediaIdentity(record = {}) {
+  const rows = [];
+  const add = (row) => {
+    if (row && !rows.some((existing) => existing.media_key === row.media_key)) rows.push(row);
+  };
+  add(selectPlaystateStmt.get(mediaKeyFor(record)));
+  playstateRowsForIdentity(record).forEach(add);
+  selectPlaystateByTitleStmt
+    .all(record.media_type, record.title.toLowerCase())
+    .filter((row) => sameEpisodeCoordinates(record, row))
+    .forEach(add);
+  if (record.media_type === "episode" && record.season != null && record.episode != null) {
+    const showKey = canonicalShowTitleKey(showTitleFrom(record.title));
+    selectPlaystateBySeasonEpisodeStmt
+      .all(record.season, record.episode)
+      .filter((row) => canonicalShowTitleKey(showTitleFrom(row.title)) === showKey)
+      .forEach(add);
+  }
+  return rows;
+}
+
+// A rematch can leave one playstate row per provider identity. Updating only
+// the key selected by upsertPlaystateSync lets a newer alias win on the next
+// lookup, which is why an episode that was just marked unwatched could appear
+// watched again after an SSE refresh. Explicit state transitions converge all
+// known aliases while preserving the historical watched_at on watch rows.
+export function setPlaystateForMediaIdentitySync(
+  media,
+  state = "watched",
+  watchedAt = undefined,
+  options = {},
+) {
+  const normalized = playstateRecordFromMedia(media, state, watchedAt);
+  const result = upsertPlaystateSync(normalized, state, options);
+  const rows = playstateRowsForMediaIdentity(normalized);
+  const keys = new Set(rows.map((row) => row.media_key).filter(Boolean));
+  if (result.mediaKey) keys.add(result.mediaKey);
+  const normalizedState = normalizePlaystateState(state);
+  const timestamp = Date.now();
+  const watchedStamp = normalized.watched_at;
+  for (const row of rows) {
+    const sources = new Set(parseJson(row.sources, []) || []);
+    if (normalized.source) sources.add(normalized.source);
+    updatePlaystateStateStmt.run(
+      normalizedState,
+      watchedStamp,
+      normalized.source || row.last_source || "",
+      toJson([...sources].sort()),
+      timestamp,
+      row.media_key,
+    );
+  }
+  return { ...result, mediaKeys: [...keys] };
+}
+
+export async function setPlaystateForMediaIdentity(media, state = "watched", watchedAt = undefined, options = {}) {
+  const result = setPlaystateForMediaIdentitySync(media, state, watchedAt, options);
+  if (!options.skipInvalidate) await invalidateHistoryDerivedCaches("setPlaystateForMediaIdentity");
+  return result;
+}
+
 export function getPlaystateForMediaSync(media) {
   const record = playstateRecordFromMedia(media, media?.syncAction || "watched");
   const exact = selectPlaystateStmt.get(mediaKeyFor(record));
@@ -1567,12 +1634,6 @@ const promoteRowToWatchedStmt = db.prepare(
        created_at = ?, updated_at = ?
    WHERE id = ?`,
 );
-const supersedeRowToWatchedStmt = db.prepare(
-  `UPDATE watch_history
-   SET sync_action = 'watched', watched_at = ?, sync_dispatch_telemetry = ?,
-       sync_retry_count = 0, sync_next_retry_at = 0, created_at = ?, updated_at = ?
-   WHERE id = ?`,
-);
 const reassertWatchRowAuthorityStmt = db.prepare(
   `UPDATE watch_history
    SET sync_action = 'watched', sync_retry_count = 0, sync_next_retry_at = 0,
@@ -1601,8 +1662,10 @@ export function reassertWatchRecordAuthoritySync(id) {
 // whole real item, not just for whichever provider-id key the browser happens
 // to send. Older rematches can leave unwatched markers under sibling keys; if
 // even one remains unwatched, history dedupe can restore it on the next fresh
-// show read despite the new watched row and canonical playstate. Promote every
-// related marker in place so watch_history is unambiguous across all aliases.
+// show read despite the new watched row and canonical playstate. Retire every
+// related marker instead of promoting it to a watched row: an unwatch marker is
+// a state tombstone, not another viewing. Promoting it was the source of the
+// duplicate watches and changed dates seen after a season-level Mark watched.
 // The append-only audit log still retains the original unwatch event.
 export function supersedeUnwatchedTransitionsForRecordSync(existing = {}) {
   if (!existing?.id) return 0;
@@ -1610,38 +1673,11 @@ export function supersedeUnwatchedTransitionsForRecordSync(existing = {}) {
   const unwatched = related.filter((row) => ["unwatched", "unplayed"].includes(String(row?.sync_action || "").toLowerCase()));
   if (!unwatched.length) return 0;
 
-  const now = Date.now();
-  const watchedAt = normalizeWatchedAt(existing.watched_at || existing.watchedAt) || new Date(now).toISOString();
-  const telemetry = [
-    "Origin: manual",
-    "Loop-check: Skipped duplicate alias",
-    "Dispatch status: skipped",
-    "Details: Superseded by an explicit Plembfin Mark watched action; the canonical sibling owns outbound dispatch.",
-    "Target plex status: success - Canonical sibling owns outbound dispatch",
-    "Target emby status: success - Canonical sibling owns outbound dispatch",
-    "Target jellyfin status: success - Canonical sibling owns outbound dispatch",
-  ].join("\n");
+  let retired = 0;
   for (const row of unwatched) {
-    queueProgressUpdateForRecord(row);
-    supersedeRowToWatchedStmt.run(watchedAt, telemetry, now, now, row.id);
-    recordWatchAuditEvent({
-      eventType: "history_state_recorded",
-      timestamp: now,
-      action: "watched",
-      watchRecordId: row.id,
-      mediaKey: row.media_key,
-      mediaType: row.media_type,
-      title: row.title,
-      showTitle: row.show_title,
-      source: "manual",
-      ids: { imdb: row.imdb_id, tmdb: row.tmdb_id, tvdb: row.tvdb_id },
-      season: row.season,
-      episode: row.episode,
-      details: "A stale unwatched alias was superseded by an explicit Plembfin Mark watched action.",
-      payload: { previousAction: row.sync_action || "unwatched" },
-    });
+    if (deleteWatchRecordByIdSync(row.id)) retired += 1;
   }
-  return unwatched.length;
+  return retired;
 }
 
 // All other tracked watch_history rows describing the same movie (by media_key)
@@ -1699,18 +1735,82 @@ function siblingWatchRowsFor(existing = {}) {
   const episode = existing.episode == null ? null : Number(existing.episode);
   if (!showKey || season == null || episode == null) return [];
 
-  // isPlembfinTrackedEpisodeRow, not isPlembfinTrackedWatchRow: a play later
-  // marked unwatched (sync_action flips to "unwatched"/"unplayed") is still a
-  // real past watch event and must stay listed here - the same trust check
-  // queryShowDetail's dedupeHistory uses to build the "N actual watches"
-  // count and playHistory list this dialog is meant to match. Requiring the
-  // row's *current* action to be "watched" silently dropped that play from
-  // the editor while the episode card's own history badge still counted it.
+  // Include tracked state rows here so legacy databases containing an unwatch
+  // marker can still be found and compacted. New explicit unwatches remove the
+  // watched rows instead of retaining them as visible historical plays.
   return selectAllEpisodesStmt.all().filter((row) => {
     if (row.id === existing.id || !isPlembfinTrackedEpisodeRow(row)) return false;
     if (Number(row.season) !== season || Number(row.episode) !== episode) return false;
     return canonicalTitleKey(showTitleFrom(row.show_title || row.title)) === showKey;
   });
+}
+
+// An unwatch is a destructive state change for the local watch history: the
+// item must disappear from watched history, not leave old plays behind for the
+// next Mark watched action to stack on top of. Keep the canonical playstate
+// row and a single unwatch transition as the short-lived tombstone needed to
+// reject delayed provider echoes; the append-only watch audit retains what was
+// removed without making it user-visible history.
+export function clearWatchHistoryForMediaIdentitySync(media = {}, {
+  anchor = null,
+  removeStateMarkers = false,
+  allowDuringRestore = false,
+} = {}) {
+  assertRestoreWriteAllowed(media?.source || "manual", { allowDuringRestore });
+
+  const candidates = new Map();
+  const add = (row) => {
+    if (row?.id) candidates.set(String(row.id), row);
+  };
+  const addByKey = (key) => {
+    if (!key) return;
+    selectByMediaKeyStmt.all(String(key)).forEach(add);
+  };
+
+  const ids = media.ids || {};
+  addByKey(mediaKeyFor(media));
+  for (const provider of ["imdb", "tmdb", "tvdb"]) {
+    if (!ids[provider]) continue;
+    addByKey(mediaKeyFor({ ...media, ids: { [provider]: ids[provider] } }));
+  }
+
+  const anchorRow = anchor?.id ? selectByIdStmt.get(String(anchor.id)) : null;
+  if (anchorRow) {
+    add(anchorRow);
+    siblingWatchRowsFor(anchorRow).forEach(add);
+  }
+
+  // When all watched rows have already been removed, the only thing left may
+  // be a tombstone. Use the stable show/season/episode identity to find any
+  // legacy watched aliases that an exact provider key cannot reach.
+  const type = normalizeMediaType(media.media_type || media.mediaType || media.type);
+  const season = media.season == null ? null : Number(media.season);
+  const episode = media.episode == null ? null : Number(media.episode);
+  if (type === "episode" && season != null && episode != null) {
+    const showTitle = media.show_title || media.showTitle || media.title || anchorRow?.show_title || anchorRow?.title || "";
+    const showKey = canonicalTitleKey(showTitleFrom(showTitle));
+    if (showKey) {
+      selectAllEpisodesStmt.all()
+        .filter((row) => (
+          Number(row.season) === season
+          && Number(row.episode) === episode
+          && canonicalTitleKey(showTitleFrom(row.show_title || row.title)) === showKey
+          && isPlembfinTrackedEpisodeRow(row)
+        ))
+        .forEach(add);
+    }
+  }
+
+  const rows = [...candidates.values()].filter((row) => removeStateMarkers || isWatchedAction(row));
+  let deleted = 0;
+  const deletedIds = [];
+  for (const row of rows) {
+    if (deleteWatchRecordByIdSync(row.id, { allowDuringRestore })) {
+      deleted += 1;
+      deletedIds.push(String(row.id));
+    }
+  }
+  return { deleted, deletedIds };
 }
 
 // Same-UTC-day siblings are treated as duplicate rows describing the *same*
@@ -2817,6 +2917,13 @@ function dedupeHistorySources(values = []) {
   return [...new Set(values.map(canonicalHistorySource).filter(Boolean))];
 }
 
+const MEDIA_SERVER_HISTORY_SOURCES = new Set(["plex", "emby", "jellyfin"]);
+
+function isMediaServerHistorySource(value) {
+  const source = cleanString(value).toLowerCase();
+  return [...MEDIA_SERVER_HISTORY_SOURCES].some((platform) => source === platform || source.startsWith(`${platform}_`) || source.startsWith(`${platform}-`));
+}
+
 function watchSourcesFromRows(rows = []) {
   return dedupeHistorySources(rows.filter(isWatchedAction).map((row) => row.source));
 }
@@ -2832,17 +2939,33 @@ function canonicalTransitionTime(row = {}) {
 }
 
 function canonicalTransitionIsNewer(row = {}, existing = {}) {
-  // Plembfin is the authority for explicit user decisions. Provider callbacks
-  // can arrive after the interactive request has completed (and therefore
-  // carry a later transition clock), but they must not reverse a manual
-  // watched/unwatched choice. When both transitions are manual, the normal
-  // clock comparison below still selects the user's newest Plembfin action.
+  // Plembfin's explicit action is authoritative over a provider echo. A
+  // media-server *unwatch* is the one opposite-state exception: it can be a
+  // deliberate user action made directly in Plex/Emby/Jellyfin, so a newer
+  // provider unwatch is allowed to clear an older manual watch. Tracker
+  // unwatches remain subordinate to Plembfin because those callbacks are also
+  // used for reconciliation/echoes. A manual unwatch still cannot be revived
+  // by a later provider watched callback.
+  const rowIsWatched = isWatchedAction(row);
+  const existingIsWatched = isWatchedAction(existing);
+  const rowTime = canonicalTransitionTime(row);
+  const existingTime = canonicalTransitionTime(existing);
+  const rowSource = canonicalHistorySource(row.source);
+  const existingSource = canonicalHistorySource(existing.source);
+  if (rowIsWatched !== existingIsWatched) {
+    const rowIsMediaServerUnwatch = !rowIsWatched && isMediaServerHistorySource(row.source);
+    const existingIsMediaServerUnwatch = !existingIsWatched && isMediaServerHistorySource(existing.source);
+    if (rowSource === "manual" && existingSource === "manual") return rowTime > existingTime;
+    if (rowIsMediaServerUnwatch && existingSource === "manual") return rowTime > existingTime;
+    if (existingIsMediaServerUnwatch && rowSource === "manual") return rowTime > existingTime;
+    if (rowSource === "manual" || existingSource === "manual") return rowSource === "manual";
+    return rowTime > existingTime;
+  }
+
   const rowIsManual = String(row.source || "").toLowerCase() === "manual";
   const existingIsManual = String(existing.source || "").toLowerCase() === "manual";
   if (rowIsManual !== existingIsManual) return rowIsManual;
 
-  const rowTime = canonicalTransitionTime(row);
-  const existingTime = canonicalTransitionTime(existing);
   if (rowTime !== existingTime) return rowTime > existingTime;
   // Millisecond timestamps can tie during a rapid transition. Keep the result
   // independent of query/iteration order even when neither row is provably
@@ -2903,6 +3026,20 @@ export function dedupeHistory(rows) {
       }
     }
     if (latestTransition?.media_key) representative.media_key = latestTransition.media_key;
+
+    // A provider webhook can echo an explicit Plembfin watch within the
+    // same-event display window. The provider copy remains useful for the
+    // aggregate `sources`/playHistory data, but it must not become the
+    // representative source shown to the user: the action was taken in
+    // Plembfin. Carry the authoritative manual transition's source and
+    // telemetry onto the compact representative row while keeping the
+    // existing display-row id/date stability intact.
+    if (canonicalHistorySource(latestTransition?.source) === "manual") {
+      representative.source = latestTransition.source || representative.source;
+      if (latestTransition?.sync_dispatch_telemetry) {
+        representative.sync_dispatch_telemetry = latestTransition.sync_dispatch_telemetry;
+      }
+    }
 
     const playHistory = displayRows
       .map(playHistoryEntry)
@@ -4738,6 +4875,50 @@ export function findWatchedByAnyMediaKeySync(media) {
   return null;
 }
 
+// Return the richest watched row for an episode identity. The first row found
+// by the legacy lookup is not necessarily the best anchor: a media server can
+// report the same episode with only its episode-level id while an older
+// Plembfin row has the established show ids. Unwatch transitions use this
+// richer anchor so a provider rematch cannot split the new tombstone into a
+// second show cluster.
+export function findLatestWatchedByAnyMediaKeySync(media) {
+  const rows = [];
+  const seen = new Set();
+  const add = (row) => {
+    if (!row || seen.has(row.id) || !isPlembfinTrackedWatchRow(row)) return;
+    seen.add(row.id);
+    rows.push(row);
+  };
+
+  const direct = findWatchedByAnyMediaKeySync(media);
+  if (direct?.id) add(selectByIdStmt.get(direct.id));
+
+  const type = normalizeMediaType(media.media_type || media.mediaType || media.type);
+  const season = media.season == null ? null : Number(media.season);
+  const episode = media.episode == null ? null : Number(media.episode);
+  if (type === "episode" && season != null && episode != null) {
+    const showTitle = media.show_title || media.showTitle || media.title || "";
+    const showKey = canonicalShowTitleKey(showTitleFrom(showTitle));
+    selectAllEpisodesStmt.all()
+      .filter((row) => (
+        isPlembfinTrackedWatchRow(row)
+          && Number(row.season) === season
+          && Number(row.episode) === episode
+          && canonicalShowTitleKey(showTitleFrom(row.show_title || row.title)) === showKey
+      ))
+      .forEach(add);
+  }
+
+  if (!rows.length) return null;
+  const identityCount = (row) => [row.imdb_id, row.tmdb_id, row.tvdb_id].filter((value) => cleanString(value)).length;
+  rows.sort((left, right) => (
+    identityCount(right) - identityCount(left)
+      || String(right.watched_at || "").localeCompare(String(left.watched_at || ""))
+      || Number(right.created_at || 0) - Number(left.created_at || 0)
+  ));
+  return rowToWatch(rows[0]);
+}
+
 export async function findWatchedByAnyMediaKey(media) {
   return findWatchedByAnyMediaKeySync(media);
 }
@@ -4904,9 +5085,9 @@ export function countWatchHistoryRowsBySource(source) {
 
 // A stable, monotonically-shrinking backlog figure for a large Trakt import's
 // outbound propagation. Only work that has not run yet, is currently pending,
-// or has a scheduled retry belongs in `pending`. Partial/no-match, skipped,
-// exhausted-error, and successful outcomes are terminal and must not leave the
-// UI claiming that propagation is still active.
+// or has a scheduled retry for a real failure belongs in `pending`.
+// Partial/no-match, skipped, exhausted-error, and successful outcomes are
+// terminal and must not leave the UI claiming that propagation is still active.
 //
 // importTraktPlayHistory (trackerSync.js) backfills every individual Trakt
 // play - rewatches included - as its own row, explicitly marked "skipped -
@@ -4917,13 +5098,24 @@ export function countWatchHistoryRowsBySource(source) {
 // backlog when it's actually already finished. Echo-loop skips are the same
 // kind of intentional terminal state.
 const NOT_PENDING_TELEMETRY_SQL = `(sync_dispatch_telemetry NOT LIKE '%Historical import%' AND sync_dispatch_telemetry NOT LIKE '%Echo loop caught%')`;
+const TRAKT_IMPORT_SYNC_RETRY_MAX_ATTEMPTS = 10;
+// `not_found` is serialized as a skipped target by syncOrchestrator. A real
+// retryable failure is explicitly represented by an error/failed status line;
+// a no-match line must never keep a historical-import progress banner alive.
+const TRAKT_IMPORT_REAL_FAILURE_TELEMETRY_SQL = `(
+  LOWER(COALESCE(sync_dispatch_telemetry, '')) LIKE '%status: error%'
+  OR LOWER(COALESCE(sync_dispatch_telemetry, '')) LIKE '%status: failed%'
+)`;
 export function countTraktImportPendingDispatch() {
   const row = db.prepare(
     `SELECT
        SUM(CASE WHEN sync_dispatch_telemetry IS NULL OR ${NOT_PENDING_TELEMETRY_SQL} THEN 1 ELSE 0 END) AS total,
        SUM(CASE WHEN (sync_dispatch_telemetry IS NULL
-                       OR sync_dispatch_telemetry LIKE '%Dispatch status: pending%'
-                       OR sync_next_retry_at > 0)
+                       OR TRIM(sync_dispatch_telemetry) = ''
+                       OR LOWER(sync_dispatch_telemetry) LIKE '%dispatch status: pending%'
+                       OR (sync_next_retry_at > 0
+                           AND COALESCE(sync_retry_count, 0) < ${TRAKT_IMPORT_SYNC_RETRY_MAX_ATTEMPTS}
+                           AND ${TRAKT_IMPORT_REAL_FAILURE_TELEMETRY_SQL}))
                  AND (sync_dispatch_telemetry IS NULL OR ${NOT_PENDING_TELEMETRY_SQL})
             THEN 1 ELSE 0 END) AS pending
      FROM watch_history WHERE source = 'trakt_import'`,

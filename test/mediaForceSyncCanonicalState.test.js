@@ -105,6 +105,44 @@ test("same-event display dedupe cannot discard a newer canonical rewatch", () =>
   assert.deepEqual(result.playHistory.map((entry) => entry.id), ["rapid-first-watch", "rapid-unwatch"]);
 });
 
+test("same-event provider echoes cannot replace an explicit Plembfin source", () => {
+  const watchedAt = "2026-08-23T20:00:00.000Z";
+  const providerEcho = {
+    ...canonicalFixture("provider-echo", "watched", 1_000),
+    source: "plex",
+    watched_at: watchedAt,
+  };
+  const manualWatch = {
+    ...canonicalFixture("manual-watch", "watched", 2_000),
+    source: "manual",
+    watched_at: watchedAt,
+    sync_dispatch_telemetry: "Origin: manual\\nDispatch status: success",
+  };
+
+  const [result] = repo.dedupeHistory([providerEcho, manualWatch]);
+  assert.equal(result.source, "manual");
+  assert.equal(result.sync_dispatch_telemetry, manualWatch.sync_dispatch_telemetry);
+  assert.deepEqual(result.playHistory.map((entry) => entry.id), ["provider-echo"]);
+  assert.deepEqual(new Set(result.sources), new Set(["plex", "manual"]));
+});
+
+test("a newer provider unwatch supersedes an older explicit watched row", () => {
+  const manualWatch = {
+    ...canonicalFixture("manual-old-watch", "watched", 1_000),
+    source: "manual",
+  };
+  const providerUnwatch = {
+    ...canonicalFixture("jellyfin-new-unwatch", "unwatched", 2_000),
+    source: "jellyfin",
+  };
+
+  for (const rows of [[manualWatch, providerUnwatch], [providerUnwatch, manualWatch]]) {
+    const [result] = repo.dedupeHistory(rows);
+    assert.equal(result.id, "jellyfin-new-unwatch");
+    assert.equal(result.sync_action, "unwatched");
+  }
+});
+
 test("an in-place promotion advances the canonical transition clock", async () => {
   const database = repo.requireDb();
   const insert = database.prepare(`INSERT INTO watch_history

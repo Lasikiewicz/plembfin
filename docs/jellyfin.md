@@ -31,9 +31,11 @@ vars `JELLYFIN_SERVER_URL` / `JELLYFIN_API_KEY` / `JELLYFIN_USER_ID` act as defa
 
 All three are required when Jellyfin is enabled in manual mode (`validateConfig`). Only
 one mode is active: completing account setup removes the stored manual key, while saving
-manual setup switches Jellyfin back to manual mode. Requests send both
-`X-Emby-Token` and `X-MediaBrowser-Token` headers so every Jellyfin version accepts
-them.
+manual setup switches Jellyfin back to manual mode. Existing manual API keys and
+account/Quick Connect access tokens are both retained and sent through Jellyfin's
+modern `Authorization: MediaBrowser ... Token="..."` header. Browser-facing artwork
+URLs use Jellyfin's supported `ApiKey=` query parameter because they cannot attach the
+header; server-side requests do not send both authentication forms.
 
 ## Watchlist note
 

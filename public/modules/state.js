@@ -1,5 +1,5 @@
-import { readStoredAdminToken } from "./auth.js?v=0.16.0.1";
-import { readStoredDebugLogs } from "./logs.js?v=0.16.0.1";
+import { readStoredAdminToken } from "./auth.js?v=0.16.1.0.0";
+import { readStoredDebugLogs } from "./logs.js?v=0.16.1.0.0";
 
 const TOKEN_KEY = "adminToken";
 const LEGACY_UPPER_TOKEN_KEY = "ADMIN_TOKEN";
@@ -74,6 +74,9 @@ const initialState = {
   manualWatchReviewSearch: "",
   syncActivitySearch: "",
   syncActivityFailedOnly: false,
+  syncActivityCurrentIssueGroupCount: 0,
+  syncActivityCurrentIssueCount: 0,
+  syncActivityRetryableCount: 0,
   syncActivityPagination: { page: 1, limit: 25, total: 0, totalPages: 1, from: 0, to: 0, hasPrevious: false, hasNext: false },
   syncActivityProgress: { total: 0, completed: 0, active: false, label: "" },
   syncAttention: [],

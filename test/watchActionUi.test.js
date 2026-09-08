@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import "./domStubs.js";
 
-const { applyWatchDateChoice, closeWatchDatePrompt, initWatchAction, renderWatchDatePrompt, savingEpisodeKeysForShow, watchActionFromButton, watchedAtForChoice, watchedAtForEpisodeBatch, watchedReferenceFor } = await import("../public/modules/watch-action.js");
+const { applyWatchDateChoice, closeWatchDatePrompt, confirmAndMarkUnwatched, initWatchAction, renderWatchDatePrompt, savingEpisodeKeysForShow, watchActionFromButton, watchedAtForChoice, watchedAtForEpisodeBatch, watchedReferenceFor } = await import("../public/modules/watch-action.js");
 const { state } = await import("../public/modules/state.js");
 
 test("closeWatchDatePrompt removes every mounted date dialog", () => {
@@ -122,6 +122,33 @@ test("season/show watch batches continue after an existing watched episode", () 
   ]);
 });
 
+test("season/show watch batches never place a new episode before an edited previous watch", () => {
+  const scope = [
+    { seasonNumber: 1, episodeNumber: 1, runtime: 42, watched: { watched_at: "2026-09-05T18:00:00.000Z" } },
+    { seasonNumber: 1, episodeNumber: 2, runtime: 42, watched: { watched_at: "2026-09-07T20:24:00.000Z" } },
+    { seasonNumber: 1, episodeNumber: 3, runtime: 44 },
+    { seasonNumber: 1, episodeNumber: 4, runtime: 44, watched: { watched_at: "2026-09-08T12:00:00.000Z" } },
+    { seasonNumber: 1, episodeNumber: 5, runtime: 44 },
+  ];
+
+  const entries = watchedAtForEpisodeBatch(
+    "custom",
+    [scope[2], scope[4]],
+    "2026-09-01T12:00:00.000Z",
+    "",
+    null,
+    scope,
+  );
+
+  assert.equal(entries.find(({ episode }) => episode.episodeNumber === 3)?.watchedAt, "2026-09-07T21:07:00.000Z");
+  assert.ok(
+    Date.parse(entries.find(({ episode }) => episode.episodeNumber === 5)?.watchedAt)
+      > Date.parse(entries.find(({ episode }) => episode.episodeNumber === 3)?.watchedAt),
+  );
+  assert.equal(scope[1].watched.watched_at, "2026-09-07T20:24:00.000Z", "existing edited dates are never rewritten");
+  assert.equal(scope[3].watched.watched_at, "2026-09-08T12:00:00.000Z", "existing later dates are never rewritten");
+});
+
 test("episode watch actions carry the directional reference into the prompt", () => {
   const previousEpisodes = state.showModalEpisodes;
   const previousIndex = state.showModalEpisodeIndex;
@@ -176,6 +203,8 @@ test("watch-date selection renders the active show as Saving before sync resolve
   };
   let removed = 0;
   const renderCalls = [];
+  const savingPatchCalls = [];
+  const episodePatchCalls = [];
   const overlays = [{ remove: () => { removed += 1; } }];
   const action = {
     scope: "episode",
@@ -204,6 +233,14 @@ test("watch-date selection renders the active show as Saving before sync resolve
     clearDerivedUiCaches() {},
     renderShowModalContent: (show, options) => renderCalls.push({ show, options }),
     renderImmersiveShowModal: async () => {},
+    patchShowModalEpisodesSavingState: ({ episodes, saving }) => {
+      savingPatchCalls.push({ episodes, saving });
+      return true;
+    },
+    patchShowModalEpisodeFromLive: ({ row }) => {
+      episodePatchCalls.push(row);
+      return true;
+    },
   });
   state.activeShowModalKey = "the-office";
   state.activeShowModalSeason = 4;
@@ -224,11 +261,13 @@ test("watch-date selection renders the active show as Saving before sync resolve
   try {
     const update = applyWatchDateChoice("now");
     assert.equal(removed, 1);
-    assert.equal(renderCalls.length, 1);
-    assert.equal(renderCalls[0].options.activeSeasonNum, 4);
+    assert.equal(renderCalls.length, 0, "watching an episode should not rebuild the active show");
+    assert.equal(savingPatchCalls.length, 1);
+    assert.equal(savingPatchCalls[0].saving, true);
     assert.deepEqual([...state.savingWatchActions], [action]);
     await update;
     assert.equal(state.savingWatchActions.size, 0);
+    assert.equal(episodePatchCalls.length, 1, "the saved episode should be patched through the live-row path");
   } finally {
     document.querySelectorAll = previousQuerySelectorAll;
     document.querySelector = previousQuerySelector;
@@ -241,5 +280,112 @@ test("watch-date selection renders the active show as Saving before sync resolve
     state.showModalEpisodes = previousState.showModalEpisodes;
     state.showModalEpisodeIndex = previousState.showModalEpisodeIndex;
     state.savingWatchActions.clear();
+  }
+});
+
+test("single episode unwatch patches the active show card without rebuilding the modal", async () => {
+  const previousQuerySelectorAll = document.querySelectorAll;
+  const previousQuerySelector = document.querySelector;
+  const previousFetch = globalThis.fetch;
+  const previousCss = globalThis.CSS;
+  const previousState = {
+    activeShowModalKey: state.activeShowModalKey,
+    activeShowModalSeason: state.activeShowModalSeason,
+    activeShowRenderContext: state.activeShowRenderContext,
+    showsRaw: state.showsRaw,
+    showModalEpisodes: state.showModalEpisodes,
+    showModalEpisodeIndex: state.showModalEpisodeIndex,
+  };
+  const renderCalls = [];
+  const savingPatchCalls = [];
+  const episodePatchCalls = [];
+  const historyLoadCalls = [];
+  const button = {
+    dataset: {
+      unwatchId: "watch-5",
+      unwatchKind: "episode",
+      unwatchLabel: "S04E05 Episode",
+      showTitle: "The Office",
+    },
+    disabled: false,
+    textContent: "Mark unwatched",
+  };
+  const episode = {
+    key: "the-office:s04e05",
+    showTitle: "The Office",
+    seasonNumber: 4,
+    episodeNumber: 5,
+    title: "Episode",
+    watched: {
+      id: "watch-5",
+      media_key: "episode:4:5:tmdb:2316",
+      media_type: "episode",
+      title: "The Office - S04E05 - Episode",
+      watched_at: "2026-08-12T12:00:00.000Z",
+      source: "manual",
+      sync_action: "watched",
+    },
+  };
+
+  document.querySelectorAll = () => [];
+  document.querySelector = () => null;
+  globalThis.CSS = { escape: (value) => String(value) };
+  globalThis.fetch = async (url) => String(url).includes("/api/manual-unwatch")
+    ? { ok: true, json: async () => ({ id: "unwatch-5", queued: false }) }
+    : { ok: true, json: async () => ({ history: [] }) };
+  initWatchAction({
+    setMessage() {},
+    openConfirmDialog: async () => true,
+    clearDerivedUiCaches() {},
+    loadHistory: async (options) => historyLoadCalls.push(options),
+    renderImmersiveShowModal: async () => { renderCalls.push(true); },
+    patchShowModalEpisodesSavingState: ({ episodes, saving }) => {
+      savingPatchCalls.push({ episodes, saving });
+      return true;
+    },
+    patchShowModalEpisodeFromLive: ({ row }) => {
+      episodePatchCalls.push(row);
+      return true;
+    },
+  });
+  state.activeShowModalKey = "the-office";
+  state.activeShowModalSeason = 4;
+  state.activeShowRenderContext = {
+    show: { title: "The Office", episodes: [] },
+    activeSeasonNum: 4,
+  };
+  state.showsRaw = [{ title: "The Office", episodes: [episode.watched] }];
+  state.showModalEpisodes = [episode];
+  state.showModalEpisodeIndex = new Map([[episode.key, episode]]);
+  state.savingUnwatchIds.clear();
+
+  try {
+    const update = confirmAndMarkUnwatched(button);
+    await Promise.resolve();
+    assert.equal(savingPatchCalls.length, 1);
+    assert.equal(savingPatchCalls[0].saving, true);
+    assert.deepEqual([...state.savingUnwatchIds], ["watch-5"]);
+    assert.equal(renderCalls.length, 0, "unwatching an episode should not rebuild the active show");
+
+    await update;
+
+    assert.equal(state.savingUnwatchIds.size, 0);
+    assert.equal(renderCalls.length, 0, "successful unwatch should keep the active show mounted");
+    assert.equal(episodePatchCalls.length, 1);
+    assert.equal(episodePatchCalls[0].sync_action, "unwatched");
+    assert.deepEqual(historyLoadCalls, [{ force: true, silent: true }]);
+    assert.equal(button.textContent, "Removed");
+  } finally {
+    document.querySelectorAll = previousQuerySelectorAll;
+    document.querySelector = previousQuerySelector;
+    globalThis.fetch = previousFetch;
+    globalThis.CSS = previousCss;
+    state.activeShowModalKey = previousState.activeShowModalKey;
+    state.activeShowModalSeason = previousState.activeShowModalSeason;
+    state.activeShowRenderContext = previousState.activeShowRenderContext;
+    state.showsRaw = previousState.showsRaw;
+    state.showModalEpisodes = previousState.showModalEpisodes;
+    state.showModalEpisodeIndex = previousState.showModalEpisodeIndex;
+    state.savingUnwatchIds.clear();
   }
 });

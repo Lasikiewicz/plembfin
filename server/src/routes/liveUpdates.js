@@ -9,6 +9,7 @@ import {
 } from "../utils/configStore.js";
 import { getOnboardingState } from "../utils/onboardingStore.js";
 import { syncAttentionState } from "../utils/syncAttention.js";
+import { getBackgroundJobLogs, getLatestBackgroundJob } from "../utils/backgroundJobs.js";
 
 const POLL_MS = 250;
 const HEARTBEAT_MS = 15_000;
@@ -36,6 +37,35 @@ function labelForSyncOperation(operation) {
   }
 }
 
+// Retry-all is a persisted background job rather than an in-process sync
+// operation. Include its log-derived progress in the same snapshot that is
+// already sent over SSE so Sync Activity can repaint after each completed
+// item, including when the job was started in another tab or before a reload.
+function retryAllSyncProgress() {
+  const job = getLatestBackgroundJob("retry_all_sync_activity");
+  if (!job || !["queued", "running"].includes(job.status)) return null;
+
+  let total = 0;
+  let completed = 0;
+  for (const entry of getBackgroundJobLogs(job.id)) {
+    const line = String(entry.message || "");
+    const found = /^Found (\d+) failed(?: or skipped)?/.exec(line);
+    if (found) total = Number(found[1]) || 0;
+    const progress = /^\[(\d+)\/(\d+)\]/.exec(line);
+    if (progress) {
+      completed = Math.max(completed, Number(progress[1]) || 0);
+      total = Number(progress[2]) || total;
+    }
+  }
+
+  return {
+    total,
+    completed,
+    active: true,
+    label: "Retrying failed sync items",
+  };
+}
+
 // The original progress counter tracks outbound dispatch bursts. Initial
 // library imports and the scheduled library scan can be doing real work while
 // that counter is empty, so the dashboard needs the broader operation state as
@@ -46,18 +76,19 @@ async function loadSyncStatus() {
     loadBackgroundSyncProgress(),
     loadRuntimeState(),
   ]);
+  const retryAll = retryAllSyncProgress();
   const total = Number(progress.total) || 0;
   const completed = Number(progress.completed) || 0;
   const dispatchActive = total > 0 && completed < total;
   const operation = syncOperationIsFresh(runtime) ? activeSyncOperation(runtime) : null;
   const importing = onboardingImportIsActive();
-  const active = importing || Boolean(operation) || dispatchActive;
+  const active = retryAll?.active || importing || Boolean(operation) || dispatchActive;
   const attention = syncAttentionState(runtime, getOnboardingState());
   return {
-    total,
-    completed,
+    total: retryAll ? retryAll.total : total,
+    completed: retryAll ? retryAll.completed : completed,
     active,
-    label: importing ? "Importing" : labelForSyncOperation(operation) || (dispatchActive ? "Syncing" : ""),
+    label: retryAll?.label || (importing ? "Importing" : labelForSyncOperation(operation) || (dispatchActive ? "Syncing" : "")),
     attentionCount: attention.count,
     attentionStatus: attention.status,
   };

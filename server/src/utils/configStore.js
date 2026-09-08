@@ -4,7 +4,7 @@ import { applyTuningConfig, normalizeTuningSection, normalizeWatchImportMode, tu
 import { normalizeSyncRoles, validateSyncRolesSection, normalizeAuthority } from "./syncRoles.js";
 import { getMediaConnection, resolveConnectedProviderConfig } from "./mediaConnectionRepo.js";
 import { getValidPlexServerToken, getValidPlexToken } from "./plexTokenManager.js";
-import { activityGroupKeyFor, activityGroupMediaType, activityGroupTitleFromRecord } from "./syncActivityIdentity.js";
+import { activityGroupKeyFor, activityGroupMediaType, activityGroupTitleFromRecord, activityItemKeyFor } from "./syncActivityIdentity.js";
 
 const SETTINGS_ID = "mediaConfig";
 const RUNTIME_ID = "main";
@@ -1241,8 +1241,8 @@ export async function appendRuntimeLog(field, items = []) {
 }
 
 const insertSyncHistoryStmt = db.prepare(
-  `INSERT INTO sync_history (timestamp, media_type, title, source, status, details, action, target_states, raw_payload_debug, activity_group_key, created_at)
-   VALUES (@timestamp, @media_type, @title, @source, @status, @details, @action, @target_states, @raw_payload_debug, @activity_group_key, @created_at)`,
+  `INSERT INTO sync_history (timestamp, media_type, title, source, status, details, action, target_states, raw_payload_debug, activity_group_key, activity_item_key, created_at)
+   VALUES (@timestamp, @media_type, @title, @source, @status, @details, @action, @target_states, @raw_payload_debug, @activity_group_key, @activity_item_key, @created_at)`,
 );
 const updateSyncHistoryStmt = db.prepare(
   `UPDATE sync_history SET timestamp=@timestamp, status=@status, details=@details, action=@action, target_states=@target_states, raw_payload_debug=@raw_payload_debug WHERE id=@id`,
@@ -1268,18 +1268,65 @@ const selectSyncHistorySearchPageStmt = db.prepare(`SELECT * FROM sync_history W
 const countSyncHistorySearchStmt = db.prepare(`SELECT COUNT(*) AS count FROM sync_history WHERE ${syncHistorySearchExpression}`);
 
 const syncActivityGroupExpression = "COALESCE(NULLIF(activity_group_key, ''), LOWER(COALESCE(media_type, 'unknown')) || '|title:' || LOWER(TRIM(COALESCE(title, 'Unknown media'))))";
-const syncActivityProblemExpression = "LOWER(COALESCE(status, '')) IN ('error', 'failed') OR LOWER(COALESCE(target_states, '')) LIKE '%\"status\":\"error\"%' OR LOWER(COALESCE(target_states, '')) LIKE '%\"status\":\"failed\"%'";
+// A target that is not present in one of the connected libraries is an
+// expected outcome, not a failed sync. Only an actual error/failed target (or
+// an overall error with no target-level detail) should keep a current item in
+// the attention count. `syncOrchestrator` deliberately normalizes not_found
+// library lookups to skipped, so skipped/not_found must stay out of this
+// expression even when the overall result is partial.
+const syncActivityFailureTargetExpression = "LOWER(COALESCE(target_states, '')) LIKE '%\"status\":\"error\"%' OR LOWER(COALESCE(target_states, '')) LIKE '%\"status\":\"failed\"%'";
+const syncActivityProblemExpression = `(
+  LOWER(COALESCE(status, '')) IN ('error', 'failed')
+  OR (
+    LOWER(COALESCE(status, '')) = 'partial'
+    AND (${syncActivityFailureTargetExpression})
+  )
+)`;
 const syncActivityPendingExpression = "LOWER(COALESCE(status, '')) IN ('pending', 'queued', 'in_progress', 'in progress')";
+// Only the newest event for an activity item is live. Older rows remain in the
+// audit trail but must not keep a resolved item looking broken.
+const syncActivityLatestItemExpression = `NOT EXISTS (
+  SELECT 1 FROM sync_history newer
+  WHERE sync_history.activity_item_key IS NOT NULL
+    AND sync_history.activity_item_key <> ''
+    AND newer.activity_item_key = sync_history.activity_item_key
+    AND (newer.timestamp > sync_history.timestamp OR (newer.timestamp = sync_history.timestamp AND newer.id > sync_history.id))
+)`;
 const countSyncActivityGroupsStmt = db.prepare(`SELECT COUNT(DISTINCT ${syncActivityGroupExpression}) AS count FROM sync_history`);
 const countSyncActivityGroupsSearchStmt = db.prepare(`SELECT COUNT(DISTINCT ${syncActivityGroupExpression}) AS count FROM sync_history WHERE ${syncHistorySearchExpression}`);
+const countSyncActivityIssueGroupsStmt = db.prepare(`
+  SELECT COUNT(*) AS count
+  FROM (
+    SELECT ${syncActivityGroupExpression} AS activity_group_key
+    FROM sync_history
+    GROUP BY ${syncActivityGroupExpression}
+    HAVING SUM(CASE WHEN ${syncActivityLatestItemExpression} AND (${syncActivityProblemExpression}) THEN 1 ELSE 0 END) > 0
+  )`);
+const countSyncActivityIssueGroupsSearchStmt = db.prepare(`
+  SELECT COUNT(*) AS count
+  FROM (
+    SELECT ${syncActivityGroupExpression} AS activity_group_key
+    FROM sync_history
+    WHERE ${syncHistorySearchExpression}
+    GROUP BY ${syncActivityGroupExpression}
+    HAVING SUM(CASE WHEN ${syncActivityLatestItemExpression} AND (${syncActivityProblemExpression}) THEN 1 ELSE 0 END) > 0
+  )`);
+const countSyncActivityIssuesStmt = db.prepare(`SELECT COUNT(*) AS count FROM sync_history WHERE ${syncActivityLatestItemExpression} AND (${syncActivityProblemExpression})`);
+const countSyncActivityIssuesSearchStmt = db.prepare(`SELECT COUNT(*) AS count FROM sync_history WHERE ${syncHistorySearchExpression} AND ${syncActivityLatestItemExpression} AND (${syncActivityProblemExpression})`);
+// The bulk retry action only handles actual target failures. Missing library
+// items are deliberately stored as skipped results, and an overall error with
+// no failed target response has nothing safe for the action to retry.
+const countSyncActivityRetryableStmt = db.prepare(`SELECT COUNT(*) AS count FROM sync_history WHERE ${syncActivityLatestItemExpression} AND (${syncActivityFailureTargetExpression})`);
+const countSyncActivityRetryableSearchStmt = db.prepare(`SELECT COUNT(*) AS count FROM sync_history WHERE ${syncHistorySearchExpression} AND ${syncActivityLatestItemExpression} AND (${syncActivityFailureTargetExpression})`);
 const selectSyncActivityGroupsStmt = db.prepare(`
   SELECT
     ${syncActivityGroupExpression} AS activity_group_key,
     COUNT(*) AS event_count,
+    SUM(CASE WHEN ${syncActivityLatestItemExpression} THEN 1 ELSE 0 END) AS current_item_count,
     MAX(timestamp) AS last_activity,
     MAX(id) AS latest_id,
-    SUM(CASE WHEN ${syncActivityProblemExpression} THEN 1 ELSE 0 END) AS problem_count,
-    SUM(CASE WHEN ${syncActivityPendingExpression} THEN 1 ELSE 0 END) AS pending_count
+    SUM(CASE WHEN ${syncActivityLatestItemExpression} AND (${syncActivityProblemExpression}) THEN 1 ELSE 0 END) AS problem_count,
+    SUM(CASE WHEN ${syncActivityLatestItemExpression} AND (${syncActivityPendingExpression}) THEN 1 ELSE 0 END) AS pending_count
   FROM sync_history
   GROUP BY ${syncActivityGroupExpression}
   ORDER BY last_activity DESC, latest_id DESC
@@ -1288,29 +1335,74 @@ const selectSyncActivityGroupsSearchStmt = db.prepare(`
   SELECT
     ${syncActivityGroupExpression} AS activity_group_key,
     COUNT(*) AS event_count,
+    SUM(CASE WHEN ${syncActivityLatestItemExpression} THEN 1 ELSE 0 END) AS current_item_count,
     MAX(timestamp) AS last_activity,
     MAX(id) AS latest_id,
-    SUM(CASE WHEN ${syncActivityProblemExpression} THEN 1 ELSE 0 END) AS problem_count,
-    SUM(CASE WHEN ${syncActivityPendingExpression} THEN 1 ELSE 0 END) AS pending_count
+    SUM(CASE WHEN ${syncActivityLatestItemExpression} AND (${syncActivityProblemExpression}) THEN 1 ELSE 0 END) AS problem_count,
+    SUM(CASE WHEN ${syncActivityLatestItemExpression} AND (${syncActivityPendingExpression}) THEN 1 ELSE 0 END) AS pending_count
   FROM sync_history
   WHERE ${syncHistorySearchExpression}
   GROUP BY ${syncActivityGroupExpression}
   ORDER BY last_activity DESC, latest_id DESC
   LIMIT ? OFFSET ?`);
+const selectSyncActivityIssueGroupsStmt = db.prepare(`
+  SELECT
+    ${syncActivityGroupExpression} AS activity_group_key,
+    COUNT(*) AS event_count,
+    SUM(CASE WHEN ${syncActivityLatestItemExpression} THEN 1 ELSE 0 END) AS current_item_count,
+    MAX(timestamp) AS last_activity,
+    MAX(id) AS latest_id,
+    SUM(CASE WHEN ${syncActivityLatestItemExpression} AND (${syncActivityProblemExpression}) THEN 1 ELSE 0 END) AS problem_count,
+    SUM(CASE WHEN ${syncActivityLatestItemExpression} AND (${syncActivityPendingExpression}) THEN 1 ELSE 0 END) AS pending_count
+  FROM sync_history
+  GROUP BY ${syncActivityGroupExpression}
+  HAVING SUM(CASE WHEN ${syncActivityLatestItemExpression} AND (${syncActivityProblemExpression}) THEN 1 ELSE 0 END) > 0
+  ORDER BY last_activity DESC, latest_id DESC
+  LIMIT ? OFFSET ?`);
+const selectSyncActivityIssueGroupsSearchStmt = db.prepare(`
+  SELECT
+    ${syncActivityGroupExpression} AS activity_group_key,
+    COUNT(*) AS event_count,
+    SUM(CASE WHEN ${syncActivityLatestItemExpression} THEN 1 ELSE 0 END) AS current_item_count,
+    MAX(timestamp) AS last_activity,
+    MAX(id) AS latest_id,
+    SUM(CASE WHEN ${syncActivityLatestItemExpression} AND (${syncActivityProblemExpression}) THEN 1 ELSE 0 END) AS problem_count,
+    SUM(CASE WHEN ${syncActivityLatestItemExpression} AND (${syncActivityPendingExpression}) THEN 1 ELSE 0 END) AS pending_count
+  FROM sync_history
+  WHERE ${syncHistorySearchExpression}
+  GROUP BY ${syncActivityGroupExpression}
+  HAVING SUM(CASE WHEN ${syncActivityLatestItemExpression} AND (${syncActivityProblemExpression}) THEN 1 ELSE 0 END) > 0
+  ORDER BY last_activity DESC, latest_id DESC
+  LIMIT ? OFFSET ?`);
 const selectSyncActivityLatestStmt = db.prepare(`SELECT * FROM sync_history WHERE ${syncActivityGroupExpression} = ? ORDER BY timestamp DESC, id DESC LIMIT 1`);
-const selectSyncActivityEventsStmt = db.prepare(`SELECT * FROM sync_history WHERE ${syncActivityGroupExpression} = ? ORDER BY timestamp DESC, id DESC LIMIT ? OFFSET ?`);
+const selectSyncActivityEventsStmt = db.prepare(`
+  SELECT *, CASE WHEN ${syncActivityLatestItemExpression} THEN 1 ELSE 0 END AS is_latest_for_item
+  FROM sync_history
+  WHERE ${syncActivityGroupExpression} = ?
+  ORDER BY timestamp DESC, id DESC
+  LIMIT ? OFFSET ?`);
+const selectSyncActivityLatestEventsStmt = db.prepare(`
+  SELECT *, CASE WHEN ${syncActivityLatestItemExpression} THEN 1 ELSE 0 END AS is_latest_for_item
+  FROM sync_history
+  WHERE ${syncActivityGroupExpression} = ?
+    AND ${syncActivityLatestItemExpression}
+  ORDER BY timestamp DESC, id DESC
+  LIMIT ? OFFSET ?`);
 const countSyncActivityEventsStmt = db.prepare(`SELECT COUNT(*) AS count FROM sync_history WHERE ${syncActivityGroupExpression} = ?`);
+const countSyncActivityLatestEventsStmt = db.prepare(`SELECT COUNT(*) AS count FROM sync_history WHERE ${syncActivityGroupExpression} = ? AND ${syncActivityLatestItemExpression}`);
 const selectSyncActivityGroupSummaryStmt = db.prepare(`
   SELECT
     ${syncActivityGroupExpression} AS activity_group_key,
     COUNT(*) AS event_count,
+    SUM(CASE WHEN ${syncActivityLatestItemExpression} THEN 1 ELSE 0 END) AS current_item_count,
     MAX(timestamp) AS last_activity,
     MAX(id) AS latest_id,
-    SUM(CASE WHEN ${syncActivityProblemExpression} THEN 1 ELSE 0 END) AS problem_count,
-    SUM(CASE WHEN ${syncActivityPendingExpression} THEN 1 ELSE 0 END) AS pending_count
+    SUM(CASE WHEN ${syncActivityLatestItemExpression} AND (${syncActivityProblemExpression}) THEN 1 ELSE 0 END) AS problem_count,
+    SUM(CASE WHEN ${syncActivityLatestItemExpression} AND (${syncActivityPendingExpression}) THEN 1 ELSE 0 END) AS pending_count
   FROM sync_history
   WHERE ${syncActivityGroupExpression} = ?
   GROUP BY ${syncActivityGroupExpression}`);
+const selectSyncActivityLatestByItemStmt = db.prepare("SELECT * FROM sync_history WHERE activity_item_key = ? ORDER BY timestamp DESC, id DESC LIMIT 1");
 
 const SYNC_HISTORY_MAX_PAGE_SIZE = 200;
 
@@ -1329,6 +1421,7 @@ function syncHistorySearchPattern(value) {
 }
 
 function syncHistoryRow(row) {
+  const rawPayloadDebug = parseJson(row.raw_payload_debug, {});
   return {
     id: String(row.id),
     timestamp: row.timestamp,
@@ -1339,15 +1432,23 @@ function syncHistoryRow(row) {
     details: row.details,
     action: row.action,
     targetStates: parseJson(row.target_states, []),
-    rawPayloadDebug: parseJson(row.raw_payload_debug, {}),
+    rawPayloadDebug,
     activityGroupKey: row.activity_group_key || activityGroupKeyFor({
       mediaType: row.media_type,
       title: row.title,
       source: row.source,
       action: row.action,
-      rawPayloadDebug: parseJson(row.raw_payload_debug, {}),
+      rawPayloadDebug,
+    }),
+    activityItemKey: row.activity_item_key || activityItemKeyFor({
+      mediaType: row.media_type,
+      title: row.title,
+      source: row.source,
+      action: row.action,
+      rawPayloadDebug,
     }),
     createdAt: row.created_at,
+    ...(Object.prototype.hasOwnProperty.call(row, "is_latest_for_item") ? { isLatestForItem: Boolean(row.is_latest_for_item) } : {}),
   };
 }
 
@@ -1364,6 +1465,7 @@ export async function appendSyncHistory(record) {
     target_states: toJson(Array.isArray(record.targetStates) ? record.targetStates : []),
     raw_payload_debug: toJson(rawPayloadDebug),
     activity_group_key: activityGroupKeyFor({ ...record, rawPayloadDebug }),
+    activity_item_key: activityItemKeyFor({ ...record, rawPayloadDebug }),
     created_at: Date.now(),
   });
 }
@@ -1419,27 +1521,42 @@ function syncActivityGroupFromRows(summary, latestRow) {
     mediaType: activityGroupMediaType(latest),
     timestamp: Number(summary.last_activity || latest.timestamp || 0),
     eventCount: Number(summary.event_count || 0),
+    currentItemCount: Number(summary.current_item_count || 0),
     problemCount: Number(summary.problem_count || 0),
     pendingCount: Number(summary.pending_count || 0),
     latest,
   };
 }
 
-export async function getSyncActivityGroupsPage({ limit = 50, offset = 0, search = "" } = {}) {
+export async function getSyncActivityGroupsPage({ limit = 50, offset = 0, search = "", failedOnly = false } = {}) {
   const safeLimit = safeSyncHistoryPageSize(limit);
   const safeOffset = safeSyncHistoryOffset(offset);
   const searchPattern = syncHistorySearchPattern(search);
+  const onlyIssues = Boolean(failedOnly);
   const total = Number(searchPattern
-    ? countSyncActivityGroupsSearchStmt.get(searchPattern)?.count
-    : countSyncActivityGroupsStmt.get()?.count) || 0;
-  const summaries = (searchPattern
-    ? selectSyncActivityGroupsSearchStmt.all(searchPattern, safeLimit, safeOffset)
-    : selectSyncActivityGroupsStmt.all(safeLimit, safeOffset));
+    ? (onlyIssues ? countSyncActivityIssueGroupsSearchStmt.get(searchPattern)?.count : countSyncActivityGroupsSearchStmt.get(searchPattern)?.count)
+    : (onlyIssues ? countSyncActivityIssueGroupsStmt.get()?.count : countSyncActivityGroupsStmt.get()?.count)) || 0;
+  const summaries = searchPattern
+    ? (onlyIssues
+      ? selectSyncActivityIssueGroupsSearchStmt.all(searchPattern, safeLimit, safeOffset)
+      : selectSyncActivityGroupsSearchStmt.all(searchPattern, safeLimit, safeOffset))
+    : (onlyIssues
+      ? selectSyncActivityIssueGroupsStmt.all(safeLimit, safeOffset)
+      : selectSyncActivityGroupsStmt.all(safeLimit, safeOffset));
   const groups = summaries.map((summary) => syncActivityGroupFromRows(summary, selectSyncActivityLatestStmt.get(summary.activity_group_key))).filter(Boolean);
-  return { groups, total, limit: safeLimit, offset: safeOffset };
+  const currentIssueGroupCount = Number(searchPattern
+    ? countSyncActivityIssueGroupsSearchStmt.get(searchPattern)?.count
+    : countSyncActivityIssueGroupsStmt.get()?.count) || 0;
+  const currentIssueCount = Number(searchPattern
+    ? countSyncActivityIssuesSearchStmt.get(searchPattern)?.count
+    : countSyncActivityIssuesStmt.get()?.count) || 0;
+  const retryableCount = Number(searchPattern
+    ? countSyncActivityRetryableSearchStmt.get(searchPattern)?.count
+    : countSyncActivityRetryableStmt.get()?.count) || 0;
+  return { groups, total, currentIssueGroupCount, currentIssueCount, retryableCount, limit: safeLimit, offset: safeOffset };
 }
 
-export async function getSyncActivityGroupEvents({ groupKey = "", limit = 200, offset = 0 } = {}) {
+export async function getSyncActivityGroupEvents({ groupKey = "", limit = 200, offset = 0, latestOnly = false } = {}) {
   const key = String(groupKey || "").trim();
   const safeLimit = Math.min(Math.max(Number(limit) || 200, 1), 500);
   const safeOffset = safeSyncHistoryOffset(offset);
@@ -1447,18 +1564,28 @@ export async function getSyncActivityGroupEvents({ groupKey = "", limit = 200, o
   const summary = selectSyncActivityGroupSummaryStmt.get(key);
   if (!summary) return { group: null, events: [], total: 0, limit: safeLimit, offset: safeOffset };
   const latest = selectSyncActivityLatestStmt.get(key);
-  const events = selectSyncActivityEventsStmt.all(key, safeLimit, safeOffset).map(syncHistoryRow);
+  const events = (latestOnly ? selectSyncActivityLatestEventsStmt : selectSyncActivityEventsStmt)
+    .all(key, safeLimit, safeOffset)
+    .map(syncHistoryRow);
   return {
     group: syncActivityGroupFromRows(summary, latest),
     events,
-    total: Number(countSyncActivityEventsStmt.get(key)?.count) || 0,
+    total: Number((latestOnly ? countSyncActivityLatestEventsStmt : countSyncActivityEventsStmt).get(key)?.count) || 0,
     limit: safeLimit,
     offset: safeOffset,
+    latestOnly: Boolean(latestOnly),
   };
 }
 
 export async function getSyncHistoryById(id) {
   const row = selectSyncHistoryByIdStmt.get(id);
+  return row ? syncHistoryRow(row) : null;
+}
+
+export async function getLatestSyncActivityByItemKey(key) {
+  const activityItemKey = String(key || "").trim();
+  if (!activityItemKey) return null;
+  const row = selectSyncActivityLatestByItemStmt.get(activityItemKey);
   return row ? syncHistoryRow(row) : null;
 }
 

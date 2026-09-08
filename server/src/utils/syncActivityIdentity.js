@@ -17,6 +17,11 @@ function keyPart(value) {
     .replace(/^-+|-+$/g, "");
 }
 
+function coordinateKey(value) {
+  const normalized = keyPart(value);
+  return /^\d+$/.test(normalized) ? String(Number.parseInt(normalized, 10)) : normalized;
+}
+
 function mediaTypeOf(record = {}) {
   const value = text(record.mediaType || record.media_type || record.type).toLowerCase();
   if (["episode", "tv", "show", "series", "season"].includes(value)) return "episode";
@@ -55,11 +60,18 @@ function providerIdsOf(record = {}) {
 function coordinatesOf(record = {}) {
   const debug = objectValue(record, "rawPayloadDebug");
   const rawDebug = Object.keys(debug).length ? debug : objectValue(record, "raw_payload_debug");
-  const season = record.season ?? rawDebug.season;
-  const episode = record.episode ?? rawDebug.episode;
+  let season = record.season ?? rawDebug.season;
+  let episode = record.episode ?? rawDebug.episode;
+  if (season == null || episode == null || season === "" || episode === "") {
+    const match = text(record.title).match(/\bS(\d{1,3})E(\d{1,3})\b/i);
+    if (match) {
+      if (season == null || season === "") season = match[1];
+      if (episode == null || episode === "") episode = match[2];
+    }
+  }
   return {
-    season: season == null || season === "" ? "?" : keyPart(season),
-    episode: episode == null || episode === "" ? "?" : keyPart(episode),
+    season: season == null || season === "" ? "?" : coordinateKey(season),
+    episode: episode == null || episode === "" ? "?" : coordinateKey(episode),
   };
 }
 
@@ -110,6 +122,48 @@ export function activityGroupKeyFor(record = {}) {
     if (provider) return `movie|${provider.provider}:${provider.value}`;
     if (mediaKey) return `movie|media:${keyPart(mediaKey)}`;
     return `movie|title:${keyPart(record.title)}`;
+  }
+
+  if (provider) return `${mediaType}|${provider.provider}:${provider.value}`;
+  if (mediaKey) return `${mediaType}|media:${keyPart(mediaKey)}`;
+  return `${mediaType}|title:${keyPart(record.title)}`;
+}
+
+/**
+ * Return a stable identity for the underlying movie or episode represented by
+ * one sync_history event. Activity groups are intentionally broader (a show
+ * contains many episodes), so retry selection needs this narrower key.
+ *
+ * Episodes use the show title plus season/episode coordinates first. Provider
+ * IDs and media keys are not reliable enough on their own here: one server can
+ * report a series ID while another reports an episode ID, and older rows may
+ * only contain one of the available provider IDs. Movies use their normalized
+ * title when available, with provider/media identity as fallbacks.
+ */
+export function activityItemKeyFor(record = {}) {
+  const mediaType = mediaTypeOf(record);
+  const provider = providerIdsOf(record);
+  const mediaKey = mediaKeyOf(record);
+  const coordinates = coordinatesOf(record);
+
+  if (mediaType === "episode") {
+    const showTitle = keyPart(episodeShowTitleOf(record));
+    if (showTitle && coordinates.season !== "?" && coordinates.episode !== "?") {
+      return `episode|show:${showTitle}|s:${coordinates.season}|e:${coordinates.episode}`;
+    }
+    if (provider && coordinates.season !== "?" && coordinates.episode !== "?") {
+      return `episode|${provider.provider}:${provider.value}|s:${coordinates.season}|e:${coordinates.episode}`;
+    }
+    if (mediaKey) return `episode|media:${keyPart(mediaKey)}`;
+    return `episode|title:${keyPart(record.title)}`;
+  }
+
+  if (mediaType === "movie") {
+    const title = keyPart(record.title);
+    if (title) return `movie|title:${title}`;
+    if (provider) return `movie|${provider.provider}:${provider.value}`;
+    if (mediaKey) return `movie|media:${keyPart(mediaKey)}`;
+    return "movie|title:unknown";
   }
 
   if (provider) return `${mediaType}|${provider.provider}:${provider.value}`;

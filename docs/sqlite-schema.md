@@ -15,7 +15,7 @@ Reference for `data/plembfin.db`. The full authoritative schema is in
 | `up_next_provider_feed_state` | Per-provider/feed generation, completion, freshness, count, cursor, retry, and redacted error state | scheduled provider feed sync | Up Next cache/status response |
 | `playstate` | Per-item watched/unwatched state for sync targets | sync orchestrator | sync orchestrator |
 | `manual_watch_reviews` | Deduplicated provider watched flags awaiting an administrator date decision | scheduled library sync, Manual Watch review page | Manual Watch review page |
-| `sync_history` | Permanent log of sync dispatch results, with `activity_group_key` for grouped movie/show activity | sync outcome changes | sync-history and sync-activity endpoints |
+| `sync_history` | Permanent log of sync dispatch results, with `activity_group_key` for grouped movie/show activity and `activity_item_key` for latest-result selection per movie/episode | sync outcome changes | sync-history and sync-activity endpoints |
 | `runtime_state` | Single-row JSON blob - last cron time, force-sync state/log, `nowPlayingRefresh` signal | scheduler, force-sync, webhooks | dashboard polling |
 | `restore_reports` | A completed authoritative restore's full result and log, keyed by run id | restore job | restore status view, on request |
 | `cache_versions` | Monotone cross-process cache generations (`history` for canonical watch state, `progress` for resume positions, `discover` for changed TMDB feed snapshots, `up_next` for changed dashboard queue snapshots) | SQLite triggers and explicit invalidation | every web/worker process |

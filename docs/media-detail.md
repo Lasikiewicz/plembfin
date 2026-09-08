@@ -197,6 +197,13 @@ list arrives shows a loading placeholder instead of a premature "no episodes" me
   `state.savingUnwatchIds` for the duration of the delete, so it reads
   "Unwatching..." underneath the dialog if an unrelated in-flight sync happens to
   re-render the season/show panel while the delete is still pending.
+  Once the server confirms an episode, season, or show action, the mounted show
+  detail patches only the affected episode cards instead of rebuilding the modal;
+  scroll position, loaded artwork, and the rest of the season stay in place. An
+  unwatch transition remains as an invisible local tombstone until the next history
+  merge, so a delayed provider played-flag callback cannot repaint the episode as
+  watched; a later explicit provider Mark played event or genuinely newer watch can
+  establish it again.
 - **Personal ratings** - the show detail page is the source of truth for episode
   ratings. Each rating uses the parent show's provider identity plus season/episode,
   so the same episode remains one item on the Ratings page even when another surface

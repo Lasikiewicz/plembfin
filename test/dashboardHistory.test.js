@@ -43,14 +43,14 @@ test("dashboard history collapses provider-specific source aliases into one badg
   assert.deepEqual(merged[0].sources, ["plex"]);
 });
 
-test("dashboard history suppresses a Plembfin mark when an app play exists", () => {
+test("dashboard history keeps Plembfin as the origin when an app echo exists", () => {
   const merged = mergeDashboardHistoryEntries([
     episode({ id: "manual-row", source: "manual", sources: ["manual"] }),
     episode({ id: "plex-row", source: "plex", sources: ["plex"], watched_at: "2026-08-23T22:49:00.000Z" }),
   ]);
 
   assert.equal(merged.length, 1);
-  assert.deepEqual(merged[0].sources, ["plex"]);
+  assert.deepEqual(merged[0].sources, ["plembfin"]);
 });
 
 test("dashboard history keeps a manual-only Plembfin mark", () => {

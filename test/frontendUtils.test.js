@@ -40,7 +40,7 @@ test("frontend platform and title helpers normalize user-facing labels", () => {
   assert.equal(normalizePlatformSource("unknown"), "plex");
   assert.deepEqual(
     platformSourceValues({ sources: ["jellyfin", "plex"], source: "manual", playHistory: [{ source: "plex_webhook" }] }),
-    ["jellyfin", "plex"],
+    ["plembfin"],
   );
   assert.deepEqual(
     platformSourceValues({ sources: ["manual"], source: "force_sync", playHistory: [{ source: "plembfin" }] }),

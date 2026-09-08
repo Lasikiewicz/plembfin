@@ -211,12 +211,12 @@ export function promoteAlphaToMain({ targetVersion = "", sourceDate = new Date()
   // Alpha's build number is gone once this release resets it, so the public
   // assets have to move to the new release version here or the version check
   // fails and browsers keep serving the last alpha build's JavaScript.
-  const assetResult = spawnSync(process.execPath, [path.join(root, "scripts", "asset-versions.js"), "--write", `--version=${newMainVersion}`], {
+  const assetResult = spawnSync(process.execPath, [path.join(root, "scripts", "asset-versions.js"), "--write", `--version=${new5DigitVersion}`], {
     cwd: root,
     encoding: "utf8",
   });
   if (assetResult.status !== 0) {
-    throw new Error(`Failed to stamp public assets with ${newMainVersion}: ${assetResult.stderr || assetResult.stdout}`);
+    throw new Error(`Failed to stamp public assets with ${new5DigitVersion}: ${assetResult.stderr || assetResult.stdout}`);
   }
   console.log(String(assetResult.stdout || "").trim());
 

@@ -315,6 +315,7 @@ CREATE TABLE IF NOT EXISTS sync_history (
   target_states TEXT,     -- JSON
   raw_payload_debug TEXT, -- JSON
   activity_group_key TEXT,
+  activity_item_key TEXT,
   created_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_sync_history_timestamp ON sync_history(timestamp DESC);

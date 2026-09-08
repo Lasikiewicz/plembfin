@@ -1,7 +1,7 @@
-import { buildAuthHeaders } from "./auth.js?v=0.16.0.1";
-import { state, elements } from "./state.js?v=0.16.0.1";
-import { escapeHtml, escapeAttribute, formatDate, slug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, showTitleFrom, platformIconMarkup } from "./utils.js?v=0.16.0.1";
-import { syncHistoryTone, syncHistoryActionLabel } from "./sync.js?v=0.16.0.1";
+import { buildAuthHeaders } from "./auth.js?v=0.16.1.0.0";
+import { state, elements } from "./state.js?v=0.16.1.0.0";
+import { escapeHtml, escapeAttribute, formatDate, slug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, showTitleFrom, platformIconMarkup } from "./utils.js?v=0.16.1.0.0";
+import { syncHistoryTone, syncHistoryActionLabel } from "./sync.js?v=0.16.1.0.0";
 
 const REFRESH_MS = 15000;
 const SEARCH_DEBOUNCE_MS = 180;
@@ -26,6 +26,14 @@ const retryingActivityIds = new Set();
 // doesn't fire a burst of simultaneous requests at Plex/Emby/Jellyfin/Trakt -
 // this tracks progress through that queue for the header button's label.
 let bulkRetryProgress = null;
+// The retry-all worker owns the actual queue, but the page already discovers
+// the same latest retryable ids before starting it. Keep that snapshot locally
+// so the visible current-result rows can show which issues are waiting while
+// the worker advances in the background (including across an SSE refresh).
+let bulkRetryQueueIds = new Set();
+// Keep the discovered group keys as well as the queued ids so a collapsed
+// movie/show row can reflect the same waiting state as its event rows.
+let bulkRetryQueueGroupKeys = new Map();
 // Retry feedback is shown inline on the row it came from, not as a toast -
 // keyed by activity id (not stored on the entry objects themselves) because
 // state.syncActivity is replaced wholesale on every periodic refresh, which
@@ -41,6 +49,32 @@ const activityNotes = new Map();
 // reader's place.
 const groupEventCache = new Map();
 const groupEventLoading = new Set();
+// Each expanded group starts in the actionable view (one newest result per
+// movie/episode). The full audit stream is still available on demand and the
+// selected view survives the page's periodic refresh.
+const groupEventView = new Map();
+
+function groupEventCacheKey(groupKey, latestOnly = true) {
+  return `${String(groupKey || "")}\u0000${latestOnly ? "latest" : "history"}`;
+}
+
+function isLatestOnlyValue(value, fallback = true) {
+  if (value == null || value === "") return fallback;
+  if (value === true || value === 1) return true;
+  if (value === false || value === 0) return false;
+  return ["1", "true", "latest", "current"].includes(String(value).trim().toLowerCase());
+}
+
+function groupShowsLatestOnly(groupKey) {
+  return groupEventView.get(String(groupKey || "")) !== "history";
+}
+
+function clearGroupEventCache(groupKey) {
+  const prefix = `${String(groupKey || "")}\u0000`;
+  for (const key of groupEventCache.keys()) {
+    if (key.startsWith(prefix)) groupEventCache.delete(key);
+  }
+}
 
 function setActivityFeedback(id, feedback) {
   const key = String(id || "");
@@ -130,10 +164,10 @@ function isActive() {
 // dispatch as Plex here. Sync activity names trackers as well as servers, so it
 // resolves platforms itself.
 const PLATFORMS = {
-  plex: { name: "Plex", icon: "/icons/plex.svg?v=0.16.0.1" },
-  emby: { name: "Emby", icon: "/icons/emby.svg?v=0.16.0.1" },
-  jellyfin: { name: "Jellyfin", icon: "/icons/jellyfin.svg?v=0.16.0.1" },
-  trakt: { name: "Trakt", icon: "/icons/trakt.svg?v=0.16.0.1" },
+  plex: { name: "Plex", icon: "/icons/plex.svg?v=0.16.1.0.0" },
+  emby: { name: "Emby", icon: "/icons/emby.svg?v=0.16.1.0.0" },
+  jellyfin: { name: "Jellyfin", icon: "/icons/jellyfin.svg?v=0.16.1.0.0" },
+  trakt: { name: "Trakt", icon: "/icons/trakt.svg?v=0.16.1.0.0" },
   plembfin: { name: "Plembfin", icon: "" },
 };
 
@@ -155,10 +189,14 @@ function platformIcon(platform, className = "sync-activity-icon") {
   return `<img class="${className}" src="${escapeAttribute(platform.icon)}" alt="${escapeAttribute(platform.name)}" loading="eager" decoding="async" />`;
 }
 
-function targetResults(entry = {}) {
-  const targets = Array.isArray(entry.targetStates) ? entry.targetStates : [];
+export function targetResults(entry = {}, { failedOnly = false } = {}) {
+  const allTargets = Array.isArray(entry.targetStates) ? entry.targetStates : [];
+  const targets = failedOnly
+    ? allTargets.filter((target) => ["error", "failed"].includes(String(target.status || "").toLowerCase()))
+    : allTargets;
   if (!targets.length) {
     const status = String(entry.status || "").toLowerCase();
+    if (failedOnly) return `<span class="sync-activity-target sync-activity-target--empty" data-status="pending">No failed target response on this result</span>`;
     const noTargets = status === "skipped" || /no enabled sync destinations/i.test(entry.details || "");
     const label = status === "pending" ? "Waiting for dispatch" : noTargets ? "No eligible destinations" : "No target response recorded";
     return `<span class="sync-activity-target sync-activity-target--empty" data-status="pending">${label}</span>`;
@@ -234,9 +272,57 @@ function routeLine(entry = {}) {
   `;
 }
 
-function isRetryableActivity(entry = {}) {
-  return ["partial", "error", "failed", "skipped"].includes(String(entry.status || "").toLowerCase())
-    && (entry.targetStates || []).some((target) => ["error", "failed", "skipped", "not_found"].includes(String(target.status || "").toLowerCase()));
+export function hasRetryableActivityTarget(entry = {}) {
+  return (entry.targetStates || []).some((target) => ["error", "failed"].includes(String(target.status || "").toLowerCase()));
+}
+
+export function isFailedSyncActivityEntry(entry = {}) {
+  const status = String(entry.status || "").toLowerCase();
+  return ["error", "failed"].includes(status)
+    || (status === "partial" && hasRetryableActivityTarget(entry));
+}
+
+export function isRetryableActivity(entry = {}) {
+  return entry.isLatestForItem !== false
+    && isFailedSyncActivityEntry(entry)
+    && hasRetryableActivityTarget(entry);
+}
+
+// Trakt's not_found response for an episode means the stored show identity
+// did not resolve to a real Trakt series. That is a match problem, not a
+// transient retry problem: offer the normal Fix Match flow only for the
+// newest actionable episode result, where correcting the show can repair all
+// of its stored episode identities in one operation.
+export function isTraktNotFoundMatchIssue(entry = {}) {
+  if (entry.isLatestForItem === false) return false;
+  if (String(entry.mediaType || "").trim().toLowerCase() !== "episode") return false;
+  return (entry.targetStates || []).some((target) => {
+    const targetName = String(target?.target || "").trim().toLowerCase();
+    const status = String(target?.status || "").trim().toLowerCase();
+    const detail = `${target?.detail || ""} ${entry.details || ""}`;
+    return targetName === "trakt"
+      && ["error", "failed"].includes(status)
+      && /not[_ -]?found/i.test(detail);
+  });
+}
+
+function isAwaitingBulkRetryId(id) {
+  const key = id != null ? String(id) : "";
+  if (!bulkRetryProgress?.total || !key || !bulkRetryQueueIds.size || !bulkRetryQueueIds.has(key)) return false;
+  if (bulkRetryProgress.completedIds?.has(key)) return false;
+  // Older in-flight jobs may not have the structured activity id suffix in
+  // their log lines. Fall back to the discovery order for those jobs so a
+  // refreshed page still stops animating rows already past the checkpoint.
+  if (!bulkRetryProgress.completedIds?.size && bulkRetryProgress.index > 0) {
+    const position = [...bulkRetryQueueIds].indexOf(key);
+    if (position >= 0 && position < bulkRetryProgress.index) return false;
+  }
+  return true;
+}
+
+function isAwaitingBulkRetry(entry = {}) {
+  if (!isRetryableActivity(entry)) return false;
+  return isAwaitingBulkRetryId(entry.id);
 }
 
 function feedbackHtml(id) {
@@ -256,6 +342,16 @@ function groupTone(group = {}) {
   return syncHistoryTone(latest);
 }
 
+function isAwaitingBulkRetryGroup(group = {}) {
+  if (!bulkRetryProgress?.total || Number(group.problemCount || 0) <= 0 || !bulkRetryQueueGroupKeys.size) return false;
+  const groupKey = String(group.groupKey || groupLatestEntry(group).activityGroupKey || "");
+  if (!groupKey) return false;
+  for (const [id, candidateGroupKey] of bulkRetryQueueGroupKeys.entries()) {
+    if (candidateGroupKey === groupKey && isAwaitingBulkRetryId(id)) return true;
+  }
+  return false;
+}
+
 function statusClassForTone(tone) {
   return tone === "error" ? "status-error" : tone === "pending" ? "status-warning" : "status-ready";
 }
@@ -265,11 +361,19 @@ function pluralLabel(count, singular, plural = `${singular}s`) {
   return `${value} ${value === 1 ? singular : plural}`;
 }
 
+function groupCurrentItemCount(group = {}) {
+  const value = Number(group.currentItemCount);
+  return Number.isFinite(value) ? Math.max(value, 0) : (Number(group.eventCount) || 0);
+}
+
 function groupSummaryLine(group = {}) {
   const latest = groupLatestEntry(group);
   const source = activityPlatform(latest.source);
+  const currentCount = groupCurrentItemCount(group);
+  const auditCount = Number(group.eventCount) || 0;
   const pieces = [
-    pluralLabel(group.eventCount, "event"),
+    pluralLabel(currentCount, "current result"),
+    ...(auditCount !== currentCount ? [pluralLabel(auditCount, "audit record")] : []),
     `latest ${formatDate(group.timestamp || latest.timestamp)}`,
     `${source.name} · ${syncHistoryActionLabel(latest)}`,
   ];
@@ -279,14 +383,25 @@ function groupSummaryLine(group = {}) {
 
 function activityGroupRow(group = {}) {
   const latest = groupLatestEntry(group);
-  const tone = groupTone(group);
+  const failedOnly = Boolean(state.syncActivityFailedOnly);
+  const awaitingRetry = isAwaitingBulkRetryGroup(group);
+  const tone = awaitingRetry ? "pending" : groupTone(group);
   const mediaType = String(group.mediaType || latest.mediaType || "").toLowerCase() === "movie" ? "Movie" : "Show";
-  const statusLabel = latest.status || "unknown";
+  const statusLabel = awaitingRetry ? "Awaiting retry" : (latest.status || "unknown");
   const statusClass = statusClassForTone(tone);
   const groupKey = String(group.groupKey || latest.activityGroupKey || "");
   const title = group.title || latest.title || "Unknown media";
+  const awaitingClass = awaitingRetry ? " sync-activity-group-row--awaiting-retry" : "";
+  const awaitingAttributes = awaitingRetry ? ' aria-busy="true"' : "";
+  const currentCount = groupCurrentItemCount(group);
+  const auditCount = Number(group.eventCount) || 0;
+  const issueCount = Math.max(Number(group.problemCount) || 0, 0);
+  const latestIsIssue = isFailedSyncActivityEntry(latest);
+  const failedGroupHint = failedOnly && issueCount > 0 && !latestIsIssue
+    ? `<span class="sync-activity-target sync-activity-target--empty sync-activity-group-failed-hint" data-status="error">Expand to review ${escapeHtml(pluralLabel(issueCount, "failed current item"))}; the latest activity is not the failed item.</span>`
+    : "";
   return `
-    <article class="sync-activity-row sync-activity-group-row" data-tone="${tone}" data-activity-group-key="${escapeAttribute(groupKey)}" role="button" tabindex="0" aria-expanded="false" title="Show all sync activity for ${escapeAttribute(title)}">
+    <article class="sync-activity-row sync-activity-group-row${awaitingClass}" data-tone="${tone}" data-activity-group-key="${escapeAttribute(groupKey)}" role="button" tabindex="0" aria-expanded="false" title="Show current results for ${escapeAttribute(title)}; audit history is available inside the row"${awaitingAttributes}>
       <span class="sync-status-dot sync-status-dot--${tone}" aria-hidden="true"></span>
       <div class="sync-activity-group-main">
         <div class="sync-activity-group-heading">
@@ -299,13 +414,14 @@ function activityGroupRow(group = {}) {
       </div>
       <div class="sync-activity-group-outcome">
         <div class="sync-activity-outcome-heading">
-          <span>Latest result</span>
+          <span>${awaitingRetry ? "Retry status" : failedOnly && issueCount > 0 ? "Current issue status" : "Latest result"}</span>
           <span class="status-pill ${statusClass} sync-activity-row-status">${escapeHtml(statusLabel)}</span>
         </div>
-        <div class="sync-activity-row-results">${targetResults(latest)}</div>
+        <div class="sync-activity-row-results">${failedGroupHint || targetResults(latest, { failedOnly })}</div>
         <div class="sync-activity-group-counts">
           <div class="sync-activity-group-count-labels">
-            <span>${escapeHtml(pluralLabel(group.eventCount, "recorded event"))}</span>
+            <span>${escapeHtml(pluralLabel(currentCount, "current result"))}</span>
+            ${auditCount !== currentCount ? `<span>${escapeHtml(pluralLabel(auditCount, "audit record"))}</span>` : ""}
             ${Number(group.problemCount || 0) > 0 ? `<span class="sync-activity-group-issue-count">${escapeHtml(pluralLabel(group.problemCount, "issue"))}</span>` : ""}
           </div>
           <button class="button-ghost sync-activity-download" type="button" data-sync-activity-download="${escapeAttribute(groupKey)}" title="Download every event for this media">Download all logs</button>
@@ -317,29 +433,38 @@ function activityGroupRow(group = {}) {
 }
 
 function syncActivityEventRow(entry = {}, index = 0) {
-  const tone = syncHistoryTone(entry);
+  const awaitingRetry = isAwaitingBulkRetry(entry);
+  const historicalIssue = entry.isLatestForItem === false && hasRetryableActivityTarget(entry);
+  const tone = awaitingRetry ? "pending" : historicalIssue ? "ready" : isFailedSyncActivityEntry(entry) ? "error" : syncHistoryTone(entry);
   const source = activityPlatform(entry.source);
   const statusClass = statusClassForTone(tone);
   const id = entry.id != null ? String(entry.id) : "";
-  const retryable = isRetryableActivity(entry);
+  const retryable = !awaitingRetry && isRetryableActivity(entry);
   const retrying = retryingActivityIds.has(id);
   const isEpisode = String(entry.mediaType || "").toLowerCase() === "episode";
+  const showTitle = isEpisode ? showTitleFrom(entry.title || "") : "";
+  const canFixMatch = Boolean(id && showTitle && !awaitingRetry && isTraktNotFoundMatchIssue(entry));
   const eventLabel = isEpisode && entry.title ? `${syncHistoryActionLabel(entry)} · ${entry.title}` : syncHistoryActionLabel(entry);
+  const displayStatus = awaitingRetry ? "Awaiting retry" : historicalIssue ? "historical" : (entry.status || "unknown");
   return `
-    <details class="sync-activity-event" ${index === 0 ? "open" : ""}>
+    <details class="sync-activity-event${awaitingRetry ? " sync-activity-event--awaiting-retry" : ""}" ${index === 0 ? "open" : ""}>
       <summary>
         <span class="sync-status-dot sync-status-dot--${tone}" aria-hidden="true"></span>
         <strong>${escapeHtml(eventLabel)}</strong>
         <span class="sync-activity-event-source">${platformIcon(source)}${escapeHtml(source.name)}</span>
         <span class="sync-activity-event-time">${escapeHtml(formatDate(entry.timestamp))}</span>
-        <span class="status-pill ${statusClass}">${escapeHtml(entry.status || "unknown")}</span>
+        <span class="status-pill ${statusClass}">${escapeHtml(displayStatus)}</span>
       </summary>
       <div class="sync-activity-event-body">
         ${routeLine(entry)}
         ${entry.details ? `<div class="sync-activity-row-detail">${escapeHtml(entry.details)}</div>` : ""}
-        <div class="sync-activity-row-results">${targetResults(entry)}</div>
+        ${historicalIssue ? `<div class="sync-activity-row-detail sync-activity-row-detail--muted">Older result for this item; only the newest result is actionable.</div>` : ""}
+        ${awaitingRetry ? `<div class="sync-activity-row-detail sync-activity-row-detail--awaiting-retry" role="status">Awaiting retry — Retry all failed is working through the queue.</div>` : ""}
+        ${canFixMatch ? `<div class="sync-activity-row-detail sync-activity-row-detail--warning">Trakt could not find this show. Fix the show match and Plembfin will retry this Trakt update automatically.</div>` : ""}
+        <div class="sync-activity-row-results">${targetResults(entry, { failedOnly: Boolean(state.syncActivityFailedOnly) })}</div>
         <div class="sync-activity-row-actions">
-          ${retryable ? `<button class="button-ghost sync-activity-retry" type="button" data-sync-activity-retry="${escapeAttribute(id)}" ${retrying ? "disabled" : ""} title="Retry only the failed or skipped destinations">${retrying ? "Retrying..." : "Retry failed"}</button>` : ""}
+          ${canFixMatch ? `<button class="button-ghost sync-activity-fix-match" type="button" data-sync-activity-fix-match="${escapeAttribute(id)}" data-sync-activity-fix-match-title="${escapeAttribute(showTitle)}" title="Correct the show match, then retry the Trakt update">Fix show match</button>` : ""}
+          ${retryable ? `<button class="button-ghost sync-activity-retry" type="button" data-sync-activity-retry="${escapeAttribute(id)}" ${retrying ? "disabled" : ""} title="Retry only the failed destinations">${retrying ? "Retrying..." : "Retry failed"}</button>` : ""}
         </div>
         ${feedbackHtml(id)}
         <pre class="sync-activity-log">${escapeHtml(buildSyncActivityLog(entry))}</pre>
@@ -350,19 +475,46 @@ function syncActivityEventRow(entry = {}, index = 0) {
 
 function renderGroupEvents(groupKey, payload, container) {
   if (!container) return;
-  const events = Array.isArray(payload?.events) ? payload.events : [];
+  const loadedEvents = Array.isArray(payload?.events) ? payload.events : [];
+  const failedOnly = Boolean(state.syncActivityFailedOnly);
+  const events = failedOnly ? loadedEvents.filter(isFailedSyncActivityEntry) : loadedEvents;
   const group = payload?.group || {};
   const pagination = payload?.pagination || {};
+  const latestOnly = isLatestOnlyValue(payload?.latestOnly, true);
+  const issueCount = Number(group.problemCount) || 0;
+  const loadedCount = events.length;
+  const allViewCount = Number(pagination.total) || loadedEvents.length;
+  const viewCount = failedOnly ? issueCount : allViewCount;
+  const auditCount = Number(group.eventCount) || viewCount;
+  const detailSummary = latestOnly
+    ? (failedOnly
+      ? `${pluralLabel(issueCount, "current issue")} need attention`
+      : `${pluralLabel(allViewCount, "current item result")} · ${issueCount ? `${pluralLabel(issueCount, "issue")} need attention` : "no current issues"}`)
+    : (failedOnly
+      ? `${pluralLabel(loadedCount, "failed audit record")} shown`
+      : `${pluralLabel(loadedCount, "audit record")} shown · ${pluralLabel(allViewCount, "audit record")} total`);
+  const viewButton = latestOnly
+    ? (auditCount > viewCount
+      ? `<button class="button-ghost sync-activity-group-view" type="button" data-sync-activity-group-view="history" data-sync-activity-group-key="${escapeAttribute(groupKey)}">Show audit history (${escapeHtml(pluralLabel(auditCount, "record"))})</button>`
+      : "")
+    : `<button class="button-ghost sync-activity-group-view" type="button" data-sync-activity-group-view="latest" data-sync-activity-group-key="${escapeAttribute(groupKey)}">Show ${failedOnly ? "failed current results" : "current results"} (${escapeHtml(pluralLabel(failedOnly ? issueCount : groupCurrentItemCount(group), "item"))})</button>`;
   const olderButton = pagination.hasNext
-    ? `<button class="button-ghost sync-activity-group-more" type="button" data-sync-activity-group-more="${escapeAttribute(groupKey)}" data-sync-activity-group-page="${Number(pagination.page || 1) + 1}">Load older events</button>`
+    ? `<button class="button-ghost sync-activity-group-more" type="button" data-sync-activity-group-more="${escapeAttribute(groupKey)}" data-sync-activity-group-page="${Number(pagination.page || 1) + 1}" data-sync-activity-group-latest-only="${latestOnly ? "1" : "0"}">Load older ${latestOnly ? "current results" : "audit records"}</button>`
     : "";
+  const emptyMessage = failedOnly
+    ? "No failed current results in this group."
+    : "No event details available";
+  const emptyHint = failedOnly
+    ? "Any successful results are hidden while Show only Failed is active."
+    : "Refresh the page and try again.";
   container.innerHTML = `
     <div class="sync-activity-group-detail-heading">
-      <b>Latest sync activity</b>
-      <span>${escapeHtml(pluralLabel(group.eventCount, "event"))} kept in the audit log</span>
+      <b>${latestOnly ? (failedOnly ? "Failed current item results" : "Current item results") : (failedOnly ? "Failed audit history" : "Full audit history")}</b>
+      <span>${escapeHtml(detailSummary)}</span>
+      ${viewButton}
     </div>
     <div class="sync-activity-event-list">
-      ${events.length ? events.map((entry, index) => syncActivityEventRow(entry, index)).join("") : `<div class="empty-log"><b>No event details available</b><span>Refresh the page and try again.</span></div>`}
+      ${events.length ? events.map((entry, index) => syncActivityEventRow(entry, index)).join("") : `<div class="empty-log"><b>${emptyMessage}</b><span>${emptyHint}</span></div>`}
     </div>
     ${olderButton}
   `;
@@ -412,8 +564,8 @@ export async function retrySyncActivity(id) {
   renderSyncActivity();
   try {
     const result = await dispatchRetry(key);
-    for (const [groupKey, cached] of groupEventCache.entries()) {
-      if ((cached.events || []).some((entry) => String(entry.id) === key)) groupEventCache.delete(groupKey);
+    for (const [cacheKey, cached] of groupEventCache.entries()) {
+      if ((cached.events || []).some((entry) => String(entry.id) === key)) groupEventCache.delete(cacheKey);
     }
     await loadSyncActivity({ force: true, page: 1 });
     return result;
@@ -429,7 +581,8 @@ export async function retrySyncActivity(id) {
 // server's own 200-row page cap to keep this to a handful of requests even
 // for a few thousand entries.
 export async function fetchAllRetryableSyncActivityIds() {
-  const ids = [];
+  const latestByItem = new Map();
+  bulkRetryQueueGroupKeys = new Map();
   const search = (state.syncActivitySearch || "").trim();
   const limit = 200;
   let page = 1;
@@ -437,19 +590,54 @@ export async function fetchAllRetryableSyncActivityIds() {
     const url = new URL("/api/sync-history", window.location.origin);
     url.searchParams.set("limit", String(limit));
     url.searchParams.set("page", String(page));
-    if (search) url.searchParams.set("search", search);
     const response = await fetch(url, { headers: authHeaders(), cache: "no-store" });
     if (!response.ok) break;
     const body = await response.json().catch(() => null);
     const history = Array.isArray(body?.history) ? body.history : [];
     for (const entry of history) {
-      if (isRetryableActivity(entry)) ids.push(String(entry.id));
+      const itemKey = String(entry.activityItemKey || "").trim()
+        || `${String(entry.mediaType || "unknown").toLowerCase()}|${String(entry.title || "").trim().toLowerCase()}|${String(entry.rawPayloadDebug?.season ?? "")}|${String(entry.rawPayloadDebug?.episode ?? "")}`;
+      const current = latestByItem.get(itemKey);
+      const entryTime = Number(entry.timestamp || entry.createdAt || 0) || 0;
+      const currentTime = Number(current?.timestamp || current?.createdAt || 0) || 0;
+      const entryId = Number(entry.id);
+      const currentId = Number(current?.id);
+      if (!current || entryTime > currentTime || (entryTime === currentTime && Number.isFinite(entryId) && entryId > currentId)) {
+        latestByItem.set(itemKey, entry);
+      }
     }
     const totalPages = Math.max(Number(body?.pagination?.totalPages) || 1, 1);
     if (!history.length || page >= totalPages) break;
     page += 1;
   }
-  return ids;
+  const loweredSearch = search.toLowerCase();
+  const retryableEntries = [...latestByItem.values()]
+    .filter((entry) => {
+      if (!isRetryableActivity(entry)) return false;
+      if (!loweredSearch) return true;
+      const source = activityPlatform(entry.source);
+      const haystack = [
+        entry.mediaType,
+        entry.title,
+        entry.source,
+        source.name,
+        entry.status,
+        entry.details,
+        entry.action,
+        JSON.stringify(entry.targetStates || []),
+        JSON.stringify(entry.rawPayloadDebug || {}),
+      ].join(" ").toLowerCase();
+      return haystack.includes(loweredSearch);
+    });
+  bulkRetryQueueGroupKeys = new Map(
+    retryableEntries
+      .map((entry) => [
+        entry.id != null ? String(entry.id) : "",
+        String(entry.activityGroupKey || ""),
+      ])
+      .filter(([id, groupKey]) => id && groupKey),
+  );
+  return retryableEntries.map((entry) => String(entry.id));
 }
 
 // "Retry all failed" runs as a server-side background job (see
@@ -465,20 +653,32 @@ function stopBulkRetryPoll() {
   bulkRetryPollTimer = null;
 }
 
-// The job's log lines are "[i/total] <title>: <status>" once discovery has
-// run, plus a leading "Found N failed or skipped item(s) to retry." line
-// before the first one - parsed back out here instead of carrying a second,
-// separate progress channel.
+// The job's log lines are "[i/total] <title>: <status> [activityId=<id>]" once discovery has
+// run, plus a leading "Found N failed item(s) to retry." line
+// before the first one. The id suffix lets a refreshed page distinguish an
+// item that is still awaiting its turn from one that has already been tried.
 function parseBulkRetryProgress(log) {
   let index = 0;
   let total = 0;
+  const completedIds = new Set();
   for (const line of log) {
     const item = /^\[(\d+)\/(\d+)\]/.exec(line);
-    if (item) { index = Number(item[1]); total = Number(item[2]); continue; }
-    const found = /^Found (\d+) failed or skipped/.exec(line);
+    if (item) {
+      index = Math.max(index, Number(item[1]) || 0);
+      total = Number(item[2]) || total;
+      const activityId = /\[activityId=([^\]\s]+)\]/.exec(line);
+      if (activityId) completedIds.add(activityId[1]);
+    }
+    const found = /^Found (\d+) failed(?: or skipped)?/.exec(line);
     if (found) total = Number(found[1]);
   }
-  return { index, total };
+  return { index, total, completedIds };
+}
+
+function setBulkRetryProgressFromLog(log) {
+  const parsed = parseBulkRetryProgress(log);
+  if (!parsed.total && bulkRetryQueueIds.size) parsed.total = bulkRetryQueueIds.size;
+  bulkRetryProgress = parsed;
 }
 
 async function pollRetryAllSyncActivity(onDone) {
@@ -494,13 +694,15 @@ async function pollRetryAllSyncActivity(onDone) {
 
   const log = Array.isArray(body.log) ? body.log : [];
   if (body.active) {
-    bulkRetryProgress = parseBulkRetryProgress(log);
+    setBulkRetryProgressFromLog(log);
     renderSyncActivity();
     bulkRetryPollTimer = window.setTimeout(() => pollRetryAllSyncActivity(onDone), 2000);
     return;
   }
 
   bulkRetryProgress = null;
+  bulkRetryQueueIds = new Set();
+  bulkRetryQueueGroupKeys = new Map();
   await loadSyncActivity({ force: true, page: 1 }).catch(() => {});
   renderSyncActivity();
   if (typeof onDone === "function") onDone(body.result || null);
@@ -509,7 +711,7 @@ async function pollRetryAllSyncActivity(onDone) {
 // Starts the background job and begins polling it. `onDone(result)` is
 // called once the job finishes (or is found to have already finished),
 // so the caller can surface a completion message.
-export async function startRetryAllSyncActivity(onDone) {
+export async function startRetryAllSyncActivity(onDone, queueIds = []) {
   const response = await fetch("/api/sync-history/retry-all", {
     method: "POST",
     headers: { ...authHeaders(), "Content-Type": "application/json" },
@@ -519,7 +721,8 @@ export async function startRetryAllSyncActivity(onDone) {
   if (!response.ok && !(response.status === 409 && body.jobId)) {
     throw new Error(body.error || `Retry all failed to start with HTTP ${response.status}`);
   }
-  bulkRetryProgress = { index: 0, total: 0 };
+  bulkRetryQueueIds = new Set((Array.isArray(queueIds) ? queueIds : []).map((id) => String(id)));
+  bulkRetryProgress = { index: 0, total: bulkRetryQueueIds.size, completedIds: new Set() };
   renderSyncActivity();
   pollRetryAllSyncActivity(onDone);
 }
@@ -532,9 +735,22 @@ export async function resumeRetryAllSyncActivityIfRunning() {
   try {
     const response = await fetch("/api/sync-history/retry-all", { headers: authHeaders(), cache: "no-store" });
     const body = await response.json().catch(() => ({}));
-    if (!body?.active) return;
-    bulkRetryProgress = parseBulkRetryProgress(Array.isArray(body.log) ? body.log : []);
+    if (!body?.active) {
+      bulkRetryProgress = null;
+      bulkRetryQueueIds = new Set();
+      bulkRetryQueueGroupKeys = new Map();
+      return;
+    }
+    setBulkRetryProgressFromLog(Array.isArray(body.log) ? body.log : []);
     renderSyncActivity();
+    // Reconstruct the visible queue after a page reload. The worker remains
+    // authoritative; this is only a UI snapshot used to label current rows.
+    fetchAllRetryableSyncActivityIds()
+      .then((ids) => {
+        bulkRetryQueueIds = new Set(ids.map((id) => String(id)));
+        renderSyncActivity();
+      })
+      .catch(() => { });
     pollRetryAllSyncActivity();
   } catch {
     // No connectivity yet - the next periodic sync activity refresh will retry.
@@ -605,27 +821,34 @@ function syncActivityLogFilename(entry = {}) {
 
 function currentActivityGroup(groupKey) {
   const key = String(groupKey || "");
-  return state.syncActivity.find((group) => String(group.groupKey || "") === key) || groupEventCache.get(key)?.group || null;
+  const live = state.syncActivity.find((group) => String(group.groupKey || "") === key);
+  if (live) return live;
+  for (const cached of groupEventCache.values()) {
+    if (String(cached?.group?.groupKey || "") === key) return cached.group;
+  }
+  return null;
 }
 
-function groupEventPageUrl(groupKey, page = 1, limit = 200) {
+function groupEventPageUrl(groupKey, page = 1, limit = 200, latestOnly = true) {
   const url = new URL("/api/sync-activity/group", window.location.origin);
   url.searchParams.set("key", String(groupKey || ""));
   url.searchParams.set("limit", String(limit));
   url.searchParams.set("page", String(Math.max(Number(page) || 1, 1)));
+  if (latestOnly) url.searchParams.set("latest", "1");
   return url;
 }
 
-async function requestActivityGroupPage(groupKey, page = 1, limit = 200) {
-  const response = await fetch(groupEventPageUrl(groupKey, page, limit), { headers: authHeaders(), cache: "no-store" });
+async function requestActivityGroupPage(groupKey, page = 1, limit = 200, latestOnly = true) {
+  const response = await fetch(groupEventPageUrl(groupKey, page, limit, latestOnly), { headers: authHeaders(), cache: "no-store" });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || `Sync activity details failed with ${response.status}`);
   return body;
 }
 
-function cacheActivityGroupPage(groupKey, body, append = false) {
+function cacheActivityGroupPage(groupKey, body, append = false, latestOnly = isLatestOnlyValue(body?.latestOnly, true)) {
   const key = String(groupKey || "");
-  const previous = groupEventCache.get(key);
+  const cacheKey = groupEventCacheKey(key, latestOnly);
+  const previous = groupEventCache.get(cacheKey);
   const incoming = Array.isArray(body?.events) ? body.events : [];
   const events = append
     ? [...(previous?.events || []), ...incoming.filter((event) => !(previous?.events || []).some((item) => String(item.id) === String(event.id)))]
@@ -634,32 +857,34 @@ function cacheActivityGroupPage(groupKey, body, append = false) {
     group: body?.group || previous?.group || currentActivityGroup(key),
     events,
     pagination: body?.pagination || previous?.pagination || { page: 1, total: events.length, totalPages: 1, hasNext: false },
+    latestOnly: Boolean(latestOnly),
   };
-  groupEventCache.set(key, cached);
+  groupEventCache.set(cacheKey, cached);
   return cached;
 }
 
-async function loadActivityGroupPage(groupKey, { page = 1, force = false } = {}) {
+async function loadActivityGroupPage(groupKey, { page = 1, force = false, latestOnly = true } = {}) {
   const key = String(groupKey || "");
   if (!key) throw new Error("Sync activity group is missing");
-  const cached = groupEventCache.get(key);
+  const cacheKey = groupEventCacheKey(key, latestOnly);
+  const cached = groupEventCache.get(cacheKey);
   if (!force && Number(page) === 1 && cached) return cached;
-  const body = await requestActivityGroupPage(key, page, 200);
-  return cacheActivityGroupPage(key, body, Number(page) > 1 && !force);
+  const body = await requestActivityGroupPage(key, page, 200, latestOnly);
+  return cacheActivityGroupPage(key, body, Number(page) > 1 && !force, latestOnly);
 }
 
 async function fetchAllActivityGroupEvents(groupKey) {
   const key = String(groupKey || "");
-  const first = await requestActivityGroupPage(key, 1, 500);
+  const first = await requestActivityGroupPage(key, 1, 500, false);
   const all = [...(Array.isArray(first.events) ? first.events : [])];
   const totalPages = Math.max(Number(first.pagination?.totalPages) || 1, 1);
   for (let page = 2; page <= totalPages; page += 1) {
-    const body = await requestActivityGroupPage(key, page, 500);
+    const body = await requestActivityGroupPage(key, page, 500, false);
     for (const event of Array.isArray(body.events) ? body.events : []) {
       if (!all.some((item) => String(item.id) === String(event.id))) all.push(event);
     }
   }
-  cacheActivityGroupPage(key, { ...first, events: all }, false);
+  cacheActivityGroupPage(key, { ...first, events: all }, false, false);
   return { group: first.group || currentActivityGroup(key), events: all };
 }
 
@@ -699,7 +924,8 @@ export async function downloadSyncActivityLog(groupKey) {
 }
 
 // Clicking anywhere on a group row that is not the title or the download
-// button expands it and fetches the complete event list for that media item.
+// button expands it and fetches one current result per movie/episode. The
+// expanded view can opt into the complete audit stream explicitly.
 export function toggleSyncActivityRowLog(row) {
   if (!row) return false;
   const detail = row.querySelector("[data-sync-activity-group-detail]");
@@ -713,19 +939,23 @@ export function toggleSyncActivityRowLog(row) {
   }
   row.setAttribute("aria-expanded", "true");
   detail.classList.remove("hidden");
-  const cached = groupEventCache.get(groupKey);
+  const latestOnly = groupShowsLatestOnly(groupKey);
+  const cached = groupEventCache.get(groupEventCacheKey(groupKey, latestOnly));
   const current = currentActivityGroup(groupKey);
+  const cachedTimestamp = Number(cached?.group?.timestamp || cached?.group?.latest?.timestamp || 0);
+  const currentTimestamp = Number(current?.timestamp || current?.latest?.timestamp || 0);
+  const cachedId = Number(cached?.group?.latest?.id || 0);
+  const currentId = Number(current?.latest?.id || 0);
   const cacheIsCurrent = cached && (!current
-    || (Number(cached.pagination?.total) || cached.events.length) === (Number(current.eventCount) || 0)
-    && Number(cached.group?.timestamp || 0) >= Number(current.timestamp || 0));
+    || (cachedTimestamp > currentTimestamp || (cachedTimestamp === currentTimestamp && cachedId >= currentId)));
   if (cacheIsCurrent) {
     renderGroupEvents(groupKey, cached, detail);
     return true;
   }
-  detail.innerHTML = `<div class="empty-log"><b>Loading activity</b><span>Fetching every checkpoint and target result for this media.</span></div>`;
+  detail.innerHTML = `<div class="empty-log"><b>Loading activity</b><span>${latestOnly ? "Fetching the newest result for each movie/episode." : "Fetching the full audit history."}</span></div>`;
   if (!groupEventLoading.has(groupKey)) {
     groupEventLoading.add(groupKey);
-    loadActivityGroupPage(groupKey, { force: Boolean(cached) })
+    loadActivityGroupPage(groupKey, { force: Boolean(cached), latestOnly })
       .then((payload) => {
         if (row.getAttribute("aria-expanded") === "true") renderGroupEvents(groupKey, payload, detail);
       })
@@ -739,9 +969,32 @@ export function toggleSyncActivityRowLog(row) {
   return true;
 }
 
-export async function loadOlderSyncActivityGroup(groupKey, page) {
+export async function setSyncActivityGroupView(groupKey, latestOnly = true) {
   const key = String(groupKey || "");
-  const payload = await loadActivityGroupPage(key, { page: Math.max(Number(page) || 1, 1) });
+  if (!key) return false;
+  const currentLatestOnly = isLatestOnlyValue(latestOnly, true);
+  groupEventView.set(key, currentLatestOnly ? "latest" : "history");
+  const row = [...(elements.syncActivityRows?.querySelectorAll(".sync-activity-group-row") || [])]
+    .find((candidate) => candidate.dataset.activityGroupKey === key);
+  const detail = row?.querySelector("[data-sync-activity-group-detail]");
+  if (!row || !detail || row.getAttribute("aria-expanded") !== "true") return true;
+  detail.innerHTML = `<div class="empty-log"><b>Loading activity</b><span>${currentLatestOnly ? "Fetching the newest result for each movie/episode." : "Fetching the full audit history."}</span></div>`;
+  try {
+    const payload = await loadActivityGroupPage(key, { force: true, latestOnly: currentLatestOnly });
+    if (row.getAttribute("aria-expanded") === "true") renderGroupEvents(key, payload, detail);
+  } catch (error) {
+    if (row.getAttribute("aria-expanded") === "true") {
+      detail.innerHTML = `<div class="empty-log"><b>Could not load activity details</b><span>${escapeHtml(error.message || "Refresh the page and try again.")}</span></div>`;
+    }
+  }
+  return true;
+}
+
+export async function loadOlderSyncActivityGroup(groupKey, page, latestOnly = true) {
+  const key = String(groupKey || "");
+  const currentLatestOnly = isLatestOnlyValue(latestOnly, groupShowsLatestOnly(key));
+  groupEventView.set(key, currentLatestOnly ? "latest" : "history");
+  const payload = await loadActivityGroupPage(key, { page: Math.max(Number(page) || 1, 1), latestOnly: currentLatestOnly });
   const row = [...(elements.syncActivityRows?.querySelectorAll(".sync-activity-group-row") || [])]
     .find((candidate) => candidate.dataset.activityGroupKey === key);
   if (row?.getAttribute("aria-expanded") === "true") {
@@ -1752,18 +2005,32 @@ export function resetSyncActivity() {
   state.syncActivityLoading = false;
   state.syncActivitySearch = "";
   state.syncActivityFailedOnly = false;
+  state.syncActivityCurrentIssueGroupCount = 0;
+  state.syncActivityCurrentIssueCount = 0;
+  state.syncActivityRetryableCount = 0;
   state.syncActivityPagination = { ...DEFAULT_PAGINATION };
   groupEventCache.clear();
   groupEventLoading.clear();
+  groupEventView.clear();
 }
 
-// Filters the currently loaded page down to failed entries only - scoped to
-// "on page" (matching the summary pill's own wording) rather than querying the
-// server, since syncHistoryTone can flag a target-level failure that a plain
-// text search wouldn't reliably match.
+// The failed-only view is server-filtered so issues do not disappear just
+// because they are on a later activity page. The server uses the same current
+// item/target-level classification as the row issue counts.
 export function toggleSyncActivityFailedOnly() {
   state.syncActivityFailedOnly = !state.syncActivityFailedOnly;
+  state.syncActivityPagination = { ...DEFAULT_PAGINATION, ...(state.syncActivityPagination || {}), page: 1 };
+  state.syncActivity = [];
   renderSyncActivity();
+  loadSyncActivity({ force: true, page: 1 }).catch(() => null);
+}
+
+function syncActivitySummaryMarkup(text, { failedOnly = false, showToggle = false, hasIssues = false } = {}) {
+  const toggle = showToggle
+    ? `<button class="button-ghost sync-activity-failed-toggle" type="button" data-sync-activity-failed-toggle="1" aria-pressed="${failedOnly ? "true" : "false"}">${failedOnly ? "Show all" : "Show only Failed"}</button>`
+    : "";
+  const issueClass = hasIssues ? " sync-activity-summary-text--issues" : "";
+  return `<span class="sync-activity-summary-text${issueClass}">${escapeHtml(text)}</span>${toggle}`;
 }
 
 function renderTraktDispatchProgress() {
@@ -1794,8 +2061,8 @@ export function renderSyncActivity() {
   if (state.syncActivityLoading && !state.syncActivity.length) {
     elements.syncActivityRows.innerHTML = `<div class="empty-log"><b>Loading sync activity</b><span>Fetching what has been synced recently.</span></div>`;
     if (elements.syncActivitySummary) {
-      elements.syncActivitySummary.textContent = "Loading";
-      elements.syncActivitySummary.className = "status-pill status-muted";
+      elements.syncActivitySummary.className = "sync-activity-summary";
+      elements.syncActivitySummary.innerHTML = syncActivitySummaryMarkup("Loading");
     }
     renderSyncActivityPagination();
     return;
@@ -1803,8 +2070,10 @@ export function renderSyncActivity() {
 
   const query = state.syncActivitySearch || "";
   const pageRows = [...state.syncActivity];
-  const failed = pageRows.filter((group) => groupTone(group) === "error").length;
-  const failedOnly = Boolean(state.syncActivityFailedOnly) && failed > 0;
+  const failedGroups = pageRows.filter((group) => groupTone(group) === "error").length;
+  const currentIssueGroupCount = Math.max(Number(state.syncActivityCurrentIssueGroupCount) || 0, 0);
+  const currentIssueCount = Math.max(Number(state.syncActivityCurrentIssueCount) || 0, 0);
+  const failedOnly = Boolean(state.syncActivityFailedOnly);
   const rows = failedOnly ? pageRows.filter((group) => groupTone(group) === "error") : pageRows;
   const pagination = { ...DEFAULT_PAGINATION, ...(state.syncActivityPagination || {}) };
   const total = Math.max(Number(pagination.total) || 0, pageRows.length);
@@ -1812,36 +2081,46 @@ export function renderSyncActivity() {
   const to = total ? Math.max(Number(pagination.to) || pageRows.length, from) : 0;
 
   if (elements.syncActivitySummary) {
+    elements.syncActivitySummary.className = "sync-activity-summary";
     if (!pageRows.length) {
-      elements.syncActivitySummary.textContent = query ? "No matches" : "No activity";
-      elements.syncActivitySummary.className = "status-pill status-muted";
-      elements.syncActivitySummary.removeAttribute("data-sync-activity-failed-toggle");
+      const emptyText = failedOnly
+        ? (query ? "Showing failed only: no matching media groups" : "Showing failed only: no media groups")
+        : (query ? "No matches" : "No activity");
+      elements.syncActivitySummary.innerHTML = syncActivitySummaryMarkup(emptyText, { failedOnly, showToggle: failedOnly, hasIssues: false });
     } else {
-      elements.syncActivitySummary.textContent = failedOnly
-        ? `Showing failed only: ${failed} on page - click to show all`
-        : `Showing ${from}-${to} of ${total} media groups / ${failed} with issues on page${failed ? " - click to show only failed" : ""}`;
-      elements.syncActivitySummary.className = `status-pill ${failed ? "status-error" : "status-ready"}${failed ? " is-clickable" : ""}`;
-      if (failed) elements.syncActivitySummary.setAttribute("data-sync-activity-failed-toggle", "1");
-      else elements.syncActivitySummary.removeAttribute("data-sync-activity-failed-toggle");
+      const summaryText = failedOnly
+        ? `Showing failed only: ${from}-${to} of ${total} media groups / ${pluralLabel(currentIssueCount, "current issue")}`
+        : `Showing ${from}-${to} of ${total} media groups / ${pluralLabel(currentIssueGroupCount, "media group")} with ${pluralLabel(currentIssueCount, "current issue")}`;
+      elements.syncActivitySummary.innerHTML = syncActivitySummaryMarkup(summaryText, {
+        failedOnly,
+        showToggle: currentIssueGroupCount > 0 || failedOnly || failedGroups > 0,
+        hasIssues: currentIssueCount > 0,
+      });
     }
   }
 
   if (elements.syncActivityRetryAllFailed) {
-    // Deliberately not a count of retryable rows on this page - that read as
-    // "there are only N to retry" and undersold how many more existed across
-    // the rest of the library. The real total is looked up (and confirmed
-    // with the user) only once the button is actually clicked.
     const button = elements.syncActivityRetryAllFailed;
-    button.disabled = Boolean(bulkRetryProgress) || total === 0;
+    const retryableCount = Math.max(Number(state.syncActivityRetryableCount) || 0, 0);
+    const retryAllActive = Boolean(bulkRetryProgress);
+    // The count is calculated across the full activity store, not just the
+    // current page, so the control never disappears merely because a failure
+    // is on another page. Keep it visible while an already-started job is
+    // reporting progress, even after the latest page snapshot reaches zero.
+    button.hidden = !retryAllActive && retryableCount === 0;
+    button.disabled = retryAllActive || retryableCount === 0;
     button.textContent = bulkRetryProgress
       ? (bulkRetryProgress.total ? `Retrying ${bulkRetryProgress.index} of ${bulkRetryProgress.total}...` : "Retrying...")
       : "Retry all failed";
   }
 
   if (!rows.length) {
-    elements.syncActivityRows.innerHTML = query
-      ? `<div class="empty-log"><b>No matching sync activity</b><span>Try another title, platform, action, or status.</span></div>`
-      : `<div class="empty-log"><b>Nothing synced yet</b><span>Watches propagated to your media servers and trackers appear here, newest first.</span></div>`;
+    const emptyMarkup = failedOnly
+      ? `<div class="empty-log"><b>${query ? "No failed sync activity matches this search" : "No failed sync activity on this page"}</b><span>Successful media groups are hidden while Show only Failed is active.</span></div>`
+      : query
+        ? `<div class="empty-log"><b>No matching sync activity</b><span>Try another title, platform, action, or status.</span></div>`
+        : `<div class="empty-log"><b>Nothing synced yet</b><span>Watches propagated to your media servers and trackers appear here, newest first.</span></div>`;
+    elements.syncActivityRows.innerHTML = emptyMarkup;
     renderSyncActivityPagination();
     return;
   }
@@ -1875,11 +2154,24 @@ export async function loadSyncActivity({ force = false, page } = {}) {
     url.searchParams.set("limit", String(ACTIVITY_PAGE_SIZE));
     url.searchParams.set("page", String(requestedPage));
     if (requestedSearch.trim()) url.searchParams.set("search", requestedSearch.trim());
+    if (state.syncActivityFailedOnly) url.searchParams.set("failedOnly", "1");
     const response = await fetch(url, { headers: authHeaders(), cache: "no-store" });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || `Sync activity load failed with ${response.status}`);
     if (requestToken !== loadRequestToken || requestedSearch !== state.syncActivitySearch) return state.syncActivity;
     state.syncActivity = Array.isArray(body.groups) ? body.groups : [];
+    const pageIssueGroupCount = state.syncActivity.filter((group) => groupTone(group) === "error").length;
+    const pageIssueCount = state.syncActivity.reduce((totalIssues, group) => totalIssues + Math.max(Number(group.problemCount) || 0, 0), 0);
+    state.syncActivityCurrentIssueGroupCount = Object.prototype.hasOwnProperty.call(body, "currentIssueGroupCount")
+      ? Math.max(Number(body.currentIssueGroupCount) || 0, 0)
+      : pageIssueGroupCount;
+    state.syncActivityCurrentIssueCount = Object.prototype.hasOwnProperty.call(body, "currentIssueCount")
+      ? Math.max(Number(body.currentIssueCount) || 0, 0)
+      : pageIssueCount;
+    const pageRetryableCount = pageIssueCount;
+    state.syncActivityRetryableCount = Object.prototype.hasOwnProperty.call(body, "retryableCount")
+      ? Math.max(Number(body.retryableCount) || 0, 0)
+      : pageRetryableCount;
     state.traktDispatchProgress = body.traktDispatchProgress || null;
     const rawPagination = body.pagination && typeof body.pagination === "object" ? body.pagination : {};
     const limit = Math.min(Math.max(Number(rawPagination.limit) || ACTIVITY_PAGE_SIZE, 1), 200);
@@ -1913,8 +2205,8 @@ export async function loadSyncActivity({ force = false, page } = {}) {
 }
 
 // The page keeps itself current while it is the visible view: a sync that is
-// running writes new rows continuously, and the live-update stream only carries
-// the running counter, not the per-item results.
+// running writes new rows continuously, and the live-update stream carries the
+// retry-all running counter so the API snapshot is reloaded after each item.
 export function startSyncActivityRefresh() {
   stopSyncActivityRefresh();
   refreshTimer = window.setInterval(() => {

@@ -99,7 +99,8 @@ test("manual release-day watch records a fresh transition over a newer rematched
 
   // Plembfin's earlier explicit decision remains canonical even though a
   // provider alias carries a later clock. The new click must still append a
-  // fresh user transition and clean up the stale provider marker.
+  // fresh user transition and retire the stale provider marker rather than
+  // converting that marker into a duplicate watch.
   db.prepare("UPDATE playstate SET state='watched', updated_at=3000 WHERE media_key=?")
     .run(currentKey);
   assert.equal((await repo.getPlaystateForMedia(currentMedia))?.state, "watched");
@@ -132,7 +133,8 @@ test("manual release-day watch records a fresh transition over a newer rematched
   const transitions = db.prepare(
     "SELECT sync_action, created_at FROM watch_history WHERE season=3 AND episode=3 ORDER BY created_at",
   ).all();
-  assert.deepEqual(transitions.map((row) => row.sync_action), ["watched", "watched", "watched"]);
+  assert.deepEqual(transitions.map((row) => row.sync_action), ["watched", "watched"]);
+  assert.equal(db.prepare("SELECT id FROM watch_history WHERE id='newer-unwatch'").get(), undefined);
   const insertedManual = db.prepare(
     "SELECT tmdb_id, tvdb_id FROM watch_history WHERE season=3 AND episode=3 AND source='manual' ORDER BY created_at DESC LIMIT 1",
   ).get();
@@ -157,7 +159,7 @@ test("manual release-day watch records a fresh transition over a newer rematched
   const transitionsAfterResync = db.prepare(
     "SELECT sync_action FROM watch_history WHERE season=3 AND episode=3 ORDER BY created_at",
   ).all();
-  assert.deepEqual(transitionsAfterResync.map((row) => row.sync_action), ["watched", "watched", "watched"]);
+  assert.deepEqual(transitionsAfterResync.map((row) => row.sync_action), ["watched", "watched"]);
 });
 
 test("Plembfin can reassert a manual watch after a newer remote replacement echo", async () => {

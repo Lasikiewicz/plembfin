@@ -1,6 +1,7 @@
 import { fetchWithTimeout } from "./outbound.js";
 import { compoundEpisodeItemsForMedia } from "./compoundEpisode.js";
 import { restoreLookupKey } from "./restoreLookupCache.js";
+import { jellyfinAuthHeaders, jellyfinCredential } from "./jellyfinAuth.js";
 
 function trimTrailingSlash(value = "") {
   return String(value).replace(/\/+$/, "");
@@ -13,16 +14,11 @@ function requireJellyfinConfig(config = {}) {
 }
 
 function jellyfinApiKey(config = {}) {
-  return config.apiKey || config.api_key || config.token;
+  return jellyfinCredential(config);
 }
 
 function authHeaders(config) {
-  const apiKey = jellyfinApiKey(config);
-  return {
-    Accept: "application/json",
-    "X-Emby-Token": apiKey,
-    "X-MediaBrowser-Token": apiKey,
-  };
+  return jellyfinAuthHeaders(config);
 }
 
 function providerTerms(ids = {}) {
@@ -262,8 +258,6 @@ async function searchJellyfinFallback(config, media, targetType) {
   url.searchParams.set("IncludeItemTypes", targetType);
   url.searchParams.set("SearchTerm", queryTitle);
   url.searchParams.set("Fields", "ProviderIds,UserData");
-  url.searchParams.set("api_key", jellyfinApiKey(config));
-
   console.log("Jellyfin search fallback started", { query: queryTitle, targetType });
   try {
     const body = await fetchJson(url, config, media);
@@ -296,8 +290,6 @@ async function findByProviderIds(config, media, itemTypes) {
     url.searchParams.set("IncludeItemTypes", itemTypes);
     url.searchParams.set("Fields", "ProviderIds,UserData");
     url.searchParams.set("AnyProviderIdEquals", providerTerm);
-    url.searchParams.set("api_key", jellyfinApiKey(config));
-
     console.log("Jellyfin lookup started", { itemTypes, providerTerm });
     const body = await fetchJson(url, config, media);
       const [prov, val] = providerTerm.split(".");
@@ -383,8 +375,6 @@ export async function markJellyfinPlayed(config, media) {
     let lastHttpStatus = 200;
     const markJobs = items.map(async (item) => {
       const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${config.userId}/PlayedItems/${item.Id}`);
-      url.searchParams.set("api_key", jellyfinApiKey(config));
-
       const response = await fetchWithTimeout(url, {
         method: "POST",
         headers: {
@@ -429,8 +419,6 @@ export async function markJellyfinUnplayed(config, media) {
     let lastHttpStatus = 200;
     const markJobs = items.map(async (item) => {
       const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${config.userId}/PlayedItems/${item.Id}`);
-      url.searchParams.set("api_key", jellyfinApiKey(config));
-
       const response = await fetchWithTimeout(url, {
         method: "DELETE",
         headers: {
@@ -472,7 +460,6 @@ export async function setJellyfinProgress(config, media) {
       return { platform: "jellyfin", status: "not_found" };
     }
 
-    const apiKey = jellyfinApiKey(config);
     const positionMs = Math.max(0, Math.round(Number(media.positionMs ?? media.offsetMs ?? 0)));
     const hasPosition = media.positionMs !== undefined || media.offsetMs !== undefined;
     if (!hasPosition) {
@@ -482,8 +469,6 @@ export async function setJellyfinProgress(config, media) {
     let lastHttpStatus = 200;
     const progressJobs = items.map(async (item) => {
       const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${config.userId}/Items/${item.Id}/UserData`);
-      url.searchParams.set("api_key", apiKey);
-
       const response = await fetchWithTimeout(url, {
         method: "POST",
         headers: {
@@ -520,15 +505,12 @@ export async function setJellyfinProgress(config, media) {
 
 export async function fetchJellyfinEpisodes(config, parentId, media = null) {
   requireJellyfinConfig(config);
-  const apiKey = jellyfinApiKey(config);
   const baseUrl = trimTrailingSlash(config.baseUrl);
   const url = new URL(`${baseUrl}/Users/${config.userId}/Items`);
   url.searchParams.set("ParentId", parentId);
   url.searchParams.set("Recursive", "true");
   url.searchParams.set("IncludeItemTypes", "Episode");
   url.searchParams.set("Fields", "ProviderIds,UserData,PremiereDate,ProductionYear,MediaSources,MediaStreams,Width,Height");
-  url.searchParams.set("api_key", apiKey);
-
   const data = await fetchJson(url, config, media);
   return data?.Items || [];
 }
@@ -550,8 +532,6 @@ export async function markJellyfinUnplayedById(config, itemId, { lane = "sync" }
   if (!itemId) return { platform: "jellyfin", status: "not_found" };
 
   const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${config.userId}/PlayedItems/${itemId}`);
-  url.searchParams.set("api_key", jellyfinApiKey(config));
-
   const response = await fetchWithTimeout(url, {
     method: "DELETE",
     headers: { ...authHeaders(config), "Content-Type": "application/json" },
@@ -575,7 +555,6 @@ export async function hideJellyfinFromResume(config, itemId, { lane = "interacti
 }
 
 function buildJellyfinWatchedItemsUrl(config, { limit = 0, parentId = "" } = {}) {
-  const apiKey = jellyfinApiKey(config);
   const baseUrl = trimTrailingSlash(config.baseUrl);
   const url = new URL(`${baseUrl}/Users/${config.userId}/Items`);
   url.searchParams.set("Recursive", "true");
@@ -586,7 +565,6 @@ function buildJellyfinWatchedItemsUrl(config, { limit = 0, parentId = "" } = {})
   url.searchParams.set("SortOrder", "Descending");
   if (parentId) url.searchParams.set("ParentId", String(parentId));
   if (Number(limit) > 0) url.searchParams.set("Limit", String(Math.max(1, Math.round(Number(limit)))));
-  url.searchParams.set("api_key", apiKey);
   return url;
 }
 
@@ -602,7 +580,6 @@ export async function fetchJellyfinWatchedItems(config, { limit = 0, libraryIds 
 }
 
 function buildJellyfinLibraryItemsUrl(config, { parentId = "" } = {}) {
-  const apiKey = jellyfinApiKey(config);
   const baseUrl = trimTrailingSlash(config.baseUrl);
   const url = new URL(`${baseUrl}/Users/${config.userId}/Items`);
   url.searchParams.set("Recursive", "true");
@@ -613,7 +590,6 @@ function buildJellyfinLibraryItemsUrl(config, { parentId = "" } = {}) {
   url.searchParams.set("StartIndex", "0");
   url.searchParams.set("EnableTotalRecordCount", "true");
   if (parentId) url.searchParams.set("ParentId", String(parentId));
-  url.searchParams.set("api_key", apiKey);
   return url;
 }
 
@@ -643,10 +619,8 @@ export async function fetchJellyfinLibraryItems(config, { limit = 0, libraryIds 
 // User-visible libraries (views) with their stable ids, for sync scope selection.
 export async function listJellyfinLibraries(config) {
   requireJellyfinConfig(config);
-  const apiKey = jellyfinApiKey(config);
   const baseUrl = trimTrailingSlash(config.baseUrl);
   const url = new URL(`${baseUrl}/Users/${config.userId}/Views`);
-  url.searchParams.set("api_key", apiKey);
   const data = await fetchJson(url, config);
   return (data?.Items || [])
     .filter((item) => ["movies", "tvshows"].includes(String(item.CollectionType || "").toLowerCase()))
@@ -672,7 +646,6 @@ export async function countJellyfinWatchedItems(config, { libraryIds } = {}) {
 
 export async function fetchJellyfinResumableItems(config, { limit = 0 } = {}) {
   requireJellyfinConfig(config);
-  const apiKey = jellyfinApiKey(config);
   const baseUrl = trimTrailingSlash(config.baseUrl);
   return fetchPagedFeed(config, (start, pageSize) => {
     const url = new URL(`${baseUrl}/Users/${config.userId}/Items`);
@@ -684,14 +657,12 @@ export async function fetchJellyfinResumableItems(config, { limit = 0 } = {}) {
     url.searchParams.set("SortOrder", "Descending");
     url.searchParams.set("StartIndex", String(start));
     url.searchParams.set("Limit", String(pageSize));
-    url.searchParams.set("api_key", apiKey);
     return url;
   }, limit);
 }
 
 export async function fetchJellyfinNextUpItems(config, { limit = 0 } = {}) {
   requireJellyfinConfig(config);
-  const apiKey = jellyfinApiKey(config);
   const baseUrl = trimTrailingSlash(config.baseUrl);
   return fetchPagedFeed(config, (start, pageSize) => {
     const url = new URL(`${baseUrl}/Shows/NextUp`);
@@ -701,7 +672,6 @@ export async function fetchJellyfinNextUpItems(config, { limit = 0 } = {}) {
     url.searchParams.set("EnableUserData", "true");
     url.searchParams.set("StartIndex", String(start));
     url.searchParams.set("Limit", String(pageSize));
-    url.searchParams.set("api_key", apiKey);
     return url;
   }, limit);
 }
@@ -767,7 +737,6 @@ export async function fetchJellyfinPersonalRatingSnapshot(config) {
     url.searchParams.set("Fields", "ProviderIds,SeriesProviderIds,UserData,PremiereDate,ProductionYear");
     url.searchParams.set("StartIndex", String(start));
     url.searchParams.set("Limit", String(pageSize));
-    url.searchParams.set("api_key", jellyfinApiKey(config));
     const response = await fetchWithTimeout(url, { headers: authHeaders(config), lane: "sync" });
     if (!response.ok) {
       const error = new Error(`Jellyfin rating scan failed with status ${response.status}`);
@@ -805,7 +774,6 @@ async function writeJellyfinPersonalRating(config, media, rating, { lane = "sync
   let lastHttpStatus = 200;
   for (const item of items) {
     const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${config.userId}/Items/${item.Id}/UserData`);
-    url.searchParams.set("api_key", jellyfinApiKey(config));
     const response = await fetchWithTimeout(url, {
       method: "POST",
       headers: { ...authHeaders(config), "Content-Type": "application/json" },

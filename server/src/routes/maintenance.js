@@ -17,6 +17,7 @@ import { findPlexItem, markPlexPlayed, setPlexProgress, markPlexUnplayedByRating
 import { probePlexNotificationSocket } from "../utils/plexNotificationListener.js";
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes } from "../utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes } from "../utils/jellyfinClient.js";
+import { setJellyfinApiKey } from "../utils/jellyfinAuth.js";
 import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook } from "../utils/parsers.js";
 import { getTargetsForSource, shouldSyncResumeProgress, syncCanonicalPlaystate, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
 import { runWithConcurrency } from "../utils/concurrency.js";
@@ -146,9 +147,10 @@ function configuredPosterUrl(path = "", source = "", config = {}) {
     if (server.source === "plex" && (server.token || server.apiKey)) {
       url.searchParams.set("X-Plex-Token", server.token || server.apiKey);
     }
-    if ((server.source === "emby" || server.source === "jellyfin") && (server.apiKey || server.api_key)) {
+    if (server.source === "emby" && (server.apiKey || server.api_key)) {
       url.searchParams.set("api_key", server.apiKey || server.api_key);
     }
+    if (server.source === "jellyfin") setJellyfinApiKey(url, server);
     return url.toString();
   } catch (error) {
     return "";

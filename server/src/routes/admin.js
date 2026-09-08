@@ -15,6 +15,7 @@ import { findPlexItem, markPlexPlayed, setPlexProgress, markPlexUnplayedByRating
 import { probePlexNotificationSocket } from "../utils/plexNotificationListener.js";
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes } from "../utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes } from "../utils/jellyfinClient.js";
+import { jellyfinAuthHeaders, jellyfinCredential, setJellyfinApiKey } from "../utils/jellyfinAuth.js";
 import { normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexWebhook } from "../utils/parsers.js";
 import { getTargetsForSource, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
 import { watchedPlayedSyncEnabled } from "../utils/syncFlags.js";
@@ -129,9 +130,10 @@ function configuredPosterUrl(path = "", source = "", config = {}) {
     if (server.source === "plex" && (server.token || server.apiKey)) {
       url.searchParams.set("X-Plex-Token", server.token || server.apiKey);
     }
-    if ((server.source === "emby" || server.source === "jellyfin") && (server.apiKey || server.api_key)) {
+    if (server.source === "emby" && (server.apiKey || server.api_key)) {
       url.searchParams.set("api_key", server.apiKey || server.api_key);
     }
+    if (server.source === "jellyfin") setJellyfinApiKey(url, server);
     return url.toString();
   } catch (error) {
     return "";
@@ -965,7 +967,11 @@ export async function handleTestConnection(req, res) {
     } catch (error) {
       return sendJson(res, { ok: false, error: `${type === "plex" ? "Plex account" : type} credential unavailable: ${error.message || error}` }, 502);
     }
-    token = token || (type === "plex" ? String(config?.plex?.token || "") : String(config?.[type]?.apiKey || ""));
+    token = token || (type === "plex"
+      ? String(config?.plex?.token || "")
+      : type === "jellyfin"
+        ? jellyfinCredential(config?.jellyfin)
+        : String(config?.[type]?.apiKey || ""));
     baseUrl = baseUrl || String(config?.[type]?.baseUrl || "").replace(/\/+$/, "");
   }
   if (!type || !baseUrl || !token) return sendJson(res, { ok: false, error: "type, url, and token are required" }, 400);
@@ -985,9 +991,12 @@ export async function handleTestConnection(req, res) {
     if (type === "plex") {
       const url = assertSafeOutboundUrl(`${baseUrl}/identity`);
       response = await fetchWithTimeout(url, { headers: { Accept: "application/json, application/xml, text/xml", "X-Plex-Token": token } }, 8000);
-    } else if (type === "emby" || type === "jellyfin") {
+    } else if (type === "emby") {
       const url = assertSafeOutboundUrl(`${baseUrl}/System/Info/Public`);
       response = await fetchWithTimeout(url, { headers: { Accept: "application/json", "X-Emby-Token": token, "X-MediaBrowser-Token": token } }, 8000);
+    } else if (type === "jellyfin") {
+      const url = assertSafeOutboundUrl(`${baseUrl}/System/Info/Public`);
+      response = await fetchWithTimeout(url, { headers: jellyfinAuthHeaders({ apiKey: token }) }, 8000);
     } else {
       return sendJson(res, { ok: false, error: "Unsupported connection type" }, 400);
     }

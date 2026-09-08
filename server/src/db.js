@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import Database from "better-sqlite3";
 import { DB_PATH, ensureDataDirs } from "./paths.js";
 import { repairPhantomWatchBursts } from "./utils/phantomWatchRepair.js";
-import { activityGroupKeyFor } from "./utils/syncActivityIdentity.js";
+import { activityGroupKeyFor, activityItemKeyFor } from "./utils/syncActivityIdentity.js";
 import { persistedWatchDerivedFields } from "./utils/watchDerivedFields.js";
 
 ensureDataDirs();
@@ -1109,6 +1109,67 @@ const migrations = [
         ) continue;
         update.run({ id: row.id, ...derived });
       }
+    },
+  },
+  {
+    id: 34,
+    up(database) {
+      const columns = new Set(database.pragma("table_info(sync_history)").map((column) => column.name));
+      if (!columns.has("activity_item_key")) database.exec("ALTER TABLE sync_history ADD COLUMN activity_item_key TEXT");
+
+      const rows = database.prepare("SELECT id, media_type, title, source, action, raw_payload_debug FROM sync_history").all();
+      const update = database.prepare("UPDATE sync_history SET activity_item_key = ? WHERE id = ?");
+      for (const row of rows) {
+        update.run(activityItemKeyFor({
+          mediaType: row.media_type,
+          title: row.title,
+          source: row.source,
+          action: row.action,
+          rawPayloadDebug: parseJsonValue(row.raw_payload_debug, {}),
+        }), row.id);
+      }
+      database.exec("CREATE INDEX IF NOT EXISTS idx_sync_history_activity_item ON sync_history(activity_item_key, timestamp DESC, id DESC)");
+    },
+  },
+  {
+    id: 35,
+    up(database) {
+      const columns = new Set(database.pragma("table_info(sync_history)").map((column) => column.name));
+      if (!columns.has("activity_item_key")) database.exec("ALTER TABLE sync_history ADD COLUMN activity_item_key TEXT");
+      const rows = database.prepare("SELECT id, media_type, title, source, action, raw_payload_debug FROM sync_history").all();
+      const update = database.prepare("UPDATE sync_history SET activity_item_key = ? WHERE id = ?");
+      for (const row of rows) {
+        update.run(activityItemKeyFor({
+          mediaType: row.media_type,
+          title: row.title,
+          source: row.source,
+          action: row.action,
+          rawPayloadDebug: parseJsonValue(row.raw_payload_debug, {}),
+        }), row.id);
+      }
+      database.exec("CREATE INDEX IF NOT EXISTS idx_sync_history_activity_item ON sync_history(activity_item_key, timestamp DESC, id DESC)");
+    },
+  },
+  {
+    id: 36,
+    up(database) {
+      // A pre-release build briefly used migration 35 for the same column
+      // before the canonical padded-coordinate repair was finalized. Re-run
+      // the backfill once so those local/test databases converge too.
+      const columns = new Set(database.pragma("table_info(sync_history)").map((column) => column.name));
+      if (!columns.has("activity_item_key")) database.exec("ALTER TABLE sync_history ADD COLUMN activity_item_key TEXT");
+      const rows = database.prepare("SELECT id, media_type, title, source, action, raw_payload_debug FROM sync_history").all();
+      const update = database.prepare("UPDATE sync_history SET activity_item_key = ? WHERE id = ?");
+      for (const row of rows) {
+        update.run(activityItemKeyFor({
+          mediaType: row.media_type,
+          title: row.title,
+          source: row.source,
+          action: row.action,
+          rawPayloadDebug: parseJsonValue(row.raw_payload_debug, {}),
+        }), row.id);
+      }
+      database.exec("CREATE INDEX IF NOT EXISTS idx_sync_history_activity_item ON sync_history(activity_item_key, timestamp DESC, id DESC)");
     },
   },
 ];

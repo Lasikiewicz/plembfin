@@ -66,3 +66,33 @@ test("Jellyfin Quick Connect checks availability, polls, and exchanges its secre
     assert.equal(result.userId, "user-j");
   });
 });
+
+test("Jellyfin account authentication sends only the modern authorization header", async () => {
+  const requests = [];
+  await withServer(async (req, res) => {
+    let body = "";
+    for await (const chunk of req) body += chunk;
+    requests.push({
+      url: req.url,
+      authorization: req.headers.authorization,
+      embyAuthorization: req.headers["x-emby-authorization"],
+      embyToken: req.headers["x-emby-token"],
+      mediaBrowserToken: req.headers["x-mediabrowser-token"],
+      body,
+    });
+    res.setHeader("Content-Type", "application/json");
+    if (req.url === "/Users/AuthenticateByName") return res.end(JSON.stringify({ AccessToken: "jelly-token", User: { Id: "user-j", Name: "Jamie" } }));
+    if (req.url === "/Users/user-j") return res.end(JSON.stringify({ Id: "user-j", Name: "Jamie" }));
+    if (req.url === "/System/Info") return res.end(JSON.stringify({ Id: "server-j", ServerName: "Jelly Home" }));
+    res.statusCode = 404; res.end("{}");
+  }, async (baseUrl) => {
+    await authenticateEmbyLike({ provider: "jellyfin", baseUrl, username: "Jamie", password: "secret", device: mockDevice() });
+  });
+
+  for (const request of requests) {
+    assert.match(request.authorization || "", /^MediaBrowser /);
+    assert.equal(request.embyAuthorization, undefined);
+    assert.equal(request.embyToken, undefined);
+    assert.equal(request.mediaBrowserToken, undefined);
+  }
+});

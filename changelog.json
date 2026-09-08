@@ -1,7 +1,31 @@
 {
-  "version": "0.16.0",
-  "updatedAt": "2026-09-07T15:45:46.501Z",
+  "version": "0.16.1",
+  "updatedAt": "2026-09-07T17:53:59.277Z",
   "entries": [
+    {
+      "version": "0.16.1",
+      "version5Digit": "0.16.1.0.0",
+      "date": "2026-09-07T17:53:59.277Z",
+      "commit": "b922823df30b891271cdfd4d10f9e308e4cc755e",
+      "message": "hotfix",
+      "author": "Lasikiewicz",
+      "details": [
+        "Tweak: This update includes only update unwatched episodes when marking a season watched.",
+        "Tweak: Partially watched seasons update only the episodes that are still unwatched",
+        "Tweak: Existing watched episodes remain unchanged when completing a season",
+        "Tweak: Fully watched seasons retain the explicit Resync season action"
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [],
+        "tweaks": [
+          "This update includes only update unwatched episodes when marking a season watched.",
+          "Partially watched seasons update only the episodes that are still unwatched",
+          "Existing watched episodes remain unchanged when completing a season",
+          "Fully watched seasons retain the explicit Resync season action"
+        ]
+      }
+    },
     {
       "version": "0.16.0",
       "version5Digit": "0.16.0.0.0",

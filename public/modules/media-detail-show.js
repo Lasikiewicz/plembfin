@@ -1,19 +1,19 @@
-import { state, elements } from "./state.js?v=0.16.0.1";
-import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel, formatSeasonTitle, sourceBadgeHtml, platformSourceValues, actualWatchHistory, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js?v=0.16.0.1";
-import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=0.16.0.1";
-import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js?v=0.16.0.1";
-import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading, cachedShowDetail, rememberShowDetail, cachedShowDetailMiss, rememberShowDetailMiss } from "./explorer.js?v=0.16.0.1";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=0.16.0.1";
-import { renderWatchDatePrompt, seasonUnwatchButtonHtml, showUnwatchButtonHtml, savingEpisodeKeysForShow } from "./watch-action.js?v=0.16.0.1";
-import { authHeaders, setMessage, syncPageTopbar, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=0.16.0.1";
-import { personalRatingPillHtml, personalEpisodeRatingButtonHtml, personalMediaActionsHtml } from "./personal-media.js?v=0.16.0.1";
+import { state, elements } from "./state.js?v=0.16.1.0.0";
+import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel, formatSeasonTitle, sourceBadgeHtml, platformSourceValues, normalizePlatformSource, actualWatchHistory, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js?v=0.16.1.0.0";
+import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=0.16.1.0.0";
+import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js?v=0.16.1.0.0";
+import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading, cachedShowDetail, rememberShowDetail, cachedShowDetailMiss, rememberShowDetailMiss } from "./explorer.js?v=0.16.1.0.0";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=0.16.1.0.0";
+import { renderWatchDatePrompt, seasonUnwatchButtonHtml, showUnwatchButtonHtml, savingEpisodeKeysForShow } from "./watch-action.js?v=0.16.1.0.0";
+import { authHeaders, setMessage, syncPageTopbar, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=0.16.1.0.0";
+import { personalRatingPillHtml, personalEpisodeRatingButtonHtml, personalMediaActionsHtml } from "./personal-media.js?v=0.16.1.0.0";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderRelatedShowsSection,
   renderMediaFacts, renderMediaImagesSection, renderExternalRatingPills, ratingPillHtml,
   renderSeasonSeerrControls, renderSeerrRequestPill, fetchSeerrMediaStatus,
   refreshActiveMediaDetailAfterSeerrStatus, tvSeasonAvailabilityHtml, episodeResolutionPillHtml,
   hydrateMediaAppLinks, mediaAppLinksHtml,
-} from "./media-detail-shared.js?v=0.16.0.1";
+} from "./media-detail-shared.js?v=0.16.1.0.0";
 
 let _playbackProgressRows = [];
 let _playbackProgressLoaded = false;
@@ -1049,7 +1049,10 @@ function episodeWatchHistoryLoadingHtml() {
 // ({ id, watched_at, source }[]) built server-side in dedupeHistory
 // (server/src/utils/dataRepo.js).
 function episodeWatchHistoryHtml(watched, { loading = false } = {}) {
-  const history = actualWatchHistory(watched);
+  // playHistory also retains unwatched transition rows for audit/date-edit
+  // purposes. They are not plays, so never render them as "Watched" entries in
+  // the episode card when an older cached row still carries them.
+  const history = actualWatchHistory(watched).filter(isWatchedHistoryAction);
   if (!history.length) return loading ? episodeWatchHistoryLoadingHtml() : "";
   const aggregateSources = platformSourceValues(watched);
   const rows = [...history]
@@ -1786,6 +1789,44 @@ function liveEpisodeMatches(episode, { change = {}, row = null, progress = null 
   return Boolean(incomingShowTitle && activeShowTitle && slug(showTitleFrom(incomingShowTitle)) === slug(showTitleFrom(activeShowTitle)));
 }
 
+function liveTimestamp(value) {
+  const parsed = Date.parse(String(value || ""));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function snapshotEpisodeForLive(showEpisodes, target, change, row) {
+  const mediaKey = String(
+    target.watched?.media_key
+      || liveChangeField(change, "mediaKey", "media_key")
+      || row?.media_key
+      || "",
+  );
+  const season = liveChangeField(change, "season") ?? row?.season ?? target.seasonNumber;
+  const episode = liveChangeField(change, "episode") ?? row?.episode ?? target.episodeNumber;
+  const candidates = showEpisodes.filter((candidate) => (
+    (mediaKey && String(candidate.media_key || "") === mediaKey)
+      || (Number(candidate.season) === Number(season) && Number(candidate.episode) === Number(episode))
+  ));
+  return candidates.find((candidate) => !isWatchedHistoryAction(candidate)) || candidates[0] || null;
+}
+
+function liveWatchedRowShouldBeIgnored(row, snapshot, currentWatched) {
+  if (!row || !isWatchedHistoryAction(row) || normalizePlatformSource(row.source) === "plembfin") return false;
+
+  // A provider watched row must not replace a newer unwatch tombstone. It also
+  // must not replace a current Plembfin watch with an older/same-date echo,
+  // because that changes the displayed source and can move the watch date.
+  const comparison = snapshot && !isWatchedHistoryAction(snapshot)
+    ? snapshot
+    : normalizePlatformSource(currentWatched?.source) === "plembfin"
+      ? currentWatched
+      : null;
+  if (!comparison) return false;
+  const incomingTime = liveTimestamp(row.watched_at);
+  const comparisonTime = liveTimestamp(comparison.watched_at);
+  return incomingTime == null || comparisonTime == null || incomingTime <= comparisonTime;
+}
+
 function updateLiveShowSummaryDom(root, current, changedSeasonNumber) {
   const show = current?.show || {};
   const tmdbData = current?.tmdbData || null;
@@ -1839,6 +1880,68 @@ function updateLiveShowSummaryDom(root, current, changedSeasonNumber) {
   if (progressFill) progressFill.style.width = `${progressPercent}%`;
 }
 
+function patchShowModalEpisodeNode(target, { savingEpisodeKeys = null } = {}) {
+  const current = state.activeShowRenderContext;
+  const root = mediaDetailRoot();
+  if (!current?.show || !root || !target) return false;
+  const currentNode = [...(root.querySelectorAll?.("[data-immersive-episode-key]") || [])]
+    .find((node) => node.dataset.immersiveEpisodeKey === target.key);
+  if (!currentNode) return false;
+
+  const showTitle = sanitizeTitle(current.show.title) || "Unknown Show";
+  const tvSeerrTmdbId = current.tmdbData?.id || current.show.tmdb_id || "";
+  const tvSeerrStatus = state.seerrMediaStatusCache.get(`tv:${tvSeerrTmdbId}`) || {};
+  const isUnreleased = (episode) => {
+    if (episode.watched || !episode.airDate) return false;
+    const parts = String(episode.airDate).split("-");
+    if (parts.length !== 3) return false;
+    const air = new Date(parts[0], parts[1] - 1, parts[2]);
+    return !Number.isNaN(air.getTime()) && air > new Date();
+  };
+  const template = document.createElement("template");
+  template.innerHTML = renderEpisodeRowHtml(target, {
+    showTitle,
+    tvSeerrStatus,
+    savingEpisodeKeys: savingEpisodeKeys || savingEpisodeKeysForShow(showTitle),
+    isUnreleased,
+    loading: Boolean(current.loading),
+    hideSpoilers: state.hideEpisodeSpoilers,
+    watchHistoryLoading: Boolean(current.watchHistoryLoading),
+  }).trim();
+  const replacement = template.content.firstElementChild;
+  if (!replacement) return false;
+  currentNode.replaceWith(replacement);
+  hydratePosters(root);
+  return true;
+}
+
+// Repaint only the episode articles covered by an in-flight manual action.
+// This is intentionally separate from renderShowModalContent: replacing the
+// full season accordion would discard every other mounted episode and its
+// scroll/artwork state while the server-side sync is still in progress.
+export function patchShowModalEpisodesSavingState({ episodes = [], saving = true } = {}) {
+  const current = state.activeShowRenderContext;
+  if (!current?.show || !Array.isArray(state.showModalEpisodes) || !episodes.length) return false;
+  const requestedKeys = new Set(episodes.map((episode) => String(episode?.key || "")).filter(Boolean));
+  const targets = state.showModalEpisodes.filter((target) => (
+    requestedKeys.has(String(target.key || ""))
+      || episodes.some((episode) => (
+        Number(target.seasonNumber) === Number(episode?.seasonNumber)
+          && Number(target.episodeNumber) === Number(episode?.episodeNumber)
+      ))
+  ));
+  if (!targets.length) return false;
+
+  const showTitle = sanitizeTitle(current.show.title) || "Unknown Show";
+  const activeSavingKeys = savingEpisodeKeysForShow(showTitle);
+  if (saving) targets.forEach((target) => activeSavingKeys.add(target.key));
+  let patched = 0;
+  for (const target of targets) {
+    if (patchShowModalEpisodeNode(target, { savingEpisodeKeys: activeSavingKeys })) patched += 1;
+  }
+  return patched > 0;
+}
+
 // Apply a single SSE item update without calling renderShowModalContent. The
 // episode object, its state-history entry, and the one mounted article are
 // updated in place; all other episode nodes, artwork requests, and scroll
@@ -1851,7 +1954,17 @@ export function patchShowModalEpisodeFromLive({ change = {}, row = null, progres
 
   const sourceTable = String(liveChangeField(change, "sourceTable", "source_table") || "");
   const progressOnly = sourceTable === "playback_progress";
-  if (!progressOnly) target.watched = row && isWatchedHistoryAction(row) ? row : null;
+  const currentWatched = target.watched;
+  const previousMediaKey = String(currentWatched?.media_key || liveChangeField(change, "mediaKey", "media_key") || row?.media_key || "");
+  const showEpisodes = Array.isArray(current.show.episodes) ? [...current.show.episodes] : [];
+  const snapshotEpisode = snapshotEpisodeForLive(showEpisodes, target, change, row);
+  const ignoredWatchedRow = liveWatchedRowShouldBeIgnored(row, snapshotEpisode, currentWatched);
+  const acceptedWatchedRow = row && isWatchedHistoryAction(row) && !ignoredWatchedRow
+    ? row
+    : ignoredWatchedRow && normalizePlatformSource(currentWatched?.source) === "plembfin"
+      ? currentWatched
+      : null;
+  if (!progressOnly) target.watched = acceptedWatchedRow;
   if (progressOnly) {
     target.progress = progress && Number(progress.progress || 0) > 0 ? progress : null;
   } else if (target.watched) {
@@ -1860,47 +1973,75 @@ export function patchShowModalEpisodeFromLive({ change = {}, row = null, progres
     target.progress = Number(progress.progress || 0) > 0 ? progress : null;
   }
 
-  const showEpisodes = Array.isArray(current.show.episodes) ? [...current.show.episodes] : [];
   const existingIndex = showEpisodes.findIndex((episode) => (
-    (target.watched?.media_key && String(episode.media_key || "") === String(target.watched.media_key))
+    (previousMediaKey && String(episode.media_key || "") === previousMediaKey)
       || (Number(episode.season) === Number(target.seasonNumber) && Number(episode.episode) === Number(target.episodeNumber))
   ));
   if (target.watched) {
     if (existingIndex >= 0) showEpisodes[existingIndex] = target.watched;
     else showEpisodes.push(target.watched);
+  } else if (ignoredWatchedRow) {
+    // Leave the current tombstone in place. If a rematch changed its media key
+    // but the episode coordinates still identify it, preserve that tombstone
+    // rather than allowing the provider row to reintroduce the episode.
+    if (existingIndex < 0 && snapshotEpisode && !isWatchedHistoryAction(snapshotEpisode)) showEpisodes.push(snapshotEpisode);
   } else if (existingIndex >= 0 && sourceTable === "watch_history") {
-    showEpisodes.splice(existingIndex, 1);
+    // Keep the unwatch transition in the local show snapshot. It is a
+    // tombstone, not a visible watched episode, but mergeShowWithLoadedHistory
+    // needs it to prevent the older watched row in state.history from being
+    // reintroduced by the next silent refresh.
+    showEpisodes[existingIndex] = row || {
+      ...showEpisodes[existingIndex],
+      sync_action: "unwatched",
+      syncAction: "unwatched",
+    };
+  } else if (row && sourceTable === "watch_history") {
+    // A provider can report the unwatch under a rematched media key. Match by
+    // season/episode above when possible; if the current snapshot did not
+    // contain the old row, retain the tombstone so a later history merge still
+    // cannot resurrect a stale watched alias.
+    showEpisodes.push(row);
   }
   current.show = { ...current.show, episodes: showEpisodes };
 
-  const root = mediaDetailRoot();
-  const currentNode = [...(root?.querySelectorAll?.("[data-immersive-episode-key]") || [])]
-    .find((node) => node.dataset.immersiveEpisodeKey === target.key);
-  if (currentNode) {
-    const showTitle = sanitizeTitle(current.show.title) || "Unknown Show";
-    const tvSeerrTmdbId = current.tmdbData?.id || current.show.tmdb_id || "";
-    const tvSeerrStatus = state.seerrMediaStatusCache.get(`tv:${tvSeerrTmdbId}`) || {};
-    const isUnreleased = (episode) => {
-      if (episode.watched || !episode.airDate) return false;
-      const parts = String(episode.airDate).split("-");
-      if (parts.length !== 3) return false;
-      const air = new Date(parts[0], parts[1] - 1, parts[2]);
-      return !Number.isNaN(air.getTime()) && air > new Date();
-    };
-    const template = document.createElement("template");
-    template.innerHTML = renderEpisodeRowHtml(target, {
-      showTitle,
-      tvSeerrStatus,
-      savingEpisodeKeys: savingEpisodeKeysForShow(showTitle),
-      isUnreleased,
-      loading: Boolean(current.loading),
-      hideSpoilers: state.hideEpisodeSpoilers,
-      watchHistoryLoading: Boolean(current.watchHistoryLoading),
-    }).trim();
-    const replacement = template.content.firstElementChild;
-    if (replacement) currentNode.replaceWith(replacement);
-    hydratePosters(root);
+  // Keep the lightweight show summary in step with the detail context. This
+  // matters after a local unwatch: a later navigation can otherwise seed the
+  // modal from state.showsRaw, re-introduce the stale watched episode, and then
+  // merge the fresh history snapshot without ever seeing an unwatched row.
+  if (sourceTable === "watch_history" && Array.isArray(state.showsRaw)) {
+    const activeShowTitle = slug(showTitleFrom(current.show.title || ""));
+    const showIndex = state.showsRaw.findIndex((show) => (
+      (current.show.tmdb_id && String(show.tmdb_id || "") === String(current.show.tmdb_id))
+        || (current.show.tvdb_id && String(show.tvdb_id || "") === String(current.show.tvdb_id))
+        || (activeShowTitle && slug(showTitleFrom(show.title || "")) === activeShowTitle)
+    ));
+    if (showIndex >= 0) {
+      const summaryShow = state.showsRaw[showIndex];
+      const summaryEpisodes = Array.isArray(summaryShow.episodes) ? [...summaryShow.episodes] : [];
+      const summaryIndex = summaryEpisodes.findIndex((episode) => (
+        (previousMediaKey && String(episode.media_key || "") === previousMediaKey)
+          || (Number(episode.season) === Number(target.seasonNumber) && Number(episode.episode) === Number(target.episodeNumber))
+      ));
+      if (target.watched) {
+        if (summaryIndex >= 0) summaryEpisodes[summaryIndex] = target.watched;
+        else summaryEpisodes.push(target.watched);
+      } else if (ignoredWatchedRow) {
+        if (summaryIndex < 0 && snapshotEpisode && !isWatchedHistoryAction(snapshotEpisode)) summaryEpisodes.push(snapshotEpisode);
+      } else if (summaryIndex >= 0) {
+        summaryEpisodes[summaryIndex] = row || {
+          ...summaryEpisodes[summaryIndex],
+          sync_action: "unwatched",
+          syncAction: "unwatched",
+        };
+      } else if (row) {
+        summaryEpisodes.push(row);
+      }
+      state.showsRaw[showIndex] = { ...summaryShow, episodes: summaryEpisodes };
+    }
   }
+
+  const root = mediaDetailRoot();
+  patchShowModalEpisodeNode(target);
   updateLiveShowSummaryDom(root, current, target.seasonNumber);
   return true;
 }
@@ -1926,15 +2067,37 @@ function showProviderIdTokens(obj = {}) {
   return ids;
 }
 
-function mergeShowWithLoadedHistory(show = {}) {
+export function mergeShowWithLoadedHistory(show = {}) {
   if (!show?.title) return show;
   const showKey = slug(show.title || "");
   const showIds = providerIdTokens(show);
   const byEpisode = new Map();
-  for (const episode of show.episodes || []) {
-    if (!isWatchedHistoryAction(episode)) continue;
+  const unwatchedEpisodeKeys = new Set();
+  const matchingSummaryEpisodes = (state.showsRaw || [])
+    .filter((candidate) => {
+      if (slug(candidate?.title || "") !== showKey) return false;
+      const candidateIds = providerIdTokens(candidate);
+      if (showIds.length && candidateIds.length) return showIds.some((id) => candidateIds.includes(id));
+      // A provider-identified show must not borrow a tombstone from an
+      // unrelated title-only or same-title reboot record.
+      if (showIds.length || candidateIds.length) return false;
+      return true;
+    })
+    .flatMap((candidate) => candidate.episodes || []);
+  const showEpisodeRows = [...(show.episodes || []), ...matchingSummaryEpisodes];
+  for (const episode of showEpisodeRows) {
     if (episode.season == null || episode.episode == null) continue;
-    byEpisode.set(showEpisodeKey(episode.season, episode.episode), episode);
+    const key = showEpisodeKey(episode.season, episode.episode);
+    // The detail endpoint deliberately keeps the latest unwatched transition
+    // as a tombstone so the show still resolves after its last watch is
+    // removed. The dashboard history feed only contains watched rows, so an
+    // older watch in state.history must not resurrect that episode here.
+    if (!isWatchedHistoryAction(episode)) {
+      unwatchedEpisodeKeys.add(key);
+      byEpisode.delete(key);
+      continue;
+    }
+    if (!unwatchedEpisodeKeys.has(key)) byEpisode.set(key, episode);
   }
   for (const row of state.history || []) {
     if (!isWatchedHistoryAction(row)) continue;
@@ -1955,8 +2118,17 @@ function mergeShowWithLoadedHistory(show = {}) {
       if (rowShowIds.length && showIds.length && !rowShowIds.some((id) => showIds.includes(id))) continue;
     }
     const key = showEpisodeKey(row.season, row.episode);
+    if (unwatchedEpisodeKeys.has(key)) continue;
     const existing = byEpisode.get(key);
-    if (!existing || String(row.watched_at || "") >= String(existing.watched_at || "")) {
+    const incomingIsManual = normalizePlatformSource(row.source) === "plembfin";
+    const existingIsManual = normalizePlatformSource(existing?.source) === "plembfin";
+    const incomingTime = String(row.watched_at || "");
+    const existingTime = String(existing?.watched_at || "");
+    const shouldUseIncoming = !existing
+      || (incomingIsManual !== existingIsManual
+        ? incomingIsManual && incomingTime >= existingTime
+        : incomingTime >= existingTime);
+    if (shouldUseIncoming) {
       // The dashboard/history preview is intentionally compact and does not
       // carry playHistory. Do not let that lightweight row replace the full
       // detail row and hide genuine repeated watches in the show modal.

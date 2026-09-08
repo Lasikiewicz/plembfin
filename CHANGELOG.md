@@ -4,6 +4,27 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v0.16.1 - 7 September 2026
+
+hotfix
+
+### Tweaks
+
+- This update includes only update unwatched episodes when marking a season watched.
+- Partially watched seasons update only the episodes that are still unwatched
+- Existing watched episodes remain unchanged when completing a season
+- Marking an episode unwatched syncs the unplayed state to connected media servers and removes matching watched plays from Plembfin history, preventing repeats from reappearing on a later watch
+- Delayed provider watched callbacks can no longer resurrect an episode after a local unwatch
+- Newly completed season episodes are assigned chronological watch dates after the previous episode, while existing dates remain unchanged
+- Sync Activity retries only the newest actual failed result per movie or episode; expected missing-library skips are retained in the audit trail but do not count as issues or enter the retry queue
+- Sync Activity now shows one current result per movie or episode first; the full audit history is available separately so live issues are not buried in repeated records
+- Retry all failed now reports its persisted progress through SSE, refreshes each current result as it completes, and labels queued issues "Awaiting retry" with a subtle reduced-motion-safe indicator on both the issue and its containing movie/show tile
+- Sync Activity now separates the red issue summary from a **Show only Failed** button and hides successful current results when that filter is active
+- Sync Activity returns to neutral styling when there are no current issues and hides **Retry all failed** until an actual failed target is available to retry
+- Sync Activity now counts current issues across the full result set, and **Show only Failed** loads every affected media group instead of filtering only the current page
+- Trakt `not_found` episode issues now offer **Fix show match** in Sync Activity; correcting the series rematches every stored episode and retries the failed Trakt update with the current local identity
+- Fully watched seasons retain the explicit Resync season action
+
 ## v0.16.0 - 7 September 2026
 
 This update delivers broad performance improvements across media, library, history, metadata, caching, sync, and large-library workflows, with faster artwork loading and a new manual watch feature.

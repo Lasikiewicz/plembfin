@@ -1,11 +1,30 @@
 import crypto from "node:crypto";
 import { db, parseJson, toJson } from "../db.js";
-import { findWatchedByAnyMediaKeySync, getPlaystateForMediaSync, mediaKeyFor } from "./dataRepo.js";
+import {
+  canonicalShowTitleKey,
+  canonicalTitleKey,
+  findWatchedByAnyMediaKeySync,
+  getPlaystateForMediaSync,
+  mediaKeyFor,
+} from "./dataRepo.js";
+
+const EXPLICIT_PLAYED_EVENT_KEYS = new Set([
+  "itemmarkplayed",
+  "itemmarkedplayed",
+  "itemmarkedasplayed",
+  "itemplayed",
+]);
 
 const selectPendingReviewsStmt = db.prepare(`
   SELECT * FROM manual_watch_reviews
   WHERE status = 'pending'
   ORDER BY created_at DESC, id DESC
+`);
+const selectManualUnwatchRowsStmt = db.prepare(`
+  SELECT title, media_type, show_title, season, episode, imdb_id, tmdb_id, tvdb_id
+  FROM watch_history
+  WHERE source = 'manual'
+    AND sync_action IN ('unwatched', 'unplayed')
 `);
 const selectReviewByIdStmt = db.prepare("SELECT * FROM manual_watch_reviews WHERE id = ?");
 const selectReviewByMediaKeyStmt = db.prepare("SELECT * FROM manual_watch_reviews WHERE media_key = ?");
@@ -53,6 +72,16 @@ function text(value = "") {
   return String(value ?? "").trim();
 }
 
+function compactEventKey(value = "") {
+  return text(value).toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function isExplicitPlayedMedia(media = {}) {
+  const provenance = media.watchProvenance || media.watch_provenance || {};
+  return [media.event, provenance.event, provenance.source_event, provenance.sourceEvent]
+    .some((event) => EXPLICIT_PLAYED_EVENT_KEYS.has(compactEventKey(event)));
+}
+
 function integerOrNull(value) {
   if (value === null || value === undefined || value === "") return null;
   const number = Number(value);
@@ -91,6 +120,8 @@ function serializableMedia(media = {}) {
     showPosterUrl: text(media.showPosterUrl || media.show_poster_url) || undefined,
     providerItemId: text(media.providerItemId || media.provider_item_id) || undefined,
     providerItems: media.providerItems || media.provider_items || undefined,
+    event: text(media.event) || undefined,
+    playedFlagOnly: Boolean(media.playedFlagOnly),
     releaseDate: text(media.releaseDate || media.release_date) || undefined,
     runtimeMinutes: Number.isFinite(Number(media.runtimeMinutes ?? media.runtime_minutes))
       ? Number(media.runtimeMinutes ?? media.runtime_minutes)
@@ -147,14 +178,41 @@ export function enqueueManualWatchReview(media = {}, {
   observedWatchedAt = "",
   sourceFingerprint = "",
   reason = "",
+  allowWhenUnwatched = false,
 } = {}) {
   const normalizedMedia = serializableMedia(media);
   const mediaKey = mediaKeyFor(normalizedMedia);
   const source = text(normalizedMedia.source) || "unknown";
+  const existing = selectReviewByMediaKeyStmt.get(mediaKey);
+
+  // A generic provider flag arriving after an explicit local unwatch is almost
+  // always the provider acknowledging the old watched state. Do not turn that
+  // acknowledgement into a new manual decision. Explicit provider "Mark
+  // played" events remain eligible because they carry a distinct user action.
+  let currentPlaystate = null;
+  try {
+    currentPlaystate = getPlaystateForMediaSync(normalizedMedia);
+  } catch {
+    currentPlaystate = null;
+  }
+  const manuallyUnwatched = currentPlaystate?.state === "unwatched"
+    || (!currentPlaystate && hasManualUnwatchForMedia(normalizedMedia));
+  if (
+    manuallyUnwatched
+    && !allowWhenUnwatched
+    && !isExplicitPlayedMedia(normalizedMedia)
+  ) {
+    return {
+      queued: false,
+      status: "unwatched",
+      suppressed: true,
+      review: existing ? rowToReview(existing) : null,
+    };
+  }
+
   const fingerprint = text(sourceFingerprint)
     || `${source}:${text(normalizedMedia.itemId)}:${text(observedWatchedAt)}:${text(releaseDate)}:${text(reason)}`;
   const now = Date.now();
-  const existing = selectReviewByMediaKeyStmt.get(mediaKey);
 
   // A dismissed flag should not come back every minute while the provider's
   // snapshot is unchanged. A changed provider fingerprint is a new decision.
@@ -204,6 +262,82 @@ export function manualWatchReviewMedia(review = {}) {
   return serializableMedia(review.media || review);
 }
 
+function mediaProviderIds(media = {}) {
+  const ids = media.ids || {};
+  return [
+    ids.imdb || media.imdb_id,
+    ids.tmdb || media.tmdb_id,
+    ids.tvdb || media.tvdb_id,
+  ].map((value) => text(value)).filter(Boolean);
+}
+
+function mediaMatchesReview(left = {}, right = {}) {
+  const leftType = text(left.type || left.media_type).toLowerCase();
+  const rightType = text(right.type || right.media_type).toLowerCase();
+  if (!leftType || leftType !== rightType) return false;
+
+  if (mediaKeyFor(left) === mediaKeyFor(right)) return true;
+
+  const rightIds = new Set(mediaProviderIds(right));
+  if (mediaProviderIds(left).some((id) => rightIds.has(id))) return true;
+
+  if (leftType === "episode") {
+    const sameCoordinates = Number(left.season) === Number(right.season)
+      && Number(left.episode) === Number(right.episode);
+    if (!sameCoordinates) return false;
+    const leftShow = canonicalShowTitleKey(showTitleFromMedia(left));
+    const rightShow = canonicalShowTitleKey(showTitleFromMedia(right));
+    return Boolean(leftShow && rightShow && leftShow === rightShow);
+  }
+
+  return leftType === "movie"
+    && canonicalTitleKey(left.title) === canonicalTitleKey(right.title)
+    && Boolean(canonicalTitleKey(left.title));
+}
+
+function watchRowMedia(row = {}) {
+  return {
+    title: row.title,
+    showTitle: row.show_title,
+    type: row.media_type,
+    ids: {
+      imdb: row.imdb_id,
+      tmdb: row.tmdb_id,
+      tvdb: row.tvdb_id,
+    },
+    season: row.season,
+    episode: row.episode,
+  };
+}
+
+function hasManualUnwatchForMedia(media = {}) {
+  return selectManualUnwatchRowsStmt.all().some((row) => mediaMatchesReview(media, watchRowMedia(row)));
+}
+
+// Explicit manual unwatches should retire any review rows that refer to the
+// same item. `before` keeps a provider callback that races after the click from
+// being mistaken for an older pending decision; the queue guard above handles
+// that callback separately.
+export function dismissPendingManualWatchReviewsForMedia(media = {}, { before = Number.POSITIVE_INFINITY } = {}) {
+  const normalizedMedia = serializableMedia(media);
+  const now = Date.now();
+  let dismissed = 0;
+  for (const row of selectPendingReviewsStmt.all()) {
+    const review = rowToReview(row);
+    if (Number(review.updated_at || 0) > Number(before)) continue;
+    if (!mediaMatchesReview(normalizedMedia, review.media)) continue;
+    updateStatusStmt.run({
+      id: review.id,
+      status: "dismissed",
+      decision_mode: "unwatched",
+      updated_at: now,
+      reviewed_at: now,
+    });
+    dismissed += 1;
+  }
+  return dismissed;
+}
+
 function reviewIsAlreadyWatched(review = {}) {
   try {
     const media = manualWatchReviewMedia(review);
@@ -211,7 +345,12 @@ function reviewIsAlreadyWatched(review = {}) {
     // An explicit current unwatch must win over an older watched history row;
     // only use the history fallback for legacy records with no playstate yet.
     if (playstate?.state === "watched") return true;
-    if (playstate?.state === "unwatched") return false;
+    // A generic/stale provider review is resolved by a local unwatch and must
+    // not suddenly become visible merely because the canonical state changed
+    // from watched to unwatched. Explicit provider Mark played events are the
+    // exception: they represent a new user decision and may remain reviewable.
+    if (playstate?.state === "unwatched") return !isExplicitPlayedMedia(media);
+    if (!playstate && hasManualUnwatchForMedia(media) && !isExplicitPlayedMedia(media)) return true;
     return Boolean(findWatchedByAnyMediaKeySync(media));
   } catch {
     // A malformed legacy review should remain visible so it can be corrected

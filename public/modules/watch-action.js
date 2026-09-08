@@ -1,13 +1,13 @@
-import { state, elements } from "./state.js?v=0.16.0.1";
-import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeCode, seasonLabel, formatSeasonTitle, formatTmdbDate, showEpisodeKey } from "./utils.js?v=0.16.0.1";
-import { buildAuthHeaders } from "./auth.js?v=0.16.0.1";
-import { isWatchedHistoryAction } from "./sync.js?v=0.16.0.1";
-import { mergeShowDetail } from "./explorer.js?v=0.16.0.1";
-import { dedupeMediaRecords, resetPartWatchedView, renderPartWatched } from "./dashboard.js?v=0.16.0.1";
-import { tvSeasonAvailability } from "./media-detail-shared.js?v=0.16.0.1";
-import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=0.16.0.1";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=0.16.0.1";
-import { tmdbPoster } from "./images.js?v=0.16.0.1";
+import { state, elements } from "./state.js?v=0.16.1.0.0";
+import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeCode, seasonLabel, formatSeasonTitle, formatTmdbDate, showEpisodeKey } from "./utils.js?v=0.16.1.0.0";
+import { buildAuthHeaders } from "./auth.js?v=0.16.1.0.0";
+import { isWatchedHistoryAction } from "./sync.js?v=0.16.1.0.0";
+import { mergeShowDetail } from "./explorer.js?v=0.16.1.0.0";
+import { dedupeMediaRecords, resetPartWatchedView, renderPartWatched } from "./dashboard.js?v=0.16.1.0.0";
+import { tvSeasonAvailability } from "./media-detail-shared.js?v=0.16.1.0.0";
+import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=0.16.1.0.0";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=0.16.1.0.0";
+import { tmdbPoster } from "./images.js?v=0.16.1.0.0";
 
 // Callbacks injected by app.js at startup to break circular-import chains.
 let _setMessage = () => {};
@@ -25,6 +25,8 @@ let _openShowImmersiveModalByTmdbId = async () => {};
 let _openShowImmersiveModalByTvdbId = async () => {};
 let _openMovieImmersiveModalByTmdbId = async () => {};
 let _patchMovieWatchedState = () => false;
+let _patchShowModalEpisodeFromLive = () => false;
+let _patchShowModalEpisodesSavingState = () => false;
 let _refreshUpNext = async () => {};
 
 export function initWatchAction(callbacks) {
@@ -43,6 +45,8 @@ export function initWatchAction(callbacks) {
   if (callbacks.openShowImmersiveModalByTvdbId) _openShowImmersiveModalByTvdbId = callbacks.openShowImmersiveModalByTvdbId;
   if (callbacks.openMovieImmersiveModalByTmdbId) _openMovieImmersiveModalByTmdbId = callbacks.openMovieImmersiveModalByTmdbId;
   if (callbacks.patchMovieWatchedState) _patchMovieWatchedState = callbacks.patchMovieWatchedState;
+  if (callbacks.patchShowModalEpisodeFromLive) _patchShowModalEpisodeFromLive = callbacks.patchShowModalEpisodeFromLive;
+  if (callbacks.patchShowModalEpisodesSavingState) _patchShowModalEpisodesSavingState = callbacks.patchShowModalEpisodesSavingState;
   if (callbacks.refreshUpNext) _refreshUpNext = callbacks.refreshUpNext;
 }
 
@@ -388,6 +392,7 @@ export function watchActionFromButton(button) {
       showTitle,
       showTmdbId: anchor?.showTmdbId || "",
       episodes,
+      episodeScope: referenceScope,
       resyncEpisodes,
       allEpisodes,
       allResyncEpisodes,
@@ -416,6 +421,7 @@ export function watchActionFromButton(button) {
     showTitle,
     showTmdbId: anchor?.showTmdbId || "",
     episodes,
+    episodeScope: referenceScope,
     resyncEpisodes,
     label,
     countLabel: `${episodes.length} episode${episodes.length === 1 ? "" : "s"}`,
@@ -455,7 +461,7 @@ export async function runResyncWatchAction(action) {
   const total = records.length;
 
   state.savingWatchActions.add(action);
-  if (renderActiveShowSavingState()) {
+  if (renderActiveShowSavingState(action)) {
     // Paint the busy state synchronously when the current modal can be
     // refreshed in place; this keeps the action responsive before the
     // propagation request resolves.
@@ -477,23 +483,11 @@ export async function runResyncWatchAction(action) {
       ? `sync queued for ${result.syncQueued} item${result.syncQueued === 1 ? "" : "s"}`
       : `pushed ${result.propagated} to media apps`;
     _setMessage(`Resynced ${total} episode${total === 1 ? "" : "s"}; ${syncText}.`, result.rejected ? "error" : "success");
-    await refreshShowAfterManualWatch(action.showTitle).catch((error) => _setMessage(error.message, "error"));
-    if (state.activeShowModalKey) {
-      _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
-    } else if (state.activeShowTmdbId) {
-      await _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
-    } else if (state.activeShowTvdbId) {
-      await _openShowImmersiveModalByTvdbId(state.activeShowTvdbId);
-    }
+    const patched = await patchShowEpisodesFromWatchResponse(action, result, [], action.resyncEpisodes);
+    if (!patched) restoreActiveShowEpisodeState(action);
   } catch (error) {
     state.savingWatchActions.delete(action);
-    if (state.activeShowModalKey) {
-      _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
-    } else if (state.activeShowTmdbId) {
-      await _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
-    } else if (state.activeShowTvdbId) {
-      await _openShowImmersiveModalByTvdbId(state.activeShowTvdbId);
-    }
+    restoreActiveShowEpisodeState(action);
     _setMessage(`Resync failed: ${error.message}`, "error");
   }
 }
@@ -522,7 +516,15 @@ export function closeWatchDatePrompt() {
   document.querySelectorAll?.(".watch-date-overlay")?.forEach((overlay) => overlay.remove());
 }
 
-function renderActiveShowSavingState() {
+function actionEpisodes(action = {}) {
+  return [...(action.episodes || []), ...(action.resyncEpisodes || [])];
+}
+
+function renderActiveShowSavingState(action = null) {
+  if (action && actionEpisodes(action).length) {
+    const patched = _patchShowModalEpisodesSavingState({ episodes: actionEpisodes(action), saving: true });
+    if (patched) return true;
+  }
   const context = state.activeShowRenderContext;
   if (!context?.show || typeof _renderShowModalContent !== "function") return false;
   _renderShowModalContent(context.show, {
@@ -530,6 +532,24 @@ function renderActiveShowSavingState() {
     activeSeasonNum: state.activeShowModalSeason,
   });
   return true;
+}
+
+function restoreActiveShowEpisodeState(action) {
+  const episodes = actionEpisodes(action);
+  if (episodes.length && _patchShowModalEpisodesSavingState({ episodes, saving: false })) return true;
+  if (state.activeShowModalKey) {
+    _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+    return true;
+  }
+  if (state.activeShowTmdbId) {
+    _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
+    return true;
+  }
+  if (state.activeShowTvdbId) {
+    _openShowImmersiveModalByTvdbId(state.activeShowTvdbId);
+    return true;
+  }
+  return false;
 }
 
 // ── Date/time helpers ──────────────────────────────────────────────────────
@@ -571,17 +591,74 @@ function usesSharedWatchDate(choice) {
 // Build dates for a season/show batch in episode order. Shared-date choices
 // use the previous episode's runtime plus a one-minute gap instead of putting
 // every episode at the exact same instant.
-export function watchedAtForEpisodeBatch(choice, episodes, customDate, referenceWatchedAt = "", referenceRuntime = null) {
+export function watchedAtForEpisodeBatch(
+  choice,
+  episodes,
+  customDate,
+  referenceWatchedAt = "",
+  referenceRuntime = null,
+  episodeScope = [],
+) {
   const orderedEpisodes = [...episodes].sort(episodeOrderAscending);
   let offsetMs = choice === "match_watched" && referenceWatchedAt
     ? runtimeSeparationMs(referenceRuntime)
     : 0;
 
-  return orderedEpisodes.map((episode) => {
+  const watchedAtByEpisode = new Map();
+  for (const episode of episodeScope || []) {
+    const watchedAt = episode?.watched?.watched_at;
+    if (!watchedAt) continue;
+    watchedAtByEpisode.set(
+      `${Number(episode.seasonNumber ?? 0)}:${Number(episode.episodeNumber ?? 0)}`,
+      { watchedAt, episode },
+    );
+  }
+
+  let previousWatchedAt = null;
+  let previousEpisode = null;
+  const entries = [];
+  for (const episode of [...(episodeScope || [])].sort(episodeOrderAscending)) {
+    const key = `${Number(episode.seasonNumber ?? 0)}:${Number(episode.episodeNumber ?? 0)}`;
+    const selected = orderedEpisodes.some((candidate) => (
+      Number(candidate.seasonNumber ?? 0) === Number(episode.seasonNumber ?? 0)
+        && Number(candidate.episodeNumber ?? 0) === Number(episode.episodeNumber ?? 0)
+    ));
+    const existing = watchedAtByEpisode.get(key);
+    if (selected) {
+      const generated = watchedAtForChoice(choice, episode, customDate, offsetMs, referenceWatchedAt);
+      const generatedMs = Date.parse(generated);
+      const minimumMs = previousWatchedAt == null
+        ? null
+        : previousWatchedAt + runtimeSeparationMs(previousEpisode?.runtime);
+      const watchedAt = minimumMs != null && Number.isFinite(generatedMs) && generatedMs < minimumMs
+        ? new Date(minimumMs).toISOString()
+        : generated;
+      entries.push({ episode, watchedAt });
+      const parsed = Date.parse(watchedAt);
+      if (Number.isFinite(parsed)) {
+        previousWatchedAt = parsed;
+        previousEpisode = episode;
+      }
+    } else if (existing) {
+      const parsed = Date.parse(existing.watchedAt);
+      if (Number.isFinite(parsed)) {
+        previousWatchedAt = parsed;
+        previousEpisode = existing.episode;
+      }
+    }
+    if (selected && usesSharedWatchDate(choice)) offsetMs += runtimeSeparationMs(episode.runtime);
+  }
+
+  // Callers that do not provide the full season/show scope retain the original
+  // batch behavior. The exported helper is also used by the movie/single-item
+  // tests and by callers that intentionally have no surrounding episode data.
+  if (!(episodeScope || []).length) return orderedEpisodes.map((episode) => {
     const watchedAt = watchedAtForChoice(choice, episode, customDate, offsetMs, referenceWatchedAt);
     if (usesSharedWatchDate(choice)) offsetMs += runtimeSeparationMs(episode.runtime);
     return { episode, watchedAt };
   });
+
+  return entries;
 }
 
 export function watchedAtForChoice(choice, episode, customDate, offsetMs = 0, referenceWatchedAt = "", referenceDirection = "", referenceRuntime = null) {
@@ -931,6 +1008,117 @@ export async function postManualWatchRecords(records, onProgress) {
   return { inserted, skipped, rejected, propagated, syncQueued, results };
 }
 
+async function fetchWatchRowById(id) {
+  if (!id || String(id).startsWith("local-")) return null;
+  try {
+    const response = await fetch(`/api/history?id=${encodeURIComponent(id)}`, { headers: authHeaders(), cache: "no-store" });
+    const body = await response.json().catch(() => ({}));
+    return response.ok && body.row ? body.row : null;
+  } catch {
+    return null;
+  }
+}
+
+function resultForInputIndex(result, index) {
+  // Results are appended in request order, and each <=100-record server
+  // batch starts its own `index` sequence. Prefer the positional result so a
+  // long season/show action cannot accidentally reuse batch two's index 0
+  // for the first episode in the action.
+  return result?.results?.[index]
+    || result?.results?.find((entry) => Number(entry?.index) === Number(index))
+    || null;
+}
+
+async function patchShowEpisodesFromWatchResponse(action, result, watchedEntries = [], resyncEpisodes = []) {
+  const updates = [
+    ...watchedEntries.map(({ episode, watchedAt }, index) => ({
+      episode,
+      fallback: localWatchRowFromEpisode(episode, watchedAt, resultForInputIndex(result, index)?.id || ""),
+      resultIndex: index,
+    })),
+    ...resyncEpisodes.map((episode, offset) => ({
+      episode,
+      fallback: episode.watched || null,
+      resultIndex: watchedEntries.length + offset,
+    })),
+  ];
+  if (!updates.length) return 0;
+
+  const rows = await Promise.all(updates.map(async ({ fallback, resultIndex }) => (
+    (await fetchWatchRowById(resultForInputIndex(result, resultIndex)?.id || fallback?.id)) || fallback
+  )));
+  let patched = 0;
+  for (const [index, update] of updates.entries()) {
+    const row = rows[index];
+    if (!row) continue;
+    const episode = update.episode;
+    if (_patchShowModalEpisodeFromLive({
+      change: {
+        sourceTable: "watch_history",
+        mediaType: "episode",
+        showTitle: action.showTitle,
+        mediaKey: row.media_key || "",
+        recordId: row.id || "",
+        season: row.season ?? episode.seasonNumber,
+        episode: row.episode ?? episode.episodeNumber,
+      },
+      row,
+    })) patched += 1;
+  }
+  return patched;
+}
+
+function showEpisodesForUnwatchIds(ids = []) {
+  const requestedIds = new Set(ids.map((id) => String(id)));
+  return (Array.isArray(state.showModalEpisodes) ? state.showModalEpisodes : [])
+    .filter((episode) => requestedIds.has(String(episode?.watched?.id || "")));
+}
+
+function localUnwatchedRowFromEpisode(episode, id = "") {
+  const watched = episode?.watched || {};
+  const season = watched.season ?? episode?.seasonNumber;
+  const episodeNumber = watched.episode ?? episode?.episodeNumber;
+  const rowId = id || watched.id || `local-unwatch-${episode?.key || `${season}-${episodeNumber}`}-${Date.now()}`;
+  return {
+    ...watched,
+    id: rowId,
+    media_type: "episode",
+    title: watched.title || `${episode?.showTitle || "Unknown Show"} - ${episodeCode(season, episodeNumber)} - ${episode?.title || "Episode"}`,
+    show_title: watched.show_title || episode?.showTitle || "",
+    season,
+    episode: episodeNumber,
+    source: "manual",
+    sync_action: "unwatched",
+    syncAction: "unwatched",
+    watched_at: new Date().toISOString(),
+    media_key: watched.media_key || "",
+    sources: [],
+    playHistory: [],
+  };
+}
+
+function patchShowEpisodesFromUnwatchResponse(episodes = [], unwatchRecordIds = [], showTitle = "") {
+  let patched = 0;
+  for (const [index, episode] of episodes.entries()) {
+    if (!episode?.watched) continue;
+    const watched = episode.watched;
+    const row = localUnwatchedRowFromEpisode(episode, unwatchRecordIds[index] || watched.id);
+    if (_patchShowModalEpisodeFromLive({
+      change: {
+        sourceTable: "watch_history",
+        mediaType: "episode",
+        showTitle: showTitle || episode.showTitle || "",
+        mediaKey: watched.media_key || "",
+        recordId: row.id || "",
+        season: episode.seasonNumber,
+        episode: episode.episodeNumber,
+      },
+      row,
+    })) patched += 1;
+  }
+  return patched;
+}
+
 export async function refreshShowAfterManualWatch(showTitle) {
   const url = new URL("/api/show", window.location.origin);
   url.searchParams.set("title", showTitle);
@@ -994,13 +1182,17 @@ async function applyMovieWatchDateChoice(choice) {
   }
 }
 
-function localWatchRowFromEpisode(episode, watchedAt) {
+function localWatchRowFromEpisode(episode, watchedAt, id = "") {
+  const rowId = id || `local-${episode.key}-${Date.now()}`;
   return {
-    id: `local-${episode.key}-${Date.now()}`,
+    id: rowId,
     media_type: "episode",
     title: `${episode.showTitle} - ${episodeCode(episode.seasonNumber, episode.episodeNumber)} - ${episode.title}`,
     watched_at: watchedAt,
     source: "manual",
+    sync_action: "watched",
+    sources: ["manual"],
+    playHistory: [{ id: rowId, watched_at: watchedAt, source: "manual", syncAction: "watched" }],
     tmdb_id: episode.showTmdbId || null,
     season: episode.seasonNumber,
     episode: episode.episodeNumber,
@@ -1105,8 +1297,14 @@ export async function applyWatchDateChoice(choice) {
       episode,
       watchedAt: watchedAtForChoice(choice, episode, customDate, 0, action.referenceWatchedAt, action.referenceDirection, action.referenceRuntime),
     }))
-    : watchedAtForEpisodeBatch(choice, action.episodes, customDate, action.referenceWatchedAt, action.referenceRuntime);
-  const watchedRows = watchedEntries.map(({ episode, watchedAt }) => localWatchRowFromEpisode(episode, watchedAt));
+    : watchedAtForEpisodeBatch(
+      choice,
+      action.episodes,
+      customDate,
+      action.referenceWatchedAt,
+      action.referenceRuntime,
+      action.episodeScope,
+    );
   const records = watchedEntries.map(({ episode, watchedAt }) => watchRecordFromEpisode(episode, watchedAt));
   // Explicit resync-only rows are used when a season/show has no new watch
   // records to add. They re-push the existing watched_at without creating a
@@ -1129,7 +1327,7 @@ export async function applyWatchDateChoice(choice) {
   // once the click was registered.
   state.savingWatchActions.add(action);
   closeWatchDatePrompt();
-  if (renderActiveShowSavingState()) {
+  if (renderActiveShowSavingState(action)) {
     // Paint the saving state synchronously before the request starts so the
     // episode action never sits on "Mark watched" with no feedback.
   } else if (state.activeShowModalKey) {
@@ -1149,6 +1347,9 @@ export async function applyWatchDateChoice(choice) {
     });
     state.savingWatchActions.delete(action);
     await refreshUpNextAfterWatchSync();
+    const watchedRows = watchedEntries.map(({ episode, watchedAt }, index) => (
+      localWatchRowFromEpisode(episode, watchedAt, resultForInputIndex(result, index)?.id || "")
+    ));
     applyOptimisticWatchedEpisodes(action, watchedRows);
     _clearDerivedUiCaches({ resetExplorer: false });
     const totalMarked = result.inserted + result.skipped;
@@ -1156,23 +1357,11 @@ export async function applyWatchDateChoice(choice) {
       `Marked ${totalMarked} episode${totalMarked === 1 ? "" : "s"} watched; pushed ${result.propagated} of ${result.syncQueued} to media apps${result.skipped ? `, ${result.skipped} already logged` : ""}.`,
       result.rejected ? "error" : "success",
     );
-    await refreshShowAfterManualWatch(action.showTitle).catch((error) => _setMessage(error.message, "error"));
-    if (state.activeShowModalKey) {
-      _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
-    } else if (state.activeShowTmdbId) {
-      await _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
-    } else if (state.activeShowTvdbId) {
-      await _openShowImmersiveModalByTvdbId(state.activeShowTvdbId);
-    }
+    const patched = await patchShowEpisodesFromWatchResponse(action, result, watchedEntries, action.resyncEpisodes || []);
+    if (!patched) restoreActiveShowEpisodeState(action);
   } catch (error) {
     state.savingWatchActions.delete(action);
-    if (state.activeShowModalKey) {
-      _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
-    } else if (state.activeShowTmdbId) {
-      await _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
-    } else if (state.activeShowTvdbId) {
-      await _openShowImmersiveModalByTvdbId(state.activeShowTvdbId);
-    }
+    restoreActiveShowEpisodeState(action);
     _setMessage(`Manual watch update failed: ${error.message}`, "error");
     throw error;
   }
@@ -1271,6 +1460,16 @@ export async function confirmAndMarkUnwatched(button) {
   const originalText = button.textContent;
   button.textContent = "Removing…";
 
+  // Snapshot the mounted episode objects before any network work or live
+  // history refresh can replace them. The response below only needs to clear
+  // these exact cards; a show/season unwatch must not rebuild the whole modal.
+  const showUnwatchEpisodes = !gridOrigin
+    && ["episode", "season", "show"].includes(kind)
+    && state.activeShowRenderContext?.show
+    ? showEpisodesForUnwatchIds(ids)
+    : [];
+  const showUnwatchAction = { episodes: showUnwatchEpisodes };
+
   // Marks these ids as "being removed" so the season/show progress labels
   // (which otherwise just recompute from the still-watched rows) show
   // "Removing…" immediately instead of the stale watched count until the
@@ -1283,7 +1482,7 @@ export async function confirmAndMarkUnwatched(button) {
     // _renderImmersiveShowModal reload - that one can re-fetch metadata and
     // briefly show a loading state, stomping the is-saving pulse it was
     // meant to show.
-    if (!renderActiveShowSavingState()) {
+    if (!renderActiveShowSavingState(showUnwatchAction)) {
       _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
     }
   }
@@ -1297,6 +1496,7 @@ export async function confirmAndMarkUnwatched(button) {
     let succeeded = 0;
     let failed = 0;
     let queued = 0;
+    const unwatchRecordIds = new Array(ids.length).fill("");
     for (let index = 0; index < ids.length; index += IMPORT_BATCH_SIZE) {
       const batch = ids.slice(index, index + IMPORT_BATCH_SIZE);
       const response = await fetch("/api/manual-unwatch", {
@@ -1310,9 +1510,16 @@ export async function confirmAndMarkUnwatched(button) {
         succeeded += Number(result.succeeded || 0);
         failed += Number(result.failed || 0);
         queued += Number(result.queued || 0);
+        for (const [batchIndex, requestedId] of batch.entries()) {
+          const responseResults = Array.isArray(result.results) ? result.results : [];
+          const item = responseResults.find((entry) => String(entry?.id || "") === String(requestedId))
+            || responseResults[batchIndex];
+          unwatchRecordIds[index + batchIndex] = item?.unwatchedId || item?.id || "";
+        }
       } else {
         succeeded += 1;
         if (result.queued) queued += 1;
+        unwatchRecordIds[index] = result.id || "";
       }
     }
 
@@ -1333,18 +1540,24 @@ export async function confirmAndMarkUnwatched(button) {
           : `Marked "${label}" unwatched; ${propagationMessage}.`,
       failed ? "error" : "success",
     );
-    const historyRefresh = _loadHistory({ force: true }).catch(() => null);
+    const historyRefresh = _loadHistory({ force: true, silent: true }).catch(() => null);
 
     if (!gridOrigin && (kind === "episode" || kind === "season" || kind === "show") && (state.activeShowModalKey || state.activeShowTmdbId || state.activeShowTvdbId)) {
-      _clearDerivedUiCaches({ resetExplorer: kind === "movie" });
+      _clearDerivedUiCaches({ resetExplorer: false });
+      // The server has already committed the state. Remove only the affected
+      // episode article(s) from the mounted modal and keep every other season
+      // card, image, and scroll position intact. If this trigger did not come
+      // from a mounted episode list, retain the older detail-loader fallback.
+      const patched = patchShowEpisodesFromUnwatchResponse(showUnwatchEpisodes, unwatchRecordIds, showTitle);
       await historyRefresh;
-      if (showTitle) await refreshShowAfterManualWatch(showTitle).catch(() => null);
-      if (state.activeShowModalKey) {
-        _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
-      } else if (state.activeShowTmdbId) {
-        await _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
-      } else {
-        await _openShowImmersiveModalByTvdbId(state.activeShowTvdbId);
+      if (!patched) {
+        if (state.activeShowModalKey) {
+          _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+        } else if (state.activeShowTmdbId) {
+          await _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
+        } else {
+          await _openShowImmersiveModalByTvdbId(state.activeShowTvdbId);
+        }
       }
     } else if (!gridOrigin && movieDetailWasOpen) {
       _clearDerivedUiCaches({ resetExplorer: kind === "movie" });
@@ -1384,7 +1597,9 @@ export async function confirmAndMarkUnwatched(button) {
     button.disabled = false;
     button.textContent = originalText;
     if (!gridOrigin && (kind === "episode" || kind === "season" || kind === "show") && state.activeShowModalKey) {
-      _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+      if (!showUnwatchEpisodes.length || !_patchShowModalEpisodesSavingState({ episodes: showUnwatchEpisodes, saving: false })) {
+        _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
+      }
     }
     _setMessage(`Mark unwatched failed: ${error.message}`, "error");
   }

@@ -10,6 +10,8 @@ const repo = await import("../server/src/utils/dataRepo.js");
 const { AUTH } = await import("../server/src/appConfig.js");
 const { saveMediaConfig } = await import("../server/src/utils/configStore.js");
 const { handleManualWatchReview } = await import("../server/src/routes/manualWatchReview.js");
+const { applyManualUnwatch } = await import("../server/src/routes/sync.js");
+const { createLoopStore } = await import("../server/src/utils/loopStore.js");
 const {
   countPendingManualWatchReviews,
   enqueueManualWatchReview,
@@ -106,6 +108,123 @@ test("pending reviews are hidden after the item becomes canonically watched", as
   assert.equal(listPendingManualWatchReviews().some((review) => review.id === queued.review.id), false);
   assert.equal(countPendingManualWatchReviews(), 0);
   setManualWatchReviewStatus(queued.review.id, "dismissed");
+});
+
+test("pending reviews are hidden and retired after an explicit unwatch", async () => {
+  const reviewMedia = {
+    title: "Unwatched Review Movie",
+    type: "movie",
+    source: "plex",
+    itemId: "plex-unwatched-review-movie",
+    ids: { tmdb: "unwatched-review-movie" },
+    releaseDate: "2026-08-01",
+    isValid: true,
+  };
+  const queued = enqueueManualWatchReview(reviewMedia, {
+    releaseDate: "2026-08-01T00:00:00.000Z",
+    sourceFingerprint: "plex|unwatched-review-movie|1",
+  });
+  assert.equal(queued.status, "pending");
+
+  const unwatch = await applyManualUnwatch(
+    reviewMedia,
+    {
+      plex: { disabled: true },
+      emby: { disabled: true },
+      jellyfin: { disabled: true },
+    },
+    createLoopStore(),
+    "",
+    { includeSourcePlatform: true, trackDispatch: false, force: true, lane: "interactive" },
+  );
+  assert.equal(unwatch.alreadyUnwatched, false);
+  assert.equal(listPendingManualWatchReviews().some((review) => review.id === queued.review.id), false);
+
+  assert.equal(getManualWatchReview(queued.review.id).status, "dismissed");
+  assert.equal(getManualWatchReview(queued.review.id).decision_mode, "unwatched");
+});
+
+test("generic provider watched flags are suppressed while the canonical state is unwatched", async () => {
+  const media = {
+    title: "Suppressed Stale Flag Movie",
+    type: "movie",
+    source: "emby",
+    itemId: "emby-suppressed-stale-flag-movie",
+    ids: { tmdb: "suppressed-stale-flag-movie" },
+    releaseDate: "2026-08-01",
+    isValid: true,
+  };
+  await repo.upsertPlaystateForMedia(media, "unwatched", "2026-09-08T16:48:00.000Z", { skipInvalidate: true });
+
+  const result = enqueueManualWatchReview(media, {
+    releaseDate: "2026-08-01T00:00:00.000Z",
+    sourceFingerprint: "emby|suppressed-stale-flag-movie|1",
+  });
+  assert.equal(result.queued, false);
+  assert.equal(result.status, "unwatched");
+  assert.equal(result.suppressed, true);
+  assert.equal(result.review, null);
+});
+
+test("a manual unwatch tombstone suppresses a provider alias with a title-normalization mismatch", async () => {
+  const localMedia = {
+    title: "Alias Guard Movie:\u00a0Part II",
+    type: "movie",
+    source: "plex",
+    itemId: "plex-alias-guard-movie",
+    ids: { tmdb: "alias-guard-local" },
+    isValid: true,
+  };
+  await applyManualUnwatch(
+    localMedia,
+    {
+      plex: { disabled: true },
+      emby: { disabled: true },
+      jellyfin: { disabled: true },
+    },
+    createLoopStore(),
+    "",
+    { includeSourcePlatform: true, trackDispatch: false, force: true, lane: "interactive" },
+  );
+
+  const providerAlias = {
+    ...localMedia,
+    title: "Alias Guard Movie: Part II",
+    source: "emby",
+    itemId: "emby-alias-guard-movie",
+    ids: { tmdb: "alias-guard-provider" },
+  };
+  const result = enqueueManualWatchReview(providerAlias, {
+    releaseDate: "2026-08-01T00:00:00.000Z",
+    sourceFingerprint: "emby|alias-guard-movie|1",
+  });
+  assert.equal(result.queued, false);
+  assert.equal(result.status, "unwatched");
+  assert.equal(result.suppressed, true);
+});
+
+test("explicit provider Mark played events can still open a review after an unwatch", async () => {
+  const media = {
+    title: "Explicit Provider Rewatch Movie",
+    type: "movie",
+    source: "emby",
+    event: "item.markplayed",
+    itemId: "emby-explicit-provider-rewatch-movie",
+    ids: { tmdb: "explicit-provider-rewatch-movie" },
+    releaseDate: "2026-08-01",
+    watchProvenance: { source: "emby", event: "item.markplayed" },
+    isValid: true,
+  };
+  await repo.upsertPlaystateForMedia(media, "unwatched", "2026-09-08T16:48:00.000Z", { skipInvalidate: true });
+
+  const result = enqueueManualWatchReview(media, {
+    releaseDate: "2026-08-01T00:00:00.000Z",
+    sourceFingerprint: "emby|explicit-provider-rewatch-movie|1",
+  });
+  assert.equal(result.queued, true);
+  assert.equal(result.status, "pending");
+  assert.equal(listPendingManualWatchReviews().some((review) => review.id === result.review.id), true);
+  setManualWatchReviewStatus(result.review.id, "dismissed");
 });
 
 test("mark watched now updates an existing cross-key watch instead of keeping its old date", async () => {

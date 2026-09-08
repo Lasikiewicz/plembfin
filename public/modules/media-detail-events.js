@@ -1,6 +1,6 @@
-import { HIDE_EPISODE_SPOILERS_KEY, state } from "./state.js?v=0.16.0.1";
-import { escapeAttribute, formatDate, showTitleFrom, showName, slug, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js?v=0.16.0.1";
-import { isCachedStorageImageUrl, proxiedArtworkUrl, rememberPosterLookup } from "./images.js?v=0.16.0.1";
+import { HIDE_EPISODE_SPOILERS_KEY, state } from "./state.js?v=0.16.1.0.0";
+import { escapeAttribute, formatDate, showTitleFrom, showName, slug, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, tvShowTmdbHref, tvShowTvdbHref, normalizePlatformSource } from "./utils.js?v=0.16.1.0.0";
+import { isCachedStorageImageUrl, proxiedArtworkUrl, rememberPosterLookup } from "./images.js?v=0.16.1.0.0";
 import {
   openEditDateDialog,
   openEditShowDateDialog,
@@ -11,7 +11,7 @@ import {
   openEditSeasonDateDialog,
   applyWatchedAtToLocalWatchRecord,
   editDateOptionsFromButton,
-} from "./edit-dialogs.js?v=0.16.0.1";
+} from "./edit-dialogs.js?v=0.16.1.0.0";
 import {
   openWatchDatePrompt,
   closeWatchDatePrompt,
@@ -25,9 +25,9 @@ import {
   confirmAndMarkUnwatched,
   confirmAndDeleteMedia,
   toggleWatchDateIncludeSpecials,
-} from "./watch-action.js?v=0.16.0.1";
-import { triggerRetrySync, loadSyncJobs, loadSyncHistory, showAvailIssuePopup, isWatchedHistoryAction } from "./sync.js?v=0.16.0.1";
-import { renderExplorer, renderHistoryView, resolvedTmdbCache, refreshMovieExplorerInPlace, refreshHistoryViewInPlace } from "./explorer.js?v=0.16.0.1";
+} from "./watch-action.js?v=0.16.1.0.0";
+import { triggerRetrySync, loadSyncJobs, loadSyncHistory, showAvailIssuePopup, isWatchedHistoryAction } from "./sync.js?v=0.16.1.0.0";
+import { renderExplorer, renderHistoryView, resolvedTmdbCache, refreshMovieExplorerInPlace, refreshHistoryViewInPlace } from "./explorer.js?v=0.16.1.0.0";
 import {
   movieBySlugOrId,
   openShowInlineDetail,
@@ -40,9 +40,9 @@ import {
   patchMovieWatchedState,
   openHistoryDebugModal,
   openMediaInfoModal,
-} from "./media-detail.js?v=0.16.0.1";
-import { fetchWatchedMovieByTmdb, syncRewatchHistoryToggle } from "./media-detail-movie.js?v=0.16.0.1";
-import { addToWatchlist, removeFromWatchlist, openAddToListDialog, personalItemFromDetailDataset, refreshRenderedPersonalMediaControls, loadPersonalMedia } from "./personal-media.js?v=0.16.0.1";
+} from "./media-detail.js?v=0.16.1.0.0";
+import { fetchWatchedMovieByTmdb, syncRewatchHistoryToggle } from "./media-detail-movie.js?v=0.16.1.0.0";
+import { addToWatchlist, removeFromWatchlist, openAddToListDialog, personalItemFromDetailDataset, refreshRenderedPersonalMediaControls, loadPersonalMedia } from "./personal-media.js?v=0.16.1.0.0";
 
 // Callbacks injected by app-events.js (forwarded from app.js) to avoid circular imports.
 let _cb = {};
@@ -118,6 +118,48 @@ function historyRowMatchesLiveChange(row = {}, change = {}) {
     && slug(showTitleFrom(row.show_title || row.title || "")) === slug(showTitleFrom(liveChangeValue(change, "showTitle", "show_title") || ""));
 }
 
+function liveTimestamp(value) {
+  const parsed = Date.parse(String(value || ""));
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+// A provider can acknowledge an old played bit after Plembfin has already
+// recorded a newer local unwatch. Keep that stale watched row out of both the
+// dashboard history and the lightweight show summaries; patchShowModalEpisodeFromLive
+// applies the same rule to the mounted detail card.
+function liveWatchedRowBlockedByTombstone(row, change = {}) {
+  if (!row || !isWatchedHistoryAction(row) || normalizePlatformSource(row.source) === "plembfin") return false;
+
+  const mediaKey = liveChangeKey(change) || String(row.media_key || "");
+  const season = liveChangeValue(change, "season") ?? row.season;
+  const episode = liveChangeValue(change, "episode") ?? row.episode;
+  const rowShowTitle = row.show_title
+    || showTitleFrom(row.title || "")
+    || liveChangeValue(change, "showTitle", "show_title")
+    || "";
+  const rowTime = liveTimestamp(row.watched_at);
+
+  for (const show of state.showsRaw || []) {
+    if (rowShowTitle && slug(showTitleFrom(show.title || "")) !== slug(showTitleFrom(rowShowTitle))) continue;
+    const tombstone = (show.episodes || []).find((candidate) => {
+      if (isWatchedHistoryAction(candidate)) return false;
+      if (mediaKey && String(candidate.media_key || "") === mediaKey) return true;
+      return Boolean(rowShowTitle)
+        && season != null
+        && episode != null
+        && Number(candidate.season) === Number(season)
+        && Number(candidate.episode) === Number(episode);
+    });
+    if (!tombstone) continue;
+
+    const tombstoneTime = liveTimestamp(tombstone.watched_at);
+    // Missing timestamps are not enough evidence to overrule a local unwatch.
+    // A strictly later provider watch is a new decision and remains allowed.
+    return rowTime == null || tombstoneTime == null || rowTime <= tombstoneTime;
+  }
+  return false;
+}
+
 function mergeLiveHistoryState({ change = {}, row = null, progress = null } = {}) {
   const sourceTable = String(liveChangeValue(change, "sourceTable", "source_table") || "");
   const mediaKey = liveChangeKey(change) || String(row?.media_key || progress?.media_key || "");
@@ -128,12 +170,15 @@ function mergeLiveHistoryState({ change = {}, row = null, progress = null } = {}
 
   if (sourceTable !== "playback_progress") {
     const currentIndex = state.history.findIndex(matches);
-    if (row && isWatchedHistoryAction(row)) {
+    const blockedByLocalTombstone = row && isWatchedHistoryAction(row)
+      ? liveWatchedRowBlockedByTombstone(row, change)
+      : false;
+    if (row && isWatchedHistoryAction(row) && !blockedByLocalTombstone) {
       const current = currentIndex >= 0 ? state.history[currentIndex] : {};
       const next = { ...current, ...row };
       if (currentIndex >= 0) state.history[currentIndex] = next;
       else state.history.unshift(next);
-    } else if (currentIndex >= 0 || String(liveChangeValue(change, "changeKind", "change_kind") || "") === "delete") {
+    } else if (blockedByLocalTombstone || currentIndex >= 0 || String(liveChangeValue(change, "changeKind", "change_kind") || "") === "delete") {
       state.history = state.history.filter((candidate) => !matches(candidate));
     }
     state.history.sort((left, right) => String(right.watched_at || "").localeCompare(String(left.watched_at || "")));
@@ -161,6 +206,9 @@ function mergeLiveHistoryState({ change = {}, row = null, progress = null } = {}
 
   if (row?.media_type !== "episode") return;
   const rowShowTitle = row.show_title || showTitleFrom(row.title || "");
+  const blockedByLocalTombstone = isWatchedHistoryAction(row)
+    ? liveWatchedRowBlockedByTombstone(row, change)
+    : false;
   for (const show of state.showsRaw) {
     if (rowShowTitle && slug(showTitleFrom(show.title || "")) !== slug(showTitleFrom(rowShowTitle))) continue;
     if (!Array.isArray(show.episodes)) continue;
@@ -168,10 +216,10 @@ function mergeLiveHistoryState({ change = {}, row = null, progress = null } = {}
       (mediaKey && String(episode.media_key || "") === mediaKey)
         || (Number(episode.season) === Number(row.season) && Number(episode.episode) === Number(row.episode))
     ));
-    if (isWatchedHistoryAction(row)) {
+    if (isWatchedHistoryAction(row) && !blockedByLocalTombstone) {
       if (episodeIndex >= 0) show.episodes[episodeIndex] = { ...show.episodes[episodeIndex], ...row };
       else show.episodes.push(row);
-    } else if (episodeIndex >= 0) {
+    } else if (!isWatchedHistoryAction(row) && episodeIndex >= 0) {
       show.episodes.splice(episodeIndex, 1);
     }
   }

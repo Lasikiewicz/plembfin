@@ -10,7 +10,7 @@ import { createLoopStore } from "../utils/loopStore.js";
 import { runWithConcurrency } from "../utils/concurrency.js";
 import { listActiveSessions, deleteActiveSession, upsertActiveSession } from "../utils/activeSessions.js";
 import { hydrateCachedSession, isTerminalLiveSession, loadLiveTrackingCache } from "../utils/liveSessions.js";
-import { activeSyncOperation, appendSyncHistory, clearSyncOperation, isAuthoritativeRestoreActive, loadMediaConfig, mergeIncomingConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistoryById, getSyncHistoryPage, getSyncActivityGroupsPage, getSyncActivityGroupEvents, updateSyncHistoryStatus, loadRuntimeState, setRuntimeState, appendRuntimeLog, SYNC_OPERATION_FORCE, SYNC_OPERATION_SCHEDULED } from "../utils/configStore.js";
+import { activeSyncOperation, appendSyncHistory, clearSyncOperation, isAuthoritativeRestoreActive, loadMediaConfig, mergeIncomingConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistoryById, getSyncHistoryPage, getSyncActivityGroupsPage, getSyncActivityGroupEvents, getLatestSyncActivityByItemKey, updateSyncHistoryStatus, loadRuntimeState, setRuntimeState, appendRuntimeLog, SYNC_OPERATION_FORCE, SYNC_OPERATION_SCHEDULED } from "../utils/configStore.js";
 import { forceSyncStopAction } from "../utils/forceSyncControl.js";
 import { getSyncPlanActionsPage, getSyncPlanSummary, confirmSyncPlan } from "../utils/syncPlans.js";
 import {
@@ -27,6 +27,7 @@ import { probePlexNotificationSocket } from "../utils/plexNotificationListener.j
 import { pokeLiveSessionPoller } from "../scheduler.js";
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, hideEmbyFromResume, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes, listEmbyLibraries } from "../utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, hideJellyfinFromResume, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes, listJellyfinLibraries } from "../utils/jellyfinClient.js";
+import { setJellyfinApiKey } from "../utils/jellyfinAuth.js";
 import { buildPlexMediaFromMetadata, normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexMediaIds, parsePlexWebhook } from "../utils/parsers.js";
 import { clearOutboundPlayedMarks, completeDispatchTracking, finishDispatchTracking, getTargetsForSource, isRecentOutboundPlayedEcho, isRecentOutboundPlayedFlagEcho, isRecentOutboundProgressEcho, isRecentOutboundUnplayedFlagEcho, recordOutboundPlayedMarks, reserveDispatchBatch, shouldSyncResumeProgress, syncCanonicalPlaystate, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
 import { canReceiveState } from "../utils/syncRoles.js";
@@ -45,7 +46,10 @@ import { appendMediaForceSyncActivity, createMediaForceSyncActivity, finishMedia
 import { buildWatchProvenance, provenanceTelemetryLines } from "../utils/watchProvenance.js";
 import { releaseDateForItem, resolveWatchImportDate, runtimeMinutesForSourceItem } from "../utils/watchDates.js";
 import { watchImportMode } from "../utils/tuning.js";
-import { enqueueManualWatchReview } from "../utils/manualWatchReview.js";
+import {
+  dismissPendingManualWatchReviewsForMedia,
+  enqueueManualWatchReview,
+} from "../utils/manualWatchReview.js";
 import { applyUnwatchedTransition } from "../utils/watchStateTransitions.js";
 import { recordWatchAuditEvent, recordWatchAuditEvents } from "../utils/watchAudit.js";
 import { fetchPosterFromTmdb } from "../utils/tmdbClient.js";
@@ -96,6 +100,7 @@ import {
   updateWatchTelemetry,
   upsertPlaybackProgress,
   upsertPlaystateForMedia,
+  setPlaystateForMediaIdentity,
   supersedeUnwatchedTransitionsForRecordSync,
   reassertWatchRecordAuthoritySync,
   normalizeWatchRecordForInsert,
@@ -124,6 +129,7 @@ import {
 } from "../utils/dataRepo.js";
 
 import { shouldSkipPostRestoreCompletedWebhook } from "./backups.js";
+import { activityItemKeyFor } from "../utils/syncActivityIdentity.js";
 
 function imagePath(path, params = {}) {
   const cleanPath = String(path || "").trim();
@@ -171,9 +177,10 @@ function configuredPosterUrl(path = "", source = "", config = {}) {
     if (server.source === "plex" && (server.token || server.apiKey)) {
       url.searchParams.set("X-Plex-Token", server.token || server.apiKey);
     }
-    if ((server.source === "emby" || server.source === "jellyfin") && (server.apiKey || server.api_key)) {
+    if (server.source === "emby" && (server.apiKey || server.api_key)) {
       url.searchParams.set("api_key", server.apiKey || server.api_key);
     }
+    if (server.source === "jellyfin") setJellyfinApiKey(url, server);
     return url.toString();
   } catch (error) {
     return "";
@@ -528,10 +535,69 @@ function mediaFromWatchRecord(record) {
   };
 }
 
+function syncActivityIdentityKey(value = "") {
+  return String(value || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function syncActivityCoordinate(value, { minimum = 0 } = {}) {
+  const number = Number(value);
+  return Number.isInteger(number) && number >= minimum ? number : null;
+}
+
+function syncActivityEpisodeCoordinates(entry = {}, debug = {}) {
+  let season = syncActivityCoordinate(debug.season ?? debug.media?.season, { minimum: 0 });
+  let episode = syncActivityCoordinate(debug.episode ?? debug.media?.episode, { minimum: 1 });
+  const titleMatch = String(entry.title || "").match(/\bS(\d{1,3})E(\d{1,3})\b/i);
+  if (season == null && titleMatch) season = syncActivityCoordinate(titleMatch[1], { minimum: 0 });
+  if (episode == null && titleMatch) episode = syncActivityCoordinate(titleMatch[2], { minimum: 1 });
+  return { season, episode };
+}
+
+// Older sync-history rows may not retain watchRecordId, and their raw ids can
+// be stale episode-level ids from the original webhook. Once the user fixes a
+// show match, retry must read the current watch_history row for that show's
+// coordinate so it sends the newly rematched series identity to Trakt.
+function currentWatchRecordForSyncActivity(entry = {}, debug = {}) {
+  const mediaType = String(entry.mediaType || "").trim().toLowerCase();
+  if (!["episode", "movie"].includes(mediaType)) return null;
+
+  const rows = requireDb().prepare("SELECT * FROM watch_history WHERE media_type = ?").all(mediaType);
+  const title = mediaType === "episode" ? showTitleFrom(entry.title || "") : String(entry.title || "").trim();
+  const titleKey = syncActivityIdentityKey(title);
+  if (!titleKey) return null;
+
+  const coordinates = mediaType === "episode" ? syncActivityEpisodeCoordinates(entry, debug) : null;
+  if (mediaType === "episode" && (coordinates.season == null || coordinates.episode == null)) return null;
+
+  const candidates = rows.filter((row) => {
+    const rowTitle = mediaType === "episode" ? showTitleFrom(row.show_title || row.title || "") : String(row.title || "").trim();
+    if (syncActivityIdentityKey(rowTitle) !== titleKey) return false;
+    if (mediaType !== "episode") return true;
+    return Number(row.season) === coordinates.season && Number(row.episode) === coordinates.episode;
+  });
+  if (!candidates.length) return null;
+
+  const action = String(entry.action || "watched").trim().toLowerCase();
+  const unwatch = ["unwatched", "unplayed"].includes(action);
+  const preferred = candidates.filter((row) => {
+    const rowAction = String(row.sync_action || "watched").trim().toLowerCase();
+    return unwatch ? ["unwatched", "unplayed"].includes(rowAction) : !["unwatched", "unplayed"].includes(rowAction);
+  });
+  const pool = preferred.length ? preferred : candidates;
+  const rowTimestamp = (row) => {
+    const numeric = Number(row.updated_at);
+    if (Number.isFinite(numeric) && numeric > 0) return numeric;
+    const parsed = Date.parse(String(row.updated_at || row.watched_at || ""));
+    return Number.isFinite(parsed) ? parsed : Number(row.id) || 0;
+  };
+  return [...pool].sort((left, right) => rowTimestamp(right) - rowTimestamp(left) || Number(right.id) - Number(left.id))[0] || null;
+}
+
 // Core of "mark unwatched": delete the watched record, write a superseding
 // unwatched record, flip the playstate cache, and propagate unplayed to the other
 // platforms. Shared by the webhook `unplayed` phase and the manual-unwatch handler.
 export async function applyManualUnwatch(media, config, loopStore, recordId = "", { includeSourcePlatform = false, trackDispatch = true, force = false, lane = "sync" } = {}) {
+  const manualActionStartedAt = includeSourcePlatform ? Date.now() : 0;
   const result = await applyUnwatchedTransition(media, config, loopStore, {
     recordId,
     includeSourcePlatform,
@@ -540,6 +606,9 @@ export async function applyManualUnwatch(media, config, loopStore, recordId = ""
     lane,
     allowLocalDuringRestore: includeSourcePlatform,
   });
+  if (includeSourcePlatform) {
+    dismissPendingManualWatchReviewsForMedia(media, { before: manualActionStartedAt });
+  }
   // includeSourcePlatform means this is an explicit manual action, not an inbound
   // event from `media.source` - applyUnwatchedTransition dispatches under "manual"
   // for the same reason (see its includeSourcePlatform handling), so the recorded
@@ -766,6 +835,18 @@ export function queuedWatchRecordToSyncActivity(row = {}) {
     status,
     details,
     action: row.sync_action || "watched",
+    activityItemKey: activityItemKeyFor({
+      mediaType: row.media_type || "unknown",
+      title: row.title || "Unknown media",
+      source: row.source || "unknown",
+      action: row.sync_action || "watched",
+      rawPayloadDebug: {
+        ids,
+        season: row.season ?? null,
+        episode: row.episode ?? null,
+        mediaKey: row.media_key || "",
+      },
+    }),
     targetStates: syncTelemetryTargetStates(telemetry),
     rawPayloadDebug: {
       event: row.watch_provenance?.event || "",
@@ -908,8 +989,9 @@ export async function handleSyncActivity(req, res) {
   const limit = Math.min(Math.max(Number(req.query.limit) || 25, 1), 200);
   const page = Math.max(Math.floor(Number(req.query.page) || 1), 1);
   const search = String(req.query.search || "").trim().slice(0, 120);
+  const failedOnly = ["1", "true", "failed"].includes(String(req.query.failedOnly || "").trim().toLowerCase());
   const offset = (page - 1) * limit;
-  const result = await getSyncActivityGroupsPage({ limit, offset, search });
+  const result = await getSyncActivityGroupsPage({ limit, offset, search, failedOnly });
   const totalPages = Math.max(1, Math.ceil(result.total / result.limit));
   const resolvedPage = Math.min(page, totalPages);
   // A new event can move a group onto page one between requests. Re-read the
@@ -917,12 +999,16 @@ export async function handleSyncActivity(req, res) {
   // response never advertises an empty page that cannot exist.
   const resolved = resolvedPage === page
     ? result
-    : await getSyncActivityGroupsPage({ limit, offset: (resolvedPage - 1) * limit, search });
+    : await getSyncActivityGroupsPage({ limit, offset: (resolvedPage - 1) * limit, search, failedOnly });
   const from = resolved.total ? (resolvedPage - 1) * limit + 1 : 0;
   const to = resolved.total ? Math.min(from + resolved.groups.length - 1, resolved.total) : 0;
   const traktDispatchProgress = countTraktImportPendingDispatch();
   return sendJson(res, {
     groups: resolved.groups,
+    failedOnly,
+    currentIssueGroupCount: Number(resolved.currentIssueGroupCount) || 0,
+    currentIssueCount: Number(resolved.currentIssueCount) || 0,
+    retryableCount: Number(resolved.retryableCount) || 0,
     pagination: {
       page: resolvedPage,
       limit: resolved.limit,
@@ -946,16 +1032,18 @@ export async function handleSyncActivityGroup(req, res) {
   if (!groupKey) return sendJson(res, { error: "Activity group key is required" }, 400);
   const limit = Math.min(Math.max(Number(req.query.limit) || 200, 1), 500);
   const page = Math.max(Math.floor(Number(req.query.page) || 1), 1);
-  const result = await getSyncActivityGroupEvents({ groupKey, limit, offset: (page - 1) * limit });
+  const latestOnly = ["1", "true", "latest"].includes(String(req.query.latest || req.query.latestOnly || "").trim().toLowerCase());
+  const result = await getSyncActivityGroupEvents({ groupKey, limit, offset: (page - 1) * limit, latestOnly });
   if (!result.group) return sendJson(res, { error: "Sync activity group not found" }, 404);
   const totalPages = Math.max(1, Math.ceil(result.total / result.limit));
   const resolvedPage = Math.min(page, totalPages);
   const resolved = resolvedPage === page
     ? result
-    : await getSyncActivityGroupEvents({ groupKey, limit, offset: (resolvedPage - 1) * limit });
+    : await getSyncActivityGroupEvents({ groupKey, limit, offset: (resolvedPage - 1) * limit, latestOnly });
   return sendJson(res, {
     group: resolved.group,
     events: resolved.events,
+    latestOnly: resolved.latestOnly,
     pagination: {
       page: resolvedPage,
       limit: resolved.limit,
@@ -973,30 +1061,55 @@ function isRetryableSyncActivityEntry(entry = {}) {
   return retryableSyncActivityTargets(entry).length > 0;
 }
 
+function syncActivityEntryTimestamp(entry = {}) {
+  return Number(entry.timestamp || entry.createdAt || 0) || 0;
+}
+
+function syncActivityEntryIdNumber(entry = {}) {
+  const value = Number(entry.id);
+  return Number.isFinite(value) ? value : 0;
+}
+
+function syncActivityEntryIsNewer(candidate, current) {
+  const candidateTimestamp = syncActivityEntryTimestamp(candidate);
+  const currentTimestamp = syncActivityEntryTimestamp(current);
+  if (candidateTimestamp !== currentTimestamp) return candidateTimestamp > currentTimestamp;
+  const candidateId = syncActivityEntryIdNumber(candidate);
+  const currentId = syncActivityEntryIdNumber(current);
+  if (candidateId !== currentId) return candidateId > currentId;
+  return String(candidate?.id || "") > String(current?.id || "");
+}
+
 // Walks every page of getMergedSyncActivityPage (not just what the HTTP
 // route's own response-size cap would allow) collecting every retryable
 // entry's id, for the "retry all failed" background job's own discovery
 // pass - no HTTP round trip to itself, and no cap on page size since nothing
 // here goes back over the wire.
 async function listAllRetryableSyncActivityIds() {
-  const ids = [];
+  const latestByItem = new Map();
   const limit = 500;
   let page = 1;
   for (;;) {
     const body = await getMergedSyncActivityPage({ limit, page });
     for (const entry of body.history) {
-      if (isRetryableSyncActivityEntry(entry)) ids.push(String(entry.id));
+      const itemKey = String(entry.activityItemKey || activityItemKeyFor(entry) || "").trim();
+      if (!itemKey) continue;
+      const current = latestByItem.get(itemKey);
+      if (!current || syncActivityEntryIsNewer(entry, current)) latestByItem.set(itemKey, entry);
     }
     const totalPages = Math.max(Number(body.pagination?.totalPages) || 1, 1);
     if (!body.history.length || page >= totalPages) break;
     page += 1;
   }
-  return ids;
+  return [...latestByItem.values()]
+    .filter(isRetryableSyncActivityEntry)
+    .sort((left, right) => syncActivityEntryTimestamp(right) - syncActivityEntryTimestamp(left) || syncActivityEntryIdNumber(right) - syncActivityEntryIdNumber(left))
+    .map((entry) => String(entry.id));
 }
 
 function retryableSyncActivityTargets(entry = {}) {
   return [...new Set((entry.targetStates || [])
-    .filter((target) => ["error", "failed", "skipped", "not_found"].includes(String(target.status || "").toLowerCase()))
+    .filter((target) => ["error", "failed"].includes(String(target.status || "").toLowerCase()))
     .map((target) => String(target.target || "").trim().toLowerCase())
     .filter((target) => ["plex", "emby", "jellyfin", "trakt"].includes(target)))];
 }
@@ -1039,6 +1152,9 @@ async function mediaFromSyncActivity(entry, config) {
   const recordId = debug.watchRecordId || debug.watch_record_id;
   const record = recordId ? await getWatchRecordById(recordId) : null;
   if (record) return mediaFromWatchRecord(record);
+
+  const currentRecord = currentWatchRecordForSyncActivity(entry, debug);
+  if (currentRecord) return mediaFromWatchRecord(currentRecord);
 
   const ratingKey = debug.ratingKey || debug.rating_key;
   if (String(entry.source || "").toLowerCase().startsWith("plex") && ratingKey && config?.plex) {
@@ -1135,8 +1251,12 @@ async function retrySyncActivityEntry(rawId) {
 
   const entry = await getSyncHistoryById(id);
   if (!entry) throw Object.assign(new Error("Sync activity entry not found"), { status: 404 });
+  const latest = await getLatestSyncActivityByItemKey(entry.activityItemKey);
+  if (latest && String(latest.id) !== String(entry.id)) {
+    throw Object.assign(new Error("This sync activity entry has been superseded by a newer result for the same item"), { status: 409 });
+  }
   const targets = retryableSyncActivityTargets(entry);
-  if (!targets.length) throw Object.assign(new Error("This sync activity entry has no failed or skipped targets to retry"), { status: 409 });
+  if (!targets.length) throw Object.assign(new Error("This sync activity entry has no failed targets to retry"), { status: 409 });
 
   const config = await loadMediaConfig();
   const media = await mediaFromSyncActivity(entry, config);
@@ -1187,14 +1307,13 @@ export async function handleRetrySyncHistory(req, res) {
 // Runs "retry all failed" to completion as a background job (see
 // workerCoordinator.js's executeJob) so it survives the requesting browser
 // tab closing, reloading, or navigating away - the same reasoning as
-// runTmdbMetadataRefreshJob in maintenance.js. Discovery (which ids are
-// retryable right now) happens once at the start; an id that started failing
-// or succeeding mid-run because of an earlier retry in this same pass is not
-// re-checked.
+// runTmdbMetadataRefreshJob in maintenance.js. Discovery selects only the
+// newest event for each movie/episode identity; older duplicate rows and rows
+// already superseded by a later success are never retried.
 export async function runRetryAllSyncActivityJob(log, { isCancelled } = {}) {
   const ids = await listAllRetryableSyncActivityIds();
   const total = ids.length;
-  log(`Found ${total} failed or skipped item${total === 1 ? "" : "s"} to retry.`);
+  log(`Found ${total} failed item${total === 1 ? "" : "s"} to retry.`);
 
   let succeeded = 0;
   let stillFailed = 0;
@@ -1215,10 +1334,10 @@ export async function runRetryAllSyncActivityJob(log, { isCancelled } = {}) {
       if (result.status === "success") succeeded += 1;
       else if (result.status === "skipped") skipped += 1;
       else stillFailed += 1;
-      log(`[${i + 1}/${total}] ${result.title || id}: ${result.status}${result.details ? ` - ${result.details}` : ""}`);
+      log(`[${i + 1}/${total}] ${result.title || id}: ${result.status}${result.details ? ` - ${result.details}` : ""} [activityId=${id}]`);
     } catch (error) {
       errored += 1;
-      log(`[${i + 1}/${total}] ${id}: error - ${error.message}`);
+      log(`[${i + 1}/${total}] ${id}: error - ${error.message} [activityId=${id}]`);
     }
   }
 
@@ -1583,7 +1702,7 @@ export async function handleManualWatch(req, res) {
         ...media,
         media_key: rawRecord.media_key || rawRecord.mediaKey || data.mediaKey || undefined,
       }).catch(() => null);
-      await upsertPlaystateForMedia(media, "watched", record.watched_at, { skipInvalidate: true });
+      await setPlaystateForMediaIdentity(media, "watched", storedRecord.watched_at || record.watched_at, { skipInvalidate: true });
       syncTasks.push({ media, id, record: { ...storedRecord, id } });
 
       results.push({ index, id, title: record.title, inserted: insertedTransition, status: "pending", targetStates: [] });
@@ -1626,7 +1745,7 @@ export async function handleManualWatch(req, res) {
           // must never overrule the user's click.
           const authoritativeRecord = reassertWatchRecordAuthoritySync(task.id) || task.record;
           supersedeUnwatchedTransitionsForRecordSync(authoritativeRecord);
-          await upsertPlaystateForMedia(task.media, "watched", task.record.watched_at, { skipInvalidate: true });
+          await setPlaystateForMediaIdentity(task.media, "watched", task.record.watched_at, { skipInvalidate: true });
 
           await updateWatchTelemetry(task.id, formatDispatchTelemetry(summary, task.media, "watched"), { skipInvalidate: true });
           await recordSyncHistory(task.media, summary, "watched");
@@ -2727,6 +2846,24 @@ export async function handleWebhook(req, res) {
           } else {
             await deleteActiveSession(episodeMedia).catch(() => null);
             const existingPlaystate = await getPlaystateForMedia(episodeMedia).catch(() => null);
+            if (
+              episodeMedia.playedFlagOnly
+              && existingPlaystate?.state === "unwatched"
+              && !isExplicitPlayedFlagEvent(media)
+            ) {
+              // A season/series UserData callback can arrive after a local
+              // episode unwatch while the provider still reports Played=true.
+              // It carries no playback evidence, so never let that stale
+              // container callback resurrect the local unwatched state.
+              results.push({
+                episodeId: ep.Id,
+                title: episodeMedia.title,
+                success: true,
+                skipped: true,
+                reason: "Played flag ignored because Plembfin is unwatched",
+              });
+              return;
+            }
             if (existingPlaystate?.state === "watched") {
               results.push({ episodeId: ep.Id, title: episodeMedia.title, success: true, skipped: true, reason: "Already marked watched" });
               return;
@@ -2734,7 +2871,9 @@ export async function handleWebhook(req, res) {
             // getPlaystateForMedia can still miss an already-recorded watch
             // stored under a media_key from a different source - see the
             // matching comment on the main webhook handler above.
-            const existingByAnyKey = await findWatchedByAnyMediaKey(episodeMedia).catch(() => null);
+            const existingByAnyKey = existingPlaystate?.state === "unwatched"
+              ? null
+              : await findWatchedByAnyMediaKey(episodeMedia).catch(() => null);
             if (existingByAnyKey) {
               await upsertPlaystateForMedia(episodeMedia, "watched", existingByAnyKey.watched_at, { skipInvalidate: true });
               results.push({ episodeId: ep.Id, title: episodeMedia.title, success: true, skipped: true, reason: "Already recorded under a different media key" });
@@ -3020,6 +3159,26 @@ export async function handleWebhook(req, res) {
       const existingPlaystate = await getPlaystateForMedia(media).catch(() => null);
       const existingCanonicalState = existingPlaystate?.state
         || (existingWatchedHistory ? "watched" : null);
+      if (existingCanonicalState === "unwatched" && !isExplicitPlayedFlagEvent(media)) {
+        // Generic UserData/played-flag callbacks do not contain playback
+        // evidence. After a local unwatch they are usually a delayed provider
+        // acknowledgement of the old watched bit; accepting one here would
+        // recreate the episode immediately after the user removed it. An
+        // explicit provider "Mark played" event remains allowed below.
+        console.log("Webhook: skipped a played flag while Plembfin is unwatched", {
+          source: media.source,
+          title: media.title,
+          event: media.event,
+        });
+        await deletePlaybackProgress(media).catch(() => null);
+        await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
+        return sendJson(res, {
+          ok: true,
+          inserted: false,
+          skipped: true,
+          reason: "Played flag ignored because Plembfin is unwatched",
+        });
+      }
       if (existingCanonicalState === "watched") {
         // The local watch is authoritative, but the reporting app may be
         // ahead of another connected app. Reconcile the canonical watched
@@ -3168,7 +3327,9 @@ export async function handleWebhook(req, res) {
     // media_key, so it re-finds the very record that "watched on <old day>"
     // was compared against, and would otherwise repair playstate back to that
     // stale date instead of recording tonight's real rewatch.
-    const existingByAnyKey = isRewatchOnNewDay ? null : await findWatchedByAnyMediaKey(media).catch(() => null);
+    const existingByAnyKey = isRewatchOnNewDay || existingPlaystate?.state === "unwatched"
+      ? null
+      : await findWatchedByAnyMediaKey(media).catch(() => null);
     if (existingByAnyKey) {
       console.log("Webhook: already recorded under a different key; repairing playstate instead of logging a new watch", {
         source: media.source,

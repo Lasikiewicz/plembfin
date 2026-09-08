@@ -1,7 +1,24 @@
 {
-  "version": "0.16.0",
-  "build": 69,
-  "resetCommit": "183c43290b0e5147cf3b7b8380c75b9cdf8cc595",
-  "updatedAt": "2026-09-07T17:37:27.002Z",
-  "entries": []
+  "version": "0.16.1",
+  "build": 3,
+  "resetCommit": "b922823df30b891271cdfd4d10f9e308e4cc755e",
+  "updatedAt": "2026-09-08T16:41:28.224Z",
+  "entries": [
+    {
+      "build": 3,
+      "date": "2026-09-08T16:41:28.224Z",
+      "commit": "d997ad307c6c0e1070e31588dd791f64deb0f84e",
+      "message": "Fix - Support Jellyfin 12 with safer watch-state and Sync Activity",
+      "author": "Lasikiewicz",
+      "details": [
+        "Keep Jellyfin 12 authentication on its modern MediaBrowser header while preserving manual API-key and Quick Connect credentials.",
+        "Keep explicit Plembfin watched and unwatched decisions authoritative across rematched provider identities, clear stale aliases and resume progress, and block delayed provider flags from resurrecting unwatched items.",
+        "Retire pending manual-watch reviews after an explicit unwatch while allowing a deliberate provider Mark played event to start a new review.",
+        "Keep season and show watch dates chronological around edited episodes without rewriting existing dates.",
+        "Update mounted show details in place after watch changes, preserving scroll position and artwork while preventing stale history from repainting an unwatched episode.",
+        "Make Sync Activity show current results per movie or episode, separate expected missing-library skips from real failures, and preserve the full audit history.",
+        "Retry only the newest unresolved targets across all pages, stream retry progress, and offer Trakt show-match repair for episode not_found failures."
+      ]
+    }
+  ]
 }

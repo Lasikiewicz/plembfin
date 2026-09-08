@@ -1,5 +1,6 @@
 import { loadLiveTrackingCache as loadLiveTrackingCacheFromDb } from "./dataRepo.js";
 import { fetchWithTimeout } from "./outbound.js";
+import { jellyfinAuthHeaders, jellyfinCredential } from "./jellyfinAuth.js";
 import { fetchPlexWithRefresh } from "./plexFetch.js";
 import { decodeHtmlEntities } from "./parsers.js";
 
@@ -72,7 +73,7 @@ export function normalizeStoredConfig(stored = {}) {
     },
     jellyfin: {
       baseUrl: trimTrailingSlash(stored.jellyfin?.baseUrl || stored.jellyfin?.url || ""),
-      apiKey: String(stored.jellyfin?.apiKey || stored.jellyfin?.api_key || "").trim(),
+      apiKey: String(stored.jellyfin?.apiKey || stored.jellyfin?.api_key || stored.jellyfin?.token || "").trim(),
       userId: String(stored.jellyfin?.userId || "").trim(),
     },
   };
@@ -345,15 +346,9 @@ async function fetchEmbySessions(config) {
 }
 
 async function fetchJellyfinSessions(config) {
-  if (!config.jellyfin.baseUrl || !config.jellyfin.apiKey) return { sessions: [], ok: true };
+  if (!config.jellyfin.baseUrl || !jellyfinCredential(config.jellyfin)) return { sessions: [], ok: true };
   const url = new URL(`${config.jellyfin.baseUrl}/Sessions`);
-  const headers = {
-    Accept: "application/json",
-    Authorization: `MediaBrowser Token="${config.jellyfin.apiKey}"`,
-    "X-Emby-Token": config.jellyfin.apiKey,
-    "X-MediaBrowser-Token": config.jellyfin.apiKey,
-  };
-  const json = await fetchJson(url, headers);
+  const json = await fetchJson(url, jellyfinAuthHeaders(config.jellyfin));
   if (!json) return { sessions: [], ok: false };
   const sessions = Array.isArray(json) ? json : json.Items || json.Sessions || [];
   return {

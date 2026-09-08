@@ -218,32 +218,58 @@ for retry tooling and compatibility. The same Idle / N of M status appears at th
 of the page, and the page reloads itself every 15 seconds while it is visible.
 
 Each group row shows the title, movie/show type, number of recorded events, latest
-timestamp/source/action, the latest route and target results, and whether any event in
-the group has an issue. A group moves to the top whenever any new checkpoint, watch,
-retry, or target result is recorded. Pending groups use "Awaiting dispatch" and
-"Waiting for dispatch" rather than presenting missing target results as an error.
-Failed groups remain visible as issues even when their newest event succeeded.
+timestamp/source/action, the latest route and target results, and whether the newest
+event for any movie or episode in the group has an issue. A group moves to the top
+whenever any new checkpoint, watch, retry, or target result is recorded. Pending groups
+use "Awaiting dispatch" and "Waiting for dispatch" rather than presenting missing target
+results as an error. Older failures stop counting as issues as soon as a newer result
+for that same movie or episode succeeds.
 
-Clicking a row loads its latest activity inline. The expanded section contains every
-resume checkpoint and every target result for that movie or show, newest first, with a
-"Load older events" button for unusually large groups. The event details are fetched
-only when opened, so the list stays quick and readable without deleting audit data.
+An item that is not present in a connected library is an expected **skipped** result,
+not a failure. It remains available in the audit history for context, but it does not
+increase the issue count, appear in **Show only Failed**, or enter **Retry all failed**.
+An actual target error, including a Trakt error, remains actionable.
 
-The summary pill above the list ("Showing 1-25 of 26 media groups / 11 with issues on page") is clickable
-whenever the current page has at least one failed row: clicking it filters the page down
-to failed rows only, and clicking it again (it now reads "Showing failed only") restores
-the full page. This filters within the loaded page's rows client-side rather than
-querying the server, since a row's failed status can come from a target-level result
-that a text search would not reliably match.
+When an episode's Trakt target reports `not_found`, the current result explains that
+the show identity may need correcting and offers **Fix show match**. This opens the
+same source search used elsewhere in Plembfin; after the user chooses the correct
+series, every stored episode for that show is rematched and the failed Trakt update is
+retried automatically using the current local identity. If the group header's newest
+activity was a later skip, the failed-only group result says to expand the group so
+the actual failed episode is visible instead of presenting the later skip as the issue.
 
-Partial, failed, and skipped events with an actionable destination include a Retry
-button inside the expanded group. `POST /api/sync-history/retry` reconstructs the media identity from the
-activity record (including a fresh Plex metadata lookup when a native rating key is
-available) and retries only the failed or skipped destinations. The retried row is
-updated in place - a target that now succeeds shows success, a target with nowhere to
-dispatch to (no server configured for it) shows skipped rather than a stale error, and a
-target that wasn't retried keeps its prior result - so a resolved item actually drops out
-of the failed count instead of leaving the old error sitting alongside a new row forever.
+Clicking a row loads the current result for each movie or episode in that show, newest
+first. This is the actionable view: it is deliberately one row per item, so the issue
+count is not buried under repeated retries or resume checkpoints. The header shows the
+number of current item results and the number that need attention. "Show audit history"
+switches to the complete chronological event stream when older checkpoints or target
+responses need investigating; that view has a "Load older audit records" button for
+unusually large groups. The event details are fetched only when opened, so the default
+list stays quick and readable without deleting audit data.
+
+The summary above the list (for example, "Showing 1-25 of 26 media groups / 11 media
+groups with 14 current issues") is red when the activity store contains current issues,
+and includes a separate **Show only Failed** button whenever there is an issue anywhere
+in the current result set. The summary count is for the full result set, not just the
+visible page, so it does not suggest that a clean first page means the activity store is
+clean. Clicking the button reloads the list with failed groups from every page; it
+changes to **Show all** while active. The filter also removes successful current item
+results inside an expanded group.
+
+When there are no current issues anywhere in the result set, the summary uses the normal
+neutral text colour. The global **Retry all failed** action is hidden only when the
+activity store has no actual failed target to retry.
+
+Partial or failed events with an actual failed destination include a Retry button inside
+the expanded group. Only the newest event for each movie or episode gets that button;
+older duplicate results are audit-only. `POST /api/sync-history/retry`
+reconstructs the media identity from the activity record (including a fresh Plex
+metadata lookup when a native rating key is available) and retries only the failed
+destinations. The retried row is updated in place - a target that now succeeds
+shows success, a target with nowhere to dispatch to (no server configured for it) shows
+skipped rather than a stale error, and a target that wasn't retried keeps its prior
+result. A resolved item therefore drops out of the failed count instead of leaving the
+old error sitting alongside a new row forever.
 The row's prior outcome is folded into its raw debug data before being overwritten, so
 what it looked like before the retry isn't lost. A "queued:" row (a watch recorded
 locally with no durable activity row of its own yet) is retried the same way, but the
@@ -260,12 +286,15 @@ direct retry, **Fix match** opens the normal local title/provider-ID correction 
 the retry uses the corrected identity. Items that cannot be repaired can still be
 skipped or handled by running the restore again.
 
-The "Retry all failed" button next to Refresh retries every failed or skipped item
-across the entire sync history, not just the current page. Clicking it discovers the
-real total across every page first and confirms before starting. The retry itself runs
-as a background job (`retry_all_sync_activity`, alongside `force_sync` and the metadata
-refresh jobs - see [scheduled-sync.md](scheduled-sync.md)), so it keeps running - and
-survives navigating away, reloading, or closing the tab - the same way Force Sync does.
+The "Retry all failed" button next to Refresh retries the newest failed event for each
+movie or episode across the entire sync history, not just the current page. Missing
+library items recorded as skipped are excluded. Duplicate older events and items whose
+latest event succeeded are also excluded.
+Clicking it discovers the real total across every page first and confirms before
+starting. The retry itself runs as a background job (`retry_all_sync_activity`,
+alongside `force_sync` and the metadata refresh jobs - see [scheduled-sync.md](scheduled-sync.md)),
+so it keeps running - and survives navigating away, reloading, or closing the tab - the
+same way Force Sync does.
 `POST /api/sync-history/retry-all` enqueues the job; `GET /api/sync-history/retry-all`
 polls its status/log/result, which the button label reflects while it runs. Returning to
 the Sync Activity page resumes polling an already-running job automatically.
@@ -289,8 +318,9 @@ record id, source, targets, details, target results, and raw payload debug JSON 
 
 `sync_history` is deliberately a permanent audit log: it has no age or row-count
 retention policy. Pagination and on-demand group detail loading keep responses bounded;
-they do not remove old records. Backups retain this audit data with the rest of the
-database.
+they do not remove old records. Older duplicate results remain downloadable for
+diagnostics, but are not live issues and cannot be selected by Retry all. Backups retain
+this audit data with the rest of the database.
 
 ## Posters
 

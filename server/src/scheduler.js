@@ -626,6 +626,20 @@ async function processPlexLibraryItemChange(ratingKey, metadataOverride = null) 
       return;
     }
 
+    // A Plex library notification only reports the resulting played flag; it
+    // does not identify whether the user clicked Mark played or Plex is
+    // replaying the old flag after Plembfin sent Mark unwatched. Once the local
+    // canonical state is explicitly unwatched, the latter must not become a
+    // new watched history row or manual-review card.
+    if (playstate?.state === "unwatched") {
+      console.log("Plex notifications: ignored watched flag while Plembfin is unwatched", {
+        title: media.title,
+        ratingKey,
+      });
+      await deletePlaybackProgress(media).catch(() => null);
+      return;
+    }
+
     // The playstate check above can miss an already-recorded watch when the
     // stored playstate row sits under a different media_key than this
     // notification resolves to (e.g. one source matched by imdb, another by
