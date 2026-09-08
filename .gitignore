@@ -15,8 +15,17 @@ website/
 # Local runtime data: SQLite database, cached artwork, generated config.json
 data/
 
-# Local editor/agent tooling
-.claude/
+# Local data-directory archives. These contain config.json (admin password hash,
+# API key, session secret) and the full watch-history database, and run to hundreds
+# of megabytes, so they must never be staged.
+backups/
+
+# Local editor/agent tooling. `.claude/skills/` is the exception: the release
+# procedures live there and CLAUDE.md points at them, so they must reach a clone.
+# Everything else under `.claude/` stays local, including settings.local.json and
+# local-environment.md, which hold machine-specific paths and credentials.
+.claude/*
+!.claude/skills/
 .reasonix/
 .Jules/
 reasonix.toml

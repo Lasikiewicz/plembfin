@@ -20,6 +20,7 @@ behavior, configuration, operations, and integration contracts.
 | [personal-watchlist.md](personal-watchlist.md) | Canonical personal watchlist membership, Plex account projection, completion removal, recovery, and status. |
 | [development.md](development.md) | Build checks, Git hooks, CI workflows, Docker, and release/versioning. |
 | [troubleshooting.md](troubleshooting.md) | Symptom-based diagnosis and operational remedies. |
+| [decisions.md](decisions.md) | Why the non-obvious design and release-pipeline calls were made, and what was rejected. |
 
 ### Sync engine
 
