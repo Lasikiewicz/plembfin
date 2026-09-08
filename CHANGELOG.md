@@ -4,6 +4,21 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v0.16.3 - 8 September 2026
+
+This hotfix adds show-wide Trakt match repair and retry controls, lets unavailable Trakt shows be dismissed, and refreshes corrected TV metadata and posters immediately.
+
+### New Features
+
+- Add dismiss controls for Trakt errors when a show is unavailable
+
+### Major Bug Fixes
+
+- Repair Trakt show matches and refresh metadata immediately
+- Rematch every episode in a show and retry all current failed entries
+- Warm corrected TV metadata and posters before returning to the dashboard
+- Document the new Sync Activity and artwork behavior
+
 ## v0.16.2 - 8 September 2026
 
 Support Jellyfin 12 authentication with safer watch-state handling and clearer Sync Activity
