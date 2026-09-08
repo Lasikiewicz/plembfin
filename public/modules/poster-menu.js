@@ -5,8 +5,8 @@
 // usually sits inside an <a> card - portaling the menu items out of that
 // anchor means clicking them never triggers card navigation.
 
-import { state } from "./state.js?v=0.16.1.1";
-import { customListsForPersonalItem, isPersonalWatchlisted, personalItemFromPosterMenuDataset } from "./personal-media.js?v=0.16.1.1";
+import { state } from "./state.js?v=0.16.2.0.0";
+import { customListsForPersonalItem, isPersonalWatchlisted, personalItemFromPosterMenuDataset } from "./personal-media.js?v=0.16.2.0.0";
 
 let openMenu = null; // { dropdown, button, submenu, submenuTrigger, actionPending, keepOpen, actionButton }
 
