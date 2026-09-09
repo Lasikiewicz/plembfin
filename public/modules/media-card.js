@@ -8,8 +8,8 @@ import {
   tvShowHrefFromEpisode,
   tvShowTmdbHref,
   tvShowTvdbHref,
-} from "./utils.js?v=0.16.3.1";
-import { posterMarkup, posterOverflowMenu, proxiedArtworkUrl, tmdbPoster } from "./images.js?v=0.16.3.1";
+} from "./utils.js?v=0.16.3.2";
+import { posterMarkup, posterOverflowMenu, proxiedArtworkUrl, tmdbPoster } from "./images.js?v=0.16.3.2";
 
 function normalizedType(item = {}) {
   const raw = String(item.media_type || item.mediaType || item.type || "").toLowerCase();

@@ -1,10 +1,33 @@
 {
   "baseVersion": "0.16.3",
-  "build": 1,
-  "version": "0.16.3.1",
-  "updatedAt": "2026-09-09T10:53:47.337Z",
+  "build": 2,
+  "version": "0.16.3.2",
+  "updatedAt": "2026-09-09T11:21:46.478Z",
   "releaseMessage": "",
   "entries": [
+    {
+      "build": 2,
+      "version": "0.16.3.2",
+      "shortVersion": "0.16.3.2",
+      "date": "2026-09-09T11:21:46.478Z",
+      "commit": "18c30a6b4aed99e2435b818b92df24325857377e",
+      "message": "Fix - Restore provider artwork on dashboard cards",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix: Restore provider artwork on dashboard cards",
+        "Fix: Keep authenticated provider poster proxies visible in cache-only dashboard surfaces.",
+        "Fix: Start Now Playing with eager media-key artwork and merge unambiguous cross-provider movie resumes."
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Restore provider artwork on dashboard cards",
+          "Keep authenticated provider poster proxies visible in cache-only dashboard surfaces.",
+          "Start Now Playing with eager media-key artwork and merge unambiguous cross-provider movie resumes."
+        ],
+        "tweaks": []
+      }
+    },
     {
       "build": 1,
       "version": "0.16.3.1",
@@ -33,5 +56,5 @@
       }
     }
   ],
-  "shortVersion": "0.16.3.1"
+  "shortVersion": "0.16.3.2"
 }

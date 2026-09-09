@@ -1,19 +1,19 @@
-import { state, elements } from "./state.js?v=0.16.3.1";
-import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel, formatSeasonTitle, sourceBadgeHtml, platformSourceValues, normalizePlatformSource, actualWatchHistory, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js?v=0.16.3.1";
-import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=0.16.3.1";
-import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js?v=0.16.3.1";
-import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading, cachedShowDetail, rememberShowDetail, cachedShowDetailMiss, rememberShowDetailMiss } from "./explorer.js?v=0.16.3.1";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=0.16.3.1";
-import { renderWatchDatePrompt, seasonUnwatchButtonHtml, showUnwatchButtonHtml, savingEpisodeKeysForShow } from "./watch-action.js?v=0.16.3.1";
-import { authHeaders, setMessage, syncPageTopbar, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=0.16.3.1";
-import { personalRatingPillHtml, personalEpisodeRatingButtonHtml, personalMediaActionsHtml } from "./personal-media.js?v=0.16.3.1";
+import { state, elements } from "./state.js?v=0.16.3.2";
+import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel, formatSeasonTitle, sourceBadgeHtml, platformSourceValues, normalizePlatformSource, actualWatchHistory, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js?v=0.16.3.2";
+import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=0.16.3.2";
+import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js?v=0.16.3.2";
+import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading, cachedShowDetail, rememberShowDetail, cachedShowDetailMiss, rememberShowDetailMiss } from "./explorer.js?v=0.16.3.2";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=0.16.3.2";
+import { renderWatchDatePrompt, seasonUnwatchButtonHtml, showUnwatchButtonHtml, savingEpisodeKeysForShow } from "./watch-action.js?v=0.16.3.2";
+import { authHeaders, setMessage, syncPageTopbar, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=0.16.3.2";
+import { personalRatingPillHtml, personalEpisodeRatingButtonHtml, personalMediaActionsHtml } from "./personal-media.js?v=0.16.3.2";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderRelatedShowsSection,
   renderMediaFacts, renderMediaImagesSection, renderExternalRatingPills, ratingPillHtml,
   renderSeasonSeerrControls, renderSeerrRequestPill, fetchSeerrMediaStatus,
   refreshActiveMediaDetailAfterSeerrStatus, tvSeasonAvailabilityHtml, episodeResolutionPillHtml,
   hydrateMediaAppLinks, mediaAppLinksHtml,
-} from "./media-detail-shared.js?v=0.16.3.1";
+} from "./media-detail-shared.js?v=0.16.3.2";
 
 let _playbackProgressRows = [];
 let _playbackProgressLoaded = false;

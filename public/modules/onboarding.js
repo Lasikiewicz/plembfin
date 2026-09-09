@@ -3,12 +3,12 @@
 // wherever possible - openServiceEditModal() for every provider connect/test
 // flow, and the webhook-guide functions - so setup and Settings never diverge
 // in behavior, only in presentation.
-import { state, elements } from "./state.js?v=0.16.3.1";
-import { escapeHtml, escapeAttribute } from "./utils.js?v=0.16.3.1";
-import { openServiceEditModal } from "./settings-services.js?v=0.16.3.1";
-import { embyWebhookSetup, jellyfinWebhookSetup, buildWebhookUrl } from "./help-content.js?v=0.16.3.1";
-import { claimAdminAccount } from "./auth.js?v=0.16.3.1";
-import { loadWatchBackups, loadPlembfinBackups } from "./tools-backups.js?v=0.16.3.1";
+import { state, elements } from "./state.js?v=0.16.3.2";
+import { escapeHtml, escapeAttribute } from "./utils.js?v=0.16.3.2";
+import { openServiceEditModal } from "./settings-services.js?v=0.16.3.2";
+import { embyWebhookSetup, jellyfinWebhookSetup, buildWebhookUrl } from "./help-content.js?v=0.16.3.2";
+import { claimAdminAccount } from "./auth.js?v=0.16.3.2";
+import { loadWatchBackups, loadPlembfinBackups } from "./tools-backups.js?v=0.16.3.2";
 
 let _cb = {};
 export function initOnboarding(callbacks = {}) {
