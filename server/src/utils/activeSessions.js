@@ -55,6 +55,14 @@ const upsertStmt = db.prepare(
      updated_at=excluded.updated_at, expire_at=excluded.expire_at`,
 );
 const deleteOneStmt = db.prepare("DELETE FROM active_sessions WHERE id = ?");
+const deleteEpisodeByCoordinatesStmt = db.prepare(
+  `DELETE FROM active_sessions
+   WHERE source = ?
+     AND media_type = ?
+     AND season = ?
+     AND episode = ?
+     AND lower(title) = lower(?)`,
+);
 
 export async function listActiveSessions() {
   const cutoff = Date.now() - activeSessionTtlMs();
@@ -125,6 +133,27 @@ export async function upsertActiveSession(media) {
 
 export async function deleteActiveSession(media) {
   if (!media) return [];
-  deleteOneStmt.run(sessionIdentity(media));
+  const deleted = deleteOneStmt.run(sessionIdentity(media));
+  // Provider start/stop payloads can disagree about external ids (for
+  // example, one event has an episode id while the other has a series id).
+  // The active-session key intentionally includes those ids, so exact-key
+  // deletion can miss the row and leave a finished card visible until TTL.
+  // Episode coordinates plus the normalized display title identify the same
+  // playback without conflating another same-numbered episode.
+  if (
+    !deleted.changes &&
+    String(media.type || media.mediaType || "").toLowerCase() === "episode" &&
+    media.season != null &&
+    media.episode != null &&
+    String(media.title || "").trim()
+  ) {
+    deleteEpisodeByCoordinatesStmt.run(
+      media.source || "unknown",
+      media.type || media.mediaType || "episode",
+      media.season,
+      media.episode,
+      String(media.title).trim(),
+    );
+  }
   return listActiveSessions();
 }

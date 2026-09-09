@@ -2,8 +2,72 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import "./domStubs.js";
 
-const { telemetryTargetStates, targetStateUnavailable, categorizeIssues, nowPlayingPosterItem } = await import("../public/modules/sync.js");
+const { state, elements } = await import("../public/modules/state.js?v=0.16.3.4");
+const { telemetryTargetStates, targetStateUnavailable, categorizeIssues, nowPlayingPosterItem, setActiveSessions } = await import("../public/modules/sync.js");
 const { posterMarkup, posterUrlFor } = await import("../public/modules/images.js");
+
+class FakeElement {
+  constructor(className = "") {
+    this.className = className;
+    this.children = [];
+    this.dataset = {};
+    this.parentNode = null;
+  }
+
+  matches(selector) {
+    if (selector === "[data-now-playing-card-id]") return Boolean(this.dataset.nowPlayingCardId);
+    if (selector === ".media-detail-page") return this.className === "media-detail-page";
+    return false;
+  }
+
+  querySelectorAll() {
+    return [];
+  }
+
+  remove() {
+    if (!this.parentNode) return;
+    const index = this.parentNode.children.indexOf(this);
+    if (index >= 0) this.parentNode.children.splice(index, 1);
+    this.parentNode = null;
+  }
+
+  insertBefore(child, reference) {
+    child.remove();
+    const index = reference ? this.children.indexOf(reference) : -1;
+    if (index < 0) this.children.push(child);
+    else this.children.splice(index, 0, child);
+    child.parentNode = this;
+    return child;
+  }
+}
+
+function fakeNowPlayingTemplate(html) {
+  const template = { content: { children: [] } };
+  Object.defineProperty(template, "innerHTML", {
+    set(value) {
+      template.content.children = [...String(value).matchAll(/<button\b([^>]*)>/g)].map((match) => {
+        const card = new FakeElement("now-card-large live-now-card");
+        card.dataset.nowPlayingCardId = match[1].match(/data-now-playing-card-id="([^"]*)"/)?.[1] || "";
+        card.dataset.nowPlayingStaticKey = match[1].match(/data-now-playing-static-key="([^"]*)"/)?.[1] || "";
+        return card;
+      });
+    },
+  });
+  return template;
+}
+
+function fakeNowPlayingGrid(initialChildren = []) {
+  const grid = new FakeElement("now-playing-grid");
+  grid.children = initialChildren;
+  for (const child of initialChildren) child.parentNode = grid;
+  Object.defineProperty(grid, "innerHTML", {
+    set(value) {
+      grid.children = [];
+      if (String(value).includes("idle-state")) grid.insertBefore(new FakeElement("idle-state"), null);
+    },
+  });
+  return grid;
+}
 
 // These strings intentionally mirror syncMatchReport.test.js so frontend and
 // backend parsing stay locked to the same scheduler/webhook telemetry formats.
@@ -63,4 +127,50 @@ test("now-playing cards start from a media-key proxy when the provider path is b
   assert.equal(item.eager_poster, true);
   assert.equal(item.id, "movie:title:moana");
   assert.equal(item.poster_url, "/api/poster?format=image&id=movie%3Atitle%3Amoana&v=2");
+});
+
+test("now-playing reconciliation removes the empty placeholder when live cards arrive", () => {
+  const originalCreateElement = document.createElement;
+  const originalGrid = elements.nowPlayingGrid;
+  const originalSessions = state.activeSessions;
+  const originalSessionKey = state.nowPlayingSessionKey;
+  const grid = fakeNowPlayingGrid([new FakeElement("idle-state")]);
+  document.createElement = (tagName) => {
+    assert.equal(tagName, "template");
+    return fakeNowPlayingTemplate("");
+  };
+
+  try {
+    elements.nowPlayingGrid = grid;
+    state.activeSessions = [];
+    state.nowPlayingSessionKey = "";
+    const session = {
+      source: "plex",
+      sessionId: "session-1",
+      mediaType: "episode",
+      title: "Ted",
+      season: 2,
+      episode: 3,
+      offsetMs: 1_000,
+      durationMs: 60_000,
+    };
+
+    setActiveSessions([session]);
+    assert.equal(grid.children.length, 1);
+    assert.equal(grid.children[0].className, "now-card-large live-now-card");
+
+    setActiveSessions([]);
+    assert.equal(grid.children.length, 1);
+    assert.equal(grid.children[0].className, "idle-state");
+
+    setActiveSessions([session]);
+    assert.equal(grid.children.length, 1);
+    assert.equal(grid.children[0].className, "now-card-large live-now-card");
+  } finally {
+    document.createElement = originalCreateElement;
+    if (originalGrid === undefined) delete elements.nowPlayingGrid;
+    else elements.nowPlayingGrid = originalGrid;
+    state.activeSessions = originalSessions;
+    state.nowPlayingSessionKey = originalSessionKey;
+  }
 });

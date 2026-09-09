@@ -5,6 +5,7 @@ import "./domStubs.js";
 const { tvShowBaseHrefFromEpisode, tvShowHrefFromEpisode } = await import("../public/modules/utils.js");
 const { mediaCardHref } = await import("../public/modules/media-card.js");
 const { renderDashboardHistoryPageCard } = await import("../public/modules/dashboard.js");
+const { tmdbLookupIdsFromShow } = await import("../public/modules/explorer.js");
 
 const episodeWithLeafIds = {
   id: "up-next-episode",
@@ -47,6 +48,30 @@ test("episode links recover the show title when payloads omit show_title", () =>
   assert.equal(
     mediaCardHref({ ...episodeWithLeafIds, show_title: undefined }),
     "/tvshow/the-war-between-the-land-and-the-sea/season/1/episode/5",
+  );
+});
+
+test("TV metadata lookup can resolve a title from a representative episode TVDB id", () => {
+  const ids = tmdbLookupIdsFromShow({
+    title: "Scrubs",
+    imdb_id: "tt0696547",
+    representative_episode: {
+      media_type: "episode",
+      season: 1,
+      episode: 3,
+      tvdb_id: "184604",
+    },
+  });
+
+  assert.equal(ids.imdbId, "tt0696547");
+  assert.equal(ids.tvdbId, "184604");
+  assert.equal(
+    tmdbLookupIdsFromShow({
+      title: "Scrubs",
+      tvdb_id: "76156",
+      representative_episode: { tvdb_id: "184604" },
+    }).tvdbId,
+    "76156",
   );
 });
 

@@ -62,6 +62,27 @@ export const NOW_PLAYING_TERMINAL_GRACE_MS = 10_000;
 // resume progress outbound to every configured server. Only a session the
 // media server no longer reports at all is a real stop.
 export const LIVE_SESSION_PLAYBACK_STATES = ["playing", "buffering", "paused"];
+const LIVE_SESSION_PLAYBACK_STATE_SET = new Set(
+  LIVE_SESSION_PLAYBACK_STATES.map((value) => normalizePlaybackState(value)),
+);
+const TERMINAL_LIVE_SESSION_STATE_SET = new Set([
+  "stopped",
+  "stop",
+  "idle",
+  "completed",
+  "complete",
+  "ended",
+  "end",
+  "finished",
+  "finish",
+  "terminated",
+  "mediaended",
+  "playbackended",
+  "playbackstopped",
+  "notplaying",
+  "closed",
+  "disconnected",
+]);
 
 export function isTerminalLiveSession(session = {}) {
   const durationMs = Number(session.durationMs ?? session.duration_ms ?? 0);
@@ -267,37 +288,84 @@ function playStateFrom(session = {}) {
   return session.PlayState || session.PlaybackState || session.PlayerState || {};
 }
 
+function normalizePlaybackState(value) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s_-]+/g, "");
+}
+
+function playbackStateCandidates(session = {}, playState = {}) {
+  return [
+    session.State,
+    session.Status,
+    typeof session.PlaybackState === "string" ? session.PlaybackState : "",
+    typeof session.PlayerState === "string" ? session.PlayerState : "",
+    playState?.State,
+    playState?.Status,
+    playState?.PlaybackState,
+  ]
+    .map(normalizePlaybackState)
+    .filter(Boolean);
+}
+
+function flagIsTrue(value) {
+  return value === true || value === 1 || value === "1" || String(value).toLowerCase() === "true";
+}
+
+function flagIsFalse(value) {
+  return value === false || value === 0 || value === "0" || String(value).toLowerCase() === "false";
+}
+
 function isSessionPaused(session = {}) {
   const playState = playStateFrom(session);
-  const stateText = String(
-    session.State || session.Status || session.PlaybackState || playState.State || playState.Status || playState.PlaybackState || "",
-  ).toLowerCase();
-  return Boolean(playState.IsPaused || session.IsPaused) || stateText === "paused";
+  const playStateObject = playState && typeof playState === "object" ? playState : {};
+  return Boolean(
+    flagIsTrue(session.IsPaused) ||
+      flagIsTrue(playStateObject.IsPaused) ||
+      playbackStateCandidates(session, playStateObject).includes("paused"),
+  );
 }
 
 // Whether the media server is still reporting an open playback session, whether
 // or not it is currently advancing. A paused session stays active on purpose -
 // see LIVE_SESSION_PLAYBACK_STATES for why treating pause as a stop was wrong.
-function isSessionActive(session = {}) {
+export function isSessionActive(session = {}) {
   const item = session.NowPlayingItem || session.NowPlayingItemInfo || session.Item || session.MediaItem;
   if (!item) return false;
 
   const playState = playStateFrom(session);
-  const stateText = String(
-    session.State ||
-      session.Status ||
-      session.PlaybackState ||
-      playState.State ||
-      playState.Status ||
-      playState.PlaybackState ||
-      "",
-  ).toLowerCase();
-  const positionTicks = Number(playState.PositionTicks || session.PositionTicks || session.PlaybackPositionTicks || 0);
-  const hasPlaybackData = Boolean(Object.keys(playState).length || Number.isFinite(positionTicks));
-  const explicitlyPlaying = Boolean(session.IsPlaying || session.Playing || playState.IsPlaying || playState.PlayMethod || ["playing", "buffering", "transcoding", "directplay", "directstream", "paused"].includes(stateText));
-  const explicitlyStopped = ["stopped", "idle"].includes(stateText);
+  const playStateObject = playState && typeof playState === "object" ? playState : {};
+  const stateCandidates = playbackStateCandidates(session, playStateObject);
+  const positionValues = [
+    playStateObject.PositionTicks,
+    session.PositionTicks,
+    session.PlaybackPositionTicks,
+  ];
+  const hasPosition = positionValues.some(
+    (value) => value !== undefined && value !== null && value !== "" && Number.isFinite(Number(value)),
+  );
+  const playingFlags = [session.IsPlaying, session.Playing, playStateObject.IsPlaying]
+    .filter((value) => value !== undefined && value !== null)
+    .map(flagIsTrue);
+  const hasPlaybackData = Boolean(Object.keys(playStateObject).length || hasPosition || stateCandidates.length || playingFlags.length);
+  const explicitlyPaused = isSessionPaused(session);
+  const explicitlyPlaying = Boolean(
+    playingFlags.some(Boolean) ||
+      playStateObject.PlayMethod ||
+      stateCandidates.some((value) => LIVE_SESSION_PLAYBACK_STATE_SET.has(value)),
+  );
+  const explicitlyStopped = Boolean(
+    stateCandidates.some((value) => TERMINAL_LIVE_SESSION_STATE_SET.has(value)) ||
+      (!explicitlyPaused && (
+        (playingFlags.length > 0 && playingFlags.every((value) => !value)) ||
+        flagIsFalse(session.IsPlaying) ||
+        flagIsFalse(session.Playing) ||
+        flagIsFalse(playStateObject.IsPlaying)
+      )),
+  );
 
-  return hasPlaybackData && !explicitlyStopped && (explicitlyPlaying || isSessionPaused(session) || item);
+  return hasPlaybackData && !explicitlyStopped && (explicitlyPlaying || explicitlyPaused || item);
 }
 
 function normalizeSessionItem(session = {}, source = "unknown", config = {}) {

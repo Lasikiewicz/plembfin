@@ -812,6 +812,14 @@ function reconcileNowPlayingCards(grid, html) {
   const template = document.createElement("template");
   template.innerHTML = html;
   const nextCards = [...template.content.children].filter((node) => node.matches?.("[data-now-playing-card-id]"));
+
+  // The grid starts with the empty-state placeholder. In-place reconciliation
+  // only tracks card nodes, so remove that placeholder when the first live
+  // snapshot arrives instead of leaving it beside the active cards.
+  for (const child of [...grid.children]) {
+    if (!child.matches?.("[data-now-playing-card-id]")) child.remove();
+  }
+
   const currentCards = [...grid.children].filter((node) => node.matches?.("[data-now-playing-card-id]"));
   const currentById = new Map(currentCards.map((card) => [card.dataset.nowPlayingCardId, card]));
   const nextIds = new Set(nextCards.map((card) => card.dataset.nowPlayingCardId));
@@ -854,6 +862,7 @@ export function renderActiveSessions() {
       elements.nowPlayingGrid.dataset.renderedHtml = "empty";
       elements.nowPlayingGrid.innerHTML = emptyHtml;
     }
+    delete elements.nowPlayingGrid.dataset.renderedKey;
     if (elements.nowPlayingStatus) elements.nowPlayingStatus.textContent = "";
     _cb.updateDashboardSplitState?.();
     return;

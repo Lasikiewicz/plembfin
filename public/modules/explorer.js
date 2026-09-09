@@ -1905,12 +1905,21 @@ function summaryEpisodeFromShow(show = {}) {
 }
 export function tmdbLookupIdsFromShow(show = {}, seasons = null) {
   const representative = show.representative_episode || show.representativeEpisode || representativeEpisode(seasons || seasonsFromShowRecord(show));
+  // A flat episode tvdb_id is not safe to use as a show route identity, but it
+  // is a deterministic hint for the metadata gateway's episode-to-series
+  // resolver when no series-level TVDB id was stored locally.
+  const tvdbId =
+    show.tvdb_id ||
+    show.show_tvdb_id ||
+    representative?.show_tvdb_id ||
+    representative?.tvdb_id ||
+    "";
   return {
-    // A flat episode tvdb_id is not a valid series lookup id. Prefer the
-    // explicit show-level fields; an episode may only contribute these fields
-    // when the upstream record provided them explicitly.
+    // Do not use a flat episode id to build a /tvshow route. It is only passed
+    // to the metadata resolver as a final fallback when no series identity is
+    // available locally.
     imdbId: show.imdb_id || show.show_imdb_id || representative?.show_imdb_id || "",
-    tvdbId: show.tvdb_id || show.show_tvdb_id || representative?.show_tvdb_id || "",
+    tvdbId,
   };
 }
 // ---------------------------------------------------------------------------

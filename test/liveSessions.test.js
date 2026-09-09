@@ -3,7 +3,12 @@ import assert from "node:assert/strict";
 import { makeTempDataDir } from "./helpers.js";
 
 makeTempDataDir("plembfin-live-sessions-");
-const { isTerminalLiveSession, parsePlexSessions, sessionIdentity } = await import("../server/src/utils/liveSessions.js");
+const {
+  isSessionActive,
+  isTerminalLiveSession,
+  parsePlexSessions,
+  sessionIdentity,
+} = await import("../server/src/utils/liveSessions.js");
 
 test("live sessions are terminal only when playback has reached the final grace window", () => {
   assert.equal(isTerminalLiveSession({ offsetMs: 3_590_000, durationMs: 3_600_000 }), true);
@@ -35,6 +40,29 @@ test("a paused Plex session is still reported as a live session", () => {
 
 test("a stopped Plex session is not reported as a live session", () => {
   assert.equal(parsePlexSessions(plexSessionXml("stopped"), {}).length, 0);
+});
+
+test("terminal provider states do not remain active while paused sessions do", () => {
+  const session = (overrides = {}) => ({
+    NowPlayingItem: { Type: "Episode", Id: "episode-1", Name: "Episode" },
+    PlayState: { PositionTicks: 1_000, PlayMethod: "DirectPlay" },
+    ...overrides,
+  });
+
+  for (const state of ["stopped", "completed", "ended", "media-ended", "playback-stopped", "not-playing"]) {
+    assert.equal(isSessionActive(session({ State: state })), false, state);
+    assert.equal(
+      isSessionActive(session({ PlayState: { PositionTicks: 1_000, PlayMethod: "DirectPlay", State: state } })),
+      false,
+      `PlayState ${state}`,
+    );
+  }
+
+  assert.equal(isSessionActive(session({ IsPlaying: false })), false);
+  assert.equal(
+    isSessionActive(session({ PlayState: { PositionTicks: 1_000, IsPaused: true, IsPlaying: false } })),
+    true,
+  );
 });
 
 // Plex can return <User /> with no attributes on an owner's own stream. The
