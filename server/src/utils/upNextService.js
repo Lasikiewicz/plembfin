@@ -416,6 +416,12 @@ function publicItem(item) {
   const providerPosterUrl = providerPoster
     ? `/api/poster?id=${encodeURIComponent(String(providerPoster[1][0]))}&provider=${encodeURIComponent(providerPoster[0])}&format=image&v=${PROVIDER_POSTER_URL_VERSION}`
     : "";
+  const sourceName = String(item.source || "").toLowerCase();
+  const mediaKeyPosterUrl = !providerPoster
+    && ["plex", "emby", "jellyfin"].includes(sourceName)
+    && text(item.media_key)
+    ? `/api/poster?id=${encodeURIComponent(String(item.media_key))}&format=image&v=${PROVIDER_POSTER_URL_VERSION}`
+    : "";
   const rawPoster = String(safe.poster_url || "").trim();
   const rawShowPoster = String(safe.show_poster_url || "").trim();
   const isKnownPoster = (value) => Boolean(
@@ -455,8 +461,8 @@ function publicItem(item) {
     media_key: item.media_key,
     queue_kind: item.queue_kind,
     media_type: item.media_type,
-    poster_url: effectivePoster || providerPosterUrl || null,
-    show_poster_url: effectiveShowPoster || providerPosterUrl || null,
+    poster_url: effectivePoster || providerPosterUrl || mediaKeyPosterUrl || null,
+    show_poster_url: effectiveShowPoster || providerPosterUrl || mediaKeyPosterUrl || null,
     is_upcoming: false,
   };
 }

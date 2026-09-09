@@ -198,11 +198,17 @@ export function posterUrlFor(item = {}) {
   const showRaw = item.show_poster_url || item.showPosterUrl || item.canonical_poster_url || item.canonicalPosterUrl || "";
   const cacheOnly = Boolean(item.cache_only_artwork || item.cacheOnlyArtwork);
   if (cacheOnly) {
-    // Cache-first surfaces must not turn a stored TMDB path, remote CDN URL,
-    // or provider proxy into a new request while they render. Background
-    // discovery owns filling local artwork; until then a placeholder is the
-    // honest state.
-    return [raw, showRaw].find((value) => isCachedStorageImageUrl(value)) || "";
+    // Cache-first surfaces must not turn a stored TMDB path or remote CDN URL
+    // into a new request while they render. The app's own authenticated proxy
+    // is already a safe, same-origin image source though, and is how provider
+    // feeds publish artwork before a local webp has been written. Rejecting
+    // that URL here made a valid poster response look like a missing poster.
+    const cacheSafeArtwork = (value) => {
+      const candidate = String(value || "").trim();
+      return isCachedStorageImageUrl(candidate)
+        || /^\/api\/(?:poster|tmdb-poster|remote-artwork)(?:[/?]|$)/i.test(candidate);
+    };
+    return [raw, showRaw].find(cacheSafeArtwork) || "";
   }
   // A same-origin poster supplied by the API is a deliberate source of truth,
   // not another candidate for an older negative lookup. This is especially

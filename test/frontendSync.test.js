@@ -2,7 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import "./domStubs.js";
 
-const { telemetryTargetStates, targetStateUnavailable, categorizeIssues } = await import("../public/modules/sync.js");
+const { telemetryTargetStates, targetStateUnavailable, categorizeIssues, nowPlayingPosterItem } = await import("../public/modules/sync.js");
+const { posterMarkup, posterUrlFor } = await import("../public/modules/images.js");
 
 // These strings intentionally mirror syncMatchReport.test.js so frontend and
 // backend parsing stay locked to the same scheduler/webhook telemetry formats.
@@ -44,4 +45,22 @@ test("categorizeIssues preserves the existing Sync Issues buckets", () => {
   assert.deepEqual(categories.plexMismatch.map((job) => job.id), ["plex"]);
   assert.deepEqual(categories.targetMismatch.map((job) => job.id), ["none"]);
   assert.deepEqual(categories.otherIssues.map((job) => job.id), ["other"]);
+});
+
+test("cache-only poster surfaces keep authenticated proxy artwork", () => {
+  const proxy = "/api/poster?id=movie%3Atitle%3Amoana&format=image&v=2";
+  assert.equal(posterUrlFor({ id: "movie:title:moana", poster_url: proxy, cache_only_artwork: true }), proxy);
+  assert.match(posterMarkup({ id: "movie:title:moana", poster_url: proxy, cache_only_artwork: true }), /src="\/api\/poster\?id=movie%3Atitle%3Amoana&amp;format=image&amp;v=2"/);
+});
+
+test("now-playing cards start from a media-key proxy when the provider path is browser-inaccessible", () => {
+  const item = nowPlayingPosterItem({
+    media_key: "movie:title:moana",
+    posterUrl: "/library/metadata/43844/thumb/123",
+  });
+
+  assert.equal(item.cache_only_artwork, true);
+  assert.equal(item.eager_poster, true);
+  assert.equal(item.id, "movie:title:moana");
+  assert.equal(item.poster_url, "/api/poster?format=image&id=movie%3Atitle%3Amoana&v=2");
 });

@@ -319,6 +319,32 @@ test("canonical movie rows reuse the cached movie poster when no provider poster
   assert.equal(projection.items[0].poster_url, "/media/posters/arrival.webp");
 });
 
+test("provider-sourced local resumes expose a safe poster proxy when their stored path is provider-relative", async () => {
+  const projection = await buildUpNextProjection({
+    now: Date.parse("2026-09-01T12:00:00.000Z"),
+    localFallback: false,
+    progressRows: [{
+      media_key: "movie:title:moana",
+      media_type: "movie",
+      title: "Moana",
+      source: "plex",
+      poster_url: "/library/metadata/43844/thumb/123",
+      position_ms: 360000,
+      duration_ms: 6000000,
+      progress: 6,
+      updated_at: 300,
+    }],
+    playstateRows: [],
+    providerItems: [],
+  });
+
+  assert.equal(projection.items.length, 1);
+  assert.equal(
+    projection.items[0].poster_url,
+    "/api/poster?id=movie%3Atitle%3Amoana&format=image&v=2",
+  );
+});
+
 test("title-only movie resumes collapse into the identified provider item and keep its poster", async () => {
   saveCanonicalPoster(
     { media_type: "movie", title: "Moana", tmdb_id: "1108427", imdb_id: "tt27419466" },

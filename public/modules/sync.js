@@ -723,10 +723,26 @@ export function setActiveSessions(sessions = [], { force = false } = {}) {
   return true;
 }
 
-function nowPlayingPosterItem(session = {}) {
+function isServerArtworkUrl(value = "") {
+  const raw = String(value || "").trim();
+  return /^\/media\/(?:posters|backdrops)\//i.test(raw)
+    || /^\/api\/(?:poster|tmdb-poster|remote-artwork)(?:[/?]|$)/i.test(raw);
+}
+
+export function nowPlayingPosterItem(session = {}) {
   const posterId = session.media_key || session.mediaKey || "";
   if (posterId) {
-    return { ...session, id: posterId, media_key: posterId, prefer_raw_poster: true, cache_only_artwork: true };
+    const item = { ...session, id: posterId, media_key: posterId, prefer_raw_poster: true, cache_only_artwork: true, eager_poster: true };
+    const suppliedPoster = session.poster_url || session.posterUrl || "";
+    // Provider session payloads contain credential-free relative image paths
+    // (for example /library/metadata/... or /Items/...); those paths cannot be
+    // loaded by the browser. Point the initial render at the authenticated
+    // media-key proxy so the card does not flash a placeholder while the
+    // background poster hydration request is still running.
+    if (!isServerArtworkUrl(suppliedPoster)) {
+      item.poster_url = `/api/poster?format=image&id=${encodeURIComponent(String(posterId))}&v=2`;
+    }
+    return item;
   }
 
   const item = { ...session };

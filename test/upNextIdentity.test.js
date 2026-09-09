@@ -112,6 +112,35 @@ test("title-only episode observations merge into the one compatible verified ser
   assert.deepEqual(merged[0].provider_items, { emby: ["emby-episode-5"] });
 });
 
+test("title-only movie observations merge with one unambiguous identified movie across providers", () => {
+  const merged = mergeUpNextCandidates([
+    {
+      source: "plex",
+      media_type: "movie",
+      queue_kind: "resume",
+      title: "Moana",
+      position_ms: 360000,
+      duration_ms: 6000000,
+      progress: 6,
+    },
+    {
+      provider: "jellyfin",
+      feed_kind: "resume",
+      provider_item_id: "jellyfin-moana",
+      media_type: "movie",
+      title: "Moana",
+      ids: { tmdb: "1108427" },
+      position_ms: 360000,
+      duration_ms: 6000000,
+      progress: 6,
+    },
+  ]);
+
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].canonical_key, "movie|id:tmdb:1108427");
+  assert.deepEqual(merged[0].provider_items, { jellyfin: ["jellyfin-moana"] });
+});
+
 test("title-only episode observations stay separate when two verified reboots are possible", () => {
   const merged = mergeUpNextCandidates([
     {

@@ -750,9 +750,11 @@ function reconcileTitleOnlyMovieGroups(groups) {
   // Resume rows can be stored before a provider has resolved external ids.
   // When the provider feed later supplies the same title with a verified id,
   // the two rows otherwise become separate cards: the title-only card has no
-  // stable artwork identity, while the provider card has the poster. Restrict
-  // this bridge to a single same-provider match and refuse ambiguous titles
-  // (including known remakes with conflicting years).
+  // stable artwork identity, while the provider card has the poster. Prefer a
+  // same-provider match, but also bridge one unambiguous identified movie
+  // across providers. The latter is the normal shape when a local resume row
+  // is reconciled with a Jellyfin/Emby/Plex feed from another server. Refuse
+  // ambiguous titles (including known remakes with conflicting years).
   const movieGroups = groups.filter((group) => (
     (group.rows || []).every((row) => row.media_type === "movie" && row.queue_kind === "resume")
   ));
@@ -767,14 +769,20 @@ function reconcileTitleOnlyMovieGroups(groups) {
 
     const compatible = identifiedGroups.filter((identifiedGroup) => (
       title === movieTitleKey(representativeRow(identifiedGroup.rows))
-        && movieGroupsShareSource(unresolvedGroup, identifiedGroup)
         && !movieGroupsDisagreeOnYear(unresolvedGroup, identifiedGroup)
     ));
-    // More than one identified movie with the same title is ambiguous. Leave
-    // the title-only row alone instead of merging a remake into the wrong one.
-    if (compatible.length !== 1) continue;
+    const sameSource = compatible.filter((identifiedGroup) => movieGroupsShareSource(unresolvedGroup, identifiedGroup));
+    // A same-provider match is strongest. If no same-provider match exists,
+    // accept exactly one compatible identified movie across providers. More
+    // than one identified movie with the same title is ambiguous, so leave the
+    // title-only row alone instead of merging a remake into the wrong one.
+    const target = sameSource.length === 1
+      ? sameSource[0]
+      : compatible.length === 1
+        ? compatible[0]
+        : null;
+    if (!target) continue;
 
-    const target = compatible[0];
     target.rows.push(...unresolvedGroup.rows);
     const index = groups.indexOf(unresolvedGroup);
     if (index >= 0) groups.splice(index, 1);
