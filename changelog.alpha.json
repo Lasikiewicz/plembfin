@@ -1,10 +1,27 @@
 {
   "baseVersion": "0.16.3",
-  "build": 6,
-  "version": "0.16.3.6",
-  "updatedAt": "2026-09-09T18:40:41.108Z",
+  "build": 7,
+  "version": "0.16.3.7",
+  "updatedAt": "2026-09-09T18:54:16.708Z",
   "releaseMessage": "",
   "entries": [
+    {
+      "build": 7,
+      "version": "0.16.3.7",
+      "shortVersion": "0.16.3.7",
+      "date": "2026-09-09T18:54:16.708Z",
+      "commit": "4f5c39d1f1511f48b6acc0cf0140ab8aaeb4a47f",
+      "message": "Consolidated develop updates",
+      "author": "Lasikiewicz",
+      "details": [
+        "Consolidated updates and improvements from develop"
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [],
+        "tweaks": []
+      }
+    },
     {
       "build": 6,
       "version": "0.16.3.6",
@@ -165,5 +182,5 @@
       }
     }
   ],
-  "shortVersion": "0.16.3.6"
+  "shortVersion": "0.16.3.7"
 }

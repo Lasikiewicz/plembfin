@@ -1,17 +1,17 @@
-import { state, elements } from "./state.js?v=0.16.3.6";
-import { escapeHtml, escapeAttribute, formatDate, formatTmdbDate } from "./utils.js?v=0.16.3.6";
-import { posterUrlFor, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=0.16.3.6";
-import { isWatchedHistoryAction, getMediaTargetSyncStatus, renderSyncStatusDot } from "./sync.js?v=0.16.3.6";
-import { fetchTmdbDetails } from "./tmdb.js?v=0.16.3.6";
-import { renderWatchDatePrompt, isMovieSavingWatchAction } from "./watch-action.js?v=0.16.3.6";
-import { authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=0.16.3.6";
-import { personalRatingPillHtml, personalMediaActionsHtml } from "./personal-media.js?v=0.16.3.6";
+import { state, elements } from "./state.js?v=0.16.3.7";
+import { escapeHtml, escapeAttribute, formatDate, formatTmdbDate } from "./utils.js?v=0.16.3.7";
+import { posterUrlFor, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=0.16.3.7";
+import { isWatchedHistoryAction, getMediaTargetSyncStatus, renderSyncStatusDot } from "./sync.js?v=0.16.3.7";
+import { fetchTmdbDetails } from "./tmdb.js?v=0.16.3.7";
+import { renderWatchDatePrompt, isMovieSavingWatchAction } from "./watch-action.js?v=0.16.3.7";
+import { authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=0.16.3.7";
+import { personalRatingPillHtml, personalMediaActionsHtml } from "./personal-media.js?v=0.16.3.7";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderMediaImagesSection, renderMediaFacts,
   renderExternalRatingPills, ratingPillHtml, renderSeerrRequestPill, fetchSeerrMediaStatus,
   refreshActiveMediaDetailAfterSeerrStatus, rankedRecommendations, recommendedTvShowsForMovie,
   renderRecommendationSection, hydrateMediaAppLinks, renderCollectionSection, mediaAppLinksHtml,
-} from "./media-detail-shared.js?v=0.16.3.6";
+} from "./media-detail-shared.js?v=0.16.3.7";
 
 // Watch history list - playHistory (every { id, watched_at, source } entry for
 // this movie, collapsed server-side in dedupeMovies/collapseMovieCluster) has
