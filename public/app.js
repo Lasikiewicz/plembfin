@@ -17,7 +17,7 @@ import { initDiscover, renderDiscover, loadDiscover, resetDiscover } from "./mod
 import { initPersonalMedia, renderPersonalMedia, loadPersonalMedia, resetPersonalMedia } from "./modules/personal-media.js?v=0.16.3.3";
 import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, loadStats, renderRankingTable } from "./modules/stats.js?v=0.16.3.3";
 import { initUpcoming, openUpcomingToToday } from "./modules/upcoming.js?v=0.16.3.3";
-import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, triggerSearchPage, renderSearchPage, renderExplorer, explorerQueryKey, updateAlphaFilter, handleAlphaFilterClick, resetMovieExplorer, resetShowExplorer, renderExplorerSentinel, observeExplorerSentinel, observeExplorerTmdbPrefetch, scheduleNextAirResort, currentExplorerView, currentExplorerSort, currentPosterWidthKey, setCurrentExplorerSort, applyExplorerPosterWidth, applyListHeaderSort, renderMovieCard, renderMovieExplorer, loadExplorerMovies, applyHistoryPosterWidth, renderHistoryItems, renderHistoryView, resetHistoryView, loadHistoryView, observeHistorySentinel, renderShowExplorer, loadExplorerShows, loadShowDetail, matchesExplorerSearch, sortExplorerItems, renderShowRecord, renderShowFolder, renderSeasonFolder, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, emptyExplorer, FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver } from "./modules/explorer.js?v=0.16.3.3";
+import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, triggerSearchPage, renderSearchPage, renderExplorer, explorerQueryKey, updateAlphaFilter, handleAlphaFilterClick, resetMovieExplorer, resetShowExplorer, renderExplorerSentinel, observeExplorerSentinel, observeExplorerTmdbPrefetch, scheduleNextAirResort, currentExplorerView, currentExplorerSort, currentPosterWidthKey, setCurrentExplorerSort, applyExplorerPosterWidth, applyListHeaderSort, renderMovieCard, renderMovieExplorer, loadExplorerMovies, refreshMovieExplorerInPlace, applyHistoryPosterWidth, renderHistoryItems, renderHistoryView, resetHistoryView, loadHistoryView, refreshHistoryViewInPlace, observeHistorySentinel, renderShowExplorer, loadExplorerShows, loadShowDetail, matchesExplorerSearch, sortExplorerItems, renderShowRecord, renderShowFolder, renderSeasonFolder, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, emptyExplorer, FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver } from "./modules/explorer.js?v=0.16.3.3";
 import { initEditDialogs, openEditDateDialog, openEditShowDateDialog, openEditSeasonDateDialog, openEditImageDialog, openFixMatchDialog, openMergeShowDialog, applyWatchedAtToLocalWatchRecord, editDateOptionsFromButton } from "./modules/edit-dialogs.js?v=0.16.3.3";
 import { initWatchAction, openWatchDatePrompt, closeWatchDatePrompt, submitSeerrRequest, markMovieWatched, refreshShowAfterManualWatch, applyWatchDateChoice, confirmAndMarkUnwatched, confirmAndDeleteMedia } from "./modules/watch-action.js?v=0.16.3.3";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails, resolveEpisodeTitleFromTmdb } from "./modules/tmdb.js?v=0.16.3.3";
@@ -2378,16 +2378,17 @@ function liveHistoryChangeKey(change = {}) {
   ).trim();
 }
 
-function queueLiveHistoryRefresh({ immediate = false, changes = [] } = {}) {
+function queueLiveHistoryRefresh({ immediate = false, changes = [], fullRefresh = false } = {}) {
   const incomingChanges = Array.isArray(changes) ? changes.filter((change) => change && typeof change === "object") : [];
   for (const change of incomingChanges) {
     const key = liveHistoryChangeKey(change);
     if (key) pendingLiveHistoryChanges.set(key, change);
   }
-  // Calls from local actions and the sync-idle grace timer have no SSE item
-  // list. Preserve their existing conservative full refresh, but don't turn a
-  // queued item-level SSE patch into a full rebuild as well.
-  if (immediate && !pendingLiveHistoryChanges.size && !incomingChanges.length) liveHistoryFullRefreshQueued = true;
+  // A caller must explicitly request a full snapshot. The sync-idle grace
+  // timer is only a drain point for changes already delivered by SSE; turning
+  // an empty change list into a full refresh rebuilt the open detail page a
+  // second time after the affected episode had already patched.
+  if (fullRefresh) liveHistoryFullRefreshQueued = true;
   if (!pendingLiveHistoryChanges.size && !liveHistoryFullRefreshQueued) return;
   liveHistoryRefreshQueued = true;
 
@@ -2448,7 +2449,7 @@ async function refreshLiveHistoryView({ changes = [], fullRefresh = false } = {}
       const upNextRelevantChange = changes.some((change) => ["watch_history", "playstate", "playback_progress"].includes(
         String(change.sourceTable || change.source_table || "").toLowerCase(),
       ));
-      if (upNextRelevantChange) {
+      if (upNextRelevantChange && state.activeView === "dashboard") {
         await loadUpNext({ force: true }).catch((error) => {
           logDebug(`Background Up Next refresh failed: ${error.message}`);
         });
@@ -2458,6 +2459,15 @@ async function refreshLiveHistoryView({ changes = [], fullRefresh = false } = {}
         await loadPersonalMedia({ force: true }).catch((error) => logDebug(`Background personal watchlist refresh failed: ${error.message}`));
       }
       if (state.activeView === "dashboard") refreshDashboardHistoryInPlace();
+      if (state.activeView === "history") {
+        await refreshHistoryViewInPlace().catch((error) => logDebug(`Background History refresh failed: ${error.message}`));
+      }
+      if (state.activeView === "explorer" && state.explorerMode === "movies") {
+        await refreshMovieExplorerInPlace().catch((error) => logDebug(`Background Movies refresh failed: ${error.message}`));
+      }
+      if (state.activeView === "stats") {
+        await loadStats({ force: true }).catch((error) => logDebug(`Background Stats refresh failed: ${error.message}`));
+      }
       return;
     }
     if (!fullRefresh) return;

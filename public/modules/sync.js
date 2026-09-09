@@ -704,6 +704,8 @@ export function activeSessionsKey(sessions = []) {
         session.title || "",
         session.season ?? "",
         session.episode ?? "",
+        session.client?.userName || "",
+        session.client?.deviceName || "",
         progress,
         // Pausing freezes progress, so without this the play/pause transition
         // would produce an identical key and never repaint the card.
@@ -750,6 +752,95 @@ export function nowPlayingPosterItem(session = {}) {
   return { ...item, cache_only_artwork: true };
 }
 
+function nowPlayingCardIdentity(session = {}) {
+  return [
+    session.source || "",
+    session.sessionId || session.id || session.media_key || session.mediaKey || "",
+    session.mediaType || session.media_type || "",
+    session.title || "",
+    session.season ?? "",
+    session.episode ?? "",
+    session.client?.userName || "",
+    session.client?.deviceName || "",
+  ].join("|");
+}
+
+function nowPlayingCardStaticIdentity(session = {}) {
+  return [
+    nowPlayingCardIdentity(session),
+    session.episodeTitle || "",
+    session.source || "",
+    session.poster_url || session.posterUrl || "",
+    session.media_key || session.mediaKey || "",
+  ].join("|");
+}
+
+function nowPlayingPosterKey(poster) {
+  if (!poster) return "";
+  const posterId = String(poster.getAttribute("data-poster-id") || "");
+  if (posterId) return `id:${posterId}`;
+  return `src:${String(poster.currentSrc || poster.getAttribute("src") || "")}`;
+}
+
+function preserveNowPlayingPoster(currentCard, nextCard) {
+  const currentPoster = currentCard?.querySelector?.(".now-poster-large-wrapper img, .now-poster-large-wrapper .poster-fallback");
+  const nextPoster = nextCard?.querySelector?.(".now-poster-large-wrapper img, .now-poster-large-wrapper .poster-fallback");
+  if (!currentPoster || !nextPoster || nowPlayingPosterKey(currentPoster) !== nowPlayingPosterKey(nextPoster)) return;
+  nextPoster.replaceWith(currentPoster);
+}
+
+function patchNowPlayingProgress(currentCard, nextCard) {
+  const nextFill = nextCard.querySelector(".now-card-progress-fill");
+  const currentFill = currentCard.querySelector(".now-card-progress-fill");
+  if (nextFill && currentFill) {
+    currentFill.className = nextFill.className;
+    currentFill.style.width = nextFill.style.width;
+  }
+  const nextClock = nextCard.querySelector(".now-card-progress-text");
+  const currentClock = currentCard.querySelector(".now-card-progress-text");
+  if (nextClock && currentClock) currentClock.textContent = nextClock.textContent;
+
+  const nextIndicator = nextCard.querySelector(".stream-indicator");
+  const currentIndicator = currentCard.querySelector(".stream-indicator");
+  if (nextIndicator && currentIndicator) {
+    currentIndicator.className = nextIndicator.className;
+    currentIndicator.textContent = nextIndicator.textContent;
+  }
+}
+
+function reconcileNowPlayingCards(grid, html) {
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  const nextCards = [...template.content.children].filter((node) => node.matches?.("[data-now-playing-card-id]"));
+  const currentCards = [...grid.children].filter((node) => node.matches?.("[data-now-playing-card-id]"));
+  const currentById = new Map(currentCards.map((card) => [card.dataset.nowPlayingCardId, card]));
+  const nextIds = new Set(nextCards.map((card) => card.dataset.nowPlayingCardId));
+
+  for (let index = 0; index < nextCards.length; index += 1) {
+    const nextCard = nextCards[index];
+    const id = nextCard.dataset.nowPlayingCardId;
+    let currentCard = currentById.get(id);
+    if (currentCard) {
+      if (currentCard.dataset.nowPlayingStaticKey === nextCard.dataset.nowPlayingStaticKey) {
+        patchNowPlayingProgress(currentCard, nextCard);
+      } else {
+        preserveNowPlayingPoster(currentCard, nextCard);
+        currentCard.replaceWith(nextCard);
+        currentCard = nextCard;
+        currentById.set(id, currentCard);
+      }
+      if (grid.children[index] !== currentCard) grid.insertBefore(currentCard, grid.children[index] || null);
+      continue;
+    }
+    grid.insertBefore(nextCard, grid.children[index] || null);
+    currentById.set(id, nextCard);
+  }
+
+  for (const card of [...grid.children].filter((node) => node.matches?.("[data-now-playing-card-id]"))) {
+    if (!nextIds.has(card.dataset.nowPlayingCardId)) card.remove();
+  }
+}
+
 export function renderActiveSessions() {
   if (!elements.nowPlayingGrid) return;
 
@@ -784,7 +875,7 @@ export function renderActiveSessions() {
       // it open, but it is not playing - label it rather than calling it Live.
       const isPaused = session.paused === true || session.playbackState === "paused";
       return `
-        <button class="now-card-large live-now-card" type="button" data-now-playing-href="${escapeAttribute(href)}" aria-label="Open ${escapeAttribute(session.title)} details">
+        <button class="now-card-large live-now-card" type="button" data-now-playing-card-id="${escapeAttribute(nowPlayingCardIdentity(session))}" data-now-playing-static-key="${escapeAttribute(nowPlayingCardStaticIdentity(session))}" data-now-playing-href="${escapeAttribute(href)}" aria-label="Open ${escapeAttribute(session.title)} details">
           <span class="now-poster-large-wrapper">
             ${posterMarkup(posterItem, "now-poster-large")}
           </span>
@@ -814,9 +905,9 @@ export function renderActiveSessions() {
     })
     .join("");
 
-  if (elements.nowPlayingGrid.dataset.renderedHtml !== nextHtml) {
-    elements.nowPlayingGrid.dataset.renderedHtml = nextHtml;
-    elements.nowPlayingGrid.innerHTML = nextHtml;
+  if (elements.nowPlayingGrid.dataset.renderedKey !== state.nowPlayingSessionKey) {
+    elements.nowPlayingGrid.dataset.renderedKey = state.nowPlayingSessionKey;
+    reconcileNowPlayingCards(elements.nowPlayingGrid, nextHtml);
     // Live-session cards may not have a cached poster yet. Resolve their
     // fallback through the authenticated server proxy so provider artwork can
     // be cached without exposing provider credentials in the browser.

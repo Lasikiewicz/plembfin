@@ -1910,8 +1910,21 @@ function patchShowModalEpisodeNode(target, { savingEpisodeKeys = null } = {}) {
   }).trim();
   const replacement = template.content.firstElementChild;
   if (!replacement) return false;
+
+  // The live row contains the watch metadata and action controls, but most
+  // SSE changes do not change the episode artwork. Keep the mounted image
+  // node when its source is unchanged; replacing it would make the browser
+  // reconsider lazy loading and can flash or re-request the poster while the
+  // rest of the page is correctly staying in place.
+  const currentArtwork = currentNode.querySelector?.(".episode-thumb");
+  const replacementArtwork = replacement.querySelector?.(".episode-thumb");
+  const sameArtwork = currentArtwork?.tagName === "IMG"
+    && replacementArtwork?.tagName === "IMG"
+    && String(currentArtwork.getAttribute("src") || "") === String(replacementArtwork.getAttribute("src") || "")
+    && String(currentArtwork.getAttribute("data-fallback") || "") === String(replacementArtwork.getAttribute("data-fallback") || "");
+  if (sameArtwork) replacementArtwork.replaceWith(currentArtwork);
   currentNode.replaceWith(replacement);
-  hydratePosters(root);
+  if (!sameArtwork) hydratePosters(replacement);
   return true;
 }
 

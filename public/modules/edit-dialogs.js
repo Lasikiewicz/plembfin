@@ -586,24 +586,23 @@ export function openEditDateDialog(_container, id, currentWatchedAt, onSaved, op
         state.savingUnwatchIds.delete(rowId);
         rowEl.remove();
         updateRemoveButtonsState();
-        const remainingDates = [...listEl.querySelectorAll(".watch-date-value-btn")]
-          .map((btn) => btn.dataset.watchedIso)
-          .filter(Boolean)
-          .sort();
-        // The dashboard's "N actual watches" count and the explorer's rewatch
-        // summaries are read from in-memory snapshots (state.history, the
-        // cached /api/movies rows) that a deleted row's own watched_at patch
-        // never updates. Force a refetch so those counts drop immediately
-        // instead of only after the next unrelated reload.
-        //
-        // This has to happen before onSaved: the detail-page callbacks look the
-        // edited record up in state.history and, when they find it, patch its
-        // watched_at and re-render from that snapshot rather than refetching.
-        // With the deleted row still in the snapshot, the removed watch was
-        // rendered straight back onto the page and only disappeared on reload.
-        _clearDerivedUiCaches({ resetExplorer: true });
-        await _loadHistory({ force: true }).catch(() => null);
-        if (remainingDates.length) await onSaved?.({ watched_at: remainingDates.at(-1) });
+        overlay.remove();
+        if (options.liveOnly) {
+          // The DELETE emits a keyed watch_history SSE event. Let that event
+          // reconcile the authoritative remaining play and patch only the
+          // affected episode article; a history refetch here used to repaint
+          // the entire open show before SSE had a chance to do its job.
+          await onSaved?.({ deleted: true, deletedId: rowId });
+          _clearDerivedUiCaches({ resetExplorer: true });
+        } else {
+          const remainingDates = [...listEl.querySelectorAll(".watch-date-value-btn")]
+            .map((btn) => btn.dataset.watchedIso)
+            .filter(Boolean)
+            .sort();
+          _clearDerivedUiCaches({ resetExplorer: true });
+          await _loadHistory({ force: true }).catch(() => null);
+          if (remainingDates.length) await onSaved?.({ watched_at: remainingDates.at(-1) });
+        }
       } catch (err) {
         state.savingUnwatchIds.delete(rowId);
         if (status) status.textContent = `Error: ${err.message}`;

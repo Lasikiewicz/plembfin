@@ -989,36 +989,22 @@ export function attachMediaDetailEvents() {
     if (editDateBtn) {
       const container = editDateBtn.closest(".immersive-container, .modal-body") || document.body;
       const currentEntry = state.history.find((h) => h.id === editDateBtn.dataset.editId);
-      openEditDateDialog(container, editDateBtn.dataset.editId, editDateBtn.dataset.watchedAt, async ({ watched_at }) => {
+      openEditDateDialog(container, editDateBtn.dataset.editId, editDateBtn.dataset.watchedAt, async ({ watched_at = "", deleted = false } = {}) => {
+        if (deleted) {
+          if (state.activeView === "history") renderHistoryView();
+          return;
+        }
         editDateBtn.dataset.watchedAt = watched_at;
         const span = container.querySelector(".progress-label-row span");
         if (span) span.textContent = `Watched on ${formatDate(watched_at)}`;
-        const entry = applyWatchedAtToLocalWatchRecord(editDateBtn.dataset.editId, watched_at)
-          || state.history.find((h) => h.id === editDateBtn.dataset.editId);
-        if (entry) {
-          if (entry.media_type === "episode") {
-            const showTitle = entry.show_title || showTitleFrom(entry.title);
-            if (showTitle) {
-              await refreshShowAfterManualWatch(showTitle);
-              if (state.activeShowModalKey) {
-                await renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
-              }
-            }
-          } else if (entry.media_type === "movie") {
-            // Re-fetch from /api/movies (not /api/history?id=) so the refreshed
-            // modal gets the deduped movie record with its playHistory array -
-            // a raw watch_history row doesn't carry other watch dates for the
-            // rewatch summary.
-            await refreshActiveMovieAfterDateEdit(entry);
-          }
-        } else {
-          await refreshActiveMovieAfterDateEdit();
-          await refreshActiveShowAfterDateEdit();
-        }
+        applyWatchedAtToLocalWatchRecord(editDateBtn.dataset.editId, watched_at);
+        // The update-watch request emits a keyed history-version SSE event.
+        // Keep the current detail mounted; applyLiveHistoryChanges() will
+        // reconcile the authoritative row and patch only its tile.
         if (state.activeView === "history") {
           renderHistoryView();
         }
-      }, editDateOptionsFromButton(editDateBtn, currentEntry, resolvedTmdbCache));
+      }, { ...editDateOptionsFromButton(editDateBtn, currentEntry, resolvedTmdbCache), liveOnly: true });
       return;
     }
 
@@ -1368,7 +1354,11 @@ export function attachMediaDetailEvents() {
     if (editDateIconBtn) {
       const id = editDateIconBtn.dataset.editId;
       const currentEntry = state.history.find((h) => h.id === id);
-      openEditDateDialog(null, id, editDateIconBtn.dataset.watchedAt, async ({ watched_at }) => {
+      openEditDateDialog(null, id, editDateIconBtn.dataset.watchedAt, async ({ watched_at = "", deleted = false } = {}) => {
+        if (deleted) {
+          if (state.activeView === "history") renderHistoryView();
+          return;
+        }
         editDateIconBtn.dataset.watchedAt = watched_at;
         // Update the time element this icon is inside
         const timeEl = editDateIconBtn.closest("time");
@@ -1376,33 +1366,13 @@ export function attachMediaDetailEvents() {
         // Also update movie watch status row if present
         const span = editDateIconBtn.closest(".progress-label-row")?.querySelector("span");
         if (span) span.innerHTML = `Watched on ${formatDate(watched_at)} <button class="edit-date-icon-btn" type="button" title="Edit watch date" data-edit-id="${escapeAttribute(id)}" data-watched-at="${escapeAttribute(watched_at)}">✎</button>`;
-        const entry = applyWatchedAtToLocalWatchRecord(id, watched_at)
-          || state.history.find((h) => h.id === id);
-        if (entry) {
-          if (entry.media_type === "episode") {
-            const showTitle = entry.show_title || showTitleFrom(entry.title);
-            if (showTitle) {
-              refreshShowAfterManualWatch(showTitle).then(() => {
-                if (state.activeShowModalKey) {
-                  renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
-                }
-              });
-            }
-          } else if (entry.media_type === "movie") {
-            // Re-fetch from /api/movies (not /api/history?id=) so the refreshed
-            // modal gets the deduped movie record with its playHistory array -
-            // a raw watch_history row doesn't carry other watch dates for the
-            // rewatch summary.
-            await refreshActiveMovieAfterDateEdit(entry);
-          }
-        } else {
-          await refreshActiveMovieAfterDateEdit();
-          await refreshActiveShowAfterDateEdit();
-        }
+        applyWatchedAtToLocalWatchRecord(id, watched_at);
+        // Do not refetch or re-render the show/movie here. The server emits a
+        // keyed SSE change and the live patch updates only the affected row.
         if (state.activeView === "history") {
           renderHistoryView();
         }
-      }, editDateOptionsFromButton(editDateIconBtn, currentEntry, resolvedTmdbCache));
+      }, { ...editDateOptionsFromButton(editDateIconBtn, currentEntry, resolvedTmdbCache), liveOnly: true });
       return;
     }
 

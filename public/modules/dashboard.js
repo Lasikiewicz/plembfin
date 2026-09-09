@@ -642,7 +642,7 @@ function dashboardMotionReduced() {
 function dashboardRowCards(row) {
   if (!row) return [];
   return [...row.children].filter((node) => node.matches?.(
-    "[data-history-id], [data-part-watched-card-id], [data-up-next-card-id], .shared-media-card",
+    "[data-history-id], [data-part-watched-card-id], [data-up-next-card-id], [data-now-playing-card-id], .shared-media-card",
   ));
 }
 
@@ -651,6 +651,7 @@ function dashboardRowCardKey(node) {
     node?.dataset?.historyId
       || node?.dataset?.partWatchedCardId
       || node?.dataset?.upNextCardId
+      || node?.dataset?.nowPlayingCardId
       || node?.dataset?.mediaCardKey
       || "",
   );
@@ -695,6 +696,99 @@ function patchDashboardPartWatchedProgress(row, nextHtml, visibleItems = []) {
   return true;
 }
 
+function dashboardCardPosterElement(card) {
+  return card?.querySelector?.(
+    ".history-card-poster-wrapper img, .history-card-poster-wrapper .poster-fallback, "
+      + ".now-poster-large-wrapper img, .now-poster-large-wrapper .poster-fallback, "
+      + ".shared-media-card-poster img, .shared-media-card-poster .poster-fallback",
+  ) || null;
+}
+
+function dashboardCardPosterKey(poster) {
+  if (!poster) return "";
+  const posterId = String(poster.getAttribute("data-poster-id") || "");
+  if (posterId) return `id:${posterId}`;
+  return `src:${String(poster.currentSrc || poster.getAttribute("src") || "")}`;
+}
+
+function dashboardCardRenderSignature(card) {
+  if (!card) return "";
+  const clone = card.cloneNode(true);
+  clone.classList.remove("dashboard-card-motion", "dashboard-card-enter", "dashboard-card-exit");
+  clone.style.removeProperty("transition");
+  clone.style.removeProperty("transform");
+
+  const poster = dashboardCardPosterElement(clone);
+  if (poster) poster.replaceWith(document.createTextNode("__poster__"));
+  for (const appLinks of clone.querySelectorAll("[data-media-app-links]")) {
+    appLinks.replaceChildren(document.createTextNode("__media_links__"));
+  }
+  for (const progressFill of clone.querySelectorAll(".part-watched-progress-fill, .now-card-progress-fill")) {
+    progressFill.style.width = "__progress__";
+  }
+  for (const progressText of clone.querySelectorAll(".part-watched-progress-text, .now-card-progress-text")) {
+    progressText.textContent = "__progress_text__";
+  }
+  for (const lastPlayed of clone.querySelectorAll(".part-watched-last-played-value")) {
+    lastPlayed.textContent = "__last_played__";
+  }
+  return clone.outerHTML;
+}
+
+function preserveDashboardCardArtwork(currentCard, nextCard) {
+  const currentPoster = dashboardCardPosterElement(currentCard);
+  const nextPoster = dashboardCardPosterElement(nextCard);
+  if (!currentPoster || !nextPoster) return;
+  if (dashboardCardPosterKey(currentPoster) !== dashboardCardPosterKey(nextPoster)) return;
+  nextPoster.replaceWith(currentPoster);
+}
+
+// Reconcile a live card row by identity. Existing cards stay mounted when
+// their rendered content is unchanged, and changed cards reuse their poster
+// node when the artwork identity is unchanged. This keeps an SSE update from
+// rebuilding every sibling card (or making the browser decode every poster)
+// just because one item changed.
+export function reconcileDashboardCardRow(row, html) {
+  if (!row) return;
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  const nextCards = [...template.content.children].filter((node) => node.matches?.(
+    "[data-history-id], [data-part-watched-card-id], [data-up-next-card-id], [data-now-playing-card-id], .shared-media-card",
+  ));
+  const currentCards = dashboardRowCards(row);
+
+  // Empty/loading/error states have no keyed cards to reconcile.
+  if (!nextCards.length || !currentCards.length) {
+    row.innerHTML = html;
+    return;
+  }
+
+  const currentByKey = new Map(currentCards.map((card) => [dashboardRowCardKey(card), card]));
+  const nextKeys = new Set(nextCards.map(dashboardRowCardKey));
+  for (let index = 0; index < nextCards.length; index += 1) {
+    const nextCard = nextCards[index];
+    const key = dashboardRowCardKey(nextCard);
+    let currentCard = currentByKey.get(key);
+    if (currentCard) {
+      if (dashboardCardRenderSignature(currentCard) !== dashboardCardRenderSignature(nextCard)) {
+        preserveDashboardCardArtwork(currentCard, nextCard);
+        currentCard.replaceWith(nextCard);
+        currentCard = nextCard;
+        currentByKey.set(key, currentCard);
+      }
+      const cardAtPosition = row.children[index];
+      if (cardAtPosition !== currentCard) row.insertBefore(currentCard, cardAtPosition || null);
+      continue;
+    }
+    row.insertBefore(nextCard, row.children[index] || null);
+    currentByKey.set(key, nextCard);
+  }
+
+  for (const card of dashboardRowCards(row)) {
+    if (!nextKeys.has(dashboardRowCardKey(card))) card.remove();
+  }
+}
+
 function renderDashboardHistoryRow(row, nextHtml, visibleItems = []) {
   if (!row || row.dataset.renderedHtml === nextHtml) return;
   if (patchDashboardPartWatchedProgress(row, nextHtml, visibleItems)) {
@@ -733,7 +827,7 @@ export function updateDashboardRowWithMotion(row, html, { exitKeys = [], onCommi
 
   const commit = () => {
     if (Number(row.dataset.motionToken) !== token) return;
-    row.innerHTML = html;
+    reconcileDashboardCardRow(row, html);
     const nextCards = dashboardRowCards(row);
     const nextKeys = nextCards.map(dashboardRowCardKey);
     const membershipChanged = previousKeys.length !== nextKeys.length
