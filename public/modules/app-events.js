@@ -727,11 +727,16 @@ function attachEvents() {
     });
     if (!confirmed) return;
 
+    const clearingCard = clearBtn.closest("[data-up-next-card-id]");
     const originalText = clearBtn.textContent;
     const originalLabel = clearBtn.getAttribute("aria-label");
+    clearingCard?.classList.add("card-removing");
     clearBtn.disabled = true;
     clearBtn.textContent = "…";
     clearBtn.setAttribute("aria-label", "Clearing progress");
+    // Hide the resume immediately and persist the temporary dismissal while
+    // provider feeds catch up. A failed clear restores the card in its place.
+    const pendingClear = removeUpNextItem(payload.id || itemId || payload.media_key, payload);
     try {
       const mediaType = payload.media_type || payload.mediaType || (payload.season != null ? "episode" : "movie");
       const response = await fetch("/api/playback-progress/unwatch", {
@@ -762,8 +767,10 @@ function attachEvents() {
       await loadUpNext({ force: true });
       renderDashboard();
     } catch (error) {
+      restoreUpNextItem(pendingClear);
       showErrorExplainModal(`Failed to clear progress for "${title}"`, error.message);
     } finally {
+      clearingCard?.classList.remove("card-removing");
       clearBtn.disabled = false;
       clearBtn.textContent = originalText;
       if (originalLabel === null) clearBtn.removeAttribute("aria-label");
