@@ -4,6 +4,40 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v1.0.0 - 9 September 2026
+
+Release the feature-complete Plembfin app with its refreshed documentation website, covering current dashboard, Up Next, sync activity, spoiler guidance, and stabilized live media cards.
+
+### Major Bug Fixes
+
+- Scope live media updates to affected cards
+- Keep SSE watch and sync changes scoped to the affected tiles while preserving unchanged artwork nodes.
+- Reconcile dashboard, Up Next, and Now Playing cards in place instead of rebuilding their rails.
+- Refresh History, Explorer, and Stats only when their live data changes.
+- Keep cleared Up Next items dismissed
+- Keep cleared resume cards hidden while provider feeds catch up.
+- Restore provider artwork on dashboard cards
+- Keep authenticated provider poster proxies visible in cache-only dashboard surfaces.
+- Start Now Playing with eager media-key artwork and merge unambiguous cross-provider movie resumes.
+- Stabilize dashboard media state
+- Repair missing Part Watched artwork during scheduled metadata refreshes.
+- Canonicalize provider episode identities so duplicate resume cards collapse safely.
+- Keep the dashboard Clear action aligned with the watch percentage.
+- Document and enforce the network-enabled launch path.
+
+### Tweaks
+
+- This update includes track website coverage index, track website content module, and gate website deployments on main.
+- Include the static site's app-surface coverage index in fresh clones
+- Keep runtime data directories ignored while allowing this documented website input
+- Include the shared static-site content module used by every page and navigation rail
+- Keep the website self-contained when Cloudflare clones only the tracked repository
+- The public documentation site now publishes only from the Force-to-main release on main.
+- This update includes hide sync activity error details and resolve media pages and clear stale now playing.
+- Retry and dismiss failures now return generic public messages instead of internal error details.
+- Resolve ambiguous TV metadata from episode-level identifiers.
+- Remove completed playback and stale Now Playing state from the dashboard.
+
 ## v0.16.3 - 8 September 2026
 
 This hotfix adds show-wide Trakt match repair and retry controls, lets unavailable Trakt shows be dismissed, and refreshes corrected TV metadata and posters immediately.
