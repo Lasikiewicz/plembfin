@@ -1,9 +1,9 @@
-import { buildAuthHeaders } from "./auth.js?v=0.16.3.2";
-import { state, elements } from "./state.js?v=0.16.3.2";
-import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, sourceBadgeHtml, formatDate, formatTmdbDate, resolveEpisodeTitle, episodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress } from "./utils.js?v=0.16.3.2";
-import { posterMarkup, posterOverflowMenu, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, isLocalArtworkUrl } from "./images.js?v=0.16.3.2";
-import { renderDashboardChecklist } from "./onboarding.js?v=0.16.3.2";
-import { initialMediaAppLinksContent } from "./media-detail-shared.js?v=0.16.3.2";
+import { buildAuthHeaders } from "./auth.js?v=0.16.3.3";
+import { state, elements } from "./state.js?v=0.16.3.3";
+import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, sourceBadgeHtml, formatDate, formatTmdbDate, resolveEpisodeTitle, episodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress } from "./utils.js?v=0.16.3.3";
+import { posterMarkup, posterOverflowMenu, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, isLocalArtworkUrl } from "./images.js?v=0.16.3.3";
+import { renderDashboardChecklist } from "./onboarding.js?v=0.16.3.3";
+import { initialMediaAppLinksContent } from "./media-detail-shared.js?v=0.16.3.3";
 
 const PART_WATCHED_DASHBOARD_LIMIT = 30;
 const EXPLORER_PAGE_SIZE = 240;

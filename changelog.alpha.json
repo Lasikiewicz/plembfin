@@ -1,10 +1,31 @@
 {
   "baseVersion": "0.16.3",
-  "build": 2,
-  "version": "0.16.3.2",
-  "updatedAt": "2026-09-09T11:21:46.478Z",
+  "build": 3,
+  "version": "0.16.3.3",
+  "updatedAt": "2026-09-09T12:00:01.824Z",
   "releaseMessage": "",
   "entries": [
+    {
+      "build": 3,
+      "version": "0.16.3.3",
+      "shortVersion": "0.16.3.3",
+      "date": "2026-09-09T12:00:01.824Z",
+      "commit": "2dc6a096d78d77b65336af706c8762876642c516",
+      "message": "Fix - Keep cleared Up Next items dismissed",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix: Keep cleared Up Next items dismissed",
+        "Fix: Keep cleared resume cards hidden while provider feeds catch up."
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Keep cleared Up Next items dismissed",
+          "Keep cleared resume cards hidden while provider feeds catch up."
+        ],
+        "tweaks": []
+      }
+    },
     {
       "build": 2,
       "version": "0.16.3.2",
@@ -56,5 +77,5 @@
       }
     }
   ],
-  "shortVersion": "0.16.3.2"
+  "shortVersion": "0.16.3.3"
 }

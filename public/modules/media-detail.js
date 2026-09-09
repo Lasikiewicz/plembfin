@@ -1,23 +1,23 @@
-import { state, elements } from "./state.js?v=0.16.3.2";
-import { slug, movieSlug, movieHref, movieTmdbHref, tvShowTmdbHref, showName, showTitleFrom } from "./utils.js?v=0.16.3.2";
-import { dedupeMediaRecords } from "./dashboard.js?v=0.16.3.2";
-import { isWatchedHistoryAction } from "./sync.js?v=0.16.3.2";
+import { state, elements } from "./state.js?v=0.16.3.3";
+import { slug, movieSlug, movieHref, movieTmdbHref, tvShowTmdbHref, showName, showTitleFrom } from "./utils.js?v=0.16.3.3";
+import { dedupeMediaRecords } from "./dashboard.js?v=0.16.3.3";
+import { isWatchedHistoryAction } from "./sync.js?v=0.16.3.3";
 import {
   initMediaDetail, authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions,
   prepareInlineMediaDetail, syncMediaActionsMenuState, syncTopbarControlsMenuState,
   openDebugModal, closeDebugModal, clearMediaDetailState, closeMediaDetail,
   openMediaInfoModal, closeMediaInfoModal,
   bumpMediaRenderToken, currentMediaRenderToken,
-} from "./media-detail-context.js?v=0.16.3.2";
+} from "./media-detail-context.js?v=0.16.3.3";
 import {
   openShowImmersiveModalByTitle, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openShowInlineDetail,
   renderImmersiveShowModal, renderShowModalContent, patchShowModalEpisodeFromLive, patchShowModalEpisodesSavingState, scrollSeasonAccordionIntoView,
-} from "./media-detail-show.js?v=0.16.3.2";
+} from "./media-detail-show.js?v=0.16.3.3";
 import {
   renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, patchMovieWatchedState,
-} from "./media-detail-movie.js?v=0.16.3.2";
-import { fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail-shared.js?v=0.16.3.2";
-import { fetchTmdbDetails } from "./tmdb.js?v=0.16.3.2";
+} from "./media-detail-movie.js?v=0.16.3.3";
+import { fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail-shared.js?v=0.16.3.3";
+import { fetchTmdbDetails } from "./tmdb.js?v=0.16.3.3";
 
 export {
   initMediaDetail,

@@ -1,18 +1,7 @@
 {
   "version": "0.16.3",
   "build": 4,
-  "resetCommit": "18c30a6b4aed99e2435b818b92df24325857377e",
-  "updatedAt": "2026-09-09T11:58:24.073Z",
-  "entries": [
-    {
-      "build": 4,
-      "date": "2026-09-09T11:58:24.073Z",
-      "commit": "bf27251a494eac992149233c78467a8b88fa4731",
-      "message": "Fix - Keep cleared Up Next items dismissed",
-      "author": "Lasikiewicz",
-      "details": [
-        "Keep cleared resume cards hidden while provider feeds catch up."
-      ]
-    }
-  ]
+  "resetCommit": "2dc6a096d78d77b65336af706c8762876642c516",
+  "updatedAt": "2026-09-09T12:00:01.824Z",
+  "entries": []
 }
