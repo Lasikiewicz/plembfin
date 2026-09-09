@@ -1,7 +1,8 @@
 # Website deployment plan
 
 This is the setup plan for publishing the static Astro documentation site from
-`website/` to GitHub and having Cloudflare Pages deploy it automatically. The existing
+`website/` to GitHub and having Cloudflare Pages publish it only from the release
+branch. The existing
 Cloudflare Pages project named `plembfin` hosts the app deployment and must remain
 untouched. Use a separate Pages project named `plembfin-website` for this static site.
 
@@ -66,7 +67,8 @@ themes. The required baseline and visual/privacy rules are in
 
 ## 3. Push the deployable branch to GitHub
 
-1. Ensure the deployable website commit is on the repository's `main` branch.
+1. Ensure the deployable website commit reaches the repository's `main` branch only
+   through the `Force to main` release workflow.
 2. Use the normal repository release workflow if the app is being promoted through
    `develop` → `alpha` → `main`; do not create a separate website-only release branch
    unless that is explicitly chosen.
@@ -97,10 +99,13 @@ Set `NODE_VERSION` for both Production and Preview environments so Pages matches
 Node version used by the local setup guide. Do not add application secrets: this static
 build only needs its package dependencies and repository files.
 
-Leave automatic production deployments enabled. Leave preview deployments enabled for
-pull requests and other non-production branches. Initially leave build watch paths at
-their default so a root application, changelog, release, or asset change cannot silently
-skip a docs rebuild. If watch paths are tightened later, include at least:
+Leave automatic production branch deployments enabled, set the production branch to
+`main`, and set the preview branch to **None (Disable automatic branch deployments)**.
+This means the public site changes only when the release workflow force-pushes the
+approved `main` tip; ordinary `develop` and `alpha` pushes do not start Pages builds.
+Keep build watch paths at their default so a root application, changelog, release, or
+asset change cannot silently skip the next release rebuild. If watch paths are tightened
+later, include at least:
 `website/**`, `public/**`, `server/src/**`, `docs/**`, `README.md`, `CHANGELOG.md`,
 `changelog*.json`, `package.json`, and the website lockfile.
 
@@ -135,13 +140,15 @@ custom domain:
   data in a published image; and
 - the sitemap and canonical URLs use the intended public domain.
 
-Every pull request should be checked on its Cloudflare preview URL before merge. Preview
-deployments should not be treated as production rollback targets.
+Use the local preview and the app's connected test environment for pre-release review.
+Automatic Cloudflare preview deployments are disabled so `develop` and `alpha` remain
+release staging branches rather than public Pages deployment sources.
 
 ## 7. Operate and recover
 
-- A push to `main` creates the production deployment automatically.
-- A pull request gets a preview deployment that updates as the branch changes.
+- The `Force to main` workflow's push to `main` creates the production deployment
+  automatically.
+- Ordinary pushes to `develop` and `alpha` do not create Pages deployments.
 - Keep the Cloudflare GitHub app access scoped to the repository and review build logs
   for accidental secret output.
 - If a production build is bad, use **Deployments → … → Rollback to this deployment**
