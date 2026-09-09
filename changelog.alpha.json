@@ -1,10 +1,39 @@
 {
   "baseVersion": "0.16.3",
-  "build": 4,
-  "version": "0.16.3.4",
-  "updatedAt": "2026-09-09T13:25:08.417Z",
+  "build": 5,
+  "version": "0.16.3.5",
+  "updatedAt": "2026-09-09T14:43:16.677Z",
   "releaseMessage": "",
   "entries": [
+    {
+      "build": 5,
+      "version": "0.16.3.5",
+      "shortVersion": "0.16.3.5",
+      "date": "2026-09-09T14:43:16.677Z",
+      "commit": "dd904e57bfc93bc8ea9e73e34307929e47d59a66",
+      "message": "This update includes hide sync activity error details and resolve media pages and clear stale now playing.",
+      "author": "Lasikiewicz",
+      "details": [
+        "Tweak: This update includes hide sync activity error details and resolve media pages and clear stale now playing.",
+        "Tweak: Retry and dismiss failures now return generic public messages instead of internal error details.",
+        "Tweak: Resolve ambiguous TV metadata from episode-level identifiers.",
+        "Tweak: Remove completed playback and stale Now Playing state from the dashboard."
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [],
+        "tweaks": [
+          "This update includes hide sync activity error details and resolve media pages and clear stale now playing.",
+          "Retry and dismiss failures now return generic public messages instead of internal error details.",
+          "Resolve ambiguous TV metadata from episode-level identifiers.",
+          "Remove completed playback and stale Now Playing state from the dashboard."
+        ]
+      },
+      "messageFragments": [
+        "Fix - Hide sync activity error details",
+        "Fix - Resolve media pages and clear stale now playing"
+      ]
+    },
     {
       "build": 4,
       "version": "0.16.3.4",
@@ -102,5 +131,5 @@
       }
     }
   ],
-  "shortVersion": "0.16.3.4"
+  "shortVersion": "0.16.3.5"
 }

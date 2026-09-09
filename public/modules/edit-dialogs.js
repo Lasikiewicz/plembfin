@@ -1,10 +1,10 @@
-import { state } from "./state.js?v=0.16.3.4";
-import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, formatDate, actualWatchHistory, sourceBadgeHtml } from "./utils.js?v=0.16.3.4";
-import { buildAuthHeaders } from "./auth.js?v=0.16.3.4";
-import { isWatchedHistoryAction } from "./sync.js?v=0.16.3.4";
-import { tmdbPoster, tmdbImage, proxiedArtworkUrl } from "./images.js?v=0.16.3.4";
-import { dateAtMiddayIso, refreshShowAfterManualWatch, watchedAtForChoice, watchedReferenceFor } from "./watch-action.js?v=0.16.3.4";
-import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=0.16.3.4";
+import { state } from "./state.js?v=0.16.3.5";
+import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, formatDate, actualWatchHistory, sourceBadgeHtml } from "./utils.js?v=0.16.3.5";
+import { buildAuthHeaders } from "./auth.js?v=0.16.3.5";
+import { isWatchedHistoryAction } from "./sync.js?v=0.16.3.5";
+import { tmdbPoster, tmdbImage, proxiedArtworkUrl } from "./images.js?v=0.16.3.5";
+import { dateAtMiddayIso, refreshShowAfterManualWatch, watchedAtForChoice, watchedReferenceFor } from "./watch-action.js?v=0.16.3.5";
+import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=0.16.3.5";
 
 // Callbacks injected by app.js at startup.
 let _setMessage = () => {};

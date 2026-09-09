@@ -1,24 +1,7 @@
 {
   "version": "0.16.3",
   "build": 6,
-  "resetCommit": "03046f15750e0806f5230b257fbf9a2215ea46eb",
-  "updatedAt": "2026-09-09T14:38:56.487Z",
-  "entries": [
-    {
-      "build": 6,
-      "date": "2026-09-09T14:38:56.487Z",
-      "commit": "d6e528fd0f6382f8cc41a9dab49332af2b689b63",
-      "message": "This update includes hide sync activity error details and resolve media pages and clear stale now playing.",
-      "author": "Lasikiewicz",
-      "details": [
-        "Retry and dismiss failures now return generic public messages instead of internal error details.",
-        "Resolve ambiguous TV metadata from episode-level identifiers.",
-        "Remove completed playback and stale Now Playing state from the dashboard."
-      ],
-      "messageFragments": [
-        "Fix - Hide sync activity error details",
-        "Fix - Resolve media pages and clear stale now playing"
-      ]
-    }
-  ]
+  "resetCommit": "dd904e57bfc93bc8ea9e73e34307929e47d59a66",
+  "updatedAt": "2026-09-09T14:43:16.677Z",
+  "entries": []
 }
