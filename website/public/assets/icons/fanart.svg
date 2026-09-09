@@ -6,12 +6,12 @@
   </defs>
   <!-- Outer Cyan Border -->
   <circle cx="50" cy="50" r="49" fill="#1EB0E9"/>
-
+  
   <!-- Inner Faceted Area clipped to circle -->
   <g clip-path="url(#circleClip)">
     <!-- Base Cyan Fill -->
     <rect width="100" height="100" fill="#1EB0E9"/>
-
+    
     <!-- Shaded Color Facets -->
     <!-- Top-Right Darker Blue Sector -->
     <path d="M 45 0 L 100 0 L 100 50 L 58 31 Z" fill="#1D87B1"/>

@@ -3,7 +3,10 @@
   "generatedBy": "website/scripts/capture-inventory.mjs",
   "changes": {
     "added": [],
-    "changed": [],
+    "changed": [
+      "public/assets/icons/fanart.svg",
+      "public/assets/plembfin-hub.svg"
+    ],
     "removed": [],
     "unreferenced": [
       "public/assets/app-captures/dashboard-home-dark.png",
@@ -2947,8 +2950,8 @@
     },
     {
       "path": "public/assets/icons/fanart.svg",
-      "bytes": 1358,
-      "sha256": "b9ea429f7f77ea5f47fb96e58f68883c76c3c713c41d9daf3205ae4669ca4ee9",
+      "bytes": 1352,
+      "sha256": "548a89744f21ed173ac860f8fcba7998c661739b6ce09c6b9bd5732f7bf934ab",
       "dimensions": null,
       "referencedBy": []
     },
@@ -3036,8 +3039,8 @@
     },
     {
       "path": "public/assets/plembfin-hub.svg",
-      "bytes": 507439,
-      "sha256": "395530ae1b715ec69ad1fc5632028318344714a5cba76042f4330f08ab5af816",
+      "bytes": 507436,
+      "sha256": "0ce86eb0c6fda641768adffa5b006d15ca4cf65e89e932e3c4d318c3131e2529",
       "dimensions": null,
       "referencedBy": []
     }

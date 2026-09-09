@@ -5029,10 +5029,25 @@
   ],
   "alpha": {
     "baseVersion": "0.16.3",
-    "build": 5,
-    "version": "0.16.3.5",
-    "updatedAt": "2026-09-09T14:43:16.677Z",
+    "build": 6,
+    "version": "0.16.3.6",
+    "updatedAt": "2026-09-09T18:40:41.108Z",
     "entries": [
+      {
+        "build": 6,
+        "version": "0.16.3.6",
+        "date": "9 September 2026",
+        "title": "Alpha build 6",
+        "summary": "This update includes track website coverage index, track website content module, and gate website deployments on main.",
+        "bullets": [
+          "Tweak: This update includes track website coverage index, track website content module, and gate website deployments on main.",
+          "Tweak: Include the static site's app-surface coverage index in fresh clones",
+          "Tweak: Keep runtime data directories ignored while allowing this documented website input",
+          "Tweak: Include the shared static-site content module used by every page and navigation rail",
+          "Tweak: Keep the website self-contained when Cloudflare clones only the tracked repository",
+          "Tweak: The public documentation site now publishes only from the Force-to-main release on main."
+        ]
+      },
       {
         "build": 5,
         "version": "0.16.3.5",
