@@ -286,9 +286,9 @@ export function platformSourceValues(entry = {}) {
 
 export function platformIconUrl(value) {
   const normalized = normalizePlatformSource(value);
-  if (normalized === "plembfin") return "/icons/plembfin.png?v=0.16.3.0.0";
+  if (normalized === "plembfin") return "/icons/plembfin.png?v=0.16.3.1";
   const extension = "svg";
-  return `/icons/${normalized}.${extension}?v=0.16.3.0.0`;
+  return `/icons/${normalized}.${extension}?v=0.16.3.1`;
 }
 
 export function platformIconMarkup(value, className = "source-badge-icon", wrapperClass = "source-badge-icon-set") {
@@ -299,8 +299,8 @@ export function platformIconMarkup(value, className = "source-badge-icon", wrapp
   }
 
   return `<span class="${escapeAttribute(wrapperClass)} theme-aware-icon-set" aria-hidden="true">
-    <img class="${safeClassName} theme-aware-icon--light" src="/icons/plembfin-light.png?v=0.16.3.0.0" alt="" loading="eager" decoding="async" />
-    <img class="${safeClassName} theme-aware-icon--dark" src="/icons/plembfin.png?v=0.16.3.0.0" alt="" loading="eager" decoding="async" />
+    <img class="${safeClassName} theme-aware-icon--light" src="/icons/plembfin-light.png?v=0.16.3.1" alt="" loading="eager" decoding="async" />
+    <img class="${safeClassName} theme-aware-icon--dark" src="/icons/plembfin.png?v=0.16.3.1" alt="" loading="eager" decoding="async" />
   </span>`;
 }
 

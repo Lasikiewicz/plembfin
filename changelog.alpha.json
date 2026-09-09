@@ -1,8 +1,37 @@
 {
   "baseVersion": "0.16.3",
-  "build": 0,
-  "version": "0.16.3.0.0",
-  "updatedAt": "2026-09-08T21:16:20.805Z",
+  "build": 1,
+  "version": "0.16.3.1",
+  "updatedAt": "2026-09-09T10:53:47.337Z",
   "releaseMessage": "",
-  "entries": []
+  "entries": [
+    {
+      "build": 1,
+      "version": "0.16.3.1",
+      "shortVersion": "0.16.3.1",
+      "date": "2026-09-09T10:53:47.337Z",
+      "commit": "688cb9dd105887ed6dc8411de68c40fdd9b00231",
+      "message": "Fix - Stabilize dashboard media state",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix: Stabilize dashboard media state",
+        "Fix: Repair missing Part Watched artwork during scheduled metadata refreshes.",
+        "Fix: Canonicalize provider episode identities so duplicate resume cards collapse safely.",
+        "Fix: Keep the dashboard Clear action aligned with the watch percentage.",
+        "Fix: Document and enforce the network-enabled launch path."
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Stabilize dashboard media state",
+          "Repair missing Part Watched artwork during scheduled metadata refreshes.",
+          "Canonicalize provider episode identities so duplicate resume cards collapse safely.",
+          "Keep the dashboard Clear action aligned with the watch percentage.",
+          "Document and enforce the network-enabled launch path."
+        ],
+        "tweaks": []
+      }
+    }
+  ],
+  "shortVersion": "0.16.3.1"
 }
