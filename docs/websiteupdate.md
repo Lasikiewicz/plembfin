@@ -124,21 +124,16 @@ When a website update is requested, carry out the following workflow:
 
 ## Force-to-main website gate
 
-When a user requests **Force to main**, ask immediately, before checking out branches,
-previewing the release, staging, or force-pushing:
-
-> Should I run the website update check before this Force to main operation?
-
-If the answer is yes, complete this file end to end: discover the verification baseline,
-review changes after it, start the local app and website preview, audit content and images,
-check privacy, run the inventory and website checks, and report the local visual findings.
-If the answer is no, record that the website check was declined and continue only with the
-normal Force to main instructions in [`CLAUDE.md`](../CLAUDE.md). Do not infer the answer.
+When a user requests **Force to main**, complete this file end to end before checking out
+branches, previewing the release, staging, or force-pushing: discover the verification
+baseline, review changes after it, start the local app and website preview, audit content and
+images, check privacy, run the inventory and website checks, and report the local visual
+findings. The website gate is mandatory for every main release.
 
 ## Publish plan
 
-The website is a static Astro site in `website/`. The GitHub-to-Cloudflare Pages setup,
-including the required `website/` tracking decision, build settings, previews, domain,
-secrets, rollback, and verification steps, is documented in
-[`docs/website-deployment.md`](website-deployment.md). This update workflow validates the
-site locally; it does not push or deploy it unless the user explicitly asks.
+The website is a tracked static Astro site in `website/`. The GitHub-to-Cloudflare Pages
+setup, including the separate project for the docs site, build checks, previews, domain,
+rollback, and verification steps, is documented in [`docs/website-deployment.md`](website-deployment.md).
+This update workflow validates the site locally; Cloudflare Pages repeats the deploy checks
+before publishing the `main` build.

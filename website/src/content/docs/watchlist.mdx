@@ -1,0 +1,114 @@
+---
+title: Watchlist
+description: Save movies and TV shows for later without changing watched state.
+category: Media and discovery
+order: 3.31
+sourceVersion: "0.16.3.5"
+sourcePaths:
+  - public/index.html
+  - public/modules/personal-media.js
+  - public/modules/media-card.js
+  - server/src/routes/personal.js
+  - docs/personal-watchlist.md
+  - docs/frontend.md
+screenshots:
+  - /assets/app-captures/watchlist-dark.png
+  - /assets/app-captures/watchlist-light.png
+  - /assets/app-captures/watchlist-card-dark.png
+  - /assets/app-captures/watchlist-card-light.png
+  - /assets/app-captures/media-action-row-dark.png
+  - /assets/app-captures/media-action-row-light.png
+  - /assets/app-captures/media-detail-overview-dark.png
+  - /assets/app-captures/media-detail-overview-light.png
+---
+
+import ScreenshotFigure from "../../components/ScreenshotFigure.astro";
+
+Watchlist is the private “save this for later” page. It contains movies and TV shows that
+you want to revisit. Episode ratings are supported separately on [Ratings](/docs/ratings/),
+but episodes are not Watchlist entries. Watchlist is not a media-server queue and it never
+marks a title watched by itself.
+
+
+## Open Watchlist
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/watchlist-dark.png"
+  lightSrc="/assets/app-captures/watchlist-light.png"
+  alt="Plembfin Watchlist page showing saved movie and TV show cards"
+  caption="Open Watchlist from the sidebar to review every title saved for later."
+/>
+
+Select **Watchlist** in the sidebar. Cards load from Plembfin's local private-data store,
+so the page remains useful even when a provider feed or media server is temporarily
+unavailable.
+
+## Saved media cards
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/watchlist-card-dark.png"
+  lightSrc="/assets/app-captures/watchlist-card-light.png"
+  alt="Plembfin Watchlist cards with posters, titles, rating actions, and remove controls"
+  caption="A Watchlist card identifies the saved media and keeps its personal actions beside it."
+/>
+
+Cards represent a movie or a TV show. Select the poster or title to open the normal detail
+page. The card can also expose the current personal rating and list membership without
+changing the underlying watch record.
+
+## Add a title
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/media-action-row-dark.png"
+  lightSrc="/assets/app-captures/media-action-row-light.png"
+  alt="Plembfin media detail page showing Add to watch list beside the other title actions"
+  caption="Add to watch list is available on the detail action row when the title is not saved."
+/>
+
+Use **Add to watch list** from a movie or TV detail page, or use the corresponding card
+action from Discover or another supported media card. When the request succeeds, the action
+changes to **Remove from watch list** and the title appears on this page. Episode detail
+pages expose personal rating actions, not Watchlist actions.
+
+Adding a title does not mark it watched, add it to a connected server, or change its TMDB,
+TVDB, Plex, Emby, or Jellyfin identity.
+
+## Sync with Plex
+
+Watchlist sync is optional and is controlled by one **Sync watchlist with Plex** toggle in
+Settings. Plex is the only watchlist provider: its account-level Universal Watchlist can
+hold titles that are not already in a local library, while Emby and Jellyfin do not provide
+the same watchlist contract.
+
+The first sync uses a safe union of the local and Plex lists. Later complete Plex snapshots
+reconcile additions and removals; an outage or incomplete snapshot cannot delete the local
+canonical list. A Plex-only addition is imported locally, and local changes are delivered
+through a durable queue.
+
+Use **Sync now** for a full reconcile. Failed, unavailable, or reauthentication-required
+changes stay visible in the Sync panel with a **Retry queued changes** action. Reconnecting
+Plex or retrying does not roll back the local list.
+
+## Rate or remove a card
+
+Use **Rate** to open the 1–10 personal rating control. The score is also visible from the
+[Ratings page](/docs/ratings/). Use **Remove** to take the item out of Watchlist; removing
+it does not remove its rating, watch history, or custom-list membership.
+
+The page updates in place after either action. If the card does not change, reopen
+Watchlist and check the signed-in instance before trying the action again.
+
+## More options and detail actions
+
+Use **More options** when you need an action that is not shown as a primary card button.
+Open the title detail page when you need watch dates, artwork, Fix Match, Force Sync, or the
+full Tools menu. Personal actions and maintenance tools are intentionally separate.
+
+## Empty state and privacy
+
+An empty Watchlist means no titles are currently saved; it does not mean the library or
+Discover feed is empty. Watchlist data belongs to the local Plembfin instance and does not
+become a watched event. If Plex sync is enabled, its provider changes appear as Watchlist
+sync activity, but they are not watched-state destinations.
+
+For the related pages, see [Ratings](/docs/ratings/) and [Custom Lists](/docs/custom-lists/).

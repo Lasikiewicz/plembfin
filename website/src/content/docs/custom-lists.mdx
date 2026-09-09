@@ -1,0 +1,87 @@
+---
+title: Custom Lists
+description: Create private named collections of movies and TV shows and manage their membership.
+category: Media and discovery
+order: 3.33
+sourceVersion: "0.16.3.5"
+sourcePaths:
+  - public/index.html
+  - public/modules/personal-media.js
+  - public/modules/media-card.js
+  - server/src/routes/personal.js
+  - docs/frontend.md
+  - docs/media-detail.md
+screenshots:
+  - /assets/app-captures/custom-lists-dark.png
+  - /assets/app-captures/custom-lists-light.png
+  - /assets/app-captures/custom-lists-cards-dark.png
+  - /assets/app-captures/custom-lists-cards-light.png
+  - /assets/app-captures/media-action-row-dark.png
+  - /assets/app-captures/media-action-row-light.png
+---
+
+import ScreenshotFigure from "../../components/ScreenshotFigure.astro";
+
+Custom Lists are private named collections for movies and TV shows. Use them for themes,
+watching plans, favourites, research, or any grouping that does not belong in canonical
+watch history.
+
+
+## Open Custom Lists
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/custom-lists-dark.png"
+  lightSrc="/assets/app-captures/custom-lists-light.png"
+  alt="Plembfin Custom Lists page showing a selected list and its media cards"
+  caption="Open Custom Lists from the sidebar to select and curate a named collection."
+/>
+
+Select **Custom Lists** in the sidebar. The **List** selector changes the active collection;
+the cards below it show membership in that list rather than every title in the library.
+
+## Create and select a list
+
+Choose **New list**, enter a name, and save. The new collection becomes available in the
+**List** selector. An empty list remains available until you explicitly delete it, which
+makes it safe to create a collection before deciding which titles belong in it.
+
+## Add a movie or TV show
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/media-action-row-dark.png"
+  lightSrc="/assets/app-captures/media-action-row-light.png"
+  alt="Plembfin media detail action row showing Add to custom list"
+  caption="Add to custom list opens the membership chooser from a movie or TV detail page."
+/>
+
+Use **Add to custom list** from a movie or TV detail page, then select one or more lists.
+The action becomes **In custom list** when the title already has membership. A title can be
+in several lists at once and can also be in Watchlist or Ratings.
+
+## Remove membership
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/custom-lists-cards-dark.png"
+  lightSrc="/assets/app-captures/custom-lists-cards-light.png"
+  alt="Plembfin Custom Lists cards showing Remove and More options actions"
+  caption="Remove changes membership in the selected list without deleting the media title."
+/>
+
+Use **Remove** on a card in the selected list, or use the detail page's custom-list chooser
+to clear the membership. Removing membership does not remove the title from another list,
+Watchlist, Ratings, the local library, or watch history.
+
+## Delete a list
+
+Choose **Delete list** and confirm the selected collection. The operation removes list
+membership for that collection only. It does not delete the media record, provider metadata,
+watch history, personal rating, or membership in another list.
+
+## Privacy and empty states
+
+If no lists exist, the page presents **New list** directly. If a list has no members, that is
+different from a missing list: choose it again from the selector or add a title from a detail
+page. Custom Lists never create watched events or change the sync identity of a title.
+
+For the other private workflows, see [Watchlist](/docs/watchlist/) and
+[Ratings](/docs/ratings/).

@@ -1,0 +1,334 @@
+---
+title: Movies media page
+description: Read and use a single movie media page in Plembfin.
+category: Dashboard and libraries
+order: 2.1
+sourceVersion: "0.16.3.5"
+sourcePaths:
+  - public/app.js
+  - public/index.html
+  - public/modules/media-detail.js
+  - public/modules/media-detail-context.js
+  - public/modules/media-detail-movie.js
+  - public/modules/media-detail-shared.js
+  - public/modules/media-detail-events.js
+  - public/modules/watch-action.js
+  - public/modules/personal-media.js
+  - public/modules/edit-dialogs.js
+  - docs/media-detail.md
+screenshots:
+  - /assets/app-captures/movie-detail-page-dark.png
+  - /assets/app-captures/movie-detail-page-light.png
+  - /assets/app-captures/media-detail-overview-dark.png
+  - /assets/app-captures/media-detail-overview-light.png
+  - /assets/app-captures/media-header-dark.png
+  - /assets/app-captures/media-header-light.png
+  - /assets/app-captures/media-watch-status-dark.png
+  - /assets/app-captures/media-watch-status-light.png
+  - /assets/app-captures/media-action-row-dark.png
+  - /assets/app-captures/media-action-row-light.png
+  - /assets/app-captures/media-rating-focus-dark.png
+  - /assets/app-captures/media-rating-focus-light.png
+  - /assets/app-captures/media-tools-focus-dark.png
+  - /assets/app-captures/media-tools-focus-light.png
+  - /assets/app-captures/media-info-focus-dark.png
+  - /assets/app-captures/media-info-focus-light.png
+  - /assets/app-captures/media-appearance-dark.png
+  - /assets/app-captures/media-appearance-light.png
+  - /assets/app-captures/media-edit-images-focus-dark.png
+  - /assets/app-captures/media-edit-images-focus-light.png
+  - /assets/app-captures/fix-match-focus-dark.png
+  - /assets/app-captures/fix-match-focus-light.png
+  - /assets/app-captures/media-sections-dark.png
+  - /assets/app-captures/media-sections-light.png
+  - /assets/app-captures/media-sections-overview-dark.png
+  - /assets/app-captures/media-sections-overview-light.png
+  - /assets/app-captures/media-cast-focus-dark.png
+  - /assets/app-captures/media-cast-focus-light.png
+  - /assets/app-captures/media-images-focus-dark.png
+  - /assets/app-captures/media-images-focus-light.png
+  - /assets/app-captures/media-trailers-focus-dark.png
+  - /assets/app-captures/media-trailers-focus-light.png
+  - /assets/app-captures/media-collections-focus-dark.png
+  - /assets/app-captures/media-collections-focus-light.png
+  - /assets/app-captures/media-recommendations-focus-dark.png
+  - /assets/app-captures/media-recommendations-focus-light.png
+  - /assets/app-captures/media-collections-recommendations-focus-dark.png
+  - /assets/app-captures/media-collections-recommendations-focus-light.png
+---
+
+import ScreenshotFigure from "../../../components/ScreenshotFigure.astro";
+
+The Movies media page is the detail page for one selected movie. This guide is about the
+page reached from a movie card, not the Movies library's search, sorting, or view controls.
+
+For example, a direct movie detail route looks like:
+
+`/movie/tmdb/1612018-jackass-best-and-last`
+
+
+## Open a movie media page
+
+Select a movie card in [Movies](/docs/movies/) to open its media page. The page keeps the
+movie's poster, metadata, watch state, actions, and provider content together.
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/movie-detail-page-dark.png"
+  lightSrc="/assets/app-captures/movie-detail-page-light.png"
+  alt="Plembfin complete movie detail page showing the header, watch state, cast, images, trailers, collection, and recommendations"
+  caption="The complete movie detail page keeps the title header, watch state, actions, and loaded detail sections together."
+/>
+
+## Movie header and facts
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/media-header-dark.png"
+  lightSrc="/assets/app-captures/media-header-light.png"
+  alt="Plembfin movie detail header showing the poster, title, synopsis, facts, ratings, and availability"
+  caption="The movie header keeps identity, facts, provider ratings, availability, and destination links together."
+/>
+
+The header can include:
+
+- the poster, backdrop, logo, title, and release date;
+- the synopsis and provider ratings;
+- sync status and media-server availability;
+- provider identifiers and links back to Plex, Emby, or Jellyfin; and
+- a Seerr request control when Seerr is connected.
+
+Provider data is shown when it is available. A missing provider result does not remove the
+local movie record.
+
+## Watch status and history
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/media-watch-status-dark.png"
+  lightSrc="/assets/app-captures/media-watch-status-light.png"
+  alt="Plembfin movie detail Watch Status section showing the watched date and 100% completion"
+  caption="The detail page keeps the canonical watched date and completion percentage visible before opening the full history."
+/>
+
+The **Watch Status** section shows the recorded watch date and completion state. Use its
+pencil control to edit the watch date. Rewatches remain visible as additional watch
+history without creating another movie library card.
+
+When a movie is not yet watched, the page can offer **Mark watched**. A watched movie can
+be marked unwatched from the page. These actions update the archive and start the normal
+sync workflow.
+
+## Movie actions
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/media-action-row-dark.png"
+  lightSrc="/assets/app-captures/media-action-row-light.png"
+  alt="Plembfin movie detail action row showing watchlist, custom-list, rating, watch-state, trailer, and Tools controls"
+  caption="Movie actions are split between personal choices, watch-state corrections, playback links, and maintenance tools."
+/>
+
+### Watchlist and custom-list actions
+
+Use **Add to watch list** to save the movie for later; once saved, the label becomes
+**Remove from watch list**. Use **Add to custom list** to open the list chooser. Existing
+memberships are shown as **Added** and the action becomes **In custom list**.
+Read the dedicated [Watchlist](/docs/watchlist/) and [Custom Lists](/docs/custom-lists/)
+guides for those pages and workflows.
+
+### Personal rating
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/media-rating-focus-dark.png"
+  lightSrc="/assets/app-captures/media-rating-focus-light.png"
+  alt="Plembfin movie detail media facts showing a personal rating beside provider ratings"
+  caption="The personal rating control is separate from TMDB and other provider ratings."
+/>
+
+Use the personal rating control to choose a private score from 1 to 10.
+
+It changes your local rating only; it does not mark the movie watched or alter the provider
+rating shown under Media facts.
+
+See [Ratings](/docs/ratings/#rate-from-a-detail-page) for the rating page and sync behavior.
+
+### Watch-state action
+
+For a watched movie, **Mark Unwatched** clears the canonical watched state after confirmation
+and sends that correction to the configured destinations. Use the Watch Status date control
+when the movie was watched but the date is wrong.
+
+### Tools
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/media-tools-focus-dark.png"
+  lightSrc="/assets/app-captures/media-tools-focus-light.png"
+  alt="Plembfin movie Tools menu showing Force Sync, Info, Edit Images, Fix Match, and Delete"
+  caption="Tools is always available for movie maintenance and evidence."
+/>
+
+The **Tools** menu is always present on the movie detail page. It contains the following
+title-scoped workflows:
+
+#### Force Sync
+
+Choose **Force Sync** when one movie needs its local watched or resume state replayed, or
+when that movie's state should be pulled from a selected destination. It is title-scoped and
+does not replace the broader tools under [Settings → Sync](/docs/settings/sync/).
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-sync-tools-dark.png"
+  lightSrc="/assets/app-captures/settings-sync-tools-light.png"
+  alt="Plembfin Sync Tools settings showing repair, push, and pull controls"
+  caption="Sync Tools provides wider repair and source-of-truth directions beside the title-level Force Sync menu."
+/>
+
+For one movie:
+
+1. Open **Tools → Force Sync** on the detail page.
+2. Choose the direction and destination shown by the dialog. Push sends Plembfin's recorded
+   watched or resume state out; pull imports the selected movie's state from a connected server.
+3. Review the preview before confirming, especially when pushing because remote state can be
+   overwritten.
+4. Check the result in [Sync Activity](/docs/sync-tools/).
+
+For wider repairs or source-of-truth operations, use **Repair Recent Items**, **Set Plembfin as
+Source of Truth**, or **Import Watched Status** under [Settings → Sync → Sync tools](/docs/settings/sync/#sync-tools).
+The watched threshold and resume minimum are controlled in [Sync Tuning](/docs/settings/sync/#sync-tuning).
+
+#### Info
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/media-info-focus-dark.png"
+  lightSrc="/assets/app-captures/media-info-focus-light.png"
+  alt="Plembfin Jackass Presents: Bad Grandpa Info panel showing its latest watch, Jellyfin source, three synced destinations, and audit events"
+  caption="Info is read-only evidence for the selected movie, including the latest watch, destination results, and audit-event count."
+/>
+
+Choose **Info** to inspect Watch Status, the latest watched date, destination results, and
+the audit detail. Use **Export** to preserve the evidence without changing the movie.
+
+#### Edit Images
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/media-edit-images-focus-dark.png"
+  lightSrc="/assets/app-captures/media-edit-images-focus-light.png"
+  alt="Plembfin movie Edit Images picker showing poster choices"
+  caption="Edit Images changes the movie's poster, logo, background, or trailer artwork."
+/>
+
+Choose **Edit Images** when the movie identity is correct but its artwork is not. Select an
+artwork type, choose a provider result or upload a custom image, and save.
+
+#### Fix Match
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/fix-match-focus-dark.png"
+  lightSrc="/assets/app-captures/fix-match-focus-light.png"
+  alt="Plembfin movie Fix Match dialog showing candidate provider results"
+  caption="Fix Match changes the movie identity used for metadata and sync."
+/>
+
+Choose **Fix Match** when the record is attached to the wrong movie. Compare title, year,
+and provider details before confirming; use it for identity, not artwork.
+
+#### Delete
+
+Choose **Delete** only when the local tracked movie and its history should be removed. Make
+a verified backup first. Deleting the record does not remove files from Plex, Emby, or Jellyfin.
+
+### Trailer and provider actions
+
+When a stored trailer is available, **Trailer** opens it in the media lightbox. **Available
+on** providers and **Watch Now** links open the matching service or provider destination.
+Opening a link does not mark the movie watched.
+
+Some actions are conditional on the movie record, provider data, or connected services.
+
+## Movie detail sections
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/media-sections-overview-dark.png"
+  lightSrc="/assets/app-captures/media-sections-overview-light.png"
+  alt="Plembfin movie detail page with Cast, Images, and Trailers and Clips sections"
+  caption="The movie detail view places Cast, Images, and Trailers & Clips below the title header."
+/>
+
+When provider data is available, the page can render:
+
+### Cast
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/media-cast-focus-dark.png"
+  lightSrc="/assets/app-captures/media-cast-focus-light.png"
+  alt="Plembfin movie detail page showing the Cast section with people cards"
+  caption="Cast cards link the movie to person details and the credited role."
+/>
+
+The **Cast** section shows credited people with their roles. Select a person to open their
+biography and filmography without changing the movie record.
+
+### Images
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/media-images-focus-dark.png"
+  lightSrc="/assets/app-captures/media-images-focus-light.png"
+  alt="Plembfin movie detail page showing the Images gallery"
+  caption="Images displays provider scene artwork in a horizontal gallery and opens each tile in a lightbox."
+/>
+
+The **Images** gallery displays provider scene artwork. Select a tile to open the lightbox;
+the gallery is separate from the poster, logo, and background choices in Edit Images.
+
+### Trailers & Clips
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/media-trailers-focus-dark.png"
+  lightSrc="/assets/app-captures/media-trailers-focus-light.png"
+  alt="Plembfin movie detail page showing the Trailers and Clips section"
+  caption="Trailers & Clips keeps stored video previews on the movie detail page."
+/>
+
+The **Trailers & Clips** section lists available provider videos. Select a tile to play it
+in the media lightbox. Missing videos usually indicate provider data rather than a missing
+local movie record.
+
+### Reviews
+
+The **Reviews** section shows provider reviews and their scores when configured. Reviews are
+not the same as your private [Rating](/docs/ratings/) and do not affect watch state.
+
+### Collections and recommendations
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/media-collections-recommendations-focus-dark.png"
+  lightSrc="/assets/app-captures/media-collections-recommendations-focus-light.png"
+  alt="Plembfin movie detail page showing collection and recommended-title cards"
+  caption="Collections and recommendations connect the current movie to related detail pages."
+/>
+
+The collection and recommendation rails link to related movie or TV detail pages. They are
+provider suggestions, not additional local library records.
+
+These sections belong to the selected movie. They are not additional library pages.
+
+## Appearance
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/media-appearance-dark.png"
+  lightSrc="/assets/app-captures/media-appearance-light.png"
+  alt="Plembfin Appearance menu on a movie detail page showing optional section switches"
+  caption="The full Appearance panel shows the switches that control optional movie detail sections."
+/>
+
+Open [Appearance](/docs/appearance/#media-detail-options) in the sidebar footer while this movie media page is active. The
+movie-specific switches control which optional sections are rendered:
+
+- **Logo Art**
+- **Cast Members**
+- **Trailers & Clips**
+- **Reviews**
+- **Images**
+
+Each switch changes presentation only and is saved as an appearance preference. The
+Dashboard's history remains Card View by default; its layout is not controlled here.
+
+For the shared behavior of watch dates, matching, artwork, and sync, see
+[Media details and actions](/docs/media-details/).

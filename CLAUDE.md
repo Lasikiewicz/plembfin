@@ -91,8 +91,9 @@ These hold regardless of which skill is running, so they are repeated here:
   (`gh run list --workflow ghcr-cleanup.yml --limit 1`); each skill repeats this as its
   first step.
 - "Force to alpha" and "Force to main" are force-pushes to shared branches. Show the user
-  what is about to land first. "Force to main" additionally requires explicit user
-  approval of the previewed changelog in chat before anything is staged.
+  what is about to land first. "Force to main" runs the mandatory website update gate and
+  additionally requires explicit user approval of the previewed changelog in chat before
+  anything is staged.
 - Day-to-day work lands on `develop`, never directly on `alpha` or `main`.
 
 ## Documentation and backlog sync

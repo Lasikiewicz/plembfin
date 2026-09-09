@@ -1,0 +1,280 @@
+---
+title: Integrations
+description: Connect media servers, Trakt, Seerr, and metadata providers with the right expectations.
+category: Connect services
+order: 4
+sourceVersion: "0.16.3.5"
+sourcePaths:
+  - docs/plex.md
+  - docs/emby.md
+  - docs/jellyfin.md
+  - docs/metadata.md
+  - docs/webhooks.md
+  - public/modules/help-content.js
+  - docs/personal-ratings.md
+  - docs/personal-watchlist.md
+screenshots:
+  - /assets/app-captures/settings-media-servers-dark.png
+  - /assets/app-captures/settings-media-servers-light.png
+  - /assets/app-captures/settings-media-servers-plex-dark.png
+  - /assets/app-captures/settings-media-servers-plex-light.png
+  - /assets/app-captures/settings-media-servers-emby-dark.png
+  - /assets/app-captures/settings-media-servers-emby-light.png
+  - /assets/app-captures/settings-media-servers-jellyfin-dark.png
+  - /assets/app-captures/settings-media-servers-jellyfin-light.png
+  - /assets/app-captures/settings-webhooks-setup-dark.png
+  - /assets/app-captures/settings-webhooks-setup-light.png
+  - /assets/app-captures/settings-connections-trakt-dark.png
+  - /assets/app-captures/settings-connections-trakt-light.png
+  - /assets/app-captures/settings-connections-seerr-dark.png
+  - /assets/app-captures/settings-connections-seerr-light.png
+  - /assets/app-captures/settings-metadata-providers-dark.png
+  - /assets/app-captures/settings-metadata-providers-light.png
+  - /assets/app-captures/sync-activity-dark.png
+  - /assets/app-captures/sync-activity-light.png
+---
+
+import ScreenshotFigure from "../../components/ScreenshotFigure.astro";
+
+Connect at least one media server first.
+
+Plembfin can then import current watched state and begin recording playback events.
+
+Add the other services once the first connection is healthy.
+
+
+## Media servers
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-media-servers-dark.png"
+  lightSrc="/assets/app-captures/settings-media-servers-light.png"
+  alt="Plembfin Media servers settings showing Plex, Emby, and Jellyfin connection cards"
+  caption="Media server cards keep account setup, manual fallback, testing, and enablement together."
+/>
+
+| Service | What Plembfin uses it for | Inbound events |
+| --- | --- | --- |
+| Plex | Library state, playback, watch history, and artwork context | Built-in notification listener, webhooks, and polling |
+| Emby | Library state, playback, watch history, and resume progress | Webhooks plus polling |
+| Jellyfin | Library state, playback, watch history, and resume progress | Webhooks plugin plus polling |
+
+The server running Plembfin must reach each configured URL.
+
+When a browser test succeeds but background sync does not move, test the same hostname,
+port, and protocol from the Plembfin host.
+
+## The connection checklist
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/sync-activity-dark.png"
+  lightSrc="/assets/app-captures/sync-activity-light.png"
+  alt="Plembfin Sync Activity showing successful Scrubs destination results after a connection check"
+  caption="A connection is proven by a small real event and its visible destination result."
+/>
+
+For every integration:
+
+1. Open the matching group in **Settings**.
+2. Enter the URL, credentials, key, or token requested by that provider.
+3. Save and wait for the connection test to finish.
+4. Confirm the server/library or provider status is healthy.
+5. Import or refresh only after the connection test succeeds.
+6. Make one small change and verify it in [Sync Activity](/docs/concepts/#read-sync-activity).
+
+Keep the first test narrow.
+
+It is easier to identify a bad URL or unmatched item before a large import fills the
+activity log.
+
+## Plex
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-media-servers-plex-dark.png"
+  lightSrc="/assets/app-captures/settings-media-servers-plex-light.png"
+  alt="Plembfin Plex settings section showing connection and credential controls"
+  caption="The Plex settings card shows the connected account state, optional manual credentials, enable, test, and save controls."
+/>
+
+Plex needs a server URL and token, or the account connection flow.
+
+Plembfin attaches to Plex's notification WebSocket once the URL and token are configured, so
+no external listener is required for watched/unwatched changes.
+
+In Plex, turn off **Refresh library metadata periodically**.
+
+During a rematch, Plex can reset watched state, and Plembfin would otherwise treat that reset
+as a real unwatch.
+
+Configure the connection in [Settings → Media servers](/docs/settings/media-servers/).
+
+The Plex card also contains the optional **Sync watchlist with Plex** toggle. It uses Plex's
+account-level Universal Watchlist; Plex is the only provider used for Watchlist sync.
+
+Open [Settings → Webhooks → Setup Guides](/docs/settings/webhooks/#setup-guides) for the
+provider-specific listener and scheduled-task guidance.
+
+If Plex events are absent, check the token, server URL, listener status, and then
+[the missing-event steps](/docs/troubleshooting/#a-watched-event-was-not-recorded).
+
+## Emby
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-media-servers-emby-dark.png"
+  lightSrc="/assets/app-captures/settings-media-servers-emby-light.png"
+  alt="Plembfin Emby settings section showing connection and credential controls"
+  caption="The Emby settings card keeps the server connection and credential controls together."
+/>
+
+Connect with the server URL and a user login, or provide an API key and user ID.
+
+The setup guide does not store the password after obtaining a token.
+
+In Emby, open **Preferences → Notifications → Webhooks**, add the full Plembfin webhook URL,
+and enable:
+
+- playback: **Start**, **Pause**, **Unpause**, and **Stop**;
+- users: **Mark Played** and **Mark Unplayed**; and
+- **Send All Properties**, so resume fields are present.
+
+Leave unrelated event categories off until the core event path works.
+
+They add noise without improving watched-state sync.
+
+## Jellyfin
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-media-servers-jellyfin-dark.png"
+  lightSrc="/assets/app-captures/settings-media-servers-jellyfin-light.png"
+  alt="Plembfin Jellyfin settings section showing connection and credential controls"
+  caption="The Jellyfin settings card keeps the server connection and credential controls together."
+/>
+
+Connect with Quick Connect, a username/password flow, or an API key and user ID. Jellyfin 12
+uses its modern `MediaBrowser` authorization header for account and manual-token access; the
+manual API-key and Quick Connect credential paths remain supported. Plembfin keeps browser
+artwork requests separate from server-side authentication.
+
+The password is not stored after token exchange.
+
+Install the **Webhooks** plugin from the Jellyfin plugin catalog.
+
+Add a Generic Webhook named `plembfin`, paste the URL, and enable:
+
+- **Playback Start**, **Playback Progress**, **Playback Stop**, and **User Data Saved**;
+- optionally **Item Added** for newly added media catch-up;
+- item types **Movies** and **Episodes**; and
+- **Send All Properties (ignores template)**.
+
+The body must be JSON.
+
+Jellyfin may label the payload `text/plain`.
+
+Plembfin still reads it as JSON and records malformed bodies in Sync Activity.
+
+Jellyfin still participates in watched-state and optional personal-rating sync, but it is not
+a Watchlist provider. Explicit watched and unwatched events remain authoritative, with scheduled
+polling used as a conservative backstop when webhook delivery is unavailable.
+
+## Trakt
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-connections-trakt-dark.png"
+  lightSrc="/assets/app-captures/settings-connections-trakt-light.png"
+  alt="Plembfin Trakt connection settings showing the bridge and import controls"
+  caption="The Trakt card shows the device connection, import options, and single-bridge configuration."
+/>
+
+The live Trakt connection is two-way.
+
+A change in Trakt, Plex, Emby, Jellyfin, or Plembfin can flow through the local canonical
+record.
+
+It can then flow out to the other connected services.
+
+Choose **Connect Trakt** in [Settings → Connections → Trakt](/docs/settings/connections/#trakt).
+
+Open the displayed activation link, enter the device code, and approve access.
+
+A normal user does not need a Trakt VIP subscription or personal API application for the
+built-in device app.
+
+When Plembfin is the Trakt bridge, disable Emby and Jellyfin Trakt plugins and their
+scheduled Trakt tasks.
+
+Multiple writers can reapply older state after Plembfin has already corrected it.
+
+See [Trakt changes that keep coming back](/docs/troubleshooting/#trakt-changes-keep-coming-back).
+
+If a Trakt episode is reported as `not_found`, use [show-match repair and retry](/docs/sync-tools/#trakt-show-match-repair)
+from Sync Activity. If the show is genuinely unavailable in Trakt, dismissing the Trakt error
+skips only that destination and preserves the local archive.
+
+When **Personal Rating Sync** is enabled under [Settings → Sync](/docs/settings/sync/), Trakt also participates
+in the separate two-way 1–10 rating sync. That rating domain has its own queue and conflict
+rules; it is not the watched-state sync described above.
+
+## Private-list and rating sync
+
+Personal Rating Sync is optional and uses the authenticated Plex, Emby, Jellyfin, and Trakt
+accounts for two-way rating reconciliation. Plembfin remains the conflict authority, and
+provider outages do not change local ratings or watched state.
+
+Plex Watchlist Sync is a separate optional toggle. Its first pass safely unions Plembfin's
+canonical movie/show Watchlist with Plex's account Watchlist; later complete snapshots
+reconcile changes. Emby and Jellyfin do not offer an equivalent account-level watchlist, so
+their old watchlist projections are not supported.
+
+See [Watchlist](/docs/watchlist/#sync-with-plex), [Ratings](/docs/ratings/#personal-rating-sync),
+and [Settings → Sync → Personal Rating Sync](/docs/settings/sync/#personal-rating-sync) for
+recovery and queue details.
+
+## Seerr
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-connections-seerr-dark.png"
+  lightSrc="/assets/app-captures/settings-connections-seerr-light.png"
+  alt="Plembfin Seerr connection settings showing request integration controls"
+  caption="The Seerr card configures request and availability context for media details."
+/>
+
+Connect Overseerr or Jellyseerr from [Settings → Connections](/docs/settings/connections/).
+
+When available, detail pages show request actions for movies and shows.
+
+Availability and request status come from Seerr; watched state remains Plembfin's
+responsibility.
+
+## Metadata and artwork providers
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-metadata-providers-dark.png"
+  lightSrc="/assets/app-captures/settings-metadata-providers-light.png"
+  alt="Plembfin Metadata Providers settings showing provider cards and connection status"
+  caption="Metadata Providers contains the keys and connection status used for enrichment and artwork."
+/>
+
+- **TMDB** supplies posters, backdrops, cast, summaries, search, trailers, reviews, and
+  recommendations. Add a TMDB API key first for the richest details.
+- **TheTVDB** supplies show identity, season/episode numbering, air dates, and fallback art.
+- **Fanart.tv** supplies community-curated poster, backdrop, and logo fallbacks.
+- **OMDb** is optional and can provide IMDb rating badges.
+- **YouTube** is optional and can supply trailer metadata.
+
+Plembfin caches metadata and artwork locally.
+
+A provider outage can affect new enrichment without erasing the local watch archive.
+
+Use [Settings → Metadata](/docs/settings/#metadata) to refresh after correcting a key.
+
+## Verify a connection without guessing
+
+After any integration change, create one known test:
+
+1. Use a title that is already present in the local library.
+2. Make one watched, unwatched, or resume change from the source.
+3. Wait for the webhook or polling interval.
+4. Open [Sync Activity](/docs/concepts/#read-sync-activity).
+5. Read each destination result and follow the matching troubleshooting link if it is skipped
+   or failed.
+
+[Continue with the sync model](/docs/concepts/) or [open Settings](/docs/settings/).

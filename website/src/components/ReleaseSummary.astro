@@ -1,0 +1,14 @@
+---
+const { release, compact = false } = Astro.props;
+const firstEntry = release.entries?.[0];
+---
+
+<div class:list={["release-summary", { compact }]}>
+  <div class="release-summary-top">
+    <span class="status-dot" aria-hidden="true"></span>
+    <span>Current release</span>
+    <strong>v{release.version}</strong>
+  </div>
+  <p>{firstEntry?.summary || release.summary}</p>
+  <a class="button-secondary" href="/changelog/">Read the changelog</a>
+</div>

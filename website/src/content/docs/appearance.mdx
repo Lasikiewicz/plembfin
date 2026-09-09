@@ -1,0 +1,77 @@
+---
+title: Appearance
+description: Configure the theme and optional sections on movie and TV detail pages.
+category: Media and discovery
+order: 7
+sourceVersion: "0.16.3.5"
+sourcePaths:
+  - public/index.html
+  - public/modules/tools-backups.js
+  - public/modules/media-detail-movie.js
+  - public/modules/media-detail-show.js
+  - docs/media-detail.md
+screenshots:
+  - /assets/app-captures/media-appearance-dark.png
+  - /assets/app-captures/media-appearance-light.png
+  - /assets/app-captures/appearance-dashboard-dark.png
+  - /assets/app-captures/appearance-dashboard-light.png
+---
+
+import ScreenshotFigure from "../../components/ScreenshotFigure.astro";
+
+The **Appearance** menu is available in the app sidebar footer when a movie or TV detail
+page is open. It controls presentation only; it does not remove watch records, metadata,
+or artwork.
+
+
+## Theme
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/appearance-dashboard-dark.png"
+  lightSrc="/assets/app-captures/appearance-dashboard-light.png"
+  alt="Plembfin Appearance control showing the Light and Dark theme switch"
+  caption="The theme switch changes the visual treatment of the app without changing data."
+/>
+
+Choose **Light** or **Dark** with the separate theme control in the sidebar footer.
+
+The choice is stored in the current browser and reused when the app opens again. Theme
+changes colors and contrast only; they do not alter data or sync behavior.
+
+## Media-detail options
+
+The available switches depend on the detail page that is open:
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/media-appearance-dark.png"
+  lightSrc="/assets/app-captures/media-appearance-light.png"
+  alt="Plembfin Appearance menu on a media detail page showing independent section switches"
+  caption="On a media page, Appearance exposes independent switches for optional detail sections."
+/>
+
+Movie and TV detail pages can provide these switches:
+
+- **Logo Art**: show the provider logo when one is available.
+- **Cast Members**: show the cast section and links to person pages.
+- **Trailers & Clips**: show available video content.
+- **Reviews**: show provider review content.
+- **Images**: show the image gallery.
+- **Related Shows**: show related and recommendation content when the page provides it.
+
+Each switch is independent and saved as an appearance preference. Turning a section off
+only changes what is rendered; the provider data remains available when the switch is
+turned back on.
+
+The focused [Movies media page](/docs/movies/media-page/#appearance) and
+[TV Shows media page](/docs/tv-shows/media-page/#appearance) guides describe the controls
+in each context.
+
+## Change a setting
+
+1. Open **Movies** or **TV Shows** and select a title.
+2. Open **Appearance** in the sidebar footer.
+3. Turn the relevant section switch on or off.
+4. Navigate away and back if you want to verify that the preference was stored.
+
+If an option is missing or does not persist, follow
+[Appearance settings are missing or do not persist](/docs/troubleshooting/#appearance-settings-are-missing-or-do-not-persist).

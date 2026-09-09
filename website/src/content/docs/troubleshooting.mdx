@@ -1,0 +1,524 @@
+---
+title: Troubleshooting
+description: Start with the symptom, confirm the source of truth, and take the smallest safe action.
+category: Fix a problem
+order: 7
+sourceVersion: "0.16.3.5"
+sourcePaths:
+  - docs/troubleshooting.md
+  - docs/webhooks.md
+  - docs/scheduled-sync.md
+  - docs/hardening.md
+  - docs/settings.md
+  - public/modules/discover.js
+  - public/modules/personal-media.js
+  - public/modules/rating-sync-settings.js
+  - public/modules/watchlist-sync-settings.js
+  - docs/personal-ratings.md
+  - docs/personal-watchlist.md
+screenshots:
+  - /assets/app-captures/dashboard-dark.png
+  - /assets/app-captures/dashboard-light.png
+  - /assets/app-captures/dashboard-up-next-dark.png
+  - /assets/app-captures/dashboard-up-next-light.png
+  - /assets/app-captures/now-playing-dark.png
+  - /assets/app-captures/now-playing-light.png
+  - /assets/app-captures/discover-dark.png
+  - /assets/app-captures/discover-light.png
+  - /assets/app-captures/watchlist-dark.png
+  - /assets/app-captures/watchlist-light.png
+  - /assets/app-captures/sync-activity-dark.png
+  - /assets/app-captures/sync-activity-light.png
+  - /assets/app-captures/fix-match-dark.png
+  - /assets/app-captures/fix-match-light.png
+  - /assets/app-captures/library-poster-menu-dark.png
+  - /assets/app-captures/library-poster-menu-light.png
+  - /assets/app-captures/media-appearance-dark.png
+  - /assets/app-captures/media-appearance-light.png
+  - /assets/app-captures/settings-metadata-refresh-dark.png
+  - /assets/app-captures/settings-metadata-refresh-light.png
+  - /assets/app-captures/settings-metadata-providers-dark.png
+  - /assets/app-captures/settings-metadata-providers-light.png
+  - /assets/app-captures/settings-webhooks-setup-dark.png
+  - /assets/app-captures/settings-webhooks-setup-light.png
+  - /assets/app-captures/settings-webhooks-secret-dark.png
+  - /assets/app-captures/settings-webhooks-secret-light.png
+  - /assets/app-captures/settings-connections-trakt-dark.png
+  - /assets/app-captures/settings-connections-trakt-light.png
+  - /assets/app-captures/settings-sync-tuning-dark.png
+  - /assets/app-captures/settings-sync-tuning-light.png
+  - /assets/app-captures/settings-general-integrity-dark.png
+  - /assets/app-captures/settings-general-integrity-light.png
+  - /assets/app-captures/settings-restore-watch-history-dark.png
+  - /assets/app-captures/settings-restore-watch-history-light.png
+---
+
+import ScreenshotFigure from "../../components/ScreenshotFigure.astro";
+
+When something looks wrong, first decide whether the problem is recording, matching,
+delivery, or display.
+
+The dashboard tells you what is visible now.
+
+Sync Activity tells you what Plembfin believes happened.
+
+Logs explains why a request failed.
+
+
+## A quick diagnostic order
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/sync-activity-dark.png"
+  lightSrc="/assets/app-captures/sync-activity-light.png"
+  alt="Plembfin Sync Activity view used to diagnose source and destination results"
+  caption="Use the event row, destination result, and reason to choose the next action."
+/>
+
+Use this order for almost every issue:
+
+1. Open the affected page and note the exact title, source, and time.
+2. Check whether a new row exists in [History](/docs/history-search/#history).
+3. Check the corresponding row in [Sync Activity](/docs/concepts/#read-sync-activity).
+4. Decide whether the result is `skipped` or `failed`.
+5. Fix the source, match, or destination named by the row.
+6. Retry only that item or destination and verify the result.
+
+## Now Playing is empty or stale
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/now-playing-dark.png"
+  lightSrc="/assets/app-captures/now-playing-light.png"
+  alt="Plembfin Now Playing section showing active playback sessions"
+  caption="A populated Now Playing section confirms that active playback is reaching Plembfin."
+/>
+
+1. Confirm you are on [Dashboard → Now Playing](/docs/dashboard/#now-playing) and that the
+   player is still active.
+2. Check the media-server connection under [Settings → Media servers](/docs/settings/media-servers/).
+3. Confirm the Plembfin host can reach the server URL, not just the browser.
+4. Reopen the Dashboard or return to it from another tab to request an immediate refresh,
+   then inspect [Settings → Logs](/docs/settings/logs/) if the session is still missing.
+5. Check the active-session TTL under [Settings → Sync → Sync Tuning](/docs/settings/sync/#sync-tuning).
+
+A stale session can mean the source stopped sending updates.
+
+It does not automatically mean the title was watched.
+
+If the dashboard is healthy but the live panel remains empty, continue with [media-server
+event setup](/docs/integrations/#media-servers).
+
+## Up Next resume progress is missing or wrong
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/dashboard-up-next-dark.png"
+  lightSrc="/assets/app-captures/dashboard-up-next-light.png"
+  alt="Plembfin dashboard Up Next rail showing resume progress and continuation actions"
+  caption="Use the Up Next card's progress and actions to decide whether to resume, clear, or complete the item."
+/>
+
+1. Open the Dashboard and check **Up Next**. Note the title, percentage, and source badge on
+   its resume card; current history rows contain completed watches only.
+2. Confirm the source media server is connected under
+   [Settings → Media servers](/docs/settings/media-servers/).
+3. Check that the player supplied both position and duration; a watched event without
+   usable duration cannot produce a reliable resume marker.
+4. If the item is already complete, check [History](/docs/history-search/#history)
+   and the [watched-state rules](/docs/concepts/#watched-state-and-resume-progress)
+   before clearing anything.
+5. For a stale marker, choose **Clear Progress** from Up Next. To complete the item deliberately,
+   choose **Mark Watched**, then verify the destination result in
+   [Sync Activity](/docs/concepts/#read-sync-activity).
+
+If an episode name is missing, run [Settings → Tools → Database Repairs → Restore Missing
+Episode Names](/docs/settings/tools/#database-repairs). Retryable metadata failures remain
+actionable; confirmed metadata without a title is displayed as **No title provided**.
+
+## Discover is empty or unavailable
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/discover-dark.png"
+  lightSrc="/assets/app-captures/discover-light.png"
+  alt="Plembfin Discover page showing current movie and TV feeds"
+  caption="Discover needs a working TMDB connection before it can populate its rails."
+/>
+
+1. Open [Settings → Metadata](/docs/settings/metadata/) and confirm that a valid TMDB API key is configured.
+2. Return to **Discover**, choose **Movies & TV**, and press **Refresh**.
+3. If the page reports that the server route is missing, restart Plembfin so the current
+   build is serving `/api/discover`.
+4. If TMDB is rate-limited or unavailable, wait and use **Try again** rather than changing
+   local watch state.
+5. Check [Settings → Logs](/docs/settings/logs/) for the provider response when the error repeats.
+
+Discover is an external feed. An empty Discover rail does not mean that your local library
+or watch history has been deleted.
+
+## Watchlist, rating, or list action did not update
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/watchlist-dark.png"
+  lightSrc="/assets/app-captures/watchlist-light.png"
+  alt="Plembfin Watchlist page showing saved media cards"
+  caption="Watchlist, Ratings, and Custom Lists are separate from watched-state sync."
+/>
+
+1. Confirm the app still shows your signed-in account and reopen the relevant **Watchlist**,
+   **Ratings**, or **Custom Lists** page.
+2. Wait for the card action to finish and check the inline success or error message.
+3. Reload the personal page so it can fetch the current local snapshot again.
+4. For a custom list, check that the intended list is selected and that the title is not
+   already marked **Added**.
+5. If the action fails for every title, restart the current Plembfin build and inspect
+   [Settings → Logs](/docs/settings/logs/) for the Watchlist, Ratings, or Custom Lists request.
+
+These actions do not create a watch event. Check **History** and **Sync Activity** only when
+the problem is with watched state rather than a private personal choice.
+
+For a provider issue, check the relevant independent sync panel under [Settings → Sync](/docs/settings/sync/):
+Personal Rating Sync covers Plex, Emby, Jellyfin, and Trakt; Plex Watchlist Sync covers only
+Plex. Use **Sync now** or the panel's retry action after correcting the provider connection.
+
+## Fix Match returns no useful result
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/fix-match-dark.png"
+  lightSrc="/assets/app-captures/fix-match-light.png"
+  alt="Plembfin Fix Match dialog showing a TheTVDB search, matching results, and YouTube fallback"
+  caption="Before choosing a match, compare the returned artwork and year with the title you actually own."
+/>
+
+Fix Match is for a wrong or missing provider identity.
+
+It is not the same as choosing a different poster in Edit Images.
+
+It cannot make a title appear on a server that does not contain it.
+
+For a movie:
+
+1. Open the movie detail page, or open the movie card's three-dot menu.
+2. Choose **Fix Match**.
+3. Search by the exact title, year, or a distinctive title fragment.
+4. Compare the year and result details with the local movie.
+5. Select the correct TMDB result and confirm it.
+6. Reopen the detail page and check the provider identity and artwork.
+7. Open Sync Activity and retry the affected destination if the original row was skipped.
+
+For a TV show:
+
+1. Open the show detail page. Start from the show rather than an individual episode when
+   the series identity is wrong.
+2. Choose **Fix Match** and search for the series.
+3. Compare the title, year, network, and season information.
+4. Select the correct TheTVDB series and confirm it.
+5. Wait for the background metadata, episode rematch, and poster refresh.
+6. Confirm the seasons and episodes now belong to the intended show.
+7. Rerun the affected sync and check its destination rows in Sync Activity.
+
+If the correct title is not returned, confirm the relevant provider is configured in
+[Metadata Providers](/docs/settings/#metadata-providers).
+
+Try the search again after confirming the provider configuration.
+
+If the provider result is correct but the destination still has no copy, read [Sync Issues
+and Match Report](/docs/settings/#sync-issues-and-match-report).
+
+An identified item missing from one server is a library difference, not a match that can be
+fixed.
+
+The complete action reference is [Fix Match](/docs/media-details/#fix-match).
+
+## The poster three-dot menu is missing or does nothing
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/library-poster-menu-dark.png"
+  lightSrc="/assets/app-captures/library-poster-menu-light.png"
+  alt="Plembfin movie poster card with the shared three-dot quick-actions menu open"
+  caption="The menu is attached to the poster card; close it and retry from the card if an action does not respond."
+/>
+
+The poster menu is available on movie, TV, and supported History cards.
+
+On a desktop pointer, hover the card to reveal the three-dot button.
+
+Select it and choose **Edit watch date**, **Fix match**, **Rate**, **Add to watch list**,
+**Add to Custom list**, or **Mark unwatched**.
+
+Use this recovery sequence:
+
+1. Open the relevant **Movies**, **TV Shows**, or **History** view.
+2. Search for the title and wait for its poster card to finish loading.
+3. Hover the card and select the three-dot button.
+4. Choose one action and wait for its saving or confirmation state to finish.
+5. Refresh the current view and check History or Sync Activity for the result.
+6. If the card menu is unavailable in the current layout, open the title detail page and
+   use its visible action controls instead.
+
+Do not repeat a watch or unwatch action while the first request is still saving.
+
+For the full list of menu actions and their effects, see [the shared library controls](/docs/libraries/#the-shared-card-controls).
+
+## Appearance settings are missing or do not persist
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/media-appearance-dark.png"
+  lightSrc="/assets/app-captures/media-appearance-light.png"
+  alt="Plembfin Appearance menu on a media detail page showing optional content switches"
+  caption="Media-detail Appearance options only hide or show Logo Art, Cast Members, Trailers & Clips, Reviews, Images, and Related Shows."
+/>
+
+Appearance is available in the app sidebar footer when a movie or TV detail page is active.
+
+Use the correct scope:
+
+1. Open **Movies** or **TV Shows** and select a title.
+2. Open **Appearance** in the sidebar footer.
+3. Change **Logo Art**, **Cast Members**, **Trailers & Clips**, **Reviews**, **Images**, or
+   **Related Shows** as needed.
+4. Navigate away and return to confirm the selected detail sections remain.
+
+If the menu is not visible, make sure a movie or TV detail page is active.
+
+If a change disappears after a reload, wait for the save state, reload once, and check Logs
+for an appearance-save error.
+
+The switches change presentation only.
+
+They do not remove metadata, artwork, or watch history.
+
+See the [Movies media page](/docs/movies/media-page/#appearance), [TV Shows media page](/docs/tv-shows/media-page/#appearance),
+or complete [Appearance guide](/docs/appearance/#media-detail-options).
+
+## Refresh Metadata did not update a title
+
+TMDB and TheTVDB refresh different parts of the app.
+
+Run the provider that owns the missing information.
+
+Verify the detail page after the operation completes.
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-metadata-refresh-dark.png"
+  lightSrc="/assets/app-captures/settings-metadata-refresh-light.png"
+  alt="Plembfin Refresh Metadata settings section showing the TMDB and TVDB refresh controls"
+  caption="Choose the provider-specific refresh that owns the missing field; TMDB and TVDB are separate operations."
+/>
+
+For a TMDB refresh:
+
+1. Open Settings, then Metadata.
+2. Confirm that TMDB is configured.
+3. Choose **Refresh All TMDB Metadata**.
+4. Wait for the progress or completion status to finish.
+5. Reopen the affected movie or show and check its overview, poster, cast, trailers,
+   reviews, or images.
+
+For a TVDB refresh:
+
+1. Open Settings, then Metadata.
+2. Confirm that TheTVDB is available.
+3. Choose **Refresh All TVDB Metadata**.
+4. Wait for the status to return to idle or success.
+5. Reopen the show and check its series identity, seasons, episodes, air dates, and TV
+   artwork.
+
+If the operation reports an error, open Settings, then Logs and compare the provider error
+with the title's Sync Activity row.
+
+If the metadata belongs to the wrong title, use [Fix Match](/docs/media-details/#fix-match)
+first.
+
+Clear the image cache only when the data is correct but an old poster or backdrop is still
+displayed.
+
+Refreshing metadata does not change watched state or watch dates.
+
+The full procedure is [Refresh all metadata](/docs/settings/#refresh-all-metadata).
+
+## A watched event was not recorded
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-webhooks-setup-dark.png"
+  lightSrc="/assets/app-captures/settings-webhooks-setup-light.png"
+  alt="Plembfin Webhooks setup section showing the sender configuration for Plex, Emby, and Jellyfin"
+  caption="Check the provider-specific sender setup before diagnosing a missing watched event."
+/>
+
+1. Make one new watched/unwatched change on a title already present in the local library.
+2. Check the sender:
+   - Plex needs its connection URL/token and built-in listener available.
+   - Emby needs `Mark Played`/`Mark Unplayed` or the relevant playback events.
+   - Jellyfin needs `User Data Saved` or the relevant events from the Webhooks plugin.
+   - Trakt needs a healthy authorized connection.
+3. Confirm the webhook URL and secret if the provider uses webhooks.
+4. Wait for the polling backstop.
+5. Inspect Logs for authentication, malformed payload, or connection errors.
+
+If no History row appears, the issue is still in recording or transport.
+
+If the event was a provider Mark Played flag without a trustworthy completion time, check
+[Manual Watch review](/docs/settings/sync/#manual-watch-review). Approving it assigns the date
+policy you choose; dismissing it marks the reporting item unwatched and leaves the review pending
+if the provider correction cannot be completed.
+
+Follow the exact provider setup in [Integrations](/docs/integrations/) before investigating
+a destination.
+
+## It recorded but did not reach another service
+
+1. Open the event in Sync Activity.
+2. Read the destination result and the reason.
+3. If it is **skipped**, open the title details and repair the provider/library match.
+4. If it is **failed**, check the destination connection and the server log for the request.
+5. Correct the connection or match.
+6. Use **Retry failed** or the row's targeted retry, then confirm the destination result.
+
+Do not immediately run a whole-library Force Sync unless the scope is understood.
+
+The [sync-model guide](/docs/concepts/#the-event-lifecycle) explains why a skipped
+destination is different from a failed delivery.
+
+## Resume progress did not carry over
+
+Confirm that the source emitted the position fields Plembfin needs:
+
+- Plex: lifecycle events with `viewOffset` and `duration` where available.
+- Emby: `PlaybackPositionTicks` or `PositionTicks`.
+- Jellyfin: `PlaybackPositionTicks`, `PositionTicks`, or the item playback position.
+
+Then:
+
+1. Check that the item is not already marked watched.
+2. Confirm the source and destination refer to the same provider match.
+3. Check Sync Activity for a skipped or failed resume delivery.
+4. Play briefly, stop, and verify the new position before attempting a bulk repair.
+
+A newer completed watch takes precedence over an older resume marker.
+
+See [watched state and resume progress](/docs/concepts/#watched-state-and-resume-progress).
+
+## Posters or metadata are missing
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-metadata-providers-dark.png"
+  lightSrc="/assets/app-captures/settings-metadata-providers-light.png"
+  alt="Plembfin Metadata Providers settings section showing provider configuration status"
+  caption="Confirm the provider needed for the missing field is configured before refreshing metadata."
+/>
+
+1. Open [Settings → Metadata](/docs/settings/metadata/) and confirm the provider key is configured.
+2. Check for provider rate-limit or authentication errors in Logs.
+3. Run **Refresh Metadata** for the affected title or a small scope.
+4. Check [Settings → General → Storage & cache](/docs/settings/general/#storage-and-cache) if artwork is consistently absent.
+5. Reopen the detail page after the refresh completes.
+
+A provider failure should not erase the local watch archive.
+
+See [metadata and artwork providers](/docs/integrations/#metadata-and-artwork-providers).
+
+## Webhook returns 401
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-webhooks-secret-dark.png"
+  lightSrc="/assets/app-captures/settings-webhooks-secret-light.png"
+  alt="Plembfin Webhook Secret settings section showing webhook authentication guidance"
+  caption="Use the current secret URL or accepted header form shown in Webhook Secret."
+/>
+
+1. Open [Settings → Webhooks → Setup Guides](/docs/settings/webhooks/#setup-guides).
+2. Copy the full URL, including `?token=`, when the sender cannot set a header.
+3. If using a header, use the accepted webhook secret or bearer form exactly as shown.
+4. If the secret was rotated, update every sender using the old URL.
+5. Send one test event and confirm a new Sync Activity row.
+
+Do not paste the webhook URL into a public issue or screenshot.
+
+The token may be in the query string.
+
+See [Webhooks](/docs/settings/#webhooks) and the provider-specific [integration guide](/docs/integrations/).
+
+## Trakt changes keep coming back
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-connections-trakt-dark.png"
+  lightSrc="/assets/app-captures/settings-connections-trakt-light.png"
+  alt="Plembfin Trakt connection settings section showing the single-bridge configuration"
+  caption="Trakt should have one intentional bridge; disable competing Trakt writers before retrying."
+/>
+
+1. Make Plembfin the only Trakt bridge.
+2. Disable Emby and Jellyfin Trakt plugins.
+3. Disable their scheduled Trakt tasks.
+4. Wait for existing queued work to finish.
+5. Correct the title once in Plembfin.
+6. Watch Sync Activity for another writer before retrying.
+
+A second writer can reapply older state after Plembfin has already corrected it.
+
+For an episode-level Trakt `not_found` result, open the show group in Sync Activity and use
+[Fix show match & retry all](/docs/sync-tools/#trakt-show-match-repair). If the show is not
+available in Trakt, dismiss the Trakt error instead of retrying the same unresolved match.
+
+Read [Trakt setup](/docs/integrations/#trakt) for the intended ownership model.
+
+## Settings or config did not save
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-index-dark.png"
+  lightSrc="/assets/app-captures/settings-index-light.png"
+  alt="Plembfin Settings landing page showing the settings groups"
+  caption="Use the relevant Settings group instead of resetting the whole instance when one value will not save."
+/>
+
+1. Wait for the visible save status to finish.
+2. Refresh the page and check whether the value persisted.
+3. Confirm the `/data` volume is mounted and writable.
+4. Check Logs for validation or database errors.
+5. Remember that credentials changed from Settings take precedence over the original
+   environment values.
+
+If only one setting fails, follow its group guide in [Settings](/docs/settings/)
+instead of resetting the whole instance.
+
+## The scheduler is not running
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-general-integrity-dark.png"
+  lightSrc="/assets/app-captures/settings-general-integrity-light.png"
+  alt="Plembfin System Integrity settings section showing diagnostic controls"
+  caption="System Integrity is the first app-level check for scheduler and service-health problems."
+/>
+
+1. Confirm the process is running and the data directory is writable.
+2. Check the system clock and timezone.
+3. Confirm the default `ROLE=all` process is active, or that the worker exists in a split
+   web/worker setup.
+4. Confirm the worker has the shared data volume.
+5. Check that the SQLite lease is not blocked.
+6. Review Logs and wait for the next scheduled interval.
+
+The default scheduler runs once per minute.
+
+A temporary delay is different from a worker that never records a heartbeat.
+
+Use [Backups and operations](/docs/operations/#routine-maintenance) for the host-level
+checks.
+
+## When to stop and restore
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-restore-watch-history-dark.png"
+  lightSrc="/assets/app-captures/settings-restore-watch-history-light.png"
+  alt="Plembfin Restore settings section showing watch-history restore controls"
+  caption="Restore the local archive first, then verify it before replaying changes to connected services."
+/>
+
+If a bulk operation produced unexpected unwatches:
+
+1. Stop making further changes.
+2. Preserve the current logs and Sync Activity evidence.
+3. Identify the last good backup.
+4. Restore the local archive first.
+5. Review destination scope before sending anything back out.
+6. Reconnect or repair one destination at a time.
+
+For implementation-level details, use the [technical troubleshooting source on GitHub](https://github.com/Lasikiewicz/plembfin/blob/main/docs/troubleshooting.md).

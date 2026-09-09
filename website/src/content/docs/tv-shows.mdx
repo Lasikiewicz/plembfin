@@ -1,0 +1,70 @@
+---
+title: TV Shows
+description: Browse tracked series, inspect episode progress, and open a show media page.
+category: Dashboard and libraries
+order: 3
+sourceVersion: "0.16.3.5"
+sourcePaths:
+  - public/index.html
+  - public/modules/explorer.js
+  - public/modules/poster-menu.js
+  - docs/tv-shows.md
+screenshots:
+  - /assets/app-captures/tvshows-dark.png
+  - /assets/app-captures/tvshows-light.png
+  - /assets/app-captures/tv-spoilers-off-dark.png
+  - /assets/app-captures/tv-spoilers-off-light.png
+---
+
+import ScreenshotFigure from "../../components/ScreenshotFigure.astro";
+
+TV Shows groups tracked episode records into series and adds season, progress, and
+next-airing context.
+
+
+## Find a show
+
+
+1. Open **TV Shows** in the sidebar.
+2. Search by show title or use the sort and A–Z controls.
+3. Use **Hide Fully Watched** to remove shows with no remaining unwatched episodes.
+4. Use **Hide Ended** to remove ended shows when focusing on continuing series.
+5. Adjust poster size or switch between poster grid, list view, and overview cards.
+6. Select a show card to open its TV show media page.
+
+Large libraries load progressively as you scroll. On a show media page, season episode
+details load when a season is expanded so the initial summary is not held up by every
+season's episode payload.
+
+## Show cards and progress
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/tvshows-dark.png"
+  lightSrc="/assets/app-captures/tvshows-light.png"
+  alt="Plembfin TV Shows cards showing watched progress and next-airing context"
+  caption="Show cards summarize episode progress and next-airing context before you open details."
+/>
+
+A show card can include watched-versus-total progress, last-play information, and the next
+airing date. The list view can expand a show into seasons and episodes, but the selected
+show's media page is where title-level actions live.
+
+Unaired episodes are not treated as completed watches by a bulk action. If the title,
+episode count, or progress is wrong, correct the series identity with
+[Fix Match](/docs/media-details/#fix-match) before changing a whole season.
+
+## TV show media page
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/tv-spoilers-off-dark.png"
+  lightSrc="/assets/app-captures/tv-spoilers-off-light.png"
+  alt="Plembfin Reacher TV show media page showing the series header, detail actions, and expanded Season 4"
+  caption="Selecting a show opens the series controls and an expanded season with its episode cards."
+/>
+
+The child [TV Shows media page](/docs/tv-shows/media-page/) guide is about one selected
+series, including its header, seasons, episodes, progress, actions, detail sections, and
+page-specific Appearance controls.
+
+See [Media details and actions](/docs/media-details/) for the shared explanation of
+watch dates, matching, artwork, and sync behavior.

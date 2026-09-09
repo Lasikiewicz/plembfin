@@ -137,7 +137,9 @@ values already committed" - none of them write anything back to their branch.
   getting the correct file onto `origin/develop` for the app's own live remote-fetch
   changelog comparison (`fetchRemoteDevelopChangelog` in `routes/maintenance.js`), not a
   new image. `secret-scan.yml` still runs regardless of which files changed.
-- **"Force to main"** checks out `alpha`'s actual tip locally, writes a concise,
+- **"Force to main"** first runs the mandatory website update gate against the current
+  development checkout so the tracked Astro documentation and captures cover the latest
+  application changes. It then checks out `alpha`'s actual tip locally, writes a concise,
   single-line `releaseMessage` to `changelog.alpha.json`, then runs
   `scripts/promote-alpha-to-main.js --preview` so the would-be release entry can be
   shown to the user and confirmed. Only after approval does the operator run

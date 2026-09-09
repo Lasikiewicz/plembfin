@@ -1,0 +1,198 @@
+---
+title: Backups and operations
+description: Keep Plembfin recoverable with backups, safe imports, hardening, and routine maintenance.
+category: Sync and maintain
+order: 6
+sourceVersion: "0.16.3.5"
+sourcePaths:
+  - docs/backups.md
+  - docs/watch-history-backups.md
+  - docs/personal-watchlist.md
+  - docs/personal-ratings.md
+  - docs/auth.md
+  - docs/hardening.md
+  - docs/security-checklist.md
+  - docs/development.md
+  - README.md
+screenshots:
+  - /assets/app-captures/dashboard-dark.png
+  - /assets/app-captures/dashboard-light.png
+  - /assets/app-captures/settings-backup-local-dark.png
+  - /assets/app-captures/settings-backup-local-light.png
+  - /assets/app-captures/settings-backup-remote-dark.png
+  - /assets/app-captures/settings-backup-remote-light.png
+  - /assets/app-captures/settings-restore-watch-history-dark.png
+  - /assets/app-captures/settings-restore-watch-history-light.png
+  - /assets/app-captures/settings-connections-trakt-dark.png
+  - /assets/app-captures/settings-connections-trakt-light.png
+  - /assets/app-captures/sync-activity-dark.png
+  - /assets/app-captures/sync-activity-light.png
+---
+
+import ScreenshotFigure from "../../components/ScreenshotFigure.astro";
+
+Plembfin is designed to run on hardware you control.
+
+Treat the local data volume, admin credentials, provider tokens, and webhook secret as
+valuable operational data.
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/dashboard-dark.png"
+  lightSrc="/assets/app-captures/dashboard-light.png"
+  alt="Plembfin dashboard overview for a locally operated instance"
+  caption="Routine operations protect the instance behind the app: its archive, connections, backups, and maintenance tools."
+/>
+
+## Backups
+
+Plembfin supports two local backup families:
+
+- **Watch-history backups** include history, playstate, and resume markers.
+- **Full Plembfin backups** are encrypted and include settings, keys, credentials, history,
+  Watchlist, Ratings, Custom Lists, and other instance state.
+
+Each has its own schedule, retention, and **Back Up Now** action.
+
+The remote backup option can mirror either type to Backblaze B2 on its own schedule.
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-backup-local-dark.png"
+  lightSrc="/assets/app-captures/settings-backup-local-light.png"
+  alt="Plembfin Local backups settings showing watch-history and encrypted instance backup controls"
+  caption="Local backups separates the watch-history archive from the encrypted full-instance backup."
+/>
+
+<ScreenshotFigure
+    darkSrc="/assets/app-captures/settings-backup-remote-dark.png"
+    lightSrc="/assets/app-captures/settings-backup-remote-light.png"
+  alt="Plembfin Remote backups settings showing the Backblaze B2 destination controls"
+  caption="Remote backups sends the selected backup family to an enabled Backblaze B2 destination."
+/>
+
+For scheduled encrypted backups, provide a passphrase of at least 12 characters and enable
+**Remember the passphrase for scheduled backups**.
+
+A scheduled job cannot stop to ask a human for a passphrase.
+
+Store the passphrase separately from the backup file.
+
+Full Plembfin backup/export includes the canonical Watchlist and its non-secret Plex sync
+state. Restoring it invalidates remote observations and requires another safe-union snapshot
+before delivery resumes. Watch-history-only backups do not include Watchlist or personal
+rating data.
+
+## Restore safely
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-restore-watch-history-dark.png"
+  lightSrc="/assets/app-captures/settings-restore-watch-history-light.png"
+  alt="Plembfin Restore settings showing watch-history restore scope and merge or replace controls"
+  caption="Restore makes the watch-history scope and merge-versus-replace choice explicit before confirmation."
+/>
+
+Before restoring:
+
+1. Check whether the file is a watch-history backup or a full encrypted backup.
+2. Make a fresh backup of the current instance.
+3. Choose **Merge** or **Replace** deliberately.
+4. Review the preview and confirm the scope.
+5. Keep the original backup file until the result has been verified.
+6. Open [Sync Activity](/docs/concepts/#read-sync-activity) and check a few known titles on
+   each connected server.
+
+A restore changes local state and may queue follow-up sync work.
+
+If a server was offline, let it reconnect before deciding that the archive is wrong.
+
+If a bulk operation produced unexpected unwatches, stop making further changes and identify
+the last good backup first.
+
+## Import history
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-connections-trakt-dark.png"
+  lightSrc="/assets/app-captures/settings-connections-trakt-light.png"
+  alt="Plembfin Trakt connection settings showing the import controls"
+  caption="Trakt history imports start from the Trakt connection card."
+/>
+
+Trakt exports can be uploaded from [Settings → Connections](/docs/settings/connections/).
+
+Live Trakt sync can then remain connected for ongoing changes.
+
+The Plex history export script is useful when bootstrapping a fresh deployment or recovering
+years of history.
+
+Run a dry run before a write pass.
+
+For a newly connected or rebuilt library, use import followed by a deliberate full sync when
+you want the current Plembfin archive replayed to that server.
+
+Do not use a full sync as the first response to an unexplained mismatch.
+
+Inspect the destination result first.
+
+## Routine maintenance
+
+Once a week or after an upgrade:
+
+- confirm the `/data` volume is mounted and writable;
+- check the scheduled backup result and retention;
+- open the dashboard and confirm recent activity is still visible;
+- review failed or partial rows in Sync Activity;
+- check provider keys and rate-limit errors if artwork is missing; and
+- keep one known-good restore point before changing release channels.
+
+## Security basics
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-general-account-dark.png"
+  lightSrc="/assets/app-captures/settings-general-account-light.png"
+  alt="Plembfin General Account settings showing administrator credential controls"
+  caption="Security begins with the administrator account, then extends to the data volume, network, and integration secrets."
+/>
+
+- Use a unique administrator password and keep it out of source control.
+- Keep `data/` on persistent storage with permissions appropriate to the host.
+- Put remotely reachable instances behind HTTPS or a VPN/reverse proxy.
+- Set `COOKIE_SECURE=true` when serving through HTTPS.
+- Treat API keys, webhook secrets, Trakt tokens, and the optional credential-vault key as
+  secrets. Rotate them when exposure is suspected.
+- Keep the webhook URL private because the token may be in its query string.
+- Remove private-list titles and runtime/build details before sharing screenshots or logs.
+
+Plembfin applies password hashing, signed sessions, rate limits, security headers, and
+authenticated routes.
+
+These controls reduce risk.
+
+They do not replace host, network, or media-server security.
+
+## Updates and release channels
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-index-dark.png"
+  lightSrc="/assets/app-captures/settings-index-light.png"
+  alt="Plembfin Settings landing page used to confirm the running release"
+  caption="After an update, confirm the installed version in the About card and check the operational views."
+/>
+
+The recommended Docker tag is `latest`, which follows tested releases on `main`.
+
+`alpha` is for early testers, and `develop` is the least-tested rolling channel for
+contributors.
+
+Back up before changing release channels or upgrading the container.
+
+After an update, check the app version in [Settings → About](/docs/settings/about/), open the dashboard, and
+review Sync Activity for unexpected failures.
+
+## PWA and local operation
+
+Plembfin is installable as a Progressive Web App on supported desktop and mobile browsers.
+
+The browser is a client to your self-hosted instance.
+
+The scheduler and provider requests still run on the Plembfin host.
+
+[Review the Settings groups](/docs/settings/) or [start with troubleshooting](/docs/troubleshooting/).

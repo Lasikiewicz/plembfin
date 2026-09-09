@@ -1,0 +1,77 @@
+---
+title: Backup
+description: Schedule local backups and configure remote destinations for watch history and full instance data.
+category: Settings
+order: 5.7
+sourceVersion: "0.16.3.5"
+sourcePaths:
+  - public/index.html
+  - public/modules/tools-backups.js
+  - docs/backups.md
+  - docs/watch-history-backups.md
+  - docs/settings.md
+screenshots:
+  - /assets/app-captures/settings-backup-dark.png
+  - /assets/app-captures/settings-backup-light.png
+  - /assets/app-captures/settings-backup-local-dark.png
+  - /assets/app-captures/settings-backup-local-light.png
+  - /assets/app-captures/settings-backup-remote-dark.png
+  - /assets/app-captures/settings-backup-remote-light.png
+---
+
+import ScreenshotFigure from "../../../components/ScreenshotFigure.astro";
+
+Backup protects the local archive and, when enabled, the broader Plembfin instance state.
+Watch History and full Plembfin backups have separate schedules and retention settings.
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-backup-dark.png"
+  lightSrc="/assets/app-captures/settings-backup-light.png"
+  alt="Plembfin Backup settings overview showing local and remote backup controls"
+  caption="Backup keeps local watch-history snapshots and encrypted instance backups on separate controls."
+/>
+
+## Local backups
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-backup-local-dark.png"
+  lightSrc="/assets/app-captures/settings-backup-local-light.png"
+  alt="Plembfin Backup settings showing local Watch History and full-instance backup controls"
+  caption="Local backups separate daily watch-history snapshots from encrypted full-instance backups."
+/>
+
+The Local section provides separate Watch History and Plembfin backup options.
+
+For Watch History, set the local backup time, retention count, and daily-backup toggle, then
+use **Save Schedule** or **Back Up Now**.
+
+For a full encrypted Plembfin backup, use a passphrase of at least 12 characters. **Remember
+passphrase** allows scheduled backups to run without a browser open, but stores the secret in
+server configuration. Leave it off when the passphrase must stay browser-only; in that mode
+only **Back Up Now** is available.
+
+Losing the passphrase means the encrypted backup cannot be decrypted. A full backup can contain
+saved settings, API keys, and server credentials, so keep files and passphrases protected.
+
+## Remote backups
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-backup-remote-dark.png"
+  lightSrc="/assets/app-captures/settings-backup-remote-light.png"
+  alt="Plembfin Backup settings showing remote Backblaze B2 destination controls"
+  caption="Remote backups mirror the selected backup family to an enabled destination."
+/>
+
+Remote backups mirror the selected backup family to an enabled destination. The destination
+workflow supports a name, enabled state, region or endpoint, bucket, key ID, optional prefix,
+and application key.
+
+To add or update one:
+
+1. Open **Remote** and add a destination or open an existing card.
+2. Enter the destination fields and enable it.
+3. Save, then use **Test**.
+4. Run a backup and verify the status and remote object.
+
+Deleting a destination record does not delete files already stored in the remote bucket. Treat
+application keys as secrets and rotate them at the provider when necessary.

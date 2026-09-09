@@ -1,0 +1,154 @@
+---
+---
+
+<section class="docs-article-search" data-doc-article-search aria-label="Search this page">
+  <div class="docs-article-search-control">
+    <input id="docs-article-search-input" type="search" aria-label="Search this page" placeholder="Search this page" autocomplete="off" />
+    <button class="docs-article-search-clear" type="button" data-doc-article-search-clear aria-label="Clear page search" hidden>×</button>
+  </div>
+  <p class="docs-article-search-status" data-doc-article-search-status aria-live="polite"></p>
+</section>
+
+<script>
+  const initializeDocsArticleSearch = () => {
+    const search = document.querySelector("[data-doc-article-search]");
+    const article = document.querySelector(".article-body");
+    const input = document.querySelector("#docs-article-search-input");
+    const clearButton = document.querySelector("[data-doc-article-search-clear]");
+    const status = document.querySelector("[data-doc-article-search-status]");
+
+    if (!(search instanceof HTMLElement) || !(article instanceof HTMLElement) || !(input instanceof HTMLInputElement)) return;
+
+    const headings = [...article.children].filter((element) => element.tagName === "H2" && element.id);
+    if (!headings.length) {
+      search.hidden = true;
+      return;
+    }
+
+    const normalize = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    const blocks = headings.map((heading, index) => {
+      const block = document.createElement("section");
+      const nextHeading = headings[index + 1] || null;
+      let node = heading;
+
+      block.className = "article-section-block";
+      block.dataset.docSectionBlock = "true";
+      block.dataset.docSectionLabel = heading.textContent?.trim() || "Section";
+      article.insertBefore(block, heading);
+
+      while (node && node !== nextHeading) {
+        const next = node.nextElementSibling;
+        block.append(node);
+        node = next;
+      }
+
+      const text = block.textContent?.replace(/\s+/g, " ").trim() || "";
+      const headingSearchTexts = [...block.querySelectorAll("h2, h3, h4")]
+        .map((sectionHeading) => normalize(sectionHeading.textContent))
+        .filter(Boolean);
+      return {
+        block,
+        index,
+        searchText: normalize(text),
+        headingSearchTexts,
+        combinedHeadingSearchText: headingSearchTexts.join(" "),
+      };
+    });
+
+    const introElements = [...article.children].filter((element) => !element.matches("[data-doc-section-block]"));
+    const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+    const clearHighlights = () => {
+      article.querySelectorAll("mark[data-doc-search-highlight]").forEach((mark) => {
+        mark.replaceWith(document.createTextNode(mark.textContent || ""));
+      });
+    };
+
+    const highlightMatches = (terms) => {
+      clearHighlights();
+      if (!terms.length) return;
+
+      const matcher = new RegExp(`(${terms.map(escapeRegExp).join("|")})`, "gi");
+      const walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT);
+      const textNodes = [];
+      let node = walker.nextNode();
+
+      while (node) {
+        const parent = node.parentElement;
+        if (parent && !parent.closest("pre, code, script, style, mark, [hidden]")) textNodes.push(node);
+        node = walker.nextNode();
+      }
+
+      textNodes.forEach((textNode) => {
+        const value = textNode.nodeValue || "";
+        if (!matcher.test(value)) {
+          matcher.lastIndex = 0;
+          return;
+        }
+        matcher.lastIndex = 0;
+
+        const fragment = document.createDocumentFragment();
+        value.split(matcher).forEach((part) => {
+          if (terms.some((term) => part.toLowerCase() === term)) {
+            const mark = document.createElement("mark");
+            mark.dataset.docSearchHighlight = "true";
+            mark.textContent = part;
+            fragment.append(mark);
+          } else {
+            fragment.append(document.createTextNode(part));
+          }
+        });
+        textNode.replaceWith(fragment);
+      });
+    };
+
+    const render = () => {
+      const query = normalize(input.value);
+      const terms = query.split(" ").filter(Boolean);
+      const matchingBlocks = query
+        ? blocks
+            .filter((entry) => entry.searchText.includes(query))
+            .sort((left, right) => {
+              const getTitleScore = (entry) => {
+                if (entry.headingSearchTexts.some((title) => title === query)) return 3;
+                if (entry.headingSearchTexts.some((title) => title.includes(query))) return 2;
+                return entry.combinedHeadingSearchText.includes(query) ? 1 : 0;
+              };
+              const leftTitleScore = getTitleScore(left);
+              const rightTitleScore = getTitleScore(right);
+              return rightTitleScore - leftTitleScore || left.index - right.index;
+            })
+        : blocks;
+
+      blocks.forEach((entry) => {
+        entry.block.hidden = Boolean(query) && !matchingBlocks.includes(entry);
+      });
+      introElements.forEach((element) => {
+        element.hidden = Boolean(query);
+      });
+
+      const orderedBlocks = query
+        ? [...matchingBlocks, ...blocks.filter((entry) => !matchingBlocks.includes(entry))]
+        : blocks;
+      orderedBlocks.forEach((entry) => article.append(entry.block));
+
+      if (clearButton instanceof HTMLButtonElement) clearButton.hidden = !query;
+      if (status instanceof HTMLElement) {
+        status.textContent = query
+          ? `${matchingBlocks.length} matching section${matchingBlocks.length === 1 ? "" : "s"}`
+          : "";
+      }
+      highlightMatches(terms);
+    };
+
+    input.addEventListener("input", render);
+    clearButton?.addEventListener("click", () => {
+      input.value = "";
+      render();
+      input.focus();
+    });
+  };
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initializeDocsArticleSearch, { once: true });
+  else initializeDocsArticleSearch();
+</script>

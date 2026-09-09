@@ -12,6 +12,7 @@ scripts
 !scripts/docker-entrypoint.sh
 !scripts/check-worker-health.js
 docs
+website
 scratch
 *.log
 *.md

@@ -1,0 +1,63 @@
+---
+title: Safe daily workflows
+description: Use the right page for common watch, correction, and sync tasks.
+category: Sync and maintain
+order: 7
+sourceVersion: "0.16.3.5"
+sourcePaths:
+  - public/modules/dashboard.js
+  - public/modules/media-detail.js
+  - public/modules/sync-activity.js
+  - docs/dashboard.md
+screenshots:
+  - /assets/app-captures/dashboard-dark.png
+  - /assets/app-captures/dashboard-light.png
+  - /assets/app-captures/sync-activity-dark.png
+  - /assets/app-captures/sync-activity-light.png
+---
+
+import ScreenshotFigure from "../../components/ScreenshotFigure.astro";
+
+Use the smallest page and action that matches the job. This keeps corrections explainable
+and avoids replaying a whole library when one title or destination needs attention.
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/sync-activity-dark.png"
+  lightSrc="/assets/app-captures/sync-activity-light.png"
+  alt="Plembfin Sync Activity page showing event details and destination results"
+  caption="Read the destination result and reason before choosing a targeted retry or broader repair."
+/>
+
+## Choose the starting page
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/dashboard-dark.png"
+  lightSrc="/assets/app-captures/dashboard-light.png"
+  alt="Plembfin dashboard showing the starting points for playback, continuation, and history work"
+  caption="Start at the smallest surface that answers the question, then move to the relevant detail or evidence page."
+/>
+
+| Goal | Start here | Confirm with |
+| --- | --- | --- |
+| See active playback | Dashboard, Now Playing | source and progress |
+| Start the next movie or released episode | Dashboard, Up Next | provider availability or Watch Now |
+| Continue an incomplete title | Dashboard, Up Next | resume position |
+| Save or rate a title | Discover or media details | Watchlist, Ratings, or Custom Lists |
+| Mark one title watched | Movies or TV Shows, then the title action | History and Sync Activity |
+| Correct a wrong title identity | Media details, Fix Match | provider details and Sync Activity |
+| Repair one destination | Sync Activity, targeted retry | destination result |
+| Refresh missing artwork or metadata | Settings, Metadata | title detail and Logs |
+| Check a bulk operation | Sync Activity | every destination row |
+
+## Verify a change
+
+After a watch or manual correction:
+
+1. Open **Sync Activity**.
+2. Find the newest row for the title or operation.
+3. Read each destination result separately.
+4. Correct the source, match, or connection named by the reason.
+5. Retry only the affected item or destination when possible.
+
+The sidebar status is a summary. Use [Sync Activity](/docs/sync-tools/) or
+[Settings → Logs](/docs/settings/#logs) when you need the evidence behind a result.

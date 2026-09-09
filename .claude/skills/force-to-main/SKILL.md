@@ -1,14 +1,14 @@
 ---
 name: force-to-main
-description: "Promote plembfin alpha current tip onto main as a single release. Use when the user says \"Force to main\" exactly. Covers the website update check question, the changelog preview and required user approval, promote-alpha-to-main.js --confirm, the force-push to main, and the local develop sync."
+description: "Promote plembfin alpha current tip onto main as a single release. Use when the user says \"Force to main\" exactly. Runs the mandatory website update check, then covers the changelog preview and required user approval, promote-alpha-to-main.js --confirm, the force-push to main, and the local develop sync."
 ---
 
 # Force to main
 
 ## Before you start - make sure GHCR Cleanup is not running
 
-This is a read-only check, so it runs first. Step 0's website-check question still comes
-before anything is checked out, staged, previewed, or pushed.
+This is a read-only check, so it runs first. Step 0's website update gate comes before
+anything is checked out, staged, previewed, or pushed.
 
 `ghcr-cleanup.yml` deletes images from the same `ghcr.io/lasikiewicz/plembfin`
 package that this command publishes new tags to. The cleanup action's own docs warn it isn't safe
@@ -23,18 +23,19 @@ If the latest run shows `in_progress`, wait for it to complete before pushing.
 When the user says **"Force to main"** (exactly), promote `alpha`'s actual current tip
 onto `main` as a single release:
 
-### 0 - Ask about the website check immediately
+### 0 - Run the website update check immediately
 
 Before checking out a branch, previewing the release, staging files, or force-pushing,
-ask the user exactly:
+always complete [`docs/websiteupdate.md`](docs/websiteupdate.md) end to end: discover the
+baseline, review changes after it, start the local app and website preview, verify affected
+content and images, run the privacy/inventory/check/build gates, and report the visual
+findings. Do not ask whether to run this gate: the website is part of every main release.
 
-> Should I run the website update check before this Force to main operation?
-
-Wait for the answer. If the user says yes, complete [`docs/websiteupdate.md`](docs/websiteupdate.md)
-end to end: discover the baseline, review changes after it, start the local app and website
-preview, verify affected content and images, run the privacy/inventory/check/build gates,
-and report the visual findings. If the user says no, record that the website check was
-declined and continue with the remaining Force to main gates. Never infer the answer.
+Run the check against the current development checkout so it sees the latest application
+source and release metadata. If it creates or updates website source, captures, or generated
+data, keep those changes and land them on `develop` before checking out `alpha`; never let
+the promotion checkout discard an uncommitted website update. The main promotion must use
+the reviewed website tree that is present in the alpha tip.
 
 ### 1 - Check out alpha's actual current tip
 ```bash
@@ -138,4 +139,3 @@ already merges `origin/main` into `develop` as its own step 1, so that remote st
 reconciled automatically. Don't bother folding it into `alpha` either - the next
 "Force to alpha" force-pushes develop's tip onto alpha regardless, so anything synced
 there now is simply overwritten rather than built on.
-

@@ -1,0 +1,47 @@
+---
+title: Upcoming
+description: Browse episode air dates with calendar navigation, search, and show context.
+category: Use the app
+order: 4
+sourceVersion: "0.16.3.5"
+sourcePaths:
+  - public/modules/upcoming.js
+  - docs/upcoming.md
+screenshots:
+  - /assets/app-captures/upcoming-dark.png
+  - /assets/app-captures/upcoming-light.png
+---
+
+import ScreenshotFigure from "../../components/ScreenshotFigure.astro";
+
+Upcoming is a calendar of historical and future episode air dates for tracked shows.
+Air dates are metadata: viewing an entry does not mark an episode watched.
+
+Use [Up Next](/docs/dashboard/#up-next) on the Dashboard when you want a short list of
+released, unwatched episodes that are ready to start. Upcoming remains the broader calendar
+view.
+
+
+## Use the calendar
+
+
+1. Open **Upcoming**.
+2. Use **Previous month**, **Next month**, or **Today** to move through the calendar.
+3. Scroll to load adjacent months.
+4. Enter a show, episode title, or episode code such as `S2E4` in the search field.
+5. Select an episode when you need to open its show context.
+
+The calendar uses TheTVDB-backed season and episode structure. Cached months open quickly,
+while revalidation can refresh changed air dates in the background.
+
+## What Upcoming does not change
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/upcoming-dark.png"
+  lightSrc="/assets/app-captures/upcoming-light.png"
+  alt="Plembfin Upcoming calendar showing metadata-only episode entries"
+  caption="Upcoming is an air-date view; use the episode or show detail action when you intend to change state."
+/>
+
+Upcoming does not create a watch event, change watched state, or update resume progress.
+Use the episode or show detail actions when you want to make a watch-state correction.

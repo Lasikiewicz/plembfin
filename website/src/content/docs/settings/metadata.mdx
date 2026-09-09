@@ -1,0 +1,102 @@
+---
+title: Metadata
+description: Configure metadata providers and refresh cached TMDB and TVDB information.
+category: Settings
+order: 5.5
+sourceVersion: "0.16.3.5"
+sourcePaths:
+  - public/index.html
+  - public/modules/settings-shell.js
+  - public/modules/settings-services.js
+  - public/modules/tools-backups.js
+  - docs/metadata.md
+  - docs/settings.md
+screenshots:
+  - /assets/app-captures/settings-metadata-dark.png
+  - /assets/app-captures/settings-metadata-light.png
+  - /assets/app-captures/settings-metadata-providers-dark.png
+  - /assets/app-captures/settings-metadata-providers-light.png
+  - /assets/app-captures/settings-metadata-refresh-dark.png
+  - /assets/app-captures/settings-metadata-refresh-light.png
+  - /assets/app-captures/settings-metadata-refresh-tmdb-dark.png
+  - /assets/app-captures/settings-metadata-refresh-tmdb-light.png
+  - /assets/app-captures/settings-metadata-refresh-tvdb-dark.png
+  - /assets/app-captures/settings-metadata-refresh-tvdb-light.png
+---
+
+import ScreenshotFigure from "../../../components/ScreenshotFigure.astro";
+
+Metadata controls the providers used to enrich titles, episodes, artwork, ratings, and
+trailers. Provider keys are stored server-side and are never displayed in the browser-safe
+configuration response.
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-metadata-dark.png"
+  lightSrc="/assets/app-captures/settings-metadata-light.png"
+  alt="Plembfin Metadata settings overview showing provider and refresh controls"
+  caption="Metadata brings provider configuration and refresh operations into one administration page."
+/>
+
+## Metadata providers
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-metadata-providers-dark.png"
+  lightSrc="/assets/app-captures/settings-metadata-providers-light.png"
+  alt="Plembfin Metadata Providers settings showing provider cards and connection state"
+  caption="Provider cards define which sources can enrich titles, episodes, ratings, and artwork."
+/>
+
+The provider cards cover these responsibilities:
+
+- **TMDB** supplies movie and show details, posters, backdrops, cast, trailers, reviews,
+  recommendations, and related content.
+- **TheTVDB** supplies TV series identity, seasons, episodes, air dates, and TV artwork.
+- **Fanart.tv** provides additional poster, logo, and backdrop choices.
+- **OMDb** supplies optional IMDb rating information.
+- **YouTube** supports trailer and clip metadata where configured.
+
+Add the key required by the feature you want to use, save it, and reopen a detail page. A
+missing provider key affects enrichment and artwork; it does not delete the local watch archive.
+
+## Refresh metadata
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-metadata-refresh-dark.png"
+  lightSrc="/assets/app-captures/settings-metadata-refresh-light.png"
+  alt="Plembfin Metadata settings showing refresh controls for the local archive"
+  caption="Refresh Metadata revalidates cached provider data after configuration or enrichment changes."
+/>
+
+Refresh Metadata pre-caches provider data for the local archive. Use it after adding a provider
+key, changing provider configuration, or recovering from an incomplete metadata import.
+
+### TMDB
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-metadata-refresh-tmdb-dark.png"
+  lightSrc="/assets/app-captures/settings-metadata-refresh-tmdb-light.png"
+  alt="Plembfin Metadata settings showing the TMDB refresh action"
+  caption="TMDB refresh covers movie and show details, artwork, cast, trailers, and related content."
+/>
+
+TMDB refresh covers movie and show details, trailers, posters, cast, summaries, and related
+content. It can be more expensive than refreshing one title from its detail page, so use a
+focused refresh when only one title is wrong.
+
+### TVDB
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-metadata-refresh-tvdb-dark.png"
+  lightSrc="/assets/app-captures/settings-metadata-refresh-tvdb-light.png"
+  alt="Plembfin Metadata settings showing the TVDB refresh action"
+  caption="TVDB refresh covers series structure, season and episode data, air dates, and TV artwork."
+/>
+
+TVDB refresh covers TV series details, season and episode schedules, air dates, and TV artwork.
+It is the structural source for TV numbering and upcoming-episode data.
+
+After a corrected TV match, Plembfin performs the focused metadata refresh and warms the
+corresponding poster, backdrop, and logo cache before the updated show details are returned.
+
+Refresh jobs may take time on a large archive. Keep [Logs](/docs/settings/logs/) available and
+check the affected library after the operation completes.

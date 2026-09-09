@@ -1,0 +1,110 @@
+---
+title: Tools
+description: Reopen guided setup, repair local records, rebuild library identities, and wipe data safely.
+category: Settings
+order: 5.9
+sourceVersion: "0.16.3.5"
+sourcePaths:
+  - public/index.html
+  - public/modules/tools.js
+  - public/modules/tools-maintenance.js
+  - public/modules/tools-duplicates.js
+  - public/modules/tools-wipe-data.js
+  - docs/settings.md
+  - docs/dashboard.md
+screenshots:
+  - /assets/app-captures/settings-tools-dark.png
+  - /assets/app-captures/settings-tools-light.png
+  - /assets/app-captures/settings-tools-guided-setup-dark.png
+  - /assets/app-captures/settings-tools-guided-setup-light.png
+  - /assets/app-captures/settings-tools-database-repairs-dark.png
+  - /assets/app-captures/settings-tools-database-repairs-light.png
+  - /assets/app-captures/settings-tools-library-rebuilds-dark.png
+  - /assets/app-captures/settings-tools-library-rebuilds-light.png
+  - /assets/app-captures/settings-tools-wipe-data-dark.png
+  - /assets/app-captures/settings-tools-wipe-data-light.png
+---
+
+import ScreenshotFigure from "../../../components/ScreenshotFigure.astro";
+
+Tools contains focused maintenance actions. Create and verify a backup before any action that
+can change or delete local state.
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-tools-dark.png"
+  lightSrc="/assets/app-captures/settings-tools-light.png"
+  alt="Plembfin Tools settings overview showing setup, repair, rebuild, and wipe areas"
+  caption="Tools groups setup recovery, database repairs, library rebuilds, backfills, and destructive wipe controls."
+/>
+
+## Guided Setup
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-tools-guided-setup-dark.png"
+  lightSrc="/assets/app-captures/settings-tools-guided-setup-light.png"
+  alt="Plembfin Tools Guided Setup card showing the Reopen Onboarding action"
+  caption="Guided Setup reopens the resumable first-run flow; restore is kept on its own Settings card."
+/>
+
+Guided Setup reopens the resumable first-run configuration flow. Use it for a new install or
+to identify an incomplete setup step. Restore-from-backup is a separate [Settings → Restore](/docs/settings/restore/)
+card so recovery scope is visible on its own.
+
+## Database Repairs
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-tools-database-repairs-dark.png"
+  lightSrc="/assets/app-captures/settings-tools-database-repairs-light.png"
+  alt="Plembfin Tools Database Repairs showing history-row, phantom-watch, duplicate-watch, and episode-name tools"
+  caption="Database Repairs focuses on derived rows, suspicious imports, duplicate watches, and missing episode names."
+/>
+
+Database Repairs contains confirmed tools for repairing derived or duplicate data:
+
+- **Repair History Rows** fills missing media types and resolvable poster data.
+- **Audit Phantom Watches** finds suspicious duplicate or malformed imported episode rows.
+- **Remove Duplicate Watches** removes extra current watch dates after you review the count.
+- **Restore Missing Episode Names** checks episode records and fills a missing name when
+  provider metadata supplies one.
+
+The episode-name audit distinguishes resolved rows, retryable metadata failures, and episodes
+verified by the metadata source as **No title provided**. Repairs can change the rows used by
+History, TV progress, and Stats. Check those views and destination telemetry afterward.
+
+## Library Rebuilds and Backfills
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-tools-library-rebuilds-dark.png"
+  lightSrc="/assets/app-captures/settings-tools-library-rebuilds-light.png"
+  alt="Plembfin Tools Library Rebuilds showing TV rematching and Trakt backfill controls"
+  caption="Library Rebuilds and Backfills contains the broader enrichment jobs that can take longer to finish."
+/>
+
+Library Rebuilds and Backfills contains library-wide enrichment actions:
+
+- **Rematch All TV Shows** resolves show titles against TMDB and TheTVDB and updates episode
+  identities when automatic matching selected the wrong series.
+- **Backfill Trakt Imports** fetches missing posters for imported Trakt events.
+
+These actions can be expensive on a large archive. Keep Logs open while they run.
+
+## Wipe Data
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-tools-wipe-data-dark.png"
+  lightSrc="/assets/app-captures/settings-tools-wipe-data-light.png"
+  alt="Plembfin Tools Wipe Data showing destructive scopes and backup warning"
+  caption="Wipe Data makes the destructive scope visible; create and verify a backup before confirming."
+/>
+
+Wipe Data is destructive and requires two confirmation steps. Its scopes are:
+
+- **Watch History**: local watch history, playstate, resume markers, and live sessions.
+- **Sync History & Logs**: synchronization history, watch audit, and diagnostic logs.
+- **Everything Tracked**: both tracked watch state and sync history/logs.
+- **Wipe All / Fresh Start**: all of the above plus settings, connections, cached artwork, and
+  the administrator login.
+
+Before a wipe, create and verify a backup, read the preview, and confirm the scope intentionally.
+For one incorrect title or destination, use Fix Match, Edit watch date, or a targeted Sync
+Activity retry instead.

@@ -1,0 +1,38 @@
+---
+const {
+  src,
+  darkSrc = src,
+  lightSrc = src,
+  alt,
+  caption,
+  loading = "lazy",
+} = Astro.props;
+
+const hasThemePair = Boolean(darkSrc && lightSrc && darkSrc !== lightSrc);
+---
+
+<figure class="screenshot-figure">
+  <a
+    class="screenshot-link"
+    href={hasThemePair ? darkSrc : src || darkSrc}
+    data-theme-image-link={hasThemePair ? "true" : undefined}
+    data-dark-href={hasThemePair ? darkSrc : undefined}
+    data-light-href={hasThemePair ? lightSrc : undefined}
+    data-lightbox-trigger="true"
+    data-lightbox-caption={caption || alt}
+    aria-label={`Open image preview: ${alt}`}
+  >
+    <div class="screenshot-frame">
+      <img
+        src={hasThemePair ? darkSrc : src || darkSrc}
+        alt={alt}
+        loading={loading}
+        decoding="async"
+        data-theme-image={hasThemePair ? "true" : undefined}
+        data-dark-src={hasThemePair ? darkSrc : undefined}
+        data-light-src={hasThemePair ? lightSrc : undefined}
+      />
+    </div>
+  </a>
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>

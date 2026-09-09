@@ -1,0 +1,113 @@
+---
+title: Media servers
+description: Connect Plex, Emby, and Jellyfin and verify that each server can exchange watch state.
+category: Settings
+order: 5.2
+sourceVersion: "0.16.3.5"
+sourcePaths:
+  - public/index.html
+  - public/modules/settings-shell.js
+  - public/modules/settings-services.js
+  - docs/plex.md
+  - docs/emby.md
+  - docs/jellyfin.md
+  - docs/settings.md
+  - docs/personal-watchlist.md
+screenshots:
+  - /assets/app-captures/settings-media-servers-dark.png
+  - /assets/app-captures/settings-media-servers-light.png
+  - /assets/app-captures/settings-media-servers-plex-dark.png
+  - /assets/app-captures/settings-media-servers-plex-light.png
+  - /assets/app-captures/settings-media-servers-emby-dark.png
+  - /assets/app-captures/settings-media-servers-emby-light.png
+  - /assets/app-captures/settings-media-servers-jellyfin-dark.png
+  - /assets/app-captures/settings-media-servers-jellyfin-light.png
+---
+
+import ScreenshotFigure from "../../../components/ScreenshotFigure.astro";
+
+The Media servers group contains one connection card for each supported server. Account-based
+setup is preferred; manual fields remain available as a fallback.
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-media-servers-dark.png"
+  lightSrc="/assets/app-captures/settings-media-servers-light.png"
+  alt="Plembfin Media servers settings overview showing the supported connection cards"
+  caption="The overview keeps Plex, Emby, and Jellyfin connection modes together before their provider-specific details."
+/>
+
+## Plex
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-media-servers-plex-dark.png"
+  lightSrc="/assets/app-captures/settings-media-servers-plex-light.png"
+  alt="Plembfin Plex media-server settings showing account, token, enable, test, and save controls"
+  caption="Plex uses the account flow when possible and exposes manual credentials as a fallback."
+/>
+
+Plex account setup signs in through Plex, lets you select the intended server, and stores the
+encrypted account and server-token pair.
+
+Plex's notification listener provides realtime events, so a separate manual webhook is
+normally not required.
+
+After saving:
+
+1. Run **Test** on the Plex card.
+2. Confirm the intended server is enabled.
+3. Play a short portion of a known title.
+4. Confirm a History row and a Sync Activity result.
+
+The Plex card also exposes **Sync watchlist with Plex**. This optional toggle is saved
+independently from the connection fields and uses Plex's account-level Universal Watchlist.
+See [Plex Watchlist Sync](/docs/watchlist/#sync-with-plex) for the safe-union and recovery
+rules.
+
+## Emby
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-media-servers-emby-dark.png"
+  lightSrc="/assets/app-captures/settings-media-servers-emby-light.png"
+  alt="Plembfin Emby media-server settings showing URL and credential controls"
+  caption="Emby settings keep server connection, user-token exchange, testing, and webhook expectations together."
+/>
+
+Emby setup uses the server URL and account exchange to obtain a user-scoped token. Manual setup
+is available when account setup cannot be used.
+
+After saving, test the server from Plembfin's host and configure the webhook events in
+[Integrations](/docs/integrations/#emby).
+
+## Jellyfin
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-media-servers-jellyfin-dark.png"
+  lightSrc="/assets/app-captures/settings-media-servers-jellyfin-light.png"
+  alt="Plembfin Jellyfin media-server settings showing Quick Connect and manual credential controls"
+  caption="Jellyfin supports Quick Connect, one-time credential exchange, and manual token setup."
+/>
+
+Jellyfin prefers Quick Connect and also supports a one-time username and password exchange when
+Quick Connect is disabled. Jellyfin 12 uses its modern `MediaBrowser` authorization header;
+manual API-key credentials remain supported as a fallback, and Quick Connect still exchanges
+account credentials for an access token.
+
+Configure the Webhooks plugin and the events in [Integrations](/docs/integrations/#jellyfin).
+
+Emby and Jellyfin are used for watched-state, playback, and optional personal-rating sync;
+they are not Watchlist providers. Explicit watched and unwatched decisions are kept authoritative
+when provider state is rematched; scheduled polling is a conservative backstop for missed events.
+
+## Connection mode rules
+
+Each provider has one active mode. Completing account setup removes that provider's stored
+manual secret; saving manual setup changes the provider back to manual mode.
+
+If a connection test fails:
+
+1. Confirm the URL is reachable from the machine running Plembfin.
+2. Confirm the selected server and user can access the library.
+3. Save the connection and run **Test** again.
+4. Send one playback event.
+5. Read the destination result in [Sync Activity](/docs/sync-tools/) and the request error in
+   [Logs](/docs/settings/logs/).

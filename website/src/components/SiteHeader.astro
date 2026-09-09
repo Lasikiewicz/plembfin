@@ -1,0 +1,168 @@
+---
+import { site } from "../data/site.js";
+
+const pathname = Astro.url.pathname;
+const isDocs = pathname.startsWith("/docs");
+const isFeatures = pathname.startsWith("/features");
+const isChangelog = pathname.startsWith("/changelog");
+const globalSearchQuery = Astro.url.searchParams.get("q")?.trim() || "";
+---
+
+<header class="site-header">
+  <div class="site-header-inner">
+    <a class="site-brand" href="/" aria-label="Plembfin home">
+      <img
+        data-theme-logo
+        data-dark-src="/assets/plembfin_header_logo_dark.png"
+        data-light-src="/assets/plembfin_header_logo_light.png"
+        src="/assets/plembfin_header_logo_dark.png"
+        alt="Plembfin"
+        width="164"
+        height="48"
+      />
+    </a>
+
+    <nav id="site-nav" class="site-nav" aria-label="Main navigation">
+      <div class="site-nav-primary">
+        <a class:list={{ active: pathname === "/" }} href="/">Home</a>
+        <a class:list={{ active: isFeatures }} href="/features/">Features</a>
+        <a class:list={{ active: isDocs }} href="/docs/">Documentation</a>
+        <a class:list={{ active: isChangelog }} href="/changelog/">Changelog</a>
+      </div>
+      <form class="site-global-search" action="/docs/" method="get" role="search">
+        <label class="sr-only" for="docs-search-input">Search documentation</label>
+        <div class="site-global-search-control">
+          <input
+            id="docs-search-input"
+            name="q"
+            type="search"
+            aria-label="Search documentation"
+            placeholder="Search documentation"
+            autocomplete="off"
+            value={globalSearchQuery || undefined}
+          />
+          <button class="site-global-search-clear" type="button" id="docs-search-clear" aria-label="Clear documentation search" hidden>×</button>
+        </div>
+      </form>
+      <a class="nav-github nav-github-mobile" href={site.repository} target="_blank" rel="noreferrer">Find on GitHub</a>
+    </nav>
+
+    <div class="site-header-right">
+      <a class="nav-github nav-github-desktop" href={site.repository} target="_blank" rel="noreferrer">Find on GitHub</a>
+
+      <button class="theme-toggle" type="button" data-theme-toggle aria-pressed="false" aria-label="Switch to light mode" title="Switch to light mode">
+        <span class="theme-toggle-track" aria-hidden="true">
+          <span class="theme-toggle-thumb"></span>
+          <span class="theme-toggle-label theme-toggle-label--light">Light</span>
+          <span class="theme-toggle-label theme-toggle-label--dark">Dark</span>
+        </span>
+        <span class="sr-only" data-theme-status>Dark mode selected</span>
+      </button>
+
+      <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav">
+        <span class="sr-only">Toggle navigation</span>
+        <span></span><span></span><span></span>
+      </button>
+    </div>
+  </div>
+</header>
+
+<script>
+  const navToggle = document.querySelector(".nav-toggle");
+  const nav = document.querySelector("#site-nav");
+  const themeToggle = document.querySelector("[data-theme-toggle]");
+  const globalSearchInput = document.querySelector("#docs-search-input");
+  const globalSearchClear = document.querySelector("#docs-search-clear");
+  const themeKey = "plembfin:theme";
+
+  if (globalSearchInput instanceof HTMLInputElement && !globalSearchInput.value) {
+    const query = new URL(window.location.href).searchParams.get("q") || "";
+    if (query) globalSearchInput.value = query;
+  }
+
+  const syncGlobalSearchClear = () => {
+    if (globalSearchClear instanceof HTMLButtonElement && globalSearchInput instanceof HTMLInputElement) {
+      globalSearchClear.hidden = !globalSearchInput.value;
+    }
+  };
+
+  navToggle?.addEventListener("click", () => {
+    const isOpen = document.body.classList.toggle("nav-open");
+    navToggle.setAttribute("aria-expanded", String(isOpen));
+    nav?.querySelector("a")?.focus();
+  });
+
+  nav?.addEventListener("click", (event) => {
+    if (event.target instanceof Element && event.target.closest("a") && window.innerWidth <= 780) {
+      document.body.classList.remove("nav-open");
+      navToggle?.setAttribute("aria-expanded", "false");
+    }
+  });
+
+  globalSearchInput?.addEventListener("input", syncGlobalSearchClear);
+  globalSearchInput?.addEventListener("search", syncGlobalSearchClear);
+  globalSearchClear?.addEventListener("click", () => {
+    if (!(globalSearchInput instanceof HTMLInputElement)) return;
+
+    globalSearchInput.value = "";
+    syncGlobalSearchClear();
+
+    const currentUrl = new URL(window.location.href);
+    if (currentUrl.searchParams.has("q")) {
+      currentUrl.searchParams.delete("q");
+      window.history.replaceState({}, "", `${currentUrl.pathname}${currentUrl.search}${currentUrl.hash}`);
+      window.dispatchEvent(new CustomEvent("docs-global-search-clear"));
+    }
+
+    globalSearchInput.focus();
+  });
+
+  syncGlobalSearchClear();
+
+  const syncThemeControl = () => {
+    const isLightMode = document.documentElement.classList.contains("light-mode");
+    const nextMode = isLightMode ? "dark" : "light";
+    const logo = document.querySelector("[data-theme-logo]");
+
+    if (logo instanceof HTMLImageElement) {
+      logo.src = isLightMode ? logo.dataset.lightSrc || logo.src : logo.dataset.darkSrc || logo.src;
+    }
+
+    document.querySelectorAll("[data-theme-image]").forEach((image) => {
+      if (image instanceof HTMLImageElement) {
+        const nextSource = isLightMode ? image.dataset.lightSrc : image.dataset.darkSrc;
+        if (nextSource && image.getAttribute("src") !== nextSource) image.setAttribute("src", nextSource);
+
+        const imageLink = image.closest("[data-theme-image-link]");
+        if (imageLink instanceof HTMLAnchorElement) {
+          const nextHref = isLightMode ? imageLink.dataset.lightHref : imageLink.dataset.darkHref;
+          if (nextHref && imageLink.getAttribute("href") !== nextHref) imageLink.setAttribute("href", nextHref);
+        }
+      }
+    });
+
+    themeToggle?.setAttribute("aria-pressed", String(isLightMode));
+    themeToggle?.setAttribute("aria-label", `Switch to ${nextMode} mode`);
+    themeToggle?.setAttribute("title", `Switch to ${nextMode} mode`);
+    themeToggle?.querySelector("[data-theme-status]")?.replaceChildren(`${isLightMode ? "Light" : "Dark"} mode selected`);
+    document.querySelector("[data-theme-color]")?.setAttribute("content", isLightMode ? "#ffffff" : "#05080c");
+  };
+
+  themeToggle?.addEventListener("click", () => {
+    const useLightMode = !document.documentElement.classList.contains("light-mode");
+    document.documentElement.classList.add("theme-transition");
+    document.documentElement.classList.toggle("light-mode", useLightMode);
+    document.documentElement.dataset.theme = useLightMode ? "light" : "dark";
+
+    try {
+      window.localStorage.setItem(themeKey, useLightMode ? "light" : "dark");
+    } catch {
+      // The current session still follows the selected mode without storage.
+    }
+
+    syncThemeControl();
+    window.setTimeout(() => document.documentElement.classList.remove("theme-transition"), 180);
+  });
+
+  syncThemeControl();
+</script>

@@ -1,0 +1,167 @@
+---
+import SiteLayout from "../layouts/SiteLayout.astro";
+import ScreenshotFigure from "../components/ScreenshotFigure.astro";
+import { integrations } from "../data/site.js";
+import release from "../generated/release.json";
+
+const syncServices = integrations.slice(0, 4);
+
+const loopSteps = [
+  {
+    number: "01",
+    title: "Track",
+    text: "Plays, pauses, and stops arrive by webhook and polling from your media servers.",
+    href: "/docs/concepts/#the-event-lifecycle",
+  },
+  {
+    number: "02",
+    title: "Remember",
+    text: "Each watch is recorded once, locally, with its date, source, and progress.",
+    href: "/docs/concepts/#the-canonical-record",
+  },
+  {
+    number: "03",
+    title: "Auto-sync",
+    text: "Watched state and resume position go back out to every other connected service.",
+    href: "/docs/concepts/#watched-state-and-resume-progress",
+  },
+  {
+    number: "04",
+    title: "Restore",
+    text: "Add media or rebuild a library and the local record is replayed onto it.",
+    href: "/docs/sync-tools/#full-sync-watchstates",
+  },
+];
+
+const appAreas = [
+  {
+    number: "01",
+    title: "Now Playing and Up Next",
+    text: "Live sessions, resume progress, and the next thing worth starting.",
+    href: "/docs/dashboard/#now-playing",
+  },
+  {
+    number: "02",
+    title: "Movies and TV detail pages",
+    text: "Cast, trailers, artwork, reviews, and episode air dates on every title.",
+    href: "/docs/media-details/#what-the-page-can-contain",
+  },
+  {
+    number: "03",
+    title: "Discover and request",
+    text: "Browse current rails, then request what you are missing through Seerr.",
+    href: "/docs/discover/#discovery-rails",
+  },
+  {
+    number: "04",
+    title: "Stats and history",
+    text: "All-time and period reports on what you actually watched, and where.",
+    href: "/docs/stats/#reported-totals",
+  },
+];
+---
+
+<SiteLayout
+  title="The local brain for your media stack."
+  description="Plembfin is the self-hosted source of truth for watched state, playback progress, media history, and sync across Plex, Emby, Jellyfin, and Trakt."
+  image="/assets/app-captures/dashboard-home-dark.png"
+>
+  <div class="simple-home">
+    <section class="simple-home-hero" aria-labelledby="home-title">
+      <p class="simple-eyebrow">SELF-HOSTED WATCH HISTORY</p>
+      <h1 id="home-title">Watch it once.<br /><span>Everything keeps up.</span></h1>
+      <p class="simple-home-lede">
+        Plex, Emby, Jellyfin, and Trakt do not talk to each other. Plembfin sits in the middle: it records every play in a local database you own, then sends watched state and resume position back out to the rest of your stack.
+      </p>
+      <div class="simple-actions">
+        <a class="simple-button simple-button--primary" href="/docs/getting-started/">Get started <span aria-hidden="true">↗</span></a>
+        <a class="simple-button" href="/features/">View features <span aria-hidden="true">→</span></a>
+      </div>
+      <p class="simple-meta">v{release.version} · one process · one SQLite file · your hardware</p>
+    </section>
+
+    <section class="simple-home-preview" aria-labelledby="preview-title">
+      <div class="simple-section-heading">
+        <div>
+          <p class="simple-eyebrow">THE DASHBOARD</p>
+          <h2 id="preview-title">One place to see what is happening.</h2>
+        </div>
+        <p>Now Playing, Up Next with resume progress, and the recent history Plembfin is keeping for you.</p>
+      </div>
+      <ScreenshotFigure
+        darkSrc="/assets/app-captures/dashboard-home-dark.png"
+        lightSrc="/assets/app-captures/dashboard-home-light.png"
+        alt="Plembfin dashboard showing Now Playing, Up Next, recently watched TV, and recently watched movies"
+        caption="Plembfin dashboard"
+        loading="eager"
+      />
+    </section>
+
+    <section class="simple-home-flow" aria-labelledby="flow-title">
+      <div class="simple-section-heading">
+        <div>
+          <p class="simple-eyebrow">THE LOOP</p>
+          <h2 id="flow-title">Track it. Remember it. Sync it back.</h2>
+        </div>
+        <p>Four steps run continuously, with a delivery result recorded for every destination.</p>
+      </div>
+
+      <div class="simple-flow-list">
+        {loopSteps.map((step) => (
+          <a href={step.href}>
+            <span class="simple-number">{step.number}</span>
+            <span><strong>{step.title}</strong><small>{step.text}</small></span>
+            <span class="simple-arrow" aria-hidden="true">→</span>
+          </a>
+        ))}
+      </div>
+
+      <div class="simple-section-heading-note">
+        <p>The result is a history that survives a rebuilt library, a moved server, or a service that was offline when you watched. Local backups protect that archive on the instance; remote backups copy it to an enabled destination.</p>
+        <div class="simple-backup-links" aria-label="Backup documentation">
+          <a class="simple-text-link" href="/docs/settings/backup/#local-backups">Local backups <span aria-hidden="true">→</span></a>
+          <a class="simple-text-link" href="/docs/settings/backup/#remote-backups">Remote backups <span aria-hidden="true">→</span></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="simple-home-app" aria-labelledby="app-title">
+      <div class="simple-section-heading">
+        <div>
+          <p class="simple-eyebrow">MORE THAN SYNC</p>
+          <h2 id="app-title">It is also the app you browse.</h2>
+        </div>
+        <p>Posters, cast, air dates, and reports, enriched from TMDB, TheTVDB, Fanart.tv, and OMDb.</p>
+      </div>
+
+      <div class="simple-feature-grid">
+        {appAreas.map((area) => (
+          <a class="simple-feature-item" href={area.href}>
+            <span class="simple-number">{area.number}</span>
+            <span><strong>{area.title}</strong><small>{area.text}</small></span>
+            <span class="simple-arrow" aria-hidden="true">→</span>
+          </a>
+        ))}
+      </div>
+    </section>
+
+    <section class="simple-home-hub" aria-labelledby="stack-title">
+      <div class="simple-home-hub-copy">
+        <p class="simple-eyebrow">BUILT AROUND YOUR STACK</p>
+        <h2 id="stack-title">Everything talks to Plembfin.</h2>
+        <p>Media servers and Trakt exchange watch state. Metadata providers supply artwork and episode data. Seerr handles requests. None of them need to know about each other.</p>
+        <div class="simple-service-list" aria-label="Watch-state services">
+          {syncServices.map((service) => (
+            <span><img src={service.icon} alt="" aria-hidden="true" />{service.name}</span>
+          ))}
+        </div>
+        <a class="simple-text-link" href="/features/">See all features <span aria-hidden="true">→</span></a>
+      </div>
+      <ScreenshotFigure
+        src="/assets/plembfin-hub.svg"
+        alt="Diagram connecting Plembfin to Plex, Emby, Jellyfin, and Trakt for two-way watch state, and to TMDB, TheTVDB, Fanart.tv, OMDb, and Seerr for metadata and requests"
+        caption="Every service connects to Plembfin, not to each other."
+      />
+    </section>
+  </div>
+</SiteLayout>

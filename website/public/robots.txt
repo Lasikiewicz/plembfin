@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://plembfin.com/sitemap-index.xml

@@ -1,0 +1,84 @@
+---
+const { sourceVersion = "", sourceCount = 0 } = Astro.props;
+---
+
+<aside class="docs-page-rail" data-doc-page-rail aria-label="Guide sections">
+  <nav class="docs-page-outline" aria-label="Sections in this guide">
+    <div class="docs-page-outline-heading">On this page</div>
+    <div class="docs-page-outline-list" data-doc-page-outline-list></div>
+  </nav>
+  <div class="docs-page-meta">
+    <span>Verified against v{sourceVersion}</span>
+    <span>{sourceCount} source{sourceCount === 1 ? "" : "s"} in the app</span>
+  </div>
+</aside>
+
+<script>
+  const initializeDocsPageRail = () => {
+    const rail = document.querySelector("[data-doc-page-rail]");
+    const article = document.querySelector(".article-body");
+    const list = document.querySelector("[data-doc-page-outline-list]");
+
+    if (!(rail instanceof HTMLElement) || !(article instanceof HTMLElement) || !(list instanceof HTMLElement)) return;
+
+    const headings = [...article.querySelectorAll("h2[id], h3[id], h4[id]")];
+    if (!headings.length) {
+      rail.hidden = true;
+      return;
+    }
+
+    const getSectionText = (heading) => {
+      const level = Number(heading.tagName.slice(1));
+      let text = heading.textContent || "";
+      let sibling = heading.nextElementSibling;
+
+      while (sibling) {
+        const siblingLevel = /^H[2-4]$/.test(sibling.tagName) ? Number(sibling.tagName.slice(1)) : null;
+        if (siblingLevel !== null && siblingLevel <= level) break;
+        text += ` ${sibling.textContent || ""}`;
+        sibling = sibling.nextElementSibling;
+      }
+
+      return text;
+    };
+
+    const entries = headings.map((heading) => {
+      const link = document.createElement("a");
+      const label = heading.textContent?.trim() || "Section";
+      const level = heading.tagName.toLowerCase();
+
+      link.className = "docs-page-outline-link";
+      link.href = `#${heading.id}`;
+      link.textContent = label;
+      link.dataset.level = level;
+      link.dataset.searchLabel = label;
+      link.dataset.searchText = `${label} ${getSectionText(heading)}`;
+      list.append(link);
+
+        return { heading, link };
+      });
+
+    const updateActiveHeading = () => {
+      const header = document.querySelector(".site-header");
+      const threshold = (header instanceof HTMLElement ? header.getBoundingClientRect().height : 60) + 24;
+      let current = entries[0];
+
+      entries.forEach((entry) => {
+        if (entry.heading.getBoundingClientRect().top <= threshold) current = entry;
+      });
+
+      entries.forEach((entry) => {
+        entry.link.classList.toggle("active", entry === current && !entry.link.hidden);
+      });
+    };
+
+    window.addEventListener("scroll", updateActiveHeading, { passive: true });
+    window.addEventListener("resize", updateActiveHeading);
+    window.addEventListener("hashchange", () => window.setTimeout(updateActiveHeading, 0));
+
+    updateActiveHeading();
+  };
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initializeDocsPageRail, { once: true });
+  else initializeDocsPageRail();
+</script>

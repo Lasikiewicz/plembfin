@@ -1,0 +1,67 @@
+---
+title: Restore
+description: Restore watch history or a full encrypted Plembfin backup from local or remote storage.
+category: Settings
+order: 5.8
+sourceVersion: "0.16.3.5"
+sourcePaths:
+  - public/index.html
+  - public/modules/tools-backups.js
+  - docs/backups.md
+  - docs/watch-history-backups.md
+  - docs/settings.md
+screenshots:
+  - /assets/app-captures/settings-restore-dark.png
+  - /assets/app-captures/settings-restore-light.png
+  - /assets/app-captures/settings-restore-merge-replace-dark.png
+  - /assets/app-captures/settings-restore-merge-replace-light.png
+  - /assets/app-captures/settings-restore-watch-history-dark.png
+  - /assets/app-captures/settings-restore-watch-history-light.png
+---
+
+import ScreenshotFigure from "../../../components/ScreenshotFigure.astro";
+
+Restore recovers Watch History or a full Plembfin backup from a local file or configured remote
+storage. Always inspect the source, preview, and scope before confirming.
+
+
+## Local restore
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-restore-dark.png"
+  lightSrc="/assets/app-captures/settings-restore-light.png"
+  alt="Plembfin Restore settings showing local backup source selection"
+  caption="Choose the local backup family before reviewing its restore preview."
+/>
+
+Choose the local source, select **Watch History** or **Plembfin**, review the preview, and choose
+the merge or replacement behavior offered by the dialog.
+
+**Merge into existing state** adds the backup's watched items without touching other watched
+items on connected apps. **Replace existing state** clears current watched items on each
+connected app, then reapplies only the backup set.
+
+## Remote restore
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-restore-merge-replace-dark.png"
+  lightSrc="/assets/app-captures/settings-restore-merge-replace-light.png"
+  alt="Plembfin Restore settings showing merge and replace restore choices"
+  caption="The restore preview makes merge-versus-replace scope explicit before confirmation."
+/>
+
+Choose a configured remote destination, select the backup family, and review the file and scope
+before confirming. A full Plembfin restore requires its encryption passphrase.
+
+Safe restore sequence:
+
+1. Stop unrelated playback and sync changes.
+2. Make a current backup of the existing archive.
+3. Review the restore preview and scope.
+4. Let the restore finish and wait for the operation lock to clear.
+5. Run System Integrity and inspect History.
+6. Reconnect or replay destinations only after the local archive is correct.
+
+Do not start Force Sync or a full watch-state replay while a restore is active. If a restore is
+interrupted, preserve the logs and reset the restore lock only after confirming no restore
+process is still running.

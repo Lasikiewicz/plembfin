@@ -1,0 +1,285 @@
+---
+import SiteLayout from "../layouts/SiteLayout.astro";
+import ScreenshotFigure from "../components/ScreenshotFigure.astro";
+import { integrations } from "../data/site.js";
+import release from "../generated/release.json";
+
+// Grouped feature inventory. Every entry links to the guide that owns it, using
+// the exact generated section anchor, and the number runs continuously across
+// all groups so the page reads as one inventory.
+const featureGroups = [
+  {
+    id: "sync",
+    label: "SYNC AND HISTORY",
+    summary: "Plembfin holds the canonical watch state and distributes it, keeping a result for every destination.",
+    items: [
+      {
+        title: "Canonical sync",
+        text: "One local record of watched state, progress, and rewatches that every connected app is brought into line with.",
+        href: "/docs/concepts/#the-canonical-record",
+      },
+      {
+        title: "Cross-platform resume",
+        text: "Pause on one server and pick up where you stopped on another.",
+        href: "/docs/concepts/#watched-state-and-resume-progress",
+      },
+      {
+        title: "Rewatch tracking",
+        text: "Keep genuine repeat viewings without duplicate noise.",
+        href: "/docs/concepts/#rewatches-and-duplicate-protection",
+      },
+      {
+        title: "Sync Activity and retries",
+        text: "See where each change came from, where it went, what happened, and retry only what failed.",
+        href: "/docs/sync-tools/#read-an-activity-row",
+      },
+      {
+        title: "Force Sync and rebuilds",
+        text: "Replay canonical state onto a new server or a rebuilt library, per title or library-wide.",
+        href: "/docs/sync-tools/#force-sync",
+      },
+      {
+        title: "Manual watch review",
+        text: "Choose a trustworthy date for provider Mark Played events that arrive without one.",
+        href: "/docs/settings/sync/#manual-watch-review",
+      },
+    ],
+  },
+  {
+    id: "watch",
+    label: "WATCH AND BROWSE",
+    summary: "Live playback, poster-first libraries, rich detail pages, and reports on what you watched.",
+    items: [
+      {
+        title: "Now Playing and Up Next",
+        text: "Live sessions, resume progress, and the next thing worth starting with links to open it.",
+        href: "/docs/dashboard/#now-playing",
+      },
+      {
+        title: "Movie and TV libraries",
+        text: "Poster-first libraries with search, filters, sorting, and per-card actions.",
+        href: "/docs/libraries/#shared-library-controls",
+      },
+      {
+        title: "Media detail pages",
+        text: "Cast, trailers, artwork, reviews, collections, and episode air dates on every title.",
+        href: "/docs/media-details/#what-the-page-can-contain",
+      },
+      {
+        title: "Upcoming calendar",
+        text: "A scrolling month view of upcoming episode air dates across the shows you follow.",
+        href: "/docs/upcoming/#use-the-calendar",
+      },
+      {
+        title: "Unified search",
+        text: "Search your local libraries and external providers together, with local media first.",
+        href: "/docs/history-search/#global-search",
+      },
+      {
+        title: "Stats and reports",
+        text: "All-time and period totals, top shows, and platform playback distribution.",
+        href: "/docs/stats/#reported-totals",
+      },
+    ],
+  },
+  {
+    id: "personal",
+    label: "DISCOVER AND PERSONAL SHELVES",
+    summary: "Current feeds, requests, and private lists that stay separate from canonical watch history.",
+    items: [
+      {
+        title: "Discovery rails",
+        text: "Browse trending, now-playing, and airing-today feeds before a title reaches your library.",
+        href: "/docs/discover/#discovery-rails",
+      },
+      {
+        title: "Seerr requests",
+        text: "Request missing movies and shows through Overseerr or Jellyseerr from the detail page.",
+        href: "/docs/integrations/#seerr",
+      },
+      {
+        title: "Watchlist",
+        text: "Save movies and shows for later without turning your archive into a public profile.",
+        href: "/docs/watchlist/#open-watchlist",
+      },
+      {
+        title: "Ratings",
+        text: "Private 1 to 10 scores for movies, shows, and episodes on one canonical episode identity.",
+        href: "/docs/ratings/#open-ratings",
+      },
+      {
+        title: "Custom Lists",
+        text: "Named collections you define, managed from any card or detail page.",
+        href: "/docs/custom-lists/#open-custom-lists",
+      },
+      {
+        title: "Personal Rating Sync",
+        text: "Optional two-way rating exchange with Plex, Emby, Jellyfin, and Trakt on its own durable queue.",
+        href: "/docs/settings/sync/#personal-rating-sync",
+      },
+      {
+        title: "Plex Watchlist Sync",
+        text: "Optional two-way sync with the Plex account watchlist, with a safe first-run union.",
+        href: "/docs/settings/sync/#plex-watchlist-sync",
+      },
+    ],
+  },
+  {
+    id: "operate",
+    label: "RUN IT YOUR WAY",
+    summary: "One process, one SQLite file, guided setup, backups, and a hardened default posture.",
+    items: [
+      {
+        title: "Self-hosted and private",
+        text: "One process and one SQLite file on your own hardware, with no external database.",
+        href: "/docs/getting-started/#before-you-install",
+      },
+      {
+        title: "Guided first-run setup",
+        text: "Claim the instance, then a resumable wizard connects servers, metadata, and webhooks.",
+        href: "/docs/getting-started/#complete-the-guided-setup",
+      },
+      {
+        title: "Automated backups",
+        text: "Daily local backups, with optional scheduled offsite copies to a remote destination.",
+        href: "/docs/settings/backup/#local-backups",
+      },
+      {
+        title: "Metadata and artwork",
+        text: "TMDB, TheTVDB, Fanart.tv, and OMDb enrichment behind a local high-resolution image cache.",
+        href: "/docs/integrations/#metadata-and-artwork-providers",
+      },
+      {
+        title: "Hardened by default",
+        text: "Strict Content Security Policy, scrypt password hashing, rate limiting, and signed sessions.",
+        href: "/docs/operations/#security-basics",
+      },
+      {
+        title: "Progressive Web App",
+        text: "Installable on iOS, Android, macOS, and Windows for a native-feeling experience.",
+        href: "/docs/operations/#pwa-and-local-operation",
+      },
+    ],
+  },
+];
+
+let counter = 0;
+const numberedGroups = featureGroups.map((group) => ({
+  ...group,
+  items: group.items.map((item) => {
+    counter += 1;
+    return { ...item, number: String(counter).padStart(2, "0") };
+  }),
+}));
+
+const proofScreens = [
+  {
+    title: "Up Next",
+    text: "The mixed queue pairs part-watched resumes with released next-up episodes and keeps the services that can play each card nearby.",
+    darkSrc: "/assets/app-captures/dashboard-up-next-dark.png",
+    lightSrc: "/assets/app-captures/dashboard-up-next-light.png",
+    alt: "Plembfin Up Next cards showing Continue watching resume items alongside Ready since next-up episodes",
+    href: "/docs/dashboard/#up-next",
+    linkLabel: "Read the Up Next guide",
+  },
+  {
+    title: "Sync Activity",
+    text: "One row per movie or show, holding the source, every destination result, and a retry that targets only what failed.",
+    darkSrc: "/assets/app-captures/sync-activity-dark.png",
+    lightSrc: "/assets/app-captures/sync-activity-light.png",
+    alt: "Plembfin Sync Activity filtered to successful Scrubs rows with per-destination results and an expanded audit history",
+    href: "/docs/sync-tools/#read-an-activity-row",
+    linkLabel: "Read the Sync Activity guide",
+  },
+];
+---
+
+<SiteLayout
+  title="Features"
+  description="The full Plembfin feature inventory: canonical watch-state sync, playback and library browsing, private shelves, and self-hosted operation."
+  image="/assets/app-captures/sync-activity-dark.png"
+>
+  <div class="simple-features">
+    <header class="simple-features-hero" aria-labelledby="features-title">
+      <p class="simple-eyebrow">PLEMBFIN / FEATURES</p>
+      <h1 id="features-title">Everything your watch history needs.</h1>
+      <p>
+        Plembfin keeps the important parts of your media stack together: the event, the local record, the next thing to watch, and the sync that follows.
+      </p>
+      <div class="simple-actions">
+        <a class="simple-button simple-button--primary" href="/docs/getting-started/#before-you-install">Get started <span aria-hidden="true">↗</span></a>
+        <a class="simple-button" href="/docs/guides/">Browse guides <span aria-hidden="true">→</span></a>
+      </div>
+      <p class="simple-meta">v{release.version} · self-hosted · local source of truth</p>
+    </header>
+
+    <section class="simple-features-index" aria-labelledby="feature-index-title">
+      <div class="simple-section-heading">
+        <div>
+          <p class="simple-eyebrow">FEATURES</p>
+          <h2 id="feature-index-title">Grouped by what it does for you.</h2>
+        </div>
+        <p>Open a feature to jump straight to the section of the guide that covers it.</p>
+      </div>
+
+      {numberedGroups.map((group) => (
+        <div class="simple-feature-group">
+          <div class="simple-feature-group-heading">
+            <p class="simple-eyebrow">{group.label}</p>
+            <p>{group.summary}</p>
+          </div>
+          <div class="simple-feature-grid">
+            {group.items.map((item) => (
+              <a class="simple-feature-item" href={item.href}>
+                <span class="simple-number">{item.number}</span>
+                <span>
+                  <strong>{item.title}</strong>
+                  <small>{item.text}</small>
+                </span>
+                <span class="simple-arrow" aria-hidden="true">→</span>
+              </a>
+            ))}
+          </div>
+        </div>
+      ))}
+    </section>
+
+    <section class="simple-features-proof" aria-labelledby="proof-title">
+      <div class="simple-section-heading">
+        <div>
+          <p class="simple-eyebrow">IN THE APP</p>
+          <h2 id="proof-title">A clear view of the work.</h2>
+        </div>
+        <p>Focused screens for the two jobs you come back to most: deciding what is next and checking what synced.</p>
+      </div>
+
+      <div class="simple-proof-grid">
+        {proofScreens.map((screen) => (
+          <article class="simple-proof-item">
+            <ScreenshotFigure
+              darkSrc={screen.darkSrc}
+              lightSrc={screen.lightSrc}
+              alt={screen.alt}
+              caption={screen.title}
+            />
+            <h3>{screen.title}</h3>
+            <p>{screen.text}</p>
+            <a class="simple-text-link" href={screen.href}>{screen.linkLabel} <span aria-hidden="true">→</span></a>
+          </article>
+        ))}
+      </div>
+    </section>
+
+    <section class="simple-features-stack" aria-labelledby="integrations-title">
+      <div>
+        <p class="simple-eyebrow">CONNECTED SERVICES</p>
+        <h2 id="integrations-title">Built around your stack.</h2>
+      </div>
+      <div class="simple-service-list" aria-label="Supported services">
+        {integrations.map((integration) => (
+          <span><img src={integration.icon} alt="" aria-hidden="true" />{integration.name}</span>
+        ))}
+      </div>
+    </section>
+  </div>
+</SiteLayout>

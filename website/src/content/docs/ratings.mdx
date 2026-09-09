@@ -1,0 +1,122 @@
+---
+title: Ratings
+description: Give movies, TV shows, and episodes private scores from 1 to 10.
+category: Media and discovery
+order: 3.32
+sourceVersion: "0.16.3.5"
+sourcePaths:
+  - public/index.html
+  - public/modules/personal-media.js
+  - public/modules/media-card.js
+  - server/src/routes/personal.js
+  - docs/frontend.md
+  - docs/media-detail.md
+  - docs/personal-ratings.md
+screenshots:
+  - /assets/app-captures/ratings-dark.png
+  - /assets/app-captures/ratings-light.png
+  - /assets/app-captures/ratings-cards-dark.png
+  - /assets/app-captures/ratings-cards-light.png
+  - /assets/app-captures/ratings-episode-focus-dark.png
+  - /assets/app-captures/ratings-episode-focus-light.png
+  - /assets/app-captures/media-rating-focus-dark.png
+  - /assets/app-captures/media-rating-focus-light.png
+---
+
+import ScreenshotFigure from "../../components/ScreenshotFigure.astro";
+
+Ratings is the private scorebook for your Plembfin instance. It supports a 1–10 score for
+movies, TV shows, and episodes and keeps that score separate from provider ratings and
+canonical watched state.
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/ratings-dark.png"
+  lightSrc="/assets/app-captures/ratings-light.png"
+  alt="Plembfin Ratings overview showing personal movie, show, and episode ratings"
+  caption="Ratings groups your personal scores by media type while keeping provider ratings separate."
+/>
+
+## Open Ratings
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/ratings-cards-dark.png"
+  lightSrc="/assets/app-captures/ratings-cards-light.png"
+  alt="Plembfin Ratings page grouped into Movies, TV Shows, and Episodes"
+  caption="Open Ratings from the sidebar to review personal scores by media type."
+/>
+
+Select **Ratings** in the sidebar. The page groups existing scores under **Movies**, **TV
+Shows**, and **Episodes**, so a show-level score is not confused with one of its episodes.
+
+## Rate a title from a card
+
+Choose **Rate** on an unrated card or **Rate again** on a rated card. Select a value from
+1 to 10 and save it. The updated score is written to Plembfin's local private data and the
+card remains in its media-type group.
+
+## Rate from a detail page
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/media-rating-focus-dark.png"
+  lightSrc="/assets/app-captures/media-rating-focus-light.png"
+  alt="Plembfin media detail page showing the personal rating control in the media facts"
+  caption="The detail page keeps the current personal score beside provider ratings and availability."
+/>
+
+On a movie or TV detail page, use the personal rating control in the media facts area. It
+shows the current value when one exists and opens the same 1–10 chooser when you want to
+change it. Episode detail and episode-card actions use the same personal rating domain. This
+control is distinct from TMDB, IMDb, or TheTVDB provider ratings.
+
+## Change or remove a rating
+
+Use **Rate again** to replace a score. Use **Remove rating** to clear the personal score.
+Neither action removes the title from Watchlist or Custom Lists, changes watch history, or
+sends a watched-state correction to a connected service.
+
+## Personal Rating Sync
+
+Rating sync is optional and disabled by default. Enable the single **Sync personal ratings**
+toggle under [Settings → Sync → Personal Rating Sync](/docs/settings/sync/#personal-rating-sync) to reconcile ratings with every
+connected Plex, Emby, Jellyfin, and Trakt account. Plembfin remains the conflict authority;
+newer local values win conflicts, while provider additions are imported when there is no
+newer local change.
+
+The first complete provider snapshot imports existing ratings. Later complete snapshots
+reconcile additions, edits, and removals; a partial or failed read cannot clear the local
+scorebook. Local changes commit to Plembfin first and are delivered through a durable queue,
+so a provider outage does not roll back a rating or affect watched state.
+
+Use **Sync now** for an immediate full pass. The panel reports provider status, queued work,
+unmatched items, reauthentication requirements, and retryable failures. Episode ratings keep
+their parent-show identity plus season and episode coordinates, so the same episode does not
+become multiple ratings when provider IDs differ.
+
+## Episode identity and groups
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/ratings-episode-focus-dark.png"
+  lightSrc="/assets/app-captures/ratings-episode-focus-light.png"
+  alt="Plembfin Ratings page showing the Episodes group with episode identity retained"
+  caption="Episode ratings retain show, season, and episode context inside their own group."
+/>
+
+Episode scores retain the show, season, and episode coordinates. Separate provider records
+for the same episode therefore resolve to one personal rating rather than creating a second
+score for the same viewing unit.
+
+## Relationship to watched state
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/media-action-row-dark.png"
+  lightSrc="/assets/app-captures/media-action-row-light.png"
+  alt="Plembfin media detail page showing separate rating and watch-status controls"
+  caption="Personal rating and Watch Status are separate controls on the detail page."
+/>
+
+A rating is personal metadata. It does not mark a title watched, create a watch event, add
+resume progress, alter the provider match, or sync a watch-state change through Plex, Emby,
+Jellyfin, or Trakt.
+
+For saving and grouping titles, see [Watchlist](/docs/watchlist/) and
+[Custom Lists](/docs/custom-lists/).

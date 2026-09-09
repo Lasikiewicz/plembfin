@@ -1,0 +1,71 @@
+---
+title: Connections
+description: Connect Trakt for watch-history sync and Seerr for media requests and availability.
+category: Settings
+order: 5.4
+sourceVersion: "0.16.3.5"
+sourcePaths:
+  - public/index.html
+  - public/modules/settings-shell.js
+  - public/modules/tracker-settings.js
+  - public/modules/settings-services.js
+  - docs/settings.md
+screenshots:
+  - /assets/app-captures/settings-connections-dark.png
+  - /assets/app-captures/settings-connections-light.png
+  - /assets/app-captures/settings-connections-trakt-dark.png
+  - /assets/app-captures/settings-connections-trakt-light.png
+  - /assets/app-captures/settings-connections-seerr-dark.png
+  - /assets/app-captures/settings-connections-seerr-light.png
+---
+
+import ScreenshotFigure from "../../../components/ScreenshotFigure.astro";
+
+Connections contains optional services that extend the local archive without replacing a media
+server connection.
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-connections-dark.png"
+  lightSrc="/assets/app-captures/settings-connections-light.png"
+  alt="Plembfin Connections settings overview showing optional service integrations"
+  caption="Connections is the home for optional Trakt and Seerr services that extend the local archive."
+/>
+
+## Trakt
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-connections-trakt-dark.png"
+  lightSrc="/assets/app-captures/settings-connections-trakt-light.png"
+  alt="Plembfin Trakt Connections settings showing authorization and import controls"
+  caption="Trakt uses the device authorization flow and keeps import policy beside the bridge settings."
+/>
+
+Trakt is an optional watch-history connection. The normal flow asks for an initial-sync policy,
+then displays a Trakt authorization code.
+
+1. Choose the initial import policy shown by the app.
+2. Complete the displayed authorization flow.
+3. Wait for the connection status to become healthy.
+4. Review the initial import in Sync Activity and History.
+
+Plembfin checks the Trakt watched snapshot regularly. Added watches, changed watch dates, and
+removals enter the same synchronization pipeline as media-server events.
+
+Plembfin should be the only Trakt bridge. Disable Emby and Jellyfin Trakt plugins and scheduled
+Trakt tasks so a second writer cannot reapply old state.
+
+## Seerr
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-connections-seerr-dark.png"
+  lightSrc="/assets/app-captures/settings-connections-seerr-light.png"
+  alt="Plembfin Seerr Connections settings showing request integration controls"
+  caption="Seerr adds request and availability context to detail pages without replacing a media-server connection."
+/>
+
+Seerr is optional and adds request and availability context to media detail pages. It does not
+replace a Plex, Emby, or Jellyfin connection.
+
+Configure the Seerr server URL and credentials, save, and test the connection. When it is
+connected, detail pages can show availability and request actions, including season and
+optional 4K requests where the server exposes them.

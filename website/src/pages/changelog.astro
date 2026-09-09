@@ -1,0 +1,59 @@
+---
+import SiteLayout from "../layouts/SiteLayout.astro";
+import release from "../generated/release.json";
+---
+
+<SiteLayout title="Changelog" description="Release history and current changes in Plembfin.">
+  <div class="changelog-shell">
+    <header class="changelog-header">
+      <h1>Changelog</h1>
+      <div class="changelog-switcher" role="group" aria-label="Changelog channel">
+        <button class="changelog-channel-button" type="button" data-changelog-channel="stable" aria-pressed="true">Stable releases</button>
+        <button class="changelog-channel-button" type="button" data-changelog-channel="alpha" aria-pressed="false">Alpha builds</button>
+      </div>
+    </header>
+    <section class="changelog-panel" data-changelog-panel="stable" aria-label="Stable releases">
+      <div class="changelog-list">
+        {release.entries.map((entry) => (
+          <article class="changelog-entry">
+            <div class="changelog-entry-meta"><strong>v{entry.version}</strong><span>{entry.date}</span></div>
+            <div class="changelog-entry-content">
+              <h2>{entry.title}</h2>
+              <p>{entry.summary}</p>
+              {entry.bullets?.length > 0 && <ul>{entry.bullets.map((bullet) => <li>{bullet}</li>)}</ul>}
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+    <section class="changelog-panel" data-changelog-panel="alpha" aria-label="Alpha builds" hidden>
+      <div class="changelog-list">
+        {release.alpha?.entries?.length ? release.alpha.entries.map((entry) => (
+          <article class="changelog-entry">
+            <div class="changelog-entry-meta"><strong>v{entry.version}</strong><span>{entry.date}</span></div>
+            <div class="changelog-entry-content">
+              <h2>{entry.title}</h2>
+              <p>{entry.summary}</p>
+              {entry.bullets?.length > 0 && <ul>{entry.bullets.map((bullet) => <li>{bullet}</li>)}</ul>}
+            </div>
+          </article>
+        )) : <p class="changelog-empty">No alpha build changelog is available yet.</p>}
+      </div>
+    </section>
+  </div>
+</SiteLayout>
+
+<script>
+  const channelButtons = [...document.querySelectorAll("[data-changelog-channel]")];
+  const channelPanels = [...document.querySelectorAll("[data-changelog-panel]")];
+
+  channelButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const channel = button.getAttribute("data-changelog-channel");
+      channelButtons.forEach((item) => item.setAttribute("aria-pressed", item === button ? "true" : "false"));
+      channelPanels.forEach((panel) => {
+        panel.hidden = panel.getAttribute("data-changelog-panel") !== channel;
+      });
+    });
+  });
+</script>

@@ -1,0 +1,90 @@
+---
+title: General
+description: Manage the administrator account, inspect system health, and maintain the local artwork cache.
+category: Settings
+order: 5.1
+sourceVersion: "0.16.3.5"
+sourcePaths:
+  - public/index.html
+  - public/modules/settings-shell.js
+  - public/modules/tools-maintenance.js
+  - public/modules/tools-backups.js
+  - docs/settings.md
+screenshots:
+  - /assets/app-captures/settings-general-dark.png
+  - /assets/app-captures/settings-general-light.png
+  - /assets/app-captures/settings-general-account-dark.png
+  - /assets/app-captures/settings-general-account-light.png
+  - /assets/app-captures/settings-general-integrity-dark.png
+  - /assets/app-captures/settings-general-integrity-light.png
+  - /assets/app-captures/settings-general-storage-cache-dark.png
+  - /assets/app-captures/settings-general-storage-cache-light.png
+---
+
+import ScreenshotFigure from "../../../components/ScreenshotFigure.astro";
+
+General is the first Settings group to check when the instance needs account, health, or
+local storage changes.
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-general-dark.png"
+  lightSrc="/assets/app-captures/settings-general-light.png"
+  alt="Plembfin General settings overview showing account, health, and storage controls"
+  caption="General gathers the administrator account, integrity checks, and local storage maintenance."
+/>
+
+## Account
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-general-account-dark.png"
+  lightSrc="/assets/app-captures/settings-general-account-light.png"
+  alt="Plembfin General Account settings showing administrator credential controls"
+  caption="Account contains the administrator identity and password-change controls."
+/>
+
+Account manages the administrator login used to access Plembfin.
+
+- **Username** identifies the dashboard account.
+- **Current password** verifies an existing password before a change.
+- **New password** and **Confirm new password** set the replacement password.
+- **Save Login** stores the change and signs out other active dashboard sessions.
+
+Sign in again with the new credentials after a password change. Keep credentials out of
+screenshots, issue reports, and shared logs.
+
+## System Integrity
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-general-integrity-dark.png"
+  lightSrc="/assets/app-captures/settings-general-integrity-light.png"
+  alt="Plembfin General System Integrity settings showing health and diagnostic controls"
+  caption="System Integrity provides a compact health refresh and a deeper diagnostic run."
+/>
+
+Use System Integrity before a large repair, after restoring data, or when several features
+fail together.
+
+- **Refresh Sync Health** loads a compact snapshot of database rows, storage, and outbound
+  request pressure.
+- **Run System Diagnostic** runs the detailed connection and scheduler checks in sequence.
+
+An integrity warning is a starting point for investigation, not a reason to wipe data. Follow
+the named feature guide and review [Logs](/docs/settings/logs/) for the first useful error.
+
+## Storage and cache
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-general-storage-cache-dark.png"
+  lightSrc="/assets/app-captures/settings-general-storage-cache-light.png"
+  alt="Plembfin General Storage and cache settings showing cache statistics and cleanup controls"
+  caption="Storage and cache reports local data usage and lets you refresh or clear derived artwork cache."
+/>
+
+Storage and cache reports the data directory and artwork cache.
+
+Use **Refresh Cache Stats** when you need an up-to-date count or size. Clearing the image cache
+removes cached posters, backdrops, and cast profiles, but it does not remove watch history.
+Plembfin fetches the images again when a page needs them.
+
+If artwork is still missing after a refresh, check [Metadata](/docs/settings/metadata/) and
+then follow [the metadata troubleshooting guide](/docs/troubleshooting/#refresh-metadata-did-not-update-a-title).

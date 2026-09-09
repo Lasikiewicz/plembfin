@@ -1,0 +1,118 @@
+import crypto from "node:crypto";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const websiteRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const docsRoot = path.join(websiteRoot, "src", "content", "docs");
+const assetsRoot = path.join(websiteRoot, "public", "assets");
+const outputPath = path.join(websiteRoot, "src", "generated", "capture-manifest.json");
+const rasterExtensions = new Set([".gif", ".jpeg", ".jpg", ".png", ".webp"]);
+const imageExtensions = new Set([...rasterExtensions, ".svg"]);
+const writeOutput = process.argv.includes("--write");
+
+function readPreviousManifest() {
+  if (!fs.existsSync(outputPath)) return null;
+  try {
+    return JSON.parse(fs.readFileSync(outputPath, "utf8"));
+  } catch {
+    return null;
+  }
+}
+
+function walkFiles(root) {
+  if (!fs.existsSync(root)) return [];
+  const files = [];
+  for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+    const absolutePath = path.join(root, entry.name);
+    if (entry.isDirectory()) files.push(...walkFiles(absolutePath));
+    else files.push(absolutePath);
+  }
+  return files.sort((left, right) => left.localeCompare(right));
+}
+
+function websiteRelative(absolutePath) {
+  return path.relative(websiteRoot, absolutePath).replaceAll(path.sep, "/");
+}
+
+function parseSourceVersion(text) {
+  return text.match(/^sourceVersion:\s*["']([^"']+)["']\s*$/m)?.[1] || null;
+}
+
+function parseDocSlug(absolutePath) {
+  return path.relative(docsRoot, absolutePath).replaceAll(path.sep, "/").replace(/\.mdx$/, "");
+}
+
+function pngDimensions(buffer) {
+  if (buffer.subarray(0, 8).toString("hex") !== "89504e470d0a1a0a") return null;
+  return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
+}
+
+const docs = [];
+const assetReferences = new Map();
+
+for (const absolutePath of walkFiles(docsRoot).filter((file) => file.endsWith(".mdx"))) {
+  const text = fs.readFileSync(absolutePath, "utf8");
+  const references = [...text.matchAll(/\/assets\/((?:app-captures|icons)\/[^\s"')>]+\.(?:gif|jpeg|jpg|png|webp|svg))/gi)]
+    .map((match) => `public/assets/${match[1]}`)
+    .sort();
+  const uniqueReferences = [...new Set(references)];
+  const doc = {
+    slug: parseDocSlug(absolutePath),
+    sourceVersion: parseSourceVersion(text),
+    screenshots: uniqueReferences,
+  };
+  docs.push(doc);
+  for (const asset of uniqueReferences) {
+    const pages = assetReferences.get(asset) || [];
+    pages.push(doc.slug);
+    assetReferences.set(asset, pages);
+  }
+}
+
+const assets = walkFiles(assetsRoot)
+  .filter((file) => imageExtensions.has(path.extname(file).toLowerCase()))
+  .map((absolutePath) => {
+    const buffer = fs.readFileSync(absolutePath);
+    const relativePath = websiteRelative(absolutePath);
+    const dimensions = path.extname(absolutePath).toLowerCase() === ".png" ? pngDimensions(buffer) : null;
+    return {
+      path: relativePath,
+      bytes: buffer.length,
+      sha256: crypto.createHash("sha256").update(buffer).digest("hex"),
+      dimensions,
+      referencedBy: assetReferences.get(relativePath) || [],
+    };
+  });
+
+const previousManifest = readPreviousManifest();
+const previousAssets = new Map((previousManifest?.assets || []).map((asset) => [asset.path, asset]));
+const currentAssetPaths = new Set(assets.map((asset) => asset.path));
+const changes = {
+  added: assets.filter((asset) => !previousAssets.has(asset.path)).map((asset) => asset.path),
+  changed: assets
+    .filter((asset) => previousAssets.get(asset.path)?.sha256 && previousAssets.get(asset.path).sha256 !== asset.sha256)
+    .map((asset) => asset.path),
+  removed: [...previousAssets.keys()].filter((asset) => !currentAssetPaths.has(asset)).sort(),
+  unreferenced: assets.filter((asset) => asset.referencedBy.length === 0).map((asset) => asset.path),
+};
+
+const manifest = {
+  schemaVersion: 1,
+  generatedBy: "website/scripts/capture-inventory.mjs",
+  changes,
+  docs,
+  assets,
+};
+
+const json = `${JSON.stringify(manifest, null, 2)}\n`;
+if (writeOutput) {
+  fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+  fs.writeFileSync(outputPath, json);
+  console.log(
+    `Wrote ${websiteRelative(outputPath)} (${assets.length} image assets, ${assetReferences.size} referenced; `
+      + `${changes.added.length} added, ${changes.changed.length} changed, ${changes.removed.length} removed).`,
+  );
+} else {
+  process.stdout.write(json);
+}

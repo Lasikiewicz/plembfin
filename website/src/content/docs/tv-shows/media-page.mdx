@@ -1,0 +1,357 @@
+---
+title: TV Shows media page
+description: Read and use a single TV show media page in Plembfin.
+category: Dashboard and libraries
+order: 3.1
+sourceVersion: "0.16.3.5"
+sourcePaths:
+  - public/app.js
+  - public/index.html
+  - public/modules/media-detail.js
+  - public/modules/media-detail-context.js
+  - public/modules/media-detail-show.js
+  - public/modules/media-detail-shared.js
+  - public/modules/media-detail-events.js
+  - public/modules/watch-action.js
+  - public/modules/personal-media.js
+  - public/modules/edit-dialogs.js
+  - docs/media-detail.md
+screenshots:
+  - /assets/app-captures/tv-detail-page-dark.png
+  - /assets/app-captures/tv-detail-page-light.png
+  - /assets/app-captures/tv-spoilers-on-dark.png
+  - /assets/app-captures/tv-spoilers-on-light.png
+  - /assets/app-captures/tv-spoilers-off-dark.png
+  - /assets/app-captures/tv-spoilers-off-light.png
+  - /assets/app-captures/tvshows-dark.png
+  - /assets/app-captures/tvshows-light.png
+  - /assets/app-captures/media-action-row-dark.png
+  - /assets/app-captures/media-action-row-light.png
+  - /assets/app-captures/media-tools-focus-dark.png
+  - /assets/app-captures/media-tools-focus-light.png
+  - /assets/app-captures/settings-sync-tools-dark.png
+  - /assets/app-captures/settings-sync-tools-light.png
+  - /assets/app-captures/media-info-focus-dark.png
+  - /assets/app-captures/media-info-focus-light.png
+  - /assets/app-captures/tv-media-info-focus-dark.png
+  - /assets/app-captures/tv-media-info-focus-light.png
+  - /assets/app-captures/media-appearance-dark.png
+  - /assets/app-captures/media-appearance-light.png
+  - /assets/app-captures/media-edit-images-focus-dark.png
+  - /assets/app-captures/media-edit-images-focus-light.png
+  - /assets/app-captures/media-sections-dark.png
+  - /assets/app-captures/media-sections-light.png
+  - /assets/app-captures/tv-sections-overview-dark.png
+  - /assets/app-captures/tv-sections-overview-light.png
+  - /assets/app-captures/tv-cast-focus-dark.png
+  - /assets/app-captures/tv-cast-focus-light.png
+  - /assets/app-captures/tv-images-focus-dark.png
+  - /assets/app-captures/tv-images-focus-light.png
+  - /assets/app-captures/tv-trailers-focus-dark.png
+  - /assets/app-captures/tv-trailers-focus-light.png
+  - /assets/app-captures/tv-related-focus-dark.png
+  - /assets/app-captures/tv-related-focus-light.png
+---
+
+import ScreenshotFigure from "../../../components/ScreenshotFigure.astro";
+
+The TV Shows media page is the detail page for one selected series. This guide is about
+the page reached from a show card, not the TV Shows library's search, filters, sorting, or
+view controls.
+
+For example, a direct TV show detail route looks like:
+
+`/tvshow/tmdb/108978-reacher#season4`
+
+
+## Open a TV show media page
+
+Select a show card in [TV Shows](/docs/tv-shows/) to open its media page. The page keeps
+the series context, season list, episode progress, actions, and provider content together.
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/tv-detail-page-dark.png"
+  lightSrc="/assets/app-captures/tv-detail-page-light.png"
+  alt="Plembfin TV show detail page showing the title header, progress, seasons, cast, images, and trailers"
+  caption="The complete TV detail capture follows the page from its title header through the loaded detail sections."
+/>
+
+## Show header and facts
+
+
+The header can include:
+
+- the poster, backdrop, logo, and show title;
+- the synopsis and provider ratings;
+- sync status and media-server availability;
+- provider identifiers and links back to Plex, Emby, or Jellyfin; and
+- a Seerr request control when Seerr is connected.
+
+Provider data is shown when it is available. A missing provider result does not remove the
+local series or episode records.
+
+## Seasons and episodes
+
+The **Seasons** section lists each season with its episode count, watched count,
+availability, and next-airing context. Episode details load as a season is expanded, so a
+large show can render its header and season summary without waiting for every episode.
+
+Season navigation and artwork load incrementally. The page reserves image space and uses a
+shimmer while artwork arrives, so the show header and controls remain usable on a cold load.
+
+- Select a season row to expand or collapse its episodes.
+- Use **Expand All** or **Collapse All** to change the season accordion state.
+- Episode rows show episode identity, air date, watched state, and available actions once
+  that season has loaded.
+
+Episode rows prefer the real episode name stored on the watch record. Verified metadata with no
+title remains **No title provided**.
+
+> If the actual episode name is missing, run [Settings → Tools → Database Repairs → Restore
+> Missing Episode Names](/docs/settings/tools/#database-repairs). The repair fills the name
+> when provider metadata supplies one.
+
+The page can also preserve a season or episode in the URL when opening a direct detail
+route, so a shared link can return to the relevant part of the show.
+
+Episode cards and notifications resolve through the explicit parent-show identity. An episode
+provider ID is not substituted for the series ID in a `/tvshow/...` route, which keeps deep
+links on the correct show.
+
+## Progress and show actions
+
+The header summarizes watched episodes against the known episode total. The action row
+contains the controls appropriate to the series state.
+
+### Personal list actions
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/media-action-row-dark.png"
+  lightSrc="/assets/app-captures/media-action-row-light.png"
+  alt="Plembfin TV show detail page showing Add to watch list and Add to custom list"
+  caption="Save a show for later or add it to private custom lists without changing episode history."
+/>
+
+Use **Add to watch list** or **Add to custom list** for local personal choices. Their labels
+change to **Remove from watch list** and **In custom list** when the show is already saved.
+Read the dedicated [Watchlist](/docs/watchlist/) and [Custom Lists](/docs/custom-lists/)
+guides for those workflows. Episode ratings are covered in [Ratings](/docs/ratings/#rate-from-a-detail-page).
+
+### Watch-state actions
+
+Use **Mark Watched** or **Mark Unwatched** for the show's episode set. These actions change
+canonical watch state and follow the normal sync path. A season-level **Mark season watched**
+action updates only episodes that are still unwatched and eligible; watched episodes remain
+unchanged. When the season is already fully watched, the control becomes **Resync season** and
+replays the existing state without creating a new watch event. Use [Sync Activity](/docs/sync-tools/)
+to confirm destination results.
+
+### Hide Spoilers Enabled
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/tv-spoilers-on-dark.png"
+  lightSrc="/assets/app-captures/tv-spoilers-on-light.png"
+  alt="Plembfin Reacher detail page with Season 4 expanded and Hide Spoilers checked, hiding unwatched episode artwork and synopses"
+  caption="With Hide Spoilers enabled, the expanded Season 4 keeps the two watched episodes visible while protecting the remaining unwatched episodes."
+/>
+
+### Hide Spoilers Disabled
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/tv-spoilers-off-dark.png"
+  lightSrc="/assets/app-captures/tv-spoilers-off-light.png"
+  alt="Plembfin Reacher detail page with Season 4 expanded and Hide Spoilers unchecked, showing unwatched episode artwork and synopses"
+  caption="With Hide Spoilers disabled, the expanded Season 4 reveals the artwork and synopses for the remaining unwatched episodes."
+/>
+
+**Hide Spoilers** changes presentation for unwatched episodes only. It does not change
+metadata, watch state, progress, or sync.
+
+### Tools
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/media-tools-focus-dark.png"
+  lightSrc="/assets/app-captures/media-tools-focus-light.png"
+  alt="Plembfin media detail Tools menu showing the common Force Sync, Info, Edit Images, Fix Match, and Delete actions"
+  caption="The shared Tools menu is always available for title-scoped maintenance; TV shows also add Merge."
+/>
+
+Use the title-scoped **Tools** menu for maintenance, sync evidence, artwork, identity
+corrections, and TV record management. The sections below explain each action and when to
+use it.
+
+#### Force Sync
+
+Choose **Force Sync** when one show needs a targeted watched-state or resume-state replay.
+The menu is title-scoped, so it does not replace the broader tools in [Settings →
+Sync](/docs/settings/sync/).
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-sync-tools-dark.png"
+  lightSrc="/assets/app-captures/settings-sync-tools-light.png"
+  alt="Plembfin Sync Tools settings showing repair, push, and pull controls"
+  caption="Settings → Sync provides broader push and pull choices when a title-level Force Sync is not enough."
+/>
+
+For a single show or episode:
+
+1. Open **Tools → Force Sync** on the detail page.
+2. Select the direction and destination shown by the dialog. Push sends Plembfin's recorded
+   watched or resume state out; pull imports the selected title's state from a connected
+   server.
+3. Review the preview before confirming, especially when pushing because remote state can be
+   overwritten.
+4. Check the result in [Sync Activity](/docs/sync-tools/).
+
+Use **Repair Recent Items**, **Set Plembfin as Source of Truth**, or **Import Watched Status**
+under [Settings → Sync → Sync tools](/docs/settings/sync/#sync-tools) for wider repair and
+source-of-truth operations. The watched threshold and resume minimum are controlled in
+[Sync Tuning](/docs/settings/sync/#sync-tuning).
+
+#### Info
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/tv-media-info-focus-dark.png"
+  lightSrc="/assets/app-captures/tv-media-info-focus-light.png"
+  alt="Plembfin The War Between the Land and the Sea Info panel showing watched episodes, destination results, and audit events"
+  caption="Info is read-only evidence for the selected show's watched-episode totals, destination results, and audit-event count."
+/>
+
+Choose **Info** to inspect the show's watch status, latest watched record, destination
+results, and available audit events. Use **Export** when you need to preserve the evidence.
+Info does not change seasons, episodes, personal lists, or the provider match.
+
+#### Edit Images
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/media-edit-images-focus-dark.png"
+  lightSrc="/assets/app-captures/media-edit-images-focus-light.png"
+  alt="Plembfin TV show Edit Images picker showing artwork choices"
+  caption="Edit Images changes the selected show's poster, logo, or background without changing its identity."
+/>
+
+Choose **Edit Images** when the series match is correct but its artwork is not. Pick the
+artwork type, choose a provider result or custom image, and save. Use **Fix Match** when
+the series itself is wrong.
+
+#### Fix Match
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/fix-match-focus-dark.png"
+  lightSrc="/assets/app-captures/fix-match-focus-light.png"
+  alt="Plembfin TV show Fix Match dialog showing candidate provider identities"
+  caption="Fix Match changes the series identity used by metadata and episode sync."
+/>
+
+Choose **Fix Match** when the show is attached to the wrong series. Compare title, year,
+network, seasons, and provider details before confirming. A TV match applies to the series
+and its episode records.
+
+#### Merge
+
+Choose **Merge** only when two local series records represent the same show. Compare the
+series identity, episode totals, and preview, make a backup, and confirm only when the
+records are true duplicates. Merge changes local record structure and is harder to reverse
+than a metadata refresh.
+
+#### Delete
+
+Choose **Delete** only when the local tracked show and its recorded history should be
+removed. Review the confirmation scope and keep a verified backup first. Deleting the
+record does not remove files from Plex, Emby, or Jellyfin.
+
+Season rows can also offer **Edit season date**, **Mark season watched**, **Resync season**,
+and season-level unwatched actions. Individual episode rows provide their own watched,
+unwatched, and watch-date actions. If an identity is repaired, corrected TV metadata and posters
+are warmed before the refreshed show details return.
+
+## TV show detail sections
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/tv-sections-overview-dark.png"
+  lightSrc="/assets/app-captures/tv-sections-overview-light.png"
+  alt="Plembfin TV show detail page showing Cast, Images, and Trailers and Clips sections"
+  caption="The TV detail view places Cast, Images, and Trailers & Clips below the season controls."
+/>
+
+When provider data is available, the page can render:
+
+### Cast
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/tv-cast-focus-dark.png"
+  lightSrc="/assets/app-captures/tv-cast-focus-light.png"
+  alt="Plembfin TV show detail page showing credited cast members"
+  caption="Cast cards open person pages with biographies and filmographies."
+/>
+
+The **Cast** section lists credited people and their roles. Select a person to inspect their
+biography without changing the show record.
+
+### Images
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/tv-images-focus-dark.png"
+  lightSrc="/assets/app-captures/tv-images-focus-light.png"
+  alt="Plembfin TV show detail page showing the Images gallery"
+  caption="Images is a provider gallery separate from the saved poster, logo, and background artwork."
+/>
+
+The **Images** gallery opens scene artwork in a lightbox. It is separate from the artwork
+choices under Edit Images.
+
+### Trailers & Clips
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/tv-trailers-focus-dark.png"
+  lightSrc="/assets/app-captures/tv-trailers-focus-light.png"
+  alt="Plembfin TV show detail page showing Trailers and Clips"
+  caption="Trailers & Clips keeps provider video previews beside the show details."
+/>
+
+Select a trailer or clip to play it in the media lightbox. A missing video is a provider-data
+condition, not a watched-state change.
+
+### Reviews
+
+The **Reviews** section displays provider reviews and scores when that provider is enabled.
+Review content is provider-supplied and remains separate from your private [Ratings](/docs/ratings/).
+
+### Related Shows
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/tv-related-focus-dark.png"
+  lightSrc="/assets/app-captures/tv-related-focus-light.png"
+  alt="Plembfin TV show detail page showing the Related Shows rail"
+  caption="Related Shows connects the current series to provider recommendations."
+/>
+
+The **Related Shows** section links to provider-related series. It does not add those shows
+to the local library automatically.
+
+These sections belong to the selected series. They are not additional library pages.
+
+## Appearance
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/media-appearance-dark.png"
+  lightSrc="/assets/app-captures/media-appearance-light.png"
+  alt="Plembfin Appearance menu on a TV show detail page showing optional section switches"
+  caption="The full Appearance panel shows the switches that control optional TV detail sections."
+/>
+
+Open [Appearance](/docs/appearance/#media-detail-options) in the sidebar footer while this TV show media page is active. The
+TV-specific switches control which optional sections are rendered:
+
+- **Logo Art**
+- **Cast Members**
+- **Trailers & Clips**
+- **Reviews**
+- **Images**
+- **Related Shows**
+
+Each switch changes presentation only and is saved as an appearance preference. The
+Dashboard's history remains Card View by default; its layout is not controlled here.
+
+For the shared behavior of watch dates, matching, artwork, and sync, see
+[Media details and actions](/docs/media-details/).

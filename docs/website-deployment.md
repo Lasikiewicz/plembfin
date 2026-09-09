@@ -1,8 +1,9 @@
 # Website deployment plan
 
 This is the setup plan for publishing the static Astro documentation site from
-`website/` to GitHub and having Cloudflare Pages deploy it automatically. It is a plan
-only: do not push or deploy until the user explicitly requests that operation.
+`website/` to GitHub and having Cloudflare Pages deploy it automatically. The existing
+Cloudflare Pages project named `plembfin` hosts the app deployment and must remain
+untouched. Use a separate Pages project named `plembfin-website` for this static site.
 
 ## Current repository shape
 
@@ -88,7 +89,7 @@ In Cloudflare:
    | --- | --- |
    | Production branch | `main` |
    | Root directory | `website` |
-   | Build command | `npm run build` |
+   | Build command | `npm run check:deploy && npm run build` |
    | Build output directory | `dist` |
    | Node version | `22.19.0` via `NODE_VERSION` in Pages environment variables |
 
@@ -147,7 +148,7 @@ deployments should not be treated as production rollback targets.
   for the last successful production build, then fix the source and merge a normal
   follow-up commit.
 - Run the website update workflow whenever app behavior, release data, routes, settings,
-  or screenshots change. The Force-to-main website question in `CLAUDE.md` and
+  or screenshots change. The mandatory Force-to-main website gate in `CLAUDE.md` and
   `docs/websiteupdate.md` happens before promotion work begins.
 
 ## Official references

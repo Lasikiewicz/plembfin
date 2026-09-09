@@ -1,0 +1,50 @@
+---
+title: Logs
+description: Review server and browser diagnostics by category and preserve useful evidence before clearing it.
+category: Settings
+order: 5.10
+sourceVersion: "0.16.3.5"
+sourcePaths:
+  - public/index.html
+  - public/modules/logs.js
+  - docs/settings.md
+  - docs/troubleshooting.md
+screenshots:
+  - /assets/app-captures/settings-logs-controls-dark.png
+  - /assets/app-captures/settings-logs-controls-light.png
+---
+
+import ScreenshotFigure from "../../../components/ScreenshotFigure.astro";
+
+Logs combines server and browser diagnostic output. Use it after reproducing one small problem
+so the title, source, destination, and time are easy to match with a Sync Activity row.
+
+
+## Log categories
+
+
+Use the category tabs to narrow the stream:
+
+- **All Logs** shows the complete chronological stream.
+- **Plex WebSockets** shows connection lifecycle and incoming Plex timeline events.
+- **Outbound Sync** shows dispatches, watch writes, and manual propagation.
+- **Scheduled Polls** shows periodic catch-up and scheduled sync work.
+- **System Logs** shows administrative, startup, and general system events.
+
+## Review a problem
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-logs-controls-dark.png"
+  lightSrc="/assets/app-captures/settings-logs-controls-light.png"
+  alt="Plembfin Logs settings used to preserve and clear diagnostic evidence"
+  caption="Preserve the relevant evidence before clearing stored diagnostic logs."
+/>
+
+1. Reproduce one small problem.
+2. Open Logs and select the relevant category.
+3. Compare the error with the Sync Activity reason.
+4. Download or preserve the relevant log before clearing it.
+
+**Clear Logs** empties the stored diagnostic log stream. On-disk crash-forensics copies are
+separate and are pruned automatically. Redact webhook URLs, credentials, and private server
+names before sharing logs.

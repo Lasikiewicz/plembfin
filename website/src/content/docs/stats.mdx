@@ -1,0 +1,47 @@
+---
+title: Stats
+description: Turn the recorded watch archive into useful activity reports and comparisons.
+category: Use the app
+order: 6
+sourceVersion: "0.16.3.5"
+sourcePaths:
+  - public/modules/stats.js
+  - docs/stats.md
+screenshots:
+  - /assets/app-captures/stats-dark.png
+  - /assets/app-captures/stats-light.png
+---
+
+import ScreenshotFigure from "../../components/ScreenshotFigure.astro";
+
+Stats reports only what Plembfin has recorded or imported. It cannot recover a play that
+never reached the local archive.
+
+
+## Reported totals
+
+
+Stats can show:
+
+- total watch count;
+- unique movies and TV episodes;
+- most-played movie and show leaderboards;
+- movie-versus-TV comparisons;
+- source-platform breakdown;
+- first and most recent plays; and
+- monthly activity.
+
+## Change the report scope
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/stats-dark.png"
+  lightSrc="/assets/app-captures/stats-light.png"
+  alt="Plembfin Stats controls for media type, period, and report range"
+  caption="Change media and period scope to compare the same archive without altering it."
+/>
+
+Use the period picker for all time, a year, or a month. Then use the media filter for all
+media, movies, or shows.
+
+A rewatch is a separate event when it represents a genuine later play. Changing the report
+scope changes the presentation only; it does not alter the archive.

@@ -95,6 +95,7 @@ Repository files relevant to the application, build, and operations, grouped by 
 | `docker-compose.secure.yml` | Hardened overlay: read-only rootfs, tmpfs `/tmp`, required env vars (`ADMIN_PASSWORD`, `SESSION_SECRET`, `API_KEY`, `WEBHOOK_SECRET`), forces `COOKIE_SECURE=true`. |
 | `.dockerignore` | Excludes `node_modules`, `data`, `docs`, `scratch`, markdown, and secrets from the Docker build context while whitelisting the required runtime scripts. |
 | `.env.example` | Commented template of every supported environment variable - copy to `.env` (loaded by `server/src/env.js`). The variables are documented under [Environment variables](#environment-variables) below. |
+| `website/` | Static Astro documentation site. Its build reads the root release data and shared assets, runs the website checks, and outputs `website/dist/` for Cloudflare Pages. |
 | `.editorconfig` | Editor whitespace/indent conventions. |
 | `.gitattributes` | Normalizes line endings to LF; marks image formats binary. |
 | `.gitignore` | Ignores `node_modules`, `data/`, logs, local env files. |

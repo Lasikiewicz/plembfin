@@ -1,0 +1,49 @@
+---
+title: About
+description: Confirm the installed Plembfin release and review its release history.
+category: Settings
+order: 5.11
+sourceVersion: "0.16.3.5"
+sourcePaths:
+  - public/index.html
+  - public/app.js
+  - docs/development.md
+  - CHANGELOG.md
+  - changelog.alpha.json
+  - changelog.develop.json
+screenshots:
+  - /assets/app-captures/settings-index-dark.png
+  - /assets/app-captures/settings-index-light.png
+---
+
+import ScreenshotFigure from "../../../components/ScreenshotFigure.astro";
+
+About shows the installed release and the release history available to the instance. The
+current published website baseline is **v0.16.3**. This release line includes the manual watch
+review workflow, safer Jellyfin 12 authentication, show-wide Trakt repair, and corrected TV
+metadata/artwork refresh behavior. This documentation is also verified against the current local
+`develop` build 6, whose code matches the `0.16.3.5` alpha snapshot. That snapshot keeps Up Next
+as one mixed resume/next-up queue, restores provider artwork and identity deduplication, scopes
+live card updates, removes stale Now Playing sessions, and keeps public retry and dismiss errors
+generic. Use the in-app channel/build history when checking those changes.
+
+
+## Installed release
+
+
+Use the installed version to confirm which build is running after an upgrade or restore. Keep
+runtime version details out of public screenshots and issue reports when the instance is
+self-hosted.
+
+## Release history
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-index-dark.png"
+  lightSrc="/assets/app-captures/settings-index-light.png"
+  alt="Plembfin Settings landing page used to open release history"
+  caption="Release history explains behavior changes and fixes included in each published build."
+/>
+
+Open the release history when you need to understand a behavior change or check whether a fix
+is included in the running build. For symptom-first help, start with
+[Troubleshooting](/docs/troubleshooting/).

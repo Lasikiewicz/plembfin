@@ -1,0 +1,85 @@
+---
+title: Movies
+description: Browse recorded movie watches, find a title, and open its media page.
+category: Dashboard and libraries
+order: 2
+sourceVersion: "0.16.3.5"
+sourcePaths:
+  - public/index.html
+  - public/modules/explorer.js
+  - public/modules/poster-menu.js
+  - docs/movies.md
+screenshots:
+  - /assets/app-captures/movies-dark.png
+  - /assets/app-captures/movies-light.png
+  - /assets/app-captures/library-poster-menu-dark.png
+  - /assets/app-captures/library-poster-menu-light.png
+  - /assets/app-captures/media-detail-overview-dark.png
+  - /assets/app-captures/media-detail-overview-light.png
+---
+
+import ScreenshotFigure from "../../components/ScreenshotFigure.astro";
+
+Movies is Plembfin's tracked movie library. It is built from records Plembfin has
+recorded or imported, rather than being a raw file browser for every connected server.
+
+
+## Find a movie
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/movies-dark.png"
+  lightSrc="/assets/app-captures/movies-light.png"
+  alt="Plembfin Movies library showing the search, sort, A–Z, poster size, and view controls"
+  caption="Find a tracked movie with search, sorting, A–Z navigation, and progressive loading."
+/>
+
+1. Open **Movies** in the sidebar.
+2. Enter a title or another available library value in **Search**.
+3. Choose a sort order for title, watch date, or the available next-airing order.
+4. Use the A–Z control to jump through the loaded results.
+5. Adjust poster size or switch between poster grid, list view, and overview-card views.
+6. Select a card to open its movie media page.
+
+Large libraries load progressively as you scroll. Rewatches remain in the title's watch
+history rather than creating a second movie card.
+
+## Movie cards and quick actions
+
+A movie card can show its poster, title, watch information, and the latest known sync or
+availability state. These indicators describe the local record and can change after a
+sync or metadata refresh.
+
+On a desktop pointer, hover a poster card to reveal its three-dot button:
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/library-poster-menu-dark.png"
+  lightSrc="/assets/app-captures/library-poster-menu-light.png"
+  alt="Plembfin movie poster card with its three-dot menu open"
+  caption="The redesigned card menu keeps date, matching, rating, list, and watch-state actions beside the poster."
+/>
+
+- **Edit watch date** inspects, changes, adds, or removes a recorded viewing date.
+- **Fix match** corrects the provider identity attached to the movie.
+- **Rate** sets a private local score without marking the movie watched or changing the provider rating.
+- **Add to watch list** saves the movie for later.
+- **Add to Custom list** opens the list chooser; the arrow indicates that more than one list can be selected.
+- **Mark unwatched** clears the current watched state and propagates that correction.
+
+The library refreshes in place after an action. Use the media page for artwork, trailers,
+galleries, the full watch history, and title-scoped sync actions.
+
+## Movie media page
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/media-detail-overview-dark.png"
+  lightSrc="/assets/app-captures/media-detail-overview-light.png"
+  alt="Plembfin movie media page showing the title header and detail actions"
+  caption="Selecting a movie card opens a full detail page with watch, personal, provider, and maintenance controls."
+/>
+
+The child [Movies media page](/docs/movies/media-page/) guide is about one selected movie,
+including its header, watch status, actions, detail sections, and page-specific Appearance
+controls.
+
+See [Media details and actions](/docs/media-details/) for the shared explanation of
+watch dates, matching, artwork, and sync behavior.

@@ -1,0 +1,91 @@
+---
+title: Shared library controls
+description: Use the controls shared by the Movies and TV Shows libraries.
+category: Dashboard and libraries
+order: 4
+sourceVersion: "0.16.3.5"
+sourcePaths:
+  - public/index.html
+  - public/modules/explorer.js
+  - public/modules/images.js
+  - public/modules/poster-menu.js
+  - docs/movies.md
+  - docs/tv-shows.md
+screenshots:
+  - /assets/app-captures/movies-dark.png
+  - /assets/app-captures/movies-light.png
+  - /assets/app-captures/library-poster-menu-dark.png
+  - /assets/app-captures/library-poster-menu-light.png
+---
+
+import ScreenshotFigure from "../../components/ScreenshotFigure.astro";
+
+The [Movies](/docs/movies/) and [TV Shows](/docs/tv-shows/) pages are tracked libraries built
+from Plembfin's local watch records. They help you find a title that Plembfin knows about;
+they are not raw file browsers for every connected server.
+
+## Shared library controls
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/movies-dark.png"
+  lightSrc="/assets/app-captures/movies-light.png"
+  alt="Plembfin Movies library showing search, sort, poster size, and view controls"
+  caption="Shared library controls change how the loaded records are searched, ordered, and presented."
+/>
+
+Both libraries provide a similar set of browsing controls.
+
+The exact available sort values depend on the page and the loaded data.
+
+- **Search** narrows the loaded titles by the title and available library fields.
+- **Sort** changes the order, including title, watch date, and the available next-airing order.
+- **A–Z** jumps to a letter in the loaded result set.
+- **Poster size** changes how many cards fit across the page.
+- **Poster, list, or overview-card view** changes how much information is visible while browsing.
+- Selecting a poster opens the relevant [media detail page](/docs/media-details/).
+
+Large libraries load progressively as you scroll.
+
+A card's state or availability indicator describes the latest known record and can change
+after a sync or metadata refresh.
+
+## The shared card controls
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/library-poster-menu-dark.png"
+  lightSrc="/assets/app-captures/library-poster-menu-light.png"
+  alt="Plembfin movie poster card with the shared three-dot quick-actions menu open"
+  caption="The poster three-dot menu exposes quick actions without leaving the library."
+/>
+
+The three-dot menu is the quick-action menu on movie, TV, and supported History cards.
+
+On a desktop pointer, hover the poster card to reveal the button.
+
+Open it and choose:
+
+- **Edit watch date** to inspect, change, add, or remove a recorded viewing date;
+- **Fix match** to correct the provider identity attached to the local record;
+- **Rate** to set a private local score;
+- **Add to watch list** to save a title for later;
+- **Add to Custom list** to open the list chooser; and
+- **Mark unwatched** to clear the current watched state and propagate that correction.
+
+The card refreshes in place after the action.
+
+The menu does not replace the detail-page tools. Use the relevant [movie](/docs/movies/)
+or [TV Shows](/docs/tv-shows/) guide for library-specific behavior, and
+[Media details and actions](/docs/media-details/) for artwork, merge, delete, title-level
+Force Sync, trailers, galleries, and the full watch history.
+
+If the menu is missing, move the pointer over the card and check that the card is not
+covered by another element.
+
+Open the title detail page as a fallback.
+
+Follow [the three-dot menu troubleshooting guide](/docs/troubleshooting/#the-poster-three-dot-menu-is-missing-or-does-nothing)
+if the button still does nothing.
+
+For title-specific behavior, use [Movies](/docs/movies/), [TV Shows](/docs/tv-shows/), and
+[Media details and actions](/docs/media-details/). This page only documents controls shared
+by both libraries.
