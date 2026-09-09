@@ -1,0 +1,176 @@
+[
+  {
+    "id": "dashboard",
+    "label": "Dashboard",
+    "docSlug": "dashboard",
+    "sourcePaths": ["public/index.html", "public/modules/dashboard.js", "docs/dashboard.md"]
+  },
+  {
+    "id": "concepts",
+    "label": "The sync model",
+    "docSlug": "concepts",
+    "sourcePaths": ["docs/architecture.md", "docs/webhooks.md", "docs/scheduled-sync.md", "docs/dashboard.md"]
+  },
+  {
+    "id": "movies",
+    "label": "Movies",
+    "docSlug": "movies",
+    "sourcePaths": ["public/index.html", "public/modules/explorer.js", "docs/movies.md"]
+  },
+  {
+    "id": "tv-shows",
+    "label": "TV Shows",
+    "docSlug": "tv-shows",
+    "sourcePaths": ["public/index.html", "public/modules/explorer.js", "docs/tv-shows.md"]
+  },
+  {
+    "id": "upcoming",
+    "label": "Upcoming",
+    "docSlug": "upcoming",
+    "sourcePaths": ["public/index.html", "public/modules/upcoming.js", "docs/upcoming.md"]
+  },
+  {
+    "id": "discover",
+    "label": "Discover",
+    "docSlug": "discover",
+    "sourcePaths": ["public/index.html", "public/modules/discover.js", "server/src/index.js", "server/src/utils/tmdbGateway.js", "docs/metadata.md"]
+  },
+  {
+    "id": "watchlist",
+    "label": "Watchlist",
+    "docSlug": "watchlist",
+    "sourcePaths": ["public/index.html", "public/modules/personal-media.js", "public/modules/media-card.js", "server/src/routes/personal.js", "docs/frontend.md"]
+  },
+  {
+    "id": "ratings",
+    "label": "Ratings",
+    "docSlug": "ratings",
+    "sourcePaths": ["public/index.html", "public/modules/personal-media.js", "public/modules/media-card.js", "server/src/routes/personal.js", "docs/frontend.md", "docs/media-detail.md"]
+  },
+  {
+    "id": "custom-lists",
+    "label": "Custom Lists",
+    "docSlug": "custom-lists",
+    "sourcePaths": ["public/index.html", "public/modules/personal-media.js", "public/modules/media-card.js", "server/src/routes/personal.js", "docs/frontend.md", "docs/media-detail.md"]
+  },
+  {
+    "id": "history-search",
+    "label": "History and Search",
+    "docSlug": "history-search",
+    "sourcePaths": ["public/index.html", "public/app.js", "docs/history-search.md"]
+  },
+  {
+    "id": "history-search-guide",
+    "label": "History and global Search guide",
+    "docSlug": "history-search",
+    "sourcePaths": ["public/index.html", "public/app.js", "docs/history-search.md"]
+  },
+  {
+    "id": "stats",
+    "label": "Stats",
+    "docSlug": "stats",
+    "sourcePaths": ["public/index.html", "public/modules/stats.js", "docs/stats.md"]
+  },
+  {
+    "id": "stats-guide",
+    "label": "Stats guide",
+    "docSlug": "stats",
+    "sourcePaths": ["public/index.html", "public/modules/stats.js", "docs/stats.md"]
+  },
+  {
+    "id": "movies-guide",
+    "label": "Movies guide",
+    "docSlug": "movies",
+    "sourcePaths": ["public/index.html", "public/modules/explorer.js", "public/modules/poster-menu.js", "docs/movies.md"]
+  },
+  {
+    "id": "tv-shows-guide",
+    "label": "TV Shows guide",
+    "docSlug": "tv-shows",
+    "sourcePaths": ["public/index.html", "public/modules/explorer.js", "public/modules/poster-menu.js", "docs/tv-shows.md"]
+  },
+  {
+    "id": "upcoming-guide",
+    "label": "Upcoming guide",
+    "docSlug": "upcoming",
+    "sourcePaths": ["public/index.html", "public/modules/upcoming.js", "docs/upcoming.md"]
+  },
+  {
+    "id": "navigation",
+    "label": "Navigation and global controls",
+    "docSlug": "navigation",
+    "sourcePaths": ["public/index.html", "public/app.js"]
+  },
+  {
+    "id": "guides",
+    "label": "Guides",
+    "docSlug": "guides",
+    "sourcePaths": ["README.md", "docs/onboarding.md", "docs/dashboard.md", "docs/media-detail.md", "docs/settings.md"]
+  },
+  {
+    "id": "shared-library-controls",
+    "label": "Shared library controls",
+    "docSlug": "libraries",
+    "sourcePaths": ["public/index.html", "public/modules/explorer.js", "public/modules/poster-menu.js", "docs/movies.md", "docs/tv-shows.md"]
+  },
+  {
+    "id": "safe-daily-workflows",
+    "label": "Safe daily workflows",
+    "docSlug": "safe-daily-workflows",
+    "sourcePaths": ["public/modules/dashboard.js", "public/modules/media-detail.js", "public/modules/sync-activity.js", "docs/dashboard.md"]
+  },
+  {
+    "id": "media-details",
+    "label": "Media details and people",
+    "docSlug": "media-details",
+    "sourcePaths": ["public/modules/media-detail.js", "public/modules/media-detail-show.js", "public/modules/media-person.js", "docs/media-detail.md"]
+  },
+  {
+    "id": "sync-activity",
+    "label": "Sync Activity",
+    "docSlug": "sync-tools",
+    "sourcePaths": ["public/index.html", "public/modules/sync-activity.js", "docs/dashboard.md", "docs/webhooks.md"]
+  },
+  {
+    "id": "onboarding",
+    "label": "Guided setup",
+    "docSlug": "getting-started",
+    "sourcePaths": ["public/modules/onboarding.js", "docs/onboarding.md", "README.md"]
+  },
+  {
+    "id": "integrations",
+    "label": "Integrations",
+    "docSlug": "integrations",
+    "sourcePaths": ["docs/plex.md", "docs/emby.md", "docs/jellyfin.md", "docs/metadata.md"]
+  },
+  {
+    "id": "settings",
+    "label": "Settings",
+    "docSlug": "settings",
+    "sourcePaths": ["public/modules/settings-shell.js", "public/index.html", "docs/settings.md"]
+  },
+  {
+    "id": "appearance",
+    "label": "Appearance",
+    "docSlug": "appearance",
+    "sourcePaths": ["public/index.html", "public/modules/dashboard.js", "public/modules/tools-backups.js", "docs/dashboard.md", "docs/media-detail.md"]
+  },
+  {
+    "id": "backups-restore",
+    "label": "Backups and Restore",
+    "docSlug": "operations",
+    "sourcePaths": ["public/modules/tools-backups.js", "docs/backups.md", "docs/watch-history-backups.md"]
+  },
+  {
+    "id": "security",
+    "label": "Security and hardening",
+    "docSlug": "operations",
+    "sourcePaths": ["server/src/appConfig.js", "docs/auth.md", "docs/hardening.md", "docs/security-checklist.md"]
+  },
+  {
+    "id": "troubleshooting",
+    "label": "Troubleshooting",
+    "docSlug": "troubleshooting",
+    "sourcePaths": ["docs/troubleshooting.md", "docs/webhooks.md", "docs/scheduled-sync.md"]
+  }
+]

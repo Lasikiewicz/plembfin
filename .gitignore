@@ -11,6 +11,9 @@ plan/
 
 # Local runtime data: SQLite database, cached artwork, generated config.json
 data/
+# The static documentation site has a tracked source index under its own data directory.
+!website/src/data/
+!website/src/data/app-surface.json
 
 # Local data-directory archives. These contain config.json (admin password hash,
 # API key, session secret) and the full watch-history database, and run to hundreds
