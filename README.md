@@ -213,6 +213,12 @@ npm install
 npm start        # or: npm run dev, for auto-reload
 ```
 
+For connected-service testing on Windows, `npm start` must be launched with normal
+host network access. An ordinary PowerShell terminal already has that access; when
+Codex starts the process, use its approved elevated network-enabled execution path
+instead of the restricted sandbox, or outbound Plex/Emby/Jellyfin requests can fail
+with `EACCES` even though `http://localhost:5055` is working.
+
 Open `http://localhost:5055`. If you didn't set `ADMIN_PASSWORD`, the app shows a
 one-time **Claim this Plembfin instance** screen - create the administrator username and
 password there instead of looking for a generated password anywhere.

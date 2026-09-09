@@ -2109,8 +2109,13 @@ function attachEvents() {
     });
   }, { passive: true });
 
+  // Now Playing polling runs on every view, not just the dashboard, so this must
+  // restart it on every view too. Gating the restart on the dashboard while
+  // pollNowPlayingOnce() stops the interval from any view left the poll dead
+  // after a tab was backgrounded anywhere else: nothing restarted it until the
+  // next navigation, so watch state and Now Playing silently stopped updating.
   document.addEventListener("visibilitychange", () => {
-    if (!state.token || state.activeView !== "dashboard") return;
+    if (!state.token) return;
     if (document.hidden) {
       stopHistoryPolling();
       return;

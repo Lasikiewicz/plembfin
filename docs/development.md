@@ -16,6 +16,23 @@ npm run build     # syntax check + npm test + server boot gate
 npm run seed:demo # insert fictional demo movies/shows with generated posters
 ```
 
+### Windows provider-backed server launches
+
+`npm start` is still the canonical application command. When the server is started by
+Codex on Windows, the command must run through the approved elevated network-enabled
+execution path; do not launch it from the restricted sandbox. The restricted sandbox
+can allow the UI/API to listen on port `5055` while denying outbound connections to
+Plex, Emby, Jellyfin, Trakt, TMDB, or TVDB with `EACCES`.
+
+This is an execution-environment requirement, not a second app mode: an ordinary
+PowerShell window on the host can continue to use `npm start` or `npm run dev` directly.
+After an agent start, verify both the local health endpoint and the network bind:
+
+```powershell
+Invoke-WebRequest http://127.0.0.1:5055/api/ping
+netstat -ano -p tcp | Select-String ':5055\s+.*LISTENING'
+```
+
 There is no separate linter configured. A local `.env` at the repo root is loaded by
 `server/src/env.js` (existing env vars win). Data lands in `<repo>/data/` (override
 with `DATA_DIR`).

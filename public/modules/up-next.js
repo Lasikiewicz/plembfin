@@ -8,7 +8,9 @@ import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashb
 const UP_NEXT_TTL_MS = 2 * 60 * 1000;
 const UP_NEXT_TIMEOUT_MS = 20000;
 const UP_NEXT_DISMISSED_KEY = "plembfin:upNextDismissed:v1";
-const UP_NEXT_CACHE_KEY = "plembfin:upNextCache:v4";
+// v6 invalidates snapshots created before canonical episode identity and
+// scheduled Part Watched artwork repair were applied.
+const UP_NEXT_CACHE_KEY = "plembfin:upNextCache:v6";
 const UP_NEXT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const UP_NEXT_SYNC_TIMEOUT_MS = 60_000;
 // Mirrors dashboard.js's DASHBOARD_CARD_EXIT_MS so overlapping refreshes wait

@@ -67,9 +67,12 @@ function coordinate(row = {}) {
   return `${season}:${episode}`;
 }
 
-function rowCandidate(row = {}, { queueKind = "resume", canonical = false } = {}) {
+function rowCandidate(row = {}, { queueKind = "resume", canonical = false, showIdentities = null } = {}) {
   const isEpisode = row.media_type === "episode";
   const showTitle = isEpisode ? text(row.show_title || showTitleFrom(row.title || "")) : "";
+  const localShowIds = isEpisode
+    ? showIdentities?.get(text(showTitleFrom(showTitle)).toLowerCase()) || {}
+    : {};
   return normalizeUpNextCandidate({
     media_key: row.media_key,
     media_type: row.media_type,
@@ -79,13 +82,14 @@ function rowCandidate(row = {}, { queueKind = "resume", canonical = false } = {}
     episode_title: row.episode_title,
     season: row.season,
     episode: row.episode,
-    // Episode rows in the canonical tables historically store the series id
-    // in the flattened id columns. Supplying it as show_ids keeps them aligned
-    // with provider episode observations without changing those tables.
+    // playback_progress does not have separate show_* columns. Its flattened
+    // ids may be series ids from an older ingest, or episode ids from a
+    // provider feed. Only use the local library's verified show identity here;
+    // treating an episode id as a show id creates a second canonical card.
     show_ids: isEpisode ? {
-      imdb: row.show_imdb_id || row.imdb_id,
-      tmdb: row.show_tmdb_id || row.tmdb_id,
-      tvdb: row.show_tvdb_id || row.tvdb_id,
+      imdb: row.show_imdb_id || localShowIds.imdb || "",
+      tmdb: row.show_tmdb_id || localShowIds.tmdb || "",
+      tvdb: row.show_tvdb_id || localShowIds.tvdb || "",
     } : undefined,
     ids: {
       imdb: row.imdb_id,
@@ -662,15 +666,25 @@ export async function buildUpNextProjection({
   const showRows = shows || ((localFallback || rawProviderCandidates.some((candidate) => candidate.queue_kind === "next_up"))
     ? await getCachedShows()
     : []);
+  // Resolve local resume rows against the known show identities before the
+  // canonical key is built. Applying this only after merge is too late: an
+  // episode-id key and a series-id key have already become separate groups.
+  const showIdentities = showIdentityIndex(showRows);
   const showRecency = showRecencyIndex(showRows);
   const canonicalResume = rawProgressRows
-    .map((row) => rowCandidate(row, { queueKind: "resume", canonical: true }))
+    .map((row) => rowCandidate(row, { queueKind: "resume", canonical: true, showIdentities }))
     .map((candidate) => decorateShowRecency(candidate, showRecency))
     .filter(actionableResume)
     .filter((candidate) => !stateBlocksCandidate(candidate, playstateIndex, { progressUpdatedAt: candidate.updated_at }));
   const canonicalResumeAliases = canonicalResume.map(aliasesFor);
 
-  const providerCandidates = rawProviderCandidates.map((candidate) => decorateShowRecency(candidate, showRecency));
+  // Provider Continue Watching rows often have a native series handle but no
+  // external show ids. Apply the same verified local show identity before
+  // filtering/merging; doing it only on the final public item leaves the
+  // native provider card as a second group beside the local resume row.
+  const providerCandidates = rawProviderCandidates
+    .map((candidate) => normalizeUpNextCandidate(withLocalShowIdentity(candidate, showIdentities)))
+    .map((candidate) => decorateShowRecency(candidate, showRecency));
   const providerResume = providerCandidates
     .filter((candidate) => candidate.queue_kind === "resume" && (actionableResume(candidate) || providerResumeMembership(candidate)))
     .filter((candidate) => !stateBlocksCandidate(candidate, playstateIndex, { progressUpdatedAt: candidate.updated_at }))
@@ -700,7 +714,6 @@ export async function buildUpNextProjection({
   ]));
   const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
   const sourceStatus = listUpNextProviderFeedStates().map(({ cursor: _cursor, ...feed }) => feed);
-  const showIdentities = showIdentityIndex(showRows);
   return {
     items: publicUpNextItems(merged.slice(0, safeLimit).map((item) => withUsableArtwork(withLocalShowIdentity(item, showIdentities)))),
     sourceStatus,

@@ -17,7 +17,7 @@ import {
   stopLiveSessionPoller,
 } from "./scheduler.js";
 import { refreshUpcomingCalendarCache } from "./utils/upcomingCalendarCache.js";
-import { backfillUnknownShowTitles, backfillMissingEpisodeSeasons } from "./utils/dataRepo.js";
+import { backfillUnknownShowTitles, backfillMissingEpisodeSeasons, repairEpisodeSeriesIdentity } from "./utils/dataRepo.js";
 import { db } from "./db.js";
 import { setRuntimeState } from "./utils/configStore.js";
 import {
@@ -101,6 +101,11 @@ export function createWorkerCoordinator({ holderId, role }) {
     startLiveSessionPoller();
     await backfillUnknownShowTitles().catch((error) => console.error("backfillUnknownShowTitles failed", error));
     await backfillMissingEpisodeSeasons().catch((error) => console.error("backfillMissingEpisodeSeasons failed", error));
+    // Runs after the two above because it reads show titles and episode
+    // coordinates that they repair. Each pass also gets more effective than the
+    // last: once a show gains one correctly keyed record, that record is the
+    // proof this repair needs for every other row of the same show.
+    await repairEpisodeSeriesIdentity().catch((error) => console.error("repairEpisodeSeriesIdentity failed", error));
     // Warm the persisted Upcoming snapshot as soon as this process becomes the
     // scheduler leader. The refresh is intentionally detached so leadership
     // renewal and the HTTP server remain responsive while metadata is fetched.

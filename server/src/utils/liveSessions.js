@@ -2,6 +2,7 @@ import { loadLiveTrackingCache as loadLiveTrackingCacheFromDb } from "./dataRepo
 import { fetchWithTimeout } from "./outbound.js";
 import { jellyfinAuthHeaders, jellyfinCredential } from "./jellyfinAuth.js";
 import { fetchPlexWithRefresh } from "./plexFetch.js";
+import { resolvePlexAccountId } from "./plexClient.js";
 import { decodeHtmlEntities } from "./parsers.js";
 
 function trimTrailingSlash(value = "") {
@@ -50,6 +51,17 @@ function embyLikePosterUrl(item = {}, mediaType = "unknown") {
 // the client tears down playback. It is no longer useful in the dashboard's
 // Now Playing rail once only a few seconds remain.
 export const NOW_PLAYING_TERMINAL_GRACE_MS = 10_000;
+
+// Playback states that still count as a live session.
+//
+// "paused" belongs here. A paused session is open, not finished: the media
+// server still reports it, the client is still holding it, and playback is
+// expected to resume. Excluding it made the session vanish from the poll
+// result, which refreshLiveSessions() (scheduled.js) can only read as "the
+// session ended" - so pausing for ~20s recorded a stopped play and pushed
+// resume progress outbound to every configured server. Only a session the
+// media server no longer reports at all is a real stop.
+export const LIVE_SESSION_PLAYBACK_STATES = ["playing", "buffering", "paused"];
 
 export function isTerminalLiveSession(session = {}) {
   const durationMs = Number(session.durationMs ?? session.duration_ms ?? 0);
@@ -124,8 +136,27 @@ function formatEpisodeTitle(title, season, episode) {
   return `${base} - S${seasonText}E${episodeText}`;
 }
 
-function sessionKey(source, sessionId, fallbackTitle, season, episode) {
-  return [source, sessionId || fallbackTitle || "unknown", season ?? "none", episode ?? "none"].join(":");
+// Identity of one playback session in live_tracking_cache.
+//
+// `sessionId` is deliberately the client, not the playback: Plex reports
+// machineIdentifier, which survives a transcode or quality switch that would
+// otherwise assign the still-playing item a brand new id. But the client alone
+// is not enough. Season and episode used to be the only media component, so two
+// movies played back to back on one client produced the *same* key: the second
+// overwrote the first, reconciliation saw the id still present, and the first
+// movie's completion was never processed - the watch was silently lost.
+//
+// `mediaId` (Plex ratingKey, Emby/Jellyfin item id) closes that. It is stable
+// for a given item, so it discriminates between items without reintroducing the
+// churn that using Plex's own per-session key would.
+function sessionKey(session = {}) {
+  return [
+    session.source,
+    session.sessionId || session.title || "unknown",
+    session.mediaId || "none",
+    session.season ?? "none",
+    session.episode ?? "none",
+  ].join(":");
 }
 
 function plexGuidIds(attributes = {}, body = "") {
@@ -169,7 +200,7 @@ function plexTitle(attributes = {}, mediaType = "unknown") {
   return decodeHtmlEntities(attributes.title) || "Unknown Movie";
 }
 
-function parsePlexSessions(xmlText = "", config = {}) {
+export function parsePlexSessions(xmlText = "", config = {}) {
   const sessions = [];
   const tagMatcher = /<(Video|Track)\b([^>]*)>([\s\S]*?)<\/\1>|<(Video|Track)\b([^>]*)\/>/gi;
   let match;
@@ -184,7 +215,11 @@ function parsePlexSessions(xmlText = "", config = {}) {
     const state = String(player.state || attributes.state || "").toLowerCase();
 
     if (!["movie", "episode", "track"].includes(mediaType)) continue;
-    if (!["playing", "buffering"].includes(state)) continue;
+    // Paused is a live session, not a finished one. Dropping it here used to make
+    // the reconciliation in scheduled.js see the session disappear, which recorded
+    // a stopped play and propagated resume progress outbound - on a pause.
+    // See LIVE_SESSION_PLAYBACK_STATES.
+    if (!LIVE_SESSION_PLAYBACK_STATES.includes(state)) continue;
 
     const offsetMs = millisecondsFrom(attributes.viewOffset);
     const durationMs = millisecondsFrom(attributes.duration);
@@ -192,17 +227,27 @@ function parsePlexSessions(xmlText = "", config = {}) {
     sessions.push({
       source: "plex",
       sessionId: player.machineIdentifier || attributes.sessionKey || attributes.ratingKey || attributes.key || "",
+      // Stable per item, and the piece that keeps two movies on one client from
+      // sharing a session key - see sessionKey().
+      mediaId: attributes.ratingKey || attributes.key || "",
       title: plexTitle(attributes, mediaType),
       mediaType,
       offsetMs,
       durationMs,
       progress: progressPercent(offsetMs, durationMs),
+      playbackState: state === "paused" ? "paused" : "playing",
+      paused: state === "paused",
       season: indexNumberOrNull(attributes.parentIndex),
       episode: indexNumberOrNull(attributes.index),
       posterUrl: plexPosterUrl(attributes, mediaType),
       client: {
         deviceName: player.title || player.product || player.platform || "",
         userName: user.title || attributes.user || "",
+        // Plex leaves <User> empty on some sessions (observed on an owner's own
+        // stream: `<User />` with every attribute absent) while still reporting
+        // the account on <Player userID>. Carrying it lets the session still be
+        // attributed instead of failing the username check by default.
+        userId: player.userID || user.id || "",
       },
       ids: plexGuidIds(attributes, body),
       raw: { attributes, player, user },
@@ -222,6 +267,17 @@ function playStateFrom(session = {}) {
   return session.PlayState || session.PlaybackState || session.PlayerState || {};
 }
 
+function isSessionPaused(session = {}) {
+  const playState = playStateFrom(session);
+  const stateText = String(
+    session.State || session.Status || session.PlaybackState || playState.State || playState.Status || playState.PlaybackState || "",
+  ).toLowerCase();
+  return Boolean(playState.IsPaused || session.IsPaused) || stateText === "paused";
+}
+
+// Whether the media server is still reporting an open playback session, whether
+// or not it is currently advancing. A paused session stays active on purpose -
+// see LIVE_SESSION_PLAYBACK_STATES for why treating pause as a stop was wrong.
 function isSessionActive(session = {}) {
   const item = session.NowPlayingItem || session.NowPlayingItemInfo || session.Item || session.MediaItem;
   if (!item) return false;
@@ -236,13 +292,12 @@ function isSessionActive(session = {}) {
       playState.PlaybackState ||
       "",
   ).toLowerCase();
-  const isPaused = Boolean(playState.IsPaused || session.IsPaused);
   const positionTicks = Number(playState.PositionTicks || session.PositionTicks || session.PlaybackPositionTicks || 0);
   const hasPlaybackData = Boolean(Object.keys(playState).length || Number.isFinite(positionTicks));
-  const explicitlyPlaying = Boolean(session.IsPlaying || session.Playing || playState.IsPlaying || playState.PlayMethod || ["playing", "buffering", "transcoding", "directplay", "directstream"].includes(stateText));
-  const explicitlyStopped = ["stopped", "idle", "paused"].includes(stateText);
+  const explicitlyPlaying = Boolean(session.IsPlaying || session.Playing || playState.IsPlaying || playState.PlayMethod || ["playing", "buffering", "transcoding", "directplay", "directstream", "paused"].includes(stateText));
+  const explicitlyStopped = ["stopped", "idle"].includes(stateText);
 
-  return hasPlaybackData && !isPaused && !explicitlyStopped && (explicitlyPlaying || item);
+  return hasPlaybackData && !explicitlyStopped && (explicitlyPlaying || isSessionPaused(session) || item);
 }
 
 function normalizeSessionItem(session = {}, source = "unknown", config = {}) {
@@ -265,6 +320,7 @@ function normalizeSessionItem(session = {}, source = "unknown", config = {}) {
   return {
     source,
     sessionId: session.Id || session.SessionId || item.Id || "",
+    mediaId: item.Id || "",
     title:
       mediaType === "episode"
         ? formatEpisodeTitle(decodeHtmlEntities(item.SeriesName || item.ParentName || item.Name || session.SeriesName), item.ParentIndexNumber, item.IndexNumber)
@@ -275,6 +331,8 @@ function normalizeSessionItem(session = {}, source = "unknown", config = {}) {
     offsetMs,
     durationMs,
     progress: progressPercent(offsetMs, durationMs),
+    playbackState: isSessionPaused(session) ? "paused" : "playing",
+    paused: isSessionPaused(session),
     season: indexNumberOrNull(item.ParentIndexNumber),
     episode: indexNumberOrNull(item.IndexNumber),
     posterUrl: embyLikePosterUrl(item, mediaType),
@@ -312,6 +370,28 @@ async function fetchJson(url, headers) {
 // in scheduled.js's refreshLiveSessions() tell "the server said nothing is playing" apart
 // from "we couldn't ask the server this time", so a transient network blip can't get
 // mistaken for every in-progress session having stopped.
+// Whether a live Plex session belongs to the configured user.
+//
+// The name comparison alone is not sufficient: Plex can return `<User />` with
+// no attributes at all, which made every such session read as "not the
+// configured user" and vanish from Now Playing. `<Player userID>` still names
+// the account in that case, so it is resolved against /accounts through the
+// same memoized lookup the watched-history sync already uses
+// (resolvePlexAccountId in plexClient.js), rather than a second mechanism.
+//
+// A session Plex attributes to nobody at all still does not match. Other
+// accounts exist on a typical server, so accepting an unattributable session
+// would risk recording someone else's play as the configured user's - see
+// docs/decisions.md on preferring a missed watch over a phantom one.
+function plexSessionMatchesUser(session, username, accountId) {
+  const sessionUser = String(session.client?.userName || "").trim().toLowerCase();
+  if (sessionUser && sessionUser === String(username).trim().toLowerCase()) return true;
+
+  if (accountId == null) return false;
+  const sessionAccountId = Number(session.client?.userId);
+  return Number.isFinite(sessionAccountId) && sessionAccountId === Number(accountId);
+}
+
 async function fetchPlexSessions(config) {
   if (!config.plex.baseUrl || !config.plex.token) return { sessions: [], ok: true };
   const url = new URL(`${config.plex.baseUrl}/status/sessions`);
@@ -320,8 +400,25 @@ async function fetchPlexSessions(config) {
     const response = await fetchPlexWithRefresh(config.plex, url, { headers: { Accept: "application/xml, text/xml, application/json" } });
     if (!response.ok) throw new Error(`Request failed with ${response.status}`);
     const text = await response.text();
-    const sessions = parsePlexSessions(text, config.plex)
-      .filter((session) => !config.plex.username || String(session.client?.userName || "").toLowerCase() === String(config.plex.username).toLowerCase());
+    const parsed = parsePlexSessions(text, config.plex);
+    if (!config.plex.username) return { sessions: parsed, ok: true };
+
+    // Memoized for 10 minutes inside resolvePlexAccountId, so the poller's own
+    // cadence does not turn this into a per-poll request to Plex.
+    const accountId = await resolvePlexAccountId(config.plex, { lane: "interactive" }).catch(() => null);
+    const sessions = parsed.filter((session) => plexSessionMatchesUser(session, config.plex.username, accountId));
+
+    for (const session of parsed) {
+      if (sessions.includes(session)) continue;
+      console.warn("Plex live session skipped: not the configured user", {
+        title: session.title,
+        sessionUserName: session.client?.userName || "",
+        sessionUserId: session.client?.userId || "",
+        configuredUsername: config.plex.username,
+        resolvedAccountId: accountId,
+      });
+    }
+
     return { sessions, ok: true };
   } catch (error) {
     console.error("Plex live session fetch failed", { url: String(url), error: error?.message || String(error) });
@@ -387,7 +484,7 @@ export async function loadLiveTrackingCache(db, options = {}) {
 
 export function buildCacheRow(session) {
   return {
-    session_id: sessionKey(session.source, session.sessionId, session.title, session.season, session.episode),
+    session_id: sessionKey(session),
     title: session.title || "Unknown media",
     source_platform: session.source || "unknown",
     last_progress: Number(session.progress || 0),
@@ -398,7 +495,7 @@ export function buildCacheRow(session) {
 }
 
 export function sessionIdentity(session) {
-  return sessionKey(session.source, session.sessionId, session.title, session.season, session.episode);
+  return sessionKey(session);
 }
 
 export function hydrateCachedSession(row = {}) {
@@ -422,6 +519,10 @@ export function hydrateCachedSession(row = {}) {
     season: payload.season ?? null,
     episode: payload.episode ?? null,
     posterUrl: payload.posterUrl || payload.poster_url || "",
+    // Rows cached before paused sessions were retained carry no flag; absent
+    // means playing, which is what those rows always were.
+    paused: payload.paused === true,
+    playbackState: payload.paused === true ? "paused" : payload.playbackState || "playing",
     updatedAt: Number(row.updated_at || Date.now()),
     completedAt: row.completed_at || null,
   };

@@ -143,7 +143,7 @@ stays set to the slug throughout, so the address bar keeps the `/tvshow/:key` fo
   locally across restarts, while search can prefetch the next 12 months to list matches
   outside the visible range - see [upcoming.md](upcoming.md).
 - Up Next loads through `/api/up-next` only while the dashboard is visible, hydrates a
-  24-hour `plembfin:upNextCache:v4` localStorage snapshot for instant first paint, and
+24-hour `plembfin:upNextCache:v6` localStorage snapshot for instant first paint, and
   uses a durable mixed movie/episode server snapshot with stale-while-revalidate. Resume
   cards are ordered by canonical progress updates and released provider/local `next_up`
   cards follow a stable order; a matching resume/next-up observation renders once. A

@@ -434,6 +434,75 @@ test("same-title movies only merge with a verified identity or matching year", (
   assert.equal(verified.length, 1);
 });
 
+test("title-only movie resumes merge with the single same-provider identified item", () => {
+  const merged = mergeUpNextCandidates([
+    {
+      source: "plex",
+      media_type: "movie",
+      title: "Moana",
+      queue_kind: "resume",
+      position_ms: 360000,
+      duration_ms: 6000000,
+      progress: 6,
+      is_canonical: true,
+    },
+    {
+      provider: "plex",
+      feed_kind: "resume",
+      provider_item_id: "43844",
+      media_type: "movie",
+      title: "Moana",
+      queue_kind: "resume",
+      ids: { imdb: "tt27419466", tmdb: "1108427" },
+      position_ms: 360000,
+      duration_ms: 6000000,
+      progress: 6,
+    },
+  ]);
+
+  assert.equal(merged.length, 1);
+  assert.equal(merged[0].canonical_key, "movie|id:imdb:tt27419466");
+  assert.equal(merged[0].imdb_id, "tt27419466");
+  assert.deepEqual(merged[0].provider_items, { plex: ["43844"] });
+});
+
+test("title-only movie resumes stay separate when same-title provider items are ambiguous", () => {
+  const merged = mergeUpNextCandidates([
+    {
+      source: "plex",
+      media_type: "movie",
+      title: "The Thing",
+      queue_kind: "resume",
+      position_ms: 300000,
+      duration_ms: 6000000,
+      progress: 5,
+      is_canonical: true,
+    },
+    {
+      provider: "plex",
+      feed_kind: "resume",
+      provider_item_id: "movie-1982",
+      media_type: "movie",
+      title: "The Thing",
+      year: 1982,
+      queue_kind: "resume",
+      ids: { imdb: "tt0084787" },
+    },
+    {
+      provider: "plex",
+      feed_kind: "resume",
+      provider_item_id: "movie-2011",
+      media_type: "movie",
+      title: "The Thing",
+      year: 2011,
+      queue_kind: "resume",
+      ids: { imdb: "tt0905372" },
+    },
+  ]);
+
+  assert.equal(merged.length, 3);
+});
+
 test("resume cards sort before stable next-up cards", () => {
   const items = mergeUpNextCandidates([
     { media_type: "movie", title: "Older resume", ids: { tmdb: "1" }, queue_kind: "resume", position_ms: 100, duration_ms: 1000, updated_at: 100 },

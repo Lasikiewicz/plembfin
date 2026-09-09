@@ -65,7 +65,7 @@ the browser as a visible failure:
   normal poster resolution (`/api/poster`, then cached artwork). Cached `/media/...`, `/api/...`
   and absolute `http(s)` URLs are kept as they are.
 
-The browser hydrates the rail from the 24-hour `plembfin:upNextCache:v4` localStorage
+The browser hydrates the rail from the 24-hour `plembfin:upNextCache:v6` localStorage
 snapshot before requesting the network. The server also keeps the completed mixed snapshot
 in `data/up-next-cache.json`, so a restart can serve warm data immediately. Dashboard loads
 request `/api/up-next?revalidate=1`: a stale snapshot is returned while one background
@@ -113,8 +113,10 @@ Episode cards build series routes only from explicit `show_*` identities. An epi
 route; if the series identity is unavailable, the card uses the title route and keeps the
 episode coordinates. Dashboard history cards render from the local payload and cached artwork;
 they do not prefetch TMDB or resolve missing posters during the dashboard render (a missing
-poster remains a placeholder). Visible detail requests remain isolated and immediate when a
-user opens a media page.
+poster remains a placeholder). A scheduler warm-up pass scans active Part Watched rows as
+well as completed history and retries missing-artwork metadata, so a temporary provider
+failure is repaired without requiring a dashboard visit. Visible detail requests remain
+isolated and immediate when a user opens a media page.
 
 ### Recent history
 

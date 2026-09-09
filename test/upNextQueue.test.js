@@ -186,6 +186,51 @@ test("a matching provider next-up observation does not duplicate a canonical res
   assert.equal(projection.items[0].queue_kind, "resume");
 });
 
+test("a native provider resume joins the canonical local episode when the show identity is verified", async () => {
+  const projection = await buildUpNextProjection({
+    now: Date.parse("2026-09-01T12:00:00.000Z"),
+    localFallback: false,
+    shows: [{ title: "Ted Lasso", imdb_id: "tt10986410", tmdb_id: "97546", tvdb_id: "383203" }],
+    progressRows: [{
+      media_key: "episode:4:6:imdb:tt10986410",
+      media_type: "episode",
+      title: "Ted Lasso - S04E06",
+      show_title: "Ted Lasso",
+      imdb_id: "tt10986410",
+      tmdb_id: "97546",
+      tvdb_id: "383203",
+      season: 4,
+      episode: 6,
+      position_ms: 1_181_147,
+      duration_ms: 2_761_759,
+      progress: 42.7,
+      updated_at: 500,
+      source: "emby",
+    }],
+    playstateRows: [],
+    providerItems: [{
+      provider: "emby",
+      feed_kind: "resume",
+      provider_item_id: "ted-episode-406",
+      series_provider_item_id: "ted-series",
+      media_type: "episode",
+      title: "Ted Lasso - S04E06",
+      show_title: "Ted Lasso",
+      episode_title: "Don’t Jump Around Much Anymore",
+      season: 4,
+      episode: 6,
+      ids: { imdb: "tt38494472", tvdb: "11767186" },
+      position_ms: 1_181_147,
+      duration_ms: 2_761_759,
+      progress: 42.7,
+    }],
+  });
+
+  assert.equal(projection.items.length, 1);
+  assert.equal(projection.items[0].media_key, "episode:4:6:imdb:tt10986410");
+  assert.deepEqual(projection.items[0].provider_items, { emby: ["ted-episode-406"] });
+});
+
 test("provider-backed posters use the authenticated poster proxy", async () => {
   const projection = await buildUpNextProjection({
     now: Date.parse("2026-09-01T12:00:00.000Z"),
@@ -272,6 +317,45 @@ test("canonical movie rows reuse the cached movie poster when no provider poster
 
   assert.equal(projection.items.length, 1);
   assert.equal(projection.items[0].poster_url, "/media/posters/arrival.webp");
+});
+
+test("title-only movie resumes collapse into the identified provider item and keep its poster", async () => {
+  saveCanonicalPoster(
+    { media_type: "movie", title: "Moana", tmdb_id: "1108427", imdb_id: "tt27419466" },
+    "/media/posters/moana.webp",
+    { source: "test" },
+  );
+  const projection = await buildUpNextProjection({
+    now: Date.parse("2026-09-01T12:00:00.000Z"),
+    localFallback: false,
+    progressRows: [{
+      media_key: "movie:title:moana",
+      media_type: "movie",
+      title: "Moana",
+      position_ms: 360000,
+      duration_ms: 6000000,
+      progress: 6,
+      updated_at: 300,
+      source: "plex",
+    }],
+    playstateRows: [],
+    providerItems: [{
+      provider: "plex",
+      feed_kind: "resume",
+      provider_item_id: "43844",
+      media_type: "movie",
+      title: "Moana",
+      ids: { imdb: "tt27419466", tmdb: "1108427" },
+      position_ms: 360000,
+      duration_ms: 6000000,
+      progress: 6,
+    }],
+  });
+
+  assert.equal(projection.items.length, 1);
+  assert.equal(projection.items[0].id, "movie|id:imdb:tt27419466");
+  assert.equal(projection.items[0].poster_url, "/media/posters/moana.webp");
+  assert.deepEqual(projection.items[0].provider_items, { plex: ["43844"] });
 });
 
 test("handleUpNextRemove clears positive playback progress and marks unplayed", async () => {

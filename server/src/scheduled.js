@@ -68,6 +68,7 @@ import {
   upsertPlaybackProgress,
   upsertPlaystateForMedia,
 } from "./utils/dataRepo.js";
+import { withSeriesIdentity } from "./utils/seriesIdentity.js";
 import { enqueueManualWatchReview } from "./utils/manualWatchReview.js";
 
 const SCHEDULED_RECENT_WATCH_LIMIT = 50;
@@ -292,6 +293,7 @@ export function mediaFromPlexResumableItem(item = {}) {
     episodeTitle: type === "episode" ? item.title : null,
     providerItemId: item.ratingKey || null,
     providerItems: { plex: item.ratingKey ? [String(item.ratingKey)] : [] },
+    seriesItemId: item.grandparentRatingKey || item.parentRatingKey || null,
     seriesProviderItemId: item.grandparentRatingKey || item.parentRatingKey || null,
     positionMs,
     offsetMs: positionMs,
@@ -342,6 +344,7 @@ export function mediaFromEmbyLikeResumableItem(item = {}, source = "emby", norma
     episodeTitle: type === "episode" ? item.Name : null,
     providerItemId: item.Id || null,
     providerItems: { [source]: item.Id ? [String(item.Id)] : [] },
+    seriesItemId: item.SeriesId || item.ParentId || null,
     seriesProviderItemId: item.SeriesId || item.ParentId || null,
     positionMs,
     offsetMs: positionMs,
@@ -941,6 +944,11 @@ async function fetchAndRecordUpNextFeed(provider, feedKind, fetchItems, logger =
 }
 
 async function syncResumableMedia(media, config, loopStore, logger = console.log) {
+  // Resolve the media server's native series handle before checking or writing
+  // progress. Without this, an episode-level IMDb/TVDB id can create a second
+  // row for the same SxxExx item before the scheduled feed has a chance to
+  // reconcile it.
+  media = await withSeriesIdentity(media, config);
   if (isAuthoritativeRestoreActive()) return false;
   if (!shouldSyncResumeProgress(media)) {
     logResumeSkip(logger, media, "not actionable");

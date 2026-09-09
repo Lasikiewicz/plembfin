@@ -104,10 +104,11 @@ cache and waits seven days before trying again, so an unresolvable title does no
 the same failing lookups on every start. See [tv-shows.md](tv-shows.md).
 
 Library-added webhooks and newly observed provider Up Next items enqueue the show/movie in a
-single background metadata warm-up queue. The scheduler also scans the known watch history as
-a restart/import backstop. Queue work is deduplicated, serialized through the gateway throttle,
-and only refreshes missing, light, or stale rows, so metadata is downloaded as media is first
-discovered rather than during a dashboard request. Settings → Advanced → Storage & cache (`/settings/advanced#storage`, `GET /api/cache-stats`,
+single background metadata warm-up queue. The scheduler also scans active `playback_progress`
+(the Part Watched source) and known watch history as a restart/import backstop. Queue work is
+deduplicated, serialized through the gateway throttle, and refreshes missing-artwork, light,
+or stale rows, so a temporary provider failure is retried automatically rather than waiting
+for a dashboard or show-page visit. Settings → Advanced → Storage & cache (`/settings/advanced#storage`, `GET /api/cache-stats`,
 `POST /api/clear-cache`, handlers in `index.js`) reports and clears the caches;
 `POST /api/refresh-tmdb-metadata` (and the TVDB-scoped `POST /api/refresh-tvdb-metadata`)
 queue a whole-library refresh as a cancellable background job and return immediately

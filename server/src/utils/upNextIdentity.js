@@ -502,7 +502,7 @@ function mergeGroup(rows) {
   const resumes = normalized.filter((row) => row.queue_kind === "resume");
   const pool = resumes.length ? resumes : normalized;
   const representative = [...pool].sort((left, right) => (
-    Number(hasExternalSeriesIdentity(right)) - Number(hasExternalSeriesIdentity(left))
+    Number(hasVerifiedMediaIdentity(right)) - Number(hasVerifiedMediaIdentity(left))
       || Number(right.is_canonical) - Number(left.is_canonical)
       || Number(right.playback_position_known === true) - Number(left.playback_position_known === true)
       || Number(right.updated_at || 0) - Number(left.updated_at || 0)
@@ -581,6 +581,18 @@ function hasExternalSeriesIdentity(candidate = {}) {
       || candidate.show_tmdb_id
       || candidate.show_tvdb_id,
   );
+}
+
+function hasExternalMovieIdentity(candidate = {}) {
+  return candidate.media_type === "movie" && Boolean(
+    candidate.imdb_id
+      || candidate.tmdb_id
+      || candidate.tvdb_id,
+  );
+}
+
+function hasVerifiedMediaIdentity(candidate = {}) {
+  return hasExternalSeriesIdentity(candidate) || hasExternalMovieIdentity(candidate);
 }
 
 function hasNativeSeriesIdentity(candidate = {}) {
@@ -703,6 +715,69 @@ function reconcileTitleOnlyEpisodeGroups(groups) {
       const index = groups.indexOf(unresolvedGroup);
       if (index >= 0) groups.splice(index, 1);
     }
+  }
+}
+
+function movieTitleKey(candidate = {}) {
+  return candidate.media_type === "movie" ? slug(candidate.title || "") : "";
+}
+
+function movieSourceValues(group = {}) {
+  return new Set((group.rows || [])
+    .map((row) => lower(row.source || "local"))
+    .filter(Boolean));
+}
+
+function movieGroupsShareSource(left, right) {
+  const rightSources = movieSourceValues(right);
+  return [...movieSourceValues(left)].some((source) => rightSources.has(source));
+}
+
+function movieYearValues(group = {}) {
+  return new Set((group.rows || [])
+    .map((row) => episodeDateIdentity(row)?.value)
+    .filter(Boolean));
+}
+
+function movieGroupsDisagreeOnYear(left, right) {
+  const leftYears = movieYearValues(left);
+  const rightYears = movieYearValues(right);
+  if (!leftYears.size || !rightYears.size) return false;
+  return ![...leftYears].some((year) => rightYears.has(year));
+}
+
+function reconcileTitleOnlyMovieGroups(groups) {
+  // Resume rows can be stored before a provider has resolved external ids.
+  // When the provider feed later supplies the same title with a verified id,
+  // the two rows otherwise become separate cards: the title-only card has no
+  // stable artwork identity, while the provider card has the poster. Restrict
+  // this bridge to a single same-provider match and refuse ambiguous titles
+  // (including known remakes with conflicting years).
+  const movieGroups = groups.filter((group) => (
+    (group.rows || []).every((row) => row.media_type === "movie" && row.queue_kind === "resume")
+  ));
+  const identifiedGroups = movieGroups.filter((group) => group.rows.some(hasExternalMovieIdentity));
+  if (!identifiedGroups.length) return;
+
+  const unresolvedGroups = movieGroups.filter((group) => !group.rows.some(hasExternalMovieIdentity));
+  for (const unresolvedGroup of unresolvedGroups) {
+    if (!groups.includes(unresolvedGroup)) continue;
+    const title = movieTitleKey(representativeRow(unresolvedGroup.rows));
+    if (!title) continue;
+
+    const compatible = identifiedGroups.filter((identifiedGroup) => (
+      title === movieTitleKey(representativeRow(identifiedGroup.rows))
+        && movieGroupsShareSource(unresolvedGroup, identifiedGroup)
+        && !movieGroupsDisagreeOnYear(unresolvedGroup, identifiedGroup)
+    ));
+    // More than one identified movie with the same title is ambiguous. Leave
+    // the title-only row alone instead of merging a remake into the wrong one.
+    if (compatible.length !== 1) continue;
+
+    const target = compatible[0];
+    target.rows.push(...unresolvedGroup.rows);
+    const index = groups.indexOf(unresolvedGroup);
+    if (index >= 0) groups.splice(index, 1);
   }
 }
 
@@ -859,6 +934,7 @@ export function mergeUpNextCandidates(candidates = [], { limit = 0 } = {}) {
     for (const alias of normalized._aliases) aliasToGroup.set(alias, group);
   }
   reconcileTitleOnlyEpisodeGroups(groups);
+  reconcileTitleOnlyMovieGroups(groups);
   reconcileNativeVersusExternalNextUpGroups(groups);
   const merged = sortUpNextItems(groups.map((group) => mergeGroup(group.rows)));
   return limit > 0 ? merged.slice(0, Math.max(1, Math.round(Number(limit)))) : merged;

@@ -260,3 +260,118 @@ local copy, leaving artwork dependent on TMDB availability at render time.
 
 **Enforced by:** `isCachedStorageImageUrl` in `public/modules/images.js`, alongside the
 separate `isLocalArtworkUrl` for the same-origin endpoints that are safe to render directly.
+
+---
+
+### 12. A Plex session Plex does not name is matched on account id, not dropped
+**Date:** 2026-09-09  |  **Status:** Active
+
+**Context:** Now Playing filtered live Plex sessions by comparing `<User title>` against the
+configured Plex username. Plex returns `<User />` with no attributes at all on some sessions,
+including an owner watching their own server. `user.title` is then empty, the comparison fails,
+and the session is silently discarded, so Plex never appears in Now Playing. The username it
+was being compared against is not typed by the operator either: `resolveConnectedProviderConfig`
+overwrites `plex.username` from the connection record on every config load, so clearing the
+Settings field does not change it and reconnecting Plex rewrites it. There was no configuration
+route out of the failure.
+
+**Decision:** An episode or movie session matches the configured user when either the session's
+`<User title>` matches the username, or `<Player userID>` resolves to the same account id via
+`/accounts`. The account lookup reuses `resolvePlexAccountId()` in `plexClient.js`, which the
+watched-history sync already used for the same question, rather than adding a second mechanism.
+
+**Rejected:** Accepting any session Plex declines to attribute. `/status/sessions` reports every
+stream on the server, not just the operator's, so an unattributed session can belong to another
+household account. Recording someone else's play as the configured user's is exactly the phantom
+watch that #1 exists to prevent, so an unattributable session still does not match. Also rejected:
+dropping the username filter entirely, for the same reason.
+
+**Enforced by:** `plexSessionMatchesUser()` in `server/src/utils/liveSessions.js`, the
+`client.userId` the Plex parser now carries, and a `console.warn` naming every session the filter
+rejects so this cannot fail silently in either direction again.
+
+---
+
+### 13. Paused playback is a live session, not a stopped one
+**Date:** 2026-09-09  |  **Status:** Active
+
+**Context:** The live-session fetchers only kept Plex sessions in `playing`/`buffering`, and
+rejected Emby/Jellyfin sessions reporting `IsPaused`. A paused session therefore vanished from
+the poll result, and `refreshLiveSessions()` can only read an absent session as one that ended.
+Observed live: pausing for roughly sixteen seconds removed both rows from `live_tracking_cache`,
+recorded a stopped play, and pushed resume progress outbound to Plex, Emby and Jellyfin. The
+webhook path disagreed with the poller about the same event, because `media.pause` and
+`PlaybackPause` are classified as phase `active`, so whether a paused card survived depended on
+how chatty that server's webhooks were.
+
+**Decision:** `LIVE_SESSION_PLAYBACK_STATES` includes `paused`, and sessions carry `paused` /
+`playbackState` through the cache round trip to the API and the Now Playing card. Only a session
+the media server no longer reports at all is treated as a stop.
+
+**Rejected:** Suppressing the stop path for paused sessions instead of retaining them. That would
+have stopped the bad write but still lost the card and the progress, and it would have left the
+poller and the webhooks disagreeing about what a pause means. Also rejected: dropping the poller
+to its idle interval while everything is paused, which would delay resume detection to 45s on
+Emby and Jellyfin, neither of which has a push channel.
+
+**Enforced by:** `LIVE_SESSION_PLAYBACK_STATES` and `isSessionPaused()` in
+`server/src/utils/liveSessions.js`, and the "a paused Plex session is still reported as a live
+session" test in `test/liveSessions.test.js`.
+
+---
+
+### 14. A live session is keyed by client *and* item, never client alone
+**Date:** 2026-09-09  |  **Status:** Active
+
+**Context:** `sessionKey()` built a `live_tracking_cache` id from the source, the client id, and
+the season and episode numbers. For Plex the client id is `Player machineIdentifier`, which is
+the device and is stable across playbacks. Movies have no season or episode, so two movies played
+back to back on one client produced the *same* key: the second overwrote the first, reconciliation
+saw the id still present and skipped it, and the first movie's completion was never processed.
+The watch was lost with nothing logged.
+
+**Decision:** The key includes a `mediaId` (Plex `ratingKey`, Emby/Jellyfin item id) alongside the
+client. The client component stays, because it is what survives a transcode or quality switch.
+
+**Rejected:** Switching the identity to Plex's own per-session `sessionKey`. It changes when Plex
+reassigns a session mid-playback, which is the churn `MISSING_LIVE_SESSION_CONFIRMATION_POLLS`
+exists to absorb; adopting it would have made a solved problem load-bearing again. Note the key
+format changed, so a session live across the upgrade is reconciled once as a stop. The data that
+writes is genuine, so this is a one-time cosmetic effect rather than a phantom watch.
+
+**Enforced by:** `sessionKey()` in `server/src/utils/liveSessions.js` and the two session-key
+tests in `test/liveSessions.test.js`, one for distinctness across movies and one for stability
+across a transcode.
+
+---
+
+### 15. Episodes are keyed on series ids, and the repair refuses to guess which
+**Date:** 2026-09-09  |  **Status:** Active
+
+**Context:** Episodes are keyed on the *series* provider ids plus season and episode, which is
+what `watch_history` has always stored. Payloads do not reliably carry those ids.
+`parsePlexMediaIds()` tried to prefer them from `grandparentGuid`, but Plex's modern agent sends
+`plex://show/<internal>` there, carries no external id in it, and sends no grandparent `<Guid>`
+children, so the preference silently fell through to the episode's own ids. Emby and Jellyfin omit
+`SeriesProviderIds` on their flat webhook templates. The result was episode ids stored where
+series ids belong: 92 watch records and 4 resume positions that joined to nothing, rendering with
+no artwork and no metadata and not matching the other watches of the same show.
+
+**Decision:** Two parts. Ingestion resolves the series identity from the media server via
+`withSeriesIdentity()`, using the `seriesItemId` the parsers now carry, cached and non-throwing so
+an unreachable server leaves the ids untouched rather than breaking ingestion. Existing rows are
+repaired by `repairEpisodeSeriesIdentity()`, which runs automatically on scheduler leadership and
+proves series ids locally: a provider id carried by two or more distinct episodes of a show cannot
+be an episode id.
+
+**Rejected:** Resolving the remaining rows by searching a metadata provider for the show title.
+Where the local proof is unavailable, every watched episode of that show carries episode-level ids,
+so a title search is the only option left and it is a matching heuristic. Attaching a watch to the
+wrong show is worse than leaving it unresolved, so those rows are left alone and counted in the log
+line instead. They resolve on their own once any correctly keyed record for that show exists, which
+ingestion now produces. Also rejected: repairing only the symptom in the artwork lookup, which
+would have left the wrong identity stored and the records still unmatched.
+
+**Enforced by:** `server/src/utils/seriesIdentity.js`, `repairEpisodeSeriesIdentity()` and
+`seriesIdsForShowTitle()` in `server/src/utils/dataRepo.js`, and the repair's invocation in
+`server/src/workerCoordinator.js`.

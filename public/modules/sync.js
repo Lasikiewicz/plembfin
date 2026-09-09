@@ -705,6 +705,9 @@ export function activeSessionsKey(sessions = []) {
         session.season ?? "",
         session.episode ?? "",
         progress,
+        // Pausing freezes progress, so without this the play/pause transition
+        // would produce an identical key and never repaint the card.
+        session.paused === true || session.playbackState === "paused" ? "paused" : "playing",
       ].join("|");
     })
     .sort()
@@ -761,6 +764,9 @@ export function renderActiveSessions() {
         : "";
       const userName = session.client?.userName || "";
       const deviceName = session.client?.deviceName || "";
+      // A paused session stays on the rail because the media server still holds
+      // it open, but it is not playing - label it rather than calling it Live.
+      const isPaused = session.paused === true || session.playbackState === "paused";
       return `
         <button class="now-card-large live-now-card" type="button" data-now-playing-href="${escapeAttribute(href)}" aria-label="Open ${escapeAttribute(session.title)} details">
           <span class="now-poster-large-wrapper">
@@ -769,7 +775,7 @@ export function renderActiveSessions() {
           <div class="now-card-details">
             <div class="now-card-header">
               <div class="now-card-head">
-                <span class="stream-indicator">Live</span>
+                <span class="stream-indicator${isPaused ? " is-paused" : ""}">${isPaused ? "Paused" : "Live"}</span>
               </div>
               <b class="now-card-title" title="${escapeAttribute(showTitle)}">${escapeHtml(showTitle)}</b>
               ${epLabel ? `<span class="now-card-episode">${escapeHtml(epLabel)}</span>` : ""}
@@ -782,7 +788,7 @@ export function renderActiveSessions() {
             </div>
             <div class="now-card-progress-container">
               <div class="now-card-progress-bar">
-                <div class="now-card-progress-fill" style="width: ${progress}%;"></div>
+                <div class="now-card-progress-fill${isPaused ? " is-paused" : ""}" style="width: ${progress}%;"></div>
               </div>
               <span class="now-card-progress-text">${escapeHtml(formatPlaybackClock(session.offsetMs, session.durationMs))}</span>
             </div>

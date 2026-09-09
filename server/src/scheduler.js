@@ -37,14 +37,17 @@ import {
   updateWatchTelemetry,
   upsertPlaystateForMedia,
   loadLiveTrackingCache,
+  repairEpisodeSeriesIdentity,
 } from "./utils/dataRepo.js";
 import { resolvePlexWatchDate, resolveWatchImportDate, runtimeMinutesForSourceItem } from "./utils/watchDates.js";
 import { enqueueManualWatchReview } from "./utils/manualWatchReview.js";
 
 const NEXT_AIRING_REFRESH_INTERVAL_MS = 30 * 60 * 1000;
+const EPISODE_IDENTITY_REPAIR_INTERVAL_MS = 15 * 60 * 1000;
 const UPCOMING_CALENDAR_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
 const NEXT_AIRING_REFRESH_LIMIT = 40;
 let lastNextAiringRefreshAt = 0;
+let lastEpisodeIdentityRepairAt = 0;
 let nextAiringInitialBuildPending = true;
 let lastUpcomingCalendarRefreshAt = 0;
 const LARGE_DISPATCH_PENDING_THRESHOLD = 8;
@@ -415,6 +418,15 @@ async function runScheduledTickSteps({ isLeader = () => true } = {}) {
   if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active" };
   await runWithTimeBudget("Scheduled Plembfin backup", () => runScheduledPlembfinBackup(), 30_000);
   if (!isLeader()) return { skipped: true, reason: "lease-lost" };
+  if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active" };
+  // Repair identity aliases before the dashboard projection and metadata
+  // warm-up run. The pass is idempotent and bounded by its cadence; it repairs
+  // old episode-level ids and collapses progress aliases left by older feeds.
+  if (Date.now() - lastEpisodeIdentityRepairAt >= EPISODE_IDENTITY_REPAIR_INTERVAL_MS) {
+    if (!isLeader()) return { skipped: true, reason: "lease-lost" };
+    lastEpisodeIdentityRepairAt = Date.now();
+    await runWithTimeBudget("Episode identity repair", () => repairEpisodeSeriesIdentity(), 30_000);
+  }
   if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active" };
   // The gateway queues missing/stale library metadata on a single background
   // worker. Keep this broad scan as a restart/import backstop; it does not

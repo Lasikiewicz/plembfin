@@ -17,6 +17,11 @@ npm install
 npm run dev   # auto-reload dev server on http://localhost:5055
 ```
 
+On Windows, use the host's normal network-enabled environment for this server. If
+Codex is launching it, the start command must use the approved elevated network
+execution path; the restricted sandbox can serve the UI while denying outbound
+connections to connected media servers.
+
 Automated checks are available: `npm test` runs the test suite, while `npm run build`
 runs the syntax, documentation, route-guard, and clean-startup checks. There is no
 separate linter configured, so also verify changes by running the app locally and

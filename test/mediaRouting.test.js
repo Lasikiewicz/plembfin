@@ -49,3 +49,15 @@ test("episode links recover the show title when payloads omit show_title", () =>
     "/tvshow/the-war-between-the-land-and-the-sea/season/1/episode/5",
   );
 });
+
+test("resume cards align a red Clear action with the watch percentage", () => {
+  const html = renderDashboardHistoryPageCard({
+    ...episodeWithLeafIds,
+    queue_kind: "resume",
+    position_ms: 120_000,
+    duration_ms: 600_000,
+  }, { upNext: true });
+
+  assert.match(html, /<div class="up-next-progress-row">[\s\S]*<span class="part-watched-progress-text">20% watched<\/span>[\s\S]*data-up-next-clear="[^"]+">Clear<\/button>/);
+  assert.doesNotMatch(html, /data-up-next-clear="[^"]+">&times;<\/button>/);
+});

@@ -552,10 +552,13 @@ export function renderDashboardHistoryPageCard(entry, options = {}) {
         ${watchNowFooter}
         ${isResume && playbackPositionKnown ? `
           <div class="part-watched-progress-container${isUpNext ? " up-next-progress-container" : ""}">
-            ${isUpNext ? `<div class="up-next-progress-row">` : ""}
             <div class="part-watched-progress-bar"><div class="part-watched-progress-fill" style="width: ${partProgress}%;"></div></div>
-            ${isUpNext ? `<button class="icon-button up-next-clear-button" type="button" aria-label="Clear progress" title="Clear progress" data-up-next-clear="${escapeAttribute(cardId)}">&times;</button></div>` : ""}
-            <span class="part-watched-progress-text">${partProgress}% watched</span>
+            ${isUpNext
+              ? `<div class="up-next-progress-row">
+                  <span class="part-watched-progress-text">${partProgress}% watched</span>
+                  <button class="icon-button up-next-clear-button" type="button" aria-label="Clear progress" title="Clear progress" data-up-next-clear="${escapeAttribute(cardId)}">Clear</button>
+                </div>`
+              : `<span class="part-watched-progress-text">${partProgress}% watched</span>`}
           </div>
         ` : ""}
         ${partActions}

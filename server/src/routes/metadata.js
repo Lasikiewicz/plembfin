@@ -88,6 +88,7 @@ import {
   deletePosterCacheByMediaKey,
   backfillUnknownShowTitles,
   clearWatchArtworkUrls,
+  seriesIdsForShowTitle,
 } from "../utils/dataRepo.js";
 
 function imagePath(path, params = {}) {
@@ -242,15 +243,25 @@ async function resolvePosterPayload({ rowId, provider = "", fallbackRequested = 
     if (!row) {
       const progressRow = db.prepare("SELECT * FROM playback_progress WHERE media_key = ?").get(rowId);
       if (progressRow) {
+        // A resume position can carry the episode's own provider ids rather
+        // than the series' (see utils/seriesIdentity.js). Artwork for an
+        // episode is the show's artwork, and an episode id resolves to nothing
+        // at TMDB/TVDB, so prefer the show's ids whenever they can be proven
+        // from the watch history. repairEpisodeSeriesIdentity() rewrites these
+        // rows properly; this keeps the card from rendering blank until it does.
+        const seriesIds = progressRow.media_type === "episode" ? seriesIdsForShowTitle(progressRow.title) : null;
         row = {
           id: progressRow.media_key,
           media_key: progressRow.media_key,
           title: progressRow.title,
           media_type: progressRow.media_type,
           source: progressRow.source,
-          imdb_id: progressRow.imdb_id,
-          tmdb_id: progressRow.tmdb_id,
-          tvdb_id: progressRow.tvdb_id,
+          imdb_id: seriesIds?.imdb || progressRow.imdb_id,
+          tmdb_id: seriesIds?.tmdb || progressRow.tmdb_id,
+          tvdb_id: seriesIds?.tvdb || progressRow.tvdb_id,
+          show_imdb_id: seriesIds?.imdb || null,
+          show_tmdb_id: seriesIds?.tmdb || null,
+          show_tvdb_id: seriesIds?.tvdb || null,
           season: progressRow.season,
           episode: progressRow.episode,
           poster_url: null,

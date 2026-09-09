@@ -1,7 +1,21 @@
 {
   "version": "0.16.3",
-  "build": 1,
+  "build": 2,
   "resetCommit": "80d7a494884b2fa04385af3ebef0ce5bf84e6797",
-  "updatedAt": "2026-09-08T21:16:20.805Z",
-  "entries": []
+  "updatedAt": "2026-09-09T10:51:57.282Z",
+  "entries": [
+    {
+      "build": 2,
+      "date": "2026-09-09T10:51:57.282Z",
+      "commit": "4f8db87836cc3e3b0c315edf4a3866b8cde08d90",
+      "message": "Fix - Stabilize dashboard media state",
+      "author": "Lasikiewicz",
+      "details": [
+        "Repair missing Part Watched artwork during scheduled metadata refreshes.",
+        "Canonicalize provider episode identities so duplicate resume cards collapse safely.",
+        "Keep the dashboard Clear action aligned with the watch percentage.",
+        "Document and enforce the network-enabled launch path."
+      ]
+    }
+  ]
 }

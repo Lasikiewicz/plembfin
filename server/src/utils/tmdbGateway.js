@@ -102,6 +102,13 @@ const recentWatchStmt = db.prepare(`
   ORDER BY watched_at DESC
   LIMIT 2000
 `);
+const recentProgressStmt = db.prepare(`
+  SELECT media_type, tmdb_id, tvdb_id, imdb_id, title, NULL AS show_title
+  FROM playback_progress
+  WHERE position_ms > 0
+  ORDER BY COALESCE(updated_at, 0) DESC
+  LIMIT 1000
+`);
 
 function hash(value) {
   return crypto.createHash("sha1").update(String(value)).digest("hex");
@@ -109,6 +116,12 @@ function hash(value) {
 
 function canonicalTitle(value = "") {
   return String(value).trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function showTitleFromWarmupTitle(value = "") {
+  return String(value || "")
+    .replace(/\s*-\s*S\d{1,3}E\d{1,3}(?:\s*-\s*.*)?$/i, "")
+    .trim();
 }
 
 function titleSearchParts(value = "") {
@@ -165,6 +178,7 @@ function normalizeMetadataWarmupItem(item = {}, reason = "") {
     title,
     ids: { tvdbId, imdbId },
     verifyTvdbTitle: Boolean(item.verifyTvdbTitle),
+    force: item.force === true,
     reason: String(reason || item.reason || "discovery"),
   };
 }
@@ -604,9 +618,14 @@ export function queueTmdbMetadataWarmup(items = [], { reason = "discovery" } = {
       : normalized.tmdbId || normalized.ids.tvdbId || normalized.ids.imdbId || canonicalTitle(normalized.title)}`.toLowerCase();
     if (!key || metadataWarmupQueued.has(key)) continue;
     const cached = metadataCacheRow(normalized);
-    if (cacheSatisfies(cached, { light: false })) continue;
+    const cachedArtwork = cached?.details && (
+      cached.details.cached_poster_url
+      || cached.details.poster_path
+      || cached.details.tvdb_poster_url
+    );
+    if (cacheSatisfies(cached, { light: false }) && cachedArtwork) continue;
     metadataWarmupQueued.add(key);
-    accepted.push({ ...normalized, key });
+    accepted.push({ ...normalized, force: normalized.force || Boolean(cached), key });
   }
   // Put newly discovered media ahead of a broad backfill already in flight,
   // then cap retained work so an unusually large library cannot grow memory
@@ -1117,7 +1136,11 @@ export async function getTmdbImages({ mediaType, tmdbId, title = "", ids = {} })
 export async function prewarmTmdbLibrary({ limit = 0 } = {}) {
   const runtime = await loadRuntimeState().catch(() => ({}));
   if (runtime.lastTmdbPrewarmAt && Date.now() - Number(runtime.lastTmdbPrewarmAt) < PREWARM_INTERVAL_MS) return { skipped: true };
-  const rows = recentWatchStmt.all();
+  // Include active resume rows as well as completed history. The dashboard's
+  // Part Watched rail is sourced from playback_progress, so a history-only
+  // warm-up can leave a newly resumed episode without the show artwork even
+  // though the rest of the library is fully warmed.
+  const rows = [...recentProgressStmt.all(), ...recentWatchStmt.all()];
   const items = [];
   const seen = new Set();
   for (const data of rows) {
@@ -1133,7 +1156,7 @@ export async function prewarmTmdbLibrary({ limit = 0 } = {}) {
     // they have them.
     const tvdbId = String(mediaType === "tv" ? "" : data.tvdb_id || "");
     const imdbId = String(mediaType === "tv" ? "" : data.imdb_id || "");
-    const title = mediaType === "tv" ? data.show_title || data.title : data.title;
+    const title = mediaType === "tv" ? data.show_title || showTitleFromWarmupTitle(data.title) : data.title;
     // Watched episode rows usually contain episode-level TVDB/IMDb ids, not
     // the parent show's identity. Deduplicate the title-only TV backstop so a
     // binge-watched series does not enqueue one provider lookup per episode.

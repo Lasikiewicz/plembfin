@@ -142,6 +142,10 @@ default. Do not start `npm start` or `npm run dev` inside the restricted sandbox
 provider requests can fail with `EACCES` even when the application and provider are healthy.
 Offline unit tests and static checks may still run in the restricted sandbox.
 
+This is a launch-environment rule, not a replacement npm command: `npm start` remains the
+canonical server command. A normal host PowerShell terminal is already network-enabled;
+agent-launched starts must explicitly request the elevated network-enabled execution path.
+
 ### Network-backed local testing
 
 Provider-backed flows (TMDB, TVDB, Plex, Emby, Jellyfin, or Trakt) must be tested

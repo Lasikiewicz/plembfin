@@ -2377,6 +2377,9 @@ const selectProgressByTitleStmt = db.prepare("SELECT * FROM playback_progress WH
 const selectProgressByImdbStmt = db.prepare("SELECT * FROM playback_progress WHERE media_type = ? AND imdb_id = ?");
 const selectProgressByTmdbStmt = db.prepare("SELECT * FROM playback_progress WHERE media_type = ? AND tmdb_id = ?");
 const selectProgressByTvdbStmt = db.prepare("SELECT * FROM playback_progress WHERE media_type = ? AND tvdb_id = ?");
+const selectProgressByEpisodeCoordinatesStmt = db.prepare(
+  "SELECT * FROM playback_progress WHERE media_type = 'episode' AND season = ? AND episode = ?",
+);
 const selectProgressReplayStmt = db.prepare("SELECT * FROM playback_progress ORDER BY COALESCE(updated_at, 0) DESC, media_key DESC LIMIT ? OFFSET ?");
 const selectProgressSnapshotStmt = db.prepare(
   "SELECT * FROM playback_progress WHERE COALESCE(updated_at, 0) <= ? ORDER BY COALESCE(updated_at, 0) DESC, media_key DESC LIMIT ? OFFSET ?",
@@ -2444,6 +2447,79 @@ export function normalizePlaybackProgressRecord(record = {}, fallbackSource = "w
   return { ...normalized, media_key: record.media_key || record.mediaKey || playbackProgressKey(normalized) };
 }
 
+function progressShowTitle(record = {}) {
+  return cleanString(record.show_title || record.showTitle || showTitleFrom(record.title || ""));
+}
+
+function progressShowKey(record = {}) {
+  return canonicalShowTitleKey(progressShowTitle(record));
+}
+
+function progressProviderIds(record = {}) {
+  return {
+    imdb: cleanString(record.imdb_id),
+    tmdb: cleanString(record.tmdb_id),
+    tvdb: cleanString(record.tvdb_id),
+  };
+}
+
+function progressEpisodeIdentityCompatible(left = {}, right = {}) {
+  if (normalizeMediaType(left.media_type || left.mediaType) !== "episode"
+    || normalizeMediaType(right.media_type || right.mediaType) !== "episode") return false;
+  if (!sameEpisodeCoordinates(left, right)) return false;
+  const leftShow = progressShowKey(left);
+  const rightShow = progressShowKey(right);
+  if (!leftShow || leftShow !== rightShow) return false;
+
+  // Prefer the identity profiles proven by watch history. This keeps same-title
+  // reboots separate while still allowing a provider's episode-level id to
+  // join the series-level row for the same episode.
+  const profiles = seriesIdentityProfilesForShowTitle(leftShow);
+  const leftProfile = progressProfileForIds(progressProviderIds(left), profiles);
+  const rightProfile = progressProfileForIds(progressProviderIds(right), profiles);
+  if (leftProfile && rightProfile) return leftProfile === rightProfile;
+  if (leftProfile || rightProfile) {
+    // With multiple proven profiles for the same title, an episode-level id
+    // cannot tell us which reboot it belongs to. Keep it separate until the
+    // provider supplies a series identity; source equality is not enough.
+    if (profiles.length !== 1) return false;
+    return cleanString(left.source).toLowerCase() === cleanString(right.source).toLowerCase();
+  }
+
+  const leftIds = progressProviderIds(left);
+  const rightIds = progressProviderIds(right);
+  const sharedId = ["imdb", "tmdb", "tvdb"].some((provider) => (
+    leftIds[provider] && rightIds[provider] && leftIds[provider].toLowerCase() === rightIds[provider].toLowerCase()
+  ));
+  if (sharedId || !Object.values(leftIds).some(Boolean) || !Object.values(rightIds).some(Boolean)) return true;
+  // Without a proven series profile, only collapse conflicting identities when
+  // they came from the same configured media server. A same-title episode from
+  // a different server may be a reboot/rematch and must not be guessed.
+  return cleanString(left.source).toLowerCase() === cleanString(right.source).toLowerCase();
+}
+
+function canonicalizePlaybackProgressRecord(record = {}) {
+  if (normalizeMediaType(record.media_type || record.mediaType || record.type) !== "episode") return record;
+  const showKey = progressShowKey(record);
+  const profiles = seriesIdentityProfilesForShowTitle(showKey);
+  const profile = profiles.length === 1
+    ? profiles[0]
+    : progressProfileForIds(progressProviderIds(record), profiles);
+  if (!profile) return record;
+  return {
+    ...record,
+    imdb_id: profile.ids.imdb || null,
+    tmdb_id: profile.ids.tmdb || null,
+    tvdb_id: profile.ids.tvdb || null,
+    media_key: playbackProgressKey({
+      ...record,
+      imdb_id: profile.ids.imdb || null,
+      tmdb_id: profile.ids.tmdb || null,
+      tvdb_id: profile.ids.tvdb || null,
+    }),
+  };
+}
+
 export function mediaToPlaybackProgressRecord(media, source = media?.source || "webhook") {
   return normalizePlaybackProgressRecord(
     {
@@ -2466,22 +2542,30 @@ export function mediaToPlaybackProgressRecord(media, source = media?.source || "
 }
 
 export async function upsertPlaybackProgress(record) {
-  const normalized = normalizePlaybackProgressRecord(record, record.source);
+  const normalized = canonicalizePlaybackProgressRecord(normalizePlaybackProgressRecord(record, record.source));
   if (!normalized.title) throw new Error("title is required");
   if (!["movie", "episode"].includes(normalized.media_type)) throw new Error("media_type must be movie or episode");
   if (!normalized.position_ms) throw new Error("position_ms is required");
   assertRestoreWriteAllowed(normalized.source);
 
-  const identityMatch = progressRowsForIdentity(normalized)[0];
-  const mediaKey = identityMatch?.media_key || normalized.media_key;
+  const identityMatches = progressRowsForIdentity(normalized);
+  const identityMatch = identityMatches[0];
+  const mediaKey = normalized.media_type === "episode" && normalized.media_key
+    ? normalized.media_key
+    : identityMatch?.media_key || normalized.media_key;
+  const storedIds = {
+    imdb: normalized.imdb_id || identityMatch?.imdb_id || null,
+    tmdb: normalized.tmdb_id || identityMatch?.tmdb_id || null,
+    tvdb: normalized.tvdb_id || identityMatch?.tvdb_id || null,
+  };
   upsertProgressStmt.run({
     media_key: mediaKey,
     title: normalized.title,
     media_type: normalized.media_type,
     source: normalized.source,
-    imdb_id: normalized.imdb_id || identityMatch?.imdb_id || null,
-    tmdb_id: normalized.tmdb_id || identityMatch?.tmdb_id || null,
-    tvdb_id: normalized.tvdb_id || identityMatch?.tvdb_id || null,
+    imdb_id: storedIds.imdb,
+    tmdb_id: storedIds.tmdb,
+    tvdb_id: storedIds.tvdb,
     season: normalized.season,
     episode: normalized.episode,
     position_ms: normalized.position_ms,
@@ -2490,6 +2574,12 @@ export async function upsertPlaybackProgress(record) {
     updated_at: normalized.updated_at,
     sync_dispatch_telemetry: normalized.sync_dispatch_telemetry,
   });
+  // A provider can arrive with a different leaf id before its series lookup
+  // completes. Once this write has a canonical key, remove any aliases that
+  // describe the same episode so the dashboard can never render both rows.
+  for (const alias of identityMatches) {
+    if (alias.media_key && alias.media_key !== mediaKey) deleteProgressStmt.run(alias.media_key);
+  }
   recordWatchAuditEvent({
     eventType: "resume_progress_stored",
     timestamp: normalized.updated_at || Date.now(),
@@ -2498,7 +2588,7 @@ export async function upsertPlaybackProgress(record) {
     mediaType: normalized.media_type,
     title: normalized.title,
     source: normalized.source,
-    ids: { imdb: normalized.imdb_id, tmdb: normalized.tmdb_id, tvdb: normalized.tvdb_id },
+    ids: storedIds,
     season: normalized.season,
     episode: normalized.episode,
     details: "Resume progress stored in Plembfin.",
@@ -2511,15 +2601,26 @@ export async function upsertPlaybackProgress(record) {
   if (normalized.tmdb_id || normalized.title) {
     prefetchTmdbMetadataBackground(normalized.media_type, normalized.tmdb_id, normalized.title).catch(() => null);
   }
-  return { ...normalized, media_key: mediaKey };
+  return { ...normalized, ...storedIds, media_key: mediaKey };
 }
 
 function progressRowsForIdentity(record = {}) {
-  return identityRows(record, {
+  const rows = identityRows(record, {
     imdb: selectProgressByImdbStmt,
     tmdb: selectProgressByTmdbStmt,
     tvdb: selectProgressByTvdbStmt,
   });
+  if (normalizeMediaType(record.media_type || record.mediaType || record.type) === "episode"
+    && Number.isFinite(Number(record.season))
+    && Number.isFinite(Number(record.episode))) {
+    selectProgressByEpisodeCoordinatesStmt
+      .all(record.season, record.episode)
+      .filter((row) => progressEpisodeIdentityCompatible(record, row))
+      .forEach((row) => {
+        if (!rows.some((existing) => existing.media_key === row.media_key)) rows.push(row);
+      });
+  }
+  return rows.sort((a, b) => Number(b.updated_at || 0) - Number(a.updated_at || 0));
 }
 
 export async function updatePlaybackProgressTelemetry(mediaOrRecord, telemetry) {
@@ -6057,4 +6158,287 @@ async function prefetchTmdbMetadataBackground(mediaType, tmdbId, title, recordId
     console.error("Failed to prefetch TMDB metadata in background", e);
     return null;
   }
+}
+
+// --- Episode series-identity repair ------------------------------------------
+//
+// Provider episode payloads sometimes contain the leaf episode ids where the
+// rest of Plembfin expects the series ids. The repair below only promotes an id
+// after it has appeared on two different episode coordinates for the same
+// show. That proof is strong enough to repair old rows, but it deliberately
+// refuses to guess between same-title reboots.
+
+function normalizeRepairShowTitle(value = "") {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\s*\((?:19|20)\d\d\)\s*$/, "")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function showTitleFromEpisodeTitle(value = "") {
+  return String(value || "").replace(/\s*-\s*S\d+E\d+.*$/i, "");
+}
+
+function seriesCoordinate(row = {}) {
+  const season = Number(row.season);
+  const episode = Number(row.episode);
+  if (!Number.isInteger(season) || season < 0 || !Number.isInteger(episode) || episode <= 0) return "";
+  return `${season}:${episode}`;
+}
+
+function seriesIdValue(row = {}, provider = "") {
+  return cleanString(row[`${provider}_id`]);
+}
+
+function mergeSeriesProfile(target, source) {
+  for (const entry of source.entries) target.entries.push(entry);
+  for (const provider of ["imdb", "tmdb", "tvdb"]) {
+    const ids = new Map(target.idCounts[provider]);
+    for (const [id, coordinates] of source.idCounts[provider]) {
+      const existing = ids.get(id) || new Set();
+      for (const coordinate of coordinates) existing.add(coordinate);
+      ids.set(id, existing);
+    }
+    target.idCounts[provider] = ids;
+  }
+}
+
+function buildSeriesIdentityProfiles() {
+  const rows = db.prepare(
+    "SELECT title, show_title, season, episode, imdb_id, tmdb_id, tvdb_id FROM watch_history WHERE media_type = 'episode'",
+  ).all();
+  const byShow = new Map();
+  for (const row of rows) {
+    const showKey = normalizeRepairShowTitle(row.show_title || showTitleFromEpisodeTitle(row.title));
+    const coordinate = seriesCoordinate(row);
+    if (!showKey || !coordinate) continue;
+    if (!byShow.has(showKey)) byShow.set(showKey, []);
+    byShow.get(showKey).push({ row, showKey, coordinate });
+  }
+
+  const result = new Map();
+  for (const [showKey, entries] of byShow) {
+    const globalIdCounts = new Map();
+    for (const entry of entries) {
+      for (const provider of ["imdb", "tmdb", "tvdb"]) {
+        const id = seriesIdValue(entry.row, provider);
+        if (!id) continue;
+        const key = `${provider}:${id.toLowerCase()}`;
+        if (!globalIdCounts.has(key)) globalIdCounts.set(key, new Set());
+        globalIdCounts.get(key).add(entry.coordinate);
+      }
+    }
+
+    const profiles = [];
+    for (const entry of entries) {
+      const provenIds = ["imdb", "tmdb", "tvdb"]
+        .map((provider) => {
+          const id = seriesIdValue(entry.row, provider);
+          const count = id ? globalIdCounts.get(`${provider}:${id.toLowerCase()}`)?.size || 0 : 0;
+          return count > 1 ? { provider, id } : null;
+        })
+        .filter(Boolean);
+      if (!provenIds.length) continue;
+
+      const matching = profiles.filter((profile) => provenIds.some(({ provider, id }) => (
+        profile.idCounts[provider].has(id)
+      )));
+      const profile = matching[0] || {
+        entries: [],
+        idCounts: { imdb: new Map(), tmdb: new Map(), tvdb: new Map() },
+      };
+      for (const other of matching.slice(1)) {
+        mergeSeriesProfile(profile, other);
+        const index = profiles.indexOf(other);
+        if (index >= 0) profiles.splice(index, 1);
+      }
+      for (const { provider, id } of provenIds) {
+        const coordinates = profile.idCounts[provider].get(id) || new Set();
+        coordinates.add(entry.coordinate);
+        profile.idCounts[provider].set(id, coordinates);
+      }
+      profile.entries.push(entry);
+      if (!profiles.includes(profile)) profiles.push(profile);
+    }
+
+    const shaped = profiles.map((profile) => {
+      const ids = {};
+      for (const provider of ["imdb", "tmdb", "tvdb"]) {
+        const candidates = [...profile.idCounts[provider].entries()]
+          .sort((left, right) => right[1].size - left[1].size || left[0].localeCompare(right[0]));
+        if (candidates.length && (candidates.length === 1 || candidates[0][1].size > candidates[1][1].size)) {
+          ids[provider] = candidates[0][0];
+        } else {
+          ids[provider] = "";
+        }
+      }
+      return {
+        ids: { imdb: ids.imdb || "", tmdb: ids.tmdb || "", tvdb: ids.tvdb || "" },
+        entries: profile.entries,
+      };
+    }).filter((profile) => Object.values(profile.ids).some(Boolean));
+    if (shaped.length) result.set(showKey, shaped);
+  }
+  return result;
+}
+
+const SERIES_IDS_CACHE_TTL_MS = 60_000;
+let seriesIdentityIndexCache = { expiresAt: 0, values: new Map() };
+
+function seriesIdentityProfilesForShowTitle(showTitle = "") {
+  const key = normalizeRepairShowTitle(showTitle);
+  if (!key) return [];
+  if (seriesIdentityIndexCache.expiresAt <= Date.now()) {
+    seriesIdentityIndexCache = {
+      expiresAt: Date.now() + SERIES_IDS_CACHE_TTL_MS,
+      values: buildSeriesIdentityProfiles(),
+    };
+  }
+  return seriesIdentityIndexCache.values.get(key) || [];
+}
+
+function progressProfileForIds(ids = {}, profiles = []) {
+  const matches = profiles.filter((profile) => ["imdb", "tmdb", "tvdb"].some((provider) => (
+    ids[provider] && profile.ids[provider] && ids[provider].toLowerCase() === profile.ids[provider].toLowerCase()
+  )));
+  return matches.length === 1 ? matches[0] : null;
+}
+
+function seriesIdsForRow(row = {}, profiles = []) {
+  if (profiles.length === 1) return profiles[0].ids;
+  return progressProfileForIds(progressProviderIds(row), profiles)?.ids || null;
+}
+
+function sameProgressGroupRows(rows = [], profiles = []) {
+  if (!rows.length) return [];
+  const groups = [];
+  for (const row of rows) {
+    const profile = progressProfileForIds(progressProviderIds(row), profiles);
+    let group = profile ? groups.find((candidate) => candidate.profile === profile) : null;
+    if (!group && !profile && profiles.length === 1) {
+      // A title with one proven series identity is safe to repair even when
+      // every stored progress row contains only an episode-level id.
+      group = groups.find((candidate) => candidate.profile === profiles[0]);
+      if (!group) {
+        group = { profile: profiles[0], rows: [] };
+        groups.push(group);
+      }
+    }
+    if (!group) {
+      group = { profile: profile || null, rows: [] };
+      groups.push(group);
+    }
+    group.rows.push(row);
+  }
+  if (profiles.length === 1) {
+    const identified = groups.find((group) => group.profile === profiles[0]);
+    const unresolved = groups.filter((group) => !group.profile);
+    if (identified && unresolved.length) {
+      for (const group of unresolved) identified.rows.push(...group.rows);
+      return groups.filter((group) => group === identified);
+    }
+  }
+  return groups;
+}
+
+function invalidateSeriesIdentityIndex() {
+  seriesIdentityIndexCache = { expiresAt: 0, values: new Map() };
+}
+
+export async function repairEpisodeSeriesIdentity() {
+  invalidateSeriesIdentityIndex();
+  const profilesByShow = new Map();
+  const historyRows = db.prepare(
+    "SELECT id, media_key, title, show_title, season, episode, imdb_id, tmdb_id, tvdb_id FROM watch_history WHERE media_type = 'episode'",
+  ).all();
+  for (const row of historyRows) {
+    const key = normalizeRepairShowTitle(row.show_title || showTitleFromEpisodeTitle(row.title));
+    if (key) profilesByShow.set(key, seriesIdentityProfilesForShowTitle(key));
+  }
+
+  const historyUpdateStmt = db.prepare(
+    "UPDATE watch_history SET imdb_id = ?, tmdb_id = ?, tvdb_id = ?, media_key = ?, updated_at = ? WHERE id = ?",
+  );
+  const progressUpdateStmt = db.prepare(
+    "UPDATE playback_progress SET imdb_id = ?, tmdb_id = ?, tvdb_id = ?, media_key = ? WHERE media_key = ?",
+  );
+  const progressDeleteStmt = db.prepare("DELETE FROM playback_progress WHERE media_key = ?");
+  const progressRows = db.prepare(
+    "SELECT * FROM playback_progress WHERE media_type = 'episode' ORDER BY COALESCE(updated_at, 0) DESC, media_key DESC",
+  ).all();
+  const now = Date.now();
+  let historyFixed = 0;
+  let progressFixed = 0;
+  let progressDuplicatesRemoved = 0;
+
+  transaction(() => {
+    for (const row of historyRows) {
+      const key = normalizeRepairShowTitle(row.show_title || showTitleFromEpisodeTitle(row.title));
+      const ids = seriesIdsForRow(row, profilesByShow.get(key) || []);
+      if (!ids) continue;
+      const nextKey = mediaKeyFor({ ...row, media_type: "episode", ...ids, imdb_id: ids.imdb, tmdb_id: ids.tmdb, tvdb_id: ids.tvdb });
+      if (row.imdb_id === (ids.imdb || null) && row.tmdb_id === (ids.tmdb || null)
+        && row.tvdb_id === (ids.tvdb || null) && row.media_key === nextKey) continue;
+      historyUpdateStmt.run(ids.imdb || null, ids.tmdb || null, ids.tvdb || null, nextKey, now, row.id);
+      historyFixed += 1;
+    }
+
+    const buckets = new Map();
+    for (const row of progressRows) {
+      const key = `${normalizeRepairShowTitle(progressShowTitle(row))}|${seriesCoordinate(row)}`;
+      if (!key.startsWith("|")) {
+        if (!buckets.has(key)) buckets.set(key, []);
+        buckets.get(key).push(row);
+      }
+    }
+    for (const rows of buckets.values()) {
+      const showKey = normalizeRepairShowTitle(progressShowTitle(rows[0]));
+      const profiles = profilesByShow.get(showKey) || [];
+      const groups = sameProgressGroupRows(rows, profiles);
+      for (const group of groups) {
+        const ids = group.profile?.ids || null;
+        if (!ids) continue;
+        const winner = group.rows.slice().sort((left, right) => Number(right.updated_at || 0) - Number(left.updated_at || 0))[0];
+        const nextKey = mediaKeyFor({ ...winner, media_type: "episode", imdb_id: ids.imdb, tmdb_id: ids.tmdb, tvdb_id: ids.tvdb });
+        for (const row of group.rows) {
+          if (row.media_key !== winner.media_key) {
+            progressDeleteStmt.run(row.media_key);
+            progressDuplicatesRemoved += 1;
+          }
+        }
+        const idsChanged = ["imdb", "tmdb", "tvdb"].some((provider) => (
+          cleanString(winner[`${provider}_id`]) !== cleanString(ids[provider])
+        ));
+        if (winner.media_key !== nextKey || idsChanged) {
+          // When only null/empty id fields differ, the canonical key can be
+          // unchanged. Do not delete the winner before updating it.
+          if (nextKey !== winner.media_key) progressDeleteStmt.run(nextKey);
+          progressUpdateStmt.run(ids.imdb || null, ids.tmdb || null, ids.tvdb || null, nextKey, winner.media_key);
+          progressFixed += 1;
+        }
+      }
+    }
+  });
+
+  invalidateSeriesIdentityIndex();
+  if (historyFixed || progressFixed || progressDuplicatesRemoved) {
+    await invalidateHistoryDerivedCaches("repairEpisodeSeriesIdentity");
+    console.log(
+      `[dataRepo] repairEpisodeSeriesIdentity: repaired ${historyFixed} watch record(s), rekeyed ${progressFixed} resume position(s), removed ${progressDuplicatesRemoved} duplicate resume alias(es)`,
+    );
+  }
+  return historyFixed + progressFixed + progressDuplicatesRemoved;
+}
+
+// Read-side identity lookup used by artwork and progress routes. It returns an
+// id set only when the title maps to one proven series; ambiguous same-title
+// reboots intentionally fall back to title/provider artwork resolution.
+export function seriesIdsForShowTitle(showTitle) {
+  const rawTitle = cleanString(showTitle);
+  const resolvedTitle = /\s+-\s+S\d{1,3}E\d{1,3}(?:\s+-\s+.*)?$/i.test(rawTitle)
+    ? showTitleFrom(rawTitle)
+    : rawTitle;
+  const profiles = seriesIdentityProfilesForShowTitle(resolvedTitle);
+  return profiles.length === 1 ? { ...profiles[0].ids } : null;
 }

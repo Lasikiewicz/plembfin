@@ -25,6 +25,7 @@ import {
 import { findPlexItem, markPlexPlayed, setPlexProgress, markPlexUnplayedByRatingKey, hidePlexFromContinueWatching, fetchPlexWatchedItems, fetchPlexMetadataItem, fetchPlexSeriesEpisodes, listPlexLibraries } from "../utils/plexClient.js";
 import { probePlexNotificationSocket } from "../utils/plexNotificationListener.js";
 import { pokeLiveSessionPoller } from "../scheduler.js";
+import { withSeriesIdentity } from "../utils/seriesIdentity.js";
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, hideEmbyFromResume, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes, listEmbyLibraries } from "../utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, hideJellyfinFromResume, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes, listJellyfinLibraries } from "../utils/jellyfinClient.js";
 import { setJellyfinApiKey } from "../utils/jellyfinAuth.js";
@@ -2721,6 +2722,16 @@ export async function handleWebhook(req, res) {
     return sendJson(res, { error: "Invalid webhook body", details: error.message }, 400);
   }
 
+  const config = await loadMediaConfig();
+
+  // An episode payload can carry the episode's own provider ids rather than the
+  // series', which would key this record to something the rest of the app never
+  // joins to - no artwork, no metadata, and no match against the other watches
+  // of the same show. This has to run before the first mediaKeyFor() below, so
+  // the audit trail and the stored record agree on one identity.
+  // See utils/seriesIdentity.js.
+  media = await withSeriesIdentity(media, config);
+
   recordWatchAuditEvent({
     eventType: "source_event",
     timestamp: Date.now(),
@@ -2807,7 +2818,6 @@ export async function handleWebhook(req, res) {
     return sendJson(res, { ok: true, inserted: false, skipped: true, reason: "Sync operation in progress" });
   }
 
-  const config = await loadMediaConfig();
   const loopStore = createLoopStore();
   media.posterUrl = posterPathFromMedia(media);
 
