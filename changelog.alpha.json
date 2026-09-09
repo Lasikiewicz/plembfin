@@ -1,10 +1,35 @@
 {
   "baseVersion": "0.16.3",
-  "build": 3,
-  "version": "0.16.3.3",
-  "updatedAt": "2026-09-09T12:00:01.824Z",
+  "build": 4,
+  "version": "0.16.3.4",
+  "updatedAt": "2026-09-09T13:25:08.417Z",
   "releaseMessage": "",
   "entries": [
+    {
+      "build": 4,
+      "version": "0.16.3.4",
+      "shortVersion": "0.16.3.4",
+      "date": "2026-09-09T13:25:08.417Z",
+      "commit": "03046f15750e0806f5230b257fbf9a2215ea46eb",
+      "message": "Fix - Scope live media updates to affected cards",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix: Scope live media updates to affected cards",
+        "Fix: Keep SSE watch and sync changes scoped to the affected tiles while preserving unchanged artwork nodes.",
+        "Fix: Reconcile dashboard, Up Next, and Now Playing cards in place instead of rebuilding their rails.",
+        "Fix: Refresh History, Explorer, and Stats only when their live data changes."
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Scope live media updates to affected cards",
+          "Keep SSE watch and sync changes scoped to the affected tiles while preserving unchanged artwork nodes.",
+          "Reconcile dashboard, Up Next, and Now Playing cards in place instead of rebuilding their rails.",
+          "Refresh History, Explorer, and Stats only when their live data changes."
+        ],
+        "tweaks": []
+      }
+    },
     {
       "build": 3,
       "version": "0.16.3.3",
@@ -77,5 +102,5 @@
       }
     }
   ],
-  "shortVersion": "0.16.3.3"
+  "shortVersion": "0.16.3.4"
 }

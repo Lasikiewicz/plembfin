@@ -1,20 +1,7 @@
 {
   "version": "0.16.3",
   "build": 5,
-  "resetCommit": "2dc6a096d78d77b65336af706c8762876642c516",
-  "updatedAt": "2026-09-09T13:24:00.429Z",
-  "entries": [
-    {
-      "build": 5,
-      "date": "2026-09-09T13:24:00.429Z",
-      "commit": "57cf17b5f0322fe5a1e3355c26810486d5499ee9",
-      "message": "Fix - Scope live media updates to affected cards",
-      "author": "Lasikiewicz",
-      "details": [
-        "Keep SSE watch and sync changes scoped to the affected tiles while preserving unchanged artwork nodes.",
-        "Reconcile dashboard, Up Next, and Now Playing cards in place instead of rebuilding their rails.",
-        "Refresh History, Explorer, and Stats only when their live data changes."
-      ]
-    }
-  ]
+  "resetCommit": "03046f15750e0806f5230b257fbf9a2215ea46eb",
+  "updatedAt": "2026-09-09T13:25:08.417Z",
+  "entries": []
 }

@@ -1,9 +1,9 @@
-import { buildAuthHeaders } from "./auth.js?v=0.16.3.3";
-import { state, elements } from "./state.js?v=0.16.3.3";
-import { escapeHtml, escapeAttribute, platformName, formatDate } from "./utils.js?v=0.16.3.3";
-import { historyAction, syncStatus, telemetryLineValue } from "./sync.js?v=0.16.3.3";
-import { syncInlineMediaDetailHeading } from "./explorer.js?v=0.16.3.3";
-import { auditEventsForRecord, infoSyncSummary, infoSyncTargetStates, infoWatchDetails, mediaInfoGlanceEntries, renderInfoWatchSync } from "./media-info-summary.js?v=0.16.3.3";
+import { buildAuthHeaders } from "./auth.js?v=0.16.3.4";
+import { state, elements } from "./state.js?v=0.16.3.4";
+import { escapeHtml, escapeAttribute, platformName, formatDate } from "./utils.js?v=0.16.3.4";
+import { historyAction, syncStatus, telemetryLineValue } from "./sync.js?v=0.16.3.4";
+import { syncInlineMediaDetailHeading } from "./explorer.js?v=0.16.3.4";
+import { auditEventsForRecord, infoSyncSummary, infoSyncTargetStates, infoWatchDetails, mediaInfoGlanceEntries, renderInfoWatchSync } from "./media-info-summary.js?v=0.16.3.4";
 
 let _cb = {};
 let _mediaRenderToken = 0;

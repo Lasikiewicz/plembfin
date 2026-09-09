@@ -1,4 +1,4 @@
-import { escapeAttribute } from "./utils.js?v=0.16.3.3";
+import { escapeAttribute } from "./utils.js?v=0.16.3.4";
 
 export function initMediaLightbox() {
   // Side-effect globals below preserve existing inline/event-delegated handlers.
