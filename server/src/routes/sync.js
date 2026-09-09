@@ -1450,7 +1450,9 @@ export async function handleRetrySyncHistory(req, res) {
     const result = await retrySyncActivityEntry(body.id);
     return sendJson(res, { ok: true, ...result });
   } catch (error) {
-    return sendJson(res, { error: error.message }, error.status || 500);
+    const status = Number.isInteger(error?.status) && error.status >= 400 && error.status < 600 ? error.status : 500;
+    console.error("Retry sync activity failed", error);
+    return sendJson(res, { error: status === 404 ? "Sync activity item not found" : "Retry sync activity failed" }, status);
   }
 }
 
@@ -1479,7 +1481,9 @@ export async function handleDismissSyncHistory(req, res) {
       results.push({ id, status: "dismissed", ...result });
     } catch (error) {
       failed += 1;
-      results.push({ id, status: "error", error: error.message || String(error), code: error.status || 500 });
+      const code = Number.isInteger(error?.status) && error.status >= 400 && error.status < 600 ? error.status : 500;
+      console.error("Dismiss sync activity failed", error);
+      results.push({ id, status: "error", error: code === 404 ? "Sync activity item not found" : "Dismiss sync activity failed", code });
     }
   }
 
@@ -1506,7 +1510,9 @@ export async function handleRetrySyncActivityGroup(req, res) {
     const result = await retrySyncActivityGroup(groupKey);
     return sendJson(res, { ok: true, ...result });
   } catch (error) {
-    return sendJson(res, { ok: false, error: error.message || String(error) }, error.status || 500);
+    const status = Number.isInteger(error?.status) && error.status >= 400 && error.status < 600 ? error.status : 500;
+    console.error("Retry sync activity group failed", error);
+    return sendJson(res, { ok: false, error: status === 404 ? "Sync activity group not found" : "Retry sync activity group failed" }, status);
   }
 }
 
