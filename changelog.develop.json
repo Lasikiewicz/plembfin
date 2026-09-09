@@ -1,7 +1,19 @@
 {
   "version": "0.16.3",
-  "build": 2,
+  "build": 3,
   "resetCommit": "688cb9dd105887ed6dc8411de68c40fdd9b00231",
-  "updatedAt": "2026-09-09T10:53:47.337Z",
-  "entries": []
+  "updatedAt": "2026-09-09T11:19:19.298Z",
+  "entries": [
+    {
+      "build": 3,
+      "date": "2026-09-09T11:19:19.298Z",
+      "commit": "e8af8ee99c5215dce436fe6f8ddfabd11d854ac9",
+      "message": "Fix - Restore provider artwork on dashboard cards",
+      "author": "Lasikiewicz",
+      "details": [
+        "Keep authenticated provider poster proxies visible in cache-only dashboard surfaces.",
+        "Start Now Playing with eager media-key artwork and merge unambiguous cross-provider movie resumes."
+      ]
+    }
+  ]
 }
