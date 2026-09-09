@@ -1,7 +1,25 @@
 {
   "version": "0.16.3",
-  "build": 6,
+  "build": 8,
   "resetCommit": "dd904e57bfc93bc8ea9e73e34307929e47d59a66",
-  "updatedAt": "2026-09-09T14:43:16.677Z",
-  "entries": []
+  "updatedAt": "2026-09-09T16:45:23.649Z",
+  "entries": [
+    {
+      "build": 8,
+      "date": "2026-09-09T16:45:23.649Z",
+      "commit": "78cacff389b38bcf9e681a71416f6410e229e9b6",
+      "message": "This update includes track website coverage index and track website content module.",
+      "author": "Lasikiewicz",
+      "details": [
+        "Include the static site's app-surface coverage index in fresh clones",
+        "Keep runtime data directories ignored while allowing this documented website input",
+        "Include the shared static-site content module used by every page and navigation rail",
+        "Keep the website self-contained when Cloudflare clones only the tracked repository"
+      ],
+      "messageFragments": [
+        "Fix - Track website coverage index",
+        "Fix - Track website content module"
+      ]
+    }
+  ]
 }
