@@ -1,27 +1,7 @@
 {
   "version": "0.16.3",
   "build": 9,
-  "resetCommit": "dd904e57bfc93bc8ea9e73e34307929e47d59a66",
-  "updatedAt": "2026-09-09T18:38:47.382Z",
-  "entries": [
-    {
-      "build": 9,
-      "date": "2026-09-09T18:38:47.382Z",
-      "commit": "2ade9975e7e79941e0b0de52cd9aaa5002723484",
-      "message": "This update includes track website coverage index, track website content module, and gate website deployments on main.",
-      "author": "Lasikiewicz",
-      "details": [
-        "Include the static site's app-surface coverage index in fresh clones",
-        "Keep runtime data directories ignored while allowing this documented website input",
-        "Include the shared static-site content module used by every page and navigation rail",
-        "Keep the website self-contained when Cloudflare clones only the tracked repository",
-        "The public documentation site now publishes only from the Force-to-main release on main."
-      ],
-      "messageFragments": [
-        "Fix - Track website coverage index",
-        "Fix - Track website content module",
-        "Docs - Gate website deployments on main"
-      ]
-    }
-  ]
+  "resetCommit": "a22b5fa1796b815cc03e977b42731bb62c05c4a2",
+  "updatedAt": "2026-09-09T18:40:41.108Z",
+  "entries": []
 }
