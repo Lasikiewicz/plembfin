@@ -1,8 +1,35 @@
 {
   "baseVersion": "1.0.1",
-  "build": 0,
-  "version": "1.0.1.0.0",
-  "updatedAt": "2026-09-11T13:40:25.053Z",
+  "build": 1,
+  "version": "1.0.1.1",
+  "updatedAt": "2026-09-11T15:15:41.393Z",
   "releaseMessage": "",
-  "entries": []
+  "entries": [
+    {
+      "build": 1,
+      "version": "1.0.1.1",
+      "shortVersion": "1.0.1.1",
+      "date": "2026-09-11T15:15:41.393Z",
+      "commit": "c96639e7b6e184a4d52b7ee644cc1ef4aa965f11",
+      "message": "Fix - Preserve changelog and completed setup state",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix: Preserve changelog and completed setup state",
+        "Fix: Open the Changelog directly from the bottom-left version link",
+        "Fix: Keep completed onboarding controls hidden after startup and refresh",
+        "Fix: Preserve Manual Watch review counts while navigating between pages"
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Preserve changelog and completed setup state",
+          "Open the Changelog directly from the bottom-left version link",
+          "Keep completed onboarding controls hidden after startup and refresh",
+          "Preserve Manual Watch review counts while navigating between pages"
+        ],
+        "tweaks": []
+      }
+    }
+  ],
+  "shortVersion": "1.0.1.1"
 }
