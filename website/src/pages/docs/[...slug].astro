@@ -68,7 +68,7 @@ const browserTitle = entry.slug === "history-search" ? "History and global searc
     }
   };
 
-  const scrollToHashTarget = (behavior = "auto") => {
+  const scrollToHashTarget = (behavior: ScrollBehavior = "auto") => {
     const target = getHashTarget();
     if (!(target instanceof HTMLElement)) return;
 
@@ -78,7 +78,7 @@ const browserTitle = entry.slug === "history-search" ? "History and global searc
     window.scrollTo({ top: Math.max(0, top), behavior });
   };
 
-  const scheduleHashScroll = (behavior = "auto") => {
+  const scheduleHashScroll = (behavior: ScrollBehavior = "auto") => {
     const align = () => {
       scrollToHashTarget(behavior);
       window.setTimeout(() => scrollToHashTarget("auto"), 180);

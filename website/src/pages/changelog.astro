@@ -44,8 +44,8 @@ import release from "../generated/release.json";
 </SiteLayout>
 
 <script>
-  const channelButtons = [...document.querySelectorAll("[data-changelog-channel]")];
-  const channelPanels = [...document.querySelectorAll("[data-changelog-panel]")];
+  const channelButtons = [...document.querySelectorAll<HTMLButtonElement>("[data-changelog-channel]")];
+  const channelPanels = [...document.querySelectorAll<HTMLElement>("[data-changelog-panel]")];
 
   channelButtons.forEach((button) => {
     button.addEventListener("click", () => {

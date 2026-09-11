@@ -1,10 +1,17 @@
 ---
 import { docsSidebarNav } from "../data/site.js";
 
+type DocsSidebarItem = {
+  id?: string;
+  slug: string;
+  label: string;
+  children?: DocsSidebarItem[];
+};
+
 const { currentSlug = "" } = Astro.props;
 const isDocsHome = Astro.url.pathname === "/docs/";
 const isCurrentPage = (slug = "") => slug === currentSlug;
-const hasCurrentChild = (item) => (item.children || []).some((child) => isCurrentPage(child.slug));
+const hasCurrentChild = (item: DocsSidebarItem) => (item.children || []).some((child: DocsSidebarItem) => isCurrentPage(child.slug));
 ---
 
 <aside class="docs-sidebar" data-doc-sidebar data-doc-current-slug={currentSlug} aria-label="Documentation navigation">
@@ -16,8 +23,8 @@ const hasCurrentChild = (item) => (item.children || []).some((child) => isCurren
   >Docs Home</a>
 
   <nav class="docs-nav-pages" aria-label="Documentation pages">
-    {docsSidebarNav.map((item, index) => {
-      const children = item.children || [];
+    {(docsSidebarNav as DocsSidebarItem[]).map((item, index) => {
+      const children: DocsSidebarItem[] = item.children || [];
       const isCurrent = isCurrentPage(item.slug);
       const isBranchCurrent = isCurrent || hasCurrentChild(item);
       const subnavId = `docs-nav-subnav-${item.id || index}`;
@@ -63,7 +70,7 @@ const hasCurrentChild = (item) => (item.children || []).some((child) => isCurren
               aria-label={`${item.label} documentation`}
               hidden={!isBranchCurrent}
             >
-              {children.map((child) => {
+              {children.map((child: DocsSidebarItem) => {
                 const childIsCurrent = isCurrentPage(child.slug);
                 return (
                   <a
@@ -90,7 +97,7 @@ const hasCurrentChild = (item) => (item.children || []).some((child) => isCurren
     toggle.addEventListener("click", () => {
       const section = toggle.closest("[data-doc-nav-section]");
       const subnav = document.getElementById(toggle.getAttribute("aria-controls") || "");
-      if (!section || !subnav) return;
+      if (!(section instanceof HTMLElement) || !(subnav instanceof HTMLElement)) return;
 
       const isOpen = toggle.getAttribute("aria-expanded") === "true";
       const nextOpen = !isOpen;

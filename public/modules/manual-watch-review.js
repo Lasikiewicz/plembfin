@@ -1,7 +1,7 @@
-import { state } from "./state.js?v=1.0.1.1";
-import { buildAuthHeaders } from "./auth.js?v=1.0.1.1";
-import { posterMarkup, hydratePosters } from "./images.js?v=1.0.1.1";
-import { escapeAttribute, escapeHtml, formatDate, movieHref, movieTmdbHref, slug, toDateTimeInputValue, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js?v=1.0.1.1";
+import { state } from "./state.js?v=1.0.1.2";
+import { buildAuthHeaders } from "./auth.js?v=1.0.1.2";
+import { posterMarkup, hydratePosters } from "./images.js?v=1.0.1.2";
+import { escapeAttribute, escapeHtml, formatDate, movieHref, movieTmdbHref, slug, toDateTimeInputValue, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js?v=1.0.1.2";
 
 let _cb = {};
 let reviewPollTimer = null;

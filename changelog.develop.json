@@ -1,17 +1,18 @@
 {
   "version": "1.0.1",
-  "build": 4,
-  "resetCommit": "c96639e7b6e184a4d52b7ee644cc1ef4aa965f11",
-  "updatedAt": "2026-09-11T15:26:14.436Z",
+  "build": 5,
+  "resetCommit": "0a717e5798c4cd82fd6b2ea96ebb8c914d2a391f",
+  "updatedAt": "2026-09-11T15:50:37.105Z",
   "entries": [
     {
-      "build": 4,
-      "date": "2026-09-11T15:26:14.436Z",
-      "commit": "39086f63cb4f223d9003c334c204f2096812eec5",
-      "message": "Fix - Serialize live change trigger setup",
+      "build": 5,
+      "date": "2026-09-11T15:50:37.105Z",
+      "commit": "fdaa0f8519b5c73eb5f43581e17795ddb9ca72d1",
+      "message": "Docs - Align website with current release",
       "author": "Lasikiewicz",
       "details": [
-        "Prevent concurrent startup races when installing live-change notifications."
+        "Align the website verification markers and release data with the v1.0.1 stable application baseline",
+        "Clarify that the bottom-left version link opens Settings → Changelog while About identifies the installed app"
       ]
     }
   ]

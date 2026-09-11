@@ -7,14 +7,32 @@ import { docsNav } from "../../data/site.js";
 
 const entries = await getCollection("docs");
 const docsBySlug = new Map(entries.map((entry) => [entry.slug, entry]));
-const stripSearchMarkup = (value) => String(value || "")
+type HeadingInfo = { level: number; text: string };
+type NavChild = { id: string; label: string; children?: NavChild[] };
+type NavItem = { slug: string; label: string; description: string; children?: NavChild[] };
+type NavSection = { label: string; items: NavItem[] };
+type SectionScreenshot = { darkSrc: string; lightSrc: string; alt: string; caption: string };
+type SearchPage = { slug: string; label: string; body: string };
+type SectionSearchEntry = NavChild & {
+  section: string;
+  body: string;
+  excerpt: string;
+  screenshot: SectionScreenshot | null;
+  headingPath: string[];
+  href: string;
+  kind: "section";
+  pageLabel: string;
+  pageSlug: string;
+};
+
+const stripSearchMarkup = (value: unknown) => String(value || "")
   .replace(/<[^>]+>/g, " ")
   .replace(/!\[[^\]]*\]\([^)]*\)/g, " ")
   .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
   .replace(/[\\*_`>#-]/g, " ")
   .replace(/\s+/g, " ")
   .trim();
-const headingFromLine = (line) => {
+const headingFromLine = (line: string): HeadingInfo | null => {
   const normalizedLine = line.trim();
   const markdownHeading = normalizedLine.match(/^(#{2,6})\s+(.+?)\s*#*\s*$/);
   if (markdownHeading) return { level: markdownHeading[1].length, text: markdownHeading[2] };
@@ -22,14 +40,14 @@ const headingFromLine = (line) => {
   if (htmlHeading) return { level: Number(htmlHeading[1]), text: htmlHeading[2] };
   return null;
 };
-const headingSlug = (value) => stripSearchMarkup(value).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
-const truncateSearchText = (value, limit = 420) => {
+const headingSlug = (value: unknown) => stripSearchMarkup(value).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+const truncateSearchText = (value: unknown, limit = 420) => {
   const text = stripSearchMarkup(value);
   if (text.length <= limit) return text;
   return `${text.slice(0, limit).replace(/\s+\S*$/, "")}…`;
 };
-const readAttribute = (attributes, name) => attributes.match(new RegExp(`${name}="([^"]+)"`, "i"))?.[1] || "";
-const extractSectionScreenshot = (body) => {
+const readAttribute = (attributes: string, name: string) => attributes.match(new RegExp(`${name}="([^"]+)"`, "i"))?.[1] || "";
+const extractSectionScreenshot = (body: unknown): SectionScreenshot | null => {
   const match = String(body || "").match(/<ScreenshotFigure\b([\s\S]*?)\/>/i);
   if (!match) return null;
 
@@ -46,7 +64,7 @@ const extractSectionScreenshot = (body) => {
     caption: readAttribute(attributes, "caption"),
   };
 };
-const extractSectionBody = (body, id) => {
+const extractSectionBody = (body: unknown, id: string) => {
   const lines = String(body || "").split(/\r?\n/);
   const start = lines.findIndex((line) => {
     const heading = headingFromLine(line);
@@ -62,7 +80,7 @@ const extractSectionBody = (body, id) => {
   });
   return lines.slice(start + 1, end < 0 ? lines.length : end).join(" ");
 };
-const collectSectionEntries = (children, page, section, parentHeadings = []) => children.flatMap((child) => {
+const collectSectionEntries = (children: NavChild[], page: SearchPage, section: string, parentHeadings: string[] = []): SectionSearchEntry[] => children.flatMap((child) => {
   const sectionBody = extractSectionBody(page.body, child.id);
   const headingPath = [...parentHeadings, child.label];
   return [
@@ -81,7 +99,7 @@ const collectSectionEntries = (children, page, section, parentHeadings = []) => 
     ...collectSectionEntries(child.children || [], page, section, headingPath),
   ];
 });
-const docsSearchEntries = docsNav.flatMap((section) => section.items.flatMap((item) => {
+const docsSearchEntries = (docsNav as NavSection[]).flatMap((section) => section.items.flatMap((item) => {
   const entry = docsBySlug.get(item.slug);
   if (!entry) return [];
 
@@ -192,8 +210,8 @@ const docsSearchEntries = docsNav.flatMap((section) => section.items.flatMap((it
   const resultItems = [...document.querySelectorAll<HTMLElement>("[data-doc-search-result]")];
   const emptyState = document.querySelector<HTMLElement>("#docs-search-empty");
   const resultOrder = new Map(resultItems.map((item, index) => [item, index]));
-  const normalizeSearchText = (value) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-  const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const normalizeSearchText = (value: string) => value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
   if (input && !input.value) {
     const query = new URL(window.location.href).searchParams.get("q") || "";
@@ -206,19 +224,19 @@ const docsSearchEntries = docsNav.flatMap((section) => section.items.flatMap((it
     });
   };
 
-  const highlightMatches = (query) => {
+  const highlightMatches = (query: string) => {
     clearHighlights();
     if (!query || !resultList) return;
 
     const terms = query.split(" ").filter(Boolean);
     const matcher = new RegExp(`(${terms.map(escapeRegExp).join("|")})`, "gi");
     const walker = document.createTreeWalker(resultList, NodeFilter.SHOW_TEXT);
-    const textNodes = [];
+    const textNodes: Text[] = [];
     let node = walker.nextNode();
 
     while (node) {
       const parent = node.parentElement;
-      if (parent && !parent.closest("pre, code, script, style, mark, [hidden]")) textNodes.push(node);
+      if (node instanceof Text && parent && !parent.closest("pre, code, script, style, mark, [hidden]")) textNodes.push(node);
       node = walker.nextNode();
     }
 
@@ -241,11 +259,11 @@ const docsSearchEntries = docsNav.flatMap((section) => section.items.flatMap((it
           fragment.append(document.createTextNode(part));
         }
       });
-      textNode.replaceWith(fragment);
+      textNode.parentNode?.replaceChild(fragment, textNode);
     });
   };
 
-  const scoreSearchResult = (item, query) => {
+  const scoreSearchResult = (item: HTMLElement, query: string) => {
     const label = normalizeSearchText(item.getAttribute("data-search-label") || "");
     const headings = normalizeSearchText(item.getAttribute("data-search-headings") || "");
     const text = normalizeSearchText(item.getAttribute("data-search-text") || "");

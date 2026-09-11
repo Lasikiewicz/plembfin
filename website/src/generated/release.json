@@ -1,8 +1,26 @@
 {
-  "version": "1.0.0",
-  "date": "9 September 2026",
-  "summary": "Release the feature-complete Plembfin app with its refreshed documentation website, covering current dashboard, Up Next, sync activity, spoiler guidance, and stabilized live media cards.",
+  "version": "1.0.1",
+  "date": "11 September 2026",
+  "summary": "Complete first-run setup and Windows distribution with a self-contained installer, optional tray controls, safer service cleanup, separate runtime data, and clearer onboarding and release documentation.",
   "entries": [
+    {
+      "version": "1.0.1",
+      "date": "11 September 2026",
+      "title": "v1.0.1",
+      "summary": "Complete first-run setup and Windows distribution with a self-contained installer, optional tray controls, safer service cleanup, separate runtime data, and clearer onboarding and release documentation.",
+      "bullets": [
+        "Publish formatted notes with every release",
+        "Generate readable release notes from the committed changelog for alpha and stable builds",
+        "Publish Docker and Windows outputs together on the matching GitHub Release",
+        "Include setup guidance, limitations, download links, and screenshots in each release",
+        "Complete first-run setup and Windows distribution",
+        "Guide new instances through account claiming and show the claimed account details and local address",
+        "Add a self-contained Windows installer with service cleanup, optional tray startup, and post-install launch choices",
+        "Keep installed runtime data separate from the source checkout so reinstalls do not reuse repository data",
+        "Improve live media and watch-state updates across dashboard, history, and sync surfaces",
+        "Add a packaged demo catalog and refresh the public documentation experience"
+      ]
+    },
     {
       "version": "1.0.0",
       "date": "9 September 2026",
@@ -5046,47 +5064,33 @@
     }
   ],
   "alpha": {
-    "baseVersion": "1.0.0",
-    "build": 3,
-    "version": "1.0.0.3",
-    "updatedAt": "2026-09-11T13:08:28.827Z",
+    "baseVersion": "1.0.1",
+    "build": 2,
+    "version": "1.0.1.2",
+    "updatedAt": "2026-09-11T15:28:03.837Z",
     "entries": [
       {
-        "build": 3,
-        "version": "1.0.0.3",
-        "date": "11 September 2026",
-        "title": "Alpha build 3",
-        "summary": "Feature - Publish formatted notes with every release",
-        "bullets": [
-          "Feature: Publish formatted notes with every release",
-          "Feature: Generate readable release notes from the committed changelog for alpha and stable builds",
-          "Feature: Publish Docker and Windows outputs together on the matching GitHub Release",
-          "Feature: Include setup guidance, limitations, download links, and screenshots in each release"
-        ]
-      },
-      {
         "build": 2,
-        "version": "1.0.0.2",
+        "version": "1.0.1.2",
         "date": "11 September 2026",
         "title": "Alpha build 2",
-        "summary": "Consolidated develop updates",
+        "summary": "Fix - Serialize live change trigger setup",
         "bullets": [
-          "Consolidated updates and improvements from develop"
+          "Fix: Serialize live change trigger setup",
+          "Fix: Prevent concurrent startup races when installing live-change notifications."
         ]
       },
       {
         "build": 1,
-        "version": "1.0.0.1",
+        "version": "1.0.1.1",
         "date": "11 September 2026",
         "title": "Alpha build 1",
-        "summary": "Feature - Complete first-run setup and Windows distribution",
+        "summary": "Fix - Preserve changelog and completed setup state",
         "bullets": [
-          "Feature: Complete first-run setup and Windows distribution",
-          "Feature: Guide new instances through account claiming and show the claimed account details and local address",
-          "Feature: Add a self-contained Windows installer with service cleanup, optional tray startup, and post-install launch choices",
-          "Feature: Keep installed runtime data separate from the source checkout so reinstalls do not reuse repository data",
-          "Feature: Improve live media and watch-state updates across dashboard, history, and sync surfaces",
-          "Feature: Add a packaged demo catalog and refresh the public documentation experience"
+          "Fix: Preserve changelog and completed setup state",
+          "Fix: Open the Changelog directly from the bottom-left version link",
+          "Fix: Keep completed onboarding controls hidden after startup and refresh",
+          "Fix: Preserve Manual Watch review counts while navigating between pages"
         ]
       }
     ]

@@ -19,17 +19,27 @@
 
     if (!(search instanceof HTMLElement) || !(article instanceof HTMLElement) || !(input instanceof HTMLInputElement)) return;
 
-    const headings = [...article.children].filter((element) => element.tagName === "H2" && element.id);
+    const headings = [...article.children].filter(
+      (element): element is HTMLElement => element instanceof HTMLElement && element.tagName === "H2" && Boolean(element.id),
+    );
     if (!headings.length) {
       search.hidden = true;
       return;
     }
 
-    const normalize = (value) => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-    const blocks = headings.map((heading, index) => {
+    const normalize = (value: unknown) => String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+    type ArticleSection = {
+      block: HTMLElement;
+      index: number;
+      searchText: string;
+      headingSearchTexts: string[];
+      combinedHeadingSearchText: string;
+    };
+
+    const blocks: ArticleSection[] = headings.map((heading, index) => {
       const block = document.createElement("section");
       const nextHeading = headings[index + 1] || null;
-      let node = heading;
+      let node: Element | null = heading;
 
       block.className = "article-section-block";
       block.dataset.docSectionBlock = "true";
@@ -37,7 +47,7 @@
       article.insertBefore(block, heading);
 
       while (node && node !== nextHeading) {
-        const next = node.nextElementSibling;
+        const next: Element | null = node.nextElementSibling;
         block.append(node);
         node = next;
       }
@@ -55,8 +65,8 @@
       };
     });
 
-    const introElements = [...article.children].filter((element) => !element.matches("[data-doc-section-block]"));
-    const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const introElements = [...article.children].filter((element): element is HTMLElement => element instanceof HTMLElement && !element.matches("[data-doc-section-block]"));
+    const escapeRegExp = (value: string) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
     const clearHighlights = () => {
       article.querySelectorAll("mark[data-doc-search-highlight]").forEach((mark) => {
@@ -64,18 +74,18 @@
       });
     };
 
-    const highlightMatches = (terms) => {
+    const highlightMatches = (terms: string[]) => {
       clearHighlights();
       if (!terms.length) return;
 
       const matcher = new RegExp(`(${terms.map(escapeRegExp).join("|")})`, "gi");
       const walker = document.createTreeWalker(article, NodeFilter.SHOW_TEXT);
-      const textNodes = [];
+      const textNodes: Text[] = [];
       let node = walker.nextNode();
 
       while (node) {
         const parent = node.parentElement;
-        if (parent && !parent.closest("pre, code, script, style, mark, [hidden]")) textNodes.push(node);
+        if (node instanceof Text && parent && !parent.closest("pre, code, script, style, mark, [hidden]")) textNodes.push(node);
         node = walker.nextNode();
       }
 
@@ -98,7 +108,7 @@
             fragment.append(document.createTextNode(part));
           }
         });
-        textNode.replaceWith(fragment);
+        textNode.parentNode?.replaceChild(fragment, textNode);
       });
     };
 
@@ -109,7 +119,7 @@
         ? blocks
             .filter((entry) => entry.searchText.includes(query))
             .sort((left, right) => {
-              const getTitleScore = (entry) => {
+              const getTitleScore = (entry: ArticleSection) => {
                 if (entry.headingSearchTexts.some((title) => title === query)) return 3;
                 if (entry.headingSearchTexts.some((title) => title.includes(query))) return 2;
                 return entry.combinedHeadingSearchText.includes(query) ? 1 : 0;

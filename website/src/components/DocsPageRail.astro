@@ -21,13 +21,13 @@ const { sourceVersion = "", sourceCount = 0 } = Astro.props;
 
     if (!(rail instanceof HTMLElement) || !(article instanceof HTMLElement) || !(list instanceof HTMLElement)) return;
 
-    const headings = [...article.querySelectorAll("h2[id], h3[id], h4[id]")];
+    const headings = [...article.querySelectorAll<HTMLElement>("h2[id], h3[id], h4[id]")];
     if (!headings.length) {
       rail.hidden = true;
       return;
     }
 
-    const getSectionText = (heading) => {
+    const getSectionText = (heading: HTMLElement) => {
       const level = Number(heading.tagName.slice(1));
       let text = heading.textContent || "";
       let sibling = heading.nextElementSibling;
