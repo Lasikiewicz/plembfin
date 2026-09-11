@@ -1219,12 +1219,13 @@ try {
 // columns can still be upgraded, then install the richest trigger shape the
 // resulting table supports once migrations have completed.
 function installLiveChangeTriggers() {
-  const columnsFor = (table) => new Set(db.pragma(`table_info(${table})`).map((column) => column.name));
-  const expr = (alias, column, columns) => columns.has(column) ? `${alias}.${column}` : "NULL";
-  const triggerNames = [
-    "watch_history", "playstate", "playback_progress", "personal_watchlist", "manual_watch_reviews",
-  ].flatMap((table) => ["insert", "update", "delete"].map((event) => `trg_${table}_live_${event}`));
-  for (const name of triggerNames) db.exec(`DROP TRIGGER IF EXISTS ${name}`);
+  db.transaction(() => {
+    const columnsFor = (table) => new Set(db.pragma(`table_info(${table})`).map((column) => column.name));
+    const expr = (alias, column, columns) => columns.has(column) ? `${alias}.${column}` : "NULL";
+    const triggerNames = [
+      "watch_history", "playstate", "playback_progress", "personal_watchlist", "manual_watch_reviews",
+    ].flatMap((table) => ["insert", "update", "delete"].map((event) => `trg_${table}_live_${event}`));
+    for (const name of triggerNames) db.exec(`DROP TRIGGER IF EXISTS ${name}`);
 
   const createTriggers = ({ table, source, recordIdColumn = null, updateOldKeyDelete = false, mediaKeyColumn = "media_key" }) => {
     const columns = columnsFor(table);
@@ -1247,13 +1248,13 @@ function installLiveChangeTriggers() {
     `);
   };
 
-  const watchColumns = columnsFor("watch_history");
-  if (watchColumns.has("id") && watchColumns.has("media_key") && watchColumns.has("media_type")) {
-    const insertEvent = (kind, alias) => `
+    const watchColumns = columnsFor("watch_history");
+    if (watchColumns.has("id") && watchColumns.has("media_key") && watchColumns.has("media_type")) {
+      const insertEvent = (kind, alias) => `
       INSERT INTO live_change_events (source_table, change_kind, media_key, record_id, media_type, title, show_title, season, episode, created_at)
       VALUES ('watch_history', '${kind}', ${expr(alias, "media_key", watchColumns)}, ${expr(alias, "id", watchColumns)}, ${expr(alias, "media_type", watchColumns)}, ${expr(alias, "title", watchColumns)}, ${expr(alias, "show_title", watchColumns)}, ${expr(alias, "season", watchColumns)}, ${expr(alias, "episode", watchColumns)}, CAST(unixepoch('subsec')*1000 AS INTEGER));
     `;
-    db.exec(`
+      db.exec(`
       CREATE TRIGGER trg_watch_history_live_insert AFTER INSERT ON watch_history BEGIN
         ${insertEvent("upsert", "NEW")}
       END;
@@ -1266,16 +1267,17 @@ function installLiveChangeTriggers() {
       CREATE TRIGGER trg_watch_history_live_delete AFTER DELETE ON watch_history BEGIN
         ${insertEvent("delete", "OLD")}
       END;
-    `);
-  }
+      `);
+    }
 
-  createTriggers({ table: "playstate", source: "playstate" });
-  createTriggers({ table: "playback_progress", source: "playback_progress" });
-  createTriggers({ table: "personal_watchlist", source: "personal_watchlist" });
-  // Review rows have their own identity so a status update cannot coalesce
-  // away the canonical watch-history event for the same media key. The
-  // source-specific event lets the browser refresh only the review item/list.
-  createTriggers({ table: "manual_watch_reviews", source: "manual_watch_reviews", recordIdColumn: "id", mediaKeyColumn: null });
+    createTriggers({ table: "playstate", source: "playstate" });
+    createTriggers({ table: "playback_progress", source: "playback_progress" });
+    createTriggers({ table: "personal_watchlist", source: "personal_watchlist" });
+    // Review rows have their own identity so a status update cannot coalesce
+    // away the canonical watch-history event for the same media key. The
+    // source-specific event lets the browser refresh only the review item/list.
+    createTriggers({ table: "manual_watch_reviews", source: "manual_watch_reviews", recordIdColumn: "id", mediaKeyColumn: null });
+  }).immediate();
 }
 
 try {
