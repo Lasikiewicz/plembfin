@@ -1,10 +1,27 @@
 {
   "baseVersion": "1.0.0",
-  "build": 1,
-  "version": "1.0.0.1",
-  "updatedAt": "2026-09-11T12:10:07.019Z",
+  "build": 2,
+  "version": "1.0.0.2",
+  "updatedAt": "2026-09-11T12:32:13.013Z",
   "releaseMessage": "",
   "entries": [
+    {
+      "build": 2,
+      "version": "1.0.0.2",
+      "shortVersion": "1.0.0.2",
+      "date": "2026-09-11T12:32:13.013Z",
+      "commit": "f5223d51c1f7561032a0c0a669e4abfbaa981f3b",
+      "message": "Consolidated develop updates",
+      "author": "Lasikiewicz",
+      "details": [
+        "Consolidated updates and improvements from develop"
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [],
+        "tweaks": []
+      }
+    },
     {
       "build": 1,
       "version": "1.0.0.1",
@@ -35,5 +52,5 @@
       }
     }
   ],
-  "shortVersion": "1.0.0.1"
+  "shortVersion": "1.0.0.2"
 }
