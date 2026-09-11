@@ -1,10 +1,31 @@
 {
   "baseVersion": "1.0.1",
-  "build": 1,
-  "version": "1.0.1.1",
-  "updatedAt": "2026-09-11T15:15:41.393Z",
+  "build": 2,
+  "version": "1.0.1.2",
+  "updatedAt": "2026-09-11T15:28:03.837Z",
   "releaseMessage": "",
   "entries": [
+    {
+      "build": 2,
+      "version": "1.0.1.2",
+      "shortVersion": "1.0.1.2",
+      "date": "2026-09-11T15:28:03.837Z",
+      "commit": "0a717e5798c4cd82fd6b2ea96ebb8c914d2a391f",
+      "message": "Fix - Serialize live change trigger setup",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix: Serialize live change trigger setup",
+        "Fix: Prevent concurrent startup races when installing live-change notifications."
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Serialize live change trigger setup",
+          "Prevent concurrent startup races when installing live-change notifications."
+        ],
+        "tweaks": []
+      }
+    },
     {
       "build": 1,
       "version": "1.0.1.1",
@@ -31,5 +52,5 @@
       }
     }
   ],
-  "shortVersion": "1.0.1.1"
+  "shortVersion": "1.0.1.2"
 }
