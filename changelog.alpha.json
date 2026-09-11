@@ -1,10 +1,35 @@
 {
   "baseVersion": "1.0.0",
-  "build": 3,
-  "version": "1.0.0.3",
-  "updatedAt": "2026-09-11T13:08:28.827Z",
+  "build": 4,
+  "version": "1.0.0.4",
+  "updatedAt": "2026-09-11T13:28:48.019Z",
   "releaseMessage": "",
   "entries": [
+    {
+      "build": 4,
+      "version": "1.0.0.4",
+      "shortVersion": "1.0.0.4",
+      "date": "2026-09-11T13:28:48.019Z",
+      "commit": "100b56369f68aa53bd8715a3ec6e311da108c220",
+      "message": "Docs - Update website for Windows distribution",
+      "author": "Lasikiewicz",
+      "details": [
+        "Tweak: Update website for Windows distribution",
+        "Tweak: Document the Windows installer, runtime data location, and first-launch choices",
+        "Tweak: Mark Getting started as verified against the v1.0.0 application baseline",
+        "Tweak: Align website coverage checks with the current Settings navigation"
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [],
+        "tweaks": [
+          "Update website for Windows distribution",
+          "Document the Windows installer, runtime data location, and first-launch choices",
+          "Mark Getting started as verified against the v1.0.0 application baseline",
+          "Align website coverage checks with the current Settings navigation"
+        ]
+      }
+    },
     {
       "build": 3,
       "version": "1.0.0.3",
@@ -77,5 +102,5 @@
       }
     }
   ],
-  "shortVersion": "1.0.0.3"
+  "shortVersion": "1.0.0.4"
 }
