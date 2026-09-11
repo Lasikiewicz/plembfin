@@ -96,6 +96,10 @@ if command -v ss >/dev/null 2>&1 \
   && [[ "$existing_container_owns_port" != true ]] \
   && "${SUDO[@]}" ss -ltnH | awk -v port=":$HOST_PORT" '$4 ~ (port "$") { found = 1 } END { exit found ? 0 : 1 }'; then
   echo "Port $HOST_PORT is already in use by a service other than $CONTAINER_NAME" >&2
+  echo "Listeners on port $HOST_PORT:" >&2
+  "${SUDO[@]}" ss -ltnp 2>/dev/null | awk -v port=":$HOST_PORT" '$4 ~ (port "$")' >&2 || true
+  echo "Containers on the OCI host:" >&2
+  run_runtime ps --all --format '{{.Names}}\t{{.Ports}}' >&2 || true
   exit 1
 fi
 
