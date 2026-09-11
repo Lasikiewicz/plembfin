@@ -1,7 +1,52 @@
 {
-  "version": "1.0.0",
-  "updatedAt": "2026-09-09T19:00:27.980Z",
+  "version": "1.0.1",
+  "updatedAt": "2026-09-11T13:40:25.053Z",
   "entries": [
+    {
+      "version": "1.0.1",
+      "version5Digit": "1.0.1.0.0",
+      "date": "2026-09-11T13:40:25.053Z",
+      "commit": "b5fa0258838f781d0b3f05a9a24c08b36db0f590",
+      "message": "Complete first-run setup and Windows distribution with a self-contained installer, optional tray controls, safer service cleanup, separate runtime data, and clearer onboarding and release documentation.",
+      "author": "Lasikiewicz",
+      "details": [
+        "Feature: Publish formatted notes with every release",
+        "Feature: Generate readable release notes from the committed changelog for alpha and stable builds",
+        "Feature: Publish Docker and Windows outputs together on the matching GitHub Release",
+        "Feature: Include setup guidance, limitations, download links, and screenshots in each release",
+        "Feature: Complete first-run setup and Windows distribution",
+        "Feature: Guide new instances through account claiming and show the claimed account details and local address",
+        "Feature: Add a self-contained Windows installer with service cleanup, optional tray startup, and post-install launch choices",
+        "Feature: Keep installed runtime data separate from the source checkout so reinstalls do not reuse repository data",
+        "Feature: Improve live media and watch-state updates across dashboard, history, and sync surfaces",
+        "Feature: Add a packaged demo catalog and refresh the public documentation experience",
+        "Tweak: Update website for Windows distribution",
+        "Tweak: Document the Windows installer, runtime data location, and first-launch choices",
+        "Tweak: Mark Getting started as verified against the v1.0.0 application baseline",
+        "Tweak: Align website coverage checks with the current Settings navigation"
+      ],
+      "sections": {
+        "newFeatures": [
+          "Publish formatted notes with every release",
+          "Generate readable release notes from the committed changelog for alpha and stable builds",
+          "Publish Docker and Windows outputs together on the matching GitHub Release",
+          "Include setup guidance, limitations, download links, and screenshots in each release",
+          "Complete first-run setup and Windows distribution",
+          "Guide new instances through account claiming and show the claimed account details and local address",
+          "Add a self-contained Windows installer with service cleanup, optional tray startup, and post-install launch choices",
+          "Keep installed runtime data separate from the source checkout so reinstalls do not reuse repository data",
+          "Improve live media and watch-state updates across dashboard, history, and sync surfaces",
+          "Add a packaged demo catalog and refresh the public documentation experience"
+        ],
+        "majorBugFixes": [],
+        "tweaks": [
+          "Update website for Windows distribution",
+          "Document the Windows installer, runtime data location, and first-launch choices",
+          "Mark Getting started as verified against the v1.0.0 application baseline",
+          "Align website coverage checks with the current Settings navigation"
+        ]
+      }
+    },
     {
       "version": "1.0.0",
       "version5Digit": "1.0.0.0.0",

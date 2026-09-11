@@ -4,6 +4,30 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v1.0.1 - 11 September 2026
+
+Complete first-run setup and Windows distribution with a self-contained installer, optional tray controls, safer service cleanup, separate runtime data, and clearer onboarding and release documentation.
+
+### New Features
+
+- Publish formatted notes with every release
+- Generate readable release notes from the committed changelog for alpha and stable builds
+- Publish Docker and Windows outputs together on the matching GitHub Release
+- Include setup guidance, limitations, download links, and screenshots in each release
+- Complete first-run setup and Windows distribution
+- Guide new instances through account claiming and show the claimed account details and local address
+- Add a self-contained Windows installer with service cleanup, optional tray startup, and post-install launch choices
+- Keep installed runtime data separate from the source checkout so reinstalls do not reuse repository data
+- Improve live media and watch-state updates across dashboard, history, and sync surfaces
+- Add a packaged demo catalog and refresh the public documentation experience
+
+### Tweaks
+
+- Update website for Windows distribution
+- Document the Windows installer, runtime data location, and first-launch choices
+- Mark Getting started as verified against the v1.0.0 application baseline
+- Align website coverage checks with the current Settings navigation
+
 ## v1.0.0 - 9 September 2026
 
 Release the feature-complete Plembfin app with its refreshed documentation website, covering current dashboard, Up Next, sync activity, spoiler guidance, and stabilized live media cards.
