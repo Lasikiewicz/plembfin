@@ -120,7 +120,7 @@
               <span class="sync-progress-dot" aria-hidden="true"></span>
               <span id="syncProgressText" class="sync-progress-text" role="status">Sync - Idle</span>
             </button>
-            <button id="appVersion" class="app-version" type="button" title="Open About">v0.0.0</button>
+            <button id="appVersion" class="app-version" type="button" title="Open Changelog">v0.0.0</button>
             <div id="sidebarAppearanceWrap" class="sidebar-appearance-wrap hidden">
               <button id="sidebarAppearanceButton" class="nav-tab sidebar-appearance-button" type="button" aria-expanded="false">
                 <span>Appearance</span>
@@ -2511,6 +2511,49 @@
                         <div style="border-top: 1px solid var(--line); padding-top: var(--space-3);">
                           <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Downloading & Exporting</b>
                           <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Use <b>Download Logs</b> to save a full <code>.log</code> file with everything, for bug reports or troubleshooting.</p>
+                        </div>
+                      </div>
+                    </article>
+                  </div>
+                </div>
+              </section>
+
+              <section class="settings-pane hidden" data-settings-panel="changelog">
+                <div class="settings-row">
+                  <div class="settings-row-main">
+                    <article class="glass-panel p-section settings-card tool-section-card">
+                      <div class="section-heading sync-heading sync-static-heading">
+                        <div class="sync-heading-title">
+                          <p style="margin: 0;">Changelog</p>
+                        </div>
+                        <span>Your version and newer releases from GitHub</span>
+                      </div>
+                      <div id="changelogPanel" class="changelog-panel" aria-live="polite"></div>
+                      <div class="settings-actions" style="margin-top: var(--space-3);">
+                        <button id="changelogRefreshButton" class="button-ghost sync-action-btn sync-tool-button" type="button">Check for updates</button>
+                      </div>
+                    </article>
+                  </div>
+
+                  <div class="settings-row-help">
+                    <article class="glass-panel p-section settings-card">
+                      <div class="section-heading">
+                        <p>Release Guide</p>
+                        <span>Updates &amp; Maintenance</span>
+                      </div>
+
+                      <div style="display: flex; flex-direction: column; gap: var(--space-3);">
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Automatic Update Checks</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">Plembfin queries published releases on GitHub to check for new feature releases, bug fixes, and performance improvements.</p>
+                        </div>
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Release Tagging</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">The <b>Current</b> badge marks the version running on this instance. Any releases published since your build show a <b>New</b> badge.</p>
+                        </div>
+                        <div>
+                          <b style="display: block; margin-bottom: 2px; font-size: 0.85rem; color: var(--text);">Updating Plembfin</b>
+                          <p style="margin: 0; line-height: 1.45; font-size: 0.9rem; color: var(--muted);">For Docker deployments, pull the latest image (<code>docker compose pull</code>). For Git installs, run <code>git pull</code>, <code>npm install</code>, and restart the process.</p>
                         </div>
                       </div>
                     </article>

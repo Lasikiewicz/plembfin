@@ -1474,7 +1474,7 @@ function attachEvents() {
 
   elements.appVersion?.addEventListener("click", () => {
     closeMobileMenu();
-    navigateTo("/about");
+    navigateTo("/settings/changelog");
   });
 
   const aboutShareProjectUrl = () => elements.aboutShareButton?.dataset.shareUrl || "https://github.com/Lasikiewicz/plembfin";

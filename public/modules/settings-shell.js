@@ -261,6 +261,11 @@ const SECTIONS = {
     panel: "logs",
     isDisplayOnly: true,
   },
+  changelog: {
+    label: "Changelog",
+    description: "Version history and release notes",
+    panel: "changelog",
+  },
   storage: {
     label: "Storage & cache",
     description: "Artwork and metadata cache usage",
@@ -384,6 +389,12 @@ const SECTION_GROUPS = [
     sections: [],
     displayOnly: [],
   },
+  {
+    id: "changelog",
+    label: "Changelog",
+    sections: [],
+    displayOnly: [],
+  },
 ];
 
 // One-line summaries for the group boxes on the settings landing page.
@@ -398,6 +409,7 @@ const GROUP_DESCRIPTIONS = {
   restore: "Restore watch history or a full backup from local files or a remote destination.",
   tools: "Reopen guided setup, repair the database, rebuild the library, and wipe data.",
   logs: "Live server and browser diagnostic output.",
+  changelog: "Version history and release notes.",
 };
 
 const LEGACY_PATHS = {
@@ -415,7 +427,6 @@ const LEGACY_PATHS = {
   "/settings/api-keys": "/settings/metadata",
   "/settings/cache": "/settings/storage",
   "/settings/about": "/about",
-  "/settings/changelog": "/about",
   "/settings/account/login": "/settings/account",
   "/settings/connections/plex": "/settings/media-servers",
   "/settings/connections/emby": "/settings/media-servers",
@@ -456,7 +467,7 @@ const LEGACY_TABS = {
   logs: "/settings/logs",
   cache: "/settings/storage",
   about: "/about",
-  changelog: "/about",
+  changelog: "/settings/changelog",
 };
 
 export const SETTINGS_SECTIONS = Object.freeze(SECTIONS);

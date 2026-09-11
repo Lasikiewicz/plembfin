@@ -449,17 +449,17 @@ function updateVersionBadge(data) {
     : `${labelPrefix}${label}`;
   elements.appVersion.classList.toggle("app-version-update", showUpdate);
   elements.appVersion.title = newerDevelopBuild
-    ? `Newer develop build available - build ${data.developBuild.latestBuild}. Open About`
+    ? `Newer develop build available - build ${data.developBuild.latestBuild}. Open Changelog`
     : newerAlphaBuild
-      ? `Newer alpha build available - build ${data.alphaBuild.latestBuild}. Open About`
+      ? `Newer alpha build available - build ${data.alphaBuild.latestBuild}. Open Changelog`
       : showUpdate
-        ? `Update available - v${data.latest || data.current}. Open About`
-        : "Open About";
+        ? `Update available - v${data.latest || data.current}. Open Changelog`
+        : "Open Changelog";
 }
 
 // A detail-page boot only needs the bundled version for the sidebar badge.
-// Reserve the remote GitHub update check for the dashboard; About only shows
-// the local build details and links to the release notes.
+// Reserve the remote GitHub update check for the dashboard; the dedicated
+// Settings -> Changelog panel owns the release notes view.
 async function loadAppVersion() {
   if (!elements.appVersion) return;
   try {
@@ -1262,9 +1262,14 @@ function applyDemoUiRestrictions(isUnlocked = !elements.appShell?.classList.cont
   for (const element of document.querySelectorAll(
     '#sidebarOnboardingCta, #sidebarSyncAttention, #manualWatchReviewButton'
   )) {
-    element.classList.toggle("hidden", demo);
-    if (demo) element.setAttribute("aria-hidden", "true");
-    else element.removeAttribute("aria-hidden");
+    // These controls have their own data-driven visibility renderers. Demo
+    // mode may hide them, but normal route changes must not undo those states.
+    if (demo) {
+      element.classList.add("hidden");
+      element.setAttribute("aria-hidden", "true");
+    } else {
+      element.removeAttribute("aria-hidden");
+    }
   }
   if (elements.syncProgressIndicator) {
     elements.syncProgressIndicator.classList.remove("hidden");
@@ -1944,7 +1949,7 @@ function syncPageTopbar() {
 
   } else if (state.activeView === "about") {
     title = "About";
-    subtitle = "Product details, integrations, privacy, and release history";
+    subtitle = "Product details, integrations, and privacy";
     activeControls = null;
 
   } else if (state.activeView === "search") {
@@ -2206,7 +2211,6 @@ function applyActiveView() {
       renderSettingsStatus("Configuration ready.", "success");
     }
   }
-  if (state.activeView === "about") renderChangelog().catch(() => { });
   syncPageTopbar();
   syncLogsRefresh();
 

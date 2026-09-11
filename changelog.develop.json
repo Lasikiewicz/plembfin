@@ -1,7 +1,20 @@
 {
   "version": "1.0.1",
-  "build": 1,
+  "build": 3,
   "resetCommit": "b5fa0258838f781d0b3f05a9a24c08b36db0f590",
-  "updatedAt": "2026-09-11T13:40:25.053Z",
-  "entries": []
+  "updatedAt": "2026-09-11T14:53:33.227Z",
+  "entries": [
+    {
+      "build": 3,
+      "date": "2026-09-11T14:53:33.227Z",
+      "commit": "3cc449f4fa844ce41f45cbaf7b0ae04a0747f4e5",
+      "message": "Fix - Preserve changelog and completed setup state",
+      "author": "Lasikiewicz",
+      "details": [
+        "Open the Changelog directly from the bottom-left version link",
+        "Keep completed onboarding controls hidden after startup and refresh",
+        "Preserve Manual Watch review counts while navigating between pages"
+      ]
+    }
+  ]
 }

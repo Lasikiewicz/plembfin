@@ -82,8 +82,10 @@ test("legacy and invalid settings routes normalize safely", () => {
   assert.equal(parseSettingsRoute("/logs").path, "/settings/logs");
   assert.equal(settingsPathForLegacy("api-keys"), "/settings/metadata");
   assert.equal(settingsPathForLegacy("about"), "/about");
-  assert.equal(settingsPathForLegacy("changelog"), "/about");
+  assert.equal(settingsPathForLegacy("changelog"), "/settings/changelog");
   assert.equal(settingsPathForLegacy("/settings/about"), "/about");
+  assert.equal(parseSettingsRoute("/settings/changelog").title, "Changelog");
+  assert.equal(parseSettingsRoute("/settings/changelog").panel, "changelog");
   assert.equal(parseSettingsRoute("/settings/not-a-section").path, "/settings");
 });
 

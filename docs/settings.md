@@ -20,12 +20,13 @@ and mobile use the **Settings section** select control for the full settings cat
 | Restore | `/settings/restore` | Local (Watch History, Plembfin), Remote (Watch History, Plembfin) | `/settings/restore#restore-local`, `/settings/restore#restore-remote` |
 | Tools | `/settings/tools` | Guided Setup, Database Repairs, Library Rebuilds and Backfills, Wipe data (Watch History, Personal Watchlist, Sync History & Logs, Everything Tracked, Wipe All / Fresh Start) | `/settings/tools#guided-setup`, `/settings/tools#database-repairs`, `/settings/tools#library-rebuilds`, `/settings/tools#wipe-data` |
 | Logs | `/settings/logs` | (none - single-page group) | - |
+| Changelog | `/settings/changelog` | (none - single-page group) | - |
 
 The Settings overview and section select expose the parent groups and their display-only
 children. Every child section navigates to the parent group's path with the section id
 appended as a URL hash (`#system-integrity`), then scrolls that specific section into view.
 The parent's page always renders every child's content stacked together - clicking a
-child is a same-page jump, not a different screen. Logs is a single-page Settings group;
+child is a same-page jump, not a different screen. Logs and Changelog are single-page Settings groups;
 About is a separate top-level page at `/about`. Use the parent-and-hash routes above when
 documenting or linking to a child tool; for example, Full Sync Watchstates is
 `/settings/sync#full-sync-watchstates`.
@@ -253,7 +254,7 @@ Old bookmarks are normalized with `history.replaceState`:
 | `/settings/sync/tuning` | `/settings/sync-tuning` (UI: `/settings/sync#sync-tuning`) |
 | `/logs`, `/settings/system/logs` | `/settings/logs` |
 | `/settings/cache`, `/settings/system/storage` | `/settings/storage` |
-| `/settings/about`, `/settings/changelog`, `/settings/system/about` | `/about` |
+| `/settings/about`, `/settings/system/about` | `/about` |
 
 The forced-password-change state always resolves to the Account section (`/settings/account`; the normal sidebar path is `/settings/general#account`).
 
