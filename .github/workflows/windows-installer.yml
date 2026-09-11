@@ -1,12 +1,12 @@
 name: Build Windows Installer
 
-# The Windows package follows the same branch model as the published images:
-# main is the release channel, alpha is the rolling pre-release channel, and
-# develop is a validation build. The installer is built on Windows so native
-# dependencies are installed and exercised for the target platform.
+# The Windows package follows the promotion branches: main is the release
+# channel and alpha is the rolling pre-release channel. Automatic installer
+# builds run only on those branches; the installer is built on Windows so
+# native dependencies are installed and exercised for the target platform.
 on:
   push:
-    branches: [main, alpha, develop]
+    branches: [main, alpha]
   workflow_dispatch:
     inputs:
       channel:
@@ -46,9 +46,13 @@ jobs:
         shell: pwsh
         run: npm ci --omit=dev --ignore-scripts
 
-      - name: Rebuild Windows native modules
+      # better-sqlite3 and sharp ship Windows-compatible prebuilt binaries.
+      # Forcing npm rebuild here invokes node-gyp and requires a full Visual
+      # Studio C++ toolchain, even when a usable prebuild is already present.
+      - name: Verify Windows native modules
         shell: pwsh
-        run: npm rebuild better-sqlite3 sharp
+        run: |
+          node -e "const Database=require('better-sqlite3'); const sharp=require('sharp'); const db=new Database(':memory:'); const row=db.prepare('SELECT 1 AS ok').get(); db.close(); (async()=>{const output=await sharp({create:{width:1,height:1,channels:4,background:{r:0,g:0,b:0,alpha:0}}}).png().toBuffer(); if(row.ok!==1 || output.length===0) throw new Error('Native module smoke test failed'); console.log('Windows native modules loaded successfully.');})().catch((error)=>{console.error(error); process.exitCode=1;});"
 
       - name: Run application build gate
         shell: pwsh

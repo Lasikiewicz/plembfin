@@ -34,10 +34,10 @@ normal Windows administrator-consent prompt.
 
 ## CI build
 
-`.github/workflows/windows-installer.yml` builds the package on pushes to `main`,
-`alpha`, and `develop`, and supports a manual `workflow_dispatch` build. Release
-builds from `main` are uploaded to GitHub Releases; pre-release builds and manual builds
-from other branches are retained as GitHub Actions artifacts.
+`.github/workflows/windows-installer.yml` builds the package automatically on pushes to
+`main` and `alpha`, and supports a manual `workflow_dispatch` build. Release builds from
+`main` are uploaded to GitHub Releases; alpha builds and manual builds are retained as
+GitHub Actions artifacts.
 
 The branch mapping is explicit for promotion pushes: the `Force to alpha` force-push to
 `alpha` reads `changelog.alpha.json` and builds the matching alpha build, while the
@@ -50,12 +50,11 @@ only during the Windows build and includes its license in the installed applicat
 
 ## Local build on Windows
 
-From the repository root, install the production dependencies and rebuild the native
-modules for Windows:
+From the repository root, install the production dependencies. The locked Windows
+packages include their prebuilt native binaries, so no manual native rebuild is needed:
 
 ```powershell
 npm ci --omit=dev --ignore-scripts
-npm rebuild better-sqlite3 sharp
 ```
 
 Download the pinned WinSW x64 binary, then stage the application:
