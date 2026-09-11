@@ -1,6 +1,6 @@
 ---
 name: force-to-main
-description: "Promote plembfin alpha current tip onto main as a single release. Use when the user says \"Force to main\" exactly. Runs the mandatory website update check, then covers the changelog preview and required user approval, promote-alpha-to-main.js --confirm, the force-push to main, and the local develop sync."
+description: "Promote plembfin alpha current tip onto main as a single release. Use when the user says \"Force to main\" exactly. Runs the mandatory website update check, then covers the changelog preview and required user approval, promote-alpha-to-main.js --confirm, the force-push to main, and the synchronized develop update."
 ---
 
 # Force to main
@@ -122,20 +122,22 @@ in this commit, runs the build gate again in CI, and publishes `:latest` +
 gh run list --branch main --limit 1
 ```
 
-### 5 - Update local develop to the new main version
+### 5 - Synchronize develop to the new main version
 ```bash
 git fetch origin
 git checkout develop
 git merge --ff-only origin/develop
 git merge origin/main --no-edit
+git push origin develop
 ```
-Local only - **do not push this to `origin/develop`**. This folds the release commit from
-step 3 into the local `develop` checkout, carrying forward its reset
-`changelog.alpha.json`/`changelog.develop.json` and the new `changelog.json` version, so
-`package.json`/`changelog.json` and the develop metadata read back locally as the version
-just released, with `changelog.develop.json` at build 1. `origin/develop` retains the
-pre-release reset state until the next normal develop push; the next "Force to alpha"
-already merges `origin/main` into `develop` as its own step 1, so that remote state is
-reconciled automatically. Don't bother folding it into `alpha` either - the next
-"Force to alpha" force-pushes develop's tip onto alpha regardless, so anything synced
-there now is simply overwritten rather than built on.
+This final plain push is required. It publishes the release commit from step 3 and its
+reset `changelog.alpha.json`/`changelog.develop.json` plus the new `changelog.json` version
+to `origin/develop`, with `changelog.develop.json` at build 1. Keeping the released
+`main` commit in remote `develop` means the next "Force to alpha" starts from an already
+reconciled branch and does not have to merge an old release stamp into newer work. The
+`develop` push runs the normal changelog and build gates; it is not a force-push and does
+not touch `alpha` or `main`.
+
+Do not fold the release into `alpha` separately. The next "Force to alpha" force-pushes
+`develop`'s tip onto `alpha` regardless, so an additional alpha sync would be overwritten
+instead of built on.

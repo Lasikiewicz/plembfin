@@ -152,10 +152,10 @@ version to the released semver and the build to 1. The sidebar and About
   first pre-push test failure follows the bounded retry procedure above instead of
   bypassing the gate or prematurely ending the promotion. The promotion command
   refuses to mutate anything without `--confirm`.
-- After the release pipeline publishes from that commit, the local `develop` checkout can
-  merge `origin/main` to carry the released version and build 1 into local development.
-  `origin/develop` retains its pre-release reset state until the next normal develop push;
-  the next "Force to alpha" reconciles it with `origin/main` before promotion.
+- After the release pipeline publishes from that commit, the procedure merges
+  `origin/main` into `develop` and pushes the synchronized state to `origin/develop`.
+  The next "Force to alpha" therefore starts with `main` already represented in remote
+  `develop`; its merge step remains as a repair path for an older or interrupted release.
 
 ### Promotion commands
 
@@ -187,17 +187,18 @@ node scripts/promote-alpha-to-main.js --confirm && git add changelog.json change
 git log origin/main..HEAD --oneline
 git push origin HEAD:main --force
 
-# Update local develop to the new main version (local only - do not push)
+# Synchronize develop to the new main version
 git checkout develop
 git merge --ff-only origin/develop
 git merge origin/main --no-edit
+git push origin develop
 ```
 
 The alpha workflow reads the alpha build metadata already committed and publishes
 `:alpha` plus an `alpha-<build>` tag. The main workflow reads the version already
-committed and publishes `:latest` plus the version tag. After that commit lands, merging
-`origin/main` into local `develop` is optional and local-only (not pushed) - see CLAUDE.md's
-"Force to main" step 5 for why it isn't required for correctness.
+committed and publishes `:latest` plus the version tag. After that commit lands, the
+"Force to main" procedure publishes its merge into `origin/develop` so the branch graph
+is reconciled before the next alpha promotion. It does not sync `alpha` separately.
 
 ## Release pipeline (push to `main`)
 

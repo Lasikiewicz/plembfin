@@ -25,11 +25,18 @@ When the user says **"Force to alpha"** (exactly), promote everything queued on
 git fetch origin
 git checkout develop
 git merge --ff-only origin/develop
-git merge origin/main --no-edit
+if git merge-base --is-ancestor origin/main origin/develop; then
+  echo "origin/develop already contains origin/main"
+else
+  git merge origin/main --no-edit
+fi
 ```
-This folds in main's actual current state, so `develop`'s own copy of `changelog.json`
-(used by `promote-develop-to-alpha.js` to self-heal alpha's base version) stays current.
-Stop and ask the user if this step produces a real conflict.
+`Force to main` publishes its post-release synchronization to `origin/develop`, so this
+check should normally be a no-op. It remains as a repair path for an older checkout or a
+previously interrupted promotion and keeps `develop`'s own copy of `changelog.json` (used
+by `promote-develop-to-alpha.js` to self-heal alpha's base version) current. Stop and ask
+the user if the repair merge produces a real application-code conflict; never resolve one
+by silently choosing a branch.
 
 ### 2 - Add develop's changelog as a new alpha build entry, locally
 ```bash
@@ -80,4 +87,3 @@ This push only ever changes `changelog.develop.json`/`changelog.alpha.json`, so
 image over it - the point of this push is getting the correct file onto `origin/develop`
 for the app's own live remote-fetch changelog comparison, not producing a new image.
 `secret-scan.yml` still runs on every push regardless of which files changed.
-

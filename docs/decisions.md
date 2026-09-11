@@ -196,13 +196,38 @@ visual noise in the changelog UI and in the sidebar.
 **Context:** The Force to main procedure ended by folding the release commit back into both
 `develop` and `alpha`.
 
-**Decision:** Fold it into local `develop` only.
+**Decision:** Fold it into `develop` only. The release synchronization is published to
+`origin/develop` by the Force to main procedure; it is not synced into `alpha`.
 
 **Rejected:** Also syncing `alpha`. The next Force to alpha force-pushes `develop`'s tip onto
 `alpha` regardless of what `alpha` holds, so anything synced there is discarded rather than
 built on. The alpha half cost an extra checkout, merge, push, and CI run for nothing.
 
 **Enforced by:** the "Force to main" step 5 procedure in `CLAUDE.md`.
+
+---
+
+### 16. Main release state is synchronized to remote `develop`
+**Date:** 2026-09-11  |  **Status:** Active
+
+**Context:** The previous implementation merged the main release commit into only the
+local `develop` checkout. The remote branches could therefore diverge: `main` carried the
+release stamp while `origin/develop` carried newer application work. The next alpha
+promotion had to merge those histories, and release-only metadata changes still collided
+with files changed by that newer work.
+
+**Decision:** The final step of "Force to main" must push its already-gated merge of
+`origin/main` into `origin/develop`. "Force to alpha" checks that `origin/main` is already
+an ancestor of `origin/develop` before attempting a repair merge. The separate alpha
+sync remains rejected because alpha is replaced wholesale by the next alpha promotion.
+
+**Rejected:** Leaving the merge local and relying on the next "Force to alpha" to repair
+the remote branch. That makes every release carry avoidable merge risk and can delay the
+alpha build with conflicts unrelated to the release itself.
+
+**Enforced by:** `.claude/skills/force-to-main/SKILL.md` step 5,
+`.claude/skills/force-to-alpha/SKILL.md` step 1, and the branching guidance in
+`CLAUDE.md` and `docs/development.md`.
 
 ---
 

@@ -49,6 +49,9 @@ Day-to-day work lands on the `develop` branch, never directly on `alpha` or `mai
 `develop` onto it; `main` only moves when "Force to main" explicitly promotes `alpha`
 onto it, and each promotion to `main` becomes exactly one release (one changelog entry,
 one version bump, one `:latest` + versioned Docker image publish).
+After a main promotion, the release procedure merges the released main commit into
+`develop` and pushes that synchronized state to `origin/develop`. This keeps the next
+alpha promotion reconciled automatically; it does not sync `alpha` separately.
 
 ### Changelog content is computed locally, before every push - never by CI
 
