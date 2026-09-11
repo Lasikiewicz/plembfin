@@ -22,6 +22,7 @@ on:
         options:
           - deploy
           - inspect
+          - restore
 
 concurrency:
   group: deploy-oracle-demo
@@ -73,8 +74,84 @@ jobs:
             sudo -n ss -ltnp
           '
 
+  restore:
+    if: ${{ inputs.mode == 'restore' }}
+    name: Restore cached ARM demo
+    runs-on: ubuntu-latest
+    env:
+      RESTORE_CONFIRMATION: ${{ inputs.confirm }}
+      RELEASE_VERSION_INPUT: ${{ inputs.release_version }}
+      OCI_DEMO_HOST: ${{ vars.OCI_DEMO_HOST }}
+      OCI_DEMO_USER: ${{ vars.OCI_DEMO_USER || 'opc' }}
+      OCI_DEMO_KNOWN_HOSTS: ${{ vars.OCI_DEMO_KNOWN_HOSTS }}
+      OCI_DEMO_CONTAINER: ${{ vars.OCI_DEMO_CONTAINER }}
+      OCI_DEMO_DATA_DIR: ${{ vars.OCI_DEMO_DATA_DIR }}
+      OCI_DEMO_PORT: ${{ vars.OCI_DEMO_PORT || '80' }}
+      OCI_DEMO_RUNTIME: ${{ vars.OCI_DEMO_RUNTIME }}
+    steps:
+      - name: Checkout recovery helper
+        uses: actions/checkout@v7
+
+      - name: Check OCI recovery configuration
+        env:
+          OCI_DEMO_SSH_KEY: ${{ secrets.OCI_DEMO_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          if [ "$RESTORE_CONFIRMATION" != "RESTORE" ]; then
+            echo 'The confirmation input must be exactly RESTORE.' >&2
+            exit 1
+          fi
+          for name in OCI_DEMO_HOST OCI_DEMO_KNOWN_HOSTS OCI_DEMO_CONTAINER OCI_DEMO_DATA_DIR OCI_DEMO_RUNTIME OCI_DEMO_SSH_KEY; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required GitHub Actions setting: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Configure pinned OCI SSH access
+        env:
+          OCI_DEMO_SSH_KEY: ${{ secrets.OCI_DEMO_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          key_path="$RUNNER_TEMP/plembfin-oci-demo-key"
+          known_hosts_path="$RUNNER_TEMP/plembfin-oci-demo-known-hosts"
+          printf '%s\n' "$OCI_DEMO_SSH_KEY" > "$key_path"
+          printf '%s\n' "$OCI_DEMO_KNOWN_HOSTS" > "$known_hosts_path"
+          chmod 600 "$key_path" "$known_hosts_path"
+          echo "SSH_KEY_PATH=$key_path" >> "$GITHUB_ENV"
+          echo "KNOWN_HOSTS_PATH=$known_hosts_path" >> "$GITHUB_ENV"
+
+      - name: Restore cached ARM demo container
+        run: |
+          set -euo pipefail
+          remote_script="/tmp/plembfin-oracle-demo-restore-${GITHUB_RUN_ID}.sh"
+          ssh_opts=(-i "$SSH_KEY_PATH" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$KNOWN_HOSTS_PATH")
+          scp "${ssh_opts[@]}" scripts/restore-oracle-demo.sh "$OCI_DEMO_USER@$OCI_DEMO_HOST:$remote_script"
+          trap 'ssh "${ssh_opts[@]}" "$OCI_DEMO_USER@$OCI_DEMO_HOST" "rm -f -- $remote_script" >/dev/null 2>&1 || true' EXIT
+          printf -v remote_command 'chmod 700 %q && sudo -n bash %q %q %q %q %q' \
+            "$remote_script" "$remote_script" "$OCI_DEMO_CONTAINER" "$OCI_DEMO_DATA_DIR" \
+            "$OCI_DEMO_PORT" "$OCI_DEMO_RUNTIME"
+          ssh "${ssh_opts[@]}" "$OCI_DEMO_USER@$OCI_DEMO_HOST" "$remote_command"
+
+      - name: Verify restored public demo
+        run: |
+          set -euo pipefail
+          release_version="$RELEASE_VERSION_INPUT"
+          if [ -z "$release_version" ]; then
+            release_version="$(node -p "require('./changelog.json').version")"
+          fi
+          for attempt in {1..12}; do
+            if node scripts/verify-oracle-demo.js "$release_version"; then
+              exit 0
+            fi
+            if (( attempt == 12 )); then
+              exit 1
+            fi
+            sleep 5
+          done
+
   deploy:
-    if: ${{ inputs.mode != 'inspect' }}
+    if: ${{ inputs.mode == 'deploy' }}
     name: Deploy public demo to OCI
     runs-on: ubuntu-latest
     env:
