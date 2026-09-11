@@ -1,0 +1,129 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+# Deploy one exact, already-published Plembfin release to the dedicated OCI
+# demo instance. The script is intentionally self-contained so the GitHub
+# main-release job can copy it over SSH without copying the repository or any
+# credentials to the instance.
+
+IMAGE="${1:?Usage: deploy-oracle-demo.sh IMAGE CONTAINER_NAME DATA_DIR HOST_PORT RUNTIME}"
+CONTAINER_NAME="${2:?Usage: deploy-oracle-demo.sh IMAGE CONTAINER_NAME DATA_DIR HOST_PORT RUNTIME}"
+DATA_DIR="${3:?Usage: deploy-oracle-demo.sh IMAGE CONTAINER_NAME DATA_DIR HOST_PORT RUNTIME}"
+HOST_PORT="${4:?Usage: deploy-oracle-demo.sh IMAGE CONTAINER_NAME DATA_DIR HOST_PORT RUNTIME}"
+RUNTIME="${5:?Usage: deploy-oracle-demo.sh IMAGE CONTAINER_NAME DATA_DIR HOST_PORT RUNTIME}"
+
+if [[ ! "$IMAGE" =~ ^ghcr\.io/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+$ ]]; then
+  echo "Refusing an image outside the expected GHCR repository: $IMAGE" >&2
+  exit 1
+fi
+if [[ ! "$CONTAINER_NAME" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; then
+  echo "Invalid container name: $CONTAINER_NAME" >&2
+  exit 1
+fi
+if [[ ! "$DATA_DIR" =~ ^/[A-Za-z0-9_./-]+$ ]]; then
+  echo "Data directory must be an absolute, simple POSIX path: $DATA_DIR" >&2
+  exit 1
+fi
+if [[ ! "$HOST_PORT" =~ ^[0-9]+$ ]] || (( HOST_PORT < 1 || HOST_PORT > 65535 )); then
+  echo "Invalid host port: $HOST_PORT" >&2
+  exit 1
+fi
+if [[ "$RUNTIME" != "podman" && "$RUNTIME" != "docker" ]]; then
+  echo "Runtime must be podman or docker: $RUNTIME" >&2
+  exit 1
+fi
+
+if ! command -v "$RUNTIME" >/dev/null 2>&1; then
+  echo "$RUNTIME is not installed on the OCI demo instance" >&2
+  exit 1
+fi
+
+if (( EUID == 0 )); then
+  SUDO=()
+else
+  SUDO=(sudo -n)
+fi
+
+run_runtime() {
+  "${SUDO[@]}" "$RUNTIME" "$@"
+}
+
+echo "Pulling $IMAGE with $RUNTIME"
+run_runtime pull "$IMAGE"
+
+# Reuse the existing /data mount when replacing an older demo container. This
+# keeps the fixture and generated config intact across releases. A new data
+# directory is only used on the first installation.
+existing_data=""
+existing_container=false
+existing_container_owns_port=false
+if run_runtime container inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
+  existing_container=true
+  existing_data="$(run_runtime container inspect --format '{{range .Mounts}}{{if eq .Destination \"/data\"}}{{.Source}}{{end}}{{end}}' "$CONTAINER_NAME" | tr -d '\r\n')"
+  if [[ -n "$existing_data" ]]; then
+    DATA_DIR="$existing_data"
+    echo "Reusing the existing /data mount: $DATA_DIR"
+  fi
+  if run_runtime port "$CONTAINER_NAME" "${HOST_PORT}/tcp" 2>/dev/null | grep -q .; then
+    existing_container_owns_port=true
+  fi
+  if [[ -z "$existing_data" && -e "$DATA_DIR" ]] \
+    && [[ -n "$(find "$DATA_DIR" -mindepth 1 -maxdepth 1 -print -quit 2>/dev/null)" ]]; then
+    echo "Configured data directory is non-empty but the existing container has no /data mount: $DATA_DIR" >&2
+    echo "Refusing to merge unknown data during the first OCI deployment" >&2
+    exit 1
+  fi
+fi
+
+# Do not stop an unrelated service that happens to own the public port. A
+# dedicated OCI demo host should have no such listener; failing here preserves
+# that safety invariant and makes the misconfiguration visible in CI.
+if command -v ss >/dev/null 2>&1 \
+  && [[ "$existing_container_owns_port" != true ]] \
+  && "${SUDO[@]}" ss -ltnH | awk -v port=":$HOST_PORT" '$4 ~ (port "$") { found = 1 } END { exit found ? 0 : 1 }'; then
+  echo "Port $HOST_PORT is already in use by a service other than $CONTAINER_NAME" >&2
+  exit 1
+fi
+
+if [[ "$existing_container" == true ]]; then
+  run_runtime stop "$CONTAINER_NAME" >/dev/null 2>&1 || true
+  if [[ -z "$existing_data" ]]; then
+    # The current OCI container was created without a host mount. Copy its
+    # demo state into the configured persistent directory while the stopped
+    # container is still available, then remove only that container.
+    "${SUDO[@]}" mkdir -p "$DATA_DIR"
+    echo "Migrating the existing container /data into $DATA_DIR"
+    run_runtime cp "$CONTAINER_NAME:/data/." "$DATA_DIR/"
+  fi
+  run_runtime rm "$CONTAINER_NAME" >/dev/null 2>&1 || true
+fi
+
+"${SUDO[@]}" mkdir -p "$DATA_DIR"
+
+echo "Starting $CONTAINER_NAME on port $HOST_PORT"
+run_runtime run --detach \
+  --name "$CONTAINER_NAME" \
+  --restart unless-stopped \
+  --publish "$HOST_PORT:5055" \
+  --volume "$DATA_DIR:/data:Z" \
+  --env ADMIN_USERNAME=demo \
+  --env ADMIN_PASSWORD=demo \
+  --env BUILD_CHANNEL=main \
+  --env COOKIE_SECURE=true \
+  --env HOST=0.0.0.0 \
+  --env PORT=5055 \
+  --env PLEMBFIN_DEMO_MODE=1 \
+  --env PLEMBFIN_DEMO_SEED=1 \
+  --env TRUST_PROXY=1 \
+  --security-opt no-new-privileges:true \
+  --memory 512m \
+  --cpus 1 \
+  "$IMAGE"
+
+if ! run_runtime ps --filter "name=^${CONTAINER_NAME}$" --format '{{.Names}}' | grep -Fxq "$CONTAINER_NAME"; then
+  echo "The OCI demo container did not remain running" >&2
+  run_runtime logs --tail 80 "$CONTAINER_NAME" >&2 || true
+  exit 1
+fi
+
+echo "OCI demo is running $IMAGE"
