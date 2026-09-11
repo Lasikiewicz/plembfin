@@ -1,19 +1,7 @@
 {
   "version": "1.0.1",
   "build": 6,
-  "resetCommit": "0a717e5798c4cd82fd6b2ea96ebb8c914d2a391f",
-  "updatedAt": "2026-09-11T15:52:22.630Z",
-  "entries": [
-    {
-      "build": 6,
-      "date": "2026-09-11T15:52:22.630Z",
-      "commit": "b451fec97876aed78984931ac4256aec302c06d6",
-      "message": "Docs - Align website with current release",
-      "author": "Lasikiewicz",
-      "details": [
-        "Align the website verification markers and release data with the v1.0.1 stable application baseline",
-        "Clarify that the bottom-left version link opens Settings → Changelog while About identifies the installed app"
-      ]
-    }
-  ]
+  "resetCommit": "aab34bde06f215357717bfa391f8c46a1d9b735c",
+  "updatedAt": "2026-09-11T15:54:01.247Z",
+  "entries": []
 }
