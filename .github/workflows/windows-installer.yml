@@ -2,8 +2,9 @@ name: Build Windows Installer
 
 # The Windows package follows the promotion branches: main is the release
 # channel and alpha is the rolling pre-release channel. Automatic installer
-# builds run only on those branches; the installer is built on Windows so
-# native dependencies are installed and exercised for the target platform.
+# builds run only on those branches; both channels publish a GitHub Release
+# asset, with alpha releases marked as prereleases. The installer is built on
+# Windows so native dependencies are installed and exercised for the target platform.
 on:
   push:
     branches: [main, alpha]
@@ -107,6 +108,7 @@ jobs:
 
           Add-Content -Path $env:GITHUB_OUTPUT -Value "channel=$channel"
           Add-Content -Path $env:GITHUB_OUTPUT -Value "version=$version"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "build=$build"
           Add-Content -Path $env:GITHUB_OUTPUT -Value "file_channel=$fileChannel"
           Add-Content -Path $env:GITHUB_OUTPUT -Value "artifact_name=Plembfin-Windows-$fileChannel-$version"
           Add-Content -Path $env:GITHUB_OUTPUT -Value "trigger=$trigger"
@@ -200,6 +202,27 @@ jobs:
           if ($LASTEXITCODE -ne 0) {
             gh release create $env:RELEASE_TAG --target '${{ github.sha }}' --title "Plembfin $env:RELEASE_TAG" --notes "Windows installer for Plembfin $env:RELEASE_TAG."
             if ($LASTEXITCODE -ne 0) { throw "Could not create GitHub release $env:RELEASE_TAG" }
+          }
+
+          $assets = Get-ChildItem -LiteralPath 'dist/windows/installer' -File
+          gh release upload $env:RELEASE_TAG $assets.FullName --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Could not upload installer assets to $env:RELEASE_TAG" }
+
+      - name: Publish alpha prerelease installer
+        if: steps.metadata.outputs.channel == 'alpha' && github.ref_name == 'alpha'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: v${{ steps.metadata.outputs.version }}-alpha.${{ steps.metadata.outputs.build }}
+        run: |
+          $releaseTitle = "Plembfin $env:RELEASE_TAG"
+          gh release view $env:RELEASE_TAG *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:RELEASE_TAG --target '${{ github.sha }}' --title $releaseTitle --prerelease --notes "Windows alpha installer for Plembfin $env:RELEASE_TAG."
+            if ($LASTEXITCODE -ne 0) { throw "Could not create GitHub prerelease $env:RELEASE_TAG" }
+          } else {
+            gh release edit $env:RELEASE_TAG --title $releaseTitle --prerelease
+            if ($LASTEXITCODE -ne 0) { throw "Could not update GitHub prerelease $env:RELEASE_TAG" }
           }
 
           $assets = Get-ChildItem -LiteralPath 'dist/windows/installer' -File

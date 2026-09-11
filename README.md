@@ -216,6 +216,11 @@ network firewall rule for access from other devices. The Start Menu also include
 shortcut for launching the companion later. On first launch, use the one-time
 **Claim this Plembfin instance** screen if no administrator password was configured.
 
+Testers running the `alpha` channel can download its matching Windows installer from the
+[GitHub Releases](https://github.com/Lasikiewicz/plembfin/releases) page. Alpha installers
+are marked as prereleases with tags such as `v1.0.0-alpha.1`; the `latest` release remains
+the stable `main` installer.
+
 Uninstalling preserves `%ProgramData%\Plembfin` by default. The uninstaller offers a
 separate confirmation if you also want to remove the database, cache, logs, and backups.
 
