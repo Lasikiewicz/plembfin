@@ -1,7 +1,18 @@
 {
   "version": "1.0.1",
-  "build": 3,
+  "build": 4,
   "resetCommit": "c96639e7b6e184a4d52b7ee644cc1ef4aa965f11",
-  "updatedAt": "2026-09-11T15:15:41.393Z",
-  "entries": []
+  "updatedAt": "2026-09-11T15:26:14.436Z",
+  "entries": [
+    {
+      "build": 4,
+      "date": "2026-09-11T15:26:14.436Z",
+      "commit": "39086f63cb4f223d9003c334c204f2096812eec5",
+      "message": "Fix - Serialize live change trigger setup",
+      "author": "Lasikiewicz",
+      "details": [
+        "Prevent concurrent startup races when installing live-change notifications."
+      ]
+    }
+  ]
 }
