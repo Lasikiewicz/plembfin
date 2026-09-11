@@ -1,7 +1,20 @@
 {
   "version": "1.0.0",
-  "build": 4,
+  "build": 5,
   "resetCommit": "b93d2fb3022f348880c30a4dd98d05cfc6e9e703",
-  "updatedAt": "2026-09-11T13:08:28.827Z",
-  "entries": []
+  "updatedAt": "2026-09-11T13:27:08.295Z",
+  "entries": [
+    {
+      "build": 5,
+      "date": "2026-09-11T13:27:08.295Z",
+      "commit": "146a1bd1bdf1bbe357ad252cc43703671d208536",
+      "message": "Docs - Update website for Windows distribution",
+      "author": "Lasikiewicz",
+      "details": [
+        "Document the Windows installer, runtime data location, and first-launch choices",
+        "Mark Getting started as verified against the v1.0.0 application baseline",
+        "Align website coverage checks with the current Settings navigation"
+      ]
+    }
+  ]
 }
