@@ -195,14 +195,11 @@ jobs:
         if: steps.metadata.outputs.channel == 'release' && github.ref_name == 'main'
         shell: pwsh
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: v${{ steps.metadata.outputs.version }}
         run: |
-          gh release view $env:RELEASE_TAG *> $null
-          if ($LASTEXITCODE -ne 0) {
-            gh release create $env:RELEASE_TAG --target '${{ github.sha }}' --title "Plembfin $env:RELEASE_TAG" --notes "Windows installer for Plembfin $env:RELEASE_TAG."
-            if ($LASTEXITCODE -ne 0) { throw "Could not create GitHub release $env:RELEASE_TAG" }
-          }
+          node scripts/publish-github-release.js main
 
           $assets = Get-ChildItem -LiteralPath 'dist/windows/installer' -File
           gh release upload $env:RELEASE_TAG $assets.FullName --clobber
@@ -212,18 +209,11 @@ jobs:
         if: steps.metadata.outputs.channel == 'alpha' && github.ref_name == 'alpha'
         shell: pwsh
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: v${{ steps.metadata.outputs.version }}-alpha.${{ steps.metadata.outputs.build }}
         run: |
-          $releaseTitle = "Plembfin $env:RELEASE_TAG"
-          gh release view $env:RELEASE_TAG *> $null
-          if ($LASTEXITCODE -ne 0) {
-            gh release create $env:RELEASE_TAG --target '${{ github.sha }}' --title $releaseTitle --prerelease --notes "Windows alpha installer for Plembfin $env:RELEASE_TAG."
-            if ($LASTEXITCODE -ne 0) { throw "Could not create GitHub prerelease $env:RELEASE_TAG" }
-          } else {
-            gh release edit $env:RELEASE_TAG --title $releaseTitle --prerelease
-            if ($LASTEXITCODE -ne 0) { throw "Could not update GitHub prerelease $env:RELEASE_TAG" }
-          }
+          node scripts/publish-github-release.js alpha
 
           $assets = Get-ChildItem -LiteralPath 'dist/windows/installer' -File
           gh release upload $env:RELEASE_TAG $assets.FullName --clobber

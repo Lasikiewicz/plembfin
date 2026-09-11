@@ -1,7 +1,20 @@
 {
   "version": "1.0.0",
-  "build": 3,
+  "build": 4,
   "resetCommit": "f5223d51c1f7561032a0c0a669e4abfbaa981f3b",
-  "updatedAt": "2026-09-11T12:32:13.013Z",
-  "entries": []
+  "updatedAt": "2026-09-11T13:06:20.232Z",
+  "entries": [
+    {
+      "build": 4,
+      "date": "2026-09-11T13:06:20.232Z",
+      "commit": "09c53c7df3a5c1773d98ade64ba7d261063169b2",
+      "message": "Feature - Publish formatted notes with every release",
+      "author": "Lasikiewicz",
+      "details": [
+        "Generate readable release notes from the committed changelog for alpha and stable builds",
+        "Publish Docker and Windows outputs together on the matching GitHub Release",
+        "Include setup guidance, limitations, download links, and screenshots in each release"
+      ]
+    }
+  ]
 }

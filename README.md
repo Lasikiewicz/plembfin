@@ -221,6 +221,10 @@ Testers running the `alpha` channel can download its matching Windows installer 
 are marked as prereleases with tags such as `v1.0.0-alpha.1`; the `latest` release remains
 the stable `main` installer.
 
+Each alpha and stable build also publishes a formatted GitHub Release with its categorized
+changes, safe-start guidance, known limitations, Docker tags, installer status, and project
+links. Release notes are generated from the changelog committed with that build.
+
 Uninstalling preserves `%ProgramData%\Plembfin` by default. The uninstaller offers a
 separate confirmation if you also want to remove the database, cache, logs, and backups.
 

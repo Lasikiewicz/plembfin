@@ -1,11 +1,12 @@
 name: Publish Main Release
 
-# Builds and publishes the release image on every push to main, tagged
-# :latest and :<version>. changelog.json, CHANGELOG.md, package.json, and
-# package-lock.json are all computed locally (scripts/promote-alpha-to-main.js),
-# as part of "Force to main", before the force-push - this job runs the full
-# build gate against what was already committed and never writes back to the
-# branch.
+# Builds and publishes the release image and the formatted GitHub Release notes
+# on every push to main, tagged :latest and :<version>. changelog.json,
+# CHANGELOG.md, package.json, and package-lock.json are all computed locally
+# (scripts/promote-alpha-to-main.js), as part of "Force to main", before the
+# force-push - this job runs the full build gate against what was already
+# committed and never writes back to the branch. The Windows workflow attaches
+# the installer and checksum to the same GitHub Release.
 
 on:
   push:
@@ -24,7 +25,7 @@ jobs:
   update:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     steps:
@@ -72,6 +73,11 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           provenance: true
           sbom: true
+
+      - name: Publish GitHub release notes
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/publish-github-release.js main
 
       - name: Notify Discord releases channel
         env:

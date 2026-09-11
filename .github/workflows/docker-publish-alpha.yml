@@ -1,13 +1,15 @@
 name: Publish Alpha Image
 
-# Publishes a rolling pre-release image on every push to alpha, tagged :alpha
-# and :alpha-<build>. changelog.alpha.json's build counter and changelog
-# entry are computed locally (scripts/promote-develop-to-alpha.js), as part
-# of "Force to alpha", before the force-push - this job just reads the value
-# already committed, and never writes back to the branch. This never touches
-# changelog.json or the real package version; those only change when alpha is
-# promoted to main via "Force to main". The image is verified the same way
-# docker-build-check.yml verifies main's release image before it is pushed.
+# Publishes a rolling pre-release image and the formatted GitHub Release notes
+# on every push to alpha, tagged :alpha and :alpha-<build>.
+# changelog.alpha.json's build counter and changelog entry are computed locally
+# (scripts/promote-develop-to-alpha.js), as part of "Force to alpha", before
+# the force-push - this job just reads the value already committed, and never
+# writes back to the branch. This never touches changelog.json or the real
+# package version; those only change when alpha is promoted to main via
+# "Force to main". The image is verified the same way docker-build-check.yml
+# verifies main's release image before it is pushed. The Windows workflow
+# attaches the installer and checksum to the same GitHub prerelease.
 
 on:
   push:
@@ -26,7 +28,7 @@ jobs:
     name: Verify and publish the alpha image
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     steps:
@@ -110,6 +112,11 @@ jobs:
           cache-to: type=gha,mode=max
           provenance: true
           sbom: true
+
+      - name: Publish GitHub prerelease notes
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node scripts/publish-github-release.js alpha
 
       - name: Notify Discord releases channel
         env:

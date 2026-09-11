@@ -37,8 +37,11 @@ normal Windows administrator-consent prompt.
 `.github/workflows/windows-installer.yml` builds the package automatically on pushes to
 `main` and `alpha`, and supports a manual `workflow_dispatch` build. Release builds from
 `main` are uploaded to GitHub Releases, and alpha builds are uploaded to GitHub Releases
-as numbered prereleases (`v<base-version>-alpha.<build>`). Both channels also retain the
-Actions artifact; manual builds remain Actions artifacts only.
+as numbered prereleases (`v<base-version>-alpha.<build>`). The image and Windows
+workflows create or update the same release with a generated Markdown body from the
+committed changelog, so each alpha or main build publishes its release notes alongside
+the installer and checksum. Both channels also retain the Actions artifact; manual builds
+remain Actions artifacts only.
 
 The branch mapping is explicit for promotion pushes: the `Force to alpha` force-push to
 `alpha` reads `changelog.alpha.json` and builds the matching alpha build, while the

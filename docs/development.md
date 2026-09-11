@@ -128,9 +128,11 @@ version to the released semver and the build to 1. The sidebar and About
   checks README consistency before building and publishing. This is where
   secret/vulnerability scanning first applies. `docker-publish-alpha.yml` builds,
   verifies, and publishes to `ghcr.io/lasikiewicz/plembfin:alpha` (also tagged
-  `alpha-<build>`) using the build number already in the pushed commit, then posts that
-  one build's own changelog entry to Discord (see "Discord release notifications"
-  below). Afterward, push develop's own reset state to `origin/develop` too (a plain
+  `alpha-<build>`) using the build number already in the pushed commit, creates or updates
+  the matching numbered GitHub prerelease with the formatted notes from
+  `scripts/generate-release-notes.js`, then posts that one build's own changelog entry to
+  Discord (see "Discord release notifications" below). Afterward, push develop's own
+  reset state to `origin/develop` too (a plain
   push, not a force-push) - that push only ever changes
   `changelog.develop.json`/`changelog.alpha.json`, so `docker-publish-develop.yml`'s
   `paths-ignore` skips rebuilding and republishing a develop image over it; the point is
@@ -245,9 +247,11 @@ in `scripts/promote-alpha-to-main.js`, run before the force-push:
 `.github/workflows/update-changelog.yml` (workflow name "Publish Main Release") then
 runs on the push to `main` - in practice this means every "Force to main" run, not every
 individual commit - reads the version already committed, runs the full build gate again
-in CI, builds and pushes the Docker image to GHCR tagged `latest` + the version, then
-posts the `changelog.json` entry to Discord via `scripts/notify-discord-release.js main`
-(see "Discord release notifications" below). It does not write anything back to `main`.
+in CI, builds and pushes the Docker image to GHCR tagged `latest` + the version, creates
+or updates the matching GitHub Release with the formatted body from
+`scripts/generate-release-notes.js`, then posts the `changelog.json` entry to Discord via
+`scripts/notify-discord-release.js main` (see "Discord release notifications" below).
+It does not write anything back to `main`.
 `docker-publish.yml` is a manual (`workflow_dispatch`) image build that skips the
 changelog step.
 
@@ -256,7 +260,9 @@ runs on a Windows runner, installs and probes the Windows builds of `better-sqli
 `sharp`, stages the self-contained Node runtime plus the optional notification-area
 companion, compiles the Inno Setup installer, and uploads a checksum alongside it.
 Release-channel installers built from `main` are attached to a `v<version>` GitHub
-Release; alpha installers and manual builds remain available as Actions artifacts. The
+Release, and alpha installers are attached to their numbered `v<base-version>-alpha.<build>`
+GitHub prerelease. Both release bodies are generated from the committed changelog by
+`scripts/generate-release-notes.js`; manual builds remain Actions artifacts. The
 workflow also supports manual builds for any of the three channels. Configure
 `WINDOWS_SIGNING_CERTIFICATE_BASE64` and `WINDOWS_SIGNING_CERTIFICATE_PASSWORD` as
 repository secrets to sign the installer; signing is skipped, without failing the
@@ -304,7 +310,7 @@ It has its own build/deploy tooling independent of this repo's CI - see
 | `security.yml` | `npm audit --audit-level=high` + CodeQL, on push to `main`/`alpha`, PRs targeting `main`, and daily. CodeQL loads `.github/codeql/codeql-config.yml`, which excludes the `js/request-forgery` query repo-wide - every outbound request funnels through the centralized, validated fetch guard in `server/src/utils/outbound.js`, and admin-configured LAN media server URLs make that query permanently false-positive for this app |
 | `secret-scan.yml` | TruffleHog verified-secret scan on push to `main`/`alpha`/`develop` and PRs targeting `main`/`develop` |
 | `docker-build-check.yml` | Checks README consistency, then builds the image on every PR targeting `main`, without pushing anything, and runs `better-sqlite3` and `sharp` inside it, so a broken Dockerfile or dependency install is caught before a PR merges. The runtime probe matters because production dependencies install with `--ignore-scripts`: a native module with no usable binary for the platform still builds cleanly and would fail on first database open |
-| `docker-publish-alpha.yml` | On every push to `alpha`: checks README consistency, builds the image, runs the same native-module probe as `docker-build-check.yml`, then pushes it to `ghcr.io/lasikiewicz/plembfin:alpha` and `ghcr.io/lasikiewicz/plembfin:alpha-<build>` (reading the build number already committed by "Force to alpha"), and posts the changelog entry to Discord (see "Discord release notifications"). Never writes anything back to `alpha`; never touches `changelog.json`, the package version, or the `:latest` tag |
+| `docker-publish-alpha.yml` | On every push to `alpha`: checks README consistency, builds the image, runs the same native-module probe as `docker-build-check.yml`, then pushes it to `ghcr.io/lasikiewicz/plembfin:alpha` and `ghcr.io/lasikiewicz/plembfin:alpha-<build>` (reading the build number already committed by "Force to alpha"), creates or updates the matching numbered GitHub prerelease with generated notes, and posts the changelog entry to Discord (see "Discord release notifications"). Never writes anything back to `alpha`; never touches `changelog.json`, the package version, or the `:latest` tag |
 | `windows-installer.yml` | On every push to `main` or `alpha` (and on manual dispatch), builds the x64 Windows installer on a Windows runner, probes native modules, packages the Node server as a Windows service with an opt-in notification-area companion, uploads a checksum, and publishes main installers to GitHub Releases plus alpha installers to numbered GitHub prereleases |
 | `ghcr-cleanup.yml` | Weekly (and on manual dispatch): prunes numbered `develop-<n>`/`alpha-<n>` tags beyond the newest 15 of each, and deletes untagged images older than a day left behind whenever a mutable tag (`latest`/`develop`/`alpha`) moves to a new manifest. Never touches those mutable tags or a semantic-version release tag |
 | `dependabot.yml` | Dependency update PRs |
