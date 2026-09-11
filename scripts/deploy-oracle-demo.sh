@@ -65,6 +65,15 @@ if ! run_runtime pull "$IMAGE"; then
   run_runtime pull "${runtime_arch_args[@]}" "$IMAGE"
 fi
 
+# An ARM host can pull an amd64 image when the architecture is forced, but it
+# still needs binfmt/QEMU support to execute it. Probe the image before touching
+# the currently running demo container so an incompatible release cannot cause
+# avoidable downtime.
+if (( ${#runtime_arch_args[@]} > 0 )); then
+  echo "Checking amd64 execution support before replacing the running demo"
+  run_runtime run --rm "${runtime_arch_args[@]}" --entrypoint /bin/true "$IMAGE"
+fi
+
 # Reuse the existing /data mount when replacing an older demo container. This
 # keeps the fixture and generated config intact across releases. A new data
 # directory is only used on the first installation.
