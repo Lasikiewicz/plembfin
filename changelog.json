@@ -1,7 +1,42 @@
 {
-  "version": "1.0.1",
-  "updatedAt": "2026-09-11T13:40:25.053Z",
+  "version": "1.0.2",
+  "updatedAt": "2026-09-11T16:02:35.110Z",
   "entries": [
+    {
+      "version": "1.0.2",
+      "version5Digit": "1.0.2.0.0",
+      "date": "2026-09-11T16:02:35.110Z",
+      "commit": "9f04d77a99186fad40fa6b812a8ef403e940c0f3",
+      "message": "This update fixes changelog navigation, keeps completed onboarding hidden, preserves Manual Watch review counts while navigating, and hardens concurrent startup.",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix: Serialize live change trigger setup",
+        "Fix: Prevent concurrent startup races when installing live-change notifications.",
+        "Fix: Preserve changelog and completed setup state",
+        "Fix: Open the Changelog directly from the bottom-left version link",
+        "Fix: Keep completed onboarding controls hidden after startup and refresh",
+        "Fix: Preserve Manual Watch review counts while navigating between pages",
+        "Tweak: Align website with current release",
+        "Tweak: Align the website verification markers and release data with the v1.0.1 stable application baseline",
+        "Tweak: Clarify that the bottom-left version link opens Settings → Changelog while About identifies the installed app"
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Serialize live change trigger setup",
+          "Prevent concurrent startup races when installing live-change notifications.",
+          "Preserve changelog and completed setup state",
+          "Open the Changelog directly from the bottom-left version link",
+          "Keep completed onboarding controls hidden after startup and refresh",
+          "Preserve Manual Watch review counts while navigating between pages"
+        ],
+        "tweaks": [
+          "Align website with current release",
+          "Align the website verification markers and release data with the v1.0.1 stable application baseline",
+          "Clarify that the bottom-left version link opens Settings → Changelog while About identifies the installed app"
+        ]
+      }
+    },
     {
       "version": "1.0.1",
       "version5Digit": "1.0.1.0.0",

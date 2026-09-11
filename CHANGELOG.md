@@ -4,6 +4,25 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v1.0.2 - 11 September 2026
+
+This update fixes changelog navigation, keeps completed onboarding hidden, preserves Manual Watch review counts while navigating, and hardens concurrent startup.
+
+### Major Bug Fixes
+
+- Serialize live change trigger setup
+- Prevent concurrent startup races when installing live-change notifications.
+- Preserve changelog and completed setup state
+- Open the Changelog directly from the bottom-left version link
+- Keep completed onboarding controls hidden after startup and refresh
+- Preserve Manual Watch review counts while navigating between pages
+
+### Tweaks
+
+- Align website with current release
+- Align the website verification markers and release data with the v1.0.1 stable application baseline
+- Clarify that the bottom-left version link opens Settings → Changelog while About identifies the installed app
+
 ## v1.0.1 - 11 September 2026
 
 Complete first-run setup and Windows distribution with a self-contained installer, optional tray controls, safer service cleanup, separate runtime data, and clearer onboarding and release documentation.
