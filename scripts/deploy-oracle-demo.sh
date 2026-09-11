@@ -49,7 +49,21 @@ run_runtime() {
 }
 
 echo "Pulling $IMAGE with $RUNTIME"
-run_runtime pull "$IMAGE"
+runtime_arch_args=()
+if ! run_runtime pull "$IMAGE"; then
+  host_arch="$(uname -m)"
+  if [[ "$host_arch" != "aarch64" && "$host_arch" != "arm64" ]]; then
+    exit 1
+  fi
+
+  echo "No native image is available for ARM64; retrying the existing release image as amd64"
+  if [[ "$RUNTIME" == "podman" ]]; then
+    runtime_arch_args=(--arch amd64)
+  else
+    runtime_arch_args=(--platform linux/amd64)
+  fi
+  run_runtime pull "${runtime_arch_args[@]}" "$IMAGE"
+fi
 
 # Reuse the existing /data mount when replacing an older demo container. This
 # keeps the fixture and generated config intact across releases. A new data
@@ -101,7 +115,7 @@ fi
 "${SUDO[@]}" mkdir -p "$DATA_DIR"
 
 echo "Starting $CONTAINER_NAME on port $HOST_PORT"
-run_runtime run --detach \
+run_runtime run "${runtime_arch_args[@]}" --detach \
   --name "$CONTAINER_NAME" \
   --restart unless-stopped \
   --publish "$HOST_PORT:5055" \
