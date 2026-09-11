@@ -14,6 +14,14 @@ on:
         description: "Type DEPLOY to confirm the public demo deployment"
         required: true
         type: string
+      mode:
+        description: "Use inspect to read OCI state without changing the host"
+        required: false
+        default: deploy
+        type: choice
+        options:
+          - deploy
+          - inspect
 
 concurrency:
   group: deploy-oracle-demo
@@ -23,7 +31,50 @@ permissions:
   contents: read
 
 jobs:
+  inspect:
+    if: ${{ inputs.mode == 'inspect' }}
+    name: Inspect OCI demo host
+    runs-on: ubuntu-latest
+    env:
+      OCI_DEMO_HOST: ${{ vars.OCI_DEMO_HOST }}
+      OCI_DEMO_USER: ${{ vars.OCI_DEMO_USER || 'opc' }}
+      OCI_DEMO_KNOWN_HOSTS: ${{ vars.OCI_DEMO_KNOWN_HOSTS }}
+    steps:
+      - name: Configure pinned OCI SSH access
+        env:
+          OCI_DEMO_SSH_KEY: ${{ secrets.OCI_DEMO_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          for name in OCI_DEMO_HOST OCI_DEMO_KNOWN_HOSTS OCI_DEMO_SSH_KEY; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required GitHub Actions setting: $name" >&2
+              exit 1
+            fi
+          done
+          key_path="$RUNNER_TEMP/plembfin-oci-demo-key"
+          known_hosts_path="$RUNNER_TEMP/plembfin-oci-demo-known-hosts"
+          printf '%s\n' "$OCI_DEMO_SSH_KEY" > "$key_path"
+          printf '%s\n' "$OCI_DEMO_KNOWN_HOSTS" > "$known_hosts_path"
+          chmod 600 "$key_path" "$known_hosts_path"
+          echo "SSH_KEY_PATH=$key_path" >> "$GITHUB_ENV"
+          echo "KNOWN_HOSTS_PATH=$known_hosts_path" >> "$GITHUB_ENV"
+
+      - name: Read OCI runtime state
+        run: |
+          set -euo pipefail
+          ssh_opts=(-i "$SSH_KEY_PATH" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$KNOWN_HOSTS_PATH")
+          ssh "${ssh_opts[@]}" "$OCI_DEMO_USER@$OCI_DEMO_HOST" 'set -eu
+            echo "Architecture: $(uname -m)"
+            echo "Containers:"
+            sudo -n podman ps --all --no-trunc --format "{{.ID}} {{.Names}} {{.Image}} {{.Status}} {{.Ports}}"
+            echo "Images:"
+            sudo -n podman images --no-trunc --format "{{.ID}} {{.Repository}}:{{.Tag}} {{.CreatedSince}}"
+            echo "Listeners:"
+            sudo -n ss -ltnp
+          '
+
   deploy:
+    if: ${{ inputs.mode != 'inspect' }}
     name: Deploy public demo to OCI
     runs-on: ubuntu-latest
     env:
