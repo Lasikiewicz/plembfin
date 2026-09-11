@@ -78,7 +78,8 @@ if run_runtime container inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
     DATA_DIR="$existing_data"
     echo "Reusing the existing /data mount: $DATA_DIR"
   fi
-  if run_runtime port "$CONTAINER_NAME" "${HOST_PORT}/tcp" 2>/dev/null | grep -q .; then
+  if run_runtime port "$CONTAINER_NAME" 2>/dev/null \
+    | awk -v host_port=":$HOST_PORT" '$0 ~ host_port "$" { found = 1 } END { exit found ? 0 : 1 }'; then
     existing_container_owns_port=true
   fi
   if [[ -z "$existing_data" && -e "$DATA_DIR" ]] \
