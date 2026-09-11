@@ -1,6 +1,6 @@
 ---
 name: force-to-main
-description: "Promote plembfin alpha current tip onto main as a single release. Use when the user says \"Force to main\" exactly. Runs the mandatory website update check, then covers the changelog preview and required user approval, promote-alpha-to-main.js --confirm, the force-push to main, and the synchronized develop update."
+description: "Promote plembfin alpha current tip onto main as a single release. Use when the user says \"Force to main\" exactly. Runs the mandatory website and README checks, then covers the changelog preview and required user approval, promote-alpha-to-main.js --confirm, the force-push to main, the hosted-demo refresh, and the synchronized develop update."
 ---
 
 # Force to main
@@ -45,7 +45,23 @@ git checkout -B alpha origin/alpha
 Not a stale local `alpha` branch, which may not exactly match `origin/alpha` - this
 resets the local branch to the remote tip every time.
 
-### 2 - Create the concise changelog, preview it, and get explicit approval
+### 2 - Review and update README before promoting
+
+Review `README.md` against the user-visible changes in the alpha tip and update it if
+anything is stale. At minimum, confirm the feature list, setup guidance, Docker channel
+table, screenshots/links, and the top released-version marker still describe the
+application. The marker must match the stable version in `package.json`/`changelog.json`,
+not the pending release version that the preview may calculate.
+
+Run the mechanical check after any edit:
+```bash
+npm run docs:check
+```
+The main release workflow repeats this check, but CI cannot update a stale README. Keep
+any README change in the single release commit below; do not leave it for a follow-up
+commit after `main` has been force-pushed.
+
+### 3 - Create the concise changelog, preview it, and get explicit approval
 Before anything is staged or pushed, review the accumulated alpha sections and write a
 single-line `releaseMessage` in `changelog.alpha.json`. It should summarize the main
 user-visible themes in one sentence (maximum 240 characters); do not concatenate every
@@ -74,7 +90,7 @@ output to the user. Incorporate any wording changes the user dictates by refinin
 reverting the offending `develop` commit and re-promoting to alpha), re-running
 `--preview` until the entry reads correctly, and only proceed once the user approves.
 
-### 3 - Build the release, locally, after approval
+### 4 - Build the release, locally, after approval
 ```bash
 node scripts/promote-alpha-to-main.js --confirm
 ```
@@ -88,15 +104,15 @@ regenerates `CHANGELOG.md`, then resets `changelog.alpha.json` and resets
 `changelog.develop.json` to the released version at build 1 for the next cycle. If it refuses with a release-process
 violation, that means one of alpha's entries still contains recognized process text; fix
 the source commit on `develop`, repeat "Force to alpha", and restart this command.
-The command also refuses to run without `--confirm`; use that flag only after the step 2
+The command also refuses to run without `--confirm`; use that flag only after the step 3
 approval - it is the first mutating step of promotion.
 Then stage and commit:
 ```bash
-git add changelog.json changelog.alpha.json changelog.develop.json CHANGELOG.md package.json package-lock.json
+git add README.md changelog.json changelog.alpha.json changelog.develop.json CHANGELOG.md package.json package-lock.json
 git commit -m "chore: promote alpha to main v<version>"
 ```
 
-### 4 - Force main to match this commit
+### 5 - Force main to match this commit
 Show the user what is about to land before running this - it is a force push to the
 shared `main` branch:
 ```bash
@@ -116,13 +132,38 @@ can proceed. If the focused rerun fails, or the retried full gate fails again, s
 promotion and investigate the repeatable failure. Never use `--no-verify`.
 
 `update-changelog.yml` (workflow name "Publish Main Release") reads the version already
-in this commit, runs the build gate again in CI, and publishes `:latest` +
-`:<version>` - it does not write anything back. Optionally confirm it succeeded:
+in this commit, checks README consistency, runs the build gate again in CI, and publishes
+`:latest` + `:<version>` - it does not write anything back. Wait for this workflow to
+finish successfully before refreshing the hosted demo. Optionally confirm it succeeded:
 ```bash
 gh run list --branch main --limit 1
 ```
 
-### 5 - Synchronize develop to the new main version
+### 6 - Rebuild and verify the hosted demo
+
+Publishing GHCR does not pull or restart the hosted demo. The live demo at
+`https://plembfin.lasikie.co.uk/` is the `plembfin` Compose stack in Portainer, and its
+release container must use `ghcr.io/lasikiewicz/plembfin:latest` with
+`BUILD_CHANNEL=main`. After the main publish workflow succeeds:
+
+1. Open [Portainer](https://portainer.lasikie.co.uk/), then open **Stacks → plembfin →
+   Editor**.
+2. Confirm the stack definition uses `image: ghcr.io/lasikiewicz/plembfin:latest` and
+   `BUILD_CHANNEL=main` (never `:develop`/`BUILD_CHANNEL=develop`), then select **Update
+   the stack**. When Portainer offers a pull/recreate choice, pull the latest image.
+3. Confirm the `plembfin` container is healthy and still uses the existing
+   `plembfin_data:/data` volume. Do not delete or re-seed the demo data volume.
+4. Open the live URL and verify the About/version display matches the newly released
+   version. Smoke-test the release-specific UI: clicking the bottom-left version opens
+   the Changelog, completed onboarding does not keep showing **Complete onboarding**,
+   and a Manual Watch review count does not reset to `0` when changing pages.
+
+Do not call `npm run demo:assets` or `npm run demo:seed` as part of this refresh; those
+commands prepare fixture content and are separate from pulling the released image. If
+the image publish, stack update, health check, or live smoke test fails, stop and report
+the release as incomplete rather than claiming that the demo is current.
+
+### 7 - Synchronize develop to the new main version
 ```bash
 git fetch origin
 git checkout develop
@@ -130,7 +171,7 @@ git merge --ff-only origin/develop
 git merge origin/main --no-edit
 git push origin develop
 ```
-This final plain push is required. It publishes the release commit from step 3 and its
+This final plain push is required. It publishes the release commit from step 4 and its
 reset `changelog.alpha.json`/`changelog.develop.json` plus the new `changelog.json` version
 to `origin/develop`, with `changelog.develop.json` at build 1. Keeping the released
 `main` commit in remote `develop` means the next "Force to alpha" starts from an already

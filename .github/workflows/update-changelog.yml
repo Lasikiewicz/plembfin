@@ -4,9 +4,10 @@ name: Publish Main Release
 # on every push to main, tagged :latest and :<version>. changelog.json,
 # CHANGELOG.md, package.json, and package-lock.json are all computed locally
 # (scripts/promote-alpha-to-main.js), as part of "Force to main", before the
-# force-push - this job runs the full build gate against what was already
-# committed and never writes back to the branch. The Windows workflow attaches
-# the installer and checksum to the same GitHub Release.
+# force-push - this job checks README consistency, runs the full build gate against
+# what was already committed, and never writes back to the branch. The Windows
+# workflow attaches the installer and checksum to the same GitHub Release. The
+# Portainer-hosted demo is refreshed separately by the final "Force to main" gate.
 
 on:
   push:
@@ -34,6 +35,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci --ignore-scripts
+
+      - name: Check README consistency
+        run: npm run docs:check
 
       - name: Rebuild native modules
         run: npm rebuild better-sqlite3 sharp

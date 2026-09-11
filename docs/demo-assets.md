@@ -45,4 +45,7 @@ calendar, local watchlist/rating examples, and custom lists. It refuses the
 normal Plembfin data directory and refuses to seed over non-demo watch history.
 
 The scripts only prepare local assets and fixture data. They do not start the
-server, create DNS, publish a container, or deploy `demo.plembfin.com`.
+server, create DNS, publish a container, or deploy the hosted demo. The
+`Force to main` release procedure separately refreshes the Portainer-managed
+`plembfin` stack from the published `ghcr.io/lasikiewicz/plembfin:latest` image
+and verifies `https://plembfin.lasikie.co.uk/`.

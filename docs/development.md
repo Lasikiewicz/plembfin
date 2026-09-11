@@ -47,8 +47,8 @@ completed work changes user-visible behavior.
 
 1. runs `node --check` over every `.js` file in `public/`, `server/`, `scripts/`
 2. runs the `node:test` suite (the same tests exposed by `npm test`)
-3. runs `scripts/docs-check.js` to keep the README's Node.js and password setup guidance
-   aligned with the enforced package/runtime configuration
+3. runs `scripts/docs-check.js` to keep the README's released-version marker, Node.js,
+   and password setup guidance aligned with the enforced package/runtime configuration
 4. parses `package.json`, `package-lock.json`, `changelog.json`
 5. verifies every routed API handler is either intentionally public or calls
    `requireAdmin`, `resolveAdminPrincipal`, or `verifyWebhookToken`
@@ -122,10 +122,13 @@ version to the released semver and the build to 1. The sidebar and About
   develop's current entry as its own standalone alpha build entry, prepended to alpha's
   `entries` array - one entry per "Force to alpha" call, not a rolling merge - self-healing
   to a fresh `baseVersion`/build 1/empty `entries` whenever `main`'s version has moved on
-  since the last alpha build, and resets develop for the next cycle), commits, then
+  since the last alpha build, and resets develop for the next cycle). Before that
+  promotion commit, the operator reviews/updates `README.md` and runs `npm run docs:check`,
+  which also verifies that the top released-version marker matches `package.json`.
+  The alpha workflow repeats the mechanical check. The operator then
   force-pushes `develop`'s state onto `alpha` (`git push origin HEAD:alpha --force`; merge
   `origin/main` into `develop` first if it has moved on). The alpha publish workflow
-  checks README consistency before building and publishing. This is where
+  checks README consistency again before building and publishing. This is where
   secret/vulnerability scanning first applies. `docker-publish-alpha.yml` builds,
   verifies, and publishes to `ghcr.io/lasikiewicz/plembfin:alpha` (also tagged
   `alpha-<build>`) using the build number already in the pushed commit, creates or updates
@@ -150,10 +153,17 @@ version to the released semver and the build to 1. The sidebar and About
   `changelog.json`/`package.json`/`package-lock.json`/`CHANGELOG.md`, resets alpha, and
   resets develop to the released version at build 1 for the next cycle), commit, and
   force-push that commit to `main`
-  (`git push origin HEAD:main --force`), which triggers the release pipeline below. A
+  (`git push origin HEAD:main --force`), which triggers the release pipeline below. The
+  operator reviews/updates `README.md` on the alpha tip and runs `npm run docs:check`
+  before the release commit; the release workflow checks it again in CI. A
   first pre-push test failure follows the bounded retry procedure above instead of
   bypassing the gate or prematurely ending the promotion. The promotion command
   refuses to mutate anything without `--confirm`.
+- After the main image workflow succeeds, the operator refreshes the Portainer-managed
+  `plembfin` stack at [the hosted demo](https://plembfin.lasikie.co.uk/) from
+  `ghcr.io/lasikiewicz/plembfin:latest`, keeps `BUILD_CHANNEL=main` and the existing
+  data volume, and verifies the released version plus the version/onboarding/Manual Watch
+  smoke checks. Publishing to GHCR alone does not restart this container.
 - After the release pipeline publishes from that commit, the procedure merges
   `origin/main` into `develop` and pushes the synchronized state to `origin/develop`.
   The next "Force to alpha" therefore starts with `main` already represented in remote
@@ -176,7 +186,8 @@ git fetch origin
 git checkout develop
 git merge --ff-only origin/develop
 git merge origin/main --no-edit
-node scripts/promote-develop-to-alpha.js && git add changelog.alpha.json changelog.develop.json && git commit -m "chore: promote develop changelog to alpha"
+npm run docs:check
+node scripts/promote-develop-to-alpha.js && git add README.md changelog.alpha.json changelog.develop.json public && git commit -m "chore: promote develop changelog to alpha"
 git log origin/alpha..HEAD --oneline
 git push origin HEAD:alpha --force
 git push origin develop
@@ -184,8 +195,9 @@ git push origin develop
 # Promote alpha to main
 git fetch origin
 git checkout -B alpha origin/alpha
+npm run docs:check
 node scripts/promote-alpha-to-main.js --preview   # show the concise release changelog and get user approval before continuing
-node scripts/promote-alpha-to-main.js --confirm && git add changelog.json changelog.alpha.json changelog.develop.json CHANGELOG.md package.json package-lock.json && git commit -m "chore: promote alpha to main"
+node scripts/promote-alpha-to-main.js --confirm && git add README.md changelog.json changelog.alpha.json changelog.develop.json CHANGELOG.md package.json package-lock.json && git commit -m "chore: promote alpha to main"
 git log origin/main..HEAD --oneline
 git push origin HEAD:main --force
 
@@ -198,9 +210,12 @@ git push origin develop
 
 The alpha workflow reads the alpha build metadata already committed and publishes
 `:alpha` plus an `alpha-<build>` tag. The main workflow reads the version already
-committed and publishes `:latest` plus the version tag. After that commit lands, the
-"Force to main" procedure publishes its merge into `origin/develop` so the branch graph
-is reconciled before the next alpha promotion. It does not sync `alpha` separately.
+committed and publishes `:latest` plus the version tag. The main workflow does not
+restart the hosted demo; the "Force to main" procedure refreshes the Portainer
+`plembfin` stack and smoke-tests [plembfin.lasikie.co.uk](https://plembfin.lasikie.co.uk/)
+after the image is published. After that check, the procedure publishes its merge into
+`origin/develop` so the branch graph is reconciled before the next alpha promotion. It
+does not sync `alpha` separately.
 
 ## Release pipeline (push to `main`)
 
@@ -246,14 +261,33 @@ in `scripts/promote-alpha-to-main.js`, run before the force-push:
 
 `.github/workflows/update-changelog.yml` (workflow name "Publish Main Release") then
 runs on the push to `main` - in practice this means every "Force to main" run, not every
-individual commit - reads the version already committed, runs the full build gate again
-in CI, builds and pushes the Docker image to GHCR tagged `latest` + the version, creates
+individual commit - reads the version already committed, checks README consistency, runs
+the full build gate again in CI, builds and pushes the Docker image to GHCR tagged
+`latest` + the version, creates
 or updates the matching GitHub Release with the formatted body from
 `scripts/generate-release-notes.js`, then posts the `changelog.json` entry to Discord via
 `scripts/notify-discord-release.js main` (see "Discord release notifications" below).
-It does not write anything back to `main`.
+It does not write anything back to `main` or redeploy the Portainer-hosted demo; that
+refresh is the explicit post-publish step in "Force to main".
 `docker-publish.yml` is a manual (`workflow_dispatch`) image build that skips the
 changelog step.
+
+### Hosted demo release gate
+
+The public application demo at [plembfin.lasikie.co.uk](https://plembfin.lasikie.co.uk/)
+is a Portainer-managed Compose stack named `plembfin`. The running service should use
+`ghcr.io/lasikiewicz/plembfin:latest` with `BUILD_CHANNEL=main`; the stack editor must
+not be left on the development image or `BUILD_CHANNEL=develop`. The Compose stack keeps
+its existing `plembfin_data:/data` volume, so a release refresh must update the image
+without deleting or re-seeding the data.
+
+After `Publish Main Release` succeeds, open **Portainer → Stacks → plembfin → Editor**,
+confirm or change those image/channel values, and select **Update the stack**, pulling
+the latest image if Portainer offers that option. Confirm that the container is healthy,
+then check the live version and the release smoke cases: the bottom-left version opens
+the Changelog, completed onboarding does not keep showing **Complete onboarding**, and a
+Manual Watch review count survives navigation. GHCR publication by itself does not
+restart the container, so this gate is part of completing "Force to main".
 
 Pushes to `main` and `alpha` trigger `.github/workflows/windows-installer.yml`. That job
 runs on a Windows runner, installs and probes the Windows builds of `better-sqlite3` and

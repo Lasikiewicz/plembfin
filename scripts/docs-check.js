@@ -28,6 +28,13 @@ export function checkDocumentationConsistency({ packageJson, readme } = {}) {
     failures.push(`README Node.js badge does not match package.json engines.node (>=${nodeMinimum})`);
   }
 
+  const releaseMarker = markdown.match(/^>\s+\*\*v([^*\s]+)\.\*\*/m);
+  if (!releaseMarker) {
+    failures.push("README does not declare its current released version");
+  } else if (releaseMarker[1] !== String(pkg.version)) {
+    failures.push(`README released-version marker (${releaseMarker[1]}) does not match package.json (${pkg.version})`);
+  }
+
   if (!markdown.includes(`Requires Node.js ${nodeMinimum}+`)) {
     failures.push(`README bare-metal setup does not state Node.js ${nodeMinimum}+`);
   }

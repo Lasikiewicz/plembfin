@@ -24,7 +24,7 @@
 
 ---
 
-> **v1.0.0.** Plembfin writes watched state and playback progress to connected media
+> **v1.0.1.** Plembfin writes watched state and playback progress to connected media
 > servers, so **back up first** (Settings → Backup → Local). Report
 > issues on the [issue tracker](https://github.com/Lasikiewicz/plembfin/issues).
 

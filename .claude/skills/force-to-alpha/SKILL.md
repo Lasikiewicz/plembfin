@@ -1,6 +1,6 @@
 ---
 name: force-to-alpha
-description: "Promote everything queued on plembfin develop onto the alpha branch. Use when the user says \"Force to alpha\" exactly. Covers bringing develop up to date with main, running promote-develop-to-alpha.js, the asset restamp, the force-push to alpha, and pushing develop reset state."
+description: "Promote everything queued on plembfin develop onto the alpha branch. Use when the user says \"Force to alpha\" exactly. Covers bringing develop up to date with main, reviewing and checking README.md, running promote-develop-to-alpha.js, the asset restamp, the force-push to alpha, and pushing develop reset state."
 ---
 
 # Force to alpha
@@ -38,10 +38,26 @@ by `promote-develop-to-alpha.js` to self-heal alpha's base version) current. Sto
 the user if the repair merge produces a real application-code conflict; never resolve one
 by silently choosing a branch.
 
-### 2 - Add develop's changelog as a new alpha build entry, locally
+### 2 - Review and update README before promoting
+
+Review `README.md` against the user-visible changes currently on `develop` and update
+it before creating the promotion commit. At minimum, confirm the feature list, setup
+guidance, Docker channel table, screenshots/links, and the top released-version marker
+still describe the application. The marker must match the current stable version in
+`package.json`/`changelog.json`; it is not the pending alpha build number.
+
+Run the mechanical check after any edit:
+```bash
+npm run docs:check
+```
+The alpha workflow runs this check again, but CI cannot update a stale README. Keep any
+README change in the same promotion commit so the alpha image and prerelease are built
+from the documentation that was reviewed.
+
+### 3 - Add develop's changelog as a new alpha build entry, locally
 ```bash
 node scripts/promote-develop-to-alpha.js
-git add changelog.alpha.json changelog.develop.json public
+git add README.md changelog.alpha.json changelog.develop.json public
 git commit -m "chore: promote develop changelog to alpha"
 ```
 
@@ -59,7 +75,7 @@ refuses with a release-process violation, that means a commit folded into develo
 still contains recognized process text; fix it on `develop` and repeat from step 1. There
 is nothing to review afterward - the entry this writes is what will actually publish.
 
-### 3 - Force alpha to match develop
+### 4 - Force alpha to match develop
 Show the user what is about to land before running this - it is a force push to the
 shared `alpha` branch:
 ```bash
@@ -75,8 +91,8 @@ the image; it does not write anything back. Optionally confirm it succeeded:
 gh run list --branch alpha --limit 1
 ```
 
-### 4 - Push develop's reset state
-The commit from step 2 also reset `changelog.develop.json` for the next cycle - publish
+### 5 - Push develop's reset state
+The commit from step 3 also reset `changelog.develop.json` for the next cycle - publish
 that to `develop` too (this is a plain push, not a force-push; it does not touch `alpha`
 or `main`):
 ```bash
