@@ -1134,6 +1134,31 @@ function syncPosterLoadingState(currentHeader, nextHeader) {
   else if (!nextStatus) currentStatus?.remove();
 }
 
+// The first show render can use a representative episode still while the
+// canonical show metadata is loading. Keep the existing image node mounted so
+// its layout/lightbox state survives enrichment, but do update its source when
+// the authoritative show poster arrives.
+function syncPosterImage(currentHeader, nextHeader) {
+  const currentPoster = currentHeader?.querySelector(".immersive-poster-img");
+  const nextPoster = nextHeader?.querySelector(".immersive-poster-img");
+  if (!currentPoster || !nextPoster) return;
+
+  const nextSrc = nextPoster.getAttribute("src") || "";
+  const nextLightboxSrc = nextPoster.getAttribute("data-lightbox-src") || "";
+  // A placeholder/fallback render must not overwrite a real poster that is
+  // already mounted. Real poster markup always carries a lightbox source.
+  if (!nextSrc || !nextLightboxSrc) return;
+
+  const currentSrc = currentPoster.getAttribute("src") || "";
+  const currentLightboxSrc = currentPoster.getAttribute("data-lightbox-src") || "";
+  if (currentSrc === nextSrc && currentLightboxSrc === nextLightboxSrc) return;
+
+  currentPoster.classList.remove("is-loaded");
+  currentPoster.setAttribute("src", nextSrc);
+  currentPoster.setAttribute("data-lightbox-src", nextLightboxSrc);
+  currentPoster.setAttribute("alt", nextPoster.getAttribute("alt") || "Media poster");
+}
+
 // Metadata arrives after the local watched record. Replacing the complete
 // detail subtree for every enrichment pass recreated posters, episode images,
 // and the scrollable season list. Build the next markup off-DOM, then patch the
@@ -1163,8 +1188,9 @@ function patchShowModalDom(root, nextMarkup) {
   const currentHeader = directChildWithClass(currentPage, "immersive-header");
   const nextHeader = directChildWithClass(nextPage, "immersive-header");
   if (currentHeader && nextHeader) {
-    // Keep the poster image mounted across metadata passes, but still update
-    // its loading overlay when the authoritative detail request settles.
+    // Keep the poster image mounted across metadata passes, but update its
+    // source and loading overlay when the authoritative detail request settles.
+    syncPosterImage(currentHeader, nextHeader);
     syncPosterLoadingState(currentHeader, nextHeader);
     const currentMeta = currentHeader.querySelector(".immersive-meta");
     const nextMeta = nextHeader.querySelector(".immersive-meta");
