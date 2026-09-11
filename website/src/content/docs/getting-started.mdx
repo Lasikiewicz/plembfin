@@ -3,11 +3,12 @@ title: Getting started
 description: Install Plembfin, claim the instance, and complete the in-app Guided Setup flow.
 category: Start here
 order: 1
-sourceVersion: "0.16.3.5"
+sourceVersion: "1.0.0"
 sourcePaths:
   - README.md
   - docs/onboarding.md
   - docs/development.md
+  - packaging/windows/README.md
   - docs/dashboard.md
   - public/modules/onboarding.js
 screenshots:
@@ -55,6 +56,28 @@ The browser is only the client.
 A connection can look reachable from your laptop while the Plembfin host cannot reach it.
 
 Network testing must ultimately be done from the host that runs the application.
+
+## Install with the Windows installer
+
+On 64-bit Windows, download the latest [Plembfin installer from GitHub Releases](https://github.com/Lasikiewicz/plembfin/releases/latest)
+and run it as an administrator. It includes the Plembfin server, Node.js runtime, and
+Windows native dependencies, then registers the server as a background service.
+
+The installer keeps the runtime database, artwork cache, logs, and backups in
+`%ProgramData%\Plembfin`, separate from any source checkout. Uninstalling preserves that
+data unless you explicitly confirm its removal.
+
+The installer options are preselected for a ready first launch:
+
+- **Open Plembfin now** opens the local dashboard so you can claim a fresh instance.
+- **Start the notification-area companion** adds the tray menu for service status, dashboard
+  access, and stopping the server. Clear it if you do not want Plembfin in the tray.
+- **Create a desktop shortcut** adds a convenience shortcut to the dashboard.
+- **Allow private-network access** opens TCP port 5055 for other devices on the same private
+  network. Leave it cleared when you only use `127.0.0.1` on the Windows machine.
+
+The browser launch and tray choice are independent, so you can select both. Alpha testers
+can use the matching prerelease installer from the [GitHub Releases page](https://github.com/Lasikiewicz/plembfin/releases).
 
 ## Install with Docker Compose
 

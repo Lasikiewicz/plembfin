@@ -5045,5 +5045,50 @@
       "bullets": []
     }
   ],
-  "alpha": null
+  "alpha": {
+    "baseVersion": "1.0.0",
+    "build": 3,
+    "version": "1.0.0.3",
+    "updatedAt": "2026-09-11T13:08:28.827Z",
+    "entries": [
+      {
+        "build": 3,
+        "version": "1.0.0.3",
+        "date": "11 September 2026",
+        "title": "Alpha build 3",
+        "summary": "Feature - Publish formatted notes with every release",
+        "bullets": [
+          "Feature: Publish formatted notes with every release",
+          "Feature: Generate readable release notes from the committed changelog for alpha and stable builds",
+          "Feature: Publish Docker and Windows outputs together on the matching GitHub Release",
+          "Feature: Include setup guidance, limitations, download links, and screenshots in each release"
+        ]
+      },
+      {
+        "build": 2,
+        "version": "1.0.0.2",
+        "date": "11 September 2026",
+        "title": "Alpha build 2",
+        "summary": "Consolidated develop updates",
+        "bullets": [
+          "Consolidated updates and improvements from develop"
+        ]
+      },
+      {
+        "build": 1,
+        "version": "1.0.0.1",
+        "date": "11 September 2026",
+        "title": "Alpha build 1",
+        "summary": "Feature - Complete first-run setup and Windows distribution",
+        "bullets": [
+          "Feature: Complete first-run setup and Windows distribution",
+          "Feature: Guide new instances through account claiming and show the claimed account details and local address",
+          "Feature: Add a self-contained Windows installer with service cleanup, optional tray startup, and post-install launch choices",
+          "Feature: Keep installed runtime data separate from the source checkout so reinstalls do not reuse repository data",
+          "Feature: Improve live media and watch-state updates across dashboard, history, and sync surfaces",
+          "Feature: Add a packaged demo catalog and refresh the public documentation experience"
+        ]
+      }
+    ]
+  }
 }

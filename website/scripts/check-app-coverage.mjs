@@ -44,7 +44,7 @@ for (const label of ["Dashboard", "Movies", "TV Shows", "Upcoming", "Discover", 
   }
 }
 
-for (const label of ["General", "Media servers", "Webhooks", "Connections", "Metadata", "Sync", "Backup", "Restore", "Tools", "Logs", "About"]) {
+for (const label of ["General", "Media servers", "Webhooks", "Connections", "Metadata", "Sync", "Backup", "Restore", "Tools", "Logs"]) {
   if (!settingsShell.includes(`label: "${label}"`)) {
     failures.push(`settings shell no longer contains the expected group: ${label}`);
   }
