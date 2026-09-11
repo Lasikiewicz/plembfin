@@ -7,7 +7,7 @@ const { integrations } = Astro.props as {
 <div class="integration-rail" aria-label="Supported integrations">
   {integrations.map((integration) => (
     <div class="integration-item">
-      <span class="integration-icon"><img src={integration.icon} alt="" aria-hidden="true" /></span>
+      <span class="integration-icon"><img src={integration.icon} alt="" aria-hidden="true" width="20" height="20" /></span>
       <span>
         <strong>{integration.name}</strong>
         <small>{integration.role}</small>

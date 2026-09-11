@@ -6,8 +6,16 @@ import { fileURLToPath } from "node:url";
 // the Docker image sets DATA_DIR=/data with a mounted volume.
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, "..", "..");
+const configuredDataDir = String(process.env.DATA_DIR || "").trim();
+const isWindowsService = process.platform === "win32" && process.env.PLEMBFIN_WINDOWS_SERVICE === "1";
+const windowsServiceDataDir = isWindowsService
+  ? path.join(process.env.ProgramData || path.join(path.parse(repoRoot).root, "ProgramData"), "Plembfin")
+  : "";
+const usableConfiguredDataDir = configuredDataDir && !/%[^%]+%/.test(configuredDataDir)
+  ? configuredDataDir
+  : windowsServiceDataDir;
 
-export const DATA_DIR = path.resolve(process.env.DATA_DIR || path.join(repoRoot, "data"));
+export const DATA_DIR = path.resolve(usableConfiguredDataDir || path.join(repoRoot, "data"));
 export const MEDIA_DIR = path.join(DATA_DIR, "media");
 export const POSTERS_DIR = path.join(MEDIA_DIR, "posters");
 export const BACKDROPS_DIR = path.join(MEDIA_DIR, "backdrops");

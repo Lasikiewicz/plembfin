@@ -1,5 +1,6 @@
 import { outboundTimeoutMs } from "./tuning.js";
 import { acquireOutboundSlot, noteOutboundResponse, configureOutboundGovernor } from "./outboundGovernor.js";
+import { isDemoMode } from "./demoMode.js";
 
 const DEFAULT_FETCH_TIMEOUT_MS = 10_000;
 const MAX_OUTBOUND_REDIRECTS = 5;
@@ -9,6 +10,7 @@ const OUTBOUND_POLICY_CODES = Object.freeze({
   CREDENTIALS: "OUTBOUND_CREDENTIALS",
   METADATA: "OUTBOUND_METADATA",
   REDIRECT_LIMIT: "OUTBOUND_REDIRECT_LIMIT",
+  DEMO_DISABLED: "OUTBOUND_DEMO_DISABLED",
 });
 
 function outboundPolicyError(message, code) {
@@ -24,6 +26,7 @@ function publicOutboundPolicyError(code) {
     [OUTBOUND_POLICY_CODES.CREDENTIALS]: "Outbound URL must not contain embedded credentials",
     [OUTBOUND_POLICY_CODES.METADATA]: "Outbound URL targets a blocked metadata endpoint",
     [OUTBOUND_POLICY_CODES.REDIRECT_LIMIT]: "Upstream request exceeded the redirect limit",
+    [OUTBOUND_POLICY_CODES.DEMO_DISABLED]: "Outbound requests are disabled in demo mode",
   };
   return messages[code] ? outboundPolicyError(messages[code], code) : null;
 }
@@ -163,6 +166,12 @@ function trackOutbound(url) {
 }
 
 export async function fetchWithTimeout(url, options = {}, timeoutMs = undefined) {
+  if (isDemoMode()) {
+    const error = outboundPolicyError("Outbound requests are disabled in demo mode", OUTBOUND_POLICY_CODES.DEMO_DISABLED);
+    error.status = 503;
+    error.expose = true;
+    throw error;
+  }
   const resolvedTimeoutMs = timeoutMs ?? outboundTimeoutMs();
   const safeUrl = assertSafeOutboundUrl(url, { label: "Outbound URL" });
   const host = safeUrl.hostname.toLowerCase();

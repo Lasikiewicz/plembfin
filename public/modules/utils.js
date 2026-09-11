@@ -1,5 +1,18 @@
 // Pure utility functions - no state, no DOM, no side effects.
 
+// The public demo is intentionally self-contained. Keep the check in a small
+// shared utility so image helpers, onboarding, and detail renderers all agree
+// on whether external artwork is allowed. The hostname check also makes the
+// local preview behave like the eventual demo.plembfin.com deployment.
+export function isDemoMode() {
+  if (typeof window === "undefined") return false;
+  const explicitFlag = window.__PLEMBFIN_DEMO__ ?? window.document?.documentElement?.dataset?.plembfinDemo;
+  if (["1", "true", "yes", "on"].includes(String(explicitFlag || "").trim().toLowerCase())) return true;
+  const hostname = String(window.location?.hostname || "").toLowerCase();
+  if (hostname === "demo.plembfin.com") return true;
+  return ["localhost", "127.0.0.1", "::1"].includes(hostname) && String(window.location?.port || "") === "5057";
+}
+
 export function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (character) => {
     const entities = {
@@ -239,11 +252,15 @@ export function normalizePlatformSource(value) {
   const source = String(value || "").trim().toLowerCase();
   if (source.startsWith("emby")) return "emby";
   if (source.startsWith("jellyfin")) return "jellyfin";
+  // Bundled demo activity is local-only simulated playback, not Plex. Keep it
+  // in the Plembfin styling/icon lane while giving the UI a truthful label.
+  if (source.startsWith("demo")) return "plembfin";
   if (source.startsWith("manual") || source.startsWith("force_sync") || source.startsWith("plembfin")) return "plembfin";
   return "plex";
 }
 
 export function platformName(value) {
+  if (String(value || "").trim().toLowerCase().startsWith("demo")) return "Demo Preview";
   const normalized = normalizePlatformSource(value);
   if (normalized === "plembfin") return "Plembfin";
   const text = normalized.replace(/_/g, " ");
@@ -286,9 +303,9 @@ export function platformSourceValues(entry = {}) {
 
 export function platformIconUrl(value) {
   const normalized = normalizePlatformSource(value);
-  if (normalized === "plembfin") return "/icons/plembfin.png?v=0.16.3.7";
+  if (normalized === "plembfin") return "/icons/plembfin.png?v=1.0.0.0.0";
   const extension = "svg";
-  return `/icons/${normalized}.${extension}?v=0.16.3.7`;
+  return `/icons/${normalized}.${extension}?v=1.0.0.0.0`;
 }
 
 export function platformIconMarkup(value, className = "source-badge-icon", wrapperClass = "source-badge-icon-set") {
@@ -299,8 +316,8 @@ export function platformIconMarkup(value, className = "source-badge-icon", wrapp
   }
 
   return `<span class="${escapeAttribute(wrapperClass)} theme-aware-icon-set" aria-hidden="true">
-    <img class="${safeClassName} theme-aware-icon--light" src="/icons/plembfin-light.png?v=0.16.3.7" alt="" loading="eager" decoding="async" />
-    <img class="${safeClassName} theme-aware-icon--dark" src="/icons/plembfin.png?v=0.16.3.7" alt="" loading="eager" decoding="async" />
+    <img class="${safeClassName} theme-aware-icon--light" src="/icons/plembfin-light.png?v=1.0.0.0.0" alt="" loading="eager" decoding="async" />
+    <img class="${safeClassName} theme-aware-icon--dark" src="/icons/plembfin.png?v=1.0.0.0.0" alt="" loading="eager" decoding="async" />
   </span>`;
 }
 

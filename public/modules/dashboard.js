@@ -1,9 +1,9 @@
-import { buildAuthHeaders } from "./auth.js?v=0.16.3.7";
-import { state, elements } from "./state.js?v=0.16.3.7";
-import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, sourceBadgeHtml, formatDate, formatTmdbDate, resolveEpisodeTitle, episodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress } from "./utils.js?v=0.16.3.7";
-import { posterMarkup, posterOverflowMenu, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, isLocalArtworkUrl } from "./images.js?v=0.16.3.7";
-import { renderDashboardChecklist } from "./onboarding.js?v=0.16.3.7";
-import { initialMediaAppLinksContent } from "./media-detail-shared.js?v=0.16.3.7";
+import { buildAuthHeaders } from "./auth.js?v=1.0.0.0.0";
+import { state, elements } from "./state.js?v=1.0.0.0.0";
+import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, sourceBadgeHtml, formatDate, formatTmdbDate, resolveEpisodeTitle, episodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress, isDemoMode } from "./utils.js?v=1.0.0.0.0";
+import { posterMarkup, posterOverflowMenu, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, isLocalArtworkUrl } from "./images.js?v=1.0.0.0.0";
+import { renderDashboardChecklist } from "./onboarding.js?v=1.0.0.0.0";
+import { initialMediaAppLinksContent } from "./media-detail-shared.js?v=1.0.0.0.0";
 
 const PART_WATCHED_DASHBOARD_LIMIT = 30;
 const EXPLORER_PAGE_SIZE = 240;
@@ -586,6 +586,7 @@ export function observeDashboardPosters() {
       const hydrateOne = async (fallback) => {
         const posterId = fallback.dataset.posterId;
         if (!posterId) return;
+        if (isDemoMode()) return;
 
         const posterUrl = await lookupPosterUrl(posterId, { allowNetwork: true });
         const safeUrl = safePosterElementUrl(posterUrl);

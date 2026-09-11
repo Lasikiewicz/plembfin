@@ -1,6 +1,6 @@
-import { buildAuthHeaders } from "./auth.js?v=0.16.3.7";
-import { state } from "./state.js?v=0.16.3.7";
-import { safeImageUrl, escapeAttribute } from "./utils.js?v=0.16.3.7";
+import { buildAuthHeaders } from "./auth.js?v=1.0.0.0.0";
+import { state } from "./state.js?v=1.0.0.0.0";
+import { safeImageUrl, escapeAttribute, isDemoMode } from "./utils.js?v=1.0.0.0.0";
 
 // /api/poster resolves most requests from an already-cached DB row or webp
 // file (no outbound API call); the actual TMDB fallback downloads are
@@ -17,7 +17,7 @@ const TMDB_POSTER_SIZE = "w342";
 
 export function isCachedStorageImageUrl(value = "") {
   const raw = String(value || "").trim();
-  return raw.startsWith("/media/posters/") || raw.startsWith("/media/backdrops/");
+  return /^\/(?:media|demo-assets)\//i.test(raw);
 }
 
 // These same-origin endpoints already return safe artwork (usually by
@@ -25,6 +25,7 @@ export function isCachedStorageImageUrl(value = "") {
 // trying to resolve them against a media-server base URL.
 export function isLocalArtworkUrl(value = "") {
   const raw = String(value || "").trim();
+  if (isDemoMode()) return isCachedStorageImageUrl(raw);
   return isCachedStorageImageUrl(raw)
     || raw.startsWith("/api/poster")
     || raw.startsWith("/api/tmdb-poster")
@@ -35,6 +36,7 @@ export function isLocalArtworkUrl(value = "") {
 export function compactPosterUrl(value) {
   const raw = String(value || "").trim();
   if (isCachedStorageImageUrl(raw)) return raw;
+  if (isDemoMode()) return "";
   const url = safeImageUrl(raw);
   if (!url) return "";
   try {
@@ -176,6 +178,7 @@ export function configuredImageUrl(path, item = {}) {
   const server = posterServerConfig(item.source);
   const baseUrl = String(server.baseUrl || server.url || "").trim().replace(/\/+$/, "");
   if (!raw || !baseUrl) return "";
+  if (isDemoMode()) return "";
 
   try {
     const url = new URL(raw, `${baseUrl}/`);
@@ -205,6 +208,7 @@ export function posterUrlFor(item = {}) {
     // that URL here made a valid poster response look like a missing poster.
     const cacheSafeArtwork = (value) => {
       const candidate = String(value || "").trim();
+      if (isDemoMode()) return isCachedStorageImageUrl(candidate);
       return isCachedStorageImageUrl(candidate)
         || /^\/api\/(?:poster|tmdb-poster|remote-artwork)(?:[/?]|$)/i.test(candidate);
     };
@@ -229,7 +233,7 @@ export function posterUrlFor(item = {}) {
   // canonical poster for its parent show. Use it as a fallback without
   // replacing an explicit episode image above.
   if (!resolvedRaw && isLocalArtworkUrl(resolvedShow)) return resolvedShow;
-  if (resolvedRaw.startsWith("https://img.youtube.com/")) return resolvedRaw;
+  if (!isDemoMode() && resolvedRaw.startsWith("https://img.youtube.com/")) return resolvedRaw;
   if (idValue != null && !item.prefer_raw_poster && !isLocalArtworkUrl(resolvedShow)) return "";
   if (resolvedRaw) {
     return configuredImageUrl(resolvedRaw, item) || configuredImageUrl(resolvedShow, item);
@@ -396,6 +400,9 @@ export function posterFallbackElement(className = "media-poster", posterId = "")
 
 export async function lookupPosterUrl(posterId, { fallback = false, allowNetwork = true } = {}) {
   if (!posterId) return "";
+  // The public demo is a closed fixture. Never turn a missing local image
+  // into a poster lookup that could make the server contact a provider.
+  if (isDemoMode()) return "";
   if (!fallback) {
     const cached = cachedPosterLookup(posterId);
     if (cached !== undefined) return cached || "";
@@ -456,7 +463,7 @@ function shouldHydratePosterElement(element) {
 }
 
 async function prefillPosterLookups(fallbacks, { allowNetwork = true } = {}) {
-  if (!allowNetwork || !state.token) return;
+  if (isDemoMode() || !allowNetwork || !state.token) return;
   const ids = [];
   const seen = new Set();
   for (const fallback of fallbacks) {
@@ -596,12 +603,16 @@ export function hydratePosters(container = document.body, { allowNetwork = true 
 
 export function tmdbImage(path, size = "w300") {
   if (!path) return "";
+  if (/^\/(?:demo-assets|media)\//i.test(path)) return path;
+  if (isDemoMode()) return "";
   if (/^https?:\/\//i.test(path)) return path;
   return `https://image.tmdb.org/t/p/${size}${path}`;
 }
 
 export function tmdbPoster(path, tmdbId = "", mediaType = "") {
   if (!path) return "";
+  if (/^\/(?:demo-assets|media)\//i.test(path)) return path;
+  if (isDemoMode()) return "";
   let url = `/api/tmdb-poster?path=${encodeURIComponent(path)}`;
   if (tmdbId) url += `&tmdbId=${encodeURIComponent(tmdbId)}`;
   if (mediaType) url += `&mediaType=${encodeURIComponent(mediaType)}`;
@@ -634,7 +645,9 @@ export function markArtworkUnavailable(src) {
 // gallery tile) without another request.
 export function proxiedArtworkUrl(url, variant = "poster") {
   const raw = String(url || "").trim();
+  if (isDemoMode() && /^https?:\/\//i.test(raw)) return "";
   if (!raw || !/^https:\/\//i.test(raw)) return raw;
+  if (isDemoMode()) return "";
   let host = "";
   try {
     host = new URL(raw).hostname.toLowerCase();
@@ -653,9 +666,13 @@ export function bestTmdbLogo(tmdbData) {
   const logos = tmdbData?.images?.logos || [];
   const logo = logos.find(l => l.iso_639_1 === "en") || logos.find(l => !l.iso_639_1);
   if (logo) return tmdbImage(logo.file_path, "original");
-  return tmdbData?.cached_logo_url || null;
+  const cached = tmdbData?.cached_logo_url || "";
+  return isDemoMode() && !isCachedStorageImageUrl(cached) ? null : cached || null;
 }
 
 export function tmdbProfile(path) {
-  return path ? `/api/tmdb-profile?path=${encodeURIComponent(path)}` : "";
+  if (!path) return "";
+  if (/^\/(?:demo-assets|media)\//i.test(path)) return path;
+  if (isDemoMode()) return "";
+  return `/api/tmdb-profile?path=${encodeURIComponent(path)}`;
 }

@@ -1,0 +1,23 @@
+<service>
+  <id>Plembfin</id>
+  <name>Plembfin</name>
+  <description>Plembfin media watch-state synchronization service.</description>
+
+  <executable>%BASE%\node.exe</executable>
+  <arguments>"%BASE%\server\server.js"</arguments>
+  <workingdirectory>%BASE%</workingdirectory>
+  <hidewindow>true</hidewindow>
+  <stoptimeout>30 sec</stoptimeout>
+  <delayedAutoStart>true</delayedAutoStart>
+
+  <env name="NODE_ENV" value="production" />
+  <env name="PLEMBFIN_WINDOWS_SERVICE" value="1" />
+  <env name="DATA_DIR" value="%ProgramData%\Plembfin" />
+  <env name="PORT" value="5055" />
+  <env name="HOST" value="0.0.0.0" />
+  <env name="ROLE" value="all" />
+
+  <logpath>%ProgramData%\Plembfin\logs\service</logpath>
+  <log mode="roll" />
+  <onfailure action="restart" delay="10 sec" />
+</service>

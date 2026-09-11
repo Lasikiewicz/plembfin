@@ -1,6 +1,6 @@
 import { sendJson, notFound } from "./utils/http.js";
 import { isClaimRequired } from "./appConfig.js";
-import { handleLogin, handleLogout, handleAuthStatus, handleAuthApiKey, handleAuthWebhookSecret, handleAuthCredentials, handleAuthClaim, handleRevokeAllSessions } from "./utils/auth.js";
+import { handleLogin, handleLogout, handleAuthStatus, handleAuthApiKey, handleAuthWebhookSecret, handleAuthCredentials, handleAuthClaim, handleRevokeAllSessions, requireAdmin } from "./utils/auth.js";
 import { backfillUnknownShowTitles } from "./utils/dataRepo.js";
 import { runScheduledTick, startPlexNotificationListener, stopPlexNotificationListener } from "./scheduler.js";
 import { handleBackupExport, handleBackupImport, handleImport, handlePlembfinBackups, handleWatchBackups } from "./routes/backups.js";
@@ -19,6 +19,7 @@ import { handlePersonalMedia } from "./routes/personal.js";
 import { handleRatingSync } from "./routes/ratingSync.js";
 import { handleWatchlistSync } from "./routes/watchlistSync.js";
 import { handleManualWatchReview } from "./routes/manualWatchReview.js";
+import { isDemoMode } from "./utils/demoMode.js";
 
 function routePath(req) {
   const path = req.path || new URL(req.originalUrl || req.url, "https://local").pathname;
@@ -30,9 +31,83 @@ function routePath(req) {
 // be driven through any other API surface.
 const CLAIM_GATE_WHITELIST = new Set(["ping", "changelog", "login", "logout", "auth/status", "auth-status", "auth/claim"]);
 
+// The hosted demo is an immutable catalogue. Read-only catalogue routes are
+// still available, but anything that could expose credentials, create a
+// connection, run a sync, export/restore data, or inspect diagnostics is
+// rejected before it reaches a normal route handler.
+const DEMO_DISABLED_ROUTE_PATTERNS = Object.freeze([
+  /^setup(?:\/|$)/i,
+  /^auth\/(?:apikey|webhook-secret|credentials|claim|sessions\/revoke-all)(?:\/|$)/i,
+  /^(?:media-auth|media-connections|tracker-auth|tracker-connections)(?:\/|$)/i,
+  /^(?:backup|watch-backups|plembfin-backups)(?:\/|$)/i,
+  /^(?:import|delete-media|wipe-data|clear-cache|cache-stats)(?:\/|$)/i,
+  /^(?:force-sync|full-sync-watchstates|cron-sync|stop-force-sync)(?:\/|$)/i,
+  /^(?:sync-jobs|sync\/|sync-match-report|health\/sync|sync-attention|sync-activity|sync-history|manual-watch-review|retry-sync)(?:\/|$)/i,
+  /^(?:test-connection|test-plex-notifications|seerr)(?:\/|$)/i,
+  /^(?:tmdb-search|tvdb-search|fix-match-search|media-search|refresh-tmdb-metadata|refresh-tvdb-metadata)(?:\/|$)/i,
+  /^(?:remote-artwork|tmdb-poster|tmdb-profile|fanart-images|tvdb-images|tmdb-images|youtube-meta|omdb-rating)(?:\/|$)/i,
+  /^(?:admin-|phantom-watch-|episode-title-|stale-|split-identity-|likely-false-)/i,
+  /^(?:rematch-show|merge-shows|duplicate-watch-)/i,
+  /^(?:diagnostic-logs|debug-plex-match|webhook)$/i,
+]);
+
+const DEMO_MUTATION_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+const DEMO_LOGIN_ROUTES = new Set(["login", "logout"]);
+// These endpoints use POST only to carry a bounded batch payload. They read
+// the bundled catalogue and do not mutate user/demo state, so they must remain
+// available in the immutable demo just like their GET equivalents.
+const DEMO_READ_ONLY_POST_ROUTES = new Set(["tmdb-details-batch"]);
+
+function demoRouteDisabled(path) {
+  return DEMO_DISABLED_ROUTE_PATTERNS.some((pattern) => pattern.test(path));
+}
+
+function demoMutationResponse(path, res) {
+  const operationId = `demo:simulated:${Date.now()}`;
+  return sendJson(res, {
+    ok: true,
+    demo: true,
+    simulated: true,
+    status: "simulated",
+    message: "Demo mode: this action was simulated and was not saved.",
+    operationId,
+    path,
+    inserted: 0,
+    skipped: 0,
+    rejected: [],
+    succeeded: 0,
+    failed: 0,
+    queued: 0,
+    propagated: 0,
+    syncQueued: 0,
+    items: 0,
+    synced: 0,
+    imported: 0,
+    results: [],
+    records: [],
+    targetStates: [],
+    providerDismissals: [],
+  }, 200, { "Cache-Control": "no-store" });
+}
+
 async function dispatch(req, res) {
   try {
     const path = routePath(req);
+    if (isDemoMode()) {
+      if (demoRouteDisabled(path)) {
+        return sendJson(res, {
+          error: "This action is disabled in the public demo",
+          code: "DEMO_DISABLED",
+          retryable: false,
+        }, 403, { "Cache-Control": "no-store" });
+      }
+      if (DEMO_MUTATION_METHODS.has(String(req.method || "").toUpperCase())
+        && !DEMO_LOGIN_ROUTES.has(path)
+        && !DEMO_READ_ONLY_POST_ROUTES.has(path)) {
+        if (!(await requireAdmin(req, res))) return;
+        return demoMutationResponse(path, res);
+      }
+    }
     if (isClaimRequired() && !CLAIM_GATE_WHITELIST.has(path)) {
       return sendJson(res, { error: "This instance has not been claimed yet", code: "CLAIM_REQUIRED", retryable: false }, 403);
     }

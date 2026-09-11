@@ -1,19 +1,19 @@
-import { state, elements } from "./state.js?v=0.16.3.7";
-import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel, formatSeasonTitle, sourceBadgeHtml, platformSourceValues, normalizePlatformSource, actualWatchHistory, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js?v=0.16.3.7";
-import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=0.16.3.7";
-import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js?v=0.16.3.7";
-import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading, cachedShowDetail, rememberShowDetail, cachedShowDetailMiss, rememberShowDetailMiss } from "./explorer.js?v=0.16.3.7";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=0.16.3.7";
-import { renderWatchDatePrompt, seasonUnwatchButtonHtml, showUnwatchButtonHtml, savingEpisodeKeysForShow } from "./watch-action.js?v=0.16.3.7";
-import { authHeaders, setMessage, syncPageTopbar, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=0.16.3.7";
-import { personalRatingPillHtml, personalEpisodeRatingButtonHtml, personalMediaActionsHtml } from "./personal-media.js?v=0.16.3.7";
+import { state, elements } from "./state.js?v=1.0.0.0.0";
+import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel, formatSeasonTitle, sourceBadgeHtml, platformSourceValues, normalizePlatformSource, actualWatchHistory, tvShowTmdbHref, tvShowTvdbHref, isDemoMode } from "./utils.js?v=1.0.0.0.0";
+import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters, isCachedStorageImageUrl } from "./images.js?v=1.0.0.0.0";
+import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js?v=1.0.0.0.0";
+import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading, cachedShowDetail, rememberShowDetail, cachedShowDetailMiss, rememberShowDetailMiss } from "./explorer.js?v=1.0.0.0.0";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.0.0.0.0";
+import { renderWatchDatePrompt, seasonUnwatchButtonHtml, showUnwatchButtonHtml, savingEpisodeKeysForShow } from "./watch-action.js?v=1.0.0.0.0";
+import { authHeaders, setMessage, syncPageTopbar, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=1.0.0.0.0";
+import { personalRatingPillHtml, personalEpisodeRatingButtonHtml, personalMediaActionsHtml } from "./personal-media.js?v=1.0.0.0.0";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderRelatedShowsSection,
   renderMediaFacts, renderMediaImagesSection, renderExternalRatingPills, ratingPillHtml,
   renderSeasonSeerrControls, renderSeerrRequestPill, fetchSeerrMediaStatus,
   refreshActiveMediaDetailAfterSeerrStatus, tvSeasonAvailabilityHtml, episodeResolutionPillHtml,
   hydrateMediaAppLinks, mediaAppLinksHtml,
-} from "./media-detail-shared.js?v=0.16.3.7";
+} from "./media-detail-shared.js?v=1.0.0.0.0";
 
 let _playbackProgressRows = [];
 let _playbackProgressLoaded = false;
@@ -930,7 +930,10 @@ function buildShowEpisodeRows(show, seasonsList, seasonDetailsByNumber, resolved
     const seasonNumber = Number(season.season_number);
     const tmdbSeason = seasonDetailsByNumber.get(seasonNumber);
     const tmdbEpisodes = Array.isArray(tmdbSeason?.episodes) ? tmdbSeason.episodes : [];
-    const fallbackPosterUrl = (/^https?:\/\//i.test(season.poster_path || "") ? season.poster_path : tmdbPoster(season.poster_path)) || posterUrlFor(representativeEpisode(localSeasons));
+    const bundledSeasonPoster = season.poster_url || season.cached_poster_url || season.poster?.path || "";
+    const fallbackPosterUrl = proxiedArtworkUrl(bundledSeasonPoster, "poster")
+      || (!isDemoMode() && /^https?:\/\//i.test(season.poster_path || "") ? season.poster_path : tmdbPoster(season.poster_path))
+      || posterUrlFor(representativeEpisode(localSeasons));
     const knownEpNums = new Set();
 
     if (tmdbEpisodes.length) {
@@ -1021,8 +1024,10 @@ function episodeThumbMarkup(episode, hideSpoilers = false) {
   if (hideSpoilers && !episode.watched) {
     return `<img class="episode-thumb episode-spoiler-placeholder" src="/spoiler-placeholder.svg" alt="Episode artwork hidden" />`;
   }
-  const stillUrl = safeImageUrl(episode.stillUrl);
-  const posterUrl = safeImageUrl(episode.posterUrl) || episode.posterUrl || "";
+  const stillUrl = isCachedStorageImageUrl(episode.stillUrl) ? episode.stillUrl : (isDemoMode() ? "" : safeImageUrl(episode.stillUrl));
+  const posterUrl = isCachedStorageImageUrl(episode.posterUrl)
+    ? episode.posterUrl
+    : (isDemoMode() ? "" : safeImageUrl(episode.posterUrl) || episode.posterUrl || "");
   const url = stillUrl || posterUrl;
   if (!url) return `<span class="episode-thumb poster-fallback" aria-hidden="true"></span>`;
   const onerrorAttr = stillUrl && posterUrl && stillUrl !== posterUrl
@@ -1450,7 +1455,7 @@ export function renderShowModalContent(show, {
   const showRemoving = watchedRows.some((episode) => episode.watched && state.savingUnwatchIds.has(episode.watched.id));
   const watchProgressLabel = showRemoving ? "Removing…" : `${watchedCount} of ${totalCount} episodes watched${watchHistoryLabel}`;
   const representative = representativeEpisode(seasonsMap);
-  const backdropUrl = show.backdrop_url || tmdbData?.cached_backdrop_url || tmdbImage(tmdbData?.backdrop_path, "original");
+  const backdropUrl = proxiedArtworkUrl(show.backdrop_url, "backdrop") || tmdbData?.cached_backdrop_url || tmdbImage(tmdbData?.backdrop_path, "original");
   const showPosterUrl = show.show_poster_url || show.canonical_poster_url || "";
   const posterUrl = posterUrlFor({ ...show, poster_url: showPosterUrl, prefer_raw_poster: true })
     || proxiedArtworkUrl(tmdbData?.cached_poster_url, "poster")

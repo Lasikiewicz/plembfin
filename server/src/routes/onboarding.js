@@ -43,7 +43,7 @@ function checklistItems(state, { servers, trakt, tmdbConfigured, seerrConfigured
       items.push({ id: `import_${server.provider}`, label: `Import watched status from ${server.serverName || server.provider}`, href: "/settings/sync-tools" });
     }
   }
-  if (!trakt.connected && (state.acknowledgements.traktSkipped || state.currentStep === "overview")) {
+  if (!trakt.connected && (state.acknowledgements.traktSkipped || ["overview", "claim", "trakt"].includes(state.currentStep))) {
     items.push({ id: "connect_trakt", label: "Connect Trakt", href: "/settings/import" });
   }
   if (!seerrConfigured) items.push({ id: "configure_seerr", label: "Configure Seerr", href: "/settings/seerr" });
@@ -108,6 +108,7 @@ export async function handleSetupStatus(req, res) {
       currentOnboardingVersion: CURRENT_ONBOARDING_VERSION,
       runState: state.runState,
       currentStep: state.currentStep,
+      accountClaimed: state.accountClaimed,
       startedAt: state.startedAt,
       completedAt: state.completedAt,
       acknowledgements: state.acknowledgements,

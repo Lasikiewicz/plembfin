@@ -1,4 +1,4 @@
-import { escapeAttribute } from "./utils.js?v=0.16.3.7";
+import { escapeAttribute, isDemoMode } from "./utils.js?v=1.0.0.0.0";
 
 export function initMediaLightbox() {
   // Side-effect globals below preserve existing inline/event-delegated handlers.
@@ -11,8 +11,9 @@ window.playTrailer = function (el, videoKey, videoName) {
       if (thumbCont !== el && thumbCont.querySelector('iframe')) {
         const key = thumbCont.dataset.videoKey;
         const name = thumbCont.dataset.videoName;
+        const thumbnail = thumbCont.dataset.videoThumbnail || (isDemoMode() ? "/favicon.svg" : `https://img.youtube.com/vi/${key}/mqdefault.jpg`);
         thumbCont.innerHTML = `
-          <img class="trailer-thumb" src="https://img.youtube.com/vi/${key}/mqdefault.jpg" alt="${escapeAttribute(name)}" data-err="fav" />
+          <img class="trailer-thumb" src="${escapeAttribute(thumbnail)}" alt="${escapeAttribute(name)}" data-err="fav" />
           <div class="play-overlay">
             <svg viewBox="0 0 24 24" width="40" height="40" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
           </div>

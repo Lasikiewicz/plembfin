@@ -140,7 +140,7 @@ export function claimAccount() {
       accountClaimed: true,
       runState: "in_progress",
       startedAt: state.startedAt || Date.now(),
-      currentStep: "overview",
+      currentStep: "trakt",
     };
     writeRaw(next);
     return true;

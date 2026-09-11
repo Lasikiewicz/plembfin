@@ -1,17 +1,17 @@
-import { state, elements } from "./state.js?v=0.16.3.7";
-import { escapeHtml, escapeAttribute, formatDate, formatTmdbDate } from "./utils.js?v=0.16.3.7";
-import { posterUrlFor, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=0.16.3.7";
-import { isWatchedHistoryAction, getMediaTargetSyncStatus, renderSyncStatusDot } from "./sync.js?v=0.16.3.7";
-import { fetchTmdbDetails } from "./tmdb.js?v=0.16.3.7";
-import { renderWatchDatePrompt, isMovieSavingWatchAction } from "./watch-action.js?v=0.16.3.7";
-import { authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=0.16.3.7";
-import { personalRatingPillHtml, personalMediaActionsHtml } from "./personal-media.js?v=0.16.3.7";
+import { state, elements } from "./state.js?v=1.0.0.0.0";
+import { escapeHtml, escapeAttribute, formatDate, formatTmdbDate, isDemoMode } from "./utils.js?v=1.0.0.0.0";
+import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=1.0.0.0.0";
+import { isWatchedHistoryAction, getMediaTargetSyncStatus, renderSyncStatusDot } from "./sync.js?v=1.0.0.0.0";
+import { fetchTmdbDetails } from "./tmdb.js?v=1.0.0.0.0";
+import { renderWatchDatePrompt, isMovieSavingWatchAction } from "./watch-action.js?v=1.0.0.0.0";
+import { authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=1.0.0.0.0";
+import { personalRatingPillHtml, personalMediaActionsHtml } from "./personal-media.js?v=1.0.0.0.0";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderMediaImagesSection, renderMediaFacts,
   renderExternalRatingPills, ratingPillHtml, renderSeerrRequestPill, fetchSeerrMediaStatus,
   refreshActiveMediaDetailAfterSeerrStatus, rankedRecommendations, recommendedTvShowsForMovie,
   renderRecommendationSection, hydrateMediaAppLinks, renderCollectionSection, mediaAppLinksHtml,
-} from "./media-detail-shared.js?v=0.16.3.7";
+} from "./media-detail-shared.js?v=1.0.0.0.0";
 
 // Watch history list - playHistory (every { id, watched_at, source } entry for
 // this movie, collapsed server-side in dedupeMovies/collapseMovieCluster) has
@@ -221,7 +221,7 @@ function _renderWatchedMovieContent(root, movie, {
   isSaving = null,
 } = {}) {
   const localPoster = posterUrlFor(movie) || "/favicon.svg";
-  let backdropUrl = movie.backdrop_url || "";
+  let backdropUrl = proxiedArtworkUrl(movie.backdrop_url, "backdrop") || "";
   let posterUrl = posterUrlFor(movie);
   let overview = loading ? "Loading synopsis…" : "No synopsis available.";
   let released = "Unknown Release Date";
@@ -230,7 +230,7 @@ function _renderWatchedMovieContent(root, movie, {
 
   if (tmdbData) {
     if (!backdropUrl && tmdbData.backdrop_path) {
-      backdropUrl = tmdbData.cached_backdrop_url || `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}`;
+      backdropUrl = tmdbData.cached_backdrop_url || tmdbImage(tmdbData.backdrop_path, "original");
     }
     if (tmdbData.poster_path && !posterUrl) {
       posterUrl = tmdbData.cached_poster_url || tmdbPoster(tmdbData.poster_path, tmdbData.id, "movie");
@@ -239,7 +239,7 @@ function _renderWatchedMovieContent(root, movie, {
     released = tmdbData.release_date ? `Released ${formatTmdbDate(tmdbData.release_date)}` : released;
     rating = tmdbData.vote_average ? `${Math.round(tmdbData.vote_average * 10)}%` : "";
     recommendations = rankedRecommendations(tmdbData, "movie");
-  } else if (youtubeMeta) {
+  } else if (youtubeMeta && !isDemoMode()) {
     if (youtubeMeta.thumbnails?.[0]) posterUrl = youtubeMeta.thumbnails[0];
     overview = youtubeMeta.description || "No synopsis available.";
     if (youtubeMeta.publishedAt) released = `Published ${formatTmdbDate(youtubeMeta.publishedAt.slice(0, 10))}`;
@@ -543,7 +543,7 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
   if (currentMediaRenderToken() !== renderToken) return;
   if (persistedWatched) return renderMovieImmersiveModalContent(persistedWatched);
   const isSaving = isMovieSavingWatchAction(tmdbId);
-  const backdropUrl = tmdbData.cached_backdrop_url || (tmdbData.backdrop_path ? `https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}` : "");
+  const backdropUrl = tmdbData.cached_backdrop_url || tmdbImage(tmdbData.backdrop_path, "original");
   const posterUrl = tmdbData.cached_poster_url || tmdbPoster(tmdbData.poster_path, tmdbData.id, "movie") || "/favicon.svg";
   const overview = tmdbData.overview || "No synopsis available.";
   const released = tmdbData.release_date ? `Released ${formatTmdbDate(tmdbData.release_date)}` : "Unknown Release Date";

@@ -4,6 +4,7 @@ export const site = {
   description:
     "Plembfin is the self-hosted source of truth that tracks what you watch, remembers canonical state locally, auto-syncs Plex, Emby, Jellyfin, Trakt, and keeps private media choices close at hand.",
   url: "https://plembfin.com",
+  analyticsMeasurementId: "G-58YXZG7GTB",
   repository: "https://github.com/Lasikiewicz/plembfin",
   repositoryDocs: "https://github.com/Lasikiewicz/plembfin/tree/main/docs",
   discord: "https://discord.gg/7ZmEGKcRC5",

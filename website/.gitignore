@@ -3,3 +3,4 @@ node_modules/
 dist/
 *.local
 .local-review/
+public/assets/optimized/

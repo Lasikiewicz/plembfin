@@ -5,6 +5,7 @@ import { loadMediaConfig, loadRuntimeState, setRuntimeState } from "./configStor
 import { cacheBackdropFromUrl, cacheLogoFromUrl, cachePosterFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "./posterCache.js";
 import { getFanartMovieArt, getFanartTvArt } from "./fanartGateway.js";
 import { resolveTvdbSeriesId, resolveTvdbSeriesIdFromEpisodeId, getTvdbSeriesExtended, getTvdbSeasonEpisodes, getCachedTvdbSeasonEpisodes, shapeTvdbSeriesAsTmdb, tvdbSeriesTitleMatches } from "./tvdbGateway.js";
+import { isDemoMode } from "./demoMode.js";
 
 const API_ROOT = "https://api.themoviedb.org/3";
 const IMAGE_ROOT = "https://image.tmdb.org/t/p";
@@ -556,6 +557,13 @@ async function deriveNextAiring(details, tvdbId) {
 // caching). Light-fetched rows are stamped `details_light` so the next full
 // caller refetches and completes them.
 export async function getTmdbDetails({ mediaType, tmdbId = "", title = "", ids = {}, force = false, forceTvdb = force, light = false, verifyTvdbTitle = false }) {
+  if (isDemoMode()) {
+    const cached = getCachedTmdbDetails({ mediaType, tmdbId, title, ids });
+    if (cached) return cached;
+    const error = new Error("Demo metadata is not bundled for this title");
+    error.status = 404;
+    throw error;
+  }
   const type = mediaTypeFor(mediaType);
   if (type === "tv") return getTvShowDetails({ tmdbId, title, ids, force, forceTvdb, light: light && !force, verifyTvdbTitle });
   return getMovieDetails({ tmdbId, title, ids, force, light: light && !force });
@@ -1073,6 +1081,13 @@ export async function getTmdbSeason({ tmdbId, tvdbId: requestedTvdbId = "", seas
   const tvdbId = directTvdbId || String(cached?.details?.external_ids?.tvdb_id || "");
   if (!tvdbId) {
     const error = new Error("TVDB ID not resolved for this show yet");
+    error.status = 404;
+    throw error;
+  }
+  if (isDemoMode()) {
+    const bundled = getCachedTvdbSeasonEpisodes({ tvdbId, seasonNumber: number });
+    if (bundled) return bundled;
+    const error = new Error("Demo season metadata is not bundled for this title");
     error.status = 404;
     throw error;
   }

@@ -15,6 +15,7 @@ test("sidebar primary destinations resolve to browser-friendly paths", () => {
   assert.equal(sidebarNavigationPath(target({ view: "history" })), "/history");
   assert.equal(sidebarNavigationPath(target({ view: "stats" })), "/stats");
   assert.equal(sidebarNavigationPath(target({ view: "settings" })), "/settings");
+  assert.equal(sidebarNavigationPath(target({ view: "about" })), "/about");
   assert.equal(sidebarNavigationPath(target({ view: "manualWatchReview" })), "/manual-watch-review");
 });
 

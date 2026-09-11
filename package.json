@@ -1,6 +1,6 @@
 {
   "name": "plembfin",
-  "version": "0.16.3",
+  "version": "1.0.0",
   "private": true,
   "type": "module",
   "main": "server/server.js",
@@ -16,6 +16,8 @@
     "docs:check": "node scripts/docs-check.js",
     "assets:check": "node scripts/asset-versions.js",
     "assets:update": "node scripts/asset-versions.js --write",
+    "demo:assets": "node scripts/build-demo-assets.js",
+    "demo:seed": "node scripts/seed-demo-catalog.js",
     "seed:demo": "node scripts/seed-demo-content.js",
     "prepare": "node scripts/install-git-hooks.js"
   },

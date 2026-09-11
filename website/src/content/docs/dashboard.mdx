@@ -3,13 +3,19 @@ title: Dashboard
 description: Read live playback, the mixed Up Next queue, and durable watch history from one screen.
 category: Dashboard and libraries
 order: 3
-sourceVersion: "0.16.3.5"
+sourceVersion: "1.0.0"
 sourcePaths:
   - public/index.html
   - public/modules/dashboard.js
   - public/modules/up-next.js
   - public/modules/sync.js
   - public/modules/media-card.js
+  - public/modules/app-events.js
+  - public/modules/images.js
+  - server/src/utils/activeSessions.js
+  - server/src/utils/liveSessions.js
+  - server/src/utils/upNextIdentity.js
+  - server/src/utils/upNextService.js
   - docs/dashboard.md
   - docs/now-playing.md
 screenshots:
@@ -31,6 +37,11 @@ queue; it is not a separate history rail.
 
 The sections are independent, so the same title can appear in live playback, Up Next, and
 the durable archive when each state is valid.
+
+In v1.0.0, live changes are reconciled against the affected cards, so unchanged dashboard
+cards keep their artwork and layout while another title updates. A cleared resume item is
+hidden immediately and stays dismissed while provider data catches up; if the clear fails,
+the item is restored.
 
 
 ## Page structure

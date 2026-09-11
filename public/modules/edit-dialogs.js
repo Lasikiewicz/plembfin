@@ -1,10 +1,10 @@
-import { state } from "./state.js?v=0.16.3.7";
-import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, formatDate, actualWatchHistory, sourceBadgeHtml } from "./utils.js?v=0.16.3.7";
-import { buildAuthHeaders } from "./auth.js?v=0.16.3.7";
-import { isWatchedHistoryAction } from "./sync.js?v=0.16.3.7";
-import { tmdbPoster, tmdbImage, proxiedArtworkUrl } from "./images.js?v=0.16.3.7";
-import { dateAtMiddayIso, refreshShowAfterManualWatch, watchedAtForChoice, watchedReferenceFor } from "./watch-action.js?v=0.16.3.7";
-import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=0.16.3.7";
+import { state } from "./state.js?v=1.0.0.0.0";
+import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, formatDate, actualWatchHistory, sourceBadgeHtml, isDemoMode } from "./utils.js?v=1.0.0.0.0";
+import { buildAuthHeaders } from "./auth.js?v=1.0.0.0.0";
+import { isWatchedHistoryAction } from "./sync.js?v=1.0.0.0.0";
+import { tmdbPoster, tmdbImage, proxiedArtworkUrl } from "./images.js?v=1.0.0.0.0";
+import { dateAtMiddayIso, refreshShowAfterManualWatch, watchedAtForChoice, watchedReferenceFor } from "./watch-action.js?v=1.0.0.0.0";
+import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=1.0.0.0.0";
 
 // Callbacks injected by app.js at startup.
 let _setMessage = () => {};
@@ -1219,6 +1219,10 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
   };
 
   const fetchYouTubeThumbnails = async () => {
+    if (isDemoMode()) {
+      status.textContent = "YouTube thumbnails are unavailable in the offline demo.";
+      return;
+    }
     const videoId = extractYouTubeId(ytInput.value.trim());
     if (!videoId) { status.textContent = "Could not find a YouTube video ID in that URL."; return; }
     status.textContent = "Fetching YouTube thumbnails…";
@@ -1246,6 +1250,14 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
   let tmdbImages = null;
   const getTmdbImages = async () => {
     if (tmdbImages) return tmdbImages;
+    if (isDemoMode()) {
+      tmdbImages = {
+        posters: Array.isArray(tmdbData?.images?.posters) ? tmdbData.images.posters : [],
+        backdrops: Array.isArray(tmdbData?.images?.backdrops) ? tmdbData.images.backdrops : [],
+        logos: Array.isArray(tmdbData?.images?.logos) ? tmdbData.images.logos : [],
+      };
+      return tmdbImages;
+    }
     const tmdbId = match.tmdbId;
     const mediaType = resolvedMediaType();
     const canResolve = tmdbId || (mediaType === "tv" && (match.tvdbId || match.title));
@@ -1268,7 +1280,7 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
   const getTvdbImages = async () => {
     if (tvdbImages) return tvdbImages;
     const mediaType = resolvedMediaType();
-    if (mediaType !== "tv") { tvdbImages = {}; return tvdbImages; }
+    if (isDemoMode() || mediaType !== "tv") { tvdbImages = {}; return tvdbImages; }
     try {
       const params = new URLSearchParams();
       if (match.tvdbId) params.set("tvdbId", match.tvdbId);
@@ -1283,6 +1295,7 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
   let fanartImages = null;
   const getFanartImages = async () => {
     if (fanartImages) return fanartImages;
+    if (isDemoMode()) { fanartImages = {}; return fanartImages; }
     const tmdbId = match.tmdbId;
     const mediaType = resolvedMediaType();
     if (tmdbId) {
@@ -1318,7 +1331,7 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
     const items = [];
     for (const p of (tmdbData_.posters || []).slice(0, 20)) {
       const url = tmdbPoster(p.file_path);
-      if (!seen.has(url)) { seen.add(url); items.push({ url, source: "TMDB" }); }
+      if (url && !seen.has(url)) { seen.add(url); items.push({ url, source: "TMDB" }); }
     }
     status.textContent = "Checking TVDB and fanart.tv...";
     const tvdbPosterItems = tvdbItems(await getTvdbImages(), "poster", seen);
@@ -1383,7 +1396,7 @@ export function openEditImageDialog(_container, id, currentPosterUrl, tmdbData, 
     items.push(...fanartBackgroundItems);
     if (items.length) { status.textContent = ""; renderGrid(items, false, true, true); return; }
     const fallback = [];
-    if (tmdbData?.backdrop_path) fallback.push(`https://image.tmdb.org/t/p/original${tmdbData.backdrop_path}`);
+    if (tmdbData?.backdrop_path) fallback.push(tmdbImage(tmdbData.backdrop_path, "original"));
     if (fallback.length) { status.textContent = ""; renderGrid(fallback, false, true, true); }
     else { status.textContent = state.savedConfig?.tmdb?.configured ? "No backgrounds found." : "Configure a TMDB API key to browse backgrounds."; gridEl.innerHTML = ""; }
   };
@@ -1664,7 +1677,7 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
   };
 
   const matchPosterUrl = (item) => {
-    if (item.poster_url) return item.poster_url;
+    if (item.poster_url) return proxiedArtworkUrl(item.poster_url, "poster") || "/favicon.svg";
     if (item.poster_path) return tmdbPoster(item.poster_path, item.tmdb_id, tmdbType) || "/favicon.svg";
     if (item.image_url) return proxiedArtworkUrl(item.image_url, "poster") || "/favicon.svg";
     return "/favicon.svg";
@@ -1762,6 +1775,10 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
   };
 
   const doYtFetch = async () => {
+    if (isDemoMode()) {
+      status.textContent = "YouTube metadata is unavailable in the offline demo.";
+      return;
+    }
     const url = ytInput.value.trim();
     const videoId = extractYouTubeId(url);
     if (!videoId) { status.textContent = "Could not find a YouTube video ID in that URL."; return; }

@@ -14,6 +14,7 @@ import {
   listActiveUpNextProviderItems,
   listUpNextProviderFeedStates,
 } from "./upNextRepository.js";
+import { isDemoMode } from "./demoMode.js";
 
 const MAX_LOCAL_SHOWS = 24;
 const LOCAL_METADATA_CONCURRENCY = 4;
@@ -73,6 +74,13 @@ function rowCandidate(row = {}, { queueKind = "resume", canonical = false, showI
   const localShowIds = isEpisode
     ? showIdentities?.get(text(showTitleFrom(showTitle)).toLowerCase()) || {}
     : {};
+  // The bundled demo deliberately stores series ids on its compact progress
+  // rows, because there are no provider-specific episode ids in an offline
+  // fixture. Treat those ids as show ids only for demo rows; real libraries
+  // must continue to use explicit show_* fields or verified local identity.
+  const demoShowIds = isEpisode && text(row.source).toLowerCase() === "demo"
+    ? { imdb: row.imdb_id || "", tmdb: row.tmdb_id || "", tvdb: row.tvdb_id || "" }
+    : {};
   return normalizeUpNextCandidate({
     media_key: row.media_key,
     media_type: row.media_type,
@@ -87,9 +95,9 @@ function rowCandidate(row = {}, { queueKind = "resume", canonical = false, showI
     // provider feed. Only use the local library's verified show identity here;
     // treating an episode id as a show id creates a second canonical card.
     show_ids: isEpisode ? {
-      imdb: row.show_imdb_id || localShowIds.imdb || "",
-      tmdb: row.show_tmdb_id || localShowIds.tmdb || "",
-      tvdb: row.show_tvdb_id || localShowIds.tvdb || "",
+      imdb: row.show_imdb_id || localShowIds.imdb || demoShowIds.imdb || "",
+      tmdb: row.show_tmdb_id || localShowIds.tmdb || demoShowIds.tmdb || "",
+      tvdb: row.show_tvdb_id || localShowIds.tvdb || demoShowIds.tvdb || "",
     } : undefined,
     ids: {
       imdb: row.imdb_id,
@@ -106,6 +114,23 @@ function rowCandidate(row = {}, { queueKind = "resume", canonical = false, showI
     sources: row.sources,
     is_canonical: canonical,
   });
+}
+
+function ensureDemoSeriesIdentity(candidate = {}, showIdentities = null) {
+  if (!isDemoMode() || candidate.media_type !== "episode") return candidate;
+  const key = text(showTitleFrom(candidate.show_title || candidate.title || "")).toLowerCase();
+  const ids = showIdentities?.get(key) || {};
+  if (!ids.imdb && !ids.tmdb && !ids.tvdb) return candidate;
+  const ensured = {
+    ...candidate,
+    show_imdb_id: candidate.show_imdb_id || ids.imdb || null,
+    // Demo playback rows use the series id in the flattened media id fields.
+    // Keep this fallback scoped to demo mode; provider episode ids must never
+    // be promoted to a series id in a real library.
+    show_tmdb_id: candidate.show_tmdb_id || ids.tmdb || candidate.tmdb_id || null,
+    show_tvdb_id: candidate.show_tvdb_id || ids.tvdb || candidate.tvdb_id || null,
+  };
+  return ensured;
 }
 
 function aliasesFor(candidate) {
@@ -401,6 +426,14 @@ function publicItem(item) {
     last_error: _lastError,
     ...safe
   } = item;
+  // The demo progress fixture uses the series TMDB id in the flattened
+  // episode row. Restore the explicit show identity before choosing artwork;
+  // otherwise the history fallback can win with an episode still.
+  if (isDemoMode() && safe.media_type === "episode") {
+    safe.show_imdb_id = safe.show_imdb_id || safe.imdb_id || null;
+    safe.show_tmdb_id = safe.show_tmdb_id || safe.tmdb_id || null;
+    safe.show_tvdb_id = safe.show_tvdb_id || safe.tvdb_id || null;
+  }
   const providerEntries = Object.entries(item.provider_items || {})
     .map(([provider, ids]) => {
       const values = Array.isArray(ids) ? ids : ids ? [ids] : [];
@@ -563,7 +596,11 @@ async function localNextUpForShow(show, {
       // real Reacher S03E04 visible while avoiding grey cards for TMDB-only
       // episodes that are not in any configured library.
       if (providerCandidates.some((providerCandidate) => providerObservationMatches(candidate, providerCandidate))) return null;
-      if (!Object.keys(candidate.provider_items || {}).length) continue;
+      // A real library needs a native provider item before it can infer an
+      // unwatched episode. The offline demo catalog is the authoritative
+      // library, so its bundled metadata is enough to provide a realistic
+      // next-up rail without connecting Plex, Emby, or Jellyfin.
+      if (!Object.keys(candidate.provider_items || {}).length && !isDemoMode()) continue;
       return candidate;
     }
   }
@@ -679,6 +716,7 @@ export async function buildUpNextProjection({
   const showRecency = showRecencyIndex(showRows);
   const canonicalResume = rawProgressRows
     .map((row) => rowCandidate(row, { queueKind: "resume", canonical: true, showIdentities }))
+    .map((candidate) => ensureDemoSeriesIdentity(candidate, showIdentities))
     .map((candidate) => decorateShowRecency(candidate, showRecency))
     .filter(actionableResume)
     .filter((candidate) => !stateBlocksCandidate(candidate, playstateIndex, { progressUpdatedAt: candidate.updated_at }));

@@ -3,10 +3,7 @@
   "generatedBy": "website/scripts/capture-inventory.mjs",
   "changes": {
     "added": [],
-    "changed": [
-      "public/assets/icons/fanart.svg",
-      "public/assets/plembfin-hub.svg"
-    ],
+    "changed": [],
     "removed": [],
     "unreferenced": [
       "public/assets/app-captures/dashboard-home-dark.png",
@@ -50,7 +47,7 @@
     },
     {
       "slug": "concepts",
-      "sourceVersion": "0.16.3.5",
+      "sourceVersion": "1.0.0",
       "screenshots": [
         "public/assets/app-captures/history-dark.png",
         "public/assets/app-captures/history-light.png",
@@ -78,7 +75,7 @@
     },
     {
       "slug": "dashboard",
-      "sourceVersion": "0.16.3.5",
+      "sourceVersion": "1.0.0",
       "screenshots": [
         "public/assets/app-captures/dashboard-dark.png",
         "public/assets/app-captures/dashboard-light.png",
@@ -323,7 +320,7 @@
     },
     {
       "slug": "settings/about",
-      "sourceVersion": "0.16.3.5",
+      "sourceVersion": "1.0.0",
       "screenshots": [
         "public/assets/app-captures/settings-index-dark.png",
         "public/assets/app-captures/settings-index-light.png"
@@ -471,7 +468,7 @@
     },
     {
       "slug": "sync-tools",
-      "sourceVersion": "0.16.3.5",
+      "sourceVersion": "1.0.0",
       "screenshots": [
         "public/assets/app-captures/settings-logs-controls-dark.png",
         "public/assets/app-captures/settings-logs-controls-light.png",
@@ -489,7 +486,7 @@
     },
     {
       "slug": "troubleshooting",
-      "sourceVersion": "0.16.3.5",
+      "sourceVersion": "1.0.0",
       "screenshots": [
         "public/assets/app-captures/dashboard-dark.png",
         "public/assets/app-captures/dashboard-light.png",
@@ -1849,7 +1846,10 @@
       "path": "public/assets/app-captures/settings-general-light.png",
       "bytes": 78771,
       "sha256": "5642bf3469155e6fdf676eeec122e2baf81200ea42ec0dccc76ca52701ce0d2d",
-      "dimensions": null,
+      "dimensions": {
+        "width": 2292,
+        "height": 430
+      },
       "referencedBy": [
         "settings/general"
       ]
@@ -1942,7 +1942,10 @@
       "path": "public/assets/app-captures/settings-media-servers-dark.png",
       "bytes": 71675,
       "sha256": "190a2bb0a0a4ada7fafbda4d1bcba1c50f0e46d5fcf4b9fe53d57649471d8d1a",
-      "dimensions": null,
+      "dimensions": {
+        "width": 920,
+        "height": 1060
+      },
       "referencedBy": [
         "integrations",
         "settings/media-servers"
@@ -2004,7 +2007,10 @@
       "path": "public/assets/app-captures/settings-media-servers-light.png",
       "bytes": 74654,
       "sha256": "badb84c8b44884bd28c3a792b2bb7c286ec10991ea50f55e6d77fc63a57d08a4",
-      "dimensions": null,
+      "dimensions": {
+        "width": 920,
+        "height": 1060
+      },
       "referencedBy": [
         "integrations",
         "settings/media-servers"
@@ -2040,7 +2046,10 @@
       "path": "public/assets/app-captures/settings-metadata-dark.png",
       "bytes": 107479,
       "sha256": "b04691ef6399ca34bd55db8f358fcbae5ad48361602f881d571f751bc42b0382",
-      "dimensions": null,
+      "dimensions": {
+        "width": 2292,
+        "height": 1227
+      },
       "referencedBy": [
         "settings/metadata"
       ]
@@ -2049,7 +2058,10 @@
       "path": "public/assets/app-captures/settings-metadata-light.png",
       "bytes": 110155,
       "sha256": "9afdc1bb076158b3cf8a6388cb2de02c2210aa3c771bd361399a9bac53c94afe",
-      "dimensions": null,
+      "dimensions": {
+        "width": 2292,
+        "height": 1227
+      },
       "referencedBy": [
         "settings/metadata"
       ]
@@ -2236,7 +2248,10 @@
       "path": "public/assets/app-captures/settings-sync-dark.png",
       "bytes": 283064,
       "sha256": "bbe763b2378882d896d14a9382a0f7cc4ca4abea8e590809e26925f6dd2190bc",
-      "dimensions": null,
+      "dimensions": {
+        "width": 2292,
+        "height": 1227
+      },
       "referencedBy": [
         "concepts",
         "settings/sync"
@@ -2298,7 +2313,10 @@
       "path": "public/assets/app-captures/settings-sync-light.png",
       "bytes": 305066,
       "sha256": "edcdab13afc43897c9301ecb4ad06f8e2cb33b0693345a5facc8731c9b6f11a5",
-      "dimensions": null,
+      "dimensions": {
+        "width": 2292,
+        "height": 1227
+      },
       "referencedBy": [
         "concepts",
         "settings/sync"
@@ -2370,7 +2388,10 @@
       "path": "public/assets/app-captures/settings-tools-dark.png",
       "bytes": 253217,
       "sha256": "6f29d05a1681e33e4e128d56666691c3c8f201ff157cae8860bb923e07b8adbf",
-      "dimensions": null,
+      "dimensions": {
+        "width": 2292,
+        "height": 1227
+      },
       "referencedBy": [
         "settings/tools"
       ]
@@ -2453,7 +2474,10 @@
       "path": "public/assets/app-captures/settings-tools-light.png",
       "bytes": 267838,
       "sha256": "b5ef510600bd02f6f75cd9b61d92b39df72d80b2bf5a0d7ee7b7d14f8f550b27",
-      "dimensions": null,
+      "dimensions": {
+        "width": 2292,
+        "height": 1227
+      },
       "referencedBy": [
         "settings/tools"
       ]
@@ -2486,7 +2510,10 @@
       "path": "public/assets/app-captures/settings-webhooks-dark.png",
       "bytes": 46554,
       "sha256": "54e2d95f82350e1dbef5b9fef80c13162bf12100535dfd8df5b104ef17be901a",
-      "dimensions": null,
+      "dimensions": {
+        "width": 915,
+        "height": 780
+      },
       "referencedBy": [
         "settings/webhooks"
       ]
@@ -2495,7 +2522,10 @@
       "path": "public/assets/app-captures/settings-webhooks-light.png",
       "bytes": 49480,
       "sha256": "4e57bcc6ecdc640b79735c874dc4fbc68d6a23a207d3457f8fb55e0e2c456564",
-      "dimensions": null,
+      "dimensions": {
+        "width": 915,
+        "height": 780
+      },
       "referencedBy": [
         "settings/webhooks"
       ]
@@ -2950,8 +2980,8 @@
     },
     {
       "path": "public/assets/icons/fanart.svg",
-      "bytes": 1352,
-      "sha256": "548a89744f21ed173ac860f8fcba7998c661739b6ce09c6b9bd5732f7bf934ab",
+      "bytes": 1358,
+      "sha256": "b9ea429f7f77ea5f47fb96e58f68883c76c3c713c41d9daf3205ae4669ca4ee9",
       "dimensions": null,
       "referencedBy": []
     },
@@ -3039,8 +3069,8 @@
     },
     {
       "path": "public/assets/plembfin-hub.svg",
-      "bytes": 507436,
-      "sha256": "0ce86eb0c6fda641768adffa5b006d15ca4cf65e89e932e3c4d318c3131e2529",
+      "bytes": 507439,
+      "sha256": "395530ae1b715ec69ad1fc5632028318344714a5cba76042f4330f08ab5af816",
       "dimensions": null,
       "referencedBy": []
     }

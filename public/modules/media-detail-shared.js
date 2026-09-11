@@ -1,8 +1,8 @@
-import { state } from "./state.js?v=0.16.3.7";
-import { buildAuthHeaders } from "./auth.js?v=0.16.3.7";
-import { escapeHtml, escapeAttribute, slug, formatTmdbDate, tvShowTmdbHref, movieTmdbHref, platformIconUrl } from "./utils.js?v=0.16.3.7";
-import { tmdbImage, tmdbPoster, tmdbProfile } from "./images.js?v=0.16.3.7";
-import { fetchTmdbDetails } from "./tmdb.js?v=0.16.3.7";
+import { state } from "./state.js?v=1.0.0.0.0";
+import { buildAuthHeaders } from "./auth.js?v=1.0.0.0.0";
+import { escapeHtml, escapeAttribute, slug, formatTmdbDate, tvShowTmdbHref, movieTmdbHref, platformIconUrl, isDemoMode } from "./utils.js?v=1.0.0.0.0";
+import { tmdbImage, tmdbPoster, tmdbProfile } from "./images.js?v=1.0.0.0.0";
+import { fetchTmdbDetails } from "./tmdb.js?v=1.0.0.0.0";
 
 function authHeaders() {
   return buildAuthHeaders(state.token);
@@ -107,7 +107,10 @@ export function renderCastSection(tmdbData) {
 }
 export function renderTrailersSection(tmdbData) {
   if (!tmdbData) return "";
-  const trailers = (tmdbData.videos?.results || []).filter((v) => v.site === "YouTube" && (v.type === "Trailer" || v.type === "Teaser"));
+  const trailers = (tmdbData.videos?.results || []).filter((v) => v.site === "YouTube" && (v.type === "Trailer" || v.type === "Teaser"))
+    // A demo trailer without a bundled thumbnail is not useful offline. Do
+    // not render a tile that would fall back to img.youtube.com.
+    .filter((v) => v.thumbnail_path || !isDemoMode());
   if (trailers.length === 0) return "";
   return `
     <section class="seasons-section trailers-section">
@@ -115,8 +118,8 @@ export function renderTrailersSection(tmdbData) {
       <div class="horizontal-scroll-row trailer-scroll-row" style="margin-top: 0.5rem;">
         ${trailers.map((video) => `
           <div class="trailer-card">
-            <div class="trailer-thumb-container" data-video-key="${video.key}" data-video-name="${escapeAttribute(video.name)}">
-              <img class="trailer-thumb" src="https://img.youtube.com/vi/${video.key}/mqdefault.jpg" alt="${escapeAttribute(video.name)}" loading="lazy" decoding="async" data-err="fav" />
+            <div class="trailer-thumb-container" data-video-key="${video.key}" data-video-name="${escapeAttribute(video.name)}" data-video-thumbnail="${escapeAttribute(video.thumbnail_path || "")}">
+              <img class="trailer-thumb" src="${escapeAttribute(video.thumbnail_path || (isDemoMode() ? "/favicon.svg" : `https://img.youtube.com/vi/${video.key}/mqdefault.jpg`))}" alt="${escapeAttribute(video.name)}" loading="lazy" decoding="async" data-err="fav" />
               <div class="play-overlay"><svg viewBox="0 0 24 24" width="40" height="40" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></div>
             </div>
             <span class="trailer-title" title="${escapeAttribute(video.name)}">${escapeHtml(video.name)}</span>
@@ -444,8 +447,9 @@ function providerChipsHtml(items = [], watchLink = "") {
   return `
     <div class="media-fact-chip-row">
       ${items.map(({ name, logoPath }) => {
+        const logoUrl = logoPath ? tmdbImage(logoPath, "w92") : "";
         const inner = `
-          ${logoPath ? `<img class="media-fact-chip-icon" src="${escapeAttribute(tmdbImage(logoPath, "w92"))}" alt="" loading="lazy" />` : ""}
+          ${logoUrl ? `<img class="media-fact-chip-icon" src="${escapeAttribute(logoUrl)}" alt="" loading="lazy" />` : ""}
           <span>${escapeHtml(name)}</span>
         `;
         return watchLink
@@ -645,15 +649,15 @@ export async function hydrateMediaAppLinks(root = document, { allowNetwork = tru
       : `
         <b class="media-app-link-row">
           <a class="media-app-link media-app-link--plex media-app-link--disabled" title="Checking Plex..." aria-label="Checking Plex..." style="opacity: 0.4; cursor: not-allowed;">
-            <img class="media-app-link-logo" src="/icons/plex.svg?v=0.16.3.7" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
+            <img class="media-app-link-logo" src="/icons/plex.svg?v=1.0.0.0.0" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
             <span>Plex</span>
           </a>
           <a class="media-app-link media-app-link--emby media-app-link--disabled" title="Checking Emby..." aria-label="Checking Emby..." style="opacity: 0.4; cursor: not-allowed;">
-            <img class="media-app-link-logo" src="/icons/emby.svg?v=0.16.3.7" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
+            <img class="media-app-link-logo" src="/icons/emby.svg?v=1.0.0.0.0" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
             <span>Emby</span>
           </a>
           <a class="media-app-link media-app-link--jellyfin media-app-link--disabled" title="Checking Jellyfin..." aria-label="Checking Jellyfin..." style="opacity: 0.4; cursor: not-allowed;">
-            <img class="media-app-link-logo" src="/icons/jellyfin.svg?v=0.16.3.7" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
+            <img class="media-app-link-logo" src="/icons/jellyfin.svg?v=1.0.0.0.0" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
             <span>Jellyfin</span>
           </a>
         </b>
@@ -734,7 +738,7 @@ export function tvdbSeriesUrl(tvdbId) {
   return `https://thetvdb.com/dereferrer/series/${encodeURIComponent(id)}`;
 }
 
-const RATING_SOURCE_ICONS = { TMDB: "/icons/tmdb.svg?v=0.16.3.7", TVDB: "/icons/tvdb.svg?v=0.16.3.7", IMDb: "/icons/imdb.svg?v=0.16.3.7" };
+const RATING_SOURCE_ICONS = { TMDB: "/icons/tmdb.svg?v=1.0.0.0.0", TVDB: "/icons/tvdb.svg?v=1.0.0.0.0", IMDb: "/icons/imdb.svg?v=1.0.0.0.0" };
 
 export function ratingPillHtml({ label, value = "View", href = "", title = "" } = {}) {
   if (!label || !href) return "";

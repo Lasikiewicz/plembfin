@@ -100,6 +100,7 @@ Repository files relevant to the application, build, and operations, grouped by 
 | `.gitattributes` | Normalizes line endings to LF; marks image formats binary. |
 | `.gitignore` | Ignores `node_modules`, `data/`, logs, local env files. |
 | `.githooks/commit-msg`, `.githooks/pre-push` | Git hooks installed by `scripts/install-git-hooks.js`: release commit messages must contain meaningful changelog bullets; a same-name push merges `origin/<current-branch>` first, a push to `develop` validates its committed changelog with `rebuild-develop-changelog.js --check`, and every push runs `npm run build`. Cross-ref pushes skip the sync step because their branch state was reconciled by the promotion workflow. |
+| `.claude/skills/` | Repository-local release, publishing, and local-development procedures referenced by `CLAUDE.md`, including the `push-website-live` and `start-website` website workflows. |
 | `LICENSE.md` | Project license. |
 | `SECURITY.md` | Vulnerability reporting policy. |
 | `CONTRIBUTING.md` | Contribution guidelines. |
@@ -569,7 +570,7 @@ true when `latest` outranks `current`, and `channel` is `"alpha"` when the image
 with `BUILD_CHANNEL=alpha` (the `ghcr.io/lasikiewicz/plembfin:alpha` image) or `"release"`
 otherwise. `current` itself always stays a plain semver string so entry-matching and
 update comparisons are unaffected; the frontend appends " alpha" (and, on alpha, the build
-number) only where the version is displayed - the sidebar badge and Settings → About's
+number) only where the version is displayed - the sidebar badge and About's
 current-version banner - never in the value compared against changelog entries. If GitHub
 is unreachable the bundled entries are served on their own.
 
@@ -605,7 +606,7 @@ the *remote* manifest, not the local one, since a build that hasn't been pulled 
 ever appear in GitHub's copy of the file - so the UI can show what changed before the user
 updates, not only after.
 
-Settings → About renders the current version, a status banner, and the full release list
+About renders the current version, a status banner, and the full release list
 with newer versions highlighted. On the `alpha` channel the banner never shows the
 "Update available" treatment for the semver gap: alpha's bundled semver only advances when
 it is merged into `main`, so it always trails main's latest release right after every merge
@@ -793,7 +794,7 @@ WebSocket listener is stopped, `server.close()` drains in-flight HTTP requests, 
 - `PLEMBFIN_DEBUG_CACHE_REBUILDS` - set to `1` to log one line per derived-cache rebuild (visible in Settings → Logs), recording which cache rebuilt, how long it took, and which generation change it was for. A version bump on its own is free; what costs is a bump that invalidates a cache which is then read
 - `PLEMBFIN_DEBUG_SCHEDULER` - set to `1` to log per-step scheduler timing (visible in Settings → Logs): each step's name, where in the tick it started, how long it ran, whether it exhausted its time budget, plus a per-tick summary carrying the achieved interval between tick starts
 - `PLEMBFIN_PAUSE_SCHEDULED_WORKER` - set to `1` only for diagnostics that need real-time provider listeners without scheduled sync ticks or background-job polling; the default is off
-- `BUILD_CHANNEL` - baked into the Docker image at build time (`release` by default, `alpha` in the `ghcr.io/lasikiewicz/plembfin:alpha` image); appends "alpha" to the version shown in the sidebar badge and Settings → About so a pre-release build is visually distinct from a tagged release. Not meant to be set manually
+- `BUILD_CHANNEL` - baked into the Docker image at build time (`release` by default, `alpha` in the `ghcr.io/lasikiewicz/plembfin:alpha` image); appends "alpha" to the version shown in the sidebar badge and About so a pre-release build is visually distinct from a tagged release. Not meant to be set manually
 
 Environment variables act as **defaults** for connection and sync-tuning settings:
 values saved in Settings (stored in the `settings` SQLite row) take precedence over

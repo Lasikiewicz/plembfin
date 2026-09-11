@@ -3,12 +3,12 @@
 // wherever possible - openServiceEditModal() for every provider connect/test
 // flow, and the webhook-guide functions - so setup and Settings never diverge
 // in behavior, only in presentation.
-import { state, elements } from "./state.js?v=0.16.3.7";
-import { escapeHtml, escapeAttribute } from "./utils.js?v=0.16.3.7";
-import { openServiceEditModal } from "./settings-services.js?v=0.16.3.7";
-import { embyWebhookSetup, jellyfinWebhookSetup, buildWebhookUrl } from "./help-content.js?v=0.16.3.7";
-import { claimAdminAccount } from "./auth.js?v=0.16.3.7";
-import { loadWatchBackups, loadPlembfinBackups } from "./tools-backups.js?v=0.16.3.7";
+import { state, elements } from "./state.js?v=1.0.0.0.0";
+import { escapeHtml, escapeAttribute, isDemoMode } from "./utils.js?v=1.0.0.0.0";
+import { openServiceEditModal } from "./settings-services.js?v=1.0.0.0.0";
+import { embyWebhookSetup, jellyfinWebhookSetup, buildWebhookUrl } from "./help-content.js?v=1.0.0.0.0";
+import { claimAdminAccount } from "./auth.js?v=1.0.0.0.0";
+import { loadWatchBackups, loadPlembfinBackups } from "./tools-backups.js?v=1.0.0.0.0";
 
 let _cb = {};
 export function initOnboarding(callbacks = {}) {
@@ -43,8 +43,17 @@ const loadSavedConfig = (...args) => _cb.loadSavedConfig?.(...args) || Promise.r
 const startHistoryPolling = (...args) => _cb.startHistoryPolling?.(...args);
 
 export function setClaimRequired(isRequired) {
-  elements.authPanelSignIn?.classList.toggle("hidden", isRequired);
-  elements.claimPanel?.classList.toggle("hidden", !isRequired);
+  const required = Boolean(isRequired);
+  state.claimRequired = required;
+  elements.authPanelSignIn?.classList.toggle("hidden", required);
+  elements.claimPanel?.classList.add("hidden");
+  if (required) {
+    ensurePreClaimStatus();
+    state.activeView = "setup";
+    renderSetupPage();
+  } else {
+    homeClaimPanel();
+  }
 }
 
 export async function claimWithForm(username, password, confirmPassword) {
@@ -62,6 +71,8 @@ export async function claimWithForm(username, password, confirmPassword) {
   const result = await claimAdminAccount(cleanUsername, password, confirmPassword);
   state.currentUser = result.user;
   state.token = result.token;
+  state.claimRequired = false;
+  cachedStatus = null;
   if (elements.settingsUsername) elements.settingsUsername.value = cleanUsername;
   localStorage.setItem("adminUsername", cleanUsername);
   setClaimRequired(false);
@@ -78,8 +89,22 @@ export async function claimWithForm(username, password, confirmPassword) {
 export function renderDashboardChecklist() {
   const container = elements.dashboardChecklist;
   if (!container) return;
+  // The demo has no connections, credentials, backups, or provider setup by
+  // design. Showing the normal first-run checklist makes that intentional
+  // fixture look broken and invites users to perform actions the demo must not
+  // persist.
+  if (isDemoMode()) {
+    container.innerHTML = "";
+    container.classList.add("hidden");
+    return;
+  }
   const items = cachedStatus?.checklist || [];
-  if (!items.length) { container.innerHTML = ""; return; }
+  if (!items.length) {
+    container.innerHTML = "";
+    container.classList.add("hidden");
+    return;
+  }
+  container.classList.remove("hidden");
   const descriptions = {
     connect_tmdb: "Add artwork, episode details, and discovery metadata.",
     connect_trakt: "Keep watched state synchronized with Trakt.",
@@ -113,9 +138,10 @@ export function renderDashboardChecklist() {
 const MEDIA_SERVERS = ["plex", "emby", "jellyfin"];
 const STEPS = [
   { id: "overview", label: "Overview" },
+  { id: "claim", label: "Claim account" },
   { id: "trakt", label: "Trakt" },
   { id: "metadata", label: "Metadata" },
-  { id: "servers", label: "Media servers" },
+  { id: "servers", label: "Media Servers" },
   { id: "webhooks", label: "Webhooks" },
   { id: "backup", label: "Backup" },
   { id: "imports", label: "Import & sync" },
@@ -125,6 +151,7 @@ const STEPS = [
 const SKIPPABLE_STEPS = new Set(["servers", "metadata", "webhooks", "backup"]);
 const STEP_TITLES = {
   overview: "Set up Plembfin",
+  claim: "Claim this instance",
   servers: "Connect media servers",
   metadata: "Add metadata",
   webhooks: "Enable reliable updates",
@@ -147,6 +174,65 @@ let backupSetupLoading = null;
 // renderRestoreView() and the overview step's "Restore from backup" button.
 let restoreView = null;
 
+function isPreClaimSetup() {
+  return state.claimRequired === true && !state.token;
+}
+
+function createPreClaimStatus() {
+  return {
+    onboarding: {
+      version: 0,
+      currentOnboardingVersion: 1,
+      accountClaimed: false,
+      runState: "not_started",
+      currentStep: "overview",
+      startedAt: null,
+      completedAt: null,
+      acknowledgements: { webhooks: {}, traktSkipped: false },
+      backgroundImports: {
+        servers: {},
+        trakt: { enabled: null, status: "not_started", startedAt: null, completedAt: null, itemCount: null, error: null },
+      },
+      pushSync: { status: "not_started", startedAt: null, completedAt: null },
+      checklistDismissedAt: null,
+      ctaDismissedAt: null,
+    },
+    servers: [],
+    trakt: { connected: false, username: "", baselineComplete: false },
+    metadata: { tmdbConfigured: false, builtInAvailable: { tvdb: false, fanart: false } },
+    options: { watchImportMode: null, fastLocalPacing: false },
+    watchHistoryCount: 0,
+    pushSyncAvailable: false,
+    syncLocked: false,
+    checklist: [],
+  };
+}
+
+function ensurePreClaimStatus() {
+  if (!cachedStatus) cachedStatus = createPreClaimStatus();
+  return cachedStatus;
+}
+
+// Keep one claim form in the document so the existing auth event handler
+// preserves its validation and error handling when onboarding borrows it.
+function homeClaimPanel() {
+  const home = document.getElementById("claimPanelHome");
+  const panel = document.getElementById("claimPanel");
+  if (!home || !panel) return;
+  if (panel.parentElement !== home) home.appendChild(panel);
+  panel.classList.add("hidden");
+  panel.classList.remove("setup-claim-panel");
+}
+
+function mountClaimPanel() {
+  const host = document.getElementById("setupClaimFormHost");
+  const panel = document.getElementById("claimPanel");
+  if (!host || !panel) return;
+  host.appendChild(panel);
+  panel.classList.remove("hidden");
+  panel.classList.add("setup-claim-panel");
+}
+
 async function api(url, options = {}) {
   const res = await fetch(url, {
     credentials: "same-origin",
@@ -163,6 +249,17 @@ async function api(url, options = {}) {
 }
 
 export async function loadSetupStatus() {
+  if (isDemoMode()) {
+    cachedStatus = null;
+    elements.dashboardChecklist && (elements.dashboardChecklist.innerHTML = "");
+    elements.sidebarOnboardingCta?.classList.add("hidden");
+    return null;
+  }
+  if (isPreClaimSetup()) {
+    ensurePreClaimStatus();
+    renderSetupPage();
+    return cachedStatus;
+  }
   if (statusLoading) return statusLoading;
   statusLoading = api("/api/setup/status")
     .then((data) => {
@@ -170,6 +267,19 @@ export async function loadSetupStatus() {
       renderSetupPage();
       renderSidebarOnboardingCta();
       return data;
+    })
+    .catch((error) => {
+      // Setup endpoints remain protected until the instance is claimed. The
+      // auth bootstrap will also report this state, but handling the response
+      // here keeps a direct /setup load from getting stuck on an API error.
+      if (error.code === "CLAIM_REQUIRED") {
+        state.claimRequired = true;
+        ensurePreClaimStatus();
+        state.activeView = "setup";
+        renderSetupPage();
+        return cachedStatus;
+      }
+      throw error;
     })
     .finally(() => { statusLoading = null; });
   return statusLoading;
@@ -185,6 +295,10 @@ export async function loadSetupStatus() {
 export function renderSidebarOnboardingCta() {
   const container = elements.sidebarOnboardingCta;
   if (!container || !cachedStatus) return;
+  if (isDemoMode()) {
+    container.classList.add("hidden");
+    return;
+  }
   const finished = cachedStatus.onboarding.runState === "completed" || cachedStatus.servers.some((s) => s.tested);
   const dismissed = Boolean(cachedStatus.onboarding.ctaDismissedAt);
   container.classList.toggle("hidden", finished || dismissed);
@@ -319,9 +433,12 @@ async function startPendingTraktImport() {
 }
 
 function setCurrentStep(stepId) {
-  if (!cachedStatus) return;
+  if (!cachedStatus) ensurePreClaimStatus();
+  if (!STEPS.some((step) => step.id === stepId)) return;
+  if (isPreClaimSetup() && !["overview", "claim"].includes(stepId)) return;
   cachedStatus.onboarding.currentStep = stepId;
   renderSetupPage();
+  if (isPreClaimSetup()) return;
   api("/api/setup/step", { method: "POST", body: JSON.stringify({ currentStep: stepId }) }).catch(() => {});
 }
 
@@ -333,6 +450,7 @@ function stepDone(id) {
   if (!cachedStatus) return false;
   const { servers, trakt, metadata, onboarding } = cachedStatus;
   if (id === "overview") return true;
+  if (id === "claim") return !isPreClaimSetup();
   if (id === "servers") return servers.some((s) => s.tested);
   if (id === "metadata") return Boolean(metadata.tmdbConfigured);
   if (id === "webhooks") return servers.filter((s) => s.tested && webhookSetupRequired(s.provider)).every((s) => onboarding.acknowledgements.webhooks?.[s.provider]);
@@ -355,6 +473,8 @@ export function renderSetupPage() {
   // them home first; the restoreView branch re-borrows whichever one it needs
   // once the new markup exists.
   homeRestoreSections();
+  homeClaimPanel();
+  if (isPreClaimSetup()) ensurePreClaimStatus();
   if (!cachedStatus) {
     root.innerHTML = `<div class="settings-content"><p class="muted-copy">Loading setup...</p></div>`;
     return;
@@ -365,6 +485,7 @@ export function renderSetupPage() {
     return;
   }
   const step = currentStep();
+  const isPreClaim = isPreClaimSetup();
   // No media server is required to finish setup - manually tracking watches
   // (mark watched from a title's page, reached via search) works on its own.
   // This only drives the Review step's nudge styling now, not whether
@@ -379,18 +500,23 @@ export function renderSetupPage() {
         <div><h2>${escapeHtml(STEP_TITLES[step] || "Setup")}</h2></div>
         <div class="setup-header-actions">
           <span>Step ${STEPS.findIndex((s) => s.id === step) + 1} of ${STEPS.length}</span>
-          <button type="button" class="button-ghost" data-setup-action="exit">Exit to Settings</button>
+          ${isPreClaim ? "" : `<button type="button" class="button-ghost" data-setup-action="exit">Exit to Settings</button>`}
         </div>
       </div>
       <div class="setup-progress" role="tablist" aria-label="Setup progress">
-        ${STEPS.map((s) => `<button type="button" class="segment-button setup-progress-step${s.id === step ? " active" : ""}${stepDone(s.id) ? " done" : ""}" data-setup-step="${s.id}">${escapeHtml(s.label)}</button>`).join("")}
+        ${STEPS.map((s) => {
+          const locked = isPreClaim && !["overview", "claim"].includes(s.id);
+          return `<button type="button" role="tab" class="segment-button setup-progress-step${s.id === step ? " active" : ""}${stepDone(s.id) ? " done" : ""}" data-setup-step="${s.id}" aria-selected="${s.id === step ? "true" : "false"}"${locked ? " disabled" : ""} title="${escapeAttribute(s.label)}">${escapeHtml(s.label)}</button>`;
+        }).join("")}
       </div>
       <div class="setup-step-body">${renderStep(step, hasTestedServer)}</div>
       <div class="setup-actions">
         <span style="display:flex; gap:8px;">
           ${step !== "overview" ? `<button type="button" class="button-ghost" data-setup-action="back">Back</button>` : ""}
         </span>
-        ${step === "review"
+        ${step === "claim" && isPreClaim
+          ? ""
+          : step === "review"
           ? `<button type="button" class="button-primary" data-setup-action="complete">Open dashboard</button>`
           : step === "trakt" && !cachedStatus.trakt.connected && !traktFlow
             ? `<span style="display:flex; gap:8px;">
@@ -402,6 +528,7 @@ export function renderSetupPage() {
               : `<button type="button" class="button-primary" data-setup-action="continue">Continue</button>`}
       </div>
     </section>`;
+  if (step === "claim" && isPreClaim) mountClaimPanel();
   if (step === "backup") updateBackupContinueAction();
   scheduleImportStatusRefresh(step);
   if (step === "backup" && !backupSetupData && !backupSetupLoading) loadBackupSetupData().catch(() => {});
@@ -497,6 +624,7 @@ function scheduleImportStatusRefresh(step) {
 
 function renderStep(step, hasTestedServer) {
   if (step === "overview") return renderOverview();
+  if (step === "claim") return renderClaim();
   if (step === "servers") return renderServers();
   if (step === "metadata") return renderMetadata();
   if (step === "webhooks") return renderWebhooks();
@@ -508,7 +636,63 @@ function renderStep(step, hasTestedServer) {
   return "";
 }
 
+function claimedAdminUsername() {
+  const user = state.currentUser || {};
+  return String(user.username || user.email || localStorage.getItem("adminUsername") || "admin").trim() || "admin";
+}
+
+function currentInstanceAddress() {
+  try {
+    return new URL("/", window.location.href).toString();
+  } catch {
+    return "";
+  }
+}
+
+function renderClaim() {
+  if (!isPreClaimSetup()) {
+    const username = claimedAdminUsername();
+    const address = currentInstanceAddress();
+    return `
+      <div class="setup-claim-step setup-claim-claimed">
+        <p class="muted-copy setup-step-intro">Your administrator account is ready. Use these details to sign in to this Plembfin instance.</p>
+        <section class="setup-claim-panel setup-claim-summary" aria-labelledby="setupClaimSummaryTitle">
+          <div class="setup-claim-panel-heading">
+            <div>
+              <h3 id="setupClaimSummaryTitle">Administrator account</h3>
+              <p class="muted-copy">This instance is claimed and ready for the rest of onboarding.</p>
+            </div>
+            <span class="badge badge-success">Claimed</span>
+          </div>
+          <dl class="setup-claim-summary-list">
+            <div>
+              <dt>Username</dt>
+              <dd>${escapeHtml(username)}</dd>
+            </div>
+            <div>
+              <dt>Password</dt>
+              <dd><span class="setup-claim-summary-status">Added</span><small>Stored securely and never shown here.</small></dd>
+            </div>
+            <div>
+              <dt>Plembfin address</dt>
+              <dd>${address ? `<a href="${escapeAttribute(address)}">${escapeHtml(address)}</a>` : "<span>Current Plembfin address</span>"}<small>Use this address to open Plembfin on this computer.</small></dd>
+            </div>
+          </dl>
+        </section>
+      </div>`;
+  }
+  return `
+    <div class="setup-claim-step">
+      <p class="muted-copy setup-step-intro">Create the administrator account for this local Plembfin instance. Once it is claimed, the remaining setup steps unlock.</p>
+      <div id="setupClaimFormHost" class="setup-claim-form-host"></div>
+    </div>`;
+}
+
 const OVERVIEW_STEPS = [
+  {
+    title: "Claim account", tag: "Required",
+    detail: "Create the administrator account that protects this local instance and unlocks the remaining setup steps.",
+  },
   {
     title: "Trakt", tag: "Optional",
     detail: "Two-way watch-state sync with Plembfin's built-in app credentials - no personal API key needed.",
@@ -518,7 +702,7 @@ const OVERVIEW_STEPS = [
     detail: "A free TMDB key powers posters, cast, and episode details; TheTVDB and Fanart.tv work out of the box.",
   },
   {
-    title: "Media servers", tag: "Recommended",
+    title: "Media Servers", tag: "Recommended",
     detail: "Connect a Plex, Emby, or Jellyfin server for automatic tracking, or skip and mark watches manually.",
   },
   {
@@ -1171,7 +1355,7 @@ function renderReview(hasTestedServer) {
   const rows = [
     { label: "Account security", detail: "Administrator account secured", status: "Ready", tone: "success" },
     {
-      label: "Media servers",
+      label: "Media Servers",
       detail: testedServers.map((server) => server.serverName || webhookProviderName(server.provider)).join(", ") || "None connected - tracking will be manual",
       status: `${testedServers.length} connected`, tone: testedServers.length ? "success" : "warning",
     },

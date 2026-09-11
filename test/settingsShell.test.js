@@ -81,7 +81,9 @@ test("legacy and invalid settings routes normalize safely", () => {
   assert.equal(parseSettingsRoute("/sync").path, "/settings/sync-issues");
   assert.equal(parseSettingsRoute("/logs").path, "/settings/logs");
   assert.equal(settingsPathForLegacy("api-keys"), "/settings/metadata");
-  assert.equal(settingsPathForLegacy("changelog"), "/settings/about");
+  assert.equal(settingsPathForLegacy("about"), "/about");
+  assert.equal(settingsPathForLegacy("changelog"), "/about");
+  assert.equal(settingsPathForLegacy("/settings/about"), "/about");
   assert.equal(parseSettingsRoute("/settings/not-a-section").path, "/settings");
 });
 

@@ -4,7 +4,7 @@ import { makeTempDataDir } from "./helpers.js";
 
 makeTempDataDir("plembfin-onboarding-import-recovery-");
 
-const { getOnboardingState, recoverInterruptedBackgroundImports, saveOnboardingState } = await import("../server/src/utils/onboardingStore.js");
+const { claimAccount, getOnboardingState, recoverInterruptedBackgroundImports, saveOnboardingState } = await import("../server/src/utils/onboardingStore.js");
 const { startServerImport, startTraktImport } = await import("../server/src/utils/onboardingImportCoordinator.js");
 
 const originalState = getOnboardingState();
@@ -47,6 +47,20 @@ test("completed onboarding cannot start an onboarding background import", async 
   try {
     assert.deepEqual(await startTraktImport(), { started: false, code: "ONBOARDING_COMPLETE" });
     assert.deepEqual(await startServerImport("plex"), { started: false, code: "ONBOARDING_COMPLETE" });
+  } finally {
+    saveOnboardingState(originalState);
+  }
+});
+
+test("claiming the instance advances onboarding to the first post-claim step", () => {
+  saveOnboardingState({ accountClaimed: false, runState: "not_started", currentStep: "overview" });
+
+  try {
+    assert.equal(claimAccount(), true);
+    const state = getOnboardingState();
+    assert.equal(state.accountClaimed, true);
+    assert.equal(state.runState, "in_progress");
+    assert.equal(state.currentStep, "trakt");
   } finally {
     saveOnboardingState(originalState);
   }

@@ -1,7 +1,7 @@
-import { buildAuthHeaders, buildNowPlayingUrl } from "./auth.js?v=0.16.3.7";
-import { state, elements } from "./state.js?v=0.16.3.7";
-import { escapeHtml, escapeAttribute, platformBadge, sourceClass, sourceBadgeHtml, computeProgress, formatDate, formatPlaybackClock, showName } from "./utils.js?v=0.16.3.7";
-import { hydratePosters, posterMarkup } from "./images.js?v=0.16.3.7";
+import { buildAuthHeaders, buildNowPlayingUrl } from "./auth.js?v=1.0.0.0.0";
+import { state, elements } from "./state.js?v=1.0.0.0.0";
+import { escapeHtml, escapeAttribute, platformBadge, sourceClass, sourceBadgeHtml, computeProgress, formatDate, formatPlaybackClock, showName } from "./utils.js?v=1.0.0.0.0";
+import { hydratePosters, posterMarkup } from "./images.js?v=1.0.0.0.0";
 
 const NOW_PLAYING_POLL_MS = 10000;
 
@@ -728,6 +728,7 @@ export function setActiveSessions(sessions = [], { force = false } = {}) {
 function isServerArtworkUrl(value = "") {
   const raw = String(value || "").trim();
   return /^\/media\/(?:posters|backdrops)\//i.test(raw)
+    || /^\/demo-assets\//i.test(raw)
     || /^\/api\/(?:poster|tmdb-poster|remote-artwork)(?:[/?]|$)/i.test(raw);
 }
 

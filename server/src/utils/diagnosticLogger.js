@@ -3,6 +3,7 @@ import path from "node:path";
 import util from "node:util";
 import { DATA_DIR } from "../paths.js";
 import { db, parseJson, toJson } from "../db.js";
+import { isDemoMode } from "./demoMode.js";
 
 const MAX_LOGS = 1000;
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
@@ -282,7 +283,10 @@ export function clearLogs() {
   }).immediate();
 }
 
-startCapturing();
+// The public demo deliberately keeps no diagnostic archive or request history.
+// Its fixture data is public and immutable, so retaining process logs would
+// only create unnecessary IP/browser metadata on the demo host.
+if (!isDemoMode()) startCapturing();
 pruneLogArchive();
 
 // Don't lose the last second of buffered output on shutdown.

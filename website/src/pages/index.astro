@@ -5,6 +5,7 @@ import { integrations } from "../data/site.js";
 import release from "../generated/release.json";
 
 const syncServices = integrations.slice(0, 4);
+const demoUrl = "https://demo.plembfin.com/";
 
 const loopSteps = [
   {
@@ -76,7 +77,11 @@ const appAreas = [
       <div class="simple-actions">
         <a class="simple-button simple-button--primary" href="/docs/getting-started/">Get started <span aria-hidden="true">↗</span></a>
         <a class="simple-button" href="/features/">View features <span aria-hidden="true">→</span></a>
+        <a class="simple-button simple-button--demo" href={demoUrl} target="_blank" rel="noopener noreferrer">Try the demo <span aria-hidden="true">↗</span></a>
       </div>
+      <p class="simple-demo-note">
+        Public demo login: <code>demo</code> / <code>demo</code> · actions are simulated and nothing is saved.
+      </p>
       <p class="simple-meta">v{release.version} · one process · one SQLite file · your hardware</p>
     </section>
 
@@ -94,6 +99,9 @@ const appAreas = [
         alt="Plembfin dashboard showing Now Playing, Up Next, recently watched TV, and recently watched movies"
         caption="Plembfin dashboard"
         loading="eager"
+        fetchpriority="high"
+        width={1440}
+        height={700}
       />
     </section>
 
@@ -152,15 +160,19 @@ const appAreas = [
         <p>Media servers and Trakt exchange watch state. Metadata providers supply artwork and episode data. Seerr handles requests. None of them need to know about each other.</p>
         <div class="simple-service-list" aria-label="Watch-state services">
           {syncServices.map((service) => (
-            <span><img src={service.icon} alt="" aria-hidden="true" />{service.name}</span>
+            <span><img src={service.icon} alt="" aria-hidden="true" width="20" height="20" />{service.name}</span>
           ))}
         </div>
         <a class="simple-text-link" href="/features/">See all features <span aria-hidden="true">→</span></a>
       </div>
       <ScreenshotFigure
-        src="/assets/plembfin-hub.svg"
+        src="/assets/optimized/plembfin-hub.svg"
+        lightboxSrc="/assets/optimized/plembfin-hub.svg"
         alt="Diagram connecting Plembfin to Plex, Emby, Jellyfin, and Trakt for two-way watch state, and to TMDB, TheTVDB, Fanart.tv, OMDb, and Seerr for metadata and requests"
         caption="Every service connects to Plembfin, not to each other."
+        width={1200}
+        height={540}
+        loading="lazy"
       />
     </section>
   </div>

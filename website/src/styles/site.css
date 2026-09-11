@@ -1,4 +1,5 @@
-@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap");
+@import "@fontsource-variable/outfit/wght.css";
+@import "@fontsource-variable/jetbrains-mono/wght.css";
 
 :root {
   color-scheme: dark;
@@ -44,9 +45,9 @@
   --space-9: 6rem;
   --radius: 8px;
   --poster-radius: 8px;
-  --font-display: "Outfit", "Segoe UI", sans-serif;
-  --font-body: "Outfit", "Segoe UI", sans-serif;
-  --font-mono: "JetBrains Mono", "Cascadia Code", monospace;
+  --font-display: "Outfit Variable", "Segoe UI", sans-serif;
+  --font-body: "Outfit Variable", "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono Variable", "Cascadia Code", monospace;
   font-family: var(--font-body);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
@@ -69,16 +70,16 @@ html.light-mode {
   --line-strong: #cbd5e1;
   --text: #0f172a;
   --soft: #334155;
-  --muted: #64748b;
-  --dim: #64748b;
+  --muted: #475569;
+  --dim: #475569;
   --blue: #2563eb;
   --accent: #2563eb;
   --accent-contrast: #f8fafc;
   --accent-strong: #2563eb;
   --accent-soft: rgba(37, 99, 235, 0.08);
-  --nav-active-border: #315b86;
-  --nav-active-bg: #172232;
-  --nav-active-text: #d9ecff;
+  --nav-active-border: #2563eb;
+  --nav-active-bg: #eaf2ff;
+  --nav-active-text: #1d4ed8;
   --success: #059669;
   --warning: #d97706;
   --danger: #dc2626;
@@ -317,16 +318,16 @@ img {
 }
 
 .site-nav a.active {
-  color: var(--blue);
-  background: color-mix(in srgb, var(--blue), transparent 88%);
-  border-color: var(--blue);
+  color: var(--nav-active-text);
+  background: var(--nav-active-bg);
+  border-color: var(--nav-active-border);
 }
 
 .site-nav a.active:hover,
 .site-nav a.active:focus-visible {
-  color: var(--blue);
-  background: color-mix(in srgb, var(--blue), transparent 80%);
-  border-color: var(--blue);
+  color: var(--nav-active-text);
+  background: var(--nav-active-bg);
+  border-color: var(--nav-active-border);
 }
 
 .nav-github {
@@ -2443,7 +2444,7 @@ html.light-mode .docs-page-outline-link.active {
     align-items: stretch;
     gap: 0;
     padding: var(--space-2);
-    background: var(--surface);
+    background: var(--panel-3);
     border: 1px solid var(--line);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
@@ -4482,6 +4483,12 @@ html.light-mode .docs-page-outline-link.active {
     transform: none;
     transition: none;
   }
+
+  .screenshot-frame,
+  .image-lightbox-stage img,
+  .back-to-top {
+    transition: none;
+  }
 }
 
 /* Simple product landing pass: one promise, one proof point, short linked rows. */
@@ -4589,6 +4596,19 @@ html.light-mode .docs-page-outline-link.active {
   border-color: color-mix(in oklab, var(--accent) 86%, var(--text));
 }
 
+.simple-button--demo {
+  color: var(--accent-strong);
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
+  border-color: color-mix(in oklab, var(--accent) 52%, var(--line-strong));
+}
+
+.simple-button--demo:hover,
+.simple-button--demo:focus-visible {
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
 .simple-button:focus-visible,
 .simple-text-link:focus-visible,
 .simple-flow-list a:focus-visible,
@@ -4610,6 +4630,24 @@ html.light-mode .docs-page-outline-link.active {
   font-family: var(--font-mono);
   font-size: 0.6rem;
   letter-spacing: 0.025em;
+}
+
+.simple-demo-note {
+  max-width: 58ch;
+  margin: 0.9rem auto 0;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+.simple-demo-note code {
+  padding: 0.12rem 0.3rem;
+  color: var(--text);
+  background: color-mix(in oklab, var(--accent) 10%, var(--surface));
+  border: 1px solid var(--line-strong);
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
 }
 
 .simple-home-preview,

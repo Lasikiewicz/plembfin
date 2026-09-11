@@ -11,15 +11,29 @@ const globalSearchQuery = Astro.url.searchParams.get("q")?.trim() || "";
 <header class="site-header">
   <div class="site-header-inner">
     <a class="site-brand" href="/" aria-label="Plembfin home">
-      <img
-        data-theme-logo
-        data-dark-src="/assets/plembfin_header_logo_dark.png"
-        data-light-src="/assets/plembfin_header_logo_light.png"
-        src="/assets/plembfin_header_logo_dark.png"
-        alt="Plembfin"
-        width="164"
-        height="48"
-      />
+      <picture>
+        <source
+          type="image/webp"
+          media="(prefers-color-scheme: dark)"
+          data-theme-source="dark"
+          srcset="/assets/optimized/plembfin_header_logo_dark-376.webp"
+        />
+        <source
+          type="image/webp"
+          media="(prefers-color-scheme: light)"
+          data-theme-source="light"
+          srcset="/assets/optimized/plembfin_header_logo_light-376.webp"
+        />
+        <img
+          data-theme-logo
+          data-dark-src="/assets/optimized/plembfin_header_logo_dark-376.webp"
+          data-light-src="/assets/optimized/plembfin_header_logo_light-376.webp"
+          src="/assets/optimized/plembfin_header_logo_dark-376.webp"
+          alt="Plembfin"
+          width="376"
+          height="61"
+        />
+      </picture>
     </a>
 
     <nav id="site-nav" class="site-nav" aria-label="Main navigation">
@@ -124,14 +138,26 @@ const globalSearchQuery = Astro.url.searchParams.get("q")?.trim() || "";
     const nextMode = isLightMode ? "dark" : "light";
     const logo = document.querySelector("[data-theme-logo]");
 
+    document.querySelectorAll("[data-theme-source]").forEach((source) => {
+      if (source instanceof HTMLSourceElement) {
+        source.media = source.dataset.themeSource === (isLightMode ? "light" : "dark") ? "all" : "not all";
+      }
+    });
+
     if (logo instanceof HTMLImageElement) {
-      logo.src = isLightMode ? logo.dataset.lightSrc || logo.src : logo.dataset.darkSrc || logo.src;
+      // Let the <picture> sources keep control of format selection. The data-*
+      // paths are only a fallback for browsers without picture support.
+      if (!logo.closest("picture")) {
+        logo.src = isLightMode ? logo.dataset.lightSrc || logo.src : logo.dataset.darkSrc || logo.src;
+      }
     }
 
     document.querySelectorAll("[data-theme-image]").forEach((image) => {
       if (image instanceof HTMLImageElement) {
         const nextSource = isLightMode ? image.dataset.lightSrc : image.dataset.darkSrc;
-        if (nextSource && image.getAttribute("src") !== nextSource) image.setAttribute("src", nextSource);
+        if (nextSource && !image.closest("picture") && image.getAttribute("src") !== nextSource) {
+          image.setAttribute("src", nextSource);
+        }
 
         const imageLink = image.closest("[data-theme-image-link]");
         if (imageLink instanceof HTMLAnchorElement) {
@@ -147,6 +173,9 @@ const globalSearchQuery = Astro.url.searchParams.get("q")?.trim() || "";
     themeToggle?.querySelector("[data-theme-status]")?.replaceChildren(`${isLightMode ? "Light" : "Dark"} mode selected`);
     document.querySelector("[data-theme-color]")?.setAttribute("content", isLightMode ? "#ffffff" : "#05080c");
   };
+
+  const themeWindow = window as Window & { __plembfinSyncTheme?: () => void };
+  themeWindow.__plembfinSyncTheme = syncThemeControl;
 
   themeToggle?.addEventListener("click", () => {
     const useLightMode = !document.documentElement.classList.contains("light-mode");

@@ -319,12 +319,6 @@ const SECTIONS = {
     subPanels: ["sync-tools"],
     isDisplayOnly: true,
   },
-  about: {
-    label: "About",
-    description: "Version and changelog",
-    panel: "changelog",
-    isDisplayOnly: true,
-  },
 };
 
 // Hierarchical grouping: parent menu item with child sections
@@ -390,12 +384,6 @@ const SECTION_GROUPS = [
     sections: [],
     displayOnly: [],
   },
-  {
-    id: "about",
-    label: "About",
-    sections: [],
-    displayOnly: [],
-  },
 ];
 
 // One-line summaries for the group boxes on the settings landing page.
@@ -410,7 +398,6 @@ const GROUP_DESCRIPTIONS = {
   restore: "Restore watch history or a full backup from local files or a remote destination.",
   tools: "Reopen guided setup, repair the database, rebuild the library, and wipe data.",
   logs: "Live server and browser diagnostic output.",
-  about: "Version and changelog.",
 };
 
 const LEGACY_PATHS = {
@@ -427,7 +414,8 @@ const LEGACY_PATHS = {
   "/settings/apps": "/settings/media-servers",
   "/settings/api-keys": "/settings/metadata",
   "/settings/cache": "/settings/storage",
-  "/settings/changelog": "/settings/about",
+  "/settings/about": "/about",
+  "/settings/changelog": "/about",
   "/settings/account/login": "/settings/account",
   "/settings/connections/plex": "/settings/media-servers",
   "/settings/connections/emby": "/settings/media-servers",
@@ -452,7 +440,7 @@ const LEGACY_PATHS = {
   "/settings/system/sync": "/settings/sync-issues",
   "/settings/system/logs": "/settings/logs",
   "/settings/system/storage": "/settings/storage",
-  "/settings/system/about": "/settings/about",
+  "/settings/system/about": "/about",
   "/settings/system/advanced": "/settings/database-repairs",
   "/settings/sync/issues": "/settings/sync-issues",
   "/settings/sync/history": "/settings/sync-history",
@@ -467,7 +455,8 @@ const LEGACY_TABS = {
   sync: "/settings/sync-issues",
   logs: "/settings/logs",
   cache: "/settings/storage",
-  changelog: "/settings/about",
+  about: "/about",
+  changelog: "/about",
 };
 
 export const SETTINGS_SECTIONS = Object.freeze(SECTIONS);
@@ -573,7 +562,6 @@ function renderSettingsSidebar() {
   const fragment = document.createDocumentFragment();
 
   for (const group of SECTION_GROUPS) {
-    // Parent button for the group (navigates to parent group settings page)
     const parentPath = SECTIONS[group.id] ? `/settings/${group.id}` : `/settings/${group.sections[0]}`;
     const parentButton = document.createElement("button");
     parentButton.type = "button";
@@ -583,7 +571,6 @@ function renderSettingsSidebar() {
     parentButton.textContent = group.label;
     fragment.append(parentButton);
 
-    // Child buttons for each section in the group
     for (const sectionId of group.sections) {
       const definition = SECTIONS[sectionId];
       const childButton = document.createElement("button");

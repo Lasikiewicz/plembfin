@@ -1,6 +1,7 @@
 ﻿import { db, parseJson, toJson } from "../db.js";
 import { activeSessionTtlMs } from "./tuning.js";
 import { recordWatchAuditEvent } from "./watchAudit.js";
+import { isDemoMode } from "./demoMode.js";
 
 function normalizePart(value) {
   return String(value ?? "none").trim().toLowerCase().replace(/[^a-z0-9._:-]+/g, "-");
@@ -44,6 +45,22 @@ function fromRow(row) {
 
 const selectAllStmt = db.prepare("SELECT * FROM active_sessions ORDER BY updated_at DESC");
 const deleteStaleStmt = db.prepare("DELETE FROM active_sessions WHERE updated_at < ?");
+const selectDemoEpisodeStmt = db.prepare(`
+  SELECT title, media_type, source, season, episode, poster_url, imdb_id, tmdb_id, tvdb_id, media_key
+  FROM watch_history
+  WHERE media_key = 'demo:episode:1396:s1e3'
+  LIMIT 1
+`);
+const upsertDemoSessionStmt = db.prepare(
+  `INSERT INTO active_sessions
+     (id, title, media_type, source, progress, offset_ms, duration_ms, season, episode, poster_url, ids, event, client, updated_at, expire_at)
+   VALUES (@id, @title, @media_type, @source, @progress, @offset_ms, @duration_ms, @season, @episode, @poster_url, @ids, @event, @client, @updated_at, @expire_at)
+   ON CONFLICT(id) DO UPDATE SET
+     title=excluded.title, media_type=excluded.media_type, source=excluded.source, progress=excluded.progress,
+     offset_ms=excluded.offset_ms, duration_ms=excluded.duration_ms, season=excluded.season, episode=excluded.episode,
+     poster_url=excluded.poster_url, ids=excluded.ids, event=excluded.event, client=excluded.client,
+     updated_at=excluded.updated_at, expire_at=excluded.expire_at`,
+);
 const upsertStmt = db.prepare(
   `INSERT INTO active_sessions
      (id, title, media_type, source, progress, offset_ms, duration_ms, season, episode, poster_url, ids, event, client, updated_at, expire_at)
@@ -64,9 +81,43 @@ const deleteEpisodeByCoordinatesStmt = db.prepare(
      AND lower(title) = lower(?)`,
 );
 
+function refreshDemoSession(now) {
+  if (!isDemoMode()) return;
+  const episode = selectDemoEpisodeStmt.get() || {};
+  upsertDemoSessionStmt.run({
+    id: "demo:session:living-room",
+    title: episode.title || "Breaking Bad - S01E03 - ...And the Bag's in the River",
+    media_type: episode.media_type || "episode",
+    source: "demo",
+    progress: 38,
+    offset_ms: 1368000,
+    duration_ms: 3600000,
+    season: episode.season ?? 1,
+    episode: episode.episode ?? 3,
+    // Now Playing represents the show in the dashboard. Keep the demo's
+    // canonical Breaking Bad poster here rather than the episode-specific
+    // still stored on the watched episode row.
+    poster_url: "/demo-assets/posters/tv-1396.webp",
+    ids: toJson({
+      imdb: episode.imdb_id || "tt0903747",
+      tmdb: episode.tmdb_id || "1396",
+      tvdb: episode.tvdb_id || "81189",
+      mediaKey: episode.media_key || "demo:episode:1396:s1e3",
+    }),
+    event: "play",
+    client: toJson({ name: "Demo Player", user: "Demo", deviceName: "Demo browser" }),
+    updated_at: now,
+    expire_at: now + (2 * 60 * 60 * 1000),
+  });
+}
+
 export async function listActiveSessions() {
   const cutoff = Date.now() - activeSessionTtlMs();
   deleteStaleStmt.run(cutoff);
+  // A normal active session expires when a connected player stops reporting.
+  // The demo has no player, so keep its bundled “currently playing” example
+  // alive while the isolated demo server is running.
+  refreshDemoSession(Date.now());
   return selectAllStmt.all().map(fromRow);
 }
 

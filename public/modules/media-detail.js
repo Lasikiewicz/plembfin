@@ -1,23 +1,23 @@
-import { state, elements } from "./state.js?v=0.16.3.7";
-import { slug, movieSlug, movieHref, movieTmdbHref, tvShowTmdbHref, showName, showTitleFrom } from "./utils.js?v=0.16.3.7";
-import { dedupeMediaRecords } from "./dashboard.js?v=0.16.3.7";
-import { isWatchedHistoryAction } from "./sync.js?v=0.16.3.7";
+import { state, elements } from "./state.js?v=1.0.0.0.0";
+import { slug, movieSlug, movieHref, movieTmdbHref, tvShowTmdbHref, showName, showTitleFrom } from "./utils.js?v=1.0.0.0.0";
+import { dedupeMediaRecords } from "./dashboard.js?v=1.0.0.0.0";
+import { isWatchedHistoryAction } from "./sync.js?v=1.0.0.0.0";
 import {
   initMediaDetail, authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions,
   prepareInlineMediaDetail, syncMediaActionsMenuState, syncTopbarControlsMenuState,
   openDebugModal, closeDebugModal, clearMediaDetailState, closeMediaDetail,
   openMediaInfoModal, closeMediaInfoModal,
   bumpMediaRenderToken, currentMediaRenderToken,
-} from "./media-detail-context.js?v=0.16.3.7";
+} from "./media-detail-context.js?v=1.0.0.0.0";
 import {
   openShowImmersiveModalByTitle, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openShowInlineDetail,
   renderImmersiveShowModal, renderShowModalContent, patchShowModalEpisodeFromLive, patchShowModalEpisodesSavingState, scrollSeasonAccordionIntoView,
-} from "./media-detail-show.js?v=0.16.3.7";
+} from "./media-detail-show.js?v=1.0.0.0.0";
 import {
   renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, patchMovieWatchedState,
-} from "./media-detail-movie.js?v=0.16.3.7";
-import { fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail-shared.js?v=0.16.3.7";
-import { fetchTmdbDetails } from "./tmdb.js?v=0.16.3.7";
+} from "./media-detail-movie.js?v=1.0.0.0.0";
+import { fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail-shared.js?v=1.0.0.0.0";
+import { fetchTmdbDetails } from "./tmdb.js?v=1.0.0.0.0";
 
 export {
   initMediaDetail,

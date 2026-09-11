@@ -1,10 +1,17 @@
 # Website deployment plan
 
-This is the setup plan for publishing the static Astro documentation site from
-`website/` to GitHub and having Cloudflare Pages publish it only from the release
-branch. The existing
-Cloudflare Pages project named `plembfin` hosts the app deployment and must remain
-untouched. Use a separate Pages project named `plembfin-website` for this static site.
+The static Astro documentation site in `website/` has two deliberately separate
+publishing paths:
+
+- **"Push website live"** publishes the current local website tree directly to the
+  separate `plembfin-website` Cloudflare Pages project. It does not push GitHub, run
+  GitHub Actions, or rebuild the Plembfin application.
+- **"Force to main"** remains the release-driven path for publishing the reviewed
+  website tree alongside an application release.
+
+The existing Cloudflare Pages project named `plembfin` hosts the app deployment and must
+remain untouched. Use the separate Pages project named `plembfin-website` for this
+static site.
 
 ## Current repository shape
 
@@ -20,6 +27,43 @@ The build reads the repository's root `package.json` and `CHANGELOG.md`, and cop
 root logo, diagram, and provider icons. Cloudflare must therefore build the repository
 with `website` as its root directory, not from an exported `website` folder that omits
 the rest of the repository.
+
+## Routine local publish: "Push website live"
+
+Use this path when the latest website fixes are in the current local checkout and should
+go live immediately. It intentionally does not create a Git commit, push to GitHub, or
+start the Plembfin application build workflows.
+
+From the repository's `website/` directory:
+
+```bash
+npm run check:deploy
+npm run build
+npx --yes wrangler@latest pages deploy dist --project-name plembfin-website --branch main --commit-message "Update Plembfin website from local source" --commit-dirty=true
+```
+
+The deployment must be verified at both the returned `pages.dev` URL and
+`https://plembfin.com`. Wrangler deploys the exact `website/dist/` output, so uncommitted
+website fixes in the current working tree are included after the checks and build pass.
+
+This path is independent of the GitHub release workflow below. Do not substitute a
+repository push, a root `npm run build`, or the `plembfin` application Pages project.
+
+## Local editing and testing: "Start the website"
+
+Use this path when the website should be available locally for editing or testing. It
+starts Astro's development server and does not publish or deploy anything.
+
+From the repository root:
+
+```bash
+npm --prefix website run dev
+```
+
+Open the local URL printed by Astro, normally `http://localhost:4321/`, in the connected
+Chrome browser. Keep that server running while editing so changes reload locally. Do not
+open `https://plembfin.com` for this workflow, and do not run the application build or
+Cloudflare deployment as part of starting the local website.
 
 ## 1. Prepare the repository
 
@@ -65,7 +109,10 @@ Then run the app and website preview together and inspect the affected pages in 
 themes. The required baseline and visual/privacy rules are in
 [`docs/websiteupdate.md`](websiteupdate.md).
 
-## 3. Push the deployable branch to GitHub
+## 3. Optional GitHub release path
+
+The following GitHub path is only for the release-driven `Force to main` workflow. It is
+not part of **"Push website live"**.
 
 1. Ensure the deployable website commit reaches the repository's `main` branch only
    through the `Force to main` release workflow.

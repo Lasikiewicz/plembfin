@@ -48,6 +48,34 @@ function pngDimensions(buffer) {
   return { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
 }
 
+function jpegDimensions(buffer) {
+  if (buffer[0] !== 0xff || buffer[1] !== 0xd8) return null;
+  let offset = 2;
+  const sofMarkers = new Set([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf]);
+
+  while (offset + 9 < buffer.length) {
+    if (buffer[offset] !== 0xff) {
+      offset += 1;
+      continue;
+    }
+    const marker = buffer[offset + 1];
+    offset += 2;
+    if (marker === 0xd8 || marker === 0xd9) continue;
+    if (marker === 0xda || offset + 2 > buffer.length) break;
+    const segmentLength = buffer.readUInt16BE(offset);
+    if (segmentLength < 2 || offset + segmentLength > buffer.length) break;
+    if (sofMarkers.has(marker) && segmentLength >= 7) {
+      return { width: buffer.readUInt16BE(offset + 5), height: buffer.readUInt16BE(offset + 3) };
+    }
+    offset += segmentLength;
+  }
+  return null;
+}
+
+function imageDimensions(buffer) {
+  return pngDimensions(buffer) || jpegDimensions(buffer);
+}
+
 const docs = [];
 const assetReferences = new Map();
 
@@ -72,10 +100,11 @@ for (const absolutePath of walkFiles(docsRoot).filter((file) => file.endsWith(".
 
 const assets = walkFiles(assetsRoot)
   .filter((file) => imageExtensions.has(path.extname(file).toLowerCase()))
+  .filter((file) => !websiteRelative(file).startsWith("public/assets/optimized/"))
   .map((absolutePath) => {
     const buffer = fs.readFileSync(absolutePath);
     const relativePath = websiteRelative(absolutePath);
-    const dimensions = path.extname(absolutePath).toLowerCase() === ".png" ? pngDimensions(buffer) : null;
+    const dimensions = imageDimensions(buffer);
     return {
       path: relativePath,
       bytes: buffer.length,

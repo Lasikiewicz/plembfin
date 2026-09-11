@@ -1,7 +1,22 @@
 {
-  "version": "0.16.3",
-  "build": 9,
-  "resetCommit": "4f5c39d1f1511f48b6acc0cf0140ab8aaeb4a47f",
-  "updatedAt": "2026-09-09T18:54:16.708Z",
-  "entries": []
+  "version": "1.0.0",
+  "build": 2,
+  "resetCommit": "a0d74299192ef406b71279ecb4543893622dd77f",
+  "updatedAt": "2026-09-11T11:24:41.015Z",
+  "entries": [
+    {
+      "build": 2,
+      "date": "2026-09-11T11:24:41.015Z",
+      "commit": "2c493238026de74d59b78d5d1f21e97cb06cd184",
+      "message": "Feature - Complete first-run setup and Windows distribution",
+      "author": "Lasikiewicz",
+      "details": [
+        "Guide new instances through account claiming and show the claimed account details and local address",
+        "Add a self-contained Windows installer with service cleanup, optional tray startup, and post-install launch choices",
+        "Keep installed runtime data separate from the source checkout so reinstalls do not reuse repository data",
+        "Improve live media and watch-state updates across dashboard, history, and sync surfaces",
+        "Add a packaged demo catalog and refresh the public documentation experience"
+      ]
+    }
+  ]
 }

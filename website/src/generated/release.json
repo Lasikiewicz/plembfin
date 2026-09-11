@@ -1,8 +1,26 @@
 {
-  "version": "0.16.3",
-  "date": "8 September 2026",
-  "summary": "This hotfix adds show-wide Trakt match repair and retry controls, lets unavailable Trakt shows be dismissed, and refreshes corrected TV metadata and posters immediately.",
+  "version": "1.0.0",
+  "date": "9 September 2026",
+  "summary": "Release the feature-complete Plembfin app with its refreshed documentation website, covering current dashboard, Up Next, sync activity, spoiler guidance, and stabilized live media cards.",
   "entries": [
+    {
+      "version": "1.0.0",
+      "date": "9 September 2026",
+      "title": "v1.0.0",
+      "summary": "Release the feature-complete Plembfin app with its refreshed documentation website, covering current dashboard, Up Next, sync activity, spoiler guidance, and stabilized live media cards.",
+      "bullets": [
+        "Scope live media updates to affected cards",
+        "Keep SSE watch and sync changes scoped to the affected tiles while preserving unchanged artwork nodes.",
+        "Reconcile dashboard, Up Next, and Now Playing cards in place instead of rebuilding their rails.",
+        "Refresh History, Explorer, and Stats only when their live data changes.",
+        "Keep cleared Up Next items dismissed",
+        "Keep cleared resume cards hidden while provider feeds catch up.",
+        "Restore provider artwork on dashboard cards",
+        "Keep authenticated provider poster proxies visible in cache-only dashboard surfaces.",
+        "Start Now Playing with eager media-key artwork and merge unambiguous cross-provider movie resumes.",
+        "Stabilize dashboard media state"
+      ]
+    },
     {
       "version": "0.16.3",
       "date": "8 September 2026",
@@ -5027,90 +5045,5 @@
       "bullets": []
     }
   ],
-  "alpha": {
-    "baseVersion": "0.16.3",
-    "build": 6,
-    "version": "0.16.3.6",
-    "updatedAt": "2026-09-09T18:40:41.108Z",
-    "entries": [
-      {
-        "build": 6,
-        "version": "0.16.3.6",
-        "date": "9 September 2026",
-        "title": "Alpha build 6",
-        "summary": "This update includes track website coverage index, track website content module, and gate website deployments on main.",
-        "bullets": [
-          "Tweak: This update includes track website coverage index, track website content module, and gate website deployments on main.",
-          "Tweak: Include the static site's app-surface coverage index in fresh clones",
-          "Tweak: Keep runtime data directories ignored while allowing this documented website input",
-          "Tweak: Include the shared static-site content module used by every page and navigation rail",
-          "Tweak: Keep the website self-contained when Cloudflare clones only the tracked repository",
-          "Tweak: The public documentation site now publishes only from the Force-to-main release on main."
-        ]
-      },
-      {
-        "build": 5,
-        "version": "0.16.3.5",
-        "date": "9 September 2026",
-        "title": "Alpha build 5",
-        "summary": "This update includes hide sync activity error details and resolve media pages and clear stale now playing.",
-        "bullets": [
-          "Tweak: This update includes hide sync activity error details and resolve media pages and clear stale now playing.",
-          "Tweak: Retry and dismiss failures now return generic public messages instead of internal error details.",
-          "Tweak: Resolve ambiguous TV metadata from episode-level identifiers.",
-          "Tweak: Remove completed playback and stale Now Playing state from the dashboard."
-        ]
-      },
-      {
-        "build": 4,
-        "version": "0.16.3.4",
-        "date": "9 September 2026",
-        "title": "Alpha build 4",
-        "summary": "Fix - Scope live media updates to affected cards",
-        "bullets": [
-          "Fix: Scope live media updates to affected cards",
-          "Fix: Keep SSE watch and sync changes scoped to the affected tiles while preserving unchanged artwork nodes.",
-          "Fix: Reconcile dashboard, Up Next, and Now Playing cards in place instead of rebuilding their rails.",
-          "Fix: Refresh History, Explorer, and Stats only when their live data changes."
-        ]
-      },
-      {
-        "build": 3,
-        "version": "0.16.3.3",
-        "date": "9 September 2026",
-        "title": "Alpha build 3",
-        "summary": "Fix - Keep cleared Up Next items dismissed",
-        "bullets": [
-          "Fix: Keep cleared Up Next items dismissed",
-          "Fix: Keep cleared resume cards hidden while provider feeds catch up."
-        ]
-      },
-      {
-        "build": 2,
-        "version": "0.16.3.2",
-        "date": "9 September 2026",
-        "title": "Alpha build 2",
-        "summary": "Fix - Restore provider artwork on dashboard cards",
-        "bullets": [
-          "Fix: Restore provider artwork on dashboard cards",
-          "Fix: Keep authenticated provider poster proxies visible in cache-only dashboard surfaces.",
-          "Fix: Start Now Playing with eager media-key artwork and merge unambiguous cross-provider movie resumes."
-        ]
-      },
-      {
-        "build": 1,
-        "version": "0.16.3.1",
-        "date": "9 September 2026",
-        "title": "Alpha build 1",
-        "summary": "Fix - Stabilize dashboard media state",
-        "bullets": [
-          "Fix: Stabilize dashboard media state",
-          "Fix: Repair missing Part Watched artwork during scheduled metadata refreshes.",
-          "Fix: Canonicalize provider episode identities so duplicate resume cards collapse safely.",
-          "Fix: Keep the dashboard Clear action aligned with the watch percentage.",
-          "Fix: Document and enforce the network-enabled launch path."
-        ]
-      }
-    ]
-  }
+  "alpha": null
 }

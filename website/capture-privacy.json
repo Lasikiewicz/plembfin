@@ -2,6 +2,9 @@
   "schemaVersion": 1,
   "policy": "Every image asset must be explicitly reviewed for user-identifiable information. Usernames, email addresses, custom server or library identifiers, hostnames, IP addresses, URLs, tokens, account IDs, and private media labels must be blurred in the image before publication. Provider Reviews and public/example Custom Lists are approved unblurred content and do not need blurring solely because they appear in those sections. Public media titles, cast names, provider ratings, and watch dates are not user-identifiable by themselves and should remain visible.",
   "reviewedAt": "2026-09-09",
+  "derivedAssetPrefixes": [
+    "public/assets/optimized/"
+  ],
   "safeAssets": [
     "public/assets/favicon.svg",
     "public/assets/plembfin-hub.svg",

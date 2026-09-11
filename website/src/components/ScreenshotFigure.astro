@@ -1,4 +1,9 @@
 ---
+import fs from "node:fs";
+import path from "node:path";
+import captureManifest from "../generated/capture-manifest.json";
+import { getImageVariantPath, getImageVariantWidths, isOptimizableRasterPath } from "../utils/image-variants.js";
+
 const {
   src,
   darkSrc = src,
@@ -6,32 +11,174 @@ const {
   alt,
   caption,
   loading = "lazy",
+  width,
+  height,
+  sizes = "(max-width: 900px) calc(100vw - 2rem), 78rem",
+  fetchpriority,
+  optimized = true,
+  lightboxSrc,
 } = Astro.props;
 
 const hasThemePair = Boolean(darkSrc && lightSrc && darkSrc !== lightSrc);
+const fallbackSource = src || darkSrc;
+
+const dimensionsCache = new Map<string, { width: number; height: number } | null>();
+const manifestPath = (value: string | undefined) => value?.replace(/^\//, "public/");
+const jpegDimensions = (buffer: Buffer): { width: number; height: number } | null => {
+  if (buffer[0] !== 0xff || buffer[1] !== 0xd8) return null;
+  let offset = 2;
+  const sofMarkers = new Set([0xc0, 0xc1, 0xc2, 0xc3, 0xc5, 0xc6, 0xc7, 0xc9, 0xca, 0xcb, 0xcd, 0xce, 0xcf]);
+
+  while (offset + 9 < buffer.length) {
+    if (buffer[offset] !== 0xff) {
+      offset += 1;
+      continue;
+    }
+
+    const marker = buffer[offset + 1];
+    offset += 2;
+    if (marker === 0xd8 || marker === 0xd9) continue;
+    if (marker === 0xda || offset + 2 > buffer.length) break;
+
+    const segmentLength = buffer.readUInt16BE(offset);
+    if (segmentLength < 2 || offset + segmentLength > buffer.length) break;
+    if (sofMarkers.has(marker) && segmentLength >= 7) {
+      return { width: buffer.readUInt16BE(offset + 5), height: buffer.readUInt16BE(offset + 3) };
+    }
+    offset += segmentLength;
+  }
+
+  return null;
+};
+
+const readDimensions = (value: string | undefined): { width: number; height: number } | null => {
+  if (!value) return null;
+  if (dimensionsCache.has(value)) return dimensionsCache.get(value) ?? null;
+
+  const manifestDimensions = captureManifest.assets.find((asset) => asset.path === manifestPath(value))?.dimensions;
+  if (manifestDimensions?.width && manifestDimensions?.height) {
+    dimensionsCache.set(value, manifestDimensions);
+    return manifestDimensions;
+  }
+
+  const absolutePath = path.join(process.cwd(), "public", value.replace(/^\//, ""));
+  if (!fs.existsSync(absolutePath)) return null;
+
+  const buffer = fs.readFileSync(absolutePath);
+  let resolvedDimensions = null;
+  if (buffer.subarray(0, 8).toString("hex") === "89504e470d0a1a0a") {
+    resolvedDimensions = { width: buffer.readUInt32BE(16), height: buffer.readUInt32BE(20) };
+  } else if (buffer[0] === 0xff && buffer[1] === 0xd8) {
+    resolvedDimensions = jpegDimensions(buffer);
+  } else if (/\.svg$/i.test(value)) {
+    const source = buffer.toString("utf8");
+    const viewBox = source.match(/\bviewBox="\s*([\d.+-]+)\s+([\d.+-]+)\s+([\d.+-]+)\s+([\d.+-]+)\s*"/i);
+    if (viewBox) resolvedDimensions = { width: Number(viewBox[3]), height: Number(viewBox[4]) };
+  }
+
+  dimensionsCache.set(value, resolvedDimensions);
+  return resolvedDimensions;
+};
+
+const dimensions: { width?: number; height?: number } = readDimensions(darkSrc) || readDimensions(fallbackSource) || {};
+const resolvedWidth = width || dimensions.width;
+const resolvedHeight = height || dimensions.height;
+const variantWidths = (value: string | undefined) =>
+  getImageVariantWidths(readDimensions(value)?.width || width || 1440);
+const srcsetFor = (value: string | undefined, format: string) =>
+  variantWidths(value).map((variantWidth) => `${getImageVariantPath(value, variantWidth, format)} ${variantWidth}w`).join(", ");
+const darkVariantWidths = variantWidths(darkSrc);
+const lightVariantWidths = variantWidths(lightSrc);
+const sourceVariantWidths = variantWidths(fallbackSource);
+const useOptimizedRaster = Boolean(optimized)
+  && isOptimizableRasterPath(darkSrc)
+  && (!hasThemePair || isOptimizableRasterPath(lightSrc));
+const darkFallback = useOptimizedRaster
+  ? getImageVariantPath(darkSrc, darkVariantWidths.at(-1) || 1440, "webp")
+  : darkSrc;
+const lightFallback = useOptimizedRaster
+  ? getImageVariantPath(lightSrc, lightVariantWidths.at(-1) || 1440, "webp")
+  : lightSrc;
+const darkSrcset = useOptimizedRaster ? srcsetFor(darkSrc, "webp") : undefined;
+const lightSrcset = useOptimizedRaster ? srcsetFor(lightSrc, "webp") : undefined;
+const useOptimizedSingleRaster = Boolean(optimized) && !hasThemePair && isOptimizableRasterPath(fallbackSource);
+const singleFallback = useOptimizedSingleRaster
+  ? getImageVariantPath(fallbackSource, sourceVariantWidths.at(-1) || 1440, "webp")
+  : fallbackSource;
+const singleSrcset = useOptimizedSingleRaster ? srcsetFor(fallbackSource, "webp") : undefined;
+const optimizedLightboxSource = (value: string | undefined) => {
+  if (!value || !isOptimizableRasterPath(value)) return value;
+  const width = getImageVariantWidths(readDimensions(value)?.width || 1440).at(-1) || 1440;
+  return getImageVariantPath(value, width, "webp");
+};
+const linkHref = optimizedLightboxSource(lightboxSrc)
+  || (hasThemePair ? optimizedLightboxSource(darkSrc) : optimizedLightboxSource(fallbackSource));
+const usePicture = useOptimizedRaster || useOptimizedSingleRaster;
 ---
 
 <figure class="screenshot-figure">
   <a
     class="screenshot-link"
-    href={hasThemePair ? darkSrc : src || darkSrc}
+    href={linkHref}
     data-theme-image-link={hasThemePair ? "true" : undefined}
-    data-dark-href={hasThemePair ? darkSrc : undefined}
-    data-light-href={hasThemePair ? lightSrc : undefined}
+    data-dark-href={hasThemePair ? optimizedLightboxSource(darkSrc) : undefined}
+    data-light-href={hasThemePair ? optimizedLightboxSource(lightSrc) : undefined}
     data-lightbox-trigger="true"
     data-lightbox-caption={caption || alt}
     aria-label={`Open image preview: ${alt}`}
   >
     <div class="screenshot-frame">
-      <img
-        src={hasThemePair ? darkSrc : src || darkSrc}
-        alt={alt}
-        loading={loading}
-        decoding="async"
-        data-theme-image={hasThemePair ? "true" : undefined}
-        data-dark-src={hasThemePair ? darkSrc : undefined}
-        data-light-src={hasThemePair ? lightSrc : undefined}
-      />
+      {usePicture ? (
+        <picture>
+          {hasThemePair ? (
+            <>
+              <source
+                type="image/webp"
+                media="(prefers-color-scheme: dark)"
+                data-theme-source="dark"
+                srcset={darkSrcset}
+                sizes={sizes}
+              />
+              <source
+                type="image/webp"
+                media="(prefers-color-scheme: light)"
+                data-theme-source="light"
+                srcset={lightSrcset}
+                sizes={sizes}
+              />
+            </>
+          ) : (
+            <source type="image/webp" srcset={singleSrcset} sizes={sizes} />
+          )}
+          <img
+            src={hasThemePair ? darkFallback : singleFallback}
+            alt={alt}
+            width={resolvedWidth}
+            height={resolvedHeight}
+            sizes={sizes}
+            loading={loading}
+            decoding="async"
+            fetchpriority={fetchpriority}
+            data-theme-image={hasThemePair ? "true" : undefined}
+            data-dark-src={hasThemePair ? darkFallback : undefined}
+            data-light-src={hasThemePair ? lightFallback : undefined}
+          />
+        </picture>
+      ) : (
+        <img
+          src={hasThemePair ? darkSrc : fallbackSource}
+          alt={alt}
+          width={resolvedWidth}
+          height={resolvedHeight}
+          sizes={sizes}
+          loading={loading}
+          decoding="async"
+          fetchpriority={fetchpriority}
+          data-theme-image={hasThemePair ? "true" : undefined}
+          data-dark-src={hasThemePair ? darkSrc : undefined}
+          data-light-src={hasThemePair ? lightSrc : undefined}
+        />
+      )}
     </div>
   </a>
   {caption && <figcaption>{caption}</figcaption>}

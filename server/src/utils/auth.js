@@ -5,6 +5,7 @@ import { writeAuditLog } from "../db.js";
 import { readJson } from "./requestBody.js";
 import { sendJson } from "./http.js";
 import { checkRateLimit } from "./rateLimit.js";
+import { isDemoMode } from "./demoMode.js";
 
 const COOKIE_NAME = "plembfin_session";
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
@@ -97,7 +98,7 @@ export async function requireAdmin(req, res) {
 export async function handleLogin(req, res) {
   if (req.method !== "POST") return sendJson(res, { error: "Method not allowed" }, 405);
   if (!isSameOrigin(req)) return sendJson(res, { error: "Cross-site request rejected", code: "ORIGIN_REJECTED", retryable: false }, 403);
-  const ip = callerIp(req);
+  const ip = isDemoMode() ? "" : callerIp(req);
   if (!checkRateLimit(`login:${ip}`, AUTH_RATE_LIMIT)) {
     return sendJson(res, { error: "Too many attempts. Try again later.", code: "RATE_LIMITED", retryable: true }, 429);
   }
@@ -105,10 +106,10 @@ export async function handleLogin(req, res) {
   const username = String(body.username || body.email || "").trim();
   const password = String(body.password || "");
   if (!verifyUsername(username) || !verifyPassword(password)) {
-    writeAuditLog("login.failure", { ip, detail: { username } });
+    if (!isDemoMode()) writeAuditLog("login.failure", { ip, detail: { username } });
     return sendJson(res, { error: "Invalid username or password" }, 401);
   }
-  writeAuditLog("login.success", { ip, detail: { username } });
+  if (!isDemoMode()) writeAuditLog("login.success", { ip, detail: { username } });
   res.cookie(COOKIE_NAME, signSession(username), {
     httpOnly: true,
     sameSite: "lax",

@@ -261,6 +261,8 @@ const proofScreens = [
               lightSrc={screen.lightSrc}
               alt={screen.alt}
               caption={screen.title}
+              width={screen.title === "Up Next" ? 1200 : 1440}
+              height={screen.title === "Up Next" ? 300 : 703}
             />
             <h3>{screen.title}</h3>
             <p>{screen.text}</p>
@@ -277,7 +279,7 @@ const proofScreens = [
       </div>
       <div class="simple-service-list" aria-label="Supported services">
         {integrations.map((integration) => (
-          <span><img src={integration.icon} alt="" aria-hidden="true" />{integration.name}</span>
+          <span><img src={integration.icon} alt="" aria-hidden="true" width="20" height="20" />{integration.name}</span>
         ))}
       </div>
     </section>

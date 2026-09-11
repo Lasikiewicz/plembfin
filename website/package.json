@@ -5,11 +5,14 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/run-astro.mjs dev",
-    "build": "node scripts/build-release-data.mjs && node scripts/sync-assets.mjs && node scripts/run-astro.mjs build",
-    "check:deploy": "npm run check:content && npm run check:links && npm run check:assets && npm run check:privacy && npm run check:duplicates",
-    "check": "npm run check:content && npm run check:links && npm run check:assets && npm run check:privacy && npm run check:duplicates && node scripts/run-astro.mjs check",
+    "predev": "node scripts/sync-assets.mjs && node scripts/optimize-assets.mjs",
+    "build": "node scripts/build-release-data.mjs && node scripts/sync-assets.mjs && node scripts/optimize-assets.mjs && node scripts/run-astro.mjs build",
+    "assets:optimize": "node scripts/optimize-assets.mjs",
+    "check:deploy": "npm run check:content && npm run check:links && npm run check:assets && npm run check:privacy && npm run check:duplicates && npm run check:accessibility",
+    "check": "npm run check:content && npm run check:links && npm run check:assets && npm run check:privacy && npm run check:duplicates && npm run check:accessibility && node scripts/run-astro.mjs check",
     "check:content": "node scripts/check-app-coverage.mjs",
-    "check:assets": "node scripts/check-capture-assets.mjs",
+    "check:assets": "node scripts/optimize-assets.mjs && node scripts/check-capture-assets.mjs && node scripts/check-website-assets.mjs",
+    "check:accessibility": "node scripts/check-website-accessibility.mjs",
     "check:duplicates": "node scripts/check-capture-duplicates.mjs",
     "check:privacy": "node scripts/check-capture-privacy.mjs",
     "check:links": "node scripts/check-content-links.mjs",
@@ -24,7 +27,13 @@
     "@astrojs/check": "^0.9.4",
     "@astrojs/mdx": "^4.3.4",
     "@astrojs/sitemap": "^3.3.0",
+    "@fontsource-variable/jetbrains-mono": "^5.3.0",
+    "@fontsource-variable/outfit": "^5.3.0",
     "astro": "^5.13.5",
     "typescript": "^5.8.3"
+  },
+  "devDependencies": {
+    "sharp": "^0.34.5",
+    "svgo": "^4.1.0"
   }
 }

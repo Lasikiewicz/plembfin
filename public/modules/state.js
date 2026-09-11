@@ -1,5 +1,6 @@
-import { readStoredAdminToken } from "./auth.js?v=0.16.3.7";
-import { readStoredDebugLogs } from "./logs.js?v=0.16.3.7";
+import { readStoredAdminToken } from "./auth.js?v=1.0.0.0.0";
+import { readStoredDebugLogs } from "./logs.js?v=1.0.0.0.0";
+import { isDemoMode } from "./utils.js?v=1.0.0.0.0";
 
 const TOKEN_KEY = "adminToken";
 const LEGACY_UPPER_TOKEN_KEY = "ADMIN_TOKEN";
@@ -39,6 +40,7 @@ function _startOfWeek(value) {
 const initialState = {
   token: readStoredAdminToken([TOKEN_KEY, LEGACY_UPPER_TOKEN_KEY, LEGACY_TOKEN_KEY]),
   authReady: false,
+  claimRequired: false,
   mustChangePassword: false,
   currentUser: undefined,
   activeView: localStorage.getItem(ACTIVE_VIEW_KEY) || "dashboard",
@@ -229,7 +231,10 @@ const initialState = {
   // later re-render of the same modal (e.g. toggling an episode watched).
   pendingSeasonScrollTarget: null,
   showModalAllSeasonsExpanded: false,
-  hideEpisodeSpoilers: localStorage.getItem(HIDE_EPISODE_SPOILERS_KEY) !== "false",
+  // The demo is a visual product tour: show the bundled stills on first load
+  // so an unwatched episode is not mistaken for missing artwork. The toggle
+  // remains available if a visitor wants spoiler protection for that session.
+  hideEpisodeSpoilers: isDemoMode() ? false : localStorage.getItem(HIDE_EPISODE_SPOILERS_KEY) !== "false",
   showModalRequestToken: 0,
   showModalEpisodes: [],
   showModalEpisodeIndex: new Map(),

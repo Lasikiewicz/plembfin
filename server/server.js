@@ -15,6 +15,8 @@ const ROLE = resolveProcessRole();
 const INSTANCE_ID = createInstanceId(ROLE);
 process.env.PLEMBFIN_INSTANCE_ID = INSTANCE_ID;
 process.env.ROLE = ROLE;
+const { isDemoMode } = await import("./src/utils/demoMode.js");
+const DEMO_MODE = isDemoMode();
 
 const { DATA_DIR, PUBLIC_DIR, MEDIA_DIR, ensureDataDirs } = await import("./src/paths.js");
 const { dispatch } = await import("./src/index.js");
@@ -28,7 +30,7 @@ const { createWorkerCoordinator } = await import("./src/workerCoordinator.js");
 const { flushPending: flushDiagnosticLogs } = await import("./src/utils/diagnosticLogger.js");
 
 ensureDataDirs();
-enableTmdbMetadataWarmup();
+if (!DEMO_MODE) enableTmdbMetadataWarmup();
 
 if (roleHasWeb(ROLE)) {
   const recoveredImports = recoverInterruptedBackgroundImports();
@@ -66,19 +68,26 @@ fs.mkdirSync(LOGS_DIR, { recursive: true });
 // Interval rotation only fires while a process stays alive across the boundary,
 // so a restart-heavy install never rotated and access.log grew without limit.
 // The size cap makes maxFiles effective regardless of uptime.
-const accessLogStream = createStream(ROLE === "all" ? "access.log" : `access-${ROLE}-${process.pid}.log`, {
-  interval: "1d",
-  size: "10M",
-  path: LOGS_DIR,
-  maxFiles: 14,
-});
+const accessLogStream = DEMO_MODE
+  ? { write() {} }
+  : createStream(ROLE === "all" ? "access.log" : `access-${ROLE}-${process.pid}.log`, {
+    interval: "1d",
+    size: "10M",
+    path: LOGS_DIR,
+    maxFiles: 14,
+  });
 
 // Keep upstream connections (Plex/Emby/Jellyfin/TMDB) warm.
 setGlobalDispatcher(new Agent({ keepAliveTimeout: 15000, connections: 64 }));
 
 const PORT = Number(process.env.PORT || 5055);
+const HOST = String(process.env.HOST || "0.0.0.0").trim() || "0.0.0.0";
 const app = express();
 app.disable("x-powered-by");
+// The public demo is served through one Cloudflare reverse-proxy hop. Trusting
+// that hop lets rate-limit middleware use the visitor address from
+// X-Forwarded-For instead of treating every visitor as the same edge IP.
+if (DEMO_MODE || process.env.TRUST_PROXY === "1") app.set("trust proxy", 1);
 const mediaConfigRevisionStmt = db.prepare("SELECT updated_at FROM settings WHERE id = 'mediaConfig'");
 const getCspImageOrigins = createCspImageOriginMemo({
   readRevision: () => Number(mediaConfigRevisionStmt.get()?.updated_at || 0),
@@ -106,6 +115,7 @@ const ACCESS_LOG_SKIP_PATHS = /^\/(?:media\/|modules\/|favicon|.*\.(?:css|js|png
 // about what the app did.
 const ACCESS_LOG_SKIP_POLLS = new Set(["/api/ping", "/api/now-playing", "/api/diagnostic-logs"]);
 function skipAccessLog(req, res) {
+  if (DEMO_MODE) return true;
   if (res.statusCode >= 400) return false;
   const requestPath = String(req.path || req.url || "").split("?")[0];
   if (ACCESS_LOG_SKIP_POLLS.has(requestPath)) return true;
@@ -129,23 +139,29 @@ app.use(async (_req, res, next) => {
     res.setHeader("Strict-Transport-Security", "max-age=31536000; includeSubDomains");
   }
 
-  let extraImgSrc = "";
-  try {
-    const origins = await getCspImageOrigins();
-    if (origins.length) {
-      extraImgSrc = " " + [...new Set(origins)].join(" ");
+  let contentSecurityPolicy;
+  if (DEMO_MODE) {
+    // A public demo must be able to render only its bundled/local resources.
+    // Keeping the policy local also prevents a future UI regression from
+    // quietly reintroducing a provider, image, font, or iframe request.
+    contentSecurityPolicy = "default-src 'self'; img-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; frame-src 'none';";
+  } else {
+    let extraImgSrc = "";
+    try {
+      const origins = await getCspImageOrigins();
+      if (origins.length) {
+        extraImgSrc = " " + [...new Set(origins)].join(" ");
+      }
+    } catch {
+      // Fail-safe: ignore configuration errors
     }
-  } catch {
-    // Fail-safe: ignore configuration errors
+    contentSecurityPolicy =
+      `default-src 'self'; img-src 'self' data: blob: https://image.tmdb.org https://img.youtube.com https://assets.fanart.tv https://fanart.tv https://artworks.thetvdb.com https://thetvdb.com${extraImgSrc}; ` +
+      "script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; " +
+      "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; " +
+      "frame-src https://www.youtube.com https://www.youtube-nocookie.com;";
   }
-
-  res.setHeader(
-    "Content-Security-Policy",
-    `default-src 'self'; img-src 'self' data: blob: https://image.tmdb.org https://img.youtube.com https://assets.fanart.tv https://fanart.tv https://artworks.thetvdb.com https://thetvdb.com${extraImgSrc}; ` +
-    "script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; " +
-    "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; " +
-    "frame-src https://www.youtube.com https://www.youtube-nocookie.com;"
-  );
+  res.setHeader("Content-Security-Policy", contentSecurityPolicy);
   next();
 });
 
@@ -201,8 +217,18 @@ app.use([
 // throttled in normal use, while still capping abusive bursts. Applied after the tighter
 // per-route limiters above so those still take precedence for their paths.
 app.use("/api", rateLimit({ windowMs: 60 * 1000, max: 1200, standardHeaders: true, legacyHeaders: false }));
-// Static asset / SPA fallback limiter - high ceiling, just bounds runaway requests.
-app.use(rateLimit({ windowMs: 60 * 1000, max: 2000, standardHeaders: true, legacyHeaders: false }));
+// The demo asset bundle is deliberately made up of many small immutable files
+// (posters, season art, gallery images, cast portraits, and related posters).
+// A single valid page crawl can exceed the generic static ceiling, so never
+// turn a bundled asset into a 429. API and SPA requests remain rate limited.
+const skipBundledDemoAssets = (req) => /^\/demo-assets(?:\/|$)/i.test(String(req.path || ""));
+app.use(rateLimit({
+  windowMs: 60 * 1000,
+  max: 2000,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skip: skipBundledDemoAssets,
+}));
 
 // Capture the raw request body for /api so webhook/JSON handlers can parse it
 // themselves (multipart via busboy, JSON via readJson). express.raw sets
@@ -327,8 +353,8 @@ app.get("/*name", (req, res) => {
 });
 
 // ROLE=web omits this coordinator; ROLE=all preserves the default combined process.
-const coordinator = roleHasWorker(ROLE) ? createWorkerCoordinator({ holderId: INSTANCE_ID, role: ROLE }) : null;
-const server = roleHasWeb(ROLE) ? app.listen(PORT) : null;
+const coordinator = !DEMO_MODE && roleHasWorker(ROLE) ? createWorkerCoordinator({ holderId: INSTANCE_ID, role: ROLE }) : null;
+const server = roleHasWeb(ROLE) ? app.listen(PORT, HOST) : null;
 
 server?.on("listening", async () => {
   const address = server.address();
@@ -381,5 +407,5 @@ process.on("SIGINT", () => shutdown("SIGINT"));
 
 if (!server) {
   console.log(`plembfin worker started (role=${ROLE})`);
-  await coordinator.start();
+  await coordinator?.start();
 }

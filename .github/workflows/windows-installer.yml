@@ -1,0 +1,203 @@
+name: Build Windows Installer
+
+# The Windows package follows the same branch model as the published images:
+# main is the release channel, alpha is the rolling pre-release channel, and
+# develop is a validation build. The installer is built on Windows so native
+# dependencies are installed and exercised for the target platform.
+on:
+  push:
+    branches: [main, alpha, develop]
+  workflow_dispatch:
+    inputs:
+      channel:
+        description: "Package channel (auto follows the selected branch)"
+        required: true
+        default: auto
+        type: choice
+        options:
+          - auto
+          - release
+          - alpha
+          - develop
+
+concurrency:
+  group: windows-installer-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build and publish Windows installer
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22.19.0
+          cache: npm
+
+      - name: Install production dependencies
+        shell: pwsh
+        run: npm ci --omit=dev --ignore-scripts
+
+      - name: Rebuild Windows native modules
+        shell: pwsh
+        run: npm rebuild better-sqlite3 sharp
+
+      - name: Run application build gate
+        shell: pwsh
+        run: npm run build
+
+      - name: Resolve package metadata
+        id: metadata
+        shell: pwsh
+        run: |
+          $branch = '${{ github.ref_name }}'
+          $forced = '${{ github.event.forced }}' -eq 'true'
+          $manualChannel = '${{ inputs.channel }}'
+          $branchChannel = switch ($branch) {
+            'main' { 'release'; break }
+            'alpha' { 'alpha'; break }
+            'develop' { 'develop'; break }
+            default { 'release' }
+          }
+
+          if ($forced -and $branch -in @('alpha', 'main')) {
+            # Force to alpha and Force to main deliberately land through a
+            # force-push. Always derive the package channel from that target
+            # branch so a promotion cannot accidentally produce the wrong
+            # installer flavor.
+            $channel = $branchChannel
+            Write-Host "Forced promotion push detected on $branch; using $channel Windows package channel."
+          } elseif ([string]::IsNullOrWhiteSpace($manualChannel) -or $manualChannel -eq 'auto') {
+            $channel = $branchChannel
+          } else {
+            $channel = $manualChannel
+          }
+
+          if ($channel -notin @('release', 'alpha', 'develop')) {
+            throw "Unsupported Windows package channel '$channel'."
+          }
+          if ($forced -and $branch -eq 'alpha' -and $channel -ne 'alpha') {
+            throw 'A forced push to alpha must build the alpha Windows package.'
+          }
+          if ($forced -and $branch -eq 'main' -and $channel -ne 'release') {
+            throw 'A forced push to main must build the release Windows package.'
+          }
+
+          $manifestPath = if ($channel -eq 'release') { 'changelog.json' } else { "changelog.$channel.json" }
+          $manifest = Get-Content -Raw $manifestPath | ConvertFrom-Json
+          $version = if ($channel -eq 'alpha') { [string]$manifest.baseVersion } else { [string]$manifest.version }
+          if ([string]::IsNullOrWhiteSpace($version)) { throw "No version found in $manifestPath" }
+          $buildValue = $manifest.build
+          if ($null -eq $buildValue) { $buildValue = 0 }
+          $build = if ($channel -eq 'release') { '' } else { [string]$buildValue }
+          $fileChannel = if ($channel -eq 'release') { 'release' } else { "$channel-$build" }
+          $trigger = if ($forced) { 'force-push' } elseif ('${{ github.event_name }}' -eq 'workflow_dispatch') { 'manual' } else { 'push' }
+
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "channel=$channel"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "version=$version"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "file_channel=$fileChannel"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "artifact_name=Plembfin-Windows-$fileChannel-$version"
+          Add-Content -Path $env:GITHUB_OUTPUT -Value "trigger=$trigger"
+
+      - name: Report package selection
+        shell: pwsh
+        run: |
+          Write-Host "Windows installer trigger: ${{ steps.metadata.outputs.trigger }}"
+          Write-Host "Windows installer channel: ${{ steps.metadata.outputs.channel }}"
+          Write-Host "Windows installer version: ${{ steps.metadata.outputs.version }}"
+
+      - name: Download WinSW service wrapper
+        shell: pwsh
+        env:
+          WINSW_VERSION: v2.11.0
+        run: |
+          $destination = Join-Path $env:RUNNER_TEMP 'WinSW-x64.exe'
+          $uri = "https://github.com/winsw/winsw/releases/download/$env:WINSW_VERSION/WinSW-x64.exe"
+          Invoke-WebRequest -UseBasicParsing -Uri $uri -OutFile $destination
+          if (!(Test-Path -LiteralPath $destination)) { throw 'WinSW download did not produce a file.' }
+          $hash = (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash
+          Write-Host "Downloaded WinSW $env:WINSW_VERSION ($hash)"
+
+      - name: Stage Windows application
+        shell: pwsh
+        run: >-
+          node scripts/build-windows-package.js
+          --channel "${{ steps.metadata.outputs.channel }}"
+          --winsw "$env:RUNNER_TEMP\WinSW-x64.exe"
+          --output dist/windows
+
+      - name: Install Inno Setup
+        shell: pwsh
+        run: choco install innosetup --yes --no-progress
+
+      - name: Compile installer
+        shell: pwsh
+        run: |
+          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (!(Test-Path -LiteralPath $iscc)) { throw "Inno Setup compiler not found at $iscc" }
+          & $iscc "/DAppVersion=${{ steps.metadata.outputs.version }}" "/DAppChannel=${{ steps.metadata.outputs.file_channel }}" 'packaging/windows/Plembfin.iss'
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup failed with exit code $LASTEXITCODE" }
+
+      - name: Sign installer (optional)
+        shell: pwsh
+        env:
+          WINDOWS_SIGNING_CERTIFICATE_BASE64: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_BASE64 }}
+          WINDOWS_SIGNING_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERTIFICATE_PASSWORD }}
+        run: |
+          $installer = Get-ChildItem -LiteralPath 'dist/windows/installer' -Filter '*.exe' | Select-Object -First 1
+          if (!$installer) { throw 'Installer executable was not produced.' }
+          if ([string]::IsNullOrWhiteSpace($env:WINDOWS_SIGNING_CERTIFICATE_BASE64)) {
+            Write-Host 'No Windows signing certificate configured; leaving installer unsigned.'
+            exit 0
+          }
+
+          $pfx = Join-Path $env:RUNNER_TEMP 'plembfin-signing.pfx'
+          [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_SIGNING_CERTIFICATE_BASE64))
+          $signtool = Get-ChildItem -Path "$env:ProgramFiles(x86)\Windows Kits\10\bin" -Filter signtool.exe -Recurse -ErrorAction SilentlyContinue | Sort-Object FullName | Select-Object -Last 1
+          if (!$signtool) { throw 'Windows SDK signtool.exe was not found.' }
+
+          & $signtool.FullName sign /fd SHA256 /f $pfx /p $env:WINDOWS_SIGNING_CERTIFICATE_PASSWORD /tr 'http://timestamp.digicert.com' /td SHA256 $installer.FullName
+          if ($LASTEXITCODE -ne 0) { throw "signtool failed with exit code $LASTEXITCODE" }
+          Remove-Item -LiteralPath $pfx -Force
+
+      - name: Create installer checksum
+        shell: pwsh
+        run: |
+          $installer = Get-ChildItem -LiteralPath 'dist/windows/installer' -Filter '*.exe' | Select-Object -First 1
+          if (!$installer) { throw 'Installer executable was not produced.' }
+          $hash = (Get-FileHash -LiteralPath $installer.FullName -Algorithm SHA256).Hash
+          "$hash  $($installer.Name)" | Set-Content -LiteralPath 'dist/windows/installer/SHA256SUMS.txt' -Encoding ascii
+          Write-Host "$($installer.Name): $hash"
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.metadata.outputs.artifact_name }}
+          path: dist/windows/installer/*
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish release installer
+        if: steps.metadata.outputs.channel == 'release' && github.ref_name == 'main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: v${{ steps.metadata.outputs.version }}
+        run: |
+          gh release view $env:RELEASE_TAG *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $env:RELEASE_TAG --target '${{ github.sha }}' --title "Plembfin $env:RELEASE_TAG" --notes "Windows installer for Plembfin $env:RELEASE_TAG."
+            if ($LASTEXITCODE -ne 0) { throw "Could not create GitHub release $env:RELEASE_TAG" }
+          }
+
+          $assets = Get-ChildItem -LiteralPath 'dist/windows/installer' -File
+          gh release upload $env:RELEASE_TAG $assets.FullName --clobber
+          if ($LASTEXITCODE -ne 0) { throw "Could not upload installer assets to $env:RELEASE_TAG" }

@@ -1,11 +1,12 @@
 # Settings
 
 Settings is a hierarchical, task-oriented administration area modeled on Sonarr. The
-sidebar groups related sections under a bold parent heading; clicking a parent or a
+Settings page groups related sections under bold parent headings; clicking a parent or a
 child scrolls to that section on the parent's own aggregated page rather than opening a
 separate screen. `/settings` itself shows a plain overview list grouped the same way.
-Desktop renders the grouped sidebar; mobile uses the **Settings section** select control
-(a flat list of options under `<optgroup>` headings matching the sidebar groups).
+The primary left rail keeps Settings and the top-level **About** page separate. Desktop
+and mobile use the **Settings section** select control for the full settings catalogue
+(a flat list of options under `<optgroup>` headings).
 
 | Group (parent) | Parent route | Child sections | Child routes |
 | --- | --- | --- | --- |
@@ -19,9 +20,15 @@ Desktop renders the grouped sidebar; mobile uses the **Settings section** select
 | Restore | `/settings/restore` | Local (Watch History, Plembfin), Remote (Watch History, Plembfin) | `/settings/restore#restore-local`, `/settings/restore#restore-remote` |
 | Tools | `/settings/tools` | Guided Setup, Database Repairs, Library Rebuilds and Backfills, Wipe data (Watch History, Personal Watchlist, Sync History & Logs, Everything Tracked, Wipe All / Fresh Start) | `/settings/tools#guided-setup`, `/settings/tools#database-repairs`, `/settings/tools#library-rebuilds`, `/settings/tools#wipe-data` |
 | Logs | `/settings/logs` | (none - single-page group) | - |
-| About | `/settings/about` | (none - single-page group) | - |
 
-The left sidebar navigation displays parent menu groups by default, collapsing child sections and sub-sections until that parent section page is active. Every child section is display-only: its sidebar button navigates to the parent group's path with the section id appended as a URL hash (`#system-integrity`), then scrolls that specific section into view. The parent's page always renders every child's content stacked together - clicking a child is a same-page jump, not a different screen. Logs and About are single-child groups of their own (each promoted to a top-level sidebar entry, with an empty `sections` array, since neither has independent child sections). Use the parent-and-hash routes above when documenting or linking to a child tool; for example, Full Sync Watchstates is `/settings/sync#full-sync-watchstates`.
+The Settings overview and section select expose the parent groups and their display-only
+children. Every child section navigates to the parent group's path with the section id
+appended as a URL hash (`#system-integrity`), then scrolls that specific section into view.
+The parent's page always renders every child's content stacked together - clicking a
+child is a same-page jump, not a different screen. Logs is a single-page Settings group;
+About is a separate top-level page at `/about`. Use the parent-and-hash routes above when
+documenting or linking to a child tool; for example, Full Sync Watchstates is
+`/settings/sync#full-sync-watchstates`.
 
 **The sidebar, the mobile `<select>`, and the `/settings` overview boxes are all generated
 from `SECTION_GROUPS`/`SECTIONS` at render time** (`renderSettingsSidebar()`,
@@ -246,7 +253,7 @@ Old bookmarks are normalized with `history.replaceState`:
 | `/settings/sync/tuning` | `/settings/sync-tuning` (UI: `/settings/sync#sync-tuning`) |
 | `/logs`, `/settings/system/logs` | `/settings/logs` |
 | `/settings/cache`, `/settings/system/storage` | `/settings/storage` |
-| `/settings/changelog`, `/settings/system/about` | `/settings/about` |
+| `/settings/about`, `/settings/changelog`, `/settings/system/about` | `/about` |
 
 The forced-password-change state always resolves to the Account section (`/settings/account`; the normal sidebar path is `/settings/general#account`).
 

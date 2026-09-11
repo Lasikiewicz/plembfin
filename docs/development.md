@@ -114,7 +114,7 @@ values already committed" - none of them write anything back to their branch.
   `changelog.develop.json` and starts each release cycle at build 1. Its build counter
   increments when a rebuild finds user-facing work; "Force to alpha" clears the current
   entry and anchor while carrying the version/build, and "Force to main" resets the
-  version to the released semver and the build to 1. The sidebar and Settings → About
+version to the released semver and the build to 1. The sidebar and About
   show this as `<version> Build <n>`.
   **`develop` is covered by `secret-scan.yml`** (while `security.yml` runs on `main` and
   `alpha` alongside scheduled scans).
@@ -250,6 +250,22 @@ posts the `changelog.json` entry to Discord via `scripts/notify-discord-release.
 `docker-publish.yml` is a manual (`workflow_dispatch`) image build that skips the
 changelog step.
 
+The same `main` push also triggers `.github/workflows/windows-installer.yml`. That job
+runs on a Windows runner, installs and probes the Windows builds of `better-sqlite3` and
+`sharp`, stages the self-contained Node runtime plus the optional notification-area
+companion, compiles the Inno Setup installer, and uploads a checksum alongside it.
+Release-channel installers built from `main` are attached to a `v<version>` GitHub
+Release; alpha and develop installers, along with manual builds from other branches,
+remain available as Actions artifacts. The workflow also supports manual builds for any
+of the three channels. Configure
+`WINDOWS_SIGNING_CERTIFICATE_BASE64` and `WINDOWS_SIGNING_CERTIFICATE_PASSWORD` as
+repository secrets to sign the installer; signing is skipped, without failing the
+build, when those secrets are absent.
+The force-push events used by the promotion procedures are mapped explicitly: `Force to
+alpha` builds the alpha manifest/build from `alpha`, and `Force to main` builds the
+release manifest/version from `main`. Manual runs default to following the selected
+branch (`auto`) unless an explicit channel is chosen.
+
 The in-app update check compares the bundled `changelog.json` against the published one
 on GitHub - see the changelog section of [architecture.md](architecture.md).
 
@@ -289,6 +305,7 @@ It has its own build/deploy tooling independent of this repo's CI - see
 | `secret-scan.yml` | TruffleHog verified-secret scan on push to `main`/`alpha`/`develop` and PRs targeting `main`/`develop` |
 | `docker-build-check.yml` | Checks README consistency, then builds the image on every PR targeting `main`, without pushing anything, and runs `better-sqlite3` and `sharp` inside it, so a broken Dockerfile or dependency install is caught before a PR merges. The runtime probe matters because production dependencies install with `--ignore-scripts`: a native module with no usable binary for the platform still builds cleanly and would fail on first database open |
 | `docker-publish-alpha.yml` | On every push to `alpha`: checks README consistency, builds the image, runs the same native-module probe as `docker-build-check.yml`, then pushes it to `ghcr.io/lasikiewicz/plembfin:alpha` and `ghcr.io/lasikiewicz/plembfin:alpha-<build>` (reading the build number already committed by "Force to alpha"), and posts the changelog entry to Discord (see "Discord release notifications"). Never writes anything back to `alpha`; never touches `changelog.json`, the package version, or the `:latest` tag |
+| `windows-installer.yml` | On every push to `main`, `alpha`, or `develop` (and on manual dispatch), builds the x64 Windows installer on a Windows runner, probes native modules, packages the Node server as a Windows service with an opt-in notification-area companion, uploads a checksum, and publishes release-channel installers to GitHub Releases |
 | `ghcr-cleanup.yml` | Weekly (and on manual dispatch): prunes numbered `develop-<n>`/`alpha-<n>` tags beyond the newest 15 of each, and deletes untagged images older than a day left behind whenever a mutable tag (`latest`/`develop`/`alpha`) moves to a new manifest. Never touches those mutable tags or a semantic-version release tag |
 | `dependabot.yml` | Dependency update PRs |
 

@@ -36,6 +36,7 @@ if (!fs.existsSync(privacyPath)) {
 
   if (privacy) {
     const safeAssets = Array.isArray(privacy.safeAssets) ? privacy.safeAssets : [];
+    const derivedAssetPrefixes = Array.isArray(privacy.derivedAssetPrefixes) ? privacy.derivedAssetPrefixes : [];
     const redactedAssets = privacy.redactedAssets && typeof privacy.redactedAssets === "object"
       ? privacy.redactedAssets
       : {};
@@ -46,8 +47,19 @@ if (!fs.existsSync(privacyPath)) {
         .map(relativeAsset),
     );
 
+    function derivedSource(asset) {
+      const prefix = derivedAssetPrefixes.find((candidate) => asset.startsWith(candidate));
+      if (!prefix) return null;
+      const remainder = asset.slice(prefix.length);
+      if (remainder === "plembfin-hub.svg") return "public/assets/plembfin-hub.svg";
+      const source = remainder.replace(/-\d+\.(?:webp|png)$/i, ".png");
+      return source === remainder ? null : `public/assets/${source}`;
+    }
+
     for (const asset of discovered) {
-      if (!reviewed.has(asset)) failures.push(`unreviewed raster asset ${asset}`);
+      if (reviewed.has(asset)) continue;
+      const source = derivedSource(asset);
+      if (!source || !reviewed.has(source)) failures.push(`unreviewed raster asset ${asset}`);
     }
     for (const asset of reviewed) {
       if (!discovered.has(asset)) failures.push(`privacy manifest references missing asset ${asset}`);

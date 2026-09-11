@@ -1,0 +1,4484 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-10T12:58:00.199Z",
+  "usage": "non-commercial demo only",
+  "source": {
+    "provider": "TMDB",
+    "website": "https://www.themoviedb.org",
+    "faq": "https://developer.themoviedb.org/docs/faq",
+    "logo": "/demo-assets/tmdb-logo.svg",
+    "logoSourceUrl": "https://www.themoviedb.org/assets/2/v4/logos/v2/blue_square_2-d537fb228cf3ded904ef09b136fe3fec72548ebc1fea3fbbd1ad9e36364db38b.svg",
+    "attributionNotice": "This product uses the TMDB API but is not endorsed or certified by TMDB."
+  },
+  "selection": {
+    "movie": {
+      "endpoint": "discover/movie",
+      "label": "Top-rated established movies",
+      "sort": "vote_average.desc",
+      "voteCountMinimum": 10000,
+      "dateMaximum": "2024-12-31",
+      "language": "en-GB",
+      "limit": 50
+    },
+    "tv": {
+      "endpoint": "discover/tv",
+      "label": "Top-rated established TV shows",
+      "sort": "vote_average.desc",
+      "voteCountMinimum": 2000,
+      "dateMaximum": "2024-12-31",
+      "language": "en-GB",
+      "limit": 50
+    }
+  },
+  "assets": {
+    "logo": {
+      "path": "/demo-assets/tmdb-logo.svg",
+      "sourceUrl": "https://www.themoviedb.org/assets/2/v4/logos/v2/blue_square_2-d537fb228cf3ded904ef09b136fe3fec72548ebc1fea3fbbd1ad9e36364db38b.svg",
+      "bytes": 2577,
+      "sha256": "d537fb228cf3ded904ef09b136fe3fec72548ebc1fea3fbbd1ad9e36364db38b"
+    },
+    "titles": [
+      {
+        "mediaType": "movie",
+        "tmdbId": "278",
+        "poster": {
+          "path": "/demo-assets/posters/movie-278.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/9cqNxx0GxF0bflZmeSMuL5tnGzr.jpg",
+          "bytes": 26856,
+          "sha256": "b69f42066ea87b168e80455561b2751983c90b77fd28a969b2570f51a0cdebb0"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-278.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/pNjh59JSxChQktamG3LMp9ZoQzp.jpg",
+          "bytes": 184828,
+          "sha256": "985585b3faba9914b0ce8e5b0d5844c935a2fdaf232c0f19563148dbdb47ccd3"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "238",
+        "poster": {
+          "path": "/demo-assets/posters/movie-238.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/3bhkrj58Vtu7enYsRolD1fZdja1.jpg",
+          "bytes": 11960,
+          "sha256": "7933a3a3674f5de70e7dc2e1ecab1b14c7180c8cf6b10842f6809a8abfc050b6"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-238.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/tSPT36ZKlP2WVHJLM4cQPLSzv3b.jpg",
+          "bytes": 70916,
+          "sha256": "18d20ff356eb4e42e2849a9c228fd238fb2c0bb9b5b47f4cc8a183221b17797f"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "240",
+        "poster": {
+          "path": "/demo-assets/posters/movie-240.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/sSuQTCZwqKrNBNIsksO9IAUoWP9.jpg",
+          "bytes": 9616,
+          "sha256": "2fcbe0b409252774b5ded9beabddc6228400939f08b760e496ed87d67a4ceb01"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-240.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/kGzFbGhp99zva6oZODW5atUtnqi.jpg",
+          "bytes": 181590,
+          "sha256": "d67f053c84a4b56d38d410c2f702e2a39b27ad4076ac552c3dc8367dfc7679f7"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "389",
+        "poster": {
+          "path": "/demo-assets/posters/movie-389.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/zhG3vKWyDRaZYoaww1UVAi29T9h.jpg",
+          "bytes": 35224,
+          "sha256": "b54bc11d5286948f1c2017eaf94a880629aa8b6dfe51119a57ea04bcd3ceb763"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-389.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/qqHQsStV6exghCM7zbObuYBiYxw.jpg",
+          "bytes": 119640,
+          "sha256": "3e3e66d092a197c0009a45db5bbc0914df9d066e01e80eb94fbb903a85c05de7"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "424",
+        "poster": {
+          "path": "/demo-assets/posters/movie-424.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/sF1U4EUQS8YHUYjNl3pMGNIQyr0.jpg",
+          "bytes": 12770,
+          "sha256": "daf6c1e650a5c50aca3deef78e990e8f013af546ae042310aa3a20bb0069ba99"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-424.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/zb6fM1CX41D9rF9hdgclu0peUmy.jpg",
+          "bytes": 256654,
+          "sha256": "83a52c567a23a43a992d9a19d289a6d8b85f6a4fe2504a40ec3ef02644c14f84"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "155",
+        "poster": {
+          "path": "/demo-assets/posters/movie-155.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/qJ2tW6WMUDux911r6m7haRef0WH.jpg",
+          "bytes": 26266,
+          "sha256": "6d56cc3aaf7fae654251fd0bd95eec84f5ad278703f113cc9cd9397d75fa901e"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-155.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/9FE5eD92WfVCiivM9Pq9GVSrlWk.jpg",
+          "bytes": 154722,
+          "sha256": "758f30d127cd217eff7b3900ac7fc6174923e58aef9c90f8eb2af0228c1c23cd"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "129",
+        "poster": {
+          "path": "/demo-assets/posters/movie-129.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/39wmItIWsg5sZMyRUHLkWBcuVCM.jpg",
+          "bytes": 19976,
+          "sha256": "f1d6a461083580578a47e74f52d54f7bc43b4a29667191dab0fb9d1705e2e267"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-129.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/dyJvKsNs2KP8qQnAXbRwDjblViy.jpg",
+          "bytes": 92988,
+          "sha256": "9cbb6054a9b3004e284106dc89f1119ff49f70a4d8f1be3984fbf2db79437998"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "497",
+        "poster": {
+          "path": "/demo-assets/posters/movie-497.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/8VG8fDNiy50H4FedGwdSVUPoaJe.jpg",
+          "bytes": 18548,
+          "sha256": "96cd7e81dff7af59a06737693b091c86f7c086cb67251de060bda95040a6cb6f"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-497.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/amZavErrjrdgDwhsIdpWxHNenIx.jpg",
+          "bytes": 195094,
+          "sha256": "19b04982892eabb055edde0535c0724b42c77feaef0f625a0efef3a7b6a0b882"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "122",
+        "poster": {
+          "path": "/demo-assets/posters/movie-122.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/rCzpDGLbOoPwLjy3OAm5NUPOTrC.jpg",
+          "bytes": 50412,
+          "sha256": "0e7565253ef9fba759e116fb01d29f192c2934285dab595c5b89dc9a56988aba"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-122.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/ctiw6FZK4N36LmkjSklWEbuvlq9.jpg",
+          "bytes": 75132,
+          "sha256": "4cb2b1af05591276925ab14e697f50702be6f380f1b6b429b0bd64405cf6f748"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "496243",
+        "poster": {
+          "path": "/demo-assets/posters/movie-496243.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/7IiTTgloJzvGI1TAYymCfbfl3vT.jpg",
+          "bytes": 37360,
+          "sha256": "283e2def687026d86dc4066d0b548bac323a77ccf3eb427f35abcc4a52236c89"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-496243.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/hiKmpZMGZsrkA3cdce8a7Dpos1j.jpg",
+          "bytes": 150300,
+          "sha256": "c1004c5f31db839702506941d17df7ef7d14a9f8a0de385893470f2383735d96"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "157336",
+        "poster": {
+          "path": "/demo-assets/posters/movie-157336.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/yQvGrMoipbRoddT0ZR8tPoR7NfX.jpg",
+          "bytes": 28460,
+          "sha256": "fc447724eca2b730b41cc13960e4521637dd97f1e51845858fafa926f393d501"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-157336.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/5XNQBqnBwPA9yT0jZ0p3s8bbLh0.jpg",
+          "bytes": 46862,
+          "sha256": "460e07740027496e90697cf33dfadc014d0b2120a489e9e15e0d9d5dbcef8fb0"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "372058",
+        "poster": {
+          "path": "/demo-assets/posters/movie-372058.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/vfJFJPepRKapMd5G2ro7klIRysq.jpg",
+          "bytes": 33846,
+          "sha256": "e11fc5e9ed08435222df6b95a6bc93ab0df9aaf799e74802bab2e47468c0015b"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-372058.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/mMtUybQ6hL24FXo0F3Z4j2KG7kZ.jpg",
+          "bytes": 129542,
+          "sha256": "09567c21ebec031cdf9e6b28b183fe22e9ea953d38798eafaf4cde77348aa414"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "680",
+        "poster": {
+          "path": "/demo-assets/posters/movie-680.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/vQWk5YBFWF4bZaofAbv0tShwBvQ.jpg",
+          "bytes": 38938,
+          "sha256": "4c6a2d50a1da89a9eb104cad64e5188b2f90354e06a8e54366ce74a0b19788d2"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-680.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/suaEOtk1N1sgg2MTM7oZd2cfVp3.jpg",
+          "bytes": 121412,
+          "sha256": "1484ada270c2bf5887fce1fec09fe9af6bd38d16d9a5b8f6ee64c76e00754eb9"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "13",
+        "poster": {
+          "path": "/demo-assets/posters/movie-13.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/Cw4hIUIAmSYfK9QfaUW5igp9La.jpg",
+          "bytes": 11122,
+          "sha256": "6e29527af6370364bd332da93de9c264935cfd4e072a7ff6709ac71b929ae363"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-13.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/66Kn4XWhkuPkJxOJyPEx4U2CUfN.jpg",
+          "bytes": 41650,
+          "sha256": "5942db0b4d42c4996c297edcb9dc51c8f40c448a4e50ac4964221fe55e716432"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "769",
+        "poster": {
+          "path": "/demo-assets/posters/movie-769.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/9OkCLM73MIU2CrKZbqiT8Ln1wY2.jpg",
+          "bytes": 21418,
+          "sha256": "a01747ebea5271d67dc2b37348355298a16a863e46d6ae47a2c4265b56c37f69"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-769.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/gILte6Zd7m1YneIr6MVhh30S9pr.jpg",
+          "bytes": 29464,
+          "sha256": "e91dedc8d614d0b44a236aef88b3fd55e243a7a42c14857f80f94c2ced3bbc4b"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "120",
+        "poster": {
+          "path": "/demo-assets/posters/movie-120.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/6oom5QYQ2yQTMJIbnvbkBL9cHo6.jpg",
+          "bytes": 34700,
+          "sha256": "2413839ca0184ed594975d47f379fe496e56eff6923fc86cd5b6ab1914a410cd"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-120.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/oiwc338EoBgS4sEI2ixAny4KQKg.jpg",
+          "bytes": 87452,
+          "sha256": "fb1f5320fa8765b3ef659a8dab904e5770222b2c387ca6d9bad612331f1a9b43"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "637",
+        "poster": {
+          "path": "/demo-assets/posters/movie-637.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/74hLDKjD5aGYOotO6esUVaeISa2.jpg",
+          "bytes": 37180,
+          "sha256": "426a192892ae24b007c4085b54957af320274d6002f7290f16c6159934d17db4"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-637.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/6aNKD81RHR1DqUUa8kOZ1TBY1Lp.jpg",
+          "bytes": 128558,
+          "sha256": "5d3e4d34e5fe339193942b837d959bb1b7cd82eceb1b19dea4e61a160ac94c22"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "550",
+        "poster": {
+          "path": "/demo-assets/posters/movie-550.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/jSziioSwPVrOy9Yow3XhWIBDjq1.jpg",
+          "bytes": 28360,
+          "sha256": "1e60afa764838b361f23957e17f65caab80ae589ccb93554ddad31cb67b519d2"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-550.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/c6OLXfKAk5BKeR6broC8pYiCquX.jpg",
+          "bytes": 50694,
+          "sha256": "ebd0a04bf718e1117ff4e2eab03ab90a709b3fc9c7e655eae3592ba6604be807"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "121",
+        "poster": {
+          "path": "/demo-assets/posters/movie-121.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/5VTN0pR8gcqV3EPUHHfMGnJYN9L.jpg",
+          "bytes": 27874,
+          "sha256": "eeca367af5963a73bad4468e5b29f85df9e275f3de7251469244bef71a3cf1b5"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-121.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/6G73mNyooWAEQTpckPSnFxFoNmc.jpg",
+          "bytes": 275380,
+          "sha256": "bda3a5e2004fd30e9e20d58d6592f4365758169fe38f5a2a3cfea5800aa777c2"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "539",
+        "poster": {
+          "path": "/demo-assets/posters/movie-539.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/yz4QVqPx3h1hD1DfqqQkCq3rmxW.jpg",
+          "bytes": 33754,
+          "sha256": "abc4613491ef348b909c0cc94d78f43ebd9cf193fa9525f1267e12d86f638908"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-539.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/mufF1aYvwdpKerhq5R1YrVcbJLY.jpg",
+          "bytes": 100972,
+          "sha256": "28b8ddcc48cf5f7158a57c542efa74856fb995b94ec5ae6088c74cb80d07de46"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "510",
+        "poster": {
+          "path": "/demo-assets/posters/movie-510.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/kjWsMh72V6d8KRLV4EOoSJLT1H7.jpg",
+          "bytes": 27458,
+          "sha256": "da30def25364222904fb941535d5950f25e810564ffb10898b49e9507a4eb49c"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-510.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/uA8eSNAUUUyfHNIrG4h0zHxzt9W.jpg",
+          "bytes": 85442,
+          "sha256": "7ac260eef0c4572bffb95ccd3f83323db4bde3d55a845f2fcf74cc3fe7eb51d8"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "324857",
+        "poster": {
+          "path": "/demo-assets/posters/movie-324857.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/iiZZdoQBEYBv6id8su7ImL0oCbD.jpg",
+          "bytes": 18256,
+          "sha256": "c4dfe957fd506cd18011fd092ab4ceb81f46d77290f49204306b73bea936565d"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-324857.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/8mnXR9rey5uQ08rZAvzojKWbDQS.jpg",
+          "bytes": 126598,
+          "sha256": "9f894931e7850befcbe7e7f486daf951698dfdff8792cb08ca2505a611d477e4"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "1891",
+        "poster": {
+          "path": "/demo-assets/posters/movie-1891.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/nNAeTmF4CtdSgMDplXTDPOpYzsX.jpg",
+          "bytes": 34776,
+          "sha256": "48decedccc67ae763ef12c10eb9b31b3d9f743268b69edfe03ef111bcb225300"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-1891.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/k9pshruhCpJAdH9RaGJO6jaWQ4X.jpg",
+          "bytes": 230844,
+          "sha256": "8a0f60c0101473bb2e86db300a9e453a273c8e6e97c7192f686282ce53892a58"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "4935",
+        "poster": {
+          "path": "/demo-assets/posters/movie-4935.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/13kOl2v0nD2OLbVSHnHk8GUFEhO.jpg",
+          "bytes": 41964,
+          "sha256": "aa10f459c99bed31404acf204b095b0a4b2dd81ca4fe289f25b696aa9d08b5ee"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-4935.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/nv5wwZou159v5OC61i4ElR7OqyY.jpg",
+          "bytes": 61048,
+          "sha256": "504db83e0b08ec5ae0a51ea8dfb6ab54c8cb7646c79339e7067c37b0cffc108f"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "807",
+        "poster": {
+          "path": "/demo-assets/posters/movie-807.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/191nKfP0ehp3uIvWqgPbFmI4lv9.jpg",
+          "bytes": 17846,
+          "sha256": "1d1aba140d808aafe26ff88570fdeb7174f1f4cf8d4adcfd20aa020af1bbee50"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-807.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/i5H7zusQGsysGQ8i6P361Vnr0n2.jpg",
+          "bytes": 78648,
+          "sha256": "a43addb5f6b34f85e59f009fe8a39534a671e7e7a0ac5562ca2f436e759b5d07"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "244786",
+        "poster": {
+          "path": "/demo-assets/posters/movie-244786.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/7fn624j5lj3xTme2SgiLCeuedmO.jpg",
+          "bytes": 11764,
+          "sha256": "356e2428812e7fd6d616f2864c1df23776b282adf9b55455a5fce55bd05141ef"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-244786.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/fRGxZuo7jJUWQsVg9PREb98Aclp.jpg",
+          "bytes": 131652,
+          "sha256": "62283997a5826e98d1d7ea9226f003c1afe8544a93c39e7bcef42c667d3d9118"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "27205",
+        "poster": {
+          "path": "/demo-assets/posters/movie-27205.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/xlaY2zyzMfkhk0HSC5VUwzoZPU1.jpg",
+          "bytes": 42992,
+          "sha256": "334d597bd468d52b5ceaae5efed80f4548d0823cf1d96d25dc584dde0bf760be"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-27205.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/8ZTVqvKDQ8emSGUEMjsS4yHAwrp.jpg",
+          "bytes": 152702,
+          "sha256": "25e9b3290571bbdce0f27ea8c9fdcacf47896b4518952770e9fa5690f30db8d7"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "423",
+        "poster": {
+          "path": "/demo-assets/posters/movie-423.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/2hFvxCCWrTmCYwfy7yum0GKRi3Y.jpg",
+          "bytes": 15260,
+          "sha256": "b90d4279f9ac336ba6ea49c3807c3404b318d4069835dbcafd7cf58ec5122042"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-423.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/c0fB9xk7D1aVb3Bg2rk2SVJcGn.jpg",
+          "bytes": 64686,
+          "sha256": "ae604bc92f4892b4cdaa5f2b1f2acb298fb56abd865d99eac9b9c92aec41b754"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "274",
+        "poster": {
+          "path": "/demo-assets/posters/movie-274.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/uS9m8OBk1A8eM9I042bx8XXpqAq.jpg",
+          "bytes": 20452,
+          "sha256": "c5e5e17160ac7399c24be08b95df07efd8f52479243ab62a8a79b424b8e53765"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-274.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/aYcnDyLMnpKce1FOYUpZrXtgUye.jpg",
+          "bytes": 95264,
+          "sha256": "6e7a02722666000a3e77ebf51bd7cdbf58e4e7085687b7934e8431d4d2e83419"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "105",
+        "poster": {
+          "path": "/demo-assets/posters/movie-105.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/vN5B5WgYscRGcQpVhHl6p9DDTP0.jpg",
+          "bytes": 29532,
+          "sha256": "f9840040e5e96f16bdbb41aee53bcd8cdba9a123707c3810002f4335763679b4"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-105.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/5bzPWQ2dFUl2aZKkp7ILJVVkRed.jpg",
+          "bytes": 342076,
+          "sha256": "8a3117d1e8cdc99588a1e995382e54161ad2c96216d3d9c50f12769aac3cfc3a"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "73",
+        "poster": {
+          "path": "/demo-assets/posters/movie-73.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/x2drgoXYZ8484lqyDj7L1CEVR4T.jpg",
+          "bytes": 28892,
+          "sha256": "3d377b19cf9f96397dfce7b069b83d38a014cdb27484ec1ec6369b42267a2411"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-73.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/6qHI1IYj7QlLSCwHRzkL62X175s.jpg",
+          "bytes": 60606,
+          "sha256": "2ccdb6dd08c94a62bc6bdc17eec10bc0617a7bc148ce943c4220c23e06bc1e8c"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "207",
+        "poster": {
+          "path": "/demo-assets/posters/movie-207.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/tNvKkSnnn4Z6RCBThyK1gfCSSvv.jpg",
+          "bytes": 25806,
+          "sha256": "d5834c78fdc65d19767108b7d146b778f2cb1ebc274911823806cbe6d92ebb78"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-207.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/lFIXZpwwlF9hg8NM3RazaIJDuaj.jpg",
+          "bytes": 81230,
+          "sha256": "f76bde748aca15e6b8647103fcedd875e1dbe92428f335979800751b550958c1"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "101",
+        "poster": {
+          "path": "/demo-assets/posters/movie-101.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/bxB2q91nKYp8JNzqE7t7TWBVupB.jpg",
+          "bytes": 13866,
+          "sha256": "45fc7a45385cb52171178ea4b048518f1973ef3f9aee5014c321eb1459a7348c"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-101.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/fj0hwDJEOOHllRim2BMt5L7tbjf.jpg",
+          "bytes": 83044,
+          "sha256": "c0b106ba025f3c0673b2d04a61bc2e992cd96c6ed024f99fb18c7f30950afb24"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "77338",
+        "poster": {
+          "path": "/demo-assets/posters/movie-77338.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/1QU7HKgsQbGpzsJbJK4pAVQV9F5.jpg",
+          "bytes": 22540,
+          "sha256": "9d2f8daa14dda8a20360ac25268394e73c8e8e06ec4e2d5c2e52b3560a40fb29"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-77338.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/q6OGlZ1KMEb14AC8KbPCxyNOal6.jpg",
+          "bytes": 75422,
+          "sha256": "1cd661188595390ccd342068ab9df960e748f996ebff9d8474c6b0fb8cd2020a"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "603",
+        "poster": {
+          "path": "/demo-assets/posters/movie-603.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/aOIuZAjPaRIE6CMzbazvcHuHXDc.jpg",
+          "bytes": 24340,
+          "sha256": "d65fb4f6a1b5cdd036467a8c206e734e99a30599a6eac11741eaca671b834f97"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-603.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/lrtSb1skJayPydZk0OSMAKjBOVe.jpg",
+          "bytes": 68266,
+          "sha256": "1841dccfc8c3284015843b81f0da19534191153bb4529bbdaa3fb672d1493605"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "8587",
+        "poster": {
+          "path": "/demo-assets/posters/movie-8587.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/sKCr78MXSLixwmZ8DyJLrpMsd15.jpg",
+          "bytes": 22892,
+          "sha256": "f7e03681fa49b6479a7318ab41a97c7eff228e6d9eb9e2beeae765b52614cb06"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-8587.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/q00H8EqULYSK74lgevMkhmGGLHn.jpg",
+          "bytes": 55726,
+          "sha256": "96320f560777991f735adbc6c417ae2a70b70f4aecbceef625356724b7a01efa"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "299536",
+        "poster": {
+          "path": "/demo-assets/posters/movie-299536.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/7WsyChQLEftFiDOVTGkv3hFpyyt.jpg",
+          "bytes": 47734,
+          "sha256": "22d96273b3865db7a4f2b46feee84eeeac11328cc9a48b961c42fa0f5c68c6bf"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-299536.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/mDfJG3LC3Dqb67AZ52x3Z0jU0uB.jpg",
+          "bytes": 214990,
+          "sha256": "22c530a96821d0fa26e578fa4e8644eb3d538d02b6a38670e1cdb99c9537da1a"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "299534",
+        "poster": {
+          "path": "/demo-assets/posters/movie-299534.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/ulzhLuWrPK07P1YkdWQLZnQh1JL.jpg",
+          "bytes": 46830,
+          "sha256": "3ade121d5924ebdc1046222cfdc77608a60749d26f41c909b58349ed625deff1"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-299534.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/7RyHsO4yDXtBv1zUU3mTpHeQ0d5.jpg",
+          "bytes": 229612,
+          "sha256": "76e404541f46b13f4d48dcfc1957ed495d82167346e49522a077fc23e6cb15a7"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "670",
+        "poster": {
+          "path": "/demo-assets/posters/movie-670.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/pWDtjs568ZfOTMbURQBYuT4Qxka.jpg",
+          "bytes": 31992,
+          "sha256": "1acc62affaf0f430e7a082af35849d8ec2afc310dc7e2904270ea7a0cc45cdbe"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-670.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/sdwjQEM869JFwMytTmvr6ggvaUl.jpg",
+          "bytes": 76498,
+          "sha256": "79a2d27a263431049ed9910507ba9e7209651b84c361a5833c280dd45d73eaed"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "857",
+        "poster": {
+          "path": "/demo-assets/posters/movie-857.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/uqx37cS8cpHg8U35f9U5IBlrCV3.jpg",
+          "bytes": 18504,
+          "sha256": "420af411a48b8aaaf88f8fcc8e780ebedb1766784fda5c091bf0e5be1e369725"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-857.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/bdD39MpSVhKjxarTxLSfX6baoMP.jpg",
+          "bytes": 123868,
+          "sha256": "cfd69874b67d11f70248fc1c85159bc7d30222ca2e2c303aa9fb0e26952cbf28"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "98",
+        "poster": {
+          "path": "/demo-assets/posters/movie-98.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/wN2xWp1eIwCKOD0BHTcErTBv1Uq.jpg",
+          "bytes": 15860,
+          "sha256": "2b120a0595a556f546188112ac0eea9f3b3bbe10ecc6937064872890d398d9f1"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-98.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/Ar7QuJ7sJEiC0oP3I8fKBKIQD9u.jpg",
+          "bytes": 88504,
+          "sha256": "98094b82cd6faece0122b37e5fbd3532033b72a51e129e02de996d370731c7e7"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "490132",
+        "poster": {
+          "path": "/demo-assets/posters/movie-490132.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/7BsvSuDQuoqhWmU2fL7W2GOcZHU.jpg",
+          "bytes": 13720,
+          "sha256": "85b48ee8ea2bdc1304072f3870ed7511e59b0688c5990ddba1d07b1717b32317"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-490132.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/5En0fmDagt3Pk8d7P3uTwfeQceg.jpg",
+          "bytes": 72166,
+          "sha256": "77420879db059b17d9923925c84c93824753e02d7716bd8799a106ef31d79d0e"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "16869",
+        "poster": {
+          "path": "/demo-assets/posters/movie-16869.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/aupnPtagH9JVBuMrGEanf4iqXEQ.jpg",
+          "bytes": 30660,
+          "sha256": "839a180045b75513a37bd86b50d9ad2b39d2210cf9708bcd1782599f195960f9"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-16869.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/hwNtEmmugU5Yd7hpfprNWI0DGIn.jpg",
+          "bytes": 70604,
+          "sha256": "e7f0243486be6174ce5a84d8acf8b3bad3244a484c7663f21e989d4b40388efc"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "1124",
+        "poster": {
+          "path": "/demo-assets/posters/movie-1124.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/Ag2B2KHKQPukjH7WutmgnnSNurZ.jpg",
+          "bytes": 11416,
+          "sha256": "950b90e8f985d5c1bdb0a983db61ab11a3077b58e81366a6ed4a6abcf4fb871c"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-1124.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/z3br1ub7spqGMkxgjgJSdM4DC21.jpg",
+          "bytes": 97216,
+          "sha256": "0a299fda81f9fb7244aaa7ea549a484d4aa65f947a39c0ad77da697a7204ad98"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "11",
+        "poster": {
+          "path": "/demo-assets/posters/movie-11.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/fai0rspsNeJCS69wHNjOdWxcI7P.jpg",
+          "bytes": 35848,
+          "sha256": "643610d3d39b9b2e2715e4e3c78bd24809dd1fc06bd446a07b38659a0b4b643c"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-11.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/zqkmTXzjkAgXmEWLRsY4UpTWCeo.jpg",
+          "bytes": 195748,
+          "sha256": "94f2a3072efd158c1418cc916dd00f726905b66557ee962f5a96e6344a0dd62f"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "694",
+        "poster": {
+          "path": "/demo-assets/posters/movie-694.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/uAR0AWqhQL1hQa69UDEbb2rE5Wx.jpg",
+          "bytes": 14752,
+          "sha256": "d0c7fddd0cccdce4134653fc5efa6e0cf4c9b72ba76f51a1f03c714e3b30eea5"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-694.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/AdKA2F1SzYPhSZdEbjH1Zh75UVQ.jpg",
+          "bytes": 76240,
+          "sha256": "fbf47c264913bbd76be5464df2102a23972a0405a75076a84751e0da53b0fca2"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "11324",
+        "poster": {
+          "path": "/demo-assets/posters/movie-11324.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/nrmXQ0zcZUL8jFLrakWc90IR8z9.jpg",
+          "bytes": 27926,
+          "sha256": "dc7e5910385d1a90520f0b2eaef67b99a98a915c3d117b84bb028e439dcd8a1e"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-11324.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/rbZvGN1A1QyZuoKzhCw8QPmf2q0.jpg",
+          "bytes": 107194,
+          "sha256": "6594237360641c81bbc101932dba587680921bd1ca81c4f96ca30f0dc6e53c87"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "354912",
+        "poster": {
+          "path": "/demo-assets/posters/movie-354912.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/6Ryitt95xrO8KXuqRGm1fUuNwqF.jpg",
+          "bytes": 37934,
+          "sha256": "f187a6972a762ea30d60e65e68ef4da3eed9fee650029f66a1ea7bc257dbfbcf"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-354912.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/g7CHF8gTLGooTbP4GznIGwaqAGL.jpg",
+          "bytes": 237938,
+          "sha256": "b7dcea2975d989da9be981afaef8949390e4c59929385d5abbb3627b0e3237b2"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "324786",
+        "poster": {
+          "path": "/demo-assets/posters/movie-324786.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/fnOMP6mjmOmZwmlC1n0K7ivrzt1.jpg",
+          "bytes": 22444,
+          "sha256": "4fb68404bee9a507a904e1472061b9cc52c2b7c8e397755b3c82636091612674"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-324786.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/vDKRMZGFTKP9nQolzeSB1rB1w6p.jpg",
+          "bytes": 75796,
+          "sha256": "9eff5af7f0dbb2ff0fee66eb025c42b9538a38e0abf88b56e26bb8b0de4e1df8"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "movie",
+        "tmdbId": "68718",
+        "poster": {
+          "path": "/demo-assets/posters/movie-68718.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/7oWY8VDWW7thTzWh3OKYRkWUlD5.jpg",
+          "bytes": 31558,
+          "sha256": "f385cce73afeb1f17f574507876f61e6efd71cdacb81f2d06b10e3717314c90e"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/movie-68718.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/2oZklIzUbvZXXzIFzv7Hi68d6xf.jpg",
+          "bytes": 198598,
+          "sha256": "50220bfed7c25f1381574a8b846c9e965346a8b768ddafe47def5b10fdcfa92c"
+        },
+        "seasons": []
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "1396",
+        "poster": {
+          "path": "/demo-assets/posters/tv-1396.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/anFx9aTOOYqgS3v7x3R84Kz67ly.jpg",
+          "bytes": 31074,
+          "sha256": "f3403bb299e57585d81f4d1c74e697055bae6178fb78683c9a7e83cc45c5a135"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-1396.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/tsRy63Mu5cu8etL1X7ZLyf7UP1M.jpg",
+          "bytes": 213960,
+          "sha256": "021349b0a805463f3ecfd46f9767eafda1cce2baece2f158f7d653bd34427d0a"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1396-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/4RaIvSQgHHHPfaI1jFqaMR8UJWM.jpg",
+              "bytes": 23808,
+              "sha256": "fd7f8b93dec6cfce6cafcd571d92a0d4ffef72f278e379c659ffbb10ad2eeb45"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1396-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/1BP4xYv9ZG4ZVHkL7ocOziBbSYH.jpg",
+              "bytes": 23604,
+              "sha256": "03eac92a97b5e51d4fb476018e708f726e94613e34e8c06eac4b67c038ee4061"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1396-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/e3oGYpoTUhOFK0BJfloru5ZmGV.jpg",
+              "bytes": 45486,
+              "sha256": "9f264eea3909045b74cc3e75bb9d04c15b3367110759fe346f3a1e0e81eeb22b"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1396-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/ffP8Q8ew048YofHRnFVM18B2fPG.jpg",
+              "bytes": 37332,
+              "sha256": "841f6406ca3067a6c99a88a0bba7ce4f9107a58b2a0bda1725bcb41ba5f0ad11"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1396-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/5ewrnKp4TboU4hTLT5cWO350mHj.jpg",
+              "bytes": 33450,
+              "sha256": "8b50232c0fc68f1d18b0271179082172d6659042ffbb61c26a49bbe194a5351c"
+            }
+          },
+          {
+            "seasonNumber": 5,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1396-season-5.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/r3z70vunihrAkjILQKWHX0G2xzO.jpg",
+              "bytes": 41448,
+              "sha256": "af5e1f78c505da36d8188ce8718debb1a041f7d40cc3d16f7113ee14acad570a"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "246",
+        "poster": {
+          "path": "/demo-assets/posters/tv-246.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/yaGt4GIutpbXHsv48tWceWg6s56.jpg",
+          "bytes": 29998,
+          "sha256": "dba42bb06f8250fcf128241146e3a44df2eeececdb28494f59ab3f2c13f5700c"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-246.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/7oBGhqJIghRBvOwo5Qe0yM0cnMc.jpg",
+          "bytes": 41430,
+          "sha256": "f50ba2eda1ad795a720aa89769d976ac0687aef4ac11ddcd3444195d9fb0ae87"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-246-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/qDll9gvIj9vVcgQKtbkad0390kP.jpg",
+              "bytes": 22070,
+              "sha256": "5242ff08cc1ca87db8fc265138868960154e72a15be23d669eee48d776100ddd"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-246-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/tUG6h0rMtQyOgvqI8r9AqxlKoUP.jpg",
+              "bytes": 21668,
+              "sha256": "02683437ba7b3c0698b1a429c9c08a35ed7fc373f411afb221d40a3234cccadf"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-246-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/quX70K1L7vTLQ9vRJcK0kKcNNFA.jpg",
+              "bytes": 19364,
+              "sha256": "e7cbbc7e6f0c66c0b91807f3ce70ec3cc7a7d5edcb4a978aa9af74a046a325ab"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-246-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/roPE4jaHawj1Dm6uIXJHuLDpkNy.jpg",
+              "bytes": 23342,
+              "sha256": "6644e410d8bd5fa691f80dc4bac0c5375e6cfcac3ad4500bf99508a24c243d3c"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "94605",
+        "poster": {
+          "path": "/demo-assets/posters/tv-94605.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/fqldf2t8ztc9aiwn3k6mlX3tvRT.jpg",
+          "bytes": 30718,
+          "sha256": "41e37323159222cff5861da387ae4b1f1d81843255cc93e8887dc8d3f5533152"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-94605.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/5cvnxEHT3e39DvT6ARw4GNCFrB0.jpg",
+          "bytes": 66266,
+          "sha256": "458657d4f0cba7db2d724772e48b65c03a4558fd63801024502131e98c4f84a1"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-94605-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/4ZmnQwv6MZH9ahlfzbgcNJPXhuj.jpg",
+              "bytes": 21772,
+              "sha256": "8f606896993eb3dc675ff608e91f8d16064153ce48ac20903e64941562b01b2a"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-94605-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/6FMWx79iAtZx8WHtOrRj0VlM8Tp.jpg",
+              "bytes": 14500,
+              "sha256": "d34bc6cb1554a2a6a4a11cec72138722155785f1c92988623f37d7e031171cea"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-94605-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/oTGEwkp1mPgWNMgVSM53TWfzgSc.jpg",
+              "bytes": 18540,
+              "sha256": "dd71a3ba165eddfaf3fb63846dd0243160ac241850b63e1b017fbd5cb86150b0"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "37854",
+        "poster": {
+          "path": "/demo-assets/posters/tv-37854.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/dB4EDhre2dsC2kxYDavyKWqLQwi.jpg",
+          "bytes": 12166,
+          "sha256": "5b2cef2726a14a542ac9d226297b37de0cbe6e8899d019522acc086d8bb39a87"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-37854.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/2rmK7mnchw9Xr3XdiTFSxTTLXqv.jpg",
+          "bytes": 194358,
+          "sha256": "d66ceaf7bb5f334483ac7e74445f3424b35d170d0c9b1ad2125a19568c2126d7"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-37854-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/vKwE8o35jG5jYQdwXv9ZarIFwLE.jpg",
+              "bytes": 58114,
+              "sha256": "0855c0452e1c33f6d5e6673871cd03eeb89920f6178f254d890a5559ef105251"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-37854-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/9hW62RDq5Dno8vLABXscddjEq9M.jpg",
+              "bytes": 41452,
+              "sha256": "ec90cfde93386217e1a04c2db791e4f4b3ad341d3088c1c226ebaa12a32830e4"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-37854-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/gMPQIxlTDt463pnuvr2axpkkB13.jpg",
+              "bytes": 48046,
+              "sha256": "30a98c36e50b280207b499c40b7d65bab520b566af3b59dba1adcb197b0d320e"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-37854-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/fyOt2eCAVAB5tUpf4oOrLqX1cYD.jpg",
+              "bytes": 47314,
+              "sha256": "c1cb435651d5746318b7230f5e5ed7318883cb1171f3e710fd52cec58380f660"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-37854-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/lmO3xnBHVlT8On8E6AukMDyhKzv.jpg",
+              "bytes": 57170,
+              "sha256": "df334e03d1388c04f732beff5a24504734015b85376c7ecf3349c8a507d8a75d"
+            }
+          },
+          {
+            "seasonNumber": 5,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-37854-season-5.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/dJHWwdcNzsbBUAnXdNsrIAgkmiK.jpg",
+              "bytes": 49594,
+              "sha256": "80bc3405fcc77d8f191efad4b0704af69465f0c7c83bad9334bd8710fddb9599"
+            }
+          },
+          {
+            "seasonNumber": 6,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-37854-season-6.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/hYasiagbhomaEj0Vv1LMqewOuBE.jpg",
+              "bytes": 55814,
+              "sha256": "2f027fac0b3c40dafd6f5de94245d4b81e9baa63fc51b60a5b26a1cefc7be5b0"
+            }
+          },
+          {
+            "seasonNumber": 7,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-37854-season-7.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/A2msjyMOBEdbSHjiPHWLZhKI5HS.jpg",
+              "bytes": 45444,
+              "sha256": "bfdd0b0b287c75e98666b5863691ce62ffaa89d44d7f82486e487cd9994e7919"
+            }
+          },
+          {
+            "seasonNumber": 8,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-37854-season-8.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/ww1JO056uv4KhDSycDTLkNRveIg.jpg",
+              "bytes": 48256,
+              "sha256": "a850f8c245b3ced4b0d834a98cb065619be734b9898975402beae365f5b93224"
+            }
+          },
+          {
+            "seasonNumber": 9,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-37854-season-9.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/7y6yoAIepNVrNTLMxgHEEgjEEge.jpg",
+              "bytes": 42840,
+              "sha256": "6bcc3c1da413dcc01c2a2171893807be63880909bcab374cf8d41b336365277b"
+            }
+          },
+          {
+            "seasonNumber": 10,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-37854-season-10.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/aznhNoyRyJOh6cxFYkcU2zGxOEo.jpg",
+              "bytes": 58268,
+              "sha256": "ee2e2c2ed2ccf233bac3d37f69ec5d6096f822ddb437cae5e84eeee117360e07"
+            }
+          },
+          {
+            "seasonNumber": 11,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-37854-season-11.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/kMvtZUg4jCZ4JzEqvOCjkiklQfF.jpg",
+              "bytes": 55562,
+              "sha256": "3e9a350761ea4fb667714f46947bfb631ba2b29faf8475523ab707a96ec030d8"
+            }
+          },
+          {
+            "seasonNumber": 12,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-37854-season-12.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/bVjlWX17j9t6XB3AZ3KOv7ya7g7.jpg",
+              "bytes": 48958,
+              "sha256": "cd11d10b5f75283129c58f77002d979d3a1c3c75fb44f05f99442fb4468789e8"
+            }
+          },
+          {
+            "seasonNumber": 13,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-37854-season-13.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/zcVNRh5sqdgSgoXm0Z2GlTxF6DN.jpg",
+              "bytes": 52696,
+              "sha256": "7a255cee8893110692f3403598c94416e152c23a6e5075e5c84c5dd1597f5b3b"
+            }
+          },
+          {
+            "seasonNumber": 14,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-37854-season-14.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/wpVC1e0RVK2qRtZMFDYu1c6mHcy.jpg",
+              "bytes": 61192,
+              "sha256": "613992b4c396f1c66719807049b1036cb3facddb0f1012bdff3dbd18c3d0cbae"
+            }
+          },
+          {
+            "seasonNumber": 15,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-37854-season-15.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/slTtfpqvqelTNoRTxTuiSvqWoTU.jpg",
+              "bytes": 59382,
+              "sha256": "6155ce8aa560e27d8a768b8048a020386cb9994b980cb7cce94bb46a85dec924"
+            }
+          },
+          {
+            "seasonNumber": 16,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-37854-season-16.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/sDzpqSCuCyvKIcJADOhPD261maG.jpg",
+              "bytes": 64430,
+              "sha256": "4422c9c42ebc7ddf529603db75d988fcb5f6eb8b7796e0ced8e2822e505264a4"
+            }
+          },
+          {
+            "seasonNumber": 17,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-37854-season-17.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/nXyJ2Yor5VUX8Zpwf0eQbuDOsF0.jpg",
+              "bytes": 48006,
+              "sha256": "ccf3761222f9f25a959b365791e7c74737912877fa8c047573dec4f57b7762bb"
+            }
+          },
+          {
+            "seasonNumber": 18,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-37854-season-18.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/wg7ngI5lw0u54xRY5FwmlvzS9cu.jpg",
+              "bytes": 34880,
+              "sha256": "7eb8918c7dc043f8aae5353ceea6c2573ee0f2b1510f6ab6ab1096ededebbd0f"
+            }
+          },
+          {
+            "seasonNumber": 19,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-37854-season-19.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/59G8pVHbFqSuAQAitdK9CKGAZXX.jpg",
+              "bytes": 59464,
+              "sha256": "c555159fe0d7ccd7fea00dcf51444b560891a044ced502ea27799d97a65f3686"
+            }
+          },
+          {
+            "seasonNumber": 20,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-37854-season-20.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/huF0TU9U8UIt2BaLGn6Ujbjikbg.jpg",
+              "bytes": 58488,
+              "sha256": "c3765d9dc4c8285a15817fe718c6b6ab46fb52643cee770d1e0cfc4948709949"
+            }
+          },
+          {
+            "seasonNumber": 21,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-37854-season-21.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/awSahTRht2V11NKVp8KaMyd3z2v.jpg",
+              "bytes": 56238,
+              "sha256": "ec381ebc82638dd436cc2dd975b3ea32f8d455b41648723e587f11c36d07c79b"
+            }
+          },
+          {
+            "seasonNumber": 22,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-37854-season-22.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/fqOUJhVYQchjaxOPHiBJ6I7Gr1l.jpg",
+              "bytes": 46294,
+              "sha256": "b6b1ae9d6dc4e395ccd33aab91bc3fe31d2315be8cb3163b893e2b5b12d40400"
+            }
+          },
+          {
+            "seasonNumber": 23,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-37854-season-23.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/9L4GHTq4YZq1wVq51yFxrdindrB.jpg",
+              "bytes": 48296,
+              "sha256": "d19b4ad9eca1555b4a267f2452653afa2f345a3dcf5e065bb29a1c89fd4dd245"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "87108",
+        "poster": {
+          "path": "/demo-assets/posters/tv-87108.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/hlLXt2tOPT6RRnjiUmoxyG1LTFi.jpg",
+          "bytes": 9510,
+          "sha256": "0f6d3b74d2c94b8a449aba885ffdf8ff4bde4c8685f4f5462a5aac75e75d3bfe"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-87108.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/900tHlUYUkp7Ol04XFSoAaEIXcT.jpg",
+          "bytes": 149032,
+          "sha256": "980264607e6267888da8a2ddbde814dbb61c628a2e25077e30367bb926193d4f"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-87108-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/hlLXt2tOPT6RRnjiUmoxyG1LTFi.jpg",
+              "bytes": 9510,
+              "sha256": "0f6d3b74d2c94b8a449aba885ffdf8ff4bde4c8685f4f5462a5aac75e75d3bfe"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "60059",
+        "poster": {
+          "path": "/demo-assets/posters/tv-60059.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/zjg4jpK1Wp2kiRvtt5ND0kznako.jpg",
+          "bytes": 13438,
+          "sha256": "903e068a6f1f6ea26fd189f3744cce2276869112a0f52b2e74ad56d4a82ac1e3"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-60059.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/rfxryDIv8huejujg4JueDJx8zCz.jpg",
+          "bytes": 66248,
+          "sha256": "9d53a9e0226d81ffa60ebc4346e7cad10578d86d9751ded7d19115d1e0115f67"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-60059-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/rGvjDw9U0aKjz2Jc7yROoqXLhMD.jpg",
+              "bytes": 21242,
+              "sha256": "971f854634ed7665544a216ff8f0352dc6aa36af4afece55aaa841297998314d"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-60059-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/bAbZBZmz25Lqk8A8mwMWzAkvlAj.jpg",
+              "bytes": 28196,
+              "sha256": "44f48bf02bdafcbb0a9e19a1751a793fc840bf706c6cce1b2b034c4674113352"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-60059-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/4NDwAQjFD8bTOsMKxYdl8IK10R9.jpg",
+              "bytes": 39914,
+              "sha256": "2432ebd16f25f9fa0c0965b75fafa7bbf36048a4cdbb470768785b0f3b0721a5"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-60059-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/dHIMW3CkL21jYWtsHiAdwkCjAej.jpg",
+              "bytes": 18744,
+              "sha256": "b6b81f141bffe7fa14f4fff3e1d593523be0b6adcf4117f066ea04a007180467"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-60059-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/8zvIqLFOrBymKKI3L2W1AH8YZQI.jpg",
+              "bytes": 15720,
+              "sha256": "cfd0c306fdfdb4656e2f100ae8830306abaa58ef02af95e7c75f4c5a402a3519"
+            }
+          },
+          {
+            "seasonNumber": 5,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-60059-season-5.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/dZHa2vUtYNQ81KV38eHGjn0P4JE.jpg",
+              "bytes": 25750,
+              "sha256": "c364bfa89b242240aa56cd2e40418ffb72c74c40886f9a8ed682d3339d253e5c"
+            }
+          },
+          {
+            "seasonNumber": 6,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-60059-season-6.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/wKTzWgDaHxjdMhZ3zsVEF5eXVvX.jpg",
+              "bytes": 13188,
+              "sha256": "3249dfa2fa73694424c8315dc29788d087a7903e9076a6337c37ba20b9e2ed15"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "31911",
+        "poster": {
+          "path": "/demo-assets/posters/tv-31911.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/5ZFUEOULaVml7pQuXxhpR2SmVUw.jpg",
+          "bytes": 26902,
+          "sha256": "dbe7c166dbdd34c0058cd37f93d2547c980065b347bc6a3d640efed0455f7067"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-31911.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/2UG177tWHy7xRmMKWJHB7nAUmKd.jpg",
+          "bytes": 56114,
+          "sha256": "c4b6e80dc5033b3b1511518376b814f0501bdee6acd968e8e6c43d586b328dac"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31911-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/21F567EdX5bgKOiSxCKLuOVSE76.jpg",
+              "bytes": 26526,
+              "sha256": "cb020f9a3213fc16fbb24b833f399555b68180d175ae12ba07cf1022d106fdcf"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31911-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/q7BlNJRNXRwkm5YGGLzxJATcbYs.jpg",
+              "bytes": 29424,
+              "sha256": "ffc06d6545560efb1d48b1180840f311b2ad37cd63665ea83b528ad8bc8931f0"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "1429",
+        "poster": {
+          "path": "/demo-assets/posters/tv-1429.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/hTP1DtLGFamjfu8WqjnuQdP1n4i.jpg",
+          "bytes": 45504,
+          "sha256": "cea64d3c9b16749e04abb9ad5995e0268b5fcd4b8a3f5c323a48cf913a4d6f57"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-1429.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/rqbCbjB19amtOtFQbb3K2lgm2zv.jpg",
+          "bytes": 157310,
+          "sha256": "d8c46fff98e99395a8e5e3783723d16a6ddd963981f20542ee757ae0fc0d8c9f"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1429-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/no3dkH44ywREi0la8tw4TnA1GxN.jpg",
+              "bytes": 41664,
+              "sha256": "b254fd30f1c68dbe3fae8761ef5b41f15125191c370fc533b6a90e63b85c7424"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1429-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/gC78bsXhdU2PwT3FkLcn8R5YcHb.jpg",
+              "bytes": 35620,
+              "sha256": "ab74f335cbdf6993d318484513a7ca32e9cb311c08a672a861fadc7c091769ba"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1429-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/2fhK0wbFixskgRyuq6YvaMn75et.jpg",
+              "bytes": 54492,
+              "sha256": "cc8783d495a4a5f0d4de4599ae7394a198fc60b604bafde44ad10ff11e9cfae6"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1429-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/ynow2o9v0G341PLv1chCRDufCgc.jpg",
+              "bytes": 39134,
+              "sha256": "93682c7afd996b453b131aa14cd071cdbfbe8a0d520d3e79b7cd23a101ff3808"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1429-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/sfbSjGlLHsvFQrMUSNR9RrwZgV1.jpg",
+              "bytes": 22562,
+              "sha256": "3ce23cb3cf62a519b1f5cb9ef217f4c0ca88edf78f813a4adda6d4608917357c"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "60625",
+        "poster": {
+          "path": "/demo-assets/posters/tv-60625.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/owhkU6KRqdXoUQpjV8uyZGPtX58.jpg",
+          "bytes": 42358,
+          "sha256": "d145f6e7dcebc9a4a378dd115ba215bb05548f919155474444de7b8f9575bfc5"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-60625.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/5BDNWWHweQL0q1fmTv7gmRXfnl4.jpg",
+          "bytes": 102408,
+          "sha256": "3ac06319f02ec13e8fc0a8d2b08ad2afe27f3ecbd8d0df90dd38d225187ea4c6"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-60625-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/3my0MrOKCSYMw8VfLiiM9k00bdF.jpg",
+              "bytes": 18340,
+              "sha256": "5c999f766a484a5ae0b5a739a4a5e569b21688a1b812e3a6408fe68b04f52dfd"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-60625-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/8BXUZ0nnR3DZsf30DYMFHfuTxxi.jpg",
+              "bytes": 44424,
+              "sha256": "207589ed2530fcec510e01ec7472fee892cd27c245b3220009ae0643492c73e4"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-60625-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/xcYamBmQmSCpl9L1B5ihesnR1Gb.jpg",
+              "bytes": 46650,
+              "sha256": "97d42b7d9cfc3b4ade1086687f4a893f94db71e03debade6b2c9f413bcfebf8e"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-60625-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/xOSKU3rvKiKFdKgIs0y6n3zscBJ.jpg",
+              "bytes": 18810,
+              "sha256": "47bbb89694b5ded845f98afb79aaf2dd964a089167af1e2c264ccb8e9149566c"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-60625-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/87abbwoOfm5MMCWoFewN8pNGZxW.jpg",
+              "bytes": 34460,
+              "sha256": "8d37fd11a471df10448c7003bd8fbb43485749d936add90d840107e0d3fc0730"
+            }
+          },
+          {
+            "seasonNumber": 5,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-60625-season-5.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/jF8ws5cG5a9k7QGilWeugfx9SoI.jpg",
+              "bytes": 33500,
+              "sha256": "d709828141f2dc6f474cad2ed944c10d426afe5e1a5e1d7b2dc6c8ad686a7a78"
+            }
+          },
+          {
+            "seasonNumber": 6,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-60625-season-6.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/cvhNj9eoRBe5SxjCbQTkh05UP5K.jpg",
+              "bytes": 34088,
+              "sha256": "4583b30523e258d19a939ba8a95d9a6add45d0b53ff8e5909d1c653532317634"
+            }
+          },
+          {
+            "seasonNumber": 7,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-60625-season-7.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/7Dgz3xehPaQv5XpQ39WHBivJDSW.jpg",
+              "bytes": 43988,
+              "sha256": "d76548dcc83674497178ea02db3e25311e5e2f6c3dbb575678d2cb4f35f79d12"
+            }
+          },
+          {
+            "seasonNumber": 8,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-60625-season-8.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/10qx5lAGci7nZvDeyUUxF4Md6Ck.jpg",
+              "bytes": 45358,
+              "sha256": "48e6bc0f78006508bee1e4f30f49b9813d0a471a65ef98ae4878fc841fa871a2"
+            }
+          },
+          {
+            "seasonNumber": 9,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-60625-season-9.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/owhkU6KRqdXoUQpjV8uyZGPtX58.jpg",
+              "bytes": 42358,
+              "sha256": "d145f6e7dcebc9a4a378dd115ba215bb05548f919155474444de7b8f9575bfc5"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "1398",
+        "poster": {
+          "path": "/demo-assets/posters/tv-1398.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/rTc7ZXdroqjkKivFPvCPX0Ru7uw.jpg",
+          "bytes": 27224,
+          "sha256": "3337e1a87345f5253d777dd0a348c1f6658ad5e39e8503fc65ccb7b402b8972a"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-1398.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/lNpkvX2s8LGB0mjGODMT4o6Up7j.jpg",
+          "bytes": 141170,
+          "sha256": "b2be1d32455c8c64becc6c26f02c17a35c0b0f68dcc88e3c7a09e112c34a3b0c"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1398-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/kvasNmTeZd6YwjhZASAHlijeVi9.jpg",
+              "bytes": 25326,
+              "sha256": "17cae9a286e1dbbed9549d1a0179bb3c691b702169d82471496476e37ab0bb39"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1398-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/3NsJzafk0Sp7yE9yShzQsybHw4x.jpg",
+              "bytes": 20226,
+              "sha256": "8e0dfcb75e7bd8a68b6629710d71b1b52a8ef8af473dbe9e8642cc197c92c634"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1398-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/wvCOKWM1abB5CfuWKqDYeMRV3lN.jpg",
+              "bytes": 16730,
+              "sha256": "ab6dcb6d53840cdb10d153ba86e5a3da8cd4cb9ce195b450520c5b2695a4cfb4"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1398-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/zFuz2PgkHDr9Lx5YAEmiWbXKCio.jpg",
+              "bytes": 24810,
+              "sha256": "82be6c9b26ef55b39fb12d392abcb4c8f2fcebcb12431fe36742802b9212ed1d"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1398-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/q01fVFY7rQEMMnexa9Urv7NOdKO.jpg",
+              "bytes": 33652,
+              "sha256": "16e68628b0bec26afa02def5cb2ef20063a6d2c61390de94d78ae919e857518c"
+            }
+          },
+          {
+            "seasonNumber": 5,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1398-season-5.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/p651eYM0Vd0CWDvndbMyaS0lDeD.jpg",
+              "bytes": 37602,
+              "sha256": "3a85635e5bc1793a1a822ae190ead9b8f3af54e62152acfa2a08659ff4043383"
+            }
+          },
+          {
+            "seasonNumber": 6,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1398-season-6.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/b1P9PAUI18mb62N0DtHOd71L3CT.jpg",
+              "bytes": 26410,
+              "sha256": "d9c3cc71872a641e9b428667f245f17bba37e45149a034cb6383631015539023"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "46298",
+        "poster": {
+          "path": "/demo-assets/posters/tv-46298.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/i2EEr2uBvRlAwJ8d8zTG2Y19mIa.jpg",
+          "bytes": 43664,
+          "sha256": "ccbd15cbd2ccd4dcf7b2a0353cd5951da7ae749739f371bde1b7e96f7723a0cd"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-46298.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/bFKKyCI89Xq98Gul8cGox8K3sZa.jpg",
+          "bytes": 146212,
+          "sha256": "e075163e6a108ff641fedd7853bc4bcbf111712e5b293d1ba5864c48a4260024"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-46298-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/4jA40N280wb9NT7yjtFdcJND5aq.jpg",
+              "bytes": 41292,
+              "sha256": "58c4812d24b0a785b2f07e1d08275549ac6c5c74184eb9d06ff57aa195256c29"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-46298-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/itMuFli5HRafl3ofO5srdN0mmCQ.jpg",
+              "bytes": 40552,
+              "sha256": "96cd056f74090b57a8f158b8428bdce77b989283d94294b4c6ada5a9f9fdc98f"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-46298-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/eHv7DcRol9xrpwE14D4GuRdgcH0.jpg",
+              "bytes": 40138,
+              "sha256": "36a6e9ff7c597a0fa89630727591366eb5b38b1b9a5ebe2ccf073dc6a7144d71"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "70785",
+        "poster": {
+          "path": "/demo-assets/posters/tv-70785.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/6P6tXhjT5tK3qOXzxF9OMLlG7iz.jpg",
+          "bytes": 25118,
+          "sha256": "804f995955d9f46788b4f57a2e566d2675ed00997e90459bfc74c0649521f69f"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-70785.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/ywQtHG17LZhAFZyZtBflhtFMtJ7.jpg",
+          "bytes": 88578,
+          "sha256": "25895eaf3213a1cdc6e444cd9099359fd4d381ff0a027fe041a6db1c093d09e0"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-70785-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/lqoGVD3FCahM9faB2SWdpae9Ejt.jpg",
+              "bytes": 32268,
+              "sha256": "ffe10352567f5066753fee354e6690944a7e180e31aebdfba1ac06ab13062f9c"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-70785-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/7bjv63bF07F2SiN6PoJHYqmYRoR.jpg",
+              "bytes": 21174,
+              "sha256": "c72bf6a7d6f4fa101a8703f1940f9efe3ba88d39bdac32cdd4bcf4162fa2c88d"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-70785-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/hSjv6QkGknuJrB8LTjYFv5SPjrr.jpg",
+              "bytes": 26352,
+              "sha256": "ce97ed6563a2da0f319c7fe2aac1692c64e78c5f8cbc799842b5476697818a04"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "85937",
+        "poster": {
+          "path": "/demo-assets/posters/tv-85937.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/xUfRZu2mi8jH6SzQEJGP6tjBuYj.jpg",
+          "bytes": 28354,
+          "sha256": "e75fbb2bf1960742bcf6f64c004314a9c2be92770b0563bdfca496fb42d0b459"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-85937.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/3GQKYh6Trm8pxd2AypovoYQf4Ay.jpg",
+          "bytes": 184932,
+          "sha256": "7b0ef31a94f33b6d8117620b01e7c40c8fca7b3fb6eb3fe51bf86e2878099512"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-85937-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/xkBepJmdcWBU1yBG9bCmtTO6PGh.jpg",
+              "bytes": 27644,
+              "sha256": "902f970648ec9fb17345b418b0f71ae08cba66bb9cfe5b7343c25e71316727e2"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-85937-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/bV0ZCL0IqrTQKClu6EtXlZaJevD.jpg",
+              "bytes": 30130,
+              "sha256": "ab7fff33ca656b90def11ef9212f740483fc0f2bfbf2c1ec46edc0887e905151"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-85937-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/pLGjaDyg2LeA2d9KZxBZCiiqC2B.jpg",
+              "bytes": 48690,
+              "sha256": "9ab22122e3e34923312249f551c265b370c3194ae95dcee9e55103f9a37d0ea6"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-85937-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/gbmhcOtre5SeBgwR9gvTpUra5kZ.jpg",
+              "bytes": 52670,
+              "sha256": "da139fafb3481590689c2f0a79f6d3d11e6dd1cfcce5026a15994edfac2b8087"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-85937-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/6gD7G8HQay1X8mHiFVttWJ3czYb.jpg",
+              "bytes": 54896,
+              "sha256": "b31a62ef2193505f1f842e92001215f68b0c6b2e83776e525f9f9eeaa6e12eca"
+            }
+          },
+          {
+            "seasonNumber": 5,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-85937-season-5.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/axI3BUZgTYz36IYtUtRhivtspUo.jpg",
+              "bytes": 42622,
+              "sha256": "6522ad31c1bbf5505a4cb3b1e3687d9f27df5e4ced9e7c63fbdc2e844f721ab7"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "1438",
+        "poster": {
+          "path": "/demo-assets/posters/tv-1438.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/4lbclFySvugI51fwsyxBTOm4DqK.jpg",
+          "bytes": 20374,
+          "sha256": "507e26e4bd55cd957edbbb6f7d0880607fe635bb9fd15f99f80f8a7148943c69"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-1438.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/layPSOJGckJv3PXZDIVluMq69mn.jpg",
+          "bytes": 69720,
+          "sha256": "6260cb68f33fc46b45f5d0abc6564354fd521995cc296bd839a06c8d48be547c"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1438-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/dXq8SkQuxzs7uNdLIWYec5l1JSG.jpg",
+              "bytes": 31416,
+              "sha256": "46a6e49a501d61affbc62fe14f7d5e29f56c8d174dc4bf76c2da3fdb2f428008"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1438-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/blgnd2APWtxsxGyctmZyaMPO4Ym.jpg",
+              "bytes": 21966,
+              "sha256": "d07f9e454105ad9453e23d9468f35b64376397b814388dd86b700214f1255149"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1438-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/scOZiOzUePpz7JnWRpjI8HcY1RU.jpg",
+              "bytes": 31550,
+              "sha256": "7bd6343ecc48eb6e8be7f6beba1dae95b552bc40457294fa4fd5497b63058586"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1438-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/mWo4dHE0XXsKgZOQQCtkHl3IHrf.jpg",
+              "bytes": 37968,
+              "sha256": "62ccdd78d608fc2beff6bac03057e32e9341be1d7508ddd906083b2c830223a9"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1438-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/jxSJdEX6jmODu3eglC8j4Kv2Gll.jpg",
+              "bytes": 47646,
+              "sha256": "e5b203afc84ab11a595568426053c15e3552749d28e6e0d4d1d393b43fb9879d"
+            }
+          },
+          {
+            "seasonNumber": 5,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1438-season-5.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/x5BreFKv3Tbxm8Z7s2d9LKQiHVh.jpg",
+              "bytes": 24490,
+              "sha256": "435d5cdccd8d64ee52402011c25b1c4531ebec1bade7516bcba247fa66aef7ff"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "31132",
+        "poster": {
+          "path": "/demo-assets/posters/tv-31132.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/mS5SLxMYcKfUxA0utBSR5MOAWWr.jpg",
+          "bytes": 24300,
+          "sha256": "684ea1fd64d57ac2915c21d43d6ed009d421d839a9046df1d99a7e5379902334"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-31132.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/bhF63Jd90gRYyTHd4y5GCGA2vX6.jpg",
+          "bytes": 190274,
+          "sha256": "2384563727eb983f33e0f7b7302c6777ee9caf9995c0f7622846200d86258cd0"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31132-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/naAlurQdsCu50hDAbVm3RJc5JYY.jpg",
+              "bytes": 25998,
+              "sha256": "3a71c2970e1e3138982310ff45844b29b330474d596c1b0d945cec60a2ba9afc"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31132-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/mRWce3WBdN584m4GEZsmMijzOvf.jpg",
+              "bytes": 18704,
+              "sha256": "a30d34e2a376c19adc39b96ae038ed21d08164525a19adfd722df3b35c02d61e"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31132-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/zGfuagnlOcBuAsDFE38Ng4J3zYK.jpg",
+              "bytes": 29764,
+              "sha256": "207821a63507d16316d8f77e9e07712f673266f96b8e7327a821e0d73ef3e971"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31132-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/pTqLx1eteuPPeu5f8w60QpNRDEr.jpg",
+              "bytes": 26148,
+              "sha256": "6a744cfb527843c63926238e555863a38a24d95a3bffb945b8e2646020d4c4d6"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31132-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/iwqVQHw4naS39nllhVOLER4uY47.jpg",
+              "bytes": 33830,
+              "sha256": "fb4d3bd80065d2e6ac6895106c53abe7f609daf8c773b2ab331026ef8e34f2fa"
+            }
+          },
+          {
+            "seasonNumber": 5,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31132-season-5.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/nYpuEXRXJ4c5PfgCZqzFGCzry9r.jpg",
+              "bytes": 22924,
+              "sha256": "3220dd5c3775613f906eae1e03b7222eb8ea1790fb65d4c6edc1d664d766899c"
+            }
+          },
+          {
+            "seasonNumber": 6,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31132-season-6.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/d6cXb33tcyyOoSze3xSpyBSkRSW.jpg",
+              "bytes": 17520,
+              "sha256": "39ca3f1b002009bc48a4a82f62b893839cadfdcd514ca1ff07c08633e527eb67"
+            }
+          },
+          {
+            "seasonNumber": 7,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31132-season-7.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/jnCB9O0vHy91yGIiEgta770c1f9.jpg",
+              "bytes": 30922,
+              "sha256": "7deaeac9ddb98e911d5e3b1e85e5e14849ef1a33df2667801e6b0049eec9808b"
+            }
+          },
+          {
+            "seasonNumber": 8,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31132-season-8.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/bYK2inLj9sVuyTKJ2yPYRs9Encs.jpg",
+              "bytes": 17078,
+              "sha256": "9e76436754f13baba8aa3f2dfc76734ad47349d94bcf311c5c72311958c7d08d"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "95557",
+        "poster": {
+          "path": "/demo-assets/posters/tv-95557.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/4tblBrslcKSifMVZ3TmtT2ukMor.jpg",
+          "bytes": 21884,
+          "sha256": "25d0ee0f9fb349d9b9f3ee7523857455e6249eacadb197c364036aa175114d2d"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-95557.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/9qrroces8C6R9aKr08hACNPVXdZ.jpg",
+          "bytes": 31248,
+          "sha256": "1ca5a1c705dac47acc31e83e9483de0d5d63d03db72c3ac58dbd05eaab322f49"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-95557-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/bHZWrwiMtvE7jd8g46Aiqb1VM4Y.jpg",
+              "bytes": 35768,
+              "sha256": "5319174915abb2420fe0867868a9df76a6fad4d07700416776ea414d83759e51"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-95557-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/yDWJYRAwMNKbIYT8ZB33qy84uzO.jpg",
+              "bytes": 28790,
+              "sha256": "608c59f1e083261a258cec168a49bcf22336918c7b0e72fd001748e094044c55"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-95557-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/dMOpdkrDC5dQxqNydgKxXjBKyAc.jpg",
+              "bytes": 29676,
+              "sha256": "3602bd4261000346c43c7542b9e8ec420647296deb9271d3710206c37fe3db26"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-95557-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/w9XQ7ehwaxqV6WJSAUE0qLTQHgq.jpg",
+              "bytes": 24024,
+              "sha256": "549af8fb83f22e76654242149211eab7d187cf975229d5eabf196106a2117aa0"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-95557-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/4tblBrslcKSifMVZ3TmtT2ukMor.jpg",
+              "bytes": 21884,
+              "sha256": "25d0ee0f9fb349d9b9f3ee7523857455e6249eacadb197c364036aa175114d2d"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "40075",
+        "poster": {
+          "path": "/demo-assets/posters/tv-40075.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/qwi3p6PzKfQZ4YXBzv3CP5pO2dE.jpg",
+          "bytes": 40364,
+          "sha256": "84bef3a6955c9d33bb88259cd436e391eb19f99a5cdb00b2a9b49d794657bcef"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-40075.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/lhg7eA6CTOCL10QNVdKiyxkgPsL.jpg",
+          "bytes": 125162,
+          "sha256": "f59aa5e78bb866b0155b982384f7d51bf594e916d92545d663108aade1adca7c"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-40075-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/1lbeSMoI2bCBJS7p6Duwi0OFR07.jpg",
+              "bytes": 52234,
+              "sha256": "e4abd04900b4f96d08508969f755692a8e2faa2b42c761a1e41890ebb4adc514"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-40075-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/qj5DZDMzOarWUWcKxNCUX1WNWO7.jpg",
+              "bytes": 36378,
+              "sha256": "dda72d1b63fa2c86890d5592e7f279e47fab5d3a0ae122f6e17d1bc8338e7210"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-40075-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/lDFTnMTffYdg5SQOqrYKISFr9AE.jpg",
+              "bytes": 41614,
+              "sha256": "6bafeca61e4dc82424d00335c9fee8fe0f88d7ad0d842692a44f1b98337d37d4"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "13916",
+        "poster": {
+          "path": "/demo-assets/posters/tv-13916.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/tCZFfYTIwrR7n94J6G14Y4hAFU6.jpg",
+          "bytes": 29460,
+          "sha256": "3980680d3a747c74f69e129eeb677a036af166e258c38e1c1942e948b48c8b8a"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-13916.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/z8IPicmEKXUO4I2UDdMEqw7RqOE.jpg",
+          "bytes": 181622,
+          "sha256": "db1bf34bc3bbf2fa4619568c1d148fe2bad0d8c238e35c56541a3ef71c76b246"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-13916-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/1BloDOEmKxPFzbCIuNCLmCrcx6L.jpg",
+              "bytes": 49226,
+              "sha256": "d9fcd04e7fd45bbc4e8aca187abaf6082315c09b00efa084b781014461da4c7c"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "67915",
+        "poster": {
+          "path": "/demo-assets/posters/tv-67915.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/sPkxHNw5BFvuCFGWw825TS7n6X3.jpg",
+          "bytes": 23092,
+          "sha256": "134236a271ade9cfc389ffc3b11111596744165e523895de371e294b2d6a00c3"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-67915.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/smSbK5cd8T9XHcxEUcems23BDEF.jpg",
+          "bytes": 105416,
+          "sha256": "03891217391f96c906262c680e9b4cf916e2e7dc1f3fd43c7465619f68dc2503"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-67915-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/52E7iAHYKGwXviZ9wRcZCulqxfv.jpg",
+              "bytes": 20894,
+              "sha256": "956e96b13171206f0faf8877b94525fe86daf70b5a3953bdf489adcf92d5e7b4"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-67915-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/5Y9N8vS3ongDBDiKqxer1sZzGWk.jpg",
+              "bytes": 19718,
+              "sha256": "22553d456a678e4f000084c10de0f7589d8c78a81473f239b1f29c232a30a74d"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "4613",
+        "poster": {
+          "path": "/demo-assets/posters/tv-4613.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/pGzV187ogXzgJrvPRy2YPi29ofH.jpg",
+          "bytes": 37214,
+          "sha256": "d6f1175d182ff93f66ba4ccf36777f31fd80a5729a9ddc8a139da49de36aea2f"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-4613.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/2yDV0xLyqW88dn5qE7YCRnoYmfy.jpg",
+          "bytes": 58038,
+          "sha256": "42514a0b307d40f8523d6a29302b41923fee19029b1fe80caecf9131d3e732a5"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-4613-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/h3QMxv1JYozrFQCbPNxnP7x7F6b.jpg",
+              "bytes": 53450,
+              "sha256": "7ff3b81a6e6a8ba5b9c47a829b34f878a16b6d85640dde339d2d879aa7d23895"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-4613-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/1dTx3cRcSpaOCe0mXOVEBjz25z3.jpg",
+              "bytes": 37816,
+              "sha256": "cd9d88db3fb1c08b9a22a60f78536db35c2641833d11789fa1ba085a57c35da7"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "65930",
+        "poster": {
+          "path": "/demo-assets/posters/tv-65930.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/phuYuzqWW9ru8EA3HVjE9W2Rr3M.jpg",
+          "bytes": 57890,
+          "sha256": "56230088cda3f23bafad5276b5c1926bc9557a5381085f48ca185589effe8fd1"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-65930.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/ol0H2DGp4ifBHA4JDlCpwJWxnY2.jpg",
+          "bytes": 119640,
+          "sha256": "bac1501bc7d77943002c78ece7ef245f5e0dd6b9f6fa8c3c3d1820356e2efa42"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-65930-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/jEoUOaOzdf00lsTV7EW2ARcB9Pb.jpg",
+              "bytes": 45780,
+              "sha256": "6b4df42d933802019d99c85c4a402d8a72b2f1e8f2c3499d78a90f012885fe64"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-65930-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/phuYuzqWW9ru8EA3HVjE9W2Rr3M.jpg",
+              "bytes": 57890,
+              "sha256": "56230088cda3f23bafad5276b5c1926bc9557a5381085f48ca185589effe8fd1"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-65930-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/bLggKZhdEHhvax9jeT95MDxM6CA.jpg",
+              "bytes": 56728,
+              "sha256": "a2322d91e16d3252126a9eaf813947454ca7f93f1c0ab3b19f44a21508308f1b"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-65930-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/1VVJgXpSDI2uMHnlzI9Eg0zF7pw.jpg",
+              "bytes": 50240,
+              "sha256": "93a2dd6f1f746f1325a5a7eb540ba2d857a82bc35da112741d3a931394b6f034"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-65930-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/YCI5ADVr0JBboX0V3C3apAOtNH.jpg",
+              "bytes": 56378,
+              "sha256": "bd3ea1e85b3080cfdcb9e1aa43952ebaf544ea620041deee0ff5e799e2597105"
+            }
+          },
+          {
+            "seasonNumber": 5,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-65930-season-5.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/uJz848GKjbSqjCkkF1J99HN9VaG.jpg",
+              "bytes": 57554,
+              "sha256": "b53f36169fbd358acf9fb7cc00a9c76ee4cd30fe09a6d7fd88a337d4f17c46a4"
+            }
+          },
+          {
+            "seasonNumber": 6,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-65930-season-6.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/iYu4cOtDRvzZyvBSjV2QR8t99MC.jpg",
+              "bytes": 58666,
+              "sha256": "9ca28a35abd2d3a7cdc7821ed43193972c5b8b15e5db09139e7a3f7a35451319"
+            }
+          },
+          {
+            "seasonNumber": 7,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-65930-season-7.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/6yQKyw3BNw9kSKsP6SRrXqsUpNe.jpg",
+              "bytes": 42968,
+              "sha256": "f0916f0f411dc18162019555fb35160b77e4d94220bdb5d0ca171f3a4b219756"
+            }
+          },
+          {
+            "seasonNumber": 8,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-65930-season-8.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/gcMTFI4QyEwxnxQN9USf6h3c9sw.jpg",
+              "bytes": 42718,
+              "sha256": "bc4e61d1a37ec7018aefcc8bc3b7934dab27f9634e425792449cfb67961694e3"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "46896",
+        "poster": {
+          "path": "/demo-assets/posters/tv-46896.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/keJOhJXGiLL54EW6QocbyvQGquA.jpg",
+          "bytes": 17906,
+          "sha256": "204a424138b64b3226784ea95f5b44b51877f99989f958a040dab24130c17fa4"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-46896.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/2OAoGOvysScieVhIazrWTXj2ESp.jpg",
+          "bytes": 118178,
+          "sha256": "8c2bad24570a51570ba3bbde661b0acc4361e44a9afe79b5a531f51674839874"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-46896-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/qzx2ijkjfDwB3PxAzoxHLceSgN5.jpg",
+              "bytes": 39782,
+              "sha256": "b4e41ad006f6d5405aae3cedffc9aa1f24a219c95d9f5cdf7f01d64f6813bd31"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-46896-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/8It4Yk8S4nBAbxCY2D6nDbpJ9uM.jpg",
+              "bytes": 23088,
+              "sha256": "4f0d448dce081b11857d58644688e05ebc61c6320495869a27a07ddc068b0a92"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-46896-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/zShOqH7rO5SKrYzzyJY4t66sXnr.jpg",
+              "bytes": 24960,
+              "sha256": "e86be9020d51e7b7e09c895ad2e63b9f1dd657e01c26ba2a8af7af9615ae5f87"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-46896-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/9Q9FXHuO87H0Y0jeds1CFI1DTbh.jpg",
+              "bytes": 27618,
+              "sha256": "9de118858bc023ce802a5cf06aa441af347af9f3184864e67c8261673bb1eec5"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-46896-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/pp5UAm0ieK2irqcDbt2I6Kirmaf.jpg",
+              "bytes": 45262,
+              "sha256": "5815e401e658caf10d00b44bd451e04f88520dda6178c0fa1a1ca482df56984f"
+            }
+          },
+          {
+            "seasonNumber": 5,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-46896-season-5.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/5mx5MYSzTcAHdATNJSAVa959Nr9.jpg",
+              "bytes": 18656,
+              "sha256": "1d288619106b576a3c6ae5ce656f9d3018ab881c5530d760dcd04bb9ab9fa354"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "2316",
+        "poster": {
+          "path": "/demo-assets/posters/tv-2316.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/dg9e5fPRRId8PoBE0F6jl5y85Eu.jpg",
+          "bytes": 24364,
+          "sha256": "b2c7bb6465e9183868109eac285c2f08e341244b38cef4f642f8030871b8f18a"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-2316.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/mLyW3UTgi2lsMdtueYODcfAB9Ku.jpg",
+          "bytes": 126932,
+          "sha256": "942afab1bc900edf36c42555f004e5670866b3c023ed2361658377144d7b622d"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-2316-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/hL7duCNjfylgdKdVPMY4ggKzCjD.jpg",
+              "bytes": 22678,
+              "sha256": "9a8dbd500f24935166b9c08f646822a14a754aef412200d572636f22616f06c5"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-2316-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/d71JQWhX75ZE2D383DlIsHVH1In.jpg",
+              "bytes": 27770,
+              "sha256": "8236a5e2f0c942f4a5cbefcf65709da876df6c9a5bad36293763554f9e4ad333"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-2316-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/sAd3RhOjhTuaIBpyiI1QmB0YUq8.jpg",
+              "bytes": 35410,
+              "sha256": "35ac18da341eed70199c4bc2f3baac9849424bacf1517e996c3524c28c132cab"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-2316-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/1SR5ZR0KNHTRvAzFayaKbhKAFSu.jpg",
+              "bytes": 35752,
+              "sha256": "88a4045183834ae4917a2a72d33b446ff4a7bc229a0747ea6a37701c019fa83c"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-2316-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/zunFI6wdYJQRHnfXnziArUTs2e2.jpg",
+              "bytes": 30136,
+              "sha256": "8b7b37d247e1470dad3d2715033689f9e8a4aa07aa74e2ba3624394a08ff1e31"
+            }
+          },
+          {
+            "seasonNumber": 5,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-2316-season-5.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/hwlQxOPGIybqBz5TYYIe6XtOfi4.jpg",
+              "bytes": 27098,
+              "sha256": "ed904b7529b6c2e23941102a6466649bb0c34c71f44d82ab6f370805a577947c"
+            }
+          },
+          {
+            "seasonNumber": 6,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-2316-season-6.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/hk3a9U26J726oV8nHTdeMTtH91B.jpg",
+              "bytes": 31046,
+              "sha256": "033bd13098cdf9faaf52214bcb0aebd10657cdc28551c5454d08c4dd2edcc461"
+            }
+          },
+          {
+            "seasonNumber": 7,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-2316-season-7.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/uR3y9BwPA8gnk2nmB6ncQejEe8k.jpg",
+              "bytes": 36882,
+              "sha256": "505ad4713f68babe5ad9790f5e0e39fe9b83d95f512f761660f90df5498f0f27"
+            }
+          },
+          {
+            "seasonNumber": 8,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-2316-season-8.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/sQLtAEBbQNIXGZyTUt3IK9gX4VE.jpg",
+              "bytes": 39632,
+              "sha256": "d84de0ec5fcabc415dccec45b9f84999a6c2942d17f7f7599ceb60ae010d45d8"
+            }
+          },
+          {
+            "seasonNumber": 9,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-2316-season-9.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/ncR9y2RApOTSjfggJHjvoIlAqDG.jpg",
+              "bytes": 37366,
+              "sha256": "194b816649449383d69fd16d812be0fe52bb8f16887cab85d9cee7258390486f"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "95479",
+        "poster": {
+          "path": "/demo-assets/posters/tv-95479.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/6qQzMJG27XOJsyAEEIisoJB45j2.jpg",
+          "bytes": 34022,
+          "sha256": "f8ca2a2de4f641156fa3896e2bb3ef7e21f68c9facb29e0c4cb65f35fec2109f"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-95479.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/qpin8cASXEVtwhzNsprHYFiOAGk.jpg",
+          "bytes": 87906,
+          "sha256": "340549edf0da7feff2e6dd45a3b95e3455abcfdcc1a53344562a11a94e5fed74"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-95479-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/lUWSkuen0Vu9Xnn1r1SPcucx60e.jpg",
+              "bytes": 37010,
+              "sha256": "17d23bf0e0cb25c6d51596f269792e5e63d9151a14112dbbb2476fcb952759fa"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-95479-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/fHQ2XHRdRix0rkDCShmGQ8c6d03.jpg",
+              "bytes": 36794,
+              "sha256": "5d86dcced1dab60aadbb688561aae48474c8207464b04d994d793cef4912154b"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "35610",
+        "poster": {
+          "path": "/demo-assets/posters/tv-35610.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/rQHTNaynedeKurm0sNOsbAZg2oe.jpg",
+          "bytes": 33676,
+          "sha256": "233431493abffcd64ed5a7234b3a6bba7989de6716d0f95da2e50f0eaa164045"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-35610.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/mVE1ULmLaYhCkBQPt3JC5xZC6T6.jpg",
+          "bytes": 138304,
+          "sha256": "33d5e92de415ec058e4ee29b6988ece51971694fe8aeebd98b710533870d8cbb"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-35610-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/yGd3Ir121pCUzc9ZLdObKU7zrjn.jpg",
+              "bytes": 50728,
+              "sha256": "63c1e8ad00583b216e5f21e70e020d72d4e18b3a72df683d5c52a303574a4548"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-35610-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/rQHTNaynedeKurm0sNOsbAZg2oe.jpg",
+              "bytes": 33676,
+              "sha256": "233431493abffcd64ed5a7234b3a6bba7989de6716d0f95da2e50f0eaa164045"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-35610-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/lSigcSRYxQDQEJgLgJBZN9Hujvp.jpg",
+              "bytes": 37580,
+              "sha256": "925969abdaf2befa17bfb42390ceac49de48508111aecba63e1284bdd94b8c7b"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "1408",
+        "poster": {
+          "path": "/demo-assets/posters/tv-1408.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/3Cz7ySOQJmqiuTdrc6CY0r65yDI.jpg",
+          "bytes": 12916,
+          "sha256": "f48de55fd45d7f075dc5f5c6ef342b26260f40ad9ac7b4fe6e42a15edb911997"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-1408.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/r0Q6eeN9L1ORL9QsV0Sg8ZV3vnv.jpg",
+          "bytes": 52484,
+          "sha256": "7f3481c73263b42dc0acbbb6a59e8be751d250b8c8bbd451fd8ce4c288889e53"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1408-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/4qDffrHMZRjSqiR3mVmzvAkhh54.jpg",
+              "bytes": 22964,
+              "sha256": "24e25c75fe9d8af10802b606e014e4848370085fe9d0021427770bcf19bc5276"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1408-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/lXBIhFheyDRA72vRQvYF1mkEF27.jpg",
+              "bytes": 17958,
+              "sha256": "3796349e11016f575b68d1d9167ace43565b5110542274a029c56f7655a8ebdb"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1408-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/j2LxTsMhXYqfi4k9Vome8kQc26U.jpg",
+              "bytes": 20570,
+              "sha256": "1f4091493a5385654e6d533c59d6568f1b8c840c002c02e2ceb441ed413b0bee"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1408-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/muuLevUfVbpq87lWljfZ8HLga6b.jpg",
+              "bytes": 16684,
+              "sha256": "9020df07bcec582572754f7d08a8e29c6079e23f064de50fd17a9ee9d0f0df6e"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1408-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/CryJFbwif5U1VViZ5EkmeomD3q.jpg",
+              "bytes": 22702,
+              "sha256": "3851b808c823e4e29ee3cc3b1fac26829b71a7b0c82b0a4b89cc9ef012af6a63"
+            }
+          },
+          {
+            "seasonNumber": 5,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1408-season-5.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/2bv5qYVlBvbGKI8aBLD1etYBo4c.jpg",
+              "bytes": 19800,
+              "sha256": "c08ac704d04e703d2924f3e52763c5185325634f42c903d59cc09d69967862f4"
+            }
+          },
+          {
+            "seasonNumber": 6,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1408-season-6.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/hhcJGHhq2xMUCp2sGRrw523M7Zx.jpg",
+              "bytes": 24630,
+              "sha256": "9011e38d8261575cac1de0245f3934050a3d507644b8b13dee1e30a6565d0bed"
+            }
+          },
+          {
+            "seasonNumber": 7,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1408-season-7.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/9PhExWxpWKNQeE6WFeDnkL30tPr.jpg",
+              "bytes": 19984,
+              "sha256": "e14e4939b2cc1a61c139dc2b1c886f41c7dfba98f1b1316e1ebd2c0d5e853f42"
+            }
+          },
+          {
+            "seasonNumber": 8,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1408-season-8.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/tYDeOATjEGDIpyoEaYTrVHH3aj9.jpg",
+              "bytes": 19816,
+              "sha256": "d7cff827d3643a3685907e3e0547a3a5b6afa0a5cd06fd898a1fc7b14c9d7832"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "890",
+        "poster": {
+          "path": "/demo-assets/posters/tv-890.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/y2ah9t0navXyIvoHg1uIbIHO3tt.jpg",
+          "bytes": 46408,
+          "sha256": "233491b878cf06ec981e00147b79dfe192ca5fe92719924088fc873d19aa8202"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-890.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/awR8ZpAmieF0Pnc1AXxcCbEUjug.jpg",
+          "bytes": 140012,
+          "sha256": "39ec8bce1fa5e30de3499f13a0310a63183f748f473d5f240d3294eac73d465a"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-890-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/574vWDIZ1U6gOYoRcOHbIM7c9UT.jpg",
+              "bytes": 45528,
+              "sha256": "46a5f8be0d9329d7141bb3cc45d57026fd4b8a24c80ced976e805b3aa289b943"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "66732",
+        "poster": {
+          "path": "/demo-assets/posters/tv-66732.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/uOOtwVbSr4QDjAGIifLDwpb2Pdl.jpg",
+          "bytes": 25146,
+          "sha256": "b09fa79662d3da89d6c855f6b7862bf20aefd0794303426405b94829cc8068a0"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-66732.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/56v2KjBlU4XaOv9rVYEQypROD7P.jpg",
+          "bytes": 173692,
+          "sha256": "4802d2315fa52ca9cb2910b99a6a441a0252c10ace0c01e1d24b7aa33f5b859c"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-66732-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/oHu8CAhFkGgGNkANgdl59BrIRAb.jpg",
+              "bytes": 38046,
+              "sha256": "bee041d5cbc8373fcab9cb518967cdd7d7ebcc3ff1ceec238b9e38b873a69d7d"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-66732-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/lXS60geme1LlEob5Wgvj3KilClA.jpg",
+              "bytes": 42378,
+              "sha256": "f24196c5f655da1219f38bda9ae5b5f5bb4b61625f3279eeed94724926b4a9ee"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-66732-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/x2LSRK2Cm7MZhjluni1msVJ3wDF.jpg",
+              "bytes": 48772,
+              "sha256": "ecc335531f30ecb654968f8ea6842c7eb024d5c8dbb4a185811f2891c313cde4"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-66732-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/zvGTZYDCoMSMIBkXExxRxLYimqN.jpg",
+              "bytes": 47758,
+              "sha256": "7a163fdcc5a9ced785b7a0f7a51764137773347de9ebda2efb1e34e04c1fd0e2"
+            }
+          },
+          {
+            "seasonNumber": 5,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-66732-season-5.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/5i5Fg549J27knMvhI5NRM2FT3Gn.jpg",
+              "bytes": 24106,
+              "sha256": "f562b57e9ab3b5e46a7734f8f27c84393062876ce045c140fb35e32ee5570f9e"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "79744",
+        "poster": {
+          "path": "/demo-assets/posters/tv-79744.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/70kTz0OmjjZe7zHvIDrq2iKW7PJ.jpg",
+          "bytes": 41436,
+          "sha256": "5f6c3f5da385b8749dc1a2928d42bfb9657cf2c1fff7d49187a7bade40e0019c"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-79744.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/6iNWfGVCEfASDdlNb05TP5nG0ll.jpg",
+          "bytes": 134282,
+          "sha256": "b0054758ef3529975d6bec561403d46c907d0380123e1848dfde64c8bf8e3bfc"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-79744-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/9oRc3hNfKEvtwY9EV66dqkNYHp9.jpg",
+              "bytes": 27958,
+              "sha256": "11b537e169b915b767547ff1a7dc96f4847d9cac179f12fc91f7c948ff0afa72"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-79744-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/arPUIveaNTdlZeSrOPrgof6UvhQ.jpg",
+              "bytes": 17066,
+              "sha256": "02ce7ac74069065dfdf20b48a4fe736c90f0d461d912b3b46bc895fec8048d50"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-79744-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/6hChiX0vIjWY4y2kz1WndHVMsDu.jpg",
+              "bytes": 16472,
+              "sha256": "0393a3f7486b0628a4e2646e34bb8ad4f9f6436a3b33df342f015b592d87f91b"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-79744-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/gSGj4zhuFllpZEkHGdsBMV2BGsq.jpg",
+              "bytes": 25144,
+              "sha256": "517684f7a8e6533db645eed4fc3db56f61d05a65309cd2c38b2c29309caaa57f"
+            }
+          },
+          {
+            "seasonNumber": 5,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-79744-season-5.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/cofQdlJ0voWzWlpisBqfuRChTbf.jpg",
+              "bytes": 28852,
+              "sha256": "a7e56b41156e34b1fb57fb9f13df6a1edd5499e033373b09167dfbbc3275d369"
+            }
+          },
+          {
+            "seasonNumber": 6,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-79744-season-6.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/wbeqBUFydztHDQ4h7dZqnknh5HE.jpg",
+              "bytes": 23172,
+              "sha256": "f2af5dfc8139418d2edec75370b6183f474970fb16e8d1d8345c01f22dfaffe2"
+            }
+          },
+          {
+            "seasonNumber": 7,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-79744-season-7.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/lzj5hEKBuiJ86gSVY8BdLiigWiU.jpg",
+              "bytes": 34294,
+              "sha256": "059e1cb7bffdfa92e2623ce1cd5e8b75e642da25cbcafea95abaddeff9fa5b40"
+            }
+          },
+          {
+            "seasonNumber": 8,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-79744-season-8.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/3zEqWPODdrzQNOB77eYdzgL0z5l.jpg",
+              "bytes": 43946,
+              "sha256": "186b8b80968bd850fd3cf39e63c0ac9be936b71dd9bf234f9af84db3d7402218"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "61222",
+        "poster": {
+          "path": "/demo-assets/posters/tv-61222.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/6JFWzlChcGgLiIUo2COgNlWGFKy.jpg",
+          "bytes": 31852,
+          "sha256": "efc186caf418225e59590e9ea7f6827b0f383139c0330999b3b1960adde47aeb"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-61222.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/81BCTObfPk0EvarJpUgnGXHvM9x.jpg",
+          "bytes": 55774,
+          "sha256": "79cb022e5c011534c29079e5af0f69c964c6a16278f53999f2d1d830f91cb118"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-61222-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/cSZhJq34VAwsuCaOfZffqFO3CPh.jpg",
+              "bytes": 35828,
+              "sha256": "b0a8067d8c1aed2d94550830ccf17211c25da70481593265557fa5a24e27ae7e"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-61222-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/4DyiQNKHcumvAjXdSB96DmhCfF5.jpg",
+              "bytes": 30250,
+              "sha256": "13784463a0cbb01a651c8c563d808678fa6cefd43848a7433c33c8151a3d0306"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-61222-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/AsXGAf6mLdsKtSwh6c3XiC3fMn9.jpg",
+              "bytes": 32506,
+              "sha256": "eb5ab1badd01fe8befbcb1229edba7dcf207a28425920ea774d7c978c2cd82df"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-61222-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/eTvcHZ0lwGWZ2kRRzy3iZ7vbaG.jpg",
+              "bytes": 13030,
+              "sha256": "7e0687f7aaa0513c7771732e038961b380bec469b50e68ba1a559eb5be4e33fc"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-61222-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/zxaR97i8eiozOSCOUbR58uhW9K1.jpg",
+              "bytes": 29322,
+              "sha256": "6abbdb80d0bc320bcfddfe6cdcc223a451e3cb363075998fd8ffb441d1dd38bf"
+            }
+          },
+          {
+            "seasonNumber": 5,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-61222-season-5.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/t3r6TaOTIMxcNMb9O6gofQrHJr9.jpg",
+              "bytes": 19360,
+              "sha256": "e827af3726bb97401f8549bc024f7c76077e4f293b2817c9302743d66dc56ad9"
+            }
+          },
+          {
+            "seasonNumber": 6,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-61222-season-6.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/4oTJG12DslkXfzKkBLZzVcYejcN.jpg",
+              "bytes": 18176,
+              "sha256": "54d5a0d8502242182bb776f4556902fb5f0f04a90aaea0fff5248f5155624470"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "31910",
+        "poster": {
+          "path": "/demo-assets/posters/tv-31910.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/kV27j3Nz4d5z8u6mN3EJw9RiLg2.jpg",
+          "bytes": 46564,
+          "sha256": "2091981169e7329a0f8a1dec21d7947c5784a2ad246682e48bce338f134a05f2"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-31910.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/z0YhJvomqedHF85bplUJEotkN5l.jpg",
+          "bytes": 85244,
+          "sha256": "d07f9ebaff8f434ce1d40047ce1b6cece1700607f2d009d4038c87d773301ebb"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31910-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/cXu0QVcW1cpVLJuLEdIzVORCVJP.jpg",
+              "bytes": 28592,
+              "sha256": "a5ded79026f45960d71bccafc23def943395f004b08b8d2ecf0e52282e5936a0"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31910-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/cZVmDRYOPjGRpcmXBwH7RULiS4v.jpg",
+              "bytes": 23152,
+              "sha256": "60410f5cc7471ac75a4f98ac2c2851d340867f47f40d5192af4b84f71b951c9f"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31910-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/tq4UidtV47OkUbx8fIxMFlK3dAA.jpg",
+              "bytes": 34260,
+              "sha256": "9a7d7528a9a5c34e9277407f1fe7e6816ea866d9b60e13da198d4f872d39b0d8"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31910-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/nRk4DOpHKEoyhpGKw8GjYNIt56m.jpg",
+              "bytes": 41610,
+              "sha256": "8d1e76f55622544ddb39596b377ddcaa670ef1019deab54a2652aeb67e93410e"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31910-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/lduWgBtWKMlIXmEXlVjuzCsewbV.jpg",
+              "bytes": 22996,
+              "sha256": "12e2f39ee22a63e8b57647f1d7730b8aa64689cbabb740f6b2cf7d3585674b66"
+            }
+          },
+          {
+            "seasonNumber": 5,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31910-season-5.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/cMi80FKQ1iTbPdXvbMbP5gaVaeR.jpg",
+              "bytes": 31786,
+              "sha256": "a408d7c6fabfc263067e4352fcd1e2c7d67df7c2a3142c9189617d51f85eb296"
+            }
+          },
+          {
+            "seasonNumber": 6,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31910-season-6.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/o3iBQZgcntiawRcFQeKXaYgIUsS.jpg",
+              "bytes": 31328,
+              "sha256": "a0c8963fbf480fbf2799d622a4332838fe30842303b55550ed902ae051f7ec8d"
+            }
+          },
+          {
+            "seasonNumber": 7,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31910-season-7.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/42QaFSno1zuAPoaSydZw0koukvw.jpg",
+              "bytes": 26628,
+              "sha256": "404ca7071ba82d3ac9f8f1ea661efeda3e5419d402d179883c7743bd20a4afa3"
+            }
+          },
+          {
+            "seasonNumber": 8,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31910-season-8.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/msnDBdYwXyNgLUzAC5SX1o1mqvq.jpg",
+              "bytes": 26638,
+              "sha256": "87863c89e626e53980045aa7b6d6e0ca9a84dbeeaec9b9212f731204f9688bc1"
+            }
+          },
+          {
+            "seasonNumber": 9,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31910-season-9.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/1F7Z31SsD48go66RMVs9YDpae5V.jpg",
+              "bytes": 29202,
+              "sha256": "8e8691ec1f085d5c0866d2cb95e3b8a11771c675d5ef0e0ac6a653a58853b522"
+            }
+          },
+          {
+            "seasonNumber": 10,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31910-season-10.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/6Xk2LsYYf4X1F5FDdjEFIE3egQb.jpg",
+              "bytes": 18884,
+              "sha256": "4d1908fc633181938b46f1d25c37b919fe21b96e1ab2c47df7158d78fe4c8f74"
+            }
+          },
+          {
+            "seasonNumber": 11,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31910-season-11.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/3rEBLrk8knUHQD3XoIdqGbHGSYE.jpg",
+              "bytes": 29176,
+              "sha256": "e11d865927d783368091b17a9940964b72fe8068f0f925119732b88200056db9"
+            }
+          },
+          {
+            "seasonNumber": 12,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31910-season-12.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/rSFbKodY52tetk4ry5BBg8vPHff.jpg",
+              "bytes": 30232,
+              "sha256": "008fb3aac395e4764d08db4dc482e23aea837cfc742009c7e51b47fa0616bd18"
+            }
+          },
+          {
+            "seasonNumber": 13,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31910-season-13.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/zoVDEzuh4wyXZOHpkODNI7PTMsa.jpg",
+              "bytes": 23508,
+              "sha256": "e8f81c2c7f9f027bbfafa24bb24d099e9a4f0655f7d595a8892282a3322fe67a"
+            }
+          },
+          {
+            "seasonNumber": 14,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31910-season-14.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/i5mXIVMCd314HIsdimeh6zEfUv4.jpg",
+              "bytes": 32874,
+              "sha256": "dd37225d2027a0c8d4254dcc4e132b2b0be55df7afcd50d5400d903d2ea4e9e6"
+            }
+          },
+          {
+            "seasonNumber": 15,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31910-season-15.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/mfg6EokRt3F0zLH4HVAzhJ9aBXH.jpg",
+              "bytes": 24366,
+              "sha256": "98a0eba1f6812870883d4b4f4df626aeb50584e835ee8132ae8f9582ca5b62f7"
+            }
+          },
+          {
+            "seasonNumber": 16,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31910-season-16.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/qk74cPdTULS59BOLhlJJX1dVFUq.jpg",
+              "bytes": 23152,
+              "sha256": "68ce7eb17abf294dc58e4a322234911b46dd96e6229a9ab81da6ffb594f67d8c"
+            }
+          },
+          {
+            "seasonNumber": 17,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31910-season-17.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/A4VoEGcENojYNu6RjG0mN8zqPxr.jpg",
+              "bytes": 35652,
+              "sha256": "03121a3159afc3752e8b306ba9b82ad80a036171b5f43bec723710cd033309f7"
+            }
+          },
+          {
+            "seasonNumber": 18,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31910-season-18.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/x0E2Vlh9mZmy9DAKtsOcbAhoiBv.jpg",
+              "bytes": 31150,
+              "sha256": "583f922d7487910647a0d515ea173ca322d1a7cb698a0020f6364f78ef3c10fe"
+            }
+          },
+          {
+            "seasonNumber": 19,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31910-season-19.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/3ZZmcz65tpGse5Q8Pi8VIck4n0T.jpg",
+              "bytes": 24710,
+              "sha256": "b268638b2c03a059ae5de88ee17956b96613e0d18baced455ebd22149f7e90b0"
+            }
+          },
+          {
+            "seasonNumber": 20,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-31910-season-20.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/eVp8V8v7FUJLTgLNcS0W3IY5H23.jpg",
+              "bytes": 21962,
+              "sha256": "20d9eb35b3604f2b17775799bbf23ed1f23a520aaee35a294507b615cd4adbdc"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "60574",
+        "poster": {
+          "path": "/demo-assets/posters/tv-60574.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/vUUqzWa2LnHIVqkaKVlVGkVcZIW.jpg",
+          "bytes": 25362,
+          "sha256": "ceab3f2af579c4c4f6fcc6f184156bcbb4a2db87d97ae9fc8b44a8cf17d64652"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-60574.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/dzq83RHwQcnP6WGJ6YkenIqeaa5.jpg",
+          "bytes": 73306,
+          "sha256": "1497f3f8601d60bfe82151993c5f56fca95d25136519e02ef0c7d1527f66eee4"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-60574-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/qJXKEVDcjZmuCJ2iYBlCvreGdlL.jpg",
+              "bytes": 21672,
+              "sha256": "4b2b1221c025ee5eff71a6bbcc65d1a5f0c2f2af6f108fbcc1a25e14e731a81e"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-60574-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/vPlsKun2WZEsqe3yZTmebxtwElW.jpg",
+              "bytes": 16876,
+              "sha256": "dbcd7d6e95e1a14a87be81b4c1890669f2efb84cdfd464652b98ae82f69b4a0d"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-60574-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/m4JPtC3gWUsq0GlfNK3SdgkL9XG.jpg",
+              "bytes": 13566,
+              "sha256": "57c7103ab3bd4a61569ed9f23fd8be06ea7382b605500f5f11f44b3910ddec30"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-60574-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/b4m8G5j2HkGKh5yeCsV43askQVB.jpg",
+              "bytes": 15796,
+              "sha256": "30807ee5c947323c90f31bc758e5fd6af1aa297b08c26679818695ee07064049"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-60574-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/iAI8YEAZJc2FEj9caLCPK1XCZxL.jpg",
+              "bytes": 18152,
+              "sha256": "049265db7d0cd649b9740f43e8d48c03dda8ccbd156558f09e83d86578403276"
+            }
+          },
+          {
+            "seasonNumber": 5,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-60574-season-5.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/kFy0iBDmyC5A5YTsYuNai1Ko0Ja.jpg",
+              "bytes": 13728,
+              "sha256": "101815464b1aec1aea10232d7b42732c89b40dac9f7f402b0d3944025c1373dd"
+            }
+          },
+          {
+            "seasonNumber": 6,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-60574-season-6.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/vUUqzWa2LnHIVqkaKVlVGkVcZIW.jpg",
+              "bytes": 25362,
+              "sha256": "ceab3f2af579c4c4f6fcc6f184156bcbb4a2db87d97ae9fc8b44a8cf17d64652"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "114410",
+        "poster": {
+          "path": "/demo-assets/posters/tv-114410.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/iFM1dyFi0rByvEomEkmm7NpQeeb.jpg",
+          "bytes": 39464,
+          "sha256": "b2a2e32beaf4ebee29bcb659dbf496e8d060639795aab9b2dc137629afc164a6"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-114410.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/5DUMPBSnHOZsbBv81GFXZXvDpo6.jpg",
+          "bytes": 142086,
+          "sha256": "fe48505e41ecbc57a6cd1f28a15d93f88388a8f5c18b8ebfc357c26f86f92635"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-114410-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/wi059pAZjRN3BbDSB1tMqXgwRDa.jpg",
+              "bytes": 39358,
+              "sha256": "9c7ff64345071a35f9c0cad9db81ed094aae2711a1bc2bde6931bd248686525a"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "15260",
+        "poster": {
+          "path": "/demo-assets/posters/tv-15260.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/qk3eQ8jW4opJ48gFWYUXWaMT4l.jpg",
+          "bytes": 42258,
+          "sha256": "543a455ce04e2846bdd5acc4da6254c477d4f6c3c7058ab3c3b624973360f6c2"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-15260.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/pe4B3OYBb7qYCdkAz7nKWordbls.jpg",
+          "bytes": 185578,
+          "sha256": "f03b6fb36e01370f829e99c87e34f1b198060543c8395fa0fd477b8921e1a1c8"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-15260-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/1ZLufRlGhGH1zGizhnRIzkuTenW.jpg",
+              "bytes": 10818,
+              "sha256": "824d8e5ba7007e02a021a6859f806aa3fe1909f9a5591ef513f1bccafd38762b"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-15260-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/48lmWkg3X8QBZJcERrsyQsbjQCp.jpg",
+              "bytes": 9912,
+              "sha256": "41fa9f12c08066bcedddb26f1b2d3aa1e82c15ddcc5560afc0e52c01e1a99062"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-15260-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/3KZOhPKh9GdXdVKKH3wLwbpQBdo.jpg",
+              "bytes": 15150,
+              "sha256": "33021fb56d8eede73dc2a5c09890c2f07d69ac8a0dfeadb78c02942a586d35e0"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-15260-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/1ECczcYio4VBesP78CGryXuBnrY.jpg",
+              "bytes": 9664,
+              "sha256": "afceabfca69d07e446be971c5974ad217e74cc020c53b9388f7a3893f1014e1d"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-15260-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/q7HOlCRVnEgtfngheSyiOCWOpyE.jpg",
+              "bytes": 12498,
+              "sha256": "02f688d3ee125d099ffd7f701c8021ecb5d4509fe36e0f53906c8a2c0ff8f034"
+            }
+          },
+          {
+            "seasonNumber": 5,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-15260-season-5.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/w52JRYnBjPjuDU7IWPfgaj5GxF.jpg",
+              "bytes": 12620,
+              "sha256": "c58966e92d3a1add32424519de5b21fdd8f265ebbd33704c3e750369e93c4409"
+            }
+          },
+          {
+            "seasonNumber": 6,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-15260-season-6.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/7leOGmA0GWatt0758KaKbel7UXT.jpg",
+              "bytes": 8364,
+              "sha256": "58b87e2e869845628b5eb250ac49eae5550eb5dac8406a42f087641f4fc06c8c"
+            }
+          },
+          {
+            "seasonNumber": 7,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-15260-season-7.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/rnEgIlAs64k3YiqMw6Nwf2nrufC.jpg",
+              "bytes": 10692,
+              "sha256": "a1e3593799e4a12c547fce449ce7c7aa4a7efca878ba9e292a236d2fb1c1b8c4"
+            }
+          },
+          {
+            "seasonNumber": 8,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-15260-season-8.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/zIDoU6YZXE3oz9MNBjE2Ld94Xuu.jpg",
+              "bytes": 16414,
+              "sha256": "5b902873539a4ca6f9912c99dcd60aff1c195a203be3a4e02c2173778410ce98"
+            }
+          },
+          {
+            "seasonNumber": 9,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-15260-season-9.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/tGSrUnb9P3ZOEdhz1SiplX1Ceyu.jpg",
+              "bytes": 13390,
+              "sha256": "41e8d333a7bfc074877b41c2c7310b479f1903b8d10e77616f73c7f85a5e9cb2"
+            }
+          },
+          {
+            "seasonNumber": 10,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-15260-season-10.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/w8mYplN3ysIJ5DIYYgmfGTvuNzd.jpg",
+              "bytes": 12590,
+              "sha256": "082a8cbfb3fd65cb1383a616d1e611ac5a725ef0c248f76a1dc2d1a284e96432"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "120089",
+        "poster": {
+          "path": "/demo-assets/posters/tv-120089.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/7NAvPYPAu7MeHwP8E9sn81PqsRh.jpg",
+          "bytes": 43006,
+          "sha256": "2ac1e8ad2f6fe6942bbdc0ffbc883f58f3e4d6b96f2cdbf39f17001a9d8479ce"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-120089.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/lysUnU6V0VfcthDbviuVlIqgHOR.jpg",
+          "bytes": 60526,
+          "sha256": "862f149eab40542fe6b1e74e50b7e4dd696ec1c78fb7cf1092d6679ff6517e3a"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-120089-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/goSNF7W8pJI3RlHk1CSMv0YZvwL.jpg",
+              "bytes": 20208,
+              "sha256": "166ea97d2336aaeeab0c0eba74051ccc7705aff901861c7d538b1a3bebc5a351"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-120089-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/l5YWziTwsLMkpSyWGx149uidb8m.jpg",
+              "bytes": 30460,
+              "sha256": "105233485e5cb13a835486b981f01c8efaa4d33b9738affb117b0727c36584af"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-120089-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/4zWbXIrCMMnXHktdHtrNkOV1eYH.jpg",
+              "bytes": 38114,
+              "sha256": "4aa7510256f1a7f6e5957f95a361541dc2f3e730b6a7a66f5ca28a1a8813ab9d"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-120089-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/dAJMMOtzTDw8sObrvY26JLMTMRU.jpg",
+              "bytes": 35194,
+              "sha256": "e96a10b2057e269d922fbb512e061721da9a77b5e4b0d15db22d2aee623fc8d5"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "19885",
+        "poster": {
+          "path": "/demo-assets/posters/tv-19885.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/7WTsnHkbA0FaG6R9twfFde0I9hl.jpg",
+          "bytes": 12930,
+          "sha256": "9ec356f9066c9dd2a98124a05203d81fa1c5f50ccecf3f9bb9a2b60c56a3e24b"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-19885.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/8rvLEmdI4gLrMO1rLqbNdnNcPFE.jpg",
+          "bytes": 71200,
+          "sha256": "4d890e50358e5e39489b48719ad4b97e3f388bf699f64bfedcf8a76ec590c82b"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-19885-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/zTlz1py47FtTrlaaV82cq5WQhXT.jpg",
+              "bytes": 18366,
+              "sha256": "6a2c4f3ce4e4ddb903e35c47ede37a46a80cd26060246b93c047c732c38fcfe1"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-19885-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/wQczbo7IKtHjmO49pVWTc2u5pSt.jpg",
+              "bytes": 22778,
+              "sha256": "aa761ce6b9b924fe43874d1afb5be554a2dab8a2d457c274f7bbb074f040f6d5"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-19885-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/hSf2frcLiEWAPUZ6wbOMTTNZ7b0.jpg",
+              "bytes": 19982,
+              "sha256": "d34f7e2ff872ba3e49260f609d3d72f704eddc503b0cb12d0ab26a890c0c10ec"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-19885-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/z9ljxwZUQA2349ZBZAssBXpd0i6.jpg",
+              "bytes": 23582,
+              "sha256": "888855484f6a3a319b60288736a9740983a624836abad2c79dd0a7b8cfc923cf"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-19885-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/yVaWUlLmln0xqUDxVFc8JBuzHzK.jpg",
+              "bytes": 12718,
+              "sha256": "4fd931986685aa81a57275f2cc864ee1021093e8e2aa8cc7406be8aa968664ea"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "45950",
+        "poster": {
+          "path": "/demo-assets/posters/tv-45950.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/5a9vaaLDAZTYjgfWIw7ZYhL1m1A.jpg",
+          "bytes": 44816,
+          "sha256": "d72666daf2ce8468f116eeb86d0c1d610e205664ebab4bc553e979111076249c"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-45950.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/oF8PNdntjZ7DUrAvnhNPPNRi0q6.jpg",
+          "bytes": 105132,
+          "sha256": "b84601e56da63dcc5e7d1cd075b241f67ddd503300fd489b969ba49a65bfbb0e"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-45950-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/rzS5sXQ8Df51bMSucE4lrU0CKAe.jpg",
+              "bytes": 46506,
+              "sha256": "1ccbbbd448285303af051183796c6d7167b784108209d68304bd9aad339fe5ed"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-45950-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/dJA4r9xf2LfDbIYtP2kNqTb9k55.jpg",
+              "bytes": 44938,
+              "sha256": "4303c65e28bc852ae7ad1ef80582cd6dd7f0d9065698c08363363678f07be526"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-45950-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/bREf39mTiN5pQzNGnwUuVlqn7M3.jpg",
+              "bytes": 49028,
+              "sha256": "a701b896f5f2005a6c251da92be79d21a1df4897db2c79fa3ed7005b2c7fffec"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-45950-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/4l1WsjP90fvqQzkdWArrXxET0Im.jpg",
+              "bytes": 55666,
+              "sha256": "c237c2375731b01c9dac77130df11afa056d1edca81a5319e287824c1976b08c"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-45950-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/a4MYnTC0FhtdZ9I8bEhaNWWbCCZ.jpg",
+              "bytes": 44290,
+              "sha256": "45312a97db54ad78a1f4450171bb6fd28adb87f011fa02e2fc46c82e20620acc"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "124364",
+        "poster": {
+          "path": "/demo-assets/posters/tv-124364.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/pRtJagIxpfODzzb0T0NAvZSzErC.jpg",
+          "bytes": 40778,
+          "sha256": "36fa760438ac870b4dfbe43af668e6ed8a92933fc9b65f2e52a819de1fa16dbe"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-124364.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/xLdw1xdHocKYFFvx7w41NchXMfJ.jpg",
+          "bytes": 231116,
+          "sha256": "a6da52ccb69fce40bd737f09a15d46ba68c30d308868307597ddca217de6e04d"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-124364-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/ps46NdLlH70ptDD8ailTL8TCZU3.jpg",
+              "bytes": 21274,
+              "sha256": "656adc78b0ce50ad691e2627ba23ce75b160524e06400d1f458fe79cf0c2a31c"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-124364-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/cJmfLHnF95XkoIr9as2bBK5cPeK.jpg",
+              "bytes": 18342,
+              "sha256": "042a71b75d1322f1b8bd9371fec942832ed825bae5cab75d3c38b2e28e1f5a3d"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-124364-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/sj64QEEb6JM1CdCfXHaIbA3WPx8.jpg",
+              "bytes": 37508,
+              "sha256": "69d2ff62a7bf2e2b59d205ef0d4d07dc59ffb8caec1138d58b443bd1ee13573a"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-124364-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/ltlz5IHLpaXQStXGmMbehfnIskZ.jpg",
+              "bytes": 37080,
+              "sha256": "2bbf08d6f3f66e2022f2e497f02575f413426e40bb99ae59d4e99703a69280ce"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "73223",
+        "poster": {
+          "path": "/demo-assets/posters/tv-73223.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/kaMisKeOoTBPxPkbC3OW7Wgt6ON.jpg",
+          "bytes": 51230,
+          "sha256": "a934b980bb21b7366b6b7dc30b06da9845d871ca77578d1d58e8a59210ec86db"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-73223.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/oUsm3pq6rUga7lVGQFS3g84etVE.jpg",
+          "bytes": 97294,
+          "sha256": "8911090717de69911e2ba5150f4980d37a01a7ddf8d958783ef9a66f5ac115a9"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-73223-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/qP7aEcuL14GT0jtpljtYj6P3ioT.jpg",
+              "bytes": 38816,
+              "sha256": "7db3186e6b7420eceaafcef6556928b6abb24c05852805b17ad9c696b868f8e5"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-73223-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/jE090N9cISxRIL0URRFEoHe55RL.jpg",
+              "bytes": 44752,
+              "sha256": "57fcf28435ec391b59f24df15b6aae9835efe4e33ddbb1e2d347b33c2c8aa34e"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "30991",
+        "poster": {
+          "path": "/demo-assets/posters/tv-30991.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/xDiXDfZwC6XYC6fxHI1jl3A3Ill.jpg",
+          "bytes": 30570,
+          "sha256": "512c58024afc857cab423dfdc37758d9236ebcd10882f27cd217baade493bbb1"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-30991.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/A4PHx94G7mvM3b8vsDJ5HEaQ6uv.jpg",
+          "bytes": 109994,
+          "sha256": "37a3e7707a174631ca5465e69ad225d220f19a78fab62960954eca79e88e05df"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-30991-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/lM37YEq5zwlhfW6WXNSps0pIK4Z.jpg",
+              "bytes": 41668,
+              "sha256": "d1ff8a803facaebe0ab5f6b0443822415f674e2a330cf3e080d33be4964b2b47"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-30991-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/s67hJ7IdoYARE3P251lXCejRbOV.jpg",
+              "bytes": 33984,
+              "sha256": "d0fb6c456dab31d80a5eb5d5d33fb10202f4d74cdf5b0040582d4a3a2c7e2858"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "154521",
+        "poster": {
+          "path": "/demo-assets/posters/tv-154521.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/pLeSPrwEmxwaV1vqzdVfAgnUvXc.jpg",
+          "bytes": 24586,
+          "sha256": "97331b0727333a0e7d617b3bd5765c982951d92b8bd644fac9242db01744fcb3"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-154521.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/iZQj2vw0wImBJZ2rBqzNySD2FgJ.jpg",
+          "bytes": 112378,
+          "sha256": "1c3e3cf5020462691c080d6e68be218aa9fb0a85abc48dc0971a155fed9ed430"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-154521-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/3cJgB4fOfgHKNoHgtT3h1Qqkvxq.jpg",
+              "bytes": 24636,
+              "sha256": "b21696abd0fb874bdf329d29f6df8268fc95f91198ee456e7430f7ac49a8d394"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-154521-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/qo0xaWJuGgVj5q8kXlVoE2Ak9Z3.jpg",
+              "bytes": 23080,
+              "sha256": "c6518753cf229c8b0f12c69ac416d81dac50c0f34d0c4dc61ac032b108a1aab4"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-154521-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/6mGCYwh5OMpLgTqc9Sh2RnPB7Ic.jpg",
+              "bytes": 19778,
+              "sha256": "9b02364826d8901ec44ed18f626a48347343dc82f801dab1e10bae440a39a73f"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-154521-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/q1tKB9Wd88GIIfUYFgyh0PQXOCv.jpg",
+              "bytes": 19224,
+              "sha256": "683f98c381d6b53c09857834fda434f05bdd68a772be6e30842002e6b90de5c3"
+            }
+          },
+          {
+            "seasonNumber": 5,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-154521-season-5.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/y5tqHu7Rly3RS9uJZqTTraf7mQ2.jpg",
+              "bytes": 24736,
+              "sha256": "1cc0e707bfbdf3a0034763905d9453402a95853ac456e2ea4ea77232ac753893"
+            }
+          },
+          {
+            "seasonNumber": 6,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-154521-season-6.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/g1YsPdh8D49BjrS9hritndXuuKP.jpg",
+              "bytes": 28628,
+              "sha256": "2318f0ccbc7ff52b9e4246020a1445ec20b57418d8a340a429509a9299dfe1da"
+            }
+          },
+          {
+            "seasonNumber": 7,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-154521-season-7.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/pLeSPrwEmxwaV1vqzdVfAgnUvXc.jpg",
+              "bytes": 24586,
+              "sha256": "97331b0727333a0e7d617b3bd5765c982951d92b8bd644fac9242db01744fcb3"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "1399",
+        "poster": {
+          "path": "/demo-assets/posters/tv-1399.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/1XS1oqL89opfnbLl8WnZY1O1uJx.jpg",
+          "bytes": 22980,
+          "sha256": "e5deff4d6a5961801effd13acf14b1fb164da692e29abc92c09ff780cafd387f"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-1399.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/zZqpAXxVSBtxV9qPBcscfXBcL2w.jpg",
+          "bytes": 98580,
+          "sha256": "f29ade0a2eaaa7c20d1a4305f060741382df95f9f9dfab13efac87e3072cbc36"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1399-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/aos6lC1JGYt6ZRL85lgstNsfSeY.jpg",
+              "bytes": 25502,
+              "sha256": "a34775a882847ebee7c5026900420577b2777d54800fc85fe59c36f863937768"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1399-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/wgfKiqzuMrFIkU1M68DDDY8kGC1.jpg",
+              "bytes": 25224,
+              "sha256": "049f05ce980a7d07a2b32315591afe5e1bcd91e06cb67087641be04b15f134d5"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1399-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/9xfNkPwDOqyeUvfNhs1XlWA0esP.jpg",
+              "bytes": 22816,
+              "sha256": "d4270c32d32dabe7c164f8fc618d432d97f27ef51a95a1e96d49865a2e7ce792"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1399-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/5MkZjRnCKiIGn3bkXrXfndEzqOU.jpg",
+              "bytes": 9104,
+              "sha256": "ac0914aaaed624990d17855eeacd399879482ba229f41960a478f3906c3d8967"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1399-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/jXIMScXE4J4EVHUba1JgxZnWbo4.jpg",
+              "bytes": 24198,
+              "sha256": "edc647e8640a9f028ec1ec2cf5530fb10b40f4035d349d87b6f8160e5d1be761"
+            }
+          },
+          {
+            "seasonNumber": 5,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1399-season-5.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/7Q1Hy1AHxAzA2lsmzEMBvuWTX0x.jpg",
+              "bytes": 10934,
+              "sha256": "284c59da5c100fed7cc9c9a79e8199fc75e7f20d99ab4a9288d3965c7631b718"
+            }
+          },
+          {
+            "seasonNumber": 6,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1399-season-6.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/p1udLh0gfqyZFmXBGa393gk8go5.jpg",
+              "bytes": 27470,
+              "sha256": "81f7a94993a3e9f737223c89a5b28703306eb9370691577adece0fdf55c4f47d"
+            }
+          },
+          {
+            "seasonNumber": 7,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1399-season-7.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/oX51n32QyHeFP5kErksemJsJljL.jpg",
+              "bytes": 12544,
+              "sha256": "fcfe71a8c07b0a76e151aa6304885c2f12d61034b444c243b9499415bf329805"
+            }
+          },
+          {
+            "seasonNumber": 8,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-1399-season-8.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/yToCshWmirenreC6mrHwFAScFNJ.jpg",
+              "bytes": 42766,
+              "sha256": "11756ffd430bd272c848c9a05071a095aae1e29acfaef140bd1409fe29f28d86"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "2004",
+        "poster": {
+          "path": "/demo-assets/posters/tv-2004.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/uftxEWbn3OSykTy4DX4BrdVeiuv.jpg",
+          "bytes": 42278,
+          "sha256": "51ff617f811b76ea74e69191d0ce43b3b8cff5973aa455863b8259a0308bfbe0"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-2004.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/si3OheCrSpEyK2JUtZOThsZPUR4.jpg",
+          "bytes": 152108,
+          "sha256": "0af043238b3a8aed8b0ec4451cc56d394bb727486d7fe79f19a942124b613023"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-2004-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/lbNnUN4KorxfELmsahaM9jT2YG8.jpg",
+              "bytes": 20102,
+              "sha256": "1979ab8408243e240d9484c437ab868d13fc942492e5bc8995a43d960861e91d"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-2004-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/G5EFqmf5rg1fk6ZtA1cfnTiTc3.jpg",
+              "bytes": 19818,
+              "sha256": "39e0280f3796f49fe0169ee3d264d72d90a59da8e06387b8d21654995bea5beb"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-2004-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/uftxEWbn3OSykTy4DX4BrdVeiuv.jpg",
+              "bytes": 42278,
+              "sha256": "51ff617f811b76ea74e69191d0ce43b3b8cff5973aa455863b8259a0308bfbe0"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-2004-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/lfavii4Auc4DC7nNVhHO8QskthI.jpg",
+              "bytes": 31208,
+              "sha256": "df9fe708a4bdbfc22e5d430b1338ce22e166373330921e07532cf719535ee1e8"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-2004-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/4nYINLSqOB6T3tV9OX6VAF1Xy1Q.jpg",
+              "bytes": 15696,
+              "sha256": "9d2d338bdcbf17fb21e8299b63a7b6cc1fab0e1a93a98001abd951f65a79523c"
+            }
+          },
+          {
+            "seasonNumber": 5,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-2004-season-5.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/dF9Q0J90Lfswj30OHPOySZPwAg0.jpg",
+              "bytes": 41244,
+              "sha256": "10aa9a9f4f08dda54e6f95fd1efbbf736b0dbf1ac58e5abe701f469e2b51ead0"
+            }
+          },
+          {
+            "seasonNumber": 6,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-2004-season-6.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/i1gHRFFEcPVcnmwQXEwnU9X9pfa.jpg",
+              "bytes": 38118,
+              "sha256": "522102e0ec8c3aeb249b7836673913ed1c7ccb585d8922c1cbb377f3871073b4"
+            }
+          },
+          {
+            "seasonNumber": 7,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-2004-season-7.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/uLv7ysyJZVAZWIADKJISYUX0B1Y.jpg",
+              "bytes": 57062,
+              "sha256": "f4037bc68a0b228dd2fa75d256a970fa6ad12c28be5cf49436addaac5ab2a732"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "4194",
+        "poster": {
+          "path": "/demo-assets/posters/tv-4194.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/e1nWfnnCVqxS2LeTO3dwGyAsG2V.jpg",
+          "bytes": 36778,
+          "sha256": "7aa4ad01c008fb5fb9a50e72f7c8d5f6220285fcb9dece7038f31b27d00d073a"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-4194.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/m6eRgkR1KC6Mr6gKx6gKCzSn6vD.jpg",
+          "bytes": 185526,
+          "sha256": "9c4f13bbffaa16c46b9fa6cee9a45b9e683c4de3bf67edcf4803ba3d2c01da5a"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-4194-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/xJsKxRFTA605jrVgSuh3yriIkA6.jpg",
+              "bytes": 42580,
+              "sha256": "b0712a73fdca30012dcaeca093dd34e0dc0e40a55db4f46b35a29331e8938cb5"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-4194-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/A3ahBR0y45LjKQeLEu6PU5UwTQs.jpg",
+              "bytes": 35540,
+              "sha256": "07f40e8d0fe9fbc8678689386502c883276490c9ce1af7c2a39027c5b24a0162"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-4194-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/pENwUUU7AWX7qtBtAscPHXHngP.jpg",
+              "bytes": 25806,
+              "sha256": "08689153ed159a8f27b287246101bb6359830bb3f6f39af5291f7145705391a8"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-4194-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/syoaEVFyv5Zpc4lMWEn3VGPzyHg.jpg",
+              "bytes": 22958,
+              "sha256": "8ab436f94f9136b11b767f5d411e008005c0551f7656620a5820da87ceab18a8"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-4194-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/7eNONbOHJGh3Bw38sdtbnfG1ULW.jpg",
+              "bytes": 35922,
+              "sha256": "4597aa21991f4cb07ef9c1f5ec28de064a2bad6e5f162d7b50a6f6cad75c2b36"
+            }
+          },
+          {
+            "seasonNumber": 5,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-4194-season-5.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/2lTwwcBAZlMlokhJsNCAxQlbU7l.jpg",
+              "bytes": 31168,
+              "sha256": "bda81f58143d8794bfb0707792739efa877dec1e87131eff446ef78bb446ae43"
+            }
+          },
+          {
+            "seasonNumber": 6,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-4194-season-6.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/omT6WfAydY9D0Pkd9zJuhlBgjyY.jpg",
+              "bytes": 40744,
+              "sha256": "68b479d9c6352f638a512f98bb74d52743945577d7853170d4888a2607d9a843"
+            }
+          },
+          {
+            "seasonNumber": 7,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-4194-season-7.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/n2cmQLAOOs5ikqBFoIldpLeVCLK.jpg",
+              "bytes": 19828,
+              "sha256": "1524805bc20a727247e55755802e90ba06b9697fd7245b4d6afb0f4a1815a4df"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "75006",
+        "poster": {
+          "path": "/demo-assets/posters/tv-75006.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/qhcwrnnCnN8NE1N6XXKHFmveJR9.jpg",
+          "bytes": 38592,
+          "sha256": "d475b4043f120003013de65441de6c08a2ae0d9b37e6f801ae62733caa0618c2"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-75006.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/gHJhN9AJV4PmJ7YpLFa9ldDWuG8.jpg",
+          "bytes": 112960,
+          "sha256": "fdfd698200ef8ab18af31215d75b996130077843cf66ddab570297488e54b0ce"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-75006-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/qQQd1u7RV1Uwy5nPhjoZmUPNVck.jpg",
+              "bytes": 35966,
+              "sha256": "2dbf48060935c1f74b63527aded1cec3554d9140e5f21358f2ec162bb8e5960c"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-75006-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/vKlZXlvPdq6cRJHx47J8FsU9W8P.jpg",
+              "bytes": 32608,
+              "sha256": "96ca27a28ebd070c97fc54f649bee69a68b0c552bb4178e48ed70ff500724279"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-75006-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/2aD0iZJelrJ6CguuzgZRKCvponZ.jpg",
+              "bytes": 34520,
+              "sha256": "15df59bd036aa645469336d06213aecac4c6f06e556c56956971e6d5278a4b0a"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-75006-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/wkgq3MRUCC1vmJ6wX9xFIzGcu1a.jpg",
+              "bytes": 35830,
+              "sha256": "061189fc0110d73a64dfbcb8b9f8f72a9b2698e1ad52d03596363a89908691f8"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-75006-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/ggoUcZf5ZAXvTrlmeZzBZV54PY1.jpg",
+              "bytes": 34100,
+              "sha256": "9bd4762b2415480b2f80a0e2bcc7db1628a2a9c2044a4604bc503bd0b49c1432"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "71712",
+        "poster": {
+          "path": "/demo-assets/posters/tv-71712.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/luhKkdD80qe62fwop6sdrXK9jUT.jpg",
+          "bytes": 12198,
+          "sha256": "7aae8719364dcb9c246a653d28d9dd60e4336fca603bde14f3a754d829a2fcc9"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-71712.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/f3cin9kOz4nOrlYEMxGFQhv4bdN.jpg",
+          "bytes": 113544,
+          "sha256": "fe0cf80b961fc9195c6a0b8c0407dd0d76610f620f2c7fe352bdecc49455bd98"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-71712-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/168rcWbfYVb5SRlzjl98z1J6cQ4.jpg",
+              "bytes": 20840,
+              "sha256": "b85cbc45afdc4368e7343fb4b0a9b96f60de9455f8274cc4333b7c4b6dc3990b"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-71712-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/sIq4SFloM0JSeRNAQVqb5g5zAng.jpg",
+              "bytes": 19802,
+              "sha256": "c9b8cef820bab9daf16b8b0064c43281265c58461857b8b071c7775fa2fbe4e7"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-71712-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/keMzGwQZlZRJXgifi3BhH53EVMz.jpg",
+              "bytes": 22506,
+              "sha256": "9f6605823b7d266653e9e1a458e858b2c0cde7a51f2660ae066e08770ae84070"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-71712-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/gdnYHdbNHYrxMkSNLBUtGOaV930.jpg",
+              "bytes": 14484,
+              "sha256": "d563c8e1f8427fdf44574158bc068684f41c3e403ecccd91f0b7fb5a18a5cba1"
+            }
+          },
+          {
+            "seasonNumber": 5,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-71712-season-5.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/1AugpTb6vr6lGGABoTuEK1wYm6C.jpg",
+              "bytes": 17752,
+              "sha256": "00e9aa110cee2989bac5f53b5a4eac8a119e29b19f30ab01f428ed544626854a"
+            }
+          },
+          {
+            "seasonNumber": 6,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-71712-season-6.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/q9ZZgWGjSRkcNTi6lF7IZDSxSFg.jpg",
+              "bytes": 18788,
+              "sha256": "dd9a03c8a6c57840dea860fd494b9ae9a42b4ac730ab268e4932d3f06e9b256a"
+            }
+          },
+          {
+            "seasonNumber": 7,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-71712-season-7.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/ydY3O2UgaW89FzNlfAzu2EZ6VXQ.jpg",
+              "bytes": 18842,
+              "sha256": "37531f2b3cf1bc0cbd584ca3b166a272f146641fa638130e556284f67809aa18"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "34524",
+        "poster": {
+          "path": "/demo-assets/posters/tv-34524.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/wjKBTcNy1xihmExqJI8kM2qvavP.jpg",
+          "bytes": 9212,
+          "sha256": "96ee162a6f873a7ef29a3650e1c98ccd3fcf47e480bd969892383715f678120f"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-34524.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/1F2RnXLc0fmRt7iWfBK4mNVsjno.jpg",
+          "bytes": 145080,
+          "sha256": "0cbaf2e33421a5e4ded47d8c35d294cd03a37e3ce4667792dde5b714bf046bb4"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-34524-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/8FPMj9rnuJGy4qZEZgGMQbe1wny.jpg",
+              "bytes": 6742,
+              "sha256": "ad01fbeda9452184dfbff4097dee143d076aaf4945481acaac990fb4f1167bfb"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-34524-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/sXz3t61MDvJwHnVplZR7pY3QEGc.jpg",
+              "bytes": 19274,
+              "sha256": "c37203f40ce238044f8d19dc5b6005b7c503f744ce1abb9e1a5e21dd75cf60a6"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-34524-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/jB3EEi9ay0vpjlnMTV48GfO39l6.jpg",
+              "bytes": 15426,
+              "sha256": "ca6d9fb0df0e93d919d7d39d62c6a799f876326610af0b96185efe6e042fc675"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-34524-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/ek2tpyvRNCa8PsY6PgPHy2rqa3l.jpg",
+              "bytes": 18508,
+              "sha256": "646ab48494bddbb5c44aa4e080e32471516e295e56bb7639ebd6babfa6b99d0b"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-34524-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/54DTUiNu3UfRNipLTZz6zFTqd8c.jpg",
+              "bytes": 15586,
+              "sha256": "adc4502d05f1b4ac1af9cd4915d6350df64d13fc71da1f1c30339207ef277b4b"
+            }
+          },
+          {
+            "seasonNumber": 5,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-34524-season-5.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/cLddDxzv19WNtRYh6c0YcrKKz3R.jpg",
+              "bytes": 9044,
+              "sha256": "5543063ced90d34a8434e766f18dffa6a0c29479b9df4214872730f402cf3f5f"
+            }
+          },
+          {
+            "seasonNumber": 6,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-34524-season-6.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/pmyJrkwRBZ9Zlrs7cWg08WAPe7g.jpg",
+              "bytes": 8644,
+              "sha256": "8f88c92c2cf47f97360cbaec3b03e3214ceb026298913513549bbfbbea538fe5"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "76479",
+        "poster": {
+          "path": "/demo-assets/posters/tv-76479.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/in1R2dDc421JxsoRWaIIAqVI2KE.jpg",
+          "bytes": 22094,
+          "sha256": "63b9571b89dc4fcf4d5e95022a2dd4f6ee7b8e51e010d4b7d63e4871e8273bd6"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-76479.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/n6vVs6z8obNbExdD3QHTr4Utu1Z.jpg",
+          "bytes": 101008,
+          "sha256": "4e32c21d642eb06326db9f25ac43257c6d926a7bf7835b114287d7ebea4f3e71"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-76479-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/twqkXVkBuRTZSTHp6e5l8iygFEK.jpg",
+              "bytes": 36486,
+              "sha256": "fbeb54199c0c289fc85d599c51e09b6410522568c07fee14679c0db580885447"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-76479-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/iikrapejulhIvbNgUjj468mUE0I.jpg",
+              "bytes": 23612,
+              "sha256": "ed057142d7dd507b9ded2bba5a1c7704d308fbaf947af70b48b7f9176944866f"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-76479-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/hjO01XnizdVgwygBNzDwUEK9CDB.jpg",
+              "bytes": 23600,
+              "sha256": "76462b9e42b3d35fc8c68bf4cd19349932e9afcb3708b6d0dbc0c77589e86368"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-76479-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/7Ns6tO3aYjppI5bFhyYZurOYGBT.jpg",
+              "bytes": 12376,
+              "sha256": "54a4a65ddde0d2530d4ff8e76eac7b8a1b6af556bed7fcfb50af5816c9405c94"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-76479-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/nWwhdt7iOFJsWM8Lz1UtaUC6EUf.jpg",
+              "bytes": 27146,
+              "sha256": "6ed7fe95d85d5851e0bd8c0dcddb269dd645337317a568b0f16c31fdee270c4a"
+            }
+          },
+          {
+            "seasonNumber": 5,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-76479-season-5.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/8WOmQ50Bt7eSSPwaRqtk7qHcos3.jpg",
+              "bytes": 28034,
+              "sha256": "b2b9d62515dfbc1cdb4d3e53ccf2d804a870c8bf0ce7ca550ad34292a4347291"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "63174",
+        "poster": {
+          "path": "/demo-assets/posters/tv-63174.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/ekZobS8isE6mA53RAiGDG93hBxL.jpg",
+          "bytes": 32142,
+          "sha256": "b7824354426081414ef7771865b13690c7563a12062650b7d37456e636b6f479"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-63174.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/ta5oblpMlEcIPIS2YGcq9XEkWK2.jpg",
+          "bytes": 124832,
+          "sha256": "556b262a68866f319044f1bb4ff8cc0515421f327f81a86f9730d004eacc6ea6"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-63174-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/bQ5FupU7DFTbx9pSgPsEZQwyZKj.jpg",
+              "bytes": 9856,
+              "sha256": "20021b804ee2e913f6911003842a1201a39f1575523a7ab19e2ee90be64b8430"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-63174-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/e6FQvm5jycG9xx1ZWowIYBc3Shn.jpg",
+              "bytes": 12398,
+              "sha256": "caf6f6a6a96573a5dc42492d17366438ec34858c209018fd0c2746144c775d2e"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-63174-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/NhVsRaNhfXknIseUb2hY02gqom.jpg",
+              "bytes": 14900,
+              "sha256": "9c26b8099be9ebe63f5a64e605883afb9b244664edc04c1bc106f166e3bc47ac"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-63174-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/x4oi3N7JNF0QGtBzyLJjolivmWx.jpg",
+              "bytes": 22220,
+              "sha256": "a9fa249d45a624a89409d96f33bb6bb41fab97c6f4d9be2e4e1811be94dcf96d"
+            }
+          },
+          {
+            "seasonNumber": 4,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-63174-season-4.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/4FoFVP6wpBNutIG2FyglQhySa7V.jpg",
+              "bytes": 17296,
+              "sha256": "fc4a27594b2cb71fe3ab3b5c10374d734d4f4a90a7fa2b434b361022c1321ffb"
+            }
+          },
+          {
+            "seasonNumber": 5,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-63174-season-5.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/f7uHY54huql9oIwMonFQd6Vylvd.jpg",
+              "bytes": 18738,
+              "sha256": "be23a0e28a8bdc1afcd61042f4c0c36ee274f51a1341742c4e4e0140fcc5436f"
+            }
+          },
+          {
+            "seasonNumber": 6,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-63174-season-6.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/uHpfjWUJI2gXQIIxjgAvOZWJORx.jpg",
+              "bytes": 28292,
+              "sha256": "b7e66378fafd8bda2ea07e3d55c785c0709d7880a03c69e2fd7eeaaaa1af8e07"
+            }
+          }
+        ]
+      },
+      {
+        "mediaType": "tv",
+        "tmdbId": "70523",
+        "poster": {
+          "path": "/demo-assets/posters/tv-70523.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w500/apbrbWs8M9lyOpJYU5WXrpFbk1Z.jpg",
+          "bytes": 44160,
+          "sha256": "ca24d1b720ce1ab2f9b9579d61a282765cae43add51636843f4217232712f3b0"
+        },
+        "backdrop": {
+          "path": "/demo-assets/backdrops/tv-70523.webp",
+          "sourceUrl": "https://image.tmdb.org/t/p/w1280/3jDXL4Xvj3AzDOF6UH1xeyHW8MH.jpg",
+          "bytes": 45318,
+          "sha256": "96d85642a6ac78b663bc74f1cb8d43d0a33b36575fb6cd56dba30ec6ac3adea8"
+        },
+        "seasons": [
+          {
+            "seasonNumber": 0,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-70523-season-0.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/sbuYWNhmLrzaTyeCL9jLKQ7dqyc.jpg",
+              "bytes": 14220,
+              "sha256": "746ce0a1c216ea4bc332673b2fd01f8b511f4095009d54d039f12d10e4162e52"
+            }
+          },
+          {
+            "seasonNumber": 1,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-70523-season-1.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/spN6icwSwuAuOcuZLC9bKjK6N2i.jpg",
+              "bytes": 61662,
+              "sha256": "4ddbb664d66cf488680a658710af6839e93c809131d28fa461514f94fd2e273e"
+            }
+          },
+          {
+            "seasonNumber": 2,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-70523-season-2.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/c8Aq3By7Z5JBIiue9WeDP0N3Zlu.jpg",
+              "bytes": 64534,
+              "sha256": "d6b298cb0f2f4e7d0437157ba2909cfa69b4378b04d9d73f0a837b919dcaa1aa"
+            }
+          },
+          {
+            "seasonNumber": 3,
+            "poster": {
+              "path": "/demo-assets/seasons/tv-70523-season-3.webp",
+              "sourceUrl": "https://image.tmdb.org/t/p/w500/5Dk9V5K7IlFQTTHbuc6KvKWLD55.jpg",
+              "bytes": 44552,
+              "sha256": "965826e0089d4fb6012a19a415776a6f52e0a61d198a6d40f15b7e9772ad67c3"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

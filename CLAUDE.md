@@ -14,6 +14,17 @@ Agent instructions for working with this codebase.
 > **For website publishing setup, follow [`docs/website-deployment.md`](docs/website-deployment.md).**
 > The website is a static Astro site in `website/`; do not push or deploy it without an
 > explicit user request.
+>
+> **For the explicit phrase "Push website live", follow
+> [`.claude/skills/push-website-live/SKILL.md`](.claude/skills/push-website-live/SKILL.md).**
+> This is a website-only publish from the current local `website/` tree to the separate
+> `plembfin-website` Cloudflare Pages project; it must not push GitHub or rebuild the
+> Plembfin application.
+>
+> **For the explicit phrase "Start the website", follow
+> [`.claude/skills/start-website/SKILL.md`](.claude/skills/start-website/SKILL.md).**
+> This starts the local Astro preview at `http://localhost:4321/` for editing and
+> testing only; it must not publish or deploy anything.
 
 ## Local testing context
 
@@ -69,7 +80,7 @@ procedures live in the `push-to-git`, `force-to-alpha`, and `force-to-main` skil
 
 ## Release commands: use the matching skill
 
-Three phrases trigger a full release procedure. Each one lives in its own skill so the
+Five phrases trigger a named release, publishing, or local-development procedure. Each one lives in its own skill so the
 whole procedure arrives fresh at invocation instead of competing for attention here.
 **Invoke the skill and follow it exactly. Never improvise or reconstruct these
 procedures from memory.**
@@ -79,6 +90,8 @@ procedures from memory.**
 | "Push to git", "Push all to git", "push all the git" (any case) | `push-to-git` |
 | "Force to alpha" (exactly) | `force-to-alpha` |
 | "Force to main" (exactly) | `force-to-main` |
+| "Push website live" (case-insensitive) | `push-website-live` |
+| "Start the website" (case-insensitive) | `start-website` |
 
 These hold regardless of which skill is running, so they are repeated here:
 
@@ -86,6 +99,12 @@ These hold regardless of which skill is running, so they are repeated here:
   workflow; the push is one late step inside it, after every gate has passed.
 - Never deploy, and never push to any remote, unless the user explicitly asked in that
   request.
+- "Push website live" is the website-only publish workflow: use the current local
+  `website/` tree and deploy directly to `plembfin-website` with Wrangler. Do not run
+  the root Plembfin build, push GitHub, or trigger the application CI workflows.
+- "Start the website" is local-only: start or reuse the Astro dev server on
+  `http://localhost:4321/` and open that URL for editing/testing. Do not deploy it or
+  run the root Plembfin build.
 - Never bypass a hook with `--no-verify`, and never bypass the changelog rebuild.
 - Before any of the three, check that GHCR Cleanup is not mid-run
   (`gh run list --workflow ghcr-cleanup.yml --limit 1`); each skill repeats this as its

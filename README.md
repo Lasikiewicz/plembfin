@@ -17,17 +17,16 @@
   <a href="CHANGELOG.md">Changelog</a> ·
   <a href="#which-version-should-i-run">Which version should I run?</a> ·
   <a href="docs/README.md">Full documentation</a> ·
+  <a href="https://plembfin.com">Website</a> ·
   <a href="https://discord.gg/7ZmEGKcRC5">Discord</a> ·
   <a href="https://www.reddit.com/r/plembfin/">Reddit</a>
 </p>
 
 ---
 
-> **Pre-1.0 software.** Plembfin is still in early testing, on every release channel
-> including `:latest`. The features below work, but expect bugs and occasional
-> breaking changes. It writes watched state to your media servers, so **back up first**
-> (Settings → Backup / restore → Backup settings). Report issues on the
-> [issue tracker](https://github.com/Lasikiewicz/plembfin/issues).
+> **v1.0.0.** Plembfin writes watched state and playback progress to connected media
+> servers, so **back up first** (Settings → Backup → Local). Report
+> issues on the [issue tracker](https://github.com/Lasikiewicz/plembfin/issues).
 
 ---
 
@@ -150,7 +149,7 @@ before they're officially released.
 | `ghcr.io/lasikiewicz/plembfin:alpha` | `alpha` | Pre-release; queued fixes not yet a numbered version | Testers who want fixes early and don't mind rough edges |
 | `ghcr.io/lasikiewicz/plembfin:develop` | `develop` | Bleeding edge; every commit, least tested | Contributors and the most adventurous testers |
 
-Each channel shows its own version in the sidebar and **Settings → About**. Develop builds
+Each channel shows its own version in the sidebar and **About**. Develop builds
 include the current release version and cycle number (for example, `0.16.0 Build 1`). See
 [`CHANGELOG.md`](CHANGELOG.md) for numbered releases, and
 [`docs/development.md`](docs/development.md) for how the three channels relate.
@@ -202,7 +201,25 @@ give each tester an isolated `data/` volume.
 > ```
 > See [`docs/hardening.md`](docs/hardening.md) for the full guide.
 
-### Method B: Bare metal (Node.js)
+### Method B: Windows installer
+
+On 64-bit Windows, download the latest
+[Plembfin installer from GitHub Releases](https://github.com/Lasikiewicz/plembfin/releases/latest)
+and run it as an administrator. The installer bundles the Node.js runtime and native
+Windows dependencies, registers Plembfin as a background Windows service, and creates
+a Start Menu shortcut for the dashboard.
+
+Plembfin stores its database, artwork cache, logs, and backups in
+`%ProgramData%\Plembfin`. The installer can also create an optional notification-area
+companion that shows service status and opens the dashboard, plus an optional private
+network firewall rule for access from other devices. The Start Menu also includes a
+shortcut for launching the companion later. On first launch, use the one-time
+**Claim this Plembfin instance** screen if no administrator password was configured.
+
+Uninstalling preserves `%ProgramData%\Plembfin` by default. The uninstaller offers a
+separate confirmation if you also want to remove the database, cache, logs, and backups.
+
+### Method C: Bare metal (Node.js)
 
 Requires Node.js 22.19.0+, and native build tools if prebuilt binaries for
 `better-sqlite3`/`sharp` fail to install (VS Build Tools on Windows, `gcc`/`g++`/`make`
@@ -226,6 +243,22 @@ password there instead of looking for a generated password anywhere.
 > [!TIP]
 > Port `5055` taken? `PORT=5056 npm start` (bash) or `$env:PORT=5056; npm start` (PowerShell).
 
+### Method D: Unraid
+
+The repository includes the Unraid Community Applications metadata in
+[`ca_profile.xml`](ca_profile.xml) and [`templates/plembfin.xml`](templates/plembfin.xml).
+Plembfin appears in the Unraid **Apps** search after the repository has completed the
+Community Applications review process.
+
+Until then, add it from **Docker → Add Container**:
+
+1. Set **Repository** to `ghcr.io/lasikiewicz/plembfin:latest`.
+2. Map `/mnt/user/appdata/plembfin` to the container path `/data`.
+3. Map host port `5055` to container port `5055`.
+4. Leave `ADMIN_PASSWORD` blank to use the one-time claim screen on a fresh install,
+   or set a strong password in the container environment.
+5. Start the container and open `http://<unraid-ip>:5055`.
+
 ---
 
 ## Full Setup Guide
@@ -233,7 +266,7 @@ password there instead of looking for a generated password anywhere.
 Sign in with the administrator credentials from your installation, or claim a fresh
 instance by creating its administrator username and password. Claiming can only be done
 once. Plembfin then opens the guided `/setup` wizard. You can return to it later from
-Settings → **Run setup guide**, and your progress is saved as you go.
+Settings → **Tools → Guided setup**, and your progress is saved as you go.
 
 The wizard has eight stages:
 
@@ -312,7 +345,7 @@ already watched in Plembfin can be marked watched on the server automatically; s
 ## Webhook Setup
 
 Playback events reach Plembfin via webhooks. Each platform's setup guide under
-**Settings → Media servers → Webhooks** includes a ready-to-copy URL with your secret
+**Settings → Webhooks → Setup Guides** includes a ready-to-copy URL with your secret
 already in it - it looks like:
 
 ```
@@ -347,18 +380,19 @@ manual Back Up Now button.
 - **Watch history backups** - snapshots of history, playstates, and resume markers (`data/backups/watch-history`)
 - **Full Plembfin backups** - AES-256-GCM encrypted, includes settings/keys/credentials/history (`data/backups/plembfin`)
 - **Personal watchlist recovery** - full backups include the local canonical watchlist and sync ledger; restore pauses provider delivery until an explicit publish, while watch-history-only backups exclude it
-- **Remote backups** - optional mirror of either type to Backblaze B2, on its own schedule (Settings → Backup / restore → Backup settings → Remote)
+- **Remote backups** - optional mirror of either type to Backblaze B2, on its own schedule (Settings → Backup → Remote)
 
 ---
 
 ## Importing Watch History
 
 **From Trakt (one-time):** export your Trakt watch history as JSON, then upload it under
-**Settings → Import**. Imported watches propagate automatically; use **Full Sync
-Watchstates** afterward to replay everything to a newly connected server.
+**Settings → Connections → Trakt**. Imported watches propagate automatically; use
+**Settings → Sync → Sync Tools → Full Sync Watchstates** afterward to replay everything
+to a newly connected server.
 
-**Live Trakt sync (ongoing):** Settings → Import → **Connect Trakt**, authorize with the
-displayed device code - no Trakt VIP or personal API credentials needed. Once connected,
+**Live Trakt sync (ongoing):** Settings → Connections → Trakt → **Connect Trakt**, authorize
+with the displayed device code - no Trakt VIP or personal API credentials needed. Once connected,
 watched/unwatched state flows both ways every minute, including individual rewatches.
 Disable any Emby/Jellyfin Trakt plugins so Plembfin is the only Trakt writer. See
 [`docs/webhooks.md`](docs/webhooks.md) for how this interacts with other sync sources.
@@ -385,8 +419,10 @@ is in [`.env.example`](.env.example).
 | :--- | :--- | :--- |
 | `PORT` | `5055` | Port the web interface and API listen on. |
 | `DATA_DIR` | `./data` | Directory for the database, configs, and cached posters. |
+| `ROLE` | `all` | Process role: `all`, `web`, or `worker`. |
+| `BUILD_CHANNEL` | `release` | Build-time channel marker used by published images. Do not set manually. |
 | `ADMIN_USERNAME` | `admin` | Default administrator username. |
-| `ADMIN_PASSWORD` | _generated_ | Admin password; a random one is generated and logged if unset. Settings-changed credentials take precedence once set. |
+| `ADMIN_PASSWORD` | _unset_ | Optional bootstrap password. Leave unset on a fresh install to use the one-time claim screen. Settings credentials take precedence after the account is claimed. |
 | `API_KEY` | _generated_ | Token authorizing incoming webhooks and API calls. |
 | `WEBHOOK_SECRET` | _generated_ | Secret for webhook auth; rotatable independently of `API_KEY`. |
 | `SESSION_SECRET` | _generated_ | Signing secret for the session cookie. |
@@ -408,7 +444,7 @@ is in [`.env.example`](.env.example).
 | `WATCHED_PLAYED_SYNC_ENABLED` | `true` | Set `false` to disable watched/played propagation (recording still happens). |
 | `CATCHUP_SYNC_INTERVAL_MS` | `900000` (15m) | Frequency of catch-up library scans. |
 | `PLEX_UNWATCHED_POLL_INTERVAL_MS` | `60000` (1m) | Cadence of the Plex unwatched-reconciliation backstop poll. |
-| `EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED` | `true` | Enables Emby's unwatched backstop poll. |
+| `EMBY_JELLYFIN_UNWATCHED_POLL_ENABLED` | `true` | Enables Emby's unwatched backstop poll and permits Jellyfin's fallback poll; Jellyfin also requires `JELLYFIN_UNWATCHED_POLL_ENABLED=true`. |
 | `JELLYFIN_UNWATCHED_POLL_ENABLED` | `false` | Jellyfin's ambiguous `Played=false` fallback is off by default; explicit Jellyfin unplayed webhooks remain authoritative. If enabled, the false state must repeat within the confirmation window. |
 | `EMBY_UNWATCHED_POLL_INTERVAL_MS` / `JELLYFIN_UNWATCHED_POLL_INTERVAL_MS` | `300000` (5m) each | Cadence of each fallback poll when enabled. |
 | `JELLYFIN_UNWATCHED_CONFIRMATION_WINDOW_MS` | `1200000` (20m) | Window in which Jellyfin must report the same false state twice before the fallback propagates it. |
@@ -497,7 +533,7 @@ after they pass; the retried push must still pass the complete build gate.
 
 Plembfin is licensed under the GNU Affero General Public License v3.0. See
 [LICENSE.md](LICENSE.md). Version history is in [`CHANGELOG.md`](CHANGELOG.md) (also
-shown in **Settings → About**).
+shown in **About**).
 
 ---
 
