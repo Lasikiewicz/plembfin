@@ -73,7 +73,7 @@ existing_container=false
 existing_container_owns_port=false
 if run_runtime container inspect "$CONTAINER_NAME" >/dev/null 2>&1; then
   existing_container=true
-  existing_data="$(run_runtime container inspect --format '{{range .Mounts}}{{if eq .Destination \"/data\"}}{{.Source}}{{end}}{{end}}' "$CONTAINER_NAME" | tr -d '\r\n')"
+  existing_data="$(run_runtime container inspect --format '{{range .Mounts}}{{if eq .Destination "/data"}}{{.Source}}{{end}}{{end}}' "$CONTAINER_NAME" | tr -d '\r\n')"
   if [[ -n "$existing_data" ]]; then
     DATA_DIR="$existing_data"
     echo "Reusing the existing /data mount: $DATA_DIR"
