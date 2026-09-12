@@ -1,8 +1,39 @@
 {
   "baseVersion": "1.0.2",
-  "build": 0,
-  "version": "1.0.2.0.0",
-  "updatedAt": "2026-09-11T16:02:35.110Z",
+  "build": 1,
+  "version": "1.0.2.1",
+  "updatedAt": "2026-09-12T14:17:41.975Z",
   "releaseMessage": "",
-  "entries": []
+  "entries": [
+    {
+      "build": 1,
+      "version": "1.0.2.1",
+      "shortVersion": "1.0.2.1",
+      "date": "2026-09-12T14:17:41.975Z",
+      "commit": "7cf8b354d93424b739c5a9f8db38b73e5e3a4f02",
+      "message": "Feature - Make full-series watch sync reliable",
+      "author": "Lasikiewicz",
+      "details": [
+        "Feature: Make full-series watch sync reliable",
+        "Feature: Mark complete shows watched across seasons with the selected watch date and visible per-episode progress",
+        "Feature: Update open detail, dashboard, and Up Next views from live watch-state events without full-page rerenders",
+        "Feature: Finish local media-server writes before draining a paced, retrying Trakt queue, keep remove/add pairs atomic, and stop queued items on cancellation",
+        "Feature: Improve sync issue matching, retry coverage, and status feedback for failed episode destinations",
+        "Feature: Polish onboarding and login presentation, theme-aware branding, version metadata, and public release documentation"
+      ],
+      "sections": {
+        "newFeatures": [
+          "Make full-series watch sync reliable",
+          "Mark complete shows watched across seasons with the selected watch date and visible per-episode progress",
+          "Update open detail, dashboard, and Up Next views from live watch-state events without full-page rerenders",
+          "Finish local media-server writes before draining a paced, retrying Trakt queue, keep remove/add pairs atomic, and stop queued items on cancellation",
+          "Improve sync issue matching, retry coverage, and status feedback for failed episode destinations",
+          "Polish onboarding and login presentation, theme-aware branding, version metadata, and public release documentation"
+        ],
+        "majorBugFixes": [],
+        "tweaks": []
+      }
+    }
+  ],
+  "shortVersion": "1.0.2.1"
 }
