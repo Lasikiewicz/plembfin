@@ -2,7 +2,53 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import "./domStubs.js";
 
-const { attentionIssueMarkup } = await import("../public/modules/sync-activity.js");
+const { attentionIssueMarkup, renderSyncActivityStatus } = await import("../public/modules/sync-activity.js");
+const { elements, state } = await import("../public/modules/state.js");
+
+test("sync status reflects current activity issues after an otherwise idle run", () => {
+  const previous = {
+    progress: state.syncActivityProgress,
+    issueCount: state.syncActivityCurrentIssueCount,
+    attention: state.syncAttention,
+    attentionCount: state.syncAttentionCount,
+    attentionError: state.syncAttentionError,
+    indicator: elements.syncProgressIndicator,
+    indicatorText: elements.syncProgressText,
+    pageStatus: elements.syncActivityStatus,
+    pageStatusText: elements.syncActivityStatusText,
+  };
+  const indicator = { dataset: {}, title: "" };
+  const indicatorText = { textContent: "" };
+  const pageStatus = { dataset: {} };
+  const pageStatusText = { textContent: "" };
+  elements.syncProgressIndicator = indicator;
+  elements.syncProgressText = indicatorText;
+  elements.syncActivityStatus = pageStatus;
+  elements.syncActivityStatusText = pageStatusText;
+  state.syncActivityProgress = { total: 0, completed: 0, active: false, label: "" };
+  state.syncActivityCurrentIssueCount = 21;
+  state.syncAttention = [];
+  state.syncAttentionCount = 0;
+  state.syncAttentionError = null;
+
+  try {
+    renderSyncActivityStatus();
+    assert.equal(indicatorText.textContent, "Sync - Attention Needed");
+    assert.equal(pageStatusText.textContent, "Sync - Attention Needed");
+    assert.equal(indicator.dataset.syncState, "attention");
+    assert.equal(indicator.dataset.attentionTone, "error");
+  } finally {
+    state.syncActivityProgress = previous.progress;
+    state.syncActivityCurrentIssueCount = previous.issueCount;
+    state.syncAttention = previous.attention;
+    state.syncAttentionCount = previous.attentionCount;
+    state.syncAttentionError = previous.attentionError;
+    elements.syncProgressIndicator = previous.indicator;
+    elements.syncProgressText = previous.indicatorText;
+    elements.syncActivityStatus = previous.pageStatus;
+    elements.syncActivityStatusText = previous.pageStatusText;
+  }
+});
 
 test("restore attention rows expose a target-specific retry action alongside skip", () => {
   const markup = attentionIssueMarkup("restore:run-123:projection-failed", {

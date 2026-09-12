@@ -817,7 +817,18 @@ export function shouldSuppressPlexNotificationEpisodeUnwatch(summary = {}, media
   });
 }
 
-async function includeTrackerDispatch(summary, media, state, lane = "sync") {
+async function includeTrackerDispatch(summary, media, state, lane = "sync", isCancelled = () => false) {
+  if (isCancelled()) {
+    return {
+      ...summary,
+      targetStates: [
+        ...(summary?.targetStates || []),
+        { target: "trakt", status: "cancelled", detail: "Trakt dispatch was cancelled before it started" },
+      ],
+      status: "cancelled",
+      details: [summary?.details, "Trakt dispatch was cancelled before it started"].filter(Boolean).join("; "),
+    };
+  }
   if (restoreBlocksSync(media)) return { ...summary, ...deferredDispatchSummary("Paused while an authoritative watch-history restore is running") };
   // An explicit target list is authoritative. Detail-page Force Sync uses it
   // for destination-specific repairs, which must not also mutate Trakt as an
@@ -837,20 +848,22 @@ async function includeTrackerDispatch(summary, media, state, lane = "sync") {
       details: [summary.details, detail].filter(Boolean).join("; "),
     };
   }
-  const trackerStates = (await dispatchTrackerWatchState(media, state, { lane })).filter((entry) => entry.status !== "skipped");
+  const trackerStates = (await dispatchTrackerWatchState(media, state, { lane, isCancelled })).filter((entry) => entry.status !== "skipped");
   if (!trackerStates.length) return summary;
   const normalized = trackerStates.map((entry) => ({ ...entry, status: entry.status === "failed" ? "error" : entry.status === "not_found" ? "skipped" : entry.status }));
   const targetStates = [...(summary.targetStates || []), ...normalized];
   const successes = targetStates.filter((entry) => entry.status === "success").map((entry) => entry.target);
   const failures = targetStates.filter((entry) => entry.status === "error").map((entry) => entry.target);
   const skipped = targetStates.filter((entry) => entry.status === "skipped").map((entry) => entry.target);
+  const cancelled = targetStates.some((entry) => entry.status === "cancelled");
   return {
     ...summary,
     targetStates,
-    status: failures.length ? (successes.length ? "partial" : "error") : skipped.length ? (successes.length ? "partial" : "skipped") : "success",
+    status: cancelled ? "cancelled" : failures.length ? (successes.length ? "partial" : "error") : skipped.length ? (successes.length ? "partial" : "skipped") : "success",
     details: failures.length
       ? `Synced to ${formatTargets(successes)}; failed ${formatTargets(failures)}`
-      : skipped.length ? `Synced to ${formatTargets(successes)}; no match on ${formatTargets(skipped)}` : `Successfully synced to ${formatTargets(successes)}`,
+      : cancelled ? `Synced to ${formatTargets(successes)}; Trakt dispatch cancelled`
+        : skipped.length ? `Synced to ${formatTargets(successes)}; no match on ${formatTargets(skipped)}` : `Successfully synced to ${formatTargets(successes)}`,
   };
 }
 
@@ -979,7 +992,7 @@ export async function syncCanonicalPlaystate(media, config, kv, state = "watched
 // write has finished. Feeding the local summary back through the same merger
 // preserves the exact combined success/partial/error semantics used by the
 // normal inline path without counting slow Trakt work in local sync progress.
-export async function appendCanonicalTrackerDispatch(summary, media, state = "watched", { lane = "sync" } = {}) {
+export async function appendCanonicalTrackerDispatch(summary, media, state = "watched", { lane = "sync", isCancelled = () => false } = {}) {
   if (!watchedPlayedSyncEnabled() || media?.isValid === false) return summary;
   const canonicalMedia = {
     ...media,
@@ -987,7 +1000,7 @@ export async function appendCanonicalTrackerDispatch(summary, media, state = "wa
     isValid: media?.isValid !== false,
     syncTargets: ["trakt"],
   };
-  return includeTrackerDispatch(summary, canonicalMedia, state, lane);
+  return includeTrackerDispatch(summary, canonicalMedia, state, lane, isCancelled);
 }
 
 export async function primeCanonicalTrackerDispatchIntents(items = []) {

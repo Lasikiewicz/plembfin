@@ -2,7 +2,7 @@
 
 When a website update is requested, carry out the following workflow:
 
-1. Inspect the current website documentation and its verification markers to determine which application baseline it covers. Treat the current website as verified against `v0.14.0.5` unless the website records a newer baseline or a newer baseline is explicitly provided. Review the application and changelog for all changes after that baseline before editing.
+1. Refresh `origin/main` first (`git fetch origin main`) and resolve the latest stable release from that branch's `package.json` or newest `changelog.json` entry. Never use the current `develop` or `alpha` version, a proposed next version, or a hard-coded historical fallback as the new verification baseline. Inspect the current website documentation and its existing `sourceVersion` markers to determine what each page already covers, review the application and changelog for all changes after those markers, and record the resolved latest `main` version on every page that is revalidated.
 2. Start the local plembfin server and the local website preview from the `website` folder, and record the local URLs and relevant environment details.
 3. Review the application source, changelog, release data, and existing website content for all changes after the discovered verification baseline.
 4. Update the website documentation and supporting content so that it accurately reflects the current product, including names, descriptions, routes, controls, behavior, and links. Do not describe removed pages, removed controls, or historical defects as current behavior. If a repair is still useful, put it in a clearly separate troubleshooting or repair note and describe the current command or setting.
@@ -15,13 +15,15 @@ When a website update is requested, carry out the following workflow:
 10. Treat image privacy as a hard release gate. Every image published by the website, including raster captures and SVG assets, must have an explicit entry in `website/capture-privacy.json`. Before committing an image, inspect it for user-identifiable information, including usernames, email addresses, custom server or library names, hostnames, IP addresses, URLs, tokens, account IDs, and private media labels. Blur such content in the image itself, record the redaction in the privacy manifest, and never publish the raw capture. Provider Reviews and public/example Custom Lists are explicit approved exceptions and do not need blurring; keep them unblurred unless the capture also contains unrelated identifying data. Public media titles, cast names, provider ratings, and watch dates are not user-identifiable by themselves and must not be blurred unnecessarily.
 11. Check information architecture while updating: removed landing pages must not remain in the sidebar, page navigation, feature outlines, or cross-links; dedicated Watchlist, Ratings, and Custom Lists pages should be linked directly. Dashboard documentation must describe resume and part-watched items inside **Up Next**, not as a separate current section.
 12. Keep the written guidance compact and present-tense. Use a separate repair note for a still-useful current repair, such as “If the actual episode names are missing, run **Settings → Tools → Database Repairs → Restore Missing Episode Names**”; do not describe an old defect, coordinate-only record, or removed workflow as current behavior. Link every reference to another setting, page, feature, or repair action.
-13. Run the website checks/build after editing, including the capture inventory, duplicate-figure check, and privacy check. Resolve relevant failures, and report the files changed, validation performed, local preview URL, visual findings, and any remaining content discrepancies.
+13. Before committing, use the same resolved latest `main` version in any verification wording or changelog bullet, such as `Mark Getting started as verified against the v<latest-main> application baseline`. Do not copy the page's previous marker into that wording, and do not rewrite an already-published release entry unless the user explicitly asks for a correction. Run the website checks/build after editing, including the capture inventory, duplicate-figure check, and privacy check. Resolve relevant failures, and report the files changed, validation performed, local preview URL, visual findings, and any remaining content discrepancies.
 
 ## Issues found during the current update and how to prevent them
 
 - **Baseline drift:** the website was marked against an older release while the app was
-  already on `0.15.0`. Discover the marker first, compare the source and changelog after
-  that marker, and update every changed page's `sourceVersion` together.
+  already on a newer stable release. Discover each page's existing marker so historical
+  changes are not skipped, but resolve the new marker from the latest `origin/main` release
+  rather than a stale fallback or the current alpha/develop version. Use that same resolved
+  version in the page metadata and any verification wording.
 - **Duplicate documentation:** an all-features page and a combined library page repeated
   the focused page guides. Keep one canonical page per task, use the [Guides](/docs/guides/)
   landing page as an index, and link to the owner instead of copying procedures.

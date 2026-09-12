@@ -1775,6 +1775,46 @@ body.demo-mode #manualWatchReviewButton {
   overflow-y: auto;
 }
 
+/* The locked login is a standalone shell, matching the full-page onboarding
+   flow instead of exposing dashboard navigation before authentication. */
+body.auth-locked .page-shell {
+  display: flex;
+  flex-direction: column;
+}
+
+body.auth-locked .topnav,
+body.auth-locked #pageTopbar {
+  display: none !important;
+}
+
+.auth-view {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.auth-brand {
+  display: flex;
+  flex: 1 1 0;
+  min-height: 5rem;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.auth-brand-logo {
+  width: min(100%, 22rem);
+  height: auto;
+  max-height: 5.5rem;
+  object-fit: contain;
+}
+
+.auth-footer-bar {
+  flex: 1 1 0;
+}
+
 .app-shell {
   display: grid;
   gap: var(--space-3);
@@ -1942,8 +1982,10 @@ body.demo-mode #manualWatchReviewButton {
 
 .auth-panel {
   display: grid;
+  flex: 0 0 auto;
+  width: min(100%, 440px);
   max-width: 440px;
-  margin: 12vh auto 0;
+  margin: 0 auto;
   gap: var(--space-4);
   padding: var(--space-5) var(--space-4);
   text-align: center;
@@ -1980,12 +2022,70 @@ body.demo-mode #manualWatchReviewButton {
 
 .auth-panel .auth-form {
   margin-top: var(--space-2);
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.auth-panel .auth-form .field-label,
+.auth-panel .auth-form .field {
+  min-width: 0;
 }
 
 .auth-panel .button-primary {
   min-height: 2.6rem;
   font-size: 0.85rem;
   justify-self: stretch;
+}
+
+.auth-recovery-help {
+  margin-top: var(--space-1);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+  text-align: left;
+}
+
+.auth-recovery-help > summary {
+  color: var(--blue);
+  cursor: pointer;
+  font-weight: 800;
+  list-style-position: inside;
+}
+
+.auth-recovery-help > summary:focus-visible {
+  outline: 2px solid var(--blue);
+  outline-offset: 3px;
+}
+
+.auth-recovery-help-body {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+}
+
+.auth-recovery-help-body p {
+  margin: 0;
+}
+
+.auth-recovery-help-body strong,
+.auth-recovery-help-body code {
+  color: var(--text);
+}
+
+.auth-recovery-help-body code {
+  padding: 0.08rem 0.25rem;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  background: var(--panel-2);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 0.9em;
+}
+
+.auth-recovery-note {
+  color: var(--muted);
+  font-style: italic;
 }
 
 .muted-copy,
@@ -14081,24 +14181,33 @@ html.light-mode #timeline-view .part-watched-app-badge {
   #timeline-view #upNextDashboardSection,
   #timeline-view .dashboard-history-panel { flex-grow: 0; }
 
-  /* Now Playing: let cards wrap naturally at a good mobile height */
+  /* Now Playing: let the details column set the card height instead of
+     compressing its metadata into the desktop-sized 9rem rail. */
   .page-shell[data-active-view="dashboard"] .now-playing-grid {
     flex: 0 0 auto;
     overflow-x: auto;
     overflow-y: visible;
-    min-height: 10rem;
+    min-height: 10.5rem;
   }
 
   .page-shell[data-active-view="dashboard"] .now-card-large {
     flex: 0 0 auto;
     width: min(88vw, 26rem);
-    height: 9rem;
+    height: auto;
+    min-height: 10.5rem;
     align-items: stretch;
   }
 
   .page-shell[data-active-view="dashboard"] .now-poster-large-wrapper {
-    height: 100%;
-    width: auto;
+    flex: 0 0 7rem;
+    width: 7rem;
+    height: auto;
+    min-height: 10.5rem;
+  }
+
+  .page-shell[data-active-view="dashboard"] .now-card-details {
+    height: auto;
+    overflow: visible;
   }
 
   /* Part Watched: horizontal scroll row with natural card heights */

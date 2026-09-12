@@ -1,0 +1,236 @@
+name: Deploy Public Demo
+
+# Manual, deploy-only refresh for the Oracle-hosted public demo. This never
+# changes a branch or publishes an image; it pulls an existing GHCR release
+# tag and runs the same OCI deployment helper used after Force to main.
+on:
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Existing release version to deploy; blank uses changelog.json on the selected ref"
+        required: false
+        type: string
+      confirm:
+        description: "Type DEPLOY to confirm the public demo deployment"
+        required: true
+        type: string
+      mode:
+        description: "Use inspect to read OCI state without changing the host"
+        required: false
+        default: deploy
+        type: choice
+        options:
+          - deploy
+          - inspect
+          - restore
+
+concurrency:
+  group: deploy-oracle-demo
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    if: ${{ inputs.mode == 'inspect' }}
+    name: Inspect OCI demo host
+    runs-on: ubuntu-latest
+    env:
+      OCI_DEMO_HOST: ${{ vars.OCI_DEMO_HOST }}
+      OCI_DEMO_USER: ${{ vars.OCI_DEMO_USER || 'opc' }}
+      OCI_DEMO_KNOWN_HOSTS: ${{ vars.OCI_DEMO_KNOWN_HOSTS }}
+    steps:
+      - name: Configure pinned OCI SSH access
+        env:
+          OCI_DEMO_SSH_KEY: ${{ secrets.OCI_DEMO_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          for name in OCI_DEMO_HOST OCI_DEMO_KNOWN_HOSTS OCI_DEMO_SSH_KEY; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required GitHub Actions setting: $name" >&2
+              exit 1
+            fi
+          done
+          key_path="$RUNNER_TEMP/plembfin-oci-demo-key"
+          known_hosts_path="$RUNNER_TEMP/plembfin-oci-demo-known-hosts"
+          printf '%s\n' "$OCI_DEMO_SSH_KEY" > "$key_path"
+          printf '%s\n' "$OCI_DEMO_KNOWN_HOSTS" > "$known_hosts_path"
+          chmod 600 "$key_path" "$known_hosts_path"
+          echo "SSH_KEY_PATH=$key_path" >> "$GITHUB_ENV"
+          echo "KNOWN_HOSTS_PATH=$known_hosts_path" >> "$GITHUB_ENV"
+
+      - name: Read OCI runtime state
+        run: |
+          set -euo pipefail
+          ssh_opts=(-i "$SSH_KEY_PATH" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$KNOWN_HOSTS_PATH")
+          ssh "${ssh_opts[@]}" "$OCI_DEMO_USER@$OCI_DEMO_HOST" 'set -eu
+            echo "Architecture: $(uname -m)"
+            echo "Containers:"
+            sudo -n podman ps --all --no-trunc --format "{{.ID}} {{.Names}} {{.Image}} {{.Status}} {{.Ports}}"
+            echo "Images:"
+            sudo -n podman images --no-trunc --format "{{.ID}} {{.Repository}}:{{.Tag}} {{.CreatedSince}}"
+            echo "Listeners:"
+            sudo -n ss -ltnp
+          '
+
+  restore:
+    if: ${{ inputs.mode == 'restore' }}
+    name: Restore cached ARM demo
+    runs-on: ubuntu-latest
+    env:
+      RESTORE_CONFIRMATION: ${{ inputs.confirm }}
+      RELEASE_VERSION_INPUT: ${{ inputs.release_version }}
+      OCI_DEMO_HOST: ${{ vars.OCI_DEMO_HOST }}
+      OCI_DEMO_USER: ${{ vars.OCI_DEMO_USER || 'opc' }}
+      OCI_DEMO_KNOWN_HOSTS: ${{ vars.OCI_DEMO_KNOWN_HOSTS }}
+      OCI_DEMO_CONTAINER: ${{ vars.OCI_DEMO_CONTAINER }}
+      OCI_DEMO_DATA_DIR: ${{ vars.OCI_DEMO_DATA_DIR }}
+      OCI_DEMO_PORT: ${{ vars.OCI_DEMO_PORT || '80' }}
+      OCI_DEMO_RUNTIME: ${{ vars.OCI_DEMO_RUNTIME }}
+    steps:
+      - name: Checkout recovery helper
+        uses: actions/checkout@v7
+
+      - name: Check OCI recovery configuration
+        env:
+          OCI_DEMO_SSH_KEY: ${{ secrets.OCI_DEMO_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          if [ "$RESTORE_CONFIRMATION" != "RESTORE" ]; then
+            echo 'The confirmation input must be exactly RESTORE.' >&2
+            exit 1
+          fi
+          for name in OCI_DEMO_HOST OCI_DEMO_KNOWN_HOSTS OCI_DEMO_CONTAINER OCI_DEMO_DATA_DIR OCI_DEMO_RUNTIME OCI_DEMO_SSH_KEY; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required GitHub Actions setting: $name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Configure pinned OCI SSH access
+        env:
+          OCI_DEMO_SSH_KEY: ${{ secrets.OCI_DEMO_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          key_path="$RUNNER_TEMP/plembfin-oci-demo-key"
+          known_hosts_path="$RUNNER_TEMP/plembfin-oci-demo-known-hosts"
+          printf '%s\n' "$OCI_DEMO_SSH_KEY" > "$key_path"
+          printf '%s\n' "$OCI_DEMO_KNOWN_HOSTS" > "$known_hosts_path"
+          chmod 600 "$key_path" "$known_hosts_path"
+          echo "SSH_KEY_PATH=$key_path" >> "$GITHUB_ENV"
+          echo "KNOWN_HOSTS_PATH=$known_hosts_path" >> "$GITHUB_ENV"
+
+      - name: Restore cached ARM demo container
+        run: |
+          set -euo pipefail
+          remote_script="/tmp/plembfin-oracle-demo-restore-${GITHUB_RUN_ID}.sh"
+          ssh_opts=(-i "$SSH_KEY_PATH" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$KNOWN_HOSTS_PATH")
+          scp "${ssh_opts[@]}" scripts/restore-oracle-demo.sh "$OCI_DEMO_USER@$OCI_DEMO_HOST:$remote_script"
+          trap 'ssh "${ssh_opts[@]}" "$OCI_DEMO_USER@$OCI_DEMO_HOST" "rm -f -- $remote_script" >/dev/null 2>&1 || true' EXIT
+          printf -v remote_command 'chmod 700 %q && sudo -n bash %q %q %q %q %q' \
+            "$remote_script" "$remote_script" "$OCI_DEMO_CONTAINER" "$OCI_DEMO_DATA_DIR" \
+            "$OCI_DEMO_PORT" "$OCI_DEMO_RUNTIME"
+          ssh "${ssh_opts[@]}" "$OCI_DEMO_USER@$OCI_DEMO_HOST" "$remote_command"
+
+      - name: Verify restored public demo
+        run: |
+          set -euo pipefail
+          release_version="$RELEASE_VERSION_INPUT"
+          if [ -z "$release_version" ]; then
+            release_version="$(node -p "require('./changelog.json').version")"
+          fi
+          for attempt in {1..12}; do
+            if node scripts/verify-oracle-demo.js "$release_version"; then
+              exit 0
+            fi
+            if (( attempt == 12 )); then
+              exit 1
+            fi
+            sleep 5
+          done
+
+  deploy:
+    if: ${{ inputs.mode == 'deploy' }}
+    name: Deploy public demo to OCI
+    runs-on: ubuntu-latest
+    env:
+      RELEASE_VERSION_INPUT: ${{ inputs.release_version }}
+      DEPLOY_CONFIRMATION: ${{ inputs.confirm }}
+      OCI_DEMO_HOST: ${{ vars.OCI_DEMO_HOST }}
+      OCI_DEMO_USER: ${{ vars.OCI_DEMO_USER || 'opc' }}
+      OCI_DEMO_KNOWN_HOSTS: ${{ vars.OCI_DEMO_KNOWN_HOSTS }}
+      OCI_DEMO_CONTAINER: ${{ vars.OCI_DEMO_CONTAINER }}
+      OCI_DEMO_DATA_DIR: ${{ vars.OCI_DEMO_DATA_DIR }}
+      OCI_DEMO_PORT: ${{ vars.OCI_DEMO_PORT || '80' }}
+      OCI_DEMO_RUNTIME: ${{ vars.OCI_DEMO_RUNTIME }}
+
+    steps:
+      - name: Checkout selected release metadata and deployment helper
+        uses: actions/checkout@v7
+
+      - name: Resolve and validate release image
+        run: |
+          set -euo pipefail
+          if [ "$DEPLOY_CONFIRMATION" != "DEPLOY" ]; then
+            echo 'The confirmation input must be exactly DEPLOY.' >&2
+            exit 1
+          fi
+          if [ -n "$RELEASE_VERSION_INPUT" ]; then
+            release_version="$RELEASE_VERSION_INPUT"
+          else
+            release_version="$(node -p "require('./changelog.json').version")"
+          fi
+          if [[ ! "$release_version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release version must be a numbered release such as 1.0.2; got: $release_version" >&2
+            exit 1
+          fi
+          echo "RELEASE_VERSION=$release_version" >> "$GITHUB_ENV"
+          echo "RELEASE_IMAGE=ghcr.io/lasikiewicz/plembfin:$release_version" >> "$GITHUB_ENV"
+          echo "Deploying existing image ghcr.io/lasikiewicz/plembfin:$release_version"
+
+      - name: Check OCI deployment configuration
+        env:
+          OCI_DEMO_SSH_KEY: ${{ secrets.OCI_DEMO_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          for name in OCI_DEMO_HOST OCI_DEMO_KNOWN_HOSTS OCI_DEMO_CONTAINER OCI_DEMO_DATA_DIR OCI_DEMO_RUNTIME OCI_DEMO_SSH_KEY; do
+            if [ -z "${!name:-}" ]; then
+              echo "Missing required GitHub Actions setting: $name" >&2
+              exit 1
+            fi
+          done
+          case "$OCI_DEMO_HOST" in
+            *[!A-Za-z0-9.-]* ) echo "OCI_DEMO_HOST must be a hostname or IPv4 address" >&2; exit 1 ;;
+          esac
+          case "$OCI_DEMO_USER" in
+            *[!A-Za-z0-9_.-]* ) echo "OCI_DEMO_USER contains unsupported characters" >&2; exit 1 ;;
+          esac
+
+      - name: Configure pinned OCI SSH access
+        env:
+          OCI_DEMO_SSH_KEY: ${{ secrets.OCI_DEMO_SSH_KEY }}
+        run: |
+          set -euo pipefail
+          key_path="$RUNNER_TEMP/plembfin-oci-demo-key"
+          known_hosts_path="$RUNNER_TEMP/plembfin-oci-demo-known-hosts"
+          printf '%s\n' "$OCI_DEMO_SSH_KEY" > "$key_path"
+          printf '%s\n' "$OCI_DEMO_KNOWN_HOSTS" > "$known_hosts_path"
+          chmod 600 "$key_path" "$known_hosts_path"
+          echo "SSH_KEY_PATH=$key_path" >> "$GITHUB_ENV"
+          echo "KNOWN_HOSTS_PATH=$known_hosts_path" >> "$GITHUB_ENV"
+
+      - name: Deploy the exact release image to OCI
+        run: |
+          set -euo pipefail
+          remote_script="/tmp/plembfin-oracle-demo-${GITHUB_RUN_ID}.sh"
+          ssh_opts=(-i "$SSH_KEY_PATH" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$KNOWN_HOSTS_PATH")
+          scp "${ssh_opts[@]}" scripts/deploy-oracle-demo.sh "$OCI_DEMO_USER@$OCI_DEMO_HOST:$remote_script"
+          trap 'ssh "${ssh_opts[@]}" "$OCI_DEMO_USER@$OCI_DEMO_HOST" "rm -f -- $remote_script" >/dev/null 2>&1 || true' EXIT
+          printf -v remote_command 'chmod 700 %q && sudo -n bash %q %q %q %q %q %q' \
+            "$remote_script" "$remote_script" "$RELEASE_IMAGE" "$OCI_DEMO_CONTAINER" \
+            "$OCI_DEMO_DATA_DIR" "$OCI_DEMO_PORT" "$OCI_DEMO_RUNTIME"
+          ssh "${ssh_opts[@]}" "$OCI_DEMO_USER@$OCI_DEMO_HOST" "$remote_command"
+
+      - name: Verify the released demo
+        run: node scripts/verify-oracle-demo.js "$RELEASE_VERSION"

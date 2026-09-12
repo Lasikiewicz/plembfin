@@ -5,6 +5,8 @@ import path from "node:path";
 
 const appSource = fs.readFileSync(path.resolve(import.meta.dirname, "../public/app.js"), "utf8");
 const appEventsSource = fs.readFileSync(path.resolve(import.meta.dirname, "../public/modules/app-events.js"), "utf8");
+const indexSource = fs.readFileSync(path.resolve(import.meta.dirname, "../public/index.html"), "utf8");
+const bundledVersion = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, "../changelog.json"), "utf8")).version;
 
 test("media-detail startup reads the bundled version without a remote changelog check", () => {
   assert.match(appSource, /checksForUpdates \? "\/api\/changelog\?refresh=1" : "\/changelog\.json"/);
@@ -13,6 +15,13 @@ test("media-detail startup reads the bundled version without a remote changelog 
 
 test("the version badge opens the dedicated changelog route", () => {
   assert.match(appEventsSource, /elements\.appVersion\?\.addEventListener\("click", \(\) => \{[\s\S]*?navigateTo\("\/settings\/changelog"\)/);
+});
+
+test("the About page uses the installed release metadata", () => {
+  assert.match(indexSource, new RegExp(`id="aboutCurrentVersion">v${String(bundledVersion).replaceAll(".", "\\.")}`));
+  assert.match(appSource, /function updateAboutVersion\(data\)[\s\S]*?aboutCurrentVersion\.textContent/);
+  assert.match(appSource, /const current = data\.current \|\| data\.version/);
+  assert.match(appSource, /updateAboutVersion\(data\);/);
 });
 
 test("diagnostic logs are fetched only while the Logs panel is visible", () => {

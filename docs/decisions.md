@@ -400,3 +400,27 @@ would have left the wrong identity stored and the records still unmatched.
 **Enforced by:** `server/src/utils/seriesIdentity.js`, `repairEpisodeSeriesIdentity()` and
 `seriesIdsForShowTitle()` in `server/src/utils/dataRepo.js`, and the repair's invocation in
 `server/src/workerCoordinator.js`.
+
+---
+
+### 17. Trakt history writes are paced, retried, and cancelled between canonical items
+**Date:** 2026-09-12  |  **Status:** Active
+
+**Context:** Marking a long TV series watched can enqueue hundreds of Trakt history
+remove/add requests. The normal outbound governor prevents unbounded concurrency but still
+allowed a burst large enough for Trakt to return `429`, leaving a show partially synced.
+Cancelling between the remove and add halves of one canonical replay could also leave that
+item in an indeterminate state.
+
+**Decision:** Serialize Trakt write starts with a short interval, retry rate-limited writes
+with bounded backoff, and reserve one queue slot for each canonical remove/add pair. A
+cancellation prevents the next item from starting but never interrupts the pair already in
+flight. Local media-server writes remain a separate, concurrent phase that completes before
+the Trakt queue is drained.
+
+**Rejected:** Launching every Trakt write through the general outbound pool, which recreates
+the burst that triggers `429`, and checking cancellation between the remove and add requests,
+which can leave Trakt with neither the old history nor the replacement history.
+
+**Enforced by:** `trackerDispatcher.js`, `syncOrchestrator.js`, `mediaForceSync.js`, and
+`test/mediaForceSyncTrackerPhases.test.js`.

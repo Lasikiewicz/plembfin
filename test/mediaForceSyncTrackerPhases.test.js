@@ -167,7 +167,11 @@ function deferred() {
   return { promise, resolve };
 }
 
-async function waitFor(predicate, message, timeoutMs = 10_000) {
+// A detail Force Sync must finish its local media-server phase before the
+// deferred Trakt phase can begin. The mocked LAN path still exercises lookup,
+// lease, progress-clear, and played-state calls for every episode, so allow
+// enough headroom for a Windows CI worker under the full test suite.
+async function waitFor(predicate, message, timeoutMs = 30_000) {
   const startedAt = Date.now();
   while (!predicate()) {
     if (Date.now() - startedAt > timeoutMs) throw new Error(message);
@@ -493,7 +497,7 @@ test("all local writes finish before gated Trakt work can occupy the detail Forc
   try {
     operation = forceSyncMediaState({ type: "show", title, tmdb_id: tmdbId, mode: "push" }, { config: embyOnlyConfig() });
     operation.then(() => { settled = true; }, () => { settled = true; });
-    await waitFor(() => traktCalls >= 2, "Trakt phase did not start");
+    await waitFor(() => traktCalls >= 1, "Trakt phase did not start");
 
     assert.equal(localWrites.size, 8);
     assert.equal(localCountAtFirstTraktCall, 8, "Trakt must not start before item 7+ finish locally");
@@ -599,7 +603,7 @@ test("cancellation lets in-flight Trakt items finish and prevents new ones from 
       { type: "show", title, tmdb_id: tmdbId, mode: "push" },
       { config: embyOnlyConfig(), isCancelled: () => cancelRequested },
     );
-    await waitFor(() => traktRemoveCalls === 2, "two-worker Trakt phase did not start");
+    await waitFor(() => traktRemoveCalls === 1, "Trakt phase did not start");
     assert.equal(localWrites.size, 8);
 
     cancelRequested = true;
@@ -608,11 +612,11 @@ test("cancellation lets in-flight Trakt items finish and prevents new ones from 
     const result = await operation;
 
     assert.equal(result.cancelled, true);
-    assert.equal(traktRemoveCalls, 2, "no new canonical Trakt item may start after cancellation");
-    assert.equal(traktAddCalls, 2, "the two in-flight remove/add pairs must finish atomically");
-    assert.equal(result.results.filter((item) => item.status === "success").length, 2);
-    assert.equal(result.results.filter((item) => item.status === "cancelled").length, 6);
-    assert.equal(result.synced, 2, "cancelled Tracker work must not be counted as fully synced");
+    assert.equal(traktRemoveCalls, 1, "no new canonical Trakt item may start after cancellation");
+    assert.equal(traktAddCalls, 1, "the in-flight remove/add pair must finish atomically");
+    assert.equal(result.results.filter((item) => item.status === "success").length, 1);
+    assert.equal(result.results.filter((item) => item.status === "cancelled").length, 7);
+    assert.equal(result.synced, 1, "cancelled Tracker work must not be counted as fully synced");
     assert.ok(result.results.every((item) => item.targetStates.some((target) => target.target === "emby" && target.status === "success")));
     assert.ok(result.results.filter((item) => item.status === "cancelled").every(
       (item) => item.targetStates.some((target) => target.target === "trakt" && target.status === "cancelled"),

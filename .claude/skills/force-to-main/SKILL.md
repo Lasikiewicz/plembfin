@@ -1,6 +1,6 @@
 ---
 name: force-to-main
-description: "Promote plembfin alpha current tip onto main as a single release. Use when the user says \"Force to main\" exactly. Runs the mandatory website and README checks, then covers the changelog preview and required user approval, promote-alpha-to-main.js --confirm, the force-push to main, the hosted-demo refresh, and the synchronized develop update."
+description: "Promote plembfin alpha current tip onto main as a single release. Use when the user says \"Force to main\" exactly. Runs the mandatory website and README checks, then covers the changelog preview and required user approval, promote-alpha-to-main.js --confirm, the force-push to main, the OCI public-demo refresh, and the synchronized develop update."
 ---
 
 # Force to main
@@ -134,34 +134,35 @@ promotion and investigate the repeatable failure. Never use `--no-verify`.
 `update-changelog.yml` (workflow name "Publish Main Release") reads the version already
 in this commit, checks README consistency, runs the build gate again in CI, and publishes
 `:latest` + `:<version>` - it does not write anything back. Wait for this workflow to
-finish successfully before refreshing the hosted demo. Optionally confirm it succeeded:
+finish successfully before checking the OCI demo deployment. Optionally confirm it succeeded:
 ```bash
 gh run list --branch main --limit 1
 ```
 
-### 6 - Rebuild and verify the hosted demo
+### 6 - Rebuild and verify the OCI public demo
 
-Publishing GHCR does not pull or restart the hosted demo. The live demo at
-`https://plembfin.lasikie.co.uk/` is the `plembfin` Compose stack in Portainer, and its
-release container must use `ghcr.io/lasikiewicz/plembfin:latest` with
-`BUILD_CHANNEL=main`. After the main publish workflow succeeds:
+Publishing GHCR does not pull or restart the public demo. The live demo at
+`https://demo.plembfin.com/` is served by the dedicated Oracle Cloud Compute instance
+in `uk-london-1`, behind the Cloudflare reverse proxy. Portainer is local-only and is
+not part of this release gate.
 
-1. Open [Portainer](https://portainer.lasikie.co.uk/), then open **Stacks → plembfin →
-   Editor**.
-2. Confirm the stack definition uses `image: ghcr.io/lasikiewicz/plembfin:latest` and
-   `BUILD_CHANNEL=main` (never `:develop`/`BUILD_CHANNEL=develop`), then select **Update
-   the stack**. When Portainer offers a pull/recreate choice, pull the latest image.
-3. Confirm the `plembfin` container is healthy and still uses the existing
-   `plembfin_data:/data` volume. Do not delete or re-seed the demo data volume.
-4. Open the live URL and verify the About/version display matches the newly released
-   version. Smoke-test the release-specific UI: clicking the bottom-left version opens
-   the Changelog, completed onboarding does not keep showing **Complete onboarding**,
-   and a Manual Watch review count does not reset to `0` when changing pages.
+The `Publish Main Release` workflow now builds an AMD64/ARM64 image and its dependent
+`Deploy public demo to OCI` job copies `scripts/deploy-oracle-demo.sh` to the instance
+over pinned SSH, pulls the exact `ghcr.io/lasikiewicz/plembfin:<version>` tag, and
+recreates only the configured demo container while preserving its `/data` mount. It
+then runs `scripts/verify-oracle-demo.js` against `https://demo.plembfin.com/`.
+
+Before the first release using this gate, configure the repository's GitHub Actions
+variables `OCI_DEMO_HOST`, `OCI_DEMO_KNOWN_HOSTS`, `OCI_DEMO_CONTAINER`,
+`OCI_DEMO_DATA_DIR`, and `OCI_DEMO_RUNTIME` (`podman` or `docker`). The optional
+variables `OCI_DEMO_USER` and `OCI_DEMO_PORT` default to `opc` and `80`. Configure
+`OCI_DEMO_SSH_KEY` as a repository or environment secret for the `opc` account. The
+instance must have the selected runtime installed and passwordless `sudo` for `opc`.
+If any setting is missing, the deploy, or the released-version verification fails, stop
+and report the release as incomplete rather than claiming that the demo is current.
 
 Do not call `npm run demo:assets` or `npm run demo:seed` as part of this refresh; those
-commands prepare fixture content and are separate from pulling the released image. If
-the image publish, stack update, health check, or live smoke test fails, stop and report
-the release as incomplete rather than claiming that the demo is current.
+commands prepare fixture content and are separate from pulling the released image.
 
 ### 7 - Synchronize develop to the new main version
 ```bash

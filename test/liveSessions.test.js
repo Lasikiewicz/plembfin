@@ -4,11 +4,41 @@ import { makeTempDataDir } from "./helpers.js";
 
 makeTempDataDir("plembfin-live-sessions-");
 const {
+  canInferLiveSessionCompletion,
   isSessionActive,
+  isStaleLiveSessionRow,
+  LIVE_SESSION_COMPLETION_MAX_AGE_MS,
   isTerminalLiveSession,
   parsePlexSessions,
   sessionIdentity,
 } = await import("../server/src/utils/liveSessions.js");
+
+test("stale live-session cache rows are not trusted as completion evidence", () => {
+  const now = Date.UTC(2026, 8, 12, 10, 0, 0);
+  assert.equal(
+    isStaleLiveSessionRow({ updated_at: now - LIVE_SESSION_COMPLETION_MAX_AGE_MS + 1 }, now),
+    false,
+  );
+  assert.equal(
+    isStaleLiveSessionRow({ updated_at: now - LIVE_SESSION_COMPLETION_MAX_AGE_MS - 1 }, now),
+    true,
+  );
+  assert.equal(isStaleLiveSessionRow({ updated_at: 0 }, now), true);
+  assert.equal(
+    canInferLiveSessionCompletion({
+      updated_at: now - 1_000,
+      payload_json: JSON.stringify({ playbackState: "playing" }),
+    }, now),
+    true,
+  );
+  assert.equal(
+    canInferLiveSessionCompletion({
+      updated_at: now - 1_000,
+      payload_json: JSON.stringify({ playbackState: "paused", paused: true }),
+    }, now),
+    false,
+  );
+});
 
 test("live sessions are terminal only when playback has reached the final grace window", () => {
   assert.equal(isTerminalLiveSession({ offsetMs: 3_590_000, durationMs: 3_600_000 }), true);

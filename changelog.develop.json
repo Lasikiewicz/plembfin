@@ -1,7 +1,22 @@
 {
   "version": "1.0.2",
-  "build": 1,
+  "build": 5,
   "resetCommit": "9f04d77a99186fad40fa6b812a8ef403e940c0f3",
-  "updatedAt": "2026-09-11T16:02:35.110Z",
-  "entries": []
+  "updatedAt": "2026-09-12T14:14:59.068Z",
+  "entries": [
+    {
+      "build": 5,
+      "date": "2026-09-12T14:14:59.068Z",
+      "commit": "9593924a908628e02b091ee0acbd68221568f7ab",
+      "message": "Feature - Make full-series watch sync reliable",
+      "author": "Lasikiewicz",
+      "details": [
+        "Mark complete shows watched across seasons with the selected watch date and visible per-episode progress",
+        "Update open detail, dashboard, and Up Next views from live watch-state events without full-page rerenders",
+        "Finish local media-server writes before draining a paced, retrying Trakt queue, keep remove/add pairs atomic, and stop queued items on cancellation",
+        "Improve sync issue matching, retry coverage, and status feedback for failed episode destinations",
+        "Polish onboarding and login presentation, theme-aware branding, version metadata, and public release documentation"
+      ]
+    }
+  ]
 }

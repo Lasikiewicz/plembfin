@@ -143,22 +143,35 @@ function aliasesIntersect(left, right) {
 }
 
 // Resolving a candidate's playstate used to re-derive an identity for every
-// playstate row on every lookup: a full map + aliasesFor over the whole table,
-// then a sort, per episode examined. With a real library that is 8k rows
+// canonical-state row on every lookup: a full map + aliasesFor over the whole
+// table, then a sort, per episode examined. With a real library that is 8k rows
 // rebuilt tens of thousands of times, and because better-sqlite3 and this
 // normalization are synchronous it blocked the event loop for a full minute -
 // long enough to stall every HTTP request and to let the 60s scheduler lease
 // expire, which is what surfaced as the app freezing.
 //
-// The rows are instead normalized once per projection into an alias index.
+// The canonical rows are instead normalized once per projection into an alias index.
 // Lookup then touches only the candidate's own aliases.
-function buildPlaystateIndex(playstateRows = []) {
+function buildCanonicalStateIndex(playstateRows = [], episodeRows = [], showIdentities = null) {
   const byAlias = new Map();
-  playstateRows.forEach((row, order) => {
+  const stateRows = [
+    ...playstateRows.map((row) => ({ row, state: row.state })),
+    ...episodeRows.map((row) => ({
+      row,
+      // Watch history is the canonical local record for manual and imported
+      // watches. An explicit unwatch remains a state transition; a legacy
+      // row with no sync_action is a watched row.
+      state: ["unwatched", "unplayed"].includes(String(row.sync_action || "watched").toLowerCase())
+        ? "unwatched"
+        : "watched",
+    })),
+  ];
+  stateRows.forEach(({ row, state }, order) => {
     const updatedAt = number(row.updated_at);
-    for (const alias of upNextIdentityAliases(rowCandidate(row, { queueKind: "next_up" }))) {
+    const stateRow = { ...row, state };
+    for (const alias of upNextIdentityAliases(rowCandidate(stateRow, { queueKind: "next_up", showIdentities }))) {
       const existing = byAlias.get(alias);
-      if (!existing || updatedAt > existing.updatedAt) byAlias.set(alias, { row, updatedAt, order });
+      if (!existing || updatedAt > existing.updatedAt) byAlias.set(alias, { row: stateRow, updatedAt, order });
     }
   });
   return byAlias;
@@ -659,11 +672,11 @@ async function localNextUpCandidates({
   playstateIndex,
   progressCandidates,
   providerCandidates = [],
+  episodeRows = [],
   today,
 }) {
   // Every show resolves against the same episode snapshot, so read and dedupe
   // the episode table once for the whole pass rather than once per show.
-  const episodeRows = loadTrackedEpisodeRows();
   const selectedShows = (Array.isArray(shows) ? shows : [])
     .filter((show) => Number(show.episode_count || 0) > 0)
     .sort((left, right) => (
@@ -703,7 +716,6 @@ export async function buildUpNextProjection({
   localFallback = true,
 } = {}) {
   const rawProgressRows = progressRows || selectProgressRowsStmt.all();
-  const playstateIndex = buildPlaystateIndex(playstateRows || selectPlaystateRowsStmt.all());
   const observations = (providerItems || listActiveUpNextProviderItems()).slice(0, MAX_PROVIDER_OBSERVATIONS);
   const rawProviderCandidates = observations.map((item) => normalizeUpNextCandidate(item));
   const showRows = shows || ((localFallback || rawProviderCandidates.some((candidate) => candidate.queue_kind === "next_up"))
@@ -713,6 +725,18 @@ export async function buildUpNextProjection({
   // canonical key is built. Applying this only after merge is too late: an
   // episode-id key and a series-id key have already become separate groups.
   const showIdentities = showIdentityIndex(showRows);
+  // Provider Next Up observations can use a native series key while manual
+  // and imported watches live in watch_history under an external-id key. Use
+  // both stores when deciding whether an episode is still actionable so a
+  // provider feed cannot resurrect a locally watched episode between syncs.
+  const trackedEpisodeRows = (localFallback || rawProviderCandidates.some((candidate) => candidate.media_type === "episode"))
+    ? loadTrackedEpisodeRows()
+    : [];
+  const playstateIndex = buildCanonicalStateIndex(
+    playstateRows || selectPlaystateRowsStmt.all(),
+    trackedEpisodeRows,
+    showIdentities,
+  );
   const showRecency = showRecencyIndex(showRows);
   const canonicalResume = rawProgressRows
     .map((row) => rowCandidate(row, { queueKind: "resume", canonical: true, showIdentities }))
@@ -746,6 +770,7 @@ export async function buildUpNextProjection({
       playstateIndex,
       progressCandidates: canonicalResume,
       providerCandidates,
+      episodeRows: trackedEpisodeRows,
       today: new Date(now).toISOString().slice(0, 10),
     });
   }

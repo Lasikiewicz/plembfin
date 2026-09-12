@@ -21,7 +21,7 @@ import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, 
 import { initEditDialogs, openEditDateDialog, openEditShowDateDialog, openEditSeasonDateDialog, openEditImageDialog, openFixMatchDialog, openMergeShowDialog, applyWatchedAtToLocalWatchRecord, editDateOptionsFromButton } from "./modules/edit-dialogs.js?v=1.0.2.0.0";
 import { initWatchAction, openWatchDatePrompt, closeWatchDatePrompt, submitSeerrRequest, markMovieWatched, refreshShowAfterManualWatch, applyWatchDateChoice, confirmAndMarkUnwatched, confirmAndDeleteMedia } from "./modules/watch-action.js?v=1.0.2.0.0";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails, resolveEpisodeTitleFromTmdb } from "./modules/tmdb.js?v=1.0.2.0.0";
-import { initMediaDetail, movieBySlugOrId, nowPlayingHref, openMovieInlineDetail, openShowInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, renderImmersiveShowModal, renderShowModalContent, patchShowModalEpisodeFromLive, patchShowModalEpisodesSavingState, renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus, patchMovieWatchedState } from "./modules/media-detail.js?v=1.0.2.0.0";
+import { initMediaDetail, movieBySlugOrId, nowPlayingHref, openMovieInlineDetail, openShowInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, renderImmersiveShowModal, patchShowModalEpisodeFromLive, patchShowModalEpisodesSavingState, syncShowModalWatchActionControls, renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus, patchMovieWatchedState } from "./modules/media-detail.js?v=1.0.2.0.0";
 import { applyLiveHistoryChanges, refreshActiveDetailView } from "./modules/media-detail-events.js?v=1.0.2.0.0";
 import { initMediaPerson, closePersonProfile, loadCastMemberDetails } from "./modules/media-person.js?v=1.0.2.0.0";
 import { initMediaLightbox } from "./modules/media-lightbox.js?v=1.0.2.0.0";
@@ -55,9 +55,9 @@ const THEME_KEY = "plembfin:theme";
 function updateThemeIcon() {
   const isLightMode = document.documentElement.classList.contains("light-mode");
   const src = isLightMode ? "/plembfin_header_logo_light.png" : "/plembfin_header_logo_dark.png";
-  // Two logos can exist at once - the (hidden) sidebar's and the setup
-  // wizard's own copy above its steps - both need to track the theme.
-  for (const logo of document.querySelectorAll(".brand-logo")) {
+  // Several logos can exist at once - the sidebar, setup wizard, and locked
+  // login panel all need to track the selected theme.
+  for (const logo of document.querySelectorAll(".brand-logo, [data-theme-logo]")) {
     logo.src = src;
   }
 }
@@ -151,9 +151,12 @@ function bindElements() {
     changelogRefreshButton: document.querySelector("#changelogRefreshButton"),
     aboutCurrentVersion: document.querySelector("#aboutCurrentVersion"),
     aboutReleaseChannel: document.querySelector("#aboutReleaseChannel"),
+    authView: document.querySelector("#authView"),
     authForm: document.querySelector("#authForm"),
     authPanel: document.querySelector("#authPanel"),
     authPanelSignIn: document.querySelector("#authPanelSignIn"),
+    authFooterBar: document.querySelector("#authFooterBar"),
+    authFooterBarMeta: document.querySelector("#authFooterBarMeta"),
     claimPanel: document.querySelector("#claimPanel"),
     claimForm: document.querySelector("#claimForm"),
     claimUsername: document.querySelector("#claimUsername"),
@@ -432,7 +435,29 @@ function versionDisplayLabel(version, channel, alphaBuild, developBuild) {
   return version || "";
 }
 
+function updateAboutVersion(data) {
+  if (!data) return;
+
+  const channel = data.channel || "release";
+  const current = data.current || data.version;
+  const label = versionDisplayLabel(current, channel, data.alphaBuild, data.developBuild);
+
+  if (elements.aboutCurrentVersion && label) {
+    const labelPrefix = channel === "develop" ? "" : "v";
+    elements.aboutCurrentVersion.textContent = `${labelPrefix}${label}`;
+  }
+
+  if (elements.aboutReleaseChannel) {
+    elements.aboutReleaseChannel.textContent = channel === "develop"
+      ? "Develop"
+      : channel === "alpha"
+        ? "Alpha"
+        : "Latest";
+  }
+}
+
 function updateVersionBadge(data) {
+  updateAboutVersion(data);
   if (!elements.appVersion || !data?.current) return;
   const label = versionDisplayLabel(data.current, data.channel, data.alphaBuild, data.developBuild);
   const newerDevelopBuild = data.channel === "develop" && Boolean(data.developBuild?.newerBuildAvailable);
@@ -475,7 +500,7 @@ async function loadAppVersion() {
         state.changelog = data;
         updateVersionBadge(data);
       } else {
-        updateVersionBadge({ current: data.version });
+        updateVersionBadge({ current: data.version, channel: "release" });
       }
     }
   } catch {
@@ -1281,7 +1306,10 @@ function applyDemoUiRestrictions(isUnlocked = !elements.appShell?.classList.cont
 
 function setUnlocked(isUnlocked) {
   const showPreClaimSetup = !isUnlocked && state.claimRequired === true;
-  elements.authPanel.classList.toggle("hidden", isUnlocked || showPreClaimSetup);
+  const showAuthView = !isUnlocked && !showPreClaimSetup;
+  document.body.classList.toggle("auth-locked", showAuthView);
+  elements.authView?.classList.toggle("hidden", !showAuthView);
+  elements.authPanel.classList.toggle("hidden", !showAuthView);
   elements.appShell.classList.toggle("hidden", !isUnlocked && !showPreClaimSetup);
   elements.lockButton.classList.toggle("hidden", !isUnlocked);
   applyDemoUiRestrictions(isUnlocked);
@@ -1298,6 +1326,7 @@ function setUnlocked(isUnlocked) {
     elements.statusPill.setAttribute("aria-label", isUnlocked ? "Unlocked session" : "Locked session");
     elements.statusPill.title = isUnlocked ? "Unlocked" : "Locked";
   }
+  applyActiveView();
 }
 
 function setLoginAutocompleteEnabled(enabled) {
@@ -2029,17 +2058,18 @@ function applyActiveView() {
   localStorage.setItem(ACTIVE_VIEW_KEY, state.activeView);
   applyDemoUiRestrictions();
   document.querySelector(".page-shell")?.setAttribute("data-active-view", state.activeView);
-  // The setup wizard is a full-page flow - the sidebar and page topbar are
-  // not meant to be reachable mid-onboarding, so hide both entirely rather
-  // than let someone click away before finishing (the wizard has its own
-  // "Exit to Settings" action for that, plus its own step heading in place of
-  // the topbar's title). The theme toggle and version move into a small
-  // bottom-center bar so they stay reachable without the rest of the sidebar.
+  // The setup wizard and locked login are full-page flows - the sidebar and
+  // page topbar are not useful there, so hide both entirely. Each shell keeps
+  // the version and theme controls in its own bottom-center bar so they stay
+  // reachable without the rest of the sidebar.
   const isSetupView = state.activeView === "setup";
-  document.querySelector(".topnav")?.classList.toggle("hidden", isSetupView);
-  document.querySelector("#pageTopbar")?.classList.toggle("hidden", isSetupView);
+  const isAuthView = document.body.classList.contains("auth-locked");
+  document.querySelector(".topnav")?.classList.toggle("hidden", isSetupView || isAuthView);
+  document.querySelector("#pageTopbar")?.classList.toggle("hidden", isSetupView || isAuthView);
   const setupFooterBar = document.querySelector("#setupFooterBar");
+  const authFooterBar = elements.authFooterBar;
   setupFooterBar?.classList.toggle("hidden", !isSetupView);
+  authFooterBar?.classList.toggle("hidden", !isAuthView);
   if (elements.appVersion && elements.themeToggleButton) {
     if (isSetupView && setupFooterBar) {
       const meta = elements.setupFooterBarMeta || setupFooterBar;
@@ -2047,6 +2077,11 @@ function applyActiveView() {
       meta.appendChild(elements.themeToggleButton);
       // The changelog it links to isn't relevant mid-onboarding; keep the
       // version number visible but not clickable there.
+      elements.appVersion.disabled = true;
+    } else if (isAuthView && authFooterBar) {
+      const meta = elements.authFooterBarMeta || authFooterBar;
+      meta.appendChild(elements.appVersion);
+      meta.appendChild(elements.themeToggleButton);
       elements.appVersion.disabled = true;
     } else if (!isSetupView) {
       const sidebarFooter = document.querySelector(".sidebar-footer");
@@ -2473,6 +2508,8 @@ let liveHistoryRefreshActive = false;
 let liveHistoryRefreshQueued = false;
 const pendingLiveHistoryChanges = new Map();
 let liveHistoryFullRefreshQueued = false;
+let activeDetailLivePatchPromise = Promise.resolve();
+const activeDetailLiveAppliedChanges = new Map();
 
 function liveHistoryChangeKey(change = {}) {
   return String(
@@ -2482,6 +2519,33 @@ function liveHistoryChangeKey(change = {}) {
       ?? change.record_id
       ?? `${change.sourceTable || change.source_table || "change"}:${change.season ?? ""}:${change.episode ?? ""}`,
   ).trim();
+}
+
+// An open show detail should not wait for the sync-idle debounce before it
+// reflects a watch-history SSE event. Queue these lightweight row patches
+// independently of the broader dashboard/history refresh; the latter can
+// still wait for the sync burst to settle without making the detail page look
+// stuck on "Saving…".
+function queueActiveDetailLivePatch(changes = []) {
+  if (!state.activeShowRenderContext?.show || !Array.isArray(changes) || !changes.length) return;
+  const detailChanges = changes.filter((change) => {
+    const mediaType = String(change.mediaType || change.media_type || "").toLowerCase();
+    return !mediaType || mediaType === "episode" || mediaType === "movie";
+  });
+  if (!detailChanges.length) return;
+  activeDetailLivePatchPromise = activeDetailLivePatchPromise
+    .catch(() => {})
+    .then(async () => {
+      const applied = await applyLiveHistoryChanges(detailChanges);
+      if (applied < detailChanges.length) return;
+      for (const change of detailChanges) {
+        const key = liveHistoryChangeKey(change);
+        if (key && pendingLiveHistoryChanges.get(key) === change) {
+          activeDetailLiveAppliedChanges.set(key, change);
+        }
+      }
+    })
+    .catch((error) => logDebug(`Live detail item patch failed: ${error.message}`));
 }
 
 function queueLiveHistoryRefresh({ immediate = false, changes = [], fullRefresh = false } = {}) {
@@ -2495,6 +2559,7 @@ function queueLiveHistoryRefresh({ immediate = false, changes = [], fullRefresh 
   // an empty change list into a full refresh rebuilt the open detail page a
   // second time after the affected episode had already patched.
   if (fullRefresh) liveHistoryFullRefreshQueued = true;
+  queueActiveDetailLivePatch(incomingChanges);
   if (!pendingLiveHistoryChanges.size && !liveHistoryFullRefreshQueued) return;
   liveHistoryRefreshQueued = true;
 
@@ -2525,20 +2590,39 @@ function queueLiveHistoryRefresh({ immediate = false, changes = [], fullRefresh 
 
   liveHistoryRefreshTimer = window.setTimeout(() => {
     liveHistoryRefreshTimer = null;
-    if (!immediate && isAnySyncRunning()) {
-      liveHistoryRefreshQueued = true;
-      return;
-    }
-    if (liveHistoryRefreshActive) return;
-    const changesToApply = [...pendingLiveHistoryChanges.values()];
-    const fullRefresh = liveHistoryFullRefreshQueued;
-    pendingLiveHistoryChanges.clear();
-    liveHistoryFullRefreshQueued = false;
-    refreshLiveHistoryView({ changes: changesToApply, fullRefresh }).catch((error) => logDebug(`Live history refresh failed: ${error.message}`));
+    const drain = async () => {
+      if (!immediate && isAnySyncRunning()) {
+        liveHistoryRefreshQueued = true;
+        return;
+      }
+      // Do not let the broader refresh race the direct in-place detail patch.
+      // This also lets the dedupe below prevent a second replacement of the
+      // same episode node after the SSE update has already painted it.
+      while (true) {
+        const detailPatch = activeDetailLivePatchPromise;
+        await detailPatch;
+        if (detailPatch === activeDetailLivePatchPromise) break;
+      }
+      if (!immediate && isAnySyncRunning()) {
+        liveHistoryRefreshQueued = true;
+        return;
+      }
+      if (liveHistoryRefreshActive) return;
+      const changesToApply = [...pendingLiveHistoryChanges.values()];
+      const fullRefresh = liveHistoryFullRefreshQueued;
+      pendingLiveHistoryChanges.clear();
+      const detailChangesAlreadyApplied = changesToApply.filter((change) => (
+        activeDetailLiveAppliedChanges.get(liveHistoryChangeKey(change)) === change
+      ));
+      for (const change of changesToApply) activeDetailLiveAppliedChanges.delete(liveHistoryChangeKey(change));
+      liveHistoryFullRefreshQueued = false;
+      refreshLiveHistoryView({ changes: changesToApply, detailChangesAlreadyApplied, fullRefresh }).catch((error) => logDebug(`Live history refresh failed: ${error.message}`));
+    };
+    drain().catch((error) => logDebug(`Live history refresh drain failed: ${error.message}`));
   }, delayMs);
 }
 
-async function refreshLiveHistoryView({ changes = [], fullRefresh = false } = {}) {
+async function refreshLiveHistoryView({ changes = [], detailChangesAlreadyApplied = [], fullRefresh = false } = {}) {
   if (liveHistoryRefreshActive) return;
   liveHistoryRefreshActive = true;
   liveHistoryRefreshQueued = false;
@@ -2546,7 +2630,9 @@ async function refreshLiveHistoryView({ changes = [], fullRefresh = false } = {}
     if (!fullRefresh && changes.length) {
       const reviewChanges = changes.filter((change) => String(change.sourceTable || change.source_table || "").toLowerCase() === "manual_watch_reviews");
       const historyChanges = changes.filter((change) => String(change.sourceTable || change.source_table || "").toLowerCase() !== "manual_watch_reviews");
-      if (historyChanges.length) await applyLiveHistoryChanges(historyChanges);
+      const appliedKeys = new Set(detailChangesAlreadyApplied.map(liveHistoryChangeKey));
+      const historyChangesToApply = historyChanges.filter((change) => !appliedKeys.has(liveHistoryChangeKey(change)));
+      if (historyChangesToApply.length) await applyLiveHistoryChanges(historyChangesToApply);
       if (reviewChanges.length) {
         await loadManualWatchReview({ summaryOnly: state.activeView !== "manualWatchReview" }).catch((error) => {
           logDebug(`Background Manual Watch review refresh failed: ${error.message}`);
@@ -3062,9 +3148,9 @@ function initialize() {
     fetchSeerrMediaStatus,
     refreshActiveMediaDetailAfterSeerrStatus,
     renderImmersiveShowModal,
-    renderShowModalContent,
     patchShowModalEpisodeFromLive,
     patchShowModalEpisodesSavingState,
+    syncShowModalWatchActionControls,
     openShowImmersiveModalByTmdbId,
     openShowImmersiveModalByTvdbId,
     openMovieImmersiveModalByTmdbId,

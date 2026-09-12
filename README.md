@@ -51,7 +51,7 @@ None of these talk to each other - they all talk to Plembfin.
 ## Key Features
 
 - **Canonical sync** - Seamless two-way sync keeps watched state aligned across every connected app with intelligent auto-reconciliation
-- **Force Sync** - Flexible on-demand sync per-title (with season scoping) or library-wide with comprehensive live progress logging; title pushes finish local media servers before draining their bounded Trakt queue
+- **Force Sync** - Flexible on-demand sync per-title (with season scoping) or library-wide with comprehensive live progress logging; title pushes finish local media servers before draining a paced, retrying Trakt queue, and cancellation finishes the current history item before skipping queued items
 - **Instant state restoration** - Automatically synchronizes watch history to newly added media and rebuilt server libraries
 - **Cross-platform resume** - Pause playback on one server and pick up right where you left off on another
 - **Rewatch tracking** - Full multi-watch history logging with smart deduplication that preserves authentic repeat viewings
@@ -156,6 +156,18 @@ include the current release version and cycle number (for example, `0.16.0 Build
 
 To run a different channel, swap the `image:` tag in the Docker Compose example below -
 everything else about setup is identical.
+
+### Public demo
+
+Try the [public Plembfin demo](https://demo.plembfin.com/) with `demo` / `demo`.
+It runs in an isolated demo mode on a dedicated Oracle Cloud Compute instance;
+actions are simulated in the browser and no media or metadata services are connected.
+Each **Force to main** publishes the multi-architecture release image and deploys the
+exact released version to this OCI demo. Portainer is used only for local testing.
+If the demo needs a catch-up refresh without another promotion, run the **Deploy Public
+Demo** workflow manually from the `main` ref, type `DEPLOY`, and optionally provide an
+already-published release version. That deploy-only workflow does not change branches or
+rebuild an image.
 
 ### Method A: Docker Compose (recommended)
 
@@ -524,6 +536,10 @@ rejected before it reaches the remote.
 Every push to `develop`/`alpha` builds and publishes a rolling image
 (`:develop`/`:alpha`, plus a build-numbered tag); PRs to `main` build and verify without
 publishing - a breaking change is caught before release, not after.
+
+The **Force to main** release workflow publishes AMD64 and ARM64 images, then updates
+the Oracle-hosted [public demo](https://demo.plembfin.com/) and verifies its release
+version. It does not update the local Portainer environment.
 
 The local pre-push gate is never bypassed during promotion. If its test run hits the
 known transient failure, the workflow reruns the tests once and retries the push only

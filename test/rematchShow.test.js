@@ -81,6 +81,26 @@ test("Fix Match without a new name still repoints the ids", async () => {
   assert.equal(row.tvdb_id, "999111");
 });
 
+test("Fix Match rejects selecting the show's existing TVDB identity", async () => {
+  const result = await repo.insertWatchRecord({
+    title: "Already Matched Show - S01E01",
+    media_type: "episode",
+    season: 1,
+    episode: 1,
+    tvdb_id: "123123",
+    watched_at: "2026-07-25T20:00:00.000Z",
+    source: "plex",
+  });
+  await result.assetPrefetch;
+
+  const rematch = await repo.rematchShowWatchRecords({ id: result.id, tvdbId: "123123" });
+
+  assert.equal(rematch.ok, false);
+  assert.match(rematch.error, /already matched to TVDB 123123/i);
+  const row = await repo.getWatchRecordById(result.id);
+  assert.equal(row.tvdb_id, "123123");
+});
+
 test("Fix Match rebuilds the media key and moves playstate with it", async () => {
   const id = await insertEpisode("Mis-Matched Show - S01E01", 1, 1);
 

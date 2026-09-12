@@ -9,9 +9,10 @@ publishing paths:
 - **"Force to main"** remains the release-driven path for publishing the reviewed
   website tree alongside an application release.
 
-The existing Cloudflare Pages project named `plembfin` hosts the app deployment and must
-remain untouched. Use the separate Pages project named `plembfin-website` for this
-static site.
+The public application demo is hosted on the dedicated Oracle Cloud Compute instance;
+the existing Cloudflare Pages project named `plembfin` is not part of the application
+release path and must remain untouched. Use the separate Pages project named
+`plembfin-website` for this static site.
 
 ## Current repository shape
 

@@ -4,6 +4,7 @@ import { makeTempDataDir } from "./helpers.js";
 
 makeTempDataDir("plembfin-up-next-queue-");
 const { buildUpNextProjection } = await import("../server/src/utils/upNextService.js");
+const { insertWatchRecordSync } = await import("../server/src/utils/dataRepo.js");
 const { saveCanonicalPoster } = await import("../server/src/utils/mediaArtwork.js");
 
 test("queue projection keeps canonical resumes first and provider next-up after them", async () => {
@@ -382,6 +383,46 @@ test("title-only movie resumes collapse into the identified provider item and ke
   assert.equal(projection.items[0].id, "movie|id:imdb:tt27419466");
   assert.equal(projection.items[0].poster_url, "/media/posters/moana.webp");
   assert.deepEqual(projection.items[0].provider_items, { plex: ["43844"] });
+});
+
+test("provider next-up is filtered by a locally watched episode with a different media key", async () => {
+  insertWatchRecordSync({
+    title: "Expedition X - S01E05",
+    show_title: "Expedition X",
+    episode_title: "Mt Adams UFO Encounter",
+    media_type: "episode",
+    season: 1,
+    episode: 5,
+    tmdb_id: "99363",
+    tvdb_id: "375704",
+    imdb_id: "tt11774420",
+    watched_at: "2020-03-11T12:00:00.000Z",
+    source: "manual",
+  });
+
+  const projection = await buildUpNextProjection({
+    now: Date.parse("2026-09-12T12:00:00.000Z"),
+    localFallback: false,
+    shows: [{ title: "Expedition X", tmdb_id: "99363", tvdb_id: "375704", imdb_id: "tt11774420" }],
+    progressRows: [],
+    playstateRows: [],
+    providerItems: [{
+      provider: "jellyfin",
+      feed_kind: "next_up",
+      provider_item_id: "jellyfin-expedition-x-s01e05",
+      series_provider_item_id: "jellyfin-expedition-x",
+      media_type: "episode",
+      title: "Expedition X - S01E05",
+      show_title: "Expedition X",
+      episode_title: "Mt Adams UFO Encounter",
+      season: 1,
+      episode: 5,
+      ids: { imdb: "tt11946530" },
+      air_date: "2020-03-11",
+    }],
+  });
+
+  assert.deepEqual(projection.items, []);
 });
 
 test("handleUpNextRemove clears positive playback progress and marks unplayed", async () => {

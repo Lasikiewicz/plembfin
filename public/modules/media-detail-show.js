@@ -4,7 +4,7 @@ import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, h
 import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js?v=1.0.2.0.0";
 import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading, cachedShowDetail, rememberShowDetail, cachedShowDetailMiss, rememberShowDetailMiss } from "./explorer.js?v=1.0.2.0.0";
 import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.0.2.0.0";
-import { renderWatchDatePrompt, seasonUnwatchButtonHtml, showUnwatchButtonHtml, savingEpisodeKeysForShow } from "./watch-action.js?v=1.0.2.0.0";
+import { renderWatchDatePrompt, seasonUnwatchButtonHtml, showUnwatchButtonHtml, savingEpisodeKeysForShow, markSavingEpisodeComplete, hasSavingWatchActionForShow } from "./watch-action.js?v=1.0.2.0.0";
 import { authHeaders, setMessage, syncPageTopbar, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=1.0.2.0.0";
 import { personalRatingPillHtml, personalEpisodeRatingButtonHtml, personalMediaActionsHtml } from "./personal-media.js?v=1.0.2.0.0";
 import {
@@ -848,6 +848,79 @@ function hydrateAllSeasonEpisodeDetails(show, tmdbData, seasonDetailsByNumber, l
     });
 }
 
+// A show-scope watch action must operate on every season, not just the season
+// currently expanded in the accordion. The detail view intentionally hydrates
+// seasons lazily for display, so finish that hydration synchronously before the
+// watch-date prompt is opened.
+export async function ensureAllShowEpisodeDetailsForWatch() {
+  const current = state.activeShowRenderContext;
+  const show = current?.show;
+  const tmdbData = current?.tmdbData;
+  const seasonDetailsByNumber = current?.seasonDetailsByNumber;
+  const lookupId = showSeasonLookupId(tmdbData);
+  if (!show || !tmdbData || !seasonDetailsByNumber || !lookupId) return false;
+
+  const seasonsMap = seasonsFromShowRecord(show);
+  const knownSeasonNums = new Set((tmdbData.seasons || []).map((season) => Number(season.season_number)));
+  const extraSeasons = [];
+  for (const [seasonNum, epList] of seasonsMap.entries()) {
+    if (!knownSeasonNums.has(seasonNum)) {
+      extraSeasons.push({ season_number: seasonNum, episode_count: epList?.length || 0 });
+    }
+  }
+  const seasonsList = [...(tmdbData.seasons?.length ? [...tmdbData.seasons, ...extraSeasons] : fallbackSeasonList(seasonsMap))]
+    .filter((season) => Number(season.season_number) > 0)
+    .sort((a, b) => Number(b.season_number) - Number(a.season_number));
+  const pending = seasonsList.filter((season) => {
+    const seasonNumber = Number(season.season_number);
+    return Number.isFinite(seasonNumber) && !seasonDetailsByNumber.has(seasonNumber);
+  });
+  if (!pending.length) return true;
+
+  const results = [];
+  let nextIndex = 0;
+  const worker = async () => {
+    while (nextIndex < pending.length) {
+      const season = pending[nextIndex++];
+      const seasonNumber = Number(season.season_number);
+      try {
+        results.push({ seasonNumber, details: await fetchTmdbSeasonDetails(lookupId, seasonNumber) });
+      } catch (error) {
+        console.error(`Failed to load season ${seasonNumber} for show watch action`, error);
+        results.push({ seasonNumber, details: null });
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(SEASON_HYDRATION_CONCURRENCY, pending.length) }, () => worker()));
+
+  const failed = [];
+  let changed = false;
+  for (const { seasonNumber, details } of results) {
+    if (!details) {
+      failed.push(seasonNumber);
+      continue;
+    }
+    seasonDetailsByNumber.set(seasonNumber, details);
+    changed = true;
+  }
+
+  const activeContext = state.activeShowRenderContext;
+  const activeLookupId = showSeasonLookupId(activeContext?.tmdbData);
+  if (changed && activeContext?.show && activeLookupId === lookupId) {
+    renderShowModalContent(activeContext.show, {
+      ...activeContext,
+      seasonDetailsByNumber,
+      loading: false,
+      patchExisting: true,
+    });
+  }
+
+  if (failed.length) {
+    throw new Error(`Could not load season details for season${failed.length === 1 ? "" : "s"} ${failed.join(", ")}. Try again before marking the whole show watched.`);
+  }
+  return true;
+}
+
 function hydrateUnknownSeasonSummaryDetails(show, tmdbData, seasonDetailsByNumber, loading, seasonsList = []) {
   const lookupId = showSeasonLookupId(tmdbData);
   if (loading || !lookupId || !seasonsList.length) return;
@@ -1134,6 +1207,31 @@ function syncPosterLoadingState(currentHeader, nextHeader) {
   else if (!nextStatus) currentStatus?.remove();
 }
 
+// The first show render can use a representative episode still while the
+// canonical show metadata is loading. Keep the existing image node mounted so
+// its layout/lightbox state survives enrichment, but do update its source when
+// the authoritative show poster arrives.
+function syncPosterImage(currentHeader, nextHeader) {
+  const currentPoster = currentHeader?.querySelector(".immersive-poster-img");
+  const nextPoster = nextHeader?.querySelector(".immersive-poster-img");
+  if (!currentPoster || !nextPoster) return;
+
+  const nextSrc = nextPoster.getAttribute("src") || "";
+  const nextLightboxSrc = nextPoster.getAttribute("data-lightbox-src") || "";
+  // A placeholder/fallback render must not overwrite a real poster that is
+  // already mounted. Real poster markup always carries a lightbox source.
+  if (!nextSrc || !nextLightboxSrc) return;
+
+  const currentSrc = currentPoster.getAttribute("src") || "";
+  const currentLightboxSrc = currentPoster.getAttribute("data-lightbox-src") || "";
+  if (currentSrc === nextSrc && currentLightboxSrc === nextLightboxSrc) return;
+
+  currentPoster.classList.remove("is-loaded");
+  currentPoster.setAttribute("src", nextSrc);
+  currentPoster.setAttribute("data-lightbox-src", nextLightboxSrc);
+  currentPoster.setAttribute("alt", nextPoster.getAttribute("alt") || "Media poster");
+}
+
 // Metadata arrives after the local watched record. Replacing the complete
 // detail subtree for every enrichment pass recreated posters, episode images,
 // and the scrollable season list. Build the next markup off-DOM, then patch the
@@ -1163,8 +1261,9 @@ function patchShowModalDom(root, nextMarkup) {
   const currentHeader = directChildWithClass(currentPage, "immersive-header");
   const nextHeader = directChildWithClass(nextPage, "immersive-header");
   if (currentHeader && nextHeader) {
-    // Keep the poster image mounted across metadata passes, but still update
-    // its loading overlay when the authoritative detail request settles.
+    // Keep the poster image mounted across metadata passes, but update its
+    // source and loading overlay when the authoritative detail request settles.
+    syncPosterImage(currentHeader, nextHeader);
     syncPosterLoadingState(currentHeader, nextHeader);
     const currentMeta = currentHeader.querySelector(".immersive-meta");
     const nextMeta = nextHeader.querySelector(".immersive-meta");
@@ -1361,7 +1460,8 @@ function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitl
   // its scope, so "does any episode in this season overlap an in-flight
   // action" is enough to know the season (or the whole show) is mid-sync -
   // other seasons stay clickable in the meantime.
-  const seasonBusy = seasonEpisodes.some((episode) => savingEpisodeKeys.has(episode.key));
+  const seasonBusy = hasSavingWatchActionForShow(showTitle, seasonNumber)
+    || seasonEpisodes.some((episode) => savingEpisodeKeys.has(episode.key));
   const episodeTilesLoading = Boolean(loading || watchHistoryLoading || seasonDataPending);
   return `
     <section class="show-season-block" id="showSeason${seasonNumber}">
@@ -1413,12 +1513,11 @@ export function renderShowModalContent(show, {
   const showTitle = sanitizeTitle(show.title) || "Unknown Show";
   // Any episode key covered by an in-flight watch action for this show - a
   // season/show-scope action's episodes/resyncEpisodes already cover every
-  // episode in its scope, so this doubles as "is this show/season/episode
-  // busy". Non-empty here means at least one action targeting this show is
-  // mid-sync, which is enough to gate the show-wide buttons below; per-season
-  // and per-episode buttons narrow it further inside renderSeasonPanelHtml.
+  // episode in its scope. The action-level check below keeps the show/season
+  // controls busy even after individual SSE rows have cleared their own
+  // Saving state; per-episode buttons narrow it to the remaining keys.
   const savingEpisodeKeys = savingEpisodeKeysForShow(showTitle);
-  const isShowBusy = savingEpisodeKeys.size > 0;
+  const isShowBusy = savingEpisodeKeys.size > 0 || hasSavingWatchActionForShow(showTitle);
   const isUnmatchedShow = isUnmatchedShowTitle(showTitle);
   const orphanHistoryId = show.unmatched_history_id || "";
   // Specials (season 0) are kept in the list so they're still browsable, but
@@ -1528,6 +1627,11 @@ export function renderShowModalContent(show, {
     return !Number.isNaN(air.getTime()) && air > new Date();
   };
   const unwatchedRows = episodeRows.filter((episode) => !episode.watched && !isUnreleased(episode));
+  // The visible rows are lazy-loaded by season. Metadata still tells us when
+  // the show has episodes outside the active season, so keep the show-wide
+  // action available until the full episode set has been hydrated.
+  const hasPotentialUnwatchedEpisodes = unwatchedRows.length > 0 || watchedCount < metadataEpisodeCount;
+  const canStartShowWatch = episodeRows.length > 0 || metadataEpisodeCount > 0;
   const hideSpoilers = state.hideEpisodeSpoilers;
 
   setMediaInfoContext({
@@ -1572,7 +1676,8 @@ export function renderShowModalContent(show, {
     // watch action can take a while for a season this size, so this collapsed
     // row should say so instead of showing a stale watched count until the
     // whole thing settles.
-    const seasonSaving = seasonEpisodes.some((episode) => savingEpisodeKeys.has(episode.key));
+    const seasonSaving = hasSavingWatchActionForShow(showTitle, seasonNumber)
+      || seasonEpisodes.some((episode) => savingEpisodeKeys.has(episode.key));
     const seasonUnwatching = seasonEpisodes.some((episode) => episode.watched && state.savingUnwatchIds.has(episode.watched.id));
     const watchedText = seasonSaving
       ? "Saving…"
@@ -1632,8 +1737,8 @@ export function renderShowModalContent(show, {
       <input type="checkbox" data-hide-episode-spoilers ${hideSpoilers ? "checked" : ""} />
       <span>Hide <br>Spoilers</span>
     </label>
-    ${unwatchedRows.length ? `
-      <button class="action-pill" type="button" data-watch-scope="show" ${(episodeRows.length && !isShowBusy && !showRemoving) ? "" : "disabled"}>
+    ${hasPotentialUnwatchedEpisodes ? `
+      <button class="action-pill" type="button" data-watch-scope="show" ${(canStartShowWatch && !isShowBusy && !showRemoving) ? "" : "disabled"}>
         ${checkIcon}
         <span>${isShowBusy ? "Saving..." : "Mark <br>Watched"}</span>
       </button>` : ""}
@@ -1885,6 +1990,114 @@ function updateLiveShowSummaryDom(root, current, changedSeasonNumber) {
   if (progressFill) progressFill.style.width = `${progressPercent}%`;
 }
 
+function episodeIsUnreleasedForWatchControl(episode) {
+  if (episode?.watched || !episode?.airDate) return false;
+  const parts = String(episode.airDate).split("-");
+  if (parts.length !== 3) return false;
+  const air = new Date(parts[0], parts[1] - 1, parts[2]);
+  return !Number.isNaN(air.getTime()) && air > new Date();
+}
+
+// Keep the mounted action controls in step with the episode objects patched by
+// SSE. This deliberately mutates only existing controls; it must not call
+// renderShowModalContent, which would replace the season accordion and reset
+// the user's scroll/artwork state while a bulk save is in flight.
+export function syncShowModalWatchActionControls() {
+  const current = state.activeShowRenderContext;
+  const root = mediaDetailRoot();
+  if (!current?.show || !root) return false;
+
+  const episodes = Array.isArray(state.showModalEpisodes) ? state.showModalEpisodes : [];
+  const showTitle = sanitizeTitle(current.show.title) || "Unknown Show";
+  const savingEpisodeKeys = savingEpisodeKeysForShow(showTitle);
+  const showBusy = savingEpisodeKeys.size > 0 || hasSavingWatchActionForShow(showTitle);
+  const showRemoving = episodes.some((episode) => episode.watched && state.savingUnwatchIds.has(episode.watched.id));
+  const regularEpisodes = episodes.filter((episode) => Number(episode.seasonNumber) > 0);
+  const regularSeasons = (Array.isArray(current.tmdbData?.seasons) ? current.tmdbData.seasons : [])
+    .filter((season) => Number(season.season_number) > 0);
+  const metadataEpisodeCount = regularSeasons.reduce((total, season) => total + Number(season.episode_count || 0), 0);
+  const watchedCount = regularEpisodes.filter((episode) => episode.watched).length;
+  const hasPotentialUnwatchedEpisodes = regularEpisodes.some((episode) => (
+    !episode.watched && !episodeIsUnreleasedForWatchControl(episode)
+  )) || watchedCount < metadataEpisodeCount;
+  const canStartShowWatch = episodes.length > 0 || metadataEpisodeCount > 0;
+
+  const showButton = root.querySelector?.('[data-watch-scope="show"]');
+  if (showButton) {
+    showButton.disabled = !canStartShowWatch || showBusy || showRemoving || !hasPotentialUnwatchedEpisodes;
+    showButton.hidden = !hasPotentialUnwatchedEpisodes;
+    const label = showButton.querySelector?.("span");
+    if (label) label.innerHTML = showBusy ? "Saving..." : "Mark <br>Watched";
+  }
+
+  const showUnwatchButton = root.querySelector?.('[data-unwatch-kind="show"]');
+  if (showUnwatchButton) {
+    showUnwatchButton.disabled = showBusy || showRemoving;
+    const label = showUnwatchButton.querySelector?.("span");
+    if (label) label.innerHTML = showRemoving ? "Unwatching…" : "Mark <br>Unwatched";
+  }
+
+  const seasonMetadataByNumber = new Map(
+    (Array.isArray(current.tmdbData?.seasons) ? current.tmdbData.seasons : [])
+      .map((season) => [Number(season.season_number), season]),
+  );
+  const seasonDisplayState = (seasonNumber) => {
+    const seasonEpisodes = episodes.filter((episode) => Number(episode.seasonNumber) === seasonNumber);
+    const seasonUnwatched = seasonEpisodes.filter((episode) => (
+      !episode.watched && !episodeIsUnreleasedForWatchControl(episode)
+    ));
+    const seasonBusy = hasSavingWatchActionForShow(showTitle, seasonNumber)
+      || seasonEpisodes.some((episode) => savingEpisodeKeys.has(episode.key));
+    const seasonRemoving = seasonEpisodes.some((episode) => episode.watched && state.savingUnwatchIds.has(episode.watched.id));
+    const watchedInSeason = seasonEpisodes.filter((episode) => episode.watched).length;
+    const totalWatches = watchSummaryForRows(seasonEpisodes).totalWatches;
+    const metadataTotal = Number(seasonMetadataByNumber.get(seasonNumber)?.episode_count || 0);
+    const seasonTotal = seasonEpisodes.length || metadataTotal;
+    const normalLabel = `${watchedInSeason} of ${seasonTotal || "?"} episodes watched${totalWatches > watchedInSeason ? ` · ${totalWatches} actual watches` : ""}`;
+    const collapsedLabel = watchedInSeason
+      ? `${watchedInSeason} watched${totalWatches > watchedInSeason ? ` · ${totalWatches} plays` : ""}`
+      : "";
+    return { seasonEpisodes, seasonUnwatched, seasonBusy, seasonRemoving, normalLabel, collapsedLabel };
+  };
+
+  // Update both the mounted season panel and collapsed season rows. The latter
+  // have no season button until expanded, so relying only on the action button
+  // left their stale watched count and omitted the saving pulse entirely.
+  root.querySelectorAll?.("[data-season-accordion]").forEach((trigger) => {
+    const seasonNumber = Number(trigger.dataset?.seasonAccordion);
+    const season = seasonDisplayState(seasonNumber);
+    const accordion = trigger.closest?.(".season-accordion");
+    if (!accordion) return;
+    const watchedCell = accordion.querySelector?.(".season-row-watched");
+    if (watchedCell) {
+      watchedCell.textContent = season.seasonBusy ? "Saving…" : season.seasonRemoving ? "Removing…" : season.collapsedLabel;
+    }
+    accordion.classList.toggle("is-saving", season.seasonBusy || season.seasonRemoving);
+    if (season.seasonBusy || season.seasonRemoving) accordion.setAttribute("aria-busy", "true");
+    else accordion.removeAttribute("aria-busy");
+  });
+
+  root.querySelectorAll?.('[data-watch-scope="season"]').forEach((button) => {
+    const seasonNumber = Number(button.dataset?.seasonNumber);
+    const season = seasonDisplayState(seasonNumber);
+    button.disabled = !season.seasonEpisodes.length || season.seasonBusy || season.seasonRemoving;
+    button.textContent = season.seasonBusy ? "Saving…" : season.seasonUnwatched.length ? "Mark season watched" : "Resync season";
+    button.title = season.seasonUnwatched.length ? "" : "Re-push this season's watched state to Plex, Emby, Jellyfin & Trakt";
+
+    const seasonBlock = button.closest?.(".show-season-block");
+    const seasonLabel = seasonBlock?.querySelector?.(".show-season-label");
+    if (seasonLabel) seasonLabel.textContent = season.seasonBusy ? "Saving…" : season.seasonRemoving ? "Removing…" : season.normalLabel;
+    const accordion = seasonBlock?.closest?.(".season-accordion");
+    if (accordion) {
+      accordion.classList.toggle("is-saving", season.seasonBusy || season.seasonRemoving);
+      if (season.seasonBusy || season.seasonRemoving) accordion.setAttribute("aria-busy", "true");
+      else accordion.removeAttribute("aria-busy");
+    }
+  });
+
+  return true;
+}
+
 function patchShowModalEpisodeNode(target, { savingEpisodeKeys = null } = {}) {
   const current = state.activeShowRenderContext;
   const root = mediaDetailRoot();
@@ -1939,7 +2152,10 @@ function patchShowModalEpisodeNode(target, { savingEpisodeKeys = null } = {}) {
 // scroll/artwork state while the server-side sync is still in progress.
 export function patchShowModalEpisodesSavingState({ episodes = [], saving = true } = {}) {
   const current = state.activeShowRenderContext;
-  if (!current?.show || !Array.isArray(state.showModalEpisodes) || !episodes.length) return false;
+  if (!current?.show || !Array.isArray(state.showModalEpisodes) || !episodes.length) {
+    syncShowModalWatchActionControls();
+    return false;
+  }
   const requestedKeys = new Set(episodes.map((episode) => String(episode?.key || "")).filter(Boolean));
   const targets = state.showModalEpisodes.filter((target) => (
     requestedKeys.has(String(target.key || ""))
@@ -1948,7 +2164,10 @@ export function patchShowModalEpisodesSavingState({ episodes = [], saving = true
           && Number(target.episodeNumber) === Number(episode?.episodeNumber)
       ))
   ));
-  if (!targets.length) return false;
+  if (!targets.length) {
+    syncShowModalWatchActionControls();
+    return false;
+  }
 
   const showTitle = sanitizeTitle(current.show.title) || "Unknown Show";
   const activeSavingKeys = savingEpisodeKeysForShow(showTitle);
@@ -1957,6 +2176,7 @@ export function patchShowModalEpisodesSavingState({ episodes = [], saving = true
   for (const target of targets) {
     if (patchShowModalEpisodeNode(target, { savingEpisodeKeys: activeSavingKeys })) patched += 1;
   }
+  syncShowModalWatchActionControls();
   return patched > 0;
 }
 
@@ -1972,6 +2192,7 @@ export function patchShowModalEpisodeFromLive({ change = {}, row = null, progres
 
   const sourceTable = String(liveChangeField(change, "sourceTable", "source_table") || "");
   const progressOnly = sourceTable === "playback_progress";
+  const activeShowTitle = sanitizeTitle(current.show.title) || "Unknown Show";
   const currentWatched = target.watched;
   const previousMediaKey = String(currentWatched?.media_key || liveChangeField(change, "mediaKey", "media_key") || row?.media_key || "");
   const showEpisodes = Array.isArray(current.show.episodes) ? [...current.show.episodes] : [];
@@ -2022,6 +2243,10 @@ export function patchShowModalEpisodeFromLive({ change = {}, row = null, progres
   }
   current.show = { ...current.show, episodes: showEpisodes };
 
+  if (!progressOnly && row && isWatchedHistoryAction(row) && !ignoredWatchedRow) {
+    markSavingEpisodeComplete(activeShowTitle, target.key);
+  }
+
   // Keep the lightweight show summary in step with the detail context. This
   // matters after a local unwatch: a later navigation can otherwise seed the
   // modal from state.showsRaw, re-introduce the stale watched episode, and then
@@ -2061,6 +2286,7 @@ export function patchShowModalEpisodeFromLive({ change = {}, row = null, progres
   const root = mediaDetailRoot();
   patchShowModalEpisodeNode(target);
   updateLiveShowSummaryDom(root, current, target.seasonNumber);
+  syncShowModalWatchActionControls();
   return true;
 }
 

@@ -18,6 +18,7 @@
     "assets:update": "node scripts/asset-versions.js --write",
     "demo:assets": "node scripts/build-demo-assets.js",
     "demo:seed": "node scripts/seed-demo-catalog.js",
+    "demo:verify": "node scripts/verify-oracle-demo.js",
     "seed:demo": "node scripts/seed-demo-content.js",
     "prepare": "node scripts/install-git-hooks.js"
   },

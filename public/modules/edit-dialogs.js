@@ -1549,6 +1549,7 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
   document.querySelectorAll(".edit-dialog-overlay").forEach((el) => el.remove());
   const isTv = mediaType !== "movie";
   const headerTitle = options.headerTitle || "Fix Match";
+  const currentTvdbId = String(options.currentTvdbId || "").trim();
 
   const overlay = document.createElement("div");
   overlay.className = "edit-dialog-overlay";
@@ -1663,17 +1664,29 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
       metadataReady ? "success" : "warning",
     );
 
+    const savedMatch = {
+      tmdb_id: "",
+      tvdb_id: tvdbId,
+      title,
+      show_title: nextTitle,
+      updated_rows: result.updated_rows,
+      refreshed: true,
+    };
+    const notifySaved = () => Promise.resolve(onSaved?.(savedMatch)).catch((error) => {
+      console.error("Failed refreshing show after Fix Match", error);
+      _setMessage("Match saved. Reload the show to see refreshed metadata.", "warning");
+    });
+
     // The show's route key is derived from its name, so a rename moves it to a
-    // new URL - stay put and the current page no longer resolves to anything.
+    // new URL. Complete the optional retry callback before navigating, otherwise
+    // the browser can abort the show-wide retry as the old route unloads.
     if (renamed && slug(nextTitle) !== showKey) {
+      await notifySaved();
       _navigateTo(`/tvshow/${slug(nextTitle)}`);
       return;
     }
 
-    Promise.resolve(onSaved?.({ tmdb_id: "", tvdb_id: tvdbId, title, refreshed: true })).catch((error) => {
-      console.error("Failed refreshing show after Fix Match", error);
-      _setMessage("Match saved. Reload the show to see refreshed metadata.", "warning");
-    });
+    await notifySaved();
   };
 
   const matchPosterUrl = (item) => {
@@ -1689,6 +1702,7 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
         ? item.source_labels
         : [item.source || "Available source"];
       const sourceText = [...sourceLabels, item.year ? String(item.year) : ""].filter(Boolean).join(" · ");
+      const isCurrentMatch = Boolean(currentTvdbId && String(item.tvdb_id || "").trim() === currentTvdbId);
       return `
         <button class="fix-match-result" type="button"
           data-match-source="${escapeAttribute(item.source || "")}"
@@ -1696,7 +1710,7 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
           data-tvdb-id="${escapeAttribute(item.tvdb_id || "")}"
           data-title="${escapeAttribute(item.title || "")}">
           <img src="${escapeAttribute(matchPosterUrl(item))}" alt="" data-err="fav" />
-          <span class="fix-match-result-title">${escapeHtml(item.title || "Unknown title")}<small>${escapeHtml(sourceText)}</small></span>
+          <span class="fix-match-result-title">${escapeHtml(item.title || "Unknown title")}<small>${escapeHtml(sourceText)}${isCurrentMatch ? " · Current match" : ""}</small></span>
         </button>
       `;
     }).join("");

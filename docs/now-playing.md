@@ -76,6 +76,12 @@ being misread as the session actually stopping:
   worst-case delay before a genuine stop is recorded is about two poll
   intervals, not one poller cycle plus a fall back to the slow idle interval.
 
+- **A stale or paused cached row is never promoted to a completed watch.** A
+  missing row whose last provider snapshot is older than five minutes is
+  discarded as historical cache data, and a high-progress row last seen paused
+  is discarded rather than treated as playback completion. This intentionally
+  prefers a missed watch over a phantom watch after a restart or poller outage.
+
 Without these, the symptom looks like: Now Playing (or a title's resume
 position) drops to "partially watched" even though playback never stopped -
 one bad request or one session-id change was enough to make the reconciliation

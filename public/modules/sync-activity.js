@@ -129,6 +129,11 @@ function serverAttentionCount() {
   return Number.isFinite(count) && count > 0 ? count : serverAttentionItems().length;
 }
 
+function currentActivityIssueCount() {
+  const count = Number(state.syncActivityCurrentIssueCount);
+  return Number.isFinite(count) && count > 0 ? count : 0;
+}
+
 function attentionCount() {
   const serverCount = serverAttentionCount();
   const clientCount = clientAttentionItems().length;
@@ -140,12 +145,13 @@ function attentionTone() {
   const items = attentionItems();
   if (state.syncAttentionError) return "error";
   if (items.some((item) => attentionToneForItem(item) === "error")) return "error";
+  if (currentActivityIssueCount() > 0) return "error";
   if (items.length) return "warning";
   return state.syncAttentionSeverity === "error" ? "error" : "clear";
 }
 
 function syncAttentionNeeded() {
-  return serverAttentionCount() > 0 || Boolean(state.syncAttentionError);
+  return serverAttentionCount() > 0 || currentActivityIssueCount() > 0 || Boolean(state.syncAttentionError);
 }
 
 function statusText() {
@@ -290,6 +296,11 @@ export function isRetryableActivity(entry = {}) {
   return entry.isLatestForItem !== false
     && isFailedSyncActivityEntry(entry)
     && hasRetryableActivityTarget(entry);
+}
+
+function activityTvdbId(entry = {}) {
+  const ids = entry?.rawPayloadDebug?.ids || entry?.rawPayloadDebug?.media?.ids || {};
+  return String(ids.tvdb || ids.tvdb_id || "").trim();
 }
 
 // Trakt's not_found response for an episode means the stored show identity
@@ -469,7 +480,7 @@ function syncActivityEventRow(entry = {}, index = 0, groupKey = "") {
         ${canFixMatch ? `<div class="sync-activity-row-detail sync-activity-row-detail--warning">Trakt could not find this show. Fix the show match and Plembfin will retry this Trakt update automatically.</div>` : ""}
         <div class="sync-activity-row-results">${targetResults(entry, { failedOnly: Boolean(state.syncActivityFailedOnly) })}</div>
         <div class="sync-activity-row-actions">
-          ${canFixMatch ? `<button class="button-ghost sync-activity-fix-match" type="button" data-sync-activity-fix-match="${escapeAttribute(id)}" data-sync-activity-fix-match-title="${escapeAttribute(showTitle)}" title="Correct the show match, then retry the Trakt update">Fix show match</button>` : ""}
+          ${canFixMatch ? `<button class="button-ghost sync-activity-fix-match" type="button" data-sync-activity-fix-match="${escapeAttribute(id)}" data-sync-activity-fix-match-title="${escapeAttribute(showTitle)}" data-sync-activity-fix-match-current-tvdb="${escapeAttribute(activityTvdbId(entry))}" title="Correct the show match, then retry the Trakt update">Fix show match</button>` : ""}
           ${canDismiss ? `<button class="button-ghost sync-activity-dismiss" type="button" data-sync-activity-dismiss="${escapeAttribute(id)}" data-sync-activity-dismiss-title="${escapeAttribute(showTitle)}" title="Mark the Trakt not-found error as intentionally skipped">Dismiss Trakt error</button>` : ""}
           ${retryable && !groupRetrying ? `<button class="button-ghost sync-activity-retry" type="button" data-sync-activity-retry="${escapeAttribute(id)}" ${retrying ? "disabled" : ""} title="Retry only the failed destinations">${retrying ? "Retrying..." : "Retry failed"}</button>` : ""}
         </div>
@@ -497,6 +508,7 @@ function renderGroupEvents(groupKey, payload, container) {
     || loadedEvents.some((entry) => String(entry.mediaType || "").trim().toLowerCase() === "episode");
   const traktMatchIssues = latestOnly ? loadedEvents.filter(isTraktNotFoundMatchIssue) : [];
   const retryableEntries = latestOnly ? loadedEvents.filter(isRetryableActivity) : [];
+  const groupTvdbId = traktMatchIssues.map(activityTvdbId).find(Boolean) || "";
   const groupRetry = groupRetryProgress.get(String(groupKey || ""));
   const groupEventsComplete = pagination.hasNext !== true;
   const groupActionCount = retryableEntries.length || traktMatchIssues.length;
@@ -508,6 +520,7 @@ function renderGroupEvents(groupKey, payload, container) {
           <button class="button-ghost sync-activity-fix-show" type="button"
             data-sync-activity-fix-show="${escapeAttribute(groupKey)}"
             data-sync-activity-fix-show-title="${escapeAttribute(group.title || loadedEvents[0]?.title || "this show")}"
+            data-sync-activity-fix-show-current-tvdb="${escapeAttribute(groupTvdbId)}"
             ${groupRetry ? "disabled" : ""}
             title="Fix the show match, then retry every current failed entry in this show">
             ${groupRetry ? `Retrying ${escapeHtml(pluralLabel(groupActionCount, "entry"))}...` : "Fix show match &amp; retry all"}
@@ -565,12 +578,17 @@ function renderGroupEvents(groupKey, payload, container) {
 // instead. Deliberately does not touch retryingActivityIds or reload the
 // list - callers own that, since the bulk path needs different bookkeeping
 // (no per-item full-list reload) than a single click does.
-async function dispatchRetry(key) {
+async function dispatchRetry(key, identity = {}) {
   try {
+    const payload = { id: key };
+    const tvdbId = String(identity?.tvdbId || identity?.tvdb_id || "").trim();
+    const showTitle = String(identity?.showTitle || identity?.show_title || "").trim();
+    if (tvdbId) payload.tvdbId = tvdbId;
+    if (showTitle) payload.showTitle = showTitle;
     const response = await fetch("/api/sync-history/retry", {
       method: "POST",
       headers: { ...authHeaders(), "Content-Type": "application/json" },
-      body: JSON.stringify({ id: key }),
+      body: JSON.stringify(payload),
     });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || `Retry failed with ${response.status}`);
@@ -594,7 +612,7 @@ async function dispatchRetry(key) {
 // row's own log (buildSyncActivityLog) rather than as a toast, so it stays
 // attached to the item it's about instead of a corner notification the user
 // has to catch before it disappears.
-export async function retrySyncActivity(id) {
+export async function retrySyncActivity(id, identity = {}) {
   const key = String(id || "");
   if (!key || retryingActivityIds.has(key)) return null;
 
@@ -602,7 +620,7 @@ export async function retrySyncActivity(id) {
   setActivityFeedback(key, null);
   renderSyncActivity();
   try {
-    const result = await dispatchRetry(key);
+    const result = await dispatchRetry(key, identity);
     for (const [cacheKey, cached] of groupEventCache.entries()) {
       if ((cached.events || []).some((entry) => String(entry.id) === key)) groupEventCache.delete(cacheKey);
     }
@@ -656,9 +674,14 @@ export async function dismissSyncActivityGroup(groupKey) {
   return body;
 }
 
-export async function retrySyncActivityGroup(groupKey) {
+export async function retrySyncActivityGroup(groupKey, identity = {}) {
   const key = String(groupKey || "").trim();
   if (!key || groupRetryProgress.has(key)) return null;
+  const payload = { groupKey: key };
+  const tvdbId = String(identity?.tvdbId || identity?.tvdb_id || "").trim();
+  const showTitle = String(identity?.showTitle || identity?.show_title || "").trim();
+  if (tvdbId) payload.tvdbId = tvdbId;
+  if (showTitle) payload.showTitle = showTitle;
   const cached = groupEventCache.get(groupEventCacheKey(key, true));
   const retryableCount = (cached?.events || []).filter(isRetryableActivity).length
     || Math.max(Number(cached?.group?.problemCount) || 0, 0);
@@ -668,7 +691,7 @@ export async function retrySyncActivityGroup(groupKey) {
     const response = await fetch("/api/sync-history/retry-group", {
       method: "POST",
       headers: { ...authHeaders(), "Content-Type": "application/json" },
-      body: JSON.stringify({ groupKey: key }),
+      body: JSON.stringify(payload),
     });
     const body = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(body.error || `Show retry failed with ${response.status}`);
@@ -1114,7 +1137,7 @@ export function renderSyncActivityStatus() {
   const hasAttention = syncAttentionNeeded();
   const stateName = isActive() ? "active" : hasAttention ? "attention" : "idle";
   const attentionToneName = hasAttention
-    ? (state.syncAttentionError || state.syncAttentionSeverity === "error" ? "error" : "warning")
+    ? (state.syncAttentionError || state.syncAttentionSeverity === "error" || currentActivityIssueCount() > 0 ? "error" : "warning")
     : "clear";
   if (elements.syncProgressIndicator && elements.syncProgressText) {
     elements.syncProgressText.textContent = text;

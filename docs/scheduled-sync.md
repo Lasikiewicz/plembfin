@@ -70,6 +70,11 @@ It does not change the behavior or safety guarantees of the library-wide `/api/f
 planner and executor. Jellyfin episode lookups return every matching season/episode item so
 duplicate quality copies are marked consistently.
 
+For an all-destination title push, every local media-server write completes before the
+Trakt history phase begins. Trakt writes are serialized with a short start interval and
+retry a bounded number of times after a `429`; cancelling the operation prevents queued
+items from starting but lets the current canonical remove/add pair finish atomically.
+
 ## Personal rating scheduler
 
 Personal Rating Sync is disabled by default and is not part of the watched-state
@@ -217,10 +222,12 @@ Implementation lives in `server/src/scheduled.js`.
    - `fetchLiveSessions(config)` polls the configured servers for what's playing now.
    - `buildCacheRow()` shapes each session; `upsertLiveTrackingCache()` writes them
      to the `live_tracking_cache` SQLite table.
-   - Reconciles against cached rows: a cached session that is **no
-     longer playing** and had `last_progress >= 90` is treated as a **completed
-     watch** (`processCompletedSession` → inserts history + propagates). Sessions
-     that vanish below the threshold are marked/cleared as stale.
+   - Reconciles against cached rows: a **recent, non-paused** cached session that
+     is **no longer playing** and had `last_progress >= 90` is treated as a
+     **completed watch** (`processCompletedSession` → inserts history + propagates).
+     A row older than five minutes or last seen paused is discarded rather than
+     promoted to a watch; sessions that vanish below the threshold are
+     marked/cleared as stale.
 2. **Manual dispatch queue** - **runs every minute**:
    - `syncPendingManualDispatches` processes anything queued by the UI or an import
      (manual mark-watched, Trakt history, retries). The `media` object it builds for

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import "./domStubs.js";
 
-const { applyWatchDateChoice, closeWatchDatePrompt, confirmAndMarkUnwatched, initWatchAction, renderWatchDatePrompt, savingEpisodeKeysForShow, watchActionFromButton, watchedAtForChoice, watchedAtForEpisodeBatch, watchedReferenceFor } = await import("../public/modules/watch-action.js");
+const { applyWatchDateChoice, closeWatchDatePrompt, confirmAndMarkUnwatched, hasSavingWatchActionForShow, initWatchAction, markSavingEpisodeComplete, renderWatchDatePrompt, savingEpisodeKeysForShow, watchActionFromButton, watchedAtForChoice, watchedAtForEpisodeBatch, watchedReferenceFor } = await import("../public/modules/watch-action.js");
 const { state } = await import("../public/modules/state.js");
 
 test("closeWatchDatePrompt removes every mounted date dialog", () => {
@@ -36,6 +36,26 @@ test("savingEpisodeKeysForShow includes episodes in concurrent watch actions", (
 
   try {
     assert.deepEqual([...savingEpisodeKeysForShow("The Office")].sort(), ["the-office:s04e16", "the-office:s04e17"]);
+  } finally {
+    state.savingWatchActions.clear();
+  }
+});
+
+test("live watch rows clear only their own row-level saving state", () => {
+  state.savingWatchActions.clear();
+  const action = {
+    showTitle: "The Office",
+    episodes: [{ key: "the-office:s04e16", seasonNumber: 4 }],
+    resyncEpisodes: [{ key: "the-office:s04e17", seasonNumber: 4 }],
+  };
+  state.savingWatchActions.add(action);
+
+  try {
+    assert.equal(hasSavingWatchActionForShow("The Office"), true);
+    assert.deepEqual([...savingEpisodeKeysForShow("The Office")].sort(), ["the-office:s04e16", "the-office:s04e17"]);
+    assert.equal(markSavingEpisodeComplete("The Office", "the-office:s04e16"), true);
+    assert.deepEqual([...savingEpisodeKeysForShow("The Office")], ["the-office:s04e17"]);
+    assert.equal(hasSavingWatchActionForShow("The Office", 4), true);
   } finally {
     state.savingWatchActions.clear();
   }
@@ -149,6 +169,26 @@ test("season/show watch batches never place a new episode before an edited previ
   assert.equal(scope[3].watched.watched_at, "2026-09-08T12:00:00.000Z", "existing later dates are never rewritten");
 });
 
+test("release-day watch batches keep each episode's air date despite later existing watches", () => {
+  const scope = [
+    { seasonNumber: 1, episodeNumber: 1, airDate: "2005-08-29", runtime: 44, watched: { watched_at: "2026-09-12T02:08:00.000Z" } },
+    { seasonNumber: 1, episodeNumber: 2, airDate: "2005-08-29", runtime: 44, watched: { watched_at: "2026-09-12T02:51:00.000Z" } },
+    { seasonNumber: 1, episodeNumber: 3, airDate: "2005-09-05", runtime: 44 },
+  ];
+
+  const entries = watchedAtForEpisodeBatch(
+    "release",
+    [scope[2]],
+    "",
+    "",
+    null,
+    scope,
+  );
+
+  assert.equal(entries.length, 1);
+  assert.equal(entries[0].watchedAt.slice(0, 10), "2005-09-05");
+});
+
 test("episode watch actions carry the directional reference into the prompt", () => {
   const previousEpisodes = state.showModalEpisodes;
   const previousIndex = state.showModalEpisodeIndex;
@@ -188,6 +228,26 @@ test("mixed season watch actions only include unwatched episodes", () => {
   }
 });
 
+test("show watch actions include every hydrated regular-season episode", () => {
+  const previousEpisodes = state.showModalEpisodes;
+  const episodes = [
+    { key: "S01E01", seasonNumber: 1, episodeNumber: 1, showTitle: "Prison Break", watched: { watched_at: "2026-09-12T02:08:00.000Z" } },
+    { key: "S02E01", seasonNumber: 2, episodeNumber: 1, showTitle: "Prison Break", airDate: "2006-08-21" },
+    { key: "S03E01", seasonNumber: 3, episodeNumber: 1, showTitle: "Prison Break", airDate: "2007-08-29" },
+    { key: "S00E01", seasonNumber: 0, episodeNumber: 1, showTitle: "Prison Break", airDate: "2006-01-01" },
+  ];
+  state.showModalEpisodes = episodes;
+
+  try {
+    const action = watchActionFromButton({ dataset: { watchScope: "show" } });
+    assert.deepEqual(action.episodes.map((episode) => episode.key), ["S02E01", "S03E01"]);
+    assert.deepEqual(action.resyncEpisodes.map((episode) => episode.key), ["S01E01"]);
+    assert.equal(action.hasSpecials, true);
+  } finally {
+    state.showModalEpisodes = previousEpisodes;
+  }
+});
+
 test("watch-date selection renders the active show as Saving before sync resolves", async () => {
   const previousQuerySelectorAll = document.querySelectorAll;
   const previousQuerySelector = document.querySelector;
@@ -205,6 +265,7 @@ test("watch-date selection renders the active show as Saving before sync resolve
   const renderCalls = [];
   const savingPatchCalls = [];
   const episodePatchCalls = [];
+  let controlSyncCalls = 0;
   const overlays = [{ remove: () => { removed += 1; } }];
   const action = {
     scope: "episode",
@@ -235,8 +296,9 @@ test("watch-date selection renders the active show as Saving before sync resolve
     renderImmersiveShowModal: async () => {},
     patchShowModalEpisodesSavingState: ({ episodes, saving }) => {
       savingPatchCalls.push({ episodes, saving });
-      return true;
+      return false;
     },
+    syncShowModalWatchActionControls: () => { controlSyncCalls += 1; return true; },
     patchShowModalEpisodeFromLive: ({ row }) => {
       episodePatchCalls.push(row);
       return true;
@@ -268,6 +330,7 @@ test("watch-date selection renders the active show as Saving before sync resolve
     await update;
     assert.equal(state.savingWatchActions.size, 0);
     assert.equal(episodePatchCalls.length, 1, "the saved episode should be patched through the live-row path");
+    assert.ok(controlSyncCalls >= 2, "the action controls should be synced before and after the save without a modal render");
   } finally {
     document.querySelectorAll = previousQuerySelectorAll;
     document.querySelector = previousQuerySelector;

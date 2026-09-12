@@ -20,13 +20,13 @@ let _showErrorExplainModal = () => {};
 let _fetchSeerrMediaStatus = async () => null;
 let _refreshActiveMediaDetailAfterSeerrStatus = () => {};
 let _renderImmersiveShowModal = async () => {};
-let _renderShowModalContent = () => {};
 let _openShowImmersiveModalByTmdbId = async () => {};
 let _openShowImmersiveModalByTvdbId = async () => {};
 let _openMovieImmersiveModalByTmdbId = async () => {};
 let _patchMovieWatchedState = () => false;
 let _patchShowModalEpisodeFromLive = () => false;
 let _patchShowModalEpisodesSavingState = () => false;
+let _syncShowModalWatchActionControls = () => false;
 let _refreshUpNext = async () => {};
 
 export function initWatchAction(callbacks) {
@@ -40,13 +40,13 @@ export function initWatchAction(callbacks) {
   if (callbacks.fetchSeerrMediaStatus) _fetchSeerrMediaStatus = callbacks.fetchSeerrMediaStatus;
   if (callbacks.refreshActiveMediaDetailAfterSeerrStatus) _refreshActiveMediaDetailAfterSeerrStatus = callbacks.refreshActiveMediaDetailAfterSeerrStatus;
   if (callbacks.renderImmersiveShowModal) _renderImmersiveShowModal = callbacks.renderImmersiveShowModal;
-  if (callbacks.renderShowModalContent) _renderShowModalContent = callbacks.renderShowModalContent;
   if (callbacks.openShowImmersiveModalByTmdbId) _openShowImmersiveModalByTmdbId = callbacks.openShowImmersiveModalByTmdbId;
   if (callbacks.openShowImmersiveModalByTvdbId) _openShowImmersiveModalByTvdbId = callbacks.openShowImmersiveModalByTvdbId;
   if (callbacks.openMovieImmersiveModalByTmdbId) _openMovieImmersiveModalByTmdbId = callbacks.openMovieImmersiveModalByTmdbId;
   if (callbacks.patchMovieWatchedState) _patchMovieWatchedState = callbacks.patchMovieWatchedState;
   if (callbacks.patchShowModalEpisodeFromLive) _patchShowModalEpisodeFromLive = callbacks.patchShowModalEpisodeFromLive;
   if (callbacks.patchShowModalEpisodesSavingState) _patchShowModalEpisodesSavingState = callbacks.patchShowModalEpisodesSavingState;
+  if (callbacks.syncShowModalWatchActionControls) _syncShowModalWatchActionControls = callbacks.syncShowModalWatchActionControls;
   if (callbacks.refreshUpNext) _refreshUpNext = callbacks.refreshUpNext;
 }
 
@@ -253,12 +253,70 @@ function isEpisodeUnreleased(episode) {
   return !Number.isNaN(air.getTime()) && air > new Date();
 }
 
+function showTitleKey(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function savingActionMatchesShow(action, showTitle) {
+  const actionKey = showTitleKey(action?.showTitle);
+  const targetKey = showTitleKey(showTitle);
+  return Boolean(actionKey && targetKey && actionKey === targetKey);
+}
+
 function episodeKeysForAction(action) {
   const keys = new Set();
   for (const episode of [...(action?.episodes || []), ...(action?.resyncEpisodes || [])]) {
-    if (episode?.key) keys.add(episode.key);
+    const key = String(episode?.key || "");
+    if (key && !action?.completedEpisodeKeys?.has(key)) keys.add(key);
   }
   return keys;
+}
+
+// A live watch-history event confirms one item of a bulk action before the
+// manual-watch request has finished. Let that episode leave its row-level
+// Saving state immediately while the action itself remains pending for the
+// control bar until the server has returned the final propagation result.
+export function markSavingEpisodeComplete(showTitle, episodeKey) {
+  const key = String(episodeKey || "");
+  if (!key) return false;
+  let marked = false;
+  let progressAction = null;
+  for (const action of state.savingWatchActions) {
+    if (!savingActionMatchesShow(action, showTitle)) continue;
+    const actionKeys = new Set([...(action.episodes || []), ...(action.resyncEpisodes || [])]
+      .map((episode) => String(episode?.key || ""))
+      .filter(Boolean));
+    if (!actionKeys.has(key)) continue;
+    if (!action.completedEpisodeKeys) action.completedEpisodeKeys = new Set();
+    if (action.completedEpisodeKeys.has(key)) continue;
+    action.completedEpisodeKeys.add(key);
+    marked = true;
+    progressAction = action;
+  }
+  if (marked && progressAction) {
+    const total = actionEpisodes(progressAction).filter((episode) => episode?.key).length;
+    const completed = progressAction.completedEpisodeKeys?.size || 0;
+    if (total > 1) {
+      _setMessage(`Saving ${completed} of ${total} episodes…`, "muted");
+    } else {
+      _setMessage("Saving episode…", "muted");
+    }
+  }
+  return marked;
+}
+
+export function hasSavingWatchActionForShow(showTitle, seasonNumber = null) {
+  for (const action of state.savingWatchActions) {
+    if (!savingActionMatchesShow(action, showTitle)) continue;
+    if (seasonNumber == null) return true;
+    const episodes = [...(action.episodes || []), ...(action.resyncEpisodes || [])];
+    if (episodes.some((episode) => Number(episode?.seasonNumber) === Number(seasonNumber))) return true;
+  }
+  return false;
 }
 
 // All episode keys, across every in-flight action, belonging to `showTitle`.
@@ -268,7 +326,7 @@ function episodeKeysForAction(action) {
 export function savingEpisodeKeysForShow(showTitle) {
   const keys = new Set();
   for (const action of state.savingWatchActions) {
-    if (action.showTitle !== showTitle) continue;
+    if (!savingActionMatchesShow(action, showTitle)) continue;
     for (const key of episodeKeysForAction(action)) keys.add(key);
   }
   return keys;
@@ -461,17 +519,9 @@ export async function runResyncWatchAction(action) {
   const total = records.length;
 
   state.savingWatchActions.add(action);
-  if (renderActiveShowSavingState(action)) {
-    // Paint the busy state synchronously when the current modal can be
-    // refreshed in place; this keeps the action responsive before the
-    // propagation request resolves.
-  } else if (state.activeShowModalKey) {
-    _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
-  } else if (state.activeShowTmdbId) {
-    await _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
-  } else if (state.activeShowTvdbId) {
-    await _openShowImmersiveModalByTvdbId(state.activeShowTvdbId);
-  }
+  // Keep the mounted show detail in place. Its episode rows and controls are
+  // updated by the live/SSE patch path while the propagation request runs.
+  syncActiveShowSavingState(action);
   _setMessage(total > 1 ? `Resyncing ${total} episodes to your media apps…` : "Resyncing to your media apps…", "muted");
 
   try {
@@ -483,11 +533,11 @@ export async function runResyncWatchAction(action) {
       ? `sync queued for ${result.syncQueued} item${result.syncQueued === 1 ? "" : "s"}`
       : `pushed ${result.propagated} to media apps`;
     _setMessage(`Resynced ${total} episode${total === 1 ? "" : "s"}; ${syncText}.`, result.rejected ? "error" : "success");
-    const patched = await patchShowEpisodesFromWatchResponse(action, result, [], action.resyncEpisodes);
-    if (!patched) restoreActiveShowEpisodeState(action);
+    await patchShowEpisodesFromWatchResponse(action, result, [], action.resyncEpisodes);
+    syncActiveShowWatchActionState();
   } catch (error) {
     state.savingWatchActions.delete(action);
-    restoreActiveShowEpisodeState(action);
+    await restoreActiveShowEpisodeState(action);
     _setMessage(`Resync failed: ${error.message}`, "error");
   }
 }
@@ -520,36 +570,24 @@ function actionEpisodes(action = {}) {
   return [...(action.episodes || []), ...(action.resyncEpisodes || [])];
 }
 
-function renderActiveShowSavingState(action = null) {
+function syncActiveShowSavingState(action = null) {
   if (action && actionEpisodes(action).length) {
-    const patched = _patchShowModalEpisodesSavingState({ episodes: actionEpisodes(action), saving: true });
-    if (patched) return true;
+    action.completedEpisodeKeys ||= new Set();
+    _patchShowModalEpisodesSavingState({ episodes: actionEpisodes(action), saving: true });
   }
-  const context = state.activeShowRenderContext;
-  if (!context?.show || typeof _renderShowModalContent !== "function") return false;
-  _renderShowModalContent(context.show, {
-    ...context,
-    activeSeasonNum: state.activeShowModalSeason,
-  });
-  return true;
+  syncActiveShowWatchActionState();
+  return Boolean(state.activeShowRenderContext?.show);
+}
+
+function syncActiveShowWatchActionState() {
+  return _syncShowModalWatchActionControls();
 }
 
 function restoreActiveShowEpisodeState(action) {
   const episodes = actionEpisodes(action);
-  if (episodes.length && _patchShowModalEpisodesSavingState({ episodes, saving: false })) return true;
-  if (state.activeShowModalKey) {
-    _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
-    return true;
-  }
-  if (state.activeShowTmdbId) {
-    _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
-    return true;
-  }
-  if (state.activeShowTvdbId) {
-    _openShowImmersiveModalByTvdbId(state.activeShowTvdbId);
-    return true;
-  }
-  return false;
+  const patched = episodes.length && _patchShowModalEpisodesSavingState({ episodes, saving: false });
+  syncActiveShowWatchActionState();
+  return Boolean(patched);
 }
 
 // ── Date/time helpers ──────────────────────────────────────────────────────
@@ -627,7 +665,11 @@ export function watchedAtForEpisodeBatch(
     if (selected) {
       const generated = watchedAtForChoice(choice, episode, customDate, offsetMs, referenceWatchedAt);
       const generatedMs = Date.parse(generated);
-      const minimumMs = previousWatchedAt == null
+      // Release-day selection is an explicit historical date choice. Do not
+      // let a later existing watch (including a bad date from an earlier
+      // transition) move the episode forward to today. Shared-date choices
+      // still preserve chronological order around existing watched rows.
+      const minimumMs = choice === "release" || previousWatchedAt == null
         ? null
         : previousWatchedAt + runtimeSeparationMs(previousEpisode?.runtime);
       const watchedAt = minimumMs != null && Number.isFinite(generatedMs) && generatedMs < minimumMs
@@ -1320,23 +1362,15 @@ export async function applyWatchDateChoice(choice) {
     button.disabled = true;
   });
 
-  // Rows in `action.episodes` show a "Saving..." state (driven by
-  // state.savingWatchActions) instead of flipping to watched right away - the
-  // optimistic update only runs below once postManualWatchRecords resolves,
-  // i.e. once the live sync to every target has actually finished, not just
-  // once the click was registered.
+  // Rows in `action.episodes` show a "Saving..." state immediately. Each
+  // authoritative watch-history SSE item clears its own row as soon as it is
+  // stored; the response below remains the authoritative fallback for any
+  // item whose live event was delayed or missed.
   state.savingWatchActions.add(action);
   closeWatchDatePrompt();
-  if (renderActiveShowSavingState(action)) {
-    // Paint the saving state synchronously before the request starts so the
-    // episode action never sits on "Mark watched" with no feedback.
-  } else if (state.activeShowModalKey) {
-    _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
-  } else if (state.activeShowTmdbId) {
-    await _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
-  } else if (state.activeShowTvdbId) {
-    await _openShowImmersiveModalByTvdbId(state.activeShowTvdbId);
-  }
+  // Keep the mounted show detail in place. Each saved item is reconciled by
+  // the SSE/live-row patch path instead of rebuilding the whole modal.
+  syncActiveShowSavingState(action);
 
   const total = allRecords.length;
   _setMessage(total > 1 ? `Syncing ${total} episodes to your media apps… 0/${total}` : "Syncing to your media apps…", "muted");
@@ -1357,11 +1391,11 @@ export async function applyWatchDateChoice(choice) {
       `Marked ${totalMarked} episode${totalMarked === 1 ? "" : "s"} watched; pushed ${result.propagated} of ${result.syncQueued} to media apps${result.skipped ? `, ${result.skipped} already logged` : ""}.`,
       result.rejected ? "error" : "success",
     );
-    const patched = await patchShowEpisodesFromWatchResponse(action, result, watchedEntries, action.resyncEpisodes || []);
-    if (!patched) restoreActiveShowEpisodeState(action);
+    await patchShowEpisodesFromWatchResponse(action, result, watchedEntries, action.resyncEpisodes || []);
+    syncActiveShowWatchActionState();
   } catch (error) {
     state.savingWatchActions.delete(action);
-    restoreActiveShowEpisodeState(action);
+    await restoreActiveShowEpisodeState(action);
     _setMessage(`Manual watch update failed: ${error.message}`, "error");
     throw error;
   }
@@ -1473,18 +1507,16 @@ export async function confirmAndMarkUnwatched(button) {
   // Marks these ids as "being removed" so the season/show progress labels
   // (which otherwise just recompute from the still-watched rows) show
   // "Removing…" immediately instead of the stale watched count until the
-  // request resolves and the page re-renders.
+  // request resolves; the mounted controls are patched in place.
   for (const id of ids) state.savingUnwatchIds.add(id);
   setGridCardsRemoving(ids, true);
-  if (!gridOrigin && (kind === "episode" || kind === "season" || kind === "show") && state.activeShowModalKey) {
+  if (!gridOrigin && (kind === "episode" || kind === "season" || kind === "show") && (state.activeShowModalKey || state.activeShowTmdbId || state.activeShowTvdbId)) {
     // Paint the saving state synchronously (same as applyWatchDateChoice)
     // before the request starts, instead of the full async
     // _renderImmersiveShowModal reload - that one can re-fetch metadata and
     // briefly show a loading state, stomping the is-saving pulse it was
     // meant to show.
-    if (!renderActiveShowSavingState(showUnwatchAction)) {
-      _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
-    }
+    syncActiveShowSavingState(showUnwatchAction);
   }
 
   try {
@@ -1547,18 +1579,11 @@ export async function confirmAndMarkUnwatched(button) {
       // The server has already committed the state. Remove only the affected
       // episode article(s) from the mounted modal and keep every other season
       // card, image, and scroll position intact. If this trigger did not come
-      // from a mounted episode list, retain the older detail-loader fallback.
-      const patched = patchShowEpisodesFromUnwatchResponse(showUnwatchEpisodes, unwatchRecordIds, showTitle);
+      // from a mounted episode list, the live row patch is still safe to skip;
+      // the next detail navigation will read the committed history.
+      patchShowEpisodesFromUnwatchResponse(showUnwatchEpisodes, unwatchRecordIds, showTitle);
       await historyRefresh;
-      if (!patched) {
-        if (state.activeShowModalKey) {
-          _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
-        } else if (state.activeShowTmdbId) {
-          await _openShowImmersiveModalByTmdbId(state.activeShowTmdbId);
-        } else {
-          await _openShowImmersiveModalByTvdbId(state.activeShowTvdbId);
-        }
-      }
+      syncActiveShowWatchActionState();
     } else if (!gridOrigin && movieDetailWasOpen) {
       _clearDerivedUiCaches({ resetExplorer: kind === "movie" });
       // Stay on the movie's own detail page and re-render it showing the new
@@ -1596,10 +1621,9 @@ export async function confirmAndMarkUnwatched(button) {
     setGridCardsRemoving(ids, false);
     button.disabled = false;
     button.textContent = originalText;
-    if (!gridOrigin && (kind === "episode" || kind === "season" || kind === "show") && state.activeShowModalKey) {
-      if (!showUnwatchEpisodes.length || !_patchShowModalEpisodesSavingState({ episodes: showUnwatchEpisodes, saving: false })) {
-        _renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason);
-      }
+    if (!gridOrigin && (kind === "episode" || kind === "season" || kind === "show") && (state.activeShowModalKey || state.activeShowTmdbId || state.activeShowTvdbId)) {
+      _patchShowModalEpisodesSavingState({ episodes: showUnwatchEpisodes, saving: false });
+      syncActiveShowWatchActionState();
     }
     _setMessage(`Mark unwatched failed: ${error.message}`, "error");
   }

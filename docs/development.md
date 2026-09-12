@@ -159,11 +159,12 @@ version to the released semver and the build to 1. The sidebar and About
   first pre-push test failure follows the bounded retry procedure above instead of
   bypassing the gate or prematurely ending the promotion. The promotion command
   refuses to mutate anything without `--confirm`.
-- After the main image workflow succeeds, the operator refreshes the Portainer-managed
-  `plembfin` stack at [the hosted demo](https://plembfin.lasikie.co.uk/) from
-  `ghcr.io/lasikiewicz/plembfin:latest`, keeps `BUILD_CHANNEL=main` and the existing
-  data volume, and verifies the released version plus the version/onboarding/Manual Watch
-  smoke checks. Publishing to GHCR alone does not restart this container.
+- After the main image workflow succeeds, its `Deploy public demo to OCI` job pulls the
+  exact released tag on the dedicated Oracle Cloud Compute instance serving
+  [demo.plembfin.com](https://demo.plembfin.com/), keeps `PLEMBFIN_DEMO_MODE=1` and the
+  existing `/data` mount, and verifies the released version plus the public-demo
+  health/guardrail checks. Publishing to GHCR alone does not restart this container.
+  Portainer is local-only and is not used by the release gate.
 - After the release pipeline publishes from that commit, the procedure merges
   `origin/main` into `develop` and pushes the synchronized state to `origin/develop`.
   The next "Force to alpha" therefore starts with `main` already represented in remote
@@ -210,12 +211,16 @@ git push origin develop
 
 The alpha workflow reads the alpha build metadata already committed and publishes
 `:alpha` plus an `alpha-<build>` tag. The main workflow reads the version already
-committed and publishes `:latest` plus the version tag. The main workflow does not
-restart the hosted demo; the "Force to main" procedure refreshes the Portainer
-`plembfin` stack and smoke-tests [plembfin.lasikie.co.uk](https://plembfin.lasikie.co.uk/)
-after the image is published. After that check, the procedure publishes its merge into
-`origin/develop` so the branch graph is reconciled before the next alpha promotion. It
-does not sync `alpha` separately.
+committed, publishes a multi-architecture `:latest` plus version tag for AMD64 and
+ARM64 hosts, and then deploys that exact version to the OCI demo job. After that check,
+the procedure publishes its merge into `origin/develop` so the branch graph is
+reconciled before the next alpha promotion. It does not sync `alpha` separately.
+
+For a demo-only catch-up, run the **Deploy Public Demo** workflow manually from the
+`main` ref. Type `DEPLOY` in its confirmation input and leave the version blank to use
+that ref's `changelog.json`, or enter an already-published numbered release tag. This
+workflow pulls an existing image, does not rebuild or publish anything, does not move a
+branch, and performs the same live demo verification as the main release job.
 
 ## Release pipeline (push to `main`)
 
@@ -262,32 +267,42 @@ in `scripts/promote-alpha-to-main.js`, run before the force-push:
 `.github/workflows/update-changelog.yml` (workflow name "Publish Main Release") then
 runs on the push to `main` - in practice this means every "Force to main" run, not every
 individual commit - reads the version already committed, checks README consistency, runs
-the full build gate again in CI, builds and pushes the Docker image to GHCR tagged
-`latest` + the version, creates
+the full build gate again in CI, builds and pushes a multi-architecture Docker image to
+GHCR tagged `latest` + the version, creates
 or updates the matching GitHub Release with the formatted body from
 `scripts/generate-release-notes.js`, then posts the `changelog.json` entry to Discord via
 `scripts/notify-discord-release.js main` (see "Discord release notifications" below).
-It does not write anything back to `main` or redeploy the Portainer-hosted demo; that
-refresh is the explicit post-publish step in "Force to main".
+The dependent `Deploy public demo to OCI` job then pulls the exact version tag on the
+Oracle instance and runs the public-demo verification. It does not write anything back
+to `main`.
 `docker-publish.yml` is a manual (`workflow_dispatch`) image build that skips the
 changelog step.
 
-### Hosted demo release gate
+### Oracle-hosted public-demo release gate
 
-The public application demo at [plembfin.lasikie.co.uk](https://plembfin.lasikie.co.uk/)
-is a Portainer-managed Compose stack named `plembfin`. The running service should use
-`ghcr.io/lasikiewicz/plembfin:latest` with `BUILD_CHANNEL=main`; the stack editor must
-not be left on the development image or `BUILD_CHANNEL=develop`. The Compose stack keeps
-its existing `plembfin_data:/data` volume, so a release refresh must update the image
-without deleting or re-seeding the data.
+The public application demo at [demo.plembfin.com](https://demo.plembfin.com/) runs on
+the dedicated Oracle Cloud Compute instance in `uk-london-1`, behind the Cloudflare
+reverse proxy. The release job deploys the exact `ghcr.io/lasikiewicz/plembfin:<version>`
+image with `PLEMBFIN_DEMO_MODE=1`, `BUILD_CHANNEL=main`, and the existing isolated data
+mount. It does not use the local Portainer installation or the local-only
+`plembfin.lasikie.co.uk` environment.
 
-After `Publish Main Release` succeeds, open **Portainer → Stacks → plembfin → Editor**,
-confirm or change those image/channel values, and select **Update the stack**, pulling
-the latest image if Portainer offers that option. Confirm that the container is healthy,
-then check the live version and the release smoke cases: the bottom-left version opens
-the Changelog, completed onboarding does not keep showing **Complete onboarding**, and a
-Manual Watch review count survives navigation. GHCR publication by itself does not
-restart the container, so this gate is part of completing "Force to main".
+Configure these GitHub Actions settings before the next main promotion:
+
+- Variables: `OCI_DEMO_HOST`, `OCI_DEMO_KNOWN_HOSTS`, `OCI_DEMO_CONTAINER`,
+  `OCI_DEMO_DATA_DIR`, and `OCI_DEMO_RUNTIME` (`podman` or `docker`).
+- Optional variables: `OCI_DEMO_USER` (defaults to `opc`) and `OCI_DEMO_PORT` (defaults
+  to `80`).
+- Secret: `OCI_DEMO_SSH_KEY`, containing the private key for the `opc` account.
+
+The instance must have the configured container runtime installed, passwordless
+`sudo` for `opc`, and the existing demo container/data mount identified by the Actions
+variables. The deploy helper reuses the current `/data` mount, pulls the exact release
+tag, recreates only the configured demo container, and refuses an unexpected listener
+on the public port. The verification script checks `/api/ping`, the root public-demo
+guardrail, and `/changelog.json` against the release version. If an OCI setting is
+missing or the deployment/verification fails, the main release workflow remains
+failed instead of reporting the demo as current.
 
 Pushes to `main` and `alpha` trigger `.github/workflows/windows-installer.yml`. That job
 runs on a Windows runner, installs and probes the Windows builds of `better-sqlite3` and

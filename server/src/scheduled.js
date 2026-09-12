@@ -6,7 +6,7 @@ import { applyUnwatchedTransition } from "./utils/watchStateTransitions.js";
 import { parsePlexMediaIds } from "./utils/parsers.js";
 import { findPlexItem, resolvePlexAccountId } from "./utils/plexClient.js";
 import { fetchPlexWithRefresh } from "./utils/plexFetch.js";
-import { buildCacheRow, fetchLiveSessions, hydrateCachedSession } from "./utils/liveSessions.js";
+import { buildCacheRow, canInferLiveSessionCompletion, fetchLiveSessions, hydrateCachedSession, isStaleLiveSessionRow } from "./utils/liveSessions.js";
 import { activeSyncOperation, appendSyncHistory, clearSyncOperation, claimSyncOperation, isAuthoritativeRestoreActive, loadMediaConfig, loadRuntimeState, releaseSyncOperation, setRuntimeState, touchSyncOperation, RESTORE_KIND_BACKUP, RESTORE_KIND_FULL_SYNC, SYNC_OPERATION_FORCE, SYNC_OPERATION_SCHEDULED } from "./utils/configStore.js";
 import { createLoopStore } from "./utils/loopStore.js";
 import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
@@ -740,6 +740,25 @@ async function processCompletedSession(row, config, loopStore) {
   // (server restart, a tick that could not reach the media server) the last-seen
   // time is the real watch time and the current time would be wrong.
   const lastSeenAt = Number(row.updated_at || 0);
+  const watchedAt = lastSeenAt > 0 ? new Date(lastSeenAt).toISOString() : "";
+  media.watched_at = watchedAt || undefined;
+  media.watchProvenance = buildWatchProvenance(
+    {
+      source: media.source,
+      event: media.event || "playback.complete",
+      phase: "completed",
+      sessionId: row.session_id,
+      user: media.user,
+      device: media.device,
+      deviceId: media.deviceId,
+      client: media.clientName,
+      clientVersion: media.clientVersion,
+    },
+    {
+      ingestPath: "live_session",
+      sourceTimestamp: watchedAt,
+    },
+  );
   recordWatchAuditEvent({
     eventType: "playback_ended",
     timestamp: lastSeenAt > 0 ? lastSeenAt : Date.now(),
@@ -750,6 +769,7 @@ async function processCompletedSession(row, config, loopStore) {
     source: media.source,
     sourceEvent: media.event,
     phase: "ended",
+    watchProvenance: media.watchProvenance,
     ids: media.ids,
     season: media.season,
     episode: media.episode,
@@ -765,36 +785,7 @@ async function processCompletedSession(row, config, loopStore) {
     payload: { progress: media.progress, offsetMs: media.offsetMs, durationMs: media.durationMs },
   });
 
-  const watchRecord = mediaToWatchRecord(
-    {
-      title: media.title,
-      type: media.type,
-      source: media.source,
-      ids: media.ids,
-      season: media.season,
-      episode: media.episode,
-      posterUrl: media.posterUrl,
-      watched_at: lastSeenAt > 0 ? new Date(lastSeenAt).toISOString() : undefined,
-      watchProvenance: buildWatchProvenance(
-        {
-          source: media.source,
-          event: media.event || "playback.complete",
-          phase: "completed",
-          sessionId: row.session_id,
-          user: media.user,
-          device: media.device,
-          deviceId: media.deviceId,
-          client: media.clientName,
-          clientVersion: media.clientVersion,
-        },
-        {
-          ingestPath: "live_session",
-          sourceTimestamp: lastSeenAt > 0 ? new Date(lastSeenAt).toISOString() : "",
-        },
-      ),
-    },
-    media.source,
-  );
+  const watchRecord = mediaToWatchRecord(media, media.source);
 
   if (isAuthoritativeRestoreActive()) return null;
   const inserted = await insertWatchRecord(watchRecord, { skipInvalidate: true, watchlistConfig: config });
@@ -1978,6 +1969,7 @@ export async function refreshLiveSessions(config, loopStore, { logger = () => {}
   const completions = [];
   const progressUpdates = [];
   const staleIds = [];
+  const now = Date.now();
 
   if (isAuthoritativeRestoreActive()) return { currentRows: [], completions: [], progressUpdates: [], staleIds: [], cachedCount: cachedRows.length, pendingConfirmations: 0, skipped: true };
 
@@ -1999,6 +1991,13 @@ export async function refreshLiveSessions(config, loopStore, { logger = () => {}
     // again next tick rather than counting this as a missed appearance.
     if (failedSources.has(String(row.source_platform || "").toLowerCase())) continue;
 
+    if (isStaleLiveSessionRow(row, now)) {
+      missingLiveSessionStreaks.delete(row.session_id);
+      staleIds.push(row.session_id);
+      logger(`Live session cache row was too old to infer a stop: ${row.title} (${row.session_id})`);
+      continue;
+    }
+
     const missCount = (missingLiveSessionStreaks.get(row.session_id) || 0) + 1;
     if (missCount < MISSING_LIVE_SESSION_CONFIRMATION_POLLS) {
       missingLiveSessionStreaks.set(row.session_id, missCount);
@@ -2007,6 +2006,11 @@ export async function refreshLiveSessions(config, loopStore, { logger = () => {}
     missingLiveSessionStreaks.delete(row.session_id);
 
     if (Number(row.last_progress || 0) >= watchedThresholdPercent()) {
+      if (!canInferLiveSessionCompletion(row, now)) {
+        staleIds.push(row.session_id);
+        logger(`Live session disappeared while paused; not inferring a completed watch: ${row.title} (${row.session_id})`);
+        continue;
+      }
       logger(`Live session completed playback: ${row.title} (${row.session_id})`);
       const completion = await processCompletedSession(row, config, loopStore).catch((error) => {
         logger(`ERROR: processCompletedSession failed for ${row.title}: ${error.message}`);

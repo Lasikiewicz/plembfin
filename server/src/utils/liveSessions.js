@@ -52,6 +52,18 @@ function embyLikePosterUrl(item = {}, mediaType = "unknown") {
 // Now Playing rail once only a few seconds remain.
 export const NOW_PLAYING_TERMINAL_GRACE_MS = 10_000;
 
+// A live-tracking row can survive a process restart or a long poller outage.
+// Once its last provider snapshot is this old, it is historical cache data,
+// not trustworthy evidence that playback just completed. Prefer missing a
+// watch over manufacturing a phantom watch from a stale high-progress row.
+export const LIVE_SESSION_COMPLETION_MAX_AGE_MS = 5 * 60 * 1000;
+
+export function isStaleLiveSessionRow(row = {}, now = Date.now()) {
+  const updatedAt = Number(row.updated_at || 0);
+  if (!Number.isFinite(updatedAt) || updatedAt <= 0) return true;
+  return Number(now) - updatedAt > LIVE_SESSION_COMPLETION_MAX_AGE_MS;
+}
+
 // Playback states that still count as a live session.
 //
 // "paused" belongs here. A paused session is open, not finished: the media
@@ -594,4 +606,10 @@ export function hydrateCachedSession(row = {}) {
     updatedAt: Number(row.updated_at || Date.now()),
     completedAt: row.completed_at || null,
   };
+}
+
+export function canInferLiveSessionCompletion(row = {}, now = Date.now()) {
+  if (isStaleLiveSessionRow(row, now)) return false;
+  const session = hydrateCachedSession(row);
+  return !session.paused && String(session.playbackState || "").toLowerCase() !== "paused";
 }

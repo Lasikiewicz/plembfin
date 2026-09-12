@@ -44,6 +44,7 @@ import { watchedPlayedSyncEnabled } from "../utils/syncFlags.js";
 import { forceSyncMediaState, normalizeMediaForceSyncRequest } from "../utils/mediaForceSync.js";
 import { forceSyncLibraryState, normalizeLibraryForceSyncRequest } from "../utils/libraryForceSync.js";
 import { appendMediaForceSyncActivity, createMediaForceSyncActivity, finishMediaForceSyncActivity, getMediaForceSyncActivity, isMediaForceSyncCancellationRequested, requestMediaForceSyncCancellation } from "../utils/mediaForceSyncActivity.js";
+import { dispatchTraktWatchStateBatch } from "../utils/trackerDispatcher.js";
 import { buildWatchProvenance, provenanceTelemetryLines } from "../utils/watchProvenance.js";
 import { releaseDateForItem, resolveWatchImportDate, runtimeMinutesForSourceItem } from "../utils/watchDates.js";
 import { watchImportMode } from "../utils/tuning.js";
@@ -558,12 +559,14 @@ function syncActivityEpisodeCoordinates(entry = {}, debug = {}) {
 // be stale episode-level ids from the original webhook. Once the user fixes a
 // show match, retry must read the current watch_history row for that show's
 // coordinate so it sends the newly rematched series identity to Trakt.
-function currentWatchRecordForSyncActivity(entry = {}, debug = {}) {
+function currentWatchRecordForSyncActivity(entry = {}, debug = {}, identity = {}) {
   const mediaType = String(entry.mediaType || "").trim().toLowerCase();
   if (!["episode", "movie"].includes(mediaType)) return null;
 
   const rows = requireDb().prepare("SELECT * FROM watch_history WHERE media_type = ?").all(mediaType);
-  const title = mediaType === "episode" ? showTitleFrom(entry.title || "") : String(entry.title || "").trim();
+  const title = mediaType === "episode"
+    ? String(identity.showTitle || identity.show_title || "").trim() || showTitleFrom(entry.title || "")
+    : String(entry.title || "").trim();
   const titleKey = syncActivityIdentityKey(title);
   if (!titleKey) return null;
 
@@ -578,13 +581,19 @@ function currentWatchRecordForSyncActivity(entry = {}, debug = {}) {
   });
   if (!candidates.length) return null;
 
+  const selectedTvdbId = String(identity.tvdbId || identity.tvdb_id || "").trim();
+  const identityCandidates = selectedTvdbId
+    ? candidates.filter((row) => String(row.tvdb_id || "").trim() === selectedTvdbId)
+    : candidates;
+  const candidatePool = identityCandidates.length ? identityCandidates : candidates;
+
   const action = String(entry.action || "watched").trim().toLowerCase();
   const unwatch = ["unwatched", "unplayed"].includes(action);
-  const preferred = candidates.filter((row) => {
+  const preferred = candidatePool.filter((row) => {
     const rowAction = String(row.sync_action || "watched").trim().toLowerCase();
     return unwatch ? ["unwatched", "unplayed"].includes(rowAction) : !["unwatched", "unplayed"].includes(rowAction);
   });
-  const pool = preferred.length ? preferred : candidates;
+  const pool = preferred.length ? preferred : candidatePool;
   const rowTimestamp = (row) => {
     const numeric = Number(row.updated_at);
     if (Number.isFinite(numeric) && numeric > 0) return numeric;
@@ -1231,8 +1240,16 @@ function mergeTargetStates(originalTargetStates = [], retrySummaryTargetStates =
   });
 }
 
-async function mediaFromSyncActivity(entry, config) {
+async function mediaFromSyncActivity(entry, config, identity = {}) {
   const debug = entry.rawPayloadDebug || {};
+  const hasIdentity = Boolean(
+    String(identity.showTitle || identity.show_title || "").trim()
+      || String(identity.tvdbId || identity.tvdb_id || "").trim(),
+  );
+  if (hasIdentity) {
+    const rematchedRecord = currentWatchRecordForSyncActivity(entry, debug, identity);
+    if (rematchedRecord) return mediaFromWatchRecord(rematchedRecord);
+  }
   const recordId = debug.watchRecordId || debug.watch_record_id;
   const record = recordId ? await getWatchRecordById(recordId) : null;
   if (record) return mediaFromWatchRecord(record);
@@ -1325,7 +1342,7 @@ async function retryQueuedWatchRecord(watchRecordId) {
 // exactly one place that knows how to retry one item. Throws an Error with a
 // `.status` for the HTTP wrapper to translate into a response code; the
 // background job just logs the message and moves on to the next id.
-async function retrySyncActivityEntry(rawId) {
+async function retrySyncActivityEntry(rawId, retryContext = {}) {
   if (isAuthoritativeRestoreActive()) {
     throw Object.assign(new Error("An authoritative watch-history restore is active; retry sync is paused until it completes."), { status: 409 });
   }
@@ -1343,7 +1360,7 @@ async function retrySyncActivityEntry(rawId) {
   if (!targets.length) throw Object.assign(new Error("This sync activity entry has no failed targets to retry"), { status: 409 });
 
   const config = await loadMediaConfig();
-  const media = await mediaFromSyncActivity(entry, config);
+  const media = await mediaFromSyncActivity(entry, config, retryContext);
   if (!media?.isValid) throw Object.assign(new Error("The media identity for this activity entry could not be resolved"), { status: 422 });
   const existing = await findWatchedByAnyMediaKey(media).catch(() => null);
   if (existing?.watched_at) media.watched_at = existing.watched_at;
@@ -1402,7 +1419,7 @@ async function listCurrentSyncActivityGroupRetryableEntries(groupKey) {
 // Retry every current failed item in one show group after the group's stored
 // identity has been corrected. The loop is deliberately sequential so a
 // show-wide repair does not create a burst of Trakt requests.
-export async function retrySyncActivityGroup(groupKey) {
+export async function retrySyncActivityGroup(groupKey, retryContext = {}) {
   const { group, entries } = await listCurrentSyncActivityGroupRetryableEntries(groupKey);
   let succeeded = 0;
   let stillFailed = 0;
@@ -1412,7 +1429,7 @@ export async function retrySyncActivityGroup(groupKey) {
 
   for (const entry of entries) {
     try {
-      const result = await retrySyncActivityEntry(entry.id);
+      const result = await retrySyncActivityEntry(entry.id, retryContext);
       if (result.status === "success") succeeded += 1;
       else if (result.status === "skipped") skipped += 1;
       else stillFailed += 1;
@@ -1446,8 +1463,12 @@ export async function handleRetrySyncHistory(req, res) {
   }
 
   const body = await readJson(req);
+  const retryContext = {
+    tvdbId: String(body.tvdbId || body.tvdb_id || "").trim(),
+    showTitle: String(body.showTitle || body.show_title || "").trim(),
+  };
   try {
-    const result = await retrySyncActivityEntry(body.id);
+    const result = await retrySyncActivityEntry(body.id, retryContext);
     return sendJson(res, { ok: true, ...result });
   } catch (error) {
     const status = Number.isInteger(error?.status) && error.status >= 400 && error.status < 600 ? error.status : 500;
@@ -1506,8 +1527,12 @@ export async function handleRetrySyncActivityGroup(req, res) {
   const body = await readJson(req);
   const groupKey = String(body.groupKey || body.group_key || "").trim();
   if (!groupKey) return sendJson(res, { error: "groupKey is required" }, 400);
+  const retryContext = {
+    tvdbId: String(body.tvdbId || body.tvdb_id || "").trim(),
+    showTitle: String(body.showTitle || body.show_title || "").trim(),
+  };
   try {
-    const result = await retrySyncActivityGroup(groupKey);
+    const result = await retrySyncActivityGroup(groupKey, retryContext);
     return sendJson(res, { ok: true, ...result });
   } catch (error) {
     const status = Number.isInteger(error?.status) && error.status >= 400 && error.status < 600 ? error.status : 500;
@@ -1794,6 +1819,33 @@ export async function handleManualUnwatch(req, res) {
   return sendJson(res, { ok: true, succeeded, failed, queued, results });
 }
 
+function mergeManualTrackerSummary(summary = {}, trackerResult = null) {
+  if (!trackerResult || trackerResult.status === "skipped") return summary;
+
+  const trackerStatus = trackerResult.status === "failed" ? "error" : trackerResult.status === "not_found" ? "skipped" : trackerResult.status;
+  const targetStates = [
+    ...(Array.isArray(summary.targetStates) ? summary.targetStates : []),
+    { target: "trakt", status: trackerStatus, detail: trackerResult.detail || "" },
+  ];
+  const localStatus = summary.status || "unknown";
+  let status = localStatus;
+  if (trackerStatus === "success") {
+    status = localStatus === "error" ? "partial" : "success";
+  } else if (trackerStatus === "error") {
+    status = ["success", "partial"].includes(localStatus) ? "partial" : "error";
+  } else if (trackerStatus === "skipped") {
+    status = localStatus === "success" ? "partial" : localStatus;
+  }
+
+  const trackerDetails = trackerStatus === "success"
+    ? "Trakt marked watched in a grouped history request."
+    : trackerResult.detail || "Trakt did not accept this item.";
+  const details = localStatus === "skipped" && trackerStatus === "success"
+    ? trackerDetails
+    : [summary.details, trackerDetails].filter(Boolean).join("; ");
+  return { ...summary, skipped: status === "skipped", status, details, targetStates };
+}
+
 export async function handleManualWatch(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);
@@ -1891,7 +1943,17 @@ export async function handleManualWatch(req, res) {
         // display dedupe keeps the history UI tidy.
         const replaceExisting = existing && !exactExistingWatched;
         if (replaceExisting) await deleteWatchRecordById(existing.id, { skipInvalidate: true }).catch(() => null);
-        const insertResult = await insertWatchRecord(record, { skipInvalidate: true, id: replaceExisting ? existing.id : "", watchlistConfig: config });
+        const insertResult = await insertWatchRecord(record, {
+          skipInvalidate: true,
+          id: replaceExisting ? existing.id : "",
+          watchlistConfig: config,
+          // A show-level action can contain hundreds of episodes. The detail
+          // page already has the show metadata, and fetching TMDB assets once
+          // per inserted episode needlessly competes with the live sync and
+          // makes the page appear stalled. Keep the eager enrichment for a
+          // single-item action where it is useful.
+          prefetch: records.length <= 1,
+        });
         id = insertResult.id;
         storedRecord = insertResult.record;
         await insertResult.assetPrefetch?.catch(() => null);
@@ -1931,19 +1993,34 @@ export async function handleManualWatch(req, res) {
   // needs the real per-target outcome, not just "a watch record was queued".
   let propagated = 0;
   if (syncTasks.length > 0) {
+    // A show-level mark can contain dozens or hundreds of episodes. Trakt's
+    // history endpoint accepts grouped season/episode payloads, so keep the
+    // media-server fan-out concurrent but move the tracker phase to one
+    // bounded batch. Single-item actions retain the normal per-item path.
+    const batchTraktWatch = watchedPlayedSyncEnabled()
+      && syncTasks.length > 1
+      && syncTasks.every(({ media }) => String(media?.type || media?.mediaType || "").toLowerCase() === "episode");
+    const taskSummaries = new Array(syncTasks.length);
     const trackingReservation = reserveDispatchBatch(syncTasks.length);
     try {
-      await runWithConcurrency(syncTasks, async (task) => {
+      await runWithConcurrency(syncTasks, async (task, index) => {
         try {
           const summary = await syncMediaPlaystate(task.media, config, loopStore, {
             trackDispatch: false,
             lane: records.length === 1 ? "interactive" : "sync",
+            includeTrackers: !batchTraktWatch,
           }).catch((error) => ({
             skipped: false,
             status: "error",
             details: `Manual watch propagation failed: ${error.message || String(error)}`,
             targetStates: [],
           }));
+
+          if (batchTraktWatch) {
+            taskSummaries[index] = summary;
+            return;
+          }
+
           if (summary.status === "success" || summary.status === "partial") propagated += 1;
 
           // Remote watched-state APIs can synchronously echo a temporary
@@ -1963,10 +2040,55 @@ export async function handleManualWatch(req, res) {
           await recordSyncHistory(task.media, summary, "watched");
         } catch (error) {
           console.error("Manual watch sync failed:", error);
+          if (batchTraktWatch) {
+            taskSummaries[index] = {
+              skipped: false,
+              status: "error",
+              details: `Manual watch propagation failed: ${error.message || String(error)}`,
+              targetStates: [],
+            };
+          }
         } finally {
-          completeDispatchTracking(trackingReservation);
+          if (!batchTraktWatch) completeDispatchTracking(trackingReservation);
         }
       }, MANUAL_SYNC_ITEM_CONCURRENCY);
+
+      if (batchTraktWatch) {
+        const trackerBatch = await dispatchTraktWatchStateBatch(
+          syncTasks.map(({ media }) => media),
+          "watched",
+          { lane: "sync", canonicalReplay: true },
+        ).catch((error) => ({
+          results: syncTasks.map((task, index) => ({
+            index,
+            media: task.media,
+            status: "failed",
+            detail: error.message || String(error),
+          })),
+        }));
+
+        for (const [index, task] of syncTasks.entries()) {
+          const trackerResult = trackerBatch.results?.find((result) => result?.index === index) || null;
+          const summary = mergeManualTrackerSummary(taskSummaries[index] || {
+            skipped: false,
+            status: "error",
+            details: "Manual watch propagation did not return a result.",
+            targetStates: [],
+          }, trackerResult);
+          if (summary.status === "success" || summary.status === "partial") propagated += 1;
+
+          // Remote watched-state APIs can synchronously echo a temporary
+          // unwatch while replacing their existing play. Reassert the
+          // explicit Plembfin decision after the grouped tracker write has
+          // settled; Plembfin remains the authority.
+          const authoritativeRecord = reassertWatchRecordAuthoritySync(task.id) || task.record;
+          supersedeUnwatchedTransitionsForRecordSync(authoritativeRecord);
+          await setPlaystateForMediaIdentity(task.media, "watched", task.record.watched_at, { skipInvalidate: true });
+          await updateWatchTelemetry(task.id, formatDispatchTelemetry(summary, task.media, "watched"), { skipInvalidate: true });
+          await recordSyncHistory(task.media, summary, "watched");
+          completeDispatchTracking(trackingReservation);
+        }
+      }
     } finally {
       finishDispatchTracking(trackingReservation);
     }

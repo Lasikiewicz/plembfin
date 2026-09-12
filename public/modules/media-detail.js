@@ -11,7 +11,7 @@ import {
 } from "./media-detail-context.js?v=1.0.2.0.0";
 import {
   openShowImmersiveModalByTitle, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openShowInlineDetail,
-  renderImmersiveShowModal, renderShowModalContent, patchShowModalEpisodeFromLive, patchShowModalEpisodesSavingState, scrollSeasonAccordionIntoView,
+  renderImmersiveShowModal, renderShowModalContent, ensureAllShowEpisodeDetailsForWatch, patchShowModalEpisodeFromLive, patchShowModalEpisodesSavingState, syncShowModalWatchActionControls, scrollSeasonAccordionIntoView,
 } from "./media-detail-show.js?v=1.0.2.0.0";
 import {
   renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, patchMovieWatchedState,
@@ -33,8 +33,10 @@ export {
   openShowInlineDetail,
   renderImmersiveShowModal,
   renderShowModalContent,
+  ensureAllShowEpisodeDetailsForWatch,
   patchShowModalEpisodeFromLive,
   patchShowModalEpisodesSavingState,
+  syncShowModalWatchActionControls,
   scrollSeasonAccordionIntoView,
   openShowImmersiveModalByTmdbId,
   openShowImmersiveModalByTvdbId,

@@ -706,7 +706,7 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
     logger(`[push] Local media-server phase complete for ${completedLocalItems.length} item${completedLocalItems.length === 1 ? "" : "s"}; syncing Trakt.`);
     let trackerCancellationLogged = false;
     await runWithConcurrency(trackerItems, async (item) => {
-      if (isCancelled() || isAuthoritativeRestoreActive()) {
+      if (cancelled || isCancelled() || isAuthoritativeRestoreActive()) {
         cancelled = true;
         item.summary = summaryWithDeferredTrackerState(
           item.summary,
@@ -720,13 +720,16 @@ export async function forceSyncMediaState(input, { config = null, now = Date.now
         return;
       }
       try {
-        item.summary = await appendCanonicalTrackerDispatch(item.summary, item.media, item.canonicalState);
+        item.summary = await appendCanonicalTrackerDispatch(item.summary, item.media, item.canonicalState, { isCancelled });
       } catch (error) {
         item.summary = summaryWithDeferredTrackerState(
           item.summary,
           "error",
           `Trakt dispatch failed: ${error.message || String(error)}`,
         );
+      }
+      if (isCancelled() || isAuthoritativeRestoreActive() || item.summary.targetStates?.some((target) => target.target === "trakt" && target.status === "cancelled")) {
+        cancelled = true;
       }
       const trackerState = item.summary.targetStates?.find((target) => target.target === "trakt");
       if (trackerState) {

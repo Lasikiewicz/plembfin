@@ -1469,13 +1469,13 @@ export function prefetchWatchRecordAssets({ id = "", record = null } = {}) {
   return prefetchTmdbMetadataBackground(record.media_type, record.tmdb_id, record.title, id, record).catch(() => null);
 }
 
-export async function insertWatchRecord(record, { skipInvalidate = false, id: presetId = "", watchlistConfig = null, allowDuringRestore = false } = {}) {
+export async function insertWatchRecord(record, { skipInvalidate = false, id: presetId = "", watchlistConfig = null, allowDuringRestore = false, prefetch = true } = {}) {
   const result = insertWatchRecordSync(record, { id: presetId, watchlistConfig, allowDuringRestore });
   if (!skipInvalidate) await invalidateHistoryDerivedCaches("insertWatchRecord");
 
   // Eagerly pull + store TMDB metadata/artwork at ingest (fire-and-forget;
   // returned so the webhook can await it before responding if it wants to).
-  const assetPrefetch = prefetchWatchRecordAssets(result);
+  const assetPrefetch = prefetch ? prefetchWatchRecordAssets(result) : null;
   return { ...result, assetPrefetch };
 }
 
@@ -3985,6 +3985,13 @@ export async function rematchShowWatchRecords({ id = "", showTitle = "", tvdbId 
     canonicalTitleKey(showTitleFrom(row.show_title || row.title)) === showKey
   ));
   if (!rows.length) return { ok: false, error: "No episodes found for show" };
+
+  if (!renameTo && rows.every((row) => cleanString(row.tvdb_id) === cleanTvdbId)) {
+    return {
+      ok: false,
+      error: `This show is already matched to TVDB ${cleanTvdbId}. Choose a different match.`,
+    };
+  }
 
   const oldTmdbIds = new Set(rows.map((row) => cleanString(row.tmdb_id)).filter(Boolean));
   // The progress cache can hold a resolved tmdb_id that was never written back

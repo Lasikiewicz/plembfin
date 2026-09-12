@@ -6,6 +6,61 @@ import { canonicalCompoundEpisodeMedia, canonicalizeCompoundEpisodeRows } from "
 
 let traktRefreshInFlight = null;
 
+const TRAKT_RATE_LIMIT_RETRIES = 3;
+const TRAKT_WRITE_MIN_INTERVAL_MS = 200;
+let traktWriteQueue = Promise.resolve();
+let lastTraktWriteStartedAt = 0;
+
+function waitForTraktRetry(delayMs) {
+  return new Promise((resolve) => setTimeout(resolve, Math.max(0, Number(delayMs) || 0)));
+}
+
+function traktRetryDelayMs(error, attempt) {
+  const retryAfterSeconds = Number(error?.retryAfter);
+  if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) {
+    return Math.min(60_000, Math.max(10, retryAfterSeconds * 1000));
+  }
+  return Math.min(30_000, 1_000 * (2 ** Math.max(0, attempt)));
+}
+
+// The shared outbound governor prevents unbounded concurrency, but its normal
+// 30ms host interval is still too bursty for a sequence of Trakt history
+// writes. Serialize only Trakt writes and leave a short gap between request
+// starts; this keeps grouped show actions fast while avoiding a remove/add
+// burst that turns every episode in the batch into the same 429 error.
+async function runTraktWrite(operation) {
+  const waitMs = Math.max(0, lastTraktWriteStartedAt + TRAKT_WRITE_MIN_INTERVAL_MS - Date.now());
+  if (waitMs) await waitForTraktRetry(waitMs);
+  lastTraktWriteStartedAt = Date.now();
+  return operation();
+}
+
+function enqueueTraktWrite(operation) {
+  const run = async () => {
+    return runTraktWrite(operation);
+  };
+  const result = traktWriteQueue.then(run, run);
+  traktWriteQueue = result.catch(() => {});
+  return result;
+}
+
+// Trakt's sync endpoints return 429 when several history writes arrive in a
+// burst. The shared outbound governor cools the host after seeing that
+// response, but the request that was rejected still needs a bounded retry or
+// a large manual show mark is left partially propagated until the next
+// scheduled retry. Keep this wrapper specific to Trakt writes so metadata and
+// media-server traffic retain their existing retry semantics.
+async function withTraktRateLimitRetry(operation) {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await enqueueTraktWrite(operation);
+    } catch (error) {
+      if (Number(error?.status) !== 429 || attempt >= TRAKT_RATE_LIMIT_RETRIES) throw error;
+      await waitForTraktRetry(traktRetryDelayMs(error, attempt));
+    }
+  }
+}
+
 function trackerShowTitle(media = {}) {
   const explicit = String(media.showTitle || media.show_title || "").trim();
   if (explicit) return explicit;
@@ -166,13 +221,20 @@ function traktNotFoundCount(result) {
 // entries at whatever time it happened to run. A genuine watch reported by a
 // media server still just adds, since that really is a new play. Removing an
 // item with no existing history is a no-op on Trakt's side, not an error.
-async function performTraktDispatch(connection, trackerMedia, state, isCanonicalReplay, lane = "sync") {
-  let removeResult = null;
-  if (isCanonicalReplay) {
-    removeResult = await setTraktWatchState(connection, trackerMedia, "unwatched", { lane });
-  }
-  const result = await setTraktWatchState(connection, trackerMedia, state, { lane });
-  return { removeResult, result };
+async function performTraktDispatch(connection, trackerMedia, state, isCanonicalReplay, lane = "sync", isCancelled = () => false) {
+  // Keep a canonical remove -> add replay together inside one queue slot.
+  // Serializing each request separately lets another episode's remove slip
+  // between this item's remove and add, which defeats the atomic cancellation
+  // guarantee and can expose a temporary unwatched state to the poller.
+  return withTraktRateLimitRetry(async () => {
+    if (isCancelled()) return { cancelled: true };
+    let removeResult = null;
+    if (isCanonicalReplay) {
+      removeResult = await runTraktWrite(() => setTraktWatchState(connection, trackerMedia, "unwatched", { lane }));
+    }
+    const result = await runTraktWrite(() => setTraktWatchState(connection, trackerMedia, state, { lane }));
+    return { removeResult, result };
+  });
 }
 
 // A stored provider id remains the primary payload. Movies may receive one
@@ -682,6 +744,222 @@ export function partitionTraktNotFoundBatch(batch = [], result = {}) {
   };
 }
 
+function trackerHistoryEntryBatches(entries = [], batchSize = 100) {
+  const batches = [];
+  const keys = new Set();
+  const limit = Math.max(1, Number(batchSize) || 100);
+  let batch = [];
+  for (const entry of entries) {
+    const key = trackerMediaKey(entry.media);
+    // The grouped Trakt payload cannot contain the same episode twice. Keep
+    // duplicate local transition rows in separate requests rather than
+    // silently dropping a legitimate rewatch.
+    if (batch.length >= limit || keys.has(key)) {
+      if (batch.length) batches.push(batch);
+      batch = [];
+      keys.clear();
+    }
+    batch.push(entry);
+    keys.add(key);
+  }
+  if (batch.length) batches.push(batch);
+  return batches;
+}
+
+function batchDispatchResult(index, media, status, detail) {
+  return { index, media, mediaKey: media ? trackerMediaKey(media) : "", status, detail };
+}
+
+function batchDispatchSummary(results = []) {
+  const values = results.filter(Boolean);
+  const successful = values.filter((result) => result.status === "success").length;
+  const failed = values.filter((result) => result.status === "failed").length;
+  const skipped = values.length - successful - failed;
+  return {
+    skipped: successful === 0,
+    status: failed ? (successful ? "partial" : "error") : skipped ? (successful ? "partial" : "skipped") : "success",
+    results,
+  };
+}
+
+// Dispatch a group of canonical manual watch transitions using Trakt's
+// grouped /sync/history payload. A show with 300 episodes therefore needs a
+// small number of requests instead of two requests per episode, while each
+// episode still retains its own watched_at value. The caller owns the local
+// media-server fan-out and uses the returned per-index results to append the
+// Trakt target state to each local summary.
+export async function dispatchTraktWatchStateBatch(items = [], state = "watched", {
+  lane = "sync",
+  batchSize = 100,
+  canonicalReplay = state === "watched",
+} = {}) {
+  const sourceItems = Array.isArray(items) ? items : [];
+  const results = new Array(sourceItems.length);
+  if (!sourceItems.length) return batchDispatchSummary(results);
+  if (!["watched", "unwatched"].includes(String(state))) {
+    const detail = `Unsupported Trakt batch state: ${state}`;
+    sourceItems.forEach((media, index) => { results[index] = batchDispatchResult(index, media, "failed", detail); });
+    return batchDispatchSummary(results);
+  }
+
+  const eligible = [];
+  for (const [index, sourceMedia] of sourceItems.entries()) {
+    const media = sourceMedia || {};
+    if (String(media.source || "").toLowerCase().includes("trakt")) {
+      results[index] = batchDispatchResult(index, media, "skipped", "Source tracker echo suppressed");
+      continue;
+    }
+    eligible.push({ index, sourceMedia: media });
+  }
+  if (!eligible.length) return batchDispatchSummary(results);
+
+  let connection;
+  try {
+    connection = await withFreshTraktConnection();
+  } catch (error) {
+    const detail = error.message || String(error);
+    updateTrackerConnectionStatus("trakt", { lastError: detail });
+    for (const { index, sourceMedia } of eligible) results[index] = batchDispatchResult(index, sourceMedia, "failed", detail);
+    return batchDispatchSummary(results);
+  }
+  if (!connection) {
+    for (const { index, sourceMedia } of eligible) results[index] = batchDispatchResult(index, sourceMedia, "skipped", "Trakt is not connected");
+    return batchDispatchSummary(results);
+  }
+
+  const primaryHydrationCache = new Map();
+  const titleFallbackCache = new Map();
+  const resolved = [];
+  for (const { index, sourceMedia } of eligible) {
+    const canonicalMedia = canonicalCompoundEpisodeMedia(sourceMedia);
+    try {
+      const [candidate] = await trackerDispatchMediaCandidates(canonicalMedia, {
+        includeTitleFallback: true,
+        primaryHydrationCache,
+        titleFallbackCache,
+      });
+      if (!candidate) {
+        throw Object.assign(new Error("Trakt needs a Trakt, IMDb, TMDB, or TVDB ID for this item"), { code: "not_found" });
+      }
+      const media = {
+        ...candidate,
+        source: canonicalMedia.source || "manual",
+        watched_at: canonicalMedia.watched_at,
+      };
+      resolved.push({ index, sourceMedia, media });
+    } catch (error) {
+      const status = error.code === "not_found" ? "not_found" : "failed";
+      results[index] = batchDispatchResult(index, sourceMedia, status, error.message || String(error));
+    }
+  }
+  if (!resolved.length) return batchDispatchSummary(results);
+
+  // Publish every intent before the first remove call. This is the same race
+  // barrier used by the single-item dispatcher, but written in one SQLite
+  // transaction so a tracker poll cannot observe only the first part of a
+  // large show.
+  recordTrackerOutboundBatch("trakt", resolved.map(({ media }) => ({
+    mediaKey: trackerMediaKey(media),
+    media,
+    state,
+  })));
+
+  let refreshedConnection = false;
+  const callBatch = async (batch, batchState) => {
+    const payload = batch.map((entry) => entry.media);
+    try {
+      return await withTraktRateLimitRetry(() => setTraktWatchHistoryBatch(connection, payload, batchState, { lane }));
+    } catch (error) {
+      if (Number(error?.status) !== 401 || refreshedConnection) throw error;
+      refreshedConnection = true;
+      connection = await withFreshTraktConnection(true);
+      if (!connection) throw error;
+      return withTraktRateLimitRetry(() => setTraktWatchHistoryBatch(connection, payload, batchState, { lane }));
+    }
+  };
+
+  const batches = trackerHistoryEntryBatches(resolved, batchSize);
+  const addable = [];
+  const removeBeforeAdd = String(state) === "unwatched" || canonicalReplay;
+  for (const batch of batches) {
+    if (!removeBeforeAdd) {
+      addable.push(batch);
+      continue;
+    }
+    try {
+      // Removing an already-absent play is intentionally harmless; the
+      // remove endpoint reports that as not_found in its 200 response.
+      await callBatch(batch, "unwatched");
+      if (String(state) === "unwatched") {
+        for (const entry of batch) results[entry.index] = batchDispatchResult(entry.index, entry.media, "success", "Marked unwatched on Trakt");
+      } else {
+        addable.push(batch);
+      }
+    } catch (error) {
+      const detail = error.message || String(error);
+      for (const entry of batch) results[entry.index] = batchDispatchResult(entry.index, entry.media, "failed", detail);
+    }
+  }
+
+  for (const batch of addable) {
+    try {
+      const result = await callBatch(batch, "watched");
+      const notFound = traktNotFoundCount(result);
+      if (!notFound) {
+        for (const entry of batch) results[entry.index] = batchDispatchResult(entry.index, entry.media, "success", "Marked watched on Trakt (batched)");
+        recordTrackerOutboundBatch("trakt", batch.map(({ media }) => ({
+          mediaKey: trackerMediaKey(media),
+          media,
+          state: "watched",
+        })));
+        continue;
+      }
+
+      const mediaBatch = batch.map((entry) => entry.media);
+      const partition = partitionTraktNotFoundBatch(mediaBatch, result);
+      const rejectedKeys = new Set(partition.rejected.map((media) => trackerMediaKey(media)));
+      for (const entry of batch) {
+        const key = trackerMediaKey(entry.media);
+        if (!rejectedKeys.size || rejectedKeys.has(key)) {
+          results[entry.index] = batchDispatchResult(
+            entry.index,
+            entry.media,
+            "not_found",
+            "Trakt could not match this item to mark it watched",
+          );
+        } else {
+          results[entry.index] = batchDispatchResult(entry.index, entry.media, "success", "Marked watched on Trakt (batched)");
+        }
+      }
+      if (partition.accepted.length) {
+        recordTrackerOutboundBatch("trakt", batch
+          .filter((entry) => !rejectedKeys.has(trackerMediaKey(entry.media)))
+          .map(({ media }) => ({ mediaKey: trackerMediaKey(media), media, state: "watched" })));
+      }
+    } catch (error) {
+      const detail = error.message || String(error);
+      for (const entry of batch) results[entry.index] = batchDispatchResult(entry.index, entry.media, "failed", detail);
+    }
+  }
+
+  const successfulWatchedAt = resolved
+    .filter(({ index }) => results[index]?.status === "success")
+    .map(({ media }) => Date.parse(String(media.watched_at || "")))
+    .filter(Number.isFinite);
+  const hasFailure = results.some((result) => result?.status === "failed" || result?.status === "not_found");
+  if (successfulWatchedAt.length && !hasFailure) {
+    updateTrackerConnectionStatus("trakt", {
+      historySyncedAt: Math.max(...successfulWatchedAt),
+      lastError: "",
+    });
+  }
+  if (hasFailure) {
+    const firstFailure = results.find((result) => result?.status === "failed" || result?.status === "not_found");
+    if (firstFailure?.detail) updateTrackerConnectionStatus("trakt", { lastError: firstFailure.detail });
+  }
+  return batchDispatchSummary(results);
+}
+
 // Replace Trakt's append-only play log with the restored Plembfin history.
 // This is intentionally a clear-and-replay operation: POST /sync/history does
 // not edit an existing play's timestamp, so simply adding the restored rows
@@ -1051,7 +1329,7 @@ export async function retryTraktRestoreItem(row = {}, {
   return { success: false, code: "not_found", error: lastError };
 }
 
-async function dispatchTrakt(media, state, lane = "sync") {
+async function dispatchTrakt(media, state, lane = "sync", isCancelled = () => false) {
   // Trakt has one canonical coordinate for some two-part episodes. Local
   // source media may arrive as the second split part, so normalize the
   // outbound tracker payload while keeping the local history row untouched.
@@ -1079,11 +1357,14 @@ async function dispatchTrakt(media, state, lane = "sync") {
   recordTrackerOutbound("trakt", mediaKey, trackerMedia, state);
   let dispatch;
   try {
-    dispatch = await performTraktDispatch(connection, trackerMedia, state, isCanonicalReplay, lane);
+    dispatch = await performTraktDispatch(connection, trackerMedia, state, isCanonicalReplay, lane, isCancelled);
   } catch (error) {
     if (error.status !== 401) throw error;
     connection = await withFreshTraktConnection(true);
-    dispatch = await performTraktDispatch(connection, trackerMedia, state, isCanonicalReplay, lane);
+    dispatch = await performTraktDispatch(connection, trackerMedia, state, isCanonicalReplay, lane, isCancelled);
+  }
+  if (dispatch?.cancelled) {
+    return { target: "trakt", status: "cancelled", detail: "Trakt dispatch was cancelled before its queued write started" };
   }
   // Refresh the marker on confirmed completion so the normal Trakt
   // read-after-write consistency window is protected as well.
@@ -1175,11 +1456,12 @@ export async function primeTrackerWatchStateIntents(entries = [], {
   return recordTrackerOutboundBatch("trakt", outbound);
 }
 
-export async function dispatchTrackerWatchState(media, state, { lane = "sync" } = {}) {
+export async function dispatchTrackerWatchState(media, state, { lane = "sync", isCancelled = () => false } = {}) {
   const connection = getTrackerConnection("trakt");
   if (!connection || connection.status === "disabled") return [];
+  if (isCancelled()) return [{ target: "trakt", status: "cancelled", detail: "Trakt dispatch was cancelled before it started" }];
   try {
-    return [await dispatchTrakt(media, state, lane)];
+    return [await dispatchTrakt(media, state, lane, isCancelled)];
   } catch (error) {
     updateTrackerConnectionStatus("trakt", { lastError: error.message });
     const status = error.code === "not_found" ? "not_found" : "failed";

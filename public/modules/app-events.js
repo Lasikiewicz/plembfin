@@ -1298,10 +1298,13 @@ function attachEvents() {
         return;
       }
       fixShow.disabled = true;
-      _cb.openFixMatchDialog?.(null, "", showTitle, "episode", async () => {
+      _cb.openFixMatchDialog?.(null, "", showTitle, "episode", async (saved = {}) => {
         setMessage(`Show match updated for ${showTitle}. Retrying all current failed entries...`, "success");
         try {
-          const result = await _cb.retrySyncActivityGroup?.(groupKey);
+          const result = await _cb.retrySyncActivityGroup?.(groupKey, {
+            tvdbId: saved.tvdb_id || saved.tvdbId || "",
+            showTitle: saved.show_title || saved.showTitle || saved.title || showTitle,
+          });
           const processed = Number(result?.processed || result?.total || 0);
           const failed = Number(result?.stillFailed || 0) + Number(result?.errored || 0);
           setMessage(
@@ -1313,6 +1316,7 @@ function attachEvents() {
         }
       }, {
         headerTitle: `Fix show match · ${showTitle}`,
+        currentTvdbId: fixShow.dataset.syncActivityFixShowCurrentTvdb || "",
         onCancel: () => {
           if (fixShow.isConnected) fixShow.disabled = false;
         },
@@ -1397,10 +1401,13 @@ function attachEvents() {
         return;
       }
       fixMatch.disabled = true;
-      _cb.openFixMatchDialog?.(null, "", showTitle, "episode", async () => {
+      _cb.openFixMatchDialog?.(null, "", showTitle, "episode", async (saved = {}) => {
         setMessage(`Show match updated for ${showTitle}. Retrying the Trakt update...`, "success");
         try {
-          const result = await _cb.retrySyncActivity?.(activityId);
+          const result = await _cb.retrySyncActivity?.(activityId, {
+            tvdbId: saved.tvdb_id || saved.tvdbId || "",
+            showTitle: saved.show_title || saved.showTitle || saved.title || showTitle,
+          });
           if (result?.status === "success") {
             setMessage(`Show match updated and the Trakt issue for ${showTitle} was resolved.`, "success");
           } else if (result?.status === "skipped") {
@@ -1411,7 +1418,10 @@ function attachEvents() {
         } catch (error) {
           setMessage(`Show match updated, but the Trakt retry failed: ${error.message || String(error)}`, "error");
         }
-      }, { headerTitle: `Fix show match · ${showTitle}` });
+      }, {
+        headerTitle: `Fix show match · ${showTitle}`,
+        currentTvdbId: fixMatch.dataset.syncActivityFixMatchCurrentTvdb || "",
+      });
       return;
     }
 

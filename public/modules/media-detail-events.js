@@ -34,6 +34,7 @@ import {
   closeMediaDetail,
   renderImmersiveShowModal,
   renderShowModalContent,
+  ensureAllShowEpisodeDetailsForWatch,
   patchShowModalEpisodeFromLive,
   scrollSeasonAccordionIntoView,
   renderMovieImmersiveModalContent,
@@ -1549,12 +1550,21 @@ export function attachMediaDetailEvents() {
     const watchButton = event.target.closest("[data-watch-scope]");
     if (watchButton) {
       event.preventDefault();
-      const watchAction = watchActionFromButton(watchButton);
-      if (watchAction && !watchAction.episodes.length && watchAction.resyncEpisodes.length) {
-        runResyncWatchAction(watchAction);
-      } else {
-        openWatchDatePrompt(watchAction);
-      }
+      const isShowWatchButton = watchButton.dataset.watchScope === "show";
+      const prepareShowAction = isShowWatchButton
+        ? ensureAllShowEpisodeDetailsForWatch()
+        : Promise.resolve();
+      if (isShowWatchButton) watchButton.disabled = true;
+      prepareShowAction
+        .then(() => {
+          const watchAction = watchActionFromButton(watchButton);
+          if (watchAction && !watchAction.episodes.length && watchAction.resyncEpisodes.length) {
+            runResyncWatchAction(watchAction);
+          } else {
+            openWatchDatePrompt(watchAction);
+          }
+        })
+        .catch((error) => setMessage(error?.message || "Could not load all show episodes", "error"));
       return;
     }
 

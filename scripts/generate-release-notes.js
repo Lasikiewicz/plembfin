@@ -3,8 +3,8 @@
 // Builds the Markdown body used by GitHub Releases for the main and alpha
 // channels. The release promotion scripts already compute the changelog locally;
 // this renderer keeps the published release page in the same readable shape as
-// the repository's hand-written v1.0.0 release notes without asking CI to infer
-// changes from a push event.
+// the repository's release format without asking CI to infer changes from a push
+// event.
 
 import fs from "node:fs";
 import path from "node:path";
@@ -18,11 +18,6 @@ const SECTION_GROUPS = [
   ["tweaks", "Tweaks"],
 ];
 
-const SCREENSHOTS = [
-  ["Sync Activity", "docs/screenshots/sync-activity.png"],
-  ["Now Playing", "docs/screenshots/now-playing.png"],
-];
-
 function normalizeText(value) {
   return String(value || "").replace(/\r\n/g, "\n").trim();
 }
@@ -34,14 +29,6 @@ function uniqueItems(values) {
 
 function repositoryUrl(serverUrl, repository) {
   return `${String(serverUrl || "https://github.com").replace(/\/$/, "")}/${repository}`;
-}
-
-function rawAssetUrl(serverUrl, repository, commit, assetPath) {
-  const revision = commit || "main";
-  if (String(serverUrl || "https://github.com").replace(/\/$/, "") === "https://github.com") {
-    return `https://raw.githubusercontent.com/${repository}/${revision}/${assetPath}`;
-  }
-  return `${repositoryUrl(serverUrl, repository)}/raw/${revision}/${assetPath}`;
 }
 
 export function loadReleaseManifest(channel) {
@@ -107,13 +94,8 @@ export function generateReleaseNotes({ channel, manifest, repository = "Lasikiew
   const repoUrl = repositoryUrl(serverUrl, repository);
   const releaseUrl = `${repoUrl}/releases/tag/${encodeURIComponent(metadata.tagName)}`;
   const commitUrl = commit ? `${repoUrl}/commit/${commit}` : "";
-  const intro = channel === "alpha"
-    ? `Plembfin ${metadata.tagName} is an alpha build of the self-hosted watch-state hub for mixed Plex, Emby, Jellyfin, and Trakt setups.`
-    : `Plembfin ${metadata.tagName} is a self-hosted watch-state hub for mixed Plex, Emby, Jellyfin, and Trakt setups.`;
   const changeHeading = channel === "alpha" ? "What changed in this alpha build" : "What changed in this release";
   const lines = [
-    intro,
-    "",
     `## ${changeHeading}`,
     "",
     normalizeText(entry.message) || "Release update",
@@ -173,15 +155,6 @@ export function generateReleaseNotes({ channel, manifest, repository = "Lasikiew
     "",
     "Development and release work were heavily AI-assisted under my direction. I reviewed the generated changes, tested the integrations and browser flows, and maintain the project. AI is not required at runtime.",
   );
-
-  const availableScreenshots = SCREENSHOTS.filter(([, assetPath]) => fs.existsSync(path.join(root, assetPath)));
-  if (availableScreenshots.length) {
-    lines.push("", "## Screenshots", "");
-    for (const [alt, assetPath] of availableScreenshots) {
-      const imageUrl = rawAssetUrl(serverUrl, repository, commit, assetPath);
-      lines.push(`![${alt}](${imageUrl})`, "");
-    }
-  }
 
   if (commitUrl) {
     lines.push(`Build commit: [${commit.slice(0, 7)}](${commitUrl})`, "");

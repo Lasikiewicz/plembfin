@@ -56,7 +56,7 @@
     <link rel="modulepreload" href="/modules/app-events.js?v=1.0.2.0.0" />
     <link rel="stylesheet" href="/styles.css?v=1.0.2.0.0" />
   </head>
-  <body>
+  <body class="auth-locked">
     <div class="app-chassis">
       <nav class="topnav nav-closed" aria-label="Primary navigation">
         <div class="brand-search">
@@ -191,8 +191,11 @@
       </nav>
 
       <main class="page-shell">
-      <section id="authPanel" class="auth-panel glass-panel hidden">
-        <img class="auth-panel-logo" src="/plembfin_header_logo_dark.png" alt="Plembfin" />
+      <section id="authView" class="auth-view hidden">
+        <div class="auth-brand">
+          <img class="auth-brand-logo" data-theme-logo src="/plembfin_header_logo_dark.png" alt="Plembfin" />
+        </div>
+        <section id="authPanel" class="auth-panel glass-panel hidden">
         <div id="authPanelSignIn">
           <div>
             <p class="eyebrow">Admin access</p>
@@ -211,6 +214,15 @@
             <button class="button-primary" type="submit">Sign In</button>
           </form>
           <p id="message" class="message" role="status" aria-live="polite"></p>
+          <details class="auth-recovery-help">
+            <summary>Forgot your password?</summary>
+            <div class="auth-recovery-help-body">
+              <p>Plembfin keeps administrator login local to this instance, so it does not send email reset links.</p>
+              <p>If you can sign in, change the password in <strong>Settings → General → Account</strong> with your current password.</p>
+              <p>If you are locked out, stop Plembfin, set a new <code>ADMIN_PASSWORD</code> in the host or container environment, and restart it. If the password was previously changed in Plembfin, remove only the <code>authManagedInApp</code> property from <code>data/config.json</code> first so the environment value can be used.</p>
+              <p class="auth-recovery-note">The old password cannot be recovered from the stored hash.</p>
+            </div>
+          </details>
         </div>
         <div id="claimPanelHome" class="hidden">
           <div id="claimPanel" class="hidden">
@@ -240,6 +252,12 @@
               <button class="button-primary" type="submit">Create administrator account</button>
             </form>
             <p id="claimMessage" class="message" role="status" aria-live="polite"></p>
+          </div>
+        </div>
+        </section>
+        <div id="authFooterBar" class="setup-footer-bar auth-footer-bar hidden">
+          <div class="setup-footer-bar-card">
+            <div id="authFooterBarMeta" class="setup-footer-bar-meta"></div>
           </div>
         </div>
       </section>
@@ -2584,7 +2602,7 @@
                         </header>
 
                         <p class="about-build-line" aria-label="Build information">
-                          <span>Version <strong id="aboutCurrentVersion">v1.0.0</strong></span>
+                          <span>Version <strong id="aboutCurrentVersion">v1.0.2</strong></span>
                           <span class="about-build-separator" aria-hidden="true">·</span>
                           <span>Channel <strong id="aboutReleaseChannel">Latest</strong></span>
                         </p>

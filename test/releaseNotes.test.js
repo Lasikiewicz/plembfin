@@ -61,6 +61,9 @@ test("release notes render categorized changes and shared release guidance", () 
   assert.match(notes, /ghcr\.io\/lasikiewicz\/plembfin:latest/);
   assert.match(notes, /v1\.0\.0/);
   assert.match(notes, /Build commit: \[0123456\]/);
+  assert.doesNotMatch(notes, /Plembfin v1\.0\.0 is a self-hosted watch-state hub/);
+  assert.doesNotMatch(notes, /## Screenshots/);
+  assert.doesNotMatch(notes, /!\[/);
 });
 
 test("alpha release notes identify the build as prerelease software", () => {
@@ -68,4 +71,6 @@ test("alpha release notes identify the build as prerelease software", () => {
   assert.match(notes, /v1\.0\.0-alpha\.2/);
   assert.match(notes, /Alpha builds are pre-release software/);
   assert.match(notes, /ghcr\.io\/lasikiewicz\/plembfin:alpha-2/);
+  assert.doesNotMatch(notes, /Plembfin v1\.0\.0-alpha\.2 is an alpha build/);
+  assert.doesNotMatch(notes, /## Screenshots/);
 });
