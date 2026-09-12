@@ -208,6 +208,21 @@ export function promoteAlphaToMain({ targetVersion = "", sourceDate = new Date()
   fs.writeFileSync(developChangelogPath, `${JSON.stringify(develop, null, 2)}\n`);
   generateChangelogMarkdown();
 
+  // Keep the no-JavaScript fallback on the About page aligned with the
+  // installed release. The client updates this value from /api/changelog once
+  // it boots, but the static HTML is also covered by startup smoke tests and
+  // is what a disabled or delayed script initially shows.
+  const indexPath = path.join(root, "public", "index.html");
+  const indexSource = fs.readFileSync(indexPath, "utf8");
+  const updatedIndexSource = indexSource.replace(
+    /(id="aboutCurrentVersion">)v[^<]+/,
+    `$1v${newMainVersion}`,
+  );
+  if (updatedIndexSource === indexSource) {
+    throw new Error("Could not update the About page's installed version fallback.");
+  }
+  fs.writeFileSync(indexPath, updatedIndexSource);
+
   // Alpha's build number is gone once this release resets it, so the public
   // assets have to move to the new release version here or the version check
   // fails and browsers keep serving the last alpha build's JavaScript.

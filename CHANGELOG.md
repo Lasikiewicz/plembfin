@@ -4,6 +4,24 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v1.1.0 - 12 September 2026
+
+This release makes whole-series watch sync reliable with release-date choices, live per-episode progress, resilient Trakt delivery, and a cleaner onboarding and login experience.
+
+### New Features
+
+- Make full-series watch sync reliable
+- Mark complete shows watched across seasons with the selected watch date and visible per-episode progress
+- Update open detail, dashboard, and Up Next views from live watch-state events without full-page rerenders
+- Finish local media-server writes before draining a paced, retrying Trakt queue, keep remove/add pairs atomic, and stop queued items on cancellation
+- Improve sync issue matching, retry coverage, and status feedback for failed episode destinations
+- Polish onboarding and login presentation, theme-aware branding, version metadata, and public release documentation
+
+### Tweaks
+
+- Align website with current release
+- Update public documentation to v1.0.2 and document whole-series watch dates, live save progress, resilient Trakt retries, and local password recovery.
+
 ## v1.0.2 - 11 September 2026
 
 This update fixes changelog navigation, keeps completed onboarding hidden, preserves Manual Watch review counts while navigating, and hardens concurrent startup.

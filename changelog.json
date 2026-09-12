@@ -1,7 +1,40 @@
 {
-  "version": "1.0.2",
-  "updatedAt": "2026-09-11T16:02:35.110Z",
+  "version": "1.1.0",
+  "updatedAt": "2026-09-12T14:49:22.789Z",
   "entries": [
+    {
+      "version": "1.1.0",
+      "version5Digit": "1.1.0.0.0",
+      "date": "2026-09-12T14:49:22.789Z",
+      "commit": "2ffc8f65cada43ed20c5b193b194463398b8c9e0",
+      "message": "This release makes whole-series watch sync reliable with release-date choices, live per-episode progress, resilient Trakt delivery, and a cleaner onboarding and login experience.",
+      "author": "Lasikiewicz",
+      "details": [
+        "Feature: Make full-series watch sync reliable",
+        "Feature: Mark complete shows watched across seasons with the selected watch date and visible per-episode progress",
+        "Feature: Update open detail, dashboard, and Up Next views from live watch-state events without full-page rerenders",
+        "Feature: Finish local media-server writes before draining a paced, retrying Trakt queue, keep remove/add pairs atomic, and stop queued items on cancellation",
+        "Feature: Improve sync issue matching, retry coverage, and status feedback for failed episode destinations",
+        "Feature: Polish onboarding and login presentation, theme-aware branding, version metadata, and public release documentation",
+        "Tweak: Align website with current release",
+        "Tweak: Update public documentation to v1.0.2 and document whole-series watch dates, live save progress, resilient Trakt retries, and local password recovery."
+      ],
+      "sections": {
+        "newFeatures": [
+          "Make full-series watch sync reliable",
+          "Mark complete shows watched across seasons with the selected watch date and visible per-episode progress",
+          "Update open detail, dashboard, and Up Next views from live watch-state events without full-page rerenders",
+          "Finish local media-server writes before draining a paced, retrying Trakt queue, keep remove/add pairs atomic, and stop queued items on cancellation",
+          "Improve sync issue matching, retry coverage, and status feedback for failed episode destinations",
+          "Polish onboarding and login presentation, theme-aware branding, version metadata, and public release documentation"
+        ],
+        "majorBugFixes": [],
+        "tweaks": [
+          "Align website with current release",
+          "Update public documentation to v1.0.2 and document whole-series watch dates, live save progress, resilient Trakt retries, and local password recovery."
+        ]
+      }
+    },
     {
       "version": "1.0.2",
       "version5Digit": "1.0.2.0.0",
