@@ -3,7 +3,7 @@ title: Media details and actions
 description: Understand the detail page, watch dates, Fix Match, artwork, the Tools menu, and provider content.
 category: Media and discovery
 order: 5
-sourceVersion: "1.0.1"
+sourceVersion: "1.0.2"
 sourcePaths:
   - public/modules/media-detail.js
   - public/modules/media-detail-context.js
@@ -153,8 +153,13 @@ TV show details add season and episode controls below the identity and progress 
 
 Bulk show and season actions preserve episode identity and do not treat unaired episodes as
 completed watches. **Mark season watched** changes only episodes that are still unwatched and
-eligible; existing watched episodes remain unchanged. When every episode is already watched,
-the action becomes **Resync season**, which replays state without creating another watch event.
+eligible; existing watched episodes remain unchanged. **Mark the show watched** applies the
+same rule across every eligible released season, with an opt-in choice for specials. The date
+dialog can use each episode's release date, so a whole-series action preserves release-day
+watch dates instead of assigning the current day to every episode. When every episode in the
+selected scope is already watched, the action becomes a resync, which replays state without
+creating another watch event. Episode rows show their saving state and progress as the live
+watch events arrive, while the action remains open until the final destination result settles.
 
 If the count is wrong, fix the show identity before applying a bulk action.
 

@@ -3,7 +3,7 @@ title: Getting started
 description: Install Plembfin, claim the instance, and complete the in-app Guided Setup flow.
 category: Start here
 order: 1
-sourceVersion: "1.0.1"
+sourceVersion: "1.0.2"
 sourcePaths:
   - README.md
   - docs/onboarding.md
@@ -149,6 +149,15 @@ Claiming is a one-time action and should only be done by the person who controls
 After claiming, Plembfin opens the resumable setup guide.
 
 You can reopen it from [Settings → Tools → Guided Setup](/docs/settings/tools/#guided-setup).
+
+## If you forget the administrator password
+
+Plembfin keeps administrator login local to the instance and does not send email reset links.
+If you can still sign in, change it under [Settings → General → Account](/docs/settings/general/#account).
+If you are locked out, stop Plembfin, set a new `ADMIN_PASSWORD` in the host or container
+environment, and restart it. If the password was previously changed inside Plembfin, remove
+only the `authManagedInApp` property from `data/config.json` first so the environment value can
+be applied. The old password cannot be recovered from its stored hash.
 
 A setup step can be skipped and completed later; the guide does not replace the individual
 settings pages.

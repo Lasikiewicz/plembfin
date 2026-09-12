@@ -3,7 +3,7 @@ title: Sync Activity and tools
 description: Read grouped per-destination results, retry safely, run repairs, and understand match reports.
 category: Sync and maintain
 order: 8
-sourceVersion: "1.0.1"
+sourceVersion: "1.0.2"
 sourcePaths:
   - public/index.html
   - public/modules/sync-activity.js
@@ -190,7 +190,10 @@ Force Sync has two deliberate directions:
 
 Before confirming a Force Sync, check the direction and destination scope.
 
-Keep the activity panel open and review the per-destination result after completion.
+Keep the activity panel open and review the per-destination result after completion. For an
+all-destination title push, local media-server writes complete before the Trakt phase starts.
+Trakt history writes are paced, retried after bounded `429` responses, and cancelled between
+items; the current canonical remove/add pair is allowed to finish before queued items stop.
 
 ## Sync Issues and Match Report
 

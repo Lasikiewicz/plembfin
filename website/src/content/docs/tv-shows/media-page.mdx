@@ -3,7 +3,7 @@ title: TV Shows media page
 description: Read and use a single TV show media page in Plembfin.
 category: Dashboard and libraries
 order: 3.1
-sourceVersion: "1.0.1"
+sourceVersion: "1.0.2"
 sourcePaths:
   - public/app.js
   - public/index.html
@@ -139,12 +139,14 @@ guides for those workflows. Episode ratings are covered in [Ratings](/docs/ratin
 
 ### Watch-state actions
 
-Use **Mark Watched** or **Mark Unwatched** for the show's episode set. These actions change
-canonical watch state and follow the normal sync path. A season-level **Mark season watched**
-action updates only episodes that are still unwatched and eligible; watched episodes remain
-unchanged. When the season is already fully watched, the control becomes **Resync season** and
-replays the existing state without creating a new watch event. Use [Sync Activity](/docs/sync-tools/)
-to confirm destination results.
+Use **Mark Watched** or **Mark Unwatched** for the show's episode set. The show-level action
+can mark every eligible released episode across all seasons; the date dialog can apply each
+episode's release date, and specials can be included explicitly. A season-level **Mark season
+watched** action updates only episodes that are still unwatched and eligible; watched episodes
+remain unchanged. As the action runs, episode rows and season summaries show **Saving** and
+live completion progress without replacing the detail page. When the selected scope is already
+fully watched, the control becomes **Resync** and replays the existing state without creating a
+new watch event. Use [Sync Activity](/docs/sync-tools/) to confirm destination results.
 
 ### Hide Spoilers Enabled
 
@@ -202,6 +204,10 @@ For a single show or episode:
 3. Review the preview before confirming, especially when pushing because remote state can be
    overwritten.
 4. Check the result in [Sync Activity](/docs/sync-tools/).
+
+For a whole-show push to all destinations, local media-server writes finish before the Trakt
+history phase. Trakt writes are paced and retried after rate limits; cancelling stops queued
+episodes after the current remove/add pair completes, so a replay is not left half-applied.
 
 Use **Repair Recent Items**, **Set Plembfin as Source of Truth**, or **Import Watched Status**
 under [Settings → Sync → Sync tools](/docs/settings/sync/#sync-tools) for wider repair and
