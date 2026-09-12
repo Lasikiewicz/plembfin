@@ -1,10 +1,31 @@
 {
   "baseVersion": "1.0.2",
-  "build": 1,
-  "version": "1.0.2.1",
-  "updatedAt": "2026-09-12T14:17:41.975Z",
+  "build": 2,
+  "version": "1.0.2.2",
+  "updatedAt": "2026-09-12T14:37:53.069Z",
   "releaseMessage": "",
   "entries": [
+    {
+      "build": 2,
+      "version": "1.0.2.2",
+      "shortVersion": "1.0.2.2",
+      "date": "2026-09-12T14:37:53.069Z",
+      "commit": "ab65a6007597a0ab02337cf12e43367d54aac74f",
+      "message": "Docs - Align website with current release",
+      "author": "Lasikiewicz",
+      "details": [
+        "Tweak: Align website with current release",
+        "Tweak: Update public documentation to v1.0.2 and document whole-series watch dates, live save progress, resilient Trakt retries, and local password recovery."
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [],
+        "tweaks": [
+          "Align website with current release",
+          "Update public documentation to v1.0.2 and document whole-series watch dates, live save progress, resilient Trakt retries, and local password recovery."
+        ]
+      }
+    },
     {
       "build": 1,
       "version": "1.0.2.1",
@@ -35,5 +56,5 @@
       }
     }
   ],
-  "shortVersion": "1.0.2.1"
+  "shortVersion": "1.0.2.2"
 }

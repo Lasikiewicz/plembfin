@@ -1,18 +1,7 @@
 {
   "version": "1.0.2",
   "build": 6,
-  "resetCommit": "7cf8b354d93424b739c5a9f8db38b73e5e3a4f02",
-  "updatedAt": "2026-09-12T14:35:36.518Z",
-  "entries": [
-    {
-      "build": 6,
-      "date": "2026-09-12T14:35:36.518Z",
-      "commit": "ff8ddd1ccdb6972f0e7a72677bff2bb0da589aaf",
-      "message": "Docs - Align website with current release",
-      "author": "Lasikiewicz",
-      "details": [
-        "Update public documentation to v1.0.2 and document whole-series watch dates, live save progress, resilient Trakt retries, and local password recovery."
-      ]
-    }
-  ]
+  "resetCommit": "ab65a6007597a0ab02337cf12e43367d54aac74f",
+  "updatedAt": "2026-09-12T14:37:53.069Z",
+  "entries": []
 }
