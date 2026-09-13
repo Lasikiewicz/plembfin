@@ -1,7 +1,25 @@
 {
-  "version": "1.1.0",
+  "version": "1.1.0.0.1",
   "build": 1,
   "resetCommit": "2ffc8f65cada43ed20c5b193b194463398b8c9e0",
-  "updatedAt": "2026-09-12T14:49:22.789Z",
-  "entries": []
+  "updatedAt": "2026-09-13T13:29:12.007Z",
+  "entries": [
+    {
+      "build": 1,
+      "date": "2026-09-13T13:29:12.007Z",
+      "commit": "59eaaf34d223ac96c76b4eb579ace8a9a7639875",
+      "message": "Feature - Make Up Next reliable across Plex, Emby, and Jellyfin",
+      "author": "Lasikiewicz",
+      "details": [
+        "Show the right next episode even when it has never been watched, so an episode sitting unwatched in your libraries no longer goes missing from Up Next",
+        "Return an episode to Up Next when you mark it unwatched, instead of dropping it from the queue",
+        "Mirror Up Next onto Plex Continue Watching, Emby Resume, and Jellyfin Resume so the same queue appears on your media server's own rails",
+        "Share Up Next dismissals across every device and browser, and add a dialog to review and restore anything dismissed by mistake",
+        "Restore Jellyfin as a full Up Next source for reading, dismissing, playlists, and rails",
+        "Stop an Up Next push from reaching the wrong title on a media server that reuses short numeric ids",
+        "Add a Main / Alpha toggle to Settings - Changelog, explained in the in-app Release Guide, so any install can read published alpha build notes",
+        "Tell alpha and develop installs about a newer build on their own channel as well as a newer published release, and publish changelog bullets in full instead of cutting them off mid-sentence"
+      ]
+    }
+  ]
 }
