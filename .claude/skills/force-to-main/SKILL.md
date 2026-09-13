@@ -159,6 +159,45 @@ markers the same script stamps with the release version. Leaving it out would pu
 site documenting the previous release, which `website/scripts/check-doc-baseline.mjs`
 then fails on.
 
+### 4a - Final review: show the user the exact state about to be published
+
+Everything is committed locally now and nothing has left the machine. This is the last
+point at which the release can be changed, so show the user what is actually going to be
+published rather than describing it.
+
+Stop every local server first, so nothing is left serving the pre-release state and
+mistaken for the release:
+
+```bash
+# Windows: find and stop anything on the app and website ports
+Get-NetTCPConnection -LocalPort 5055,4321 -State Listen -ErrorAction SilentlyContinue |
+  ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -Confirm:$false }
+```
+
+Then start both against this commit, using the approved elevated network-enabled path:
+
+```bash
+npm start                 # application, http://localhost:5055
+cd website && npm run dev # website, http://localhost:4321
+```
+
+Report all four of these together:
+
+1. **The changelog that will go live.** Print the new release entry in full - version,
+   headline, and every bullet under each section - from `changelog.json`. Not a summary:
+   this is the text that reaches the GitHub Release, the app, and the website.
+2. **What the documentation now says.** State which `website/` pages changed in this
+   release and that their `sourceVersion` markers are stamped to the new version, so the
+   user knows the published documentation describes this release and not the previous one.
+3. **The application, running this exact commit**, at `http://localhost:5055`. Name the
+   version it reports so the user can confirm it matches the release.
+4. **The website, running this exact commit**, at `http://localhost:4321`, and point at
+   `http://localhost:4321/changelog` specifically, since that is where the release entry
+   and the Stable/Alpha tabs appear.
+
+Wait for the user here. Do not continue to the force-push until they have looked and said
+to go ahead. If they ask for a change, make it, re-run step 4, and show this again.
+
 ### 5 - Force main to match this commit
 Show the user what is about to land before running this - it is a force push to the
 shared `main` branch:
