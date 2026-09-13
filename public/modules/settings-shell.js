@@ -74,7 +74,7 @@ const SECTIONS = {
   },
   "sync-tuning": {
     label: "Sync tuning",
-    description: "Configure watched-flag timing, review, and sync thresholds",
+    description: "Configure watched-flag timing, sync thresholds, and Up Next provider sync",
     panel: "sync",
     subPanels: ["sync-tuning"],
     subSections: [
@@ -83,6 +83,7 @@ const SECTIONS = {
       { id: "sync-field-min_resume_position", label: "Minimum Resume Position (sec)", description: "Minimum playback position before a stopped play is saved as a resume point" },
       { id: "sync-field-active_session_ttl", label: "Active Session TTL (min)", description: "How long a now playing session is kept without an update before it's considered stale" },
       { id: "sync-field-request_timeout", label: "Outbound Request Timeout (sec)", description: "How long Plembfin waits for a response from Plex, Emby, or Jellyfin before giving up" },
+      { id: "sync-field-up_next_sync", label: "Up Next Sync", description: "Allow the Up Next sync button to mirror Plembfin's queue to connected media apps" },
     ],
     isDisplayOnly: true, // Not a navigable route
   },

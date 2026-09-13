@@ -126,6 +126,7 @@ export async function handleSetupStatus(req, res) {
     options: {
       watchImportMode: config.tuning?.watchImportMode || null,
       fastLocalPacing: config.pacing?.profile === "fast",
+      upNextSync: config.upNextSync?.enabled !== false,
     },
     watchHistoryCount,
     pushSyncAvailable: watchHistoryCount > 0 && servers.some((s) => s.tested),

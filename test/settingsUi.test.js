@@ -33,3 +33,17 @@ test("collectFieldValues returns only the checked choice", () => {
     fastLocalPacing: true,
   });
 });
+
+test("checkbox fields render with their persisted state", () => {
+  const markup = renderFieldRow({
+    key: "upNextSyncEnabled",
+    id: "sync-field-up_next_sync",
+    type: "checkbox",
+    label: "Sync Up Next to media apps",
+    value: true,
+  });
+
+  assert.match(markup, /id="sync-field-up_next_sync"/);
+  assert.match(markup, /Sync Up Next to media apps/);
+  assert.match(markup, /type="checkbox"[^>]*checked/);
+});

@@ -1,9 +1,9 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.0.0.3";
-import { state, elements } from "./state.js?v=1.1.0.0.3";
-import { escapeHtml } from "./utils.js?v=1.1.0.0.3";
-import { hydratePosters } from "./images.js?v=1.1.0.0.3";
-import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=1.1.0.0.3";
-import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=1.1.0.0.3";
+import { buildAuthHeaders } from "./auth.js?v=1.1.0.1.0";
+import { state, elements } from "./state.js?v=1.1.0.1.0";
+import { escapeHtml } from "./utils.js?v=1.1.0.1.0";
+import { hydratePosters } from "./images.js?v=1.1.0.1.0";
+import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=1.1.0.1.0";
+import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=1.1.0.1.0";
 
 const UP_NEXT_TTL_MS = 2 * 60 * 1000;
 const UP_NEXT_TIMEOUT_MS = 20000;
@@ -521,14 +521,23 @@ function renderUpNextSyncControl() {
   const syncing = state.upNextSyncing === true;
   const loading = state.upNextLoading === true;
   const signedIn = Boolean(state.token);
-  button.disabled = !signedIn || syncing || loading;
+  const syncEnabled = state.savedConfig?.upNextSync?.enabled !== false;
+  button.disabled = !signedIn || !syncEnabled || syncing || loading;
   button.setAttribute("aria-busy", String(syncing));
   button.title = syncing
     ? "Pushing Plembfin Up Next to Plex, Emby, and Jellyfin…"
-    : signedIn
-      ? "Push Plembfin Up Next to Plex, Emby, and Jellyfin"
-      : "Sign in to push Up Next to your media servers";
-  button.setAttribute("aria-label", syncing ? "Pushing Plembfin Up Next to connected media servers" : "Push Plembfin Up Next to Plex, Emby, and Jellyfin");
+    : !signedIn
+      ? "Sign in to push Up Next to your media servers"
+      : !syncEnabled
+        ? "Up Next sync is disabled in Settings → Sync → Sync Tuning"
+        : "Push Plembfin Up Next to Plex, Emby, and Jellyfin";
+  button.setAttribute("aria-label", syncing
+    ? "Pushing Plembfin Up Next to connected media servers"
+    : !signedIn
+      ? "Sign in to push Up Next to your media servers"
+      : !syncEnabled
+        ? "Up Next sync is disabled in Settings, Sync Tuning"
+        : "Push Plembfin Up Next to Plex, Emby, and Jellyfin");
 }
 
 function upNextSyncPayloadItem(item = {}) {
@@ -564,6 +573,12 @@ function upNextSyncPayloadItem(item = {}) {
 }
 
 function upNextSyncMessage(body = {}) {
+  if (body.disabled) {
+    return {
+      text: "Up Next sync is disabled in Settings → Sync → Sync Tuning.",
+      tone: "muted",
+    };
+  }
   const providerNames = { plex: "Plex", emby: "Emby", jellyfin: "Jellyfin" };
   const configuredFeeds = Array.isArray(body.feeds) ? body.feeds : [];
   const pushedProviders = [...new Set((Array.isArray(body.pushedProviders) ? body.pushedProviders : [])
@@ -617,6 +632,10 @@ function upNextSyncMessage(body = {}) {
 
 export async function syncUpNextToProviders() {
   if (!state.token || state.upNextSyncing) return null;
+  if (state.savedConfig?.upNextSync?.enabled === false) {
+    _cb.setMessage?.("Up Next sync is disabled in Settings → Sync → Sync Tuning.", "muted");
+    return null;
+  }
   // The rendered rail is intentionally capped at 30 cards, but the loaded
   // Plembfin snapshot (up to the server's 100-item bound) is authoritative.
   // Push the complete snapshot so off-screen provider items are reconciled too.
@@ -668,6 +687,7 @@ export function initUpNext(callbacks = {}) {
     event.preventDefault();
     syncUpNextToProviders().catch(() => { });
   });
+  document.addEventListener("plembfin:config-changed", () => renderUpNextControls());
   elements.upNextDismissedButton?.addEventListener("click", (event) => {
     event.preventDefault();
     openDismissedUpNextModal();

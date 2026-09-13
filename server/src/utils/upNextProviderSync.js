@@ -343,14 +343,27 @@ async function applyDismissals(plan, definitions) {
 }
 
 // Push Plembfin's authoritative Up Next snapshot to a dedicated provider
-// playlist in Plex and Emby, while also applying native dismissal actions and
-// replaying only known positive resume positions. Plex Continue Watching and
-// Emby Resume/Next Up are calculated feeds: their native APIs can hide or read
-// membership, but cannot add an arbitrary future episode. The playlist is the
-// complete provider-side representation, and failed/incomplete feeds never
-// trigger native removals. Jellyfin is deliberately not consulted by this
-// feature at all.
+// playlist on each connected media server, while also applying native
+// dismissal actions and replaying only known positive resume positions. Plex
+// Continue Watching and Emby/Jellyfin Resume/Next Up are calculated feeds:
+// their native APIs can hide or read membership, but cannot add an arbitrary
+// future episode. The playlist is the complete provider-side representation,
+// and failed/incomplete feeds never trigger native removals.
 export async function syncUpNextToProviders({ desiredItems = [], config = {} } = {}) {
+  if (config?.upNextSync?.enabled === false) {
+    return {
+      ok: true,
+      disabled: true,
+      desired_count: 0,
+      feeds: [],
+      pushedProviders: [],
+      playlists: [],
+      railSeeds: [],
+      providerDismissals: [],
+      unsupported: [],
+      progress: [],
+    };
+  }
   const definitions = feedDefinitions(config);
   const configuredDefinitions = definitions.filter((definition) => definition.configured);
   const skippedFeeds = definitions

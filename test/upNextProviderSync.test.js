@@ -5,6 +5,26 @@ import { makeTempDataDir } from "./helpers.js";
 makeTempDataDir("plembfin-up-next-provider-sync-");
 const { planUpNextProviderSync, syncUpNextToProviders } = await import("../server/src/utils/upNextProviderSync.js");
 
+test("disabled Up Next provider sync returns without contacting media servers", async () => {
+  const originalFetch = globalThis.fetch;
+  let called = false;
+  globalThis.fetch = async () => {
+    called = true;
+    throw new Error("fetch should not be called when Up Next sync is disabled");
+  };
+  try {
+    const summary = await syncUpNextToProviders({
+      desiredItems: [{ id: "item-1", title: "Item 1" }],
+      config: { upNextSync: { enabled: false } },
+    });
+    assert.equal(summary.ok, true);
+    assert.equal(summary.disabled, true);
+    assert.equal(called, false);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("Up Next provider reconciliation preserves visible ids and dismisses only stale removable resume items", () => {
   const plan = planUpNextProviderSync({
     desiredItems: [

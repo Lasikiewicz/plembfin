@@ -4,17 +4,17 @@
 // echoes credentials, only a `configured` flag per section, and a blank secret
 // on save means "keep the stored credential" (except Seerr, whose key is only
 // sent when non-empty).
-import { state } from "./state.js?v=1.1.0.0.3";
-import { buildAuthHeaders } from "./auth.js?v=1.1.0.0.3";
-import { openSettingsEditModal, openSettingsPickerModal, renderServiceCardGrid, renderFieldRow, collectFieldValues, renderInlineServicePanel } from "./settings-ui.js?v=1.1.0.0.3";
-import { prepareHelpReadMore } from "./settings-shell.js?v=1.1.0.0.3";
-import { escapeAttribute, escapeHtml } from "./utils.js?v=1.1.0.0.3";
+import { state } from "./state.js?v=1.1.0.1.0";
+import { buildAuthHeaders } from "./auth.js?v=1.1.0.1.0";
+import { openSettingsEditModal, openSettingsPickerModal, renderServiceCardGrid, renderFieldRow, collectFieldValues, renderInlineServicePanel } from "./settings-ui.js?v=1.1.0.1.0";
+import { prepareHelpReadMore } from "./settings-shell.js?v=1.1.0.1.0";
+import { escapeAttribute, escapeHtml } from "./utils.js?v=1.1.0.1.0";
 import {
   plexCredentialGuide,
   embyCredentialGuide,
   jellyfinCredentialGuide,
   savedCredentialNote,
-} from "./help-content.js?v=1.1.0.0.3";
+} from "./help-content.js?v=1.1.0.1.0";
 
 let _cb = {};
 export function initSettingsServices(callbacks = {}) {
@@ -208,7 +208,7 @@ const WATCH_IMPORT_FIELD = {
   ],
   help: "Controls watched flags found by the scheduled scanner when the app does not provide threshold-reaching playback evidence.",
 };
-const EXTRA_SERVICE_NAMES = { tuning: "Sync Tuning" };
+const EXTRA_SERVICE_NAMES = { tuning: "Sync Tuning", upNextSync: "Up Next Sync" };
 
 // Opt-in toggle for the outbound pacing governor's "fast" profile
 // (server/src/utils/outboundGovernor.js) - off by default (profile
@@ -221,6 +221,14 @@ const PACING_FIELD = {
   type: "checkbox",
   label: "Fast Local-Network Sync",
   help: "Speeds up Force Sync, Full Sync Watchstates, and other bulk sync operations by removing most outbound pacing delays.<br>Only enable this when Plex, Emby, and Jellyfin are all self-hosted on the same trusted local network as Plembfin.<br>It is not safe to enable if any of them is reached over the public internet.",
+  helpIsHtml: true,
+};
+const UP_NEXT_SYNC_FIELD = {
+  key: "upNextSyncEnabled",
+  id: "sync-field-up_next_sync",
+  type: "checkbox",
+  label: "Sync Up Next to media apps",
+  help: "For this feature to work, Plembfin adds a 6% watch marker to connected media apps.<br>Existing part-watched items are not affected and continue to appear normally.",
   helpIsHtml: true,
 };
 
@@ -276,9 +284,11 @@ export function renderSyncTuningCard() {
   if (!fieldsContainer || !form) return;
   const tuning = state.savedConfig?.tuning || {};
   const fastPacingEnabled = state.savedConfig?.pacing?.profile === "fast";
+  const upNextSyncEnabled = state.savedConfig?.upNextSync?.enabled !== false;
   fieldsContainer.innerHTML = [
     ...syncTuningFieldSpecs(tuning).map((field) => renderFieldRow(field)),
     renderFieldRow({ ...PACING_FIELD, value: fastPacingEnabled }),
+    renderFieldRow({ ...UP_NEXT_SYNC_FIELD, value: upNextSyncEnabled }),
   ].join("");
 
   if (form.dataset.bound) return;
@@ -310,6 +320,7 @@ export function renderSyncTuningCard() {
       const values = collectFieldValues(fieldsContainer);
       await saveServiceConfig("tuning", syncTuningPayload(values));
       await saveServiceConfig("pacing", { profile: values.fastLocalPacing ? "fast" : "standard" });
+      await saveServiceConfig("upNextSync", { enabled: Boolean(values.upNextSyncEnabled) });
       form.dataset.dirty = "false";
       setStatus("Saved.", "success");
     } catch (error) {

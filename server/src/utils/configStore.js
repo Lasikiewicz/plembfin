@@ -37,6 +37,10 @@ export const DEFAULT_WATCHLIST_SYNC = Object.freeze({
     plex: Object.freeze({ enabled: false, representation: "native", writeEnabled: false, publishConfirmedAt: 0 }),
   }),
 });
+// Up Next provider sync predates this setting, so keep it enabled when the
+// section is absent from an existing installation. Users can opt out without
+// changing Plembfin's local Up Next view.
+export const DEFAULT_UP_NEXT_SYNC = Object.freeze({ enabled: true });
 export const BACKGROUND_SYNC_PROGRESS_STALE_MS = 90_000;
 export const BACKGROUND_SYNC_PROGRESS_MAX_OWNER_MS = 30 * 60_000;
 // Local owners normally remove themselves after the 2s UI settle window. Give
@@ -124,6 +128,13 @@ export function normalizeWatchlistSyncSection(section = {}) {
   };
 }
 
+export function normalizeUpNextSyncSection(section = {}) {
+  const rawEnabled = section && typeof section === "object" ? section.enabled : undefined;
+  return {
+    enabled: rawEnabled === undefined ? DEFAULT_UP_NEXT_SYNC.enabled : rawEnabled === true,
+  };
+}
+
 function envMediaConfig() {
   const plexEnabled = envEnabled("PLEX_ENABLED");
   const embyEnabled = envEnabled("EMBY_ENABLED");
@@ -169,6 +180,7 @@ function envMediaConfig() {
     pacing: normalizePacing({ profile: envValue("OUTBOUND_PACING_PROFILE") }),
     ratingSync: normalizeRatingSyncSection({}),
     watchlistSync: normalizeWatchlistSyncSection({}),
+    upNextSync: normalizeUpNextSyncSection({}),
   });
 }
 
@@ -222,6 +234,7 @@ function mergeEnvDefaults(stored = {}) {
   merged.pacing = normalized.pacing;
   merged.ratingSync = normalized.ratingSync;
   merged.watchlistSync = normalized.watchlistSync;
+  merged.upNextSync = normalized.upNextSync;
 
   for (const section of ["plex", "emby", "jellyfin"]) {
     if (hasConfiguredFields(normalized[section])) {
@@ -296,6 +309,7 @@ export function normalizeStoredConfig(stored = {}) {
     pacing: normalizePacing(stored.pacing || {}),
     ratingSync: normalizeRatingSyncSection(stored.ratingSync || {}),
     watchlistSync: normalizeWatchlistSyncSection(stored.watchlistSync || {}),
+    upNextSync: normalizeUpNextSyncSection(stored.upNextSync || {}),
   };
 }
 
@@ -381,6 +395,7 @@ export function publicMediaConfig(config = {}) {
     pacing: normalized.pacing,
     ratingSync: normalized.ratingSync,
     watchlistSync: normalized.watchlistSync,
+    upNextSync: normalized.upNextSync,
   };
 }
 
@@ -486,6 +501,7 @@ export async function mergeIncomingConfig(config = {}) {
     pacing: mergeSection(existing.pacing, config.pacing, []),
     ratingSync: mergeRatingSyncSection(existing.ratingSync, config.ratingSync),
     watchlistSync: mergeWatchlistSyncSection(existing.watchlistSync, config.watchlistSync),
+    upNextSync: mergeSection(existing.upNextSync, config.upNextSync, []),
   });
 }
 
@@ -594,6 +610,9 @@ export function validateConfig(config = {}) {
   }
   if (config.pacing && !["gentle", "standard", "fast"].includes(config.pacing.profile)) {
     errors.push("pacing.profile must be gentle, standard, or fast");
+  }
+  if (config.upNextSync && config.upNextSync.enabled !== undefined && typeof config.upNextSync.enabled !== "boolean") {
+    errors.push("upNextSync.enabled must be boolean");
   }
 
   if (config.ratingSync) {

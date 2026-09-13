@@ -65,9 +65,12 @@ setup-only configuration path.
 - **Options** - chooses how app-marked watched flags are dated or sent to Manual Watch
   review. The default is **Require review**. It also includes the opt-in
   **Fast Local-Network Sync** toggle, which is only appropriate when all connected
-  media services are on the same trusted local network. These choices are saved
-  together when continuing past the step and remain editable in Settings → Sync →
-  Sync Tuning.
+  media services are on the same trusted local network. The **Sync Up Next to media
+  apps** toggle is enabled by default. For this feature to work, Plembfin adds a 6%
+  watch marker to connected media apps. Existing part-watched items are not affected
+  and continue to appear normally. You can enable or disable this later in Settings →
+  Sync → Sync Tuning. These choices are saved together when continuing past the step
+  and remain editable in Settings → Sync → Sync Tuning.
 - **Setting Plembfin as the source of truth** (pushing local watch history outward) is
   intentionally *not* offered inline in the wizard. It's a destructive, confirm-gated
   action, so the wizard links to Settings → Sync → Sync Tools, where the existing

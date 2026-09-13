@@ -39,6 +39,24 @@ test("saveMediaConfig persists the watched-flag policy and exposes its browser-s
   assert.deepEqual(publicConfig.tuning.watchImportMode.options, ["now", "release_day", "episode_timing", "review"]);
 });
 
+test("Up Next provider sync defaults on and persists an explicit opt-out", async () => {
+  const initial = await loadMediaConfig();
+  assert.equal(initial.upNextSync.enabled, true);
+  assert.equal(publicMediaConfig(initial).upNextSync.enabled, true);
+
+  await saveMediaConfig({ upNextSync: { enabled: false } });
+  const disabled = await loadMediaConfig();
+  assert.equal(disabled.upNextSync.enabled, false);
+  assert.equal(publicMediaConfig(disabled).upNextSync.enabled, false);
+
+  await saveMediaConfig({ upNextSync: { enabled: true } });
+});
+
+test("validateConfig rejects a non-boolean Up Next sync setting", () => {
+  const errors = validateConfig({ upNextSync: { enabled: "false" } });
+  assert.ok(errors.some((message) => message.includes("upNextSync.enabled")));
+});
+
 test("publicMediaConfig reports overridden vs default tuning fields", async () => {
   const config = await loadMediaConfig();
   const pub = publicMediaConfig(config);

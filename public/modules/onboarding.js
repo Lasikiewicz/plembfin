@@ -3,12 +3,12 @@
 // wherever possible - openServiceEditModal() for every provider connect/test
 // flow, and the webhook-guide functions - so setup and Settings never diverge
 // in behavior, only in presentation.
-import { state, elements } from "./state.js?v=1.1.0.0.3";
-import { escapeHtml, escapeAttribute, isDemoMode } from "./utils.js?v=1.1.0.0.3";
-import { openServiceEditModal } from "./settings-services.js?v=1.1.0.0.3";
-import { embyWebhookSetup, jellyfinWebhookSetup, buildWebhookUrl } from "./help-content.js?v=1.1.0.0.3";
-import { claimAdminAccount } from "./auth.js?v=1.1.0.0.3";
-import { loadWatchBackups, loadPlembfinBackups } from "./tools-backups.js?v=1.1.0.0.3";
+import { state, elements } from "./state.js?v=1.1.0.1.0";
+import { escapeHtml, escapeAttribute, isDemoMode } from "./utils.js?v=1.1.0.1.0";
+import { openServiceEditModal } from "./settings-services.js?v=1.1.0.1.0";
+import { embyWebhookSetup, jellyfinWebhookSetup, buildWebhookUrl } from "./help-content.js?v=1.1.0.1.0";
+import { claimAdminAccount } from "./auth.js?v=1.1.0.1.0";
+import { loadWatchBackups, loadPlembfinBackups } from "./tools-backups.js?v=1.1.0.1.0";
 
 let _cb = {};
 export function initOnboarding(callbacks = {}) {
@@ -200,7 +200,7 @@ function createPreClaimStatus() {
     servers: [],
     trakt: { connected: false, username: "", baselineComplete: false },
     metadata: { tmdbConfigured: false, builtInAvailable: { tvdb: false, fanart: false } },
-    options: { watchImportMode: null, fastLocalPacing: false },
+    options: { watchImportMode: null, fastLocalPacing: false, upNextSync: true },
     watchHistoryCount: 0,
     pushSyncAvailable: false,
     syncLocked: false,
@@ -334,6 +334,7 @@ let pendingWatchlistChoice = null;
 // so a radio/toggle change is only an in-wizard choice until it is accepted.
 let pendingWatchImportMode = null;
 let pendingFastLocalPacing = null;
+let pendingUpNextSync = null;
 
 const WATCH_IMPORT_MODES = Object.freeze([
   { value: "now", label: "Mark as watched now", description: "Use the time the scanner sees the watched flag." },
@@ -356,6 +357,12 @@ function setupFastLocalPacing() {
   if (pendingFastLocalPacing !== null) return pendingFastLocalPacing;
   if (state.savedConfig?.pacing?.profile) return state.savedConfig.pacing.profile === "fast";
   return cachedStatus?.options?.fastLocalPacing === true;
+}
+
+function setupUpNextSync() {
+  if (pendingUpNextSync !== null) return pendingUpNextSync;
+  if (state.savedConfig?.upNextSync?.enabled !== undefined) return state.savedConfig.upNextSync.enabled !== false;
+  return cachedStatus?.options?.upNextSync !== false;
 }
 
 function serverImportPending(provider) {
@@ -383,16 +390,19 @@ async function savePendingWatchlistChoice() {
 async function saveSetupOptions() {
   const mode = setupWatchImportMode();
   const fastLocalPacing = setupFastLocalPacing();
+  const upNextSync = setupUpNextSync();
   const body = await api("/api/config", {
     method: "POST",
     body: JSON.stringify({
       tuning: { watchImportMode: mode },
       pacing: { profile: fastLocalPacing ? "fast" : "standard" },
+      upNextSync: { enabled: upNextSync },
     }),
   });
   if (body?.config) state.savedConfig = body.config;
   pendingWatchImportMode = null;
   pendingFastLocalPacing = null;
+  pendingUpNextSync = null;
   document.dispatchEvent(new CustomEvent("plembfin:config-changed", { detail: { refreshSyncTuning: true } }));
 }
 
@@ -1026,6 +1036,7 @@ function renderImports() {
 function renderOptions() {
   const selectedMode = setupWatchImportMode();
   const fastLocalPacing = setupFastLocalPacing();
+  const upNextSync = setupUpNextSync();
   return `
     <div class="setup-options-fields">
       <section class="settings-card setup-options-card setup-options-policy">
@@ -1050,6 +1061,13 @@ function renderOptions() {
           <span>Speed up bulk sync operations when Plembfin, Plex, Emby, and Jellyfin are all on the same trusted local network. Leave this off for public or mixed networks.</span>
         </span>
         <input class="setup-options-switch" type="checkbox" role="switch" aria-label="Fast Local-Network Sync" data-setup-fast-local-sync="1" ${fastLocalPacing ? "checked" : ""} aria-checked="${fastLocalPacing ? "true" : "false"}" />
+      </label>
+      <label class="settings-card setup-options-card setup-options-toggle">
+        <span class="setup-options-toggle-copy">
+          <b>Sync Up Next to media apps</b>
+          <span>For this feature to work, Plembfin adds a 6% watch marker to connected media apps.<br>Existing part-watched items are not affected and continue to appear normally.<br>You can enable or disable this later in Settings → Sync → Sync Tuning.</span>
+        </span>
+        <input class="setup-options-switch" type="checkbox" role="switch" aria-label="Sync Up Next to media apps" data-setup-up-next-sync="1" ${upNextSync ? "checked" : ""} aria-checked="${upNextSync ? "true" : "false"}" />
       </label>
     </div>`;
 }
@@ -1488,6 +1506,11 @@ function handleSetupChange(event) {
   }
   if (event.target.matches("[data-setup-fast-local-sync]")) {
     pendingFastLocalPacing = event.target.checked;
+    event.target.setAttribute("aria-checked", event.target.checked ? "true" : "false");
+    return;
+  }
+  if (event.target.matches("[data-setup-up-next-sync]")) {
+    pendingUpNextSync = event.target.checked;
     event.target.setAttribute("aria-checked", event.target.checked ? "true" : "false");
     return;
   }

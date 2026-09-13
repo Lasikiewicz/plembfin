@@ -185,7 +185,7 @@ credential-clear operation.
 
 **Sync Tuning is the one exception**: its watched-flag policy, four numeric fields
 (watched threshold, minimum resume position, active-session TTL, outbound timeout) plus the Fast
-Local-Network Sync checkbox render directly inline on the Sync page in a plain form
+Local-Network Sync and Up Next sync checkboxes render directly inline on the Sync page in a plain form
 with its own Save button - not behind a card + edit modal - since there's only ever
 one instance to edit and no add/remove/test workflow.
 
@@ -274,7 +274,11 @@ The **Sync Tuning** form (on the Sync page) exposes four optional numeric settin
 watched threshold, minimum resume position, active-session TTL, and outbound request
 timeout. Blank fields inherit the matching environment variable or built-in default;
 saved values take precedence. The defaults remain 90%, 60 seconds, 5 minutes, and 10
-seconds respectively.
+seconds respectively. It also includes a **Sync Up Next to media apps** toggle, enabled by
+default so the existing Up Next push behavior continues unchanged. For this feature to
+work, Plembfin adds a 6% watch marker to connected media apps. Existing part-watched
+items are not affected and continue to appear normally. Turning the toggle off stops
+adding the marker while leaving Plembfin's local Up Next view available.
 
 **Personal Rating Sync** is disabled by default and has a single on/off control, plus a
 **Sync now** button in the bottom right of the panel that runs an immediate sync. When
