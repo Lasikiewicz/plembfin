@@ -1,24 +1,7 @@
 {
-  "version": "1.1.0.1.2",
-  "build": 2,
-  "resetCommit": "f75b2420ba381d14c59cf17d37cc7c1acb986f02",
-  "updatedAt": "2026-09-13T16:03:44.559Z",
-  "entries": [
-    {
-      "build": 2,
-      "date": "2026-09-13T16:03:44.559Z",
-      "commit": "444b100d0fa6404a39037a5c1bedb487fc0ee14e",
-      "message": "This update includes add optional Up Next provider sync and stop an older alpha branch being reported as a newer build.",
-      "author": "Lasikiewicz",
-      "details": [
-        "Adds optional Up Next provider sync controls to onboarding and Sync Tuning, with clear 6% marker guidance.",
-        "Stop an alpha install being told a newer build is available when the alpha branch is actually behind it, which showed the previous release's builds as \"not pulled yet\" and reported a newer build with the same number you were already running",
-        "Keep listing genuinely newer alpha builds, and every build of a newer release cycle, exactly as before"
-      ],
-      "messageFragments": [
-        "Feature - Add optional Up Next provider sync",
-        "Fix - Stop an older alpha branch being reported as a newer build"
-      ]
-    }
-  ]
+  "version": "1.1.0.2.0",
+  "build": 0,
+  "resetCommit": "ed57fd68786d9167c098102a1ad8b66e8e0df5fd",
+  "updatedAt": "2026-09-13T16:11:59.332Z",
+  "entries": []
 }

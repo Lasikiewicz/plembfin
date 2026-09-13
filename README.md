@@ -55,7 +55,7 @@ None of these talk to each other - they all talk to Plembfin.
 - **Instant state restoration** - Automatically synchronizes watch history to newly added media and rebuilt server libraries
 - **Cross-platform resume** - Pause playback on one server and pick up right where you left off on another
 - **Rewatch tracking** - Full multi-watch history logging with smart deduplication that preserves authentic repeat viewings
-- **Now Playing dashboard** - Real-time playback monitoring, Plembfin-authoritative Up Next (pushed to Plex, Emby, and Jellyfin as a complete managed `Plembfin Up Next` playlist in each, plus their own Continue Watching rails), media-type-aware Watch History, weekly watch activity trends, and recent history
+- **Now Playing dashboard** - Real-time playback monitoring, optional Plembfin-authoritative Up Next sync (pushed to Plex, Emby, and Jellyfin as a complete managed `Plembfin Up Next` playlist in each, plus their own Continue Watching rails), media-type-aware Watch History, weekly watch activity trends, and recent history
 - **Sync Activity hub** - Live grouped activity by movie/show, with all resume checkpoints and destination results preserved behind each row, targeted retry for actual failed destinations (only the newest unresolved result per movie/episode is retried, individually or all at once as a background job that survives closing the tab; expected missing-library skips are excluded), show-wide Fix Match and retry-all controls for Trakt mismatches, dismiss controls for shows Trakt does not contain, blocked-restore repair grouped by show with Fix Match and skip controls, and downloadable group logs
 - **Rich analytics & stats** - In-depth all-time and period reports, top shows, and platform playback distribution
 - **Personal media organization** - Save movies, shows, and episodes to a watch list or custom lists, and rate them from their media pages; episode ratings use one canonical show/season/episode identity everywhere
@@ -69,7 +69,7 @@ None of these talk to each other - they all talk to Plembfin.
 - **Movie collections** - Explore related franchise entries, sequels, prequels, and spin-offs from movie detail pages and collection search results
 - **Direct server deep links** - Quick one-click links to jump directly to any title in Plex, Emby, or Jellyfin
 - **Automated backups** - Built-in daily local backups with optional scheduled offsite backups to Backblaze B2
-- **Guided first-run setup** - A one-time account claim replaces the old generated-password dead end, followed by a resumable `/setup` wizard that connects media servers, adds metadata, configures webhooks, and optionally connects Trakt
+- **Guided first-run setup** - A one-time account claim replaces the old generated-password dead end, followed by a resumable `/setup` wizard that connects media servers, adds metadata, configures webhooks, optionally connects Trakt, and tunes watch and Up Next sync
 - **Self-hosted & private** - Runs entirely on your own hardware with dedicated SQLite storage and full data ownership
 - **Enterprise-grade security** - Hardened with strict Content Security Policy (CSP), scrypt password hashing, rate limiting, and HMAC session signing
 - **High-performance artwork cache** - Fast local caching for high-resolution posters, backdrops, and logos from TMDB, TheTVDB, and Fanart.tv; metadata is warmed in the background as media is discovered or a TV show is rematched so the dashboard stays cache-first
@@ -289,11 +289,11 @@ instance by creating its administrator username and password. Claiming can only 
 once. Plembfin then opens the guided `/setup` wizard. You can return to it later from
 Settings → **Tools → Guided setup**, and your progress is saved as you go.
 
-The wizard has eight stages:
+The wizard has nine stages:
 
 **1. Overview.** Review what the wizard configures. Only a tested Plex, Emby, or
-Jellyfin connection is required to finish; Trakt, extra metadata providers, webhooks,
-and backups can be skipped and configured later.
+Jellyfin connection is recommended, but no server is required to finish; Trakt, extra
+metadata providers, webhooks, and backups can be skipped and configured later.
 
 **2. Trakt (optional).** Select **Connect Trakt**, open the displayed activation page,
 and enter the device code. Plembfin uses its built-in Trakt app credentials, so no
@@ -352,9 +352,16 @@ created.
 continue in the background, so you do not need to wait on this page. Trakt runs first;
 selected server imports may show **Waiting** until it finishes.
 
-**8. Review.** Confirm the connection, metadata, webhook, backup, and import statuses,
-then select **Open dashboard**. At least one tested media server is required. Any skipped
-item can be completed later from Settings or the dashboard setup checklist.
+**8. Options.** Choose how app-marked watched flags are dated or sent to Manual Watch
+review, and whether to enable **Sync Up Next to media apps**. Up Next sync is enabled by
+default; when enabled, Plembfin adds a 6% watch marker to connected media apps. Existing
+part-watched items are not affected. These choices can be changed later under Settings →
+Sync → **Sync Tuning**.
+
+**9. Review.** Confirm the connection, metadata, webhook, backup, import, and option
+statuses, then select **Open dashboard**. A media server is optional; without one, watches
+can be marked manually from search. Any skipped item can be completed later from Settings
+or the dashboard setup checklist.
 
 After onboarding, tune thresholds and timeouts under Settings → Sync → **Sync Tuning**.
 Items Plembfin could not identify appear under **Sync Issues**. New media that arrives
