@@ -789,3 +789,12 @@ discard genuine part-watches, or reset provider play counts and timestamps unnec
 **Enforced by:** the provider-neutral native rail refresh in `server/src/utils/upNextProviderSync.js`,
 the clear-only legacy migration in `server/src/utils/upNextRailSeed.js`, outbound playstate echo
 markers in `server/src/utils/syncOrchestrator.js`, and the provider sync tests.
+
+### 27. Preserve positive Up Next resume positions in the projection
+**Date:** 2026-09-13  |  **Status:** Active, supersedes the projection masking described in entries 21 and 26
+
+The native rail refresh no longer needs to create new synthetic resume positions. Existing provider
+and canonical rows can therefore retain their positive positions in Plembfin's Up Next projection,
+so the dashboard shows the same part-watched state as the media detail view. The seed ledger remains
+available for ingestion guards and cleanup of legacy provider state; it is no longer consulted when
+rendering an Up Next card.

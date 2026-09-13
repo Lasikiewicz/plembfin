@@ -90,7 +90,8 @@ export function countUpNextRailSeeds() {
 
 // True when this provider position is the one Plembfin wrote to make the item
 // visible on a calculated rail, rather than something the user actually
-// watched. Used by every path that would otherwise treat it as real progress.
+// watched. Used by ingestion and provider-cleanup paths that would otherwise
+// treat it as real progress.
 //
 // A position that has moved away from the seed is a genuine play: the seed is
 // forgotten so the item behaves normally from then on. This is what keeps the

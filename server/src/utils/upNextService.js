@@ -16,7 +16,6 @@ import {
   listUpNextProviderFeedStates,
 } from "./upNextRepository.js";
 import { createUpNextLibraryLookup } from "./upNextLibraryLookup.js";
-import { isUpNextRailSeedPosition, listUpNextRailSeeds } from "./upNextSeedLedger.js";
 import { createUpNextDismissalFilter } from "./upNextDismissals.js";
 import { isDemoMode } from "./demoMode.js";
 
@@ -383,38 +382,6 @@ function decorateShowRecency(candidate, index) {
     .filter(Boolean)
     .sort((left, right) => String(right).localeCompare(String(left)))[0] || null;
   return latest ? { ...candidate, show_latest_watched_at: latest } : candidate;
-}
-
-// A provider resume row can be the position Plembfin wrote to put the item on
-// that server's Continue Watching rail. It is above the resume threshold by
-// design, so it would otherwise render as a genuine part-watch with a progress
-// bar. Keep the card - rail membership is exactly what the seed was for - but
-// strip the position so nothing downstream treats it as playback.
-function withoutRailSeedProgress(candidate = {}) {
-  if (!isUpNextRailSeedPosition(candidate.source, candidate.provider_item_id, candidate.position_ms)) return candidate;
-  return {
-    ...candidate,
-    position_ms: 0,
-    progress: 0,
-    playback_position_known: false,
-  };
-}
-
-// A Jellyfin rail seed can arrive back through the provider webhook and be
-// persisted as a canonical playback row before the next Up Next push. Treat
-// that row the same way as the provider feed copy above: it is a routing hint,
-// not genuine local resume progress. Matching by the recorded media key keeps
-// this scoped to the exact seed that Plembfin wrote.
-function withoutCanonicalRailSeedProgress(row = {}, seedsByMediaKey = new Map()) {
-  if (text(row.source).toLowerCase() !== "jellyfin") return row;
-  const mediaKey = text(row.media_key || row.mediaKey);
-  const seed = mediaKey ? seedsByMediaKey.get(mediaKey) : null;
-  if (!seed || !isUpNextRailSeedPosition("jellyfin", seed.providerItemId, row.position_ms)) return row;
-  return {
-    ...row,
-    position_ms: 0,
-    progress: 0,
-  };
 }
 
 function providerObservationMatches(candidate, providerCandidate) {
@@ -800,11 +767,7 @@ export async function buildUpNextProjection({
     showIdentities,
   );
   const showRecency = showRecencyIndex(showRows);
-  const jellyfinSeedsByMediaKey = new Map(listUpNextRailSeeds("jellyfin")
-    .filter((seed) => text(seed.mediaKey))
-    .map((seed) => [text(seed.mediaKey), seed]));
   const canonicalResume = rawProgressRows
-    .map((row) => withoutCanonicalRailSeedProgress(row, jellyfinSeedsByMediaKey))
     .map((row) => rowCandidate(row, { queueKind: "resume", canonical: true, showIdentities }))
     .map((candidate) => ensureDemoSeriesIdentity(candidate, showIdentities))
     .map((candidate) => decorateShowRecency(candidate, showRecency))
@@ -817,7 +780,6 @@ export async function buildUpNextProjection({
   // filtering/merging; doing it only on the final public item leaves the
   // native provider card as a second group beside the local resume row.
   const providerCandidates = rawProviderCandidates
-    .map(withoutRailSeedProgress)
     .map((candidate) => normalizeUpNextCandidate(withLocalShowIdentity(candidate, showIdentities)))
     .map((candidate) => decorateShowRecency(candidate, showRecency));
   const providerResume = providerCandidates

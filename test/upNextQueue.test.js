@@ -6,6 +6,7 @@ makeTempDataDir("plembfin-up-next-queue-");
 const { buildUpNextProjection } = await import("../server/src/utils/upNextService.js");
 const { insertWatchRecordSync } = await import("../server/src/utils/dataRepo.js");
 const { saveCanonicalPoster } = await import("../server/src/utils/mediaArtwork.js");
+const { recordUpNextRailSeeds } = await import("../server/src/utils/upNextSeedLedger.js");
 
 test("queue projection keeps canonical resumes first and provider next-up after them", async () => {
   const projection = await buildUpNextProjection({
@@ -116,6 +117,82 @@ test("native provider resume membership remains visible when position is omitted
   assert.equal(projection.items[0].progress, 0);
   assert.equal(projection.items[0].playback_position_known, false);
   assert.deepEqual(projection.items[0].provider_items, { emby: ["emby-resume-without-position"] });
+});
+
+test("native provider resume positions remain visible as part-watched progress", async () => {
+  const positionMs = 162184;
+  const durationMs = 2684557;
+  recordUpNextRailSeeds([{
+    provider: "emby",
+    providerItemId: "emby-seeded-resume",
+    positionMs,
+    durationMs,
+  }]);
+
+  const projection = await buildUpNextProjection({
+    now: Date.parse("2026-09-04T12:00:00.000Z"),
+    localFallback: false,
+    progressRows: [],
+    playstateRows: [],
+    providerItems: [{
+      provider: "emby",
+      feed_kind: "resume",
+      provider_item_id: "emby-seeded-resume",
+      media_type: "episode",
+      title: "Lioness - S03E07",
+      show_title: "Lioness",
+      episode_title: "Kiss the Girls",
+      season: 3,
+      episode: 7,
+      show_ids: { tmdb: "113962" },
+      position_ms: positionMs,
+      duration_ms: durationMs,
+    }],
+  });
+
+  assert.equal(projection.items.length, 1);
+  assert.equal(projection.items[0].position_ms, positionMs);
+  assert.equal(projection.items[0].duration_ms, durationMs);
+  assert.ok(Math.abs(projection.items[0].progress - ((positionMs / durationMs) * 100)) < 0.001);
+  assert.equal(projection.items[0].playback_position_known, true);
+});
+
+test("canonical resume positions remain visible when they match a legacy rail seed", async () => {
+  const positionMs = 162184;
+  const durationMs = 2684557;
+  recordUpNextRailSeeds([{
+    provider: "jellyfin",
+    providerItemId: "jellyfin-seeded-resume",
+    positionMs,
+    durationMs,
+    mediaKey: "episode:3:7:tmdb:113962",
+  }]);
+
+  const projection = await buildUpNextProjection({
+    now: Date.parse("2026-09-04T12:00:00.000Z"),
+    localFallback: false,
+    progressRows: [{
+      media_key: "episode:3:7:tmdb:113962",
+      media_type: "episode",
+      title: "Lioness - S03E07",
+      show_title: "Lioness",
+      show_tmdb_id: "113962",
+      season: 3,
+      episode: 7,
+      position_ms: positionMs,
+      duration_ms: durationMs,
+      progress: (positionMs / durationMs) * 100,
+      updated_at: 500,
+      source: "jellyfin",
+    }],
+    playstateRows: [],
+    providerItems: [],
+  });
+
+  assert.equal(projection.items.length, 1);
+  assert.equal(projection.items[0].position_ms, positionMs);
+  assert.equal(projection.items[0].progress, (positionMs / durationMs) * 100);
+  assert.equal(projection.items[0].playback_position_known, true);
 });
 
 test("uncertain provider membership keeps only the furthest episode for a show", async () => {
