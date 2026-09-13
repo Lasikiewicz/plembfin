@@ -21,7 +21,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { changelogEntryQualityViolations, changelogEntryProcessViolations, filterChangelogEntries, synthesizeHeadline } from "./changelog-message.js";
+import { CHANGELOG_ALPHA_MAX_BULLETS, changelogEntryQualityViolations, changelogEntryProcessViolations, filterChangelogEntries, synthesizeHeadline } from "./changelog-message.js";
 import { buildVersion } from "./version.js";
 import { gitHeadAuthor, gitHeadCommit } from "./changelog-git-helpers.js";
 import { spawnSync } from "node:child_process";
@@ -204,7 +204,7 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
   // Testers read this entry, so it has to read as release notes rather than a
   // dump of every commit since the last promotion. See
   // changelogEntryQualityViolations for why each rule exists.
-  const quality = changelogEntryQualityViolations(alphaEntry);
+  const quality = changelogEntryQualityViolations(alphaEntry, { maxBullets: CHANGELOG_ALPHA_MAX_BULLETS, boundary: "alpha" });
   if (quality.length > 0) {
     throw new Error(`Refusing to promote develop to alpha: the entry is not publishable:\n${quality.map((v) => `- ${v}`).join("\n")}`);
   }

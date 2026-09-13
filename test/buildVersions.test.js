@@ -158,7 +158,7 @@ test("the release-history gate refuses a new release under the wrong version", (
 // a 24-bullet entry from unconsolidated commits, bullets naming internals, a
 // run-on headline, and two agents corrupting the repository at once.
 
-const { changelogEntryQualityViolations } = await import("../scripts/changelog-message.js");
+const { changelogEntryQualityViolations, CHANGELOG_ALPHA_MAX_BULLETS } = await import("../scripts/changelog-message.js");
 const { productCommitSubjects } = await import("../scripts/check-pending-commits.js");
 const { lockDecision } = await import("../scripts/release-lock.js");
 
@@ -172,13 +172,32 @@ test("a publishable entry passes the quality gate", () => {
   }), []);
 });
 
+// The two boundaries carry different ceilings on purpose. Develop's rolling entry
+// grows across every push in a cycle, so enforcing the release limit at alpha
+// would block normal work with no good remedy but hand-editing the manifest.
+test("alpha tolerates a multi-push cycle while a release does not", () => {
+  const entry = (n) => ({ details: Array.from({ length: n }, (_, i) => `Real user-visible bullet number ${i}`) });
+  const alpha = { maxBullets: CHANGELOG_ALPHA_MAX_BULLETS, boundary: "alpha" };
+
+  assert.deepEqual(changelogEntryQualityViolations(entry(12), alpha), [], "three normal pushes must promote to alpha");
+  assert.ok(changelogEntryQualityViolations(entry(12)).length > 0, "the same entry must not become a release");
+  assert.ok(changelogEntryQualityViolations(entry(25), alpha).length > 0, "a runaway entry is still refused at alpha");
+
+  // Jargon is wrong at either boundary and must be caught at both.
+  const jargon = { details: ["One real bullet", "Two real bullet", "Record every seed in up_next_rail_seeds"] };
+  assert.ok(changelogEntryQualityViolations(jargon, alpha).length > 0);
+  assert.ok(changelogEntryQualityViolations(jargon).length > 0);
+});
+
 test("the quality gate refuses an entry with too few or too many bullets", () => {
   assert.ok(changelogEntryQualityViolations({ details: ["One", "Two"] }).length > 0);
   const many = changelogEntryQualityViolations({
     details: Array.from({ length: 12 }, (_, i) => `Real user-visible bullet number ${i}`),
   });
   assert.ok(many.length > 0);
-  assert.match(many.join("\n"), /Consolidate/);
+  // The message must name the remedy that applies at this boundary: combining
+  // the cycle's bullets, not re-consolidating commits that are already pushed.
+  assert.match(many.join("\n"), /Combine the cycle's alpha bullets/);
 });
 
 test("the quality gate refuses bullets that name internals", () => {
