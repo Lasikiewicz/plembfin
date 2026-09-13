@@ -1,24 +1,32 @@
 import {
   fetchPlexContinueWatchingItems,
+  fetchPlexSeriesEpisodes,
   hidePlexFromContinueWatching,
+  markPlexPlayed,
 } from "./plexClient.js";
 import {
   fetchEmbyNextUpItems,
   fetchEmbyResumableItems,
+  fetchEmbySeriesEpisodes,
   hideEmbyFromResume,
+  markEmbyPlayed,
+  touchEmbyResumeRail,
 } from "./embyClient.js";
 import {
   fetchJellyfinNextUpItems,
   fetchJellyfinResumableItems,
+  fetchJellyfinSeriesEpisodes,
   hideJellyfinFromResume,
+  updateJellyfinUserData,
 } from "./jellyfinClient.js";
-import { recordUpNextProviderFeed } from "./upNextRepository.js";
+import { isPlembfinPrimaryUpNextFeed, recordUpNextProviderFeed } from "./upNextRepository.js";
 import { normalizeUpNextCandidate, upNextIdentityAliases } from "./upNextIdentity.js";
 import { createLoopStore } from "./loopStore.js";
-import { syncMediaProgress } from "./syncOrchestrator.js";
+import { recordOutboundJellyfinNextUpNudge, recordOutboundPlayedMarks, recordOutboundProgressMarks, syncMediaProgress } from "./syncOrchestrator.js";
 import { syncUpNextProviderPlaylists } from "./upNextProviderPlaylists.js";
-import { seedUpNextProviderRails } from "./upNextRailSeed.js";
-import { resolveUpNextProviderTargets } from "./upNextLibraryLookup.js";
+import { clearLegacyUpNextRailSeeds, clearLegacyUpNextRailSeed } from "./upNextRailSeed.js";
+import { resolveUpNextProviderTargets, upNextLookupMedia } from "./upNextLibraryLookup.js";
+import { isUpNextRailSeedPosition, listUpNextRailSeeds } from "./upNextSeedLedger.js";
 
 // All three media servers participate in Up Next. Jellyfin was briefly
 // excluded; see docs/decisions.md entry 20 for why that was reversed.
@@ -28,6 +36,144 @@ const MAX_REQUEST_ITEMS = 100;
 
 function text(value = "") {
   return String(value ?? "").trim();
+}
+
+function numeric(value, fallback = NaN) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function coordinateFrom(item = {}) {
+  const season = numeric(item.season ?? item.ParentIndexNumber ?? item.parentIndexNumber ?? item.parentIndex, NaN);
+  const episode = numeric(item.episode ?? item.IndexNumber ?? item.indexNumber ?? item.index, NaN);
+  if (!Number.isInteger(season) || season < 0 || !Number.isInteger(episode) || episode <= 0) return null;
+  return { season, episode };
+}
+
+function jellyfinEpisodePositionMs(item = {}) {
+  const ticks = numeric(item.UserData?.PlaybackPositionTicks ?? item.PlaybackPositionTicks, 0);
+  return ticks > 0 ? Math.round(ticks / 10000) : 0;
+}
+
+function jellyfinItemPlayed(item = {}) {
+  const value = item.UserData?.Played ?? item.Played ?? item.IsPlayed;
+  return value === true || value === 1 || value === "1" || String(value).toLowerCase() === "true";
+}
+
+function requestedRailRefreshItem(item = {}) {
+  const positionMs = numeric(item.position_ms ?? item.positionMs ?? item.offset_ms ?? item.offsetMs, 0);
+  const progress = numeric(item.progress, 0);
+  const mediaType = text(item.media_type || item.mediaType).toLowerCase();
+  // Native calculated rails need a ready-to-watch episode, not a synthetic
+  // resume position. Do not use queue_kind here: Plex and Emby call their
+  // equivalent rail Resume/Continue Watching even when Plembfin describes the
+  // same ready episode as Next Up, and an old browser snapshot may carry the
+  // stale "resume" label from the former 6% seed implementation.
+  return mediaType === "episode" && positionMs <= 0 && progress <= 0;
+}
+
+function providerRailLookupMedia(item = {}) {
+  const media = upNextLookupMedia(item);
+  const coordinate = coordinateFrom(item);
+  const showTitle = text(item.show_title || item.showTitle);
+  const title = showTitle && coordinate
+    ? `${showTitle} - S${String(coordinate.season).padStart(2, "0")}E${String(coordinate.episode).padStart(2, "0")}`
+    : media.title;
+  return {
+    ...media,
+    title,
+    show_title: showTitle || media.show_title,
+    season: coordinate?.season ?? media.season,
+    episode: coordinate?.episode ?? media.episode,
+    type: "episode",
+    media_type: "episode",
+  };
+}
+
+function providerEpisodeId(provider, episode = {}) {
+  return text(provider === "plex" ? episode.ratingKey : episode.Id || episode.id);
+}
+
+function providerEpisodePositionMs(provider, item = {}) {
+  if (provider === "plex") return Math.max(0, Math.round(numeric(item.viewOffset, 0)));
+  if (provider === "jellyfin") return jellyfinEpisodePositionMs(item);
+  const ticks = numeric(item.UserData?.PlaybackPositionTicks ?? item.PlaybackPositionTicks, 0);
+  return ticks > 0 ? Math.round(ticks / 10000) : 0;
+}
+
+function providerItemPlayed(provider, item = {}) {
+  if (provider === "plex") {
+    return numeric(item.viewCount ?? item.ViewCount, 0) > 0 || item.isWatched === true;
+  }
+  if (provider === "jellyfin") return jellyfinItemPlayed(item);
+  const value = item.UserData?.Played ?? item.Played ?? item.IsPlayed;
+  return value === true || value === 1 || value === "1" || String(value).toLowerCase() === "true";
+}
+
+function providerEpisodeReleased(provider, item = {}, now = Date.now()) {
+  const raw = provider === "plex"
+    ? item.originallyAvailableAt || item.originallyAvailableAtUtc
+    : item.PremiereDate || item.PremiereDateUtc || item.premiereDate || "";
+  if (!raw) return true;
+  const timestamp = Date.parse(String(raw));
+  return !Number.isFinite(timestamp) || timestamp <= now;
+}
+
+function providerEpisodeSeriesIds(provider, episode = {}) {
+  const ids = provider === "plex"
+    ? (Array.isArray(episode.Guid) ? episode.Guid : [])
+      .reduce((result, entry) => {
+        const id = text(entry?.id || entry?.guid);
+        const match = id.match(/^(imdb|tmdb|tvdb):\/\/(.+)$/i);
+        if (match) result[match[1].toLowerCase()] = match[2];
+        return result;
+      }, {})
+    : (episode.SeriesProviderIds || episode.ProviderIds || {});
+  return {
+    imdb: text(ids.Imdb || ids.imdb || ids.IMDB),
+    tmdb: text(ids.Tmdb || ids.tmdb || ids.TMDB),
+    tvdb: text(ids.Tvdb || ids.tvdb || ids.TVDB),
+  };
+}
+
+function providerRailMedia(provider, item, episode, coordinate) {
+  const showTitle = text(episode?.SeriesName || item?.show_title || item?.showTitle || "Untitled");
+  const providerItemId = providerEpisodeId(provider, episode);
+  const ids = providerEpisodeSeriesIds(provider, episode);
+  return {
+    title: `${showTitle} - S${String(coordinate.season).padStart(2, "0")}E${String(coordinate.episode).padStart(2, "0")}`,
+    show_title: showTitle,
+    showTitle,
+    type: "episode",
+    media_type: "episode",
+    source: provider,
+    provider: provider,
+    provider_item_id: providerItemId,
+    itemId: providerItemId,
+    season: coordinate.season,
+    episode: coordinate.episode,
+    ids: {
+      imdb: ids.imdb || text(item?.show_imdb_id || item?.showImdbId) || undefined,
+      tmdb: ids.tmdb || text(item?.show_tmdb_id || item?.showTmdbId) || undefined,
+      tvdb: ids.tvdb || text(item?.show_tvdb_id || item?.showTvdbId) || undefined,
+    },
+    provider_items: { [provider]: [providerItemId] },
+    providerItems: { [provider]: [providerItemId] },
+    isValid: Boolean(providerItemId),
+  };
+}
+
+function providerSeriesEpisodes(provider, config, media) {
+  if (provider === "plex") return fetchPlexSeriesEpisodes(config.plex, media);
+  if (provider === "emby") return fetchEmbySeriesEpisodes(config.emby, media);
+  return fetchJellyfinSeriesEpisodes(config.jellyfin, media);
+}
+
+function providerRailOrder(episodes = []) {
+  return episodes
+    .map((episode) => ({ episode, coordinate: coordinateFrom(episode) }))
+    .filter(({ coordinate }) => coordinate && coordinate.season > 0)
+    .sort((left, right) => left.coordinate.season - right.coordinate.season || left.coordinate.episode - right.coordinate.episode);
 }
 function providerIdValues(value) {
   const values = Array.isArray(value) ? value : value ? [value] : [];
@@ -81,6 +227,9 @@ function feedDefinitions(config = {}) {
       hide: (providerItemId) => hideEmbyFromResume(config.emby, providerItemId, { lane: "interactive" }),
     },
     {
+      // Emby exposes this separately, but Plembfin's Emby equivalent is
+      // Continue Watching/Resume. Keep the observation for diagnostics and
+      // compatibility; it is deliberately ignored by queue reconciliation.
       provider: "emby",
       feedKind: "next_up",
       supportsDismissal: false,
@@ -88,6 +237,8 @@ function feedDefinitions(config = {}) {
       fetch: () => fetchEmbyNextUpItems(config.emby, { limit: 0 }),
     },
     {
+      // Jellyfin Continue Watching is protected input for genuine
+      // part-watches, not the native rail Plembfin reconciles.
       provider: "jellyfin",
       feedKind: "resume",
       supportsDismissal: true,
@@ -98,8 +249,8 @@ function feedDefinitions(config = {}) {
     {
       // Jellyfin's Next Up is a calculated GET feed with no per-item write, so
       // it is read as an observation and reported as unsupported for removal.
-      // The rail seed still steers it: /Shows/NextUp is requested with
-      // EnableResumable, so a seeded episode becomes its series' entry.
+      // The provider rail refresh below updates the watched predecessor so the
+      // server recalculates the desired series entry naturally.
       provider: "jellyfin",
       feedKind: "next_up",
       supportsDismissal: false,
@@ -170,6 +321,10 @@ export function planUpNextProviderSync({ desiredItems = [], feeds = [] } = {}) {
     const provider = text(feed.provider).toLowerCase();
     if (!PROVIDERS.includes(provider)) continue;
     const feedKind = text(feed.feed_kind || feed.feedKind).toLowerCase();
+    // Continue Watching is not the desired Jellyfin rail, and native Emby
+    // Next Up is not the desired Emby rail. Keep those feeds available for
+    // observation/protection, but never reconcile or dismiss them here.
+    if (!isPlembfinPrimaryUpNextFeed(provider, feedKind)) continue;
     const candidates = Array.isArray(feed.items) ? feed.items : [];
     const seen = new Set();
     for (const candidate of candidates) {
@@ -261,6 +416,9 @@ function mediaFromRequestedItem(item = {}) {
 
 function actionableProgressItem(item = {}) {
   const media = mediaFromRequestedItem(item);
+  const jellyfinSeeded = providerIdValues(media.providerItems?.jellyfin)
+    .some((providerItemId) => isUpNextRailSeedPosition("jellyfin", providerItemId, media.positionMs));
+  if (jellyfinSeeded) return null;
   return media.isValid && media.positionMs >= 1000 && media.progress < 95 ? media : null;
 }
 
@@ -319,6 +477,193 @@ async function propagateKnownProgress(items, config) {
   }));
 }
 
+// Plex Continue Watching, Emby Continue Watching, and Jellyfin Next Up are
+// calculated rails. They cannot accept an arbitrary queue write, but they can
+// recalculate when the watched episode immediately before a ready episode is
+// touched. Use the provider's native playstate input for that refresh:
+// Plex/Emby receive a watched mark, while Jellyfin only receives a
+// LastPlayedDate update so its PlayCount, watched flag, and resume position are
+// left exactly as they were. A genuine target resume position is always
+// protected. The old ledger is consulted only to migrate positions written by
+// pre-refresh builds; no new synthetic position is created here.
+export async function refreshProviderRail({ provider, config, targets = [] } = {}) {
+  const base = {
+    provider,
+    status: "skipped",
+    refreshed_count: 0,
+    // Kept as compatibility aliases for clients that consumed the original
+    // Jellyfin-only summary before all providers used this path.
+    promoted_count: 0,
+    cleared_legacy_seed_count: 0,
+    cleared_seed_count: 0,
+    skipped_count: 0,
+    failed_count: 0,
+    results: [],
+  };
+  if (!configuredProvider(config, provider)) return { ...base, reason: `${provider} is not configured.` };
+
+  const seedById = new Map(listUpNextRailSeeds(provider).map((seed) => [seed.providerItemId, seed]));
+  const outcomes = [];
+  const candidates = [];
+  const addSkipped = (title, reason) => outcomes.push({ title, status: "skipped", reason });
+
+  for (const target of (Array.isArray(targets) ? targets : []).slice(0, MAX_REQUEST_ITEMS)) {
+    const item = target?.item || {};
+    const title = text(item.title || item.episode_title || item.show_title || "Untitled");
+    const providerItemId = text(target?.providerItemId);
+    if (!providerItemId) {
+      addSkipped(title, `${provider} item was not resolved.`);
+      continue;
+    }
+    const legacySeed = seedById.get(providerItemId) || null;
+    const requestedPositionMs = numeric(item.position_ms ?? item.positionMs ?? item.offset_ms ?? item.offsetMs, 0);
+    const legacySeedPosition = legacySeed
+      && requestedPositionMs > 0
+      && isUpNextRailSeedPosition(provider, providerItemId, requestedPositionMs);
+    if (!requestedRailRefreshItem(item) && !legacySeedPosition) {
+      addSkipped(title, "The item has genuine resume progress or is not an episode ready for native rail refresh.");
+      continue;
+    }
+
+    const coordinate = coordinateFrom(item);
+    if (!coordinate) {
+      addSkipped(title, "The item has no usable season and episode coordinates.");
+      continue;
+    }
+
+    let episodes;
+    try {
+      episodes = await providerSeriesEpisodes(provider, config, providerRailLookupMedia(item));
+    } catch (error) {
+      addSkipped(title, `Could not verify ${provider}'s watched predecessor: ${text(error?.message || error) || "series lookup failed"}.`);
+      continue;
+    }
+
+    const targetEpisode = (Array.isArray(episodes) ? episodes : [])
+      .find((episode) => providerEpisodeId(provider, episode) === providerItemId);
+    if (!targetEpisode) {
+      addSkipped(title, `The resolved ${provider} episode was not returned by its series inventory.`);
+      continue;
+    }
+
+    const targetPositionMs = providerEpisodePositionMs(provider, targetEpisode);
+    const syntheticPosition = legacySeed
+      && targetPositionMs > 0
+      && isUpNextRailSeedPosition(provider, providerItemId, targetPositionMs);
+    if (targetPositionMs > 0 && !syntheticPosition) {
+      addSkipped(title, `${provider} reports a genuine resume position; it was left untouched.`);
+      continue;
+    }
+    if (providerItemPlayed(provider, targetEpisode)) {
+      addSkipped(title, `The target is already watched in ${provider}.`);
+      continue;
+    }
+    if (!providerEpisodeReleased(provider, targetEpisode)) {
+      addSkipped(title, "The target episode has not released yet.");
+      continue;
+    }
+
+    const ordered = providerRailOrder(episodes);
+    const targetIndex = ordered.findIndex(({ episode }) => providerEpisodeId(provider, episode) === providerItemId);
+    if (targetIndex <= 0) {
+      addSkipped(title, "The target has no watched episode immediately before it to order from.");
+      continue;
+    }
+
+    const earlier = ordered.slice(0, targetIndex);
+    if (earlier.some(({ episode }) => !providerItemPlayed(provider, episode) && providerEpisodeReleased(provider, episode))) {
+      addSkipped(title, `An earlier released episode is still unwatched, so ${provider} cannot calculate this as Up Next.`);
+      continue;
+    }
+    const predecessor = earlier[earlier.length - 1];
+    if (!predecessor || !providerItemPlayed(provider, predecessor.episode)) {
+      addSkipped(title, `The immediately preceding episode is not watched in ${provider}.`);
+      continue;
+    }
+
+    const resultIndex = outcomes.length;
+    outcomes.push(null);
+    candidates.push({
+      item,
+      title,
+      providerItemId,
+      targetEpisode,
+      legacySeed: syntheticPosition ? legacySeed : null,
+      predecessor: predecessor.episode,
+      predecessorCoordinate: predecessor.coordinate,
+      resultIndex,
+    });
+  }
+
+  const loopStore = createLoopStore();
+  const now = Date.now();
+  // Native rails sort newest watched input first. Reverse the desired list so
+  // the first Plembfin item receives the newest provider timestamp.
+  for (let index = candidates.length - 1; index >= 0; index -= 1) {
+    const candidate = candidates[index];
+    const predecessorMedia = providerRailMedia(provider, candidate.item, candidate.predecessor, candidate.predecessorCoordinate);
+    const result = {
+      title: candidate.title,
+      status: "failed",
+      provider_item_id: candidate.providerItemId,
+      predecessor_item_id: providerEpisodeId(provider, candidate.predecessor),
+    };
+    let refreshed = false;
+    try {
+      if (provider === "jellyfin") {
+        const lastPlayedDate = new Date(now - index * 1000).toISOString();
+        await recordOutboundJellyfinNextUpNudge(predecessorMedia, loopStore);
+        await updateJellyfinUserData(config.jellyfin, providerEpisodeId(provider, candidate.predecessor), { LastPlayedDate: lastPlayedDate }, { lane: "interactive" });
+        result.last_played_date = lastPlayedDate;
+      } else {
+        await recordOutboundPlayedMarks(predecessorMedia, [provider], loopStore);
+        const outcome = provider === "plex"
+          ? await markPlexPlayed(config.plex, predecessorMedia)
+          : await markEmbyPlayed(config.emby, predecessorMedia);
+        if (outcome?.status !== "fulfilled") throw new Error(`${provider} did not accept the watched predecessor mark.`);
+        if (provider === "emby") {
+          const rail = await touchEmbyResumeRail(config.emby, candidate.providerItemId, { lane: "interactive" });
+          if (rail?.status !== "fulfilled") throw new Error("Emby did not accept the native Continue Watching rail refresh.");
+          result.resume_rail_touched = true;
+        }
+      }
+      refreshed = true;
+      base.refreshed_count += 1;
+      base.promoted_count += 1;
+      result.status = "refreshed";
+      result.reason = `${provider} native Up Next rail refreshed.`;
+    } catch (error) {
+      result.reason = text(error?.message || error) || `${provider} native Up Next refresh failed.`;
+    }
+
+    if (refreshed && candidate.legacySeed) {
+      try {
+        await recordOutboundProgressMarks(
+          providerRailMedia(provider, candidate.item, candidate.targetEpisode, coordinateFrom(candidate.item)),
+          [provider],
+          loopStore,
+        );
+        const cleared = await clearLegacyUpNextRailSeed(config, candidate.legacySeed);
+        if (cleared?.status !== "fulfilled") throw new Error(cleared?.detail || `${provider} legacy rail seed clear was not accepted.`);
+        base.cleared_legacy_seed_count += 1;
+        base.cleared_seed_count += 1;
+        result.legacy_seed_cleared = true;
+      } catch (error) {
+        base.failed_count += 1;
+        result.status = "partial";
+        result.reason = text(error?.message || error) || `${provider} legacy rail seed cleanup failed.`;
+      }
+    }
+    outcomes[candidate.resultIndex] = result;
+  }
+
+  base.skipped_count = outcomes.filter((entry) => entry?.status === "skipped").length;
+  base.failed_count += outcomes.filter((entry) => entry?.status === "failed").length;
+  base.status = base.failed_count ? (base.refreshed_count ? "partial" : "failed") : (base.refreshed_count ? "succeeded" : "skipped");
+  base.results = outcomes.filter(Boolean);
+  return base;
+}
+
 async function applyDismissals(plan, definitions) {
   const definitionByFeed = new Map(definitions.map((definition) => [
     `${definition.provider}:${definition.feedKind}`,
@@ -334,7 +679,7 @@ async function applyDismissals(plan, definitions) {
       return {
         ...action,
         status: "fulfilled",
-        details: `Removed from ${action.provider === "plex" ? "Continue Watching" : "Resume"}`,
+        details: `Removed from ${action.provider === "jellyfin" ? "Next Up" : "Continue Watching"}`,
       };
     } catch (error) {
       return { ...action, status: "failed", details: text(error?.message || error) || "Provider dismissal failed" };
@@ -344,11 +689,13 @@ async function applyDismissals(plan, definitions) {
 
 // Push Plembfin's authoritative Up Next snapshot to a dedicated provider
 // playlist on each connected media server, while also applying native
-// dismissal actions and replaying only known positive resume positions. Plex
-// Continue Watching and Emby/Jellyfin Resume/Next Up are calculated feeds:
-// their native APIs can hide or read membership, but cannot add an arbitrary
-// future episode. The playlist is the complete provider-side representation,
-// and failed/incomplete feeds never trigger native removals.
+// dismissal actions and replaying only known positive resume positions. The
+// native target rail is Plex Continue Watching, Emby Continue Watching
+// (Resume), and Jellyfin Next Up. Those feeds are calculated: their native
+// APIs can hide or read membership, but cannot add an arbitrary future
+// episode. Other feeds are read only to protect real progress and are never
+// reconciled as Plembfin's queue. The playlist is the complete provider-side
+// representation, and failed/incomplete feeds never trigger native removals.
 export async function syncUpNextToProviders({ desiredItems = [], config = {} } = {}) {
   if (config?.upNextSync?.enabled === false) {
     return {
@@ -359,9 +706,23 @@ export async function syncUpNextToProviders({ desiredItems = [], config = {} } =
       pushedProviders: [],
       playlists: [],
       railSeeds: [],
+      legacyRailCleanup: [],
+      providerRails: [],
       providerDismissals: [],
       unsupported: [],
       progress: [],
+      jellyfinRail: {
+        provider: "jellyfin",
+        status: "skipped",
+        refreshed_count: 0,
+        promoted_count: 0,
+        cleared_legacy_seed_count: 0,
+        cleared_seed_count: 0,
+        skipped_count: 0,
+        failed_count: 0,
+        results: [],
+        reason: "Up Next sync is disabled.",
+      },
     };
   }
   const definitions = feedDefinitions(config);
@@ -387,9 +748,9 @@ export async function syncUpNextToProviders({ desiredItems = [], config = {} } =
     configuredDefinitions.some((definition) => definition.provider === provider)
   ));
   // Resolve every desired item to its native id once per provider. The
-  // playlist reconciliation and the rail seed then work from the same answer;
-  // resolving separately let the two disagree and left the playlist holding a
-  // stale entry while the seed found the item without trouble.
+  // playlist reconciliation and native rail refresh then work from the same
+  // answer; resolving separately let them disagree and left the playlist
+  // holding a stale entry while the rail refresh found the item without trouble.
   const targetsByProvider = Object.fromEntries(await Promise.all(pushProviders.map(async (provider) => [
     provider,
     await resolveUpNextProviderTargets({
@@ -401,23 +762,34 @@ export async function syncUpNextToProviders({ desiredItems = [], config = {} } =
   ])));
 
   const playlists = await syncUpNextProviderPlaylists({ desiredItems, config, targetsByProvider });
-  // The managed playlist is the complete mirror; the native rails are
-  // calculated and only accept a playback position. Seed the ones that are not
-  // already there, using the ids the successful resume feeds just reported so
-  // a real position is never overwritten by a synthetic one.
-  const existingResumeIds = Object.fromEntries(pushProviders.map((provider) => [
+  const desiredIdsByProvider = Object.fromEntries(pushProviders.map((provider) => [
     provider,
-    new Set(feeds
-      .filter((feed) => feed.provider === provider && feed.feed_kind === "resume" && feed.status === "succeeded")
-      .flatMap((feed) => feed.items.map((candidate) => text(candidate?.provider_item_id)))
-      .filter(Boolean)),
+    new Set((targetsByProvider[provider]?.resolved || []).map((target) => text(target.providerItemId)).filter(Boolean)),
   ]));
-  const railSeeds = await seedUpNextProviderRails({
+  // Older alpha builds may have left 6% positions tracked in the ledger. They
+  // are migrated out of the provider rails, but this path never writes a new
+  // synthetic position.
+  const legacyRailCleanup = await clearLegacyUpNextRailSeeds({
     config,
     providers: pushProviders,
-    targetsByProvider,
-    existingResumeIds,
+    desiredIdsByProvider,
   });
+  const providerRails = await Promise.all(pushProviders.map((provider) => refreshProviderRail({
+    provider,
+    config,
+    targets: targetsByProvider[provider]?.resolved || [],
+  })));
+  const jellyfinRail = providerRails.find((rail) => rail.provider === "jellyfin") || {
+    provider: "jellyfin",
+    status: "skipped",
+    refreshed_count: 0,
+    promoted_count: 0,
+    cleared_legacy_seed_count: 0,
+    cleared_seed_count: 0,
+    skipped_count: 0,
+    failed_count: 0,
+    results: [],
+  };
   const pushedProviders = playlists
     .filter((playlist) => playlist.status === "succeeded" && playlist.missing_count === 0)
     .map((playlist) => playlist.provider);
@@ -434,7 +806,9 @@ export async function syncUpNextToProviders({ desiredItems = [], config = {} } =
     })),
     pushedProviders,
     playlists,
-    railSeeds,
+    railSeeds: [],
+    legacyRailCleanup,
+    providerRails,
     providerDismissals,
     unsupported: plan.unsupported.map((item) => ({
       provider: item.provider,
@@ -442,5 +816,6 @@ export async function syncUpNextToProviders({ desiredItems = [], config = {} } =
       title: item.title,
     })),
     progress,
+    jellyfinRail,
   };
 }

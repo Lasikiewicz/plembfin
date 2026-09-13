@@ -183,10 +183,10 @@ before reversing something that looks unnecessarily cautious.
 | `upNextService.js` | Builds the unified dashboard projection from canonical local resume/playstate, provider observations, and bounded released-episode metadata fallback; emits stable public queue items without raw provider payloads. |
 | `upNextLibraryLookup.js` | Shared Up Next media-descriptor builder and cached Plex/Emby/Jellyfin library resolution. Lets the projection prove an unwatched next episode exists in a real library, and lets the authoritative push resolve the item it needs to add. |
 | `upNextProviderPlaylists.js` | Maintains the managed `Plembfin Up Next` video playlist in Plex, Emby, and Jellyfin as the complete provider-side representation of Plembfin's queue. |
-| `upNextRailSeed.js` | Writes a 6%-of-runtime resume position so the Plex, Emby, and Jellyfin resume rails mirror the queue. Above `minResumePositionSec` by necessity, so safety comes from the seed ledger; see `docs/decisions.md` entries 19 and 21. |
+| `upNextRailSeed.js` | Clear-only compatibility migration for 6%-of-runtime positions written by older builds. Current Up Next pushes refresh Plex Continue Watching, Emby Continue Watching (Resume), and Jellyfin Next Up from verified watched predecessors without writing synthetic progress. |
 | `providerItemIds.js` | Resolves a media object's native ids for one provider, refusing a bare `provider_item_id` that belongs to a different one. Prevents an outbound write landing on an unrelated title. |
 | `upNextDismissals.js` | Server-side Up Next dismissals: alias plus coordinate identity, projection filter, and restore. Replaces the browser-local map; see `docs/decisions.md` entry 23. |
-| `upNextSeedLedger.js` | Records every rail seed and rejects it by identity wherever a provider would otherwise report it back as genuine playback. |
+| `upNextSeedLedger.js` | Legacy ledger for identifying and suppressing positions written by older native-rail seed builds while they are migrated out. |
 | `plexWatchlistClient.js` | Plex account-level Universal Watchlist adapter with native read/write capability probing and RSS read-only fallback. |
 | `traktAppConfig.js` | Supplies the bundled Plembfin Trakt device application, applies optional `TRAKT_CLIENT_ID` / `TRAKT_CLIENT_SECRET` overrides, validates the personal-app fallback, and hydrates runtime requests without persisting application credentials in tracker records. |
 | `credentialVault.js` | AES-256-GCM envelope for provider credentials, backed by `PLEMBFIN_CREDENTIAL_KEY` or the generated `data/credential.key`. |
@@ -829,7 +829,7 @@ WebSocket listener is stopped, `server.close()` drains in-flight HTTP requests, 
 - `PLEMBFIN_DEBUG_CACHE_REBUILDS` - set to `1` to log one line per derived-cache rebuild (visible in Settings → Logs), recording which cache rebuilt, how long it took, and which generation change it was for. A version bump on its own is free; what costs is a bump that invalidates a cache which is then read
 - `PLEMBFIN_DEBUG_SCHEDULER` - set to `1` to log per-step scheduler timing (visible in Settings → Logs): each step's name, where in the tick it started, how long it ran, whether it exhausted its time budget, plus a per-tick summary carrying the achieved interval between tick starts
 - `PLEMBFIN_PAUSE_SCHEDULED_WORKER` - set to `1` only for diagnostics that need real-time provider listeners without scheduled sync ticks or background-job polling; the default is off
-- `BUILD_CHANNEL` - baked into the Docker image at build time (`release` by default, `alpha` in the `ghcr.io/lasikiewicz/plembfin:alpha` image); appends "alpha" to the version shown in the sidebar badge and About so a pre-release build is visually distinct from a tagged release. Not meant to be set manually
+- `BUILD_CHANNEL` - baked into published Docker images at build time (`release` by default, `alpha` in the `ghcr.io/lasikiewicz/plembfin:alpha` image, and `develop` in the `ghcr.io/lasikiewicz/plembfin:develop` image); local `npm start` and `npm run dev` default to `develop`, while an explicit value can select another local channel. It controls the channel metadata shown in the sidebar badge, About, and Changelog
 
 Environment variables act as **defaults** for connection and sync-tuning settings:
 values saved in Settings (stored in the `settings` SQLite row) take precedence over

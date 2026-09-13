@@ -1175,12 +1175,13 @@ const migrations = [
   {
     id: 37,
     up(database) {
-      // Up Next writes a resume position to Plex/Emby/Jellyfin so their
-      // calculated Continue Watching rails can show the queue. That position
-      // has to be large enough for the provider to keep it, which puts it
-      // above Plembfin's own resume threshold, so size alone can no longer
-      // tell a seeded position apart from a real one. This ledger records
-      // exactly what was written so ingestion can reject it by identity.
+      // Up Next writes a position to Plex Continue Watching, Emby Resume, and
+      // Jellyfin Next Up so their calculated rails can show the queue. That
+      // position has to be large enough for the provider to keep it, which
+      // puts it above Plembfin's own resume threshold, so size alone can no
+      // longer tell a seeded position apart from a real one. This ledger
+      // records exactly what was written so ingestion can reject it by
+      // identity.
       database.exec(`
         CREATE TABLE IF NOT EXISTS up_next_rail_seeds (
           provider TEXT NOT NULL CHECK (provider IN ('plex', 'emby', 'jellyfin')),

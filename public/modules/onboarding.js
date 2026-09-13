@@ -3,12 +3,12 @@
 // wherever possible - openServiceEditModal() for every provider connect/test
 // flow, and the webhook-guide functions - so setup and Settings never diverge
 // in behavior, only in presentation.
-import { state, elements } from "./state.js?v=1.1.0.1.2";
-import { escapeHtml, escapeAttribute, isDemoMode } from "./utils.js?v=1.1.0.1.2";
-import { openServiceEditModal } from "./settings-services.js?v=1.1.0.1.2";
-import { embyWebhookSetup, jellyfinWebhookSetup, buildWebhookUrl } from "./help-content.js?v=1.1.0.1.2";
-import { claimAdminAccount } from "./auth.js?v=1.1.0.1.2";
-import { loadWatchBackups, loadPlembfinBackups } from "./tools-backups.js?v=1.1.0.1.2";
+import { state, elements } from "./state.js?v=1.1.0.2.1";
+import { escapeHtml, escapeAttribute, isDemoMode } from "./utils.js?v=1.1.0.2.1";
+import { openServiceEditModal } from "./settings-services.js?v=1.1.0.2.1";
+import { embyWebhookSetup, jellyfinWebhookSetup, buildWebhookUrl } from "./help-content.js?v=1.1.0.2.1";
+import { claimAdminAccount } from "./auth.js?v=1.1.0.2.1";
+import { loadWatchBackups, loadPlembfinBackups } from "./tools-backups.js?v=1.1.0.2.1";
 
 let _cb = {};
 export function initOnboarding(callbacks = {}) {
@@ -1065,7 +1065,7 @@ function renderOptions() {
       <label class="settings-card setup-options-card setup-options-toggle">
         <span class="setup-options-toggle-copy">
           <b>Sync Up Next to media apps</b>
-          <span>For this feature to work, Plembfin adds a 6% watch marker to connected media apps.<br>Existing part-watched items are not affected and continue to appear normally.<br>You can enable or disable this later in Settings → Sync → Sync Tuning.</span>
+          <span>When enabled, Plembfin keeps its Up Next queue in sync with Plex and Emby's Continue Watching and Jellyfin's Next Up.<br>Turn it off to leave those app lists unchanged; Plembfin's own Up Next view remains available.<br>You can change this later in Settings → Sync → Sync Tuning.</span>
         </span>
         <input class="setup-options-switch" type="checkbox" role="switch" aria-label="Sync Up Next to media apps" data-setup-up-next-sync="1" ${upNextSync ? "checked" : ""} aria-checked="${upNextSync ? "true" : "false"}" />
       </label>

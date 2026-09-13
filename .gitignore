@@ -26,6 +26,9 @@ backups/
 # local-environment.md, which hold machine-specific paths and credentials.
 .claude/*
 !.claude/skills/
+# Personal feature-request monitoring workflow and its public-state snapshot.
+.claude/check-requests.md
+.claude/check-requests-state.json
 .reasonix/
 .Jules/
 reasonix.toml

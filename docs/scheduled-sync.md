@@ -339,10 +339,12 @@ already in flight is not cancelled; the guard only prevents new competing outbou
 4. **Catch-up library sync** - **runs every 15 minutes** (configurable via `CATCHUP_SYNC_INTERVAL_MS` env variable) to avoid heavy redundant API queries:
    - Pulls recently-watched and continue-watching (resumable) items from each active server: `syncRecentlyWatchedFromPlex`/`syncRecentlyResumableFromPlex` (and Emby/Jellyfin equivalents) in `scheduled.js`.
    - Runs a full paginated availability reconciliation after watched imports. For every active provider, an item must be present in that provider's successful library inventory, explicitly unplayed there, and canonically watched in Plembfin before the scheduler marks it played. This catches bulk-added 4K/alternate-library copies, uses the exact native item id, and is positive-only: missing items, failed/partial scans, and canonical unwatches never trigger an unwatch.
-   - Refreshes the provider Up Next feeds in the same catch-up window. Plex uses the
-     account-scoped **Continue Watching** hub and falls back to the configured library
-     sections; Emby uses user-scoped **Continue Watching/Resume** and **Next Up** endpoints;
-     Jellyfin uses user-scoped **Continue Watching/Resume** and **Next Up** endpoints.
+   - Refreshes the provider Up Next feeds in the same catch-up window. Plembfin uses Plex's
+     account-scoped **Continue Watching** hub, Emby's user-scoped **Continue Watching/Resume**
+     endpoint, and Jellyfin's user-scoped **Next Up** endpoint as the three target rails. The
+     Jellyfin **Continue Watching/Resume** endpoint is also read separately to protect genuine
+     part-watched progress, but it is not used as the Jellyfin Up Next queue. Plex falls back to
+     the configured library sections when its hub is unavailable.
      Provider clients paginate these feeds, so the stored snapshot is not capped at the
      first 50 items. The responses are stored as source observations in
      `up_next_provider_items`, not as watched-state authority. Each feed is generation-based:

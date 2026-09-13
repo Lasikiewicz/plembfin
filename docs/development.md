@@ -7,7 +7,7 @@ GitHub Actions, Docker, and the changelog/versioning machinery.
 
 ```bash
 npm install       # prebuilt binaries for better-sqlite3 + sharp; also installs git hooks (prepare)
-npm start         # serve UI + API + scheduler on http://localhost:5055
+npm start         # serve the local checkout as a develop build
 npm run dev       # same, with --watch auto-reload
 npm test          # focused node:test suite for parser/sync/key behavior
 npm run test:multiprocess # real isolated web/worker replica test
@@ -18,11 +18,14 @@ npm run seed:demo # insert fictional demo movies/shows with generated posters
 
 ### Windows provider-backed server launches
 
-`npm start` is still the canonical application command. When the server is started by
-Codex on Windows, the command must run through the approved elevated network-enabled
-execution path; do not launch it from the restricted sandbox. The restricted sandbox
-can allow the UI/API to listen on port `5055` while denying outbound connections to
-Plex, Emby, Jellyfin, Trakt, TMDB, or TVDB with `EACCES`.
+`npm start` is the canonical local application command and defaults to the `develop`
+channel. The `dev` command uses the same channel with file watching enabled. Set
+`BUILD_CHANNEL=release` or `BUILD_CHANNEL=alpha` explicitly when you need to inspect
+another local channel. When the server is started by Codex on Windows, the command must
+run through the approved elevated network-enabled execution path; do not launch it from
+the restricted sandbox. The restricted sandbox can allow the UI/API to listen on port
+`5055` while denying outbound connections to Plex, Emby, Jellyfin, Trakt, TMDB, or TVDB
+with `EACCES`.
 
 This is an execution-environment requirement, not a second app mode: an ordinary
 PowerShell window on the host can continue to use `npm start` or `npm run dev` directly.

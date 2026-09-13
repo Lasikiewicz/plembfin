@@ -6,6 +6,22 @@ const PROVIDERS = new Set(["plex", "emby", "jellyfin"]);
 const FEED_KINDS = new Set(["resume", "next_up"]);
 const UP_NEXT_PROVIDERS = new Set(["plex", "emby", "jellyfin"]);
 
+// Plembfin's unified queue deliberately uses the provider rail with the
+// closest meaning on each server. Jellyfin's Continue Watching feed is still
+// read separately as a safety boundary for real part-watches, but it is not
+// the queue that Plembfin reconciles or projects.
+export const PLEMBFIN_UP_NEXT_FEED_BY_PROVIDER = Object.freeze({
+  plex: "resume",
+  emby: "resume",
+  jellyfin: "next_up",
+});
+
+export function isPlembfinPrimaryUpNextFeed(provider, feedKind) {
+  const normalizedProvider = String(provider || "").trim().toLowerCase();
+  const normalizedFeedKind = String(feedKind || "").trim().toLowerCase();
+  return PLEMBFIN_UP_NEXT_FEED_BY_PROVIDER[normalizedProvider] === normalizedFeedKind;
+}
+
 const selectFeedStateStmt = db.prepare(
   "SELECT * FROM up_next_provider_feed_state WHERE provider = ? AND feed_kind = ?",
 );
@@ -464,11 +480,10 @@ export function getUpNextFeedSourceVersion() {
   return `${getDataVersion()}:${JSON.stringify({ feeds, items })}`;
 }
 
-// Jellyfin was removed from the Up Next feature, which also removed the feed
-// definitions that refresh and expire its rows. Anything it left behind is
-// frozen: never refreshed, never superseded by a newer generation, and filtered
-// out of every read. Delete it once at startup so the ledger holds only
-// providers the feature still polls.
+// Remove rows for providers that are no longer supported. The feed mapping is
+// intentionally separate: all supported providers may expose both Resume and
+// Next Up observations even though only one feed per provider is Plembfin's
+// target queue.
 export function purgeUnsupportedUpNextProviders() {
   const supported = [...UP_NEXT_PROVIDERS];
   const placeholders = supported.map(() => "?").join(", ");

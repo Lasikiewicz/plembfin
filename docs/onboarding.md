@@ -66,9 +66,10 @@ setup-only configuration path.
   review. The default is **Require review**. It also includes the opt-in
   **Fast Local-Network Sync** toggle, which is only appropriate when all connected
   media services are on the same trusted local network. The **Sync Up Next to media
-  apps** toggle is enabled by default. For this feature to work, Plembfin adds a 6%
-  watch marker to connected media apps. Existing part-watched items are not affected
-  and continue to appear normally. You can enable or disable this later in Settings →
+  apps** toggle is enabled by default. When enabled, Plembfin keeps its Up Next queue in
+  sync with Plex and Emby's Continue Watching and Jellyfin's Next Up. Turn it off to leave
+  those app lists unchanged; Plembfin's own Up Next view remains available. You can change
+  this later in Settings →
   Sync → Sync Tuning. These choices are saved together when continuing past the step
   and remain editable in Settings → Sync → Sync Tuning.
 - **Setting Plembfin as the source of truth** (pushing local watch history outward) is

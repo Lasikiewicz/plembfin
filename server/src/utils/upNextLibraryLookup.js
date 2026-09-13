@@ -114,9 +114,9 @@ export async function resolveUpNextProviderItemId(provider, config, item) {
 }
 
 // An item resolved straight from a stored provider id never passes through a
-// search result, so it arrives with no runtime. The rail seed needs one to
-// size its position, so fetch it for those. Cached for the process lifetime:
-// an episode's runtime does not change.
+// search result, so it arrives with no runtime. Fetch it for playlist and
+// native-rail diagnostics that need the provider's confirmed item metadata.
+// Cached for the process lifetime: an episode's runtime does not change.
 const runtimeCache = new Map();
 
 async function providerRuntimeMs(provider, config, providerItemId) {
@@ -142,7 +142,7 @@ async function providerRuntimeMs(provider, config, providerItemId) {
 }
 
 // One resolution pass per provider per push, shared by the playlist
-// reconciliation and the rail seed.
+// reconciliation and native calculated-rail refresh.
 //
 // They used to resolve independently, and the two passes disagreed: a lookup
 // that timed out during the playlist pass succeeded seconds later for the

@@ -4,17 +4,17 @@
 // echoes credentials, only a `configured` flag per section, and a blank secret
 // on save means "keep the stored credential" (except Seerr, whose key is only
 // sent when non-empty).
-import { state } from "./state.js?v=1.1.0.1.2";
-import { buildAuthHeaders } from "./auth.js?v=1.1.0.1.2";
-import { openSettingsEditModal, openSettingsPickerModal, renderServiceCardGrid, renderFieldRow, collectFieldValues, renderInlineServicePanel } from "./settings-ui.js?v=1.1.0.1.2";
-import { prepareHelpReadMore } from "./settings-shell.js?v=1.1.0.1.2";
-import { escapeAttribute, escapeHtml } from "./utils.js?v=1.1.0.1.2";
+import { state } from "./state.js?v=1.1.0.2.1";
+import { buildAuthHeaders } from "./auth.js?v=1.1.0.2.1";
+import { openSettingsEditModal, openSettingsPickerModal, renderServiceCardGrid, renderFieldRow, collectFieldValues, renderInlineServicePanel } from "./settings-ui.js?v=1.1.0.2.1";
+import { prepareHelpReadMore } from "./settings-shell.js?v=1.1.0.2.1";
+import { escapeAttribute, escapeHtml } from "./utils.js?v=1.1.0.2.1";
 import {
   plexCredentialGuide,
   embyCredentialGuide,
   jellyfinCredentialGuide,
   savedCredentialNote,
-} from "./help-content.js?v=1.1.0.1.2";
+} from "./help-content.js?v=1.1.0.2.1";
 
 let _cb = {};
 export function initSettingsServices(callbacks = {}) {
@@ -228,7 +228,7 @@ const UP_NEXT_SYNC_FIELD = {
   id: "sync-field-up_next_sync",
   type: "checkbox",
   label: "Sync Up Next to media apps",
-  help: "For this feature to work, Plembfin adds a 6% watch marker to connected media apps.<br>Existing part-watched items are not affected and continue to appear normally.",
+  help: "When enabled, Plembfin keeps its Up Next queue in sync with Plex and Emby's Continue Watching and Jellyfin's Next Up.<br>Turn it off to leave those app lists unchanged; Plembfin's own Up Next view remains available.",
   helpIsHtml: true,
 };
 

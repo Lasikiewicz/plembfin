@@ -24,7 +24,7 @@ test("queue projection keeps canonical resumes first and provider next-up after 
     }],
     playstateRows: [],
     providerItems: [{
-      provider: "emby",
+      provider: "jellyfin",
       feed_kind: "next_up",
       provider_item_id: "episode-next",
       media_type: "episode",
@@ -43,7 +43,7 @@ test("queue projection keeps canonical resumes first and provider next-up after 
   assert.equal(projection.items[0].progress, 25);
   assert.equal(projection.items[1].media_type, "episode");
   assert.equal(projection.items[1].progress, 0);
-  assert.deepEqual(projection.items[1].provider_items, { emby: ["episode-next"] });
+  assert.deepEqual(projection.items[1].provider_items, { jellyfin: ["episode-next"] });
 });
 
 test("Jellyfin observations take part in the Up Next projection", async () => {
@@ -83,8 +83,8 @@ test("queue projection carries show watch recency into provider next-up ordering
       { title: "Reacher", tmdb_id: "108978", latest_watched_at: "2026-09-03T20:00:00.000Z" },
     ],
     providerItems: [
-      { provider: "emby", feed_kind: "next_up", provider_item_id: "ted-next", media_type: "episode", title: "Ted Lasso - S03E02", show_title: "Ted Lasso", show_ids: { tmdb: "97546" }, season: 3, episode: 2, air_date: "2026-08-01" },
-      { provider: "emby", feed_kind: "next_up", provider_item_id: "reacher-next", media_type: "episode", title: "Reacher - S03E08", show_title: "Reacher", show_ids: { tmdb: "108978" }, season: 3, episode: 8, air_date: "2026-08-01" },
+      { provider: "jellyfin", feed_kind: "next_up", provider_item_id: "ted-next", media_type: "episode", title: "Ted Lasso - S03E02", show_title: "Ted Lasso", show_ids: { tmdb: "97546" }, season: 3, episode: 2, air_date: "2026-08-01" },
+      { provider: "jellyfin", feed_kind: "next_up", provider_item_id: "reacher-next", media_type: "episode", title: "Reacher - S03E08", show_title: "Reacher", show_ids: { tmdb: "108978" }, season: 3, episode: 8, air_date: "2026-08-01" },
     ],
   });
 
@@ -151,10 +151,10 @@ test("uncertain provider membership keeps only the furthest episode for a show",
         ids: { imdb: "tt-ludwig-episode-2" },
       },
       {
-        provider: "emby",
+        provider: "jellyfin",
         feed_kind: "next_up",
-        provider_item_id: "emby-ludwig-2",
-        series_provider_item_id: "emby-ludwig",
+        provider_item_id: "jellyfin-ludwig-2",
+        series_provider_item_id: "jellyfin-ludwig",
         media_type: "episode",
         title: "Ludwig - S02E02",
         show_title: "Ludwig",
@@ -171,7 +171,7 @@ test("uncertain provider membership keeps only the furthest episode for a show",
   assert.equal(projection.items[0].season, 2);
   assert.equal(projection.items[0].episode, 2);
   assert.deepEqual(projection.items[0].provider_items, {
-    emby: ["emby-ludwig-2"],
+    jellyfin: ["jellyfin-ludwig-2"],
     plex: ["plex-ludwig-2"],
   });
 });
@@ -196,9 +196,9 @@ test("a matching provider next-up observation does not duplicate a canonical res
     }],
     playstateRows: [],
     providerItems: [{
-      provider: "emby",
+      provider: "jellyfin",
       feed_kind: "next_up",
-      provider_item_id: "emby-episode-5",
+      provider_item_id: "jellyfin-episode-5",
       media_type: "episode",
       title: "Home",
       show_title: "The Expanse",
@@ -265,9 +265,9 @@ test("provider-backed posters use the authenticated poster proxy", async () => {
     progressRows: [],
     playstateRows: [],
     providerItems: [{
-      provider: "emby",
+      provider: "jellyfin",
       feed_kind: "next_up",
-      provider_item_id: "emby-poster-episode",
+      provider_item_id: "jellyfin-poster-episode",
       media_type: "episode",
       title: "Example Show - S01E01",
       show_title: "Example Show",
@@ -275,8 +275,8 @@ test("provider-backed posters use the authenticated poster proxy", async () => {
       episode: 1,
       show_ids: { tvdb: "series-1" },
       item: {
-        Id: "emby-poster-episode",
-        SeriesId: "emby-poster-series",
+        Id: "jellyfin-poster-episode",
+        SeriesId: "jellyfin-poster-series",
         SeriesPrimaryImageTag: "series-tag",
       },
       air_date: "2026-08-01",
@@ -286,11 +286,11 @@ test("provider-backed posters use the authenticated poster proxy", async () => {
   assert.equal(projection.items.length, 1);
   assert.equal(
     projection.items[0].poster_url,
-    "/api/poster?id=emby-poster-episode&provider=emby&format=image&v=2",
+    "/api/poster?id=jellyfin-poster-episode&provider=jellyfin&format=image&v=2",
   );
   assert.equal(
     projection.items[0].show_poster_url,
-    "/api/poster?id=emby-poster-episode&provider=emby&format=image&v=2",
+    "/api/poster?id=jellyfin-poster-episode&provider=jellyfin&format=image&v=2",
   );
 });
 
@@ -433,10 +433,10 @@ test("provider next-up is filtered by a locally watched episode with a different
     progressRows: [],
     playstateRows: [],
     providerItems: [{
-      provider: "emby",
+      provider: "jellyfin",
       feed_kind: "next_up",
-      provider_item_id: "emby-expedition-x-s01e05",
-      series_provider_item_id: "emby-expedition-x",
+      provider_item_id: "jellyfin-expedition-x-s01e05",
+      series_provider_item_id: "jellyfin-expedition-x",
       media_type: "episode",
       title: "Expedition X - S01E05",
       show_title: "Expedition X",

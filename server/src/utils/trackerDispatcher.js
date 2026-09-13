@@ -3,6 +3,7 @@ import { fetchTraktPlayHistory, refreshTraktToken, setTraktWatchHistoryBatch, se
 import { hydrateTraktAppCredentials } from "./traktAppConfig.js";
 import { getTmdbDetails } from "./tmdbGateway.js";
 import { canonicalCompoundEpisodeMedia, canonicalizeCompoundEpisodeRows } from "./compoundEpisode.js";
+import { DISMISSED_TRAKT_NOT_FOUND_DETAIL, isTraktNotFoundDismissed } from "./traktDismissals.js";
 
 let traktRefreshInFlight = null;
 
@@ -921,12 +922,23 @@ export async function dispatchTraktWatchStateBatch(items = [], state = "watched"
       for (const entry of batch) {
         const key = trackerMediaKey(entry.media);
         if (!rejectedKeys.size || rejectedKeys.has(key)) {
-          results[entry.index] = batchDispatchResult(
-            entry.index,
-            entry.media,
-            "not_found",
-            "Trakt could not match this item to mark it watched",
-          );
+          const dismissed = isTraktNotFoundDismissed(entry.media);
+          results[entry.index] = dismissed
+            ? {
+              ...batchDispatchResult(
+                entry.index,
+                entry.media,
+                "skipped",
+                `${DISMISSED_TRAKT_NOT_FOUND_DETAIL} (retry still returned not_found)`,
+              ),
+              dismissed: true,
+            }
+            : batchDispatchResult(
+              entry.index,
+              entry.media,
+              "not_found",
+              "Trakt could not match this item to mark it watched",
+            );
         } else {
           results[entry.index] = batchDispatchResult(entry.index, entry.media, "success", "Marked watched on Trakt (batched)");
         }
@@ -1387,6 +1399,14 @@ async function dispatchTrakt(media, state, lane = "sync", isCancelled = () => fa
     }
   }
   if (addNotFound > 0) {
+    if (isTraktNotFoundDismissed(trackerMedia)) {
+      return {
+        target: "trakt",
+        status: "skipped",
+        dismissed: true,
+        detail: `${DISMISSED_TRAKT_NOT_FOUND_DETAIL} (retry still returned not_found)`,
+      };
+    }
     return {
       target: "trakt",
       status: "error",

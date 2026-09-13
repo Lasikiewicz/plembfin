@@ -1,7 +1,7 @@
 import crypto from "node:crypto";
 import { fetchWithTimeout } from "./utils/outbound.js";
 import { watchedThresholdPercent, watchImportMode } from "./utils/tuning.js";
-import { lastOutboundPlayedMarkAt, recordOutboundPlayedMarks, recordOutboundUnplayedMarks, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
+import { isRecentOutboundJellyfinNextUpNudge, lastOutboundPlayedMarkAt, recordOutboundPlayedMarks, recordOutboundUnplayedMarks, shouldSyncResumeProgress, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "./utils/syncOrchestrator.js";
 import { mediaIsUpNextRailSeed } from "./utils/upNextSeedLedger.js";
 import { applyUnwatchedTransition } from "./utils/watchStateTransitions.js";
 import { parsePlexMediaIds } from "./utils/parsers.js";
@@ -946,7 +946,7 @@ async function syncResumableMedia(media, config, loopStore, logger = console.log
   // Continue Watching rail is not something the user watched. It is above the
   // resume threshold by design, so only the ledger can tell them apart.
   if (mediaIsUpNextRailSeed(media)) {
-    logResumeSkip(logger, media, "Up Next rail seed, not real playback");
+    logResumeSkip(logger, media, "Legacy Up Next rail seed, not real playback");
     return false;
   }
   if (!shouldSyncResumeProgress(media)) {
@@ -1097,10 +1097,15 @@ async function syncRecentlyResumableFromJellyfin(config, loopStore, logger = con
   try {
     const { fetchJellyfinResumableItems } = await import("./utils/jellyfinClient.js");
     const { normalizeProviderIds } = await import("./utils/parsers.js");
-    // Jellyfin resume polling still supports the general watch-state sync,
-    // but it must not populate Plembfin's Up Next provider snapshot. The Up
-    // Next feature is intentionally Plex/Emby-only.
-    const raw = await fetchJellyfinResumableItems(config.jellyfin, { limit: 0 });
+    // Jellyfin Continue Watching is not Plembfin's target rail, but the feed
+    // is still recorded so genuine part-watches can protect their positions
+    // while Jellyfin Next Up is reconciled separately.
+    const raw = await fetchAndRecordUpNextFeed(
+      "jellyfin",
+      "resume",
+      () => fetchJellyfinResumableItems(config.jellyfin, { limit: 0 }),
+      logger,
+    );
     const propagationItems = raw.slice(0, SCHEDULED_RESUME_SYNC_LIMIT);
     logger(`Jellyfin: fetched ${raw.length} Continue Watching item(s); propagating the newest ${propagationItems.length}.`);
     for (const item of propagationItems) {
@@ -1124,10 +1129,31 @@ async function syncRecentlyNextUpFromEmby(config, logger = console.log) {
       () => fetchEmbyNextUpItems(config.emby, { limit: 0 }),
       logger,
     );
-    logger(`Emby: fetched ${raw.length} next-up items.`);
+    // This remains an observation for compatibility; Emby's target native
+    // rail is Continue Watching/Resume.
+    logger(`Emby: fetched ${raw.length} next-up observation(s).`);
     return raw.length;
   } catch (error) {
     logger(`Emby next-up sync failed: ${error.message}`);
+    return 0;
+  }
+}
+
+async function syncRecentlyNextUpFromJellyfin(config, logger = console.log) {
+  if (!watchedPlayedSyncEnabled()) return 0;
+  if (!config.jellyfin?.baseUrl || !config.jellyfin?.apiKey || !config.jellyfin?.userId) return 0;
+  try {
+    const { fetchJellyfinNextUpItems } = await import("./utils/jellyfinClient.js");
+    const raw = await fetchAndRecordUpNextFeed(
+      "jellyfin",
+      "next_up",
+      () => fetchJellyfinNextUpItems(config.jellyfin, { limit: 0 }),
+      logger,
+    );
+    logger(`Jellyfin: fetched ${raw.length} Next Up item(s).`);
+    return raw.length;
+  } catch (error) {
+    logger(`Jellyfin Next Up sync failed: ${error.message}`);
     return 0;
   }
 }
@@ -1598,6 +1624,10 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
         source: "jellyfin",
         isValid: true,
       };
+      if (await isRecentOutboundJellyfinNextUpNudge({ ...media, itemId: item.Id }, loopStore).catch(() => false)) {
+        logger(`Jellyfin: ignored watched-library echo from a Next Up ordering nudge: ${media.title}`);
+        continue;
+      }
       const { watchedAt, reason: watchedAtReason } = watchedAtForEmbyLikeItem(item);
       const manualMark = !watchedAt && watchedAtReason === "marked without playback";
       if (!watchedAt && !manualMark) {
@@ -2118,6 +2148,7 @@ async function runScheduledSyncCore(logger = console.log, { forceCatchup = false
   let embyResumeSynced = 0;
   let jellyfinResumeSynced = 0;
   let embyNextUpFetched = 0;
+  let jellyfinNextUpFetched = 0;
   let availabilityRepairs = 0;
   let manualSynced = 0;
 
@@ -2216,6 +2247,15 @@ async function runScheduledSyncCore(logger = console.log, { forceCatchup = false
       }
     }
 
+    if (jellyfinActive) {
+      try {
+        trace("Scheduled Sync: checking Jellyfin Next Up...");
+        jellyfinNextUpFetched = await syncRecentlyNextUpFromJellyfin(config, logger);
+      } catch (error) {
+        logger(`Scheduled Sync ERROR: Jellyfin Next Up sync failed: ${error.message}`);
+      }
+    }
+
   }
 
   try {
@@ -2232,7 +2272,7 @@ async function runScheduledSyncCore(logger = console.log, { forceCatchup = false
   // benefit, so this tick only reads the cache it already keeps current for bookkeeping.
   const liveSessionSnapshot = await loadLiveTrackingCache({ includeCompleted: false }).catch(() => []);
 
-  const totalSynced = plexSynced + embySynced + jellyfinSynced + availabilityRepairs + plexResumeSynced + embyResumeSynced + jellyfinResumeSynced + manualSynced;
+  const totalSynced = plexSynced + embySynced + jellyfinSynced + availabilityRepairs + plexResumeSynced + embyResumeSynced + jellyfinResumeSynced + embyNextUpFetched + jellyfinNextUpFetched + manualSynced;
   const hasActivity = totalSynced > 0 || liveSessionSnapshot.length > 0 || shouldRunCatchup;
 
   if (totalSynced > 0) {
@@ -2240,7 +2280,7 @@ async function runScheduledSyncCore(logger = console.log, { forceCatchup = false
   }
 
   if (hasActivity) {
-    logger(`Scheduled Sync complete! Synced Plex: ${plexSynced}, Emby: ${embySynced}, Jellyfin: ${jellyfinSynced}, Library availability repairs: ${availabilityRepairs}, Resume Plex: ${plexResumeSynced}, Resume Emby: ${embyResumeSynced}, Resume Jellyfin: ${jellyfinResumeSynced}, Next Up Emby: ${embyNextUpFetched}, Manual: ${manualSynced}`);
+    logger(`Scheduled Sync complete! Synced Plex: ${plexSynced}, Emby: ${embySynced}, Jellyfin: ${jellyfinSynced}, Library availability repairs: ${availabilityRepairs}, Resume Plex: ${plexResumeSynced}, Resume Emby: ${embyResumeSynced}, Resume Jellyfin: ${jellyfinResumeSynced}, Next Up Emby: ${embyNextUpFetched}, Next Up Jellyfin: ${jellyfinNextUpFetched}, Manual: ${manualSynced}`);
   }
   return {
     didWork: hasActivity,
@@ -2257,9 +2297,7 @@ async function runScheduledSyncCore(logger = console.log, { forceCatchup = false
     embyResumeSynced,
     jellyfinResumeSynced,
     embyNextUpFetched,
-    // Retained as a zero-valued compatibility field; this feature no longer
-    // performs a Jellyfin Next Up read.
-    jellyfinNextUpFetched: 0,
+    jellyfinNextUpFetched,
     manualDispatchesSynced: manualSynced,
   };
 }

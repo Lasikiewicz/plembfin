@@ -74,7 +74,7 @@ const SECTIONS = {
   },
   "sync-tuning": {
     label: "Sync tuning",
-    description: "Configure watched-flag timing, sync thresholds, and Up Next provider sync",
+    description: "Control watched flags, sync thresholds, and whether Up Next updates connected apps",
     panel: "sync",
     subPanels: ["sync-tuning"],
     subSections: [

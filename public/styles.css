@@ -1722,22 +1722,36 @@ body.demo-mode #manualWatchReviewButton {
 }
 
 .up-next-dismissed-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
   width: auto;
-  min-width: 1.85rem;
-  min-height: 1.85rem;
-  padding: 0 0.5rem;
+  min-width: 0;
+  min-height: 1.55rem;
+  padding: 0.12rem 0.55rem 0.12rem 0.42rem;
   border-color: var(--line);
-  background: transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--muted), transparent 90%);
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 700;
   line-height: 1;
+  white-space: nowrap;
+}
+
+.up-next-dismissed-icon {
+  display: block;
+  width: 0.85rem;
+  height: 0.85rem;
+  fill: currentColor;
+  opacity: 0.85;
 }
 
 .up-next-dismissed-button:hover:not(:disabled),
 .up-next-dismissed-button:focus-visible {
   color: var(--text);
   border-color: var(--line-strong);
+  background: color-mix(in srgb, var(--muted), transparent 82%);
 }
 
 .up-next-dismissed-modal {

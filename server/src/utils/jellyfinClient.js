@@ -500,6 +500,42 @@ export async function setJellyfinProgress(config, media) {
   }
 }
 
+// Jellyfin merges the fields present in a UserData update with the existing
+// row. Keep this deliberately small: callers that only need to influence the
+// calculated Next Up ordering can update LastPlayedDate without resetting the
+// item's play count, watched flag, resume position, or any other user data.
+export async function updateJellyfinUserData(config, itemId, userData = {}, { lane = "interactive" } = {}) {
+  requireJellyfinConfig(config);
+  const id = String(itemId || "").trim();
+  if (!id) return { platform: "jellyfin", status: "not_found" };
+  if (!userData || typeof userData !== "object" || Array.isArray(userData) || !Object.keys(userData).length) {
+    return { platform: "jellyfin", status: "skipped", detail: "No Jellyfin user data fields supplied", itemId: id };
+  }
+
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${encodeURIComponent(config.userId)}/Items/${encodeURIComponent(id)}/UserData`);
+  const response = await fetchWithTimeout(url, {
+    method: "POST",
+    headers: {
+      ...authHeaders(config),
+      "Content-Type": "application/json",
+    },
+    lane,
+    body: JSON.stringify(userData),
+  });
+  if (!response.ok) {
+    const error = new Error(`Jellyfin user data update failed with status ${response.status} for item ${id}`);
+    error.status = response.status;
+    throw error;
+  }
+  return {
+    platform: "jellyfin",
+    status: "fulfilled",
+    itemId: id,
+    fields: Object.keys(userData),
+    httpStatus: response.status,
+  };
+}
+
 export async function fetchJellyfinEpisodes(config, parentId, media = null) {
   requireJellyfinConfig(config);
   const baseUrl = trimTrailingSlash(config.baseUrl);

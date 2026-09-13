@@ -275,10 +275,9 @@ watched threshold, minimum resume position, active-session TTL, and outbound req
 timeout. Blank fields inherit the matching environment variable or built-in default;
 saved values take precedence. The defaults remain 90%, 60 seconds, 5 minutes, and 10
 seconds respectively. It also includes a **Sync Up Next to media apps** toggle, enabled by
-default so the existing Up Next push behavior continues unchanged. For this feature to
-work, Plembfin adds a 6% watch marker to connected media apps. Existing part-watched
-items are not affected and continue to appear normally. Turning the toggle off stops
-adding the marker while leaving Plembfin's local Up Next view available.
+default. When enabled, Plembfin keeps its Up Next queue in sync with Plex and Emby's Continue
+Watching and Jellyfin's Next Up. Turning the toggle off leaves those app lists unchanged while
+Plembfin's local Up Next view remains available.
 
 **Personal Rating Sync** is disabled by default and has a single on/off control, plus a
 **Sync now** button in the bottom right of the panel that runs an immediate sync. When

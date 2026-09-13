@@ -1,9 +1,9 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.0.1.2";
-import { state, elements } from "./state.js?v=1.1.0.1.2";
-import { escapeHtml } from "./utils.js?v=1.1.0.1.2";
-import { hydratePosters } from "./images.js?v=1.1.0.1.2";
-import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=1.1.0.1.2";
-import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=1.1.0.1.2";
+import { buildAuthHeaders } from "./auth.js?v=1.1.0.2.1";
+import { state, elements } from "./state.js?v=1.1.0.2.1";
+import { escapeHtml } from "./utils.js?v=1.1.0.2.1";
+import { hydratePosters } from "./images.js?v=1.1.0.2.1";
+import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=1.1.0.2.1";
+import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=1.1.0.2.1";
 
 const UP_NEXT_TTL_MS = 2 * 60 * 1000;
 const UP_NEXT_TIMEOUT_MS = 20000;
@@ -312,7 +312,7 @@ function renderUpNextDismissedControl() {
   button.classList.toggle("hidden", count === 0);
   button.disabled = count === 0 || state.upNextSyncing === true;
   const label = `Show ${count} dismissed Up Next item${count === 1 ? "" : "s"}`;
-  button.textContent = String(count);
+  button.querySelector(".up-next-dismissed-count").textContent = String(count);
   button.title = label;
   button.setAttribute("aria-label", label);
 }
@@ -333,6 +333,12 @@ const UP_NEXT_FEED_LABELS = {
   next_up: "Next Up",
 };
 
+const UP_NEXT_NATIVE_RAIL_LABELS = {
+  plex: "Continue Watching",
+  emby: "Continue Watching",
+  jellyfin: "Next Up",
+};
+
 const UP_NEXT_NETWORK_REASONS = {
   ENOTFOUND: "DNS could not find the server",
   EAI_AGAIN: "DNS lookup temporarily failed",
@@ -351,6 +357,10 @@ function upNextFeedLabel(feed) {
   const provider = UP_NEXT_PROVIDER_LABELS[feed?.provider] || String(feed?.provider || "Provider");
   const feedKind = UP_NEXT_FEED_LABELS[feed?.feed_kind] || String(feed?.feed_kind || "Feed").replace(/_/g, " ");
   return `${provider} ${feedKind}`;
+}
+
+function upNextNativeRailLabel(provider) {
+  return UP_NEXT_NATIVE_RAIL_LABELS[String(provider || "").toLowerCase()] || "native Up Next rail";
 }
 
 function upNextFailureReason(feed) {
@@ -589,7 +599,9 @@ function upNextSyncMessage(body = {}) {
   const dismissed = dismissals.filter((entry) => entry?.status === "fulfilled").length;
   const dismissalFailures = dismissals.filter((entry) => entry?.status !== "fulfilled").length;
   const playlists = Array.isArray(body.playlists) ? body.playlists : [];
-  const railSeeds = Array.isArray(body.railSeeds) ? body.railSeeds : [];
+  const jellyfinRail = body.jellyfinRail && typeof body.jellyfinRail === "object" ? body.jellyfinRail : {};
+  const providerRails = Array.isArray(body.providerRails) ? body.providerRails : [];
+  const legacyRailCleanup = Array.isArray(body.legacyRailCleanup) ? body.legacyRailCleanup : [];
   const playlistFailures = playlists.filter((playlist) => !["succeeded"].includes(playlist?.status));
   const unsupportedFeeds = [...new Set((Array.isArray(body.unsupported) ? body.unsupported : [])
     .filter((entry) => UP_NEXT_PROVIDERS.has(String(entry?.provider || "").toLowerCase()))
@@ -613,10 +625,21 @@ function upNextSyncMessage(body = {}) {
     const missing = Number(playlist?.missing_count || 0);
     details.push(`${label} list ${playlist?.status === "partial" ? `is missing ${missing} item${missing === 1 ? "" : "s"}` : "could not be updated"}`);
   }
-  const seeded = railSeeds.reduce((total, seed) => total + Number(seed?.seeded_count || 0), 0);
-  const seedFailures = railSeeds.reduce((total, seed) => total + Number(seed?.failed_count || 0), 0);
-  if (seeded) details.push(`${seeded} item${seeded === 1 ? "" : "s"} added to Continue Watching`);
-  if (seedFailures) details.push(`${seedFailures} Continue Watching update${seedFailures === 1 ? "" : "s"} failed`);
+  const railSummaries = providerRails.length ? providerRails : (jellyfinRail.provider ? [jellyfinRail] : []);
+  const railFailures = railSummaries.reduce((total, rail) => total + Number(rail?.failed_count || 0), 0);
+  const refreshedByRail = railSummaries
+    .filter((rail) => Number(rail?.refreshed_count ?? rail?.promoted_count ?? 0) > 0)
+    .map((rail) => {
+      const count = Number(rail.refreshed_count ?? rail.promoted_count ?? 0);
+      const provider = providerNames[String(rail?.provider || "").toLowerCase()] || "Provider";
+      return `${provider}: ${upNextNativeRailLabel(rail.provider)} refreshed for ${count} item${count === 1 ? "" : "s"}`;
+    });
+  const legacyCleared = railSummaries.reduce((total, rail) => total + Number(rail?.cleared_legacy_seed_count || 0), 0)
+    + legacyRailCleanup.filter((entry) => entry?.status === "cleared").length;
+  const legacyFailures = legacyRailCleanup.filter((entry) => entry?.status !== "cleared").length;
+  if (refreshedByRail.length) details.push(refreshedByRail.join("; "));
+  if (legacyCleared) details.push(`cleared ${legacyCleared} legacy native-rail position${legacyCleared === 1 ? "" : "s"}`);
+  if (railFailures) details.push(`native Up Next rail refresh failed for ${railFailures} item${railFailures === 1 ? "" : "s"}`);
   if (dismissed) details.push(`${dismissed} removed item${dismissed === 1 ? "" : "s"} hidden on connected apps`);
   if (progressTargets.size) details.push(`resume position sent to ${upNextListLabel([...progressTargets])}`);
   if (unsupportedFeeds.length) details.push(`${upNextListLabel(unsupportedFeeds)} ${unsupportedFeeds.length === 1 ? "is" : "are"} calculated by the native API and ${unsupportedFeeds.length === 1 ? "was" : "were"} left unchanged`);
@@ -626,7 +649,7 @@ function upNextSyncMessage(body = {}) {
   if (dismissalFailures) details.push(`${dismissalFailures} provider dismissal${dismissalFailures === 1 ? "" : "s"} failed`);
   return {
     text: [intro, ...details].join(" "),
-    tone: unsupportedFeeds.length || failedFeeds.length || dismissalFailures || playlistFailures.length || seedFailures ? "muted" : "success",
+    tone: unsupportedFeeds.length || failedFeeds.length || dismissalFailures || playlistFailures.length || railFailures || legacyFailures ? "muted" : "success",
   };
 }
 

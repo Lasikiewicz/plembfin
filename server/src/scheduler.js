@@ -257,6 +257,7 @@ export function schedulerStepDidWork(result) {
     "plexHistorySynced", "embyHistorySynced", "jellyfinHistorySynced",
     "availabilityRepairs", "plexResumeSynced", "embyResumeSynced",
     "jellyfinResumeSynced", "manualDispatchesSynced", "watched", "unwatched",
+    "embyNextUpFetched", "jellyfinNextUpFetched",
     "remoteItems", "queued", "pending", "scanned", "changed", "written",
     "refreshed", "items", "results",
   ];

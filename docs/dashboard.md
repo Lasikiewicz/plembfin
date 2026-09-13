@@ -111,32 +111,20 @@ compact source-status message; future episodes remain in the Upcoming view.
 The Up Next header action is an authoritative push from Plembfin to Plex, Emby, and Jellyfin. It sends the
 full loaded Plembfin snapshot (up to the API's 100-item bound) to a managed `Plembfin Up Next`
 video playlist in each provider, so every resolved movie or episode has a provider-side list
-entry even when it has no resume position yet. It also removes stale entries from successful
-successfully refreshed resume feeds, and forwards known positive resume checkpoints. A failed or
-incomplete feed never triggers native-feed removals, and an unresolved library match never causes
-the managed playlist to remove existing entries. The Emby and Jellyfin Next Up feeds are
-calculated GET feeds with no per-item write, so they are read as observations and reported as
-unsupported for removal. Provider removal is also available as an explicit per-card action. Open
-the managed playlist in any of the three servers to see the complete Plembfin snapshot.
-
-After the playlist is reconciled, the push also seeds the native rails: Plex Continue Watching,
-Emby Resume, and Jellyfin Resume. Those rails are calculated by the servers and accept nothing
-but a playback position, so mirroring the queue onto them means writing one for an item that was
-never played. The position is 6% of the item's runtime, because all three servers ignore
-anything below a 5% minimum: an earlier five-second seed was discarded outright by Plex and
-filtered out of Resume by Emby. That necessarily puts it above Plembfin's own resume threshold,
-so size no longer proves a position is synthetic. Every seed is instead recorded in
-`up_next_rail_seeds` and rejected by identity in scheduled feed ingestion, the `ended` webhook
-phase, and the projection, which strips the position so a seeded card never shows a progress
-bar. A position that has moved away from the seed is genuine playback and clears the record.
-An item already on that provider's resume feed is skipped, as is one whose runtime the provider
-does not report. Emby is seeded differently from the other two: its Resume rail is driven by a
-playback index that only session reporting writes, so the position is reported through
-`/Sessions/Playing*` and then pinned with a UserData write that restores the play count the
-session increments. That session is briefly real, so it carries a fixed device id and the live
-session readers skip it; without that it surfaces as phantom Now Playing cards and the affected
-items disappear from Up Next while they appear to be playing. See `docs/decisions.md` entries
-19, 21 and 24.
+entry even when it has no resume position yet. It also reconciles stale entries only on successful
+native target feeds that expose a removal API, and forwards known positive resume checkpoints. The target mapping
+is Plex Continue Watching, Emby Continue Watching (the Resume API), and Jellyfin Next Up. A failed
+or incomplete feed never triggers native-feed removals, and an unresolved library match never
+causes the managed playlist to remove existing entries. Jellyfin Continue Watching is read only
+to protect genuine part-watched progress; it is not the Jellyfin queue being reconciled. Jellyfin
+Next Up is a calculated GET feed with no per-item write, so stale native entries are reported and
+left unchanged. For each ready episode, Plembfin verifies that the target is unwatched, released,
+and follows a fully watched earlier run, then refreshes the provider's native calculated rail
+from the immediately preceding watched episode. Plex and Emby receive their native watched mark;
+Jellyfin receives only a merged `LastPlayedDate` update, preserving its play count, watched flag,
+and resume position. Genuine part-watches are never overwritten. Provider removal is also
+available as an explicit per-card action. Open the managed playlist in any of the three servers to
+see the complete Plembfin snapshot.
 
 Both the playlist reconciliation and the seed work from a single resolution pass per provider
 (`resolveUpNextProviderTargets`). Resolving separately let the two disagree: a lookup that timed
@@ -296,7 +284,8 @@ offers **Fix show match & retry all**: one show-level match updates every stored
 episode, then the server retries every current failed entry sequentially. When Trakt
 does not contain the show, the episode and group actions also offer a dismiss option;
 dismissing marks only the Trakt target as intentionally skipped, preserves the local
-watched state, and removes that permanent mismatch from the current issue count. If
+watched state, and remembers the decision across later retries that still return
+`not_found`, removing that permanent mismatch from the current issue count. If
 the group header's newest activity was a later skip, the failed-only group result says
 to expand the group so the actual failed episode is visible instead of presenting the
 later skip as the issue.
@@ -344,8 +333,9 @@ current-item selection and retry logic to every failed episode in that group. Th
 operation is sequential and returns per-entry results, so the UI can report how many
 episodes succeeded, remain failed, were skipped, or could not be processed. `POST
 /api/sync-history/dismiss` accepts one `id` or a batch of current episode ids and
-rewrites the matching Trakt target to an intentional skip; superseded audit rows and
-non-Trakt failures cannot be dismissed.
+rewrites the matching Trakt target to an intentional skip. A later retry still reaches
+Trakt, but a repeated episode `not_found` is folded back into the intentional skip;
+superseded audit rows and non-Trakt failures cannot be dismissed.
 
 When an authoritative watch-history restore is blocked, retained media-server projection
 failures appear in the Sync - Attention Needed panel grouped by show. A show can be

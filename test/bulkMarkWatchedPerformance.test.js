@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { makeTempDataDir } from "./helpers.js";
 
-process.env.DATA_DIR = process.env.DATA_DIR || `${process.cwd()}/data/test-bulk-mark-performance`;
+makeTempDataDir("plembfin-bulk-mark-performance-");
 
 const {
   dispatchGroupsForRows,

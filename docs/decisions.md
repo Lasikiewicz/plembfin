@@ -545,8 +545,8 @@ skipped unconditionally, so a real checkpoint is never replaced by the token one
 `server/src/utils/upNextService.js`; `test/upNextRailSeed.test.js`.
 
 ### 20. Jellyfin is a full Up Next participant again, read and written
-**Date:** 2026-09-13  |  **Status:** Active, supersedes the Jellyfin exclusion introduced with
-the authoritative Up Next push
+**Date:** 2026-09-13  |  **Status:** Superseded by #25 for native-rail mapping; Jellyfin remains an
+active provider participant
 
 **Context:** Up Next was narrowed to Plex and Emby on the reasoning that Jellyfin's Next Up is a
 calculated GET feed with no per-item write, so it could be neither reconciled nor dismissed.
@@ -558,8 +558,9 @@ Emby: a managed playlist for the durable list, and a sub-threshold resume positi
 calculated rails (entry 19). Jellyfin's playlist API is Emby-derived and its
 `setJellyfinProgress` already existed.
 
-**Decision:** Jellyfin is read as a provider observation source, receives dismissals on its
-resume feed, receives the managed `Plembfin Up Next` playlist, and is seeded like the others.
+**Decision:** Jellyfin is read as a provider observation source, receives the managed
+`Plembfin Up Next` playlist, and is seeded like the others. The exact native-rail mapping is
+defined by entry 25.
 
 **Rejected:** Write-only participation, which would have let Plembfin drive Jellyfin's rails
 without trusting its feeds. Rejected because the feed is accurate and excluding it was the
@@ -599,7 +600,9 @@ could see.
 ingestion), the `ended` webhook phase, and the projection, which strips the position so a seeded
 card never renders a progress bar. A seed is matched within 2s to absorb provider rounding, and
 a position that has moved away from the seed is treated as genuine and forgets the seed, so the
-first real resume after a seed is never swallowed. Seeds expire after 30 days.
+first real resume after a seed is never swallowed. The reserved Emby seed device id is also
+rejected by the webhook and active-session storage paths, and existing synthetic rows are purged
+at the Now Playing projection boundary on upgrade. Seeds expire after 30 days.
 
 **Why 6%:** it clears the providers' 5% minimum with room for their rounding and stays far below
 the watched threshold. An item whose runtime is unknown is reported as skipped rather than
@@ -612,8 +615,11 @@ Watching, having discarded the five-second write entirely.
 **Enforced by:** `railSeedPositionMs` in `server/src/utils/upNextRailSeed.js`;
 `server/src/utils/upNextSeedLedger.js`; migration 37 in `server/src/db.js`;
 `mediaIsUpNextRailSeed` guards in `server/src/scheduled.js` and `server/src/routes/sync.js`;
-`withoutRailSeedProgress` in `server/src/utils/upNextService.js`;
-`test/upNextRailSeed.test.js`.
+`isUpNextSeedDeviceId` in `server/src/utils/embyClient.js`;
+the webhook and active-session guards in `server/src/routes/sync.js` and
+`server/src/utils/activeSessions.js`; `withoutRailSeedProgress` in
+`server/src/utils/upNextService.js`; `test/upNextRailSeed.test.js`,
+`test/activeSessions.test.js`, and `test/webhookContentType.test.js`.
 
 ### 22. An empty Emby resume feed is not evidence that nothing is resumable
 **Date:** 2026-09-13  |  **Status:** Active
@@ -717,3 +723,69 @@ until the sessions aged out.
 `server/src/utils/embyClient.js`; `isUpNextSeedSession` in `server/src/utils/liveSessions.js`;
 the Emby branch of `writeSeed` and `clearStaleSeeds` in `server/src/utils/upNextRailSeed.js`;
 `test/upNextProviderSync.test.js`; `test/upNextRailSeed.test.js`.
+
+### 25. Plembfin targets the user-facing equivalent native rail on each provider
+**Date:** 2026-09-13  |  **Status:** Active, refines entry 20
+
+**Context:** Jellyfin exposes two different calculated sections: Continue Watching contains
+genuine part-watched progress, while Next Up contains the upcoming episode for a show. Treating
+Jellyfin Resume as the queue made Plembfin disagree with the section the user actually uses, and
+trying to clear that feed after a push risked deleting real playback progress. Emby also exposes a
+separate Next Up feed, but the requested equivalent of Plembfin Up Next there is Continue Watching.
+
+**Decision:** Plembfin's native queue mapping is Plex Continue Watching, Emby Continue Watching
+(the provider's Resume API), and Jellyfin Next Up. Provider Resume/Continue Watching feeds that
+are not the target mapping are still read when useful as a protection boundary, but they are not
+projected into the provider-backed queue and are never reconciled or cleared as stale queue items.
+The Jellyfin Next Up feed is a calculated GET with no per-item dismissal API, so the push reports
+stale native entries and leaves them unchanged. For a desired ready-to-watch episode, the push
+may now remove only Plembfin's own ledger-tracked synthetic resume position and update only the
+immediately preceding watched episode's `LastPlayedDate`. Jellyfin uses that date to order the
+series on Next Up; the write preserves the predecessor's `PlayCount`, watched flag, and resume
+position, and the nudge is marked so its UserData callback cannot become a new Plembfin watch.
+The managed `Plembfin Up Next` playlist remains the exact writable mirror on every provider.
+
+**Rejected:** Running a broad clear-progress command after the push, or toggling the predecessor
+unwatched and watched. A position written by a real viewer is indistinguishable from a seed by
+size alone, and clearing the Jellyfin Continue Watching feed would erase genuine part-watches.
+Jellyfin's unwatch operation also resets `PlayCount` and `LastPlayedDate`; marking it watched again
+replaces them with a count of one and a fresh date. Seed cleanup is therefore limited to positions
+recorded in the seed ledger, and the ordering nudge is limited to a verified ready Next Up item
+whose earlier released episodes are watched.
+
+**Enforced by:** `PLEMBFIN_UP_NEXT_FEED_BY_PROVIDER` and
+`isPlembfinPrimaryUpNextFeed` in `server/src/utils/upNextRepository.js`; the primary-feed filters
+in `planUpNextProviderSync` and `buildUpNextProjection`; protected native-feed ids in
+`syncUpNextToProviders`; Jellyfin Next Up refresh in `server/src/scheduled.js`; the partial
+`updateJellyfinUserData` write and nudge echo marker in `server/src/utils/jellyfinClient.js` and
+`server/src/utils/syncOrchestrator.js`; and `test/upNextProviderSync.test.js`,
+`test/upNextQueue.test.js`.
+
+### 26. Refresh every native Up Next rail from a watched predecessor; never seed resume progress
+**Date:** 2026-09-13  |  **Status:** Active, supersedes the synthetic-position part of entries 21, 24, and 25
+
+**Context:** A calculated rail has no arbitrary "add" operation. The earlier implementation
+worked around that by writing 6% progress, which required a ledger, provider-specific cleanup,
+and special handling for Emby's short-lived playback session. It also made a queue card look
+part-watched and could surface a synthetic session as Now Playing. The user-facing target remains
+Plex Continue Watching, Emby Continue Watching, and Jellyfin Next Up.
+
+**Decision:** For every ready episode in Plembfin Up Next, resolve the native series inventory,
+verify that the target is released and unwatched, and require every earlier released episode to
+be watched. Then refresh the provider's calculated rail from the immediately preceding watched
+episode. Plex and Emby receive their native watched mark, with outbound echo markers protecting
+Plembfin's canonical history. Jellyfin receives only a merged `LastPlayedDate` update, preserving
+its play count, watched flag, and resume position. A genuine target resume position is never
+overwritten. The managed `Plembfin Up Next` playlist remains the exact queue mirror.
+
+The old ledger is retained only as an upgrade path: a clear-only migration removes positions
+written by older builds, and no current sync writes a new synthetic position or opens a playback
+session.
+
+**Rejected:** Reusing the 6% marker, clearing all provider progress after every push, or toggling
+the predecessor unwatched and watched. Those approaches either create false playback state,
+discard genuine part-watches, or reset provider play counts and timestamps unnecessarily.
+
+**Enforced by:** the provider-neutral native rail refresh in `server/src/utils/upNextProviderSync.js`,
+the clear-only legacy migration in `server/src/utils/upNextRailSeed.js`, outbound playstate echo
+markers in `server/src/utils/syncOrchestrator.js`, and the provider sync tests.

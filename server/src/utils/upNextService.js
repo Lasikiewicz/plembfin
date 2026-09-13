@@ -11,11 +11,12 @@ import {
 } from "./upNextIdentity.js";
 import {
   getUpNextFeedSourceVersion,
+  isPlembfinPrimaryUpNextFeed,
   listActiveUpNextProviderItems,
   listUpNextProviderFeedStates,
 } from "./upNextRepository.js";
 import { createUpNextLibraryLookup } from "./upNextLibraryLookup.js";
-import { isUpNextRailSeedPosition } from "./upNextSeedLedger.js";
+import { isUpNextRailSeedPosition, listUpNextRailSeeds } from "./upNextSeedLedger.js";
 import { createUpNextDismissalFilter } from "./upNextDismissals.js";
 import { isDemoMode } from "./demoMode.js";
 
@@ -399,6 +400,23 @@ function withoutRailSeedProgress(candidate = {}) {
   };
 }
 
+// A Jellyfin rail seed can arrive back through the provider webhook and be
+// persisted as a canonical playback row before the next Up Next push. Treat
+// that row the same way as the provider feed copy above: it is a routing hint,
+// not genuine local resume progress. Matching by the recorded media key keeps
+// this scoped to the exact seed that Plembfin wrote.
+function withoutCanonicalRailSeedProgress(row = {}, seedsByMediaKey = new Map()) {
+  if (text(row.source).toLowerCase() !== "jellyfin") return row;
+  const mediaKey = text(row.media_key || row.mediaKey);
+  const seed = mediaKey ? seedsByMediaKey.get(mediaKey) : null;
+  if (!seed || !isUpNextRailSeedPosition("jellyfin", seed.providerItemId, row.position_ms)) return row;
+  return {
+    ...row,
+    position_ms: 0,
+    progress: 0,
+  };
+}
+
 function providerObservationMatches(candidate, providerCandidate) {
   if (candidate?.media_type !== "episode" || providerCandidate?.media_type !== "episode") return false;
   if (!(providerCandidate.source === "plex" || providerCandidate.source === "emby")
@@ -756,6 +774,10 @@ export async function buildUpNextProjection({
   const rawProgressRows = progressRows || selectProgressRowsStmt.all();
   const observations = (providerItems || listActiveUpNextProviderItems())
     .filter((item) => UP_NEXT_PROVIDERS.has(String(item?.source || item?.provider || "").toLowerCase()))
+    .filter((item) => isPlembfinPrimaryUpNextFeed(
+      item?.source || item?.provider,
+      item?.feed_kind || item?.feedKind || item?.queue_kind || item?.queueKind || "resume",
+    ))
     .slice(0, MAX_PROVIDER_OBSERVATIONS);
   const rawProviderCandidates = observations.map((item) => normalizeUpNextCandidate(item));
   const showRows = shows || ((localFallback || rawProviderCandidates.some((candidate) => candidate.queue_kind === "next_up"))
@@ -778,7 +800,11 @@ export async function buildUpNextProjection({
     showIdentities,
   );
   const showRecency = showRecencyIndex(showRows);
+  const jellyfinSeedsByMediaKey = new Map(listUpNextRailSeeds("jellyfin")
+    .filter((seed) => text(seed.mediaKey))
+    .map((seed) => [text(seed.mediaKey), seed]));
   const canonicalResume = rawProgressRows
+    .map((row) => withoutCanonicalRailSeedProgress(row, jellyfinSeedsByMediaKey))
     .map((row) => rowCandidate(row, { queueKind: "resume", canonical: true, showIdentities }))
     .map((candidate) => ensureDemoSeriesIdentity(candidate, showIdentities))
     .map((candidate) => decorateShowRecency(candidate, showRecency))

@@ -66,7 +66,7 @@ test("the projection hides a dismissed item from every device", async () => {
     progressRows: [],
     playstateRows: [],
     providerItems: [{
-      provider: "plex",
+      provider: "jellyfin",
       feed_kind: "next_up",
       provider_item_id: "4774",
       media_type: "episode",

@@ -21,6 +21,14 @@ The merge de-duplicates by `(source, title, season, episode)` and sorts by
 `updated_at` desc. A session can reach Now Playing via the poller, via a
 webhook, or both.
 
+The Emby Continue Watching rail is refreshed by a zero-position playback-session
+touch after Plembfin marks the watched predecessor. Those callbacks carry the
+reserved `plembfin-up-next-seed` device id and are rejected before they can create
+an `active_sessions` row; the touch does not write resume progress or increment a
+play count. Rows written by older alpha builds are removed when
+`listActiveSessions()` projects the response, and matching cached poll rows are
+excluded from Now Playing as well.
+
 ### Live-session poller cadence
 
 `live_tracking_cache` used to be refreshed only once a minute, inside the same

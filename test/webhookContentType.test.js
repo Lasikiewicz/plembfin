@@ -4,13 +4,51 @@ import { makeTempDataDir } from "./helpers.js";
 
 makeTempDataDir("plembfin-webhook-content-type-");
 
-const { normalizeWebhook } = await import("../server/src/routes/sync.js");
+const { handleWebhook, normalizeWebhook } = await import("../server/src/routes/sync.js");
+const { AUTH } = await import("../server/src/appConfig.js");
+const { deleteActiveSession, listActiveSessions } = await import("../server/src/utils/activeSessions.js");
+const { UP_NEXT_SEED_DEVICE_ID } = await import("../server/src/utils/embyClient.js");
 
 function request({ contentType = "", userAgent = "test-agent", body = "" } = {}) {
   const headers = { "content-type": contentType, "user-agent": userAgent };
   return {
     get: (name) => headers[String(name).toLowerCase()] || "",
     rawBody: Buffer.from(body, "utf8"),
+  };
+}
+
+function responseCapture() {
+  const response = {
+    statusCode: 200,
+    headers: {},
+    body: null,
+    status(code) {
+      this.statusCode = code;
+      return this;
+    },
+    set(headers) {
+      Object.assign(this.headers, headers);
+      return this;
+    },
+    send(body) {
+      this.body = JSON.parse(body);
+      return this;
+    },
+  };
+  return response;
+}
+
+function webhookRequest(body) {
+  const headers = {
+    "content-type": "application/json",
+    "x-plembfin-webhook-secret": AUTH.webhookSecret,
+  };
+  return {
+    method: "POST",
+    query: {},
+    body,
+    headers,
+    get: (name) => headers[String(name).toLowerCase()] || "",
   };
 }
 
@@ -72,4 +110,50 @@ test("an empty body is rejected rather than treated as an event", async () => {
   const media = await normalizeWebhook(request({ contentType: "text/plain", body: "" }));
   assert.equal(media.isValid, false);
   assert.equal(media.title, "Unsupported webhook content type");
+});
+
+test("Emby Up Next seed callbacks never become active sessions", async () => {
+  const seedPayload = {
+    Event: "playback.start",
+    UserId: "emby-user",
+    DeviceId: UP_NEXT_SEED_DEVICE_ID,
+    DeviceName: "Plembfin Up Next",
+    Client: "Emby",
+    ApplicationVersion: "1.0.0",
+    SessionId: "plembfin-up-next-seed-episode",
+    Item: {
+      Type: "Movie",
+      Name: "Arrival",
+      ProviderIds: { Tmdb: "329865" },
+      RunTimeTicks: 36_000_000_000,
+    },
+  };
+  const seedResponse = responseCapture();
+
+  await handleWebhook(webhookRequest(seedPayload), seedResponse);
+
+  assert.equal(seedResponse.statusCode, 200);
+  assert.equal(seedResponse.body.skipped, true);
+  assert.equal(seedResponse.body.active, false);
+  assert.equal((await listActiveSessions()).length, 0);
+
+  const realPayload = {
+    ...seedPayload,
+    DeviceId: "a-real-device",
+    DeviceName: "Real Emby Player",
+    SessionId: "real-emby-session",
+    Item: { ...seedPayload.Item, Name: "The Martian" },
+  };
+  const realResponse = responseCapture();
+  await handleWebhook(webhookRequest(realPayload), realResponse);
+
+  assert.equal(realResponse.body.active, true);
+  assert.equal((await listActiveSessions()).length, 1);
+  assert.equal((await listActiveSessions())[0].client.deviceId, "a-real-device");
+  await deleteActiveSession({
+    source: "emby",
+    type: "movie",
+    title: "The Martian",
+    ids: { tmdb: "329865" },
+  });
 });

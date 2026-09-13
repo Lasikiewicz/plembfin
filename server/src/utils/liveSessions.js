@@ -3,7 +3,7 @@ import { fetchWithTimeout } from "./outbound.js";
 import { jellyfinAuthHeaders, jellyfinCredential } from "./jellyfinAuth.js";
 import { fetchPlexWithRefresh } from "./plexFetch.js";
 import { resolvePlexAccountId } from "./plexClient.js";
-import { UP_NEXT_SEED_DEVICE_ID } from "./embyClient.js";
+import { isUpNextSeedDeviceId } from "./embyClient.js";
 import { decodeHtmlEntities } from "./parsers.js";
 
 function trimTrailingSlash(value = "") {
@@ -507,14 +507,19 @@ async function fetchPlexSessions(config) {
   }
 }
 
-// Plembfin's own Up Next rail seed opens a short playback session on the media
-// server, because that is the only thing those servers accept as a resume
-// point. Reading it back as live playback would show the user three things
-// "playing" that nobody started, and would drop those items out of Up Next for
-// as long as the phantom session lasted.
-function isUpNextSeedSession(session = {}) {
-  const deviceId = String(session.raw?.DeviceId || session.deviceId || "").toLowerCase();
-  return deviceId === UP_NEXT_SEED_DEVICE_ID;
+// Older Plembfin Up Next rail seeds opened a short playback session on the media
+// server. Keep filtering that legacy device identity during upgrades so an old
+// session cannot appear as Now Playing or displace the queue.
+export function isUpNextSeedSession(session = {}) {
+  const raw = session.raw || {};
+  return [
+    raw.DeviceId,
+    raw.deviceId,
+    session.deviceId,
+    session.client?.deviceId,
+    session.client?.device_id,
+    session.client?.DeviceId,
+  ].some(isUpNextSeedDeviceId);
 }
 
 async function fetchEmbySessions(config) {

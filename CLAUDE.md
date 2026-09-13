@@ -25,6 +25,11 @@ Agent instructions for working with this codebase.
 > [`.claude/skills/start-website/SKILL.md`](.claude/skills/start-website/SKILL.md).**
 > This starts the local Astro preview at `http://localhost:4321/` for editing and
 > testing only; it must not publish or deploy anything.
+>
+> **For the explicit phrase "Check requests", follow
+> [`.claude/check-requests.md`](.claude/check-requests.md).** This is a local-only,
+> read-only monitor for the Plembfin feature requests on Plex, Emby, and Jellyfin;
+> it reports status, votes, comments, and any reply that needs a draft.
 
 ## Local testing context
 
@@ -93,7 +98,7 @@ procedures live in the `push-to-git`, `force-to-alpha`, and `force-to-main` skil
 
 ## Release commands: use the matching skill
 
-Five phrases trigger a named release, publishing, or local-development procedure. Each one lives in its own skill so the
+Six phrases trigger a named release, publishing, local-development, or request-monitoring procedure. Each one lives in its own skill or local workflow so the
 whole procedure arrives fresh at invocation instead of competing for attention here.
 **Invoke the skill and follow it exactly. Never improvise or reconstruct these
 procedures from memory.**
@@ -105,6 +110,7 @@ procedures from memory.**
 | "Force to main" (exactly) | `force-to-main` |
 | "Push website live" (case-insensitive) | `push-website-live` |
 | "Start the website" (case-insensitive) | `start-website` |
+| "Check requests" (case-insensitive) | `.claude/check-requests.md` |
 
 These hold regardless of which skill is running, so they are repeated here:
 
@@ -118,6 +124,11 @@ These hold regardless of which skill is running, so they are repeated here:
 - "Start the website" is local-only: start or reuse the Astro dev server on
   `http://localhost:4321/` and open that URL for editing/testing. Do not deploy it or
   run the root Plembfin build.
+- "Check requests" is local-only and read-only: inspect the registered Plex, Emby, and
+  Jellyfin request pages in connected Chrome, compare public status/vote/comment data
+  with the ignored local snapshot, and draft (but do not post) replies when a maintainer
+  needs an answer. If a provider asks for login, stop at that provider and tell the user
+  which session needs attention.
 - Never bypass a hook with `--no-verify`, and never bypass the changelog rebuild.
 - Before any of the three, check that GHCR Cleanup is not mid-run
   (`gh run list --workflow ghcr-cleanup.yml --limit 1`); each skill repeats this as its

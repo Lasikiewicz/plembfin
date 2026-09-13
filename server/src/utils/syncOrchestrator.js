@@ -472,6 +472,13 @@ function checkAndClaimLoop(media, target, targets, kv, prefix = "loop") {
 const OUTBOUND_MARK_TTL_SECONDS = 14 * 24 * 60 * 60;
 const OUTBOUND_MARK_PREFIX = "mark";
 
+// A Jellyfin Next Up promotion changes only the predecessor episode's
+// LastPlayedDate. Jellyfin reports that partial UserData write as the same
+// played-flag event used for a real Mark played action, so it needs its own
+// short-lived marker or the callback could trigger a full canonical replay.
+const OUTBOUND_UP_NEXT_NUDGE_TTL_SECONDS = 15 * 60;
+const OUTBOUND_UP_NEXT_NUDGE_PREFIX = "up_next_nudge";
+
 export async function recordOutboundPlayedMarks(media, targets = [], kv) {
   if (!kv || !targets.length) return;
   const now = Date.now();
@@ -484,6 +491,36 @@ export async function recordOutboundPlayedMarks(media, targets = [], kv) {
       }
     }
   }
+}
+
+export async function recordOutboundJellyfinNextUpNudge(media, kv) {
+  if (!kv) return;
+  const now = Date.now();
+  for (const key of targetCacheKeys(media, "jellyfin", OUTBOUND_UP_NEXT_NUDGE_PREFIX)) {
+    try {
+      await kv.put(key, now, { expirationTtl: OUTBOUND_UP_NEXT_NUDGE_TTL_SECONDS });
+    } catch (error) {
+      console.error("Failed to record outbound Jellyfin Next Up nudge", { error });
+    }
+  }
+}
+
+export async function isRecentOutboundJellyfinNextUpNudge(media, kv, {
+  now = Date.now(),
+  windowMs = 10 * 60 * 1000,
+} = {}) {
+  if (!kv) return false;
+  let newest = 0;
+  for (const key of targetCacheKeys(media, "jellyfin", OUTBOUND_UP_NEXT_NUDGE_PREFIX)) {
+    try {
+      const value = Number(await kv.get(key));
+      if (Number.isFinite(value) && value > newest) newest = value;
+    } catch (error) {
+      console.error("Failed to read outbound Jellyfin Next Up nudge", { error });
+    }
+  }
+  const receivedAt = Number(now);
+  return Boolean(newest && Number.isFinite(receivedAt) && receivedAt >= newest && receivedAt - newest <= windowMs);
 }
 
 // A genuine provider-side unwatch is a new state transition. Clear any old
@@ -848,7 +885,8 @@ async function includeTrackerDispatch(summary, media, state, lane = "sync", isCa
       details: [summary.details, detail].filter(Boolean).join("; "),
     };
   }
-  const trackerStates = (await dispatchTrackerWatchState(media, state, { lane, isCancelled })).filter((entry) => entry.status !== "skipped");
+  const trackerStates = (await dispatchTrackerWatchState(media, state, { lane, isCancelled }))
+    .filter((entry) => entry.status !== "skipped" || entry.dismissed);
   if (!trackerStates.length) return summary;
   const normalized = trackerStates.map((entry) => ({ ...entry, status: entry.status === "failed" ? "error" : entry.status === "not_found" ? "skipped" : entry.status }));
   const targetStates = [...(summary.targetStates || []), ...normalized];

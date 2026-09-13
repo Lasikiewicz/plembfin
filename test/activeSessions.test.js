@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 import { makeTempDataDir } from "./helpers.js";
 
 makeTempDataDir("plembfin-active-sessions-");
+const { db } = await import("../server/src/db.js");
+const { UP_NEXT_SEED_DEVICE_ID } = await import("../server/src/utils/embyClient.js");
 const { deleteActiveSession, listActiveSessions, upsertActiveSession } = await import("../server/src/utils/activeSessions.js");
 
 test("finished episodes are deleted when start and stop provider ids differ", async () => {
@@ -29,4 +31,31 @@ test("finished episodes are deleted when start and stop provider ids differ", as
 
   assert.equal(remaining.length, 0);
   assert.equal((await listActiveSessions()).length, 0);
+});
+
+test("persisted Emby Up Next seed rows are purged from the active-session projection", async () => {
+  db.prepare(`
+    INSERT INTO active_sessions
+      (id, title, media_type, source, progress, offset_ms, duration_ms, season, episode, poster_url, ids, event, client, updated_at, expire_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    "emby:movie:tmdb:329865",
+    "Arrival",
+    "movie",
+    "emby",
+    0,
+    0,
+    3_600_000,
+    null,
+    null,
+    "",
+    JSON.stringify({ tmdb: "329865" }),
+    "playback.start",
+    JSON.stringify({ deviceName: "Plembfin Up Next", deviceId: UP_NEXT_SEED_DEVICE_ID }),
+    Date.now(),
+    Date.now() + 300_000,
+  );
+
+  assert.deepEqual(await listActiveSessions(), []);
+  assert.equal(db.prepare("SELECT COUNT(*) AS count FROM active_sessions").get().count, 0);
 });

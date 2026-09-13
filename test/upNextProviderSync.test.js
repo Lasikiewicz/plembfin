@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import { makeTempDataDir } from "./helpers.js";
 
 makeTempDataDir("plembfin-up-next-provider-sync-");
-const { planUpNextProviderSync, syncUpNextToProviders } = await import("../server/src/utils/upNextProviderSync.js");
+const { planUpNextProviderSync, refreshProviderRail, syncUpNextToProviders } = await import("../server/src/utils/upNextProviderSync.js");
+const { listUpNextRailSeeds, recordUpNextRailSeeds } = await import("../server/src/utils/upNextSeedLedger.js");
 
 test("disabled Up Next provider sync returns without contacting media servers", async () => {
   const originalFetch = globalThis.fetch;
@@ -65,7 +66,7 @@ test("Up Next provider reconciliation preserves visible ids and dismisses only s
   assert.deepEqual(plan.unsupported, []);
 });
 
-test("native Emby Next Up items are reported as unsupported instead of being marked watched or hidden", () => {
+test("native Emby Next Up is observation-only when Emby Continue Watching is the target rail", () => {
   const plan = planUpNextProviderSync({
     desiredItems: [{ provider_items: { emby: ["emby-keep"] } }],
     feeds: [{
@@ -81,11 +82,39 @@ test("native Emby Next Up items are reported as unsupported instead of being mar
   });
 
   assert.deepEqual(plan.dismissals, []);
+  assert.deepEqual(plan.unsupported, []);
+});
+
+test("Jellyfin Continue Watching protects real progress while Jellyfin Next Up is reconciled", () => {
+  const plan = planUpNextProviderSync({
+    desiredItems: [{ provider_items: { jellyfin: ["jelly-next-keep"] } }],
+    feeds: [
+      {
+        provider: "jellyfin",
+        feed_kind: "resume",
+        status: "succeeded",
+        supportsDismissal: true,
+        items: [{ provider_item_id: "jelly-real-resume", title: "Real part-watch" }],
+      },
+      {
+        provider: "jellyfin",
+        feed_kind: "next_up",
+        status: "succeeded",
+        supportsDismissal: false,
+        items: [
+          { provider_item_id: "jelly-next-keep", title: "Keep" },
+          { provider_item_id: "jelly-next-extra", title: "Extra" },
+        ],
+      },
+    ],
+  });
+
+  assert.deepEqual(plan.dismissals, []);
   assert.deepEqual(plan.unsupported, [{
-    provider: "emby",
+    provider: "jellyfin",
     feed_kind: "next_up",
-    provider_item_id: "emby-other",
-    title: "Other",
+    provider_item_id: "jelly-next-extra",
+    title: "Extra",
   }]);
 });
 
@@ -268,7 +297,7 @@ test("pushing the merged Up Next rail reconciles the Plex and Emby playlists and
   ]);
   // Unconfigured here, so it is reported rather than contacted.
   assert.equal(summary.playlists.find((playlist) => playlist.provider === "jellyfin")?.status, "not_configured");
-  assert.deepEqual(new Set(summary.unsupported.map(({ provider }) => provider)), new Set(["emby"]));
+  assert.deepEqual(summary.unsupported, []);
   assert.deepEqual(summary.feeds.map((feed) => [feed.provider, feed.feed_kind, feed.status]), [
     ["plex", "resume", "succeeded"],
     ["emby", "resume", "succeeded"],
@@ -305,7 +334,7 @@ test("configured Jellyfin takes part in the Up Next push", async () => {
   }
 });
 
-test("the Jellyfin push maintains its playlist and seeds its resume rail", async (t) => {
+test("the Jellyfin push maintains its playlist without writing a synthetic resume position", async (t) => {
   const originalFetch = globalThis.fetch;
   const calls = [];
   const playlistItems = [{ Id: "jelly-stale", PlaylistItemId: "jelly-entry-stale" }];
@@ -362,50 +391,203 @@ test("the Jellyfin push maintains its playlist and seeds its resume rail", async
   assert.equal(playlist.status, "succeeded");
   assert.deepEqual(playlistItems.map((item) => item.Id), ["jelly-keep"]);
 
-  // The item is not on Jellyfin's resume feed (it is empty here), so the push
-  // seeds it rather than skipping it, at 6% of the 45-minute runtime.
-  const seed = summary.railSeeds.find((entry) => entry.provider === "jellyfin");
-  assert.equal(seed.seeded_count, 1);
-  assert.equal(seed.results[0].position_ms, 162000);
-  assert.ok(calls.some(({ url, method }) => method === "POST" && /\/Items\/jelly-keep\/UserData$/.test(url.pathname)));
+  assert.deepEqual(summary.railSeeds, []);
+  assert.equal(summary.providerRails.find((entry) => entry.provider === "jellyfin")?.refreshed_count, 0);
+  assert.equal(calls.some(({ url, method }) => method === "POST" && /\/Items\/jelly-keep\/UserData$/.test(url.pathname)), false);
 });
 
-test("an Emby rail seed is reported as a playback session, then has its play count restored", async (t) => {
+test("a legacy Jellyfin rail seed is cleared while the watched predecessor refreshes Next Up", async (t) => {
   const originalFetch = globalThis.fetch;
   const calls = [];
+  const episodes = [
+    {
+      Id: "jelly-e1",
+      Type: "Episode",
+      Name: "Ted Lasso - S04E01",
+      SeriesName: "Ted Lasso",
+      ParentIndexNumber: 4,
+      IndexNumber: 1,
+      SeriesProviderIds: { Tmdb: "97546" },
+      UserData: { Played: true, PlayCount: 2, PlaybackPositionTicks: 0, LastPlayedDate: "2026-08-01T10:00:00.000Z" },
+    },
+    {
+      Id: "jelly-e2",
+      Type: "Episode",
+      Name: "Ted Lasso - S04E02",
+      SeriesName: "Ted Lasso",
+      ParentIndexNumber: 4,
+      IndexNumber: 2,
+      SeriesProviderIds: { Tmdb: "97546" },
+      UserData: { Played: true, PlayCount: 7, PlaybackPositionTicks: 0, LastPlayedDate: "2026-08-02T10:00:00.000Z" },
+    },
+    {
+      Id: "jelly-target",
+      Type: "Episode",
+      Name: "Richmond's Got Talent",
+      SeriesName: "Ted Lasso",
+      ParentIndexNumber: 4,
+      IndexNumber: 3,
+      SeriesProviderIds: { Tmdb: "97546" },
+      RunTimeTicks: 27000000000,
+      UserData: { Played: false, PlaybackPositionTicks: 1620000000 },
+    },
+  ];
+  recordUpNextRailSeeds([{
+    provider: "jellyfin",
+    providerItemId: "jelly-target",
+    positionMs: 162000,
+    durationMs: 2700000,
+    title: "Ted Lasso - S04E03",
+  }]);
+
   globalThis.fetch = async (input, options = {}) => {
     const url = new URL(String(input));
     const method = String(options.method || "GET").toUpperCase();
-    if (method === "POST") {
-      calls.push({ path: url.pathname, body: String(options.body || ""), auth: options.headers?.["X-Emby-Authorization"] || "" });
-      return new Response(null, { status: 204 });
+    const body = String(options.body || "");
+    calls.push({ url, method, body });
+
+    if (method === "POST") return new Response(null, { status: 204 });
+
+    let response = { Items: [] };
+    if (url.pathname === "/Users/jelly-user/Items" && url.searchParams.get("IncludeItemTypes") === "Playlist") {
+      response = { Items: [{ Id: "jelly-up-next", Name: "Plembfin Up Next", Type: "Playlist" }] };
+    } else if (url.pathname === "/Playlists/jelly-up-next/Items") {
+      response = { Items: [{ Id: "jelly-target", PlaylistItemId: "jelly-entry-target" }], TotalRecordCount: 1 };
+    } else if (url.pathname === "/Users/jelly-user/Items" && url.searchParams.get("Filters") === "IsResumable") {
+      response = { Items: [{ ...episodes[2] }], TotalRecordCount: 1 };
+    } else if (url.pathname === "/Shows/NextUp") {
+      response = { Items: [{ ...episodes[2] }] };
+    } else if (url.pathname === "/Users/jelly-user/Items" && url.searchParams.get("IncludeItemTypes") === "Series") {
+      response = { Items: [{ Id: "jelly-series", Name: "Ted Lasso", ProviderIds: { Tmdb: "97546" } }] };
+    } else if (url.pathname === "/Users/jelly-user/Items" && url.searchParams.get("ParentId") === "jelly-series") {
+      response = { Items: episodes, TotalRecordCount: episodes.length };
+    } else if (url.pathname === "/Users/jelly-user/Items/jelly-target") {
+      response = { RunTimeTicks: episodes[2].RunTimeTicks };
     }
-    return new Response(JSON.stringify({ Items: [] }), { status: 200, headers: { "content-type": "application/json" } });
+    return new Response(JSON.stringify(response), { status: 200, headers: { "content-type": "application/json" } });
   };
   t.after(() => { globalThis.fetch = originalFetch; });
 
-  const { reportEmbyResumePosition } = await import("../server/src/utils/embyClient.js");
-  const result = await reportEmbyResumePosition(
-    { baseUrl: "http://emby.test", apiKey: "k", userId: "u" },
-    "12105",
-    162000,
-  );
+  const summary = await syncUpNextToProviders({
+    desiredItems: [{
+      id: "ted-lasso-s04e03",
+      media_key: "ted-lasso-s04e03",
+      media_type: "episode",
+      // A stale browser snapshot can still describe Plembfin's synthetic
+      // Jellyfin position as a resume row. The seed ledger must allow the
+      // promotion to clean it up in the same push.
+      queue_kind: "resume",
+      title: "Ted Lasso - S04E03",
+      show_title: "Ted Lasso",
+      season: 4,
+      episode: 3,
+      show_tmdb_id: "97546",
+      position_ms: 162000,
+      progress: 6,
+      provider_items: { jellyfin: ["jelly-target"] },
+    }],
+    config: {
+      jellyfin: { baseUrl: "http://jellyfin.test", apiKey: "jellyfin-key", userId: "jelly-user" },
+    },
+  });
 
-  assert.equal(result.status, "fulfilled");
-  const paths = calls.map((call) => call.path);
-  assert.deepEqual(paths, [
-    "/Sessions/Playing",
-    "/Sessions/Playing/Progress",
-    "/Sessions/Playing/Stopped",
-    "/Users/u/Items/12105/UserData",
+  assert.equal(summary.jellyfinRail.promoted_count, 1);
+  assert.equal(summary.jellyfinRail.cleared_seed_count, 1);
+  assert.equal(summary.jellyfinRail.failed_count, 0);
+  assert.equal(listUpNextRailSeeds("jellyfin").some((seed) => seed.providerItemId === "jelly-target"), false);
+
+  const predecessorWrite = calls.find((call) => call.method === "POST" && call.url.pathname.endsWith("/Items/jelly-e2/UserData"));
+  assert.ok(predecessorWrite, "the watched predecessor is updated");
+  assert.match(predecessorWrite.body, /"LastPlayedDate":"/);
+  const predecessorBody = JSON.parse(predecessorWrite.body);
+  assert.deepEqual(Object.keys(predecessorBody), ["LastPlayedDate"]);
+
+  const seedClear = calls.find((call) => {
+    if (call.method !== "POST" || !call.url.pathname.endsWith("/Items/jelly-target/UserData")) return false;
+    try { return JSON.parse(call.body).PlaybackPositionTicks === 0; } catch { return false; }
+  });
+  assert.ok(seedClear, "the synthetic seed position is cleared");
+  assert.equal(JSON.parse(seedClear.body).PlaybackPositionTicks, 0);
+  assert.equal(Object.keys(JSON.parse(seedClear.body)).length, 1, "seed cleanup does not toggle watched state");
+});
+
+test("the native rail refresh applies to Plex, Emby, and Jellyfin", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  const episodes = {
+    plex: [
+      { ratingKey: "plex-prev", type: "episode", title: "Native Refresh - S01E01", parentIndex: 1, index: 1, viewCount: 4, viewOffset: 0, originallyAvailableAt: "2026-01-01" },
+      { ratingKey: "plex-target", type: "episode", title: "Native Refresh - S01E02", parentIndex: 1, index: 2, viewCount: 0, viewOffset: 0, originallyAvailableAt: "2026-01-02" },
+    ],
+    emby: [
+      { Id: "emby-prev", Type: "Episode", Name: "Native Refresh - S01E01", SeriesName: "Native Refresh", ParentIndexNumber: 1, IndexNumber: 1, PremiereDate: "2026-01-01", UserData: { Played: true, PlaybackPositionTicks: 0 } },
+      { Id: "emby-target", Type: "Episode", Name: "Native Refresh - S01E02", SeriesName: "Native Refresh", ParentIndexNumber: 1, IndexNumber: 2, PremiereDate: "2026-01-02", UserData: { Played: false, PlaybackPositionTicks: 0 } },
+    ],
+    jellyfin: [
+      { Id: "jelly-prev", Type: "Episode", Name: "Native Refresh - S01E01", SeriesName: "Native Refresh", ParentIndexNumber: 1, IndexNumber: 1, PremiereDate: "2026-01-01", UserData: { Played: true, PlaybackPositionTicks: 0 } },
+      { Id: "jelly-target", Type: "Episode", Name: "Native Refresh - S01E02", SeriesName: "Native Refresh", ParentIndexNumber: 1, IndexNumber: 2, PremiereDate: "2026-01-02", UserData: { Played: false, PlaybackPositionTicks: 0 } },
+    ],
+  };
+  globalThis.fetch = async (input, options = {}) => {
+    const url = new URL(String(input));
+    const method = String(options.method || "GET").toUpperCase();
+    calls.push({ url, method, body: String(options.body || "") });
+    if (method === "POST") return new Response(null, { status: 204 });
+
+    let body = { Items: [] };
+    if (url.hostname === "plex-native.test" && url.pathname === "/library/all") {
+      body = { MediaContainer: { Metadata: [{ ratingKey: "plex-series", type: "show", title: "Native Refresh" }] } };
+    } else if (url.hostname === "plex-native.test" && url.pathname === "/library/metadata/plex-series/allLeaves") {
+      body = { MediaContainer: { Metadata: episodes.plex } };
+    } else if (url.hostname === "emby-native.test" && url.pathname === "/Users/emby-user/Items" && url.searchParams.get("AnyProviderIdEquals")) {
+      body = { Items: [{ Id: "emby-series", Type: "Series", Name: "Native Refresh", ProviderIds: { Tmdb: "native-refresh" } }] };
+    } else if (url.hostname === "emby-native.test" && url.pathname === "/Users/emby-user/Items" && url.searchParams.get("ParentId") === "emby-series") {
+      body = { Items: episodes.emby, TotalRecordCount: episodes.emby.length };
+    } else if (url.hostname === "jelly-native.test" && url.pathname === "/Users/jelly-user/Items" && url.searchParams.get("AnyProviderIdEquals")) {
+      body = { Items: [{ Id: "jelly-series", Type: "Series", Name: "Native Refresh", ProviderIds: { Tmdb: "native-refresh" } }] };
+    } else if (url.hostname === "jelly-native.test" && url.pathname === "/Users/jelly-user/Items" && url.searchParams.get("ParentId") === "jelly-series") {
+      body = { Items: episodes.jellyfin, TotalRecordCount: episodes.jellyfin.length };
+    }
+    return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  const item = {
+    id: "native-refresh-s01e02",
+    media_key: "native-refresh-s01e02",
+    media_type: "episode",
+    title: "Native Refresh - S01E02",
+    show_title: "Native Refresh",
+    season: 1,
+    episode: 2,
+    show_tmdb_id: "native-refresh",
+    position_ms: 0,
+    progress: 0,
+  };
+  const configs = {
+    plex: { baseUrl: "http://plex-native.test", token: "plex-token" },
+    emby: { baseUrl: "http://emby-native.test", apiKey: "emby-key", userId: "emby-user" },
+    jellyfin: { baseUrl: "http://jelly-native.test", apiKey: "jelly-key", userId: "jelly-user" },
+  };
+  const results = await Promise.all(["plex", "emby", "jellyfin"].map((provider) => refreshProviderRail({
+    provider,
+    config: configs,
+    targets: [{ item, providerItemId: `${provider === "plex" ? "plex" : provider === "emby" ? "emby" : "jelly"}-target` }],
+  })));
+
+  assert.deepEqual(results.map((result) => [result.provider, result.status, result.refreshed_count, result.failed_count]), [
+    ["plex", "succeeded", 1, 0],
+    ["emby", "succeeded", 1, 0],
+    ["jellyfin", "succeeded", 1, 0],
   ]);
-  // The session calls need a device identity or Emby rejects them.
-  assert.match(calls[0].auth, /DeviceId="plembfin-up-next-seed"/);
-  // 162000ms in ticks.
-  assert.match(calls[1].body, /"PositionTicks":1620000000/);
-  // The session increments PlayCount, so the pin puts it back.
-  assert.match(calls[3].body, /"PlayCount":0/);
-  assert.match(calls[3].body, /"Played":false/);
+  assert.ok(calls.some((call) => call.method === "GET" && call.url.hostname === "plex-native.test" && call.url.pathname === "/library/metadata/plex-series/allLeaves"));
+  assert.ok(calls.some((call) => call.method === "GET" && call.url.hostname === "plex-native.test" && call.url.pathname === "/:/scrobble" && call.url.searchParams.get("key") === "plex-prev"));
+  assert.ok(calls.some((call) => call.method === "POST" && call.url.hostname === "emby-native.test" && call.url.pathname.endsWith("/PlayedItems/emby-prev")));
+  const embyRailCalls = calls.filter((call) => call.method === "POST" && call.url.hostname === "emby-native.test" && ["/Sessions/Playing", "/Sessions/Playing/Progress", "/Sessions/Playing/Stopped"].includes(call.url.pathname));
+  assert.deepEqual(embyRailCalls.map((call) => call.url.pathname), ["/Sessions/Playing", "/Sessions/Playing/Progress", "/Sessions/Playing/Stopped"]);
+  assert.ok(embyRailCalls.every((call) => JSON.parse(call.body).PositionTicks === 0), "the Emby rail touch never writes resume progress");
+  assert.ok(embyRailCalls.every((call) => call.body.includes("plembfin-up-next-refresh-emby-target")), "the Emby rail touch uses the reserved refresh session");
+  assert.ok(calls.some((call) => call.method === "POST" && call.url.hostname === "jelly-native.test" && call.url.pathname.endsWith("/Items/jelly-prev/UserData") && /LastPlayedDate/.test(call.body)));
 });
 
 test("an empty Emby resume feed falls back to the legacy resumable query", async (t) => {

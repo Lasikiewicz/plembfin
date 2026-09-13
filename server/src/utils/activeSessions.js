@@ -2,6 +2,7 @@
 import { activeSessionTtlMs } from "./tuning.js";
 import { recordWatchAuditEvent } from "./watchAudit.js";
 import { isDemoMode } from "./demoMode.js";
+import { isUpNextSeedDeviceId } from "./embyClient.js";
 
 function normalizePart(value) {
   return String(value ?? "none").trim().toLowerCase().replace(/[^a-z0-9._:-]+/g, "-");
@@ -41,6 +42,13 @@ function fromRow(row) {
     client: parseJson(row.client, { userName: "", deviceName: "" }) || { userName: "", deviceName: "" },
     updatedAt: Number(row.updated_at || 0),
   };
+}
+
+function isSyntheticUpNextSession(media = {}) {
+  if (String(media.source || "").trim().toLowerCase() !== "emby") return false;
+  const client = media.client && typeof media.client === "object" ? media.client : {};
+  return [media.deviceId, media.device_id, client.deviceId, client.device_id, client.DeviceId]
+    .some(isUpNextSeedDeviceId);
 }
 
 const selectAllStmt = db.prepare("SELECT * FROM active_sessions ORDER BY updated_at DESC");
@@ -118,11 +126,29 @@ export async function listActiveSessions() {
   // The demo has no player, so keep its bundled “currently playing” example
   // alive while the isolated demo server is running.
   refreshDemoSession(Date.now());
-  return selectAllStmt.all().map(fromRow);
+  const rows = selectAllStmt.all();
+  const visibleRows = [];
+  for (const row of rows) {
+    // Older alpha builds accepted the Up Next seed webhook as real playback.
+    // Remove those rows at the projection boundary so a deployment of the
+    // fix clears existing phantom cards immediately instead of waiting for TTL.
+    if (isSyntheticUpNextSession({ source: row.source, client: parseJson(row.client, {}) || {} })) {
+      deleteOneStmt.run(row.id);
+      continue;
+    }
+    visibleRows.push(row);
+  }
+  return visibleRows.map(fromRow);
 }
 
 export async function upsertActiveSession(media) {
   if (!media) return [];
+  if (isSyntheticUpNextSession(media)) {
+    // Keep this invariant local to the storage boundary as well as the webhook
+    // route: no caller can persist Plembfin's own synthetic Emby playback.
+    deleteOneStmt.run(sessionIdentity(media));
+    return listActiveSessions();
+  }
   const now = Date.now();
   const id = sessionIdentity(media);
   const wasActive = Boolean(db.prepare("SELECT id FROM active_sessions WHERE id = ? LIMIT 1").get(id));

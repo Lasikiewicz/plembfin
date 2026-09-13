@@ -760,28 +760,19 @@ async function embyMutation(config, url, method, body) {
   try { return text ? JSON.parse(text) : {}; } catch { return {}; }
 }
 
-// Emby keeps its Resume rail in a playback index that only session reporting
-// writes. A UserData POST sets PlaybackPositionTicks - the item shows the right
-// position on its own page and satisfies the IsResumable filter - and yet never
-// appears in /Users/{id}/Items/Resume or on Emby's home screen. Measured
-// against a real play: identical position, identical PlayedPercentage, fresh
-// LastPlayedDate and PlayCount=1 all made no difference; only an actual
-// playback session did.
-//
-// So a seeded position is reported the way a client reports one, then the
-// UserData write restores PlayCount (the session increments it) and pins the
-// exact position. Verified: the item stays on the rail with PlayCount back at
-// its original value and Played still false.
-// The seed has to open a real playback session - a bare Stopped report does
-// not reach the rail, which was measured - so for a moment Emby genuinely has
-// Plembfin "playing" the item. That session is reported back by /Sessions and
-// was picked up as live playback, putting three phantom cards in Now Playing
-// and pulling those items out of Up Next. The device id is the marker that
-// lets the session poller ignore our own writes.
+// Keep the reserved device identity for the native rail refresh and for
+// filtering callbacks during upgrades. Older builds used a short-lived
+// synthetic playback session with a fake resume position; current pushes use
+// the same client-facing index refresh at position zero, so no resume progress
+// is created and the session is not treated as real playback.
 export const UP_NEXT_SEED_DEVICE_ID = "plembfin-up-next-seed";
-const EMBY_SEED_AUTHORIZATION = `MediaBrowser Client="Plembfin", Device="Plembfin Up Next", DeviceId="${UP_NEXT_SEED_DEVICE_ID}", Version="1.0.0"`;
+export function isUpNextSeedDeviceId(value = "") {
+  return String(value ?? "").trim().toLowerCase() === UP_NEXT_SEED_DEVICE_ID;
+}
 
-async function embySessionReport(config, path, payload) {
+const UP_NEXT_RAIL_AUTHORIZATION = `MediaBrowser Client="Plembfin", Device="Plembfin Up Next", DeviceId="${UP_NEXT_SEED_DEVICE_ID}", Version="1.0.0"`;
+
+async function embyRailSessionReport(config, path, payload, { lane = "interactive" } = {}) {
   const url = new URL(`${trimTrailingSlash(config.baseUrl)}${path}`);
   url.searchParams.set("api_key", config.apiKey);
   const response = await fetchWithTimeout(url, {
@@ -789,65 +780,49 @@ async function embySessionReport(config, path, payload) {
     headers: {
       ...authHeaders(config),
       "Content-Type": "application/json",
-      "X-Emby-Authorization": EMBY_SEED_AUTHORIZATION,
+      "X-Emby-Authorization": UP_NEXT_RAIL_AUTHORIZATION,
     },
-    lane: "interactive",
+    lane,
     body: JSON.stringify(payload),
   });
   if (!response.ok) {
-    const error = new Error(`Emby playback report failed with status ${response.status}`);
+    const error = new Error(`Emby native rail refresh failed with status ${response.status}`);
     error.status = response.status;
     throw error;
   }
   return response.status;
 }
 
-export async function reportEmbyResumePosition(config, itemId, positionMs, { playCount = 0 } = {}) {
+// Emby's Continue Watching/Resume index is populated by its playback-session
+// handlers, even when the item has no resume position. A zero-position,
+// immediately stopped session makes that native index recalculate the ready
+// episode after its predecessor is marked watched. The reserved device id is
+// deliberately retained so the live-session poller and webhook path ignore
+// this bookkeeping as playback. No UserData progress or play count is written.
+export async function touchEmbyResumeRail(config, itemId, { lane = "interactive" } = {}) {
   requireEmbyConfig(config);
   const id = String(itemId || "").trim();
-  const positionTicks = Math.max(0, Math.round(Number(positionMs) || 0)) * 10000;
-  if (!id || positionTicks <= 0) return { platform: "emby", status: "skipped", detail: "No item or position supplied" };
+  if (!id) return { platform: "emby", status: "not_found" };
 
   const payload = {
     ItemId: id,
     MediaSourceId: id,
-    PositionTicks: positionTicks,
+    PositionTicks: 0,
     IsPaused: true,
     CanSeek: true,
     PlayMethod: "DirectStream",
-    PlaySessionId: `plembfin-up-next-seed-${id}`,
+    PlaySessionId: `plembfin-up-next-refresh-${id}`,
   };
-  await embySessionReport(config, "/Sessions/Playing", payload);
-  await embySessionReport(config, "/Sessions/Playing/Progress", payload);
-  await embySessionReport(config, "/Sessions/Playing/Stopped", payload);
-
-  // The session bumps PlayCount, which is watch data we have no business
-  // inventing. Put it back and pin the position the seed intended.
-  const userDataUrl = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${encodeURIComponent(config.userId)}/Items/${encodeURIComponent(id)}/UserData`);
-  userDataUrl.searchParams.set("api_key", config.apiKey);
-  const response = await fetchWithTimeout(userDataUrl, {
-    method: "POST",
-    headers: { ...authHeaders(config), "Content-Type": "application/json" },
-    lane: "interactive",
-    body: JSON.stringify({
-      PlaybackPositionTicks: positionTicks,
-      PlayCount: Math.max(0, Math.round(Number(playCount) || 0)),
-      Played: false,
-    }),
-  });
-  if (!response.ok) {
-    const error = new Error(`Emby resume pin failed with status ${response.status}`);
-    error.status = response.status;
-    throw error;
-  }
-  console.log("Emby item resume position reported", { itemId: id, positionMs });
-  return { platform: "emby", status: "fulfilled", itemId: id, positionMs };
+  await embyRailSessionReport(config, "/Sessions/Playing", payload, { lane });
+  await embyRailSessionReport(config, "/Sessions/Playing/Progress", payload, { lane });
+  await embyRailSessionReport(config, "/Sessions/Playing/Stopped", payload, { lane });
+  console.log("Emby native Continue Watching rail refreshed", { itemId: id });
+  return { platform: "emby", status: "fulfilled", itemId: id, positionMs: 0 };
 }
 
-// Runtime for an item whose native id is already known. The Up Next rail seed
-// sizes its position as a percentage of runtime, and an item resolved straight
-// from a stored provider id never passes through a search result that carries
-// one.
+// Runtime for an item whose native id is already known. An item resolved
+// straight from a stored provider id never passes through a search result that
+// carries its runtime, so native-rail verification can fetch it here.
 export async function fetchEmbyItemRuntimeMs(config, itemId) {
   requireEmbyConfig(config);
   const id = String(itemId || "").trim();

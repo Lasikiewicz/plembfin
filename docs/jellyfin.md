@@ -102,6 +102,7 @@ Playback positions use tick units (1 tick = 100 ns), converted in `scheduled.js`
 | `findJellyfinItems` | Locates library items by provider ID (`AnyProviderIdEquals`), falling back to title/year search; episodes resolved through the series |
 | `markJellyfinPlayed` / `markJellyfinUnplayed` | `POST` / `DELETE` on `/Users/<userId>/PlayedItems/<itemId>` |
 | `setJellyfinProgress` | Writes a resume position via the item's UserData |
+| `updateJellyfinUserData` | Merges selected UserData fields, used to order a verified Next Up series without resetting play count or progress |
 | `markJellyfinUnplayedById` | Unplay by item ID (used by unwatch propagation) |
 | `fetchJellyfinSeriesEpisodes` / `fetchJellyfinEpisodes` | Episode lists for season-level operations |
 | `fetchJellyfinWatchedItems` / `fetchJellyfinResumableItems` / `fetchJellyfinNextUpItems` | Watched, resume, and Next Up feeds for catch-up sync |

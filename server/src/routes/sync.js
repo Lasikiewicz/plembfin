@@ -9,7 +9,7 @@ import { db, parseJson, toJson, writeAuditLog } from "../db.js";
 import { createLoopStore } from "../utils/loopStore.js";
 import { runWithConcurrency } from "../utils/concurrency.js";
 import { listActiveSessions, deleteActiveSession, upsertActiveSession } from "../utils/activeSessions.js";
-import { hydrateCachedSession, isTerminalLiveSession, loadLiveTrackingCache } from "../utils/liveSessions.js";
+import { hydrateCachedSession, isUpNextSeedSession, isTerminalLiveSession, loadLiveTrackingCache } from "../utils/liveSessions.js";
 import { activeSyncOperation, appendSyncHistory, clearSyncOperation, isAuthoritativeRestoreActive, loadMediaConfig, mergeIncomingConfig, publicMediaConfig, saveMediaConfig, validateConfig, getSyncHistoryById, getSyncHistoryPage, getSyncActivityGroupsPage, getSyncActivityGroupEvents, getLatestSyncActivityByItemKey, updateSyncHistoryStatus, loadRuntimeState, setRuntimeState, appendRuntimeLog, SYNC_OPERATION_FORCE, SYNC_OPERATION_SCHEDULED } from "../utils/configStore.js";
 import { forceSyncStopAction } from "../utils/forceSyncControl.js";
 import { getSyncPlanActionsPage, getSyncPlanSummary, confirmSyncPlan } from "../utils/syncPlans.js";
@@ -26,11 +26,11 @@ import { findPlexItem, markPlexPlayed, setPlexProgress, markPlexUnplayedByRating
 import { probePlexNotificationSocket } from "../utils/plexNotificationListener.js";
 import { pokeLiveSessionPoller } from "../scheduler.js";
 import { withSeriesIdentity } from "../utils/seriesIdentity.js";
-import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, hideEmbyFromResume, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes, listEmbyLibraries } from "../utils/embyClient.js";
+import { isUpNextSeedDeviceId, markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, hideEmbyFromResume, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes, listEmbyLibraries } from "../utils/embyClient.js";
 import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems, fetchJellyfinSeriesEpisodes, listJellyfinLibraries } from "../utils/jellyfinClient.js";
 import { setJellyfinApiKey } from "../utils/jellyfinAuth.js";
 import { buildPlexMediaFromMetadata, normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexMediaIds, parsePlexWebhook } from "../utils/parsers.js";
-import { clearOutboundPlayedMarks, completeDispatchTracking, finishDispatchTracking, getTargetsForSource, isRecentOutboundPlayedEcho, isRecentOutboundPlayedFlagEcho, isRecentOutboundProgressEcho, isRecentOutboundUnplayedFlagEcho, recordOutboundPlayedMarks, reserveDispatchBatch, shouldSyncResumeProgress, syncCanonicalPlaystate, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
+import { clearOutboundPlayedMarks, completeDispatchTracking, finishDispatchTracking, getTargetsForSource, isRecentOutboundJellyfinNextUpNudge, isRecentOutboundPlayedEcho, isRecentOutboundPlayedFlagEcho, isRecentOutboundProgressEcho, isRecentOutboundUnplayedFlagEcho, recordOutboundPlayedMarks, reserveDispatchBatch, shouldSyncResumeProgress, syncCanonicalPlaystate, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
 import { canReceiveState } from "../utils/syncRoles.js";
 import {
   playstateBlocksStoredResumeProgress,
@@ -63,6 +63,7 @@ import { getOmdbRating } from "../utils/omdbGateway.js";
 import { getCanonicalPosterUrl } from "../utils/mediaArtwork.js";
 import { syncUpNextToProviders } from "../utils/upNextProviderSync.js";
 import { mediaIsUpNextRailSeed } from "../utils/upNextSeedLedger.js";
+import { DISMISSED_TRAKT_NOT_FOUND_DETAIL } from "../utils/traktDismissals.js";
 import {
   listUpNextDismissals,
   recordUpNextDismissal,
@@ -259,6 +260,13 @@ export async function normalizeWebhook(req) {
   };
 }
 
+function isSyntheticUpNextWebhook(media = {}) {
+  if (String(media.source || "").trim().toLowerCase() !== "emby") return false;
+  const client = media.client && typeof media.client === "object" ? media.client : {};
+  return [media.deviceId, media.device_id, client.deviceId, client.device_id, client.DeviceId]
+    .some(isUpNextSeedDeviceId);
+}
+
 export function formatDispatchTelemetry(summary, media, action = "watched") {
   const actionLabel = action === "unwatched" || action === "unplayed" ? "Marked Unwatched" : "Marked Watched";
   const lines = [
@@ -388,6 +396,7 @@ export async function recordSyncHistory(media = {}, summary = {}, action = "watc
       event: media.event || "",
       phase: media.phase || "",
       ids: media.ids || {},
+      showTitle: media.showTitle || media.show_title || "",
       season: media.season ?? null,
       episode: media.episode ?? null,
       progress: media.progress ?? null,
@@ -1161,12 +1170,59 @@ function statusFromTargetStates(targetStates = []) {
   return successCount ? "partial" : "skipped";
 }
 
-const DISMISSED_TRAKT_NOT_FOUND_DETAIL = "Dismissed: Trakt does not have this show";
+function rewriteDismissedTraktTelemetry(telemetry = "") {
+  const lines = String(telemetry || "").split(/\r?\n/);
+  let replaced = false;
+  const nextLines = lines.map((line) => {
+    const match = line.match(/^(Target\s+)?Trakt(?:\s+progress)?\s+status:\s*([^-]+)(?:\s+-\s*(.*))?$/i);
+    if (!match || !["error", "failed"].includes(String(match[2] || "").trim().toLowerCase())) return line;
+    const detail = `${match[3] || ""} ${line}`;
+    if (!/not[_ -]?found/i.test(detail)) return line;
+    replaced = true;
+    const targetPrefix = match[1] ? "Target " : "";
+    const progressSuffix = /\bprogress\s+status:/i.test(line) ? " progress" : "";
+    return `${targetPrefix}Trakt${progressSuffix} status: skipped - ${DISMISSED_TRAKT_NOT_FOUND_DETAIL} (retry still returned not_found)`;
+  });
+  if (!replaced) return "";
+
+  const targetStatuses = nextLines
+    .map((line) => line.match(/^(?:Target\s+)?(Plex|Emby|Jellyfin|Trakt)(?:\s+progress)?\s+status:\s*([^-]+)/i))
+    .filter(Boolean)
+    .map((match) => String(match[2] || "").trim().toLowerCase());
+  const failures = targetStatuses.filter((status) => ["error", "failed"].includes(status));
+  const pending = targetStatuses.filter((status) => ["pending", "queued", "in_progress", "in progress"].includes(status));
+  const successes = targetStatuses.filter((status) => status === "success");
+  const nextStatus = failures.length
+    ? (successes.length ? "partial" : "error")
+    : pending.length ? "pending" : successes.length ? "success" : "skipped";
+  const dispatchIndex = nextLines.findIndex((line) => /^Dispatch status:/i.test(line));
+  if (dispatchIndex >= 0) nextLines[dispatchIndex] = `Dispatch status: ${nextStatus}`;
+  const detailLine = `Details: ${DISMISSED_TRAKT_NOT_FOUND_DETAIL}; a later retry still returned not_found.`;
+  const detailsIndex = nextLines.findIndex((line) => /^Details:/i.test(line));
+  if (detailsIndex >= 0) nextLines[detailsIndex] = detailLine;
+  else nextLines.push(detailLine);
+  return nextLines.join("\n");
+}
+
+async function persistDismissedTraktTelemetry(entry = {}) {
+  const debug = entry.rawPayloadDebug || {};
+  const recordId = debug.watchRecordId || debug.watch_record_id;
+  let record = recordId ? await getWatchRecordById(recordId) : null;
+  if (!record) {
+    const mediaKey = debug.mediaKey || debug.media_key;
+    if (mediaKey) record = await getWatchRecordByMediaKey(mediaKey);
+  }
+  if (!record) record = currentWatchRecordForSyncActivity(entry, debug);
+  if (!record?.id || !record.sync_dispatch_telemetry) return;
+  const rewritten = rewriteDismissedTraktTelemetry(record.sync_dispatch_telemetry);
+  if (!rewritten || rewritten === record.sync_dispatch_telemetry) return;
+  await updateWatchTelemetry(record.id, rewritten);
+}
 
 // Mark only the Trakt not_found target as intentionally skipped. This keeps
 // the audit row and any unrelated target failures intact, but removes the
 // permanent Trakt mismatch from the current-issue count.
-export async function dismissSyncActivityEntry(rawId) {
+export async function dismissSyncActivityEntry(rawId, { scope = "item" } = {}) {
   if (isAuthoritativeRestoreActive()) {
     throw Object.assign(new Error("An authoritative watch-history restore is active; sync activity changes are paused until it completes."), { status: 409 });
   }
@@ -1187,6 +1243,7 @@ export async function dismissSyncActivityEntry(rawId) {
   }
 
   const dismissedAt = Date.now();
+  const dismissalScope = String(scope || "").trim().toLowerCase() === "show" ? "show" : "item";
   const targetStates = (entry.targetStates || []).map((target) => {
     const targetName = String(target?.target || "").trim().toLowerCase();
     const status = String(target?.status || "").trim().toLowerCase();
@@ -1214,9 +1271,12 @@ export async function dismissSyncActivityEntry(rawId) {
       ...entry.rawPayloadDebug,
       dismissalHistory: [
         ...previousDismissals,
-        { timestamp: dismissedAt, target: "trakt", reason: "not_found" },
+        { timestamp: dismissedAt, target: "trakt", reason: "not_found", scope: dismissalScope },
       ].slice(-10),
     },
+  });
+  await persistDismissedTraktTelemetry(entry).catch((error) => {
+    console.error("Failed to update watch telemetry after dismissing Trakt error", error);
   });
 
   return {
@@ -1493,6 +1553,7 @@ export async function handleDismissSyncHistory(req, res) {
   }
 
   const body = await readJson(req);
+  const dismissalScope = String(body.scope || "").trim().toLowerCase() === "show" ? "show" : "item";
   const ids = Array.isArray(body.ids)
     ? body.ids.map((value) => String(value || "").trim()).filter(Boolean)
     : String(body.id || "").trim() ? [String(body.id).trim()] : [];
@@ -1504,7 +1565,7 @@ export async function handleDismissSyncHistory(req, res) {
   let failed = 0;
   for (const id of ids) {
     try {
-      const result = await dismissSyncActivityEntry(id);
+      const result = await dismissSyncActivityEntry(id, { scope: dismissalScope });
       dismissed += 1;
       results.push({ id, status: "dismissed", ...result });
     } catch (error) {
@@ -1827,7 +1888,7 @@ export async function handleManualUnwatch(req, res) {
 }
 
 function mergeManualTrackerSummary(summary = {}, trackerResult = null) {
-  if (!trackerResult || trackerResult.status === "skipped") return summary;
+  if (!trackerResult || (trackerResult.status === "skipped" && !trackerResult.dismissed)) return summary;
 
   const trackerStatus = trackerResult.status === "failed" ? "error" : trackerResult.status === "not_found" ? "skipped" : trackerResult.status;
   const targetStates = [
@@ -2409,10 +2470,11 @@ export async function handleUpNextRemove(req, res) {
   }
 }
 
-// Push Plembfin's authoritative Up Next snapshot to Plex and Emby. Native
-// Resume/Continue Watching feeds may be reconciled for stale dismissals, while
-// Emby's calculated Next Up feed is observation-only. The managed provider
-// playlist is the complete representation; Jellyfin is intentionally excluded.
+// Push Plembfin's authoritative Up Next snapshot to every configured media
+// server. The native target rails are Plex Continue Watching, Emby Continue
+// Watching/Resume, and Jellyfin Next Up; each calculated rail is refreshed
+// from a verified watched predecessor, while the managed provider playlist
+// remains the exact writable mirror.
 // Intentional provider removal is also handled by handleUpNextRemove after
 // confirmation.
 // Dismissed items that Plembfin still considers unwatched, so they can be put
@@ -2572,6 +2634,7 @@ export async function handleNowPlaying(req, res) {
 
   const sessions = cacheRows
     .map(hydrateCachedSession)
+    .filter((session) => !isUpNextSeedSession(session))
     .filter((session) => !session.completedAt && !isTerminalLiveSession(session))
     .map(withMediaKey);
   const merged = [...sessions];
@@ -3036,6 +3099,52 @@ export async function handleWebhook(req, res) {
       }, media.phase || "webhook").catch(() => null);
       return sendJson(res, { ok: true, ignored: true, reason: "User mismatch" });
     }
+  }
+
+  if (isSyntheticUpNextWebhook(media)) {
+    console.log("Webhook: ignored synthetic Up Next rail seed playback", {
+      source: media.source,
+      title: media.title,
+      event: media.event,
+      phase: media.phase,
+      deviceId: media.deviceId,
+    });
+    await deleteActiveSession(media).catch(() => null);
+    await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
+    return sendJson(res, {
+      ok: true,
+      active: false,
+      inserted: false,
+      propagated: false,
+      skipped: true,
+      reason: "Legacy Up Next rail seed playback is synthetic, not user playback",
+    });
+  }
+
+  // A Next Up promotion updates only the predecessor's LastPlayedDate so
+  // Jellyfin can sort the series. Jellyfin emits the same UserDataSaved/
+  // played-flag callback for that write as it does for a real Mark played
+  // action. It is ordering metadata, not a watch, so consume the callback
+  // before the normal canonical replay path gets a chance to run.
+  if (
+    media.source === "jellyfin"
+    && media.playedFlagOnly === true
+    && await isRecentOutboundJellyfinNextUpNudge(media, loopStore).catch(() => false)
+  ) {
+    console.log("Webhook: ignored Jellyfin Next Up ordering nudge", {
+      title: media.title,
+      event: media.event,
+      itemId: media.itemId,
+    });
+    await deletePlaybackProgress(media).catch(() => null);
+    await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
+    return sendJson(res, {
+      ok: true,
+      inserted: false,
+      propagated: false,
+      skipped: true,
+      reason: "Jellyfin Next Up ordering nudge, not a watch",
+    });
   }
 
   const embyLikeUserDataState = (
