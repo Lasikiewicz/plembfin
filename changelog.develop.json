@@ -1,13 +1,13 @@
 {
-  "version": "1.1.0.0.2",
-  "build": 2,
+  "version": "1.1.0.0.3",
+  "build": 3,
   "resetCommit": "2ffc8f65cada43ed20c5b193b194463398b8c9e0",
-  "updatedAt": "2026-09-13T14:12:55.399Z",
+  "updatedAt": "2026-09-13T14:20:33.013Z",
   "entries": [
     {
-      "build": 2,
-      "date": "2026-09-13T14:12:55.399Z",
-      "commit": "12e9e5b6461d6e9edbe32619b9c1545b8ef5c9c3",
+      "build": 3,
+      "date": "2026-09-13T14:20:33.013Z",
+      "commit": "04e1b94a461e92e4a567ea1c5f4b248e47f717a5",
       "message": "This update includes make Up Next reliable across Plex, Emby, and Jellyfin and verify the public documentation against the v1.1.0 release.",
       "author": "Lasikiewicz",
       "details": [
