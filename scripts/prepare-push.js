@@ -53,8 +53,22 @@ function main() {
     process.exit(1);
   }
 
-  console.log("Rebuilding the develop changelog...");
-  run("The changelog rebuild", [path.join(root, "scripts", "rebuild-develop-changelog.js")]);
+  // Check before rebuilding. rebuild-develop-changelog.js increments the build
+  // counter on every run that finds user-facing commits, so calling it when the
+  // changelog is already current burns a build number and produces a second,
+  // pointless "rebuild develop changelog" commit. The first version of this
+  // script did exactly that on its second run.
+  const current = spawnSync(process.execPath, [path.join(root, "scripts", "rebuild-develop-changelog.js"), "--check"], {
+    cwd: root,
+    encoding: "utf8",
+  });
+
+  if (current.status === 0) {
+    console.log("Develop changelog already covers the commits being pushed; nothing to rebuild.");
+  } else {
+    console.log("Rebuilding the develop changelog...");
+    run("The changelog rebuild", [path.join(root, "scripts", "rebuild-develop-changelog.js")]);
+  }
 
   const changed = git(["status", "--porcelain", "--", "changelog.develop.json", "public"])
     .split("\n")
