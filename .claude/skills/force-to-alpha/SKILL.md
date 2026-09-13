@@ -1,6 +1,6 @@
 ---
 name: force-to-alpha
-description: "Promote everything queued on plembfin develop onto the alpha branch. Use when the user says \"Force to alpha\" exactly. Covers fast-forwarding develop, reviewing and checking README.md, running promote-develop-to-alpha.js, the asset restamp, the required approval of the alpha changelog entry, and the force-push to alpha. It does not push develop."
+description: "Promote everything queued on plembfin develop onto the alpha branch. Use when the user says \"Force to alpha\" exactly. Covers fast-forwarding develop, reviewing and checking README.md, running promote-develop-to-alpha.js, the asset restamp, the required approval and headline check of the alpha changelog entry, starting the build locally for the user to check, and the force-push to alpha. It does not push develop."
 ---
 
 # Force to alpha
@@ -110,10 +110,56 @@ Ask the user to approve it or give replacement wording. If they revise it, edit
 `changelog.alpha.json`'s top entry (`message`, and the `sections` bullets if they change
 those), re-run the process-text check, and show it again. Only then stage and commit.
 
+**Check the headline before showing it, and offer to rewrite it.** `synthesizeHeadline`
+joins the subject of every product commit in the cycle, so two or more give a run-on such
+as "This update includes make Up Next reliable across Plex, Emby, and Jellyfin and verify
+the public documentation...". That is the generator working as designed, not a fault, but
+it is what testers read. When the headline is a joined sentence, say so, propose a single
+clean sentence covering the cycle, and write the approved wording into the entry's
+`message` field before committing. This is the only point where it can be fixed: from here
+it carries into the alpha build entry verbatim, and "Force to main" then consolidates from
+these entries.
+
 This gate is deliberate even though the entry is generated verbatim from develop's commit
 messages: alpha builds are what testers read, and the wording is worth a look before it is
 force-pushed. Note that the same text is reviewed again when "Force to main" consolidates
 the cycle, so expect to approve it twice per cycle.
+
+### 3b - Start the build being promoted and let the user check it
+
+Everything is written locally and nothing has left the machine. Before the force-push,
+show the user the build itself rather than only its changelog.
+
+Stop every local server first, so nothing is left serving an older state and mistaken for
+this build:
+
+```bash
+# Windows: stop anything on the app and website ports
+Get-NetTCPConnection -LocalPort 5055,4321 -State Listen -ErrorAction SilentlyContinue |
+  ForEach-Object { Stop-Process -Id $_.OwningProcess -Force -Confirm:$false }
+```
+
+Then start the application as an alpha build, using the approved elevated
+network-enabled execution path:
+
+```bash
+BUILD_CHANNEL=alpha npm start   # http://localhost:5055
+```
+
+`BUILD_CHANNEL=alpha` matters. Without it the local run reports the release channel,
+because the channel is normally baked in at image build time, and Settings -> Changelog
+would show the published releases rather than this alpha entry.
+
+Report these together and wait:
+
+1. **The app at `http://localhost:5055`**, naming the version it reports, so the user can
+   confirm it matches the alpha version about to be published.
+2. **Settings -> Changelog**, where the Alpha tab shows this entry as the current build.
+3. **Anything in the cycle worth exercising**, named specifically - the features the
+   entry's bullets describe are what a tester will try first.
+
+Do not force-push until the user has looked and said to go ahead. If they want a change,
+make it, re-run from step 3, and show this again.
 
 ### 4 - Force alpha to match develop
 Show the user what is about to land before running this - it is a force push to the
