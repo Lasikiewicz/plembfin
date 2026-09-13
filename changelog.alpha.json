@@ -1,10 +1,35 @@
 {
   "baseVersion": "1.1.0",
-  "build": 3,
-  "version": "1.1.0.3.0",
-  "updatedAt": "2026-09-13T20:25:07.355Z",
+  "build": 4,
+  "version": "1.1.0.4.0",
+  "updatedAt": "2026-09-13T21:29:36.991Z",
   "releaseMessage": "",
   "entries": [
+    {
+      "build": 4,
+      "version": "1.1.0.4.0",
+      "shortVersion": "1.1.0.4.0",
+      "date": "2026-09-13T21:29:36.991Z",
+      "commit": "eae21b821e9c4db9cd776a23232a4e3b72fcf666",
+      "message": "Fix - Show part-watched progress in Up Next",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix: Show part-watched progress in Up Next",
+        "Fix: Show positive resume progress on Up Next cards instead of hiding the percentage",
+        "Fix: Keep Up Next resume state consistent with the media detail page across connected media servers",
+        "Fix: Preserve native rail synchronization and legacy cleanup while displaying available resume positions"
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Show part-watched progress in Up Next",
+          "Show positive resume progress on Up Next cards instead of hiding the percentage",
+          "Keep Up Next resume state consistent with the media detail page across connected media servers",
+          "Preserve native rail synchronization and legacy cleanup while displaying available resume positions"
+        ],
+        "tweaks": []
+      }
+    },
     {
       "build": 3,
       "version": "1.1.0.3.0",
@@ -110,5 +135,5 @@
       ]
     }
   ],
-  "shortVersion": "1.1.0.3.0"
+  "shortVersion": "1.1.0.4.0"
 }

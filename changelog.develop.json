@@ -1,20 +1,7 @@
 {
-  "version": "1.1.0.3.1",
-  "build": 1,
-  "resetCommit": "6ed04258a501d1e754f99e079b2d2191916877fc",
-  "updatedAt": "2026-09-13T21:24:55.343Z",
-  "entries": [
-    {
-      "build": 1,
-      "date": "2026-09-13T21:24:55.343Z",
-      "commit": "40e2a7a6a81c976da2e300a994794fb4881efae6",
-      "message": "Fix - Show part-watched progress in Up Next",
-      "author": "Lasikiewicz",
-      "details": [
-        "Show positive resume progress on Up Next cards instead of hiding the percentage",
-        "Keep Up Next resume state consistent with the media detail page across connected media servers",
-        "Preserve native rail synchronization and legacy cleanup while displaying available resume positions"
-      ]
-    }
-  ]
+  "version": "1.1.0.4.0",
+  "build": 0,
+  "resetCommit": "eae21b821e9c4db9cd776a23232a4e3b72fcf666",
+  "updatedAt": "2026-09-13T21:29:36.991Z",
+  "entries": []
 }
