@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node scripts/run-astro.mjs dev",
-    "predev": "node scripts/sync-assets.mjs && node scripts/optimize-assets.mjs",
+    "predev": "node scripts/build-release-data.mjs && node scripts/sync-assets.mjs && node scripts/optimize-assets.mjs",
     "build": "node scripts/build-release-data.mjs && node scripts/sync-assets.mjs && node scripts/optimize-assets.mjs && node scripts/run-astro.mjs build",
     "assets:optimize": "node scripts/optimize-assets.mjs",
     "check:deploy": "npm run check:content && npm run check:links && npm run check:assets && npm run check:privacy && npm run check:duplicates && npm run check:accessibility",

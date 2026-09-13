@@ -1,13 +1,39 @@
 import fs from "node:fs";
 import path from "node:path";
+import { execFileSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const websiteRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = path.resolve(websiteRoot, "..");
 const outputPath = path.join(websiteRoot, "src", "generated", "release.json");
 
-const packageJson = JSON.parse(fs.readFileSync(path.join(repositoryRoot, "package.json"), "utf8"));
-const changelog = fs.readFileSync(path.join(repositoryRoot, "CHANGELOG.md"), "utf8");
+// Released data is read from origin/main when that ref resolves, and from the
+// working tree otherwise.
+//
+// The working tree is the normal path in production. Verified against the real
+// Cloudflare Pages build log (deployment 8246ff18, main, 5f94ea0): Pages clones a
+// single commit by SHA into FETCH_HEAD and keeps no remote-tracking refs, so
+// origin/main does not exist there at all. That is correct anyway, because Pages
+// builds `main` itself, so the working tree IS the released tree.
+//
+// origin/main matters for the other publishing path. "Push website live" deploys
+// from a local checkout, usually `develop`, and the release commit is never merged
+// back into develop (docs/decisions.md entry 18), so develop's CHANGELOG.md lacks
+// the newest release. Reading the ref when it exists keeps that publish correct.
+function readReleasedFile(relativePath) {
+  try {
+    return execFileSync("git", ["show", `origin/main:${relativePath}`], {
+      cwd: repositoryRoot,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+  } catch {
+    return fs.readFileSync(path.join(repositoryRoot, relativePath), "utf8");
+  }
+}
+
+const packageJson = JSON.parse(readReleasedFile("package.json"));
+const changelog = readReleasedFile("CHANGELOG.md");
 
 function parseEntries(markdown) {
   return markdown
@@ -94,6 +120,16 @@ const current = entries[0] || {
   summary: "Current release information is generated from the repository changelog.",
   bullets: [],
 };
+
+// Guard the fallback. Because the working tree is the production path, a future
+// change to the Pages production branch would otherwise silently publish a site
+// with a blank or wrong changelog. Fail the build instead.
+if (!packageJson.version) {
+  throw new Error("Refusing to generate release data: no version found in package.json.");
+}
+if (!entries.length) {
+  throw new Error("Refusing to generate release data: CHANGELOG.md parsed to zero release entries.");
+}
 
 const output = {
   version: packageJson.version,

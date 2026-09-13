@@ -1,8 +1,24 @@
 {
-  "version": "1.0.2",
-  "date": "11 September 2026",
-  "summary": "This update fixes changelog navigation, keeps completed onboarding hidden, preserves Manual Watch review counts while navigating, and hardens concurrent startup.",
+  "version": "1.1.0",
+  "date": "12 September 2026",
+  "summary": "This release makes whole-series watch sync reliable with release-date choices, live per-episode progress, resilient Trakt delivery, and a cleaner onboarding and login experience.",
   "entries": [
+    {
+      "version": "1.1.0",
+      "date": "12 September 2026",
+      "title": "v1.1.0",
+      "summary": "This release makes whole-series watch sync reliable with release-date choices, live per-episode progress, resilient Trakt delivery, and a cleaner onboarding and login experience.",
+      "bullets": [
+        "Make full-series watch sync reliable",
+        "Mark complete shows watched across seasons with the selected watch date and visible per-episode progress",
+        "Update open detail, dashboard, and Up Next views from live watch-state events without full-page rerenders",
+        "Finish local media-server writes before draining a paced, retrying Trakt queue, keep remove/add pairs atomic, and stop queued items on cancellation",
+        "Improve sync issue matching, retry coverage, and status feedback for failed episode destinations",
+        "Polish onboarding and login presentation, theme-aware branding, version metadata, and public release documentation",
+        "Align website with current release",
+        "Update public documentation to v1.0.2 and document whole-series watch dates, live save progress, resilient Trakt retries, and local password recovery."
+      ]
+    },
     {
       "version": "1.0.2",
       "date": "11 September 2026",
@@ -5080,27 +5096,5 @@
       "bullets": []
     }
   ],
-  "alpha": {
-    "baseVersion": "1.0.2",
-    "build": 1,
-    "version": "1.0.2.1",
-    "updatedAt": "2026-09-12T14:17:41.975Z",
-    "entries": [
-      {
-        "build": 1,
-        "version": "1.0.2.1",
-        "date": "12 September 2026",
-        "title": "Alpha build 1",
-        "summary": "Feature - Make full-series watch sync reliable",
-        "bullets": [
-          "Feature: Make full-series watch sync reliable",
-          "Feature: Mark complete shows watched across seasons with the selected watch date and visible per-episode progress",
-          "Feature: Update open detail, dashboard, and Up Next views from live watch-state events without full-page rerenders",
-          "Feature: Finish local media-server writes before draining a paced, retrying Trakt queue, keep remove/add pairs atomic, and stop queued items on cancellation",
-          "Feature: Improve sync issue matching, retry coverage, and status feedback for failed episode destinations",
-          "Feature: Polish onboarding and login presentation, theme-aware branding, version metadata, and public release documentation"
-        ]
-      }
-    ]
-  }
+  "alpha": null
 }

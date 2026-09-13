@@ -176,7 +176,7 @@ it.
 ---
 
 ### 7. Build versions are four segments, not five
-**Date:** 2026-08-21  |  **Status:** Active, supersedes the five-segment scheme of 2026-08-20
+**Date:** 2026-08-21  |  **Status:** Superseded by entry 18 (2026-09-12)
 
 **Context:** The tiered changelog cascade shipped with a five-segment build version
 (`0.8.6.8.0`).
@@ -196,8 +196,10 @@ visual noise in the changelog UI and in the sidebar.
 **Context:** The Force to main procedure ended by folding the release commit back into both
 `develop` and `alpha`.
 
-**Decision:** Fold it into `develop` only. The release synchronization is published to
-`origin/develop` by the Force to main procedure; it is not synced into `alpha`.
+**Decision:** Do not sync `alpha`. (Amended 2026-09-12 by entry 18: the release is no
+longer folded into `develop` either, and nothing is pushed to `origin/develop`. The half of
+this entry that still stands, and the reason it stands, is that syncing `alpha` is wasted
+work.)
 
 **Rejected:** Also syncing `alpha`. The next Force to alpha force-pushes `develop`'s tip onto
 `alpha` regardless of what `alpha` holds, so anything synced there is discarded rather than
@@ -208,7 +210,7 @@ built on. The alpha half cost an extra checkout, merge, push, and CI run for not
 ---
 
 ### 16. Main release state is synchronized to remote `develop`
-**Date:** 2026-09-11  |  **Status:** Active
+**Date:** 2026-09-11  |  **Status:** Superseded by entry 18 (2026-09-12)
 
 **Context:** The previous implementation merged the main release commit into only the
 local `develop` checkout. The remote branches could therefore diverge: `main` carried the
@@ -232,7 +234,7 @@ alpha build with conflicts unrelated to the release itself.
 ---
 
 ### 9. A changelog-only push to `develop` does not rebuild the develop image
-**Date:** 2026-08-31  |  **Status:** Active
+**Date:** 2026-08-31  |  **Status:** Superseded by entry 18 (2026-09-12)
 
 **Context:** Force to alpha step 4 pushes a commit to `develop` that contains only the reset
 `changelog.develop.json` and the promoted `changelog.alpha.json`, no app code. That triggered
@@ -260,6 +262,12 @@ alpha image kept running the previous build's JavaScript against the new server.
 **Decision:** Promotion to alpha rewrites every local asset reference with the new build's
 version. This produces a large, entirely mechanical diff across `public/` on every promotion,
 which is expected.
+
+**Extended 2026-09-12 (entry 18):** "Push to git" now restamps too, with the develop build's
+own five-segment version, because the same failure applied to every develop build inside a
+cycle. `scripts/asset-versions.js` derives the expected version from
+`changelog.develop.json` before `changelog.alpha.json`, so the `npm run build` check agrees
+with whichever command stamped last.
 
 **Rejected:** Shortening the cache lifetime, which gives up the performance win for every end
 user in order to fix a problem that only affects testers mid-cycle.
@@ -424,3 +432,288 @@ which can leave Trakt with neither the old history nor the replacement history.
 
 **Enforced by:** `trackerDispatcher.js`, `syncOrchestrator.js`, `mediaForceSync.js`, and
 `test/mediaForceSyncTrackerPhases.test.js`.
+
+---
+
+### 18. Build versions are five meaningful segments, and no release state is pushed to `develop`
+**Date:** 2026-09-12  |  **Status:** Active, supersedes entries 7, 9, and 16; amends 8; extends 10
+
+**Context:** Every "Force to alpha" and every "Force to main" published two images: the
+intended channel image, and a second, meaningless `develop` one. `docker-publish-develop.yml`
+carried a `paths-ignore` for the two changelog JSON files meant to prevent exactly that, but
+`paths-ignore` only skips a workflow when *every* changed path matches, and the promotion
+commit also carries the `public/` asset restamp, `README.md`, and on a release
+`package.json`/`package-lock.json`. The filter never matched. Entry 9 believed the push was
+required so `origin/develop` held the right file for the app's live develop comparison;
+entry 16 required a merge of `origin/main` into `origin/develop` so release metadata did not
+go stale. Both existed to carry state that git and the local manifests already hold.
+
+Separately, alpha and develop builds could not be ordered against each other at all. Alpha
+was four segments (`1.1.0.3`) while the comparators read only three, so `1.1.0.3` and
+`1.1.0` compared equal. `semverGt` in `promote-alpha-to-main.js` was worse: it split on `.`,
+read three positions, and coerced anything non-numeric to `NaN`, which `(NaN || 0)` then
+silently turned into `0` - and that function decides which version ships to every user.
+
+**Decision:**
+1. Build versions are five numeric segments, `major.minor.patch.alpha.dev`. The alpha
+   counter resets on "Force to main", the dev counter on "Force to alpha". Both comparators
+   read all five with zero-fill, so an existing four-segment `1.0.2.1` still equals
+   `1.0.2.1.0` and no shipped version is reinterpreted. Display trims *trailing* zeros and
+   never goes below three segments, so a release still reads `v1.1.0`.
+2. `package.json` and `package-lock.json` keep the three-segment released semver only. Five
+   segments is not valid semver and npm rejects or mishandles it.
+3. Neither force command pushes to `origin/develop`, and "Force to main" does not merge
+   `main` into `develop`. Each promotion writes the new numbers locally and the next
+   ordinary "Push to git" publishes them.
+4. `promote-alpha-to-main.js` reads the released history from `origin/main:changelog.json`
+   rather than the working tree, and refuses the promotion if the merged history is missing
+   any prior release or does not add exactly one.
+
+**Rejected:**
+- *Keeping the develop sync and splitting the promotion into two commits so `paths-ignore`
+  finally matches.* Works, but preserves the bookkeeping rather than removing the reason for
+  it, and leaves the same trap for the next file added to a promotion commit.
+- *Semver prerelease tags (`1.2.0-alpha.1`).* Requires committing to the next release number
+  at alpha time, so a cycle that turns out to be a patch release inverts the ordering and
+  testers silently stop seeing releases. It also forces real prerelease precedence into both
+  comparators, where a mistake ships a wrong version.
+- *Reviving entry 7's four-segment scheme.* Entry 7 cut the fifth segment because it was
+  always zero, no comparison read it, and it rendered as noise (`v0.14.0.3.0`). Both halves
+  are now false: the segment carries develop's build counter, the comparators read it, and
+  display trims it. Do not cut it again without reading this entry.
+- *Entry 16's objection that dropping the merge leaves the branches to diverge and makes the
+  next alpha promotion resolve conflicts.* There is no merge left to conflict: entry 16's
+  failure mode was conflict during the repair merge, and this removes the repair merge
+  instead of trying to make it succeed. The staleness it worried about is gone because
+  nothing is carried - every changelog generation point writes the release version from the
+  manifests.
+- *Entry 9's objection that `origin/develop` must hold the reset file for the app.*
+  `describePendingDevelopBuild()` flags a pending build only when the remote build is
+  greater at equal version. With no sync, `origin/develop` and any running develop image sit
+  at the same pre-promotion build, so it correctly reports nothing pending until the next
+  "Push to git".
+- *Writing `CHANGELOG.md` and `changelog.json` from the working tree.* The release is built
+  from alpha's checkout, and with no merge back neither branch holds main's history, so each
+  release would publish a changelog containing only itself. Worse, the loss compounds:
+  release N is absent from develop, next cycle's alpha is missing it, and release N+1 is
+  appended to that. Every release would erase the one before it, in the shipped image and on
+  the website. Hence reading `origin/main` plus the verification gate - a truncated history
+  cannot be recovered once users have pulled the image.
+
+**Enforced by:** `scripts/version.js`; `parseSemver`/`compareSemver` in
+`server/src/routes/maintenance.js`; `semverGt` and `verifyReleaseHistory` in
+`scripts/promote-alpha-to-main.js`; `currentAssetVersion()` in `scripts/asset-versions.js`;
+steps 1 and 5 of `.claude/skills/force-to-alpha/SKILL.md`; steps 0 and 7 of
+`.claude/skills/force-to-main/SKILL.md`; step 6 of `.claude/skills/push-to-git/SKILL.md`.
+
+### 19. Up Next writes a sub-threshold resume position to mirror the calculated provider rails
+**Date:** 2026-09-13  |  **Status:** Active
+
+**Context:** Plex Continue Watching, Emby Resume, and Emby Next Up are calculated by those
+servers from their own playstate. Their APIs expose a hide operation and a membership read,
+but no way to add an arbitrary future item. The managed `Plembfin Up Next` playlist was added
+as the durable, writable provider-side mirror, and it works, but it is a separate list rather
+than the rail users actually look at. The only mechanism that places an item on those rails is
+a playback position.
+
+**Decision:** After the playlist is reconciled, the push writes a five-second position to Plex
+and Emby for queue items that are not already on that provider's resume feed and do not have a
+real position being propagated by the normal resume path.
+
+**Rejected:** Leaving the playlist as the only mirror, which is honest but leaves the rail the
+user reads permanently out of step with Plembfin. Also rejected: a position large enough to be
+visible in the provider UI's progress bar, which would be indistinguishable from a real
+part-watch.
+
+**Why this is safe, and why the exact value matters:** five seconds is below
+`minResumePositionSec` (default 60). That threshold is enforced by `shouldSyncResumeProgress`
+on the outbound path and on both ingestion paths (`syncResumableMedia` in `scheduled.js` and
+the `ended` webhook phase in `routes/sync.js`), and by `actionableResume` in the projection. A
+seeded position is therefore never stored in `playback_progress`, never rendered as a
+part-watch, and never dispatched onward to Trakt. This is the whole safety argument: if the
+seed were ever raised to or above that threshold, or if `MIN_RESUME_POSITION_SEC` were lowered
+to meet it, a fabricated part-watch would enter the canonical record and fan out. The seed
+refuses to run when `minResumePositionMs()` is at or below the seed value rather than
+proceeding, and `test/upNextRailSeed.test.js` asserts the ordering directly.
+
+**Also deliberate:** an item already on the provider's successfully refreshed resume feed is
+skipped unconditionally, so a real checkpoint is never replaced by the token one.
+
+**Enforced by:** `RAIL_SEED_POSITION_MS` and `railSeedBlockedReason()` in
+`server/src/utils/upNextRailSeed.js`; `shouldSyncResumeProgress` in
+`server/src/utils/syncOrchestrator.js`; `actionableResume` in
+`server/src/utils/upNextService.js`; `test/upNextRailSeed.test.js`.
+
+### 20. Jellyfin is a full Up Next participant again, read and written
+**Date:** 2026-09-13  |  **Status:** Active, supersedes the Jellyfin exclusion introduced with
+the authoritative Up Next push
+
+**Context:** Up Next was narrowed to Plex and Emby on the reasoning that Jellyfin's Next Up is a
+calculated GET feed with no per-item write, so it could be neither reconciled nor dismissed.
+Two things then showed that reasoning was incomplete. Jellyfin's Next Up feed was, in practice,
+the only feed returning correct data: with 20 accurate entries while Emby's Resume and Next Up
+both returned zero, excluding it removed the one working source and left real, playable episodes
+missing from the queue. And the write problem had the same answer already adopted for Plex and
+Emby: a managed playlist for the durable list, and a sub-threshold resume position for the
+calculated rails (entry 19). Jellyfin's playlist API is Emby-derived and its
+`setJellyfinProgress` already existed.
+
+**Decision:** Jellyfin is read as a provider observation source, receives dismissals on its
+resume feed, receives the managed `Plembfin Up Next` playlist, and is seeded like the others.
+
+**Rejected:** Write-only participation, which would have let Plembfin drive Jellyfin's rails
+without trusting its feeds. Rejected because the feed is accurate and excluding it was the
+original defect, not a safeguard.
+
+**Consequence to know:** `/Shows/NextUp` is requested with `EnableResumable` on both Emby and
+Jellyfin, so a seeded episode becomes its series' Next Up entry there. That is the mechanism
+that makes Next Up controllable at all, and it is also why Next Up can hold only one episode
+per series and never holds movies.
+
+**Enforced by:** `PROVIDERS` in `server/src/utils/upNextProviderSync.js`; `UP_NEXT_PROVIDERS` in
+`upNextService.js`, `upNextRepository.js`, `upNextCache.js`, and `public/modules/up-next.js`;
+`EMBY_LIKE_CLIENTS` in `server/src/utils/upNextProviderPlaylists.js`;
+`test/upNextProviderSync.test.js`.
+
+### 21. The Up Next rail seed is a real playback position, made safe by a ledger rather than by its size
+**Date:** 2026-09-13  |  **Status:** Active, amends entry 19
+
+**Context:** Entry 19 seeded five seconds, on the reasoning that a position below
+`minResumePositionSec` could never be mistaken for real progress by any Plembfin path. That
+reasoning was sound and the result did not work. Measured against live servers: Plex accepted
+the request with a 200 and stored no `viewOffset` at all; Emby stored 0.194% of runtime and
+then filtered it out of its Resume feed; only Jellyfin surfaced it. All three apply a minimum
+resume percentage, 5% by default, before an item counts as in progress. A position small enough
+to be self-evidently synthetic is, by the same token, too small for any of them to keep.
+
+**Decision:** Seed 6% of the item's runtime, and record every seed in `up_next_rail_seeds`
+(provider, native id, exact position). Ingestion rejects a seeded position by identity instead
+of by size.
+
+**Rejected:** Leaving the rails to the playlist alone, which keeps the rail the user actually
+reads permanently out of step. Also rejected: seeding only Jellyfin, the one server where the
+small value worked, which would have made behavior differ per provider for no reason the user
+could see.
+
+**What the safety now rests on:** the ledger, checked in `syncResumableMedia` (scheduled feed
+ingestion), the `ended` webhook phase, and the projection, which strips the position so a seeded
+card never renders a progress bar. A seed is matched within 2s to absorb provider rounding, and
+a position that has moved away from the seed is treated as genuine and forgets the seed, so the
+first real resume after a seed is never swallowed. Seeds expire after 30 days.
+
+**Why 6%:** it clears the providers' 5% minimum with room for their rounding and stays far below
+the watched threshold. An item whose runtime is unknown is reported as skipped rather than
+seeded with a guessed absolute, which would be under the minimum for a feature and over it for
+a short.
+
+**Verified live:** Plex stored 213768ms of 3562800ms (6.000%) and listed the item in Continue
+Watching, having discarded the five-second write entirely.
+
+**Enforced by:** `railSeedPositionMs` in `server/src/utils/upNextRailSeed.js`;
+`server/src/utils/upNextSeedLedger.js`; migration 37 in `server/src/db.js`;
+`mediaIsUpNextRailSeed` guards in `server/src/scheduled.js` and `server/src/routes/sync.js`;
+`withoutRailSeedProgress` in `server/src/utils/upNextService.js`;
+`test/upNextRailSeed.test.js`.
+
+### 22. An empty Emby resume feed is not evidence that nothing is resumable
+**Date:** 2026-09-13  |  **Status:** Active
+
+**Context:** `fetchEmbyResumableItems` preferred `/Users/{id}/Items/Resume` and fell back to the
+generic `Filters=IsResumable` query only on a 404, because that generic query returns an empty
+snapshot on some Emby versions while Continue Watching is full. On this installation the
+opposite is true: `/Items/Resume` answers 200 with zero items while `Filters=IsResumable`
+returns every resumable item, including a genuine part-watch sitting at 36 minutes. Emby's Up
+Next feeds read as empty throughout this work, which was taken for a consequence of an earlier
+force sync; it was the endpoint.
+
+**Decision:** Try the native endpoint first, and when it succeeds with zero items, ask the
+legacy query before concluding there is nothing to resume.
+
+**Rejected:** Switching to `Filters=IsResumable` outright, which would reintroduce the original
+failure on the versions the 404 fallback was written for.
+
+**Note:** this repairs what Plembfin reads. Emby's own Continue Watching row appears to use the
+same empty endpoint, so a seeded item can be correctly stored and still not appear in Emby's UI;
+that part is server-side and outside Plembfin's control.
+
+**Enforced by:** `fetchEmbyResumableItems` in `server/src/utils/embyClient.js`;
+`test/upNextProviderSync.test.js`.
+
+### 23. Up Next dismissals are server state, not browser state
+**Date:** 2026-09-13  |  **Status:** Active
+
+**Context:** Dismissing an Up Next card wrote to `localStorage` and nothing else. The server's
+projection never knew, so the queue Plembfin held and the queue the user saw were different
+lists, differing by however many items that one browser had dismissed. Every consumer outside
+that browser session saw the unfiltered list: the API, a second browser, a phone, anything
+scheduled. This was found the hard way - a push driven through the API sent 55 seeded positions
+to three media servers, including 16 items the user had dismissed and could not see.
+
+**Decision:** Dismissals live in `up_next_dismissals` and are applied inside
+`buildUpNextProjection`, so every consumer gets the same queue. `/api/up-next/dismissed` lists
+them and `/api/up-next/restore` puts one or all back.
+
+**Rejected:** Keeping them client-side and having the push subtract them before sending, which
+fixes only the one caller that remembers to do it and leaves every other consumer wrong.
+
+**Identity:** a dismissal stores the item's full alias set plus a `coordinate:<show>:s<n>:e<n>`
+key, so it survives a re-match or a provider id change. Native provider ids are part of the set,
+which is what keeps two different episodes of one show apart.
+
+**Deliberate carry-over:** a dismissed item returns when it has a newer *real* position, exactly
+as the browser-local rule did. A dismissal is "not now", not "never".
+
+**Migration:** an existing browser posts its stored dismissals once on first load and then
+clears them, so a device that dismissed things before this change does not see them reappear.
+
+**Enforced by:** `server/src/utils/upNextDismissals.js`; migration 38 in `server/src/db.js`;
+the dismissal filter in `buildUpNextProjection`; `test/upNextDismissals.test.js`.
+
+### 24. Emby rail seeds are reported as a playback session, not written as UserData
+**Date:** 2026-09-13  |  **Status:** Active, completes entry 21 for Emby
+
+**Context:** The 6% seed worked on Plex and Jellyfin and not on Emby. Emby stored the position
+correctly - the item's own page showed it, `PlayedPercentage` read 6.000, and the
+`Filters=IsResumable` query returned it - but `/Users/{id}/Items/Resume` stayed empty and Emby's
+home screen showed no Continue Watching row. The endpoint returned zero under every parameter
+combination tried: bare, `MediaTypes=Video`, `Recursive`, `IncludeItemTypes`, `ParentId` per
+library, and limit-only. The user's home layout was checked too and holds no section
+preferences, so Emby was on defaults, which include the row.
+
+The break came from a control case: the user started watching an episode for real, and it
+appeared on the rail immediately. Comparing its UserData against the seeded items ruled out
+every field in turn. `PlayCount` was the obvious candidate and was tested directly - writing
+`PlayCount: 1` with an identical position and a fresh `LastPlayedDate` still did not put the
+item on the rail. The only remaining difference was that one had been through a playback
+session.
+
+**Decision:** Seed Emby by reporting the position the way a client does -
+`/Sessions/Playing`, `/Sessions/Playing/Progress`, `/Sessions/Playing/Stopped`, with an
+`X-Emby-Authorization` device identity - then write UserData once to restore `PlayCount` and pin
+the exact position. Verified live: the item joins the rail and stays there with `PlayCount` back
+at its original value and `Played` still false.
+
+**Rejected:** Treating it as an unfixable Emby-side problem, which is what the evidence looked
+like until the real play gave us something to compare against.
+
+**Consequences worth knowing:** the session call increments `PlayCount`, so the UserData write
+afterwards is not cosmetic - without it Plembfin would be inventing play counts. Clearing an
+Emby seed also needs `hideEmbyFromResume`, because zeroing the position does not remove the
+entry from a rail the playback index drives. And this explains entry 22: `/Items/Resume` lists
+what the playback index knows, so an item whose session data is gone - the user's own 36-minute
+part-watch of a film - is missing from it while `IsResumable` still finds it. Both queries are
+needed, for different reasons.
+
+**The session is real, and that has a cost.** A bare `/Sessions/Playing/Stopped` was tested on
+its own and does not reach the rail, so the seed genuinely opens playback for a moment. Emby
+reports that back through `/Sessions`, where Plembfin's live poller read it as playback: three
+phantom Now Playing cards, and the items dropped out of Up Next because something playing is not
+something queued. The seed therefore identifies itself with a fixed `DeviceId`, and both the
+Emby and Jellyfin session readers skip it. Nothing reached watch history or
+`playback_progress` while this was live - the seed ledger held - but the queue was visibly wrong
+until the sessions aged out.
+
+**Enforced by:** `reportEmbyResumePosition` and `UP_NEXT_SEED_DEVICE_ID` in
+`server/src/utils/embyClient.js`; `isUpNextSeedSession` in `server/src/utils/liveSessions.js`;
+the Emby branch of `writeSeed` and `clearStaleSeeds` in `server/src/utils/upNextRailSeed.js`;
+`test/upNextProviderSync.test.js`; `test/upNextRailSeed.test.js`.

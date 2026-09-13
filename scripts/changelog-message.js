@@ -185,17 +185,67 @@ export function synthesizeHeadline(messages = []) {
   return `This update includes ${joined}.`;
 }
 
+// Reads the bullet list out of a commit body.
+//
+// A bullet may wrap across several lines. The commit format this project asks
+// for produces exactly that, because bodies are wrapped near 72 characters, so
+// most real bullets are multi-line. An earlier version kept only lines that
+// began with a bullet marker and dropped everything else, which silently
+// truncated every wrapped bullet at its first line - "Clear seeds for items
+// that leave the queue. Without this a seeded episode" - and published the
+// fragment to the changelog. It failed quietly, so it survived until a commit
+// with long bullets went through.
+//
+// A line continues the current bullet when it is non-blank and is not itself a
+// bullet. A blank line ends the bullet. That blank-line rule is what keeps the
+// intro paragraph and any section headings out: they are separated from the
+// bullets by blank lines, so they never attach to one and never start a bullet
+// of their own.
 export function bulletPointsFrom(message) {
-  return String(message || "")
+  const lines = String(message || "")
     // Commit bodies entered through some shell paths contain a literal
     // "\\n" instead of an actual line break. Treat both forms identically.
     .replace(/\\n/g, "\n")
     .split(/\r?\n/)
-    .slice(1)
-    .map((line) => line.trim())
-    .filter((line) => /^[-*]\s+/.test(line))
-    .map((line) => line.replace(/^[-*]\s+/, "").trim())
-    .filter(Boolean);
+    // Drop the subject line; it becomes the entry's headline, not a bullet.
+    .slice(1);
+
+  const bullets = [];
+  let open = false;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+
+    if (!line) {
+      // A blank line closes the bullet, so a following prose block cannot be
+      // absorbed into it.
+      open = false;
+      continue;
+    }
+
+    if (/^[-*]\s+/.test(line)) {
+      const text = line.replace(/^[-*]\s+/, "").trim();
+      if (text) {
+        bullets.push(text);
+        open = true;
+      } else {
+        open = false;
+      }
+      continue;
+    }
+
+    if (open) {
+      // Continuation of the bullet above. Both sides are already trimmed, so a
+      // single space is the whole join - no global whitespace normalizing,
+      // which would otherwise collapse runs of spaces inside a wrapped bullet
+      // while leaving them intact in a single-line one.
+      bullets[bullets.length - 1] = `${bullets[bullets.length - 1]} ${line}`;
+    }
+    // Otherwise it is prose outside any bullet - the intro paragraph or a
+    // section heading. Ignored, same as before.
+  }
+
+  return bullets.filter(Boolean);
 }
 
 function comparable(value) {

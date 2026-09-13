@@ -37,7 +37,7 @@ import release from "../generated/release.json";
               {entry.bullets?.length > 0 && <ul>{entry.bullets.map((bullet) => <li>{bullet}</li>)}</ul>}
             </div>
           </article>
-        )) : <p class="changelog-empty">No alpha build changelog is available yet.</p>}
+        )) : <p class="changelog-empty" data-alpha-placeholder>No alpha build changelog is available yet.</p>}
       </div>
     </section>
   </div>
@@ -54,6 +54,110 @@ import release from "../generated/release.json";
       channelPanels.forEach((panel) => {
         panel.hidden = panel.getAttribute("data-changelog-panel") !== channel;
       });
+      if (channel === "alpha") loadAlphaBuilds();
     });
   });
+
+  // The Alpha tab is the one thing on this site a build can never know.
+  //
+  // "Force to main" writes a reset changelog.alpha.json into the release commit,
+  // so `main` always carries an empty alpha list, and Cloudflare builds this site
+  // from `main`. Every production deploy therefore rendered "No alpha build
+  // changelog is available yet" forever, because alpha builds never reach main.
+  // Alpha builds also happen between website deploys, so no build-time read could
+  // be current for them either. So this one panel is fetched live from the branch.
+  //
+  // Stable is deliberately NOT fetched: a main deploy already carries that
+  // release's own CHANGELOG.md, and raw.githubusercontent.com is CDN-cached for
+  // roughly five minutes, so fetching it would only risk showing a changelog that
+  // disagrees with the version prose on the same page.
+  const ALPHA_MANIFEST = "https://raw.githubusercontent.com/Lasikiewicz/plembfin/alpha/changelog.alpha.json";
+  const alphaPanel = document.querySelector<HTMLElement>('[data-changelog-panel="alpha"]');
+  let alphaLoaded = false;
+
+  // Trailing zeros only, never below three segments: a release reads 1.1.0, an
+  // alpha build 1.1.0.1, a develop build keeps its 1.1.0.0.2.
+  function formatBuildVersion(value: unknown): string {
+    const text = String(value ?? "").trim().replace(/^v/i, "");
+    if (!text) return "";
+    const parts = text.split(".");
+    if (parts.length > 5 || !parts.every((part) => /^\d+$/.test(part))) return text;
+    const segments = parts.map(Number);
+    while (segments.length < 5) segments.push(0);
+    while (segments.length > 3 && segments[segments.length - 1] === 0) segments.pop();
+    return segments.join(".");
+  }
+
+  function bulletsOf(entry: any): string[] {
+    if (Array.isArray(entry?.details) && entry.details.length) return entry.details.filter(Boolean);
+    const sections = entry?.sections && typeof entry.sections === "object" ? entry.sections : {};
+    return Object.values(sections).flatMap((value) => (Array.isArray(value) ? value : [])).filter(Boolean);
+  }
+
+  async function loadAlphaBuilds() {
+    if (alphaLoaded || !alphaPanel) return;
+    alphaLoaded = true;
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    let entries: any[] = [];
+    try {
+      const response = await fetch(`${ALPHA_MANIFEST}?_t=${Date.now()}`, {
+        signal: controller.signal,
+        headers: { Accept: "application/json" },
+      });
+      if (!response.ok) throw new Error(`GitHub responded ${response.status}`);
+      const manifest = await response.json();
+      entries = Array.isArray(manifest?.entries) ? manifest.entries : [];
+    } catch {
+      // Unreachable, rate limited, or timed out: leave whatever the build
+      // rendered in place rather than replacing it with an error.
+      alphaLoaded = false;
+      return;
+    } finally {
+      clearTimeout(timeout);
+    }
+
+    if (!entries.length) return;
+
+    const list = alphaPanel.querySelector(".changelog-list");
+    if (!list) return;
+    list.replaceChildren(...entries.map((entry) => {
+      const article = document.createElement("article");
+      article.className = "changelog-entry";
+
+      const meta = document.createElement("div");
+      meta.className = "changelog-entry-meta";
+      const version = document.createElement("strong");
+      version.textContent = `v${formatBuildVersion(entry.version) || entry.build || ""}`;
+      const date = document.createElement("span");
+      date.textContent = String(entry.date || "").slice(0, 10);
+      meta.append(version, date);
+
+      const content = document.createElement("div");
+      content.className = "changelog-entry-content";
+      const heading = document.createElement("h2");
+      heading.textContent = `Alpha build ${entry.build ?? ""}`.trim();
+      const summary = document.createElement("p");
+      summary.textContent = String(entry.message || "Alpha build update");
+      content.append(heading, summary);
+
+      const bullets = bulletsOf(entry);
+      if (bullets.length) {
+        const ul = document.createElement("ul");
+        for (const bullet of bullets) {
+          const li = document.createElement("li");
+          li.textContent = String(bullet);
+          ul.append(li);
+        }
+        content.append(ul);
+      }
+
+      article.append(meta, content);
+      return article;
+    }));
+  }
+
+  // Warm it immediately so switching tabs does not wait on the network.
+  loadAlphaBuilds();
 </script>

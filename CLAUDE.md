@@ -49,9 +49,11 @@ Day-to-day work lands on the `develop` branch, never directly on `alpha` or `mai
 `develop` onto it; `main` only moves when "Force to main" explicitly promotes `alpha`
 onto it, and each promotion to `main` becomes exactly one release (one changelog entry,
 one version bump, one `:latest` + versioned Docker image publish).
-After a main promotion, the release procedure merges the released main commit into
-`develop` and pushes that synchronized state to `origin/develop`. This keeps the next
-alpha promotion reconciled automatically; it does not sync `alpha` separately.
+After a main promotion nothing is pushed back: the release is not merged into `develop`
+and `origin/develop` is not touched. Each promotion writes the new version numbers into the
+local manifests and the next ordinary "Push to git" publishes them. This is what keeps a
+promotion to one channel from also publishing a second, meaningless develop image. See
+`docs/decisions.md` entry 18, which supersedes entries 7, 9, and 16.
 
 ### Changelog content is computed locally, before every push - never by CI
 
@@ -65,11 +67,18 @@ GitHub push event carries an empty or incomplete commit list, so anything comput
 it comes out truncated. Local git history is always complete. See `docs/decisions.md`
 entry 6 for what was rejected and why.
 
+Build versions are five numeric segments, `major.minor.patch.alpha.dev`: the released
+semver, then alpha builds since that release, then develop builds since the last alpha
+build. Trailing zeros are trimmed for display, so a release still reads `v1.1.0` and an
+alpha build `v1.1.0.1`. `package.json` keeps the three-segment semver only. See
+`scripts/version.js`.
+
 - **`develop`**: `scripts/rebuild-develop-changelog.js` recomputes the single entry from
-  every real commit between `resetCommit` and `HEAD`. Shows as `<version> Build <n>`.
+  every real commit between `resetCommit` and `HEAD`, and restamps `public/` assets with
+  this build's version. Shows as `<version> Build <n>`.
 - **`alpha`**: `scripts/promote-develop-to-alpha.js` prepends develop's entry as its own
-  standalone build entry, so a tester sees each build separately. Version is four
-  segments, `baseVersion.build`. Shows as `v<version> alpha`.
+  standalone build entry, so a tester sees each build separately, and requires the user to
+  approve that entry before anything is committed. Shows as `v<version> alpha`.
 - **`main`**: `scripts/promote-alpha-to-main.js` consolidates the cycle's alpha entries
   into one release, headlined by the `releaseMessage` the operator writes and the user
   approves, then bumps the real semver.
@@ -113,9 +122,12 @@ These hold regardless of which skill is running, so they are repeated here:
   (`gh run list --workflow ghcr-cleanup.yml --limit 1`); each skill repeats this as its
   first step.
 - "Force to alpha" and "Force to main" are force-pushes to shared branches. Show the user
-  what is about to land first. "Force to main" runs the mandatory website update gate and
-  additionally requires explicit user approval of the previewed changelog in chat before
-  anything is staged.
+  what is about to land first. Both require explicit user approval of the previewed
+  changelog in chat before anything is staged. "Force to main" also runs the mandatory
+  website update gate, and stops if that gate produces a website change, because the
+  release is built from alpha's tip and the change must travel through "Force to alpha"
+  first.
+- Neither force command pushes `develop`. If a procedure tells you to, it is out of date.
 - Day-to-day work lands on `develop`, never directly on `alpha` or `main`.
 
 ## Documentation and backlog sync
@@ -261,6 +273,8 @@ When adding frontend code, place it in the most specific existing module that ow
 | Stats rendering | `modules/stats.js` |
 | Explorer grid, history page, search page | `modules/explorer.js` |
 | Upcoming page (scrolling month calendar of upcoming episode air dates) | `modules/upcoming.js` |
+| Up Next rail, provider push, dismissed-items dialog | `modules/up-next.js` |
+| Settings changelog Main/Alpha tabs and build-version formatting | `modules/changelog-channels.js` |
 | TV/movie detail entry points, lookups, modal-close routing | `modules/media-detail.js` |
 | Detail-modal shell/context: callbacks, `authHeaders`, modal DOM root, render-token, debug modal | `modules/media-detail-context.js` |
 | Detail-page watch and sync info summary rendering | `modules/media-info-summary.js` |
@@ -357,7 +371,7 @@ constrain code in this file.
 | Portable, watch-history, and encrypted backup APIs | `server/src/routes/backups.js` |
 | History, library, and watch-record edits | `server/src/routes/media.js` |
 | TMDB/TVDB/Fanart/OMDb/YouTube metadata and image APIs | `server/src/routes/metadata.js` |
-| Webhooks, manual watch/unwatch, playback progress, sync job/history listing, cron/force sync, preview plans, now playing | `server/src/routes/sync.js` |
+| Webhooks, manual watch/unwatch, playback progress, sync job/history listing, cron/force sync, preview plans, now playing, Up Next push/dismiss/restore | `server/src/routes/sync.js` |
 | Backfill, repair, dedup, rematch, cache, logs, changelog, ping | `server/src/routes/maintenance.js` |
 | Wipe data: watch history, sync history/logs, and full factory reset (also resets `data/config.json` via `appConfig.js`'s `resetAdminAccount()`) | `server/src/routes/wipeData.js` |
 | Scheduler tick and Plex notification listener lifecycle | `server/src/scheduler.js` |

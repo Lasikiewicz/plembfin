@@ -1,6 +1,6 @@
 ---
 name: force-to-alpha
-description: "Promote everything queued on plembfin develop onto the alpha branch. Use when the user says \"Force to alpha\" exactly. Covers bringing develop up to date with main, reviewing and checking README.md, running promote-develop-to-alpha.js, the asset restamp, the force-push to alpha, and pushing develop reset state."
+description: "Promote everything queued on plembfin develop onto the alpha branch. Use when the user says \"Force to alpha\" exactly. Covers fast-forwarding develop, reviewing and checking README.md, running promote-develop-to-alpha.js, the asset restamp, the required approval of the alpha changelog entry, and the force-push to alpha. It does not push develop."
 ---
 
 # Force to alpha
@@ -20,23 +20,22 @@ If the latest run shows `in_progress`, wait for it to complete before pushing.
 When the user says **"Force to alpha"** (exactly), promote everything queued on
 `develop` onto `alpha`:
 
-### 1 - Bring develop up to date with main
+### 1 - Bring develop up to date
 ```bash
 git fetch origin
 git checkout develop
 git merge --ff-only origin/develop
-if git merge-base --is-ancestor origin/main origin/develop; then
-  echo "origin/develop already contains origin/main"
-else
-  git merge origin/main --no-edit
-fi
 ```
-`Force to main` publishes its post-release synchronization to `origin/develop`, so this
-check should normally be a no-op. It remains as a repair path for an older checkout or a
-previously interrupted promotion and keeps `develop`'s own copy of `changelog.json` (used
-by `promote-develop-to-alpha.js` to self-heal alpha's base version) current. Stop and ask
-the user if the repair merge produces a real application-code conflict; never resolve one
-by silently choosing a branch.
+No merge of `origin/main` and no ancestry check. `Force to main` no longer pushes a
+post-release synchronization to `origin/develop`, so `origin/main` is never an ancestor of
+`develop` and the old `git merge-base --is-ancestor origin/main origin/develop` gate could
+never pass. See `docs/decisions.md` entry 18, which supersedes entries 9 and 16.
+
+The release version `develop` needs is not carried through a merge any more: every
+changelog generation point writes it from the manifests directly, and
+`promote-develop-to-alpha.js` takes `baseVersion` from `changelog.json`. If `develop`'s
+`changelog.json` version does not match the current release, that means a previous
+promotion was interrupted - stop and ask the user rather than promoting on a stale base.
 
 ### 2 - Review and update README before promoting
 
@@ -57,6 +56,11 @@ from the documentation that was reviewed.
 ### 3 - Add develop's changelog as a new alpha build entry, locally
 ```bash
 node scripts/promote-develop-to-alpha.js
+```
+
+Then complete step 3a below and wait for the user's approval. Only after that:
+
+```bash
 git add README.md changelog.alpha.json changelog.develop.json public
 git commit -m "chore: promote develop changelog to alpha"
 ```
@@ -72,8 +76,26 @@ alpha's `entries` array (or starts a fresh array if main has moved on since the 
 promotion), bumps the alpha build, and resets develop's `entries` and `resetCommit` for
 the next cycle while carrying its release version and build number. If it
 refuses with a release-process violation, that means a commit folded into develop's entry
-still contains recognized process text; fix it on `develop` and repeat from step 1. There
-is nothing to review afterward - the entry this writes is what will actually publish.
+still contains recognized process text; fix it on `develop` and repeat from step 1.
+
+### 3a - Show the alpha entry and get explicit approval
+
+**Do not commit or push until the user approves the entry in chat.** Print the new alpha
+build entry that `promote-develop-to-alpha.js` just wrote - its version, headline, and
+every bullet under New Features / Major Bug Fixes / Tweaks:
+
+```bash
+node -e "const a=require('./changelog.alpha.json'); const e=a.entries[0]; console.log(JSON.stringify({version:e.version,build:e.build,message:e.message,sections:e.sections},null,2))"
+```
+
+Ask the user to approve it or give replacement wording. If they revise it, edit
+`changelog.alpha.json`'s top entry (`message`, and the `sections` bullets if they change
+those), re-run the process-text check, and show it again. Only then stage and commit.
+
+This gate is deliberate even though the entry is generated verbatim from develop's commit
+messages: alpha builds are what testers read, and the wording is worth a look before it is
+force-pushed. Note that the same text is reviewed again when "Force to main" consolidates
+the cycle, so expect to approve it twice per cycle.
 
 ### 4 - Force alpha to match develop
 Show the user what is about to land before running this - it is a force push to the
@@ -91,15 +113,22 @@ the image; it does not write anything back. Optionally confirm it succeeded:
 gh run list --branch alpha --limit 1
 ```
 
-### 5 - Push develop's reset state
-The commit from step 3 also reset `changelog.develop.json` for the next cycle - publish
-that to `develop` too (this is a plain push, not a force-push; it does not touch `alpha`
-or `main`):
-```bash
-git push origin develop
-```
-This push only ever changes `changelog.develop.json`/`changelog.alpha.json`, so
-`docker-publish-develop.yml`'s `paths-ignore` skips rebuilding and republishing a develop
-image over it - the point of this push is getting the correct file onto `origin/develop`
-for the app's own live remote-fetch changelog comparison, not producing a new image.
-`secret-scan.yml` still runs on every push regardless of which files changed.
+### 5 - Stop. Do not push develop.
+
+There is no step 5 push any more. The promotion commit reset
+`changelog.develop.json` locally and that is where it stays; the next ordinary
+"Push to git" publishes it.
+
+The old step pushed that commit to `origin/develop` and claimed it "only ever changes
+`changelog.develop.json`/`changelog.alpha.json`". That was false: the same commit carries
+the `public/` asset restamp and `README.md`, so `docker-publish-develop.yml`'s
+`paths-ignore` never matched and every "Force to alpha" published a second, meaningless
+develop image on top of the alpha one.
+
+Dropping the push is safe for the app's live develop indicator.
+`describePendingDevelopBuild()` in `server/src/routes/maintenance.js` flags a pending build
+only when the remote build is greater at equal version; with no sync, `origin/develop` and
+any running develop image sit at the same pre-promotion build, so it correctly reports
+nothing pending until the next "Push to git" bumps it.
+
+See `docs/decisions.md` entry 18.

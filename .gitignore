@@ -29,3 +29,9 @@ backups/
 .reasonix/
 .Jules/
 reasonix.toml
+
+# Derived at build time by website/scripts/build-release-data.mjs, from origin/main
+# when that ref resolves and the working tree otherwise. Committing it let it drift
+# (it sat at 1.0.2 while the repo was at 1.1.0) and both the website build and predev
+# regenerate it, so it is not tracked. See docs/decisions.md entry 18.
+website/src/generated/release.json

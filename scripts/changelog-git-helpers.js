@@ -71,3 +71,44 @@ export function changeAreaDetails(files) {
   }
   return [...areas];
 }
+
+// Reads one file's contents out of a git ref without checking it out.
+//
+// "Force to main" needs this. The release is built from alpha's checkout, and
+// since the release commit is never merged back into `develop`, neither
+// `develop` nor `alpha` ever holds main's release history. Writing CHANGELOG.md
+// or changelog.json from the working tree would publish a file containing only
+// the current release, and the loss compounds: release N is absent from develop,
+// so the next cycle's alpha carries a file missing release N, and release N+1 is
+// appended to that. Every release would erase the one before it, in the shipped
+// image and on the website. So the promotion reads origin/main's copy of each
+// file and prepends to it.
+//
+// Returns null when the ref or the path does not exist, so a caller can fall
+// back deliberately rather than crashing - a first release, or a build
+// environment with no remote-tracking refs (Cloudflare Pages clones a single
+// commit into FETCH_HEAD and has no origin/main at all).
+export function fileAtRef(root, ref, filePath) {
+  try {
+    return execFileSync("git", ["show", `${ref}:${filePath}`], {
+      cwd: root,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+  } catch {
+    return null;
+  }
+}
+
+export function refExists(root, ref) {
+  try {
+    execFileSync("git", ["rev-parse", "--verify", "--quiet", ref], {
+      cwd: root,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}

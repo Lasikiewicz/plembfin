@@ -22,6 +22,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { changelogEntryProcessViolations, filterChangelogEntries, synthesizeHeadline } from "./changelog-message.js";
+import { buildVersion } from "./version.js";
 import { gitHeadAuthor, gitHeadCommit } from "./changelog-git-helpers.js";
 import { spawnSync } from "node:child_process";
 
@@ -151,11 +152,16 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
   if (!Array.isArray(develop.entries)) develop.entries = [];
 
   const nextAlphaBuild = Number(alpha.build || 0) + 1;
-  // Four segments (base version + alpha build) is a complete, unambiguous version on
-  // its own - a trailing fifth ".0" segment was never read by anything (no comparison
-  // logic parses past the 4th segment; it only ever showed up in the changelog UI as a
-  // confusing "v0.14.0.3.0").
-  const alphaVersion = `${alpha.baseVersion || mainVersion}.${nextAlphaBuild}`;
+  // Five segments: major.minor.patch.alpha.dev. An alpha build sits at dev 0
+  // because it is the point every following develop build counts up from.
+  //
+  // docs/decisions.md entry 7 previously cut the fifth segment, because it was
+  // always zero, no comparison read it, and it rendered as noise ("v0.14.0.3.0").
+  // Both halves of that are now false: the segment carries develop's build
+  // counter, compareBuildVersions reads it, and formatBuildVersion trims trailing
+  // zeros so this still displays as "v1.1.0.1". Do not cut it again without
+  // reading entry 7 and its superseding entry.
+  const alphaVersion = buildVersion(alpha.baseVersion || mainVersion, nextAlphaBuild, 0);
 
   // This is a standalone entry for just this build - only develop's own current work,
   // not merged with any earlier alpha build this cycle. See the module comment above.
@@ -206,13 +212,15 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
   // across the cycle until promoteAlphaToMain consolidates and resets it.
   alpha.entries = [alphaEntry, ...alpha.entries];
 
-  // Reset develop's rolling entry for the next alpha build. The release
-  // version is carried alongside the build counter so the local develop
-  // label stays tied to the main release it is testing. A completed Force to
-  // main resets that counter to build 1 for the new released version.
+  // Reset develop's rolling entry and its dev counter for the next alpha build.
+  // The dev segment counts develop builds *since the last alpha build*, so it
+  // returns to 0 here and the next "Push to git" becomes
+  // <base>.<nextAlphaBuild>.1. The version recorded is this alpha build's own,
+  // which is also what the freshly stamped public assets carry, so
+  // currentAssetVersion() in asset-versions.js keeps agreeing with the tree.
   develop = {
-    version: develop.version || mainVersion,
-    build: develop.build || 0,
+    version: alphaVersion,
+    build: 0,
     resetCommit: resetAnchorCommit || commit || develop.resetCommit || "",
     updatedAt: sourceDate,
     entries: [],

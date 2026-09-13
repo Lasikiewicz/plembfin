@@ -20,7 +20,8 @@ import { fileURLToPath } from "node:url";
 import { changelogEntryProcessViolations, filterChangelogEntries } from "./changelog-message.js";
 import { formatSections, mergeSections } from "./promote-develop-to-alpha.js";
 import { generateChangelogMarkdown } from "./generate-changelog-md.js";
-import { gitHeadAuthor, gitHeadCommit } from "./changelog-git-helpers.js";
+import { fileAtRef, gitHeadAuthor, gitHeadCommit } from "./changelog-git-helpers.js";
+import { buildVersion, compareBuildVersions } from "./version.js";
 import { spawnSync } from "node:child_process";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -38,24 +39,26 @@ export function bumpPatchVersion(currentVersion = "0.0.0") {
   return `${major}.${minor}.${patch}`;
 }
 
+// The dev counter returns to 0 so the first "Push to git" of the new cycle is
+// <release>.0.1, and the recorded version is the five-segment release itself,
+// which is also what the freshly stamped public assets carry.
 export function createDevelopReset({ version = "0.0.0", resetCommit = "", updatedAt = "" } = {}) {
   return {
-    version: String(version || "0.0.0"),
-    build: 1,
+    version: buildVersion(version, 0, 0),
+    build: 0,
     resetCommit: String(resetCommit || ""),
     updatedAt,
     entries: [],
   };
 }
 
+// Five-segment aware. The old implementation split on "." and read only three
+// positions, so anything past the patch was silently dropped and a non-numeric
+// segment became NaN, which `(NaN || 0)` then collapsed to 0. This feeds the
+// release-version decision below, so a wrong answer here picks the wrong version
+// to publish to every user.
 function semverGt(a, b) {
-  const pa = String(a || "0.0.0").split(".").map(Number);
-  const pb = String(b || "0.0.0").split(".").map(Number);
-  for (let i = 0; i < 3; i++) {
-    if ((pa[i] || 0) > (pb[i] || 0)) return true;
-    if ((pa[i] || 0) < (pb[i] || 0)) return false;
-  }
-  return false;
+  return compareBuildVersions(a, b) > 0;
 }
 
 // Pure step shared by preview and the real promotion: read the current
@@ -66,10 +69,33 @@ function semverGt(a, b) {
 // non-mutating --preview pass used to show the changelog to a human before
 // "Force to main" is allowed to stage and push it.
 function computeAlphaToMainRelease({ targetVersion = "", sourceDate = new Date().toISOString(), sourceAuthor = "system", commit = "" } = {}) {
+  // The released history must come from origin/main, not the working tree.
+  //
+  // This promotion runs from alpha's checkout. Alpha's tree came from develop,
+  // and the release commit is never merged back into develop, so neither branch
+  // holds main's release history. Reading the working tree would publish a
+  // changelog containing only this release - and the loss compounds silently:
+  // release N is absent from develop, so next cycle's alpha carries a file
+  // missing release N, and release N+1 is appended to that. Every release would
+  // erase the one before it, in the shipped image and on the website.
+  //
+  // CHANGELOG.md needs no separate handling: generateChangelogMarkdown() renders
+  // it from changelog.json, so restoring the history here restores both files.
+  //
+  // The working tree is the fallback for a first release or a clone with no
+  // remote-tracking refs. promoteAlphaToMain() gates on the result either way.
   let changelog = { version: "0.8.6", entries: [] };
+  const remoteChangelog = fileAtRef(root, "origin/main", "changelog.json");
+  let historySource = "origin/main";
   try {
-    changelog = JSON.parse(fs.readFileSync(changelogPath, "utf8"));
-  } catch { }
+    changelog = JSON.parse(remoteChangelog ?? fs.readFileSync(changelogPath, "utf8"));
+    if (!remoteChangelog) historySource = "working tree";
+  } catch {
+    try {
+      changelog = JSON.parse(fs.readFileSync(changelogPath, "utf8"));
+      historySource = "working tree";
+    } catch { }
+  }
   if (!Array.isArray(changelog.entries)) changelog.entries = [];
 
   let alpha = { baseVersion: changelog.version, build: 0, releaseMessage: "", entries: [] };
@@ -134,7 +160,7 @@ function computeAlphaToMainRelease({ targetVersion = "", sourceDate = new Date()
     throw new Error(`Refusing to promote alpha to main: the entry contains release-process notes:\n${violations.map((v) => `- ${v}`).join("\n")}`);
   }
 
-  return { changelog, alpha, newMainVersion, new5DigitVersion, mainEntry };
+  return { changelog, alpha, newMainVersion, new5DigitVersion, mainEntry, historySource };
 }
 
 // Renders the would-be release for a human review pass. Used by --preview so
@@ -160,12 +186,52 @@ function renderReleasePreview({ newMainVersion, new5DigitVersion, mainEntry }) {
   console.log(lines.join("\n"));
 }
 
+// Writing the merged history is not enough; it has to be checked before the
+// force-push. A release that drops history cannot be recovered from the
+// published image once users have pulled it, so this refuses the promotion
+// rather than shipping a truncated changelog.
+//
+// Exported pure so it can be tested without touching disk or the network.
+export function verifyReleaseHistory({ priorVersions = [], newVersions = [], newMainVersion = "" } = {}) {
+  const failures = [];
+  const present = new Set(newVersions.map((v) => String(v)));
+
+  const missing = priorVersions.map(String).filter((v) => !present.has(v));
+  if (missing.length > 0) {
+    failures.push(`releases missing from the new history: ${missing.join(", ")}`);
+  }
+
+  const added = newVersions.map(String).filter((v) => !priorVersions.map(String).includes(v));
+  if (added.length !== 1) {
+    failures.push(`expected exactly one new release, found ${added.length}${added.length ? ` (${added.join(", ")})` : ""}`);
+  } else if (added[0] !== String(newMainVersion)) {
+    failures.push(`the one new release is ${added[0]}, expected ${newMainVersion}`);
+  }
+
+  if (newVersions.length !== priorVersions.length + 1) {
+    failures.push(`history length went from ${priorVersions.length} to ${newVersions.length}, expected ${priorVersions.length + 1}`);
+  }
+
+  return failures;
+}
+
 export function promoteAlphaToMain({ targetVersion = "", sourceDate = new Date().toISOString(), sourceAuthor = "system", commit = "" } = {}) {
-  const { changelog, alpha, newMainVersion, new5DigitVersion, mainEntry } = computeAlphaToMainRelease({ targetVersion, sourceDate, sourceAuthor, commit });
+  const { changelog, alpha, newMainVersion, new5DigitVersion, mainEntry, historySource } = computeAlphaToMainRelease({ targetVersion, sourceDate, sourceAuthor, commit });
+
+  const priorVersions = changelog.entries.map((entry) => entry.version);
 
   changelog.version = newMainVersion;
   changelog.updatedAt = sourceDate;
   changelog.entries.unshift(mainEntry);
+
+  const historyFailures = verifyReleaseHistory({
+    priorVersions,
+    newVersions: changelog.entries.map((entry) => entry.version),
+    newMainVersion,
+  });
+  if (historyFailures.length > 0) {
+    throw new Error(`Refusing to promote alpha to main: the release history is not intact (source: ${historySource}):\n${historyFailures.map((f) => `- ${f}`).join("\n")}`);
+  }
 
   // Update package.json and package-lock.json
   try {
@@ -184,7 +250,7 @@ export function promoteAlphaToMain({ targetVersion = "", sourceDate = new Date()
   const resetAlpha = {
     baseVersion: newMainVersion,
     build: 0,
-    version: `${newMainVersion}.0.0`,
+    version: buildVersion(newMainVersion, 0, 0),
     updatedAt: sourceDate,
     releaseMessage: "",
     entries: [],
@@ -236,6 +302,7 @@ export function promoteAlphaToMain({ targetVersion = "", sourceDate = new Date()
   console.log(String(assetResult.stdout || "").trim());
 
   console.log(`Promoted Alpha to Main release v${newMainVersion} (${new5DigitVersion})`);
+  console.log(`Release history: ${changelog.entries.length} entries, read from ${historySource}.`);
   return { changelog, alpha: resetAlpha, develop };
 }
 

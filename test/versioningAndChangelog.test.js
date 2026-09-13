@@ -112,18 +112,35 @@ test("bumpPatchVersion increments only the patch (3rd segment)", () => {
   assert.equal(bumpPatchVersion("1.2.9"), "1.2.10");
 });
 
-test("createDevelopReset starts the released cycle at build 1", () => {
+// The dev counter returns to 0, not 1, so the first "Push to git" of the new
+// cycle is <release>.0.1 and the five-segment ladder stays contiguous. Starting
+// at 1 made the first develop build <release>.0.2, because
+// rebuild-develop-changelog.js increments before writing.
+//
+// The recorded version is the five-segment release itself, which is also what
+// the release's freshly stamped public assets carry - currentAssetVersion() in
+// scripts/asset-versions.js reads this manifest first, so the two must agree or
+// `npm run build` fails on the next develop commit. See docs/decisions.md entry 18.
+test("createDevelopReset starts the released cycle at dev build 0", () => {
   assert.deepEqual(createDevelopReset({
     version: "0.16.1",
     resetCommit: "release-commit",
     updatedAt: "2026-01-01T00:00:00.000Z",
   }), {
-    version: "0.16.1",
-    build: 1,
+    version: "0.16.1.0.0",
+    build: 0,
     resetCommit: "release-commit",
     updatedAt: "2026-01-01T00:00:00.000Z",
     entries: [],
   });
+});
+
+test("createDevelopReset normalizes a version that already has build segments", () => {
+  // Defensive: the release version handed in should be three segments, but if a
+  // five-segment build version arrives it must not produce 0.16.1.4.2.0.0.
+  const reset = createDevelopReset({ version: "0.16.1.4.2", resetCommit: "c", updatedAt: "" });
+  assert.equal(reset.version, "0.16.1.0.0");
+  assert.equal(reset.build, 0);
 });
 
 test("buildDevelopEntry consolidates every real commit since the reset anchor into one entry", () => {

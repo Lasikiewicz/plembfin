@@ -1,6 +1,6 @@
 ---
 name: force-to-main
-description: "Promote plembfin alpha current tip onto main as a single release. Use when the user says \"Force to main\" exactly. Runs the mandatory website and README checks, then covers the changelog preview and required user approval, promote-alpha-to-main.js --confirm, the force-push to main, the OCI public-demo refresh, and the synchronized develop update."
+description: "Promote plembfin alpha current tip onto main as a single release. Use when the user says \"Force to main\" exactly. Runs the mandatory website and README checks, then covers the changelog preview and required user approval, promote-alpha-to-main.js --confirm, the release-history verification gate, the force-push to main, and the OCI public-demo refresh. It does not push develop."
 ---
 
 # Force to main
@@ -32,10 +32,20 @@ content and images, run the privacy/inventory/check/build gates, and report the 
 findings. Do not ask whether to run this gate: the website is part of every main release.
 
 Run the check against the current development checkout so it sees the latest application
-source and release metadata. If it creates or updates website source, captures, or generated
-data, keep those changes and land them on `develop` before checking out `alpha`; never let
-the promotion checkout discard an uncommitted website update. The main promotion must use
-the reviewed website tree that is present in the alpha tip.
+source and release metadata.
+
+**If the check creates or updates any website source, capture, or generated data, stop
+this command.** The release is built from `origin/alpha`'s tip, so a change landed on
+`develop` now is not in the alpha tip and would not reach the release - the promotion
+would ship a website tree that was never the reviewed one. Instead:
+
+1. Commit the website change on `develop` (a normal "Push to git").
+2. Run "Force to alpha" so the reviewed tree reaches `alpha`.
+3. Start "Force to main" again from step 0.
+
+Do not cherry-pick the change onto the alpha checkout to save a cycle: that ships a
+website tree no alpha build carried and no tester ever saw. The main promotion must use
+the reviewed website tree that is already present in the alpha tip.
 
 ### 1 - Check out alpha's actual current tip
 ```bash
@@ -164,22 +174,22 @@ and report the release as incomplete rather than claiming that the demo is curre
 Do not call `npm run demo:assets` or `npm run demo:seed` as part of this refresh; those
 commands prepare fixture content and are separate from pulling the released image.
 
-### 7 - Synchronize develop to the new main version
-```bash
-git fetch origin
-git checkout develop
-git merge --ff-only origin/develop
-git merge origin/main --no-edit
-git push origin develop
-```
-This final plain push is required. It publishes the release commit from step 4 and its
-reset `changelog.alpha.json`/`changelog.develop.json` plus the new `changelog.json` version
-to `origin/develop`, with `changelog.develop.json` at build 1. Keeping the released
-`main` commit in remote `develop` means the next "Force to alpha" starts from an already
-reconciled branch and does not have to merge an old release stamp into newer work. The
-`develop` push runs the normal changelog and build gates; it is not a force-push and does
-not touch `alpha` or `main`.
+### 7 - Stop. Do not synchronize develop.
 
-Do not fold the release into `alpha` separately. The next "Force to alpha" force-pushes
-`develop`'s tip onto `alpha` regardless, so an additional alpha sync would be overwritten
-instead of built on.
+There is no step 7 any more. Do not merge `origin/main` into `develop`, and do not push
+`develop`.
+
+The old step merged the release commit into `develop` and pushed it. That push carried the
+`public/` asset restamp, `package.json`, and `package-lock.json`, so
+`docker-publish-develop.yml`'s `paths-ignore` never matched and every release published a
+second, meaningless develop image on top of the release one.
+
+Nothing needs carrying. `promote-alpha-to-main.js` reads the released history from
+`origin/main` rather than the working tree, and every changelog generation point writes the
+release version from the manifests, so `develop` reconciles itself on its next "Push to
+git" with no merge.
+
+This supersedes `docs/decisions.md` entry 16; see entry 18 for the reasoning and for why
+entry 16's conflict concern no longer applies. Entry 8 still stands: do not fold the
+release into `alpha` either, because the next "Force to alpha" force-pushes `develop`'s tip
+onto `alpha` regardless.

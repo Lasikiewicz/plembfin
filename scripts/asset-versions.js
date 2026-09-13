@@ -10,25 +10,40 @@ const packageJson = JSON.parse(fs.readFileSync(path.join(root, "package.json"), 
 
 // Versioned assets are cached immutably for a year, so the query has to change
 // whenever the served files change or a browser keeps the old module forever.
-// package.json only moves on a release to main, which left every alpha build in
-// a cycle sharing one asset version: an alpha tester (and anyone developing
-// locally) could pull a new build and still be running the previous build's
-// JavaScript. Track the alpha build's own version while a cycle is open, and
-// fall back to the package version once alpha has been reset by a release.
+// package.json only moves on a release to main, which left every build between
+// releases sharing one asset version: a tester who pulled a new image could
+// still be running the previous build's JavaScript.
+//
+// So the expected version is the most specific build version available for the
+// current release, in order: develop's five-segment build, then alpha's, then
+// the bare package version. All three are gated on matching the current release
+// so a manifest left over from a previous cycle cannot hold the assets back.
+//
+// This function is also what `npm run build` checks against
+// (scripts/build-check.js runs this file with no --version), so it must agree
+// with whatever the last write stamped. "Push to git", "Force to alpha", and
+// "Force to main" each stamp their own build version, and each is recognized
+// here.
 export function currentAssetVersion() {
   const packageVersion = String(packageJson.version || "dev").trim();
-  try {
-    const alpha = JSON.parse(fs.readFileSync(path.join(root, "changelog.alpha.json"), "utf8"));
-    const alphaVersion = String(alpha?.version || "").trim();
-    const baseVersion = String(alpha?.baseVersion || "").trim();
-    // Only trust alpha's version while it is still building on this release.
-    // After "Force to main" bumps the package version, alpha's stale entry must
-    // not hold the assets back on the previous release's number.
-    if (alphaVersion && baseVersion === packageVersion && alphaVersion.startsWith(`${packageVersion}.`)) {
-      return alphaVersion;
-    }
-  } catch { /* no alpha changelog: fall back to the package version */ }
-  return packageVersion;
+
+  const readManifestVersion = (file) => {
+    try {
+      const manifest = JSON.parse(fs.readFileSync(path.join(root, file), "utf8"));
+      const version = String(manifest?.version || "").trim();
+      // A manifest is only trusted while it is still building on this release.
+      // `1.1.0` must match, and the build version must extend it, so a stale
+      // `1.0.2.3` from before the last release is ignored.
+      if (version && version.startsWith(`${packageVersion}.`)) return version;
+    } catch { /* manifest absent or unreadable: try the next source */ }
+    return "";
+  };
+
+  // develop first: it is the most specific, and a develop build is always at or
+  // ahead of the alpha build it was reset from.
+  return readManifestVersion("changelog.develop.json")
+    || readManifestVersion("changelog.alpha.json")
+    || packageVersion;
 }
 
 const requestedVersion = process.argv.find((argument) => argument.startsWith("--version="))?.slice("--version=".length);

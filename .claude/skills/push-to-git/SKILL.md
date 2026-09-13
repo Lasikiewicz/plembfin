@@ -171,9 +171,19 @@ rule is missing on some checkout. Never use `git add -f` on it.
 ### 6 - Rebuild the develop changelog
 ```bash
 node scripts/rebuild-develop-changelog.js
-git add changelog.develop.json
+git add changelog.develop.json public
 git commit -m "chore: rebuild develop changelog"
 ```
+`public` must be staged. The rebuild now also stamps the develop build's own
+five-segment version (`<release>.<alpha>.<dev>`) onto every `?v=` asset reference,
+so each develop build gets its own immutable-cache URL instead of every build in a
+cycle sharing one - the same failure `docs/decisions.md` entry 10 fixed for alpha,
+which that entry now also covers for develop. Expect a large, entirely mechanical
+diff across `public/`.
+
+Leaving it unstaged would break CI: `scripts/asset-versions.js` derives the expected
+version from `changelog.develop.json` and `npm run build` checks every reference
+against it, so a committed manifest with unstaged assets fails the build gate.
 For **"Push all to git"**, this intentionally walks every real commit from
 `changelog.develop.json`'s `resetCommit` anchor (set by the last "Force to alpha")
 through the commit just made in step 5, inclusive, and recomputes the single

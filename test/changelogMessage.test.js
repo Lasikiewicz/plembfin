@@ -34,6 +34,59 @@ test("bulletPointsFrom converts escaped newline bullets", () => {
   ]);
 });
 
+// Commit bodies are wrapped near 72 characters, so most real bullets span
+// several lines. The parser used to keep only lines starting with a bullet
+// marker, which silently truncated every wrapped bullet at its first line and
+// published the fragment to the changelog.
+test("bulletPointsFrom joins a bullet that wraps across lines", () => {
+  const message = [
+    "feat: summary",
+    "",
+    "- Clear seeds for items that leave the queue. Without this a seeded",
+    "  episode stays on the rail after it has been watched.",
+    "- Second detail on one line.",
+  ].join("\n");
+
+  assert.deepEqual(bulletPointsFrom(message), [
+    "Clear seeds for items that leave the queue. Without this a seeded episode stays on the rail after it has been watched.",
+    "Second detail on one line.",
+  ]);
+});
+
+// The blank-line rule is what keeps prose out. An intro paragraph and any
+// section headings are separated from the bullets by blank lines, so they can
+// neither attach to the bullet above nor start one of their own.
+test("bulletPointsFrom ignores the intro paragraph and section headings", () => {
+  const message = [
+    "feat: summary",
+    "",
+    "An opening paragraph explaining why this change exists, which is prose",
+    "and must never become a bullet.",
+    "",
+    "Queue correctness",
+    "",
+    "- First detail that wraps onto",
+    "  a second line.",
+    "",
+    "Provider rails",
+    "",
+    "- Second detail.",
+  ].join("\n");
+
+  assert.deepEqual(bulletPointsFrom(message), [
+    "First detail that wraps onto a second line.",
+    "Second detail.",
+  ]);
+});
+
+test("bulletPointsFrom joins on a single space without reflowing the text", () => {
+  const message = "fix: summary\n\n-   Spaced   marker and\n      uneven    continuation.";
+  // Both sides are trimmed, so the join adds exactly one space and leaves
+  // the text otherwise untouched - a wrapped bullet and a single-line one with
+  // the same words now produce the same result.
+  assert.deepEqual(bulletPointsFrom(message), ["Spaced   marker and uneven    continuation."]);
+});
+
 test("validateReleaseMessage rejects title-only release commits", () => {
   assert.equal(validateReleaseMessage("fix: keep controls visible").length, 2);
   assert.equal(

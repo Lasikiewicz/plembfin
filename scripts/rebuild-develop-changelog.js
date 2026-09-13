@@ -22,13 +22,34 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { execFileSync } from "node:child_process";
+import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { buildVersion } from "./version.js";
 import { bulletPointsFrom, filterChangelogDetails, formatChangelogMessage, isChangelogProcessMessage, isNoiseCommitMessage, isReleaseTypeCommitMessage, synthesizeHeadline, validateReleaseMessage } from "./changelog-message.js";
 import { changeAreaDetails, changedFilesForCommit, commitsSinceLastEntry, gitHeadAuthor, gitHeadCommit } from "./changelog-git-helpers.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const developChangelogPath = path.join(root, "changelog.develop.json");
+const changelogPath = path.join(root, "changelog.json");
+const alphaChangelogPath = path.join(root, "changelog.alpha.json");
+
+function readJson(file, fallback) {
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return fallback;
+  }
+}
+
+// The develop build version is the released semver plus the current alpha build
+// plus this develop build: major.minor.patch.alpha.dev. All three numbers come
+// from local manifests, so nothing has to be carried between commands beyond
+// what each one already writes. See scripts/version.js for the full ladder.
+function developBuildVersion(developBuild) {
+  const releaseVersion = String(readJson(changelogPath, {}).version || "0.0.0");
+  const alphaBuild = Number(readJson(alphaChangelogPath, {}).build || 0);
+  return buildVersion(releaseVersion, alphaBuild, developBuild);
+}
 
 // Pure and exported for testing: given the full set of commits between the
 // reset anchor and HEAD, builds the single consolidated entry, or returns
@@ -206,12 +227,34 @@ function main() {
     process.exit(0);
   }
 
+  const version = developBuildVersion(entry.build);
+
   develop.build = entry.build;
+  develop.version = version;
   develop.entries = [entry];
   develop.updatedAt = entry.date;
 
   fs.writeFileSync(developChangelogPath, `${JSON.stringify(develop, null, 2)}\n`);
-  console.log(`Rebuilt develop changelog: build ${entry.build} covering ${commits.length} commit(s) since ${anchorCommit.slice(0, 7)}.`);
+  // Public assets are cached immutably for a year against their `?v=` query, so
+  // the query has to move whenever the build does. Until the develop build
+  // became part of the version this only happened at the two promotions, which
+  // left every develop build in a cycle sharing one asset version: pulling a
+  // new develop image could still run the previous build's JavaScript. Same
+  // failure docs/decisions.md entry 10 fixed for alpha.
+  //
+  // currentAssetVersion() in asset-versions.js reads this manifest's `version`,
+  // so the check `npm run build` runs agrees with what was just stamped here.
+  const assetResult = spawnSync(process.execPath, [path.join(root, "scripts", "asset-versions.js"), "--write", `--version=${version}`], {
+    cwd: root,
+    encoding: "utf8",
+  });
+  if (assetResult.status !== 0) {
+    console.error(`Failed to stamp public assets with ${version}: ${assetResult.stderr || assetResult.stdout}`);
+    process.exit(1);
+  }
+  console.log(String(assetResult.stdout || "").trim());
+
+  console.log(`Rebuilt develop changelog: build ${entry.build} (v${version}) covering ${commits.length} commit(s) since ${anchorCommit.slice(0, 7)}.`);
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
