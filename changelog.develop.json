@@ -1,35 +1,22 @@
 {
-  "version": "1.1.0.2.1",
-  "build": 1,
+  "version": "1.1.0.2.2",
+  "build": 2,
   "resetCommit": "ed57fd68786d9167c098102a1ad8b66e8e0df5fd",
-  "updatedAt": "2026-09-13T20:19:50.986Z",
+  "updatedAt": "2026-09-13T20:20:19.156Z",
   "entries": [
     {
-      "build": 1,
-      "date": "2026-09-13T20:19:50.986Z",
-      "commit": "c15dc450dd40e22ca9575218ff33c5654b042a4b",
-      "message": "This update includes align Up Next provider rails, persist dismissed Trakt not-found state, promote Plembfin Up Next on Jellyfin, clear stale Jellyfin Up Next seeds, refresh native Up Next rails, refresh Emby Continue Watching without progress, clarify Up Next sync toggle, and show a dismissed-items icon on the Up Next queue.",
+      "build": 2,
+      "date": "2026-09-13T20:20:19.156Z",
+      "commit": "b7ee8bc0d64a58a587c6cde2162d49aeb7ad62c8",
+      "message": "Feature - Keep Up Next aligned with Plex, Emby, and Jellyfin rails",
       "author": "Lasikiewicz",
       "details": [
-        "Keep Plembfin Up Next aligned with Plex and Emby Continue Watching and Jellyfin Next Up while filtering synthetic seed sessions from Now Playing.",
-        "Remember dismissed Trakt not-found results across retries so unavailable shows do not return as sync issues.",
-        "Ready episodes from Plembfin Up Next can now be promoted to the front of Jellyfin's Next Up rail without resetting genuine progress or play counts.",
-        "Synthetic Jellyfin rail positions no longer masquerade as real local resume progress during Up Next promotion.",
-        "Refreshes Plex Continue Watching, Emby Continue Watching, and Jellyfin Next Up from watched predecessors without synthetic resume progress",
-        "Refreshes Emby Continue Watching from a zero-position native session, matching the no-synthetic-progress rail refresh used by Plex and Jellyfin.",
-        "Explains how the toggle keeps Plembfin Up Next aligned with Plex, Emby, and Jellyfin.",
-        "Mark the dismissed Up Next button with a hidden-item icon and a count beside it, instead of a bare number, so it reads as a control rather than a stray figure",
-        "Keep the button hidden until something has actually been dismissed"
-      ],
-      "messageFragments": [
-        "Fix - Align Up Next provider rails",
-        "Fix - Persist dismissed Trakt not-found state",
-        "Fix - Promote Plembfin Up Next on Jellyfin",
-        "Fix - Clear stale Jellyfin Up Next seeds",
-        "Fix - Refresh native Up Next rails",
-        "Fix - Refresh Emby Continue Watching without progress",
-        "Docs - Clarify Up Next sync toggle",
-        "Feature - Show a dismissed-items icon on the Up Next queue"
+        "Keep Plembfin's Up Next in step with Plex and Emby Continue Watching and Jellyfin Next Up, refreshing those rails from watched episodes rather than inventing resume progress",
+        "Promote a ready episode to the front of Jellyfin's Next Up without resetting genuine progress or play counts",
+        "Stop a rail position Plembfin created being mistaken for real resume progress, and keep those sessions out of Now Playing",
+        "Remember dismissed Trakt not-found results across retries, so an unavailable show stops returning as a sync issue",
+        "Mark the dismissed Up Next button with a hidden-item icon and a count, and keep it hidden until something has been dismissed",
+        "Explain in Settings how the Up Next sync toggle keeps the queue aligned with Plex, Emby, and Jellyfin, and how turning it off leaves those app lists unchanged"
       ]
     }
   ]
