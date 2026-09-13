@@ -187,11 +187,30 @@ hundreds of megabytes each. It is gitignored, but never stage it even if an igno
 rule is missing on some checkout. Never use `git add -f` on it.
 
 ### 6 - Rebuild the develop changelog
+
+**This step is not optional and must not be skipped.** A push whose develop changelog
+does not cover the commits being pushed is rejected by the pre-push hook, so skipping it
+only costs a failed push.
+
+```bash
+npm run push:prepare
+```
+
+That is the whole step. It rebuilds the changelog, stages `changelog.develop.json` and
+`public` together, commits them, then re-runs the pending-commit and committed-changelog
+checks and prints exactly what will be pushed. It is safe to run repeatedly: when the
+changelog is already current it commits nothing and says so. It refuses to run when there
+are uncommitted changes outside the changelog and assets, so product work cannot be
+swept into a chore commit that contributes no bullets.
+
+It replaced three separate commands, because all three were once skipped in one go:
+
 ```bash
 node scripts/rebuild-develop-changelog.js
 git add changelog.develop.json public
 git commit -m "chore: rebuild develop changelog"
 ```
+
 `public` must be staged. The rebuild now also stamps the develop build's own
 five-segment version (`<release>.<alpha>.<dev>`) onto every `?v=` asset reference,
 so each develop build gets its own immutable-cache URL instead of every build in a
