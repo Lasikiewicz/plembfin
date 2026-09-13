@@ -34,18 +34,26 @@ findings. Do not ask whether to run this gate: the website is part of every main
 Run the check against the current development checkout so it sees the latest application
 source and release metadata.
 
-**If the check creates or updates any website source, capture, or generated data, stop
-this command.** The release is built from `origin/alpha`'s tip, so a change landed on
-`develop` now is not in the alpha tip and would not reach the release - the promotion
-would ship a website tree that was never the reviewed one. Instead:
+**Commit any website change it produces on `develop` before continuing.** Updating the
+website is part of this release, not a reason to abandon it: step 1a takes `develop`'s
+reviewed `website/` tree into the release commit, so there is no need to run "Force to
+alpha" again and restart.
 
-1. Commit the website change on `develop` (a normal "Push to git").
-2. Run "Force to alpha" so the reviewed tree reaches `alpha`.
-3. Start "Force to main" again from step 0.
+`website/` is the one directory the release takes from `develop` rather than from the
+alpha tip. That is deliberate:
 
-Do not cherry-pick the change onto the alpha checkout to save a cycle: that ships a
-website tree no alpha build carried and no tester ever saw. The main promotion must use
-the reviewed website tree that is already present in the alpha tip.
+- Website content has to live somewhere permanent. The release commit is never merged
+  back into `develop`, so website work committed only onto the alpha checkout would be
+  lost and every release would redo the same edits and screenshots.
+- Nothing publishes it before release anyway. Cloudflare Pages builds only `main`;
+  `develop` and `alpha` pushes start no Pages build. So the website tree on those
+  branches is never public, and the only moment it has to be right is this one.
+
+**One thing to watch while reviewing.** `develop` can be ahead of the alpha tip being
+released, so its website tree may describe application work that is not in this release.
+Check for that during the review and leave those pages describing the released behaviour.
+Documenting an unreleased feature on the public site is the failure mode this trade
+introduces, and the review is what catches it.
 
 ### 1 - Check out alpha's actual current tip
 ```bash
@@ -54,6 +62,21 @@ git checkout -B alpha origin/alpha
 ```
 Not a stale local `alpha` branch, which may not exactly match `origin/alpha` - this
 resets the local branch to the remote tip every time.
+
+### 1a - Take develop's reviewed website into the release
+```bash
+git checkout origin/develop -- website/
+git status --short website/
+```
+The application ships from the alpha tip; the website ships from `develop`. This is what
+lets step 0 update the website without restarting the command, and what stops each
+release redoing the previous release's website work, since the release commit is never
+merged back into `develop`.
+
+Show the user what this brought in. If it is empty, `develop`'s website tree already
+matches the alpha tip and there is nothing to carry. If it brings in a page describing
+application work that is not in this release, fix that page now, before the release
+commit - see the warning in step 0.
 
 ### 2 - Review and update README before promoting
 
@@ -118,9 +141,23 @@ The command also refuses to run without `--confirm`; use that flag only after th
 approval - it is the first mutating step of promotion.
 Then stage and commit:
 ```bash
-git add README.md changelog.json changelog.alpha.json changelog.develop.json CHANGELOG.md package.json package-lock.json
+git add README.md changelog.json changelog.alpha.json changelog.develop.json CHANGELOG.md package.json package-lock.json public website
 git commit -m "chore: promote alpha to main v<version>"
 ```
+
+`public` and `website` must both be staged.
+
+`promote-alpha-to-main.js` restamps every `?v=` asset reference to the release version and
+rewrites the About page's version fallback in `public/index.html`. Committing the version
+bump without those assets fails the release build: `scripts/asset-versions.js` checks every
+reference against the version derived from the committed manifests, and `npm run build`
+runs that check in the main publish workflow. The v1.1.0 release commit carried 44
+`public/` files for this reason.
+
+`website` carries the tree taken from `develop` in step 1a, plus the `sourceVersion`
+markers the same script stamps with the release version. Leaving it out would publish a
+site documenting the previous release, which `website/scripts/check-doc-baseline.mjs`
+then fails on.
 
 ### 5 - Force main to match this commit
 Show the user what is about to land before running this - it is a force push to the
