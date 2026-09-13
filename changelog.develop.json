@@ -1,7 +1,18 @@
 {
-  "version": "1.1.0.1.0",
-  "build": 0,
+  "version": "1.1.0.1.1",
+  "build": 1,
   "resetCommit": "f75b2420ba381d14c59cf17d37cc7c1acb986f02",
-  "updatedAt": "2026-09-13T14:26:23.225Z",
-  "entries": []
+  "updatedAt": "2026-09-13T15:25:36.078Z",
+  "entries": [
+    {
+      "build": 1,
+      "date": "2026-09-13T15:25:36.078Z",
+      "commit": "df6ea9969146106c77b54d52b54c723b223614f3",
+      "message": "Feature - Add optional Up Next provider sync",
+      "author": "Lasikiewicz",
+      "details": [
+        "Adds optional Up Next provider sync controls to onboarding and Sync Tuning, with clear 6% marker guidance."
+      ]
+    }
+  ]
 }
