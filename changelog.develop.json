@@ -1,23 +1,7 @@
 {
-  "version": "1.1.0.2.2",
-  "build": 2,
-  "resetCommit": "ed57fd68786d9167c098102a1ad8b66e8e0df5fd",
-  "updatedAt": "2026-09-13T20:20:19.156Z",
-  "entries": [
-    {
-      "build": 2,
-      "date": "2026-09-13T20:20:19.156Z",
-      "commit": "b7ee8bc0d64a58a587c6cde2162d49aeb7ad62c8",
-      "message": "Feature - Keep Up Next aligned with Plex, Emby, and Jellyfin rails",
-      "author": "Lasikiewicz",
-      "details": [
-        "Keep Plembfin's Up Next in step with Plex and Emby Continue Watching and Jellyfin Next Up, refreshing those rails from watched episodes rather than inventing resume progress",
-        "Promote a ready episode to the front of Jellyfin's Next Up without resetting genuine progress or play counts",
-        "Stop a rail position Plembfin created being mistaken for real resume progress, and keep those sessions out of Now Playing",
-        "Remember dismissed Trakt not-found results across retries, so an unavailable show stops returning as a sync issue",
-        "Mark the dismissed Up Next button with a hidden-item icon and a count, and keep it hidden until something has been dismissed",
-        "Explain in Settings how the Up Next sync toggle keeps the queue aligned with Plex, Emby, and Jellyfin, and how turning it off leaves those app lists unchanged"
-      ]
-    }
-  ]
+  "version": "1.1.0.3.0",
+  "build": 0,
+  "resetCommit": "6ed04258a501d1e754f99e079b2d2191916877fc",
+  "updatedAt": "2026-09-13T20:25:07.355Z",
+  "entries": []
 }
