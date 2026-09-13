@@ -4,6 +4,7 @@ import { queueTmdbMetadataWarmup } from "./tmdbGateway.js";
 
 const PROVIDERS = new Set(["plex", "emby", "jellyfin"]);
 const FEED_KINDS = new Set(["resume", "next_up"]);
+const UP_NEXT_PROVIDERS = new Set(["plex", "emby", "jellyfin"]);
 
 const selectFeedStateStmt = db.prepare(
   "SELECT * FROM up_next_provider_feed_state WHERE provider = ? AND feed_kind = ?",
@@ -427,36 +428,62 @@ export function listUpNextProviderFeedStates() {
 }
 
 export function getUpNextFeedSourceVersion() {
-  const feeds = listUpNextProviderFeedStates().map((feed) => ({
-    provider: feed.provider,
-    feed_kind: feed.feed_kind,
-    status: feed.status,
-    item_count: feed.item_count,
-    complete: feed.complete,
-    last_error: feed.last_error,
-  }));
-  const items = listActiveUpNextProviderItems().map((item) => ({
-    provider: item.source,
-    feed_kind: item.queue_kind,
-    provider_item_id: item.provider_item_id,
-    canonical_key: item.canonical_key,
-    title: item.title,
-    show_title: item.show_title,
-    episode_title: item.episode_title,
-    season: item.season,
-    episode: item.episode,
-    year: item.year,
-    air_date: item.air_date,
-    poster_url: item.poster_url,
-    show_poster_url: item.show_poster_url,
-    ids: [item.imdb_id, item.tmdb_id, item.tvdb_id, item.show_imdb_id, item.show_tmdb_id, item.show_tvdb_id],
-    position_ms: item.position_ms,
-    duration_ms: item.duration_ms,
-    progress: item.progress,
-    source_updated_at: item.source_updated_at,
-    provider_items: item.provider_items,
-  }));
+  const feeds = listUpNextProviderFeedStates()
+    .filter((feed) => UP_NEXT_PROVIDERS.has(String(feed?.provider || "").toLowerCase()))
+    .map((feed) => ({
+      provider: feed.provider,
+      feed_kind: feed.feed_kind,
+      status: feed.status,
+      item_count: feed.item_count,
+      complete: feed.complete,
+      last_error: feed.last_error,
+    }));
+  const items = listActiveUpNextProviderItems()
+    .filter((item) => UP_NEXT_PROVIDERS.has(String(item?.source || "").toLowerCase()))
+    .map((item) => ({
+      provider: item.source,
+      feed_kind: item.queue_kind,
+      provider_item_id: item.provider_item_id,
+      canonical_key: item.canonical_key,
+      title: item.title,
+      show_title: item.show_title,
+      episode_title: item.episode_title,
+      season: item.season,
+      episode: item.episode,
+      year: item.year,
+      air_date: item.air_date,
+      poster_url: item.poster_url,
+      show_poster_url: item.show_poster_url,
+      ids: [item.imdb_id, item.tmdb_id, item.tvdb_id, item.show_imdb_id, item.show_tmdb_id, item.show_tvdb_id],
+      position_ms: item.position_ms,
+      duration_ms: item.duration_ms,
+      progress: item.progress,
+      source_updated_at: item.source_updated_at,
+      provider_items: item.provider_items,
+    }));
   return `${getDataVersion()}:${JSON.stringify({ feeds, items })}`;
+}
+
+// Jellyfin was removed from the Up Next feature, which also removed the feed
+// definitions that refresh and expire its rows. Anything it left behind is
+// frozen: never refreshed, never superseded by a newer generation, and filtered
+// out of every read. Delete it once at startup so the ledger holds only
+// providers the feature still polls.
+export function purgeUnsupportedUpNextProviders() {
+  const supported = [...UP_NEXT_PROVIDERS];
+  const placeholders = supported.map(() => "?").join(", ");
+  const items = db.prepare(
+    `DELETE FROM up_next_provider_items WHERE LOWER(provider) NOT IN (${placeholders})`,
+  ).run(...supported);
+  const feeds = db.prepare(
+    `DELETE FROM up_next_provider_feed_state WHERE LOWER(provider) NOT IN (${placeholders})`,
+  ).run(...supported);
+  const removed = Number(items.changes || 0) + Number(feeds.changes || 0);
+  if (removed) {
+    bumpUpNextVersion();
+    console.log(`Removed ${items.changes} stale Up Next provider item(s) and ${feeds.changes} feed state(s) for unsupported providers.`);
+  }
+  return { items: Number(items.changes || 0), feeds: Number(feeds.changes || 0) };
 }
 
 export { safeError as redactUpNextProviderError };

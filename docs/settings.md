@@ -20,7 +20,7 @@ and mobile use the **Settings section** select control for the full settings cat
 | Restore | `/settings/restore` | Local (Watch History, Plembfin), Remote (Watch History, Plembfin) | `/settings/restore#restore-local`, `/settings/restore#restore-remote` |
 | Tools | `/settings/tools` | Guided Setup, Database Repairs, Library Rebuilds and Backfills, Wipe data (Watch History, Personal Watchlist, Sync History & Logs, Everything Tracked, Wipe All / Fresh Start) | `/settings/tools#guided-setup`, `/settings/tools#database-repairs`, `/settings/tools#library-rebuilds`, `/settings/tools#wipe-data` |
 | Logs | `/settings/logs` | (none - single-page group) | - |
-| Changelog | `/settings/changelog` | (none - single-page group) | - |
+| Changelog | `/settings/changelog` | (none - single-page group) | Main / Alpha channel toggle; see [`architecture.md`](architecture.md#changelog--update-check) |
 
 The Settings overview and section select expose the parent groups and their display-only
 children. Every child section navigates to the parent group's path with the section id

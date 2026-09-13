@@ -24,7 +24,7 @@ test("queue projection keeps canonical resumes first and provider next-up after 
     }],
     playstateRows: [],
     providerItems: [{
-      provider: "jellyfin",
+      provider: "emby",
       feed_kind: "next_up",
       provider_item_id: "episode-next",
       media_type: "episode",
@@ -43,7 +43,33 @@ test("queue projection keeps canonical resumes first and provider next-up after 
   assert.equal(projection.items[0].progress, 25);
   assert.equal(projection.items[1].media_type, "episode");
   assert.equal(projection.items[1].progress, 0);
-  assert.deepEqual(projection.items[1].provider_items, { jellyfin: ["episode-next"] });
+  assert.deepEqual(projection.items[1].provider_items, { emby: ["episode-next"] });
+});
+
+test("Jellyfin observations take part in the Up Next projection", async () => {
+  const projection = await buildUpNextProjection({
+    now: Date.parse("2026-09-01T12:00:00.000Z"),
+    localFallback: false,
+    progressRows: [],
+    playstateRows: [],
+    providerItems: [{
+      provider: "jellyfin",
+      feed_kind: "next_up",
+      provider_item_id: "jellyfin-next",
+      media_type: "episode",
+      title: "Jellyfin Show - S01E01",
+      show_title: "Jellyfin Show",
+      season: 1,
+      episode: 1,
+      show_ids: { tmdb: "5150" },
+      air_date: "2026-08-01",
+    }],
+  });
+
+  assert.equal(projection.items.length, 1);
+  assert.equal(projection.items[0].show_title, "Jellyfin Show");
+  assert.equal(projection.items[0].queue_kind, "next_up");
+  assert.deepEqual(projection.items[0].provider_items, { jellyfin: ["jellyfin-next"] });
 });
 
 test("queue projection carries show watch recency into provider next-up ordering", async () => {
@@ -57,8 +83,8 @@ test("queue projection carries show watch recency into provider next-up ordering
       { title: "Reacher", tmdb_id: "108978", latest_watched_at: "2026-09-03T20:00:00.000Z" },
     ],
     providerItems: [
-      { provider: "jellyfin", feed_kind: "next_up", provider_item_id: "ted-next", media_type: "episode", title: "Ted Lasso - S03E02", show_title: "Ted Lasso", show_ids: { tmdb: "97546" }, season: 3, episode: 2, air_date: "2026-08-01" },
-      { provider: "jellyfin", feed_kind: "next_up", provider_item_id: "reacher-next", media_type: "episode", title: "Reacher - S03E08", show_title: "Reacher", show_ids: { tmdb: "108978" }, season: 3, episode: 8, air_date: "2026-08-01" },
+      { provider: "emby", feed_kind: "next_up", provider_item_id: "ted-next", media_type: "episode", title: "Ted Lasso - S03E02", show_title: "Ted Lasso", show_ids: { tmdb: "97546" }, season: 3, episode: 2, air_date: "2026-08-01" },
+      { provider: "emby", feed_kind: "next_up", provider_item_id: "reacher-next", media_type: "episode", title: "Reacher - S03E08", show_title: "Reacher", show_ids: { tmdb: "108978" }, season: 3, episode: 8, air_date: "2026-08-01" },
     ],
   });
 
@@ -125,10 +151,10 @@ test("uncertain provider membership keeps only the furthest episode for a show",
         ids: { imdb: "tt-ludwig-episode-2" },
       },
       {
-        provider: "jellyfin",
+        provider: "emby",
         feed_kind: "next_up",
-        provider_item_id: "jellyfin-ludwig-2",
-        series_provider_item_id: "jellyfin-ludwig",
+        provider_item_id: "emby-ludwig-2",
+        series_provider_item_id: "emby-ludwig",
         media_type: "episode",
         title: "Ludwig - S02E02",
         show_title: "Ludwig",
@@ -145,7 +171,7 @@ test("uncertain provider membership keeps only the furthest episode for a show",
   assert.equal(projection.items[0].season, 2);
   assert.equal(projection.items[0].episode, 2);
   assert.deepEqual(projection.items[0].provider_items, {
-    jellyfin: ["jellyfin-ludwig-2"],
+    emby: ["emby-ludwig-2"],
     plex: ["plex-ludwig-2"],
   });
 });
@@ -407,10 +433,10 @@ test("provider next-up is filtered by a locally watched episode with a different
     progressRows: [],
     playstateRows: [],
     providerItems: [{
-      provider: "jellyfin",
+      provider: "emby",
       feed_kind: "next_up",
-      provider_item_id: "jellyfin-expedition-x-s01e05",
-      series_provider_item_id: "jellyfin-expedition-x",
+      provider_item_id: "emby-expedition-x-s01e05",
+      series_provider_item_id: "emby-expedition-x",
       media_type: "episode",
       title: "Expedition X - S01E05",
       show_title: "Expedition X",
@@ -487,4 +513,176 @@ test("handleUpNextRemove clears positive playback progress and marks unplayed", 
 
   const remaining = db.prepare("SELECT * FROM playback_progress WHERE media_key = ?").get(mediaKey);
   assert.equal(remaining, undefined);
+});
+
+// --- Local fallback: an unwatched next episode has no watch history, so it
+// can never carry a native provider id of its own. These cover the two ways
+// that used to make a real, playable episode vanish from Up Next.
+
+const { db } = await import("../server/src/db.js");
+
+function seedShowMetadata({ tmdbId, tvdbId, title, seasonNumber, episodes }) {
+  db.prepare(
+    `INSERT INTO tmdb_metadata_cache (id, tmdb_id, media_type, title, details, schema_version, updated_at_ms)
+     VALUES (?, ?, 'tv', ?, ?, 1, ?)
+     ON CONFLICT(id) DO UPDATE SET details = excluded.details`,
+  ).run(
+    `tv_${tmdbId}`,
+    tmdbId,
+    title,
+    JSON.stringify({
+      id: Number(tmdbId),
+      name: title,
+      external_ids: { tvdb_id: tvdbId },
+      seasons: [{ season_number: seasonNumber }],
+    }),
+    Date.now(),
+  );
+  db.prepare(
+    `INSERT INTO tvdb_season_cache (id, tvdb_id, season_number, details, updated_at_ms)
+     VALUES (?, ?, ?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET details = excluded.details`,
+  ).run(
+    `${tvdbId}_${seasonNumber}`,
+    tvdbId,
+    seasonNumber,
+    JSON.stringify({ episodes }),
+    Date.now(),
+  );
+}
+
+test("local fallback resolves an unwatched next episode against the configured libraries", async () => {
+  seedShowMetadata({
+    tmdbId: "108978",
+    tvdbId: "371980",
+    title: "Reacher",
+    seasonNumber: 4,
+    episodes: [
+      { number: 6, name: "Plum Out of Luck", aired: "2026-09-01" },
+      { number: 7, name: "Vote for Sampson", aired: "2026-09-08" },
+    ],
+  });
+  insertWatchRecordSync({
+    title: "Reacher - S04E06",
+    show_title: "Reacher",
+    episode_title: "Plum Out of Luck",
+    media_type: "episode",
+    season: 4,
+    episode: 6,
+    show_tmdb_id: "108978",
+    show_tvdb_id: "371980",
+    watched_at: "2026-09-05T19:26:00.000Z",
+    source: "manual",
+  });
+
+  const shows = [{
+    id: "reacher",
+    title: "Reacher",
+    tmdb_id: "108978",
+    tvdb_id: "371980",
+    episode_count: 1,
+    latest_watched_at: "2026-09-05T19:26:00.000Z",
+  }];
+  const options = {
+    now: Date.parse("2026-09-13T12:00:00.000Z"),
+    shows,
+    progressRows: [],
+    playstateRows: [],
+    providerItems: [],
+  };
+
+  // No library to ask: the old, conservative behavior is preserved.
+  const withoutLookup = await buildUpNextProjection(options);
+  assert.equal(withoutLookup.items.length, 0);
+
+  const asked = [];
+  const withLookup = await buildUpNextProjection({
+    ...options,
+    resolveProviderItems: async (candidate) => {
+      asked.push(`${candidate.season}:${candidate.episode}`);
+      return { plex: ["4685"] };
+    },
+  });
+  assert.deepEqual(asked, ["4:7"]);
+  assert.equal(withLookup.items.length, 1);
+  assert.equal(withLookup.items[0].season, 4);
+  assert.equal(withLookup.items[0].episode, 7);
+  assert.deepEqual(withLookup.items[0].provider_items, { plex: ["4685"] });
+});
+
+test("a provider observation suppressed by a newer unwatch no longer cancels the local fallback", async () => {
+  seedShowMetadata({
+    tmdbId: "97546",
+    tvdbId: "383203",
+    title: "Ted Lasso",
+    seasonNumber: 4,
+    episodes: [
+      { number: 2, name: "Second", aired: "2026-08-01" },
+      { number: 3, name: "Richmond's Got Talent", aired: "2026-08-08" },
+    ],
+  });
+  insertWatchRecordSync({
+    title: "Ted Lasso - S04E02",
+    show_title: "Ted Lasso",
+    episode_title: "Second",
+    media_type: "episode",
+    season: 4,
+    episode: 2,
+    show_tmdb_id: "97546",
+    show_tvdb_id: "383203",
+    watched_at: "2026-08-05T11:47:55.353Z",
+    source: "manual",
+  });
+  // The explicit unwatch is newer than the Plex Continue Watching row below,
+  // so the provider card is filtered out. The episode must come back as a
+  // next-up card rather than disappearing with it.
+  insertWatchRecordSync({
+    title: "Ted Lasso - S04E03",
+    show_title: "Ted Lasso",
+    episode_title: "Richmond's Got Talent",
+    media_type: "episode",
+    season: 4,
+    episode: 3,
+    show_tmdb_id: "97546",
+    show_tvdb_id: "383203",
+    watched_at: "2026-09-12T22:58:10.828Z",
+    source: "manual",
+    sync_action: "unwatched",
+  });
+
+  const projection = await buildUpNextProjection({
+    now: Date.parse("2026-09-13T12:00:00.000Z"),
+    shows: [{
+      id: "ted-lasso",
+      title: "Ted Lasso",
+      tmdb_id: "97546",
+      tvdb_id: "383203",
+      episode_count: 2,
+      latest_watched_at: "2026-08-05T11:47:55.353Z",
+    }],
+    progressRows: [],
+    playstateRows: [],
+    providerItems: [{
+      provider: "plex",
+      feed_kind: "resume",
+      provider_item_id: "3478",
+      media_type: "episode",
+      title: "Ted Lasso - S04E03",
+      show_title: "Ted Lasso",
+      episode_title: "Richmond's Got Talent",
+      season: 4,
+      episode: 3,
+      show_ids: { tmdb: "97546", tvdb: "383203" },
+      position_ms: 400000,
+      duration_ms: 1800000,
+      progress: 22,
+      updated_at: Date.parse("2026-09-06T10:00:00.000Z"),
+    }],
+    resolveProviderItems: async () => ({ plex: ["3478"] }),
+  });
+
+  const episodes = projection.items.filter((item) => item.show_title === "Ted Lasso");
+  assert.equal(episodes.length, 1);
+  assert.equal(episodes[0].episode, 3);
+  assert.equal(episodes[0].queue_kind, "next_up");
 });

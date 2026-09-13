@@ -134,14 +134,11 @@ version to the released semver and the build to 1. The sidebar and About
   `alpha-<build>`) using the build number already in the pushed commit, creates or updates
   the matching numbered GitHub prerelease with the formatted notes from
   `scripts/generate-release-notes.js`, then posts that one build's own changelog entry to
-  Discord (see "Discord release notifications" below). Afterward, push develop's own
-  reset state to `origin/develop` too (a plain
-  push, not a force-push) - that push only ever changes
-  `changelog.develop.json`/`changelog.alpha.json`, so `docker-publish-develop.yml`'s
-  `paths-ignore` skips rebuilding and republishing a develop image over it; the point is
-  getting the correct file onto `origin/develop` for the app's own live remote-fetch
-  changelog comparison (`fetchRemoteDevelopChangelog` in `routes/maintenance.js`), not a
-  new image. `secret-scan.yml` still runs regardless of which files changed.
+  Discord (see "Discord release notifications" below). The promotion then stops: nothing
+  is pushed to `origin/develop`. The reset `changelog.develop.json` stays on the local
+  branch and the next ordinary "Push to git" publishes it, which is what keeps a
+  promotion to one channel from also publishing a second develop image. See
+  `docs/decisions.md` entry 18.
 - **"Force to main"** first runs the mandatory website update gate against the current
   development checkout so the tracked Astro documentation and captures cover the latest
   application changes. It then checks out `alpha`'s actual tip locally, writes a concise,
@@ -165,10 +162,13 @@ version to the released semver and the build to 1. The sidebar and About
   existing `/data` mount, and verifies the released version plus the public-demo
   health/guardrail checks. Publishing to GHCR alone does not restart this container.
   Portainer is local-only and is not used by the release gate.
-- After the release pipeline publishes from that commit, the procedure merges
-  `origin/main` into `develop` and pushes the synchronized state to `origin/develop`.
-  The next "Force to alpha" therefore starts with `main` already represented in remote
-  `develop`; its merge step remains as a repair path for an older or interrupted release.
+- After the release pipeline publishes from that commit, the procedure stops. `main` is
+  not merged into `develop` and nothing is pushed to `origin/develop`. Nothing needs
+  carrying: `promote-alpha-to-main.js` reads the released history from
+  `origin/main:changelog.json` rather than the working tree, and every changelog
+  generation point writes the released version from the local manifests, so `develop`
+  reconciles itself on its next "Push to git" with no merge. "Force to alpha" therefore
+  has no ancestry check to satisfy. See `docs/decisions.md` entry 18.
 
 ### Promotion commands
 
@@ -212,9 +212,8 @@ git push origin develop
 The alpha workflow reads the alpha build metadata already committed and publishes
 `:alpha` plus an `alpha-<build>` tag. The main workflow reads the version already
 committed, publishes a multi-architecture `:latest` plus version tag for AMD64 and
-ARM64 hosts, and then deploys that exact version to the OCI demo job. After that check,
-the procedure publishes its merge into `origin/develop` so the branch graph is
-reconciled before the next alpha promotion. It does not sync `alpha` separately.
+ARM64 hosts, and then deploys that exact version to the OCI demo job. After that check
+the procedure ends; it pushes neither `develop` nor `alpha`.
 
 For a demo-only catch-up, run the **Deploy Public Demo** workflow manually from the
 `main` ref. Type `DEPLOY` in its confirmation input and leave the version blank to use

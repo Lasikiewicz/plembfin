@@ -1181,6 +1181,26 @@ function readLocalAlphaChangelog() {
 // so every remote entry is pending; otherwise only builds past the
 // locally-installed one are. Exported standalone (pure, no I/O) so this can
 // be tested without mocking the filesystem or network.
+// Merges the bundled and the branch's alpha entries into one list, newest build
+// first. A build present in both keeps the richer copy (the one with details),
+// so an entry that was trimmed in one source is not the one that survives.
+export function mergeAlphaEntries(localEntries = [], remoteEntries = []) {
+  const byBuild = new Map();
+  for (const entry of [...(Array.isArray(remoteEntries) ? remoteEntries : []), ...(Array.isArray(localEntries) ? localEntries : [])]) {
+    if (!entry) continue;
+    const key = String(entry.build ?? entry.version ?? "");
+    const existing = byBuild.get(key);
+    if (!existing) {
+      byBuild.set(key, entry);
+      continue;
+    }
+    const existingDetail = Array.isArray(existing.details) ? existing.details.length : 0;
+    const candidateDetail = Array.isArray(entry.details) ? entry.details.length : 0;
+    if (candidateDetail > existingDetail) byBuild.set(key, entry);
+  }
+  return [...byBuild.values()].sort((a, b) => (Number(b.build) || 0) - (Number(a.build) || 0));
+}
+
 export function describePendingAlphaBuild(localAlphaBuild, remoteAlpha) {
   const remoteBuild = Number(remoteAlpha?.build) || 0;
   const remoteBaseVersion = remoteAlpha?.baseVersion || localAlphaBuild.baseVersion;
@@ -1251,17 +1271,40 @@ async function fetchRemoteAlphaChangelog({ force = false } = {}) {
   return data;
 }
 
+// Build versions are five segments: major.minor.patch.alpha.dev (see
+// scripts/version.js for the ladder). Missing segments zero-fill, which is what
+// makes this backward compatible - a four-segment "1.0.2.1" written by an older
+// promotion parses to [1,0,2,1,0], the same value the current scheme writes, so
+// no already-shipped version is reinterpreted.
+//
+// The previous implementation matched only /^(\d+)\.(\d+)\.(\d+)/ and discarded
+// the rest, so "1.1.0.5" and "1.1.0" compared equal and no alpha build could be
+// ordered against another.
+const VERSION_SEGMENTS = 5;
+
 function parseSemver(value) {
-  const match = String(value || "").trim().match(/^(\d+)\.(\d+)\.(\d+)/);
-  if (!match) return null;
-  return [Number(match[1]), Number(match[2]), Number(match[3])];
+  const text = String(value || "").trim().replace(/^v/i, "");
+  if (!text) return null;
+  const parts = text.split(".");
+  if (parts.length > VERSION_SEGMENTS) return null;
+  const numbers = [];
+  for (let i = 0; i < VERSION_SEGMENTS; i++) {
+    const part = parts[i];
+    if (part === undefined) {
+      numbers.push(0);
+      continue;
+    }
+    if (!/^\d+$/.test(part)) return null;
+    numbers.push(Number(part));
+  }
+  return numbers;
 }
 
 function compareSemver(a, b) {
   const pa = parseSemver(a);
   const pb = parseSemver(b);
   if (!pa || !pb) return 0;
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < VERSION_SEGMENTS; i++) {
     if (pa[i] > pb[i]) return 1;
     if (pa[i] < pb[i]) return -1;
   }
@@ -1369,13 +1412,34 @@ export async function handleChangelog(req, res) {
     }
   }
 
-  let alphaBuild = (channel === "alpha" || channel === "develop") ? readLocalAlphaChangelog() : null;
-  if (alphaBuild && channel === "alpha") {
+  // Alpha data is returned on every channel, not just alpha, so Settings ->
+  // Changelog can offer a Main / Alpha toggle regardless of what is installed.
+  // A release image bundles the reset changelog.alpha.json (build 0, no
+  // entries), so the branch's live manifest is what actually populates the tab.
+  //
+  // `newerBuildAvailable` is forced false off the alpha channel: a stable user
+  // being able to read alpha notes must never turn into an update prompt. The
+  // installed-version and update indicators are computed from changelog.json
+  // alone, above, and no alpha version is allowed into that comparison - alpha
+  // builds sort above the release they follow, so leaking one in would tell
+  // every release install that an update exists.
+  let alphaBuild = readLocalAlphaChangelog();
+  if (alphaBuild) {
     try {
       const remoteAlpha = await fetchRemoteAlphaChangelog({ force: isForceRefresh });
-      alphaBuild = { ...alphaBuild, ...describePendingAlphaBuild(alphaBuild, remoteAlpha) };
+      const pending = describePendingAlphaBuild(alphaBuild, remoteAlpha);
+      alphaBuild = {
+        ...alphaBuild,
+        ...pending,
+        newerBuildAvailable: channel === "alpha" ? pending.newerBuildAvailable : false,
+        // The complete alpha history for this cycle, local and remote merged by
+        // build number, newest first. On a release install the local half is
+        // empty and this is purely the branch's own list.
+        allEntries: mergeAlphaEntries(alphaBuild.entries, Array.isArray(remoteAlpha?.entries) ? remoteAlpha.entries : []),
+      };
     } catch {
       // GitHub unreachable - alphaBuild stays the local-only snapshot, no update signal.
+      alphaBuild = { ...alphaBuild, newerBuildAvailable: false, allEntries: alphaBuild.entries };
     }
   }
 

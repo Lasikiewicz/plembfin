@@ -1,9 +1,9 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.0.0.0";
-import { state, elements } from "./state.js?v=1.1.0.0.0";
-import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, sourceBadgeHtml, formatDate, formatTmdbDate, resolveEpisodeTitle, episodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress, isDemoMode } from "./utils.js?v=1.1.0.0.0";
-import { posterMarkup, posterOverflowMenu, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, isLocalArtworkUrl } from "./images.js?v=1.1.0.0.0";
-import { renderDashboardChecklist } from "./onboarding.js?v=1.1.0.0.0";
-import { initialMediaAppLinksContent } from "./media-detail-shared.js?v=1.1.0.0.0";
+import { buildAuthHeaders } from "./auth.js?v=1.1.0.0.2";
+import { state, elements } from "./state.js?v=1.1.0.0.2";
+import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, sourceBadgeHtml, formatDate, formatTmdbDate, resolveEpisodeTitle, episodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress, isDemoMode } from "./utils.js?v=1.1.0.0.2";
+import { posterMarkup, posterOverflowMenu, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, isLocalArtworkUrl } from "./images.js?v=1.1.0.0.2";
+import { renderDashboardChecklist } from "./onboarding.js?v=1.1.0.0.2";
+import { initialMediaAppLinksContent } from "./media-detail-shared.js?v=1.1.0.0.2";
 
 const PART_WATCHED_DASHBOARD_LIMIT = 30;
 const EXPLORER_PAGE_SIZE = 240;
@@ -488,6 +488,7 @@ export function renderDashboardHistoryPageCard(entry, options = {}) {
             data-media-type="${isEpisode ? "episode" : "movie"}"
             data-app-link-style="source-badge"
             data-all-apps="true"
+            data-targets="plex,emby"
             data-tmdb-id="${escapeAttribute(isEpisode ? (entry.show_tmdb_id || "") : (entry.tmdb_id || ""))}"
             data-imdb-id="${escapeAttribute(isEpisode ? (entry.show_imdb_id || "") : (entry.imdb_id || ""))}"
             data-tvdb-id="${escapeAttribute(isEpisode ? (entry.show_tvdb_id || "") : (entry.tvdb_id || ""))}"
@@ -505,6 +506,7 @@ export function renderDashboardHistoryPageCard(entry, options = {}) {
               episode: isEpisode ? (entry.episode ?? "") : "",
               providerItems: entry.provider_items || entry.providerItems || {},
               title: isEpisode ? (displayTitle || "") : (entry.title || ""),
+              targets: ["plex", "emby"],
             })}</div>
         </div>
       ` : `

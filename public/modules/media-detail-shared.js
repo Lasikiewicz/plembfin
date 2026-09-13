@@ -1,8 +1,8 @@
-import { state } from "./state.js?v=1.1.0.0.0";
-import { buildAuthHeaders } from "./auth.js?v=1.1.0.0.0";
-import { escapeHtml, escapeAttribute, slug, formatTmdbDate, tvShowTmdbHref, movieTmdbHref, platformIconUrl, isDemoMode } from "./utils.js?v=1.1.0.0.0";
-import { tmdbImage, tmdbPoster, tmdbProfile } from "./images.js?v=1.1.0.0.0";
-import { fetchTmdbDetails } from "./tmdb.js?v=1.1.0.0.0";
+import { state } from "./state.js?v=1.1.0.0.2";
+import { buildAuthHeaders } from "./auth.js?v=1.1.0.0.2";
+import { escapeHtml, escapeAttribute, slug, formatTmdbDate, tvShowTmdbHref, movieTmdbHref, platformIconUrl, isDemoMode } from "./utils.js?v=1.1.0.0.2";
+import { tmdbImage, tmdbPoster, tmdbProfile } from "./images.js?v=1.1.0.0.2";
+import { fetchTmdbDetails } from "./tmdb.js?v=1.1.0.0.2";
 
 function authHeaders() {
   return buildAuthHeaders(state.token);
@@ -378,7 +378,9 @@ export function initialMediaAppLinksContent({
   providerItems = "",
   appLinkStyle = "",
   allApps = false,
+  targets = null,
 } = {}) {
+  const targetList = appLinkTargetEntries(targets);
   const params = new URLSearchParams();
   params.set("mediaType", mediaType || "movie");
   for (const [param, val] of [
@@ -394,6 +396,7 @@ export function initialMediaAppLinksContent({
   if (providerItems) {
     params.set("providerItems", typeof providerItems === "object" ? JSON.stringify(providerItems) : String(providerItems));
   }
+  if (targetList.length < APP_LINK_TARGETS.length) params.set("targets", targetList.map(([target]) => target).join(","));
 
   const pillStyle = appLinkStyle === "source-badge" ? "source-badge" : "";
   const includeUnavailable = Boolean(allApps);
@@ -401,12 +404,12 @@ export function initialMediaAppLinksContent({
   const cachedEntry = readAppLinksCache()[cacheKey];
   const cachedLinks = Array.isArray(cachedEntry?.links) ? cachedEntry.links : null;
   if (cachedLinks) {
-    return appLinkRowHtml(cachedLinks, { includeUnavailable, pillStyle });
+    return appLinkRowHtml(cachedLinks, { includeUnavailable, pillStyle, targetList });
   }
 
   if (includeUnavailable) {
     return pillStyle === "source-badge"
-      ? appLinkRowHtml([], { includeUnavailable: true, checking: true, pillStyle })
+      ? appLinkRowHtml([], { includeUnavailable: true, checking: true, pillStyle, targetList })
       : "";
   }
   return "";
@@ -585,6 +588,18 @@ const APP_LINK_TARGETS = [
   ["jellyfin", "Jellyfin"],
 ];
 
+function appLinkTargetEntries(targets = null) {
+  const requested = Array.isArray(targets)
+    ? targets
+    : typeof targets === "string"
+      ? targets.split(",")
+      : [];
+  const normalized = new Set(requested.map((target) => String(target || "").trim().toLowerCase()).filter(Boolean));
+  return normalized.size
+    ? APP_LINK_TARGETS.filter(([target]) => normalized.has(target))
+    : APP_LINK_TARGETS;
+}
+
 function appLinkHtml(link, { disabled = false, checking = false, label = "", pillStyle = "" } = {}) {
   const target = link?.target || "";
   const displayLabel = link?.label || label || target;
@@ -611,10 +626,13 @@ function appLinkHtml(link, { disabled = false, checking = false, label = "", pil
   `;
 }
 
-function appLinkRowHtml(links = [], { includeUnavailable = false, checking = false, pillStyle = "" } = {}) {
-  const linkMap = new Map(links.map((link) => [link.target, link]));
+function appLinkRowHtml(links = [], { includeUnavailable = false, checking = false, pillStyle = "", targetList = APP_LINK_TARGETS } = {}) {
+  const allowedTargets = new Set(targetList.map(([target]) => target));
+  const linkMap = new Map(links
+    .filter((link) => allowedTargets.has(String(link?.target || "").toLowerCase()))
+    .map((link) => [link.target, link]));
   const activeLinkHtml = includeUnavailable
-    ? APP_LINK_TARGETS.map(([target, label]) => linkMap.has(target)
+    ? targetList.map(([target, label]) => linkMap.has(target)
       ? appLinkHtml(linkMap.get(target), { pillStyle })
       : appLinkHtml({ target, label }, { disabled: true, checking, pillStyle })).join("")
     : [...linkMap.values()].map((link) => appLinkHtml(link, { pillStyle })).join("");
@@ -642,6 +660,8 @@ export async function hydrateMediaAppLinks(root = document, { allowNetwork = tru
     }
     const providerItems = container.dataset.providerItems || "";
     if (providerItems) params.set("providerItems", providerItems);
+    const targetList = appLinkTargetEntries(container.dataset.targets || null);
+    if (targetList.length < APP_LINK_TARGETS.length) params.set("targets", targetList.map(([target]) => target).join(","));
 
     const pillStyle = container.dataset.appLinkStyle === "source-badge" ? "source-badge" : "";
     const greyedOutHtml = pillStyle === "source-badge"
@@ -649,15 +669,15 @@ export async function hydrateMediaAppLinks(root = document, { allowNetwork = tru
       : `
         <b class="media-app-link-row">
           <a class="media-app-link media-app-link--plex media-app-link--disabled" title="Checking Plex..." aria-label="Checking Plex..." style="opacity: 0.4; cursor: not-allowed;">
-            <img class="media-app-link-logo" src="/icons/plex.svg?v=1.1.0.0.0" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
+            <img class="media-app-link-logo" src="/icons/plex.svg?v=1.1.0.0.2" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
             <span>Plex</span>
           </a>
           <a class="media-app-link media-app-link--emby media-app-link--disabled" title="Checking Emby..." aria-label="Checking Emby..." style="opacity: 0.4; cursor: not-allowed;">
-            <img class="media-app-link-logo" src="/icons/emby.svg?v=1.1.0.0.0" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
+            <img class="media-app-link-logo" src="/icons/emby.svg?v=1.1.0.0.2" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
             <span>Emby</span>
           </a>
           <a class="media-app-link media-app-link--jellyfin media-app-link--disabled" title="Checking Jellyfin..." aria-label="Checking Jellyfin..." style="opacity: 0.4; cursor: not-allowed;">
-            <img class="media-app-link-logo" src="/icons/jellyfin.svg?v=1.1.0.0.0" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
+            <img class="media-app-link-logo" src="/icons/jellyfin.svg?v=1.1.0.0.2" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
             <span>Jellyfin</span>
           </a>
         </b>
@@ -669,7 +689,7 @@ export async function hydrateMediaAppLinks(root = document, { allowNetwork = tru
     const cachedEntry = readAppLinksCache()[cacheKey];
     const cachedLinks = Array.isArray(cachedEntry?.links) ? cachedEntry.links : null;
     const includeUnavailable = container.dataset.allApps === "true";
-    const cachedRowHtml = cachedLinks ? appLinkRowHtml(cachedLinks, { includeUnavailable, pillStyle }) : "";
+    const cachedRowHtml = cachedLinks ? appLinkRowHtml(cachedLinks, { includeUnavailable, pillStyle, targetList }) : "";
     const targetInitialHtml = cachedRowHtml || greyedOutHtml;
     if (container.innerHTML !== targetInitialHtml) {
       container.innerHTML = targetInitialHtml;
@@ -715,7 +735,7 @@ export async function hydrateMediaAppLinks(root = document, { allowNetwork = tru
       const linksUnchanged = JSON.stringify(body.links) === JSON.stringify(cachedLinks);
       writeAppLinksCacheEntry(cacheKey, body.links);
       if (linksUnchanged) return;
-      const freshRowHtml = appLinkRowHtml(body.links, { includeUnavailable, pillStyle });
+      const freshRowHtml = appLinkRowHtml(body.links, { includeUnavailable, pillStyle, targetList });
       if (freshRowHtml) {
         if (container.innerHTML !== freshRowHtml) container.innerHTML = freshRowHtml;
       } else if (cachedRowHtml && container.innerHTML !== greyedOutHtml) {
@@ -738,7 +758,7 @@ export function tvdbSeriesUrl(tvdbId) {
   return `https://thetvdb.com/dereferrer/series/${encodeURIComponent(id)}`;
 }
 
-const RATING_SOURCE_ICONS = { TMDB: "/icons/tmdb.svg?v=1.1.0.0.0", TVDB: "/icons/tvdb.svg?v=1.1.0.0.0", IMDb: "/icons/imdb.svg?v=1.1.0.0.0" };
+const RATING_SOURCE_ICONS = { TMDB: "/icons/tmdb.svg?v=1.1.0.0.2", TVDB: "/icons/tvdb.svg?v=1.1.0.0.2", IMDb: "/icons/imdb.svg?v=1.1.0.0.2" };
 
 export function ratingPillHtml({ label, value = "View", href = "", title = "" } = {}) {
   if (!label || !href) return "";

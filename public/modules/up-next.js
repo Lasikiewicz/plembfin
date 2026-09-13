@@ -1,9 +1,9 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.0.0.0";
-import { state, elements } from "./state.js?v=1.1.0.0.0";
-import { escapeHtml } from "./utils.js?v=1.1.0.0.0";
-import { hydratePosters } from "./images.js?v=1.1.0.0.0";
-import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=1.1.0.0.0";
-import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=1.1.0.0.0";
+import { buildAuthHeaders } from "./auth.js?v=1.1.0.0.2";
+import { state, elements } from "./state.js?v=1.1.0.0.2";
+import { escapeHtml } from "./utils.js?v=1.1.0.0.2";
+import { hydratePosters } from "./images.js?v=1.1.0.0.2";
+import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=1.1.0.0.2";
+import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=1.1.0.0.2";
 
 const UP_NEXT_TTL_MS = 2 * 60 * 1000;
 const UP_NEXT_TIMEOUT_MS = 20000;
@@ -13,6 +13,7 @@ const UP_NEXT_DISMISSED_KEY = "plembfin:upNextDismissed:v1";
 const UP_NEXT_CACHE_KEY = "plembfin:upNextCache:v6";
 const UP_NEXT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const UP_NEXT_SYNC_TIMEOUT_MS = 60_000;
+const UP_NEXT_PROVIDERS = new Set(["plex", "emby", "jellyfin"]);
 // Mirrors dashboard.js's DASHBOARD_CARD_EXIT_MS so overlapping refreshes wait
 // for a removal exit to finish before repainting the rail with a fresh
 // snapshot (otherwise the exit is cut short by the immediate innerHTML swap).
@@ -75,7 +76,8 @@ function upNextDismissalKeys(item = {}, mediaKey = "") {
   const providerItemId = String(item.provider_item_id || item.providerItemId || "").trim();
   if (providerItemId) keys.add(providerItemId);
   const providerItems = item.provider_items || item.providerItems || {};
-  for (const values of Object.values(providerItems)) {
+  for (const [provider, values] of Object.entries(providerItems)) {
+    if (!UP_NEXT_PROVIDERS.has(String(provider || "").toLowerCase())) continue;
     for (const value of (Array.isArray(values) ? values : [values])) {
       const providerId = String(value || "").trim();
       if (providerId) keys.add(providerId);
@@ -101,17 +103,6 @@ export function isUpNextItemDismissed(item) {
   return true;
 }
 
-export function dismissUpNextId(id, mediaKey = "", details = {}) {
-  const cleanId = String(id || "").trim();
-  const cleanKey = String(mediaKey || "").trim();
-  if (cleanId) dismissedUpNext[cleanId] = Date.now();
-  if (cleanKey) dismissedUpNext[cleanKey] = Date.now();
-  for (const key of upNextDismissalKeys({ ...details, id: cleanId, media_key: cleanKey })) {
-    dismissedUpNext[key] = Date.now();
-  }
-  persistDismissedUpNext();
-}
-
 export function removeUpNextItem(itemId, details = {}) {
   const id = String(itemId || "").trim();
   const mediaKey = String(details.media_key || details.mediaKey || "").trim();
@@ -120,7 +111,8 @@ export function removeUpNextItem(itemId, details = {}) {
   const removedItem = removedIndex >= 0
     ? state.upNextItems[removedIndex]
     : { ...details, id: details.id || id, media_key: details.media_key || mediaKey || id };
-  dismissUpNextId(id, mediaKey, details);
+  // The server records the dismissal; this only hides the card immediately so
+  // the rail does not wait for the round trip.
   state.upNextExitIds = [id || mediaKey];
   state.upNextItems = state.upNextItems.filter((item) => String(item?.id || "") !== id && String(item?.media_key || "") !== mediaKey);
   persistUpNextCache(visibleUpNextItems());
@@ -144,6 +136,190 @@ export function restoreUpNextItem(removal = {}) {
   state.upNextExitIds = [];
   persistUpNextCache(visibleUpNextItems());
   renderUpNext();
+}
+
+// Dismissals live on the server now, so this is simply what the server says
+// is dismissed. The local map below survives only as a migration source for
+// browsers that dismissed things before the move.
+function dismissedUpNextItems() {
+  return Array.isArray(state.upNextDismissed) ? state.upNextDismissed : [];
+}
+
+async function loadDismissedUpNext() {
+  if (!state.token) return [];
+  try {
+    const response = await fetch("/api/up-next/dismissed", { headers: buildAuthHeaders(state.token) });
+    if (!response.ok) return state.upNextDismissed || [];
+    const body = await response.json();
+    state.upNextDismissed = Array.isArray(body.items) ? body.items : [];
+  } catch {
+    // Leave the last known list in place; the count is not worth failing the
+    // dashboard over.
+  }
+  return state.upNextDismissed;
+}
+
+// One-time move of this browser's stored dismissals to the server. Until it
+// runs, a browser that dismissed items before the change would show them back
+// in the queue.
+async function migrateLocalDismissals() {
+  const entries = Object.keys(dismissedUpNext || {});
+  if (!entries.length || !state.token) return false;
+  const items = (Array.isArray(state.upNextItems) ? state.upNextItems : [])
+    .filter((item) => isUpNextItemDismissed(item));
+  if (!items.length) {
+    // Nothing in the current queue matches, so the stored keys are stale.
+    dismissedUpNext = {};
+    persistDismissedUpNext();
+    return false;
+  }
+  for (const item of items) {
+    await fetch("/api/up-next/remove", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...buildAuthHeaders(state.token) },
+      body: JSON.stringify({
+        media_key: item.media_key || item.id,
+        media_type: item.media_type || "",
+        title: item.title || "",
+        show_title: item.show_title || "",
+        season: item.season ?? "",
+        episode: item.episode ?? "",
+        tmdb_id: item.tmdb_id || item.show_tmdb_id || "",
+        imdb_id: item.imdb_id || item.show_imdb_id || "",
+        tvdb_id: item.tvdb_id || item.show_tvdb_id || "",
+        provider_items: item.provider_items || {},
+      }),
+    }).catch(() => null);
+  }
+  dismissedUpNext = {};
+  persistDismissedUpNext();
+  return true;
+}
+
+function upNextItemLabel(item = {}) {
+  const isEpisode = String(item.media_type || item.mediaType || "").toLowerCase() === "episode";
+  if (!isEpisode) {
+    const year = String(item.year || "").trim();
+    return { title: String(item.title || "Untitled"), detail: year ? `Movie · ${year}` : "Movie" };
+  }
+  const show = String(item.show_title || item.showTitle || item.title || "Untitled");
+  const season = Number(item.season);
+  const episode = Number(item.episode);
+  const coordinate = Number.isInteger(season) && Number.isInteger(episode) ? `S${season} · E${episode}` : "";
+  const episodeTitle = String(item.episode_title || item.episodeTitle || "").trim();
+  return { title: show, detail: [coordinate, episodeTitle].filter(Boolean).join(" · ") || "Episode" };
+}
+
+// Clears the local dismissal so the card returns to the rail. The caller is
+// responsible for pushing the restored queue outward; restoring here and
+// pushing there keeps a failed provider push from silently re-hiding a card
+// the user explicitly asked to see again.
+export async function restoreDismissedUpNextItems(entries = []) {
+  const list = (Array.isArray(entries) ? entries : [entries]).filter(Boolean);
+  if (!list.length) return 0;
+  let restored = 0;
+  for (const entry of list) {
+    const response = await fetch("/api/up-next/restore", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...buildAuthHeaders(state.token) },
+      body: JSON.stringify({ id: entry.id }),
+    }).catch(() => null);
+    if (response?.ok) restored += 1;
+  }
+  if (!restored) return 0;
+  await loadDismissedUpNext();
+  state.upNextExitIds = [];
+  await loadUpNext({ force: true });
+  return restored;
+}
+
+function closeDismissedUpNextModal() {
+  document.querySelector(".up-next-dismissed-overlay")?._upNextClose?.();
+}
+
+export function openDismissedUpNextModal() {
+  closeDismissedUpNextModal();
+  const items = dismissedUpNextItems();
+  const byId = new Map(items.map((entry) => [String(entry.id), entry]));
+  const overlay = document.createElement("div");
+  overlay.className = "edit-dialog-overlay settings-modal-overlay up-next-dismissed-overlay";
+  const rows = items.map((entry) => {
+    const label = upNextItemLabel(entry.item && Object.keys(entry.item).length ? entry.item : entry);
+    return `
+      <li class="up-next-dismissed-row">
+        <div class="up-next-dismissed-copy">
+          <b>${escapeHtml(label.title)}</b>
+          <span>${escapeHtml(label.detail)}</span>
+        </div>
+        <button class="button-ghost" type="button" data-up-next-restore="${escapeHtml(String(entry.id))}">Add back</button>
+      </li>
+    `;
+  }).join("");
+  const body = items.length
+    ? `<p class="up-next-dismissed-intro">Dismissed on every device. Adding one back returns it to Up Next and pushes the queue to your media servers.</p>
+       <ul class="up-next-dismissed-list">${rows}</ul>`
+    : `<p class="up-next-dismissed-intro">Nothing dismissed is currently unwatched in Plembfin.</p>`;
+  overlay.innerHTML = `
+    <div class="edit-dialog settings-modal up-next-dismissed-modal" role="dialog" aria-modal="true" aria-label="Dismissed Up Next items">
+      <header class="settings-modal-head">
+        <h3>Dismissed Up Next</h3>
+        <button class="settings-modal-close" type="button" aria-label="Close">&times;</button>
+      </header>
+      <div class="settings-modal-body">${body}</div>
+      <footer class="settings-modal-foot">
+        <div class="settings-modal-actions">
+          ${items.length > 1 ? `<button class="button-ghost" type="button" data-up-next-restore-all>Add all back</button>` : ""}
+          <button class="button-ghost settings-modal-cancel" type="button">Close</button>
+        </div>
+      </footer>
+    </div>
+  `;
+  const onKeydown = (event) => { if (event.key === "Escape") close(); };
+  const close = () => {
+    document.removeEventListener("keydown", onKeydown);
+    overlay.remove();
+  };
+  overlay._upNextClose = close;
+  const restoreAndPush = async (restoreItems) => {
+    close();
+    const restored = await restoreDismissedUpNextItems(restoreItems);
+    if (!restored) return;
+    _cb.setMessage?.(
+      `Added ${restored} item${restored === 1 ? "" : "s"} back to Up Next; pushing to your media servers…`,
+      "success",
+    );
+    syncUpNextToProviders().catch(() => { });
+  };
+  overlay.addEventListener("click", (event) => { if (event.target === overlay) close(); });
+  overlay.querySelector(".settings-modal-close").addEventListener("click", close);
+  overlay.querySelector(".settings-modal-cancel").addEventListener("click", close);
+  overlay.querySelector("[data-up-next-restore-all]")?.addEventListener("click", () => restoreAndPush(items));
+  overlay.querySelectorAll("[data-up-next-restore]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const entry = byId.get(button.dataset.upNextRestore);
+      if (entry) restoreAndPush([entry]);
+    });
+  });
+  document.addEventListener("keydown", onKeydown);
+  document.body.appendChild(overlay);
+  overlay.querySelector("[data-up-next-restore], .settings-modal-close")?.focus({ preventScroll: true });
+}
+
+function renderUpNextDismissedControl() {
+  const button = elements.upNextDismissedButton;
+  if (!button) return;
+  const count = state.token ? dismissedUpNextItems().length : 0;
+  button.classList.toggle("hidden", count === 0);
+  button.disabled = count === 0 || state.upNextSyncing === true;
+  const label = `Show ${count} dismissed Up Next item${count === 1 ? "" : "s"}`;
+  button.textContent = String(count);
+  button.title = label;
+  button.setAttribute("aria-label", label);
+}
+
+function renderUpNextControls() {
+  renderUpNextSyncControl();
+  renderUpNextDismissedControl();
 }
 
 const UP_NEXT_PROVIDER_LABELS = {
@@ -329,9 +505,14 @@ function scheduleUpNextExitRepaint() {
   }, UP_NEXT_EXIT_MS + 40);
 }
 
+// The server applies dismissals now, so whatever it returns is already the
+// visible queue. The local map is consulted only while a pre-migration browser
+// still has stored keys, and is cleared as soon as they are migrated.
 function visibleUpNextItems() {
   const items = Array.isArray(state.upNextItems) ? state.upNextItems : [];
-  return dedupeUpNextItems(items.filter((item) => !isUpNextItemDismissed(item)));
+  const pendingLocal = Object.keys(dismissedUpNext || {}).length > 0;
+  const filtered = pendingLocal ? items.filter((item) => !isUpNextItemDismissed(item)) : items;
+  return dedupeUpNextItems(filtered);
 }
 
 function renderUpNextSyncControl() {
@@ -343,14 +524,17 @@ function renderUpNextSyncControl() {
   button.disabled = !signedIn || syncing || loading;
   button.setAttribute("aria-busy", String(syncing));
   button.title = syncing
-    ? "Syncing Plembfin's Up Next list to connected media apps…"
+    ? "Pushing Plembfin Up Next to Plex, Emby, and Jellyfin…"
     : signedIn
-      ? "Sync Plembfin's Up Next list to Plex, Emby, and Jellyfin"
-      : "Sign in to sync Up Next to connected media apps";
-  button.setAttribute("aria-label", syncing ? "Syncing Up Next to connected media apps" : "Sync Up Next to connected media apps");
+      ? "Push Plembfin Up Next to Plex, Emby, and Jellyfin"
+      : "Sign in to push Up Next to your media servers";
+  button.setAttribute("aria-label", syncing ? "Pushing Plembfin Up Next to connected media servers" : "Push Plembfin Up Next to Plex, Emby, and Jellyfin");
 }
 
 function upNextSyncPayloadItem(item = {}) {
+  const providerItems = Object.fromEntries(Object.entries(item.provider_items || item.providerItems || {})
+    .map(([provider, ids]) => [String(provider || "").toLowerCase(), ids])
+    .filter(([provider]) => UP_NEXT_PROVIDERS.has(provider)));
   return {
     id: item.id || item.media_key || "",
     media_key: item.media_key || item.mediaKey || item.id || "",
@@ -364,10 +548,16 @@ function upNextSyncPayloadItem(item = {}) {
     imdb_id: item.imdb_id || item.imdbId || "",
     tmdb_id: item.tmdb_id || item.tmdbId || "",
     tvdb_id: item.tvdb_id || item.tvdbId || "",
+    show_imdb_id: item.show_imdb_id || item.showImdbId || "",
+    show_tmdb_id: item.show_tmdb_id || item.showTmdbId || "",
+    show_tvdb_id: item.show_tvdb_id || item.showTvdbId || "",
+    episode_imdb_id: item.episode_imdb_id || item.episodeImdbId || "",
+    episode_tmdb_id: item.episode_tmdb_id || item.episodeTmdbId || "",
+    episode_tvdb_id: item.episode_tvdb_id || item.episodeTvdbId || "",
     position_ms: item.position_ms ?? item.positionMs ?? 0,
     duration_ms: item.duration_ms ?? item.durationMs ?? 0,
     progress: item.progress ?? 0,
-    provider_items: item.provider_items || item.providerItems || {},
+    provider_items: providerItems,
     provider: item.provider || item.source || "",
     provider_item_id: item.provider_item_id || item.providerItemId || "",
   };
@@ -376,15 +566,18 @@ function upNextSyncPayloadItem(item = {}) {
 function upNextSyncMessage(body = {}) {
   const providerNames = { plex: "Plex", emby: "Emby", jellyfin: "Jellyfin" };
   const configuredFeeds = Array.isArray(body.feeds) ? body.feeds : [];
-  const syncedProviders = [...new Set(configuredFeeds
-    .filter((feed) => feed?.status === "succeeded")
-    .map((feed) => providerNames[String(feed.provider || "").toLowerCase()])
+  const pushedProviders = [...new Set((Array.isArray(body.pushedProviders) ? body.pushedProviders : [])
+    .map((provider) => providerNames[String(provider || "").toLowerCase()])
     .filter(Boolean))];
   const failedFeeds = configuredFeeds.filter((feed) => feed?.status === "failed");
   const dismissals = Array.isArray(body.providerDismissals) ? body.providerDismissals : [];
   const dismissed = dismissals.filter((entry) => entry?.status === "fulfilled").length;
   const dismissalFailures = dismissals.filter((entry) => entry?.status !== "fulfilled").length;
+  const playlists = Array.isArray(body.playlists) ? body.playlists : [];
+  const railSeeds = Array.isArray(body.railSeeds) ? body.railSeeds : [];
+  const playlistFailures = playlists.filter((playlist) => !["succeeded"].includes(playlist?.status));
   const unsupportedFeeds = [...new Set((Array.isArray(body.unsupported) ? body.unsupported : [])
+    .filter((entry) => UP_NEXT_PROVIDERS.has(String(entry?.provider || "").toLowerCase()))
     .map((entry) => `${providerNames[String(entry?.provider || "").toLowerCase()] || entry?.provider || "Provider"} ${entry?.feed_kind === "next_up" ? "Next Up" : "feed"}`))];
   const progressTargets = new Set();
   for (const result of (Array.isArray(body.progress) ? body.progress : [])) {
@@ -392,28 +585,44 @@ function upNextSyncMessage(body = {}) {
       if (target?.status === "success" && providerNames[target.target]) progressTargets.add(providerNames[target.target]);
     }
   }
-  const intro = syncedProviders.length
-    ? `Plembfin Up Next synced with ${upNextListLabel(syncedProviders)}.`
-    : "Plembfin Up Next sync completed.";
+  const intro = pushedProviders.length
+    ? `Plembfin Up Next pushed to ${upNextListLabel(pushedProviders)}.`
+    : "Plembfin Up Next push completed.";
   const details = [];
+  const updatedPlaylists = playlists.filter((playlist) => playlist?.status === "succeeded");
+  if (updatedPlaylists.length) {
+    details.push(`${updatedPlaylists.map((playlist) => `${providerNames[playlist.provider] || playlist.provider} list has ${Number(playlist.final_count || 0)} item${Number(playlist.final_count || 0) === 1 ? "" : "s"}`).join("; ")}`);
+  }
+  for (const playlist of playlistFailures) {
+    const label = providerNames[playlist?.provider] || playlist?.provider || "Provider";
+    const missing = Number(playlist?.missing_count || 0);
+    details.push(`${label} list ${playlist?.status === "partial" ? `is missing ${missing} item${missing === 1 ? "" : "s"}` : "could not be updated"}`);
+  }
+  const seeded = railSeeds.reduce((total, seed) => total + Number(seed?.seeded_count || 0), 0);
+  const seedFailures = railSeeds.reduce((total, seed) => total + Number(seed?.failed_count || 0), 0);
+  if (seeded) details.push(`${seeded} item${seeded === 1 ? "" : "s"} added to Continue Watching`);
+  if (seedFailures) details.push(`${seedFailures} Continue Watching update${seedFailures === 1 ? "" : "s"} failed`);
   if (dismissed) details.push(`${dismissed} removed item${dismissed === 1 ? "" : "s"} hidden on connected apps`);
   if (progressTargets.size) details.push(`resume position sent to ${upNextListLabel([...progressTargets])}`);
-  if (unsupportedFeeds.length) details.push(`${upNextListLabel(unsupportedFeeds)} cannot be rewritten by their native APIs`);
+  if (unsupportedFeeds.length) details.push(`${upNextListLabel(unsupportedFeeds)} ${unsupportedFeeds.length === 1 ? "is" : "are"} calculated by the native API and ${unsupportedFeeds.length === 1 ? "was" : "were"} left unchanged`);
   if (failedFeeds.length) {
     details.push(`${upNextListLabel([...new Set(failedFeeds.map((feed) => providerNames[String(feed.provider || "").toLowerCase()] || feed.provider || "provider"))])} feed refresh failed`);
   }
   if (dismissalFailures) details.push(`${dismissalFailures} provider dismissal${dismissalFailures === 1 ? "" : "s"} failed`);
   return {
     text: [intro, ...details].join(" "),
-    tone: unsupportedFeeds.length || failedFeeds.length || dismissalFailures ? "muted" : "success",
+    tone: unsupportedFeeds.length || failedFeeds.length || dismissalFailures || playlistFailures.length || seedFailures ? "muted" : "success",
   };
 }
 
 export async function syncUpNextToProviders() {
   if (!state.token || state.upNextSyncing) return null;
-  const items = visibleUpNextItems().slice(0, 30).map(upNextSyncPayloadItem);
+  // The rendered rail is intentionally capped at 30 cards, but the loaded
+  // Plembfin snapshot (up to the server's 100-item bound) is authoritative.
+  // Push the complete snapshot so off-screen provider items are reconciled too.
+  const items = visibleUpNextItems().slice(0, 100).map(upNextSyncPayloadItem);
   state.upNextSyncing = true;
-  renderUpNextSyncControl();
+  renderUpNextControls();
   const controller = new AbortController();
   const timeout = window.setTimeout(() => controller.abort(), UP_NEXT_SYNC_TIMEOUT_MS);
   try {
@@ -428,18 +637,19 @@ export async function syncUpNextToProviders() {
     if (!response.ok) throw new Error(body.error || `Up Next sync failed (${response.status})`);
     const message = upNextSyncMessage(body);
     _cb.setMessage?.(message.text, message.tone);
-    // Re-read the provider snapshots after the outbound reconciliation. Local
-    // dismissals still filter cards while the provider feeds catch up.
+    // Re-read the provider snapshots after the push and any known resume
+    // checkpoints. Local dismissals still filter cards while provider feeds
+    // catch up.
     await loadUpNext({ force: true });
     return body;
   } catch (error) {
-    const detail = error?.name === "AbortError" ? "The provider sync timed out." : (error?.message || "Try again later.");
-    _cb.setMessage?.(`Could not sync Plembfin Up Next to connected media apps: ${detail}`, "muted");
+    const detail = error?.name === "AbortError" ? "The provider push timed out." : (error?.message || "Try again later.");
+    _cb.setMessage?.(`Could not push Plembfin Up Next to your media servers: ${detail}`, "muted");
     return null;
   } finally {
     window.clearTimeout(timeout);
     state.upNextSyncing = false;
-    renderUpNextSyncControl();
+    renderUpNextControls();
   }
 }
 
@@ -458,7 +668,11 @@ export function initUpNext(callbacks = {}) {
     event.preventDefault();
     syncUpNextToProviders().catch(() => { });
   });
-  renderUpNextSyncControl();
+  elements.upNextDismissedButton?.addEventListener("click", (event) => {
+    event.preventDefault();
+    openDismissedUpNextModal();
+  });
+  renderUpNextControls();
 }
 
 export function resetUpNext({ preserveItems = false } = {}) {
@@ -507,7 +721,7 @@ function upNextErrorPresentation() {
 export function renderUpNext({ exitIds = [] } = {}) {
   const panel = elements.upNextPanel;
   const section = elements.upNextSection;
-  renderUpNextSyncControl();
+  renderUpNextControls();
   if (!panel) return;
 
   hydrateUpNextCache();
@@ -628,6 +842,12 @@ export async function loadUpNext({ force = false, fromSse = false } = {}) {
       sourceVersion: state.upNextSourceVersion,
       sourceStatus: state.upNextSourceStatus,
     });
+    if (await migrateLocalDismissals()) {
+      await loadDismissedUpNext();
+      Promise.resolve().then(() => loadUpNext({ force: true })).catch(() => { });
+    } else {
+      await loadDismissedUpNext();
+    }
   } catch (error) {
     if (requestVersion !== state.upNextRequestVersion) return;
     state.upNextErrorCode = error?.name === "AbortError"

@@ -1,6 +1,7 @@
 import { fetchWithTimeout } from "./outbound.js";
 import { compoundEpisodeItemsForMedia } from "./compoundEpisode.js";
 import { restoreLookupKey } from "./restoreLookupCache.js";
+import { nativeProviderItemIds } from "./providerItemIds.js";
 
 function trimTrailingSlash(value = "") {
   return String(value).replace(/\/+$/, "");
@@ -75,11 +76,7 @@ async function fetchPagedFeed(config, buildUrl, limit = 0, { pageSize: preferred
 }
 
 function nativeEmbyItems(media = {}) {
-  const configured = media.provider_items || media.providerItems || {};
-  const values = Array.isArray(configured.emby) ? configured.emby : configured.emby ? [configured.emby] : [];
-  const directId = media.provider_item_id || media.providerItemId || media.emby_id || media.embyId;
-  return [...new Set([...values, directId].map((value) => String(value || "").trim()).filter(Boolean))]
-    .map((Id) => ({ Id }));
+  return nativeProviderItemIds(media, "emby").map((Id) => ({ Id }));
 }
 
 async function findEmbyItemsForMutation(config, media = {}) {
@@ -692,26 +689,36 @@ export async function fetchEmbyResumableItems(config, { limit = 0 } = {}) {
     return url;
   };
 
+  const buildLegacyResumeUrl = (start, pageSize) => {
+    const url = new URL(`${baseUrl}/Users/${encodeURIComponent(config.userId)}/Items`);
+    url.searchParams.set("Recursive", "true");
+    url.searchParams.set("Filters", "IsResumable");
+    url.searchParams.set("IncludeItemTypes", "Movie,Episode");
+    url.searchParams.set("Fields", "ProviderIds,SeriesProviderIds,UserData,PremiereDate,ProductionYear,RunTimeTicks");
+    url.searchParams.set("SortBy", "DatePlayed");
+    url.searchParams.set("SortOrder", "Descending");
+    url.searchParams.set("StartIndex", String(start));
+    url.searchParams.set("Limit", String(pageSize));
+    url.searchParams.set("api_key", config.apiKey);
+    return url;
+  };
+
   try {
-    return await fetchPagedFeed(config, buildNativeResumeUrl, limit);
+    const native = await fetchPagedFeed(config, buildNativeResumeUrl, limit);
+    if (native.length) return native;
+    // Both queries exist on modern Emby and either one can come back empty
+    // depending on the server: the generic IsResumable filter returns nothing
+    // on some versions while Continue Watching is full, and on others
+    // /Items/Resume answers 200 with an empty list while IsResumable lists
+    // every resumable item - including genuine part-watches with a position
+    // over half an hour. An empty answer from one is therefore not evidence
+    // that there is nothing to resume, so ask the other before believing it.
+    return await fetchPagedFeed(config, buildLegacyResumeUrl, limit);
   } catch (error) {
-    // Keep compatibility with older Emby-compatible servers that do not
-    // implement /Items/Resume. Only a missing route should select the legacy
-    // query; a real auth/upstream failure must remain visible to the caller.
+    // A real auth/upstream failure must stay visible to the caller; only a
+    // missing route falls through to the legacy query.
     if (Number(error?.status) !== 404) throw error;
-    return fetchPagedFeed(config, (start, pageSize) => {
-      const url = new URL(`${baseUrl}/Users/${encodeURIComponent(config.userId)}/Items`);
-      url.searchParams.set("Recursive", "true");
-      url.searchParams.set("Filters", "IsResumable");
-      url.searchParams.set("IncludeItemTypes", "Movie,Episode");
-      url.searchParams.set("Fields", "ProviderIds,SeriesProviderIds,UserData,PremiereDate,ProductionYear,RunTimeTicks");
-      url.searchParams.set("SortBy", "DatePlayed");
-      url.searchParams.set("SortOrder", "Descending");
-      url.searchParams.set("StartIndex", String(start));
-      url.searchParams.set("Limit", String(pageSize));
-      url.searchParams.set("api_key", config.apiKey);
-      return url;
-    }, limit);
+    return fetchPagedFeed(config, buildLegacyResumeUrl, limit);
   }
 }
 
@@ -729,6 +736,207 @@ export async function fetchEmbyNextUpItems(config, { limit = 0 } = {}) {
     url.searchParams.set("api_key", config.apiKey);
     return url;
   }, limit);
+}
+
+// Emby's Resume and Next Up rails are calculated from playstate and cannot be
+// populated with arbitrary future episodes. The authoritative Up Next push
+// uses a normal video playlist as its durable provider-side list instead.
+async function embyMutation(config, url, method, body) {
+  const response = await fetchWithTimeout(url, {
+    method,
+    headers: {
+      ...authHeaders(config),
+      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+    },
+    lane: "interactive",
+    ...(body === undefined ? {} : { body }),
+  });
+  if (!response.ok) {
+    const error = new Error(`Emby playlist ${method.toLowerCase()} failed with status ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
+  const text = await response.text();
+  try { return text ? JSON.parse(text) : {}; } catch { return {}; }
+}
+
+// Emby keeps its Resume rail in a playback index that only session reporting
+// writes. A UserData POST sets PlaybackPositionTicks - the item shows the right
+// position on its own page and satisfies the IsResumable filter - and yet never
+// appears in /Users/{id}/Items/Resume or on Emby's home screen. Measured
+// against a real play: identical position, identical PlayedPercentage, fresh
+// LastPlayedDate and PlayCount=1 all made no difference; only an actual
+// playback session did.
+//
+// So a seeded position is reported the way a client reports one, then the
+// UserData write restores PlayCount (the session increments it) and pins the
+// exact position. Verified: the item stays on the rail with PlayCount back at
+// its original value and Played still false.
+// The seed has to open a real playback session - a bare Stopped report does
+// not reach the rail, which was measured - so for a moment Emby genuinely has
+// Plembfin "playing" the item. That session is reported back by /Sessions and
+// was picked up as live playback, putting three phantom cards in Now Playing
+// and pulling those items out of Up Next. The device id is the marker that
+// lets the session poller ignore our own writes.
+export const UP_NEXT_SEED_DEVICE_ID = "plembfin-up-next-seed";
+const EMBY_SEED_AUTHORIZATION = `MediaBrowser Client="Plembfin", Device="Plembfin Up Next", DeviceId="${UP_NEXT_SEED_DEVICE_ID}", Version="1.0.0"`;
+
+async function embySessionReport(config, path, payload) {
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}${path}`);
+  url.searchParams.set("api_key", config.apiKey);
+  const response = await fetchWithTimeout(url, {
+    method: "POST",
+    headers: {
+      ...authHeaders(config),
+      "Content-Type": "application/json",
+      "X-Emby-Authorization": EMBY_SEED_AUTHORIZATION,
+    },
+    lane: "interactive",
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    const error = new Error(`Emby playback report failed with status ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
+  return response.status;
+}
+
+export async function reportEmbyResumePosition(config, itemId, positionMs, { playCount = 0 } = {}) {
+  requireEmbyConfig(config);
+  const id = String(itemId || "").trim();
+  const positionTicks = Math.max(0, Math.round(Number(positionMs) || 0)) * 10000;
+  if (!id || positionTicks <= 0) return { platform: "emby", status: "skipped", detail: "No item or position supplied" };
+
+  const payload = {
+    ItemId: id,
+    MediaSourceId: id,
+    PositionTicks: positionTicks,
+    IsPaused: true,
+    CanSeek: true,
+    PlayMethod: "DirectStream",
+    PlaySessionId: `plembfin-up-next-seed-${id}`,
+  };
+  await embySessionReport(config, "/Sessions/Playing", payload);
+  await embySessionReport(config, "/Sessions/Playing/Progress", payload);
+  await embySessionReport(config, "/Sessions/Playing/Stopped", payload);
+
+  // The session bumps PlayCount, which is watch data we have no business
+  // inventing. Put it back and pin the position the seed intended.
+  const userDataUrl = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${encodeURIComponent(config.userId)}/Items/${encodeURIComponent(id)}/UserData`);
+  userDataUrl.searchParams.set("api_key", config.apiKey);
+  const response = await fetchWithTimeout(userDataUrl, {
+    method: "POST",
+    headers: { ...authHeaders(config), "Content-Type": "application/json" },
+    lane: "interactive",
+    body: JSON.stringify({
+      PlaybackPositionTicks: positionTicks,
+      PlayCount: Math.max(0, Math.round(Number(playCount) || 0)),
+      Played: false,
+    }),
+  });
+  if (!response.ok) {
+    const error = new Error(`Emby resume pin failed with status ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
+  console.log("Emby item resume position reported", { itemId: id, positionMs });
+  return { platform: "emby", status: "fulfilled", itemId: id, positionMs };
+}
+
+// Runtime for an item whose native id is already known. The Up Next rail seed
+// sizes its position as a percentage of runtime, and an item resolved straight
+// from a stored provider id never passes through a search result that carries
+// one.
+export async function fetchEmbyItemRuntimeMs(config, itemId) {
+  requireEmbyConfig(config);
+  const id = String(itemId || "").trim();
+  if (!id) return 0;
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${encodeURIComponent(config.userId)}/Items/${encodeURIComponent(id)}`);
+  url.searchParams.set("api_key", config.apiKey);
+  const item = await fetchJson(url, config);
+  const ticks = Number(item?.RunTimeTicks || 0);
+  return Number.isFinite(ticks) && ticks > 0 ? Math.round(ticks / 10000) : 0;
+}
+
+export async function fetchEmbyPlaylists(config) {
+  requireEmbyConfig(config);
+  const baseUrl = trimTrailingSlash(config.baseUrl);
+  const url = new URL(`${baseUrl}/Users/${encodeURIComponent(config.userId)}/Items`);
+  url.searchParams.set("Recursive", "true");
+  url.searchParams.set("IncludeItemTypes", "Playlist");
+  url.searchParams.set("Fields", "ProviderIds,UserData");
+  url.searchParams.set("SortBy", "SortName");
+  url.searchParams.set("SortOrder", "Ascending");
+  url.searchParams.set("api_key", config.apiKey);
+  const data = await fetchJson(url, config);
+  return Array.isArray(data?.Items) ? data.Items.filter((item) => String(item?.Type || "").toLowerCase() === "playlist") : [];
+}
+
+export async function fetchEmbyPlaylistItems(config, playlistId, { limit = 0 } = {}) {
+  requireEmbyConfig(config);
+  if (!playlistId) return [];
+  const baseUrl = trimTrailingSlash(config.baseUrl);
+  const requestedLimit = Number(limit) > 0 ? Math.max(1, Math.round(Number(limit))) : 0;
+  const pageSize = requestedLimit ? Math.min(requestedLimit, 500) : 500;
+  const items = [];
+  for (let start = 0; start <= 10_000_000;) {
+    const url = new URL(`${baseUrl}/Playlists/${encodeURIComponent(String(playlistId))}/Items`);
+    url.searchParams.set("UserId", config.userId);
+    url.searchParams.set("Fields", "ProviderIds,SeriesProviderIds,UserData,PremiereDate,ProductionYear,RunTimeTicks");
+    url.searchParams.set("StartIndex", String(start));
+    url.searchParams.set("Limit", String(pageSize));
+    url.searchParams.set("EnableTotalRecordCount", "true");
+    url.searchParams.set("api_key", config.apiKey);
+    const data = await fetchJson(url, config);
+    const page = Array.isArray(data?.Items) ? data.Items : [];
+    items.push(...page);
+    if (requestedLimit && items.length >= requestedLimit) return items.slice(0, requestedLimit);
+    const total = Number(data?.TotalRecordCount || 0);
+    if (!page.length || (total > 0 && start + page.length >= total) || (total <= 0 && page.length < pageSize)) break;
+    start += page.length;
+  }
+  return requestedLimit ? items.slice(0, requestedLimit) : items;
+}
+
+export async function createEmbyPlaylist(config, { title, itemIds = [] } = {}) {
+  requireEmbyConfig(config);
+  const name = String(title || "").trim();
+  const ids = [...new Set((Array.isArray(itemIds) ? itemIds : [itemIds]).map((id) => String(id || "").trim()).filter(Boolean))];
+  if (!name) throw new Error("Emby playlist title is required");
+  if (!ids.length) throw new Error("Emby playlists require an initial library item");
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Playlists`);
+  url.searchParams.set("UserId", config.userId);
+  url.searchParams.set("Name", name);
+  url.searchParams.set("MediaType", "Video");
+  url.searchParams.set("Ids", ids.join(","));
+  url.searchParams.set("api_key", config.apiKey);
+  const body = await embyMutation(config, url, "POST");
+  return { id: String(body?.Id || body?.id || "").trim(), body };
+}
+
+export async function addEmbyPlaylistItems(config, playlistId, itemIds = []) {
+  requireEmbyConfig(config);
+  const ids = [...new Set((Array.isArray(itemIds) ? itemIds : [itemIds]).map((id) => String(id || "").trim()).filter(Boolean))];
+  if (!playlistId || !ids.length) return { status: "not_found", added: 0 };
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Playlists/${encodeURIComponent(String(playlistId))}/Items`);
+  url.searchParams.set("UserId", config.userId);
+  url.searchParams.set("Ids", ids.join(","));
+  url.searchParams.set("api_key", config.apiKey);
+  const body = await embyMutation(config, url, "POST");
+  return { status: "fulfilled", added: Number(body?.ItemAddedCount ?? ids.length) || 0, body };
+}
+
+export async function removeEmbyPlaylistItems(config, playlistId, entryIds = []) {
+  requireEmbyConfig(config);
+  const ids = [...new Set((Array.isArray(entryIds) ? entryIds : [entryIds]).map((id) => String(id || "").trim()).filter(Boolean))];
+  if (!playlistId || !ids.length) return { status: "not_found", removed: 0 };
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Playlists/${encodeURIComponent(String(playlistId))}/Items`);
+  url.searchParams.set("UserId", config.userId);
+  url.searchParams.set("EntryIds", ids.join(","));
+  url.searchParams.set("api_key", config.apiKey);
+  await embyMutation(config, url, "DELETE");
+  return { status: "fulfilled", removed: ids.length };
 }
 
 // ---------------------------------------------------------------------------

@@ -2,6 +2,7 @@ import { traceLog } from "./logVerbose.js";
 import { fetchPlexWithRefresh, plexRequestHeaders } from "./plexFetch.js";
 import { compoundEpisodeForMedia, compoundEpisodeItemsForMedia } from "./compoundEpisode.js";
 import { restoreLookupKey } from "./restoreLookupCache.js";
+import { nativeProviderItemIds } from "./providerItemIds.js";
 
 // Plex accepts the token as a header everywhere the query parameter works; the
 // header keeps it out of Plex/reverse-proxy access logs and our own error logs.
@@ -547,11 +548,7 @@ async function findPlexItemUncached(config, media) {
 }
 
 export async function findPlexItem(config, media) {
-  const providerItems = media?.provider_items || media?.providerItems || {};
-  const directRatingKey = (Array.isArray(providerItems.plex) ? providerItems.plex : providerItems.plex ? [providerItems.plex] : [])
-    .concat(media?.provider_item_id || media?.providerItemId || [])
-    .map((value) => String(value || "").trim())
-    .find(Boolean);
+  const [directRatingKey] = nativeProviderItemIds(media, "plex");
   if (directRatingKey) return { ratingKey: directRatingKey };
 
   const cache = media?.restoreLookupCache;
@@ -1136,6 +1133,108 @@ export async function fetchPlexContinueWatchingItems(config, { limit = 0 } = {})
 }
 
 export const fetchPlexContinueWatching = fetchPlexContinueWatchingItems;
+
+// Plex's Continue Watching hub is a calculated, non-addable surface. A
+// regular video playlist is the durable provider-side representation used by
+// the authoritative Plembfin Up Next push, so every released episode/movie can
+// be represented without inventing playback progress.
+const plexServerIdentifierCache = new Map();
+
+function plexPlaylistItemsFromBody(body) {
+  return body?.MediaContainer?.Metadata
+    || body?.Metadata
+    || [];
+}
+
+export async function getPlexServerIdentifier(config) {
+  requirePlexConfig(config);
+  const configured = String(config.serverId || config.machineIdentifier || "").trim();
+  if (configured) return configured;
+  const cacheKey = trimTrailingSlash(config.baseUrl).toLowerCase();
+  const cached = plexServerIdentifierCache.get(cacheKey);
+  if (cached) return cached;
+
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/identity`);
+  const response = await fetchPlexWithRefresh(config, url, { lane: "sync" });
+  if (!response.ok) throw new Error(`Plex identity lookup failed with status ${response.status}`);
+  const body = await response.json();
+  const identifier = String(
+    body?.MediaContainer?.machineIdentifier
+      || body?.MediaContainer?.MachineIdentifier
+      || body?.machineIdentifier
+      || "",
+  ).trim();
+  if (!identifier) throw new Error("Plex identity response did not include a machine identifier");
+  plexServerIdentifierCache.set(cacheKey, identifier);
+  return identifier;
+}
+
+export async function fetchPlexPlaylists(config) {
+  requirePlexConfig(config);
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/playlists`);
+  const response = await fetchPlexWithRefresh(config, url, { lane: "sync" });
+  if (!response.ok) throw new Error(`Plex playlist lookup failed with status ${response.status}`);
+  const body = await response.json();
+  return plexPlaylistItemsFromBody(body).filter((item) => String(item?.type || "").toLowerCase() === "playlist");
+}
+
+export async function fetchPlexPlaylistItems(config, playlistId) {
+  requirePlexConfig(config);
+  if (!playlistId) return [];
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/playlists/${encodeURIComponent(String(playlistId))}/items`);
+  url.searchParams.set("includeMedia", "1");
+  const response = await fetchPlexWithRefresh(config, url, { lane: "sync" });
+  if (!response.ok) throw new Error(`Plex playlist items lookup failed with status ${response.status}`);
+  const body = await response.json();
+  return plexPlaylistItemsFromBody(body);
+}
+
+function plexPlaylistMetadataUri(serverIdentifier, ratingKey) {
+  return `server://${serverIdentifier}/com.plexapp.plugins.library/library/metadata/${encodeURIComponent(String(ratingKey))}`;
+}
+
+async function plexPlaylistMutation(config, url, method = "PUT") {
+  const response = await fetchPlexWithRefresh(config, url, { method, lane: "interactive" });
+  if (!response.ok) throw new Error(`Plex playlist ${method.toLowerCase()} failed with status ${response.status}`);
+  return response;
+}
+
+export async function createPlexPlaylist(config, { title, ratingKey } = {}) {
+  requirePlexConfig(config);
+  if (!String(title || "").trim()) throw new Error("Plex playlist title is required");
+  if (!ratingKey) throw new Error("Plex playlists require an initial library item");
+  const serverIdentifier = await getPlexServerIdentifier(config);
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/playlists`);
+  url.searchParams.set("type", "video");
+  url.searchParams.set("title", String(title).trim());
+  url.searchParams.set("smart", "0");
+  url.searchParams.set("uri", plexPlaylistMetadataUri(serverIdentifier, ratingKey));
+  const response = await plexPlaylistMutation(config, url, "POST");
+  let body = {};
+  try { body = await response.json(); } catch { /* Plex may return an empty 201. */ }
+  return {
+    id: String(body?.MediaContainer?.Metadata?.[0]?.ratingKey || body?.ratingKey || body?.id || "").trim(),
+    body,
+  };
+}
+
+export async function addPlexPlaylistItem(config, playlistId, ratingKey) {
+  requirePlexConfig(config);
+  if (!playlistId || !ratingKey) return { status: "not_found" };
+  const serverIdentifier = await getPlexServerIdentifier(config);
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/playlists/${encodeURIComponent(String(playlistId))}/items`);
+  url.searchParams.set("uri", plexPlaylistMetadataUri(serverIdentifier, ratingKey));
+  await plexPlaylistMutation(config, url, "PUT");
+  return { status: "fulfilled", itemId: String(ratingKey) };
+}
+
+export async function removePlexPlaylistItem(config, playlistId, playlistItemId) {
+  requirePlexConfig(config);
+  if (!playlistId || !playlistItemId) return { status: "not_found" };
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/playlists/${encodeURIComponent(String(playlistId))}/items/${encodeURIComponent(String(playlistItemId))}`);
+  await plexPlaylistMutation(config, url, "DELETE");
+  return { status: "fulfilled", itemId: String(playlistItemId) };
+}
 
 // ---------------------------------------------------------------------------
 // Personal ratings

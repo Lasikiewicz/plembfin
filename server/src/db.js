@@ -1172,6 +1172,58 @@ const migrations = [
       database.exec("CREATE INDEX IF NOT EXISTS idx_sync_history_activity_item ON sync_history(activity_item_key, timestamp DESC, id DESC)");
     },
   },
+  {
+    id: 37,
+    up(database) {
+      // Up Next writes a resume position to Plex/Emby/Jellyfin so their
+      // calculated Continue Watching rails can show the queue. That position
+      // has to be large enough for the provider to keep it, which puts it
+      // above Plembfin's own resume threshold, so size alone can no longer
+      // tell a seeded position apart from a real one. This ledger records
+      // exactly what was written so ingestion can reject it by identity.
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS up_next_rail_seeds (
+          provider TEXT NOT NULL CHECK (provider IN ('plex', 'emby', 'jellyfin')),
+          provider_item_id TEXT NOT NULL,
+          position_ms INTEGER NOT NULL,
+          duration_ms INTEGER NOT NULL DEFAULT 0,
+          media_key TEXT,
+          title TEXT,
+          seeded_at INTEGER NOT NULL,
+          PRIMARY KEY (provider, provider_item_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_up_next_rail_seeds_seeded_at
+          ON up_next_rail_seeds(seeded_at);
+      `);
+    },
+  },
+  {
+    id: 38,
+    up(database) {
+      // Up Next dismissals used to live only in the browser's localStorage, so
+      // the server's idea of the queue was not the one the user saw. Any push
+      // that did not originate from that exact browser - the API, a second
+      // device, anything scheduled - pushed the dismissed items back out to
+      // every media server. Dismissals are queue state and belong here.
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS up_next_dismissals (
+          id TEXT PRIMARY KEY,
+          aliases_json TEXT NOT NULL DEFAULT '[]',
+          media_key TEXT,
+          media_type TEXT,
+          title TEXT,
+          show_title TEXT,
+          episode_title TEXT,
+          season INTEGER,
+          episode INTEGER,
+          snapshot_json TEXT,
+          dismissed_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_up_next_dismissals_dismissed_at
+          ON up_next_dismissals(dismissed_at DESC);
+      `);
+    },
+  },
 ];
 
 function parseJsonValue(value, fallback) {

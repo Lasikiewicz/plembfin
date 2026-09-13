@@ -32,6 +32,18 @@ const { flushPending: flushDiagnosticLogs } = await import("./src/utils/diagnost
 ensureDataDirs();
 if (!DEMO_MODE) enableTmdbMetadataWarmup();
 
+// One-shot cleanup of provider rows the Up Next feature no longer polls. They
+// can never be refreshed or expired by a feed generation, so nothing else
+// removes them.
+if (roleHasWeb(ROLE)) {
+  const { purgeUnsupportedUpNextProviders } = await import("./src/utils/upNextRepository.js");
+  try {
+    purgeUnsupportedUpNextProviders();
+  } catch (error) {
+    console.warn("Failed to purge unsupported Up Next provider rows", error);
+  }
+}
+
 if (roleHasWeb(ROLE)) {
   const recoveredImports = recoverInterruptedBackgroundImports();
   if (recoveredImports.recovered.length) {

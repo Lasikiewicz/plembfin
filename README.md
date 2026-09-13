@@ -55,7 +55,7 @@ None of these talk to each other - they all talk to Plembfin.
 - **Instant state restoration** - Automatically synchronizes watch history to newly added media and rebuilt server libraries
 - **Cross-platform resume** - Pause playback on one server and pick up right where you left off on another
 - **Rewatch tracking** - Full multi-watch history logging with smart deduplication that preserves authentic repeat viewings
-- **Now Playing dashboard** - Real-time playback monitoring, provider-synced Up Next (Plex Continue Watching, Emby Continue Watching/Next Up, and Jellyfin Next Up), media-type-aware Watch History, weekly watch activity trends, and recent history
+- **Now Playing dashboard** - Real-time playback monitoring, Plembfin-authoritative Up Next (pushed to Plex, Emby, and Jellyfin as a complete managed `Plembfin Up Next` playlist in each, plus their own Continue Watching rails), media-type-aware Watch History, weekly watch activity trends, and recent history
 - **Sync Activity hub** - Live grouped activity by movie/show, with all resume checkpoints and destination results preserved behind each row, targeted retry for actual failed destinations (only the newest unresolved result per movie/episode is retried, individually or all at once as a background job that survives closing the tab; expected missing-library skips are excluded), show-wide Fix Match and retry-all controls for Trakt mismatches, dismiss controls for shows Trakt does not contain, blocked-restore repair grouped by show with Fix Match and skip controls, and downloadable group logs
 - **Rich analytics & stats** - In-depth all-time and period reports, top shows, and platform playback distribution
 - **Personal media organization** - Save movies, shows, and episodes to a watch list or custom lists, and rate them from their media pages; episode ratings use one canonical show/season/episode identity everywhere
@@ -524,10 +524,12 @@ Changelog content for every branch is generated locally, before each push, from 
 history - never by CI reading GitHub's push event - which also keeps release-process
 bookkeeping out of what publishes to `alpha` and `main`.
 
-Before a **"Force to main"**, the release workflow creates one concise `releaseMessage`,
-previews the complete categorized changelog, and waits for explicit user approval. The
-promotion command requires `--confirm` after that approval; without it, no main release
-files are written.
+Both promotions preview their changelog entry and wait for explicit user approval before
+anything is staged. Before a **"Force to main"** the release workflow also creates one
+concise `releaseMessage` and previews the complete categorized changelog; the promotion
+command requires `--confirm` after that approval, and without it no main release files are
+written. A **"Force to main"** additionally refuses to publish a release whose changelog
+has lost any earlier release.
 
 The develop pre-push guard verifies that the changelog committed with the push covers
 the current user-facing commits; a push with a missing or stale local changelog is

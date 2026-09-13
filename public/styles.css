@@ -1721,6 +1721,84 @@ body.demo-mode #manualWatchReviewButton {
   to { transform: rotate(360deg); }
 }
 
+.up-next-dismissed-button {
+  width: auto;
+  min-width: 1.85rem;
+  min-height: 1.85rem;
+  padding: 0 0.5rem;
+  border-color: var(--line);
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.up-next-dismissed-button:hover:not(:disabled),
+.up-next-dismissed-button:focus-visible {
+  color: var(--text);
+  border-color: var(--line-strong);
+}
+
+.up-next-dismissed-modal {
+  width: min(560px, 95vw);
+}
+
+.up-next-dismissed-intro {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.up-next-dismissed-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.up-next-dismissed-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-3);
+}
+
+.up-next-dismissed-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.up-next-dismissed-copy b {
+  font-size: 0.95rem;
+  overflow-wrap: anywhere;
+}
+
+.up-next-dismissed-copy span {
+  color: var(--muted);
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 760px) {
+  .up-next-dismissed-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .up-next-dismissed-row .button-ghost {
+    width: 100%;
+  }
+}
+
 .button-ghost:hover,
 .nav-tab:hover,
 .settings-tab:hover,
@@ -8115,6 +8193,92 @@ details.sync-tool-details[open] > summary {
 
 .changelog-entry-new {
   border-color: color-mix(in srgb, var(--blue), transparent 60%);
+}
+
+/* The changelog status reads inline with the card title ("Changelog - You're
+   up to date - v1.1.0") instead of as a separate banner repeating it. Set as
+   textContent from renderChangelog, so it is empty until the data loads. */
+.changelog-heading-status {
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.changelog-heading-status::before {
+  content: " - ";
+}
+
+.changelog-heading-status:empty {
+  display: none;
+}
+
+@media (max-width: 760px) {
+  /* Keep the long status from shoving the section description off-screen. */
+  .changelog-heading-status {
+    display: block;
+    margin-top: 0.15rem;
+    font-size: 0.82rem;
+  }
+
+  .changelog-heading-status::before {
+    content: none;
+  }
+}
+
+/* Main / Alpha toggle on Settings -> Changelog. See
+   public/modules/changelog-channels.js. */
+.changelog-channel-tabs {
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 var(--space-2);
+  flex-wrap: wrap;
+}
+
+.changelog-channel-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.4rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.changelog-channel-tab:hover {
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+/* Matches the house treatment for a selected control: a translucent tint of
+   the colour with the colour as text, not a solid fill. Theme-safe in both
+   light and dark, unlike white-on-amber. */
+.changelog-channel-tab.is-selected {
+  background: color-mix(in srgb, var(--accent), transparent 88%);
+  border-color: color-mix(in srgb, var(--accent), transparent 60%);
+  color: var(--accent);
+}
+
+.changelog-channel-count {
+  padding: 0 0.4rem;
+  border-radius: 999px;
+  background: rgba(127, 127, 127, 0.22);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+@media (max-width: 760px) {
+  .changelog-channel-tabs {
+    gap: var(--space-1, 0.25rem);
+  }
+
+  .changelog-channel-tab {
+    flex: 1 1 auto;
+    justify-content: center;
+    padding: 0.45rem 0.6rem;
+  }
 }
 
 .changelog-section-heading {

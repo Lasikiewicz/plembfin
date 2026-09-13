@@ -108,6 +108,61 @@ locally first, deletes the resume row, adds completed history, and then dispatch
 providers. A failed or partial provider feed keeps the last good observations and displays a
 compact source-status message; future episodes remain in the Upcoming view.
 
+The Up Next header action is an authoritative push from Plembfin to Plex, Emby, and Jellyfin. It sends the
+full loaded Plembfin snapshot (up to the API's 100-item bound) to a managed `Plembfin Up Next`
+video playlist in each provider, so every resolved movie or episode has a provider-side list
+entry even when it has no resume position yet. It also removes stale entries from successful
+successfully refreshed resume feeds, and forwards known positive resume checkpoints. A failed or
+incomplete feed never triggers native-feed removals, and an unresolved library match never causes
+the managed playlist to remove existing entries. The Emby and Jellyfin Next Up feeds are
+calculated GET feeds with no per-item write, so they are read as observations and reported as
+unsupported for removal. Provider removal is also available as an explicit per-card action. Open
+the managed playlist in any of the three servers to see the complete Plembfin snapshot.
+
+After the playlist is reconciled, the push also seeds the native rails: Plex Continue Watching,
+Emby Resume, and Jellyfin Resume. Those rails are calculated by the servers and accept nothing
+but a playback position, so mirroring the queue onto them means writing one for an item that was
+never played. The position is 6% of the item's runtime, because all three servers ignore
+anything below a 5% minimum: an earlier five-second seed was discarded outright by Plex and
+filtered out of Resume by Emby. That necessarily puts it above Plembfin's own resume threshold,
+so size no longer proves a position is synthetic. Every seed is instead recorded in
+`up_next_rail_seeds` and rejected by identity in scheduled feed ingestion, the `ended` webhook
+phase, and the projection, which strips the position so a seeded card never shows a progress
+bar. A position that has moved away from the seed is genuine playback and clears the record.
+An item already on that provider's resume feed is skipped, as is one whose runtime the provider
+does not report. Emby is seeded differently from the other two: its Resume rail is driven by a
+playback index that only session reporting writes, so the position is reported through
+`/Sessions/Playing*` and then pinned with a UserData write that restores the play count the
+session increments. That session is briefly real, so it carries a fixed device id and the live
+session readers skip it; without that it surfaces as phantom Now Playing cards and the affected
+items disappear from Up Next while they appear to be playing. See `docs/decisions.md` entries
+19, 21 and 24.
+
+Both the playlist reconciliation and the seed work from a single resolution pass per provider
+(`resolveUpNextProviderTargets`). Resolving separately let the two disagree: a lookup that timed
+out for the playlist succeeded seconds later for the seed, leaving the Plex playlist holding a
+stale entry and missing items the seed had found without trouble.
+
+Beside it, a count button opens the dismissed-items dialog. Dismissals are stored server-side in
+`up_next_dismissals` and applied inside the projection, so the queue is the same on every device
+and for every consumer, including the API and anything scheduled. They were browser-local until
+`docs/decisions.md` entry 23; a browser holding pre-migration dismissals posts them once on first
+load and then clears its stored copy. A dismissal keeps the item's alias set plus a show/season/
+episode coordinate key, so it survives a re-match or a provider id change, and it lapses on its
+own once the item has a newer real playback position. Adding one back clears the dismissal and
+then runs the authoritative push, so every connected server mirrors the restored queue.
+
+The local fallback can queue an unwatched next episode that no provider feed mentions. Watch
+history only records a native provider item id once something has been played, so the next
+unwatched episode never carries one; rather than dropping the card, the projection resolves the
+episode against the configured Plex, Emby, and Jellyfin libraries with the same lookup the push uses
+(`upNextLibraryLookup.js`), caching hits for six hours and misses for fifteen minutes. An
+episode that no configured library contains is still not queued. The fallback is also only
+cancelled by a provider observation that actually survived its own filters: a Continue Watching
+row suppressed by a newer explicit unwatch no longer takes the episode down with it, so marking
+an episode unwatched returns it to Up Next as a zero-progress next-up card instead of removing
+it from the queue.
+
 Episode cards build series routes only from explicit `show_*` identities. An episode-level
 `tmdb_id`, `tvdb_id`, or `imdb_id` is never substituted into a `/tvshow/<provider>/<id>`
 route; if the series identity is unavailable, the card uses the title route and keeps the

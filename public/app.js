@@ -1,36 +1,37 @@
-import { buildAuthHeaders, buildNowPlayingUrl, currentUser, getWebhookToken, onAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./modules/auth.js?v=1.1.0.0.0";
-import { initOnboarding, loadSetupStatus, renderSetupPage, setClaimRequired } from "./modules/onboarding.js?v=1.1.0.0.0";
-import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs, formatLogLineToHtml } from "./modules/logs.js?v=1.1.0.0.0";
-import { applySettingsRoute, focusSettingsRoute, parseSettingsRoute, prepareSettingsShell, scrollToSettingsSection, settingsPathForLegacy } from "./modules/settings-shell.js?v=1.1.0.0.0";
-import { initSettingsServices, applyConfigToSettingsUi, refreshSeerrCapabilities, renderMediaServerCards, renderMetadataCards } from "./modules/settings-services.js?v=1.1.0.0.0";
-import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS, EXPLORER_VIEW_KEY_MOVIES, EXPLORER_VIEW_KEY_SHOWS, HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS, HISTORY_VIEW_KEY, HISTORY_FILTER_KEY, HISTORY_VIEW_MODES, HISTORY_FILTERS, PERSONAL_MEDIA_VIEWS, PRIMARY_VIEWS } from "./modules/state.js?v=1.1.0.0.0";
-import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, isDemoMode, slug, movieSlug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, showName, showTitleFrom, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDate, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel } from "./modules/utils.js?v=1.1.0.0.0";
-import { buildWebhookUrl, renderSettingsInlineHelp } from "./modules/help-content.js?v=1.1.0.0.0";
-import { isCachedStorageImageUrl, compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, rememberPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, tmdbProfile, proxiedArtworkUrl } from "./modules/images.js?v=1.1.0.0.0";
-import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, loadRemotePlembfinBackupsForRestoreTab, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runPhantomWatchAudit, runPhantomWatchRepair, runTraktBackfill, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, loadPlembfinBackups, renderPlembfinBackups, runDuplicateWatchCleanup, loadWipeDataPreview, runWipeData } from "./modules/tools.js?v=1.1.0.0.0";
-import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, showAvailIssuePopup, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerRetrySync, triggerCronSync, triggerStopSync, triggerForceSync, isSyncProgressActive } from "./modules/sync.js?v=1.1.0.0.0";
-import { renderSyncActivity, renderSyncActivityStatus, setSyncActivityProgress, setSyncAttentionSummary, loadSyncAttention, renderSyncAttention, skipSyncAttention, skipSyncAttentionItem, retrySyncAttentionItem, skipSyncAttentionShow, retrySyncAttentionShow, recordClientAttention, clearClientAttention, clearClientAttentionForRoute, setSyncActivitySearch, resetSyncActivity, loadSyncActivity, downloadSyncActivityLog, retrySyncActivity, dismissSyncActivity, dismissSyncActivityGroup, retrySyncActivityGroup, startRetryAllSyncActivity, resumeRetryAllSyncActivityIfRunning, fetchAllRetryableSyncActivityIds, toggleSyncActivityRowLog, setSyncActivityGroupView, loadOlderSyncActivityGroup, toggleSyncActivityFailedOnly, startSyncActivityRefresh, stopSyncActivityRefresh } from "./modules/sync-activity.js?v=1.1.0.0.0";
-import { initSyncPreview } from "./modules/sync-preview.js?v=1.1.0.0.0";
-import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, refreshDashboardHistoryInPlace, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched } from "./modules/dashboard.js?v=1.1.0.0.0";
-import { initUpNext, renderUpNext, loadUpNext, resetUpNext } from "./modules/up-next.js?v=1.1.0.0.0";
-import { initDiscover, renderDiscover, loadDiscover, resetDiscover } from "./modules/discover.js?v=1.1.0.0.0";
-import { initPersonalMedia, renderPersonalMedia, loadPersonalMedia, resetPersonalMedia } from "./modules/personal-media.js?v=1.1.0.0.0";
-import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, loadStats, renderRankingTable } from "./modules/stats.js?v=1.1.0.0.0";
-import { initUpcoming, openUpcomingToToday } from "./modules/upcoming.js?v=1.1.0.0.0";
-import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, triggerSearchPage, renderSearchPage, renderExplorer, explorerQueryKey, updateAlphaFilter, handleAlphaFilterClick, resetMovieExplorer, resetShowExplorer, renderExplorerSentinel, observeExplorerSentinel, observeExplorerTmdbPrefetch, scheduleNextAirResort, currentExplorerView, currentExplorerSort, currentPosterWidthKey, setCurrentExplorerSort, applyExplorerPosterWidth, applyListHeaderSort, renderMovieCard, renderMovieExplorer, loadExplorerMovies, refreshMovieExplorerInPlace, applyHistoryPosterWidth, renderHistoryItems, renderHistoryView, resetHistoryView, loadHistoryView, refreshHistoryViewInPlace, observeHistorySentinel, renderShowExplorer, loadExplorerShows, loadShowDetail, matchesExplorerSearch, sortExplorerItems, renderShowRecord, renderShowFolder, renderSeasonFolder, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, emptyExplorer, FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver } from "./modules/explorer.js?v=1.1.0.0.0";
-import { initEditDialogs, openEditDateDialog, openEditShowDateDialog, openEditSeasonDateDialog, openEditImageDialog, openFixMatchDialog, openMergeShowDialog, applyWatchedAtToLocalWatchRecord, editDateOptionsFromButton } from "./modules/edit-dialogs.js?v=1.1.0.0.0";
-import { initWatchAction, openWatchDatePrompt, closeWatchDatePrompt, submitSeerrRequest, markMovieWatched, refreshShowAfterManualWatch, applyWatchDateChoice, confirmAndMarkUnwatched, confirmAndDeleteMedia } from "./modules/watch-action.js?v=1.1.0.0.0";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails, resolveEpisodeTitleFromTmdb } from "./modules/tmdb.js?v=1.1.0.0.0";
-import { initMediaDetail, movieBySlugOrId, nowPlayingHref, openMovieInlineDetail, openShowInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, renderImmersiveShowModal, patchShowModalEpisodeFromLive, patchShowModalEpisodesSavingState, syncShowModalWatchActionControls, renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus, patchMovieWatchedState } from "./modules/media-detail.js?v=1.1.0.0.0";
-import { applyLiveHistoryChanges, refreshActiveDetailView } from "./modules/media-detail-events.js?v=1.1.0.0.0";
-import { initMediaPerson, closePersonProfile, loadCastMemberDetails } from "./modules/media-person.js?v=1.1.0.0.0";
-import { initMediaLightbox } from "./modules/media-lightbox.js?v=1.1.0.0.0";
-import { initAppEvents, closeMobileMenu } from "./modules/app-events.js?v=1.1.0.0.0";
-import { initTrackerSettings, refreshTrackerSettings } from "./modules/tracker-settings.js?v=1.1.0.0.0";
-import { initRatingSyncSettings, applyRatingSyncConfig, refreshRatingSyncStatus, runRatingSyncNow } from "./modules/rating-sync-settings.js?v=1.1.0.0.0";
-import { initWatchlistSyncSettings, applyWatchlistSyncConfig, refreshWatchlistSyncStatus, runWatchlistSyncNow } from "./modules/watchlist-sync-settings.js?v=1.1.0.0.0";
-import { startLiveUpdates, stopLiveUpdates } from "./modules/live-updates.js?v=1.1.0.0.0";
-import { initManualWatchReview, loadManualWatchReview, renderManualWatchReviewPage, renderManualWatchReviewSummary, startManualWatchReviewPolling, stopManualWatchReviewPolling } from "./modules/manual-watch-review.js?v=1.1.0.0.0";
+import { buildAuthHeaders, buildNowPlayingUrl, currentUser, getWebhookToken, onAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./modules/auth.js?v=1.1.0.0.2";
+import { initOnboarding, loadSetupStatus, renderSetupPage, setClaimRequired } from "./modules/onboarding.js?v=1.1.0.0.2";
+import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs, formatLogLineToHtml } from "./modules/logs.js?v=1.1.0.0.2";
+import { applySettingsRoute, focusSettingsRoute, parseSettingsRoute, prepareSettingsShell, scrollToSettingsSection, settingsPathForLegacy } from "./modules/settings-shell.js?v=1.1.0.0.2";
+import { initSettingsServices, applyConfigToSettingsUi, refreshSeerrCapabilities, renderMediaServerCards, renderMetadataCards } from "./modules/settings-services.js?v=1.1.0.0.2";
+import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS, EXPLORER_VIEW_KEY_MOVIES, EXPLORER_VIEW_KEY_SHOWS, HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS, HISTORY_VIEW_KEY, HISTORY_FILTER_KEY, HISTORY_VIEW_MODES, HISTORY_FILTERS, PERSONAL_MEDIA_VIEWS, PRIMARY_VIEWS } from "./modules/state.js?v=1.1.0.0.2";
+import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, isDemoMode, slug, movieSlug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, showName, showTitleFrom, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDate, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel } from "./modules/utils.js?v=1.1.0.0.2";
+import { buildWebhookUrl, renderSettingsInlineHelp } from "./modules/help-content.js?v=1.1.0.0.2";
+import { isCachedStorageImageUrl, compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, rememberPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, tmdbProfile, proxiedArtworkUrl } from "./modules/images.js?v=1.1.0.0.2";
+import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, loadRemotePlembfinBackupsForRestoreTab, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runPhantomWatchAudit, runPhantomWatchRepair, runTraktBackfill, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, loadPlembfinBackups, renderPlembfinBackups, runDuplicateWatchCleanup, loadWipeDataPreview, runWipeData } from "./modules/tools.js?v=1.1.0.0.2";
+import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, showAvailIssuePopup, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerRetrySync, triggerCronSync, triggerStopSync, triggerForceSync, isSyncProgressActive } from "./modules/sync.js?v=1.1.0.0.2";
+import { renderSyncActivity, renderSyncActivityStatus, setSyncActivityProgress, setSyncAttentionSummary, loadSyncAttention, renderSyncAttention, skipSyncAttention, skipSyncAttentionItem, retrySyncAttentionItem, skipSyncAttentionShow, retrySyncAttentionShow, recordClientAttention, clearClientAttention, clearClientAttentionForRoute, setSyncActivitySearch, resetSyncActivity, loadSyncActivity, downloadSyncActivityLog, retrySyncActivity, dismissSyncActivity, dismissSyncActivityGroup, retrySyncActivityGroup, startRetryAllSyncActivity, resumeRetryAllSyncActivityIfRunning, fetchAllRetryableSyncActivityIds, toggleSyncActivityRowLog, setSyncActivityGroupView, loadOlderSyncActivityGroup, toggleSyncActivityFailedOnly, startSyncActivityRefresh, stopSyncActivityRefresh } from "./modules/sync-activity.js?v=1.1.0.0.2";
+import { initSyncPreview } from "./modules/sync-preview.js?v=1.1.0.0.2";
+import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, refreshDashboardHistoryInPlace, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched } from "./modules/dashboard.js?v=1.1.0.0.2";
+import { initUpNext, renderUpNext, loadUpNext, resetUpNext } from "./modules/up-next.js?v=1.1.0.0.2";
+import { initDiscover, renderDiscover, loadDiscover, resetDiscover } from "./modules/discover.js?v=1.1.0.0.2";
+import { initPersonalMedia, renderPersonalMedia, loadPersonalMedia, resetPersonalMedia } from "./modules/personal-media.js?v=1.1.0.0.2";
+import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, loadStats, renderRankingTable } from "./modules/stats.js?v=1.1.0.0.2";
+import { initUpcoming, openUpcomingToToday } from "./modules/upcoming.js?v=1.1.0.0.2";
+import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, triggerSearchPage, renderSearchPage, renderExplorer, explorerQueryKey, updateAlphaFilter, handleAlphaFilterClick, resetMovieExplorer, resetShowExplorer, renderExplorerSentinel, observeExplorerSentinel, observeExplorerTmdbPrefetch, scheduleNextAirResort, currentExplorerView, currentExplorerSort, currentPosterWidthKey, setCurrentExplorerSort, applyExplorerPosterWidth, applyListHeaderSort, renderMovieCard, renderMovieExplorer, loadExplorerMovies, refreshMovieExplorerInPlace, applyHistoryPosterWidth, renderHistoryItems, renderHistoryView, resetHistoryView, loadHistoryView, refreshHistoryViewInPlace, observeHistorySentinel, renderShowExplorer, loadExplorerShows, loadShowDetail, matchesExplorerSearch, sortExplorerItems, renderShowRecord, renderShowFolder, renderSeasonFolder, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, emptyExplorer, FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver } from "./modules/explorer.js?v=1.1.0.0.2";
+import { initEditDialogs, openEditDateDialog, openEditShowDateDialog, openEditSeasonDateDialog, openEditImageDialog, openFixMatchDialog, openMergeShowDialog, applyWatchedAtToLocalWatchRecord, editDateOptionsFromButton } from "./modules/edit-dialogs.js?v=1.1.0.0.2";
+import { initWatchAction, openWatchDatePrompt, closeWatchDatePrompt, submitSeerrRequest, markMovieWatched, refreshShowAfterManualWatch, applyWatchDateChoice, confirmAndMarkUnwatched, confirmAndDeleteMedia } from "./modules/watch-action.js?v=1.1.0.0.2";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails, resolveEpisodeTitleFromTmdb } from "./modules/tmdb.js?v=1.1.0.0.2";
+import { initMediaDetail, movieBySlugOrId, nowPlayingHref, openMovieInlineDetail, openShowInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, renderImmersiveShowModal, patchShowModalEpisodeFromLive, patchShowModalEpisodesSavingState, syncShowModalWatchActionControls, renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus, patchMovieWatchedState } from "./modules/media-detail.js?v=1.1.0.0.2";
+import { applyLiveHistoryChanges, refreshActiveDetailView } from "./modules/media-detail-events.js?v=1.1.0.0.2";
+import { initMediaPerson, closePersonProfile, loadCastMemberDetails } from "./modules/media-person.js?v=1.1.0.0.2";
+import { initMediaLightbox } from "./modules/media-lightbox.js?v=1.1.0.0.2";
+import { initAppEvents, closeMobileMenu } from "./modules/app-events.js?v=1.1.0.0.2";
+import { initTrackerSettings, refreshTrackerSettings } from "./modules/tracker-settings.js?v=1.1.0.0.2";
+import { initRatingSyncSettings, applyRatingSyncConfig, refreshRatingSyncStatus, runRatingSyncNow } from "./modules/rating-sync-settings.js?v=1.1.0.0.2";
+import { initWatchlistSyncSettings, applyWatchlistSyncConfig, refreshWatchlistSyncStatus, runWatchlistSyncNow } from "./modules/watchlist-sync-settings.js?v=1.1.0.0.2";
+import { startLiveUpdates, stopLiveUpdates } from "./modules/live-updates.js?v=1.1.0.0.2";
+import { initManualWatchReview, loadManualWatchReview, renderManualWatchReviewPage, renderManualWatchReviewSummary, startManualWatchReviewPolling, stopManualWatchReviewPolling } from "./modules/manual-watch-review.js?v=1.1.0.0.2";
+import { baseVersionOf, bindChangelogChannelTabs, developVersionForBuild, formatBuildVersion, partitionAlphaEntriesByBase, renderChangelogChannelTabs, selectedChangelogChannel } from "./modules/changelog-channels.js?v=1.1.0.0.2";
 
 // Ping the backend the moment the app loads (no auth needed), so the server's
 // caches and upstream connections are warm by the time the user clicks into
@@ -148,6 +149,7 @@ function bindElements() {
     syncActivityPageNumbers: document.querySelector("#syncActivityPageNumbers"),
     syncActivityPageRange: document.querySelector("#syncActivityPageRange"),
     changelogPanel: document.querySelector("#changelogPanel"),
+    changelogHeadingStatus: document.querySelector("#changelogHeadingStatus"),
     changelogRefreshButton: document.querySelector("#changelogRefreshButton"),
     aboutCurrentVersion: document.querySelector("#aboutCurrentVersion"),
     aboutReleaseChannel: document.querySelector("#aboutReleaseChannel"),
@@ -303,6 +305,7 @@ function bindElements() {
     upNextPanel: document.querySelector("#upNextPanel"),
     upNextSection: document.querySelector("#upNextDashboardSection"),
     upNextSyncButton: document.querySelector("#upNextSyncButton"),
+    upNextDismissedButton: document.querySelector("#upNextDismissedButton"),
     upNextSourceStatus: document.querySelector("#upNextSourceStatus"),
     discoverPanel: document.querySelector("#discoverPanel"),
     discoverTopbarControls: document.querySelector("#discoverTopbarControls"),
@@ -419,20 +422,24 @@ function authHeaders() {
   return buildAuthHeaders(state.token);
 }
 
-// Purely cosmetic: appends the build channel and rolling build counter to a
-// displayed version string without touching the raw semver. Develop's label
-// identifies both the main release it is based on and its cycle build.
+// Purely cosmetic: turns the raw version into the label shown in the sidebar,
+// About, and the Changelog heading.
+//
+// Develop no longer appends "Build N": the build number IS the fifth segment,
+// so "1.1.0.0.1 Build 1" said it twice. That suffix dates from when the develop
+// version was three segments and the build had to be carried separately.
 function versionDisplayLabel(version, channel, alphaBuild, developBuild) {
   if (channel === "develop") {
-    const developVersion = String(developBuild?.version || "").trim();
-    if (developVersion && developBuild?.build != null) return `${developVersion} Build ${developBuild.build}`;
+    const developVersion = formatBuildVersion(developBuild?.version);
+    if (developVersion) return developVersion;
     return developBuild?.build != null ? `Develop Build ${developBuild.build}` : "Develop";
   }
   if (channel === "alpha") {
-    const full = alphaBuild?.shortVersion || (alphaBuild?.baseVersion && alphaBuild?.build != null ? `${alphaBuild.baseVersion}.${alphaBuild.build}` : (version ? `${version}.${alphaBuild?.build || 1}` : "alpha"));
+    const full = formatBuildVersion(alphaBuild?.shortVersion || alphaBuild?.version)
+      || (alphaBuild?.baseVersion && alphaBuild?.build != null ? formatBuildVersion(`${alphaBuild.baseVersion}.${alphaBuild.build}`) : (version ? formatBuildVersion(`${version}.${alphaBuild?.build || 1}`) : "alpha"));
     return `${full} (Alpha)`;
   }
-  return version || "";
+  return formatBuildVersion(version) || "";
 }
 
 function updateAboutVersion(data) {
@@ -558,60 +565,94 @@ async function renderChangelog(force = false) {
       : [];
     const newerDevelopBuild = data.channel === "develop" && Boolean(data.developBuild?.newerBuildAvailable);
 
-    const alphaBuildEntries = (data.channel === "alpha" || data.channel === "develop") && Array.isArray(data.alphaBuild?.entries)
-      ? data.alphaBuild.entries
-      : [];
+    // allEntries is the alpha branch's full cycle history, local and remote
+    // merged server-side, and is returned on every channel so the Alpha tab
+    // works on a stable install too.
+    const alphaBuildEntries = Array.isArray(data.alphaBuild?.allEntries)
+      ? data.alphaBuild.allEntries
+      : Array.isArray(data.alphaBuild?.entries)
+        ? data.alphaBuild.entries
+        : [];
     const pendingAlphaEntries = data.channel === "alpha" && Array.isArray(data.alphaBuild?.pendingEntries)
       ? data.alphaBuild.pendingEntries
       : [];
     const newerAlphaBuild = data.channel === "alpha" && Boolean(data.alphaBuild?.newerBuildAvailable);
 
-    let banner;
+    // Every channel is told about a newer build of its own kind AND about a
+    // newer published release, and both can be true at once - an alpha tester
+    // wants to know that a new alpha build exists and that main has moved on.
+    // So these compose into a list rather than falling through one if/else.
+    //
+    // A release install is never notified about alpha or develop builds: the
+    // server forces alphaBuild.newerBuildAvailable false off the alpha channel
+    // for exactly that reason, and developBuild is only read on develop.
+    const notices = [];
+    const pullHint = (tag) => `then pull the latest ghcr.io/lasikiewicz/plembfin:${tag} image to update.`;
+
     if (!data.remoteAvailable) {
-      banner = `
-        <div class="changelog-status changelog-status-muted">
-          <b>Current version ${data.channel === "develop" ? "" : "v"}${escapeHtml(currentLabel)}</b>
-          <span>Couldn't reach GitHub to check for newer releases${data.remoteError ? ` (${escapeHtml(data.remoteError)})` : ""}.</span>
-        </div>`;
-    } else if (data.channel === "develop" && newerDevelopBuild) {
-      banner = `
-        <div class="changelog-status changelog-status-update">
-          <b>Newer develop build available - build ${escapeHtml(String(data.developBuild.latestBuild))}</b>
-          <span>You're running ${escapeHtml(currentLabel)}. See what's new below, then pull the latest ghcr.io/lasikiewicz/plembfin:develop image to update.</span>
-        </div>`;
-    } else if (data.channel === "develop") {
-      banner = `
-        <div class="changelog-status changelog-status-muted">
-          <b>Develop channel - ${escapeHtml(currentLabel)}</b>
-          <span>Develop is an active rolling development build containing the newest unreleased commits.</span>
-        </div>`;
-    } else if (data.channel === "alpha" && newerAlphaBuild) {
-      banner = `
-        <div class="changelog-status changelog-status-update">
-          <b>Newer alpha build available - build ${escapeHtml(String(data.alphaBuild.latestBuild))}</b>
-          <span>You're running build ${escapeHtml(String(data.alphaBuild.build))}. See what's new below, then pull the latest ghcr.io/lasikiewicz/plembfin:alpha image to update.</span>
-        </div>`;
-    } else if (data.channel === "alpha") {
-      banner = `
-        <div class="changelog-status changelog-status-muted">
-          <b>Alpha channel - v${escapeHtml(currentLabel)}</b>
-          <span>Alpha is a rolling pre-release build; its version number only advances once it's merged into a release${newerCount ? `. ${newerCount} release${newerCount === 1 ? "" : "s"} listed below landed on main since this build` : ""}.</span>
-        </div>`;
-    } else if (data.updateAvailable) {
-      banner = `
-        <div class="changelog-status changelog-status-update">
-          <b>Update available - v${escapeHtml(latest)}</b>
-          <span>You're running v${escapeHtml(currentLabel)}. ${newerCount} newer release${newerCount === 1 ? "" : "s"} listed below.</span>
-        </div>`;
-    } else {
-      banner = `
-        <div class="changelog-status changelog-status-ok">
-          <b>You're up to date - v${escapeHtml(currentLabel)}</b>
-          <span>Running the latest published release.</span>
-        </div>`;
+      notices.push({
+        kind: "muted",
+        title: "Couldn't reach GitHub",
+        body: `Newer releases can't be checked right now${data.remoteError ? ` (${escapeHtml(data.remoteError)})` : ""}. What's shown below is this build's bundled changelog.`,
+      });
     }
 
+    if (newerDevelopBuild) {
+      notices.push({
+        kind: "update",
+        title: `Newer develop build available - build ${escapeHtml(String(data.developBuild.latestBuild))}`,
+        body: `You're running ${escapeHtml(currentLabel)}. See what's new below, ${pullHint("develop")}`,
+      });
+    }
+
+    if (newerAlphaBuild) {
+      notices.push({
+        kind: "update",
+        title: `Newer alpha build available - build ${escapeHtml(String(data.alphaBuild.latestBuild))}`,
+        body: `You're running build ${escapeHtml(String(data.alphaBuild.build))}. See what's new below, ${pullHint("alpha")}`,
+      });
+    }
+
+    // Shown on every channel. On alpha and develop `current` is the release the
+    // build is based on, so this fires when main moves ahead of that base.
+    if (data.updateAvailable) {
+      notices.push({
+        kind: "update",
+        title: `New release available - v${escapeHtml(latest)}`,
+        body: data.channel === "release"
+          ? `You're running v${escapeHtml(currentLabel)}. ${newerCount} newer release${newerCount === 1 ? "" : "s"} listed under Main.`
+          : `Your build is based on v${escapeHtml(current || "")}. ${newerCount} newer release${newerCount === 1 ? "" : "s"} listed under Main, ${pullHint("latest")}`,
+      });
+    }
+
+    // The status line the card heading shows, alongside "Changelog". The most
+    // actionable signal wins: a build on your own channel first, then a
+    // release, then the reassuring case.
+    const headingStatus = !data.remoteAvailable
+      ? `Can't check for updates - ${data.channel === "develop" ? "" : "v"}${currentLabel}`
+      : newerDevelopBuild
+        ? `Newer develop build available`
+        : newerAlphaBuild
+          ? `Newer alpha build available`
+          : data.updateAvailable
+            ? `New release available - v${latest}`
+            : `You're up to date - ${data.channel === "develop" ? "" : "v"}${currentLabel}`;
+    if (elements.changelogHeadingStatus) {
+      // The separator is a CSS ::before, so it can be dropped on mobile where
+      // the status wraps onto its own line and a leading dash would read wrong.
+      elements.changelogHeadingStatus.textContent = headingStatus;
+    }
+
+    // No banner at all when there is nothing to act on; the heading already
+    // says so, and a green box repeating it was pure duplication.
+    const banner = notices.map((notice) => `
+        <div class="changelog-status changelog-status-${notice.kind}">
+          <b>${notice.title}</b>
+          <span>${notice.body}</span>
+        </div>`).join("");
+
     if (!entries.length && !developBuildEntries.length && !alphaBuildEntries.length && !pendingDevelopEntries.length && !pendingAlphaEntries.length) {
+      // Nothing on either channel: no point rendering a toggle over two empty panels.
       elements.changelogPanel.innerHTML = `${banner}<div class="idle-state"><b>No changelog entries found.</b></div>`;
       return;
     }
@@ -660,12 +701,15 @@ async function renderChangelog(force = false) {
       const tag = pending
         ? `<span class="changelog-tag changelog-tag-new">Not pulled yet</span>`
         : isCurrent ? `<span class="changelog-tag changelog-tag-current">Current</span>` : "";
-      const developVersion = String(data.developBuild?.version || "").trim();
-      const versionTitle = entry.version
-        ? `v${escapeHtml(entry.version)} (Develop)`
-        : developVersion
-          ? `${escapeHtml(developVersion)} Build ${escapeHtml(String(entry.build ?? ""))} (Develop)`
-          : `Develop Build ${escapeHtml(String(entry.build ?? ""))}`;
+      // Derived per entry: a develop changelog entry carries only its build
+      // number, and the "not pulled yet" entries carry builds other than the
+      // local one, so the local version string cannot be reused verbatim.
+      const entryVersion = entry.version
+        ? formatBuildVersion(entry.version)
+        : developVersionForBuild(data.developBuild?.version, entry.build);
+      const versionTitle = entryVersion
+        ? `v${escapeHtml(entryVersion)} (Develop)`
+        : `Develop Build ${escapeHtml(String(entry.build ?? ""))}`;
       return `
         <article class="changelog-entry${isCurrent ? " changelog-entry-current" : ""}${pending ? " changelog-entry-new" : ""}">
           <div class="changelog-entry-head">
@@ -684,7 +728,7 @@ async function renderChangelog(force = false) {
         ? `<span class="changelog-tag changelog-tag-new">Not pulled yet</span>`
         : isCurrent ? `<span class="changelog-tag changelog-tag-current">Current</span>` : "";
       const versionTitle = entry.version
-        ? `v${escapeHtml(entry.version)} (Alpha)`
+        ? `v${escapeHtml(formatBuildVersion(entry.version))} (Alpha)`
         : `Alpha Build ${escapeHtml(String(entry.build ?? ""))}`;
       return `
         <article class="changelog-entry${isCurrent ? " changelog-entry-current" : ""}${pending ? " changelog-entry-new" : ""}">
@@ -708,27 +752,57 @@ async function renderChangelog(force = false) {
     const pendingAlphaSection = pendingAlphaEntries.length
       ? `<h4 class="changelog-section-heading">New since your alpha build - not pulled yet</h4>${pendingAlphaEntries.map((entry) => renderAlphaBuildEntry(entry, { pending: true })).join("")}`
       : "";
-    const alphaSection = alphaBuildEntries.length
-      ? `<h4 class="changelog-section-heading">${data.channel === "develop" ? "Alpha releases" : "Current alpha build"}</h4>${alphaBuildEntries.map((entry) => renderAlphaBuildEntry(entry)).join("")}`
+    // origin/alpha keeps the previous cycle's builds after a release, because
+    // "Force to main" resets the bundled manifest but never touches the branch.
+    // Those are real history, so they are kept and labelled with the release
+    // they were built on rather than listed as if they were current.
+    const { currentCycle: currentAlphaEntries, older: olderAlphaCycles } =
+      partitionAlphaEntriesByBase(alphaBuildEntries, data.current);
+
+    const alphaSection = currentAlphaEntries.length
+      ? `<h4 class="changelog-section-heading">${data.channel === "develop" ? "Alpha builds for this release" : "Current alpha build"}</h4>${currentAlphaEntries.map((entry) => renderAlphaBuildEntry(entry)).join("")}`
       : "";
+
+    const olderAlphaSection = olderAlphaCycles.map(([base, cycleEntries]) => `
+      <h4 class="changelog-section-heading">Earlier alpha builds - based on v${escapeHtml(base)}</h4>${cycleEntries.map((entry) => renderAlphaBuildEntry(entry)).join("")}`).join("");
 
     const visibleEntries = changelogExpanded ? entries : entries.slice(0, 20);
     const olderCount = entries.length - visibleEntries.length;
-    const releaseHeading = (developSection || alphaSection) && entries.length
+    const releaseHeading = (developSection || alphaSection || olderAlphaSection) && entries.length
       ? `<h4 class="changelog-section-heading">Published releases</h4>`
       : "";
 
-    elements.changelogPanel.innerHTML = banner +
-      pendingDevelopSection +
-      developSection +
-      pendingAlphaSection +
-      alphaSection +
-      releaseHeading +
+    const channel = selectedChangelogChannel();
+    const mainPanel = releaseHeading +
       visibleEntries.map(renderEntry).join("") + (
         olderCount > 0
           ? `<button id="changelogShowAll" class="button-ghost" type="button">Show ${olderCount} older releases</button>`
           : ""
       );
+    // Develop builds belong with alpha: both are pre-release, and grouping them
+    // keeps the Main tab to published releases only.
+    const alphaPanel = pendingDevelopSection +
+      developSection +
+      pendingAlphaSection +
+      alphaSection +
+      olderAlphaSection ||
+      `<div class="idle-state"><b>No alpha builds published for this release yet.</b></div>`;
+
+    elements.changelogPanel.innerHTML = banner +
+      renderChangelogChannelTabs({
+        selected: channel,
+        // Everything the Alpha panel shows, not just the alpha entries: the
+        // panel also carries develop builds, so counting alpha alone read as a
+        // mismatch against the visible list.
+        alphaCount: pendingDevelopEntries.length + developBuildEntries.length
+          + pendingAlphaEntries.length + alphaBuildEntries.length,
+      }) +
+      `<div class="changelog-channel-panel" data-changelog-panel="main"${channel === "main" ? "" : " hidden"}>${mainPanel}</div>` +
+      `<div class="changelog-channel-panel" data-changelog-panel="alpha"${channel === "alpha" ? "" : " hidden"}>${alphaPanel}</div>`;
+
+    bindChangelogChannelTabs(elements.changelogPanel, () => {
+      renderChangelog(false).catch(() => { });
+    });
     elements.changelogPanel.querySelector("#changelogShowAll")?.addEventListener("click", () => {
       changelogExpanded = true;
       renderChangelog(false).catch(() => { });

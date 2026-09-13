@@ -27,7 +27,7 @@ import { probePlexNotificationSocket } from "../utils/plexNotificationListener.j
 import { pokeLiveSessionPoller } from "../scheduler.js";
 import { withSeriesIdentity } from "../utils/seriesIdentity.js";
 import { markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, hideEmbyFromResume, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes, listEmbyLibraries } from "../utils/embyClient.js";
-import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, hideJellyfinFromResume, fetchJellyfinWatchedItems, findJellyfinItems, fetchJellyfinSeriesEpisodes, listJellyfinLibraries } from "../utils/jellyfinClient.js";
+import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems, fetchJellyfinSeriesEpisodes, listJellyfinLibraries } from "../utils/jellyfinClient.js";
 import { setJellyfinApiKey } from "../utils/jellyfinAuth.js";
 import { buildPlexMediaFromMetadata, normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexMediaIds, parsePlexWebhook } from "../utils/parsers.js";
 import { clearOutboundPlayedMarks, completeDispatchTracking, finishDispatchTracking, getTargetsForSource, isRecentOutboundPlayedEcho, isRecentOutboundPlayedFlagEcho, isRecentOutboundProgressEcho, isRecentOutboundUnplayedFlagEcho, recordOutboundPlayedMarks, reserveDispatchBatch, shouldSyncResumeProgress, syncCanonicalPlaystate, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
@@ -62,6 +62,13 @@ import { getFanartMovieArt, getFanartTvArt, getAllFanartMovieImages, getAllFanar
 import { getOmdbRating } from "../utils/omdbGateway.js";
 import { getCanonicalPosterUrl } from "../utils/mediaArtwork.js";
 import { syncUpNextToProviders } from "../utils/upNextProviderSync.js";
+import { mediaIsUpNextRailSeed } from "../utils/upNextSeedLedger.js";
+import {
+  listUpNextDismissals,
+  recordUpNextDismissal,
+  restoreAllUpNextDismissals,
+  restoreUpNextDismissal,
+} from "../utils/upNextDismissals.js";
 import { POSTERS_DIR, BACKDROPS_DIR, PROFILES_DIR, PUBLIC_DIR } from "../paths.js";
 import {
   countPlaybackProgressRows,
@@ -2332,11 +2339,8 @@ async function resolveUpNextProviderIds(provider, config, media, body) {
     const item = await findPlexItem(config.plex, media);
     return item?.ratingKey ? [String(item.ratingKey)] : [];
   }
-  if (provider === "emby") {
-    const items = await findEmbyItems(config.emby, media);
-    return [...new Set((items || []).map((item) => String(item?.Id || "").trim()).filter(Boolean))];
-  }
-  const items = await findJellyfinItems(config.jellyfin, media);
+  if (provider !== "emby") return [];
+  const items = await findEmbyItems(config.emby, media);
   return [...new Set((items || []).map((item) => String(item?.Id || "").trim()).filter(Boolean))];
 }
 
@@ -2344,7 +2348,6 @@ async function hideUpNextAcrossProviders(config, media, body) {
   const definitions = [
     { provider: "plex", configured: Boolean(config.plex?.baseUrl && config.plex?.token), hide: (id) => hidePlexFromContinueWatching(config.plex, id) },
     { provider: "emby", configured: Boolean(config.emby?.baseUrl && config.emby?.apiKey && config.emby?.userId), hide: (id) => hideEmbyFromResume(config.emby, id) },
-    { provider: "jellyfin", configured: Boolean(config.jellyfin?.baseUrl && (config.jellyfin?.apiKey || config.jellyfin?.token) && config.jellyfin?.userId), hide: (id) => hideJellyfinFromResume(config.jellyfin, id) },
   ].filter((entry) => entry.configured);
 
   return Promise.all(definitions.map(async ({ provider, hide }) => {
@@ -2361,8 +2364,8 @@ async function hideUpNextAcrossProviders(config, media, body) {
   }));
 }
 
-// Up Next removal combines Plembfin's canonical progress clear with each
-// connected server's native Continue Watching / Resume dismissal.
+// Up Next removal combines Plembfin's canonical progress clear with Plex and
+// Emby's native Continue Watching / Resume dismissal.
 export async function handleUpNextRemove(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);
@@ -2376,6 +2379,10 @@ export async function handleUpNextRemove(req, res) {
     const media = mediaFromProgressRequest(progressRow, body, mediaKey);
     if (!media.isValid) return sendJson(res, { error: "A valid media item is required" }, 400);
     const loopStore = createLoopStore();
+    // Record the dismissal before touching the providers. A failed provider
+    // hide must not leave the card visible in Plembfin when the user has
+    // already removed it; the next push reconciles the provider side.
+    recordUpNextDismissal({ ...body, media_key: mediaKey || body.media_key });
     const providerDismissals = await hideUpNextAcrossProviders(config, media, body);
     const { id: unwatchedId, summary } = await applyManualUnwatch(
       media,
@@ -2402,10 +2409,57 @@ export async function handleUpNextRemove(req, res) {
   }
 }
 
-// Reconcile the current visible Plembfin Up Next snapshot with the native
-// provider feeds. The browser sends only the cards it is currently showing;
-// that matters because local Up Next dismissals are intentionally kept in the
-// browser until the provider confirms the removal.
+// Push Plembfin's authoritative Up Next snapshot to Plex and Emby. Native
+// Resume/Continue Watching feeds may be reconciled for stale dismissals, while
+// Emby's calculated Next Up feed is observation-only. The managed provider
+// playlist is the complete representation; Jellyfin is intentionally excluded.
+// Intentional provider removal is also handled by handleUpNextRemove after
+// confirmation.
+// Dismissed items that Plembfin still considers unwatched, so they can be put
+// back into the queue. The stored snapshot is what the card looked like when
+// it was removed; it is enough to render the list without a second lookup.
+export async function handleUpNextDismissed(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "GET") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const items = listUpNextDismissals().map((dismissal) => ({
+      id: dismissal.id,
+      media_key: dismissal.media_key,
+      media_type: dismissal.media_type,
+      title: dismissal.title,
+      show_title: dismissal.show_title,
+      episode_title: dismissal.episode_title,
+      season: dismissal.season,
+      episode: dismissal.episode,
+      dismissed_at: dismissal.dismissed_at,
+      item: dismissal.snapshot,
+    }));
+    return sendJson(res, { items });
+  } catch (error) {
+    console.error("Up Next dismissed listing failed", error);
+    return sendJson(res, { error: "Up Next dismissed listing failed" }, 500);
+  }
+}
+
+export async function handleUpNextRestore(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  const body = await readJson(req).catch(() => ({}));
+  try {
+    const restored = body.all === true
+      ? restoreAllUpNextDismissals()
+      : (restoreUpNextDismissal(body.id) ? 1 : 0);
+    return sendJson(res, { ok: true, restored });
+  } catch (error) {
+    console.error("Up Next restore failed", error);
+    return sendJson(res, { error: "Up Next restore failed" }, 500);
+  } finally {
+    await invalidateHistoryDerivedCaches("handleUpNextRestore").catch(() => null);
+  }
+}
+
 export async function handleUpNextSync(req, res) {
   if (req.method === "OPTIONS") return sendOptions(res);
   if (req.method !== "POST") return methodNotAllowed(res);
@@ -3292,7 +3346,17 @@ export async function handleWebhook(req, res) {
     await deleteActiveSession(media);
     await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
     let progressSummary = { skipped: true, status: "skipped", details: "Resume progress is not actionable", targetStates: [] };
-    if (shouldSyncResumeProgress(media)) {
+    // A provider callback echoing back the position Plembfin wrote to place
+    // this item on a Continue Watching rail is not a play. It sits above the
+    // resume threshold by design, so only the seed ledger can reject it.
+    if (mediaIsUpNextRailSeed(media)) {
+      progressSummary = {
+        skipped: true,
+        status: "skipped",
+        details: "Resume progress matched an Up Next rail seed rather than real playback",
+        targetStates: [],
+      };
+    } else if (shouldSyncResumeProgress(media)) {
       const [existingPlaystate, existingProgress] = await Promise.all([
         getPlaystateForMedia(media).catch(() => null),
         getPlaybackProgressForMedia(media).catch(() => null),

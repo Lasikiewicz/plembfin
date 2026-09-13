@@ -357,11 +357,18 @@ export async function handleSeerrRequest(req, res) {
   }
 }
 
-function activeMediaTargets(config = {}) {
+function requestedAppLinkTargets(value) {
+  const raw = String(value || "").split(",").map((target) => target.trim().toLowerCase()).filter(Boolean);
+  if (!raw.length) return null;
+  return new Set(raw.filter((target) => ["plex", "emby", "jellyfin"].includes(target)));
+}
+
+function activeMediaTargets(config = {}, requestedTargets = null) {
+  const allowed = (target) => !requestedTargets || requestedTargets.has(target);
   const targets = [];
-  if (!config.plex?.disabled && config.plex?.baseUrl && config.plex?.token) targets.push("plex");
-  if (!config.emby?.disabled && config.emby?.baseUrl && config.emby?.apiKey && config.emby?.userId) targets.push("emby");
-  if (!config.jellyfin?.disabled && config.jellyfin?.baseUrl && config.jellyfin?.apiKey && config.jellyfin?.userId) targets.push("jellyfin");
+  if (allowed("plex") && !config.plex?.disabled && config.plex?.baseUrl && config.plex?.token) targets.push("plex");
+  if (allowed("emby") && !config.emby?.disabled && config.emby?.baseUrl && config.emby?.apiKey && config.emby?.userId) targets.push("emby");
+  if (allowed("jellyfin") && !config.jellyfin?.disabled && config.jellyfin?.baseUrl && config.jellyfin?.apiKey && config.jellyfin?.userId) targets.push("jellyfin");
   return targets;
 }
 
@@ -683,8 +690,8 @@ function appIconUrl(config = {}, target = "") {
   return "";
 }
 
-async function fetchConfiguredAppLinks(config = {}, media = {}) {
-  const targets = activeMediaTargets(config);
+async function fetchConfiguredAppLinks(config = {}, media = {}, requestedTargets = null) {
+  const targets = activeMediaTargets(config, requestedTargets);
   const jobs = targets.map(async (target) => {
     try {
       if (target === "plex") {
@@ -760,7 +767,7 @@ export async function handleMediaAppLinks(req, res) {
   }
 
   const config = await loadMediaConfig();
-  const links = await fetchConfiguredAppLinks(config, media);
+  const links = await fetchConfiguredAppLinks(config, media, requestedAppLinkTargets(req.query.targets));
   if (!links.length) {
     // Bound the map so a long browsing session cannot grow it without limit.
     if (emptyAppLinksCache.size >= 500) {

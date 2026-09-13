@@ -14,11 +14,19 @@ import {
   listActiveUpNextProviderItems,
   listUpNextProviderFeedStates,
 } from "./upNextRepository.js";
+import { createUpNextLibraryLookup } from "./upNextLibraryLookup.js";
+import { isUpNextRailSeedPosition } from "./upNextSeedLedger.js";
+import { createUpNextDismissalFilter } from "./upNextDismissals.js";
 import { isDemoMode } from "./demoMode.js";
 
 const MAX_LOCAL_SHOWS = 24;
 const LOCAL_METADATA_CONCURRENCY = 4;
 const MAX_PROVIDER_OBSERVATIONS = 500;
+// Per show, not per build: the first released unwatched episode is the one
+// that matters, and a show whose next two episodes are both absent is a show
+// with nothing to queue.
+const MAX_LIBRARY_LOOKUPS_PER_SHOW = 2;
+const UP_NEXT_PROVIDERS = new Set(["plex", "emby", "jellyfin"]);
 // Bump when the provider poster proxy contract changes so browsers do not
 // retain a stale negative response for the old URL.
 const PROVIDER_POSTER_URL_VERSION = "2";
@@ -217,7 +225,7 @@ function providerResumeMembership(candidate) {
   // still authoritative for Up Next, even when it cannot be used to
   // propagate a numeric checkpoint to another provider.
   return candidate?.queue_kind === "resume"
-    && ["plex", "emby", "jellyfin"].includes(String(candidate?.source || "").toLowerCase())
+    && UP_NEXT_PROVIDERS.has(String(candidate?.source || "").toLowerCase())
     && Boolean(candidate?.provider_item_id);
 }
 
@@ -376,9 +384,24 @@ function decorateShowRecency(candidate, index) {
   return latest ? { ...candidate, show_latest_watched_at: latest } : candidate;
 }
 
+// A provider resume row can be the position Plembfin wrote to put the item on
+// that server's Continue Watching rail. It is above the resume threshold by
+// design, so it would otherwise render as a genuine part-watch with a progress
+// bar. Keep the card - rail membership is exactly what the seed was for - but
+// strip the position so nothing downstream treats it as playback.
+function withoutRailSeedProgress(candidate = {}) {
+  if (!isUpNextRailSeedPosition(candidate.source, candidate.provider_item_id, candidate.position_ms)) return candidate;
+  return {
+    ...candidate,
+    position_ms: 0,
+    progress: 0,
+    playback_position_known: false,
+  };
+}
+
 function providerObservationMatches(candidate, providerCandidate) {
   if (candidate?.media_type !== "episode" || providerCandidate?.media_type !== "episode") return false;
-  if (!(providerCandidate.source === "plex" || providerCandidate.source === "emby" || providerCandidate.source === "jellyfin")
+  if (!(providerCandidate.source === "plex" || providerCandidate.source === "emby")
     || !text(providerCandidate.provider_item_id)) return false;
   const coordinate = episodeCoordinateForCandidate(candidate);
   if (!coordinate || coordinate !== episodeCoordinateForCandidate(providerCandidate)) return false;
@@ -413,7 +436,7 @@ function providerItemsFromTrackedEpisode(row = {}) {
     : {};
   const provider = text(provenance.source || row.source).toLowerCase();
   const itemId = text(provenance.item_id || provenance.itemId);
-  if (!itemId || !["plex", "emby", "jellyfin"].includes(provider)) return {};
+  if (!itemId || !UP_NEXT_PROVIDERS.has(provider)) return {};
   return { [provider]: [itemId] };
 }
 
@@ -452,7 +475,7 @@ function publicItem(item) {
       const values = Array.isArray(ids) ? ids : ids ? [ids] : [];
       return [String(provider || "").toLowerCase(), values];
     })
-    .filter(([provider, ids]) => provider && ids.length);
+    .filter(([provider, ids]) => UP_NEXT_PROVIDERS.has(provider) && ids.length);
   const preferredProvider = String(item.source || "").toLowerCase();
   const orderedProviderEntries = [
     ...providerEntries.filter(([provider]) => provider === preferredProvider),
@@ -464,7 +487,7 @@ function publicItem(item) {
     : "";
   const sourceName = String(item.source || "").toLowerCase();
   const mediaKeyPosterUrl = !providerPoster
-    && ["plex", "emby", "jellyfin"].includes(sourceName)
+    && UP_NEXT_PROVIDERS.has(sourceName)
     && text(item.media_key)
     ? `/api/poster?id=${encodeURIComponent(String(item.media_key))}&format=image&v=${PROVIDER_POSTER_URL_VERSION}`
     : "";
@@ -523,6 +546,7 @@ async function localNextUpForShow(show, {
   providerCandidates = [],
   episodeRows,
   today,
+  resolveProviderItems = null,
 }) {
   const detail = await queryShowDetail({
     episodeRows,
@@ -571,6 +595,7 @@ async function localNextUpForShow(show, {
     ? [firstSeason, ...seasonNumbers.filter((season) => season > firstSeason)]
     : [firstSeason, firstSeason + 1];
 
+  let lookups = 0;
   for (const seasonNumber of [...new Set(candidateSeasons)].slice(0, 3)) {
     const season = getCachedTmdbSeason({ tmdbId, tvdbId, seasonNumber });
     const seasonEpisodes = [...(season?.episodes || [])]
@@ -603,18 +628,25 @@ async function localNextUpForShow(show, {
       if (progressCandidates.some((resume) => aliasesIntersect(aliasesFor(candidate), aliasesFor(resume)))) continue;
       // Local history and TMDB metadata can tell us what should come next, but
       // cannot prove that a guessed episode still exists in a configured media
-      // server library. A matching provider observation already contributes
-      // the authoritative card; otherwise require a native item id from a
-      // trusted provider-history row before adding the fallback. This keeps a
-      // real Reacher S03E04 visible while avoiding grey cards for TMDB-only
-      // episodes that are not in any configured library.
+      // server library, and a card nobody can play is worse than no card.
+      // A surviving provider observation already contributes the authoritative
+      // card, so the fallback stands down. `providerCandidates` must therefore
+      // be the observations that passed their own filters: passing the raw
+      // list let an already-suppressed card cancel this one too, and the
+      // episode vanished from Up Next entirely.
       if (providerCandidates.some((providerCandidate) => providerObservationMatches(candidate, providerCandidate))) return null;
-      // A real library needs a native provider item before it can infer an
-      // unwatched episode. The offline demo catalog is the authoritative
-      // library, so its bundled metadata is enough to provide a realistic
-      // next-up rail without connecting Plex, Emby, or Jellyfin.
-      if (!Object.keys(candidate.provider_items || {}).length && !isDemoMode()) continue;
-      return candidate;
+      // The offline demo catalog is its own authoritative library, so its
+      // bundled metadata alone is enough for a realistic next-up rail.
+      if (Object.keys(candidate.provider_items || {}).length || isDemoMode()) return candidate;
+      // Watch history only carries a native item id once something has been
+      // played, so the next unwatched episode never has one. Ask the
+      // configured libraries directly rather than dropping a card for an
+      // episode that is sitting in Plex and Emby right now.
+      if (!resolveProviderItems || lookups >= MAX_LIBRARY_LOOKUPS_PER_SHOW) continue;
+      lookups += 1;
+      const providerItems = await resolveProviderItems(candidate).catch(() => ({}));
+      if (!Object.keys(providerItems).length) continue;
+      return { ...candidate, provider_items: providerItems };
     }
   }
   return null;
@@ -674,6 +706,7 @@ async function localNextUpCandidates({
   providerCandidates = [],
   episodeRows = [],
   today,
+  resolveProviderItems = null,
 }) {
   // Every show resolves against the same episode snapshot, so read and dedupe
   // the episode table once for the whole pass rather than once per show.
@@ -696,6 +729,7 @@ async function localNextUpCandidates({
         providerCandidates,
         episodeRows,
         today,
+        resolveProviderItems,
       });
       if (candidate) results.push(candidate);
     }
@@ -714,9 +748,15 @@ export async function buildUpNextProjection({
   providerItems = null,
   shows = null,
   localFallback = true,
+  mediaConfig = null,
+  // Injectable so a test can stand in for the real library lookup. In
+  // production this is built from the media config below.
+  resolveProviderItems = null,
 } = {}) {
   const rawProgressRows = progressRows || selectProgressRowsStmt.all();
-  const observations = (providerItems || listActiveUpNextProviderItems()).slice(0, MAX_PROVIDER_OBSERVATIONS);
+  const observations = (providerItems || listActiveUpNextProviderItems())
+    .filter((item) => UP_NEXT_PROVIDERS.has(String(item?.source || item?.provider || "").toLowerCase()))
+    .slice(0, MAX_PROVIDER_OBSERVATIONS);
   const rawProviderCandidates = observations.map((item) => normalizeUpNextCandidate(item));
   const showRows = shows || ((localFallback || rawProviderCandidates.some((candidate) => candidate.queue_kind === "next_up"))
     ? await getCachedShows()
@@ -751,6 +791,7 @@ export async function buildUpNextProjection({
   // filtering/merging; doing it only on the final public item leaves the
   // native provider card as a second group beside the local resume row.
   const providerCandidates = rawProviderCandidates
+    .map(withoutRailSeedProgress)
     .map((candidate) => normalizeUpNextCandidate(withLocalShowIdentity(candidate, showIdentities)))
     .map((candidate) => decorateShowRecency(candidate, showRecency));
   const providerResume = providerCandidates
@@ -769,20 +810,38 @@ export async function buildUpNextProjection({
       shows: showRows,
       playstateIndex,
       progressCandidates: canonicalResume,
-      providerCandidates,
+      // Only the observations that survived their own filters. Passing the
+      // raw list let a provider card that had just been suppressed - by a
+      // newer explicit unwatch, say - still cancel the local fallback, so the
+      // episode disappeared from Up Next entirely instead of returning to it.
+      providerCandidates: [...providerResume, ...providerNextUp],
       episodeRows: trackedEpisodeRows,
       today: new Date(now).toISOString().slice(0, 10),
+      resolveProviderItems: resolveProviderItems || (mediaConfig ? createUpNextLibraryLookup(mediaConfig) : null),
     });
   }
 
+  // Dismissals are applied after the merge so a dismissed card cannot come
+  // back under a second identity, and re-appear only when the item is genuinely
+  // played again: a newer real position outranks the dismissal, which mirrors
+  // what the browser-local map used to do before this moved server-side.
+  const dismissals = createUpNextDismissalFilter();
   const merged = collapseUncertainEpisodeQueues(mergeUpNextCandidates([
     ...canonicalResume,
     ...providerResume,
     ...providerNextUp,
     ...localNextUp,
-  ]));
+  ]).filter((candidate) => {
+    const dismissedAt = dismissals.dismissedAt(candidate);
+    if (!dismissedAt) return true;
+    const updatedAt = number(candidate.updated_at);
+    const hasRealProgress = number(candidate.position_ms) > 0 || number(candidate.progress) > 0;
+    return Boolean(updatedAt && updatedAt > dismissedAt && hasRealProgress);
+  }));
   const safeLimit = Math.min(Math.max(Number(limit) || 100, 1), 500);
-  const sourceStatus = listUpNextProviderFeedStates().map(({ cursor: _cursor, ...feed }) => feed);
+  const sourceStatus = listUpNextProviderFeedStates()
+    .filter((feed) => UP_NEXT_PROVIDERS.has(String(feed?.provider || "").toLowerCase()))
+    .map(({ cursor: _cursor, ...feed }) => feed);
   return {
     items: publicUpNextItems(merged.slice(0, safeLimit).map((item) => withUsableArtwork(withLocalShowIdentity(item, showIdentities)))),
     sourceStatus,

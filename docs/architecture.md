@@ -53,6 +53,8 @@ new metadata requests.
 | Background/scheduled sync, catch-up sync, provider Up Next feeds | `server/src/scheduler.js`, `server/src/scheduled.js`, `server/src/utils/upNextRepository.js` | [scheduled-sync.md](scheduled-sync.md) |
 | Now Playing (dashboard live sessions) | `handleNowPlaying` in `server/src/routes/sync.js`, `server/src/utils/liveSessions.js`, `liveSessionPoller.js`, `activeSessions.js`, `public/modules/sync.js` | [now-playing.md](now-playing.md) |
 | Dashboard rendering | `public/modules/dashboard.js` | [dashboard.md](dashboard.md) |
+| Up Next queue, provider push, dismissals | `public/modules/up-next.js`, `server/src/utils/upNextService.js`, `upNextProviderSync.js`, `upNextProviderPlaylists.js`, `upNextRailSeed.js`, `upNextSeedLedger.js`, `upNextDismissals.js`, `upNextLibraryLookup.js` | [dashboard.md](dashboard.md) |
+| Settings changelog channels | `public/modules/changelog-channels.js`, `handleChangelog` in `routes/maintenance.js` | this document |
 | Sidebar sync indicator, Sync Activity page | `public/modules/sync-activity.js`, `handleSyncHistory` in `routes/sync.js` | [dashboard.md](dashboard.md) |
 | Movies library page | `public/modules/explorer.js`, `queryMovies` in `dataRepo.js` | [movies.md](movies.md) |
 | TV Shows library page | `public/modules/explorer.js`, `queryShows`, `showProgressCache.js`, `nextAiringCache.js` | [tv-shows.md](tv-shows.md) |
@@ -179,6 +181,12 @@ before reversing something that looks unnecessarily cautious.
 | `upNextIdentity.js` | Shared Up Next identity normalizer and deterministic ordering/merge rules: verified movie IDs, provider-series-plus-SxxExx episode keys, native-ID fallbacks, source-ID preservation, and resume-over-next-up reconciliation. |
 | `upNextRepository.js` | Generation-based SQLite source ledger for provider Resume/Continue Watching/Next Up feeds. Activates only complete snapshots, preserves last-good rows on failures, exposes redacted feed status, and advances `up_next` invalidation when active source content changes. |
 | `upNextService.js` | Builds the unified dashboard projection from canonical local resume/playstate, provider observations, and bounded released-episode metadata fallback; emits stable public queue items without raw provider payloads. |
+| `upNextLibraryLookup.js` | Shared Up Next media-descriptor builder and cached Plex/Emby/Jellyfin library resolution. Lets the projection prove an unwatched next episode exists in a real library, and lets the authoritative push resolve the item it needs to add. |
+| `upNextProviderPlaylists.js` | Maintains the managed `Plembfin Up Next` video playlist in Plex, Emby, and Jellyfin as the complete provider-side representation of Plembfin's queue. |
+| `upNextRailSeed.js` | Writes a 6%-of-runtime resume position so the Plex, Emby, and Jellyfin resume rails mirror the queue. Above `minResumePositionSec` by necessity, so safety comes from the seed ledger; see `docs/decisions.md` entries 19 and 21. |
+| `providerItemIds.js` | Resolves a media object's native ids for one provider, refusing a bare `provider_item_id` that belongs to a different one. Prevents an outbound write landing on an unrelated title. |
+| `upNextDismissals.js` | Server-side Up Next dismissals: alias plus coordinate identity, projection filter, and restore. Replaces the browser-local map; see `docs/decisions.md` entry 23. |
+| `upNextSeedLedger.js` | Records every rail seed and rejects it by identity wherever a provider would otherwise report it back as genuine playback. |
 | `plexWatchlistClient.js` | Plex account-level Universal Watchlist adapter with native read/write capability probing and RSS read-only fallback. |
 | `traktAppConfig.js` | Supplies the bundled Plembfin Trakt device application, applies optional `TRAKT_CLIENT_ID` / `TRAKT_CLIENT_SECRET` overrides, validates the personal-app fallback, and hydrates runtime requests without persisting application credentials in tracker records. |
 | `credentialVault.js` | AES-256-GCM envelope for provider credentials, backed by `PLEMBFIN_CREDENTIAL_KEY` or the generated `data/credential.key`. |
@@ -533,6 +541,17 @@ minute (8-second fetch timeout). `?refresh=1` from an admin session bypasses tha
 re-fetches immediately. The browser cannot reach GitHub directly because the CSP is
 `connect-src 'self'`, so the server proxies and caches it.
 
+Settings -> Changelog carries a Main / Alpha toggle. The toggle is available on every
+channel, because `/api/changelog` returns the alpha branch's live manifest whatever is
+installed, so a release install can read alpha build notes. Reading them never changes the
+reported installed version and never raises an update prompt: the server forces
+`alphaBuild.newerBuildAvailable` to false off the alpha channel. An alpha or develop install is
+told separately about a newer build on its own channel and a newer published release, rather
+than only whichever check ran first. Alpha builds left over from an earlier release are grouped
+under their own heading so they are not read as builds of the installed one. Display formatting
+for the five-segment build version lives in `public/modules/changelog-channels.js`, which trims
+trailing zero segments so a release reads `v1.1.0` and an alpha build `v1.1.0.1`.
+
 All three of `changelog.develop.json`, `changelog.alpha.json`, and `changelog.json` are
 written locally, as part of running the selected "Push to git" / "Push all to git" /
 "Force to alpha" / "Force to main" command themselves (see CLAUDE.md's branching model
@@ -628,17 +647,29 @@ newest first, not just the one this instance has installed) whenever either is n
 so a newer build's changes are visible without updating first.
 
 `developBuild` (populated only on the `develop` channel, read from `changelog.develop.json`
-via `readLocalDevelopChangelog()`) carries the current main release and its rolling cycle
+via `readLocalDevelopChangelog()`) carries the current build version and its rolling cycle
 counter, `{ version, build, resetCommit, entries }`. `scripts/rebuild-develop-changelog.js`,
 run locally as part of "Push to git" (before the push), fully recomputes the single entry
 from every real commit between `resetCommit` and HEAD, rather than appending one entry per
-push - there is only ever one entry to read, and it is always current. `build` starts at 1
-when "Force to main" completes and bumps by one on every later rebuild that finds real
-content. `promoteDevelopToAlpha()` clears the current entry and moves the anchor while
-carrying the version/build; `promoteAlphaToMain()` sets the released version and starts
-develop at build 1 for the next cycle. `describePendingDevelopBuild()` compares release
-versions before build numbers so an older remote cycle cannot look newer merely because its
-counter is higher. The sidebar/About label shows this as `<version> Build <n>`.
+push - there is only ever one entry to read, and it is always current. It also stamps the
+build's own version onto every `?v=` public asset reference, so each develop build gets its
+own immutable-cache URL. `build` starts at 0 when "Force to main" completes and bumps by one
+on every later rebuild that finds real content. `promoteDevelopToAlpha()` clears the current
+entry, moves the anchor, and returns the counter to 0 for the new alpha build;
+`promoteAlphaToMain()` sets the released version and returns it to 0 for the next cycle.
+`describePendingDevelopBuild()` compares versions before build numbers so an older remote
+cycle cannot look newer merely because its counter is higher.
+
+Build versions are five numeric segments, `major.minor.patch.alpha.dev`: the released
+semver, then alpha builds since that release, then develop builds since the last alpha
+build. `scripts/version.js` owns parsing, comparison, and display for them, and
+`parseSemver`/`compareSemver` in `routes/maintenance.js` read all five so a pre-release
+build can be ordered against another and against the release that follows it. Missing
+segments zero-fill, so a four-segment version written by an earlier promotion still means
+what it did. Display trims trailing zeros and never goes below three segments, so a release
+reads `v1.1.0`, an alpha build `v1.1.0.1`, and a develop build `v1.1.0.0.2`. `package.json`
+and `changelog.json` keep the three-segment released semver only, because five segments is
+not valid semver. See `docs/decisions.md` entry 18.
 
 ## Data layer (`server/src/db.js` + `schema.sql`)
 

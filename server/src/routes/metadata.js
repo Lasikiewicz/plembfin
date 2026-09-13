@@ -1132,7 +1132,13 @@ export async function handleUpNext(req, res) {
   const refresh = ["1", "true", "yes"].includes(String(req.query.refresh || "").toLowerCase());
   const revalidate = ["1", "true", "yes"].includes(String(req.query.revalidate || "").toLowerCase());
   try {
-    const snapshot = await getUpNextCacheSnapshot(buildUpNextProjection, { refresh, revalidate });
+    // The projection resolves an unwatched next episode against the real
+    // libraries, so the build needs the media config. It is loaded lazily:
+    // a warm cache hit never calls the build at all.
+    const build = async () => buildUpNextProjection({
+      mediaConfig: await loadMediaConfig().catch(() => null),
+    });
+    const snapshot = await getUpNextCacheSnapshot(build, { refresh, revalidate });
     return sendJson(res, {
       items: snapshot.items,
       builtAt: snapshot.builtAt,

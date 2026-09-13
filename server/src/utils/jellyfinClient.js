@@ -1,6 +1,7 @@
 import { fetchWithTimeout } from "./outbound.js";
 import { compoundEpisodeItemsForMedia } from "./compoundEpisode.js";
 import { restoreLookupKey } from "./restoreLookupCache.js";
+import { nativeProviderItemIds } from "./providerItemIds.js";
 import { jellyfinAuthHeaders, jellyfinCredential } from "./jellyfinAuth.js";
 
 function trimTrailingSlash(value = "") {
@@ -67,11 +68,7 @@ async function fetchPagedFeed(config, buildUrl, limit = 0, { pageSize: preferred
 }
 
 function nativeJellyfinItems(media = {}) {
-  const configured = media.provider_items || media.providerItems || {};
-  const values = Array.isArray(configured.jellyfin) ? configured.jellyfin : configured.jellyfin ? [configured.jellyfin] : [];
-  const directId = media.provider_item_id || media.providerItemId || media.jellyfin_id || media.jellyfinId;
-  return [...new Set([...values, directId].map((value) => String(value || "").trim()).filter(Boolean))]
-    .map((Id) => ({ Id }));
+  return nativeProviderItemIds(media, "jellyfin").map((Id) => ({ Id }));
 }
 
 async function findJellyfinItemsForMutation(config, media = {}) {
@@ -674,6 +671,120 @@ export async function fetchJellyfinNextUpItems(config, { limit = 0 } = {}) {
     url.searchParams.set("Limit", String(pageSize));
     return url;
   }, limit);
+}
+
+// ---------------------------------------------------------------------------
+// Playlists
+// ---------------------------------------------------------------------------
+
+// Jellyfin's Resume and Next Up rails are calculated from playstate and cannot
+// be handed an arbitrary future episode. The authoritative Up Next push uses a
+// normal video playlist as its durable provider-side list instead. The API is
+// Emby-derived and shaped the same way, but Jellyfin authenticates by header
+// rather than an api_key query parameter.
+async function jellyfinMutation(config, url, method, body) {
+  const response = await fetchWithTimeout(url, {
+    method,
+    headers: {
+      ...authHeaders(config),
+      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
+    },
+    lane: "interactive",
+    ...(body === undefined ? {} : { body }),
+  });
+  if (!response.ok) {
+    const error = new Error(`Jellyfin playlist ${method.toLowerCase()} failed with status ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
+  const text = await response.text();
+  try { return text ? JSON.parse(text) : {}; } catch { return {}; }
+}
+
+// Runtime for an item whose native id is already known; see the Emby twin.
+export async function fetchJellyfinItemRuntimeMs(config, itemId) {
+  requireJellyfinConfig(config);
+  const id = String(itemId || "").trim();
+  if (!id) return 0;
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${encodeURIComponent(config.userId)}/Items/${encodeURIComponent(id)}`);
+  const item = await fetchJson(url, config);
+  const ticks = Number(item?.RunTimeTicks || 0);
+  return Number.isFinite(ticks) && ticks > 0 ? Math.round(ticks / 10000) : 0;
+}
+
+export async function fetchJellyfinPlaylists(config) {
+  requireJellyfinConfig(config);
+  const baseUrl = trimTrailingSlash(config.baseUrl);
+  const url = new URL(`${baseUrl}/Users/${encodeURIComponent(config.userId)}/Items`);
+  url.searchParams.set("Recursive", "true");
+  url.searchParams.set("IncludeItemTypes", "Playlist");
+  url.searchParams.set("Fields", "ProviderIds,UserData");
+  url.searchParams.set("SortBy", "SortName");
+  url.searchParams.set("SortOrder", "Ascending");
+  const data = await fetchJson(url, config);
+  return Array.isArray(data?.Items) ? data.Items.filter((item) => String(item?.Type || "").toLowerCase() === "playlist") : [];
+}
+
+export async function fetchJellyfinPlaylistItems(config, playlistId, { limit = 0 } = {}) {
+  requireJellyfinConfig(config);
+  if (!playlistId) return [];
+  const baseUrl = trimTrailingSlash(config.baseUrl);
+  const requestedLimit = Number(limit) > 0 ? Math.max(1, Math.round(Number(limit))) : 0;
+  const pageSize = requestedLimit ? Math.min(requestedLimit, 500) : 500;
+  const items = [];
+  for (let start = 0; start <= 10_000_000;) {
+    const url = new URL(`${baseUrl}/Playlists/${encodeURIComponent(String(playlistId))}/Items`);
+    url.searchParams.set("UserId", config.userId);
+    url.searchParams.set("Fields", "ProviderIds,SeriesProviderIds,UserData,PremiereDate,ProductionYear,RunTimeTicks");
+    url.searchParams.set("StartIndex", String(start));
+    url.searchParams.set("Limit", String(pageSize));
+    url.searchParams.set("EnableTotalRecordCount", "true");
+    const data = await fetchJson(url, config);
+    const page = Array.isArray(data?.Items) ? data.Items : [];
+    items.push(...page);
+    if (requestedLimit && items.length >= requestedLimit) return items.slice(0, requestedLimit);
+    const total = Number(data?.TotalRecordCount || 0);
+    if (!page.length || (total > 0 && start + page.length >= total) || (total <= 0 && page.length < pageSize)) break;
+    start += page.length;
+  }
+  return requestedLimit ? items.slice(0, requestedLimit) : items;
+}
+
+export async function createJellyfinPlaylist(config, { title, itemIds = [] } = {}) {
+  requireJellyfinConfig(config);
+  const name = String(title || "").trim();
+  const ids = [...new Set((Array.isArray(itemIds) ? itemIds : [itemIds]).map((id) => String(id || "").trim()).filter(Boolean))];
+  if (!name) throw new Error("Jellyfin playlist title is required");
+  if (!ids.length) throw new Error("Jellyfin playlists require an initial library item");
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Playlists`);
+  url.searchParams.set("userId", config.userId);
+  url.searchParams.set("name", name);
+  url.searchParams.set("mediaType", "Video");
+  url.searchParams.set("ids", ids.join(","));
+  const body = await jellyfinMutation(config, url, "POST");
+  return { id: String(body?.Id || body?.id || "").trim(), body };
+}
+
+export async function addJellyfinPlaylistItems(config, playlistId, itemIds = []) {
+  requireJellyfinConfig(config);
+  const ids = [...new Set((Array.isArray(itemIds) ? itemIds : [itemIds]).map((id) => String(id || "").trim()).filter(Boolean))];
+  if (!playlistId || !ids.length) return { status: "not_found", added: 0 };
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Playlists/${encodeURIComponent(String(playlistId))}/Items`);
+  url.searchParams.set("userId", config.userId);
+  url.searchParams.set("ids", ids.join(","));
+  const body = await jellyfinMutation(config, url, "POST");
+  return { status: "fulfilled", added: Number(body?.ItemAddedCount ?? ids.length) || 0, body };
+}
+
+export async function removeJellyfinPlaylistItems(config, playlistId, entryIds = []) {
+  requireJellyfinConfig(config);
+  const ids = [...new Set((Array.isArray(entryIds) ? entryIds : [entryIds]).map((id) => String(id || "").trim()).filter(Boolean))];
+  if (!playlistId || !ids.length) return { status: "not_found", removed: 0 };
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Playlists/${encodeURIComponent(String(playlistId))}/Items`);
+  url.searchParams.set("userId", config.userId);
+  url.searchParams.set("entryIds", ids.join(","));
+  await jellyfinMutation(config, url, "DELETE");
+  return { status: "fulfilled", removed: ids.length };
 }
 
 // ---------------------------------------------------------------------------

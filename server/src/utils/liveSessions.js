@@ -3,6 +3,7 @@ import { fetchWithTimeout } from "./outbound.js";
 import { jellyfinAuthHeaders, jellyfinCredential } from "./jellyfinAuth.js";
 import { fetchPlexWithRefresh } from "./plexFetch.js";
 import { resolvePlexAccountId } from "./plexClient.js";
+import { UP_NEXT_SEED_DEVICE_ID } from "./embyClient.js";
 import { decodeHtmlEntities } from "./parsers.js";
 
 function trimTrailingSlash(value = "") {
@@ -506,6 +507,16 @@ async function fetchPlexSessions(config) {
   }
 }
 
+// Plembfin's own Up Next rail seed opens a short playback session on the media
+// server, because that is the only thing those servers accept as a resume
+// point. Reading it back as live playback would show the user three things
+// "playing" that nobody started, and would drop those items out of Up Next for
+// as long as the phantom session lasted.
+function isUpNextSeedSession(session = {}) {
+  const deviceId = String(session.raw?.DeviceId || session.deviceId || "").toLowerCase();
+  return deviceId === UP_NEXT_SEED_DEVICE_ID;
+}
+
 async function fetchEmbySessions(config) {
   if (!config.emby.baseUrl || !config.emby.apiKey) return { sessions: [], ok: true };
   const url = new URL(`${config.emby.baseUrl}/Sessions`);
@@ -517,7 +528,8 @@ async function fetchEmbySessions(config) {
     sessions: sessions
       .map((session) => normalizeSessionItem(session, "emby", config.emby))
       .filter(Boolean)
-      .filter((session) => !config.emby.userId || String(session.raw?.UserId || "").toLowerCase() === String(config.emby.userId).toLowerCase()),
+      .filter((session) => !config.emby.userId || String(session.raw?.UserId || "").toLowerCase() === String(config.emby.userId).toLowerCase())
+      .filter((session) => !isUpNextSeedSession(session)),
     ok: true,
   };
 }
@@ -532,7 +544,8 @@ async function fetchJellyfinSessions(config) {
     sessions: sessions
       .map((session) => normalizeSessionItem(session, "jellyfin", config.jellyfin))
       .filter(Boolean)
-      .filter((session) => !config.jellyfin.userId || String(session.raw?.UserId || "").toLowerCase() === String(config.jellyfin.userId).toLowerCase()),
+      .filter((session) => !config.jellyfin.userId || String(session.raw?.UserId || "").toLowerCase() === String(config.jellyfin.userId).toLowerCase())
+      .filter((session) => !isUpNextSeedSession(session)),
     ok: true,
   };
 }

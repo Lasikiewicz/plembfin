@@ -5,7 +5,7 @@ import { hidePlexFromContinueWatching } from "../server/src/utils/plexClient.js"
 import { hideEmbyFromResume } from "../server/src/utils/embyClient.js";
 import { hideJellyfinFromResume } from "../server/src/utils/jellyfinClient.js";
 
-test("Up Next removal uses each provider's native dismissal endpoint", async (t) => {
+test("provider dismissal adapters use each provider's native endpoint", async (t) => {
   const originalFetch = globalThis.fetch;
   const calls = [];
   globalThis.fetch = async (input, options = {}) => {

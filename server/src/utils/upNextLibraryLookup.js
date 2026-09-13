@@ -1,0 +1,291 @@
+import { fetchPlexMetadataItem, findPlexItem } from "./plexClient.js";
+import { fetchEmbyItemRuntimeMs, findEmbyItems } from "./embyClient.js";
+import { fetchJellyfinItemRuntimeMs, findJellyfinItems } from "./jellyfinClient.js";
+import { runWithConcurrency } from "./concurrency.js";
+
+const PROVIDERS = ["plex", "emby", "jellyfin"];
+// A resolved library item is stable: the same episode keeps its ratingKey/Id
+// until the library is rebuilt. A miss is far more volatile - it is usually an
+// episode that has not been downloaded yet - so it is retried far sooner.
+const RESOLVED_TTL_MS = 6 * 60 * 60 * 1000;
+const MISSING_TTL_MS = 15 * 60 * 1000;
+// One projection rebuild examines at most MAX_LOCAL_SHOWS shows. Cap the
+// outbound lookups it can start so a cold cache cannot turn a dashboard
+// refresh into a burst of provider searches.
+const MAX_LOOKUPS_PER_BUILD = 32;
+const MAX_CACHE_ENTRIES = 2000;
+
+const lookupCache = new Map();
+
+function text(value = "") {
+  return String(value ?? "").trim();
+}
+
+function providerIdValues(value) {
+  const values = Array.isArray(value) ? value : value ? [value] : [];
+  return values.map((entry) => {
+    if (entry && typeof entry === "object") return text(entry.id || entry.Id || entry.ratingKey || entry.provider_item_id);
+    return text(entry);
+  }).filter(Boolean);
+}
+
+function requestedProviderIds(item = {}, provider) {
+  const source = item.provider_items || item.providerItems || {};
+  const direct = providerIdValues(source[provider]);
+  const sourceProvider = text(item.provider || item.source).toLowerCase();
+  const sourceId = text(item.provider_item_id || item.providerItemId);
+  if (sourceProvider === provider && sourceId) direct.push(sourceId);
+  return [...new Set(direct)];
+}
+
+// Build the media descriptor the Plex/Emby lookup helpers expect from an Up
+// Next item. Shared by the authoritative playlist push and the projection's
+// local fallback so both resolve an episode the same way.
+export function upNextLookupMedia(item = {}) {
+  const type = text(item.media_type || item.mediaType).toLowerCase();
+  const mediaType = type === "movie" ? "movie" : type === "episode" ? "episode" : "";
+  const isEpisode = mediaType === "episode";
+  const showIds = {
+    imdb: text(item.show_imdb_id || item.showImdbId),
+    tmdb: text(item.show_tmdb_id || item.showTmdbId),
+    tvdb: text(item.show_tvdb_id || item.showTvdbId),
+  };
+  const episodeIds = {
+    imdb: text(item.episode_imdb_id || item.episodeImdbId),
+    tmdb: text(item.episode_tmdb_id || item.episodeTmdbId),
+    tvdb: text(item.episode_tvdb_id || item.episodeTvdbId),
+  };
+  const fallbackIds = {
+    imdb: text(item.imdb_id || item.imdbId || item.imdb),
+    tmdb: text(item.tmdb_id || item.tmdbId || item.tmdb),
+    tvdb: text(item.tvdb_id || item.tvdbId || item.tvdb),
+  };
+  return {
+    type: mediaType,
+    media_type: mediaType,
+    title: text(item.title || item.episode_title || item.show_title),
+    show_title: text(item.show_title || item.showTitle),
+    season: item.season === "" || item.season == null ? undefined : Number(item.season),
+    episode: item.episode === "" || item.episode == null ? undefined : Number(item.episode),
+    // Episode lookup needs the series identity. The episode ids remain on the
+    // object as well for clients that can use them, but must not be promoted
+    // to a series id when the show ids are available.
+    ids: isEpisode
+      ? {
+        imdb: showIds.imdb || fallbackIds.imdb,
+        tmdb: showIds.tmdb || fallbackIds.tmdb,
+        tvdb: showIds.tvdb || fallbackIds.tvdb,
+      }
+      : fallbackIds,
+    show_imdb_id: showIds.imdb,
+    show_tmdb_id: showIds.tmdb,
+    show_tvdb_id: showIds.tvdb,
+    episode_imdb_id: episodeIds.imdb || (isEpisode ? fallbackIds.imdb : ""),
+    episode_tmdb_id: episodeIds.tmdb || (isEpisode ? fallbackIds.tmdb : ""),
+    episode_tvdb_id: episodeIds.tvdb || (isEpisode ? fallbackIds.tvdb : ""),
+    provider_items: item.provider_items || item.providerItems || {},
+    provider_item_id: text(item.provider_item_id || item.providerItemId),
+  };
+}
+
+function runtimeMsOf(provider, result) {
+  if (!result) return 0;
+  if (provider === "plex") return Math.max(0, Math.round(Number(result.duration) || 0));
+  const ticks = Number(result.RunTimeTicks ?? result.runTimeTicks ?? 0);
+  return Number.isFinite(ticks) && ticks > 0 ? Math.round(ticks / 10000) : 0;
+}
+
+export async function resolveUpNextProviderItemId(provider, config, item) {
+  const direct = requestedProviderIds(item, provider);
+  if (direct.length) return { providerItemId: direct[0], direct: true, runtimeMs: 0 };
+
+  const media = upNextLookupMedia(item);
+  if (!media.type || !media.title) return { providerItemId: "", reason: "The Up Next item has no usable media identity." };
+  const result = provider === "plex"
+    ? await findPlexItem(config, media)
+    : provider === "jellyfin"
+      ? (await findJellyfinItems(config, media))[0]
+      : (await findEmbyItems(config, media))[0];
+  const providerItemId = provider === "plex"
+    ? text(result?.ratingKey)
+    : text(result?.Id || result?.id);
+  if (!providerItemId) return { providerItemId: "", reason: "The item was not found in the provider library." };
+  return { providerItemId, direct: false, runtimeMs: runtimeMsOf(provider, result) };
+}
+
+// An item resolved straight from a stored provider id never passes through a
+// search result, so it arrives with no runtime. The rail seed needs one to
+// size its position, so fetch it for those. Cached for the process lifetime:
+// an episode's runtime does not change.
+const runtimeCache = new Map();
+
+async function providerRuntimeMs(provider, config, providerItemId) {
+  const key = `${provider}:${text(config?.baseUrl).toLowerCase()}:${providerItemId}`;
+  if (runtimeCache.has(key)) return runtimeCache.get(key);
+  let runtimeMs = 0;
+  try {
+    if (provider === "plex") {
+      const item = await fetchPlexMetadataItem(config, providerItemId, { lane: "interactive" });
+      runtimeMs = Math.max(0, Math.round(Number(item?.duration) || 0));
+    } else if (provider === "jellyfin") {
+      runtimeMs = await fetchJellyfinItemRuntimeMs(config, providerItemId);
+    } else {
+      runtimeMs = await fetchEmbyItemRuntimeMs(config, providerItemId);
+    }
+  } catch {
+    // Without a runtime the seed reports the item as skipped, which is the
+    // correct outcome; it must not fail the whole push.
+    runtimeMs = 0;
+  }
+  if (runtimeMs > 0) runtimeCache.set(key, runtimeMs);
+  return runtimeMs;
+}
+
+// One resolution pass per provider per push, shared by the playlist
+// reconciliation and the rail seed.
+//
+// They used to resolve independently, and the two passes disagreed: a lookup
+// that timed out during the playlist pass succeeded seconds later for the
+// seed, so the Plex playlist kept a stale entry and missed two items that the
+// seed had no trouble finding. Resolving once removes the disagreement, the
+// shared cache makes the retry cheap, and carrying the resolved item through
+// gives the seed the runtime it needs to size a position the provider will
+// actually keep.
+export async function resolveUpNextProviderTargets({
+  provider,
+  config,
+  items = [],
+  limit = 100,
+  concurrency = 4,
+} = {}) {
+  const list = (Array.isArray(items) ? items : []).slice(0, limit);
+  const outcomes = Array(list.length);
+  await runWithConcurrency(list, async (item, index) => {
+    const attempt = async () => resolveUpNextProviderItemId(provider, config, item);
+    let target = null;
+    let failure = "";
+    for (let tries = 0; tries < 2; tries += 1) {
+      try {
+        target = await attempt();
+        if (target.providerItemId) break;
+        failure = target.reason || "Provider item was not resolved.";
+        // A clean "not in this library" answer is final; only retry the
+        // transient case, which is what a timeout looks like here.
+        if (!/timed out|timeout|failed|reset|refused/i.test(failure)) break;
+      } catch (error) {
+        failure = text(error?.message || error) || "Provider item lookup failed.";
+        if (!/timed out|timeout|fetch failed|reset|refused/i.test(failure)) break;
+      }
+    }
+    if (!target?.providerItemId) {
+      outcomes[index] = { title: text(item?.title || item?.show_title || "Untitled"), reason: failure || "Provider item was not resolved." };
+      return;
+    }
+    let runtimeMs = Math.max(
+      Number(target.runtimeMs || 0),
+      Math.max(0, Math.round(Number(item?.duration_ms ?? item?.durationMs) || 0)),
+    );
+    if (runtimeMs <= 0) runtimeMs = await providerRuntimeMs(provider, config, target.providerItemId);
+    outcomes[index] = { item, providerItemId: target.providerItemId, runtimeMs };
+  }, concurrency);
+
+  const resolved = [];
+  const unresolved = [];
+  const seen = new Set();
+  for (const outcome of outcomes) {
+    if (!outcome) continue;
+    if (!outcome.providerItemId) {
+      unresolved.push(outcome);
+      continue;
+    }
+    if (seen.has(outcome.providerItemId)) continue;
+    seen.add(outcome.providerItemId);
+    resolved.push(outcome);
+  }
+  return { provider, resolved, unresolved };
+}
+
+function configuredProvider(config, provider) {
+  const section = config?.[provider] || {};
+  if (section.disabled) return false;
+  if (provider === "plex") return Boolean(section.baseUrl && section.token);
+  return Boolean(section.baseUrl && (section.apiKey || section.api_key || section.token) && section.userId);
+}
+
+function cacheKey(provider, config, media) {
+  const base = text(config?.[provider]?.baseUrl).toLowerCase();
+  const ids = [media.show_imdb_id, media.show_tmdb_id, media.show_tvdb_id]
+    .map((value) => text(value).toLowerCase())
+    .join("|");
+  const title = text(media.show_title || media.title).toLowerCase();
+  const season = media.season == null ? "" : media.season;
+  const episode = media.episode == null ? "" : media.episode;
+  return `${provider}:${base}:${ids}:${title}:s${season}e${episode}`;
+}
+
+function readCache(key) {
+  const entry = lookupCache.get(key);
+  if (!entry) return null;
+  const ttl = entry.providerItemId ? RESOLVED_TTL_MS : MISSING_TTL_MS;
+  if (Date.now() - entry.at >= ttl) {
+    lookupCache.delete(key);
+    return null;
+  }
+  return entry;
+}
+
+function writeCache(key, providerItemId) {
+  if (lookupCache.size >= MAX_CACHE_ENTRIES) {
+    const oldest = lookupCache.keys().next().value;
+    if (oldest !== undefined) lookupCache.delete(oldest);
+  }
+  lookupCache.set(key, { at: Date.now(), providerItemId });
+}
+
+export function clearUpNextLibraryLookupCache() {
+  lookupCache.clear();
+  runtimeCache.clear();
+}
+
+// Local history plus TMDB metadata is enough to know which episode comes next,
+// but not enough to prove that episode exists in a configured library, and a
+// card for an episode nobody can play is worse than no card. Watch history
+// only carries a native item id once something has been played, so an
+// unwatched next episode never has one - which is why Reacher S04E07 could be
+// in Plex, Emby, and Plembfin's own show detail and still be missing from Up
+// Next. Ask the library directly instead, with the same lookup the
+// authoritative push already uses, and cache both answers.
+//
+// Returns null when no supported provider is configured, so the caller keeps
+// its offline behavior instead of silently dropping every fallback candidate.
+export function createUpNextLibraryLookup(config = {}) {
+  const providers = PROVIDERS.filter((provider) => configuredProvider(config, provider));
+  if (!providers.length) return null;
+  let budget = MAX_LOOKUPS_PER_BUILD;
+
+  return async function resolveProviderItems(candidate) {
+    const media = upNextLookupMedia(candidate);
+    if (!media.type || !media.title) return {};
+    const providerItems = {};
+    for (const provider of providers) {
+      const key = cacheKey(provider, config, media);
+      const cached = readCache(key);
+      if (cached) {
+        if (cached.providerItemId) providerItems[provider] = [cached.providerItemId];
+        continue;
+      }
+      if (budget <= 0) continue;
+      budget -= 1;
+      try {
+        const { providerItemId } = await resolveUpNextProviderItemId(provider, config[provider], candidate);
+        writeCache(key, providerItemId);
+        if (providerItemId) providerItems[provider] = [providerItemId];
+      } catch {
+        // A provider that cannot answer right now is not evidence that the
+        // episode is absent. Leave it uncached so the next build retries
+        // rather than hiding a real episode for the whole miss window.
+      }
+    }
+    return providerItems;
+  };
+}
