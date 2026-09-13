@@ -273,3 +273,64 @@ export function validateReleaseMessage(message) {
     `Use: git commit -m "${subject}" -m "- What changed for users"`,
   ];
 }
+
+// Quality gate for an entry that is about to be published to testers or users.
+//
+// Applied at the two promotion boundaries, not to develop's rolling entry.
+// Develop legitimately accumulates bullets across several pushes in a cycle, so
+// counting them there would block normal work; by the time an entry is promoted
+// it has to read as release notes.
+//
+// Both rules exist because a session produced exactly these failures: four
+// unconsolidated commits gave a 24-bullet entry with a 290-character headline,
+// and bullets naming internals ("up_next_rail_seeds", "/Items/Resume",
+// "provider_item_id") reached the changelog from an otherwise well-written
+// commit. Neither was caught by anything.
+export const CHANGELOG_MIN_BULLETS = 3;
+export const CHANGELOG_MAX_BULLETS = 8;
+
+// Identifiers that read as code rather than as a description of behaviour.
+// Deliberately narrow: it must not fire on ordinary product nouns like
+// "Up Next", "Continue Watching", or a version such as "1.1.0".
+const CODE_IDENTIFIER_PATTERNS = [
+  { pattern: /\b[a-z0-9]+(?:_[a-z0-9]+){1,}\b/, why: "snake_case identifier" },
+  { pattern: /(?:^|\s)\/[A-Za-z][A-Za-z0-9]*(?:\/[A-Za-z0-9{}]+)*\b/, why: "API path" },
+  { pattern: /\b[a-z]+[A-Z][A-Za-z]*\(\)/, why: "function name" },
+  { pattern: /\b\w+\.(?:js|mjs|json|yml|ts)\b/, why: "source file name" },
+  { pattern: /`[^`]+`/, why: "code span" },
+];
+
+function bulletsOf(entry = {}) {
+  const details = Array.isArray(entry.details) ? entry.details.filter(Boolean) : [];
+  if (details.length) return details;
+  const sections = entry.sections || {};
+  return [
+    ...(Array.isArray(sections.newFeatures) ? sections.newFeatures : []),
+    ...(Array.isArray(sections.majorBugFixes) ? sections.majorBugFixes : []),
+    ...(Array.isArray(sections.tweaks) ? sections.tweaks : []),
+  ].filter(Boolean);
+}
+
+export function changelogEntryQualityViolations(entry = {}) {
+  const violations = [];
+  const bullets = bulletsOf(entry);
+
+  if (bullets.length < CHANGELOG_MIN_BULLETS) {
+    violations.push(`only ${bullets.length} bullet(s); a published entry needs at least ${CHANGELOG_MIN_BULLETS}`);
+  }
+  if (bullets.length > CHANGELOG_MAX_BULLETS) {
+    violations.push(`${bullets.length} bullets; at most ${CHANGELOG_MAX_BULLETS} should be published. Consolidate the pending commits into one product commit and combine their bullet lists before promoting.`);
+  }
+
+  for (const bullet of bullets) {
+    for (const { pattern, why } of CODE_IDENTIFIER_PATTERNS) {
+      const match = String(bullet).match(pattern);
+      if (match) {
+        violations.push(`bullet names a ${why} (${match[0].trim()}): ${String(bullet).slice(0, 80)}`);
+        break;
+      }
+    }
+  }
+
+  return violations;
+}

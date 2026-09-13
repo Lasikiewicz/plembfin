@@ -14,6 +14,24 @@ command, check it is not mid-run:
 ```bash
 gh run list --workflow ghcr-cleanup.yml --limit 1
 ```
+
+Then take the release lock, so a second session cannot rewrite history in this
+checkout at the same time:
+
+```bash
+node scripts/release-lock.js acquire "force to alpha"
+```
+
+Release it when the workflow finishes, or if you abandon it:
+
+```bash
+node scripts/release-lock.js release
+```
+
+Two agents running overlapping `git reset --soft` and `git commit` sequences in one
+worktree once amended the published v1.1.0 release commit and diverged `develop` from
+`origin/develop`. If this refuses, do not work around it: wait for the other session, or
+clear the lock only once you know it is gone.
 If the latest run shows `in_progress`, wait for it to complete before pushing.
 
 

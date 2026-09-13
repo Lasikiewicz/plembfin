@@ -34,6 +34,12 @@ if [ -n "$develop_push_sha" ]; then
   # if a staged or uncommitted changelog happens to exist locally.
   echo "Checking committed develop changelog..."
   node scripts/rebuild-develop-changelog.js --check "$develop_push_sha"
+
+  # More than one pending product commit means the changelog will fold several
+  # subjects into one run-on headline. push-to-git step 7 consolidates; this
+  # refuses the push when that step was skipped.
+  echo "Checking pending commit shape..."
+  node scripts/check-pending-commits.js "origin/develop..$develop_push_sha"
 fi
 
 echo "Running Plembfin pre-push build check..."

@@ -17,7 +17,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { changelogEntryProcessViolations, filterChangelogEntries } from "./changelog-message.js";
+import { changelogEntryQualityViolations, changelogEntryProcessViolations, filterChangelogEntries } from "./changelog-message.js";
 import { formatSections, mergeSections } from "./promote-develop-to-alpha.js";
 import { generateChangelogMarkdown } from "./generate-changelog-md.js";
 import { fileAtRef, gitHeadAuthor, gitHeadCommit } from "./changelog-git-helpers.js";
@@ -158,6 +158,13 @@ function computeAlphaToMainRelease({ targetVersion = "", sourceDate = new Date()
   const violations = changelogEntryProcessViolations(mainEntry);
   if (violations.length > 0) {
     throw new Error(`Refusing to promote alpha to main: the entry contains release-process notes:\n${violations.map((v) => `- ${v}`).join("\n")}`);
+  }
+
+  // This entry becomes the GitHub Release, the in-app changelog, and the public
+  // website's release notes. It has to read as release notes.
+  const quality = changelogEntryQualityViolations(mainEntry);
+  if (quality.length > 0) {
+    throw new Error(`Refusing to promote alpha to main: the entry is not publishable:\n${quality.map((v) => `- ${v}`).join("\n")}`);
   }
 
   return { changelog, alpha, newMainVersion, new5DigitVersion, mainEntry, historySource };

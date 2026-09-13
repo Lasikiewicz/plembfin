@@ -153,3 +153,83 @@ test("the release-history gate refuses a new release under the wrong version", (
   assert.ok(failures.length > 0);
   assert.match(failures.join("\n"), /expected 1\.1\.1/);
 });
+
+// The four guards added after a session produced each of these failures for real:
+// a 24-bullet entry from unconsolidated commits, bullets naming internals, a
+// run-on headline, and two agents corrupting the repository at once.
+
+const { changelogEntryQualityViolations } = await import("../scripts/changelog-message.js");
+const { productCommitSubjects } = await import("../scripts/check-pending-commits.js");
+const { lockDecision } = await import("../scripts/release-lock.js");
+
+test("a publishable entry passes the quality gate", () => {
+  assert.deepEqual(changelogEntryQualityViolations({
+    details: [
+      "Show the right next episode even when it has never been watched",
+      "Return an episode to Up Next when you mark it unwatched",
+      "Mirror Up Next onto Plex Continue Watching and Emby Resume",
+    ],
+  }), []);
+});
+
+test("the quality gate refuses an entry with too few or too many bullets", () => {
+  assert.ok(changelogEntryQualityViolations({ details: ["One", "Two"] }).length > 0);
+  const many = changelogEntryQualityViolations({
+    details: Array.from({ length: 12 }, (_, i) => `Real user-visible bullet number ${i}`),
+  });
+  assert.ok(many.length > 0);
+  assert.match(many.join("\n"), /Consolidate/);
+});
+
+test("the quality gate refuses bullets that name internals", () => {
+  const cases = [
+    "Record every seed in up_next_rail_seeds and reject it by identity",
+    "Consult Emby's legacy query when /Items/Resume answers with an empty list",
+    "Stop reading a bare provider_item_id for a provider that did not issue it",
+  ];
+  for (const bullet of cases) {
+    const violations = changelogEntryQualityViolations({ details: ["First bullet", "Second bullet", bullet] });
+    assert.ok(violations.length > 0, `should have flagged: ${bullet}`);
+  }
+});
+
+test("the quality gate leaves ordinary product wording alone", () => {
+  // It must not fire on product nouns or version numbers, or it would be
+  // disabled the first time it cried wolf.
+  assert.deepEqual(changelogEntryQualityViolations({
+    details: [
+      "Mirror Up Next onto Plex Continue Watching so the same queue appears there",
+      "Ship v1.1.0 with the Main and Alpha changelog tabs",
+      "Restore Jellyfin as a full Up Next source for reading and dismissing",
+    ],
+  }), []);
+});
+
+test("pending product commits are counted without tooling commits", () => {
+  // The exact pre-consolidation state that produced the 290-character headline.
+  assert.equal(productCommitSubjects([
+    "feat: make Up Next authoritative across Plex, Emby, and Jellyfin",
+    "fix: correct the changelog build labels",
+    "chore: five-segment build versions",
+    "feat: show alpha builds and per-channel update notices",
+    "chore: rebuild develop changelog",
+  ]).length, 3);
+
+  assert.equal(productCommitSubjects([
+    "feat: make Up Next reliable across Plex, Emby, and Jellyfin",
+    "chore: five-segment build versions",
+    "chore: rebuild develop changelog",
+  ]).length, 1);
+});
+
+test("the release lock refuses a concurrent session but not an abandoned one", () => {
+  const now = Date.now();
+  assert.equal(lockDecision({ existing: null, now }).action, "acquire");
+  assert.equal(lockDecision({ existing: { pid: 4242, startedAt: new Date(now).toISOString() }, now, pid: 4242 }).action, "acquire");
+  assert.equal(lockDecision({ existing: { pid: 999, startedAt: new Date(now - 60_000).toISOString() }, now }).action, "refuse");
+  // A crashed session must not block the repository forever.
+  assert.equal(lockDecision({ existing: { pid: 999, startedAt: new Date(now - 45 * 60_000).toISOString() }, now }).action, "acquire");
+  // startedAt is an ISO string; coercing it with Number() yielded NaN and made
+  // every staleness comparison false.
+  assert.equal(lockDecision({ existing: { pid: 999, startedAt: "nonsense" }, now }).action, "acquire");
+});
