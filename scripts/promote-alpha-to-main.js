@@ -215,6 +215,48 @@ export function verifyReleaseHistory({ priorVersions = [], newVersions = [], new
   return failures;
 }
 
+// Stamps every website documentation page with the version being released.
+//
+// Each page's frontmatter carries a `sourceVersion` marker recording the released
+// application version its content was verified against. Before this, the marker
+// was written by hand during the website update gate, and drifted: the v1.1.0
+// release shipped a site whose 36 pages all still claimed 1.0.2, so the published
+// documentation described one release while the site displayed another.
+//
+// It cannot be stamped at gate time, because that gate runs before this script
+// decides the new version. Writing it here makes the drift structurally
+// impossible. The mandatory website gate in "Force to main" remains the thing
+// that proves a human actually reviewed the pages; this only records which
+// release the reviewed content shipped with.
+//
+// website/scripts/check-doc-baseline.mjs enforces the same equality, so a page
+// left behind fails the website checks rather than publishing silently.
+export function stampDocumentationBaseline(version, { docsDir, readFile, writeFile, listFiles } = {}) {
+  const dir = docsDir || path.join(root, "website", "src", "content", "docs");
+  const read = readFile || ((file) => fs.readFileSync(file, "utf8"));
+  const write = writeFile || ((file, contents) => fs.writeFileSync(file, contents));
+  const list = listFiles || ((base) => {
+    const found = [];
+    for (const entry of fs.readdirSync(base, { withFileTypes: true })) {
+      const full = path.join(base, entry.name);
+      if (entry.isDirectory()) found.push(...list(full));
+      else if (entry.name.endsWith(".mdx") || entry.name.endsWith(".md")) found.push(full);
+    }
+    return found;
+  });
+
+  const stamped = [];
+  for (const file of list(dir)) {
+    const contents = read(file);
+    const updated = contents.replace(/^sourceVersion:\s*["']?[^"'\s]+["']?\s*$/m, `sourceVersion: "${version}"`);
+    if (updated !== contents) {
+      write(file, updated);
+      stamped.push(file);
+    }
+  }
+  return stamped;
+}
+
 export function promoteAlphaToMain({ targetVersion = "", sourceDate = new Date().toISOString(), sourceAuthor = "system", commit = "" } = {}) {
   const { changelog, alpha, newMainVersion, new5DigitVersion, mainEntry, historySource } = computeAlphaToMainRelease({ targetVersion, sourceDate, sourceAuthor, commit });
 
@@ -300,6 +342,11 @@ export function promoteAlphaToMain({ targetVersion = "", sourceDate = new Date()
     throw new Error(`Failed to stamp public assets with ${new5DigitVersion}: ${assetResult.stderr || assetResult.stdout}`);
   }
   console.log(String(assetResult.stdout || "").trim());
+
+  // Record which release the reviewed documentation shipped with. See the
+  // function's own comment for why this is written here and not at gate time.
+  const stampedDocs = stampDocumentationBaseline(newMainVersion);
+  console.log(`Stamped ${stampedDocs.length} documentation page(s) as verified against v${newMainVersion}.`);
 
   console.log(`Promoted Alpha to Main release v${newMainVersion} (${new5DigitVersion})`);
   console.log(`Release history: ${changelog.entries.length} entries, read from ${historySource}.`);

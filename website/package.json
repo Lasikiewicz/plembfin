@@ -8,8 +8,8 @@
     "predev": "node scripts/build-release-data.mjs && node scripts/sync-assets.mjs && node scripts/optimize-assets.mjs",
     "build": "node scripts/build-release-data.mjs && node scripts/sync-assets.mjs && node scripts/optimize-assets.mjs && node scripts/run-astro.mjs build",
     "assets:optimize": "node scripts/optimize-assets.mjs",
-    "check:deploy": "npm run check:content && npm run check:links && npm run check:assets && npm run check:privacy && npm run check:duplicates && npm run check:accessibility",
-    "check": "npm run check:content && npm run check:links && npm run check:assets && npm run check:privacy && npm run check:duplicates && npm run check:accessibility && node scripts/run-astro.mjs check",
+    "check:deploy": "npm run check:baseline && npm run check:content && npm run check:links && npm run check:assets && npm run check:privacy && npm run check:duplicates && npm run check:accessibility",
+    "check": "npm run check:baseline && npm run check:content && npm run check:links && npm run check:assets && npm run check:privacy && npm run check:duplicates && npm run check:accessibility && node scripts/run-astro.mjs check",
     "check:content": "node scripts/check-app-coverage.mjs",
     "check:assets": "node scripts/optimize-assets.mjs && node scripts/check-capture-assets.mjs && node scripts/check-website-assets.mjs",
     "check:accessibility": "node scripts/check-website-accessibility.mjs",
@@ -18,7 +18,8 @@
     "check:links": "node scripts/check-content-links.mjs",
     "captures:compose": "node scripts/compose-full-page-capture.mjs",
     "captures:inventory": "node scripts/capture-inventory.mjs --write",
-    "preview": "node scripts/run-astro.mjs preview"
+    "preview": "node scripts/run-astro.mjs preview",
+    "check:baseline": "node scripts/check-doc-baseline.mjs"
   },
   "engines": {
     "node": ">=22.19.0"

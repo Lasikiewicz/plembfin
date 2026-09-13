@@ -18,6 +18,47 @@ function minimumNodeVersion(engineRange) {
   return match[1];
 }
 
+// Claims that went stale once and would mislead a future reader of the release
+// procedure. These are checked by content because there is no other signal: the
+// `paths-ignore` comment in docker-publish-develop.yml described a push that had
+// already been removed, and stayed wrong for weeks because nothing compared prose
+// against behaviour. `docs/decisions.md` is exempt - a superseded entry must keep
+// its original wording verbatim, which is the point of the record.
+//
+// This is a banned-phrase check, not a correctness proof. It catches regressions
+// of claims already known to have drifted, and nothing else. Add an entry only
+// when a wrong claim in that file would cost real time or trust.
+export const STALE_RELEASE_CLAIMS = [
+  {
+    pattern: /Build <n>/,
+    why: "the develop label is the five-segment version itself, with trailing zeros trimmed",
+  },
+  {
+    pattern: /starts each release cycle at build 1/,
+    why: "the develop build counter starts at 0; the first build of a cycle is <release>.0.1",
+  },
+  {
+    pattern: /push develop's own\s+reset state to `origin\/develop`/,
+    why: "no force command pushes origin/develop; see docs/decisions.md entry 18",
+  },
+  {
+    pattern: /pushes the synchronized state to `origin\/develop`/,
+    why: "Force to main does not merge main into develop or push it; see entry 18",
+  },
+];
+
+export function checkStaleReleaseClaims(files = []) {
+  const failures = [];
+  for (const { path: filePath, contents } of files) {
+    for (const { pattern, why } of STALE_RELEASE_CLAIMS) {
+      if (pattern.test(contents)) {
+        failures.push(`${filePath} still says ${pattern.source} - ${why}`);
+      }
+    }
+  }
+  return failures;
+}
+
 export function checkDocumentationConsistency({ packageJson, readme } = {}) {
   const pkg = packageJson || JSON.parse(readRootFile("package.json"));
   const markdown = readme || readRootFile("README.md");
@@ -55,7 +96,34 @@ export function checkDocumentationConsistency({ packageJson, readme } = {}) {
   return { nodeMinimum };
 }
 
+// Files whose release-procedure prose is read before someone changes the
+// promotion scripts. decisions.md is deliberately absent: its superseded entries
+// must keep the wording they were written with.
+const RELEASE_PROSE_FILES = [
+  "CLAUDE.md",
+  "README.md",
+  "docs/development.md",
+  "docs/architecture.md",
+  ".github/workflows/docker-publish-develop.yml",
+  ".claude/skills/push-to-git/SKILL.md",
+  ".claude/skills/force-to-alpha/SKILL.md",
+  ".claude/skills/force-to-main/SKILL.md",
+];
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const { nodeMinimum } = checkDocumentationConsistency();
-  console.log(`Documentation consistency check passed (Node.js >=${nodeMinimum}).`);
+
+  const files = RELEASE_PROSE_FILES
+    .map((relative) => ({ path: relative, full: path.join(root, relative) }))
+    .filter(({ full }) => fs.existsSync(full))
+    .map(({ path: relative, full }) => ({ path: relative, contents: fs.readFileSync(full, "utf8") }));
+
+  const staleFailures = checkStaleReleaseClaims(files);
+  if (staleFailures.length) {
+    console.error("Release documentation is out of date:");
+    for (const failure of staleFailures) console.error(`  - ${failure}`);
+    process.exit(1);
+  }
+
+  console.log(`Documentation consistency check passed (Node.js >=${nodeMinimum}, ${files.length} release docs scanned).`);
 }
