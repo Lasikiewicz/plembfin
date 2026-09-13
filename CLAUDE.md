@@ -75,7 +75,8 @@ alpha build `v1.1.0.1`. `package.json` keeps the three-segment semver only. See
 
 - **`develop`**: `scripts/rebuild-develop-changelog.js` recomputes the single entry from
   every real commit between `resetCommit` and `HEAD`, and restamps `public/` assets with
-  this build's version. Shows as `<version> Build <n>`.
+  this build's version. Shows as the five-segment version itself, trailing zeros trimmed
+  (`1.1.0.1.3`).
 - **`alpha`**: `scripts/promote-develop-to-alpha.js` prepends develop's entry as its own
   standalone build entry, so a tester sees each build separately, and requires the user to
   approve that entry before anything is committed. Shows as `v<version> alpha`.

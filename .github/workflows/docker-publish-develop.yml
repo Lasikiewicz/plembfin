@@ -6,15 +6,15 @@ name: Publish Develop Image
 # as part of "Push to git", before the push - this job just reads the value already
 # committed, and never writes back to the branch.
 #
-# "Force to alpha" step 4 also pushes to develop - the same commit that was just
-# force-pushed to alpha, carrying only its reset changelog.develop.json and the promoted
-# changelog.alpha.json, no app code. That push exists so origin/develop has the correct
-# file for the app's own live remote-fetch changelog comparison (handleChangelog /
-# fetchRemoteDevelopChangelog in server/src/routes/maintenance.js already reads GitHub's
-# copy directly, independent of what any built image bundles) - it was never meant to
-# also rebuild and republish a whole image over a changelog-only diff. paths-ignore skips
-# this job when every changed file is one of the two changelog JSON files; any push that
-# also touches real code still runs the full build normally.
+# Neither "Force to alpha" nor "Force to main" pushes to develop any more, so the
+# changelog-only push this filter was written for no longer exists: a promotion's commit
+# also carried the public/ asset restamp, so paths-ignore never matched it anyway and
+# every promotion published a second, meaningless develop image. Each promotion now
+# leaves the reset manifests on the local branch and the next ordinary "Push to git"
+# publishes them. See docs/decisions.md entry 18, which supersedes entry 9.
+#
+# The paths-ignore below is kept as a harmless guard against a future changelog-only
+# push; nothing currently produces one.
 on:
   push:
     branches: [develop]

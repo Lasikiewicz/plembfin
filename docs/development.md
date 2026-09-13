@@ -111,11 +111,12 @@ values already committed" - none of them write anything back to their branch.
   consistency, then builds, verifies, and publishes a rolling image to
   `ghcr.io/lasikiewicz/plembfin:develop` (also tagged `develop-<build>`) using the build
   number already in the pushed commit. `develop` carries the current main release in
-  `changelog.develop.json` and starts each release cycle at build 1. Its build counter
+  `changelog.develop.json` and starts each release cycle at build 0. Its build counter
   increments when a rebuild finds user-facing work; "Force to alpha" clears the current
-  entry and anchor while carrying the version/build, and "Force to main" resets the
-version to the released semver and the build to 1. The sidebar and About
-  show this as `<version> Build <n>`.
+  entry and anchor and returns the counter to 0 for the new alpha build, and "Force to
+  main" sets the version to the released semver and returns the counter to 0. The sidebar
+  and About show the five-segment build version itself, with trailing zeros trimmed, so
+  the third develop build after the first alpha of v1.1.0 reads `1.1.0.1.3`.
   **`develop` is covered by `secret-scan.yml`** (while `security.yml` runs on `main` and
   `alpha` alongside scheduled scans).
 - **"Force to alpha"** runs `scripts/promote-develop-to-alpha.js` locally (packages
