@@ -124,7 +124,8 @@ These hold regardless of which skill is running, so they are repeated here:
   first step.
 - "Force to alpha" and "Force to main" are force-pushes to shared branches. Show the user
   what is about to land first. Both require explicit user approval of the previewed
-  changelog in chat before anything is staged. "Force to main" also runs the mandatory
+  changelog in chat before anything is staged, and both then stop every local server and
+  start the build being published so the user can check it before the push. "Force to main" also runs the mandatory
   website update gate, and stops if that gate produces a website change, because the
   release is built from alpha's tip and the change must travel through "Force to alpha"
   first.

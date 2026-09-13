@@ -525,7 +525,8 @@ history - never by CI reading GitHub's push event - which also keeps release-pro
 bookkeeping out of what publishes to `alpha` and `main`.
 
 Both promotions preview their changelog entry and wait for explicit user approval before
-anything is staged. Before a **"Force to main"** the release workflow also creates one
+anything is staged, and both then start the build locally so the release can be checked
+before it is published rather than after. Before a **"Force to main"** the release workflow also creates one
 concise `releaseMessage` and previews the complete categorized changelog; the promotion
 command requires `--confirm` after that approval, and without it no main release files are
 written. A **"Force to main"** additionally refuses to publish a release whose changelog
