@@ -1205,10 +1205,32 @@ export function describePendingAlphaBuild(localAlphaBuild, remoteAlpha) {
   const remoteBuild = Number(remoteAlpha?.build) || 0;
   const remoteBaseVersion = remoteAlpha?.baseVersion || localAlphaBuild.baseVersion;
   const remoteEntries = Array.isArray(remoteAlpha?.entries) ? remoteAlpha.entries : [];
-  const newerBuildAvailable = remoteBaseVersion !== localAlphaBuild.baseVersion || remoteBuild > localAlphaBuild.build;
+
+  // The base versions are compared for order, not merely for difference.
+  //
+  // Testing `remoteBaseVersion !== localAlphaBuild.baseVersion` treated ANY
+  // mismatch as an update, including a branch that is behind. A build running on
+  // base 1.1.0 against an alpha branch still on the 1.0.2 cycle reported the
+  // previous cycle's builds as "new since your alpha build - not pulled yet", and
+  // the banner read "Newer alpha build available - build 2. You're running build
+  // 2." because both cycles happened to have two builds.
+  //
+  // That is not only a half-finished-promotion symptom. "Force to main" resets
+  // changelog.alpha.json but never touches the alpha branch, so immediately after
+  // any release a running alpha build legitimately sits on a newer base than the
+  // branch, and would have been told to pull an older cycle.
+  const baseComparison = compareSemver(remoteBaseVersion, localAlphaBuild.baseVersion);
+
+  // A newer base means a fresh cycle this instance has seen nothing of, so every
+  // remote entry is pending. An equal base compares build numbers. An older base
+  // means the branch is behind: never an update.
+  const newerBuildAvailable = baseComparison > 0
+    || (baseComparison === 0 && remoteBuild > localAlphaBuild.build);
+
   const pendingEntries = newerBuildAvailable
-    ? remoteEntries.filter((entry) => remoteBaseVersion !== localAlphaBuild.baseVersion || Number(entry.build) > localAlphaBuild.build)
+    ? remoteEntries.filter((entry) => baseComparison > 0 || Number(entry.build) > localAlphaBuild.build)
     : [];
+
   return { latestBuild: remoteBuild, newerBuildAvailable, pendingEntries };
 }
 

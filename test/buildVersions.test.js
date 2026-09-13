@@ -252,3 +252,55 @@ test("the release lock refuses a concurrent session but not an abandoned one", (
   // every staleness comparison false.
   assert.equal(lockDecision({ existing: { pid: 999, startedAt: "nonsense" }, now }).action, "acquire");
 });
+
+// An alpha branch that is BEHIND the running build must never present as an
+// update. The comparison used to test base versions for inequality rather than
+// order, so a build on base 1.1.0 against a branch still on the 1.0.2 cycle
+// listed the previous cycle as "new since your alpha build - not pulled yet",
+// and the banner read "Newer alpha build available - build 2. You're running
+// build 2." because both cycles happened to have two builds.
+//
+// This is not only a half-finished-promotion symptom: "Force to main" resets
+// changelog.alpha.json but never touches the alpha branch, so right after every
+// release a running alpha build legitimately sits on a newer base than the
+// branch does.
+const { describePendingAlphaBuild } = await import("../server/src/routes/maintenance.js");
+
+test("an alpha branch behind the running build is never an update", () => {
+  const result = describePendingAlphaBuild(
+    { baseVersion: "1.1.0", build: 2, entries: [] },
+    { baseVersion: "1.0.2", build: 2, entries: [{ build: 1 }, { build: 2 }] },
+  );
+  assert.equal(result.newerBuildAvailable, false);
+  assert.deepEqual(result.pendingEntries, []);
+});
+
+test("a newer alpha cycle makes every remote entry pending", () => {
+  const result = describePendingAlphaBuild(
+    { baseVersion: "1.1.0", build: 2, entries: [] },
+    { baseVersion: "1.2.0", build: 1, entries: [{ build: 1 }] },
+  );
+  assert.equal(result.newerBuildAvailable, true);
+  assert.equal(result.pendingEntries.length, 1);
+});
+
+test("within one cycle only builds past the installed one are pending", () => {
+  const sameBuild = describePendingAlphaBuild(
+    { baseVersion: "1.1.0", build: 2, entries: [] },
+    { baseVersion: "1.1.0", build: 2, entries: [{ build: 1 }, { build: 2 }] },
+  );
+  assert.equal(sameBuild.newerBuildAvailable, false, "an identical branch is not an update");
+
+  const ahead = describePendingAlphaBuild(
+    { baseVersion: "1.1.0", build: 1, entries: [] },
+    { baseVersion: "1.1.0", build: 3, entries: [{ build: 2 }, { build: 3 }] },
+  );
+  assert.equal(ahead.newerBuildAvailable, true);
+  assert.deepEqual(ahead.pendingEntries.map((e) => e.build), [2, 3]);
+
+  const behind = describePendingAlphaBuild(
+    { baseVersion: "1.1.0", build: 3, entries: [] },
+    { baseVersion: "1.1.0", build: 1, entries: [{ build: 1 }] },
+  );
+  assert.equal(behind.newerBuildAvailable, false, "a branch behind within the cycle is not an update");
+});
