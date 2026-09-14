@@ -184,7 +184,7 @@ jobs:
           Write-Host "$($installer.Name): $hash"
 
       - name: Upload installer artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.metadata.outputs.artifact_name }}
           path: dist/windows/installer/*
