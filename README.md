@@ -55,7 +55,7 @@ None of these talk to each other - they all talk to Plembfin.
 - **Instant state restoration** - Automatically synchronizes watch history to newly added media and rebuilt server libraries
 - **Cross-platform resume** - Pause playback on one server and pick up right where you left off on another
 - **Rewatch tracking** - Full multi-watch history logging with smart deduplication that preserves authentic repeat viewings
-- **Now Playing dashboard** - Real-time playback monitoring, optional Plembfin-authoritative Up Next sync (pushed to Plex/Emby Continue Watching and Jellyfin Next Up), media-type-aware Watch History, weekly watch activity trends, and recent history
+- **Now Playing dashboard** - Real-time playback monitoring, optional Plembfin-authoritative Up Next sync that queues a coalesced provider push whenever the queue changes (to Plex/Emby Continue Watching and Jellyfin Next Up), media-type-aware Watch History, weekly watch activity trends, and recent history
 - **Sync Activity hub** - Live grouped activity by movie/show, with all resume checkpoints and destination results preserved behind each row, targeted retry for actual failed destinations (only the newest unresolved result per movie/episode is retried, individually or all at once as a background job that survives closing the tab; expected missing-library skips are excluded), show-wide Fix Match and retry-all controls for Trakt mismatches, dismiss controls for shows Trakt does not contain, blocked-restore repair grouped by show with Fix Match and skip controls, and downloadable group logs
 - **Rich analytics & stats** - In-depth all-time and period reports, top shows, and platform playback distribution
 - **Personal media organization** - Save movies, shows, and episodes to a watch list or custom lists, and rate them from their media pages; episode ratings use one canonical show/season/episode identity everywhere
@@ -358,7 +358,9 @@ selected server imports may show **Waiting** until it finishes.
 **8. Options.** Choose how app-marked watched flags are dated or sent to Manual Watch
 review, and whether to enable **Sync Up Next to media apps**. Up Next sync is enabled by
 default; when enabled, Plembfin keeps its Up Next queue in sync with Plex and Emby's Continue
-Watching and Jellyfin's Next Up. Turn it off to leave those app lists unchanged; Plembfin's own
+Watching and Jellyfin's Next Up. Queue additions, removals, reorderings, and progress changes
+coalesce into a background provider push, including when the dashboard is closed. Turn it off to
+leave those app lists unchanged; Plembfin's own
 Up Next view remains available. These choices can be changed later under Settings →
 Sync → **Sync Tuning**.
 

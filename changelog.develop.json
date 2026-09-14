@@ -1,17 +1,24 @@
 {
-  "version": "1.1.0.4.1",
-  "build": 1,
+  "version": "1.1.0.4.2",
+  "build": 2,
   "resetCommit": "eae21b821e9c4db9cd776a23232a4e3b72fcf666",
-  "updatedAt": "2026-09-14T07:51:31.963Z",
+  "updatedAt": "2026-09-14T08:31:51.280Z",
   "entries": [
     {
-      "build": 1,
-      "date": "2026-09-14T07:51:31.963Z",
-      "commit": "a50d65dc2914918750498750c0feb628fef811e7",
-      "message": "Feature - Automate Up Next provider sync",
+      "build": 2,
+      "date": "2026-09-14T08:31:51.280Z",
+      "commit": "56c63d8e74b33e34a9c51c234974fe9551932c21",
+      "message": "This update includes automate Up Next provider sync and show Jellyfin in Up Next Watch now.",
       "author": "Lasikiewicz",
       "details": [
-        "Up Next provider rails now sync automatically when the queue changes."
+        "Up Next provider rails now sync automatically when the queue changes.",
+        "Show Jellyfin alongside Plex and Emby in dashboard Up Next Watch now links.",
+        "Keep provider link selection aligned with the supported connected media apps.",
+        "Document queue-triggered provider updates and cover the complete app set in regression tests."
+      ],
+      "messageFragments": [
+        "Feature - Automate Up Next provider sync",
+        "Fix - Show Jellyfin in Up Next Watch now"
       ]
     }
   ]

@@ -33,6 +33,15 @@ test("episode links never promote leaf provider ids into a TV show route", () =>
   assert.doesNotMatch(html, /data-prefetch-tmdb="6278773"/);
 });
 
+test("Up Next Watch now links include Jellyfin with the other media apps", () => {
+  const html = renderDashboardHistoryPageCard(episodeWithLeafIds, { upNext: true });
+
+  assert.doesNotMatch(html, /data-targets="plex,emby"/);
+  assert.match(html, /media-app-link--plex/);
+  assert.match(html, /media-app-link--emby/);
+  assert.match(html, /media-app-link--jellyfin/);
+});
+
 test("episode links prefer explicit series identities", () => {
   assert.equal(
     tvShowHrefFromEpisode({ ...episodeWithLeafIds, show_tmdb_id: "259886" }),

@@ -81,7 +81,9 @@ per-load wait.
 When the projection or one of its queue inputs changes, the server also queues a coalesced
 automatic provider push. This covers canonical watch/resume changes, provider-feed changes,
 and server-side dismissal/restore, and runs through the worker even when the dashboard is
-closed. It sends the latest mixed queue up to the 100-item API bound; the visible dashboard
+closed. Queue additions, removals, and reorderings are included in the same trigger path, so
+provider delivery follows the latest queue content and order. It sends the latest mixed queue up
+to the 100-item API bound; the visible dashboard
 still renders its smaller card window. The existing header action remains available for an
 explicit immediate push, while the scheduled provider-feed catch-up remains the 15-minute
 backstop.
