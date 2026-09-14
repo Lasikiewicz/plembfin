@@ -1,7 +1,18 @@
 {
-  "version": "1.1.0.4.0",
-  "build": 0,
+  "version": "1.1.0.4.1",
+  "build": 1,
   "resetCommit": "eae21b821e9c4db9cd776a23232a4e3b72fcf666",
-  "updatedAt": "2026-09-13T21:29:36.991Z",
-  "entries": []
+  "updatedAt": "2026-09-14T07:51:31.963Z",
+  "entries": [
+    {
+      "build": 1,
+      "date": "2026-09-14T07:51:31.963Z",
+      "commit": "a50d65dc2914918750498750c0feb628fef811e7",
+      "message": "Feature - Automate Up Next provider sync",
+      "author": "Lasikiewicz",
+      "details": [
+        "Up Next provider rails now sync automatically when the queue changes."
+      ]
+    }
+  ]
 }
