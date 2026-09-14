@@ -254,7 +254,9 @@ async function searchJellyfinFallback(config, media, targetType) {
   url.searchParams.set("Recursive", "true");
   url.searchParams.set("IncludeItemTypes", targetType);
   url.searchParams.set("SearchTerm", queryTitle);
-  url.searchParams.set("Fields", "ProviderIds,UserData");
+  // Jellyfin's Fields parameter accepts ItemFields enum values. UserData is
+  // controlled separately by EnableUserData and is not an ItemFields value.
+  url.searchParams.set("Fields", "ProviderIds");
   console.log("Jellyfin search fallback started", { query: queryTitle, targetType });
   try {
     const body = await fetchJson(url, config, media);
@@ -285,7 +287,7 @@ async function findByProviderIds(config, media, itemTypes) {
     const url = new URL(`${baseUrl}/Users/${config.userId}/Items`);
     url.searchParams.set("Recursive", "true");
     url.searchParams.set("IncludeItemTypes", itemTypes);
-    url.searchParams.set("Fields", "ProviderIds,UserData");
+    url.searchParams.set("Fields", "ProviderIds");
     url.searchParams.set("AnyProviderIdEquals", providerTerm);
     console.log("Jellyfin lookup started", { itemTypes, providerTerm });
     const body = await fetchJson(url, config, media);
@@ -543,7 +545,8 @@ export async function fetchJellyfinEpisodes(config, parentId, media = null) {
   url.searchParams.set("ParentId", parentId);
   url.searchParams.set("Recursive", "true");
   url.searchParams.set("IncludeItemTypes", "Episode");
-  url.searchParams.set("Fields", "ProviderIds,UserData,PremiereDate,ProductionYear,MediaSources,MediaStreams,Width,Height");
+  url.searchParams.set("Fields", "ProviderIds,MediaSources,MediaStreams,Width,Height");
+  url.searchParams.set("EnableUserData", "true");
   const data = await fetchJson(url, config, media);
   return data?.Items || [];
 }
@@ -593,7 +596,8 @@ function buildJellyfinWatchedItemsUrl(config, { limit = 0, parentId = "" } = {})
   url.searchParams.set("Recursive", "true");
   url.searchParams.set("Filters", "IsPlayed");
   url.searchParams.set("IncludeItemTypes", "Movie,Episode");
-  url.searchParams.set("Fields", "ProviderIds,SeriesProviderIds,UserData,PremiereDate,ProductionYear");
+  url.searchParams.set("Fields", "ProviderIds");
+  url.searchParams.set("EnableUserData", "true");
   url.searchParams.set("SortBy", "DatePlayed");
   url.searchParams.set("SortOrder", "Descending");
   if (parentId) url.searchParams.set("ParentId", String(parentId));
@@ -618,7 +622,7 @@ function buildJellyfinLibraryItemsUrl(config, { parentId = "" } = {}) {
   url.searchParams.set("Recursive", "true");
   url.searchParams.set("Filters", "IsUnplayed");
   url.searchParams.set("IncludeItemTypes", "Movie,Episode");
-  url.searchParams.set("Fields", "ProviderIds,SeriesProviderIds,UserData,PremiereDate,ProductionYear");
+  url.searchParams.set("Fields", "ProviderIds");
   url.searchParams.set("EnableUserData", "true");
   url.searchParams.set("StartIndex", "0");
   url.searchParams.set("EnableTotalRecordCount", "true");
@@ -685,7 +689,8 @@ export async function fetchJellyfinResumableItems(config, { limit = 0 } = {}) {
     url.searchParams.set("Recursive", "true");
     url.searchParams.set("Filters", "IsResumable");
     url.searchParams.set("IncludeItemTypes", "Movie,Episode");
-    url.searchParams.set("Fields", "ProviderIds,SeriesProviderIds,UserData,PremiereDate,ProductionYear,RunTimeTicks");
+    url.searchParams.set("Fields", "ProviderIds");
+    url.searchParams.set("EnableUserData", "true");
     url.searchParams.set("SortBy", "DatePlayed");
     url.searchParams.set("SortOrder", "Descending");
     url.searchParams.set("StartIndex", String(start));
@@ -700,7 +705,7 @@ export async function fetchJellyfinNextUpItems(config, { limit = 0 } = {}) {
   return fetchPagedFeed(config, (start, pageSize) => {
     const url = new URL(`${baseUrl}/Shows/NextUp`);
     url.searchParams.set("UserId", config.userId);
-    url.searchParams.set("Fields", "ProviderIds,SeriesProviderIds,UserData,PremiereDate,ProductionYear,RunTimeTicks,MediaSources");
+    url.searchParams.set("Fields", "ProviderIds,MediaSources");
     url.searchParams.set("EnableResumable", "true");
     url.searchParams.set("EnableUserData", "true");
     url.searchParams.set("StartIndex", String(start));
@@ -778,7 +783,8 @@ export async function fetchJellyfinPersonalRatingSnapshot(config) {
     const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${config.userId}/Items`);
     url.searchParams.set("Recursive", "true");
     url.searchParams.set("IncludeItemTypes", "Movie,Series,Episode");
-    url.searchParams.set("Fields", "ProviderIds,SeriesProviderIds,UserData,PremiereDate,ProductionYear");
+    url.searchParams.set("Fields", "ProviderIds");
+    url.searchParams.set("EnableUserData", "true");
     url.searchParams.set("StartIndex", String(start));
     url.searchParams.set("Limit", String(pageSize));
     const response = await fetchWithTimeout(url, { headers: authHeaders(config), lane: "sync" });
