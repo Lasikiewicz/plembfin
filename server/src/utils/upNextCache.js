@@ -20,6 +20,12 @@ let writeChain = Promise.resolve();
 let buildInFlight = null;
 let lastRevalidateAt = 0;
 
+function queueAutomaticUpNextSync(reason) {
+  void import("./upNextAutoSync.js")
+    .then(({ requestUpNextAutoSync }) => requestUpNextAutoSync(reason))
+    .catch((error) => console.error(`[up-next] Automatic sync request failed: ${error?.message || error}`));
+}
+
 function emptyCache() {
   return {
     version: CACHE_VERSION,
@@ -134,6 +140,7 @@ async function storeCache(result, fallbackSourceVersion) {
     stored = { ...next, changed };
   });
   await writeChain;
+  if (stored?.changed) queueAutomaticUpNextSync("Up Next projection changed");
   return stored;
 }
 

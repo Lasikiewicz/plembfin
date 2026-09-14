@@ -53,7 +53,7 @@ new metadata requests.
 | Background/scheduled sync, catch-up sync, provider Up Next feeds | `server/src/scheduler.js`, `server/src/scheduled.js`, `server/src/utils/upNextRepository.js` | [scheduled-sync.md](scheduled-sync.md) |
 | Now Playing (dashboard live sessions) | `handleNowPlaying` in `server/src/routes/sync.js`, `server/src/utils/liveSessions.js`, `liveSessionPoller.js`, `activeSessions.js`, `public/modules/sync.js` | [now-playing.md](now-playing.md) |
 | Dashboard rendering | `public/modules/dashboard.js` | [dashboard.md](dashboard.md) |
-| Up Next queue, provider push, dismissals | `public/modules/up-next.js`, `server/src/utils/upNextService.js`, `upNextProviderSync.js`, `upNextProviderPlaylists.js`, `upNextRailSeed.js`, `upNextSeedLedger.js`, `upNextDismissals.js`, `upNextLibraryLookup.js` | [dashboard.md](dashboard.md) |
+| Up Next queue, provider push, dismissals | `public/modules/up-next.js`, `server/src/utils/upNextService.js`, `upNextProviderSync.js`, `upNextRailSeed.js`, `upNextSeedLedger.js`, `upNextDismissals.js`, `upNextLibraryLookup.js` | [dashboard.md](dashboard.md) |
 | Settings changelog channels | `public/modules/changelog-channels.js`, `handleChangelog` in `routes/maintenance.js` | this document |
 | Sidebar sync indicator, Sync Activity page | `public/modules/sync-activity.js`, `handleSyncHistory` in `routes/sync.js` | [dashboard.md](dashboard.md) |
 | Movies library page | `public/modules/explorer.js`, `queryMovies` in `dataRepo.js` | [movies.md](movies.md) |
@@ -181,8 +181,8 @@ before reversing something that looks unnecessarily cautious.
 | `upNextIdentity.js` | Shared Up Next identity normalizer and deterministic ordering/merge rules: verified movie IDs, provider-series-plus-SxxExx episode keys, native-ID fallbacks, source-ID preservation, and resume-over-next-up reconciliation. |
 | `upNextRepository.js` | Generation-based SQLite source ledger for provider Resume/Continue Watching/Next Up feeds. Activates only complete snapshots, preserves last-good rows on failures, exposes redacted feed status, and advances `up_next` invalidation when active source content changes. |
 | `upNextService.js` | Builds the unified dashboard projection from canonical local resume/playstate, provider observations, and bounded released-episode metadata fallback; emits stable public queue items without raw provider payloads. |
+| `upNextAutoSync.js` | Queues coalesced, durable worker pushes when the unified Up Next projection changes, fingerprints the last successful queue, and reruns once when a queue mutation lands during a push. |
 | `upNextLibraryLookup.js` | Shared Up Next media-descriptor builder and cached Plex/Emby/Jellyfin library resolution. Lets the projection prove an unwatched next episode exists in a real library, and lets the authoritative push resolve the item it needs to add. |
-| `upNextProviderPlaylists.js` | Maintains the managed `Plembfin Up Next` video playlist in Plex, Emby, and Jellyfin as the complete provider-side representation of Plembfin's queue. |
 | `upNextRailSeed.js` | Clear-only compatibility migration for 6%-of-runtime positions written by older builds. Current Up Next pushes refresh Plex Continue Watching, Emby Continue Watching (Resume), and Jellyfin Next Up from verified watched predecessors without writing synthetic progress. |
 | `providerItemIds.js` | Resolves a media object's native ids for one provider, refusing a bare `provider_item_id` that belongs to a different one. Prevents an outbound write landing on an unrelated title. |
 | `upNextDismissals.js` | Server-side Up Next dismissals: alias plus coordinate identity, projection filter, and restore. Replaces the browser-local map; see `docs/decisions.md` entry 23. |

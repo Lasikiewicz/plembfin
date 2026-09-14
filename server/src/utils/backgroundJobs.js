@@ -10,7 +10,7 @@ const insertJob = db.prepare(`INSERT INTO background_jobs
   (id,type,status,requested_at,cancel_requested,payload) VALUES (@id,@type,'queued',@requestedAt,0,@payload)`);
 
 export const BACKGROUND_JOB_STALE_MS = 90_000;
-const RESTORE_PAUSED_JOB_TYPES = new Set(["cron_sync", "force_sync", "force_sync_plan", "retry_all_sync_activity"]);
+const RESTORE_PAUSED_JOB_TYPES = new Set(["cron_sync", "force_sync", "force_sync_plan", "up_next_sync", "retry_all_sync_activity"]);
 
 function cancelSyncJobsForRestoreInTransaction(now = Date.now()) {
   const placeholders = [...RESTORE_PAUSED_JOB_TYPES].map(() => "?").join(",");
@@ -62,11 +62,11 @@ export function workerAvailable(now = Date.now()) {
   return schedulerLeaseStatus(now).available;
 }
 
-const SUPPORTED_JOB_TYPES = ["cron_sync", "force_sync", "force_sync_plan", "refresh_tmdb_metadata", "refresh_tvdb_metadata", "retry_all_sync_activity"];
+const SUPPORTED_JOB_TYPES = ["cron_sync", "force_sync", "force_sync_plan", "up_next_sync", "refresh_tmdb_metadata", "refresh_tvdb_metadata", "retry_all_sync_activity"];
 // Job types that may only have one queued/running instance at a time - a
 // second enqueue attempt is rejected with JOB_ACTIVE rather than piling up
 // duplicate work against the same library scan.
-const SINGLETON_JOB_TYPES = new Set(["force_sync", "force_sync_plan", "refresh_tmdb_metadata", "refresh_tvdb_metadata", "retry_all_sync_activity"]);
+const SINGLETON_JOB_TYPES = new Set(["force_sync", "force_sync_plan", "up_next_sync", "refresh_tmdb_metadata", "refresh_tvdb_metadata", "retry_all_sync_activity"]);
 
 export function enqueueBackgroundJob(type, payload = {}, now = Date.now()) {
   if (!SUPPORTED_JOB_TYPES.includes(type)) throw new Error(`Unsupported background job type: ${type}`);

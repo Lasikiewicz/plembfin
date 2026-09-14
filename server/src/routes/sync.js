@@ -2530,18 +2530,28 @@ export async function handleUpNextSync(req, res) {
   const body = await readJson(req).catch(() => ({}));
   if (!Array.isArray(body.items)) return sendJson(res, { error: "Up Next items are required" }, 400);
 
+  const desiredItems = body.items.slice(0, 100);
+  let summary = null;
   try {
     const config = await loadMediaConfig();
-    const summary = await syncUpNextToProviders({
-      desiredItems: body.items.slice(0, 100),
+    summary = await syncUpNextToProviders({
+      desiredItems,
       config,
     });
+    if (summary?.ok && !summary.disabled) {
+      await import("../utils/upNextAutoSync.js")
+        .then(({ configuredUpNextProviders, rememberUpNextSync, upNextSyncCompleted }) => {
+          if (upNextSyncCompleted(configuredUpNextProviders(config), summary)) return rememberUpNextSync(desiredItems);
+          return null;
+        })
+        .catch((error) => console.error(`[up-next] Failed to remember manual sync: ${error?.message || error}`));
+    }
     return sendJson(res, summary);
   } catch (error) {
     console.error("Up Next provider sync failed", error);
     return sendJson(res, { error: "Up Next provider sync failed" }, 500);
   } finally {
-    await invalidateHistoryDerivedCaches("handleUpNextSync").catch(() => null);
+    await invalidateHistoryDerivedCaches("handleUpNextSync", { skipUpNextAutoSync: true }).catch(() => null);
   }
 }
 

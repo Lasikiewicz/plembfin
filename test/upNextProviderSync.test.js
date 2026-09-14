@@ -118,17 +118,9 @@ test("Jellyfin Continue Watching protects real progress while Jellyfin Next Up i
   }]);
 });
 
-test("pushing the merged Up Next rail reconciles the Plex and Emby playlists and native feeds", async (t) => {
+test("pushing the merged Up Next rail dismisses stale native entries on Plex and Emby", async (t) => {
   const originalFetch = globalThis.fetch;
   const calls = [];
-  const plexPlaylistItems = [
-    { ratingKey: "plex-keep", playlistItemID: "plex-entry-keep" },
-    { ratingKey: "plex-stale", playlistItemID: "plex-entry-stale" },
-  ];
-  const embyPlaylistItems = [
-    { Id: "emby-keep", PlaylistItemId: "emby-entry-keep" },
-    { Id: "emby-stale", PlaylistItemId: "emby-entry-stale" },
-  ];
   globalThis.fetch = async (input, options = {}) => {
     const url = new URL(String(input));
     const method = String(options.method || "GET").toUpperCase();
@@ -139,50 +131,7 @@ test("pushing the merged Up Next rail reconciles the Plex and Emby playlists and
     if (method === "POST" && url.pathname.endsWith("/HideFromResume")) {
       return new Response("", { status: 200 });
     }
-    if (method === "PUT" && url.pathname === "/playlists/plex-up-next/items") {
-      const uri = url.searchParams.get("uri") || "";
-      const ratingKey = decodeURIComponent(uri.split("/metadata/").pop() || "");
-      if (ratingKey && !plexPlaylistItems.some((item) => item.ratingKey === ratingKey)) {
-        plexPlaylistItems.push({ ratingKey, playlistItemID: `plex-entry-${ratingKey}` });
-      }
-      return new Response("", { status: 200 });
-    }
-    if (method === "DELETE" && url.pathname.startsWith("/playlists/plex-up-next/items/")) {
-      const entryId = decodeURIComponent(url.pathname.split("/").pop() || "");
-      const index = plexPlaylistItems.findIndex((item) => item.playlistItemID === entryId);
-      if (index >= 0) plexPlaylistItems.splice(index, 1);
-      return new Response("", { status: 200 });
-    }
-    if (method === "POST" && url.pathname === "/Playlists/emby-up-next/Items") {
-      const ids = String(url.searchParams.get("Ids") || "").split(",").filter(Boolean);
-      for (const id of ids) {
-        if (!embyPlaylistItems.some((item) => item.Id === id)) {
-          embyPlaylistItems.push({ Id: id, PlaylistItemId: `emby-entry-${id}` });
-        }
-      }
-      return new Response(JSON.stringify({ ItemAddedCount: ids.length }), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      });
-    }
-    if (method === "DELETE" && url.pathname === "/Playlists/emby-up-next/Items") {
-      const entryIds = new Set(String(url.searchParams.get("EntryIds") || "").split(",").filter(Boolean));
-      for (let index = embyPlaylistItems.length - 1; index >= 0; index -= 1) {
-        if (entryIds.has(embyPlaylistItems[index].PlaylistItemId)) embyPlaylistItems.splice(index, 1);
-      }
-      return new Response("", { status: 200 });
-    }
-
     let body = { Items: [] };
-    if (method === "GET" && url.pathname === "/playlists") {
-      body = { MediaContainer: { Metadata: [{ type: "playlist", ratingKey: "plex-up-next", title: "Plembfin Up Next" }] } };
-    } else if (method === "GET" && url.pathname === "/playlists/plex-up-next/items") {
-      body = { MediaContainer: { Metadata: [...plexPlaylistItems] } };
-    } else if (method === "GET" && url.pathname === "/Users/emby-user/Items") {
-      body = { Items: [{ Id: "emby-up-next", Name: "Plembfin Up Next", Type: "Playlist" }] };
-    } else if (method === "GET" && url.pathname === "/Playlists/emby-up-next/Items") {
-      body = { Items: [...embyPlaylistItems], TotalRecordCount: embyPlaylistItems.length };
-    }
     if (method === "GET" && url.pathname === "/hubs/continueWatching") {
       body = {
         MediaContainer: {
@@ -283,20 +232,8 @@ test("pushing the merged Up Next rail reconciles the Plex and Emby playlists and
   const mutationKeys = mutations.map(({ url, options }) => `${options.method} ${url.pathname}`);
   assert.ok(mutationKeys.includes("PUT /actions/removeFromContinueWatching"));
   assert.ok(mutationKeys.includes("POST /Users/emby-user/Items/emby-stale/HideFromResume"));
-  assert.ok(mutationKeys.includes("PUT /playlists/plex-up-next/items"));
-  assert.ok(mutationKeys.includes("DELETE /playlists/plex-up-next/items/plex-entry-stale"));
-  assert.ok(mutationKeys.includes("POST /Playlists/emby-up-next/Items"));
-  assert.ok(mutationKeys.includes("DELETE /Playlists/emby-up-next/Items"));
-  assert.deepEqual(plexPlaylistItems.map((item) => item.ratingKey).sort(), ["plex-identity", "plex-keep"].sort());
-  assert.deepEqual(embyPlaylistItems.map((item) => item.Id).sort(), ["emby-identity", "emby-keep"].sort());
-  assert.deepEqual(summary.playlists
-    .filter((playlist) => playlist.provider !== "jellyfin")
-    .map((playlist) => ({ provider: playlist.provider, status: playlist.status, final_count: playlist.final_count, missing_count: playlist.missing_count })), [
-    { provider: "plex", status: "succeeded", final_count: 2, missing_count: 0 },
-    { provider: "emby", status: "succeeded", final_count: 2, missing_count: 0 },
-  ]);
-  // Unconfigured here, so it is reported rather than contacted.
-  assert.equal(summary.playlists.find((playlist) => playlist.provider === "jellyfin")?.status, "not_configured");
+  // The push writes to the native feeds only; there is no managed provider list.
+  assert.deepEqual(mutationKeys.filter((key) => /playlist/i.test(key)), []);
   assert.deepEqual(summary.unsupported, []);
   assert.deepEqual(summary.feeds.map((feed) => [feed.provider, feed.feed_kind, feed.status]), [
     ["plex", "resume", "succeeded"],
@@ -334,39 +271,15 @@ test("configured Jellyfin takes part in the Up Next push", async () => {
   }
 });
 
-test("the Jellyfin push maintains its playlist without writing a synthetic resume position", async (t) => {
+test("the Jellyfin push writes no synthetic resume position", async (t) => {
   const originalFetch = globalThis.fetch;
   const calls = [];
-  const playlistItems = [{ Id: "jelly-stale", PlaylistItemId: "jelly-entry-stale" }];
   globalThis.fetch = async (input, options = {}) => {
     const url = new URL(String(input));
     const method = String(options.method || "GET").toUpperCase();
     calls.push({ url, method });
-
-    if (method === "POST" && url.pathname === "/Playlists/jelly-up-next/Items") {
-      for (const id of String(url.searchParams.get("ids") || "").split(",").filter(Boolean)) {
-        if (!playlistItems.some((item) => item.Id === id)) {
-          playlistItems.push({ Id: id, PlaylistItemId: `jelly-entry-${id}` });
-        }
-      }
-      return new Response(JSON.stringify({ ItemAddedCount: 1 }), { status: 200, headers: { "content-type": "application/json" } });
-    }
-    if (method === "DELETE" && url.pathname === "/Playlists/jelly-up-next/Items") {
-      const entryIds = new Set(String(url.searchParams.get("entryIds") || "").split(",").filter(Boolean));
-      for (let index = playlistItems.length - 1; index >= 0; index -= 1) {
-        if (entryIds.has(playlistItems[index].PlaylistItemId)) playlistItems.splice(index, 1);
-      }
-      return new Response("", { status: 200 });
-    }
     if (method === "POST") return new Response(null, { status: 204 });
-
-    let body = { Items: [] };
-    if (url.pathname === "/Users/jelly-user/Items" && url.searchParams.get("IncludeItemTypes") === "Playlist") {
-      body = { Items: [{ Id: "jelly-up-next", Name: "Plembfin Up Next", Type: "Playlist" }] };
-    } else if (url.pathname === "/Playlists/jelly-up-next/Items") {
-      body = { Items: [...playlistItems], TotalRecordCount: playlistItems.length };
-    }
-    return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+    return new Response(JSON.stringify({ Items: [] }), { status: 200, headers: { "content-type": "application/json" } });
   };
   t.after(() => { globalThis.fetch = originalFetch; });
 
@@ -387,11 +300,8 @@ test("the Jellyfin push maintains its playlist without writing a synthetic resum
     },
   });
 
-  const playlist = summary.playlists.find((entry) => entry.provider === "jellyfin");
-  assert.equal(playlist.status, "succeeded");
-  assert.deepEqual(playlistItems.map((item) => item.Id), ["jelly-keep"]);
-
   assert.deepEqual(summary.railSeeds, []);
+  assert.deepEqual(calls.filter(({ url }) => /playlist/i.test(url.pathname)), []);
   assert.equal(summary.providerRails.find((entry) => entry.provider === "jellyfin")?.refreshed_count, 0);
   assert.equal(calls.some(({ url, method }) => method === "POST" && /\/Items\/jelly-keep\/UserData$/.test(url.pathname)), false);
 });
@@ -449,11 +359,7 @@ test("a legacy Jellyfin rail seed is cleared while the watched predecessor refre
     if (method === "POST") return new Response(null, { status: 204 });
 
     let response = { Items: [] };
-    if (url.pathname === "/Users/jelly-user/Items" && url.searchParams.get("IncludeItemTypes") === "Playlist") {
-      response = { Items: [{ Id: "jelly-up-next", Name: "Plembfin Up Next", Type: "Playlist" }] };
-    } else if (url.pathname === "/Playlists/jelly-up-next/Items") {
-      response = { Items: [{ Id: "jelly-target", PlaylistItemId: "jelly-entry-target" }], TotalRecordCount: 1 };
-    } else if (url.pathname === "/Users/jelly-user/Items" && url.searchParams.get("Filters") === "IsResumable") {
+    if (url.pathname === "/Users/jelly-user/Items" && url.searchParams.get("Filters") === "IsResumable") {
       response = { Items: [{ ...episodes[2] }], TotalRecordCount: 1 };
     } else if (url.pathname === "/Shows/NextUp") {
       response = { Items: [{ ...episodes[2] }] };

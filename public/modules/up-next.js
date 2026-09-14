@@ -598,11 +598,9 @@ function upNextSyncMessage(body = {}) {
   const dismissals = Array.isArray(body.providerDismissals) ? body.providerDismissals : [];
   const dismissed = dismissals.filter((entry) => entry?.status === "fulfilled").length;
   const dismissalFailures = dismissals.filter((entry) => entry?.status !== "fulfilled").length;
-  const playlists = Array.isArray(body.playlists) ? body.playlists : [];
   const jellyfinRail = body.jellyfinRail && typeof body.jellyfinRail === "object" ? body.jellyfinRail : {};
   const providerRails = Array.isArray(body.providerRails) ? body.providerRails : [];
   const legacyRailCleanup = Array.isArray(body.legacyRailCleanup) ? body.legacyRailCleanup : [];
-  const playlistFailures = playlists.filter((playlist) => !["succeeded"].includes(playlist?.status));
   const unsupportedFeeds = [...new Set((Array.isArray(body.unsupported) ? body.unsupported : [])
     .filter((entry) => UP_NEXT_PROVIDERS.has(String(entry?.provider || "").toLowerCase()))
     .map((entry) => `${providerNames[String(entry?.provider || "").toLowerCase()] || entry?.provider || "Provider"} ${entry?.feed_kind === "next_up" ? "Next Up" : "feed"}`))];
@@ -616,15 +614,6 @@ function upNextSyncMessage(body = {}) {
     ? `Plembfin Up Next pushed to ${upNextListLabel(pushedProviders)}.`
     : "Plembfin Up Next push completed.";
   const details = [];
-  const updatedPlaylists = playlists.filter((playlist) => playlist?.status === "succeeded");
-  if (updatedPlaylists.length) {
-    details.push(`${updatedPlaylists.map((playlist) => `${providerNames[playlist.provider] || playlist.provider} list has ${Number(playlist.final_count || 0)} item${Number(playlist.final_count || 0) === 1 ? "" : "s"}`).join("; ")}`);
-  }
-  for (const playlist of playlistFailures) {
-    const label = providerNames[playlist?.provider] || playlist?.provider || "Provider";
-    const missing = Number(playlist?.missing_count || 0);
-    details.push(`${label} list ${playlist?.status === "partial" ? `is missing ${missing} item${missing === 1 ? "" : "s"}` : "could not be updated"}`);
-  }
   const railSummaries = providerRails.length ? providerRails : (jellyfinRail.provider ? [jellyfinRail] : []);
   const railFailures = railSummaries.reduce((total, rail) => total + Number(rail?.failed_count || 0), 0);
   const refreshedByRail = railSummaries
@@ -649,7 +638,7 @@ function upNextSyncMessage(body = {}) {
   if (dismissalFailures) details.push(`${dismissalFailures} provider dismissal${dismissalFailures === 1 ? "" : "s"} failed`);
   return {
     text: [intro, ...details].join(" "),
-    tone: unsupportedFeeds.length || failedFeeds.length || dismissalFailures || playlistFailures.length || railFailures || legacyFailures ? "muted" : "success",
+    tone: unsupportedFeeds.length || failedFeeds.length || dismissalFailures || railFailures || legacyFailures ? "muted" : "success",
   };
 }
 

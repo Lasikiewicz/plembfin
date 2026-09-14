@@ -23,7 +23,6 @@ import { isPlembfinPrimaryUpNextFeed, recordUpNextProviderFeed } from "./upNextR
 import { normalizeUpNextCandidate, upNextIdentityAliases } from "./upNextIdentity.js";
 import { createLoopStore } from "./loopStore.js";
 import { recordOutboundJellyfinNextUpNudge, recordOutboundPlayedMarks, recordOutboundProgressMarks, syncMediaProgress } from "./syncOrchestrator.js";
-import { syncUpNextProviderPlaylists } from "./upNextProviderPlaylists.js";
 import { clearLegacyUpNextRailSeeds, clearLegacyUpNextRailSeed } from "./upNextRailSeed.js";
 import { resolveUpNextProviderTargets, upNextLookupMedia } from "./upNextLibraryLookup.js";
 import { isUpNextRailSeedPosition, listUpNextRailSeeds } from "./upNextSeedLedger.js";
@@ -426,7 +425,10 @@ async function fetchAndRecordFeed(definition) {
   try {
     const rawItems = await definition.fetch();
     const items = feedCandidates(definition.provider, definition.feedKind, rawItems);
-    recordUpNextProviderFeed(definition.provider, definition.feedKind, rawItems);
+    // This feed read is part of an outbound reconciliation. The repository
+    // normally schedules an automatic push when a feed changes, but allowing
+    // this read to schedule another push would create a feedback loop.
+    recordUpNextProviderFeed(definition.provider, definition.feedKind, rawItems, { triggerAutoSync: false });
     return {
       provider: definition.provider,
       feed_kind: definition.feedKind,
@@ -687,15 +689,15 @@ async function applyDismissals(plan, definitions) {
   }));
 }
 
-// Push Plembfin's authoritative Up Next snapshot to a dedicated provider
-// playlist on each connected media server, while also applying native
-// dismissal actions and replaying only known positive resume positions. The
-// native target rail is Plex Continue Watching, Emby Continue Watching
-// (Resume), and Jellyfin Next Up. Those feeds are calculated: their native
-// APIs can hide or read membership, but cannot add an arbitrary future
-// episode. Other feeds are read only to protect real progress and are never
-// reconciled as Plembfin's queue. The playlist is the complete provider-side
-// representation, and failed/incomplete feeds never trigger native removals.
+// Push Plembfin's authoritative Up Next snapshot to each connected media
+// server: refresh the native rail, apply native dismissal actions, and replay
+// only known positive resume positions. The native target rail is Plex
+// Continue Watching, Emby Continue Watching (Resume), and Jellyfin Next Up.
+// Those feeds are calculated: their native APIs can hide or read membership,
+// but cannot add an arbitrary future episode, so a ready episode reaches the
+// rail by restamping its watched predecessor. Other feeds are read only to
+// protect real progress and are never reconciled as Plembfin's queue, and
+// failed or incomplete feeds never trigger native removals.
 export async function syncUpNextToProviders({ desiredItems = [], config = {} } = {}) {
   if (config?.upNextSync?.enabled === false) {
     return {
@@ -704,7 +706,6 @@ export async function syncUpNextToProviders({ desiredItems = [], config = {} } =
       desired_count: 0,
       feeds: [],
       pushedProviders: [],
-      playlists: [],
       railSeeds: [],
       legacyRailCleanup: [],
       providerRails: [],
@@ -747,10 +748,8 @@ export async function syncUpNextToProviders({ desiredItems = [], config = {} } =
   const pushProviders = PUSH_PROVIDERS.filter((provider) => (
     configuredDefinitions.some((definition) => definition.provider === provider)
   ));
-  // Resolve every desired item to its native id once per provider. The
-  // playlist reconciliation and native rail refresh then work from the same
-  // answer; resolving separately let them disagree and left the playlist
-  // holding a stale entry while the rail refresh found the item without trouble.
+  // Resolve every desired item to its native id once per provider, so the
+  // rail refresh and any later step work from the same answer.
   const targetsByProvider = Object.fromEntries(await Promise.all(pushProviders.map(async (provider) => [
     provider,
     await resolveUpNextProviderTargets({
@@ -761,7 +760,6 @@ export async function syncUpNextToProviders({ desiredItems = [], config = {} } =
     }).catch(() => ({ provider, resolved: [], unresolved: [] })),
   ])));
 
-  const playlists = await syncUpNextProviderPlaylists({ desiredItems, config, targetsByProvider });
   const desiredIdsByProvider = Object.fromEntries(pushProviders.map((provider) => [
     provider,
     new Set((targetsByProvider[provider]?.resolved || []).map((target) => text(target.providerItemId)).filter(Boolean)),
@@ -790,9 +788,15 @@ export async function syncUpNextToProviders({ desiredItems = [], config = {} } =
     failed_count: 0,
     results: [],
   };
-  const pushedProviders = playlists
-    .filter((playlist) => playlist.status === "succeeded" && playlist.missing_count === 0)
-    .map((playlist) => playlist.provider);
+  // A provider counts as pushed when it was configured, contacted, and nothing
+  // Plembfin attempted against it failed. There is no managed provider list to
+  // measure completeness against any more; the native rail refresh and the
+  // dismissals are the whole push.
+  const pushedProviders = pushProviders.filter((provider) => {
+    const rail = providerRails.find((entry) => entry.provider === provider);
+    if (rail?.status === "failed") return false;
+    return !providerDismissals.some((entry) => entry.provider === provider && entry.status !== "fulfilled");
+  });
 
   return {
     ok: true,
@@ -805,7 +809,6 @@ export async function syncUpNextToProviders({ desiredItems = [], config = {} } =
       error: feed.error || null,
     })),
     pushedProviders,
-    playlists,
     railSeeds: [],
     legacyRailCleanup,
     providerRails,

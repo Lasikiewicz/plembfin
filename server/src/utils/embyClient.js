@@ -738,28 +738,6 @@ export async function fetchEmbyNextUpItems(config, { limit = 0 } = {}) {
   }, limit);
 }
 
-// Emby's Resume and Next Up rails are calculated from playstate and cannot be
-// populated with arbitrary future episodes. The authoritative Up Next push
-// uses a normal video playlist as its durable provider-side list instead.
-async function embyMutation(config, url, method, body) {
-  const response = await fetchWithTimeout(url, {
-    method,
-    headers: {
-      ...authHeaders(config),
-      ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-    },
-    lane: "interactive",
-    ...(body === undefined ? {} : { body }),
-  });
-  if (!response.ok) {
-    const error = new Error(`Emby playlist ${method.toLowerCase()} failed with status ${response.status}`);
-    error.status = response.status;
-    throw error;
-  }
-  const text = await response.text();
-  try { return text ? JSON.parse(text) : {}; } catch { return {}; }
-}
-
 // Keep the reserved device identity for the native rail refresh and for
 // filtering callbacks during upgrades. Older builds used a short-lived
 // synthetic playback session with a fake resume position; current pushes use
@@ -832,86 +810,6 @@ export async function fetchEmbyItemRuntimeMs(config, itemId) {
   const item = await fetchJson(url, config);
   const ticks = Number(item?.RunTimeTicks || 0);
   return Number.isFinite(ticks) && ticks > 0 ? Math.round(ticks / 10000) : 0;
-}
-
-export async function fetchEmbyPlaylists(config) {
-  requireEmbyConfig(config);
-  const baseUrl = trimTrailingSlash(config.baseUrl);
-  const url = new URL(`${baseUrl}/Users/${encodeURIComponent(config.userId)}/Items`);
-  url.searchParams.set("Recursive", "true");
-  url.searchParams.set("IncludeItemTypes", "Playlist");
-  url.searchParams.set("Fields", "ProviderIds,UserData");
-  url.searchParams.set("SortBy", "SortName");
-  url.searchParams.set("SortOrder", "Ascending");
-  url.searchParams.set("api_key", config.apiKey);
-  const data = await fetchJson(url, config);
-  return Array.isArray(data?.Items) ? data.Items.filter((item) => String(item?.Type || "").toLowerCase() === "playlist") : [];
-}
-
-export async function fetchEmbyPlaylistItems(config, playlistId, { limit = 0 } = {}) {
-  requireEmbyConfig(config);
-  if (!playlistId) return [];
-  const baseUrl = trimTrailingSlash(config.baseUrl);
-  const requestedLimit = Number(limit) > 0 ? Math.max(1, Math.round(Number(limit))) : 0;
-  const pageSize = requestedLimit ? Math.min(requestedLimit, 500) : 500;
-  const items = [];
-  for (let start = 0; start <= 10_000_000;) {
-    const url = new URL(`${baseUrl}/Playlists/${encodeURIComponent(String(playlistId))}/Items`);
-    url.searchParams.set("UserId", config.userId);
-    url.searchParams.set("Fields", "ProviderIds,SeriesProviderIds,UserData,PremiereDate,ProductionYear,RunTimeTicks");
-    url.searchParams.set("StartIndex", String(start));
-    url.searchParams.set("Limit", String(pageSize));
-    url.searchParams.set("EnableTotalRecordCount", "true");
-    url.searchParams.set("api_key", config.apiKey);
-    const data = await fetchJson(url, config);
-    const page = Array.isArray(data?.Items) ? data.Items : [];
-    items.push(...page);
-    if (requestedLimit && items.length >= requestedLimit) return items.slice(0, requestedLimit);
-    const total = Number(data?.TotalRecordCount || 0);
-    if (!page.length || (total > 0 && start + page.length >= total) || (total <= 0 && page.length < pageSize)) break;
-    start += page.length;
-  }
-  return requestedLimit ? items.slice(0, requestedLimit) : items;
-}
-
-export async function createEmbyPlaylist(config, { title, itemIds = [] } = {}) {
-  requireEmbyConfig(config);
-  const name = String(title || "").trim();
-  const ids = [...new Set((Array.isArray(itemIds) ? itemIds : [itemIds]).map((id) => String(id || "").trim()).filter(Boolean))];
-  if (!name) throw new Error("Emby playlist title is required");
-  if (!ids.length) throw new Error("Emby playlists require an initial library item");
-  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Playlists`);
-  url.searchParams.set("UserId", config.userId);
-  url.searchParams.set("Name", name);
-  url.searchParams.set("MediaType", "Video");
-  url.searchParams.set("Ids", ids.join(","));
-  url.searchParams.set("api_key", config.apiKey);
-  const body = await embyMutation(config, url, "POST");
-  return { id: String(body?.Id || body?.id || "").trim(), body };
-}
-
-export async function addEmbyPlaylistItems(config, playlistId, itemIds = []) {
-  requireEmbyConfig(config);
-  const ids = [...new Set((Array.isArray(itemIds) ? itemIds : [itemIds]).map((id) => String(id || "").trim()).filter(Boolean))];
-  if (!playlistId || !ids.length) return { status: "not_found", added: 0 };
-  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Playlists/${encodeURIComponent(String(playlistId))}/Items`);
-  url.searchParams.set("UserId", config.userId);
-  url.searchParams.set("Ids", ids.join(","));
-  url.searchParams.set("api_key", config.apiKey);
-  const body = await embyMutation(config, url, "POST");
-  return { status: "fulfilled", added: Number(body?.ItemAddedCount ?? ids.length) || 0, body };
-}
-
-export async function removeEmbyPlaylistItems(config, playlistId, entryIds = []) {
-  requireEmbyConfig(config);
-  const ids = [...new Set((Array.isArray(entryIds) ? entryIds : [entryIds]).map((id) => String(id || "").trim()).filter(Boolean))];
-  if (!playlistId || !ids.length) return { status: "not_found", removed: 0 };
-  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Playlists/${encodeURIComponent(String(playlistId))}/Items`);
-  url.searchParams.set("UserId", config.userId);
-  url.searchParams.set("EntryIds", ids.join(","));
-  url.searchParams.set("api_key", config.apiKey);
-  await embyMutation(config, url, "DELETE");
-  return { status: "fulfilled", removed: ids.length };
 }
 
 // ---------------------------------------------------------------------------

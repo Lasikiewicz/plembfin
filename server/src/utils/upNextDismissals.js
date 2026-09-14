@@ -9,6 +9,12 @@ import { normalizeUpNextCandidate, upNextIdentityAliases } from "./upNextIdentit
 // server. See docs/decisions.md entry 23.
 const MAX_DISMISSALS = 500;
 
+function queueAutomaticUpNextSync(reason) {
+  void import("./upNextAutoSync.js")
+    .then(({ requestUpNextAutoSync }) => requestUpNextAutoSync(reason))
+    .catch((error) => console.error(`[up-next] Automatic sync request failed: ${error?.message || error}`));
+}
+
 const upsertStmt = db.prepare(`
   INSERT INTO up_next_dismissals
     (id, aliases_json, media_key, media_type, title, show_title, episode_title, season, episode, snapshot_json, dismissed_at)
@@ -104,6 +110,7 @@ export function recordUpNextDismissal(item = {}, { now = Date.now() } = {}) {
     trimStmt.run(MAX_DISMISSALS);
   }).immediate();
   bumpUpNextVersion();
+  queueAutomaticUpNextSync("Up Next dismissal changed");
   return id;
 }
 
@@ -141,13 +148,19 @@ export function restoreUpNextDismissal(id) {
   const key = text(id);
   if (!key) return false;
   const removed = deleteStmt.run(key).changes > 0;
-  if (removed) bumpUpNextVersion();
+  if (removed) {
+    bumpUpNextVersion();
+    queueAutomaticUpNextSync("Up Next dismissal restored");
+  }
   return removed;
 }
 
 export function restoreAllUpNextDismissals() {
   const removed = deleteAllStmt.run().changes;
-  if (removed) bumpUpNextVersion();
+  if (removed) {
+    bumpUpNextVersion();
+    queueAutomaticUpNextSync("All Up Next dismissals restored");
+  }
   return removed;
 }
 

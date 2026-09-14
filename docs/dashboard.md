@@ -78,6 +78,14 @@ measured 27 completed rebuilds over 29.95 hours (0.90/hour, 26.24-minute median 
 so the measured 1.99-second projection cost is infrequent background work rather than a
 per-load wait.
 
+When the projection or one of its queue inputs changes, the server also queues a coalesced
+automatic provider push. This covers canonical watch/resume changes, provider-feed changes,
+and server-side dismissal/restore, and runs through the worker even when the dashboard is
+closed. It sends the latest mixed queue up to the 100-item API bound; the visible dashboard
+still renders its smaller card window. The existing header action remains available for an
+explicit immediate push, while the scheduled provider-feed catch-up remains the 15-minute
+backstop.
+
 Building the projection is synchronous work on the shared event loop, so its cost is a
 whole-process cost: while it runs, nothing else is served and no timer fires. That includes
 the "background" rebuild, which is background only in the sense that the request does not
@@ -108,28 +116,27 @@ locally first, deletes the resume row, adds completed history, and then dispatch
 providers. A failed or partial provider feed keeps the last good observations and displays a
 compact source-status message; future episodes remain in the Upcoming view.
 
-The Up Next header action is an authoritative push from Plembfin to Plex, Emby, and Jellyfin. It sends the
-full loaded Plembfin snapshot (up to the API's 100-item bound) to a managed `Plembfin Up Next`
-video playlist in each provider, so every resolved movie or episode has a provider-side list
-entry even when it has no resume position yet. It also reconciles stale entries only on successful
-native target feeds that expose a removal API, and forwards known positive resume checkpoints. The target mapping
-is Plex Continue Watching, Emby Continue Watching (the Resume API), and Jellyfin Next Up. A failed
-or incomplete feed never triggers native-feed removals, and an unresolved library match never
-causes the managed playlist to remove existing entries. Jellyfin Continue Watching is read only
-to protect genuine part-watched progress; it is not the Jellyfin queue being reconciled. Jellyfin
-Next Up is a calculated GET feed with no per-item write, so stale native entries are reported and
-left unchanged. For each ready episode, Plembfin verifies that the target is unwatched, released,
-and follows a fully watched earlier run, then refreshes the provider's native calculated rail
-from the immediately preceding watched episode. Plex and Emby receive their native watched mark;
-Jellyfin receives only a merged `LastPlayedDate` update, preserving its play count, watched flag,
-and resume position. Genuine part-watches are never overwritten. Provider removal is also
-available as an explicit per-card action. Open the managed playlist in any of the three servers to
-see the complete Plembfin snapshot.
+The Up Next header action is an authoritative push from Plembfin to Plex, Emby, and Jellyfin. It
+sends the full loaded Plembfin snapshot (up to the API's 100-item bound) and works entirely
+through each provider's own native rail. The target mapping is Plex Continue Watching, Emby
+Continue Watching (the Resume API), and Jellyfin Next Up. For each ready episode, Plembfin
+verifies that the target is unwatched, released, and follows a fully watched earlier run, then
+refreshes the provider's native calculated rail from the immediately preceding watched episode.
+Plex and Emby receive their native watched mark; Jellyfin receives only a merged `LastPlayedDate`
+update, preserving its play count, watched flag, and resume position. Genuine part-watches are
+never overwritten, and an item that is already part-watched is already on its provider's rail by
+that position alone.
 
-Both the playlist reconciliation and the seed work from a single resolution pass per provider
-(`resolveUpNextProviderTargets`). Resolving separately let the two disagree: a lookup that timed
-out for the playlist succeeded seconds later for the seed, leaving the Plex playlist holding a
-stale entry and missing items the seed had found without trouble.
+The push also reconciles stale entries on successful native target feeds that expose a removal
+API, and forwards known positive resume checkpoints. A failed or incomplete feed never triggers
+native-feed removals. Jellyfin Continue Watching is read only to protect genuine part-watched
+progress; it is not the Jellyfin queue being reconciled. Jellyfin Next Up is a calculated GET feed
+with no per-item write, so stale native entries are reported and left unchanged. Provider removal
+is also available as an explicit per-card action.
+
+Plembfin no longer maintains a managed `Plembfin Up Next` playlist on any provider; see
+`docs/decisions.md` entry 28. An installation upgraded from a build that created one keeps that
+playlist until it is deleted by hand in Plex, Emby, or Jellyfin.
 
 Beside it, a count button opens the dismissed-items dialog. Dismissals are stored server-side in
 `up_next_dismissals` and applied inside the projection, so the queue is the same on every device

@@ -18,6 +18,7 @@ import {
 } from "./scheduler.js";
 import { refreshUpcomingCalendarCache } from "./utils/upcomingCalendarCache.js";
 import { backfillUnknownShowTitles, backfillMissingEpisodeSeasons, repairEpisodeSeriesIdentity } from "./utils/dataRepo.js";
+import { requestUpNextAutoSync, runAutomaticUpNextSync } from "./utils/upNextAutoSync.js";
 import { db } from "./db.js";
 import { setRuntimeState } from "./utils/configStore.js";
 import {
@@ -194,6 +195,12 @@ export function createWorkerCoordinator({ holderId, role }) {
       if (job.type === "cron_sync") {
         log("Cron Sync started...");
         result = await runScheduledSync(log, { forceCatchup: true });
+      } else if (job.type === "up_next_sync") {
+        log("Automatic Up Next provider sync started...");
+        result = await runAutomaticUpNextSync({
+          logger: log,
+          isCancelled: async () => getBackgroundJob(job.id)?.cancelRequested === true,
+        });
       } else if (job.type === "force_sync_plan") {
         log("Force Sync preview started...");
         const config = await loadMediaConfig();
@@ -235,6 +242,11 @@ export function createWorkerCoordinator({ holderId, role }) {
       const cancelled = current?.cancelRequested || result?.aborted;
       appendBackgroundJobLog(job.id, `RESULT: ${JSON.stringify(result)}`);
       finishBackgroundJob({ ...token, status: cancelled ? "cancelled" : "succeeded", result });
+      if (job.type === "up_next_sync" && result?.rerun && !cancelled) {
+        await requestUpNextAutoSync("Up Next changed while the previous automatic sync was running").catch((error) => {
+          console.error(`[worker] Failed to requeue automatic Up Next sync: ${error?.message || error}`);
+        });
+      }
       if (job.type === "cron_sync") await setRuntimeState({ lastCronResult: { ok: !cancelled, result, finishedAt: Date.now() } });
       if (job.type === "force_sync") await setRuntimeState({ forceSyncResult: { ...result, jobId: job.id, finishedAt: Date.now() }, forceSyncHeartbeat: Date.now() });
     } catch (error) {
@@ -251,7 +263,10 @@ export function createWorkerCoordinator({ holderId, role }) {
 
   async function pollJobs() {
     if (stopped) return;
-    if (!jobRunning && isLeader()) {
+    // Keep the durable job queue separate from the scheduled tick. In
+    // particular, an event-triggered Up Next push must not race the catch-up
+    // feed refresh that is discovering the queue it is about to send.
+    if (!jobRunning && !tickRunning && isLeader()) {
       const job = claimNextBackgroundJob({ holderId, generation: lease.generation });
       if (job) {
         jobRunning = true;

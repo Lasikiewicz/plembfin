@@ -545,8 +545,8 @@ skipped unconditionally, so a real checkpoint is never replaced by the token one
 `server/src/utils/upNextService.js`; `test/upNextRailSeed.test.js`.
 
 ### 20. Jellyfin is a full Up Next participant again, read and written
-**Date:** 2026-09-13  |  **Status:** Superseded by #25 for native-rail mapping; Jellyfin remains an
-active provider participant
+**Date:** 2026-09-13  |  **Status:** Superseded by #25 for native-rail mapping and by #28 for the managed playlist;
+Jellyfin remains an active provider participant
 
 **Context:** Up Next was narrowed to Plex and Emby on the reasoning that Jellyfin's Next Up is a
 calculated GET feed with no per-item write, so it could be neither reconciled nor dismissed.
@@ -725,7 +725,7 @@ the Emby branch of `writeSeed` and `clearStaleSeeds` in `server/src/utils/upNext
 `test/upNextProviderSync.test.js`; `test/upNextRailSeed.test.js`.
 
 ### 25. Plembfin targets the user-facing equivalent native rail on each provider
-**Date:** 2026-09-13  |  **Status:** Active, refines entry 20
+**Date:** 2026-09-13  |  **Status:** Active for the rail mapping; the managed playlist it refers to was removed by #28
 
 **Context:** Jellyfin exposes two different calculated sections: Continue Watching contains
 genuine part-watched progress, while Next Up contains the upcoming episode for a show. Treating
@@ -762,7 +762,7 @@ in `planUpNextProviderSync` and `buildUpNextProjection`; protected native-feed i
 `test/upNextQueue.test.js`.
 
 ### 26. Refresh every native Up Next rail from a watched predecessor; never seed resume progress
-**Date:** 2026-09-13  |  **Status:** Active, supersedes the synthetic-position part of entries 21, 24, and 25
+**Date:** 2026-09-13  |  **Status:** Active, supersedes the synthetic-position part of entries 21, 24, and 25; the managed playlist it refers to was removed by #28
 
 **Context:** A calculated rail has no arbitrary "add" operation. The earlier implementation
 worked around that by writing 6% progress, which required a ledger, provider-specific cleanup,
@@ -798,3 +798,67 @@ and canonical rows can therefore retain their positive positions in Plembfin's U
 so the dashboard shows the same part-watched state as the media detail view. The seed ledger remains
 available for ingestion guards and cleanup of legacy provider state; it is no longer consulted when
 rendering an Up Next card.
+### 28. The managed provider playlist is removed; the native rail refresh is the whole push
+**Date:** 2026-09-14  |  **Status:** Active, supersedes the managed-playlist part of entries 19, 20, 25, and 26
+
+**Context:** The `Plembfin Up Next` playlist was introduced (entry 19) because the native rails are
+calculated and cannot be handed an arbitrary future item, so it was the only writable provider-side
+representation of the queue. Entry 26 then made the rails genuinely controllable by restamping the
+target's watched predecessor, and the playlist was kept alongside it as an exact mirror. Re-checking
+what it still carried, against the code rather than the intent, found almost nothing:
+
+- Movies enter Up Next only through a real resume position (`buildUpNextProjection` merges
+  `canonicalResume`, `providerResume`, `providerNextUp`, and `localNextUp`; the last two are
+  episode-only). A movie with a real position is already on Continue Watching by that position.
+- A new season is fully covered by the rail refresh: the previous season's finale is the watched
+  predecessor, so it passes every gate.
+- A series opener cannot appear at all. `localNextUpCandidates` iterates `getCachedShows()`, which is
+  built from `watch_history` episode rows, so a show that has never been watched is never a
+  candidate.
+
+What remained was a fallback for items the rail refresh reports as skipped or failed, queue ordering
+beyond one episode per series, and an exact list on Jellyfin Next Up where stale entries cannot be
+hidden. None of that justified writing a second, parallel list into three servers on every push.
+
+**Decision:** Delete the managed playlist entirely. `syncUpNextToProviders` performs the feed read,
+the dismissals, the known-progress replay, and the native rail refresh, and nothing else. The
+provider clients lose their playlist create/read/add/remove helpers, which existed only for this.
+`pushedProviders` is now the set of configured push providers whose rail refresh did not fail and
+whose dismissals all succeeded, rather than the set whose playlist reconciled completely.
+
+**Rejected:** Keeping the playlist behind its own opt-out setting. That preserves a redundant
+representation, a second failure mode in the push summary, and roughly 260 lines plus fifteen
+provider-client functions, for a fallback nobody asked for.
+
+**Consequence to know:** nothing deletes a playlist an earlier build already created. An upgraded
+installation keeps a stale `Plembfin Up Next` list in Plex, Emby, and Jellyfin until the user removes
+it by hand. A one-shot cleanup was considered and left out deliberately: it would mean shipping
+playlist-deletion calls to three providers in order to retire a feature, and a list the user may have
+since edited or come to rely on is not Plembfin's to delete without being asked.
+
+**Enforced by:** `syncUpNextToProviders` in `server/src/utils/upNextProviderSync.js`;
+`test/upNextProviderSync.test.js`.
+
+### 29. Queue Up Next provider reconciliation when the projection changes
+**Date:** 2026-09-14  |  **Status:** Active
+
+**Context:** The dashboard could show a newly added or changed Up Next item while the
+provider's native rail stayed stale until the next scheduled catch-up or a manual header
+push. A browser-only trigger would also fail when the dashboard was closed.
+
+**Decision:** Queue a durable singleton `up_next_sync` job from canonical resume/watch
+mutations, changed provider snapshots, changed projections, and dismissal changes. The
+worker builds the latest mixed queue at execution time and pushes up to 100 items through
+the configured native rails. A stable content/order fingerprint suppresses duplicate
+pushes, and a mutation observed during a push requests one follow-up job. Provider feed
+reads performed as part of that push opt out of the trigger, preventing a feedback loop.
+The 15-minute scheduled feed refresh remains the external-change backstop, and disabling
+Up Next sync prevents automatic provider writes.
+
+**Rejected:** Triggering the push only from the dashboard. That depends on an open browser,
+can miss queue changes received by webhook or another device, and makes provider state
+depend on which page is currently open.
+
+**Enforced by:** `upNextAutoSync.js`, the `up_next_sync` worker job, the queue invalidation
+hooks in `dataRepo.js`, `upNextRepository.js`, `upNextDismissals.js`, and `upNextCache.js`,
+and `test/upNextAutoSync.test.js`.

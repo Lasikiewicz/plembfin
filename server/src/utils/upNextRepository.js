@@ -6,6 +6,12 @@ const PROVIDERS = new Set(["plex", "emby", "jellyfin"]);
 const FEED_KINDS = new Set(["resume", "next_up"]);
 const UP_NEXT_PROVIDERS = new Set(["plex", "emby", "jellyfin"]);
 
+function queueAutomaticUpNextSync(reason) {
+  void import("./upNextAutoSync.js")
+    .then(({ requestUpNextAutoSync }) => requestUpNextAutoSync(reason))
+    .catch((error) => console.error(`[up-next] Automatic sync request failed: ${error?.message || error}`));
+}
+
 // Plembfin's unified queue deliberately uses the provider rail with the
 // closest meaning on each server. Jellyfin's Continue Watching feed is still
 // read separately as a safety boundary for real part-watches, but it is not
@@ -291,7 +297,7 @@ export function startUpNextProviderFeed(provider, feedKind, { now = Date.now(), 
   return generation;
 }
 
-export function completeUpNextProviderFeed(provider, feedKind, generation, items = [], { now = Date.now(), cursor = null } = {}) {
+export function completeUpNextProviderFeed(provider, feedKind, generation, items = [], { now = Date.now(), cursor = null, triggerAutoSync = true } = {}) {
   const normalized = assertFeed(provider, feedKind);
   const state = selectFeedStateStmt.get(normalized.provider, normalized.feedKind);
   if (!state || Number(state.current_generation) !== Number(generation)) {
@@ -371,7 +377,10 @@ export function completeUpNextProviderFeed(provider, feedKind, generation, items
       console.warn(`Up Next metadata warm-up queue failed: ${error?.message || error}`);
     }
   }
-  if (changed) bumpUpNextVersion();
+  if (changed) {
+    bumpUpNextVersion();
+    if (triggerAutoSync) queueAutomaticUpNextSync(`provider ${normalized.provider} ${normalized.feedKind} feed changed`);
+  }
   return { changed, ignored: false, generation, itemCount: candidates.length };
 }
 
@@ -496,6 +505,7 @@ export function purgeUnsupportedUpNextProviders() {
   const removed = Number(items.changes || 0) + Number(feeds.changes || 0);
   if (removed) {
     bumpUpNextVersion();
+    queueAutomaticUpNextSync("unsupported Up Next provider data purged");
     console.log(`Removed ${items.changes} stale Up Next provider item(s) and ${feeds.changes} feed state(s) for unsupported providers.`);
   }
   return { items: Number(items.changes || 0), feeds: Number(feeds.changes || 0) };

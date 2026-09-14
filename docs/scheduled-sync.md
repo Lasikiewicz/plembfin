@@ -35,6 +35,22 @@ Manual cron and force-sync requests are stored in `background_jobs`; their order
 logs live in `background_job_logs`. The web process relays logs while the leaseholder
 executes the job, so disconnecting a browser does not stop it.
 
+## Event-triggered Up Next provider sync
+
+The unified Up Next projection is also reconciled automatically when a queue input
+changes: canonical watch/resume progress, a changed provider feed snapshot, a server-side
+dismissal/restore, or a changed cached projection. The worker queues one singleton
+`up_next_sync` job for a burst of changes, builds the latest mixed movie-and-episode
+projection (up to 100 items) when it runs, and pushes it through the configured native
+provider rails. The dashboard does not need to be open. If another change lands during
+the push, one follow-up job is queued after it finishes; the push's own feed reads are
+excluded from this trigger so it cannot loop on itself.
+
+This event-triggered push is disabled when **Up Next sync** is disabled in configuration.
+The scheduled provider-feed catch-up remains the 15-minute backstop described below,
+so an external provider change is still discovered even when no local queue mutation
+has occurred.
+
 Force Sync also supports an opt-in read-only preview. `POST /api/force-sync/plan` queues
 the preview and returns a job id. Once the job result contains a `planId`,
 `GET /api/force-sync/plan/:id` returns the summary and paged action details, while

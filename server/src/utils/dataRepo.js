@@ -1294,14 +1294,24 @@ function queueProgressUpdateForRecord(record) {
   }
 }
 
+function queueAutomaticUpNextSync(reason) {
+  void import("./upNextAutoSync.js")
+    .then(({ requestUpNextAutoSync }) => requestUpNextAutoSync(reason))
+    .catch((error) => console.error(`[dataRepo] Automatic Up Next sync request failed: ${error?.message || error}`));
+}
+
 // `reason` labels the generation change for the rebuild telemetry in
 // cacheTelemetry.js. It is optional: an unlabelled call is reported as
 // "observed", exactly like a version a SQLite trigger or another process moved.
-export async function invalidateHistoryDerivedCaches(reason = "") {
+// Queue changes are pushed by the worker after this invalidation. Callers that
+// have already performed the exact provider reconciliation can opt out of the
+// follow-up job to avoid an immediate duplicate push.
+export async function invalidateHistoryDerivedCaches(reason = "", { skipUpNextAutoSync = false } = {}) {
   await flushShowProgressUpdates().catch((err) => {
     console.error("[dataRepo] Failed to flush show progress updates", err);
   });
   bumpDataVersion(reason);
+  if (!skipUpNextAutoSync) queueAutomaticUpNextSync(reason || "history-derived cache invalidated");
 }
 
 function patchCachedRow(rows, freshRow) {
