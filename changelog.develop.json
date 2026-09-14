@@ -1,7 +1,20 @@
 {
-  "version": "1.1.1.0.0",
-  "build": 0,
+  "version": "1.1.1.0.1",
+  "build": 1,
   "resetCommit": "78d6cdfc480470fb745caa2465027e34d20b36e2",
-  "updatedAt": "2026-09-14T09:16:13.782Z",
-  "entries": []
+  "updatedAt": "2026-09-14T12:41:16.118Z",
+  "entries": [
+    {
+      "build": 1,
+      "date": "2026-09-14T12:41:16.118Z",
+      "commit": "8faf22cd6bd2e0bfc126786c725cc8695ca7e3e9",
+      "message": "Fix - Restore Jellyfin imports and document automatic Up Next sync",
+      "author": "Lasikiewicz",
+      "details": [
+        "Restore Jellyfin watched, resume, and rating imports against current API field rules.",
+        "Document automatic Up Next provider updates when queue contents or order changes.",
+        "Add regression coverage for the Jellyfin request compatibility behavior."
+      ]
+    }
+  ]
 }
