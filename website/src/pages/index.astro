@@ -37,9 +37,9 @@ const loopSteps = [
 const appAreas = [
   {
     number: "01",
-    title: "Now Playing and Up Next",
-    text: "Live sessions, resume progress, and the next thing worth starting.",
-    href: "/docs/dashboard/#now-playing",
+    title: "Up Next",
+    text: "One mixed queue for movie and episode resume progress, plus released next-up.",
+    href: "/docs/dashboard/#up-next",
   },
   {
     number: "02",
@@ -91,7 +91,7 @@ const appAreas = [
           <p class="simple-eyebrow">THE DASHBOARD</p>
           <h2 id="preview-title">One place to see what is happening.</h2>
         </div>
-        <p>Now Playing, Up Next with resume progress, and the recent history Plembfin is keeping for you.</p>
+        <p>Now Playing, Up Next with real resume progress, and the recent history Plembfin is keeping for you.</p>
       </div>
       <ScreenshotFigure
         darkSrc="/assets/app-captures/dashboard-home-dark.png"
@@ -103,6 +103,29 @@ const appAreas = [
         width={1440}
         height={700}
       />
+    </section>
+
+    <section class="simple-home-up-next" aria-labelledby="up-next-home-title">
+      <div class="simple-section-heading">
+        <div>
+          <p class="simple-eyebrow">UP NEXT</p>
+          <h2 id="up-next-home-title">The next thing worth watching, in one queue.</h2>
+        </div>
+        <p>Resume a movie, continue an episode, or pick up the next released episode from the same mixed rail.</p>
+      </div>
+      <ScreenshotFigure
+        darkSrc="/assets/app-captures/dashboard-up-next-dark.png"
+        lightSrc="/assets/app-captures/dashboard-up-next-light.png"
+        alt="Plembfin Up Next queue showing movie and TV continuation cards with real resume context and provider Watch now links"
+        caption="Up Next brings resume progress, next-up episodes, and provider playback links together."
+        loading="lazy"
+        width={1232}
+        height={167}
+      />
+      <div class="simple-section-heading-note simple-home-up-next-note">
+        <p>Queue additions, removals, reorderings, and resume-progress changes are coalesced into a background provider push. Dismissed items can be added back when you are ready.</p>
+        <a class="simple-text-link" href="/docs/dashboard/#up-next">Read the Up Next guide <span aria-hidden="true">→</span></a>
+      </div>
     </section>
 
     <section class="simple-home-flow" aria-labelledby="flow-title">

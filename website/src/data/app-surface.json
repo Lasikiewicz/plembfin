@@ -3,7 +3,7 @@
     "id": "dashboard",
     "label": "Dashboard",
     "docSlug": "dashboard",
-    "sourcePaths": ["public/index.html", "public/modules/dashboard.js", "docs/dashboard.md"]
+    "sourcePaths": ["public/index.html", "public/modules/dashboard.js", "public/app.js", "docs/dashboard.md"]
   },
   {
     "id": "concepts",
@@ -55,13 +55,13 @@
   },
   {
     "id": "history-search",
-    "label": "History and Search",
+    "label": "History",
     "docSlug": "history-search",
     "sourcePaths": ["public/index.html", "public/app.js", "docs/history-search.md"]
   },
   {
     "id": "history-search-guide",
-    "label": "History and global Search guide",
+    "label": "History guide",
     "docSlug": "history-search",
     "sourcePaths": ["public/index.html", "public/app.js", "docs/history-search.md"]
   },

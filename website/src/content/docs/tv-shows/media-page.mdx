@@ -3,7 +3,7 @@ title: TV Shows media page
 description: Read and use a single TV show media page in Plembfin.
 category: Dashboard and libraries
 order: 3.1
-sourceVersion: "1.1.0"
+sourceVersion: "1.1.1"
 sourcePaths:
   - public/app.js
   - public/index.html
@@ -47,6 +47,8 @@ screenshots:
   - /assets/app-captures/tv-cast-focus-light.png
   - /assets/app-captures/tv-images-focus-dark.png
   - /assets/app-captures/tv-images-focus-light.png
+  - /assets/app-captures/tv-seasons-episodes-focus-dark.png
+  - /assets/app-captures/tv-seasons-episodes-focus-light.png
   - /assets/app-captures/tv-trailers-focus-dark.png
   - /assets/app-captures/tv-trailers-focus-light.png
   - /assets/app-captures/tv-related-focus-dark.png
@@ -91,6 +93,13 @@ Provider data is shown when it is available. A missing provider result does not 
 local series or episode records.
 
 ## Seasons and episodes
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/tv-seasons-episodes-focus-dark.png"
+  lightSrc="/assets/app-captures/tv-seasons-episodes-focus-light.png"
+  alt="Plembfin Lioness Season 3 accordion showing episode cards, watched state, release dates, and episode actions"
+  caption="Each expanded season keeps its episode artwork, watched state, release date, and actions together."
+/>
 
 The **Seasons** section lists each season with its episode count, watched count,
 availability, and next-airing context. Episode details load as a season is expanded, so a
@@ -311,8 +320,8 @@ choices under Edit Images.
 <ScreenshotFigure
   darkSrc="/assets/app-captures/tv-trailers-focus-dark.png"
   lightSrc="/assets/app-captures/tv-trailers-focus-light.png"
-  alt="Plembfin TV show detail page showing Trailers and Clips"
-  caption="Trailers & Clips keeps provider video previews beside the show details."
+  alt="Plembfin Lioness TV show detail page showing four populated Trailers and Clips video cards"
+  caption="Trailers & Clips shows provider video previews with titles and play controls on the selected show."
 />
 
 Select a trailer or clip to play it in the media lightbox. A missing video is a provider-data
@@ -328,8 +337,8 @@ Review content is provider-supplied and remains separate from your private [Rati
 <ScreenshotFigure
   darkSrc="/assets/app-captures/tv-related-focus-dark.png"
   lightSrc="/assets/app-captures/tv-related-focus-light.png"
-  alt="Plembfin TV show detail page showing the Related Shows rail"
-  caption="Related Shows connects the current series to provider recommendations."
+  alt="Plembfin Lioness TV show detail page showing a populated Related Shows rail"
+  caption="Related Shows keeps provider recommendations visible as populated poster cards."
 />
 
 The **Related Shows** section links to provider-related series. It does not add those shows

@@ -1,18 +1,15 @@
 ---
-title: History and global Search
-description: Review the durable watch archive and search local and provider titles.
+title: History
+description: Review the durable watch archive and its sync context.
 category: Use the app
 order: 5
-sourceVersion: "1.1.0"
+sourceVersion: "1.1.1"
 sourcePaths:
   - public/modules/history.js
-  - public/modules/search.js
   - docs/history-search.md
 screenshots:
   - /assets/app-captures/history-dark.png
   - /assets/app-captures/history-light.png
-  - /assets/app-captures/global-search-dark.png
-  - /assets/app-captures/global-search-light.png
 ---
 
 import ScreenshotFigure from "../../components/ScreenshotFigure.astro";
@@ -45,20 +42,4 @@ Same-event delivery echoes are collapsed so propagation does not count as severa
 Genuine later rewatches remain separate watch dates. For cleanup tools, see
 [Database repairs](/docs/settings/#database-repairs).
 
-## Global Search
-
-<ScreenshotFigure
-  darkSrc="/assets/app-captures/global-search-dark.png"
-  lightSrc="/assets/app-captures/global-search-light.png"
-  alt="Plembfin global search showing matching local titles and provider results"
-  caption="Global Search finds local titles, people, and provider matches before opening the selected result."
-/>
-
-Global Search searches local movies and shows, people, TMDB, and TheTVDB. Local library
-results are prioritised and marked as already in the archive.
-
-Use the filters for **All**, **Movies**, **Shows**, or **People**. A person result opens a
-person page; a movie or show result opens the standard detail view.
-
-Search is for finding and exploring a title. Use the local title's actions when you need
-to change canonical watch state.
+For the persistent title and person search, use [Global Search on the Dashboard](/docs/dashboard/#global-search).

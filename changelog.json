@@ -1,7 +1,41 @@
 {
-  "version": "1.1.0",
-  "updatedAt": "2026-09-12T14:49:22.789Z",
+  "version": "1.1.1",
+  "updatedAt": "2026-09-14T09:16:13.782Z",
   "entries": [
+    {
+      "version": "1.1.1",
+      "version5Digit": "1.1.1.0.0",
+      "date": "2026-09-14T09:16:13.782Z",
+      "commit": "78d6cdfc480470fb745caa2465027e34d20b36e2",
+      "message": "Up Next now keeps Plex, Emby, and Jellyfin aligned with reliable resume progress, released episodes, dismissals, and background queue updates with direct Watch now links.",
+      "author": "Lasikiewicz",
+      "details": [
+        "Feature: Automatically sync Up Next additions, removals, reorderings, and resume-progress changes in the background, including when the Dashboard is closed.",
+        "Feature: Keep Plembfin's Up Next aligned with Plex Continue Watching, Emby Continue Watching, and Jellyfin Next Up.",
+        "Feature: Bring the correct released or unwatched next episode into Up Next without inventing resume progress or resetting genuine play counts.",
+        "Fix: Dashboard Up Next cards now include Jellyfin in their Watch now links.",
+        "Fix: Show genuine part-watched progress on Up Next cards and keep it consistent with the media detail page across connected servers.",
+        "Fix: Keep provider writes matched to the intended title and avoid treating Plembfin-created rail positions as real resume progress or Now Playing sessions.",
+        "Tweak: Share Up Next dismissals across devices, with a review-and-restore flow for items hidden by mistake.",
+        "Tweak: Make Up Next provider sync optional, leaving provider lists unchanged when disabled."
+      ],
+      "sections": {
+        "newFeatures": [
+          "Automatically sync Up Next additions, removals, reorderings, and resume-progress changes in the background, including when the Dashboard is closed.",
+          "Keep Plembfin's Up Next aligned with Plex Continue Watching, Emby Continue Watching, and Jellyfin Next Up.",
+          "Bring the correct released or unwatched next episode into Up Next without inventing resume progress or resetting genuine play counts."
+        ],
+        "majorBugFixes": [
+          "Dashboard Up Next cards now include Jellyfin in their Watch now links.",
+          "Show genuine part-watched progress on Up Next cards and keep it consistent with the media detail page across connected servers.",
+          "Keep provider writes matched to the intended title and avoid treating Plembfin-created rail positions as real resume progress or Now Playing sessions."
+        ],
+        "tweaks": [
+          "Share Up Next dismissals across devices, with a review-and-restore flow for items hidden by mistake.",
+          "Make Up Next provider sync optional, leaving provider lists unchanged when disabled."
+        ]
+      }
+    },
     {
       "version": "1.1.0",
       "version5Digit": "1.1.0.0.0",

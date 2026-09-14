@@ -3,7 +3,7 @@ title: The sync model
 description: How Plembfin records canonical state, routes changes, and explains delivery.
 category: Understand the app
 order: 2
-sourceVersion: "1.1.0"
+sourceVersion: "1.1.1"
 sourcePaths:
   - docs/architecture.md
   - docs/webhooks.md
@@ -89,8 +89,8 @@ account-level Watchlist as its only provider and keeps the local movie/show list
 <ScreenshotFigure
   darkSrc="/assets/app-captures/settings-sync-tuning-dark.png"
   lightSrc="/assets/app-captures/settings-sync-tuning-light.png"
-  alt="Plembfin Sync Tuning settings showing watched threshold, resume position, and session TTL"
-  caption="Sync Tuning defines when playback becomes watched and when resume progress is retained."
+  alt="Plembfin Sync Tuning settings showing watched-flag policy, playback thresholds, sync timing, and Up Next provider sync"
+  caption="Sync Tuning defines watched-state policy, playback thresholds, resume retention, and Up Next provider sync."
 />
 
 Watched state is not the same as a resume marker.

@@ -3,7 +3,10 @@
   "generatedBy": "website/scripts/capture-inventory.mjs",
   "changes": {
     "added": [],
-    "changed": [],
+    "changed": [
+      "public/assets/app-captures/settings-connections-dark.png",
+      "public/assets/app-captures/settings-connections-light.png"
+    ],
     "removed": [],
     "unreferenced": [
       "public/assets/app-captures/dashboard-home-dark.png",
@@ -37,7 +40,7 @@
   "docs": [
     {
       "slug": "appearance",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/appearance-dashboard-dark.png",
         "public/assets/app-captures/appearance-dashboard-light.png",
@@ -47,7 +50,7 @@
     },
     {
       "slug": "concepts",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/history-dark.png",
         "public/assets/app-captures/history-light.png",
@@ -63,7 +66,7 @@
     },
     {
       "slug": "custom-lists",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/custom-lists-cards-dark.png",
         "public/assets/app-captures/custom-lists-cards-light.png",
@@ -75,19 +78,27 @@
     },
     {
       "slug": "dashboard",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/dashboard-dark.png",
+        "public/assets/app-captures/dashboard-history-movies-dark.png",
+        "public/assets/app-captures/dashboard-history-movies-light.png",
+        "public/assets/app-captures/dashboard-history-tv-dark.png",
+        "public/assets/app-captures/dashboard-history-tv-light.png",
         "public/assets/app-captures/dashboard-light.png",
         "public/assets/app-captures/dashboard-up-next-dark.png",
+        "public/assets/app-captures/dashboard-up-next-dismissed-dark.png",
+        "public/assets/app-captures/dashboard-up-next-dismissed-light.png",
         "public/assets/app-captures/dashboard-up-next-light.png",
+        "public/assets/app-captures/global-search-dark.png",
+        "public/assets/app-captures/global-search-light.png",
         "public/assets/app-captures/now-playing-dark.png",
         "public/assets/app-captures/now-playing-light.png"
       ]
     },
     {
       "slug": "discover",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/discover-dark.png",
         "public/assets/app-captures/discover-light.png"
@@ -95,7 +106,7 @@
     },
     {
       "slug": "getting-started",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/dashboard-dark.png",
         "public/assets/app-captures/dashboard-light.png",
@@ -107,22 +118,20 @@
     },
     {
       "slug": "guides",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": []
     },
     {
       "slug": "history-search",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
-        "public/assets/app-captures/global-search-dark.png",
-        "public/assets/app-captures/global-search-light.png",
         "public/assets/app-captures/history-dark.png",
         "public/assets/app-captures/history-light.png"
       ]
     },
     {
       "slug": "integrations",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/settings-connections-seerr-dark.png",
         "public/assets/app-captures/settings-connections-seerr-light.png",
@@ -146,7 +155,7 @@
     },
     {
       "slug": "libraries",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/library-poster-menu-dark.png",
         "public/assets/app-captures/library-poster-menu-light.png",
@@ -156,7 +165,7 @@
     },
     {
       "slug": "media-details",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/fix-match-focus-dark.png",
         "public/assets/app-captures/fix-match-focus-light.png",
@@ -194,7 +203,7 @@
     },
     {
       "slug": "movies",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/library-poster-menu-dark.png",
         "public/assets/app-captures/library-poster-menu-light.png",
@@ -206,7 +215,7 @@
     },
     {
       "slug": "movies/media-page",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/fix-match-focus-dark.png",
         "public/assets/app-captures/fix-match-focus-light.png",
@@ -252,7 +261,7 @@
     },
     {
       "slug": "navigation",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/appearance-dashboard-dark.png",
         "public/assets/app-captures/appearance-dashboard-light.png",
@@ -264,7 +273,7 @@
     },
     {
       "slug": "operations",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/dashboard-dark.png",
         "public/assets/app-captures/dashboard-light.png",
@@ -286,7 +295,7 @@
     },
     {
       "slug": "ratings",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/media-action-row-dark.png",
         "public/assets/app-captures/media-action-row-light.png",
@@ -302,7 +311,7 @@
     },
     {
       "slug": "safe-daily-workflows",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/dashboard-dark.png",
         "public/assets/app-captures/dashboard-light.png",
@@ -312,7 +321,7 @@
     },
     {
       "slug": "settings",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/settings-index-dark.png",
         "public/assets/app-captures/settings-index-light.png"
@@ -320,15 +329,15 @@
     },
     {
       "slug": "settings/about",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
-        "public/assets/app-captures/settings-index-dark.png",
-        "public/assets/app-captures/settings-index-light.png"
+        "public/assets/app-captures/settings-about-dark.png",
+        "public/assets/app-captures/settings-about-light.png"
       ]
     },
     {
       "slug": "settings/backup",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/settings-backup-dark.png",
         "public/assets/app-captures/settings-backup-light.png",
@@ -339,8 +348,13 @@
       ]
     },
     {
+      "slug": "settings/changelog",
+      "sourceVersion": "1.1.1",
+      "screenshots": []
+    },
+    {
       "slug": "settings/connections",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/settings-connections-dark.png",
         "public/assets/app-captures/settings-connections-light.png",
@@ -352,7 +366,7 @@
     },
     {
       "slug": "settings/general",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/settings-general-account-dark.png",
         "public/assets/app-captures/settings-general-account-light.png",
@@ -366,7 +380,7 @@
     },
     {
       "slug": "settings/logs",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/settings-logs-controls-dark.png",
         "public/assets/app-captures/settings-logs-controls-light.png"
@@ -374,7 +388,7 @@
     },
     {
       "slug": "settings/media-servers",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/settings-media-servers-dark.png",
         "public/assets/app-captures/settings-media-servers-emby-dark.png",
@@ -388,7 +402,7 @@
     },
     {
       "slug": "settings/metadata",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/settings-metadata-dark.png",
         "public/assets/app-captures/settings-metadata-light.png",
@@ -404,7 +418,7 @@
     },
     {
       "slug": "settings/restore",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/settings-restore-dark.png",
         "public/assets/app-captures/settings-restore-light.png",
@@ -416,7 +430,7 @@
     },
     {
       "slug": "settings/sync",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/settings-sync-dark.png",
         "public/assets/app-captures/settings-sync-history-dark.png",
@@ -432,7 +446,7 @@
     },
     {
       "slug": "settings/tools",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/settings-tools-dark.png",
         "public/assets/app-captures/settings-tools-database-repairs-dark.png",
@@ -448,7 +462,7 @@
     },
     {
       "slug": "settings/webhooks",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/settings-webhooks-dark.png",
         "public/assets/app-captures/settings-webhooks-light.png",
@@ -460,7 +474,7 @@
     },
     {
       "slug": "stats",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/stats-dark.png",
         "public/assets/app-captures/stats-light.png"
@@ -468,7 +482,7 @@
     },
     {
       "slug": "sync-tools",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/settings-logs-controls-dark.png",
         "public/assets/app-captures/settings-logs-controls-light.png",
@@ -486,7 +500,7 @@
     },
     {
       "slug": "troubleshooting",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/dashboard-dark.png",
         "public/assets/app-captures/dashboard-light.png",
@@ -528,7 +542,7 @@
     },
     {
       "slug": "tv-shows",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/tv-spoilers-off-dark.png",
         "public/assets/app-captures/tv-spoilers-off-light.png",
@@ -538,7 +552,7 @@
     },
     {
       "slug": "tv-shows/media-page",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/fix-match-focus-dark.png",
         "public/assets/app-captures/fix-match-focus-light.png",
@@ -566,6 +580,8 @@
         "public/assets/app-captures/tv-media-info-focus-light.png",
         "public/assets/app-captures/tv-related-focus-dark.png",
         "public/assets/app-captures/tv-related-focus-light.png",
+        "public/assets/app-captures/tv-seasons-episodes-focus-dark.png",
+        "public/assets/app-captures/tv-seasons-episodes-focus-light.png",
         "public/assets/app-captures/tv-sections-overview-dark.png",
         "public/assets/app-captures/tv-sections-overview-light.png",
         "public/assets/app-captures/tv-spoilers-off-dark.png",
@@ -580,7 +596,7 @@
     },
     {
       "slug": "upcoming",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/upcoming-dark.png",
         "public/assets/app-captures/upcoming-light.png"
@@ -588,7 +604,7 @@
     },
     {
       "slug": "watchlist",
-      "sourceVersion": "1.0.2",
+      "sourceVersion": "1.1.1",
       "screenshots": [
         "public/assets/app-captures/media-action-row-dark.png",
         "public/assets/app-captures/media-action-row-light.png",
@@ -678,8 +694,8 @@
     },
     {
       "path": "public/assets/app-captures/dashboard-dark.png",
-      "bytes": 881539,
-      "sha256": "a6934bdce3ac62187ccf80ed7c74b26b1b4d44a14b8848ea366015bb6b8b6ba4",
+      "bytes": 342042,
+      "sha256": "eddf510bdf53fed7f5d2934358b948f2f3dbbe9cb4a32a3dabe98bdcbf586491",
       "dimensions": {
         "width": 1440,
         "height": 683
@@ -694,9 +710,57 @@
       ]
     },
     {
+      "path": "public/assets/app-captures/dashboard-history-movies-dark.png",
+      "bytes": 109068,
+      "sha256": "ce1ad6d37bfd9d5f7d6cffd195d65c9c7deee76116bb62719093ae1c6cbc51e6",
+      "dimensions": {
+        "width": 1232,
+        "height": 167
+      },
+      "referencedBy": [
+        "dashboard"
+      ]
+    },
+    {
+      "path": "public/assets/app-captures/dashboard-history-movies-light.png",
+      "bytes": 107651,
+      "sha256": "4c6ef9de235d03474defd9877cd30a3666f201875349a74e75300e4ea274edd5",
+      "dimensions": {
+        "width": 1232,
+        "height": 167
+      },
+      "referencedBy": [
+        "dashboard"
+      ]
+    },
+    {
+      "path": "public/assets/app-captures/dashboard-history-tv-dark.png",
+      "bytes": 103709,
+      "sha256": "f8ee13542d0c6adc0549723c061feddbf72a2694ebcc9805a5e211226a81d13d",
+      "dimensions": {
+        "width": 1232,
+        "height": 167
+      },
+      "referencedBy": [
+        "dashboard"
+      ]
+    },
+    {
+      "path": "public/assets/app-captures/dashboard-history-tv-light.png",
+      "bytes": 102407,
+      "sha256": "b5dc67a9d71e46a8afd1b8028fc9af0b254ed6671e795eaf31527d2195de493b",
+      "dimensions": {
+        "width": 1232,
+        "height": 167
+      },
+      "referencedBy": [
+        "dashboard"
+      ]
+    },
+    {
       "path": "public/assets/app-captures/dashboard-home-dark.png",
-      "bytes": 966126,
-      "sha256": "ee01072de8db5405706cabdbd472d470d8247c1bcb9bb9b70c6a462beabc8458",
+      "bytes": 339278,
+      "sha256": "70fccecc051b0b479f286cfbee5c18f8dd1c6ef2bc9eae5242878f422b4cba66",
       "dimensions": {
         "width": 1440,
         "height": 700
@@ -705,8 +769,8 @@
     },
     {
       "path": "public/assets/app-captures/dashboard-home-light.png",
-      "bytes": 972394,
-      "sha256": "a70f0b6719fb7be23aa8ae06c7abe89cf138c8ddeb7129068de1ab4e622fd54d",
+      "bytes": 334281,
+      "sha256": "d57d778134d5c03a65b0d0a531802e1f020841c7772bd4ca976f92a3f58b709c",
       "dimensions": {
         "width": 1440,
         "height": 700
@@ -715,8 +779,8 @@
     },
     {
       "path": "public/assets/app-captures/dashboard-light.png",
-      "bytes": 884271,
-      "sha256": "f6af553f90d29adab4a9d8ca6fe9368d019b0704c9c86b47b476c40924b5f1f5",
+      "bytes": 337617,
+      "sha256": "7aa887ec23d284677eeae1aab548ae806b9adbb7540e95fa88c1b7d4e53074d0",
       "dimensions": {
         "width": 1440,
         "height": 683
@@ -732,11 +796,11 @@
     },
     {
       "path": "public/assets/app-captures/dashboard-up-next-dark.png",
-      "bytes": 406445,
-      "sha256": "eef2798f892f3187b065e8b70270c121f9d2e13781f48f6650809c3e0e2dabb8",
+      "bytes": 98905,
+      "sha256": "52b9d2e250fdf786429880c6fc1ea1f5189757949290f9a506466d2c77006e5c",
       "dimensions": {
-        "width": 1200,
-        "height": 300
+        "width": 1232,
+        "height": 167
       },
       "referencedBy": [
         "dashboard",
@@ -744,12 +808,36 @@
       ]
     },
     {
-      "path": "public/assets/app-captures/dashboard-up-next-light.png",
-      "bytes": 380664,
-      "sha256": "0513bf351c64e97e132738dd96ac5cc4fc9b9352f163d1e26242bc91a7a60f53",
+      "path": "public/assets/app-captures/dashboard-up-next-dismissed-dark.png",
+      "bytes": 21884,
+      "sha256": "3ed433d45f909f00e44854ac94837b2e193eb52b43d1f9ed2d47b2434f2162f1",
       "dimensions": {
-        "width": 1200,
-        "height": 300
+        "width": 720,
+        "height": 302
+      },
+      "referencedBy": [
+        "dashboard"
+      ]
+    },
+    {
+      "path": "public/assets/app-captures/dashboard-up-next-dismissed-light.png",
+      "bytes": 22187,
+      "sha256": "c361a3a05a8d42fb777b47ea0d06637a9fb8d98de38696018d0ac42f76a18053",
+      "dimensions": {
+        "width": 720,
+        "height": 302
+      },
+      "referencedBy": [
+        "dashboard"
+      ]
+    },
+    {
+      "path": "public/assets/app-captures/dashboard-up-next-light.png",
+      "bytes": 96982,
+      "sha256": "a0703da384d48eb974bc9351b82e7317b7748b07843932f0fde166cfdaf3cd4a",
+      "dimensions": {
+        "width": 1232,
+        "height": 167
       },
       "referencedBy": [
         "dashboard",
@@ -836,26 +924,26 @@
     },
     {
       "path": "public/assets/app-captures/global-search-dark.png",
-      "bytes": 214957,
-      "sha256": "2a69422922578c94f5ae7a9779372288cc0bcc00842051c81059d5dac0a9c1b0",
+      "bytes": 62011,
+      "sha256": "3c55df9f5b006e9fb5f75fa4bfb29bc8557e89253e34f25168d626fecd450d79",
       "dimensions": {
-        "width": 980,
-        "height": 370
+        "width": 900,
+        "height": 355
       },
       "referencedBy": [
-        "history-search"
+        "dashboard"
       ]
     },
     {
       "path": "public/assets/app-captures/global-search-light.png",
-      "bytes": 126370,
-      "sha256": "8e2227361bc69ef9b4ab82990743a1542533759ca838c796e1b1fb9b50755193",
+      "bytes": 61864,
+      "sha256": "05df38fca9804d97eb76dca88327cc1bcb10359a58e49653cb6fdfd5b431563d",
       "dimensions": {
-        "width": 980,
-        "height": 370
+        "width": 900,
+        "height": 355
       },
       "referencedBy": [
-        "history-search"
+        "dashboard"
       ]
     },
     {
@@ -1072,11 +1160,11 @@
     },
     {
       "path": "public/assets/app-captures/media-collections-recommendations-focus-dark.png",
-      "bytes": 834255,
-      "sha256": "39a32d8b72823cd8b20a8500f8851714a436958a9021805a706e9ee6983a027b",
+      "bytes": 563924,
+      "sha256": "cafaec2ee6fad0fbccc305cad1200da3c257fdc4cc4af8ba3813390620b79192",
       "dimensions": {
-        "width": 1600,
-        "height": 458
+        "width": 1232,
+        "height": 467
       },
       "referencedBy": [
         "media-details",
@@ -1085,11 +1173,11 @@
     },
     {
       "path": "public/assets/app-captures/media-collections-recommendations-focus-light.png",
-      "bytes": 865731,
-      "sha256": "3dc91040f3603f2d44d8fd9c4f8d0523e7799dfaa5cb8830c35ff68c62082e27",
+      "bytes": 565708,
+      "sha256": "850502e5a200a9aca875a12d865f93b61f483e8bd7ff08e1224f727e9ce92765",
       "dimensions": {
-        "width": 1600,
-        "height": 458
+        "width": 1232,
+        "height": 467
       },
       "referencedBy": [
         "media-details",
@@ -1623,12 +1711,36 @@
       ]
     },
     {
-      "path": "public/assets/app-captures/settings-backup-dark.png",
-      "bytes": 280489,
-      "sha256": "0b07f83ee34a9ccf380f20907da2c746db57ed972efdf97122192a2c49a928a5",
+      "path": "public/assets/app-captures/settings-about-dark.png",
+      "bytes": 44537,
+      "sha256": "2f592a992d08417e81ece56b2d541760e47cf0b7be302b541ef09cb7ef623135",
       "dimensions": {
-        "width": 899,
-        "height": 453
+        "width": 1232,
+        "height": 471
+      },
+      "referencedBy": [
+        "settings/about"
+      ]
+    },
+    {
+      "path": "public/assets/app-captures/settings-about-light.png",
+      "bytes": 42869,
+      "sha256": "8b5fe67d6c1d09910d6321d2e14322351ee3ef4e78d91a3a42464557e07b3172",
+      "dimensions": {
+        "width": 1232,
+        "height": 471
+      },
+      "referencedBy": [
+        "settings/about"
+      ]
+    },
+    {
+      "path": "public/assets/app-captures/settings-backup-dark.png",
+      "bytes": 52167,
+      "sha256": "71efe09deeec1ae19df66a13d2e802b60073bed43c59987c802351a5b6657640",
+      "dimensions": {
+        "width": 734,
+        "height": 443
       },
       "referencedBy": [
         "settings/backup"
@@ -1636,11 +1748,11 @@
     },
     {
       "path": "public/assets/app-captures/settings-backup-light.png",
-      "bytes": 406882,
-      "sha256": "b1ac9fac2aa4026364013cbcd453399240267e085bb22c0a6af9f8e807f0e8d2",
+      "bytes": 49307,
+      "sha256": "162bc9c6e886eeced8cb1a5ffaa1cf5c210cd0e5af08f2144efefca6127a1c62",
       "dimensions": {
-        "width": 899,
-        "height": 453
+        "width": 725,
+        "height": 443
       },
       "referencedBy": [
         "settings/backup"
@@ -1700,11 +1812,11 @@
     },
     {
       "path": "public/assets/app-captures/settings-connections-dark.png",
-      "bytes": 330447,
-      "sha256": "8c21283b79376d30772db20e74868dbab175e2c60e6236faf845480d21491471",
+      "bytes": 50397,
+      "sha256": "863e40367378bb68eb9e3e2df79e20faa84e01df8eb7181dcc834241bd45489c",
       "dimensions": {
-        "width": 905,
-        "height": 850
+        "width": 1232,
+        "height": 568
       },
       "referencedBy": [
         "settings/connections"
@@ -1712,11 +1824,11 @@
     },
     {
       "path": "public/assets/app-captures/settings-connections-light.png",
-      "bytes": 338817,
-      "sha256": "abeb22edea6b6d1731e2203aff8c5b297560e9e9f52de781d773109b71cce4da",
+      "bytes": 43643,
+      "sha256": "6df9045fac8ce8294e55aadbf66e6b7e6b56af22720bbb5e0f0fbea9d55e05c5",
       "dimensions": {
-        "width": 905,
-        "height": 850
+        "width": 1232,
+        "height": 568
       },
       "referencedBy": [
         "settings/connections"
@@ -1891,7 +2003,6 @@
         "navigation",
         "operations",
         "settings",
-        "settings/about",
         "troubleshooting"
       ]
     },
@@ -1908,7 +2019,6 @@
         "navigation",
         "operations",
         "settings",
-        "settings/about",
         "troubleshooting"
       ]
     },
@@ -2170,11 +2280,11 @@
     },
     {
       "path": "public/assets/app-captures/settings-restore-dark.png",
-      "bytes": 297185,
-      "sha256": "5a7c2321fcc1bf1a474e318e65dd2e4bd73534bfc6d7572ea6957e9850635646",
+      "bytes": 89628,
+      "sha256": "a39907d3dd4b07ced2fa8c591c192f69f068b740f44ab600686b9d71f49775b6",
       "dimensions": {
-        "width": 899,
-        "height": 491
+        "width": 725,
+        "height": 692
       },
       "referencedBy": [
         "settings/restore"
@@ -2182,11 +2292,11 @@
     },
     {
       "path": "public/assets/app-captures/settings-restore-light.png",
-      "bytes": 342823,
-      "sha256": "fc5f780e494c4329bd150ffd3c9bfb6d830869507928d88f0199e93f649f52c1",
+      "bytes": 83982,
+      "sha256": "99ba27e12de0acd3cf00cc6e92ea57192d4bc8d48b95817d8c7fcd0ad433fc60",
       "dimensions": {
-        "width": 899,
-        "height": 491
+        "width": 725,
+        "height": 692
       },
       "referencedBy": [
         "settings/restore"
@@ -2285,11 +2395,11 @@
     },
     {
       "path": "public/assets/app-captures/settings-sync-issues-dark.png",
-      "bytes": 137058,
-      "sha256": "81cc7a8f22a8ed85fd795d8ba479f051a941a84d7f2799467f91269aec1e2456",
+      "bytes": 24208,
+      "sha256": "d7cf2ee86f50aae8c0afb76a301d4fdad382b854f137eef34aa98ec571b28d22",
       "dimensions": {
-        "width": 1372,
-        "height": 418
+        "width": 723,
+        "height": 255
       },
       "referencedBy": [
         "settings/sync",
@@ -2298,11 +2408,11 @@
     },
     {
       "path": "public/assets/app-captures/settings-sync-issues-light.png",
-      "bytes": 37710,
-      "sha256": "8af6dbf72bcc592a4de16bf854736fd35f75fb09cfd5b063c246be061265aaf3",
+      "bytes": 23542,
+      "sha256": "1b61a5025e5fa898ede0ab013cf4c208319da588295d614c5af041505f768b49",
       "dimensions": {
-        "width": 1372,
-        "height": 189
+        "width": 723,
+        "height": 255
       },
       "referencedBy": [
         "settings/sync",
@@ -2356,11 +2466,11 @@
     },
     {
       "path": "public/assets/app-captures/settings-sync-tuning-dark.png",
-      "bytes": 251741,
-      "sha256": "28cdb0999d463879ddb851d004d234d53f0403f4fd57c3b0e51726690ed50f05",
+      "bytes": 135027,
+      "sha256": "e6ce56d67f363bc2dc32559c1bc158acb235c5aefa242d9f81764fd6e32e69a0",
       "dimensions": {
-        "width": 1381,
-        "height": 592
+        "width": 1353,
+        "height": 879
       },
       "referencedBy": [
         "concepts",
@@ -2371,11 +2481,11 @@
     },
     {
       "path": "public/assets/app-captures/settings-sync-tuning-light.png",
-      "bytes": 239311,
-      "sha256": "08d4992e35be4300ff049ddb5c88ab431f85ef87032b0f404d89e060f90ee742",
+      "bytes": 129247,
+      "sha256": "b3ff0676b96244950bbd992a22bd38c64d35b771e4f141d9e280a541a1c6738f",
       "dimensions": {
-        "width": 1372,
-        "height": 592
+        "width": 1353,
+        "height": 879
       },
       "referencedBy": [
         "concepts",
@@ -2742,11 +2852,11 @@
     },
     {
       "path": "public/assets/app-captures/tv-related-focus-dark.png",
-      "bytes": 621505,
-      "sha256": "52aef6485cef76688a3c9646f70cb7865996b599bd208f8dc64428209e84903d",
+      "bytes": 347614,
+      "sha256": "10aace4bfe59174ae1da92bef3e415b62388eaa00ee655f8c605e0b6bccdb22e",
       "dimensions": {
-        "width": 1600,
-        "height": 209
+        "width": 1217,
+        "height": 212
       },
       "referencedBy": [
         "tv-shows/media-page"
@@ -2754,11 +2864,35 @@
     },
     {
       "path": "public/assets/app-captures/tv-related-focus-light.png",
-      "bytes": 292353,
-      "sha256": "54a82950d697278f45d973a9afe5b935b5618bee803a3c0f165150a82078d46a",
+      "bytes": 363448,
+      "sha256": "ba668eb487eaa3e94d57a0e456cf035c8f9aca8bf122a1c718a61a98b83dbd8c",
       "dimensions": {
-        "width": 1600,
-        "height": 209
+        "width": 1232,
+        "height": 202
+      },
+      "referencedBy": [
+        "tv-shows/media-page"
+      ]
+    },
+    {
+      "path": "public/assets/app-captures/tv-seasons-episodes-focus-dark.png",
+      "bytes": 541266,
+      "sha256": "da349a36bf61b9d46718d9015a6125704fd873e4cd86be2874483cdad3ab6595",
+      "dimensions": {
+        "width": 1217,
+        "height": 627
+      },
+      "referencedBy": [
+        "tv-shows/media-page"
+      ]
+    },
+    {
+      "path": "public/assets/app-captures/tv-seasons-episodes-focus-light.png",
+      "bytes": 524294,
+      "sha256": "ecaa810ce7062df219aacf926aea7fc75abad534580fc3a923b9412cb8ae3446",
+      "dimensions": {
+        "width": 1217,
+        "height": 627
       },
       "referencedBy": [
         "tv-shows/media-page"
@@ -2842,11 +2976,11 @@
     },
     {
       "path": "public/assets/app-captures/tv-trailers-focus-dark.png",
-      "bytes": 188377,
-      "sha256": "09ede6f4ebcba654c7f8871b59491927732c95037a8f182252525ae204b44fe0",
+      "bytes": 216833,
+      "sha256": "fdb3fbde3c5144fad513e30d40bf1db29d0f662a52e52c9ca4c2e3d1ebb4eb91",
       "dimensions": {
-        "width": 1600,
-        "height": 257
+        "width": 1217,
+        "height": 272
       },
       "referencedBy": [
         "tv-shows/media-page"
@@ -2854,11 +2988,11 @@
     },
     {
       "path": "public/assets/app-captures/tv-trailers-focus-light.png",
-      "bytes": 480415,
-      "sha256": "19a2efaccad9e864ad898852541ac69a4b5f3780edec0c1a5d06caa01f9a6c1a",
+      "bytes": 221257,
+      "sha256": "f6a31321c9440c414c6f79ab8805daaf81612261b9201f3fb380a109cff02615",
       "dimensions": {
-        "width": 1600,
-        "height": 257
+        "width": 1232,
+        "height": 261
       },
       "referencedBy": [
         "tv-shows/media-page"

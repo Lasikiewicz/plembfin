@@ -4651,6 +4651,7 @@ html.light-mode .docs-page-outline-link.active {
 }
 
 .simple-home-preview,
+.simple-home-up-next,
 .simple-home-flow,
 .simple-home-app,
 .simple-features-index,
@@ -4753,6 +4754,29 @@ html.light-mode .docs-page-outline-link.active {
 
 .simple-home-preview .screenshot-figure {
   margin-top: 1.5rem;
+}
+
+.simple-home-up-next .screenshot-figure {
+  margin-top: 1.5rem;
+}
+
+.simple-home-up-next-note {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1.5rem;
+  max-width: none;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+
+.simple-home-up-next-note > p {
+  max-width: 62ch;
+}
+
+.simple-home-up-next-note .simple-text-link {
+  flex-shrink: 0;
 }
 
 .simple-flow-list,
@@ -5057,6 +5081,11 @@ html.light-mode .docs-page-outline-link.active {
   }
 
   .simple-home-flow > .simple-section-heading-note {
+    display: grid;
+    gap: 0.8rem;
+  }
+
+  .simple-home-up-next-note {
     display: grid;
     gap: 0.8rem;
   }

@@ -3,7 +3,7 @@ title: Sync
 description: Tune synchronization, run controlled repair tools, and review delivery history.
 category: Settings
 order: 5.6
-sourceVersion: "1.1.0"
+sourceVersion: "1.1.1"
 sourcePaths:
   - public/index.html
   - public/modules/settings-shell.js
@@ -13,6 +13,9 @@ sourcePaths:
   - public/modules/tools-maintenance.js
   - public/modules/rating-sync-settings.js
   - public/modules/watchlist-sync-settings.js
+  - server/src/utils/upNextAutoSync.js
+  - server/src/utils/upNextProviderSync.js
+  - server/src/utils/upNextService.js
   - server/src/routes/manualWatchReview.js
   - server/src/utils/manualWatchReview.js
   - server/src/routes/sync.js
@@ -51,8 +54,8 @@ cross-platform diagnostics, and the history of dispatches made by Plembfin.
 <ScreenshotFigure
   darkSrc="/assets/app-captures/settings-sync-tuning-dark.png"
   lightSrc="/assets/app-captures/settings-sync-tuning-light.png"
-  alt="Plembfin Sync Tuning settings showing watched threshold, resume position, session TTL, and timeout"
-  caption="Sync Tuning controls when playback counts as watched and how long live state remains active."
+  alt="Plembfin Sync Tuning settings showing watched-flag policy, playback thresholds, sync timing, and Up Next provider sync"
+  caption="Sync Tuning combines watched-flag policy, playback thresholds, sync timing, and the Up Next provider-sync toggle."
 />
 
 Tune the rules that decide when a playback event counts as watched and how resume progress is
@@ -67,6 +70,21 @@ kept:
   network as Plembfin. It is not safe for servers reached over the public internet.
 
 Change one value at a time, save it, and verify the next event in Sync Activity.
+
+## Up Next provider sync
+
+The **Sync Up Next to media apps** toggle is on by default. When it is enabled, Plembfin keeps
+the unified Up Next queue aligned with Plex Continue Watching, Emby Continue Watching, and
+Jellyfin Next Up.
+
+Queue additions, removals, reorderings, and resume-progress changes queue one coalesced
+background push using the latest queue content. The push runs through the worker even when the
+Dashboard is closed. Use the Dashboard's **Sync Up Next** action when you need an immediate
+push instead of waiting for the background worker. Turn the toggle off when those provider lists
+should remain unchanged; Plembfin's own Up Next view remains available.
+
+Provider feed failures retain the last successful observation and do not clear the local queue.
+For the target mapping and native-rail behavior, see [Dashboard → Up Next](/docs/dashboard/#up-next).
 
 ## Manual Watch review
 
@@ -155,8 +173,8 @@ not send changes out or remove remote state.
 <ScreenshotFigure
   darkSrc="/assets/app-captures/settings-sync-issues-dark.png"
   lightSrc="/assets/app-captures/settings-sync-issues-light.png"
-  alt="Plembfin Sync Issues and Match Report showing unresolved delivery and identity problems"
-  caption="Sync Issues separates destination-library gaps from provider identity problems."
+  alt="Plembfin Sync Issues page showing Plex match issues, unresolved sync issues, and the Cross-Platform Match Report"
+  caption="Sync Issues keeps destination and identity problems visible as separate review categories."
 />
 
 Sync Issues shows dispatches that could not reach a destination, while the match report shows

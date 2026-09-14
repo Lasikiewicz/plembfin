@@ -24,8 +24,14 @@
     "public/assets/app-captures/custom-lists-light.png",
     "public/assets/app-captures/dashboard-dark.png",
     "public/assets/app-captures/dashboard-light.png",
+    "public/assets/app-captures/dashboard-history-movies-dark.png",
+    "public/assets/app-captures/dashboard-history-movies-light.png",
+    "public/assets/app-captures/dashboard-history-tv-dark.png",
+    "public/assets/app-captures/dashboard-history-tv-light.png",
     "public/assets/app-captures/dashboard-up-next-dark.png",
     "public/assets/app-captures/dashboard-up-next-light.png",
+    "public/assets/app-captures/dashboard-up-next-dismissed-dark.png",
+    "public/assets/app-captures/dashboard-up-next-dismissed-light.png",
     "public/assets/app-captures/discover-dark.png",
     "public/assets/app-captures/discover-light.png",
     "public/assets/app-captures/fix-match-dark.png",
@@ -94,14 +100,14 @@
     "public/assets/app-captures/ratings-episode-focus-dark.png",
     "public/assets/app-captures/ratings-episode-focus-light.png",
     "public/assets/app-captures/ratings-light.png",
+    "public/assets/app-captures/settings-about-dark.png",
+    "public/assets/app-captures/settings-about-light.png",
     "public/assets/app-captures/settings-backup-dark.png",
     "public/assets/app-captures/settings-backup-light.png",
     "public/assets/app-captures/settings-backup-local-dark.png",
     "public/assets/app-captures/settings-backup-local-light.png",
     "public/assets/app-captures/settings-backup-remote-dark.png",
     "public/assets/app-captures/settings-backup-remote-light.png",
-    "public/assets/app-captures/settings-connections-dark.png",
-    "public/assets/app-captures/settings-connections-light.png",
     "public/assets/app-captures/settings-connections-seerr-dark.png",
     "public/assets/app-captures/settings-connections-seerr-light.png",
     "public/assets/app-captures/settings-connections-trakt-dark.png",
@@ -182,6 +188,8 @@
     "public/assets/app-captures/tv-media-info-focus-light.png",
     "public/assets/app-captures/tv-related-focus-dark.png",
     "public/assets/app-captures/tv-related-focus-light.png",
+    "public/assets/app-captures/tv-seasons-episodes-focus-dark.png",
+    "public/assets/app-captures/tv-seasons-episodes-focus-light.png",
     "public/assets/app-captures/tv-sections-overview-dark.png",
     "public/assets/app-captures/tv-sections-overview-light.png",
     "public/assets/app-captures/tv-spoilers-off-dark.png",
@@ -204,6 +212,24 @@
     "public/assets/plembfin_header_logo_light.png"
   ],
   "redactedAssets": {
+    "public/assets/app-captures/settings-connections-dark.png": {
+      "method": "blur",
+      "reason": "The connected Trakt account username is masked in the live connection summary.",
+      "reviewedAt": "2026-09-14",
+      "regions": [
+        { "label": "Trakt account username", "x": 15, "y": 250, "width": 160, "height": 22 }
+      ],
+      "reviewedUnblurred": "Connection controls, provider labels, status, and generic sync copy remain visible."
+    },
+    "public/assets/app-captures/settings-connections-light.png": {
+      "method": "blur",
+      "reason": "The connected Trakt account username is masked in the live connection summary.",
+      "reviewedAt": "2026-09-14",
+      "regions": [
+        { "label": "Trakt account username", "x": 15, "y": 250, "width": 160, "height": 22 }
+      ],
+      "reviewedUnblurred": "Connection controls, provider labels, status, and generic sync copy remain visible."
+    },
     "public/assets/app-captures/dashboard-home-dark.png": {
       "method": "blur",
       "reason": "Now Playing session cards show the playback account name for each live session.",

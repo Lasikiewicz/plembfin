@@ -4,6 +4,27 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v1.1.1 - 14 September 2026
+
+Up Next now keeps Plex, Emby, and Jellyfin aligned with reliable resume progress, released episodes, dismissals, and background queue updates with direct Watch now links.
+
+### New Features
+
+- Automatically sync Up Next additions, removals, reorderings, and resume-progress changes in the background, including when the Dashboard is closed.
+- Keep Plembfin's Up Next aligned with Plex Continue Watching, Emby Continue Watching, and Jellyfin Next Up.
+- Bring the correct released or unwatched next episode into Up Next without inventing resume progress or resetting genuine play counts.
+
+### Major Bug Fixes
+
+- Dashboard Up Next cards now include Jellyfin in their Watch now links.
+- Show genuine part-watched progress on Up Next cards and keep it consistent with the media detail page across connected servers.
+- Keep provider writes matched to the intended title and avoid treating Plembfin-created rail positions as real resume progress or Now Playing sessions.
+
+### Tweaks
+
+- Share Up Next dismissals across devices, with a review-and-restore flow for items hidden by mistake.
+- Make Up Next provider sync optional, leaving provider lists unchanged when disabled.
+
 ## v1.1.0 - 12 September 2026
 
 This release makes whole-series watch sync reliable with release-date choices, live per-episode progress, resilient Trakt delivery, and a cleaner onboarding and login experience.

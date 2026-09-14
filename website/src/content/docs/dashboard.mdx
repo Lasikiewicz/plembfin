@@ -3,7 +3,7 @@ title: Dashboard
 description: Read live playback, the mixed Up Next queue, and durable watch history from one screen.
 category: Dashboard and libraries
 order: 3
-sourceVersion: "1.1.0"
+sourceVersion: "1.1.1"
 sourcePaths:
   - public/index.html
   - public/modules/dashboard.js
@@ -12,10 +12,13 @@ sourcePaths:
   - public/modules/media-card.js
   - public/modules/app-events.js
   - public/modules/images.js
+  - public/app.js
   - server/src/utils/activeSessions.js
   - server/src/utils/liveSessions.js
   - server/src/utils/upNextIdentity.js
   - server/src/utils/upNextService.js
+  - server/src/utils/upNextAutoSync.js
+  - server/src/utils/upNextProviderSync.js
   - docs/dashboard.md
   - docs/now-playing.md
 screenshots:
@@ -23,6 +26,14 @@ screenshots:
   - /assets/app-captures/dashboard-light.png
   - /assets/app-captures/dashboard-up-next-dark.png
   - /assets/app-captures/dashboard-up-next-light.png
+  - /assets/app-captures/dashboard-up-next-dismissed-dark.png
+  - /assets/app-captures/dashboard-up-next-dismissed-light.png
+  - /assets/app-captures/dashboard-history-tv-dark.png
+  - /assets/app-captures/dashboard-history-tv-light.png
+  - /assets/app-captures/dashboard-history-movies-dark.png
+  - /assets/app-captures/dashboard-history-movies-light.png
+  - /assets/app-captures/global-search-dark.png
+  - /assets/app-captures/global-search-light.png
   - /assets/app-captures/now-playing-dark.png
   - /assets/app-captures/now-playing-light.png
 ---
@@ -69,6 +80,23 @@ If there is no saved resume progress or next-up item, Up Next is omitted. The si
 Dashboard history uses **Card View** by default. The Dashboard has no separate Appearance
 layout control.
 
+## Global Search
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/global-search-dark.png"
+  lightSrc="/assets/app-captures/global-search-light.png"
+  alt="Plembfin Dashboard global search showing Ted Lasso matches from TMDB and TheTVDB"
+  caption="Global Search is opened from the Dashboard sidebar and groups local and provider matches by type."
+/>
+
+Global Search belongs to the persistent Dashboard controls, not to the History archive. Open
+the search field in the left sidebar, enter a title, person, provider ID, or collection name,
+then choose the result type when you need a narrower match.
+
+Local titles are prioritised and marked when they already exist in the archive. A movie or show
+opens its normal detail page; a person opens the person page. Search finds and explores titles,
+while watch-state corrections stay on the selected local title's actions.
+
 ## Now Playing
 
 Now Playing is session information, not completed watch history.
@@ -109,8 +137,8 @@ If a session never appears, follow
 <ScreenshotFigure
   darkSrc="/assets/app-captures/dashboard-up-next-dark.png"
   lightSrc="/assets/app-captures/dashboard-up-next-light.png"
-  alt="Plembfin dashboard Up Next row showing Continue watching resume cards alongside Ready since next-up episodes"
-  caption="Up Next combines saved resume items with released TV episodes that are ready to start."
+  alt="Plembfin dashboard Up Next row showing current resume cards with provider Watch now links"
+  caption="Up Next presents the current continuation queue with provider availability and Watch now links."
 />
 
 Up Next is the dashboard's mixed continuation rail. It combines actionable resume records
@@ -123,16 +151,46 @@ state, and the media servers where it is available. **Watch Now** links open a m
 item in Plex, Emby, or Jellyfin when a connected server can provide one. A cached local
 resume card remains useful without a provider connection.
 
-Use **Sync Up Next** to refresh connected media-app availability. If a provider feed fails,
-Plembfin keeps the last good observation and shows a compact source-status message instead
-of deleting the queue. The builder deduplicates matching resume and next-up observations and
-does not merge a re-release or reboot from a different year.
+When **Sync Up Next to media apps** is enabled in [Settings → Sync → Sync tuning](/docs/settings/sync/#sync-tuning),
+Plembfin queues one coalesced background push whenever the unified queue changes. Additions,
+removals, reorderings, and resume-progress changes are sent to Plex Continue Watching, Emby
+Continue Watching, and Jellyfin Next Up. The worker uses the latest queue and continues even
+when the Dashboard is closed. Use **Sync Up Next** for an explicit immediate push; turning the
+setting off leaves those provider lists unchanged while Plembfin's own Up Next view remains
+available.
+
+If a provider feed fails, Plembfin keeps the last good observation and shows a compact
+source-status message instead of deleting the queue. The builder deduplicates matching resume
+and next-up observations and does not merge a re-release or reboot from a different year.
 
 Use the card's **More options** menu for **Mark Watched**, **Rate**, **Add to watch list**,
 **Clear Progress** when resume exists, or **Remove from Up Next**. Removing a card updates
 the local rail immediately and attempts to clear the connected-app resume state through the
 provider endpoint when that target is available. Marking watched commits locally first and
 then dispatches through the normal sync path.
+
+### Dismiss and restore an Up Next item
+
+**Remove from Up Next** is the dismissal action. After you confirm it, Plembfin hides the card
+immediately, clears its local resume progress, marks it unwatched, and records the dismissal on
+the server. The dismissal therefore applies to the same account on every device rather than only
+the browser where it was made. Plex Continue Watching and Emby Resume also receive a native
+removal when the matching item is available; Jellyfin Next Up is a calculated feed with no
+per-item removal endpoint, so Plembfin keeps the local queue authoritative while that feed catches
+up.
+
+When one or more items are dismissed, the count button beside the **Up Next** heading opens
+**Dismissed Up Next**. Choose **Add back** for one item or **Add all back** to restore the cards;
+Plembfin then pushes the restored queue to the connected media apps. A dismissal is a “not now”
+choice, not a permanent delete: the item can return automatically after newer genuine playback
+progress is recorded.
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/dashboard-up-next-dismissed-dark.png"
+  lightSrc="/assets/app-captures/dashboard-up-next-dismissed-light.png"
+  alt="Plembfin Dismissed Up Next dialog showing Add back and Add all back actions"
+  caption="Dismissed Up Next keeps the cross-device removal state visible and makes restoration explicit."
+/>
 
 Resume progress lives in **Up Next**. A resume card appears while its progress has not crossed
 the configured watched threshold and keeps the actions needed to decide what happens next:
@@ -164,6 +222,20 @@ A title appears after Plembfin has recorded a watch event.
 
 An item can appear in Up Next with resume progress and also in completed history when it has
 a previous watch.
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/dashboard-history-tv-dark.png"
+  lightSrc="/assets/app-captures/dashboard-history-tv-light.png"
+  alt="Plembfin Dashboard TV Shows recently watched row showing completed episode cards"
+  caption="TV Shows history groups recently completed episode events by their show and episode identity."
+/>
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/dashboard-history-movies-dark.png"
+  lightSrc="/assets/app-captures/dashboard-history-movies-light.png"
+  alt="Plembfin Dashboard Movies recently watched row showing completed movie cards"
+  caption="Movies history keeps recent completed movie events in the same compact Card View rail."
+/>
 
 ## Dashboard history cards
 

@@ -20,7 +20,7 @@ const currentIndex = flatDocs.findIndex((item) => item.slug === entry.slug);
 const previous = currentIndex > 0 ? flatDocs[currentIndex - 1] : null;
 const next = currentIndex >= 0 && currentIndex < flatDocs.length - 1 ? flatDocs[currentIndex + 1] : null;
 const sourceLinks = entry.data.sourcePaths;
-const browserTitle = entry.slug === "history-search" ? "History and global search" : entry.data.title;
+const browserTitle = entry.slug === "history-search" ? "History" : entry.data.title;
 ---
 
 <SiteLayout title={browserTitle} description={entry.data.description}>

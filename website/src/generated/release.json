@@ -1,8 +1,24 @@
 {
-  "version": "1.1.0",
-  "date": "12 September 2026",
-  "summary": "This release makes whole-series watch sync reliable with release-date choices, live per-episode progress, resilient Trakt delivery, and a cleaner onboarding and login experience.",
+  "version": "1.1.1",
+  "date": "14 September 2026",
+  "summary": "Up Next now keeps Plex, Emby, and Jellyfin aligned with reliable resume progress, released episodes, dismissals, and background queue updates with direct Watch now links.",
   "entries": [
+    {
+      "version": "1.1.1",
+      "date": "14 September 2026",
+      "title": "v1.1.1",
+      "summary": "Up Next now keeps Plex, Emby, and Jellyfin aligned with reliable resume progress, released episodes, dismissals, and background queue updates with direct Watch now links.",
+      "bullets": [
+        "Automatically sync Up Next additions, removals, reorderings, and resume-progress changes in the background, including when the Dashboard is closed.",
+        "Keep Plembfin's Up Next aligned with Plex Continue Watching, Emby Continue Watching, and Jellyfin Next Up.",
+        "Bring the correct released or unwatched next episode into Up Next without inventing resume progress or resetting genuine play counts.",
+        "Dashboard Up Next cards now include Jellyfin in their Watch now links.",
+        "Show genuine part-watched progress on Up Next cards and keep it consistent with the media detail page across connected servers.",
+        "Keep provider writes matched to the intended title and avoid treating Plembfin-created rail positions as real resume progress or Now Playing sessions.",
+        "Share Up Next dismissals across devices, with a review-and-restore flow for items hidden by mistake.",
+        "Make Up Next provider sync optional, leaving provider lists unchanged when disabled."
+      ]
+    },
     {
       "version": "1.1.0",
       "date": "12 September 2026",

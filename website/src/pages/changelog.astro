@@ -1,6 +1,8 @@
 ---
 import SiteLayout from "../layouts/SiteLayout.astro";
 import release from "../generated/release.json";
+
+const alphaEntries = (release.alpha as { entries?: typeof release.entries } | null)?.entries ?? [];
 ---
 
 <SiteLayout title="Changelog" description="Release history and current changes in Plembfin.">
@@ -28,7 +30,7 @@ import release from "../generated/release.json";
     </section>
     <section class="changelog-panel" data-changelog-panel="alpha" aria-label="Alpha builds" hidden>
       <div class="changelog-list">
-        {release.alpha?.entries?.length ? release.alpha.entries.map((entry) => (
+        {alphaEntries.length ? alphaEntries.map((entry) => (
           <article class="changelog-entry">
             <div class="changelog-entry-meta"><strong>v{entry.version}</strong><span>{entry.date}</span></div>
             <div class="changelog-entry-content">
