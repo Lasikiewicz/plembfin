@@ -33,6 +33,9 @@ const upsertStmt = db.prepare(`
     dismissed_at = excluded.dismissed_at
 `);
 const selectAllStmt = db.prepare("SELECT * FROM up_next_dismissals ORDER BY dismissed_at DESC");
+const selectUnwatchedHistoryStmt = db.prepare(
+  "SELECT * FROM watch_history WHERE sync_action IN ('unwatched', 'unplayed') AND updated_at > ? ORDER BY updated_at DESC",
+);
 const deleteStmt = db.prepare("DELETE FROM up_next_dismissals WHERE id = ?");
 const deleteAllStmt = db.prepare("DELETE FROM up_next_dismissals");
 const trimStmt = db.prepare(`
@@ -53,20 +56,82 @@ function number(value) {
 // the coordinate is stored alongside the provider aliases. Without it a
 // dismissal would be lost the moment the item's native id changed.
 function coordinateAlias(item = {}) {
-  const showTitle = text(item.show_title || item.showTitle)
-    .toLowerCase()
-    .replace(/\(\d{4}\)/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+  const showTitle = showTitleKey(item);
   const season = number(item.season);
   const episode = number(item.episode);
   if (!showTitle || season === null || episode === null) return "";
   return `coordinate:${showTitle}:s${season}:e${episode}`;
 }
 
+function showTitleKey(item = {}) {
+  return text(item.show_title || item.showTitle)
+    .toLowerCase()
+    .replace(/\(\d{4}\)/g, "")
+    .replace(/\([^)]*\)$/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function showIdentityIds(item = {}) {
+  const candidate = normalizeUpNextCandidate(item);
+  const ids = {};
+  for (const provider of ["imdb", "tmdb", "tvdb"]) {
+    const values = [
+      candidate[`show_${provider}_id`],
+      item[`show_${provider}_id`],
+      item[`show${provider[0].toUpperCase()}${provider.slice(1)}Id`],
+      // Older dismissal snapshots stored the series id in the episode id
+      // field, so keep that value as a migration bridge too.
+      item[`${provider}_id`],
+    ].map((value) => text(value).toLowerCase()).filter(Boolean);
+    if (values.length) ids[provider] = new Set(values);
+  }
+  return ids;
+}
+
+function dismissalMatchesRematchedEpisode(dismissal, item = {}) {
+  if (dismissal.media_type !== "episode") return false;
+  const candidate = normalizeUpNextCandidate(item);
+  if (candidate.media_type !== "episode") return false;
+  if (number(dismissal.season) !== number(candidate.season) || number(dismissal.episode) !== number(candidate.episode)) return false;
+
+  const dismissalIds = showIdentityIds(dismissal.snapshot || dismissal);
+  const itemIds = showIdentityIds(item);
+  if (Object.keys(itemIds).some((provider) => [...(itemIds[provider] || [])].some((id) => dismissalIds[provider]?.has(id)))) {
+    return true;
+  }
+
+  // A title-only dismissal may predate a corrected provider match. Treat a
+  // trailing disambiguator such as "(UK)" as presentation metadata when the
+  // episode coordinate is identical, allowing the corrected watch record to
+  // retire the stale row without relying on a media-server lookup.
+  return Boolean(showTitleKey(dismissal) && showTitleKey(item) && showTitleKey(dismissal) === showTitleKey(item));
+}
+
+function showAliases(item = {}) {
+  const candidate = normalizeUpNextCandidate(item);
+  if (candidate.media_type !== "episode") return [];
+  const aliases = [];
+  for (const provider of ["imdb", "tmdb", "tvdb"]) {
+    const id = text(candidate[`show_${provider}_id`]);
+    if (id) aliases.push(`show:${provider}:${id.toLowerCase()}`);
+  }
+  const nativeSeriesId = text(candidate.series_provider_item_id);
+  const nativeProvider = text(candidate.provider || candidate.source).toLowerCase();
+  if (nativeSeriesId && nativeProvider) aliases.push(`show:native:${nativeProvider}:${nativeSeriesId.toLowerCase()}`);
+  const showTitle = text(candidate.show_title)
+    .toLowerCase()
+    .replace(/\(\d{4}\)/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  if (showTitle) aliases.push(`show:title:${showTitle}`);
+  return aliases;
+}
+
 export function dismissalAliases(item = {}) {
   const candidate = normalizeUpNextCandidate(item);
   const aliases = new Set(upNextIdentityAliases(candidate));
+  for (const alias of showAliases(candidate)) aliases.add(alias);
   for (const key of [item.id, item.media_key, item.mediaKey]) {
     const value = text(key);
     if (value) aliases.add(`key:${value.toLowerCase()}`);
@@ -162,6 +227,48 @@ export function restoreAllUpNextDismissals() {
     queueAutomaticUpNextSync("All Up Next dismissals restored");
   }
   return removed;
+}
+
+// An explicit local unwatch makes any matching dismissal stale: the item is
+// eligible to enter Up Next again. Keep this server-side so the cleanup still
+// happens when a provider is unavailable, the browser is stale, or the
+// unwatch originated from another Plembfin client.
+export function restoreUpNextDismissalsForMedia(item = {}, { after = 0 } = {}) {
+  const wanted = new Set(dismissalAliases(item));
+  if (!wanted.size) return 0;
+  const threshold = Number(after) || 0;
+  const matches = selectAllStmt.all()
+    .map(rowToDismissal)
+    .filter((dismissal) => threshold <= 0 || dismissal.dismissed_at <= threshold)
+    .filter((dismissal) => dismissal.aliases.some((alias) => wanted.has(alias)) || dismissalMatchesRematchedEpisode(dismissal, item));
+  if (!matches.length) return 0;
+  const removed = db.transaction(() => matches.reduce((count, dismissal) => (
+    count + deleteStmt.run(dismissal.id).changes
+  ), 0)).immediate();
+  if (removed) {
+    bumpUpNextVersion();
+    queueAutomaticUpNextSync("Up Next dismissal restored after unwatch");
+  }
+  return removed;
+}
+
+// Clean up rows written before the server-side unwatch hook existed. The
+// dismissed popup is allowed to reconcile itself from canonical local history,
+// so a stale browser or an older build cannot leave a permanently visible
+// dismissal behind.
+export function restoreUpNextDismissalsSupersededByUnwatch() {
+  let restored = 0;
+  for (const row of selectUnwatchedHistoryStmt.all(0)) {
+    restored += restoreUpNextDismissalsForMedia({
+      ...row,
+      media_type: row.media_type || "episode",
+      show_title: row.show_title || "",
+      show_tmdb_id: row.tmdb_id || "",
+      show_tvdb_id: row.tvdb_id || "",
+      show_imdb_id: row.imdb_id || "",
+    }, { after: row.updated_at });
+  }
+  return restored;
 }
 
 // Returns a predicate rather than testing one item at a time: the projection

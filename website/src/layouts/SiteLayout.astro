@@ -15,7 +15,17 @@ const pageTitle = title ? `${site.name} - ${title}` : site.title;
 const canonical = new URL(Astro.url.pathname, site.url).href;
 const previewBranch = import.meta.env.MODE !== "development" && process.env.CF_PAGES_BRANCH && process.env.CF_PAGES_BRANCH !== "main";
 const robots = noindex || previewBranch ? "noindex,nofollow" : "index,follow";
-const analyticsMeasurementId = import.meta.env.PUBLIC_GA_MEASUREMENT_ID ?? site.analyticsMeasurementId ?? "";
+const traksScriptUrl = import.meta.env.PUBLIC_TRAKS_SCRIPT_URL ?? "";
+const traksSiteKey = import.meta.env.PUBLIC_TRAKS_SITE_KEY ?? "";
+const traksRequireConsent = import.meta.env.PUBLIC_TRAKS_REQUIRE_CONSENT !== "false";
+const traksUrlIsSafe = (() => {
+  try {
+    return new URL(traksScriptUrl).protocol === "https:";
+  } catch {
+    return false;
+  }
+})();
+const traksEnabled = Boolean(traksScriptUrl && traksSiteKey && traksUrlIsSafe);
 ---
 
 <!doctype html>
@@ -64,6 +74,19 @@ const analyticsMeasurementId = import.meta.env.PUBLIC_GA_MEASUREMENT_ID ?? site.
       <slot />
     </main>
     <SiteFooter />
+
+    {traksEnabled && traksRequireConsent && (
+      <aside class="analytics-consent" data-analytics-consent hidden aria-labelledby="analytics-consent-title">
+        <div class="analytics-consent-copy">
+          <p class="analytics-consent-title" id="analytics-consent-title">Help improve Plembfin</p>
+          <p>Allow privacy-friendly, aggregate usage analytics. No advertising profile is created, and you can decline.</p>
+        </div>
+        <div class="analytics-consent-actions">
+          <button type="button" data-analytics-decline>Decline</button>
+          <button type="button" data-analytics-accept>Allow analytics</button>
+        </div>
+      </aside>
+    )}
 
     <dialog class="image-lightbox" data-image-lightbox aria-labelledby="image-lightbox-title" aria-describedby="image-lightbox-caption">
       <div class="image-lightbox-shell">
@@ -250,31 +273,155 @@ const analyticsMeasurementId = import.meta.env.PUBLIC_GA_MEASUREMENT_ID ?? site.
       const syncTheme = Reflect.get(window, "__plembfinSyncTheme");
       if (typeof syncTheme === "function") syncTheme();
     </script>
-    {analyticsMeasurementId && (
-      <script is:inline define:vars={{ analyticsMeasurementId }}>
+    {traksEnabled && (
+      <script is:inline define:vars={{ traksScriptUrl, traksSiteKey, traksRequireConsent }}>
         (() => {
-          const loadAnalytics = () => {
-            if (window.__plembfinAnalyticsLoaded || navigator.doNotTrack === "1") return;
-            window.__plembfinAnalyticsLoaded = true;
-            window.dataLayer = window.dataLayer || [];
-            function gtag(){window.dataLayer.push(arguments);}
-            window.gtag = gtag;
-            gtag("js", new Date());
-            gtag("config", analyticsMeasurementId, { anonymize_ip: true });
+          const analyticsWindow = window;
+          const consentBanner = document.querySelector("[data-analytics-consent]");
+          const consentKey = "plembfin:analytics-consent";
+          const hasPrivacySignal = navigator.doNotTrack === "1"
+            || analyticsWindow.doNotTrack === "1"
+            || navigator.globalPrivacyControl === true;
+
+          const readConsent = () => {
+            try {
+              return analyticsWindow.localStorage.getItem(consentKey);
+            } catch {
+              return null;
+            }
+          };
+
+          const writeConsent = (value) => {
+            try {
+              analyticsWindow.localStorage.setItem(consentKey, value);
+            } catch {
+              // A session-only choice still protects the visitor when storage is unavailable.
+            }
+          };
+
+          const hideConsentBanner = () => {
+            if (consentBanner instanceof HTMLElement) consentBanner.hidden = true;
+          };
+
+          const loadTraks = () => {
+            if (
+              analyticsWindow.__plembfinTraksLoaded
+              || hasPrivacySignal
+            ) return;
+            if (traksRequireConsent && analyticsWindow.__plembfinAnalyticsConsent !== true) return;
+
             const script = document.createElement("script");
-            script.async = true;
-            script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(analyticsMeasurementId)}`;
+            script.defer = true;
+            script.src = traksScriptUrl;
+            script.dataset.site = traksSiteKey;
+            script.onload = () => {
+              analyticsWindow.__plembfinTraksLoaded = true;
+            };
             document.head.appendChild(script);
           };
 
-          if ("requestIdleCallback" in window) {
-            window.requestIdleCallback(loadAnalytics, { timeout: 2000 });
+          if (traksRequireConsent) {
+            const savedConsent = readConsent();
+            if (savedConsent === "accepted") {
+              analyticsWindow.__plembfinAnalyticsConsent = true;
+              hideConsentBanner();
+              loadTraks();
+            } else if (savedConsent === "declined" || hasPrivacySignal) {
+              hideConsentBanner();
+            } else if (consentBanner instanceof HTMLElement) {
+              consentBanner.hidden = false;
+            }
+
+            window.addEventListener("plembfin:analytics-consent", () => {
+              analyticsWindow.__plembfinAnalyticsConsent = true;
+              hideConsentBanner();
+              loadTraks();
+            }, { once: true });
+
+            consentBanner?.querySelector("[data-analytics-accept]")?.addEventListener("click", () => {
+              writeConsent("accepted");
+              window.dispatchEvent(new Event("plembfin:analytics-consent"));
+            });
+            consentBanner?.querySelector("[data-analytics-decline]")?.addEventListener("click", () => {
+              writeConsent("declined");
+              hideConsentBanner();
+            });
+          } else if ("requestIdleCallback" in window) {
+            window.requestIdleCallback(loadTraks, { timeout: 2000 });
           } else {
-            window.setTimeout(loadAnalytics, 2000);
+            window.setTimeout(loadTraks, 2000);
           }
         })();
       </script>
     )}
+    <style is:inline>
+      .analytics-consent {
+        position: fixed;
+        right: 1rem;
+        bottom: 1rem;
+        z-index: 20;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        max-width: min(42rem, calc(100vw - 2rem));
+        padding: 1rem 1.1rem;
+        color: #f7fafc;
+        background: rgba(10, 16, 24, 0.96);
+        border: 1px solid rgba(151, 180, 204, 0.35);
+        border-radius: 0.8rem;
+        box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.35);
+      }
+
+      .analytics-consent-copy {
+        flex: 1 1 auto;
+      }
+
+      .analytics-consent-copy p {
+        margin: 0;
+        font-size: 0.82rem;
+        line-height: 1.45;
+      }
+
+      .analytics-consent-title {
+        margin-bottom: 0.25rem !important;
+        font-weight: 700;
+      }
+
+      .analytics-consent-actions {
+        display: flex;
+        flex: 0 0 auto;
+        gap: 0.5rem;
+      }
+
+      .analytics-consent-actions button {
+        min-height: 2.4rem;
+        padding: 0.55rem 0.8rem;
+        color: inherit;
+        background: transparent;
+        border: 1px solid rgba(151, 180, 204, 0.5);
+        border-radius: 0.45rem;
+        cursor: pointer;
+        font: inherit;
+        font-size: 0.78rem;
+        font-weight: 700;
+      }
+
+      .analytics-consent-actions button:last-child {
+        color: #071018;
+        background: #8ed1ff;
+        border-color: #8ed1ff;
+      }
+
+      @media (max-width: 38rem) {
+        .analytics-consent {
+          display: block;
+        }
+
+        .analytics-consent-actions {
+          margin-top: 0.8rem;
+        }
+      }
+    </style>
     <script>
       const backToTop = document.querySelector("[data-back-to-top]");
 

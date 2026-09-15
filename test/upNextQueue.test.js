@@ -11,6 +11,7 @@ const { recordUpNextRailSeeds } = await import("../server/src/utils/upNextSeedLe
 test("queue projection keeps canonical resumes first and provider next-up after them", async () => {
   const projection = await buildUpNextProjection({
     now: Date.parse("2026-09-01T12:00:00.000Z"),
+    shows: [{ title: "The Expanse", tmdb_id: "123", latest_watched_at: "2026-08-01T12:00:00.000Z" }],
     localFallback: false,
     progressRows: [{
       media_key: "movie:tmdb:10",
@@ -50,6 +51,7 @@ test("queue projection keeps canonical resumes first and provider next-up after 
 test("Jellyfin observations take part in the Up Next projection", async () => {
   const projection = await buildUpNextProjection({
     now: Date.parse("2026-09-01T12:00:00.000Z"),
+    shows: [{ title: "Jellyfin Show", tmdb_id: "5150", latest_watched_at: "2026-08-01T12:00:00.000Z" }],
     localFallback: false,
     progressRows: [],
     playstateRows: [],
@@ -71,6 +73,39 @@ test("Jellyfin observations take part in the Up Next projection", async () => {
   assert.equal(projection.items[0].show_title, "Jellyfin Show");
   assert.equal(projection.items[0].queue_kind, "next_up");
   assert.deepEqual(projection.items[0].provider_items, { jellyfin: ["jellyfin-next"] });
+});
+
+test("an explicit unwatched state suppresses a stale provider next-up card", async () => {
+  const projection = await buildUpNextProjection({
+    now: Date.parse("2026-09-01T12:00:00.000Z"),
+    localFallback: false,
+    progressRows: [],
+    playstateRows: [{
+      media_key: "episode:1:1:tmdb:5150",
+      media_type: "episode",
+      title: "Jellyfin Show - S01E01",
+      show_title: "Jellyfin Show",
+      show_tmdb_id: "5150",
+      season: 1,
+      episode: 1,
+      state: "unwatched",
+      updated_at: Date.parse("2026-09-01T11:00:00.000Z"),
+    }],
+    providerItems: [{
+      provider: "jellyfin",
+      feed_kind: "next_up",
+      provider_item_id: "jellyfin-next-stale",
+      media_type: "episode",
+      title: "Jellyfin Show - S01E01",
+      show_title: "Jellyfin Show",
+      season: 1,
+      episode: 1,
+      show_ids: { tmdb: "5150" },
+      air_date: "2026-08-01",
+    }],
+  });
+
+  assert.equal(projection.items.length, 0);
 });
 
 test("queue projection carries show watch recency into provider next-up ordering", async () => {
@@ -95,6 +130,7 @@ test("queue projection carries show watch recency into provider next-up ordering
 test("native provider resume membership remains visible when position is omitted", async () => {
   const projection = await buildUpNextProjection({
     now: Date.parse("2026-09-04T12:00:00.000Z"),
+    shows: [{ title: "Ted Lasso", tmdb_id: "97546", latest_watched_at: "2026-08-01T12:00:00.000Z" }],
     localFallback: false,
     progressRows: [],
     playstateRows: [],
@@ -131,6 +167,7 @@ test("native provider resume positions remain visible as part-watched progress",
 
   const projection = await buildUpNextProjection({
     now: Date.parse("2026-09-04T12:00:00.000Z"),
+    shows: [{ title: "Lioness", tmdb_id: "113962", latest_watched_at: "2026-08-01T12:00:00.000Z" }],
     localFallback: false,
     progressRows: [],
     playstateRows: [],
@@ -198,6 +235,10 @@ test("canonical resume positions remain visible when they match a legacy rail se
 test("uncertain provider membership keeps only the furthest episode for a show", async () => {
   const projection = await buildUpNextProjection({
     now: Date.parse("2026-09-04T12:00:00.000Z"),
+    shows: [
+      { title: "Ludwig (2024)", latest_watched_at: "2026-08-01T12:00:00.000Z" },
+      { title: "Ludwig", latest_watched_at: "2026-08-01T12:00:00.000Z" },
+    ],
     localFallback: false,
     progressRows: [],
     playstateRows: [],
@@ -294,7 +335,7 @@ test("a native provider resume joins the canonical local episode when the show i
   const projection = await buildUpNextProjection({
     now: Date.parse("2026-09-01T12:00:00.000Z"),
     localFallback: false,
-    shows: [{ title: "Ted Lasso", imdb_id: "tt10986410", tmdb_id: "97546", tvdb_id: "383203" }],
+    shows: [{ title: "Ted Lasso", imdb_id: "tt10986410", tmdb_id: "97546", tvdb_id: "383203", latest_watched_at: "2026-08-01T12:00:00.000Z" }],
     progressRows: [{
       media_key: "episode:4:6:imdb:tt10986410",
       media_type: "episode",
@@ -338,6 +379,7 @@ test("a native provider resume joins the canonical local episode when the show i
 test("provider-backed posters use the authenticated poster proxy", async () => {
   const projection = await buildUpNextProjection({
     now: Date.parse("2026-09-01T12:00:00.000Z"),
+    shows: [{ title: "Example Show", tvdb_id: "series-1", latest_watched_at: "2026-08-01T12:00:00.000Z" }],
     localFallback: false,
     progressRows: [],
     playstateRows: [],
@@ -687,7 +729,7 @@ test("local fallback resolves an unwatched next episode against the configured l
   assert.deepEqual(withLookup.items[0].provider_items, { plex: ["4685"] });
 });
 
-test("a provider observation suppressed by a newer unwatch no longer cancels the local fallback", async () => {
+test("a newer unwatch suppresses both provider and local Up Next cards", async () => {
   seedShowMetadata({
     tmdbId: "97546",
     tvdbId: "383203",
@@ -711,8 +753,7 @@ test("a provider observation suppressed by a newer unwatch no longer cancels the
     source: "manual",
   });
   // The explicit unwatch is newer than the Plex Continue Watching row below,
-  // so the provider card is filtered out. The episode must come back as a
-  // next-up card rather than disappearing with it.
+  // so neither the stale provider card nor a local fallback should survive.
   insertWatchRecordSync({
     title: "Ted Lasso - S04E03",
     show_title: "Ted Lasso",
@@ -759,7 +800,5 @@ test("a provider observation suppressed by a newer unwatch no longer cancels the
   });
 
   const episodes = projection.items.filter((item) => item.show_title === "Ted Lasso");
-  assert.equal(episodes.length, 1);
-  assert.equal(episodes[0].episode, 3);
-  assert.equal(episodes[0].queue_kind, "next_up");
+  assert.equal(episodes.length, 0);
 });

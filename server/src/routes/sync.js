@@ -68,6 +68,8 @@ import {
   listUpNextDismissals,
   recordUpNextDismissal,
   restoreAllUpNextDismissals,
+  restoreUpNextDismissalsForMedia,
+  restoreUpNextDismissalsSupersededByUnwatch,
   restoreUpNextDismissal,
 } from "../utils/upNextDismissals.js";
 import { POSTERS_DIR, BACKDROPS_DIR, PROFILES_DIR, PUBLIC_DIR } from "../paths.js";
@@ -634,6 +636,16 @@ export async function applyManualUnwatch(media, config, loopStore, recordId = ""
   });
   if (includeSourcePlatform) {
     dismissPendingManualWatchReviewsForMedia(media, { before: manualActionStartedAt });
+    if (!result.deferred) {
+      restoreUpNextDismissalsForMedia({
+        ...media,
+        media_type: media.media_type || media.type || "episode",
+        show_title: media.show_title || media.showTitle || "",
+        show_tmdb_id: media.show_tmdb_id || media.showTmdbId || media.ids?.tmdb || "",
+        show_tvdb_id: media.show_tvdb_id || media.showTvdbId || media.ids?.tvdb || "",
+        show_imdb_id: media.show_imdb_id || media.showImdbId || media.ids?.imdb || "",
+      });
+    }
   }
   // includeSourcePlatform means this is an explicit manual action, not an inbound
   // event from `media.source` - applyUnwatchedTransition dispatches under "manual"
@@ -2440,10 +2452,6 @@ export async function handleUpNextRemove(req, res) {
     const media = mediaFromProgressRequest(progressRow, body, mediaKey);
     if (!media.isValid) return sendJson(res, { error: "A valid media item is required" }, 400);
     const loopStore = createLoopStore();
-    // Record the dismissal before touching the providers. A failed provider
-    // hide must not leave the card visible in Plembfin when the user has
-    // already removed it; the next push reconciles the provider side.
-    recordUpNextDismissal({ ...body, media_key: mediaKey || body.media_key });
     const { id: unwatchedId, summary } = await applyManualUnwatch(
       media,
       config,
@@ -2456,6 +2464,11 @@ export async function handleUpNextRemove(req, res) {
     // propagated, otherwise the unplayed transition immediately undoes the
     // provider dismissal.
     const providerDismissals = await hideUpNextAcrossProviders(config, media, body);
+    // Record the dismissal after the unwatch and provider callbacks have
+    // settled. Those callbacks can echo the old resume position; recording
+    // earlier lets that echo look like a genuinely newer playback event and
+    // briefly resurrect the card during the next projection.
+    recordUpNextDismissal({ ...body, media_key: mediaKey || body.media_key });
 
     return sendJson(res, {
       ok: true,
@@ -2489,18 +2502,46 @@ export async function handleUpNextDismissed(req, res) {
   if (req.method !== "GET") return methodNotAllowed(res);
   if (!(await requireAdmin(req, res))) return;
   try {
-    const items = listUpNextDismissals().map((dismissal) => ({
-      id: dismissal.id,
-      media_key: dismissal.media_key,
-      media_type: dismissal.media_type,
-      title: dismissal.title,
-      show_title: dismissal.show_title,
-      episode_title: dismissal.episode_title,
-      season: dismissal.season,
-      episode: dismissal.episode,
-      dismissed_at: dismissal.dismissed_at,
-      item: dismissal.snapshot,
-    }));
+    restoreUpNextDismissalsSupersededByUnwatch();
+    const items = listUpNextDismissals().map((dismissal) => {
+      const snapshot = dismissal.snapshot && typeof dismissal.snapshot === "object"
+        ? dismissal.snapshot
+        : {};
+      const showTitle = dismissal.show_title || snapshot.show_title || snapshot.showTitle || "";
+      // Older dismissal snapshots were intentionally small and did not carry
+      // artwork. Resolve the canonical show poster while projecting the list
+      // so the dismissed-card view can use the same cached artwork as the
+      // rest of the app without mutating the stored dismissal.
+      const isEpisode = dismissal.media_type === "episode";
+      const poster = getCanonicalPosterUrl({
+        media_type: isEpisode ? "tv" : "movie",
+        title: isEpisode ? showTitle : (snapshot.title || dismissal.title || ""),
+        tmdb_id: isEpisode ? (snapshot.show_tmdb_id || snapshot.showTmdbId || "") : (snapshot.tmdb_id || snapshot.tmdbId || ""),
+        tvdb_id: isEpisode ? (snapshot.show_tvdb_id || snapshot.showTvdbId || "") : (snapshot.tvdb_id || snapshot.tvdbId || ""),
+        imdb_id: isEpisode ? (snapshot.show_imdb_id || snapshot.showImdbId || "") : (snapshot.imdb_id || snapshot.imdbId || ""),
+      });
+      const item = {
+        ...snapshot,
+        ...(showTitle ? { show_title: showTitle } : {}),
+        ...(poster && !snapshot.poster_url ? { poster_url: poster } : {}),
+        ...(isEpisode && poster && !snapshot.show_poster_url ? {
+          show_poster_url: poster,
+          canonical_poster_url: poster,
+        } : {}),
+      };
+      return {
+        id: dismissal.id,
+        media_key: dismissal.media_key,
+        media_type: dismissal.media_type,
+        title: dismissal.title,
+        show_title: showTitle,
+        episode_title: dismissal.episode_title,
+        season: dismissal.season,
+        episode: dismissal.episode,
+        dismissed_at: dismissal.dismissed_at,
+        item,
+      };
+    });
     return sendJson(res, { items });
   } catch (error) {
     console.error("Up Next dismissed listing failed", error);

@@ -1,8 +1,45 @@
 {
   "baseVersion": "1.1.1",
-  "build": 0,
-  "version": "1.1.1.0.0",
-  "updatedAt": "2026-09-14T09:16:13.782Z",
+  "build": 1,
+  "version": "1.1.1.1.0",
+  "updatedAt": "2026-09-15T08:41:55.717Z",
   "releaseMessage": "",
-  "entries": []
+  "entries": [
+    {
+      "build": 1,
+      "version": "1.1.1.1.0",
+      "shortVersion": "1.1.1.1.0",
+      "date": "2026-09-15T08:41:55.717Z",
+      "commit": "001167908d9f4e81e80ad08f62e21aa75a079da2",
+      "message": "Discover recommendations are now more personal and controllable.",
+      "author": "Lasikiewicz",
+      "details": [
+        "Feature: Personalize recommendations from recent watch history.",
+        "Feature: Let users choose Don't recommend to remove unwanted movies and shows from the personalized rail.",
+        "Fix: Restore Jellyfin watched, resume, and rating imports against current API field rules.",
+        "Fix: Keep removed TV shows out of Up Next across all episodes and provider refreshes.",
+        "Fix: Hide Clear progress unless a resume item has a positive playback position.",
+        "Tweak: Keep recommendation exclusions saved across refreshes and browsers.",
+        "Tweak: Hide watched titles and improve poster recovery across Discover.",
+        "Tweak: Improve card metadata hierarchy, summary readability, and release-date presentation across personal lists."
+      ],
+      "sections": {
+        "newFeatures": [
+          "Personalize recommendations from recent watch history.",
+          "Let users choose Don't recommend to remove unwanted movies and shows from the personalized rail."
+        ],
+        "majorBugFixes": [
+          "Restore Jellyfin watched, resume, and rating imports against current API field rules.",
+          "Keep removed TV shows out of Up Next across all episodes and provider refreshes.",
+          "Hide Clear progress unless a resume item has a positive playback position."
+        ],
+        "tweaks": [
+          "Keep recommendation exclusions saved across refreshes and browsers.",
+          "Hide watched titles and improve poster recovery across Discover.",
+          "Improve card metadata hierarchy, summary readability, and release-date presentation across personal lists."
+        ]
+      }
+    }
+  ],
+  "shortVersion": "1.1.1.1.0"
 }

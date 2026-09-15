@@ -1,6 +1,6 @@
 ---
 title: Discover
-description: Browse current TMDB-backed movie and TV rails, get watch-history recommendations, filter watched titles, and open titles before they reach your local library.
+description: Browse current TMDB-backed movie and TV rails, get watch-history recommendations, dismiss titles you do not want to see again, and open titles before they reach your local library.
 category: Media and discovery
 order: 3.2
 sourceVersion: "1.1.1"
@@ -43,6 +43,11 @@ titles watched in the last 12 months and cached per watched title. Titles alread
 history are removed from every rail, including recommendations. A title can appear here before
 it exists on one of your connected media servers.
 
+On a recommendation card, open **More options** and choose **Don't recommend** to remove that
+movie or show from the personalized rail. The choice is saved by Plembfin and continues to apply
+after refreshes and on other browsers. It affects personalized recommendations only; trending,
+popular, and current-release rails are unchanged.
+
 ## Type and genre filters
 
 
@@ -81,7 +86,8 @@ From a Discover card or detail page you can:
 
 - add a movie or show to **Watchlist**;
 - choose a personal **Rating** from 1 to 10; and
-- add the title to a **Custom List**.
+- add the title to a **Custom List**; and
+- choose **Don't recommend** to exclude it from the personalized recommendation rail.
 
 Those actions are private local choices. They do not create a watched event, alter the
 canonical provider match, or imply that a title is available in one of your libraries.

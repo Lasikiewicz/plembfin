@@ -18,6 +18,27 @@ process.env.ROLE = ROLE;
 const { isDemoMode } = await import("./src/utils/demoMode.js");
 const DEMO_MODE = isDemoMode();
 
+// Website analytics are deliberately demo-only. The values are public by
+// design, but the server validates the tracker URL before exposing them to the
+// browser and before widening the demo CSP.
+const TRAKS_CONFIG = (() => {
+  const scriptUrl = String(process.env.PLEMBFIN_TRAKS_SCRIPT_URL || "").trim();
+  const siteKey = String(process.env.PLEMBFIN_TRAKS_SITE_KEY || "").trim();
+  const requireConsent = String(process.env.PLEMBFIN_TRAKS_REQUIRE_CONSENT || "true").trim().toLowerCase() !== "false";
+  if (!DEMO_MODE || !scriptUrl || !siteKey) {
+    return { enabled: false, scriptUrl: "", siteKey: "", requireConsent, origin: "" };
+  }
+
+  try {
+    const parsed = new URL(scriptUrl);
+    if (parsed.protocol !== "https:") throw new Error("Traks tracker URL must use HTTPS");
+    return { enabled: true, scriptUrl: parsed.href, siteKey, requireConsent, origin: parsed.origin };
+  } catch (error) {
+    console.warn(`[security] Traks analytics disabled: ${error.message}`);
+    return { enabled: false, scriptUrl: "", siteKey: "", requireConsent, origin: "" };
+  }
+})();
+
 const { DATA_DIR, PUBLIC_DIR, MEDIA_DIR, ensureDataDirs } = await import("./src/paths.js");
 const { dispatch } = await import("./src/index.js");
 const { db } = await import("./src/db.js");
@@ -156,7 +177,8 @@ app.use(async (_req, res, next) => {
     // A public demo must be able to render only its bundled/local resources.
     // Keeping the policy local also prevents a future UI regression from
     // quietly reintroducing a provider, image, font, or iframe request.
-    contentSecurityPolicy = "default-src 'self'; img-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; frame-src 'none';";
+    const traksOrigin = TRAKS_CONFIG.enabled ? ` ${TRAKS_CONFIG.origin}` : "";
+    contentSecurityPolicy = `default-src 'self'; img-src 'self' data: blob:; script-src 'self'${traksOrigin}; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self'${traksOrigin}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; frame-src 'none';`;
   } else {
     let extraImgSrc = "";
     try {
@@ -245,6 +267,11 @@ app.use(rateLimit({
 // Capture the raw request body for /api so webhook/JSON handlers can parse it
 // themselves (multipart via busboy, JSON via readJson). express.raw sets
 // req.body to a Buffer, which the requestBody helpers already understand.
+app.get("/analytics-config.json", (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  res.json(TRAKS_CONFIG);
+});
+
 app.all("/api/*path", express.raw({ type: "*/*", limit: "15mb" }), (req, res) => {
   Promise.resolve(dispatch(req, res)).catch((error) => {
     console.error("Unhandled API error", error);

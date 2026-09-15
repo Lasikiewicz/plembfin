@@ -8,8 +8,12 @@ const {
   listUpNextDismissals,
   restoreUpNextDismissal,
   restoreAllUpNextDismissals,
+  restoreUpNextDismissalsForMedia,
+  restoreUpNextDismissalsSupersededByUnwatch,
   createUpNextDismissalFilter,
 } = await import("../server/src/utils/upNextDismissals.js");
+const { db } = await import("../server/src/db.js");
+const { insertWatchRecordSync } = await import("../server/src/utils/dataRepo.js");
 const { buildUpNextProjection } = await import("../server/src/utils/upNextService.js");
 
 const reacher = {
@@ -32,14 +36,14 @@ test("a dismissal matches the same episode under a different provider id", () =>
   // Same episode, re-matched to a different native id: the coordinate alias
   // keeps the dismissal attached.
   assert.ok(filter.isDismissed({ ...reacher, provider_items: { emby: ["99999"] }, media_key: "other-key" }));
-  // A different episode of the same show is not dismissed. It carries its own
-  // native id, as it would in a real library.
+  // Removing an episode dismisses the whole show, so a different episode with
+  // its own native id is hidden as well.
   assert.equal(filter.isDismissed({
     ...reacher,
     episode: 8,
     media_key: "reacher-s04e08",
     provider_items: { plex: ["4775"] },
-  }), false);
+  }), true);
 });
 
 test("re-dismissing the same item replaces its row rather than adding one", () => {
@@ -58,10 +62,87 @@ test("restore removes the dismissal", () => {
   assert.equal(createUpNextDismissalFilter().isDismissed(reacher), false);
 });
 
+test("an explicit unwatch restores the matching show dismissal", () => {
+  restoreAllUpNextDismissals();
+  recordUpNextDismissal({
+    media_type: "episode",
+    show_title: "The Assembly (UK)",
+    show_ids: { tvdb: "453869" },
+    season: 1,
+    episode: 1,
+    title: "The Assembly (UK) - S01E01",
+  });
+
+  assert.equal(restoreUpNextDismissalsForMedia({
+    type: "episode",
+    showTitle: "The Assembly (UK)",
+    show_tvdb_id: "453869",
+    season: 1,
+    episode: 1,
+  }), 1);
+  assert.equal(listUpNextDismissals().length, 0);
+});
+
+test("the dismissed list reconciliation removes an older row after an unwatch", () => {
+  restoreAllUpNextDismissals();
+  recordUpNextDismissal({
+    media_type: "episode",
+    show_title: "The Assembly",
+    show_ids: { tvdb: "453869" },
+    season: 1,
+    episode: 1,
+    title: "The Assembly - S01E01",
+  });
+  const inserted = insertWatchRecordSync({
+    title: "The Assembly (UK) - S01E01",
+    media_type: "episode",
+    show_title: "The Assembly (UK)",
+    tvdb_id: "453869",
+    season: 1,
+    episode: 1,
+    watched_at: "2026-09-15T12:00:00.000Z",
+    source: "manual",
+    sync_action: "unwatched",
+  });
+  db.prepare("UPDATE watch_history SET updated_at = ? WHERE id = ?").run(Date.now() + 1, inserted.id);
+
+  assert.equal(restoreUpNextDismissalsSupersededByUnwatch(), 1);
+  assert.equal(listUpNextDismissals().length, 0);
+});
+
+test("the dismissed list reconciliation preserves a dismissal created after an unwatch", () => {
+  restoreAllUpNextDismissals();
+  const inserted = insertWatchRecordSync({
+    title: "The Assembly (UK) - S01E01",
+    media_type: "episode",
+    show_title: "The Assembly (UK)",
+    tvdb_id: "453869",
+    season: 1,
+    episode: 1,
+    watched_at: "2026-09-15T12:00:00.000Z",
+    source: "manual",
+    sync_action: "unwatched",
+  });
+  const unwatchedAt = Date.now();
+  db.prepare("UPDATE watch_history SET updated_at = ? WHERE id = ?").run(unwatchedAt, inserted.id);
+  recordUpNextDismissal({
+    media_type: "episode",
+    show_title: "The Assembly (UK)",
+    show_ids: { tvdb: "453869" },
+    season: 1,
+    episode: 1,
+    title: "The Assembly (UK) - S01E01",
+  }, { now: unwatchedAt + 1 });
+
+  assert.equal(restoreUpNextDismissalsSupersededByUnwatch(), 0);
+  assert.equal(listUpNextDismissals().length, 1);
+});
+
 test("the projection hides a dismissed item from every device", async () => {
   restoreAllUpNextDismissals();
   const options = {
     now: Date.parse("2026-09-13T12:00:00.000Z"),
+    shows: [{ title: "Reacher", tmdb_id: "108978", latest_watched_at: "2026-08-01T12:00:00.000Z" }],
     localFallback: false,
     progressRows: [],
     playstateRows: [],
@@ -76,10 +157,23 @@ test("the projection hides a dismissed item from every device", async () => {
       episode: 7,
       show_ids: { tmdb: "108978" },
       air_date: "2026-09-08",
+    }, {
+      provider: "jellyfin",
+      feed_kind: "next_up",
+      provider_item_id: "4775",
+      media_type: "episode",
+      title: "Reacher - S04E08",
+      show_title: "Reacher",
+      season: 4,
+      episode: 8,
+      show_ids: { tmdb: "108978" },
+      air_date: "2026-09-09",
     }],
   };
 
   const before = await buildUpNextProjection(options);
+  // The projection intentionally collapses a show's next-up observations to
+  // one card; the show-scoped dismissal still hides that card completely.
   assert.equal(before.items.length, 1);
 
   recordUpNextDismissal(before.items[0]);

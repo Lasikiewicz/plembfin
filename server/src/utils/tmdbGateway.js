@@ -704,6 +704,8 @@ async function getMovieDetails({ tmdbId = "", title = "", ids = {}, force = fals
 // `id` = TMDB id, since Seerr requests and `/tvshow/tmdb/:id` routing are
 // TMDB-keyed throughout the rest of the app.
 async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = false, forceTvdb = force, light = false, verifyTvdbTitle = false }) {
+  const requestedImdbId = String(ids.imdbId || ids.imdb_id || ids.imdb || "").trim();
+  const requestedTvdbId = String(ids.tvdbId || ids.tvdb_id || ids.tvdb || "").trim();
   let tvdbId = String(ids.tvdbId || ids.tvdb_id || ids.tvdb || "").trim();
   if (!tvdbId) tvdbId = await resolveTvdbSeriesId({ title });
   // The cache below is keyed by TVDB id, so nothing can be served from it until
@@ -736,8 +738,16 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
     // is known, so lookups by the resolved tmdbId (getTmdbSeason, etc.) can find it.
     const initialCacheId = tmdbId ? `tv_${tmdbId}` : `tv_tvdb_${tvdbId}`;
     const cached = metaGet(initialCacheId);
+    const cachedExternalIds = cached?.details?.external_ids || {};
+    const cachedIdentityIsSafe = (!requestedTvdbId || !cachedExternalIds.tvdb_id || String(cachedExternalIds.tvdb_id) === requestedTvdbId)
+      && (!requestedImdbId || !cachedExternalIds.imdb_id || String(cachedExternalIds.imdb_id).toLowerCase() === requestedImdbId.toLowerCase());
     const cachedTitleIsSafe = !verifyTvdbTitle || !title || tvdbSeriesTitleMatches(title, cached?.details);
-    if (!force && cachedTitleIsSafe && cacheSatisfies(cached, { light })) return cached.details;
+    // A TMDB cache slot can be stale or can have been populated by a bad
+    // cross-provider match. If the caller supplies a TVDB/IMDb identity,
+    // never serve cached metadata for a different series merely because the
+    // TMDB id matches. This is what otherwise allows same-title shows such as
+    // The Assembly (UK) and The Assembly to render each other's watch rows.
+    if (!force && cachedIdentityIsSafe && cachedTitleIsSafe && cacheSatisfies(cached, { light })) return cached.details;
     try {
       // Older library records can carry a TVDB episode ID rather than the
       // series ID. If that ID cannot be loaded as a series, first ask TVDB
@@ -776,7 +786,16 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
         }
       }
       const shaped = shapeTvdbSeriesAsTmdb(extended);
-      let resolvedTmdbId = String(tmdbId || shaped.external_ids.tmdb_id || "");
+      const tvdbTmdbId = String(shaped.external_ids.tmdb_id || "");
+      // TVDB is the authoritative identity when it was supplied explicitly.
+      // Prefer its remote TMDB id if the caller's TMDB id disagrees, otherwise
+      // we would fetch TMDB artwork/extras for one series and combine them
+      // with TVDB episodes from another.
+      let resolvedTmdbId = String(
+        tvdbTmdbId && tmdbId && tvdbTmdbId !== String(tmdbId)
+          ? tvdbTmdbId
+          : (tmdbId || tvdbTmdbId || ""),
+      );
 
       let raw = resolvedTmdbId ? await fetchTmdbRaw("tv", resolvedTmdbId).catch(() => null) : null;
       if (!raw && resolvedTmdbId && shaped.name) {
@@ -801,7 +820,10 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
         // remoteIds mapping and cached its title-search fallback under this same
         // tmdb id). Only reuse it when it actually corresponds to this tvdbId,
         // or a show rematched away from that tmdb id would keep serving forever.
-        if (cacheSatisfies(resolvedCached, { light }) && String(resolvedCached.details?.external_ids?.tvdb_id || "") === seriesTvdbId) {
+        if (cacheSatisfies(resolvedCached, { light })
+          && String(resolvedCached.details?.external_ids?.tvdb_id || "") === seriesTvdbId
+          && (!requestedImdbId || !resolvedCached.details?.external_ids?.imdb_id
+            || String(resolvedCached.details.external_ids.imdb_id).toLowerCase() === requestedImdbId.toLowerCase())) {
           return resolvedCached.details;
         }
       }
@@ -862,7 +884,7 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
       if (resolvedTmdbId && seriesTvdbId) metaSet(`tv_tvdb_${seriesTvdbId}`, cacheValue);
       return details;
     } catch (error) {
-      if (cached?.details && cachedTitleIsSafe) return { ...cached.details, cache_stale: true };
+      if (cached?.details && cachedIdentityIsSafe && cachedTitleIsSafe) return { ...cached.details, cache_stale: true };
       throw error;
     }
   });

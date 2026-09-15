@@ -1,9 +1,10 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.0.3";
-import { state, elements } from "./state.js?v=1.1.1.0.3";
-import { escapeHtml } from "./utils.js?v=1.1.1.0.3";
-import { hydratePosters } from "./images.js?v=1.1.1.0.3";
-import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=1.1.1.0.3";
-import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=1.1.1.0.3";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.1.3";
+import { state, elements } from "./state.js?v=1.1.1.1.3";
+import { escapeHtml, slug } from "./utils.js?v=1.1.1.1.3";
+import { hydratePosters } from "./images.js?v=1.1.1.1.3";
+import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=1.1.1.1.3";
+import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=1.1.1.1.3";
+import { renderMediaCard } from "./media-card.js?v=1.1.1.1.3";
 
 const UP_NEXT_TTL_MS = 2 * 60 * 1000;
 const UP_NEXT_TIMEOUT_MS = 20000;
@@ -67,6 +68,24 @@ function upNextCoordinateDismissalKey(item = {}) {
   return `episode:${showTitle}:s${season}:e${episode}`;
 }
 
+function upNextShowDismissalKeys(item = {}) {
+  const mediaType = String(item.media_type || item.mediaType || "").trim().toLowerCase();
+  if (mediaType !== "episode") return [];
+  const keys = [];
+  for (const provider of ["imdb", "tmdb", "tvdb"]) {
+    const id = String(item[`show_${provider}_id`] || item[`show${provider.charAt(0).toUpperCase()}${provider.slice(1)}Id`] || "").trim();
+    if (id) keys.push(`show:${provider}:${id.toLowerCase()}`);
+  }
+  const showTitle = String(item.show_title || item.showTitle || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\(\d{4}\)/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  if (showTitle) keys.push(`show:title:${showTitle}`);
+  return [...new Set(keys)];
+}
+
 function upNextDismissalKeys(item = {}, mediaKey = "") {
   const keys = new Set();
   const id = String(item.id || "").trim();
@@ -85,6 +104,7 @@ function upNextDismissalKeys(item = {}, mediaKey = "") {
   }
   const coordinate = upNextCoordinateDismissalKey(item);
   if (coordinate) keys.add(coordinate);
+  for (const key of upNextShowDismissalKeys(item)) keys.add(key);
   return [...keys].filter(Boolean);
 }
 
@@ -103,7 +123,7 @@ export function isUpNextItemDismissed(item) {
   return true;
 }
 
-export function removeUpNextItem(itemId, details = {}) {
+export function removeUpNextItem(itemId, details = {}, { showScope = false } = {}) {
   const id = String(itemId || "").trim();
   const mediaKey = String(details.media_key || details.mediaKey || "").trim();
   if (!id && !mediaKey) return;
@@ -111,26 +131,44 @@ export function removeUpNextItem(itemId, details = {}) {
   const removedItem = removedIndex >= 0
     ? state.upNextItems[removedIndex]
     : { ...details, id: details.id || id, media_key: details.media_key || mediaKey || id };
-  // The server records the dismissal; this only hides the card immediately so
-  // the rail does not wait for the round trip.
-  state.upNextExitIds = [id || mediaKey];
-  state.upNextItems = state.upNextItems.filter((item) => String(item?.id || "") !== id && String(item?.media_key || "") !== mediaKey);
+  const showKeys = showScope ? new Set(upNextShowDismissalKeys(removedItem)) : new Set();
+  const matchesRemoval = (item) => {
+    const isSameItem = String(item?.id || "") === id || String(item?.media_key || "") === mediaKey;
+    if (isSameItem) return true;
+    return showKeys.size > 0 && upNextShowDismissalKeys(item).some((key) => showKeys.has(key));
+  };
+  const removedItems = state.upNextItems.filter(matchesRemoval);
+  // The caller keeps the card in a pending-removal state until the server has
+  // accepted the dismissal. Once that happens, remove every visible episode
+  // from the same series in one repaint and let the row play its exit motion.
+  state.upNextExitIds = removedItems.map((item) => String(item?.id || item?.media_key || "")).filter(Boolean);
+  if (!removedItems.length) state.upNextExitIds = [id || mediaKey].filter(Boolean);
+  const removedPendingKeys = new Set([removedItem, ...removedItems].flatMap((item) => upNextPendingRemovalKeys(item)));
+  state.upNextPendingRemovalKeys = (state.upNextPendingRemovalKeys || []).filter((key) => !removedPendingKeys.has(key));
+  state.upNextItems = state.upNextItems.filter((item) => !matchesRemoval(item));
   persistUpNextCache(visibleUpNextItems());
   renderUpNext();
-  return { item: removedItem, index: Math.max(0, removedIndex) };
+  return { item: removedItem, items: removedItems.length ? removedItems : [removedItem], index: Math.max(0, removedIndex) };
 }
 
 export function restoreUpNextItem(removal = {}) {
-  const item = removal?.item;
-  if (!item || typeof item !== "object") return;
-  for (const key of upNextDismissalKeys(item)) delete dismissedUpNext[key];
+  const items = (Array.isArray(removal?.items) ? removal.items : [removal?.item])
+    .filter((item) => item && typeof item === "object");
+  if (!items.length) return;
+  for (const item of items) for (const key of upNextDismissalKeys(item)) delete dismissedUpNext[key];
   persistDismissedUpNext();
-  const itemId = String(item.id || item.media_key || "").trim();
-  if (!itemId || state.upNextItems.some((candidate) => String(candidate?.id || candidate?.media_key || "") === itemId)) return;
   const index = Math.max(0, Math.min(Number(removal.index) || 0, state.upNextItems.length));
+  const existingIds = new Set(state.upNextItems.map((candidate) => String(candidate?.id || candidate?.media_key || "")).filter(Boolean));
+  const restored = items.filter((item) => {
+    const itemId = String(item.id || item.media_key || "").trim();
+    if (!itemId || existingIds.has(itemId)) return false;
+    existingIds.add(itemId);
+    return true;
+  });
+  if (!restored.length) return;
   state.upNextItems = [
     ...state.upNextItems.slice(0, index),
-    item,
+    ...restored,
     ...state.upNextItems.slice(index),
   ];
   state.upNextExitIds = [];
@@ -143,6 +181,255 @@ export function restoreUpNextItem(removal = {}) {
 // browsers that dismissed things before the move.
 function dismissedUpNextItems() {
   return Array.isArray(state.upNextDismissed) ? state.upNextDismissed : [];
+}
+
+function dismissalSnapshot(entry = {}) {
+  return entry?.item && typeof entry.item === "object" && Object.keys(entry.item).length
+    ? entry.item
+    : entry;
+}
+
+function dismissalMediaType(entry = {}) {
+  const item = dismissalSnapshot(entry);
+  return String(entry.media_type || item.media_type || item.mediaType || "").trim().toLowerCase() === "episode"
+    ? "episode"
+    : "movie";
+}
+
+function dismissalShowKey(entry = {}) {
+  const item = dismissalSnapshot(entry);
+  if (dismissalMediaType(entry) !== "episode") return `movie:${String(entry.id || item.id || "").trim()}`;
+  const tmdb = String(entry.show_tmdb_id || item.show_tmdb_id || item.showTmdbId || "").trim();
+  const tvdb = String(entry.show_tvdb_id || item.show_tvdb_id || item.showTvdbId || "").trim();
+  const imdb = String(entry.show_imdb_id || item.show_imdb_id || item.showImdbId || "").trim().toLowerCase();
+  const title = String(entry.show_title || item.show_title || item.showTitle || "").trim();
+  if (tmdb) return `show:tmdb:${tmdb.toLowerCase()}`;
+  if (tvdb) return `show:tvdb:${tvdb.toLowerCase()}`;
+  if (imdb) return `show:imdb:${imdb}`;
+  return `show:title:${slug(title || entry.title || item.title || "untitled")}`;
+}
+
+function dismissalShowKeys(entry = {}) {
+  if (dismissalMediaType(entry) !== "episode") return [];
+  const item = dismissalSnapshot(entry);
+  return upNextShowDismissalKeys({
+    media_type: "episode",
+    show_title: entry.show_title || item.show_title || item.showTitle || "",
+    show_tmdb_id: entry.show_tmdb_id || item.show_tmdb_id || item.showTmdbId || "",
+    show_tvdb_id: entry.show_tvdb_id || item.show_tvdb_id || item.showTvdbId || "",
+    show_imdb_id: entry.show_imdb_id || item.show_imdb_id || item.showImdbId || "",
+  });
+}
+
+function dismissedUpNextGroups() {
+  const groups = new Map();
+  for (const entry of dismissedUpNextItems()) {
+    const key = dismissalShowKey(entry);
+    let group = groups.get(key);
+    if (!group) {
+      group = { key, entries: [], representative: entry };
+      groups.set(key, group);
+    }
+    group.entries.push(entry);
+    const candidate = dismissalSnapshot(entry);
+    const current = dismissalSnapshot(group.representative);
+    if (!current?.show_poster_url && (candidate?.show_poster_url || candidate?.showPosterUrl || candidate?.canonical_poster_url)) {
+      group.representative = entry;
+    }
+  }
+  return [...groups.values()];
+}
+
+function dismissedUpNextCardRecord(group) {
+  const source = dismissalSnapshot(group.representative);
+  const isEpisode = dismissalMediaType(group.representative) === "episode";
+  if (!isEpisode) {
+    return {
+      ...source,
+      id: `dismissed:${group.key}`,
+      media_type: "movie",
+      title: group.representative.title || source.title || "Untitled",
+      meta: "Dismissed from Up Next",
+      description: "This movie will stay out of Up Next until you add it back.",
+    };
+  }
+  const showTitle = group.representative.show_title || source.show_title || source.showTitle || source.title || "Unknown show";
+  const showTmdbId = group.representative.show_tmdb_id || source.show_tmdb_id || source.showTmdbId || "";
+  const showTvdbId = group.representative.show_tvdb_id || source.show_tvdb_id || source.showTvdbId || "";
+  const showImdbId = group.representative.show_imdb_id || source.show_imdb_id || source.showImdbId || "";
+  const showPoster = source.show_poster_url || source.showPosterUrl || source.canonical_poster_url || source.canonicalPosterUrl || "";
+  return {
+    ...source,
+    id: `dismissed:${group.key}`,
+    media_type: "tv",
+    title: showTitle,
+    tmdb_id: showTmdbId,
+    tvdb_id: showTvdbId,
+    imdb_id: showImdbId,
+    show_tmdb_id: showTmdbId,
+    show_tvdb_id: showTvdbId,
+    show_imdb_id: showImdbId,
+    poster_url: showPoster || source.poster_url || source.posterUrl || "",
+    show_poster_url: showPoster,
+    meta: "Dismissed from Up Next",
+    description: "This show will stay out of Up Next until you add it back.",
+  };
+}
+
+function upNextPendingRemovalKeys(item = {}) {
+  const mediaType = String(item.media_type || item.mediaType || "").trim().toLowerCase();
+  const normalized = {
+    ...item,
+    media_type: mediaType,
+    show_title: item.show_title || item.showTitle || "",
+    show_tmdb_id: item.show_tmdb_id || item.showTmdbId || (mediaType === "episode" ? item.tmdb_id || item.tmdbId || "" : ""),
+    show_tvdb_id: item.show_tvdb_id || item.showTvdbId || (mediaType === "episode" ? item.tvdb_id || item.tvdbId || "" : ""),
+    show_imdb_id: item.show_imdb_id || item.showImdbId || (mediaType === "episode" ? item.imdb_id || item.imdbId || "" : ""),
+  };
+  return upNextDismissalKeys(normalized);
+}
+
+function isUpNextRemovalPending(item) {
+  const pending = new Set(state.upNextPendingRemovalKeys || []);
+  return upNextPendingRemovalKeys(item).some((key) => pending.has(key));
+}
+
+function upNextWatchEpisodeIdentity(episode = {}) {
+  return {
+    ...episode,
+    media_type: "episode",
+    show_title: episode.show_title || episode.showTitle || "",
+    show_tmdb_id: episode.show_tmdb_id || episode.showTmdbId || "",
+    show_tvdb_id: episode.show_tvdb_id || episode.showTvdbId || "",
+    show_imdb_id: episode.show_imdb_id || episode.showImdbId || "",
+    season: episode.season ?? episode.seasonNumber ?? "",
+    episode: episode.episode ?? episode.episodeNumber ?? "",
+    media_key: episode.media_key || episode.mediaKey || "",
+  };
+}
+
+function upNextWatchedActionKeys(action = {}) {
+  const episodes = [
+    ...(Array.isArray(action.episodes) ? action.episodes : []),
+    ...(Array.isArray(action.resyncEpisodes) ? action.resyncEpisodes : []),
+  ];
+  if (action.scope === "show") {
+    const anchor = upNextWatchEpisodeIdentity({
+      showTitle: action.showTitle || action.show_title || episodes[0]?.showTitle || "",
+      showTmdbId: action.showTmdbId || action.show_tmdb_id || episodes[0]?.showTmdbId || "",
+      showTvdbId: action.showTvdbId || action.show_tvdb_id || episodes[0]?.showTvdbId || "",
+      showImdbId: action.showImdbId || action.show_imdb_id || episodes[0]?.showImdbId || "",
+    });
+    return upNextShowDismissalKeys(anchor);
+  }
+  return [...new Set(episodes.flatMap((episode) => {
+    const identity = upNextWatchEpisodeIdentity(episode);
+    return [
+      upNextCoordinateDismissalKey(identity),
+      identity.media_key,
+      identity.provider_item_id || identity.providerItemId || "",
+    ].filter(Boolean);
+  }))];
+}
+
+function isUpNextWatchedRemovalPending(item) {
+  const pending = new Set(state.upNextPendingWatchedRemovalKeys || []);
+  if (!pending.size) return false;
+  return upNextDismissalKeys(item).some((key) => pending.has(key));
+}
+
+// Marking a show watched changes the canonical watch state before the derived
+// Up Next snapshot necessarily catches up. Remove its cards locally right
+// away, then keep an optimistic identity filter active while any concurrent
+// sync/revalidation still returns the old snapshot.
+export function removeWatchedUpNextItems(action = {}) {
+  const keys = upNextWatchedActionKeys(action);
+  if (!keys.length) return 0;
+  const pending = new Set(state.upNextPendingWatchedRemovalKeys || []);
+  keys.forEach((key) => pending.add(key));
+  state.upNextPendingWatchedRemovalKeys = [...pending];
+
+  const removedItems = (Array.isArray(state.upNextItems) ? state.upNextItems : [])
+    .filter(isUpNextWatchedRemovalPending);
+  if (!removedItems.length) return 0;
+
+  state.upNextExitIds = removedItems
+    .map((item) => String(item?.id || item?.media_key || "").trim())
+    .filter(Boolean);
+  state.upNextItems = state.upNextItems.filter((item) => !isUpNextWatchedRemovalPending(item));
+  persistUpNextCache(visibleUpNextItems());
+  renderUpNext();
+  return removedItems.length;
+}
+
+// Unwatching a TV show makes its next episode eligible for Up Next again. A
+// dismissal is therefore stale at that point: restore every server-side
+// dismissal for the show and clear the optimistic watched-removal filter that
+// could otherwise hide the freshly restored card during the next refresh.
+export async function removeDismissedUpNextItems(action = {}) {
+  const keys = new Set(upNextWatchedActionKeys({ ...action, scope: "show" }));
+  if (!keys.size) return 0;
+
+  state.upNextPendingWatchedRemovalKeys = (state.upNextPendingWatchedRemovalKeys || [])
+    .filter((key) => !keys.has(key));
+  const entries = dismissedUpNextItems().filter((entry) => (
+    dismissalShowKeys(entry).some((key) => keys.has(key))
+  ));
+  if (!entries.length) return 0;
+  return restoreDismissedUpNextItems(entries);
+}
+
+function filterPendingWatchedUpNextItems(nextItems = []) {
+  const pending = new Set(state.upNextPendingWatchedRemovalKeys || []);
+  if (!pending.size) return nextItems;
+  const serverStillHasPendingItems = nextItems.some(isUpNextWatchedRemovalPending);
+  if (!serverStillHasPendingItems) {
+    state.upNextPendingWatchedRemovalKeys = [];
+    return nextItems;
+  }
+  return nextItems.filter((item) => !isUpNextWatchedRemovalPending(item));
+}
+
+function isUpNextWatchSaving(item = {}) {
+  const itemKey = String(item?.id || item?.media_key || "").trim();
+  if (!itemKey) return false;
+  for (const action of state.savingWatchActions || []) {
+    if (action?.origin !== "up-next") continue;
+    const episodes = [...(action.episodes || []), ...(action.resyncEpisodes || [])];
+    if (episodes.some((episode) => String(episode?.key || "").trim() === itemKey)) return true;
+  }
+  return false;
+}
+
+function preservePendingUpNextItems(nextItems = []) {
+  const currentItems = Array.isArray(state.upNextItems) ? state.upNextItems : [];
+  const pendingItems = currentItems.filter(isUpNextRemovalPending);
+  if (!pendingItems.length) return nextItems;
+  const nextByKey = new Map(nextItems.map((item) => [upNextItemKey(item), item]));
+  const seen = new Set();
+  const preserved = [];
+  for (const current of currentItems) {
+    const key = upNextItemKey(current);
+    if (!key || seen.has(key)) continue;
+    if (isUpNextRemovalPending(current) && !nextByKey.has(key)) {
+      preserved.push(current);
+      seen.add(key);
+    }
+  }
+  if (!preserved.length) return nextItems;
+  return [...preserved, ...nextItems.filter((item) => !seen.has(upNextItemKey(item)))];
+}
+
+export function setUpNextRemovalPending(item, pending = true) {
+  const keys = upNextPendingRemovalKeys(item);
+  if (!keys.length) return;
+  const next = new Set(state.upNextPendingRemovalKeys || []);
+  for (const key of keys) {
+    if (pending) next.add(key);
+    else next.delete(key);
+  }
+  state.upNextPendingRemovalKeys = [...next];
+  renderUpNext();
 }
 
 async function loadDismissedUpNext() {
@@ -196,20 +483,6 @@ async function migrateLocalDismissals() {
   return true;
 }
 
-function upNextItemLabel(item = {}) {
-  const isEpisode = String(item.media_type || item.mediaType || "").toLowerCase() === "episode";
-  if (!isEpisode) {
-    const year = String(item.year || "").trim();
-    return { title: String(item.title || "Untitled"), detail: year ? `Movie · ${year}` : "Movie" };
-  }
-  const show = String(item.show_title || item.showTitle || item.title || "Untitled");
-  const season = Number(item.season);
-  const episode = Number(item.episode);
-  const coordinate = Number.isInteger(season) && Number.isInteger(episode) ? `S${season} · E${episode}` : "";
-  const episodeTitle = String(item.episode_title || item.episodeTitle || "").trim();
-  return { title: show, detail: [coordinate, episodeTitle].filter(Boolean).join(" · ") || "Episode" };
-}
-
 // Clears the local dismissal so the card returns to the rail. The caller is
 // responsible for pushing the restored queue outward; restoring here and
 // pushing there keeps a failed provider push from silently re-hiding a card
@@ -240,24 +513,22 @@ function closeDismissedUpNextModal() {
 export function openDismissedUpNextModal() {
   closeDismissedUpNextModal();
   const items = dismissedUpNextItems();
-  const byId = new Map(items.map((entry) => [String(entry.id), entry]));
+  const groups = dismissedUpNextGroups();
+  const byKey = new Map(groups.map((group) => [group.key, group]));
   const overlay = document.createElement("div");
   overlay.className = "edit-dialog-overlay settings-modal-overlay up-next-dismissed-overlay";
-  const rows = items.map((entry) => {
-    const label = upNextItemLabel(entry.item && Object.keys(entry.item).length ? entry.item : entry);
-    return `
-      <li class="up-next-dismissed-row">
-        <div class="up-next-dismissed-copy">
-          <b>${escapeHtml(label.title)}</b>
-          <span>${escapeHtml(label.detail)}</span>
-        </div>
-        <button class="button-ghost" type="button" data-up-next-restore="${escapeHtml(String(entry.id))}">Add back</button>
-      </li>
-    `;
+  const cards = groups.map((group) => {
+    const record = dismissedUpNextCardRecord(group);
+    return renderMediaCard(record, {
+      variant: "up-next-dismissed",
+      meta: record.meta,
+      showSource: false,
+      actionsHtml: `<button class="button-ghost" type="button" data-up-next-restore-group="${escapeHtml(group.key)}">Add back</button>`,
+    });
   }).join("");
   const body = items.length
-    ? `<p class="up-next-dismissed-intro">Dismissed on every device. Adding one back returns it to Up Next and pushes the queue to your media servers.</p>
-       <ul class="up-next-dismissed-list">${rows}</ul>`
+    ? `<p class="up-next-dismissed-intro">Dismissed on every device. Adding a card back returns it to Up Next and pushes the queue to your media servers.</p>
+       <div class="up-next-dismissed-card-grid">${cards}</div>`
     : `<p class="up-next-dismissed-intro">Nothing dismissed is currently unwatched in Plembfin.</p>`;
   overlay.innerHTML = `
     <div class="edit-dialog settings-modal up-next-dismissed-modal" role="dialog" aria-modal="true" aria-label="Dismissed Up Next items">
@@ -268,7 +539,7 @@ export function openDismissedUpNextModal() {
       <div class="settings-modal-body">${body}</div>
       <footer class="settings-modal-foot">
         <div class="settings-modal-actions">
-          ${items.length > 1 ? `<button class="button-ghost" type="button" data-up-next-restore-all>Add all back</button>` : ""}
+          ${groups.length > 1 ? `<button class="button-ghost" type="button" data-up-next-restore-all>Add all back</button>` : ""}
           <button class="button-ghost settings-modal-cancel" type="button">Close</button>
         </div>
       </footer>
@@ -290,28 +561,32 @@ export function openDismissedUpNextModal() {
     );
     syncUpNextToProviders().catch(() => { });
   };
-  overlay.addEventListener("click", (event) => { if (event.target === overlay) close(); });
+  overlay.addEventListener("click", (event) => {
+    const link = event.target.closest?.("a[data-media-card-href]");
+    if (link || event.target === overlay) close();
+  }, true);
   overlay.querySelector(".settings-modal-close").addEventListener("click", close);
   overlay.querySelector(".settings-modal-cancel").addEventListener("click", close);
   overlay.querySelector("[data-up-next-restore-all]")?.addEventListener("click", () => restoreAndPush(items));
-  overlay.querySelectorAll("[data-up-next-restore]").forEach((button) => {
+  overlay.querySelectorAll("[data-up-next-restore-group]").forEach((button) => {
     button.addEventListener("click", () => {
-      const entry = byId.get(button.dataset.upNextRestore);
-      if (entry) restoreAndPush([entry]);
+      const group = byKey.get(button.dataset.upNextRestoreGroup);
+      if (group) restoreAndPush(group.entries);
     });
   });
   document.addEventListener("keydown", onKeydown);
   document.body.appendChild(overlay);
-  overlay.querySelector("[data-up-next-restore], .settings-modal-close")?.focus({ preventScroll: true });
+  hydratePosters(overlay, { allowNetwork: true });
+  overlay.querySelector("[data-up-next-restore-group], .settings-modal-close")?.focus({ preventScroll: true });
 }
 
 function renderUpNextDismissedControl() {
   const button = elements.upNextDismissedButton;
   if (!button) return;
-  const count = state.token ? dismissedUpNextItems().length : 0;
+  const count = state.token ? dismissedUpNextGroups().length : 0;
   button.classList.toggle("hidden", count === 0);
   button.disabled = count === 0 || state.upNextSyncing === true;
-  const label = `Show ${count} dismissed Up Next item${count === 1 ? "" : "s"}`;
+  const label = `Show ${count} dismissed Up Next card${count === 1 ? "" : "s"}`;
   button.querySelector(".up-next-dismissed-count").textContent = String(count);
   button.title = label;
   button.setAttribute("aria-label", label);
@@ -730,6 +1005,8 @@ export function resetUpNext({ preserveItems = false } = {}) {
   state.upNextError = "";
   state.upNextErrorCode = "";
   state.upNextExitIds = [];
+  state.upNextPendingRemovalKeys = [];
+  if (!preserveItems) state.upNextPendingWatchedRemovalKeys = [];
   state.upNextRefreshQueued = false;
   state.upNextForceRefreshQueued = false;
 }
@@ -811,6 +1088,8 @@ export function renderUpNext({ exitIds = [] } = {}) {
   if (section) section.classList.remove("hidden");
   const html = items.slice(0, 30).map((item, index) => renderDashboardUpNextCard({
     ...item,
+    saving: isUpNextWatchSaving(item),
+    pending_removal: isUpNextRemovalPending(item),
     eager_poster: index < 12,
   })).join("");
   commitPanel(html, () => {
@@ -858,7 +1137,8 @@ export async function loadUpNext({ force = false, fromSse = false } = {}) {
     }
     if (requestVersion !== state.upNextRequestVersion) return;
     const previousIds = new Set(visibleUpNextItems().map((item) => String(item?.id || "")).filter(Boolean));
-    const nextItems = Array.isArray(body.items) ? body.items : [];
+    const fetchedItems = Array.isArray(body.items) ? body.items : [];
+    const nextItems = filterPendingWatchedUpNextItems(preservePendingUpNextItems(fetchedItems));
     const nextIds = new Set(nextItems.filter((item) => !isUpNextItemDismissed(item)).map((item) => String(item?.id || "")).filter(Boolean));
     state.upNextExitIds = [...previousIds].filter((id) => !nextIds.has(id));
     state.upNextItems = nextItems;

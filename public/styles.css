@@ -1754,8 +1754,8 @@ body.demo-mode #manualWatchReviewButton {
   background: color-mix(in srgb, var(--muted), transparent 82%);
 }
 
-.up-next-dismissed-modal {
-  width: min(560px, 95vw);
+.settings-modal.up-next-dismissed-modal {
+  width: min(1600px, 98vw);
 }
 
 .up-next-dismissed-intro {
@@ -1764,52 +1764,64 @@ body.demo-mode #manualWatchReviewButton {
   font-size: 0.88rem;
 }
 
-.up-next-dismissed-list {
-  display: flex;
-  flex-direction: column;
+.up-next-dismissed-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   gap: var(--space-2);
   margin: 0;
   padding: 0;
-  list-style: none;
 }
 
-.up-next-dismissed-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--line);
-  border-radius: var(--radius);
-  background: var(--panel-3);
+.shared-media-card--up-next-dismissed {
+  width: 100%;
+  min-height: 11rem;
 }
 
-.up-next-dismissed-copy {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  min-width: 0;
+.shared-media-card--up-next-dismissed .shared-media-card-actions {
+  width: 100%;
+  margin-top: auto;
 }
 
-.up-next-dismissed-copy b {
-  font-size: 0.95rem;
-  overflow-wrap: anywhere;
+.shared-media-card--up-next-dismissed .shared-media-card-actions .button-ghost {
+  width: 100%;
 }
 
-.up-next-dismissed-copy span {
-  color: var(--muted);
-  font-size: 0.82rem;
-  overflow-wrap: anywhere;
+.dashboard-up-next-card.up-next-card-removing {
+  animation: up-next-card-removing 850ms ease-in-out infinite alternate;
+  pointer-events: none;
+  will-change: opacity, transform;
+}
+
+/* Keep the selected Up Next card visible while its watch request is saving.
+   The pulse is deliberately restrained: it acknowledges the action without
+   suggesting that the card has already been removed. */
+.dashboard-up-next-card.up-next-card-saving {
+  animation: up-next-card-saving 1100ms ease-in-out infinite;
+  pointer-events: none;
+  will-change: opacity, transform;
+}
+
+@keyframes up-next-card-saving {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.58; transform: scale(0.985); }
+}
+
+@keyframes up-next-card-removing {
+  from { opacity: 0.58; transform: scale(0.985); }
+  to { opacity: 0.9; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-up-next-card.up-next-card-saving {
+    animation: none;
+    opacity: 0.7;
+    transform: none;
+  }
 }
 
 @media (max-width: 760px) {
-  .up-next-dismissed-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .up-next-dismissed-row .button-ghost {
-    width: 100%;
+  .up-next-dismissed-card-grid {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -13230,6 +13242,7 @@ html.light-mode #timeline-view .part-watched-app-badge {
 @media (prefers-reduced-motion: reduce) {
   .dashboard-card-enter,
   .dashboard-card-exit,
+  .dashboard-up-next-card.up-next-card-removing,
   .up-next-sync-button[aria-busy="true"] .up-next-sync-icon {
     animation: none;
   }

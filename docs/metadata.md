@@ -139,7 +139,8 @@ available for a later retry. `POST /api/rematch-show` reports this server-side w
 | `GET /api/tmdb-person` | Person details + filmography |
 | `GET /api/tmdb-search`, `GET /api/tvdb-search`, `GET /api/media-search` | Remote + local search. `tmdb-search` accepts `movie`, `tv`, `multi`, or `person`; `media-search` returns `local`, `discovery` (TMDB movies/shows), `people` (a separately paged TMDB people search), `collections`, and `tvdb` results, all queried in parallel. `tvdb-search` result lists are cached so the shared TVDB key survives per-keystroke searching |
 | `GET /api/tmdb-collection?id=` | Cached TMDB collection/franchise details and movie members |
-| `GET /api/discover?mediaType=&genre=` | Cached TMDB feeds for trending, movies currently in theatres, popular/upcoming or on-air titles, optional genre browsing, and a watch-history recommendation rail. The theatrical rail follows TMDB release data and is not a local cinema or streaming-availability check. Watched titles are filtered from every rail. Normal requests serve the cached snapshot and revalidate stale data in the background; `refresh=1` rebuilds before responding. Requires a reachable TMDB API key |
+| `GET /api/discover?mediaType=&genre=` | Cached TMDB feeds for trending, movies currently in theatres, popular/upcoming or on-air titles, optional genre browsing, and a watch-history recommendation rail. The theatrical rail follows TMDB release data and is not a local cinema or streaming-availability check. Watched titles are filtered from every rail, and titles dismissed with Discover's **Don't recommend** action are filtered from the personalized rail. Normal requests serve the cached snapshot and revalidate stale data in the background; `refresh=1` rebuilds before responding. Requires a reachable TMDB API key |
+| `POST /api/discover/dismiss` | Persist a movie or TV TMDB id as excluded from the personalized Discover recommendation rail. |
 | `GET /api/tmdb-images`, `GET /api/tvdb-images`, `GET /api/fanart-images` | Artwork galleries for the edit-image dialog |
 | `GET /api/tmdb-poster`, `GET /api/tmdb-profile` | Image proxies (rate-limited 300/min) |
 | `GET /api/remote-artwork` | Downloads and caches fanart.tv / TVDB / TMDB artwork by URL, then redirects to `/media/...` (see [posters-artwork.md](posters-artwork.md)) |
@@ -162,6 +163,9 @@ server build asks the operator to restart Plembfin. The selected rails, includin
 personalized recommendation rail, are restored from a bounded browser cache before the
 first request, then refreshed from the server cache when its SSE Discover version changes
 or watch state changes. Watched titles are hidden rather than shown with a watched badge.
+Choosing **Don't recommend** on a Discover card removes that movie or show from the personalized
+rail immediately and saves the exclusion on the server, so it remains excluded after a refresh
+or on another browser.
 Discover never depends on a media server or Trakt connection.
 
 Background frontend lookups are debounced into bounded batches of up to eight items, and a

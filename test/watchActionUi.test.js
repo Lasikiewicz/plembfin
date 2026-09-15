@@ -363,6 +363,7 @@ test("single episode unwatch patches the active show card without rebuilding the
   const savingPatchCalls = [];
   const episodePatchCalls = [];
   const historyLoadCalls = [];
+  const dismissedUpNextCalls = [];
   const button = {
     dataset: {
       unwatchId: "watch-5",
@@ -410,6 +411,7 @@ test("single episode unwatch patches the active show card without rebuilding the
       episodePatchCalls.push(row);
       return true;
     },
+    removeDismissedUpNextItems: (action) => dismissedUpNextCalls.push(action),
   });
   state.activeShowModalKey = "the-office";
   state.activeShowModalSeason = 4;
@@ -436,6 +438,9 @@ test("single episode unwatch patches the active show card without rebuilding the
     assert.equal(renderCalls.length, 0, "successful unwatch should keep the active show mounted");
     assert.equal(episodePatchCalls.length, 1);
     assert.equal(episodePatchCalls[0].sync_action, "unwatched");
+    assert.equal(dismissedUpNextCalls.length, 1);
+    assert.equal(dismissedUpNextCalls[0].scope, "show");
+    assert.equal(dismissedUpNextCalls[0].showTitle, "The Office");
     assert.deepEqual(historyLoadCalls, [{ force: true, silent: true }]);
     assert.equal(button.textContent, "Removed");
   } finally {

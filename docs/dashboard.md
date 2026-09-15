@@ -109,9 +109,11 @@ mutated by the calls consuming it. Any new caller that resolves many shows in on
 should hand the same snapshot to each call rather than letting each one re-read.
 
 Resume cards show progress, source badges, app links, Watch now, Mark watched, and Clear
-progress. The three-dot menu on all Up Next cards provides Mark watched, Rate, watchlist
-actions, Clear progress (for resume items), and Remove from up next (to dismiss the card from
-the queue and clear progress across connected servers). Clearing an episode deletes its
+progress when a positive playback position exists. The three-dot menu on all Up Next cards
+provides Mark watched, Rate, watchlist actions, Clear progress (only for resume items with
+real progress), and Remove from up next (to dismiss the card from the queue and clear progress
+across connected servers). Removing an episode dismisses its whole show from the rail, while
+clearing an episode deletes its
 positive progress and marks it unwatched, so a refresh moves it below remaining resumes as a
 zero-progress next-up card. Clearing a movie removes it from the queue. Mark watched commits
 locally first, deletes the resume row, adds completed history, and then dispatches to connected
@@ -144,21 +146,21 @@ Beside it, a count button opens the dismissed-items dialog. Dismissals are store
 `up_next_dismissals` and applied inside the projection, so the queue is the same on every device
 and for every consumer, including the API and anything scheduled. They were browser-local until
 `docs/decisions.md` entry 23; a browser holding pre-migration dismissals posts them once on first
-load and then clears its stored copy. A dismissal keeps the item's alias set plus a show/season/
-episode coordinate key, so it survives a re-match or a provider id change, and it lapses on its
-own once the item has a newer real playback position. Adding one back clears the dismissal and
-then runs the authoritative push, so every connected server mirrors the restored queue.
+load and then clears its stored copy. An episode dismissal keeps show identity as well as the
+item's aliases and show/season/episode coordinate, so removing one episode keeps the whole show
+out of the rail across re-matches and provider id changes. A dismissed show returns when one of
+its episodes has a newer real playback position. Adding one back clears the dismissal and then
+runs the authoritative push, so every connected server mirrors the restored queue.
 
-The local fallback can queue an unwatched next episode that no provider feed mentions. Watch
-history only records a native provider item id once something has been played, so the next
-unwatched episode never carries one; rather than dropping the card, the projection resolves the
-episode against the configured Plex, Emby, and Jellyfin libraries with the same lookup the push uses
-(`upNextLibraryLookup.js`), caching hits for six hours and misses for fifteen minutes. An
-episode that no configured library contains is still not queued. The fallback is also only
-cancelled by a provider observation that actually survived its own filters: a Continue Watching
-row suppressed by a newer explicit unwatch no longer takes the episode down with it, so marking
-an episode unwatched returns it to Up Next as a zero-progress next-up card instead of removing
-it from the queue.
+The local fallback can queue an unwatched next episode that no provider feed mentions, but only
+for a show with a current watched record. Watch history only records a native provider item id
+once something has been played, so a next unwatched episode never carries one; the projection
+resolves it against the configured Plex, Emby, and Jellyfin libraries with the same lookup the
+push uses (`upNextLibraryLookup.js`), caching hits for six hours and misses for fifteen minutes.
+An episode that no configured library contains is still not queued. A show with no watched record,
+or whose current records are all explicit unwatch actions, is excluded from provider observations
+and local fallback candidates, so stale Continue Watching or Next Up data cannot resurrect it.
+An episode-level unwatch also blocks a matching stale provider card and its local fallback.
 
 Episode cards build series routes only from explicit `show_*` identities. An episode-level
 `tmdb_id`, `tvdb_id`, or `imdb_id` is never substituted into a `/tvshow/<provider>/<id>`

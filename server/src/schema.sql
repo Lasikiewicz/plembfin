@@ -545,6 +545,16 @@ CREATE TABLE IF NOT EXISTS cache_versions (
   version INTEGER NOT NULL,
   updated_at INTEGER NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS recommendation_exclusions (
+  media_type TEXT NOT NULL CHECK (media_type IN ('movie', 'tv')),
+  tmdb_id TEXT NOT NULL,
+  title TEXT NOT NULL DEFAULT '',
+  excluded_at INTEGER NOT NULL,
+  PRIMARY KEY (media_type, tmdb_id)
+);
+CREATE INDEX IF NOT EXISTS idx_recommendation_exclusions_excluded_at
+  ON recommendation_exclusions(excluded_at DESC);
 INSERT OR IGNORE INTO cache_versions (id, version, updated_at) VALUES ('history', 1, 0);
 INSERT OR IGNORE INTO cache_versions (id, version, updated_at) VALUES ('discover', 1, 0);
 INSERT OR IGNORE INTO cache_versions (id, version, updated_at) VALUES ('up_next', 1, 0);

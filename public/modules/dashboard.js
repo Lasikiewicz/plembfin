@@ -1,9 +1,9 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.0.3";
-import { state, elements } from "./state.js?v=1.1.1.0.3";
-import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, sourceBadgeHtml, formatDate, formatTmdbDate, resolveEpisodeTitle, episodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress, isDemoMode } from "./utils.js?v=1.1.1.0.3";
-import { posterMarkup, posterOverflowMenu, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, isLocalArtworkUrl } from "./images.js?v=1.1.1.0.3";
-import { renderDashboardChecklist } from "./onboarding.js?v=1.1.1.0.3";
-import { initialMediaAppLinksContent } from "./media-detail-shared.js?v=1.1.1.0.3";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.1.3";
+import { state, elements } from "./state.js?v=1.1.1.1.3";
+import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, sourceBadgeHtml, formatDate, formatTmdbDate, resolveEpisodeTitle, episodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress, isDemoMode } from "./utils.js?v=1.1.1.1.3";
+import { posterMarkup, posterOverflowMenu, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, isLocalArtworkUrl } from "./images.js?v=1.1.1.1.3";
+import { renderDashboardChecklist } from "./onboarding.js?v=1.1.1.1.3";
+import { initialMediaAppLinksContent } from "./media-detail-shared.js?v=1.1.1.1.3";
 
 const PART_WATCHED_DASHBOARD_LIMIT = 30;
 const EXPLORER_PAGE_SIZE = 240;
@@ -358,6 +358,11 @@ function upNextPlaybackPositionKnown(entry = {}) {
   return !hasProviderMembership || Number(entry.position_ms || entry.positionMs || 0) > 0;
 }
 
+function hasActualResumeProgress(entry = {}) {
+  return Number(entry.position_ms ?? entry.positionMs ?? 0) > 0
+    || Number(entry.progress ?? 0) > 0;
+}
+
 function upNextAvailabilityLabel(entry = {}) {
   if (String(entry.queue_kind || "") === "resume" && !upNextPlaybackPositionKnown(entry)) return "Continue watching";
   const airDate = entry.air_date || entry.airDate || "";
@@ -408,6 +413,8 @@ function findKnownShowPoster(entry = {}) {
 export function renderDashboardHistoryPageCard(entry, options = {}) {
   const isPartWatched = Boolean(options.partWatched || entry.isPartWatched || entry.part_watched);
   const isUpNext = Boolean(options.upNext || entry.isUpNext || entry.up_next);
+  const isPendingRemoval = isUpNext && entry.pending_removal === true;
+  const isSaving = isUpNext && entry.saving === true;
   const isEpisode = entry.media_type === "episode";
   const isResume = isPartWatched || (isUpNext && String(entry.queue_kind || "") === "resume");
   const playbackPositionKnown = !isUpNext || upNextPlaybackPositionKnown(entry);
@@ -467,14 +474,22 @@ export function renderDashboardHistoryPageCard(entry, options = {}) {
   const menuHtml = isUpNext
     ? posterOverflowMenu(entry, { menuMode: "up-next", showTitle: displayTitle, title: displayTitle, label: displayTitle, mediaType: isEpisode ? "tv" : "movie", kind: isEpisode ? "episode" : "movie", queueKind: entry.queue_kind })
     : (!isPartWatched ? posterOverflowMenu(entry, isEpisode ? { showTitle: displayTitle, label: displayTitle } : {}) : "");
+  const cardClass = [
+    "history-page-card",
+    "dashboard-history-page-card",
+    isPartWatched ? "dashboard-part-watched-card" : "dashboard-up-next-card",
+    isSaving ? "up-next-card-saving" : "",
+    isPendingRemoval ? "up-next-card-removing" : "",
+  ].filter(Boolean).join(" ");
   const cardOpen = isPartWatched
-    ? `<article class="history-page-card dashboard-history-page-card dashboard-part-watched-card" data-part-watched-card-id="${escapeAttribute(cardId)}" data-part-watched-media-key="${escapeAttribute(entry.media_key || "")}">`
+    ? `<article class="${cardClass}" data-part-watched-card-id="${escapeAttribute(cardId)}" data-part-watched-media-key="${escapeAttribute(entry.media_key || "")}">`
     : isUpNext
-      ? `<article class="history-page-card dashboard-history-page-card dashboard-up-next-card" data-up-next-card-id="${escapeAttribute(cardId)}">`
-      : `<a class="history-page-card dashboard-history-page-card" data-history-id="${escapeAttribute(cardId)}" href="${escapeAttribute(href)}">`;
+      ? `<article class="${cardClass}"${isSaving ? ` aria-busy="true"` : ""} data-up-next-card-id="${escapeAttribute(cardId)}">`
+      : `<a class="${cardClass}" data-history-id="${escapeAttribute(cardId)}" href="${escapeAttribute(href)}">`;
   const cardClose = isInteractive ? "</article>" : "</a>";
   const watchedAt = isPartWatched ? entry.updated_at : entry.watched_at;
-  const partProgress = isResume && playbackPositionKnown ? partWatchedProgress(entry) : 0;
+  const showProgress = isResume && playbackPositionKnown && (!isUpNext || hasActualResumeProgress(entry));
+  const partProgress = showProgress ? partWatchedProgress(entry) : 0;
   const partActions = isPartWatched ? `
         <div class="part-watched-card-actions history-card-actions">
           <button class="button-primary part-watched-action-btn" type="button" data-action-watch="${escapeAttribute(entry.media_key || "")}" data-title="${escapeAttribute(entry.title || displayTitle)}">Watched</button>
@@ -535,7 +550,7 @@ export function renderDashboardHistoryPageCard(entry, options = {}) {
           ${isUpNext ? `
             <div class="history-card-meta-row">
               <span class="meta-label">Available:</span>
-              <span class="meta-value">${escapeHtml(upNextAvailabilityLabel(entry))}</span>
+              <span class="meta-value">${escapeHtml(isSaving ? "Saving…" : upNextAvailabilityLabel(entry))}</span>
             </div>
           ` : `
             <div class="history-card-meta-row">
@@ -550,7 +565,7 @@ export function renderDashboardHistoryPageCard(entry, options = {}) {
           ` : ""}
         </div>
         ${watchNowFooter}
-        ${isResume && playbackPositionKnown ? `
+        ${showProgress ? `
           <div class="part-watched-progress-container${isUpNext ? " up-next-progress-container" : ""}">
             <div class="part-watched-progress-bar"><div class="part-watched-progress-fill" style="width: ${partProgress}%;"></div></div>
             ${isUpNext

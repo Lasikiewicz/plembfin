@@ -1,10 +1,10 @@
-import { state } from "./state.js?v=1.1.1.0.3";
-import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, formatDate, actualWatchHistory, sourceBadgeHtml, isDemoMode } from "./utils.js?v=1.1.1.0.3";
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.0.3";
-import { isWatchedHistoryAction } from "./sync.js?v=1.1.1.0.3";
-import { tmdbPoster, tmdbImage, proxiedArtworkUrl } from "./images.js?v=1.1.1.0.3";
-import { dateAtMiddayIso, refreshShowAfterManualWatch, watchedAtForChoice, watchedReferenceFor } from "./watch-action.js?v=1.1.1.0.3";
-import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=1.1.1.0.3";
+import { state } from "./state.js?v=1.1.1.1.3";
+import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, formatDate, actualWatchHistory, sourceBadgeHtml, isDemoMode, tvShowTvdbHref } from "./utils.js?v=1.1.1.1.3";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.1.3";
+import { isWatchedHistoryAction } from "./sync.js?v=1.1.1.1.3";
+import { tmdbPoster, tmdbImage, proxiedArtworkUrl } from "./images.js?v=1.1.1.1.3";
+import { dateAtMiddayIso, refreshShowAfterManualWatch, watchedAtForChoice, watchedReferenceFor } from "./watch-action.js?v=1.1.1.1.3";
+import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=1.1.1.1.3";
 
 // Callbacks injected by app.js at startup.
 let _setMessage = () => {};
@@ -1677,12 +1677,16 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
       _setMessage("Match saved. Reload the show to see refreshed metadata.", "warning");
     });
 
-    // The show's route key is derived from its name, so a rename moves it to a
-    // new URL. Complete the optional retry callback before navigating, otherwise
-    // the browser can abort the show-wide retry as the old route unloads.
-    if (renamed && slug(nextTitle) !== showKey) {
+    // A rematch changes the provider identity, not just the display title. If
+    // the dialog was opened from a show detail route, keep the new TVDB id in
+    // the URL so the old TMDB id cannot rehydrate the previous same-title show
+    // on the next render. Complete the callback first because navigation
+    // unloads the current detail view.
+    const onShowDetailRoute = /^\/tvshow\//i.test(window.location.pathname);
+    if (onShowDetailRoute && tvdbId) {
       await notifySaved();
-      _navigateTo(`/tvshow/${slug(nextTitle)}`);
+      const hash = window.location.hash || "";
+      _navigateTo(`${tvShowTvdbHref(tvdbId, nextTitle)}${hash}`);
       return;
     }
 

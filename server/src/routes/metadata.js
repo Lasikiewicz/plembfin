@@ -33,6 +33,7 @@ import { providerArtworkPathsForCandidate } from "../utils/upNextIdentity.js";
 import { getManualWatchReview } from "../utils/manualWatchReview.js";
 import { getFanartMovieArt, getFanartTvArt, getAllFanartMovieImages, getAllFanartTvImages } from "../utils/fanartGateway.js";
 import { getOmdbRating } from "../utils/omdbGateway.js";
+import { createRecommendationExclusion, filterExcludedRecommendations } from "../utils/recommendationExclusions.js";
 import { POSTERS_DIR, BACKDROPS_DIR, PROFILES_DIR, PUBLIC_DIR } from "../paths.js";
 import {
   countPlaybackProgressRows,
@@ -1179,7 +1180,7 @@ export async function handleDiscover(req, res) {
     });
     const withRecommendations = {
       ...payload,
-      feeds: { ...(payload.feeds || {}), recommended: recommendations },
+      feeds: { ...(payload.feeds || {}), recommended: filterExcludedRecommendations(recommendations) },
     };
     return sendJson(res, annotateDiscoveryWatched(withRecommendations, discoveryState), 200, { "Cache-Control": "private, max-age=600, stale-while-revalidate=1800", Vary: "Authorization" });
   } catch (error) {
@@ -1212,6 +1213,25 @@ export async function handleDiscover(req, res) {
       }, 424);
     }
     return sendJson(res, { error: error.message }, error.status || 500);
+  }
+}
+
+export async function handleDiscoverDismiss(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  try {
+    const body = await readJson(req).catch(() => ({}));
+    const exclusion = createRecommendationExclusion(body);
+    if (!exclusion) {
+      return sendJson(res, { error: "A valid movie or TV TMDB id is required" }, 400);
+    }
+    return sendJson(res, { ok: true, exclusion }, 200, {
+      "Cache-Control": "no-store",
+      Vary: "Authorization",
+    });
+  } catch (error) {
+    return sendJson(res, { error: error.message || "Could not update Discover recommendations" }, error.status || 500);
   }
 }
 

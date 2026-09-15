@@ -1,9 +1,9 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.0.3";
-import { state, elements } from "./state.js?v=1.1.1.0.3";
-import { escapeHtml, formatTmdbDate } from "./utils.js?v=1.1.1.0.3";
-import { hydratePosters } from "./images.js?v=1.1.1.0.3";
-import { renderMediaCard } from "./media-card.js?v=1.1.1.0.3";
-import { mediaKeyForPersonalItem } from "./personal-media.js?v=1.1.1.0.3";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.1.3";
+import { state, elements } from "./state.js?v=1.1.1.1.3";
+import { escapeHtml, formatTmdbDate } from "./utils.js?v=1.1.1.1.3";
+import { hydratePosters } from "./images.js?v=1.1.1.1.3";
+import { renderMediaCard } from "./media-card.js?v=1.1.1.1.3";
+import { mediaKeyForPersonalItem } from "./personal-media.js?v=1.1.1.1.3";
 
 const DISCOVER_TTL_MS = 10 * 60 * 1000;
 const DISCOVER_TIMEOUT_MS = 20000;
@@ -109,6 +109,38 @@ function historyContainsDiscoverItem(item, mediaType) {
     const historyTitle = history.media_type === "episode" ? history.show_title || history.title : history.title;
     return discoverTitleKeys(historyTitle).some((key) => itemTitles.has(key));
   });
+}
+
+function discoverItemIdentity(item = {}) {
+  const mediaType = item.media_type === "tv" || item.first_air_date ? "tv" : "movie";
+  const tmdbId = String(item.tmdb_id || item.tmdbId || item.id || "").trim();
+  return tmdbId ? `${mediaType}:${tmdbId}` : "";
+}
+
+export async function dontRecommendDiscoverItem(item = {}) {
+  const tmdbId = String(item.tmdb_id || item.tmdbId || item.id || "").trim();
+  const mediaType = item.media_type === "tv" || item.media_type === "show" ? "tv" : "movie";
+  if (!/^\d+$/.test(tmdbId)) throw new Error("This Discover item has no valid TMDB id.");
+  const response = await fetch("/api/discover/dismiss", {
+    method: "POST",
+    headers: buildAuthHeaders(state.token),
+    body: JSON.stringify({ media_type: mediaType, tmdb_id: tmdbId, title: item.title || item.name || "" }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || "Could not update Discover recommendations");
+
+  const identity = discoverItemIdentity({ ...item, media_type: mediaType, tmdb_id: tmdbId });
+  if (identity) {
+    state.discoverFeeds = Object.fromEntries(Object.entries(state.discoverFeeds || {}).map(([feedKey, feed]) => [
+      feedKey,
+      feedKey === "recommended"
+        ? { ...feed, results: (feed.results || []).filter((candidate) => discoverItemIdentity(candidate) !== identity) }
+        : feed,
+    ]));
+    persistDiscoverCache();
+    renderDiscover();
+  }
+  return body.exclusion || { media_type: mediaType, tmdb_id: tmdbId, title: item.title || item.name || "" };
 }
 
 export function initDiscover(callbacks = {}) {

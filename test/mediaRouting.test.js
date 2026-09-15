@@ -48,6 +48,14 @@ test("episode links prefer explicit series identities", () => {
     "/tvshow/tmdb/259886-the-war-between-the-land-and-the-sea/season/1/episode/5",
   );
   assert.equal(
+    tvShowHrefFromEpisode({
+      ...episodeWithLeafIds,
+      show_tmdb_id: "259886",
+      show_tvdb_id: "444613",
+    }),
+    "/tvshow/tvdb/444613-the-war-between-the-land-and-the-sea/season/1/episode/5",
+  );
+  assert.equal(
     tvShowBaseHrefFromEpisode({ ...episodeWithLeafIds, show_tvdb_id: "444613" }),
     "/tvshow/tvdb/444613-the-war-between-the-land-and-the-sea",
   );

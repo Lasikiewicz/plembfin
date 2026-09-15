@@ -104,6 +104,7 @@ WIPE_SCOPES.factory = {
     "tmdb_search_cache",
     "tmdb_season_cache",
     "tmdb_person_cache",
+    "recommendation_exclusions",
     "tvdb_metadata_cache",
     "tvdb_season_cache",
     "omdb_cache",

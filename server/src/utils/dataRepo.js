@@ -141,6 +141,7 @@ const findWatchedByCoordinatesStmt = db.prepare("SELECT * FROM watch_history WHE
 const findWatchedByShowCoordinatesStmt = db.prepare("SELECT * FROM watch_history WHERE media_type = 'episode' AND season = ? AND episode = ? AND show_title_lower = ? AND sync_action = 'watched' LIMIT 1");
 const getTmdbShowDetailsStmt = db.prepare("SELECT details FROM tmdb_metadata_cache WHERE id = ?");
 const getTmdbShowSummaryStmt = db.prepare("SELECT status, poster_path FROM tmdb_metadata_cache WHERE id = ?");
+const getTmdbShowByTvdbStmt = db.prepare("SELECT tmdb_id, details FROM tmdb_metadata_cache WHERE id = ?");
 const recoverShowTitleByTmdbStmt = db.prepare("SELECT show_title FROM watch_history WHERE media_type = 'episode' AND tmdb_id = ? AND show_title IS NOT NULL AND show_title_lower != 'unknown show' LIMIT 1");
 const recoverShowTitleByTvdbStmt = db.prepare("SELECT show_title FROM watch_history WHERE media_type = 'episode' AND tvdb_id = ? AND show_title IS NOT NULL AND show_title_lower != 'unknown show' LIMIT 1");
 const selectUnknownShowRowsStmt = db.prepare("SELECT id, title, tmdb_id, tvdb_id, sync_dispatch_telemetry FROM watch_history WHERE media_type = 'episode' AND show_title_lower = 'unknown show'");
@@ -199,6 +200,15 @@ function cachedShowTmdbId(...candidates) {
     if (id && cachedTmdbShowSummary(id)) return id;
   }
   return "";
+}
+
+function cachedTmdbShowIdForTvdb(tvdbId) {
+  const id = cleanString(tvdbId);
+  if (!id) return "";
+  const row = getTmdbShowByTvdbStmt.get(`tv_tvdb_${id}`);
+  const details = row?.details ? parseJson(row.details) : null;
+  if (String(details?.external_ids?.tvdb_id || "") !== id) return "";
+  return cleanString(row?.tmdb_id || details?.external_ids?.tmdb_id);
 }
 
 const getTvdbSeriesDetailsStmt = db.prepare("SELECT details FROM tvdb_metadata_cache WHERE id = ?");
@@ -3346,10 +3356,17 @@ export async function queryWatchHistoryPreview({ limit = 120 } = {}) {
   // dashboard history links use the same unambiguous route as the TV Shows
   // library cards.
   const showByEpisodeId = new Map();
+  const showByAliasCoordinate = new Map();
   const previewShowRows = all.filter((row) => row.media_type === "episode" && isPlembfinTrackedWatchRow(row));
   for (const group of groupShowRows(dedupeHistory(previewShowRows))) {
+    const hasProviderIdentity = Boolean(group.tvdb_id || group.tmdb_id || group.imdb_id);
     for (const episode of group.episodes || []) {
-      if (episode.id) showByEpisodeId.set(String(episode.id), group);
+      if (episode.id && hasProviderIdentity) showByEpisodeId.set(String(episode.id), group);
+      if (episode.season == null || episode.episode == null) continue;
+      if (!hasProviderIdentity) continue;
+      const aliasKey = `${rematchTitleAliasKey(group.title)}|${episode.season}|${episode.episode}`;
+      const existing = showByAliasCoordinate.get(aliasKey);
+      showByAliasCoordinate.set(aliasKey, existing === undefined ? group : existing === group ? group : null);
     }
   }
   const tvRows = all.filter((row) => row.media_type === "episode" && isPlembfinTrackedWatchRow(row)).slice(0, HISTORY_PREVIEW_SCAN_LIMIT);
@@ -3357,7 +3374,11 @@ export async function queryWatchHistoryPreview({ limit = 120 } = {}) {
 
   const tvDeduped = dedupeHistory(tvRows).slice(0, safeLimit).map((row) => {
     const compact = compactHistoryPreviewRow(row);
-    const show = showByEpisodeId.get(String(row.id));
+    const directShow = showByEpisodeId.get(String(row.id));
+    const aliasKey = row.season == null || row.episode == null
+      ? ""
+      : `${rematchTitleAliasKey(row.show_title || row.title)}|${row.season}|${row.episode}`;
+    const show = directShow || (aliasKey ? showByAliasCoordinate.get(aliasKey) : null);
     if (!show) return compact;
     return {
       ...compact,
@@ -3959,6 +3980,16 @@ function retitledEpisode(existingTitle = "", newShowTitle = "", season = null, e
   return newShowTitle;
 }
 
+// A provider can omit the country/year qualifier from an episode title even
+// when the matched series carries it (for example, "The Assembly" vs
+// "The Assembly (UK)"). When Fix Match is explicitly applied to the
+// qualified series, title-only rows with the same episode coordinates are safe
+// to absorb into that match; rows that already have provider ids remain scoped
+// to their own identity cluster.
+function rematchTitleAliasKey(value = "") {
+  return canonicalShowTitleKey(String(value || "").replace(/\s*\([^)]*\)\s*$/, ""));
+}
+
 export async function rematchShowWatchRecords({ id = "", showTitle = "", tvdbId = "", newShowTitle = "" } = {}) {
   const cleanTvdbId = cleanString(tvdbId);
   if (!cleanTvdbId) return { ok: false, error: "tvdb_id is required" };
@@ -3991,9 +4022,21 @@ export async function rematchShowWatchRecords({ id = "", showTitle = "", tvdbId 
   // grouped by everywhere else instead, so Fix Match always repairs every
   // episode of the show in one pass.
   const showKey = canonicalTitleKey(showTitleFrom(resolvedTitle));
-  const rows = selectAllEpisodesStmt.all().filter((row) => (
+  const allEpisodeRows = selectAllEpisodesStmt.all();
+  const exactRows = allEpisodeRows.filter((row) => (
     canonicalTitleKey(showTitleFrom(row.show_title || row.title)) === showKey
   ));
+  const targetCoordinates = new Set(exactRows.map((row) => `${row.season ?? ""}:${row.episode ?? ""}`));
+  const selectedTitle = cleanNewShowTitle || resolvedTitle;
+  const aliasRows = cleanNewShowTitle && rematchTitleAliasKey(resolvedTitle) === rematchTitleAliasKey(selectedTitle)
+    ? allEpisodeRows.filter((row) => {
+      if (exactRows.includes(row)) return false;
+      if (cleanString(row.imdb_id) || cleanString(row.tmdb_id) || cleanString(row.tvdb_id)) return false;
+      if (rematchTitleAliasKey(row.show_title || row.title) !== rematchTitleAliasKey(selectedTitle)) return false;
+      return targetCoordinates.has(`${row.season ?? ""}:${row.episode ?? ""}`);
+    })
+    : [];
+  const rows = [...exactRows, ...aliasRows];
   if (!rows.length) return { ok: false, error: "No episodes found for show" };
 
   if (!renameTo && rows.every((row) => cleanString(row.tvdb_id) === cleanTvdbId)) {
@@ -4033,13 +4076,15 @@ export async function rematchShowWatchRecords({ id = "", showTitle = "", tvdbId 
     for (const row of rows) {
       rematchShowEpisodeStmt.run(cleanTvdbId, updatedAt, row.id);
 
-      const nextTitle = renameTo ? retitledEpisode(row.title, renameTo, row.season, row.episode) : row.title;
-      if (renameTo) {
+      const renameAliasRow = aliasRows.includes(row) && cleanNewShowTitle && canonicalTitleKey(row.show_title || row.title) !== canonicalTitleKey(cleanNewShowTitle);
+      const nextShowTitle = renameTo || (renameAliasRow ? cleanNewShowTitle : "");
+      const nextTitle = nextShowTitle ? retitledEpisode(row.title, nextShowTitle, row.season, row.episode) : row.title;
+      if (nextShowTitle) {
         updateShowTitleStmt.run(
           nextTitle,
           nextTitle.toLowerCase(),
-          renameTo,
-          renameTo.toLowerCase(),
+          nextShowTitle,
+          nextShowTitle.toLowerCase(),
           updatedAt,
           row.id,
         );
@@ -4135,7 +4180,7 @@ export async function rematchShowWatchRecords({ id = "", showTitle = "", tvdbId 
     updatedRows: rows.length,
     showTitle: renameTo || resolvedTitle,
     previousShowTitle: resolvedTitle,
-    renamed: Boolean(renameTo),
+    renamed: Boolean(renameTo || aliasRows.some((row) => cleanNewShowTitle && canonicalTitleKey(row.show_title || row.title) !== canonicalTitleKey(cleanNewShowTitle))),
     tvdbId: cleanTvdbId,
   };
 }
@@ -5901,7 +5946,15 @@ export async function queryShowDetail({ id = "", title = "", tmdbId = "", tvdbId
     const cachedProgress = getCachedShowProgress(showKey) || (rawShowKey !== showKey ? getCachedShowProgress(rawShowKey) : null);
     // show.tmdb_id trusted unconditionally - see the matching comment in
     // getCachedShows above.
-    show.tmdb_id = cleanString(show.tmdb_id) || cachedShowTmdbId(cachedProgress?.tmdb_id, show.representative_episode?.tmdb_id) || null;
+    // When the caller supplied a TVDB identity, a TMDB id from the old title
+    // cluster/progress cache is not authoritative: Fix Match deliberately
+    // clears those row ids, but an already-warm cache can still contain the
+    // previous same-title series. Prefer the TVDB-keyed metadata alias and do
+    // not resurrect an unrelated cached TMDB id when that alias is absent.
+    const tvdbCanonicalTmdbId = selectedTvdbId ? cachedTmdbShowIdForTvdb(selectedTvdbId) : "";
+    show.tmdb_id = tvdbCanonicalTmdbId
+      || (selectedTvdbId ? "" : cleanString(show.tmdb_id) || cachedShowTmdbId(cachedProgress?.tmdb_id, show.representative_episode?.tmdb_id))
+      || null;
     show.total_episodes = cachedProgress?.total_episodes || 0;
     const canonicalPosterUrl = getCanonicalPosterUrl({
       media_type: "tv",

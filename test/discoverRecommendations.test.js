@@ -7,7 +7,8 @@ process.env.TMDB_API_KEY = "discover-test-key";
 
 const { AUTH } = await import("../server/src/appConfig.js");
 const repo = await import("../server/src/utils/dataRepo.js");
-const { handleDiscover } = await import("../server/src/routes/metadata.js");
+const { handleDiscover, handleDiscoverDismiss } = await import("../server/src/routes/metadata.js");
+const { filterExcludedRecommendations } = await import("../server/src/utils/recommendationExclusions.js");
 
 function responseCapture() {
   const capture = { body: null, headers: {}, status: 200 };
@@ -27,6 +28,14 @@ function request(query = {}) {
     get(name) {
       return String(name || "").toLowerCase() === "x-api-key" ? AUTH.apiKey : "";
     },
+  };
+}
+
+function dismissRequest(body = {}) {
+  return {
+    ...request(),
+    method: "POST",
+    body,
   };
 }
 
@@ -125,4 +134,25 @@ test("Discover filters watched titles and adds a personalized recommendation rai
   } finally {
     globalThis.fetch = previousFetch;
   }
+});
+
+test("Discover exclusions persist and filter only matching recommendation identities", async () => {
+  const response = responseCapture();
+  await handleDiscoverDismiss(dismissRequest({ media_type: "movie", tmdb_id: "301", title: "Recommended Movie" }), response);
+  assert.equal(response.capture.status, 200);
+  assert.equal(JSON.parse(response.capture.body).exclusion.tmdb_id, "301");
+
+  const filtered = filterExcludedRecommendations({
+    media_type: "all",
+    results: [
+      { id: 301, title: "Recommended Movie", media_type: "movie" },
+      { id: 301, name: "Recommended Show", media_type: "tv" },
+      { id: 401, name: "Other Show", media_type: "tv" },
+    ],
+  });
+  assert.deepEqual(filtered.results.map((item) => `${item.media_type}:${item.id}`), ["tv:301", "tv:401"]);
+
+  const invalid = responseCapture();
+  await handleDiscoverDismiss(dismissRequest({ media_type: "movie", tmdb_id: "not-a-tmdb-id" }), invalid);
+  assert.equal(invalid.capture.status, 400);
 });

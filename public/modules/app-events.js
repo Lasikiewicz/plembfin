@@ -1,25 +1,26 @@
-import { buildAuthHeaders, buildNowPlayingUrl, getWebhookToken, onAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./auth.js?v=1.1.1.0.3";
-import { claimWithForm } from "./onboarding.js?v=1.1.1.0.3";
-import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs } from "./logs.js?v=1.1.1.0.3";
-import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS, EXPLORER_VIEW_KEY_MOVIES, EXPLORER_VIEW_KEY_SHOWS, HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS, HISTORY_VIEW_KEY, HISTORY_FILTER_KEY, HISTORY_VIEW_MODES, HISTORY_FILTERS, PRIMARY_VIEWS } from "./state.js?v=1.1.1.0.3";
-import { escapeHtml, sanitizeTitle, safeImageUrl, movieSlug, showTitleFrom, slug, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel } from "./utils.js?v=1.1.1.0.3";
-import { renderSettingsInlineHelp } from "./help-content.js?v=1.1.1.0.3";
-import { compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, markArtworkUnavailable, tmdbProfile } from "./images.js?v=1.1.1.0.3";
-import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, restoreRemoteBackupFromCard, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runTraktBackfill, runEpisodeTitleAudit, runEpisodeTitleBackfill, runRematchTvShows, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, appendImportLog, loadPlembfinBackups, savePlembfinBackupSettings, createPlembfinBackupNow, downloadPlembfinBackup, deletePlembfinBackupFile, restorePlembfinBackupFromServer, restoreRemotePlembfinBackup, renderPlembfinBackups, updatePlembfinButtonsState, savePlembfinBackupRemoteSettings, createPlembfinBackupRemoteNow, createRemoteWatchBackupNow, saveRemoteWatchBackupSettings } from "./tools.js?v=1.1.1.0.3";
-import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerCronSync, triggerStopSync } from "./sync.js?v=1.1.1.0.3";
-import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched } from "./dashboard.js?v=1.1.1.0.3";
-import { loadUpNext, removeUpNextItem, restoreUpNextItem } from "./up-next.js?v=1.1.1.0.3";
-import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, renderRankingTable } from "./stats.js?v=1.1.1.0.3";
-import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, triggerSearchPage, loadMoreSearchPeople, loadSearchCollection, renderSearchPage, renderExplorer, explorerQueryKey, updateAlphaFilter, handleAlphaFilterClick, resetMovieExplorer, resetShowExplorer, renderExplorerSentinel, observeExplorerSentinel, observeExplorerTmdbPrefetch, scheduleNextAirResort, currentExplorerView, currentExplorerSort, currentPosterWidthKey, setCurrentExplorerSort, applyExplorerPosterWidth, applyListHeaderSort, renderMovieCard, renderMovieExplorer, loadExplorerMovies, applyHistoryPosterWidth, resetHistoryView, renderHistoryItems, renderHistoryView, loadHistoryView, observeHistorySentinel, renderShowExplorer, loadExplorerShows, mergeShowDetail, loadShowDetail, matchesExplorerSearch, sortExplorerItems, renderShowRecord, renderShowFolder, renderSeasonFolder, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, emptyExplorer, FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver } from "./explorer.js?v=1.1.1.0.3";
-import { openWatchDatePrompt, markDiscoverWatched, submitSeerrRequest } from "./watch-action.js?v=1.1.1.0.3";
-import { addToWatchlist, removeFromWatchlist, openRatingDialog, openAddToListDialog, addToCustomList, removeFromCustomList, openCreateListDialog, personalItemFromPosterMenuDataset, handlePersonalAction } from "./personal-media.js?v=1.1.1.0.3";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails, resolveEpisodeTitleFromTmdb } from "./tmdb.js?v=1.1.1.0.3";
-import { initMediaDetail, nowPlayingHref, openMovieInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, closeMediaInfoModal, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail.js?v=1.1.1.0.3";
-import { closePersonProfile, loadCastMemberDetails } from "./media-person.js?v=1.1.1.0.3";
-import { initMediaLightbox } from "./media-lightbox.js?v=1.1.1.0.3";
-import { initMediaDetailEvents, attachMediaDetailEvents, initLibraryForceSyncPanel } from "./media-detail-events.js?v=1.1.1.0.3";
-import { attachSidebarMiddleClickNavigation } from "./sidebar-navigation.js?v=1.1.1.0.3";
-import { initPosterOverflowMenu, closePosterOverflowMenu, setPosterOverflowMenuActionPending } from "./poster-menu.js?v=1.1.1.0.3";
+import { buildAuthHeaders, buildNowPlayingUrl, getWebhookToken, onAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./auth.js?v=1.1.1.1.3";
+import { claimWithForm } from "./onboarding.js?v=1.1.1.1.3";
+import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs } from "./logs.js?v=1.1.1.1.3";
+import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS, EXPLORER_VIEW_KEY_MOVIES, EXPLORER_VIEW_KEY_SHOWS, HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS, HISTORY_VIEW_KEY, HISTORY_FILTER_KEY, HISTORY_VIEW_MODES, HISTORY_FILTERS, PRIMARY_VIEWS } from "./state.js?v=1.1.1.1.3";
+import { escapeHtml, sanitizeTitle, safeImageUrl, movieSlug, showTitleFrom, slug, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel } from "./utils.js?v=1.1.1.1.3";
+import { renderSettingsInlineHelp } from "./help-content.js?v=1.1.1.1.3";
+import { compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, markArtworkUnavailable, tmdbProfile } from "./images.js?v=1.1.1.1.3";
+import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, restoreRemoteBackupFromCard, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runTraktBackfill, runEpisodeTitleAudit, runEpisodeTitleBackfill, runRematchTvShows, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, appendImportLog, loadPlembfinBackups, savePlembfinBackupSettings, createPlembfinBackupNow, downloadPlembfinBackup, deletePlembfinBackupFile, restorePlembfinBackupFromServer, restoreRemotePlembfinBackup, renderPlembfinBackups, updatePlembfinButtonsState, savePlembfinBackupRemoteSettings, createPlembfinBackupRemoteNow, createRemoteWatchBackupNow, saveRemoteWatchBackupSettings } from "./tools.js?v=1.1.1.1.3";
+import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerCronSync, triggerStopSync } from "./sync.js?v=1.1.1.1.3";
+import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched } from "./dashboard.js?v=1.1.1.1.3";
+import { loadUpNext, removeUpNextItem, restoreUpNextItem, setUpNextRemovalPending } from "./up-next.js?v=1.1.1.1.3";
+import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, renderRankingTable } from "./stats.js?v=1.1.1.1.3";
+import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, triggerSearchPage, loadMoreSearchPeople, loadSearchCollection, renderSearchPage, renderExplorer, explorerQueryKey, updateAlphaFilter, handleAlphaFilterClick, resetMovieExplorer, resetShowExplorer, renderExplorerSentinel, observeExplorerSentinel, observeExplorerTmdbPrefetch, scheduleNextAirResort, currentExplorerView, currentExplorerSort, currentPosterWidthKey, setCurrentExplorerSort, applyExplorerPosterWidth, applyListHeaderSort, renderMovieCard, renderMovieExplorer, loadExplorerMovies, applyHistoryPosterWidth, resetHistoryView, renderHistoryItems, renderHistoryView, loadHistoryView, observeHistorySentinel, renderShowExplorer, loadExplorerShows, mergeShowDetail, loadShowDetail, matchesExplorerSearch, sortExplorerItems, renderShowRecord, renderShowFolder, renderSeasonFolder, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, emptyExplorer, FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver } from "./explorer.js?v=1.1.1.1.3";
+import { openWatchDatePrompt, markDiscoverWatched, submitSeerrRequest, watchedReferenceFor } from "./watch-action.js?v=1.1.1.1.3";
+import { addToWatchlist, removeFromWatchlist, openRatingDialog, openAddToListDialog, addToCustomList, removeFromCustomList, openCreateListDialog, personalItemFromPosterMenuDataset, handlePersonalAction } from "./personal-media.js?v=1.1.1.1.3";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails, resolveEpisodeTitleFromTmdb } from "./tmdb.js?v=1.1.1.1.3";
+import { initMediaDetail, nowPlayingHref, openMovieInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, closeMediaInfoModal, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail.js?v=1.1.1.1.3";
+import { closePersonProfile, loadCastMemberDetails } from "./media-person.js?v=1.1.1.1.3";
+import { initMediaLightbox } from "./media-lightbox.js?v=1.1.1.1.3";
+import { initMediaDetailEvents, attachMediaDetailEvents, initLibraryForceSyncPanel } from "./media-detail-events.js?v=1.1.1.1.3";
+import { attachSidebarMiddleClickNavigation } from "./sidebar-navigation.js?v=1.1.1.1.3";
+import { initPosterOverflowMenu, closePosterOverflowMenu, setPosterOverflowMenuActionPending } from "./poster-menu.js?v=1.1.1.1.3";
+import { dontRecommendDiscoverItem } from "./discover.js?v=1.1.1.1.3";
 
 let _cb = {};
 
@@ -643,7 +644,55 @@ function attachEvents() {
     };
   };
 
-  const openUpNextWatchPrompt = (watchBtn, event = null) => {
+  const upNextWatchedReference = (item) => {
+    const showKey = slug(showTitleFrom(item?.showTitle || "")).replace(/-\d{4}$/, "");
+    const showIds = {
+      tmdb: String(item?.tmdbId || "").trim(),
+      tvdb: String(item?.tvdbId || "").trim(),
+      imdb: String(item?.imdbId || "").trim().toLowerCase(),
+    };
+    if (!showKey) return null;
+    const identityMatches = (candidate = {}) => Object.entries(showIds).some(([provider, value]) => (
+      value && String(candidate[`show_${provider}_id`] || candidate[`${provider}_id`] || "").trim().toLowerCase() === value
+    ));
+    const titleMatches = (candidate = {}) => (
+      slug(showTitleFrom(candidate.show_title || candidate.title || "")).replace(/-\d{4}$/, "") === showKey
+    );
+    const scopeEpisodes = [];
+    const seen = new Set();
+    const addEpisode = (episode) => {
+      const seasonNumber = Number(episode?.seasonNumber ?? episode?.season);
+      const episodeNumber = Number(episode?.episodeNumber ?? episode?.episode);
+      const watchedAt = episode?.watched?.watched_at || episode?.watched_at;
+      if (!Number.isFinite(seasonNumber) || !Number.isFinite(episodeNumber) || !watchedAt) return;
+      const key = `${seasonNumber}:${episodeNumber}:${watchedAt}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      scopeEpisodes.push({
+        seasonNumber,
+        episodeNumber,
+        runtime: episode?.runtime ?? null,
+        watched: { watched_at: watchedAt },
+      });
+    };
+
+    for (const row of state.history || []) {
+      if (row?.media_type !== "episode" || !isWatchedHistoryAction(row)) continue;
+      if (!titleMatches(row) && !identityMatches(row)) continue;
+      addEpisode(row);
+    }
+    for (const show of state.showsRaw || []) {
+      if (!titleMatches(show) && !identityMatches(show)) continue;
+      for (const episode of show.episodes || []) addEpisode(episode);
+    }
+
+    return watchedReferenceFor(scopeEpisodes, {
+      seasonNumber: Number(item?.season),
+      episodeNumber: Number(item?.episode),
+    });
+  };
+
+  const openUpNextWatchPrompt = async (watchBtn, event = null) => {
     event?.preventDefault();
     event?.stopPropagation();
     const item = upNextPayloadFromButton(watchBtn);
@@ -676,27 +725,58 @@ function attachEvents() {
     const episode = Number(item.episode);
     if (!Number.isInteger(season) || !Number.isInteger(episode) || episode <= 0) return;
     const showTitle = item.showTitle || "Show";
+    // The dashboard history payload is intentionally a small preview and the
+    // explorer may not have loaded this show yet. Fetch the authoritative show
+    // detail when the local preview cannot provide a sibling watch date; that
+    // keeps the Up Next prompt in parity with the media-page prompt instead of
+    // silently omitting "Same as other episodes".
+    let reference = upNextWatchedReference(item);
+    let referenceShow = null;
+    if (!reference && showTitle && showTitle !== "Show") {
+      try {
+        referenceShow = await loadShowDetail({
+          title: showTitle,
+          tmdb_id: item.tmdbId,
+          tvdb_id: item.tvdbId,
+          imdb_id: item.imdbId,
+        });
+        reference = upNextWatchedReference({
+          ...item,
+          showTitle: referenceShow?.title || showTitle,
+          tmdbId: referenceShow?.tmdb_id || item.tmdbId,
+          tvdbId: referenceShow?.tvdb_id || item.tvdbId,
+          imdbId: referenceShow?.imdb_id || item.imdbId,
+        });
+      } catch (error) {
+        logDebug(`Up Next watched reference lookup failed: ${error.message}`);
+      }
+    }
+    const resolvedShowTitle = referenceShow?.title || showTitle;
     state.pendingWatchAction = {
       origin: "up-next",
       scope: "episode",
-      showTitle,
-      showTmdbId: item.tmdbId,
+      showTitle: resolvedShowTitle,
+      showTmdbId: referenceShow?.tmdb_id || item.tmdbId,
       episodes: [{
         seasonNumber: season,
         episodeNumber: episode,
         title: item.episodeTitle || episodeCode(season, episode),
-        showTitle,
-        showTmdbId: item.tmdbId,
-        tvdbId: item.tvdbId,
-        imdbId: item.imdbId,
+        showTitle: resolvedShowTitle,
+        showTmdbId: referenceShow?.tmdb_id || item.tmdbId,
+        tvdbId: referenceShow?.tvdb_id || item.tvdbId,
+        imdbId: referenceShow?.imdb_id || item.imdbId,
         posterUrl: item.posterUrl || null,
         providerItems: item.providerItems,
         key: item.id || `up-next:${showTitle}:${season}:${episode}`,
         airDate: item.airDate || null,
       }],
       resyncEpisodes: [],
+      referenceWatchedAt: reference?.watchedAt || "",
+      referenceEpisodeLabel: reference?.label || "",
+      referenceRuntime: reference?.runtime ?? null,
+      referenceDirection: reference?.direction || "",
       label: `Mark ${episodeCode(season, episode)} watched`,
-      countLabel: `${episodeCode(season, episode)} · ${showTitle}`,
+      countLabel: `${episodeCode(season, episode)} · ${resolvedShowTitle}`,
     };
     openWatchDatePrompt(state.pendingWatchAction);
   };
@@ -811,10 +891,10 @@ function attachEvents() {
     removeBtn.textContent = "…";
     removeBtn.setAttribute("aria-label", "Removing from Up Next");
 
-    // Start the card-level exit immediately after confirmation. The provider
-    // calls still run before the action is considered complete; a failed call
-    // restores the card and clears the temporary dismissal.
-    const pendingRemoval = removeUpNextItem(payload.id || itemId, payload);
+    // Keep the card in place while the provider calls run. The pending state
+    // is part of the rendered snapshot, so an overlapping refresh cannot
+    // repaint the item as an ordinary card before removal is complete.
+    setUpNextRemovalPending(item || payload, true);
     try {
       const response = await fetch("/api/up-next/remove", {
         method: "POST",
@@ -835,6 +915,7 @@ function attachEvents() {
       });
       const body = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(body.error || `HTTP ${response.status}`);
+      removeUpNextItem(payload.id || itemId, payload, { showScope: true });
       const dismissals = Array.isArray(body.providerDismissals) ? body.providerDismissals : [];
       const synced = dismissals.filter((entry) => entry.status === "fulfilled").length;
       const issues = dismissals.filter((entry) => entry.status !== "fulfilled").length;
@@ -852,7 +933,7 @@ function attachEvents() {
       await loadUpNext({ force: true });
       renderDashboard();
     } catch (error) {
-      restoreUpNextItem(pendingRemoval);
+      setUpNextRemovalPending(item || payload, false);
       showErrorExplainModal(`Failed to remove "${title}" from Up Next`, error.message);
     } finally {
       removeBtn.disabled = false;
@@ -1065,6 +1146,18 @@ function attachEvents() {
       event.preventDefault();
       event.stopPropagation();
       openAddToListDialog(discoverItemFromButton(discoverListButton));
+      return;
+    }
+
+    const discoverDontRecommendButton = event.target.closest("[data-discover-dont-recommend]");
+    if (discoverDontRecommendButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      const item = discoverItemFromButton(discoverDontRecommendButton);
+      closePosterOverflowMenu();
+      dontRecommendDiscoverItem(item)
+        .then(() => setMessage(`${item.title || "This title"} won't be recommended again.`, "success"))
+        .catch((error) => setMessage(error.message, "error"));
       return;
     }
 

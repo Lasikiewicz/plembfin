@@ -83,8 +83,10 @@ export function tvShowTvdbHref(id, title) {
 
 // Episode records often carry provider ids for the episode itself in the
 // flat tmdb_id/tvdb_id fields. Those ids must never be used to build a series
-// route. Only the explicit show_* fields are valid series identity; when they
-// are absent, the title route is the safe fallback.
+// route. Only the explicit show_* fields are valid series identity. Prefer
+// TVDB when both provider ids are present because it is the stable series
+// identity used by rematches; a stale TMDB id can otherwise send history back
+// to the previously matched show.
 export function tvShowBaseHrefFromEpisode(entry = {}, title = "") {
   const showTitle = String(
     title || entry.show_title || entry.showTitle || showTitleFrom(entry.title || "")
@@ -92,8 +94,8 @@ export function tvShowBaseHrefFromEpisode(entry = {}, title = "") {
   const showTmdbId = String(entry.show_tmdb_id || entry.showTmdbId || "").trim();
   const showTvdbId = String(entry.show_tvdb_id || entry.showTvdbId || "").trim();
 
-  if (showTmdbId) return tvShowTmdbHref(showTmdbId, showTitle);
   if (showTvdbId) return tvShowTvdbHref(showTvdbId, showTitle);
+  if (showTmdbId) return tvShowTmdbHref(showTmdbId, showTitle);
   return `/tvshow/${slug(showTitle)}`;
 }
 
@@ -303,9 +305,9 @@ export function platformSourceValues(entry = {}) {
 
 export function platformIconUrl(value) {
   const normalized = normalizePlatformSource(value);
-  if (normalized === "plembfin") return "/icons/plembfin.png?v=1.1.1.0.3";
+  if (normalized === "plembfin") return "/icons/plembfin.png?v=1.1.1.1.3";
   const extension = "svg";
-  return `/icons/${normalized}.${extension}?v=1.1.1.0.3`;
+  return `/icons/${normalized}.${extension}?v=1.1.1.1.3`;
 }
 
 export function platformIconMarkup(value, className = "source-badge-icon", wrapperClass = "source-badge-icon-set") {
@@ -316,8 +318,8 @@ export function platformIconMarkup(value, className = "source-badge-icon", wrapp
   }
 
   return `<span class="${escapeAttribute(wrapperClass)} theme-aware-icon-set" aria-hidden="true">
-    <img class="${safeClassName} theme-aware-icon--light" src="/icons/plembfin-light.png?v=1.1.1.0.3" alt="" loading="eager" decoding="async" />
-    <img class="${safeClassName} theme-aware-icon--dark" src="/icons/plembfin.png?v=1.1.1.0.3" alt="" loading="eager" decoding="async" />
+    <img class="${safeClassName} theme-aware-icon--light" src="/icons/plembfin-light.png?v=1.1.1.1.3" alt="" loading="eager" decoding="async" />
+    <img class="${safeClassName} theme-aware-icon--dark" src="/icons/plembfin.png?v=1.1.1.1.3" alt="" loading="eager" decoding="async" />
   </span>`;
 }
 

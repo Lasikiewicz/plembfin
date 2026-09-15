@@ -1,6 +1,6 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.0.3";
-import { state } from "./state.js?v=1.1.1.0.3";
-import { safeImageUrl, escapeAttribute, isDemoMode } from "./utils.js?v=1.1.1.0.3";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.1.3";
+import { state } from "./state.js?v=1.1.1.1.3";
+import { safeImageUrl, escapeAttribute, isDemoMode } from "./utils.js?v=1.1.1.1.3";
 
 // /api/poster resolves most requests from an already-cached DB row or webp
 // file (no outbound API call); the actual TMDB fallback downloads are
@@ -367,7 +367,8 @@ export function posterOverflowMenu(item = {}, options = {}) {
       data-poster-menu-up-next-episode="${escapeAttribute(item.episode ?? "")}"
       data-poster-menu-up-next-episode-title="${escapeAttribute(item.episode_title || item.episodeTitle || "")}"
       data-poster-menu-up-next-air-date="${escapeAttribute(item.air_date || item.airDate || "")}" 
-      data-poster-menu-up-next-poster-url="${escapeAttribute(item.poster_url || item.posterUrl || "")}"
+      data-poster-menu-up-next-has-progress="${Number(item.position_ms ?? item.positionMs ?? 0) > 0 || Number(item.progress ?? 0) > 0 ? "true" : "false"}"
+      data-poster-menu-up-next-poster-url="${escapeAttribute(item.poster_url || item.posterUrl || "")}" 
       data-poster-menu-up-next-provider-items="${escapeAttribute(JSON.stringify(item.provider_items || item.providerItems || {}))}"` : "";
   const discoverAttrs = menuMode === "discover" ? `
       data-poster-menu-discover-media-type="${escapeAttribute(mediaType)}"

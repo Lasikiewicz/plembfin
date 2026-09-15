@@ -102,6 +102,43 @@ test("getTmdbDetails returns fresh cached TV details without upstream fetches", 
   assert.equal(result.cache_stale, undefined);
 });
 
+test("explicit TVDB and IMDb ids cannot reuse a conflicting TMDB cache slot", async () => {
+  db.prepare(
+    `INSERT INTO tmdb_metadata_cache (id, tmdb_id, media_type, title, details, schema_version, updated_at_ms)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run("tv_290057", "290057", "tv", "The Assembly", toJson({
+    id: "290057",
+    name: "The Assembly",
+    external_ids: { tvdb_id: "452480", imdb_id: "tt33204483", tmdb_id: "290057" },
+  }), 9999, Date.now());
+  db.prepare(
+    `INSERT INTO tvdb_metadata_cache (id, tvdb_id, title, details, updated_at_ms)
+     VALUES (?, ?, ?, ?, ?)`
+  ).run("series_453869", "453869", "The Assembly (UK)", toJson({
+    id: 453869,
+    name: "The Assembly (UK)",
+    status: { name: "Continuing" },
+    episodes: [],
+    seasons: [],
+    remoteIds: [
+      { sourceName: "TheMovieDB.com", id: "6227290" },
+      { sourceName: "IMDB", id: "tt8064568" },
+    ],
+    firstAired: "2025-04-26",
+  }), Date.now());
+
+  const result = await getTmdbDetails({
+    mediaType: "tv",
+    tmdbId: "290057",
+    title: "The Assembly (UK)",
+    ids: { tvdbId: "453869", imdbId: "tt8064568" },
+  });
+  assert.equal(result.name, "The Assembly (UK)");
+  assert.equal(result.id, "6227290");
+  assert.equal(result.external_ids.tvdb_id, "453869");
+  assert.equal(result.external_ids.imdb_id, "tt8064568");
+});
+
 test("TMDB-id season requests find TVDB-keyed show metadata", async () => {
   db.prepare(
     `INSERT INTO tmdb_metadata_cache (id, tmdb_id, media_type, title, details, schema_version, updated_at_ms)

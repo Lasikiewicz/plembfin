@@ -1,13 +1,13 @@
-import { state, elements } from "./state.js?v=1.1.1.0.3";
-import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeCode, seasonLabel, formatSeasonTitle, formatTmdbDate, showEpisodeKey } from "./utils.js?v=1.1.1.0.3";
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.0.3";
-import { isWatchedHistoryAction } from "./sync.js?v=1.1.1.0.3";
-import { mergeShowDetail } from "./explorer.js?v=1.1.1.0.3";
-import { dedupeMediaRecords, resetPartWatchedView, renderPartWatched } from "./dashboard.js?v=1.1.1.0.3";
-import { tvSeasonAvailability } from "./media-detail-shared.js?v=1.1.1.0.3";
-import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=1.1.1.0.3";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.1.1.0.3";
-import { tmdbPoster } from "./images.js?v=1.1.1.0.3";
+import { state, elements } from "./state.js?v=1.1.1.1.3";
+import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeCode, seasonLabel, formatSeasonTitle, formatTmdbDate, showEpisodeKey } from "./utils.js?v=1.1.1.1.3";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.1.3";
+import { isWatchedHistoryAction } from "./sync.js?v=1.1.1.1.3";
+import { mergeShowDetail } from "./explorer.js?v=1.1.1.1.3";
+import { dedupeMediaRecords, resetPartWatchedView, renderPartWatched } from "./dashboard.js?v=1.1.1.1.3";
+import { tvSeasonAvailability } from "./media-detail-shared.js?v=1.1.1.1.3";
+import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=1.1.1.1.3";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.1.1.1.3";
+import { tmdbPoster } from "./images.js?v=1.1.1.1.3";
 
 // Callbacks injected by app.js at startup to break circular-import chains.
 let _setMessage = () => {};
@@ -28,6 +28,8 @@ let _patchShowModalEpisodeFromLive = () => false;
 let _patchShowModalEpisodesSavingState = () => false;
 let _syncShowModalWatchActionControls = () => false;
 let _refreshUpNext = async () => {};
+let _removeWatchedUpNextItems = () => 0;
+let _removeDismissedUpNextItems = async () => 0;
 
 export function initWatchAction(callbacks) {
   if (callbacks.setMessage) _setMessage = callbacks.setMessage;
@@ -48,6 +50,8 @@ export function initWatchAction(callbacks) {
   if (callbacks.patchShowModalEpisodesSavingState) _patchShowModalEpisodesSavingState = callbacks.patchShowModalEpisodesSavingState;
   if (callbacks.syncShowModalWatchActionControls) _syncShowModalWatchActionControls = callbacks.syncShowModalWatchActionControls;
   if (callbacks.refreshUpNext) _refreshUpNext = callbacks.refreshUpNext;
+  if (callbacks.removeWatchedUpNextItems) _removeWatchedUpNextItems = callbacks.removeWatchedUpNextItems;
+  if (callbacks.removeDismissedUpNextItems) _removeDismissedUpNextItems = callbacks.removeDismissedUpNextItems;
 }
 
 // Up Next is derived from both playback progress and canonical watch state.
@@ -527,6 +531,7 @@ export async function runResyncWatchAction(action) {
   try {
     const result = await postManualWatchRecords(records);
     state.savingWatchActions.delete(action);
+    _removeWatchedUpNextItems(action);
     _clearDerivedUiCaches({ resetExplorer: false });
     await refreshUpNextAfterWatchSync();
     const syncText = result.syncQueued
@@ -581,6 +586,24 @@ function syncActiveShowSavingState(action = null) {
 
 function syncActiveShowWatchActionState() {
   return _syncShowModalWatchActionControls();
+}
+
+// Up Next cards stay mounted while a manual watch request is in flight. Mark
+// the matching card immediately so the user sees the save progressing, and
+// let the Up Next renderer reapply the same state if an overlapping refresh
+// repaints the rail before the request settles.
+function syncUpNextSavingState(action, saving) {
+  if (action?.origin !== "up-next") return;
+  const keys = new Set([
+    ...(action.episodes || []),
+    ...(action.resyncEpisodes || []),
+  ].map((episode) => String(episode?.key || "").trim()).filter(Boolean));
+  if (!keys.size) return;
+  document.querySelectorAll?.("[data-up-next-card-id]")?.forEach((card) => {
+    if (!keys.has(String(card.dataset.upNextCardId || "").trim())) return;
+    card.classList.toggle("up-next-card-saving", saving);
+    card.toggleAttribute("aria-busy", saving);
+  });
 }
 
 function restoreActiveShowEpisodeState(action) {
@@ -1185,6 +1208,7 @@ async function applyMovieWatchDateChoice(choice) {
   });
 
   state.savingWatchActions.add(action);
+  syncUpNextSavingState(action, true);
   closeWatchDatePrompt();
 
   const markWatchedBtn = root.querySelector("[data-movie-mark-watched]");
@@ -1198,6 +1222,7 @@ async function applyMovieWatchDateChoice(choice) {
   try {
     const result = await postManualWatchRecords([record]);
     state.savingWatchActions.delete(action);
+    _removeWatchedUpNextItems(action);
     await refreshUpNextAfterWatchSync();
     const savedId = result.results?.[0]?.id || "";
     const watchedMovie = localWatchRowFromMovie(movie, watchedAt, savedId);
@@ -1215,6 +1240,7 @@ async function applyMovieWatchDateChoice(choice) {
     }
   } catch (error) {
     state.savingWatchActions.delete(action);
+    syncUpNextSavingState(action, false);
     if (markWatchedBtn) {
       markWatchedBtn.disabled = false;
       markWatchedBtn.textContent = "Mark watched";
@@ -1317,6 +1343,7 @@ async function applyPartWatchedWatchDateChoice(choice) {
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
+    _removeWatchedUpNextItems(action);
     await refreshUpNextAfterWatchSync();
     _setMessage(`"${action.title}" marked as watched`, "success");
     resetPartWatchedView("default");
@@ -1367,6 +1394,7 @@ export async function applyWatchDateChoice(choice) {
   // stored; the response below remains the authoritative fallback for any
   // item whose live event was delayed or missed.
   state.savingWatchActions.add(action);
+  syncUpNextSavingState(action, true);
   closeWatchDatePrompt();
   // Keep the mounted show detail in place. Each saved item is reconciled by
   // the SSE/live-row patch path instead of rebuilding the whole modal.
@@ -1380,6 +1408,7 @@ export async function applyWatchDateChoice(choice) {
       if (all > 1) _setMessage(`Syncing ${all} episodes to your media apps… ${done}/${all}`, "muted");
     });
     state.savingWatchActions.delete(action);
+    _removeWatchedUpNextItems(action);
     await refreshUpNextAfterWatchSync();
     const watchedRows = watchedEntries.map(({ episode, watchedAt }, index) => (
       localWatchRowFromEpisode(episode, watchedAt, resultForInputIndex(result, index)?.id || "")
@@ -1395,6 +1424,7 @@ export async function applyWatchDateChoice(choice) {
     syncActiveShowWatchActionState();
   } catch (error) {
     state.savingWatchActions.delete(action);
+    syncUpNextSavingState(action, false);
     await restoreActiveShowEpisodeState(action);
     _setMessage(`Manual watch update failed: ${error.message}`, "error");
     throw error;
@@ -1502,7 +1532,16 @@ export async function confirmAndMarkUnwatched(button) {
     && state.activeShowRenderContext?.show
     ? showEpisodesForUnwatchIds(ids)
     : [];
-  const showUnwatchAction = { episodes: showUnwatchEpisodes };
+  const activeShow = state.activeShowRenderContext?.show || {};
+  const activeTmdbData = state.activeShowRenderContext?.tmdbData || {};
+  const showUnwatchAction = {
+    scope: "show",
+    showTitle: showTitle || activeShow.title || state.activeShowModalTitle || "",
+    showTmdbId: activeShow.tmdb_id || activeTmdbData.id || state.activeShowTmdbId || "",
+    showTvdbId: activeShow.tvdb_id || activeTmdbData.external_ids?.tvdb_id || state.activeShowTvdbId || "",
+    showImdbId: activeShow.imdb_id || activeTmdbData.external_ids?.imdb_id || "",
+    episodes: showUnwatchEpisodes,
+  };
 
   // Marks these ids as "being removed" so the season/show progress labels
   // (which otherwise just recompute from the still-watched rows) show
@@ -1555,6 +1594,7 @@ export async function confirmAndMarkUnwatched(button) {
       }
     }
 
+    await _removeDismissedUpNextItems(showUnwatchAction);
     await refreshUpNextAfterWatchSync();
     for (const id of ids) state.savingUnwatchIds.delete(id);
     // The server has committed the unwatch at this point. Reflect that success

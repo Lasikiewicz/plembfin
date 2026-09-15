@@ -213,6 +213,45 @@ function stateIsWatched(candidate, playstateIndex) {
   return newestStateFor(candidate, playstateIndex)?.state === "watched";
 }
 
+function stateIsUnwatched(candidate, playstateIndex) {
+  return newestStateFor(candidate, playstateIndex)?.state === "unwatched";
+}
+
+function showIdentityKeys(item = {}) {
+  const keys = [];
+  for (const [provider, values] of [
+    ["imdb", [item.show_imdb_id, item.imdb_id]],
+    ["tmdb", [item.show_tmdb_id, item.tmdb_id]],
+    ["tvdb", [item.show_tvdb_id, item.tvdb_id]],
+  ]) {
+    for (const value of values) {
+      const normalized = text(value).toLowerCase();
+      if (normalized) keys.push(`${provider}:${normalized}`);
+    }
+  }
+  const title = normalizedTitle(item.show_title || item.title || showTitleFrom(item.name || ""));
+  if (title) keys.push(`title:${title}`);
+  return [...new Set(keys)];
+}
+
+function showHasWatchedRecord(item, watchedShowKeys) {
+  return showIdentityKeys(item).some((key) => watchedShowKeys.has(key));
+}
+
+function buildWatchedShowKeys(episodeRows = [], playstateIndex, showIdentities, shows = []) {
+  const watchedShowKeys = new Set();
+  for (const row of episodeRows) {
+    const candidate = rowCandidate(row, { queueKind: "next_up", showIdentities });
+    if (newestStateFor(candidate, playstateIndex)?.state !== "watched") continue;
+    for (const key of showIdentityKeys(candidate)) watchedShowKeys.add(key);
+  }
+  for (const show of Array.isArray(shows) ? shows : []) {
+    if (!text(show.latest_watched_at)) continue;
+    for (const key of showIdentityKeys(show)) watchedShowKeys.add(key);
+  }
+  return watchedShowKeys;
+}
+
 function actionableResume(candidate) {
   const position = number(candidate.position_ms);
   const progress = number(candidate.progress);
@@ -610,6 +649,7 @@ async function localNextUpForShow(show, {
         source: "local",
       });
       if (stateIsWatched(candidate, playstateIndex)) continue;
+      if (stateIsUnwatched(candidate, playstateIndex)) continue;
       if (progressCandidates.some((resume) => aliasesIntersect(aliasesFor(candidate), aliasesFor(resume)))) continue;
       // Local history and TMDB metadata can tell us what should come next, but
       // cannot prove that a guessed episode still exists in a configured media
@@ -687,6 +727,7 @@ function collapseUncertainEpisodeQueues(items = []) {
 async function localNextUpCandidates({
   shows,
   playstateIndex,
+  watchedShowKeys,
   progressCandidates,
   providerCandidates = [],
   episodeRows = [],
@@ -696,6 +737,7 @@ async function localNextUpCandidates({
   // Every show resolves against the same episode snapshot, so read and dedupe
   // the episode table once for the whole pass rather than once per show.
   const selectedShows = (Array.isArray(shows) ? shows : [])
+    .filter((show) => showHasWatchedRecord(show, watchedShowKeys))
     .filter((show) => Number(show.episode_count || 0) > 0)
     .sort((left, right) => (
       String(right.latest_watched_at || "").localeCompare(String(left.latest_watched_at || ""))
@@ -766,6 +808,7 @@ export async function buildUpNextProjection({
     trackedEpisodeRows,
     showIdentities,
   );
+  const watchedShowKeys = buildWatchedShowKeys(trackedEpisodeRows, playstateIndex, showIdentities, showRows);
   const showRecency = showRecencyIndex(showRows);
   const canonicalResume = rawProgressRows
     .map((row) => rowCandidate(row, { queueKind: "resume", canonical: true, showIdentities }))
@@ -784,11 +827,13 @@ export async function buildUpNextProjection({
     .map((candidate) => decorateShowRecency(candidate, showRecency));
   const providerResume = providerCandidates
     .filter((candidate) => candidate.queue_kind === "resume" && (actionableResume(candidate) || providerResumeMembership(candidate)))
+    .filter((candidate) => candidate.media_type !== "episode" || showHasWatchedRecord(candidate, watchedShowKeys))
     .filter((candidate) => !stateBlocksCandidate(candidate, playstateIndex, { progressUpdatedAt: candidate.updated_at }))
     .filter((candidate) => !stateIsWatched(candidate, playstateIndex));
   const providerNextUp = providerCandidates
     .filter((candidate) => candidate.queue_kind === "next_up" && released(candidate.air_date, new Date(now).toISOString().slice(0, 10)))
-    .filter((candidate) => !stateIsWatched(candidate, playstateIndex))
+    .filter((candidate) => candidate.media_type !== "episode" || showHasWatchedRecord(candidate, watchedShowKeys))
+    .filter((candidate) => !stateBlocksCandidate(candidate, playstateIndex, { progressUpdatedAt: candidate.updated_at }))
     .filter((candidate) => !canonicalResumeAliases.some((aliases) => aliasesIntersect(aliases, aliasesFor(candidate))))
     .map((candidate) => ({ ...candidate, position_ms: 0, duration_ms: null, progress: 0 }));
 
@@ -797,6 +842,7 @@ export async function buildUpNextProjection({
     localNextUp = await localNextUpCandidates({
       shows: showRows,
       playstateIndex,
+      watchedShowKeys,
       progressCandidates: canonicalResume,
       // Only the observations that survived their own filters. Passing the
       // raw list let a provider card that had just been suppressed - by a

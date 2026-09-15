@@ -5,8 +5,8 @@
 // usually sits inside an <a> card - portaling the menu items out of that
 // anchor means clicking them never triggers card navigation.
 
-import { state } from "./state.js?v=1.1.1.0.3";
-import { customListsForPersonalItem, isPersonalWatchlisted, personalItemFromPosterMenuDataset } from "./personal-media.js?v=1.1.1.0.3";
+import { state } from "./state.js?v=1.1.1.1.3";
+import { customListsForPersonalItem, isPersonalWatchlisted, personalItemFromPosterMenuDataset } from "./personal-media.js?v=1.1.1.1.3";
 
 let openMenu = null; // { dropdown, button, submenu, submenuTrigger, actionPending, keepOpen, actionButton }
 
@@ -298,7 +298,7 @@ function buildDropdown(button) {
       mediaRateReleaseDate: d.posterMenuUpNextAirDate || "",
     })));
     appendPersonalMenuActions(dropdown, button);
-    if (queueKind === "resume") {
+    if (queueKind === "resume" && d.posterMenuUpNextHasProgress === "true") {
       dropdown.appendChild(menuItem("poster-overflow-item-danger", "Clear progress", {
         upNextClear: d.posterMenuUpNextWatch || d.posterMenuId || "",
         upNextMediaType: mediaType,
@@ -353,6 +353,10 @@ function buildDropdown(button) {
     }));
     dropdown.appendChild(menuItem("", "Rate", {
       discoverRate: "1",
+      ...discoverItem,
+    }));
+    dropdown.appendChild(menuItem("poster-overflow-item-danger", "Don't recommend", {
+      discoverDontRecommend: "1",
       ...discoverItem,
     }));
     appendPersonalMenuActions(dropdown, button);

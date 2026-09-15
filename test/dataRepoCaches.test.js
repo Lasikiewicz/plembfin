@@ -247,6 +247,38 @@ test("a show's tvdb_id is never surfaced from an unverified episode-tagged id", 
   assert.equal(afterMatch.tvdb_id, "9999999", "a genuinely cached series id must be trusted");
 });
 
+test("dashboard preview routes an unqualified title-only row through the unique matched series", async () => {
+  const { db, toJson } = await import("../server/src/db.js");
+  await insert({
+    title: "Preview Assembly (UK) - S01E04",
+    show_title: "Preview Assembly (UK)",
+    media_type: "episode",
+    watched_at: "2026-04-03T12:00:00.000Z",
+    source: "manual",
+    tvdb_id: "453869",
+    season: 1,
+    episode: 4,
+  });
+  const titleOnlyId = await insert({
+    title: "Preview Assembly - S01E04 - Gary Lineker",
+    show_title: "Preview Assembly",
+    media_type: "episode",
+    watched_at: "2026-04-04T12:00:00.000Z",
+    source: "jellyfin",
+    season: 1,
+    episode: 4,
+  });
+  db.prepare(
+    `INSERT OR REPLACE INTO tvdb_metadata_cache (id, tvdb_id, title, details, updated_at_ms)
+     VALUES (?, ?, ?, ?, ?)`,
+  ).run("series_453869", "453869", "Preview Assembly (UK)", toJson({ id: 453869, name: "Preview Assembly (UK)", episodes: [], seasons: [] }), Date.now());
+  await repo.invalidateHistoryDerivedCaches();
+
+  const preview = await repo.queryWatchHistoryPreview({ limit: 120 });
+  const row = preview.find((entry) => entry.id === titleOnlyId);
+  assert.equal(row?.show_tvdb_id, "453869");
+});
+
 test("TV Shows listing excludes groups with no currently watched episodes", async () => {
   await insert({
     title: "Zero Watch Listing Show - S01E01 - Pilot",

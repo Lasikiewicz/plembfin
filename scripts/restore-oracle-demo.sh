@@ -1,10 +1,13 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
-CONTAINER_NAME="${1:?Usage: restore-oracle-demo.sh CONTAINER_NAME DATA_DIR HOST_PORT RUNTIME}"
-DATA_DIR="${2:?Usage: restore-oracle-demo.sh CONTAINER_NAME DATA_DIR HOST_PORT RUNTIME}"
-HOST_PORT="${3:?Usage: restore-oracle-demo.sh CONTAINER_NAME DATA_DIR HOST_PORT RUNTIME}"
-RUNTIME="${4:?Usage: restore-oracle-demo.sh CONTAINER_NAME DATA_DIR HOST_PORT RUNTIME}"
+CONTAINER_NAME="${1:?Usage: restore-oracle-demo.sh CONTAINER_NAME DATA_DIR HOST_PORT RUNTIME [TRAKS_SCRIPT_URL] [TRAKS_SITE_KEY] [TRAKS_REQUIRE_CONSENT]}"
+DATA_DIR="${2:?Usage: restore-oracle-demo.sh CONTAINER_NAME DATA_DIR HOST_PORT RUNTIME [TRAKS_SCRIPT_URL] [TRAKS_SITE_KEY] [TRAKS_REQUIRE_CONSENT]}"
+HOST_PORT="${3:?Usage: restore-oracle-demo.sh CONTAINER_NAME DATA_DIR HOST_PORT RUNTIME [TRAKS_SCRIPT_URL] [TRAKS_SITE_KEY] [TRAKS_REQUIRE_CONSENT]}"
+RUNTIME="${4:?Usage: restore-oracle-demo.sh CONTAINER_NAME DATA_DIR HOST_PORT RUNTIME [TRAKS_SCRIPT_URL] [TRAKS_SITE_KEY] [TRAKS_REQUIRE_CONSENT]}"
+TRAKS_SCRIPT_URL="${5:-}"
+TRAKS_SITE_KEY="${6:-}"
+TRAKS_REQUIRE_CONSENT="${7:-true}"
 IMAGE="localhost/plembfin-demo:latest"
 
 if [[ "$RUNTIME" != "podman" ]]; then
@@ -80,6 +83,9 @@ run_runtime run --detach \
   --env PORT=5055 \
   --env PLEMBFIN_DEMO_MODE=1 \
   --env PLEMBFIN_DEMO_SEED=1 \
+  --env PLEMBFIN_TRAKS_SCRIPT_URL="$TRAKS_SCRIPT_URL" \
+  --env PLEMBFIN_TRAKS_SITE_KEY="$TRAKS_SITE_KEY" \
+  --env PLEMBFIN_TRAKS_REQUIRE_CONSENT="$TRAKS_REQUIRE_CONSENT" \
   --env TRUST_PROXY=1 \
   --security-opt no-new-privileges:true \
   --memory 512m \

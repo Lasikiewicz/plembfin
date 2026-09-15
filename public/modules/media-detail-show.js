@@ -1,19 +1,19 @@
-import { state, elements } from "./state.js?v=1.1.1.0.3";
-import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel, formatSeasonTitle, sourceBadgeHtml, platformSourceValues, normalizePlatformSource, actualWatchHistory, tvShowTmdbHref, tvShowTvdbHref, isDemoMode } from "./utils.js?v=1.1.1.0.3";
-import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters, isCachedStorageImageUrl } from "./images.js?v=1.1.1.0.3";
-import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js?v=1.1.1.0.3";
-import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading, cachedShowDetail, rememberShowDetail, cachedShowDetailMiss, rememberShowDetailMiss } from "./explorer.js?v=1.1.1.0.3";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.1.1.0.3";
-import { renderWatchDatePrompt, seasonUnwatchButtonHtml, showUnwatchButtonHtml, savingEpisodeKeysForShow, markSavingEpisodeComplete, hasSavingWatchActionForShow } from "./watch-action.js?v=1.1.1.0.3";
-import { authHeaders, setMessage, syncPageTopbar, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=1.1.1.0.3";
-import { personalRatingPillHtml, personalEpisodeRatingButtonHtml, personalMediaActionsHtml } from "./personal-media.js?v=1.1.1.0.3";
+import { state, elements } from "./state.js?v=1.1.1.1.3";
+import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel, formatSeasonTitle, sourceBadgeHtml, platformSourceValues, normalizePlatformSource, actualWatchHistory, tvShowTmdbHref, tvShowTvdbHref, isDemoMode } from "./utils.js?v=1.1.1.1.3";
+import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters, isCachedStorageImageUrl } from "./images.js?v=1.1.1.1.3";
+import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js?v=1.1.1.1.3";
+import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading, cachedShowDetail, rememberShowDetail, cachedShowDetailMiss, rememberShowDetailMiss } from "./explorer.js?v=1.1.1.1.3";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.1.1.1.3";
+import { renderWatchDatePrompt, seasonUnwatchButtonHtml, showUnwatchButtonHtml, savingEpisodeKeysForShow, markSavingEpisodeComplete, hasSavingWatchActionForShow } from "./watch-action.js?v=1.1.1.1.3";
+import { authHeaders, setMessage, syncPageTopbar, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=1.1.1.1.3";
+import { personalRatingPillHtml, personalEpisodeRatingButtonHtml, personalMediaActionsHtml } from "./personal-media.js?v=1.1.1.1.3";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderRelatedShowsSection,
   renderMediaFacts, renderMediaImagesSection, renderExternalRatingPills, ratingPillHtml,
   renderSeasonSeerrControls, renderSeerrRequestPill, fetchSeerrMediaStatus,
   refreshActiveMediaDetailAfterSeerrStatus, tvSeasonAvailabilityHtml, episodeResolutionPillHtml,
   hydrateMediaAppLinks, mediaAppLinksHtml,
-} from "./media-detail-shared.js?v=1.1.1.0.3";
+} from "./media-detail-shared.js?v=1.1.1.1.3";
 
 let _playbackProgressRows = [];
 let _playbackProgressLoaded = false;
@@ -384,6 +384,18 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
   setMediaDetailActions("");
   state.activeShowTmdbId = String(tmdbId);
   const initialLocalSeed = localShowSeedForTmdbId(tmdbId);
+  const lookupIds = tmdbLookupIdsFromShow(initialLocalSeed || {});
+  // A TMDB URL can outlive a Fix Match rematch. When the local row has an
+  // explicit TVDB identity, resolve through TVDB first instead of letting the
+  // decorative/stale TMDB route select a same-title show. This also repairs
+  // bookmarked legacy links without requiring the user to edit the URL
+  // manually. The resolved metadata still supplies the TMDB id for artwork,
+  // Seerr and external links, while the URL remains anchored to the
+  // authoritative TVDB series id.
+  if (lookupIds.tvdbId) {
+    await openShowImmersiveModalByTvdbId(lookupIds.tvdbId);
+    return;
+  }
   const localDetailPromise = initialLocalSeed
     ? loadShowDetail(initialLocalSeed).catch(() => null)
     : fetchLocalShowByTmdbId(tmdbId);
@@ -423,7 +435,6 @@ export async function openShowImmersiveModalByTmdbId(tmdbId) {
     });
   }
 
-  const lookupIds = tmdbLookupIdsFromShow(initialLocalSeed || {});
   state.activeShowTvdbId = lookupIds.tvdbId || null;
   let tmdbData = await fetchTmdbDetails("tv", tmdbId, initialLocalSeed?.title || "", lookupIds, { immediate: true });
   if (currentMediaRenderToken() !== renderToken) return;

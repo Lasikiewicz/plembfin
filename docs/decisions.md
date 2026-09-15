@@ -663,11 +663,12 @@ them and `/api/up-next/restore` puts one or all back.
 fixes only the one caller that remembers to do it and leaves every other consumer wrong.
 
 **Identity:** a dismissal stores the item's full alias set plus a `coordinate:<show>:s<n>:e<n>`
-key, so it survives a re-match or a provider id change. Native provider ids are part of the set,
-which is what keeps two different episodes of one show apart.
+key and a show identity alias for episodes, so it survives a re-match or a provider id change and
+removing one episode keeps the whole show out of the rail. Native episode provider ids remain in
+the set for exact identity and restore snapshots.
 
-**Deliberate carry-over:** a dismissed item returns when it has a newer *real* position, exactly
-as the browser-local rule did. A dismissal is "not now", not "never".
+**Deliberate carry-over:** a dismissed show returns when one of its episodes has a newer *real*
+position, exactly as the browser-local rule did. A dismissal is "not now", not "never".
 
 **Migration:** an existing browser posts its stored dismissals once on first load and then
 clears them, so a device that dismissed things before this change does not see them reappear.

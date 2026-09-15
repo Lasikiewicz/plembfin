@@ -68,6 +68,29 @@ test("Fix Match onto the same show corrects ids without renaming", async () => {
   assert.equal(row.tvdb_id, "362302");
 });
 
+test("Fix Match absorbs same-coordinate title-only rows from an unqualified title", async () => {
+  const matched = await insertEpisode("The Assembly (UK) - S01E04", 1, 4);
+  const titleOnly = await insertEpisode("The Assembly - S01E04 - Gary Lineker", 1, 4);
+
+  const seed = await repo.updateWatchRecord(matched, { tvdb_id: "452480" });
+  assert.equal(seed.ok, true);
+
+  const result = await repo.rematchShowWatchRecords({
+    id: matched,
+    tvdbId: "453869",
+    newShowTitle: "The Assembly (UK)",
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.updatedRows, 2);
+  assert.equal(result.renamed, true);
+
+  const repaired = await repo.getWatchRecordById(titleOnly);
+  assert.equal(repaired.tvdb_id, "453869");
+  assert.equal(repaired.show_title, "The Assembly (UK)");
+  assert.match(repaired.title, /^The Assembly \(UK\) - S01E04/);
+});
+
 test("Fix Match without a new name still repoints the ids", async () => {
   const id = await insertEpisode("Mystery Show - S02E05", 2, 5);
 

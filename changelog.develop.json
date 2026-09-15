@@ -1,14 +1,14 @@
 {
-  "version": "1.1.1.0.3",
+  "version": "1.1.1.1.3",
   "build": 3,
   "resetCommit": "78d6cdfc480470fb745caa2465027e34d20b36e2",
-  "updatedAt": "2026-09-15T07:57:09.419Z",
+  "updatedAt": "2026-09-15T12:57:30.912Z",
   "entries": [
     {
       "build": 3,
-      "date": "2026-09-15T07:57:09.419Z",
-      "commit": "9ccbf2a66ec43d67c0a5ddd1e16b5749bf669966",
-      "message": "This update includes restore Jellyfin imports and document automatic Up Next sync and personalize Discover and refine media cards.",
+      "date": "2026-09-15T12:57:30.912Z",
+      "commit": "030cc87b2ab4a47dcad75ee1b0922dc05f1bca7d",
+      "message": "This update includes restore Jellyfin imports and document automatic Up Next sync, personalize Discover and refine media cards, and improve recommendations, watch identity, and queue flows.",
       "author": "Lasikiewicz",
       "details": [
         "Restore Jellyfin watched, resume, and rating imports against current API field rules.",
@@ -17,11 +17,17 @@
         "Add a personalized Discover rail based on recent watch history, with recommendations ranked across movies and TV shows.",
         "Hide watched titles and improve poster recovery, metadata hierarchy, and summary readability across Discover.",
         "Restore summaries, release dates, and consistent metadata on Watchlist, Ratings, and Custom Lists cards.",
-        "Keep removed Up Next episodes hidden after unwatch changes reach connected providers."
+        "Keep removed Up Next episodes hidden after unwatch changes reach connected providers.",
+        "Personalize Discover recommendations and persist choices to exclude unwanted movies and shows.",
+        "Keep shows without current watched records out of Up Next, including stale provider and fallback entries.",
+        "Preserve selected TVDB identity in watch history and repair same-coordinate title-only episodes during Fix Match.",
+        "Improve dismissed Up Next interactions, watch-date actions, media identity, and poster recovery.",
+        "Add consent-aware, privacy-signal-respecting Traks analytics for the website and public demo."
       ],
       "messageFragments": [
         "Fix - Restore Jellyfin imports and document automatic Up Next sync",
-        "Feature - Personalize Discover and refine media cards"
+        "Feature - Personalize Discover and refine media cards",
+        "Feature - Improve recommendations, watch identity, and queue flows"
       ]
     }
   ]

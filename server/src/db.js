@@ -1225,6 +1225,22 @@ const migrations = [
       `);
     },
   },
+  {
+    id: 39,
+    up(database) {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS recommendation_exclusions (
+          media_type TEXT NOT NULL CHECK (media_type IN ('movie', 'tv')),
+          tmdb_id TEXT NOT NULL,
+          title TEXT NOT NULL DEFAULT '',
+          excluded_at INTEGER NOT NULL,
+          PRIMARY KEY (media_type, tmdb_id)
+        );
+        CREATE INDEX IF NOT EXISTS idx_recommendation_exclusions_excluded_at
+          ON recommendation_exclusions(excluded_at DESC);
+      `);
+    },
+  },
 ];
 
 function parseJsonValue(value, fallback) {
