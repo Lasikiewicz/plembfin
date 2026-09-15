@@ -6,11 +6,14 @@ set -Eeuo pipefail
 # main-release job can copy it over SSH without copying the repository or any
 # credentials to the instance.
 
-IMAGE="${1:?Usage: deploy-oracle-demo.sh IMAGE CONTAINER_NAME DATA_DIR HOST_PORT RUNTIME}"
-CONTAINER_NAME="${2:?Usage: deploy-oracle-demo.sh IMAGE CONTAINER_NAME DATA_DIR HOST_PORT RUNTIME}"
-DATA_DIR="${3:?Usage: deploy-oracle-demo.sh IMAGE CONTAINER_NAME DATA_DIR HOST_PORT RUNTIME}"
-HOST_PORT="${4:?Usage: deploy-oracle-demo.sh IMAGE CONTAINER_NAME DATA_DIR HOST_PORT RUNTIME}"
-RUNTIME="${5:?Usage: deploy-oracle-demo.sh IMAGE CONTAINER_NAME DATA_DIR HOST_PORT RUNTIME}"
+IMAGE="${1:?Usage: deploy-oracle-demo.sh IMAGE CONTAINER_NAME DATA_DIR HOST_PORT RUNTIME [TRAKS_SCRIPT_URL] [TRAKS_SITE_KEY] [TRAKS_REQUIRE_CONSENT]}"
+CONTAINER_NAME="${2:?Usage: deploy-oracle-demo.sh IMAGE CONTAINER_NAME DATA_DIR HOST_PORT RUNTIME [TRAKS_SCRIPT_URL] [TRAKS_SITE_KEY] [TRAKS_REQUIRE_CONSENT]}"
+DATA_DIR="${3:?Usage: deploy-oracle-demo.sh IMAGE CONTAINER_NAME DATA_DIR HOST_PORT RUNTIME [TRAKS_SCRIPT_URL] [TRAKS_SITE_KEY] [TRAKS_REQUIRE_CONSENT]}"
+HOST_PORT="${4:?Usage: deploy-oracle-demo.sh IMAGE CONTAINER_NAME DATA_DIR HOST_PORT RUNTIME [TRAKS_SCRIPT_URL] [TRAKS_SITE_KEY] [TRAKS_REQUIRE_CONSENT]}"
+RUNTIME="${5:?Usage: deploy-oracle-demo.sh IMAGE CONTAINER_NAME DATA_DIR HOST_PORT RUNTIME [TRAKS_SCRIPT_URL] [TRAKS_SITE_KEY] [TRAKS_REQUIRE_CONSENT]}"
+TRAKS_SCRIPT_URL="${6:-}"
+TRAKS_SITE_KEY="${7:-}"
+TRAKS_REQUIRE_CONSENT="${8:-true}"
 
 if [[ ! "$IMAGE" =~ ^ghcr\.io/[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+:[A-Za-z0-9_.-]+$ ]]; then
   echo "Refusing an image outside the expected GHCR repository: $IMAGE" >&2
@@ -142,6 +145,9 @@ run_runtime run "${runtime_arch_args[@]}" --detach \
   --env PORT=5055 \
   --env PLEMBFIN_DEMO_MODE=1 \
   --env PLEMBFIN_DEMO_SEED=1 \
+  --env PLEMBFIN_TRAKS_SCRIPT_URL="$TRAKS_SCRIPT_URL" \
+  --env PLEMBFIN_TRAKS_SITE_KEY="$TRAKS_SITE_KEY" \
+  --env PLEMBFIN_TRAKS_REQUIRE_CONSENT="$TRAKS_REQUIRE_CONSENT" \
   --env TRUST_PROXY=1 \
   --security-opt no-new-privileges:true \
   --memory 512m \
