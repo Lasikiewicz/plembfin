@@ -1,6 +1,6 @@
-import { readStoredAdminToken } from "./auth.js?v=1.1.1.1.3";
-import { readStoredDebugLogs } from "./logs.js?v=1.1.1.1.3";
-import { isDemoMode } from "./utils.js?v=1.1.1.1.3";
+import { readStoredAdminToken } from "./auth.js?v=1.1.1.2.1";
+import { readStoredDebugLogs } from "./logs.js?v=1.1.1.2.1";
+import { isDemoMode } from "./utils.js?v=1.1.1.2.1";
 
 const TOKEN_KEY = "adminToken";
 const LEGACY_UPPER_TOKEN_KEY = "ADMIN_TOKEN";
@@ -266,6 +266,7 @@ const initialState = {
   personCreditsTvSort: "date_desc",
   pendingWatchAction: null,
   savingWatchActions: new Set(),
+  savingUnwatchActions: new Set(),
   savingUnwatchIds: new Set(),
   activeMovieModalId: null,
   activeMovieTmdbId: null,

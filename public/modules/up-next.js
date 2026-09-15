@@ -1,10 +1,10 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.1.3";
-import { state, elements } from "./state.js?v=1.1.1.1.3";
-import { escapeHtml, slug } from "./utils.js?v=1.1.1.1.3";
-import { hydratePosters } from "./images.js?v=1.1.1.1.3";
-import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=1.1.1.1.3";
-import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=1.1.1.1.3";
-import { renderMediaCard } from "./media-card.js?v=1.1.1.1.3";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.2.1";
+import { state, elements } from "./state.js?v=1.1.1.2.1";
+import { escapeHtml, slug } from "./utils.js?v=1.1.1.2.1";
+import { hydratePosters } from "./images.js?v=1.1.1.2.1";
+import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=1.1.1.2.1";
+import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=1.1.1.2.1";
+import { renderMediaCard } from "./media-card.js?v=1.1.1.2.1";
 
 const UP_NEXT_TTL_MS = 2 * 60 * 1000;
 const UP_NEXT_TIMEOUT_MS = 20000;
@@ -332,6 +332,39 @@ function upNextWatchedActionKeys(action = {}) {
   }))];
 }
 
+function upNextShowIdentityMatches(left = {}, right = {}) {
+  const leftKeys = new Set(upNextShowDismissalKeys({
+    media_type: "episode",
+    show_title: left.show_title || left.showTitle || "",
+    show_tmdb_id: left.show_tmdb_id || left.showTmdbId || "",
+    show_tvdb_id: left.show_tvdb_id || left.showTvdbId || "",
+    show_imdb_id: left.show_imdb_id || left.showImdbId || "",
+  }));
+  const rightKeys = upNextShowDismissalKeys({
+    media_type: "episode",
+    show_title: right.show_title || right.showTitle || "",
+    show_tmdb_id: right.show_tmdb_id || right.showTmdbId || "",
+    show_tvdb_id: right.show_tvdb_id || right.showTvdbId || "",
+    show_imdb_id: right.show_imdb_id || right.showImdbId || "",
+  });
+  return rightKeys.some((key) => leftKeys.has(key));
+}
+
+function upNextActionEpisodeMatches(item = {}, action = {}) {
+  const itemIdentity = upNextWatchEpisodeIdentity(item);
+  const itemCoordinate = upNextCoordinateDismissalKey(itemIdentity);
+  if (!itemCoordinate) return false;
+  const episodes = [
+    ...(Array.isArray(action.episodes) ? action.episodes : []),
+    ...(Array.isArray(action.resyncEpisodes) ? action.resyncEpisodes : []),
+  ];
+  return episodes.some((episode) => {
+    const episodeIdentity = upNextWatchEpisodeIdentity(episode);
+    return upNextCoordinateDismissalKey(episodeIdentity) === itemCoordinate
+      && upNextShowIdentityMatches(itemIdentity, episodeIdentity);
+  });
+}
+
 function isUpNextWatchedRemovalPending(item) {
   const pending = new Set(state.upNextPendingWatchedRemovalKeys || []);
   if (!pending.size) return false;
@@ -379,11 +412,14 @@ export async function removeDismissedUpNextItems(action = {}) {
   return restoreDismissedUpNextItems(entries);
 }
 
-function filterPendingWatchedUpNextItems(nextItems = []) {
+function filterPendingWatchedUpNextItems(nextItems = [], { authoritative = false } = {}) {
   const pending = new Set(state.upNextPendingWatchedRemovalKeys || []);
   if (!pending.size) return nextItems;
   const serverStillHasPendingItems = nextItems.some(isUpNextWatchedRemovalPending);
-  if (!serverStillHasPendingItems) {
+  // A stale cache is allowed to omit the card before reintroducing it from a
+  // second provider snapshot. Keep the optimistic watched filter alive until
+  // a fresh projection has actually confirmed the item is gone.
+  if (!serverStillHasPendingItems && authoritative) {
     state.upNextPendingWatchedRemovalKeys = [];
     return nextItems;
   }
@@ -391,12 +427,17 @@ function filterPendingWatchedUpNextItems(nextItems = []) {
 }
 
 function isUpNextWatchSaving(item = {}) {
-  const itemKey = String(item?.id || item?.media_key || "").trim();
-  if (!itemKey) return false;
-  for (const action of state.savingWatchActions || []) {
-    if (action?.origin !== "up-next") continue;
-    const episodes = [...(action.episodes || []), ...(action.resyncEpisodes || [])];
-    if (episodes.some((episode) => String(episode?.key || "").trim() === itemKey)) return true;
+  const savingActions = [
+    ...(state.savingWatchActions || []),
+    ...(state.savingUnwatchActions || []),
+  ];
+  for (const action of savingActions) {
+    if (action?.scope === "show") {
+      const actionKeys = new Set(upNextWatchedActionKeys(action));
+      if (upNextShowDismissalKeys(item).some((key) => actionKeys.has(key))) return true;
+    } else if (upNextActionEpisodeMatches(item, action)) {
+      return true;
+    }
   }
   return false;
 }
@@ -429,6 +470,17 @@ export function setUpNextRemovalPending(item, pending = true) {
     else next.delete(key);
   }
   state.upNextPendingRemovalKeys = [...next];
+  renderUpNext();
+}
+
+// A watch action can start from the show detail page while the dashboard rail
+// is still mounted. Re-render it immediately so the same Saving animation is
+// visible there, not only for actions launched from an Up Next card.
+export function setUpNextWatchSavingState() {
+  renderUpNext();
+}
+
+export function setUpNextUnwatchSavingState() {
   renderUpNext();
 }
 
@@ -1138,7 +1190,10 @@ export async function loadUpNext({ force = false, fromSse = false } = {}) {
     if (requestVersion !== state.upNextRequestVersion) return;
     const previousIds = new Set(visibleUpNextItems().map((item) => String(item?.id || "")).filter(Boolean));
     const fetchedItems = Array.isArray(body.items) ? body.items : [];
-    const nextItems = filterPendingWatchedUpNextItems(preservePendingUpNextItems(fetchedItems));
+    const nextItems = filterPendingWatchedUpNextItems(
+      preservePendingUpNextItems(fetchedItems),
+      { authoritative: body.cacheStale !== true },
+    );
     const nextIds = new Set(nextItems.filter((item) => !isUpNextItemDismissed(item)).map((item) => String(item?.id || "")).filter(Boolean));
     state.upNextExitIds = [...previousIds].filter((id) => !nextIds.has(id));
     state.upNextItems = nextItems;

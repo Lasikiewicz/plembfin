@@ -108,6 +108,41 @@ test("an explicit unwatched state suppresses a stale provider next-up card", asy
   assert.equal(projection.items.length, 0);
 });
 
+test("a watched episode suppresses a stale provider resume card", async () => {
+  const projection = await buildUpNextProjection({
+    now: Date.parse("2026-09-01T12:00:00.000Z"),
+    localFallback: false,
+    progressRows: [],
+    playstateRows: [{
+      media_key: "episode:3:7:tmdb:113962",
+      media_type: "episode",
+      title: "Lioness - S03E07",
+      show_title: "Lioness",
+      show_tmdb_id: "113962",
+      season: 3,
+      episode: 7,
+      state: "watched",
+      updated_at: Date.parse("2026-09-01T11:00:00.000Z"),
+    }],
+    providerItems: [{
+      provider: "emby",
+      feed_kind: "resume",
+      provider_item_id: "emby-lioness-s03e07-stale",
+      media_type: "episode",
+      title: "Lioness - S03E07",
+      show_title: "Lioness",
+      season: 3,
+      episode: 7,
+      show_ids: { tmdb: "113962" },
+      position_ms: 162184,
+      duration_ms: 2684557,
+      progress: 6,
+    }],
+  });
+
+  assert.equal(projection.items.length, 0);
+});
+
 test("queue projection carries show watch recency into provider next-up ordering", async () => {
   const projection = await buildUpNextProjection({
     now: Date.parse("2026-09-04T12:00:00.000Z"),

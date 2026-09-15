@@ -355,6 +355,10 @@ const traksEnabled = Boolean(traksScriptUrl && traksSiteKey && traksUrlIsSafe);
       </script>
     )}
     <style is:inline>
+      .analytics-consent[hidden] {
+        display: none !important;
+      }
+
       .analytics-consent {
         position: fixed;
         right: 1rem;

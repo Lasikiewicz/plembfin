@@ -265,6 +265,7 @@ test("watch-date selection renders the active show as Saving before sync resolve
   const renderCalls = [];
   const savingPatchCalls = [];
   const episodePatchCalls = [];
+  const upNextSavingCalls = [];
   let controlSyncCalls = 0;
   const overlays = [{ remove: () => { removed += 1; } }];
   const action = {
@@ -303,6 +304,7 @@ test("watch-date selection renders the active show as Saving before sync resolve
       episodePatchCalls.push(row);
       return true;
     },
+    setUpNextWatchSavingState: (currentAction, saving) => upNextSavingCalls.push({ currentAction, saving }),
   });
   state.activeShowModalKey = "the-office";
   state.activeShowModalSeason = 4;
@@ -327,6 +329,7 @@ test("watch-date selection renders the active show as Saving before sync resolve
     assert.equal(savingPatchCalls.length, 1);
     assert.equal(savingPatchCalls[0].saving, true);
     assert.deepEqual([...state.savingWatchActions], [action]);
+    assert.deepEqual(upNextSavingCalls.map(({ saving }) => saving), [true]);
     await update;
     assert.equal(state.savingWatchActions.size, 0);
     assert.equal(episodePatchCalls.length, 1, "the saved episode should be patched through the live-row path");
@@ -364,6 +367,7 @@ test("single episode unwatch patches the active show card without rebuilding the
   const episodePatchCalls = [];
   const historyLoadCalls = [];
   const dismissedUpNextCalls = [];
+  const upNextUnwatchSavingCalls = [];
   const button = {
     dataset: {
       unwatchId: "watch-5",
@@ -412,6 +416,7 @@ test("single episode unwatch patches the active show card without rebuilding the
       return true;
     },
     removeDismissedUpNextItems: (action) => dismissedUpNextCalls.push(action),
+    setUpNextUnwatchSavingState: (action, saving) => upNextUnwatchSavingCalls.push({ action, saving }),
   });
   state.activeShowModalKey = "the-office";
   state.activeShowModalSeason = 4;
@@ -423,6 +428,7 @@ test("single episode unwatch patches the active show card without rebuilding the
   state.showModalEpisodes = [episode];
   state.showModalEpisodeIndex = new Map([[episode.key, episode]]);
   state.savingUnwatchIds.clear();
+  state.savingUnwatchActions.clear();
 
   try {
     const update = confirmAndMarkUnwatched(button);
@@ -430,11 +436,14 @@ test("single episode unwatch patches the active show card without rebuilding the
     assert.equal(savingPatchCalls.length, 1);
     assert.equal(savingPatchCalls[0].saving, true);
     assert.deepEqual([...state.savingUnwatchIds], ["watch-5"]);
+    assert.deepEqual(upNextUnwatchSavingCalls.map(({ saving }) => saving), [true]);
     assert.equal(renderCalls.length, 0, "unwatching an episode should not rebuild the active show");
 
     await update;
 
     assert.equal(state.savingUnwatchIds.size, 0);
+    assert.equal(state.savingUnwatchActions.size, 0);
+    assert.deepEqual(upNextUnwatchSavingCalls.map(({ saving }) => saving), [true, false]);
     assert.equal(renderCalls.length, 0, "successful unwatch should keep the active show mounted");
     assert.equal(episodePatchCalls.length, 1);
     assert.equal(episodePatchCalls[0].sync_action, "unwatched");
@@ -455,5 +464,6 @@ test("single episode unwatch patches the active show card without rebuilding the
     state.showModalEpisodes = previousState.showModalEpisodes;
     state.showModalEpisodeIndex = previousState.showModalEpisodeIndex;
     state.savingUnwatchIds.clear();
+    state.savingUnwatchActions.clear();
   }
 });

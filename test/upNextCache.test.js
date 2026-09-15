@@ -8,16 +8,7 @@ const dataDir = makeTempDataDir("plembfin-up-next-cache-");
 const { bumpDataVersion, getUpNextVersion } = await import("../server/src/db.js");
 const { getUpNextCacheSnapshot } = await import("../server/src/utils/upNextCache.js");
 
-async function waitFor(check, timeoutMs = 2000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (await check()) return;
-    await new Promise((resolve) => setTimeout(resolve, 20));
-  }
-  assert.fail("Timed out waiting for Up Next cache rebuild");
-}
-
-test("Up Next serves a durable snapshot while stale data rebuilds in the background", async () => {
+test("Up Next rebuilds synchronously when watch history changes", async () => {
   let buildCount = 0;
   const initial = await getUpNextCacheSnapshot(async () => {
     buildCount += 1;
@@ -32,32 +23,16 @@ test("Up Next serves a durable snapshot while stale data rebuilds in the backgro
   assert.deepEqual(JSON.parse(await fs.readFile(cacheFile, "utf8")).items.map((item) => item.id), ["episode-a"]);
 
   bumpDataVersion();
-  let resolveRebuild;
-  let rebuildStarted;
-  const started = new Promise((resolve) => { rebuildStarted = resolve; });
-  const rebuild = new Promise((resolve) => { resolveRebuild = resolve; });
-  const stale = await getUpNextCacheSnapshot(async () => {
-    buildCount += 1;
-    rebuildStarted();
-    return rebuild;
-  }, { revalidate: true });
-
-  assert.deepEqual(stale.items.map((item) => item.id), ["episode-a"]);
-  assert.equal(stale.stale, true);
-  await started;
-  assert.equal(buildCount, 2);
-
-  resolveRebuild([{ id: "episode-b", title: "Beta" }]);
-  await waitFor(async () => JSON.parse(await fs.readFile(cacheFile, "utf8")).items[0]?.id === "episode-b");
-
   const refreshed = await getUpNextCacheSnapshot(async () => {
     buildCount += 1;
-    return [{ id: "unexpected" }];
+    return [{ id: "episode-b", title: "Beta" }];
   }, { revalidate: true });
+
   assert.deepEqual(refreshed.items.map((item) => item.id), ["episode-b"]);
   assert.equal(refreshed.stale, false);
-  assert.ok(refreshed.upNextVersion > initialVersion);
   assert.equal(buildCount, 2);
+  assert.ok(refreshed.upNextVersion > initialVersion);
+  assert.deepEqual(JSON.parse(await fs.readFile(cacheFile, "utf8")).items.map((item) => item.id), ["episode-b"]);
 });
 
 test("reading a legacy cache snapshot collapses identity and title-only episode duplicates", async () => {
@@ -89,7 +64,6 @@ test("reading a legacy cache snapshot collapses identity and title-only episode 
     },
   ]), { refresh: true });
 
-  bumpDataVersion();
   const snapshot = await getUpNextCacheSnapshot(async () => [], { revalidate: true });
   assert.equal(snapshot.items.length, 1);
   assert.equal(snapshot.items[0].show_tmdb_id, "6278773");

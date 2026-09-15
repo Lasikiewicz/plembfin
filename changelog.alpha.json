@@ -1,10 +1,37 @@
 {
   "baseVersion": "1.1.1",
-  "build": 1,
-  "version": "1.1.1.1.0",
-  "updatedAt": "2026-09-15T08:41:55.717Z",
+  "build": 2,
+  "version": "1.1.1.2.0",
+  "updatedAt": "2026-09-15T13:01:53.273Z",
   "releaseMessage": "",
   "entries": [
+    {
+      "build": 2,
+      "version": "1.1.1.2.0",
+      "shortVersion": "1.1.1.2.0",
+      "date": "2026-09-15T13:01:53.273Z",
+      "commit": "be2118a2c1bf279e7e72967a2ea40f75659bedd9",
+      "message": "Keep Up Next aligned with watch state and preserve TVDB identity.",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix: Keep removed or unwatched TV shows out of Up Next, including stale provider and fallback entries.",
+        "Fix: Preserve selected TVDB identity in watch history and repair same-coordinate title-only episodes during Fix Match.",
+        "Tweak: Improve dismissed Up Next interactions and watch-date actions."
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Keep removed or unwatched TV shows out of Up Next, including stale provider and fallback entries.",
+          "Preserve selected TVDB identity in watch history and repair same-coordinate title-only episodes during Fix Match."
+        ],
+        "tweaks": [
+          "Improve dismissed Up Next interactions and watch-date actions."
+        ]
+      },
+      "messageFragments": [
+        "Feature - Improve recommendations, watch identity, and queue flows"
+      ]
+    },
     {
       "build": 1,
       "version": "1.1.1.1.0",
@@ -41,5 +68,5 @@
       }
     }
   ],
-  "shortVersion": "1.1.1.1.0"
+  "shortVersion": "1.1.1.2.0"
 }

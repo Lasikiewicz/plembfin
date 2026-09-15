@@ -1,13 +1,13 @@
-import { state, elements } from "./state.js?v=1.1.1.1.3";
-import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeCode, seasonLabel, formatSeasonTitle, formatTmdbDate, showEpisodeKey } from "./utils.js?v=1.1.1.1.3";
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.1.3";
-import { isWatchedHistoryAction } from "./sync.js?v=1.1.1.1.3";
-import { mergeShowDetail } from "./explorer.js?v=1.1.1.1.3";
-import { dedupeMediaRecords, resetPartWatchedView, renderPartWatched } from "./dashboard.js?v=1.1.1.1.3";
-import { tvSeasonAvailability } from "./media-detail-shared.js?v=1.1.1.1.3";
-import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=1.1.1.1.3";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.1.1.1.3";
-import { tmdbPoster } from "./images.js?v=1.1.1.1.3";
+import { state, elements } from "./state.js?v=1.1.1.2.1";
+import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeCode, seasonLabel, formatSeasonTitle, formatTmdbDate, showEpisodeKey } from "./utils.js?v=1.1.1.2.1";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.2.1";
+import { isWatchedHistoryAction } from "./sync.js?v=1.1.1.2.1";
+import { mergeShowDetail } from "./explorer.js?v=1.1.1.2.1";
+import { dedupeMediaRecords, resetPartWatchedView, renderPartWatched } from "./dashboard.js?v=1.1.1.2.1";
+import { tvSeasonAvailability } from "./media-detail-shared.js?v=1.1.1.2.1";
+import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=1.1.1.2.1";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.1.1.2.1";
+import { tmdbPoster } from "./images.js?v=1.1.1.2.1";
 
 // Callbacks injected by app.js at startup to break circular-import chains.
 let _setMessage = () => {};
@@ -30,6 +30,8 @@ let _syncShowModalWatchActionControls = () => false;
 let _refreshUpNext = async () => {};
 let _removeWatchedUpNextItems = () => 0;
 let _removeDismissedUpNextItems = async () => 0;
+let _setUpNextWatchSavingState = () => {};
+let _setUpNextUnwatchSavingState = () => {};
 
 export function initWatchAction(callbacks) {
   if (callbacks.setMessage) _setMessage = callbacks.setMessage;
@@ -52,6 +54,8 @@ export function initWatchAction(callbacks) {
   if (callbacks.refreshUpNext) _refreshUpNext = callbacks.refreshUpNext;
   if (callbacks.removeWatchedUpNextItems) _removeWatchedUpNextItems = callbacks.removeWatchedUpNextItems;
   if (callbacks.removeDismissedUpNextItems) _removeDismissedUpNextItems = callbacks.removeDismissedUpNextItems;
+  if (callbacks.setUpNextWatchSavingState) _setUpNextWatchSavingState = callbacks.setUpNextWatchSavingState;
+  if (callbacks.setUpNextUnwatchSavingState) _setUpNextUnwatchSavingState = callbacks.setUpNextUnwatchSavingState;
 }
 
 // Up Next is derived from both playback progress and canonical watch state.
@@ -523,6 +527,7 @@ export async function runResyncWatchAction(action) {
   const total = records.length;
 
   state.savingWatchActions.add(action);
+  syncUpNextSavingState(action, true);
   // Keep the mounted show detail in place. Its episode rows and controls are
   // updated by the live/SSE patch path while the propagation request runs.
   syncActiveShowSavingState(action);
@@ -593,7 +598,7 @@ function syncActiveShowWatchActionState() {
 // let the Up Next renderer reapply the same state if an overlapping refresh
 // repaints the rail before the request settles.
 function syncUpNextSavingState(action, saving) {
-  if (action?.origin !== "up-next") return;
+  _setUpNextWatchSavingState(action, saving);
   const keys = new Set([
     ...(action.episodes || []),
     ...(action.resyncEpisodes || []),
@@ -1542,12 +1547,18 @@ export async function confirmAndMarkUnwatched(button) {
     showImdbId: activeShow.imdb_id || activeTmdbData.external_ids?.imdb_id || "",
     episodes: showUnwatchEpisodes,
   };
+  const upNextUnwatchAction = {
+    ...showUnwatchAction,
+    scope: kind === "show" ? "show" : kind === "season" ? "season" : "episode",
+  };
 
   // Marks these ids as "being removed" so the season/show progress labels
   // (which otherwise just recompute from the still-watched rows) show
   // "Removing…" immediately instead of the stale watched count until the
   // request resolves; the mounted controls are patched in place.
   for (const id of ids) state.savingUnwatchIds.add(id);
+  state.savingUnwatchActions.add(upNextUnwatchAction);
+  _setUpNextUnwatchSavingState(upNextUnwatchAction, true);
   setGridCardsRemoving(ids, true);
   if (!gridOrigin && (kind === "episode" || kind === "season" || kind === "show") && (state.activeShowModalKey || state.activeShowTmdbId || state.activeShowTvdbId)) {
     // Paint the saving state synchronously (same as applyWatchDateChoice)
@@ -1596,6 +1607,8 @@ export async function confirmAndMarkUnwatched(button) {
 
     await _removeDismissedUpNextItems(showUnwatchAction);
     await refreshUpNextAfterWatchSync();
+    state.savingUnwatchActions.delete(upNextUnwatchAction);
+    _setUpNextUnwatchSavingState(upNextUnwatchAction, false);
     for (const id of ids) state.savingUnwatchIds.delete(id);
     // The server has committed the unwatch at this point. Reflect that success
     // immediately instead of leaving the control on "Removing…" while the
@@ -1657,6 +1670,8 @@ export async function confirmAndMarkUnwatched(button) {
       _renderActiveView();
     }
   } catch (error) {
+    state.savingUnwatchActions.delete(upNextUnwatchAction);
+    _setUpNextUnwatchSavingState(upNextUnwatchAction, false);
     for (const id of ids) state.savingUnwatchIds.delete(id);
     setGridCardsRemoving(ids, false);
     button.disabled = false;

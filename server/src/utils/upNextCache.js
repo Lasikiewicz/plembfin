@@ -1,12 +1,12 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { getUpNextVersion, bumpUpNextVersion } from "../db.js";
+import { getDataVersion, getUpNextVersion, bumpUpNextVersion } from "../db.js";
 import { DATA_DIR } from "../paths.js";
 import { getUpNextFeedSourceVersion, listUpNextProviderFeedStates } from "./upNextRepository.js";
 import { getCanonicalPosterUrl } from "./mediaArtwork.js";
 import { publicUpNextItems } from "./upNextService.js";
 
-const CACHE_VERSION = 4;
+const CACHE_VERSION = 5;
 const CACHE_FILE = path.join(DATA_DIR, "up-next-cache.json");
 const TEMP_FILE = `${CACHE_FILE}.${process.pid}.tmp`;
 const UP_NEXT_TTL_MS = 2 * 60 * 1000;
@@ -31,6 +31,7 @@ function emptyCache() {
     version: CACHE_VERSION,
     builtAt: 0,
     sourceVersion: "",
+    historyVersion: getDataVersion(),
     upNextVersion: getUpNextVersion(),
     items: [],
     sourceStatus: [],
@@ -65,6 +66,7 @@ function normalizeCache(parsed) {
     version: CACHE_VERSION,
     builtAt: Number(parsed?.builtAt || 0),
     sourceVersion: String(parsed?.sourceVersion || ""),
+    historyVersion: Number(parsed?.historyVersion || 0),
     upNextVersion: Number(parsed?.upNextVersion || getUpNextVersion()),
     // Older cache snapshots can contain the same resume twice under an
     // identity-bearing key and a title-only key. Normalize known media rows
@@ -120,6 +122,7 @@ async function storeCache(result, fallbackSourceVersion) {
         !== JSON.stringify({ items: nextItems, sourceStatus: comparableSourceStatus(nextSourceStatus) });
     const currentGlobalVersion = getUpNextVersion();
     const cachedVersion = Number(current.upNextVersion || 0);
+    const historyVersion = getDataVersion();
     const upNextVersion = changed
       ? (currentGlobalVersion > cachedVersion ? currentGlobalVersion : bumpUpNextVersion())
       : Math.max(cachedVersion || 1, currentGlobalVersion);
@@ -128,6 +131,7 @@ async function storeCache(result, fallbackSourceVersion) {
       version: CACHE_VERSION,
       builtAt: now,
       sourceVersion: String(projection.sourceVersion || fallbackSourceVersion || getUpNextFeedSourceVersion()),
+      historyVersion,
       upNextVersion,
       items: nextItems,
       sourceStatus: nextSourceStatus,
@@ -157,6 +161,7 @@ function publicSnapshot(cache, stale = false, sourceStatus = cache.sourceStatus)
   return {
     items: cache.items,
     builtAt: cache.builtAt,
+    historyVersion: cache.historyVersion,
     upNextVersion: cache.upNextVersion,
     sourceVersion: cache.sourceVersion,
     sourceStatus,
@@ -198,7 +203,13 @@ export async function getUpNextCacheSnapshot(build, { refresh = false, revalidat
   if (!cache.builtAt) return publicSnapshot(await buildAndStore(build));
 
   const sourceVersion = getUpNextFeedSourceVersion();
-  const stale = sourceVersion !== cache.sourceVersion || Date.now() - cache.builtAt >= UP_NEXT_TTL_MS;
+  const historyChanged = Number(cache.historyVersion || 0) !== getDataVersion();
+  const stale = historyChanged || sourceVersion !== cache.sourceVersion || Date.now() - cache.builtAt >= UP_NEXT_TTL_MS;
+  // Watch-state changes are safety-critical: serving the old snapshot while a
+  // background rebuild runs can briefly put an already-watched episode back
+  // in the rail. Provider-feed-only staleness keeps the old fast revalidate
+  // behavior, but a history mismatch waits for the authoritative projection.
+  if (historyChanged) return publicSnapshot(await buildAndStore(build));
   if (!stale) return publicSnapshot(cache);
   if (revalidate) {
     queueBackgroundRebuild(build);
