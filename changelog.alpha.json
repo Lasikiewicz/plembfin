@@ -1,10 +1,35 @@
 {
   "baseVersion": "1.1.1",
-  "build": 2,
-  "version": "1.1.1.2.0",
-  "updatedAt": "2026-09-15T13:01:53.273Z",
+  "build": 3,
+  "version": "1.1.1.3.0",
+  "updatedAt": "2026-09-15T13:44:42.946Z",
   "releaseMessage": "",
   "entries": [
+    {
+      "build": 3,
+      "version": "1.1.1.3.0",
+      "shortVersion": "1.1.1.3.0",
+      "date": "2026-09-15T13:44:42.946Z",
+      "commit": "a8046ebe20559d9d180450a7a4420532e2419609",
+      "message": "Fix - Keep Up Next stable while watch state syncs",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix: Keep Up Next stable while watch state syncs",
+        "Fix: Keep stale watched or unwatched cards out of Up Next until an authoritative refresh confirms their removal.",
+        "Fix: Animate matching Up Next cards as Saving while watch and unwatch actions sync.",
+        "Fix: Match pending actions by show identity and episode coordinates so rematches do not affect the wrong title."
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Keep Up Next stable while watch state syncs",
+          "Keep stale watched or unwatched cards out of Up Next until an authoritative refresh confirms their removal.",
+          "Animate matching Up Next cards as Saving while watch and unwatch actions sync.",
+          "Match pending actions by show identity and episode coordinates so rematches do not affect the wrong title."
+        ],
+        "tweaks": []
+      }
+    },
     {
       "build": 2,
       "version": "1.1.1.2.0",
@@ -68,5 +93,5 @@
       }
     }
   ],
-  "shortVersion": "1.1.1.2.0"
+  "shortVersion": "1.1.1.3.0"
 }
