@@ -1,13 +1,13 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.0.1";
-import { state, elements } from "./state.js?v=1.1.1.0.1";
-import { escapeHtml, formatTmdbDate } from "./utils.js?v=1.1.1.0.1";
-import { hydratePosters } from "./images.js?v=1.1.1.0.1";
-import { renderMediaCard } from "./media-card.js?v=1.1.1.0.1";
-import { mediaKeyForPersonalItem } from "./personal-media.js?v=1.1.1.0.1";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.0.2";
+import { state, elements } from "./state.js?v=1.1.1.0.2";
+import { escapeHtml, formatTmdbDate } from "./utils.js?v=1.1.1.0.2";
+import { hydratePosters } from "./images.js?v=1.1.1.0.2";
+import { renderMediaCard } from "./media-card.js?v=1.1.1.0.2";
+import { mediaKeyForPersonalItem } from "./personal-media.js?v=1.1.1.0.2";
 
 const DISCOVER_TTL_MS = 10 * 60 * 1000;
 const DISCOVER_TIMEOUT_MS = 20000;
-const DISCOVER_CACHE_KEY = "plembfin:discoverCache:v1";
+const DISCOVER_CACHE_KEY = "plembfin:discoverCache:v5";
 const DISCOVER_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const DISCOVER_CACHE_MAX_ENTRIES = 24;
 
@@ -23,10 +23,10 @@ const TV_GENRES = [
 ];
 
 const FEED_LABELS = {
+  recommended: "Recommended for you",
+  new_movies: "In theatres",
   trending_movies: "Trending movies",
   trending_shows: "Trending TV shows",
-  new_movies: "Now playing",
-  new_shows: "Airing today",
   popular_movies: "Popular movies",
   upcoming_movies: "Upcoming movies",
   popular_shows: "Popular TV shows",
@@ -90,6 +90,25 @@ function persistDiscoverCache() {
 function isWatchlisted(item) {
   const key = mediaKeyForPersonalItem(item);
   return (state.personalWatchlist || []).some((entry) => String(entry.media_key || mediaKeyForPersonalItem(entry)) === key);
+}
+
+function discoverTitleKeys(value) {
+  const normalized = String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  if (!normalized) return [];
+  const withoutYear = normalized.replace(/\s+\d{4}$/, "").trim();
+  return [...new Set([normalized, withoutYear].filter(Boolean))];
+}
+
+function historyContainsDiscoverItem(item, mediaType) {
+  const itemId = String(item.id || item.tmdb_id || "");
+  const itemTitles = new Set(discoverTitleKeys(item.title || item.name));
+  return (state.history || []).some((history) => {
+    if (history.media_type !== (mediaType === "tv" ? "episode" : "movie")) return false;
+    const historyId = String(history.tmdb_id || history.show_tmdb_id || "");
+    if (itemId && historyId && itemId === historyId) return true;
+    const historyTitle = history.media_type === "episode" ? history.show_title || history.title : history.title;
+    return discoverTitleKeys(historyTitle).some((key) => itemTitles.has(key));
+  });
 }
 
 export function initDiscover(callbacks = {}) {
@@ -202,10 +221,7 @@ function discoverItem(item = {}, feedKey = "") {
   const mediaType = item.media_type === "tv" || item.first_air_date ? "tv" : "movie";
   const title = item.title || item.name || "Untitled";
   const date = item.release_date || item.first_air_date || "";
-  const watched = Boolean(item.is_watched) || (state.history || []).some((history) => (
-    history.media_type === (mediaType === "tv" ? "episode" : "movie")
-      && String(history.tmdb_id || history.show_tmdb_id || "") === String(item.id)
-  ));
+  const watched = Boolean(item.is_watched) || historyContainsDiscoverItem(item, mediaType);
   return {
     ...item,
     id: item.id,
@@ -213,15 +229,22 @@ function discoverItem(item = {}, feedKey = "") {
     media_type: mediaType,
     title,
     poster_path: item.poster_path || "",
-    meta: [mediaType === "tv" ? "TV show" : "Movie", date.slice(0, 4)].filter(Boolean).join(" · "),
+    // Discover cards use the date as their primary metadata. Avoid repeating
+    // the media type/year string so the summary has room to breathe.
+    meta: "",
     feedKey,
     watched,
   };
 }
 
 function renderFeed(feedKey, feed) {
-  const items = Array.isArray(feed?.results) ? feed.results.map((item) => discoverItem(item, feedKey)).filter((item) => item.poster_path || item.title) : [];
+  const items = Array.isArray(feed?.results)
+    ? feed.results.map((item) => discoverItem(item, feedKey)).filter((item) => !item.watched && (item.poster_path || item.title))
+    : [];
   const label = FEED_LABELS[feedKey] || "Discover";
+  const emptyMessage = feedKey === "recommended"
+    ? { title: "Watch a few titles to get recommendations", detail: "Plembfin will use your watch history to build this rail." }
+    : { title: "No results in this rail", detail: "Try another type or genre." };
   return `
     <section class="discover-feed" aria-labelledby="discover-${feedKey}-title">
       <div class="discover-feed-heading">
@@ -232,14 +255,13 @@ function renderFeed(feedKey, feed) {
         ${items.length ? items.map((item) => renderMediaCard(item, {
           variant: "discover",
           compact: true,
-          meta: item.meta,
+          meta: "",
+          releaseDate: item.release_date || item.first_air_date ? formatTmdbDate(item.release_date || item.first_air_date) : "",
           description: item.overview || "",
-          badge: item.watched ? "Watched" : "TMDB",
           showSource: false,
-          status: item.release_date || item.first_air_date ? formatTmdbDate(item.release_date || item.first_air_date) : "",
           menuMode: "discover",
           watchlisted: isWatchlisted(item),
-        })).join("") : `<div class="empty-log discover-feed-empty"><b>No results in this rail</b><span>Try another type or genre.</span></div>`}
+        })).join("") : `<div class="empty-log discover-feed-empty"><b>${escapeHtml(emptyMessage.title)}</b><span>${escapeHtml(emptyMessage.detail)}</span></div>`}
       </div>
     </section>
   `;
@@ -265,7 +287,13 @@ export function renderDiscover() {
     return;
   }
 
-  const feeds = Object.entries(state.discoverFeeds || {})
+  const feedEntries = Object.entries(state.discoverFeeds || {});
+  feedEntries.sort(([a], [b]) => {
+    if (a === "recommended") return -1;
+    if (b === "recommended") return 1;
+    return 0;
+  });
+  const feeds = feedEntries
     .map(([key, feed]) => renderFeed(key, feed))
     .filter(Boolean)
     .join("");

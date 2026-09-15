@@ -2444,7 +2444,6 @@ export async function handleUpNextRemove(req, res) {
     // hide must not leave the card visible in Plembfin when the user has
     // already removed it; the next push reconciles the provider side.
     recordUpNextDismissal({ ...body, media_key: mediaKey || body.media_key });
-    const providerDismissals = await hideUpNextAcrossProviders(config, media, body);
     const { id: unwatchedId, summary } = await applyManualUnwatch(
       media,
       config,
@@ -2452,6 +2451,11 @@ export async function handleUpNextRemove(req, res) {
       "",
       { includeSourcePlatform: true, force: true, lane: "interactive" },
     );
+    // Marking an episode unplayed can recreate a native "next up" entry from
+    // its watched predecessor. Hide it only after the canonical unwatch has
+    // propagated, otherwise the unplayed transition immediately undoes the
+    // provider dismissal.
+    const providerDismissals = await hideUpNextAcrossProviders(config, media, body);
 
     return sendJson(res, {
       ok: true,

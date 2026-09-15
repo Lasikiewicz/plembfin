@@ -79,7 +79,7 @@ caches in SQLite:
 | Cache table | Contents | TTL |
 | --- | --- | --- |
 | `tmdb_metadata_cache` | Merged details per item, keyed by `movie_<id>` / `tv_<id>` with TVDB aliases (or `tv_tvdb_<id>` when no TMDB match), stamped with `DETAILS_SCHEMA_VERSION` | 1 day for airing/in-production shows; longer for ended/released |
-| `tmdb_search_cache` | Search responses, including negative results, plus Discover snapshots keyed by feed type/genre | Searches: 15 min (1 day for misses); Discover: 15 min with stale-while-revalidate |
+| `tmdb_search_cache` | Search responses, including negative results, Discover snapshots keyed by feed type/genre, and per-title recommendation responses | Searches: 15 min (1 day for misses); Discover: 15 min with stale-while-revalidate; recommendations: 6 hours (1 day for misses) |
 | `tmdb_person_cache` | Person details + credits, `PERSON_SCHEMA_VERSION` | 7 days |
 | `tvdb_metadata_cache` | Raw TVDB series/extended responses + title-search results | 14 days active / 180 days archived series; searches 180 days (1 hour for misses) |
 | `tvdb_season_cache` | Raw TVDB season episode lists | 2 days upcoming / 7 days active / 180 days archived |
@@ -95,9 +95,13 @@ Discover snapshots use versioned keys (`discover:v2|<type>|<genre>`) in
 `tmdb_search_cache`. A normal `/api/discover` request returns the last successful
 snapshot immediately, starts a background refresh when that snapshot is older than
 15 minutes, and only increments the shared `cache_versions.discover` generation when
-the feed payload changes. `/api/live-updates` carries that generation so open Discover
-pages can re-read the updated snapshot without waiting for the TMDB calls in the
-foreground.
+the feed payload changes. The same response adds a bounded personalized rail by combining
+TMDB recommendations for distinct movies and shows watched in the rolling last 12 months.
+Those per-title responses are cached separately so a watch-state refresh does not rebuild the
+public rails. Every rail removes titles already present in the user's watched history before it
+reaches the browser.
+`/api/live-updates` carries the Discover generation so open pages can re-read changed TMDB
+snapshots without waiting for the TMDB calls in the foreground.
 
 A show whose episode total cannot be resolved stamps `total_checked_at` in the progress
 cache and waits seven days before trying again, so an unresolvable title does not repeat
@@ -135,7 +139,7 @@ available for a later retry. `POST /api/rematch-show` reports this server-side w
 | `GET /api/tmdb-person` | Person details + filmography |
 | `GET /api/tmdb-search`, `GET /api/tvdb-search`, `GET /api/media-search` | Remote + local search. `tmdb-search` accepts `movie`, `tv`, `multi`, or `person`; `media-search` returns `local`, `discovery` (TMDB movies/shows), `people` (a separately paged TMDB people search), `collections`, and `tvdb` results, all queried in parallel. `tvdb-search` result lists are cached so the shared TVDB key survives per-keystroke searching |
 | `GET /api/tmdb-collection?id=` | Cached TMDB collection/franchise details and movie members |
-| `GET /api/discover?mediaType=&genre=` | Cached deterministic TMDB feeds for trending, now playing, airing today, and optional genre browsing. Normal requests serve the cached snapshot and revalidate stale data in the background; `refresh=1` rebuilds before responding. Requires a reachable TMDB API key |
+| `GET /api/discover?mediaType=&genre=` | Cached TMDB feeds for trending, movies currently in theatres, popular/upcoming or on-air titles, optional genre browsing, and a watch-history recommendation rail. The theatrical rail follows TMDB release data and is not a local cinema or streaming-availability check. Watched titles are filtered from every rail. Normal requests serve the cached snapshot and revalidate stale data in the background; `refresh=1` rebuilds before responding. Requires a reachable TMDB API key |
 | `GET /api/tmdb-images`, `GET /api/tvdb-images`, `GET /api/fanart-images` | Artwork galleries for the edit-image dialog |
 | `GET /api/tmdb-poster`, `GET /api/tmdb-profile` | Image proxies (rate-limited 300/min) |
 | `GET /api/remote-artwork` | Downloads and caches fanart.tv / TVDB / TMDB artwork by URL, then redirects to `/media/...` (see [posters-artwork.md](posters-artwork.md)) |
@@ -154,10 +158,11 @@ cards.
 
 The Discover page keeps provider failures actionable: a missing TMDB key links to
 Settings → Metadata, transient TMDB/network failures offer a retry, and a stale local
-server build asks the operator to restart Plembfin. The selected rails are restored
-from a bounded browser cache before the first request, then refreshed from the server
-cache when its SSE Discover version changes. Discover never depends on a media server
-or Trakt connection.
+server build asks the operator to restart Plembfin. The selected rails, including the
+personalized recommendation rail, are restored from a bounded browser cache before the
+first request, then refreshed from the server cache when its SSE Discover version changes
+or watch state changes. Watched titles are hidden rather than shown with a watched badge.
+Discover never depends on a media server or Trakt connection.
 
 Background frontend lookups are debounced into bounded batches of up to eight items, and a
 batch answers only once its slowest item resolves. Detail pages therefore pass `{ immediate: true }` to

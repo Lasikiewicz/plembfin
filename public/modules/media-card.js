@@ -8,8 +8,8 @@ import {
   tvShowHrefFromEpisode,
   tvShowTmdbHref,
   tvShowTvdbHref,
-} from "./utils.js?v=1.1.1.0.1";
-import { posterMarkup, posterOverflowMenu, proxiedArtworkUrl, tmdbPoster } from "./images.js?v=1.1.1.0.1";
+} from "./utils.js?v=1.1.1.0.2";
+import { posterMarkup, posterOverflowMenu, proxiedArtworkUrl, tmdbPoster } from "./images.js?v=1.1.1.0.2";
 
 function normalizedType(item = {}) {
   const raw = String(item.media_type || item.mediaType || item.type || "").toLowerCase();
@@ -20,6 +20,12 @@ function normalizedType(item = {}) {
 function titleFor(item, type) {
   if (type === "episode") return item.show_title || item.showTitle || item.title || "Unknown show";
   return item.title || item.name || "Untitled";
+}
+
+function tmdbTitleUrl(mediaType, tmdbId) {
+  const id = String(tmdbId || "").trim();
+  if (!id) return "";
+  return `https://www.themoviedb.org/${mediaType === "tv" ? "tv" : "movie"}/${encodeURIComponent(id)}`;
 }
 
 export function mediaCardHref(item = {}) {
@@ -68,11 +74,13 @@ export function normalizeMediaCardRecord(item = {}, options = {}) {
   const tmdbId = item.tmdb_id || item.tmdbId || (item.source === "TMDB" ? item.id : "") || "";
   const tvdbId = item.tvdb_id || item.tvdbId || "";
   const poster = mediaPoster(item, type);
-  const meta = options.meta
-    || item.meta
-    || (type === "episode" && item.season != null && item.episode != null
-      ? episodeCode(item.season, item.episode)
-      : [mediaYear(item), item.media_label || item.mediaLabel].filter(Boolean).join(" · "));
+  const hasMetaOverride = Object.prototype.hasOwnProperty.call(options, "meta");
+  const meta = hasMetaOverride
+    ? options.meta
+    : item.meta
+      || (type === "episode" && item.season != null && item.episode != null
+        ? episodeCode(item.season, item.episode)
+        : [mediaYear(item), item.media_label || item.mediaLabel].filter(Boolean).join(" · "));
   return {
     ...item,
     id: item.id || (tmdbId ? `tmdb:${type}:${tmdbId}` : undefined),
@@ -104,17 +112,37 @@ export function renderMediaCard(item = {}, options = {}) {
       title: record.title,
       label: record.title,
       watchlisted: Boolean(options.watchlisted),
+      personalAction: options.personalMenuAction,
+      personalKey: options.personalKey || record.media_key,
+      personalRemoveLabel: options.personalRemoveLabel,
     })
     : "";
   const title = escapeHtml(record.title);
   const meta = record.meta ? `<span class="shared-media-card-meta">${escapeHtml(record.meta)}</span>` : "";
+  const unifiedMetadata = variant === "discover" || variant === "personal";
+  const mediaTypeLabel = record.media_type === "tv" || record.media_type === "episode" ? "TV show" : "Movie";
+  const voteAverage = Number(record.vote_average || 0);
+  const inlineRating = options.ratingText || (voteAverage > 0 ? `★${voteAverage.toFixed(1)}` : "");
+  const ratingHref = options.ratingSourceHref || (voteAverage > 0 ? tmdbTitleUrl(record.media_type, record.tmdb_id) : "");
+  const ratingMarkup = options.ratingActionHtml || (inlineRating
+    ? (ratingHref
+      ? `<a class="shared-media-card-rating" href="${escapeAttribute(ratingHref)}" target="_blank" rel="noopener noreferrer" aria-label="View ${escapeAttribute(mediaTypeLabel)} rating source" title="View rating source">${escapeHtml(inlineRating)}</a>`
+      : `<span class="shared-media-card-rating">${escapeHtml(inlineRating)}</span>`)
+    : "");
+  const typeRatingHtml = unifiedMetadata
+    ? `<div class="shared-media-card-type-rating"><span class="shared-media-card-type">${mediaTypeLabel}</span>${ratingMarkup}</div>`
+    : "";
+  const releaseDate = options.releaseDate || "";
+  const releaseDateHtml = releaseDate
+    ? `<div class="shared-media-card-release"><span class="shared-media-card-release-label">Released</span><span class="shared-media-card-release-value"> - ${escapeHtml(releaseDate)}</span></div>`
+    : "";
   const description = record.description
-    ? `<p class="shared-media-card-description">${escapeHtml(record.description)}</p>`
+    ? `<p class="shared-media-card-description"><span class="shared-media-card-description-text">${escapeHtml(record.description)}</span></p>`
     : "";
   const badges = [];
   if (options.badge) badges.push(options.badge);
   if (record.source && options.showSource !== false) badges.push(record.source);
-  if (record.vote_average && Number(record.vote_average) > 0) badges.push(`★ ${Number(record.vote_average).toFixed(1)}`);
+  if (!unifiedMetadata && record.vote_average && Number(record.vote_average) > 0) badges.push(`★ ${Number(record.vote_average).toFixed(1)}`);
   const badgesHtml = badges.length
     ? `<div class="shared-media-card-badges">${badges.map((badge) => `<span class="status-pill status-muted">${escapeHtml(badge)}</span>`).join("")}</div>`
     : "";
@@ -133,9 +161,7 @@ export function renderMediaCard(item = {}, options = {}) {
       <div class="shared-media-card-body">
         <a class="shared-media-card-title" href="${escapeAttribute(href)}" data-media-card-href="${escapeAttribute(href)}" title="${escapeAttribute(record.title)}">${title}</a>
         ${meta}
-        ${statusHtml}
-        ${badgesHtml}
-        ${description}
+        ${unifiedMetadata ? `${description}${typeRatingHtml}${releaseDateHtml}` : `${releaseDateHtml}${status ? statusHtml : ""}${badgesHtml}${description}`}
         ${actions ? `<div class="shared-media-card-actions">${actions}</div>` : ""}
       </div>
     </article>

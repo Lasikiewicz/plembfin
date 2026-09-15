@@ -1,6 +1,6 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.0.1";
-import { state } from "./state.js?v=1.1.1.0.1";
-import { safeImageUrl, escapeAttribute, isDemoMode } from "./utils.js?v=1.1.1.0.1";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.0.2";
+import { state } from "./state.js?v=1.1.1.0.2";
+import { safeImageUrl, escapeAttribute, isDemoMode } from "./utils.js?v=1.1.1.0.2";
 
 // /api/poster resolves most requests from an already-cached DB row or webp
 // file (no outbound API call); the actual TMDB fallback downloads are
@@ -272,6 +272,9 @@ export function posterOverflowMenu(item = {}, options = {}) {
   if (!id) return "";
   const isEpisode = item.media_type === "episode";
   const menuMode = options.menuMode || (options.upNext ? "up-next" : "");
+  const personalAction = options.personalAction || "";
+  const personalKey = options.personalKey || item.media_key || "";
+  const personalRemoveLabel = options.personalRemoveLabel || "Remove";
   const mediaType = options.mediaType || (isEpisode ? "tv" : "movie");
   const kind = options.kind || (isEpisode ? "episode" : "movie");
   const showTitle = options.showTitle || (isEpisode ? (item.show_title || "") : "");
@@ -327,6 +330,9 @@ export function posterOverflowMenu(item = {}, options = {}) {
   // them) and misroute a grid unwatch into a no-op "reopen the modal" branch.
   const showTitleAttr = showTitle ? ` data-poster-menu-show-title="${escapeAttribute(showTitle)}"` : "";
   const menuModeAttr = menuMode ? ` data-poster-menu-mode="${escapeAttribute(menuMode)}"` : "";
+  const personalActionAttrs = menuMode === "personal" && personalAction
+    ? ` data-poster-menu-personal-action="${escapeAttribute(personalAction)}" data-poster-menu-personal-key="${escapeAttribute(personalKey)}" data-poster-menu-personal-remove-label="${escapeAttribute(personalRemoveLabel)}"`
+    : "";
   const ratingAttrs = `
       data-poster-menu-rating-media-type="${escapeAttribute(isEpisodeRating ? "episode" : mediaType)}"
       data-poster-menu-rating-tmdb-id="${escapeAttribute(ratingTmdbId)}"
@@ -343,6 +349,7 @@ export function posterOverflowMenu(item = {}, options = {}) {
       data-poster-menu-rating-season="${escapeAttribute(ratingSeason)}"
       data-poster-menu-rating-episode="${escapeAttribute(ratingEpisode)}"
       data-poster-menu-rating-poster-url="${escapeAttribute(item.poster_url || item.posterUrl || "")}"
+      data-poster-menu-rating-overview="${escapeAttribute(item.overview || item.description || "")}"
       data-poster-menu-rating-release-date="${escapeAttribute(item.release_date || item.first_air_date || item.releaseDate || item.air_date || item.airDate || "")}"`;
   const upNextAttrs = menuMode === "up-next" ? `
       data-poster-menu-up-next-watch="${escapeAttribute(id)}"
@@ -369,6 +376,7 @@ export function posterOverflowMenu(item = {}, options = {}) {
       data-poster-menu-discover-imdb-id="${escapeAttribute(item.imdb_id || item.imdbId || "")}" 
       data-poster-menu-discover-title="${escapeAttribute(item.title || "")}" 
       data-poster-menu-discover-poster-url="${escapeAttribute(item.poster_url || item.posterUrl || "")}" 
+      data-poster-menu-discover-overview="${escapeAttribute(item.overview || item.description || "")}"
       data-poster-menu-discover-release-date="${escapeAttribute(item.release_date || item.first_air_date || item.releaseDate || "")}" 
       data-poster-menu-discover-watchlisted="${options.watchlisted ? "true" : "false"}"` : "";
   return `
@@ -385,7 +393,7 @@ export function posterOverflowMenu(item = {}, options = {}) {
       data-poster-menu-media-type="${escapeAttribute(mediaType)}"
       data-poster-menu-kind="${escapeAttribute(kind)}"
       data-poster-menu-label="${escapeAttribute(label)}"
-      data-poster-menu-grid="1"${showTitleAttr}${menuModeAttr}${ratingAttrs}${upNextAttrs}${discoverAttrs}
+      data-poster-menu-grid="1"${showTitleAttr}${menuModeAttr}${personalActionAttrs}${ratingAttrs}${upNextAttrs}${discoverAttrs}
     >&#8942;</button>
   `;
 }

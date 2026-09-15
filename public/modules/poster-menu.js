@@ -5,8 +5,8 @@
 // usually sits inside an <a> card - portaling the menu items out of that
 // anchor means clicking them never triggers card navigation.
 
-import { state } from "./state.js?v=1.1.1.0.1";
-import { customListsForPersonalItem, isPersonalWatchlisted, personalItemFromPosterMenuDataset } from "./personal-media.js?v=1.1.1.0.1";
+import { state } from "./state.js?v=1.1.1.0.2";
+import { customListsForPersonalItem, isPersonalWatchlisted, personalItemFromPosterMenuDataset } from "./personal-media.js?v=1.1.1.0.2";
 
 let openMenu = null; // { dropdown, button, submenu, submenuTrigger, actionPending, keepOpen, actionButton }
 
@@ -76,6 +76,7 @@ function ratingDataset(d, overrides = {}) {
     mediaRateSeason: overrides.mediaRateSeason || d.posterMenuRatingSeason || "",
     mediaRateEpisode: overrides.mediaRateEpisode || d.posterMenuRatingEpisode || "",
     mediaRatePosterUrl: overrides.mediaRatePosterUrl || d.posterMenuRatingPosterUrl || "",
+    mediaRateOverview: overrides.mediaRateOverview || d.posterMenuRatingOverview || "",
     mediaRateReleaseDate: overrides.mediaRateReleaseDate || d.posterMenuRatingReleaseDate || "",
   };
 }
@@ -97,9 +98,12 @@ function personalDataset(d) {
     posterMenuRatingSeason: d.posterMenuRatingSeason || "",
     posterMenuRatingEpisode: d.posterMenuRatingEpisode || "",
     posterMenuRatingPosterUrl: d.posterMenuRatingPosterUrl || "",
+    posterMenuRatingOverview: d.posterMenuRatingOverview || "",
     posterMenuRatingReleaseDate: d.posterMenuRatingReleaseDate || "",
     posterMenuKind: d.posterMenuKind || "",
     posterMenuMode: d.posterMenuMode || "",
+    posterMenuPersonalKey: d.posterMenuPersonalKey || "",
+    posterMenuPersonalRemoveLabel: d.posterMenuPersonalRemoveLabel || "",
     posterMenuShowTitle: d.posterMenuShowTitle || "",
     posterMenuTitle: d.posterMenuTitle || "",
     posterMenuUpNextShowTitle: d.posterMenuUpNextShowTitle || "",
@@ -120,6 +124,7 @@ function personalDataset(d) {
     posterMenuDiscoverTitle: d.posterMenuDiscoverTitle || "",
     posterMenuDiscoverImdbId: d.posterMenuDiscoverImdbId || "",
     posterMenuDiscoverPosterUrl: d.posterMenuDiscoverPosterUrl || "",
+    posterMenuDiscoverOverview: d.posterMenuDiscoverOverview || "",
     posterMenuDiscoverReleaseDate: d.posterMenuDiscoverReleaseDate || "",
   };
 }
@@ -220,7 +225,7 @@ function appendPersonalMenuActions(dropdown, button) {
   const d = button.dataset;
   const personal = personalDataset(d);
   const watchlisted = isWatchlisted(d);
-  dropdown.appendChild(menuItem("", watchlisted ? "Remove from watch list" : "Add to watch list", {
+  dropdown.appendChild(menuItem("", watchlisted ? "Remove from watchlist" : "Add to watch list", {
     posterMenuWatchlist: watchlisted ? "remove" : "add",
     ...personal,
   }));
@@ -231,6 +236,13 @@ function appendPersonalMenuActions(dropdown, button) {
   listTrigger.setAttribute("aria-haspopup", "true");
   listTrigger.setAttribute("aria-expanded", "false");
   dropdown.appendChild(listTrigger);
+  if (d.posterMenuPersonalAction && d.posterMenuPersonalAction !== "remove-watchlist") {
+    dropdown.appendChild(menuItem("poster-overflow-item-danger", d.posterMenuPersonalRemoveLabel || "Remove", {
+      posterMenuPersonalAction: "1",
+      personalAction: d.posterMenuPersonalAction,
+      personalKey: d.posterMenuPersonalKey || "",
+    }));
+  }
 }
 
 function buildDropdown(button) {

@@ -13,9 +13,15 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const DETAILS_SCHEMA_VERSION = 15; // bumped: refetch structural-only TV rows so full metadata append data is restored
 const PERSON_SCHEMA_VERSION = 5;
 const SEARCH_TTL_MS = 15 * 60 * 1000;
+const RECOMMENDATION_TTL_MS = 6 * 60 * 60 * 1000;
 const DISCOVERY_REVALIDATE_MIN_INTERVAL_MS = 10 * 60 * 1000;
 const MISSING_TTL_MS = DAY_MS;
 const PERSON_TTL_MS = 7 * DAY_MS;
+const MAX_RECOMMENDATION_SEEDS = 16;
+const MAX_RECOMMENDATION_SEEDS_PER_TYPE = Math.ceil(MAX_RECOMMENDATION_SEEDS / 2);
+const RECOMMENDATION_RESULTS_PER_SEED = 20;
+const RECOMMENDATION_RESULT_LIMIT = 30;
+const RECOMMENDATION_RECENCY_HALF_LIFE_DAYS = 180;
 const PREWARM_INTERVAL_MS = 15 * 60 * 1000;
 const inflight = new Map();
 const discoveryRefreshes = new Map();
@@ -934,6 +940,187 @@ export async function getTmdbCollection(collectionId) {
   });
 }
 
+function recommendationCacheKey(type, tmdbId) {
+  return hash(`recommendations:v2|${type}|${tmdbId}`);
+}
+
+async function getTmdbRecommendationsForId(type, tmdbId) {
+  const cacheKey = recommendationCacheKey(type, tmdbId);
+  return collapse(`recommendations:${cacheKey}`, async () => {
+    const row = searchGetStmt.get(cacheKey);
+    const cached = row ? { response: parseJson(row.response), missing: Boolean(row.missing), updatedAtMs: row.updated_at_ms } : null;
+    if (cached && fresh(cached, cached.missing ? MISSING_TTL_MS : RECOMMENDATION_TTL_MS)) return cached.response;
+
+    try {
+      const response = await upstream(`${type}/${encodeURIComponent(tmdbId)}/recommendations`, { page: 1 });
+      const cleaned = {
+        page: response.page || 1,
+        total_pages: response.total_pages || 1,
+        results: (response.results || [])
+          .filter((item) => item?.id)
+          .slice(0, RECOMMENDATION_RESULTS_PER_SEED)
+          .map((item) => ({ ...item, media_type: type })),
+      };
+      searchSetStmt.run({
+        id: cacheKey,
+        query: String(tmdbId),
+        media_type: `recommendations:${type}`,
+        page: 1,
+        response: toJson(cleaned),
+        missing: cleaned.results.length ? 0 : 1,
+        updated_at_ms: Date.now(),
+      });
+      return cleaned;
+    } catch (error) {
+      if (cached?.response) return { ...cached.response, cache_stale: true };
+      throw error;
+    }
+  });
+}
+
+async function recommendationsForSeed(seed = {}) {
+  const type = mediaTypeFor(seed.mediaType || seed.media_type);
+  const title = String(seed.title || seed.name || "").trim();
+  const ids = seed.ids || {
+    imdbId: seed.imdbId || seed.imdb_id || seed.imdb || "",
+    tvdbId: seed.tvdbId || seed.tvdb_id || seed.tvdb || "",
+  };
+  let tmdbId = String(seed.tmdbId || seed.tmdb_id || "").trim();
+  if (!/^\d+$/.test(tmdbId)) tmdbId = await resolveTmdbId(type, "", title, ids);
+  if (!/^\d+$/.test(tmdbId)) return null;
+
+  try {
+    return { seed, tmdbId, response: await getTmdbRecommendationsForId(type, tmdbId) };
+  } catch (error) {
+    // Episode-level or stale provider ids can occasionally be stored on a show
+    // row. Resolve by the stable title/provider ids before giving up on that seed.
+    const fallbackId = await resolveTmdbId(type, "", title, ids, { ignoreTmdbId: true }).catch(() => "");
+    if (!/^\d+$/.test(fallbackId) || fallbackId === tmdbId) throw error;
+    return { seed, tmdbId: fallbackId, response: await getTmdbRecommendationsForId(type, fallbackId) };
+  }
+}
+
+function recommendationSeedWeight(seed = {}, now = Date.now()) {
+  const watchedAtMs = Date.parse(String(seed.watchedAt || seed.watched_at || ""));
+  const ageDays = Number.isFinite(watchedAtMs)
+    ? Math.max(0, (now - watchedAtMs) / DAY_MS)
+    : RECOMMENDATION_RECENCY_HALF_LIFE_DAYS;
+  // Watching something repeatedly is a useful preference signal, but a long
+  // series should not outweigh every recent movie simply because it has more
+  // episodes in the ledger.
+  const repeatCount = Math.max(1, Number(seed.watchCount || seed.watch_count || 1));
+  const repeatWeight = 1 + Math.min(1.25, Math.log2(repeatCount) * 0.35);
+  const recencyWeight = 0.4 + 1.6 * (2 ** (-ageDays / RECOMMENDATION_RECENCY_HALF_LIFE_DAYS));
+  return repeatWeight * recencyWeight;
+}
+
+function recommendationDateIsRecent(item = {}, now = Date.now()) {
+  const dateValue = item.first_air_date || item.release_date || "";
+  const releaseMs = Date.parse(String(dateValue));
+  if (!Number.isFinite(releaseMs)) return false;
+  const cutoff = new Date(now);
+  cutoff.setUTCHours(0, 0, 0, 0);
+  cutoff.setUTCFullYear(cutoff.getUTCFullYear() - 5);
+  return releaseMs >= cutoff.getTime();
+}
+
+function selectRecommendationSeeds(seeds = [], requestedType = "all") {
+  const now = Date.now();
+  const ranked = (Array.isArray(seeds) ? seeds : [])
+    .filter(Boolean)
+    .filter((seed) => requestedType === "all" || mediaTypeFor(seed.mediaType || seed.media_type) === requestedType)
+    .map((seed) => ({ seed, weight: recommendationSeedWeight(seed, now) }))
+    .sort((a, b) => (
+      b.weight - a.weight
+      || String(b.seed?.watchedAt || b.seed?.watched_at || "").localeCompare(String(a.seed?.watchedAt || a.seed?.watched_at || ""))
+    ));
+
+  if (requestedType !== "all") return ranked.slice(0, MAX_RECOMMENDATION_SEEDS).map(({ seed }) => seed);
+
+  // In the combined rail, reserve half the seed budget for each medium when
+  // both exist. This prevents a user's episode-heavy TV history from hiding
+  // their movie taste (or vice versa), while still filling the remaining
+  // slots from whichever medium has more useful history.
+  const selected = [];
+  const selectedSet = new Set();
+  for (const type of ["movie", "tv"]) {
+    for (const entry of ranked.filter(({ seed }) => mediaTypeFor(seed.mediaType || seed.media_type) === type).slice(0, MAX_RECOMMENDATION_SEEDS_PER_TYPE)) {
+      selected.push(entry);
+      selectedSet.add(entry.seed);
+    }
+  }
+  for (const entry of ranked) {
+    if (selected.length >= MAX_RECOMMENDATION_SEEDS || selectedSet.has(entry.seed)) continue;
+    selected.push(entry);
+    selectedSet.add(entry.seed);
+  }
+  return selected.slice(0, MAX_RECOMMENDATION_SEEDS).map(({ seed }) => seed);
+}
+
+export async function getTmdbRecommendations({ seeds = [], mediaType = "all", genreId = "" } = {}) {
+  const requestedType = ["movie", "tv", "all"].includes(String(mediaType).toLowerCase())
+    ? String(mediaType).toLowerCase()
+    : "all";
+  const genre = /^\d+$/.test(String(genreId || "")) ? String(genreId) : "";
+  const selectedSeeds = selectRecommendationSeeds(seeds, requestedType);
+
+  if (!selectedSeeds.length) {
+    return { media_type: requestedType, genre_id: genre, page: 1, total_pages: 1, results: [] };
+  }
+
+  const settled = await Promise.allSettled(selectedSeeds.map((seed) => recommendationsForSeed(seed)));
+  const sourceIds = new Set();
+  const ranked = new Map();
+  for (const outcome of settled) {
+    if (outcome.status !== "fulfilled" || !outcome.value?.response) continue;
+    const seedType = mediaTypeFor(outcome.value.seed.mediaType || outcome.value.seed.media_type);
+    sourceIds.add(`${seedType}:${outcome.value.tmdbId}`);
+  }
+  settled.forEach((outcome) => {
+    if (outcome.status !== "fulfilled" || !outcome.value?.response) return;
+    const { seed, response } = outcome.value;
+    const seedType = mediaTypeFor(seed.mediaType || seed.media_type);
+    const seedWeight = recommendationSeedWeight(seed);
+    for (const [resultIndex, item] of (response.results || []).entries()) {
+      const resultType = mediaTypeFor(item.media_type || seedType);
+      if (requestedType !== "all" && resultType !== requestedType) continue;
+      // Discover cards are poster-led, and a bare TMDB id cannot be resolved
+      // by the generic poster lookup without the recommendation's media type
+      // and title. Skip posterless candidates instead of showing a blank tile.
+      if (!String(item.poster_path || "").trim()) continue;
+      if (!recommendationDateIsRecent(item)) continue;
+      if (genre && (!Array.isArray(item.genre_ids) || !item.genre_ids.includes(Number(genre)))) continue;
+      const id = String(item.id || "").trim();
+      if (!id || sourceIds.has(`${resultType}:${id}`)) continue;
+      const key = `${resultType}:${id}`;
+      const score = seedWeight * (RECOMMENDATION_RESULTS_PER_SEED - resultIndex);
+      const existing = ranked.get(key);
+      if (existing) {
+        existing.score += score;
+        existing.support += 1;
+        continue;
+      }
+      ranked.set(key, { item: { ...item, media_type: resultType }, score, support: 1 });
+    }
+  });
+
+  return {
+    media_type: requestedType,
+    genre_id: genre,
+    page: 1,
+    total_pages: 1,
+    results: [...ranked.values()]
+      .sort((a, b) => (
+        b.score - a.score
+        || b.support - a.support
+        || Number(b.item.popularity || 0) - Number(a.item.popularity || 0)
+        || String(a.item.title || a.item.name || "").localeCompare(String(b.item.title || b.item.name || ""))
+      ))
+      .slice(0, RECOMMENDATION_RESULT_LIMIT)
+      .map(({ item }) => item),
+  };
+}
+
 function discoveryCacheResponse(cacheKey) {
   const row = searchGetStmt.get(cacheKey);
   if (!row) return null;
@@ -946,15 +1133,14 @@ function discoveryRequest({ mediaType = "all", genreId = "" } = {}) {
     : "all";
   const genre = /^\d+$/.test(String(genreId || "")) ? String(genreId) : "";
   // Version the key when the rail shape changes so an older cached response
-  // cannot leave the client with fewer than the current four sections.
-  return { type, genre, cacheKey: hash(`discover:v2|${type}|${genre}`) };
+  // cannot restore rails that are no longer part of Discover.
+  return { type, genre, cacheKey: hash(`discover:v4|${type}|${genre}`) };
 }
 
 function discoverySpecs(type, genre) {
-  // Keep the Discover page predictable: it always receives four rails. The
-  // type selector changes the four rails to the selected medium rather than
-  // leaving a sparse two-rail page, while a genre swaps the secondary
-  // popularity rail for a genre-specific one.
+  // Keep the Discover page focused: the type selector changes the rails to the
+  // selected medium, while a genre swaps the secondary popularity rail for a
+  // genre-specific one. Recommendations are appended separately by the route.
   const specs = [];
   if (type === "all") {
     specs.push(["trending_movies", "trending/movie/week", { include_adult: false }, "movie"]);
@@ -964,7 +1150,6 @@ function discoverySpecs(type, genre) {
       specs.push(["genre_shows", "discover/tv", { page: 1, include_adult: false, with_genres: genre, sort_by: "popularity.desc" }, "tv"]);
     } else {
       specs.push(["new_movies", "movie/now_playing", { page: 1, include_adult: false }, "movie"]);
-      specs.push(["new_shows", "tv/airing_today", { page: 1, include_adult: false }, "tv"]);
     }
   } else if (type === "movie") {
     specs.push(["trending_movies", "trending/movie/week", { include_adult: false }, "movie"]);
@@ -984,7 +1169,6 @@ function discoverySpecs(type, genre) {
       ...(genre ? { with_genres: genre } : {}),
       sort_by: "popularity.desc",
     }, "tv"]);
-    specs.push(["new_shows", "tv/airing_today", { page: 1, include_adult: false }, "tv"]);
     specs.push(["on_air_shows", "tv/on_the_air", { page: 1, include_adult: false }, "tv"]);
   }
   return specs;

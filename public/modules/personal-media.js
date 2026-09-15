@@ -1,8 +1,9 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.0.1";
-import { state, elements } from "./state.js?v=1.1.1.0.1";
-import { escapeAttribute, escapeHtml, formatTmdbDate, episodeCode } from "./utils.js?v=1.1.1.0.1";
-import { hydratePosters } from "./images.js?v=1.1.1.0.1";
-import { normalizeMediaCardRecord, renderMediaCard } from "./media-card.js?v=1.1.1.0.1";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.0.2";
+import { state, elements } from "./state.js?v=1.1.1.0.2";
+import { escapeAttribute, escapeHtml, formatTmdbDate, episodeCode } from "./utils.js?v=1.1.1.0.2";
+import { hydratePosters } from "./images.js?v=1.1.1.0.2";
+import { normalizeMediaCardRecord, renderMediaCard } from "./media-card.js?v=1.1.1.0.2";
+import { fetchTmdbDetails } from "./tmdb.js?v=1.1.1.0.2";
 
 const PERSONAL_MEDIA_TTL_MS = 2 * 60 * 1000;
 const PERSONAL_MEDIA_TIMEOUT_MS = 15000;
@@ -16,6 +17,7 @@ const PERSONAL_RATING_SECTIONS = [
 let _cb = {};
 let panelBound = false;
 let loadPromise = null;
+let personalMetadataHydrationPromise = null;
 let dialogCleanup = null;
 let personalSyncBusy = "";
 
@@ -203,6 +205,7 @@ export function personalItemFromPosterMenuDataset(dataset = {}) {
     "posterMenuTitle",
   ) || "Untitled";
   return normalizeItem({
+    media_key: value("posterMenuPersonalKey"),
     media_type: isEpisode ? "tv" : normalizeType(rawType),
     title: isEpisode ? (showTitle || title) : title,
     tmdb_id: isEpisode ? showTmdbId : tmdbId,
@@ -507,45 +510,130 @@ function personalErrorPresentation() {
   return state.personalMediaError || "Try again later.";
 }
 
-function actionButton(label, action, mediaKey, className = "button-ghost") {
-  return `<button class="${className} personal-media-action" type="button" data-personal-action="${escapeAttribute(action)}" data-personal-key="${escapeAttribute(mediaKey)}">${escapeHtml(label)}</button>`;
-}
-
 function personalCard(item, { section = "watchlist", rating = null, listId = "" } = {}) {
   const normalized = normalizeItem(item);
+  const sharedMetadata = personalMetadataItems().find((entry) => (
+    String(entry.media_key || mediaKeyForPersonalItem(entry)) === String(normalized.media_key)
+      && (entry.overview || entry.release_date)
+  )) || {};
+  const overview = normalized.overview || sharedMetadata.overview || "Summary unavailable.";
+  const releaseValue = normalized.release_date || sharedMetadata.release_date || "";
+  const episodeMeta = normalized.media_type === "episode"
+    ? `${episodeCode(normalized.season, normalized.episode)} · ${normalized.title}`
+    : "";
   const record = normalizeMediaCardRecord(normalized, {
-    meta: normalized.media_type === "tv"
-      ? "TV show"
-      : normalized.media_type === "episode"
-        ? `${episodeCode(normalized.season, normalized.episode)} · ${normalized.title}`
-        : "Movie",
-    description: normalized.overview,
+    meta: episodeMeta,
+    description: overview,
   });
   const key = normalized.media_key;
-  const releaseDate = normalized.release_date ? formatTmdbDate(normalized.release_date) : "";
-  const actions = section === "ratings"
-    ? `${actionButton("Rate again", "rate", key, "button-ghost")}${actionButton("Remove", "remove-rating", key, "button-danger")}`
+  const releaseDate = releaseValue ? formatTmdbDate(releaseValue) : "Release date unavailable";
+  const ratingLabel = rating ? `★${rating}/10` : "Rate";
+  const ratingActionHtml = `<button class="shared-media-card-rating shared-media-card-rating--action" type="button" data-personal-action="rate" data-personal-key="${escapeAttribute(key)}" aria-label="${escapeAttribute(rating ? `Change your rating for ${normalized.title}` : `Rate ${normalized.title}`)}" title="${escapeAttribute(rating ? "Change rating" : "Rate this title")}">${ratingLabel}</button>`;
+  const personalMenuAction = section === "ratings"
+    ? "remove-rating"
     : section === "list"
-      ? `${actionButton("Rate", "rate", key, "button-ghost")}${actionButton("Remove", `remove-list:${listId}`, key, "button-ghost")}`
-      : `${actionButton("Rate", "rate", key, "button-ghost")}${actionButton("Remove", "remove-watchlist", key, "button-ghost")}`;
+      ? `remove-list:${listId}`
+      : "remove-watchlist";
+  const personalRemoveLabel = section === "ratings"
+    ? "Remove rating"
+    : section === "list"
+      ? "Remove from this list"
+      : "Remove from watchlist";
   return renderMediaCard({
     ...record,
     media_key: key,
-    status: releaseDate,
   }, {
     variant: "personal",
     menuMode: "personal",
+    personalKey: key,
+    personalMenuAction,
+    personalRemoveLabel,
     meta: record.meta,
-    status: releaseDate,
-    badge: section === "ratings" && rating ? `★ ${rating}/10` : section === "list" ? "Custom list" : "Watchlist",
+    releaseDate,
+    ratingActionHtml,
     showSource: false,
-    description: normalized.overview,
-    actionsHtml: actions,
+    description: overview,
   });
 }
 
 function emptyPersonalState(title, detail) {
   return `<div class="empty-log personal-media-empty"><b>${escapeHtml(title)}</b><span>${escapeHtml(detail)}</span></div>`;
+}
+
+function personalMetadataItems() {
+  return [
+    ...(state.personalRatings || []),
+    ...(state.personalWatchlist || []),
+    ...(state.personalLists || []).flatMap((list) => list.items || []),
+  ].filter(Boolean);
+}
+
+function hydratePersonalMetadata() {
+  if (personalMetadataHydrationPromise) return personalMetadataHydrationPromise;
+  const targets = personalMetadataItems().filter((item) => !item.overview || !item.release_date);
+  if (!targets.length) return Promise.resolve(false);
+
+  personalMetadataHydrationPromise = Promise.allSettled(targets.map(async (item) => {
+    const normalized = normalizeItem(item);
+    const isEpisode = normalized.media_type === "episode";
+    const mediaType = isEpisode ? "tv" : normalized.media_type;
+    const tmdbId = isEpisode ? (normalized.show_tmdb_id || normalized.tmdb_id) : normalized.tmdb_id;
+    const title = isEpisode ? (normalized.show_title || normalized.title) : normalized.title;
+    const details = await fetchTmdbDetails(mediaType, tmdbId, title, {
+      imdbId: isEpisode ? normalized.show_imdb_id : normalized.imdb_id,
+      tvdbId: isEpisode ? normalized.show_tvdb_id : normalized.tvdb_id,
+    }, { light: true });
+    if (!details) return false;
+    let changed = false;
+    if (!item.overview && details.overview) {
+      item.overview = details.overview;
+      changed = true;
+    }
+    if (!item.release_date && (details.release_date || details.first_air_date)) {
+      item.release_date = details.release_date || details.first_air_date;
+      changed = true;
+    }
+    return changed;
+  })).then((results) => results.some((result) => result.status === "fulfilled" && result.value === true))
+    .finally(() => {
+      personalMetadataHydrationPromise = null;
+    });
+  return personalMetadataHydrationPromise;
+}
+
+function propagatePersonalMetadata() {
+  const sourceByKey = new Map();
+  for (const item of personalMetadataItems()) {
+    const key = String(item.media_key || mediaKeyForPersonalItem(item));
+    if (!key) continue;
+    const source = sourceByKey.get(key) || {};
+    if (!source.overview && item.overview) source.overview = item.overview;
+    if (!source.release_date && item.release_date) source.release_date = item.release_date;
+    sourceByKey.set(key, source);
+  }
+
+  let changed = false;
+  for (const item of personalMetadataItems()) {
+    const source = sourceByKey.get(String(item.media_key || mediaKeyForPersonalItem(item)));
+    if (!source) continue;
+    if (!item.overview && source.overview) {
+      item.overview = source.overview;
+      changed = true;
+    }
+    if (!item.release_date && source.release_date) {
+      item.release_date = source.release_date;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
+function refreshPersonalMetadata() {
+  hydratePersonalMetadata()
+    .then((changed) => {
+      if (changed || propagatePersonalMetadata()) refreshPersonalViews();
+    })
+    .catch(() => { });
 }
 
 function renderCustomListSection(list, index) {
@@ -729,6 +817,7 @@ export async function loadPersonalMedia({ force = false } = {}) {
   if (loadPromise) return loadPromise;
   if (!force && state.personalMediaLoadedAt && Date.now() - state.personalMediaLoadedAt < PERSONAL_MEDIA_TTL_MS) {
     renderPersonalMedia();
+    refreshPersonalMetadata();
     return;
   }
 
@@ -755,6 +844,7 @@ export async function loadPersonalMedia({ force = false } = {}) {
         : [];
       state.personalMediaLoadedAt = Date.now();
       await refreshPersonalViews();
+      refreshPersonalMetadata();
     } catch (error) {
       state.personalMediaError = error?.name === "AbortError" ? "The request timed out." : (error.message || "Try again later.");
     } finally {
@@ -1011,41 +1101,8 @@ export function openCreateListDialog(afterCreateItem = null) {
   });
 }
 
-async function handlePanelClick(event) {
-  const syncButton = event.target.closest("[data-personal-sync]");
-  if (syncButton) {
-    event.preventDefault();
-    runPersonalSync(syncButton.dataset.personalSync);
-    return;
-  }
-  const retry = event.target.closest("[data-personal-retry]");
-  if (retry) {
-    event.preventDefault();
-    loadPersonalMedia({ force: true }).catch(() => { });
-    return;
-  }
-  const create = event.target.closest("[data-personal-create-list]");
-  if (create) {
-    event.preventDefault();
-    if (create.dataset.personalCreateList !== "custom-lists") return;
-    openCreateListDialog();
-    return;
-  }
-  const deleteButton = event.target.closest("[data-personal-delete-list]");
-  if (deleteButton) {
-    event.preventDefault();
-    deleteCustomList(deleteButton.dataset.personalDeleteList).catch((error) => setPersonalMessage(error.message, "error"));
-    return;
-  }
-  const rateButton = event.target.closest("[data-personal-rate]");
-  if (rateButton) {
-    event.preventDefault();
-    openRatingDialog(findPersonalItem(rateButton.dataset.personalKey) || { title: rateButton.dataset.personalTitle });
-    return;
-  }
-  const actionButtonElement = event.target.closest("[data-personal-action]");
+export async function handlePersonalAction(actionButtonElement) {
   if (!actionButtonElement) return;
-  event.preventDefault();
   const item = findPersonalItem(actionButtonElement.dataset.personalKey);
   if (!item) return;
   const action = actionButtonElement.dataset.personalAction || "";
@@ -1083,8 +1140,12 @@ async function handlePanelClick(event) {
         }
         setPersonalMessage(error.message, "error");
       });
+    return;
   }
-  if (action === "rate") openRatingDialog(item);
+  if (action === "rate") {
+    openRatingDialog(item);
+    return;
+  }
   if (action === "remove-rating") {
     const originalLabel = actionButtonElement.textContent || "Remove";
     actionButtonElement.disabled = true;
@@ -1112,6 +1173,7 @@ async function handlePanelClick(event) {
         }
         setPersonalMessage(error.message, "error");
       });
+    return;
   }
   if (action.startsWith("remove-list:")) {
     const listId = action.slice("remove-list:".length);
@@ -1149,6 +1211,44 @@ async function handlePanelClick(event) {
         setPersonalMessage(error.message, "error");
       });
   }
+}
+
+async function handlePanelClick(event) {
+  const syncButton = event.target.closest("[data-personal-sync]");
+  if (syncButton) {
+    event.preventDefault();
+    runPersonalSync(syncButton.dataset.personalSync);
+    return;
+  }
+  const retry = event.target.closest("[data-personal-retry]");
+  if (retry) {
+    event.preventDefault();
+    loadPersonalMedia({ force: true }).catch(() => { });
+    return;
+  }
+  const create = event.target.closest("[data-personal-create-list]");
+  if (create) {
+    event.preventDefault();
+    if (create.dataset.personalCreateList !== "custom-lists") return;
+    openCreateListDialog();
+    return;
+  }
+  const deleteButton = event.target.closest("[data-personal-delete-list]");
+  if (deleteButton) {
+    event.preventDefault();
+    deleteCustomList(deleteButton.dataset.personalDeleteList).catch((error) => setPersonalMessage(error.message, "error"));
+    return;
+  }
+  const rateButton = event.target.closest("[data-personal-rate]");
+  if (rateButton) {
+    event.preventDefault();
+    openRatingDialog(findPersonalItem(rateButton.dataset.personalKey) || { title: rateButton.dataset.personalTitle });
+    return;
+  }
+  const actionButtonElement = event.target.closest("[data-personal-action]");
+  if (!actionButtonElement) return;
+  event.preventDefault();
+  await handlePersonalAction(actionButtonElement);
 }
 
 export function initPersonalMedia(callbacks = {}) {

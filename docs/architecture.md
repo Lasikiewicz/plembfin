@@ -284,7 +284,7 @@ before reversing something that looks unnecessarily cautious.
 | `dashboard.js` | Dashboard rendering: Now Playing grid, completed recent-history rows, mixed Up Next cards, and compatibility-only Part Watched panels. See [dashboard.md](dashboard.md). |
 | `media-card.js` | Shared media-card normalization/rendering for Up Next, Discover, collection members, and later list/library surfaces. |
 | `up-next.js` | Dashboard mixed Up Next loader/rendering backed by browser/server cache hydration, provider/local resume and released-episode observations, SSE revalidation, source-status messaging, and the shared media-card contract. See [dashboard.md](dashboard.md). |
-| `discover.js` | `/discover` deterministic TMDB feeds, type/genre filters, browser/server cache hydration, SSE refresh, error/empty states, and poster hydration. See [metadata.md](metadata.md). |
+| `discover.js` | `/discover` cached TMDB feeds, watch-history recommendations, watched-title filtering, type/genre filters, browser/server cache hydration, SSE refresh, error/empty states, and poster hydration. See [metadata.md](metadata.md). |
 | `stats.js` | Stats page: KPI cards, leaderboards, platform split, month chart, yearly/monthly review reports. See [stats.md](stats.md). |
 | `explorer.js` | Movies grid, TV Shows grid, History page, Search page: paging, sorting, filters, collection expansion, IntersectionObserver infinite scroll, TMDB prefetch. See [movies.md](movies.md), [tv-shows.md](tv-shows.md), [history-search.md](history-search.md). |
 | `poster-menu.js` | Builds and positions the poster three-dot overflow dropdown (Edit watch date / Fix match / Mark unwatched), portaled to `<body>` so it isn't clipped by a card's `overflow: hidden`. See [movies.md](movies.md#frontend-behavior). |

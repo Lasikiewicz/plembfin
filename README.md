@@ -63,7 +63,7 @@ None of these talk to each other - they all talk to Plembfin.
 - **Personal Rating Sync** - One-toggle, two-way rating sync with every connected Plex, Emby, Jellyfin, and Trakt account through an isolated durable queue, with Plembfin as the conflict authority
 - **Plex Watchlist Sync** - One-toggle, two-way sync between Plembfin and the Plex account watchlist, with safe first-run union, durable retries, a Sync now action, and a plain-language explanation of anything Plex refuses
 - **Upcoming episodes calendar** - Air date schedule for upcoming and past releases, pre-cached for instant loading
-- **Discover hub** - Cached trending, now-playing, airing-today, and genre feeds paint immediately from saved data, then refresh live through the update stream with direct TMDB detail navigation
+- **Discover hub** - Personalized recommendations from your watch history plus cached trending, now-playing, airing-today, and genre feeds paint immediately from saved data, exclude titles you have already watched, and refresh live through the update stream with direct TMDB detail navigation
 - **Live Trakt sync** - Two-way Trakt integration with seamless device authorization, per-play history import, and resilient sync protection
 - **Seerr integration** - Discover and request movies and TV shows directly from detail pages via Overseerr or Jellyseerr
 - **Movie collections** - Explore related franchise entries, sequels, prequels, and spin-offs from movie detail pages and collection search results

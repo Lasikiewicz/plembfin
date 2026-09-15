@@ -150,13 +150,14 @@ stays set to the slug throughout, so the address bar keeps the `/tvshow/:key` fo
   changed Up Next snapshot announces its generation on `/api/live-updates`, and feed
   failures/partial refreshes expose source status while retaining the last good rows.
   Watch-state history events refresh the rail after the authoritative history snapshot
-  arrives. Discover loads deterministic TMDB feeds through `/api/discover`
-  with type/genre filters and a longer TTL, hydrates the selected rail set from a
-  bounded localStorage cache for the first paint, then reconciles it with the server
-  cache. A stale server snapshot is served immediately and refreshed in the background;
-  changed snapshots announce a Discover version on `/api/live-updates`, which reloads
-  the active rails without clearing the rendered cards. Both modules preserve rendered
-  data while a refresh is in flight and expose loading, empty, stale, and error states.
+  arrives. Discover loads cached TMDB feeds and a bounded rolling-12-month watch-history recommendation rail
+  through `/api/discover` with type/genre filters and a longer TTL, hydrates the selected rail
+  set from a bounded localStorage cache for the first paint, then reconciles it with the server
+  cache. Watched titles are removed from every rail using provider identity and title fallback.
+  A stale server snapshot is served immediately and refreshed in the background; changed
+  snapshots announce a Discover version on `/api/live-updates`, while watch-state events
+  refresh the personalized rail without clearing the rendered cards. Both modules preserve
+  rendered data while a refresh is in flight and expose loading, empty, stale, and error states.
 - Long-lived caches (explorer pages, dashboard history, Up Next, poster lookups, and
   Discover rail snapshots) persist to localStorage with TTLs and versioned keys; bump the
   key version when the cached shape changes.

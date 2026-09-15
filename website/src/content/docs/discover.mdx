@@ -1,6 +1,6 @@
 ---
 title: Discover
-description: Browse current TMDB-backed movie and TV rails, filter the feed, and open titles before they reach your local library.
+description: Browse current TMDB-backed movie and TV rails, get watch-history recommendations, filter watched titles, and open titles before they reach your local library.
 category: Media and discovery
 order: 3.2
 sourceVersion: "1.1.1"
@@ -29,6 +29,7 @@ title to a media server.
 
 The default **Movies & TV** view can show:
 
+- **Recommended for you**, based on movies and TV shows watched in the last 12 months;
 - **Trending movies**;
 - **Trending TV shows**;
 - **Now playing** movies; and
@@ -37,8 +38,10 @@ The default **Movies & TV** view can show:
 The exact titles change as TMDB updates its feeds. The page reports the number of results in
 each rail and uses horizontal scrolling for the poster-card rows.
 
-Discover is a feed, not a second local library. A title can appear here before Plembfin has
-recorded a watch or before it exists on one of your connected media servers.
+Discover is a feed, not a second local library. Recommended titles are built from distinct
+titles watched in the last 12 months and cached per watched title. Titles already in your watch
+history are removed from every rail, including recommendations. A title can appear here before
+it exists on one of your connected media servers.
 
 ## Type and genre filters
 
@@ -57,6 +60,10 @@ Discover uses a short-lived local cache so a previously loaded feed can paint qu
 the server revalidates it. A current TMDB API key is required. If the key is missing or
 TMDB is temporarily unavailable, the page presents an actionable [Settings → Metadata](/docs/settings/metadata/) link
 or a retry button instead of silently showing stale empty rails.
+
+If there is not enough watch history to build recommendations, the page explains that the
+personalized rail will appear after you watch a few titles. The other discovery rails remain
+available.
 
 ## Open and save a title
 

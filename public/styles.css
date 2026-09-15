@@ -19045,7 +19045,100 @@ html.light-mode .watch-date-sub {
   -webkit-line-clamp: 3;
 }
 
+.shared-media-card-type-rating {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.5rem;
+  min-height: 1rem;
+}
+
+.shared-media-card-type {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.shared-media-card-rating {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
+  z-index: 1;
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.shared-media-card-rating:hover,
+.shared-media-card-rating:focus-visible {
+  text-decoration: underline;
+}
+
+button.shared-media-card-rating--action {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  cursor: pointer;
+  font: inherit;
+}
+
+html.light-mode button.shared-media-card-rating--action {
+  color: var(--accent);
+}
+
+.shared-media-card-release {
+  display: flex;
+  width: 100%;
+  align-items: baseline;
+  gap: 0;
+  min-width: 0;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.shared-media-card-release-label {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 700;
+}
+
+.shared-media-card-release-value {
+  overflow: hidden;
+  color: inherit;
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-overflow: ellipsis;
+}
+
+.shared-media-card--discover .shared-media-card-description,
+.shared-media-card--personal .shared-media-card-description {
+  display: flex;
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 0;
+  align-items: center;
+  margin: 0.15rem 0;
+  -webkit-box-orient: initial;
+  -webkit-line-clamp: initial;
+}
+
+.shared-media-card--discover .shared-media-card-description-text,
+.shared-media-card--personal .shared-media-card-description-text {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 6;
+}
+
 .shared-media-card--discover {
+  position: relative;
   display: flex;
   width: 385px;
   flex-direction: row;
@@ -19076,11 +19169,16 @@ html.light-mode .watch-date-sub {
 .shared-media-card--discover .shared-media-card-body {
   gap: 0.35rem;
   padding: 0.65rem;
-  justify-content: space-between;
+  justify-content: flex-start;
+}
+
+.shared-media-card--discover .shared-media-card-title {
+  min-height: 2.5em;
+  padding-right: 2.75rem;
 }
 
 .shared-media-card--discover .shared-media-card-description {
-  -webkit-line-clamp: 2;
+  margin-top: 0.15rem;
 }
 
 .shared-media-card--discover .shared-media-card-poster .poster-fallback {
@@ -19322,9 +19420,10 @@ html.light-mode .watch-date-sub {
 }
 
 .personal-media-card-grid .shared-media-card--personal {
+  position: relative;
   min-height: 0;
   height: auto;
-  gap: 0.85rem;
+  gap: 0;
   padding: 0;
   align-items: stretch;
   align-self: stretch;
@@ -19347,8 +19446,20 @@ html.light-mode .watch-date-sub {
 
 .personal-media-card-grid .shared-media-card--personal .shared-media-card-body {
   min-height: 0;
+  gap: 0.35rem;
   padding: 0.65rem;
-  justify-content: space-between;
+  justify-content: flex-start;
+}
+
+.personal-media-card-grid .shared-media-card--personal .shared-media-card-title,
+.personal-media-list-row .shared-media-card--personal .shared-media-card-title {
+  min-height: 2.5em;
+  padding-right: 2.75rem;
+}
+
+.personal-media-card-grid .shared-media-card--personal .shared-media-card-description,
+.personal-media-list-row .shared-media-card--personal .shared-media-card-description {
+  -webkit-line-clamp: 6;
 }
 
 .personal-media-card-grid .shared-media-card--personal .shared-media-card-poster .poster-fallback {
@@ -19401,6 +19512,7 @@ html.light-mode .watch-date-sub {
 }
 
 .personal-media-list-row .shared-media-card--personal {
+  position: relative;
   display: flex;
   width: 385px;
   flex: 0 0 385px;
@@ -19429,8 +19541,9 @@ html.light-mode .watch-date-sub {
 
 .personal-media-list-row .shared-media-card--personal .shared-media-card-body {
   min-height: 0;
+  gap: 0.35rem;
   padding: 0.65rem;
-  justify-content: space-between;
+  justify-content: flex-start;
 }
 
 .personal-media-list-row .shared-media-card--personal .shared-media-card-poster .poster-fallback {
@@ -24915,7 +25028,8 @@ html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
     min-height: 0;
     flex: 1 1 auto;
     padding: 0.5rem;
-    justify-content: space-between;
+    justify-content: flex-start;
+    gap: 0.35rem;
   }
 
   .page-shell[data-active-view="discover"] .discover-feed-row .shared-media-card--discover .shared-media-card-actions,

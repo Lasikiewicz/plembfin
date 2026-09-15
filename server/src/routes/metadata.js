@@ -22,7 +22,7 @@ import { getTargetsForSource, shouldSyncResumeProgress, syncMediaPlaystate, sync
 import { watchedPlayedSyncEnabled } from "../utils/syncFlags.js";
 import { fetchPosterFromTmdb } from "../utils/tmdbClient.js";
 import { cacheBackdropFromUrl, cacheLogoFromUrl, cachePosterFromUrl, cacheProfileFromUrl, getPosterCache, markPosterMissing, usableCachedPoster } from "../utils/posterCache.js";
-import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, searchTmdb, searchTmdbCollections, getTmdbCollection, getTmdbDiscovery, getCachedTvdbId } from "../utils/tmdbGateway.js";
+import { getTmdbDetails, getTmdbImages, getTmdbPerson, getTmdbSeason, searchTmdb, searchTmdbCollections, getTmdbCollection, getTmdbDiscovery, getTmdbRecommendations, getCachedTvdbId } from "../utils/tmdbGateway.js";
 import { searchTvdbSeriesList, resolveTvdbSeriesId, getTvdbSeriesArtwork } from "../utils/tvdbGateway.js";
 import { getUpcomingCalendarMonth } from "../utils/upcomingCalendarCache.js";
 import { getCanonicalPosterUrl } from "../utils/mediaArtwork.js";
@@ -540,6 +540,9 @@ export async function handlePoster(req, res) {
 // Concurrency limiter for TMDB image downloads to avoid hitting rate limits.
 // At most 8 downloads run simultaneously; extras queue until a slot frees.
 const TMDB_POSTER_CONCURRENCY = 8;
+// TMDB artwork can fail transiently even when the source image is available.
+// Keep the favicon fallback brief so a later request can recover the poster.
+const TMDB_POSTER_NEGATIVE_RETRY_MS = 60 * 1000;
 let _tmdbPosterActive = 0;
 const _tmdbPosterQueue = [];
 const _tmdbPosterInflight = new Map();
@@ -578,12 +581,15 @@ export async function handleTmdbPoster(req, res) {
   const mediaType = String(req.query.mediaType || "movie").toLowerCase() === "tv" ? "tv" : "movie";
 
   const mediaKey = `tmdb:poster:${posterPath}`;
-  const cached = usableCachedPoster(await getPosterCache(mediaKey));
+  const posterCache = await getPosterCache(mediaKey);
+  const cached = usableCachedPoster(posterCache);
+  const negativeCacheStillCoolingDown = ["missing", "failed"].includes(posterCache?.status)
+    && Date.now() - Number(posterCache?.updatedAtMs || 0) < TMDB_POSTER_NEGATIVE_RETRY_MS;
   if (cached?.url) {
     res.setHeader("Cache-Control", "public, max-age=86400, stale-while-revalidate=604800");
     return res.redirect(302, cached.url);
   }
-  if (cached?.cached) return res.redirect(302, "/favicon.svg");
+  if (cached?.cached && negativeCacheStillCoolingDown) return res.redirect(302, "/favicon.svg");
 
   // Deduplicate concurrent requests for the same path.
   if (_tmdbPosterInflight.has(posterPath)) {
@@ -1007,26 +1013,101 @@ export async function searchTvdbSeries(query) {
   }
 }
 
-async function localTmdbWatchedIds() {
+function discoveryTitleKeys(value) {
+  const normalized = String(value || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  if (!normalized) return [];
+  const withoutYear = normalized.replace(/\s+\d{4}$/, "").trim();
+  return [...new Set([normalized, withoutYear].filter(Boolean))];
+}
+
+const RECOMMENDATION_HISTORY_MS = 365 * 24 * 60 * 60 * 1000;
+
+async function localTmdbDiscoveryState() {
   const [movies, shows] = await Promise.all([
     getCachedMovies().catch(() => []),
     getCachedShows().catch(() => []),
   ]);
-  return {
-    movie: new Set(movies.map((item) => String(item.tmdb_id || "")).filter(Boolean)),
-    tv: new Set(shows.map((item) => String(item.tmdb_id || "")).filter(Boolean)),
+
+  const watchedIds = {
+    movie: new Set(),
+    tv: new Set(),
+    movieTitles: new Set(),
+    tvTitles: new Set(),
   };
+  const seeds = [];
+  const recommendationCutoff = Date.now() - RECOMMENDATION_HISTORY_MS;
+  const watchedWithinRecommendationWindow = (watchedAt) => {
+    const watchedAtMs = Date.parse(String(watchedAt || ""));
+    return Number.isFinite(watchedAtMs) && watchedAtMs >= recommendationCutoff;
+  };
+  for (const item of movies) {
+    if (item.tmdb_id) watchedIds.movie.add(String(item.tmdb_id));
+    discoveryTitleKeys(item.title).forEach((key) => watchedIds.movieTitles.add(key));
+    if (watchedWithinRecommendationWindow(item.watched_at)) {
+      seeds.push({
+        mediaType: "movie",
+        tmdbId: item.tmdb_id || "",
+        title: item.title || "",
+        ids: { imdbId: item.imdb_id || "" },
+        watchedAt: item.watched_at || "",
+        watchCount: 1,
+      });
+    }
+  }
+  for (const item of shows.filter((show) => Number(show.episode_count || 0) > 0)) {
+    if (item.tmdb_id) watchedIds.tv.add(String(item.tmdb_id));
+    discoveryTitleKeys(item.title).forEach((key) => watchedIds.tvTitles.add(key));
+    if (watchedWithinRecommendationWindow(item.latest_watched_at)) {
+      seeds.push({
+        mediaType: "tv",
+        tmdbId: item.tmdb_id || "",
+        title: item.title || "",
+        ids: { imdbId: item.imdb_id || "", tvdbId: item.tvdb_id || "" },
+        watchedAt: item.latest_watched_at || "",
+        watchCount: Math.max(1, Number(item.total_watches || item.episode_count || 1)),
+      });
+    }
+  }
+
+  // Multiple watch dates should not consume the bounded recommendation seed
+  // budget with the same title.
+  const uniqueSeeds = new Map();
+  for (const seed of seeds) {
+    const identity = `${seed.mediaType}:${seed.tmdbId || seed.ids.imdbId || seed.ids.tvdbId || discoveryTitleKeys(seed.title)[0] || ""}`;
+    const existing = uniqueSeeds.get(identity);
+    if (!existing) {
+      uniqueSeeds.set(identity, seed);
+      continue;
+    }
+    const watchCount = Number(existing.watchCount || 1) + Number(seed.watchCount || 1);
+    if (String(seed.watchedAt) > String(existing.watchedAt)) uniqueSeeds.set(identity, { ...seed, watchCount });
+    else existing.watchCount = watchCount;
+  }
+
+  return { watchedIds, seeds: [...uniqueSeeds.values()] };
 }
 
-function annotateDiscoveryWatched(payload, watchedIds) {
+async function localTmdbWatchedIds() {
+  return (await localTmdbDiscoveryState()).watchedIds;
+}
+
+function discoveryItemIsWatched(item = {}, watchedIds = {}) {
+  const type = item.media_type === "tv" ? "tv" : "movie";
+  const id = String(item.id || item.tmdb_id || "");
+  if (id && watchedIds[type]?.has(id)) return true;
+  return discoveryTitleKeys(item.title || item.name).some((key) => watchedIds[`${type}Titles`]?.has(key));
+}
+
+function annotateDiscoveryWatched(payload, watchedState) {
+  const watchedIds = watchedState?.watchedIds || watchedState || {};
   const feeds = Object.fromEntries(Object.entries(payload?.feeds || {}).map(([key, feed]) => [
     key,
     {
       ...feed,
       results: (feed?.results || []).map((item) => ({
         ...item,
-        is_watched: watchedIds[item.media_type === "tv" ? "tv" : "movie"]?.has(String(item.id)) || false,
-      })),
+        is_watched: discoveryItemIsWatched(item, watchedIds),
+      })).filter((item) => !item.is_watched),
     },
   ]));
   return { ...payload, feeds };
@@ -1090,8 +1171,17 @@ export async function handleDiscover(req, res) {
       force: refresh,
       revalidate: !refresh,
     });
-    const watchedIds = await localTmdbWatchedIds();
-    return sendJson(res, annotateDiscoveryWatched(payload, watchedIds), 200, { "Cache-Control": "private, max-age=600, stale-while-revalidate=1800", Vary: "Authorization" });
+    const discoveryState = await localTmdbDiscoveryState();
+    const recommendations = await getTmdbRecommendations({
+      seeds: discoveryState.seeds,
+      mediaType: req.query.mediaType || req.query.type || "all",
+      genreId: req.query.genreId || req.query.genre || "",
+    });
+    const withRecommendations = {
+      ...payload,
+      feeds: { ...(payload.feeds || {}), recommended: recommendations },
+    };
+    return sendJson(res, annotateDiscoveryWatched(withRecommendations, discoveryState), 200, { "Cache-Control": "private, max-age=600, stale-while-revalidate=1800", Vary: "Authorization" });
   } catch (error) {
     if (error?.message === "TMDB API key is not configured") {
       return sendJson(res, {
