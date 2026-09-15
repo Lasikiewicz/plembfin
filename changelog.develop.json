@@ -1,30 +1,27 @@
 {
-  "version": "1.1.1.0.2",
-  "build": 2,
+  "version": "1.1.1.0.3",
+  "build": 3,
   "resetCommit": "78d6cdfc480470fb745caa2465027e34d20b36e2",
-  "updatedAt": "2026-09-15T07:56:02.109Z",
+  "updatedAt": "2026-09-15T07:57:09.419Z",
   "entries": [
     {
-      "build": 2,
-      "date": "2026-09-15T07:56:02.109Z",
-      "commit": "fef797a87b3bd5e26676ecf913a030d183828b7c",
-      "message": "This update includes restore Jellyfin imports and document automatic Up Next sync, improve Discover recommendations, refine Discover recommendations, hydrate personal card metadata, and hide up next item after unwatch.",
+      "build": 3,
+      "date": "2026-09-15T07:57:09.419Z",
+      "commit": "9ccbf2a66ec43d67c0a5ddd1e16b5749bf669966",
+      "message": "This update includes restore Jellyfin imports and document automatic Up Next sync and personalize Discover and refine media cards.",
       "author": "Lasikiewicz",
       "details": [
         "Restore Jellyfin watched, resume, and rating imports against current API field rules.",
         "Document automatic Up Next provider updates when queue contents or order changes.",
         "Add regression coverage for the Jellyfin request compatibility behavior.",
-        "Discover recommendations now use the last 12 months of watch history, aggregate across more titles, and exclude watched titles",
-        "Improve recommendation quality, poster recovery, card metadata hierarchy, and summary readability.",
-        "Restore summaries, release dates, and consistent metadata across Watchlist, Ratings, and Custom Lists cards.",
-        "Keep removed Up Next episodes hidden after their unplayed state is propagated to connected providers."
+        "Add a personalized Discover rail based on recent watch history, with recommendations ranked across movies and TV shows.",
+        "Hide watched titles and improve poster recovery, metadata hierarchy, and summary readability across Discover.",
+        "Restore summaries, release dates, and consistent metadata on Watchlist, Ratings, and Custom Lists cards.",
+        "Keep removed Up Next episodes hidden after unwatch changes reach connected providers."
       ],
       "messageFragments": [
         "Fix - Restore Jellyfin imports and document automatic Up Next sync",
-        "Feature - Improve Discover recommendations",
-        "Feature - Refine Discover recommendations",
-        "Fix - Hydrate personal card metadata",
-        "Fix - Hide up next item after unwatch"
+        "Feature - Personalize Discover and refine media cards"
       ]
     }
   ]
