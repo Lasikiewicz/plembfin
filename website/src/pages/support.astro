@@ -1,0 +1,120 @@
+---
+import SiteLayout from "../layouts/SiteLayout.astro";
+import { site } from "../data/site.js";
+
+const tiers = [
+  {
+    name: "Backer",
+    amount: "£2 / month",
+    text: "A small recurring contribution that helps keep the project moving.",
+  },
+  {
+    name: "Supporter",
+    amount: "£5 / month",
+    text: "Help fund maintenance, releases, documentation, and the public demo.",
+    recommended: true,
+  },
+  {
+    name: "Sponsor",
+    amount: "£10 / month",
+    text: "A larger contribution for people who rely on Plembfin every week.",
+  },
+  {
+    name: "Maintainer",
+    amount: "£25 / month",
+    text: "Help create room for sustained security and development work.",
+  },
+];
+---
+
+<SiteLayout
+  title="Support Plembfin"
+  description="Help keep Plembfin free, private, self-hosted, and maintained for everyone."
+>
+  <div class="support-page">
+    <section class="hero support-hero" aria-labelledby="support-title">
+      <div class="hero-copy">
+        <h1 id="support-title">Keep every feature <em>free.</em></h1>
+        <p>
+          Plembfin is community-funded software for people who want their watch history to stay private and under their control. If it saves you time or keeps your media stack in sync, you can help support the work.
+        </p>
+        <div class="button-row support-actions">
+          <a class="button-primary" href={site.support} target="_blank" rel="noreferrer">Support on GitHub <span aria-hidden="true">↗</span></a>
+          <a class="button-secondary" href="/docs/getting-started/">Get started</a>
+        </div>
+        <p class="hero-note"><span class="status-dot" aria-hidden="true"></span>No features, integrations, or sync paths are behind a paywall.</p>
+      </div>
+
+      <aside class="support-hero-note" aria-label="Community funding promise">
+        <span class="support-hero-note-label">The promise</span>
+        <strong>One product. The same functionality for everyone.</strong>
+        <p>Your contribution funds maintenance, infrastructure, security work, documentation, and development time—not access control.</p>
+      </aside>
+    </section>
+
+    <section class="section" aria-labelledby="tiers-title">
+      <div class="section-header">
+        <div>
+          <span class="section-index">01</span>
+          <h2 id="tiers-title">Choose a level that feels right.</h2>
+        </div>
+        <p>Monthly support makes it easier to plan project costs. One-time contributions are welcome too, and you can remain anonymous.</p>
+      </div>
+
+      <div class="support-tier-grid">
+        {tiers.map((tier) => (
+          <article class:list={["support-tier-card", tier.recommended && "support-tier-card--recommended"]}>
+            {tier.recommended && <span class="support-tier-badge">Most useful</span>}
+            <h3>{tier.name}</h3>
+            <p class="support-tier-amount">{tier.amount}</p>
+            <p>{tier.text}</p>
+            <a class="support-tier-link" href={site.support} target="_blank" rel="noreferrer">Choose {tier.name} <span aria-hidden="true">↗</span></a>
+          </article>
+        ))}
+      </div>
+      <p class="support-custom-note">Prefer a different amount or a one-time contribution? GitHub Sponsors supports custom sponsorships too.</p>
+    </section>
+
+    <section class="section support-details" aria-labelledby="funds-title">
+      <div class="section-header">
+        <div>
+          <span class="section-index">02</span>
+          <h2 id="funds-title">What your support keeps running.</h2>
+        </div>
+        <p>Plembfin does not sell viewing data or fill the app with advertising. Community funding keeps the project aligned with the people who use it.</p>
+      </div>
+
+      <div class="support-detail-grid">
+        <article class="support-detail-item">
+          <h3>Maintenance</h3>
+          <p>Dependency updates, bug fixes, releases, and the work needed to keep integrations dependable.</p>
+        </article>
+        <article class="support-detail-item">
+          <h3>Infrastructure</h3>
+          <p>Public demo hosting, release automation, build infrastructure, domains, and project services.</p>
+        </article>
+        <article class="support-detail-item">
+          <h3>Trust</h3>
+          <p>Security work, documentation, migration guidance, and improvements that make local ownership easier.</p>
+        </article>
+      </div>
+    </section>
+
+    <section class="section support-policy" aria-labelledby="policy-title">
+      <div class="section-header">
+        <div>
+          <span class="section-index">03</span>
+          <h2 id="policy-title">The funding policy.</h2>
+        </div>
+        <p>Sponsorship is a way to sustain the project, not a way to buy influence over the product.</p>
+      </div>
+
+      <ul class="support-policy-list">
+        <li><strong>No feature paywalls.</strong> All users receive the same Plembfin functionality.</li>
+        <li><strong>No priority promises.</strong> Sponsorship does not guarantee roadmap priority, issue resolution, or support response times.</li>
+        <li><strong>Recognition is optional.</strong> Supporters can remain anonymous and can change their recognition preference.</li>
+        <li><strong>Privacy stays central.</strong> Plembfin does not sell viewing history or require private telemetry to use the application.</li>
+      </ul>
+    </section>
+  </div>
+</SiteLayout>

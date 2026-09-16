@@ -1,6 +1,11 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+// tracker-settings.js reads the saved config to decide whether to warn that
+// imported Trakt watches will not reach Plex, so it now pulls in state.js -
+// which touches localStorage at import time.
+import "./domStubs.js";
+
 const { traktSyncCompletionMessage } = await import("../public/modules/tracker-settings.js");
 
 test("Trakt Sync Now completion copy reports checked items and applied changes", () => {

@@ -952,7 +952,12 @@ async function checkPlexUnwatchedFast(plexConfig) {
               ratingKey: plexMedia.itemId,
               viewOffset: Number(plexItem.viewOffset || 0),
             });
-            await syncCanonicalPlaystate(plexMedia, config, loopStore, "watched", { includeTrackers: false }).catch((error) => {
+            // Explicitly live, not a historical replay: this restores a watch
+            // that just happened with threshold playback evidence and that Plex
+            // itself dropped. Letting it default to historical would leave Plex
+            // stuck unwatched after its own glitch whenever the user has turned
+            // historical Plex sync off.
+            await syncCanonicalPlaystate({ ...plexMedia, syncIntent: "live" }, config, loopStore, "watched", { includeTrackers: false }).catch((error) => {
               console.error("Plex adaptive poller: failed to restore watched state after transient unwatch", {
                 title: record.title,
                 ratingKey: plexMedia.itemId,

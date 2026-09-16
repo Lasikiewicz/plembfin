@@ -29,10 +29,13 @@ Part Watched, while the green Live indicator remains a semantic playback-status 
 
 The dashboard's Up Next section is a single mixed queue of movies and TV episodes.
 `GET /api/up-next` combines actionable canonical resume progress with released `next_up`
-episodes from provider observations and a local cache-backed fallback. A local fallback episode
-is included only when an active provider observation confirms that exact show and season/episode
-coordinate exists in a connected media-server library; local history and metadata alone do not
-create a Watch now card. Resume cards always come first and are ordered by authoritative
+episodes from provider observations and a local cache-backed fallback. For TV shows, the media
+detail page's episode watch state is the source of truth: the first released episode not marked
+watched there is the only eligible next episode. Provider Resume/Next Up data may contribute
+native item IDs, artwork, and progress, but cannot jump past that episode. A local fallback
+episode is included only when an active provider observation confirms that exact show and
+season/episode coordinate exists in a connected media-server library; local history and metadata
+alone do not create a Watch now card. Resume cards always come first and are ordered by authoritative
 progress-update time; next-up cards then prioritize the show whose episode was watched most
 recently, with show/season/episode order as the deterministic tie-breaker. A matching
 resume and next-up observation becomes one resume card. The builder is bounded to the most
@@ -117,7 +120,10 @@ clearing an episode deletes its
 positive progress and marks it unwatched, so a refresh moves it below remaining resumes as a
 zero-progress next-up card. Clearing a movie removes it from the queue. Mark watched commits
 locally first, deletes the resume row, adds completed history, and then dispatches to connected
-providers. A failed or partial provider feed keeps the last good observations and displays a
+providers. Season and show marking uses each episode's release date as a floor when a shared
+watch date would otherwise be before that episode aired. Future episodes are excluded initially;
+the watch-date prompt offers an explicit **Include unreleased episodes** choice for episodes
+watched through an early online release. A failed or partial provider feed keeps the last good observations and displays a
 compact source-status message; future episodes remain in the Upcoming view.
 
 The Up Next header action is an authoritative push from Plembfin to Plex, Emby, and Jellyfin. It
@@ -152,15 +158,16 @@ out of the rail across re-matches and provider id changes. A dismissed show retu
 its episodes has a newer real playback position. Adding one back clears the dismissal and then
 runs the authoritative push, so every connected server mirrors the restored queue.
 
-The local fallback can queue an unwatched next episode that no provider feed mentions, but only
-for a show with a current watched record. Watch history only records a native provider item id
-once something has been played, so a next unwatched episode never carries one; the projection
-resolves it against the configured Plex, Emby, and Jellyfin libraries with the same lookup the
-push uses (`upNextLibraryLookup.js`), caching hits for six hours and misses for fifteen minutes.
-An episode that no configured library contains is still not queued. A show with no watched record,
-or whose current records are all explicit unwatch actions, is excluded from provider observations
-and local fallback candidates, so stale Continue Watching or Next Up data cannot resurrect it.
-An episode-level unwatch also blocks a matching stale provider card and its local fallback.
+The local fallback can queue the detail page's first unwatched released episode even when no
+provider feed mentions it, but only for a show with a current watched record. Watch history only
+records a native provider item id once something has been played, so a next unwatched episode
+never carries one; the projection resolves it against the configured Plex, Emby, and Jellyfin
+libraries with the same lookup the push uses (`upNextLibraryLookup.js`), caching hits for six hours
+and misses for fifteen minutes. An episode that no configured library contains is still not queued.
+A show with no watched record, or whose current records are all explicit unwatch actions, is
+excluded from provider observations and local fallback candidates, so stale Continue Watching or
+Next Up data cannot resurrect it. An episode-level unwatch remains an authoritative unwatched
+state for selecting the next episode and cannot be skipped by a stale provider card.
 
 Episode cards build series routes only from explicit `show_*` identities. An episode-level
 `tmdb_id`, `tvdb_id`, or `imdb_id` is never substituted into a `/tvshow/<provider>/<id>`
@@ -283,8 +290,14 @@ for that same movie or episode succeeds.
 
 An item that is not present in a connected library is an expected **skipped** result,
 not a failure. It remains available in the audit history for context, but it does not
-increase the issue count, appear in **Show only Failed**, or enter **Retry all failed**.
+increase the issue count, appear in **Issues only**, or enter **Retry all failed**.
 An actual target error, including a Trakt error, remains actionable.
+
+Unresolved cross-platform matches also appear in the Sync Activity attention area and
+the **Issues only** view. These are watched items for which the target server has no
+reliable provider identity; each item has a **Fix match** action. Items that already
+have a provider identity but are absent from a connected library remain availability
+differences and are not raised as issues.
 
 When an episode's Trakt target reports `not_found`, the current result explains that
 the show identity may need correcting and offers **Fix show match**. This opens the

@@ -3,7 +3,7 @@
 // Test / Cancel / Save footer. Consumers describe fields declaratively; secret
 // fields are never prefilled - a "Configured" placeholder stands in for the
 // stored credential (redacted-config semantics).
-import { escapeHtml, escapeAttribute } from "./utils.js?v=1.1.1.2.1";
+import { escapeHtml, escapeAttribute } from "./utils.js?v=1.1.1.3.1";
 
 const CONFIGURED_PLACEHOLDER = "Configured - enter a new key to replace it";
 
@@ -21,6 +21,7 @@ function fieldPlaceholder(field) {
 
 export function renderFieldRow(field, options = {}) {
   const helpText = field.help ? (field.helpIsHtml ? field.help : escapeHtml(field.help)) : "";
+  const defaultText = field.defaultText ? escapeHtml(field.defaultText) : "";
   const help = helpText ? `<span class="settings-field-help">${helpText}</span>` : "";
   const type = field.type || "text";
   const value = field.secret ? "" : (field.value ?? "");
@@ -67,13 +68,20 @@ export function renderFieldRow(field, options = {}) {
       const optionValue = typeof option === "string" ? option : option.value;
       const optionLabel = typeof option === "string" ? option : option.label;
       const optionDescription = typeof option === "string" ? "" : option.description;
+      const optionDescriptionLines = typeof option === "string" ? [] : option.descriptionLines;
+      const optionInlineDescription = typeof option === "string" ? "" : option.inlineDescription;
+      const optionBodyClass = optionInlineDescription ? " settings-choice-option-body--inline" : "";
+      const descriptionHtml = optionDescriptionLines?.length
+        ? optionDescriptionLines.map((line) => `<span class="settings-choice-option-description settings-choice-option-description--block">${escapeHtml(line)}</span>`).join("")
+        : (optionDescription ? `<span class="settings-choice-option-description settings-choice-option-description--block">${escapeHtml(optionDescription)}</span>` : "");
       return `
         <label class="settings-choice-option">
           <input type="radio" name="settings-choice-${escapeAttribute(field.key)}" value="${escapeAttribute(optionValue)}"
             data-modal-field="${escapeAttribute(field.key)}" ${String(value) === String(optionValue) ? "checked" : ""} />
-          <span class="settings-choice-option-body">
+          <span class="settings-choice-option-body${optionBodyClass}">
             <span class="settings-choice-option-title">${escapeHtml(optionLabel)}</span>
-            ${optionDescription ? `<span class="settings-choice-option-description">${escapeHtml(optionDescription)}</span>` : ""}
+            ${optionInlineDescription ? `<span class="settings-choice-option-description settings-choice-option-description--inline">${escapeHtml(optionInlineDescription)}</span>` : ""}
+            ${descriptionHtml}
           </span>
         </label>
       `;
@@ -119,6 +127,7 @@ export function renderFieldRow(field, options = {}) {
           value="${escapeAttribute(String(value))}" placeholder="${escapeAttribute(fieldPlaceholder(field))}"
           autocomplete="${escapeAttribute(field.autocomplete || "off")}" data-lpignore="true" data-1p-ignore="true" />
       </span>
+      ${defaultText ? `<span class="settings-field-default">${defaultText}</span>` : ""}
     </label>
   `;
 }

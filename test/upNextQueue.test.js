@@ -7,6 +7,7 @@ const { buildUpNextProjection } = await import("../server/src/utils/upNextServic
 const { insertWatchRecordSync } = await import("../server/src/utils/dataRepo.js");
 const { saveCanonicalPoster } = await import("../server/src/utils/mediaArtwork.js");
 const { recordUpNextRailSeeds } = await import("../server/src/utils/upNextSeedLedger.js");
+const { removeManualUpNextShow, upsertManualUpNextShow } = await import("../server/src/utils/upNextManual.js");
 
 test("queue projection keeps canonical resumes first and provider next-up after them", async () => {
   const projection = await buildUpNextProjection({
@@ -675,7 +676,8 @@ test("handleUpNextRemove clears positive playback progress and marks unplayed", 
 
 const { db } = await import("../server/src/db.js");
 
-function seedShowMetadata({ tmdbId, tvdbId, title, seasonNumber, episodes }) {
+function seedShowMetadata({ tmdbId, tvdbId, title, seasonNumber, episodes, additionalSeasons = [] }) {
+  const seasons = [{ seasonNumber, episodes }, ...additionalSeasons];
   db.prepare(
     `INSERT INTO tmdb_metadata_cache (id, tmdb_id, media_type, title, details, schema_version, updated_at_ms)
      VALUES (?, ?, 'tv', ?, ?, 1, ?)
@@ -688,21 +690,23 @@ function seedShowMetadata({ tmdbId, tvdbId, title, seasonNumber, episodes }) {
       id: Number(tmdbId),
       name: title,
       external_ids: { tvdb_id: tvdbId },
-      seasons: [{ season_number: seasonNumber }],
+      seasons: seasons.map((season) => ({ season_number: season.seasonNumber })),
     }),
     Date.now(),
   );
-  db.prepare(
-    `INSERT INTO tvdb_season_cache (id, tvdb_id, season_number, details, updated_at_ms)
-     VALUES (?, ?, ?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET details = excluded.details`,
-  ).run(
-    `${tvdbId}_${seasonNumber}`,
-    tvdbId,
-    seasonNumber,
-    JSON.stringify({ episodes }),
-    Date.now(),
-  );
+  for (const season of seasons) {
+    db.prepare(
+      `INSERT INTO tvdb_season_cache (id, tvdb_id, season_number, details, updated_at_ms)
+       VALUES (?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET details = excluded.details`,
+    ).run(
+      `${tvdbId}_${season.seasonNumber}`,
+      tvdbId,
+      season.seasonNumber,
+      JSON.stringify({ episodes: season.episodes }),
+      Date.now(),
+    );
+  }
 }
 
 test("local fallback resolves an unwatched next episode against the configured libraries", async () => {
@@ -764,7 +768,152 @@ test("local fallback resolves an unwatched next episode against the configured l
   assert.deepEqual(withLookup.items[0].provider_items, { plex: ["4685"] });
 });
 
-test("a newer unwatch suppresses both provider and local Up Next cards", async () => {
+test("local fallback crosses from an exhausted season to the first episode of the next season", async () => {
+  seedShowMetadata({
+    tmdbId: "88001",
+    tvdbId: "88001",
+    title: "Season Boundary",
+    seasonNumber: 1,
+    episodes: [
+      { number: 1, name: "One", aired: "2026-08-01" },
+      { number: 2, name: "Two", aired: "2026-08-08" },
+    ],
+    additionalSeasons: [{
+      seasonNumber: 2,
+      episodes: [
+        { number: 1, name: "New Beginning", aired: "2026-09-01" },
+      ],
+    }],
+  });
+  for (const episode of [1, 2]) {
+    insertWatchRecordSync({
+      title: `Season Boundary - S01E0${episode}`,
+      show_title: "Season Boundary",
+      episode_title: episode === 1 ? "One" : "Two",
+      media_type: "episode",
+      season: 1,
+      episode,
+      show_tmdb_id: "88001",
+      show_tvdb_id: "88001",
+      watched_at: `2026-08-${episode === 1 ? "02" : "09"}T11:00:00.000Z`,
+      source: "manual",
+    });
+  }
+
+  const projection = await buildUpNextProjection({
+    now: Date.parse("2026-09-10T12:00:00.000Z"),
+    shows: [{
+      id: "season-boundary",
+      title: "Season Boundary",
+      tmdb_id: "88001",
+      tvdb_id: "88001",
+      episode_count: 2,
+      latest_watched_at: "2026-08-09T11:00:00.000Z",
+    }],
+    progressRows: [],
+    playstateRows: [],
+    providerItems: [],
+    resolveProviderItems: async () => ({ plex: ["season-2-episode-1"] }),
+  });
+
+  assert.equal(projection.items.length, 1);
+  assert.equal(projection.items[0].season, 2);
+  assert.equal(projection.items[0].episode, 1);
+});
+
+test("manual Up Next hides a future-dated or unavailable first episode", async () => {
+  seedShowMetadata({
+    tmdbId: "88002",
+    tvdbId: "88002",
+    title: "Future Boundary",
+    seasonNumber: 1,
+    episodes: [
+      { number: 1, name: "One", aired: "2026-08-01" },
+      { number: 2, name: "Two", aired: "2026-08-08" },
+    ],
+    additionalSeasons: [{
+      seasonNumber: 2,
+      episodes: [
+        { number: 1, name: "New Beginning", aired: "2026-10-01" },
+      ],
+    }],
+  });
+  for (const episode of [1, 2]) {
+    insertWatchRecordSync({
+      title: `Future Boundary - S01E0${episode}`,
+      show_title: "Future Boundary",
+      episode_title: episode === 1 ? "One" : "Two",
+      media_type: "episode",
+      season: 1,
+      episode,
+      show_tmdb_id: "88002",
+      show_tvdb_id: "88002",
+      watched_at: `2026-08-${episode === 1 ? "02" : "09"}T11:00:00.000Z`,
+      source: "manual",
+    });
+  }
+  upsertManualUpNextShow({ title: "Future Boundary", tmdb_id: "88002", tvdb_id: "88002" }, {
+    now: Date.parse("2026-09-10T12:00:00.000Z"),
+  });
+
+  const beforeRelease = await buildUpNextProjection({
+    now: Date.parse("2026-09-10T12:00:00.000Z"),
+    shows: [{
+      id: "future-boundary",
+      title: "Future Boundary",
+      tmdb_id: "88002",
+      tvdb_id: "88002",
+      episode_count: 2,
+      latest_watched_at: "2026-08-09T11:00:00.000Z",
+    }],
+    progressRows: [],
+    playstateRows: [],
+    providerItems: [],
+  });
+
+  assert.equal(beforeRelease.items.find((candidate) => candidate.show_title === "Future Boundary"), undefined);
+
+  const unavailable = await buildUpNextProjection({
+    now: Date.parse("2026-10-02T12:00:00.000Z"),
+    shows: [{
+      id: "future-boundary",
+      title: "Future Boundary",
+      tmdb_id: "88002",
+      tvdb_id: "88002",
+      episode_count: 2,
+      latest_watched_at: "2026-08-09T11:00:00.000Z",
+    }],
+    progressRows: [],
+    playstateRows: [],
+    providerItems: [],
+    resolveProviderItems: async () => ({}),
+  });
+  assert.equal(unavailable.items.find((candidate) => candidate.show_title === "Future Boundary"), undefined);
+
+  const available = await buildUpNextProjection({
+    now: Date.parse("2026-10-02T12:00:00.000Z"),
+    shows: [{
+      id: "future-boundary",
+      title: "Future Boundary",
+      tmdb_id: "88002",
+      tvdb_id: "88002",
+      episode_count: 2,
+      latest_watched_at: "2026-08-09T11:00:00.000Z",
+    }],
+    progressRows: [],
+    playstateRows: [],
+    providerItems: [],
+    resolveProviderItems: async () => ({ plex: ["future-boundary-s02e01"] }),
+  });
+
+  const item = available.items.find((candidate) => candidate.show_title === "Future Boundary");
+  assert.equal(item?.season, 2);
+  assert.equal(item?.episode, 1);
+  assert.deepEqual(item?.provider_items, { plex: ["future-boundary-s02e01"] });
+  removeManualUpNextShow({ tmdb_id: "88002" });
+});
+
+test("the first unwatched episode remains the detail page's Up Next choice", async () => {
   seedShowMetadata({
     tmdbId: "97546",
     tvdbId: "383203",
@@ -787,8 +936,9 @@ test("a newer unwatch suppresses both provider and local Up Next cards", async (
     watched_at: "2026-08-05T11:47:55.353Z",
     source: "manual",
   });
-  // The explicit unwatch is newer than the Plex Continue Watching row below,
-  // so neither the stale provider card nor a local fallback should survive.
+  // The explicit unwatch is the detail page's current state for S04E03. It is
+  // still the first unwatched episode after S04E02, so a provider row for it
+  // remains eligible while later episodes would be rejected.
   insertWatchRecordSync({
     title: "Ted Lasso - S04E03",
     show_title: "Ted Lasso",
@@ -835,5 +985,80 @@ test("a newer unwatch suppresses both provider and local Up Next cards", async (
   });
 
   const episodes = projection.items.filter((item) => item.show_title === "Ted Lasso");
-  assert.equal(episodes.length, 0);
+  assert.equal(episodes.length, 1);
+  assert.equal(episodes[0].season, 4);
+  assert.equal(episodes[0].episode, 3);
+});
+
+test("provider Up Next cannot jump past the first unwatched detail-page episode", async () => {
+  seedShowMetadata({
+    tmdbId: "70001",
+    tvdbId: "70001",
+    title: "Queue Truth",
+    seasonNumber: 1,
+    episodes: [
+      { number: 1, name: "One", aired: "2026-08-01" },
+      { number: 2, name: "Two", aired: "2026-08-08" },
+      { number: 3, name: "Three", aired: "2026-08-15" },
+      { number: 4, name: "Four", aired: "2026-08-22" },
+    ],
+  });
+  insertWatchRecordSync({
+    title: "Queue Truth - S01E01",
+    show_title: "Queue Truth",
+    episode_title: "One",
+    media_type: "episode",
+    season: 1,
+    episode: 1,
+    show_tmdb_id: "70001",
+    show_tvdb_id: "70001",
+    watched_at: "2026-08-02T11:00:00.000Z",
+    source: "manual",
+  });
+  insertWatchRecordSync({
+    title: "Queue Truth - S01E02",
+    show_title: "Queue Truth",
+    episode_title: "Two",
+    media_type: "episode",
+    season: 1,
+    episode: 2,
+    show_tmdb_id: "70001",
+    show_tvdb_id: "70001",
+    watched_at: "2026-08-03T11:00:00.000Z",
+    source: "manual",
+    sync_action: "unwatched",
+  });
+
+  const projection = await buildUpNextProjection({
+    now: Date.parse("2026-09-01T12:00:00.000Z"),
+    shows: [{
+      id: "tmdb:70001",
+      title: "Queue Truth",
+      tmdb_id: "70001",
+      tvdb_id: "70001",
+      episode_count: 2,
+      latest_watched_at: "2026-08-02T11:00:00.000Z",
+    }],
+    progressRows: [],
+    playstateRows: [],
+    providerItems: [{
+      provider: "jellyfin",
+      feed_kind: "next_up",
+      provider_item_id: "queue-truth-four",
+      media_type: "episode",
+      title: "Queue Truth - S01E04",
+      show_title: "Queue Truth",
+      season: 1,
+      episode: 4,
+      show_ids: { tmdb: "70001", tvdb: "70001" },
+      air_date: "2026-08-22",
+    }],
+    resolveProviderItems: async () => ({ plex: ["queue-truth-two"] }),
+  });
+
+  assert.equal(projection.items.length, 1);
+  assert.equal(projection.items[0].show_title, "Queue Truth");
+  assert.equal(projection.items[0].season, 1);
+  assert.equal(projection.items[0].episode, 2);
+  assert.deepEqual(projection.items[0].provider_items, { plex: ["queue-truth-two"] });
 });

@@ -4,21 +4,31 @@
 // echoes credentials, only a `configured` flag per section, and a blank secret
 // on save means "keep the stored credential" (except Seerr, whose key is only
 // sent when non-empty).
-import { state } from "./state.js?v=1.1.1.2.1";
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.2.1";
-import { openSettingsEditModal, openSettingsPickerModal, renderServiceCardGrid, renderFieldRow, collectFieldValues, renderInlineServicePanel } from "./settings-ui.js?v=1.1.1.2.1";
-import { prepareHelpReadMore } from "./settings-shell.js?v=1.1.1.2.1";
-import { escapeAttribute, escapeHtml } from "./utils.js?v=1.1.1.2.1";
+import { state } from "./state.js?v=1.1.1.3.1";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.3.1";
+import { openSettingsEditModal, openSettingsPickerModal, renderFieldRow, collectFieldValues, renderInlineServicePanel } from "./settings-ui.js?v=1.1.1.3.1";
+import { prepareHelpReadMore } from "./settings-shell.js?v=1.1.1.3.1";
+import { escapeAttribute, escapeHtml } from "./utils.js?v=1.1.1.3.1";
+import { initTautulliImport, refreshTautulliImport } from "./tautulli-import.js?v=1.1.1.3.1";
 import {
   plexCredentialGuide,
   embyCredentialGuide,
   jellyfinCredentialGuide,
   savedCredentialNote,
-} from "./help-content.js?v=1.1.1.2.1";
+} from "./help-content.js?v=1.1.1.3.1";
+import {
+  PLEX_HISTORICAL_SYNC_HELP_HTML,
+  PLEX_HISTORICAL_SYNC_CHOICES,
+  PLEX_HISTORICAL_SYNC_LABEL,
+  PROVIDER_DATE_NOTE_HTML,
+  plexHistoricalSyncEnabled,
+  plexHistoricalSyncOffWarningHtml,
+} from "./plex-history-policy.js?v=1.1.1.3.1";
 
 let _cb = {};
 export function initSettingsServices(callbacks = {}) {
   _cb = callbacks;
+  initTautulliImport();
   // The onboarding Options step saves the same Sync Tuning fields while the
   // Settings DOM remains mounted in the background. Refresh only that form
   // for its explicit event so unrelated config changes cannot wipe another
@@ -27,6 +37,7 @@ export function initSettingsServices(callbacks = {}) {
     if (event.detail?.refreshSyncTuning) renderSyncTuningCard();
   });
 }
+export { refreshTautulliImport };
 const setMessage = (...args) => _cb.setMessage?.(...args);
 const clearDerivedUiCaches = (...args) => _cb.clearDerivedUiCaches?.(...args);
 const renderDashboard = (...args) => _cb.renderDashboard?.(...args);
@@ -201,12 +212,25 @@ const WATCH_IMPORT_FIELD = {
   label: "When you manually mark an item as watched in Plex / Emby / Jellyfin",
   type: "choice",
   options: [
+    { value: "review", label: "Require review -", inlineDescription: "Default and recommended.", description: "Hold for a decision in Manual Watch review; items appear above Sync - Idle." },
     { value: "now", label: "Mark as watched now", description: "Use the time the scanner sees the watched flag." },
     { value: "release_day", label: "Mark as watched on release day", description: "Use the movie or episode release date." },
     { value: "episode_timing", label: "Mark as watched at the same time as other episodes", description: "Use the before/after from the media pages." },
-    { value: "review", label: "Require review", description: "Hold the item for a decision in Manual Watch review." },
   ],
-  help: "Controls watched flags found by the scheduled scanner when the app does not provide threshold-reaching playback evidence.",
+  help: "",
+};
+// Plex-only, and only for historical projections (imports, restores, backdated
+// marks, library-wide pushes). Emby, Jellyfin, and Trakt keep receiving the
+// original watch date whatever this is set to - the label and help have to make
+// that scope obvious, or turning it off reads as "stop syncing history".
+const PLEX_HISTORICAL_SYNC_FIELD = {
+  key: "plexHistoricalWatchedSync",
+  id: "sync-field-plex_historical_watched_sync",
+  type: "choice",
+  label: PLEX_HISTORICAL_SYNC_LABEL,
+  options: PLEX_HISTORICAL_SYNC_CHOICES,
+  help: `${PLEX_HISTORICAL_SYNC_HELP_HTML}<br>${PROVIDER_DATE_NOTE_HTML}<br>${plexHistoricalSyncOffWarningHtml()}`,
+  helpIsHtml: true,
 };
 const EXTRA_SERVICE_NAMES = { tuning: "Sync Tuning", upNextSync: "Up Next Sync" };
 
@@ -232,8 +256,20 @@ const UP_NEXT_SYNC_FIELD = {
   helpIsHtml: true,
 };
 
+const SYNC_TUNING_SUMMARIES = Object.freeze({
+  watchImportMode: "Choose how app-marked watches are dated or reviewed",
+  plexHistoricalWatchedSync: "Control historical watched items sent to Plex",
+  watchedThresholdPercent: "Set the playback percentage that counts as watched",
+  minResumePositionSec: "Set the minimum playback position saved as a resume point",
+  activeSessionTtlMin: "Set how long inactive now-playing sessions remain valid",
+  outboundTimeoutSec: "Set how long requests wait for a media server response",
+  fastLocalPacing: "Speed up bulk sync on a trusted local network",
+  upNextSyncEnabled: "Keep Plembfin's Up Next queue synced with media apps",
+});
+
 function tuningBadges(tuning = {}) {
-  const overriddenCount = [WATCH_IMPORT_FIELD, ...TUNING_FIELD_DEFS].filter((field) => tuning[field.key]?.overridden).length;
+  const overriddenCount = [WATCH_IMPORT_FIELD, PLEX_HISTORICAL_SYNC_FIELD, ...TUNING_FIELD_DEFS]
+    .filter((field) => tuning[field.key]?.overridden).length;
   if (!overriddenCount) return [{ label: "Defaults", tone: "muted" }];
   return [{ label: `${overriddenCount} customized`, tone: "ready" }];
 }
@@ -241,15 +277,18 @@ function tuningBadges(tuning = {}) {
 function syncTuningFieldSpecs(tuning = {}) {
   const modeInfo = tuning[WATCH_IMPORT_FIELD.key] || {};
   const modeDefaultValue = modeInfo.default || "review";
-  const modeDefaultLabel = WATCH_IMPORT_FIELD.options.find((option) => option.value === modeDefaultValue)?.label || "Require review";
   const modeField = {
     ...WATCH_IMPORT_FIELD,
     value: modeInfo.value || modeDefaultValue,
-    help: `${WATCH_IMPORT_FIELD.help}<br>Default: ${modeDefaultLabel}. Manual review items appear in the sidebar above Sync - Idle.`,
+    help: WATCH_IMPORT_FIELD.help,
     helpIsHtml: true,
   };
-  return [modeField, ...TUNING_FIELD_DEFS].map((field) => {
-    if (field.type === "select" || field.type === "choice") return field;
+  const plexHistoricalField = {
+    ...PLEX_HISTORICAL_SYNC_FIELD,
+    value: plexHistoricalSyncEnabled({ tuning }) ? "on" : "off",
+  };
+  return [modeField, plexHistoricalField, ...TUNING_FIELD_DEFS].map((field) => {
+    if (field.type === "select" || field.type === "choice" || field.type === "checkbox") return field;
     const info = tuning[field.key] || {};
     return {
       key: field.key,
@@ -258,7 +297,10 @@ function syncTuningFieldSpecs(tuning = {}) {
       value: info.overridden ? info.value : "",
       placeholder: info.default != null ? String(info.default) : "",
       optional: false,
-      help: `${field.help}<br>Default: ${info.default}${field.unit || ""}. Valid range: ${info.min}-${info.max}.`,
+      help: field.help,
+      defaultText: info.default != null
+        ? `Default: ${info.default}${field.unit || ""}. Valid range: ${info.min}-${info.max}.`
+        : "",
       helpIsHtml: true,
     };
   });
@@ -269,6 +311,8 @@ function syncTuningFieldSpecs(tuning = {}) {
 function syncTuningPayload(values = {}) {
   const payload = {};
   payload.watchImportMode = String(values.watchImportMode || "review").trim() || null;
+  const plexHistoricalValue = values[PLEX_HISTORICAL_SYNC_FIELD.key];
+  payload.plexHistoricalWatchedSync = plexHistoricalValue === "on" || plexHistoricalValue === true;
   for (const field of TUNING_FIELD_DEFS) {
     const raw = String(values[field.key] ?? "").trim();
     payload[field.key] = raw === "" ? null : Number(raw);
@@ -276,8 +320,28 @@ function syncTuningPayload(values = {}) {
   return payload;
 }
 
-// Renders the sync tuning fields directly into the page (no edit modal) and
-// wires the form's submit handler to save them in place.
+function renderSyncTuningFieldDisclosure(field) {
+  const fieldId = field.id || `sync-field-${field.key}`;
+  const summaryText = SYNC_TUNING_SUMMARIES[field.key] || `Configure ${field.label}`;
+  return `
+    <details id="${escapeAttribute(fieldId)}-details" class="sync-tool-details">
+      <summary class="accordion-header">
+        <div class="sync-tool-summary-title">
+          <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+          <b>${escapeHtml(field.label)}</b>
+        </div>
+        <span>${escapeHtml(summaryText)}</span>
+      </summary>
+      <div class="tool-item-row">
+        ${renderFieldRow(field)}
+      </div>
+    </details>
+  `;
+}
+
+// Renders the sync tuning fields directly into the page, one collapsed
+// disclosure per setting, and wires the form's submit handler to save them in
+// place.
 export function renderSyncTuningCard() {
   const fieldsContainer = document.querySelector("#syncTuningFields");
   const form = document.querySelector("#syncTuningForm");
@@ -286,10 +350,10 @@ export function renderSyncTuningCard() {
   const fastPacingEnabled = state.savedConfig?.pacing?.profile === "fast";
   const upNextSyncEnabled = state.savedConfig?.upNextSync?.enabled !== false;
   fieldsContainer.innerHTML = [
-    ...syncTuningFieldSpecs(tuning).map((field) => renderFieldRow(field)),
-    renderFieldRow({ ...PACING_FIELD, value: fastPacingEnabled }),
-    renderFieldRow({ ...UP_NEXT_SYNC_FIELD, value: upNextSyncEnabled }),
-  ].join("");
+    ...syncTuningFieldSpecs(tuning),
+    { ...PACING_FIELD, value: fastPacingEnabled },
+    { ...UP_NEXT_SYNC_FIELD, value: upNextSyncEnabled },
+  ].map(renderSyncTuningFieldDisclosure).join("");
 
   if (form.dataset.bound) return;
   form.dataset.bound = "true";
@@ -533,6 +597,18 @@ function metadataVisible(id, config) {
 }
 
 function metadataBadges(id, config = {}) {
+  if (id === "tmdb") {
+    return [{
+      label: config.configured ? "Configured using personal key" : "Required",
+      tone: config.configured ? "ready" : "warning",
+    }];
+  }
+  if (id === "tvdb") {
+    return [{
+      label: config.keySource === "personal" ? "Configured using personal key" : "Configured using built-in key",
+      tone: "ready",
+    }];
+  }
   if (config.configured) return [{ label: "Configured", tone: "ready" }];
   return [{ label: id === "tmdb" ? "Required" : "Not configured", tone: "warning" }];
 }
@@ -577,6 +653,9 @@ async function saveServiceConfig(section, sectionPayload) {
     if (METADATA_SERVICES[section]) {
       state.savedConfig[section] = {
         configured: Boolean(sectionPayload.apiKey || previousSectionConfig.configured),
+        ...(METADATA_SERVICES[section] === METADATA_SERVICES.tvdb
+          ? { keySource: sectionPayload.apiKey ? "personal" : previousSectionConfig.keySource || "built-in" }
+          : {}),
       };
     } else if (section === "seerr") {
       const apiKeySet = Boolean(sectionPayload.apiKey || previousSectionConfig.configured);
@@ -717,14 +796,20 @@ export function openServiceEditModal(serviceId) {
   });
 }
 
-// Plex/Emby/Jellyfin render as always-visible inline panels (not a modal) on
-// the Media Servers page - one row per server instead of a mixed card grid.
+// Plex/Emby/Jellyfin/Seerr render as always-visible inline panels (not a modal)
+// on their settings pages.
 export function renderMediaServerPanels() {
   for (const serviceId of ["plex", "emby", "jellyfin"]) {
     const container = document.querySelector(`#${serviceId}ServerPanel`);
     if (!container) continue;
     const options = buildServiceEditOptions(serviceId);
     if (!options) continue;
+    const status = document.querySelector(`#${serviceId}ServerStatus`);
+    const configured = connectionTouched(options.config);
+    if (status) {
+      status.textContent = configured ? "Configured" : "Not configured";
+      status.className = `status-pill status-${configured ? "ready" : "muted"}`;
+    }
     renderInlineServicePanel(container, options);
   }
 }
@@ -747,21 +832,17 @@ function openServicePicker(area) {
 
 export function renderMediaServerCards() {
   renderMediaServerPanels();
-  const seerrContainer = document.querySelector("#seerrCards");
+  const seerrContainer = document.querySelector("#seerrPanel");
   if (!seerrContainer) return;
   const config = state.savedConfig || {};
   const seerrConfigured = connectionTouched(config.seerr);
-  renderServiceCardGrid(seerrContainer, {
-    items: seerrConfigured ? [{
-      id: "seerr",
-      name: CONNECTION_SERVICES.seerr.name,
-      description: CONNECTION_SERVICES.seerr.description,
-      badges: connectionBadges(config.seerr),
-    }] : [],
-    onSelect: openServiceEditModal,
-    onAdd: seerrConfigured ? null : () => openServiceEditModal("seerr"),
-    addLabel: "Add Seerr",
-  });
+  const status = document.querySelector("#seerrStatus");
+  if (status) {
+    status.textContent = seerrConfigured ? "Configured" : "Not configured";
+    status.className = `status-pill status-${seerrConfigured ? "ready" : "muted"}`;
+  }
+  const options = buildServiceEditOptions("seerr");
+  if (options) renderInlineServicePanel(seerrContainer, options);
 }
 
 export function renderMetadataCards() {
@@ -769,18 +850,32 @@ export function renderMetadataCards() {
   if (!container) return;
   const config = state.savedConfig || {};
   const ids = Object.keys(METADATA_SERVICES);
-  const visible = ids.filter((id) => metadataVisible(id, config[id]));
-  const remaining = ids.filter((id) => !metadataVisible(id, config[id]));
-  renderServiceCardGrid(container, {
-    items: visible.map((id) => ({
-      id,
-      name: METADATA_SERVICES[id].name,
-      description: METADATA_SERVICES[id].description,
-      badges: metadataBadges(id, config[id]),
-    })),
-    onSelect: openServiceEditModal,
-    onAdd: remaining.length ? () => openServicePicker("metadata") : null,
-    addLabel: "Add metadata provider",
+  const openDetails = new Set([...container.querySelectorAll("details[open]")].map((detail) => detail.id));
+  const badgeMarkup = (badges = []) => badges.map((badge) =>
+    `<span class="status-pill status-${escapeAttribute(badge.tone || "muted")}">${escapeHtml(badge.label)}</span>`
+  ).join("");
+
+  container.innerHTML = ids.map((id) => {
+    const def = METADATA_SERVICES[id];
+    return `
+      <details id="metadata-${escapeAttribute(id)}-details" class="sync-tool-details"${openDetails.has(`metadata-${id}-details`) ? " open" : ""}>
+        <summary class="accordion-header">
+          <div class="sync-tool-summary-title">
+            <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+            <b>${escapeHtml(def.name)}</b>
+            ${badgeMarkup(metadataBadges(id, config[id]))}
+          </div>
+          <span>${escapeHtml(def.description)}</span>
+        </summary>
+        <div id="metadata-${escapeAttribute(id)}-panel" class="tool-item-row"></div>
+      </details>
+    `;
+  }).join("");
+
+  ids.forEach((id) => {
+    const panel = container.querySelector(`#metadata-${id}-panel`);
+    const options = buildServiceEditOptions(id);
+    if (panel && options) renderInlineServicePanel(panel, options);
   });
 }
 

@@ -143,6 +143,100 @@ CSV/JSON files (e.g. Trakt exports, `scripts/exportPlexHistory.js` output). Fron
 flow in `tools.js` (`parseSelectedFiles`, `renderImportPreview`, `startImport`) parses
 files in the browser and posts records in batches.
 
+### Tautulli history import (Settings → Connections)
+
+The Tautulli importer is an explicit, one-time migration tool at
+`/settings/connections#tautulli`. Configure the Tautulli `/api/v2` URL and API key,
+select exactly one Tautulli user, and preview completed movie and episode rows.
+
+Before a confirmed import Plembfin creates a local watch-history backup with the
+reason `pre_tautulli_import`; remote mirroring follows the existing backup setting
+when requested by the operation. The import is additive and does not delete or write
+to Tautulli. Rows below Tautulli's watched threshold are reported as incomplete and
+are not imported. Unix-second timestamps are converted before entering the normal
+history pipeline, and missing dates fall back to the release date only when a new
+local record is needed.
+
+The merge is identity-aware and same-local-day: provider IDs are compared
+independently, episodes can match by show/season/episode, and movies can match by
+title when identity is unambiguous. A different local day is not automatically a rewatch -
+see the next section. Imported
+rows use the `tautulli_import` source and retain the selected Tautulli user, source
+item ID, history-import event, and source timestamp in provenance. The Tautulli
+`rating_key` is provenance only; it is local to that Plex/Tautulli installation and is
+not used as a portable provider ID.
+
+#### Approximated dates and rewatches
+
+Plembfin holds a lot of approximated watch dates: release-day anchoring, episode timing,
+and older manual backfills all write a round clock hour rather than an observed time. A
+real Tautulli playback timestamp often lands a day either side of one of those, which a
+strict same-calendar-day merge would treat as a second viewing. Measured against a real
+library, that silently duplicated dozens of plays.
+
+Two rules handle it:
+
+- **A real play within two days of an approximated record is the same viewing.** It merges
+  and is counted as `merged_approximate_date`. A round clock hour (minutes and seconds both
+  zero) is the tell; a genuine playback timestamp lands on one about once in 3600 plays.
+- **Two plays of the same item within 31 days, where neither side looks approximated, are
+  ambiguous.** Rather than guess in either direction, they go to the review list below as a
+  *possible rewatch*.
+
+Further apart than 31 days, a second play is treated as a genuine rewatch and imported
+without asking.
+
+#### Possible-match review
+
+The review list holds two kinds of question, each labelled:
+
+- **Possible match** - the play matches more than one existing record, so which one is it?
+- **Possible rewatch** - the play sits close to one existing record, so is it a second
+  viewing or the same one recorded with a different date?
+
+Neither is ever merged on a guess or imported on a guess. The preview lists each one with
+the records it could belong to, and the import stops short of it until an administrator
+picks one of three resolutions:
+
+- **Use this record** - treat the play as already represented by that existing record.
+  Nothing is inserted; it is counted as reviewed and merged.
+- **Import as a separate play** - the administrator is saying this is a genuinely
+  distinct viewing. A new row is inserted and counted as reviewed and imported.
+- **Skip this play** - drop it from this import entirely.
+
+Because the rewatch question usually has the same answer across a whole import, the panel
+also offers **All separate rewatches** and **All same viewing**, which apply to every
+undecided possible-rewatch row at once. They never touch a row the administrator has
+already decided, and never touch an ambiguous-match row, which has several candidates and
+no single sensible bulk answer.
+
+Leaving a row undecided is itself safe and is the default: it stays in review, is not
+imported, and is reported as such in the final summary. Decisions are addressed by a
+content-derived key rather than by position in the preview, because the commit re-reads
+Tautulli and a play added or pruned in between would otherwise shift a decision onto a
+different record.
+
+#### Where an import is sent
+
+The importer does not ask which servers to project to, and deliberately so. Plembfin is the
+source of truth, so the scheduled sync reconciles Emby and Jellyfin with imported watches
+whether or not the import pushed them itself - and both receive the original Tautulli
+playback date, so the watches land in the right place in their history either way. A
+per-server opt-out would imply a choice that does not exist.
+
+Plex is the one server where a setting genuinely prevents the data arriving:
+**Sync historical watched items to Plex** in Sync Tuning. When it is off, the importer says
+so before the import runs rather than reporting it afterwards, because imported items may
+then stay unwatched in Plex. When it is on, there is nothing to ask and no notice is shown.
+
+Each target is still reported per import as `will receive this import` or `skipped by the
+historical sync policy`. A policy skip is a deliberate outcome, not a failure: the row's
+telemetry records it as skipped so the scheduler's pending-dispatch sweep never retries it.
+
+Plex is **not** excluded merely because Tautulli points at the same Plex server. An
+already-watched Plex item is detected and reported as `already matching` instead, which is
+accurate rather than a guess from the machine identifier. See [settings.md](settings.md).
+
 ## Frontend (`public/modules/tools-backups.js`)
 
 Settings → Backup / restore → Backup settings renders four schedule cards - local and remote, for watch-history

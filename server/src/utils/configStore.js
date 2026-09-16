@@ -1,6 +1,6 @@
 import { db, parseJson, toJson } from "../db.js";
 import { assertSafeOutboundUrl, normalizeHttpUrl, configureOutboundGovernor } from "./outbound.js";
-import { applyTuningConfig, normalizeTuningSection, normalizeWatchImportMode, tuningClamps, tuningEnvDefaults, watchImportModeDefault, WATCH_IMPORT_MODES } from "./tuning.js";
+import { applyTuningConfig, normalizePlexHistoricalWatchedSync, normalizeTuningSection, normalizeWatchImportMode, plexHistoricalWatchedSyncDefault, tuningClamps, tuningEnvDefaults, watchImportModeDefault, WATCH_IMPORT_MODES } from "./tuning.js";
 import { normalizeSyncRoles, validateSyncRolesSection, normalizeAuthority } from "./syncRoles.js";
 import { getMediaConnection, resolveConnectedProviderConfig } from "./mediaConnectionRepo.js";
 import { getValidPlexServerToken, getValidPlexToken } from "./plexTokenManager.js";
@@ -41,6 +41,12 @@ export const DEFAULT_WATCHLIST_SYNC = Object.freeze({
 // section is absent from an existing installation. Users can opt out without
 // changing Plembfin's local Up Next view.
 export const DEFAULT_UP_NEXT_SYNC = Object.freeze({ enabled: true });
+export const DEFAULT_TAUTULLI = Object.freeze({
+  baseUrl: "http://127.0.0.1:8181",
+  apiKey: "",
+  userId: "",
+  disabled: false,
+});
 export const BACKGROUND_SYNC_PROGRESS_STALE_MS = 90_000;
 export const BACKGROUND_SYNC_PROGRESS_MAX_OWNER_MS = 30 * 60_000;
 // Local owners normally remove themselves after the 2s UI settle window. Give
@@ -199,7 +205,7 @@ function hasConfiguredFields(section = {}) {
   return Object.entries(section).some(([key, value]) => !["disabled", "sync"].includes(key) && String(value || "").trim() !== "");
 }
 
-function mergeEnvDefaults(stored = {}) {
+export function mergeEnvDefaults(stored = {}) {
   const normalized = normalizeStoredConfig(stored);
   const defaults = envMediaConfig();
   const merged = { publicBaseUrl: normalized.publicBaseUrl };
@@ -215,8 +221,11 @@ function mergeEnvDefaults(stored = {}) {
     }
   }
 
-  // Seerr has no env-var defaults - carry stored values through as-is.
+  // Seerr and Tautulli have no env-var defaults - carry stored values through
+  // as-is. Omitting either section here would make a saved connection appear
+  // to reset on the next config read.
   merged.seerr = normalized.seerr;
+  merged.tautulli = normalized.tautulli;
 
   // Tuning uses numbers-or-null (null = fall back to env/default) rather than
   // the blank-string check above, so it's carried through as-is; the
@@ -282,6 +291,12 @@ export function normalizeStoredConfig(stored = {}) {
       apiKey: String(stored.seerr?.apiKey || "").trim(),
       disabled: Boolean(stored.seerr?.disabled),
     },
+    tautulli: {
+      baseUrl: trimTrailingSlash(stored.tautulli?.baseUrl || DEFAULT_TAUTULLI.baseUrl),
+      apiKey: String(stored.tautulli?.apiKey || stored.tautulli?.api_key || "").trim(),
+      userId: String(stored.tautulli?.userId || stored.tautulli?.user_id || "").trim(),
+      disabled: Boolean(stored.tautulli?.disabled),
+    },
     tmdb: {
       apiKey: String(stored.tmdb?.apiKey || stored.tmdbApiKey || "").trim(),
     },
@@ -303,6 +318,7 @@ export function normalizeStoredConfig(stored = {}) {
     tuning: {
       ...normalizeTuningSection(stored.tuning || {}),
       watchImportMode: normalizeWatchImportMode(stored.tuning?.watchImportMode),
+      plexHistoricalWatchedSync: normalizePlexHistoricalWatchedSync(stored.tuning?.plexHistoricalWatchedSync),
     },
     syncScope: normalizeSyncScope(stored.syncScope || {}),
     authority: normalizeAuthority(stored.authority || {}),
@@ -344,6 +360,8 @@ export async function loadMediaConfig({ resolveConnections = true } = {}) {
 // The browser-facing config shape. Secrets (tokens/API keys) are never included -
 // each section carries a `configured` boolean instead, plus the non-secret fields
 // the settings form needs for repopulation (baseUrl, username, userId, disabled).
+// TVDB also exposes which non-secret key source is active so the UI can explain
+// whether it is using the shared built-in project key or a personal key.
 export function publicMediaConfig(config = {}) {
   const normalized = normalizeStoredConfig(config);
   const plexConn = getMediaConnection("plex");
@@ -384,9 +402,18 @@ export function publicMediaConfig(config = {}) {
       baseUrl: normalized.seerr.baseUrl,
       disabled: normalized.seerr.disabled,
     },
+    tautulli: {
+      configured: Boolean(normalized.tautulli.apiKey && normalized.tautulli.baseUrl && !normalized.tautulli.disabled),
+      baseUrl: normalized.tautulli.baseUrl,
+      userId: normalized.tautulli.userId,
+      disabled: normalized.tautulli.disabled,
+    },
     tmdb: { configured: Boolean(normalized.tmdb.apiKey) },
     fanart: { configured: Boolean(normalized.fanart.apiKey) },
-    tvdb: { configured: Boolean(normalized.tvdb.apiKey) },
+    tvdb: {
+      configured: Boolean(normalized.tvdb.apiKey),
+      keySource: normalized.tvdb.apiKey ? "personal" : "built-in",
+    },
     youtube: { configured: Boolean(normalized.youtube.apiKey) },
     omdb: { configured: Boolean(normalized.omdb.apiKey) },
     tuning: publicTuningConfig(normalized.tuning),
@@ -424,6 +451,13 @@ function publicTuningConfig(storedTuning = {}) {
     default: modeDefault,
     overridden: Boolean(modeOverride),
     options: [...WATCH_IMPORT_MODES],
+  };
+  const historicalOverride = normalizePlexHistoricalWatchedSync(storedTuning.plexHistoricalWatchedSync);
+  const historicalDefault = plexHistoricalWatchedSyncDefault();
+  result.plexHistoricalWatchedSync = {
+    value: historicalOverride === null ? historicalDefault : historicalOverride,
+    default: historicalDefault,
+    overridden: historicalOverride !== null,
   };
   return result;
 }
@@ -490,6 +524,7 @@ export async function mergeIncomingConfig(config = {}) {
     emby: { ...mergeSection(existing.emby, config.emby, ["apiKey"]), ...(String(config.emby?.apiKey || "").trim() ? { legacyFallbackDisabled: false } : {}) },
     jellyfin: { ...mergeSection(existing.jellyfin, config.jellyfin, ["apiKey"]), ...(String(config.jellyfin?.apiKey || "").trim() ? { legacyFallbackDisabled: false } : {}) },
     seerr: mergeSection(existing.seerr, config.seerr, ["apiKey"]),
+    tautulli: mergeSection(existing.tautulli, config.tautulli, ["apiKey"]),
     tmdb: mergeSection(existing.tmdb, config.tmdb, ["apiKey"]),
     fanart: mergeSection(existing.fanart, config.fanart, ["apiKey"]),
     tvdb: mergeSection(existing.tvdb, config.tvdb, ["apiKey"]),
@@ -586,12 +621,32 @@ export function validateConfig(config = {}) {
     validateBaseUrl(config.seerr.baseUrl, "seerr.baseUrl");
   }
 
+  if (config.tautulli) {
+    if (!config.tautulli.disabled) {
+      if (!config.tautulli.baseUrl) errors.push("tautulli.baseUrl is required when Tautulli is enabled");
+      if (!config.tautulli.apiKey) errors.push("tautulli.apiKey is required when Tautulli is enabled");
+      validateBaseUrl(config.tautulli.baseUrl, "tautulli.baseUrl");
+    }
+    if (config.tautulli.userId !== undefined && typeof config.tautulli.userId !== "string") {
+      errors.push("tautulli.userId must be a string");
+    }
+  }
+
   if (config.tuning) {
     const clamps = tuningClamps();
     for (const [key, value] of Object.entries(normalizeTuningSection(config.tuning))) {
       if (value === null) continue;
       const [min, max] = clamps[key];
       if (value < min || value > max) errors.push(`tuning.${key} must be between ${min} and ${max}`);
+    }
+    const requestedPlexHistoricalWatchedSync = config.tuning.plexHistoricalWatchedSync;
+    if (
+      requestedPlexHistoricalWatchedSync !== null
+      && requestedPlexHistoricalWatchedSync !== undefined
+      && String(requestedPlexHistoricalWatchedSync).trim() !== ""
+      && normalizePlexHistoricalWatchedSync(requestedPlexHistoricalWatchedSync) === null
+    ) {
+      errors.push("tuning.plexHistoricalWatchedSync must be a boolean");
     }
     const requestedWatchImportMode = config.tuning.watchImportMode;
     if (requestedWatchImportMode !== null && requestedWatchImportMode !== undefined && String(requestedWatchImportMode).trim() !== "") {

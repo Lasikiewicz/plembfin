@@ -17,6 +17,7 @@ import {
 } from "./upNextRepository.js";
 import { createUpNextLibraryLookup } from "./upNextLibraryLookup.js";
 import { createUpNextDismissalFilter } from "./upNextDismissals.js";
+import { listManualUpNextShows } from "./upNextManual.js";
 import { isDemoMode } from "./demoMode.js";
 
 const MAX_LOCAL_SHOWS = 24;
@@ -454,6 +455,45 @@ function providerObservationMatches(candidate, providerCandidate) {
   return Boolean(candidateTitle && candidateTitle === providerTitle);
 }
 
+function episodeShowIdentityMatches(left = {}, right = {}) {
+  const leftIds = {
+    imdb: text(left.show_imdb_id),
+    tmdb: text(left.show_tmdb_id),
+    tvdb: text(left.show_tvdb_id),
+  };
+  const rightIds = {
+    imdb: text(right.show_imdb_id),
+    tmdb: text(right.show_tmdb_id),
+    tvdb: text(right.show_tvdb_id),
+  };
+  const leftHasIds = Object.values(leftIds).some(Boolean);
+  const rightHasIds = Object.values(rightIds).some(Boolean);
+  const sharedId = ["imdb", "tmdb", "tvdb"].some((provider) => (
+    leftIds[provider] && rightIds[provider] && leftIds[provider].toLowerCase() === rightIds[provider].toLowerCase()
+  ));
+  if (sharedId) return true;
+  if (leftHasIds && rightHasIds) return false;
+  const leftTitle = normalizedTitle(showTitleFrom(left.show_title || left.title || ""));
+  const rightTitle = normalizedTitle(showTitleFrom(right.show_title || right.title || ""));
+  return Boolean(leftTitle && leftTitle === rightTitle);
+}
+
+function episodeCoordinateMatches(left = {}, right = {}) {
+  const leftCoordinate = episodeCoordinateForCandidate(left);
+  const rightCoordinate = episodeCoordinateForCandidate(right);
+  return Boolean(leftCoordinate && leftCoordinate === rightCoordinate && episodeShowIdentityMatches(left, right));
+}
+
+function matchesAuthoritativeNextEpisode(candidate, authoritativeCandidates = []) {
+  if (candidate?.media_type !== "episode") return true;
+  const sameShow = authoritativeCandidates.filter((authoritative) => episodeShowIdentityMatches(candidate, authoritative));
+  // If the local detail page could not resolve this show, retain the provider
+  // observation as the best available source. A resolved show, however, gets
+  // exactly one authoritative next coordinate and provider rows may not jump
+  // past it.
+  return !sameShow.length || sameShow.some((authoritative) => episodeCoordinateMatches(candidate, authoritative));
+}
+
 function providerItemsFromTrackedEpisode(row = {}) {
   const provenance = row.watch_provenance && typeof row.watch_provenance === "object"
     ? row.watch_provenance
@@ -571,6 +611,7 @@ async function localNextUpForShow(show, {
   episodeRows,
   today,
   resolveProviderItems = null,
+  allowUnplayable = false,
 }) {
   const detail = await queryShowDetail({
     episodeRows,
@@ -628,7 +669,8 @@ async function localNextUpForShow(show, {
     for (const episode of seasonEpisodes) {
       const episodeNumber = number(episode.episode_number, 0);
       const key = `${seasonNumber}:${episodeNumber}`;
-      if (!released(episode.air_date, today) || watched.has(key)) continue;
+      const isReleased = released(episode.air_date, today);
+      if (!isReleased || watched.has(key)) continue;
       const trackedEpisode = episodes.find((row) => coordinate(row) === key) || null;
       const showIds = { tmdb: tmdbId, tvdb: tvdbId, imdb: show.imdb_id };
       const candidate = normalizeUpNextCandidate({
@@ -649,7 +691,6 @@ async function localNextUpForShow(show, {
         source: "local",
       });
       if (stateIsWatched(candidate, playstateIndex)) continue;
-      if (stateIsUnwatched(candidate, playstateIndex)) continue;
       if (progressCandidates.some((resume) => aliasesIntersect(aliasesFor(candidate), aliasesFor(resume)))) continue;
       // Local history and TMDB metadata can tell us what should come next, but
       // cannot prove that a guessed episode still exists in a configured media
@@ -667,9 +708,13 @@ async function localNextUpForShow(show, {
       // played, so the next unwatched episode never has one. Ask the
       // configured libraries directly rather than dropping a card for an
       // episode that is sitting in Plex and Emby right now.
-      if (!resolveProviderItems || lookups >= MAX_LIBRARY_LOOKUPS_PER_SHOW) continue;
-      lookups += 1;
-      const providerItems = await resolveProviderItems(candidate).catch(() => ({}));
+      const lookupProviderItems = async () => {
+        if (!resolveProviderItems || lookups >= MAX_LIBRARY_LOOKUPS_PER_SHOW) return {};
+        lookups += 1;
+        return resolveProviderItems(candidate).catch(() => ({}));
+      };
+      if (allowUnplayable) return candidate;
+      const providerItems = await lookupProviderItems();
       if (!Object.keys(providerItems).length) continue;
       return { ...candidate, provider_items: providerItems };
     }
@@ -733,14 +778,19 @@ async function localNextUpCandidates({
   episodeRows = [],
   today,
   resolveProviderItems = null,
+  allowUnplayable = false,
+  manualShowKeys = new Set(),
 }) {
   // Every show resolves against the same episode snapshot, so read and dedupe
   // the episode table once for the whole pass rather than once per show.
   const selectedShows = (Array.isArray(shows) ? shows : [])
-    .filter((show) => showHasWatchedRecord(show, watchedShowKeys))
+    .filter((show) => showHasWatchedRecord(show, watchedShowKeys)
+      || showIdentityKeys(show).some((key) => manualShowKeys.has(key)))
     .filter((show) => Number(show.episode_count || 0) > 0)
     .sort((left, right) => (
-      String(right.latest_watched_at || "").localeCompare(String(left.latest_watched_at || ""))
+      Number(showIdentityKeys(right).some((key) => manualShowKeys.has(key)))
+        - Number(showIdentityKeys(left).some((key) => manualShowKeys.has(key)))
+        || String(right.latest_watched_at || "").localeCompare(String(left.latest_watched_at || ""))
         || String(left.title || "").localeCompare(String(right.title || ""))
         || String(left.id || "").localeCompare(String(right.id || ""))
     ))
@@ -757,6 +807,7 @@ async function localNextUpCandidates({
         episodeRows,
         today,
         resolveProviderItems,
+        allowUnplayable,
       });
       if (candidate) results.push(candidate);
     }
@@ -789,9 +840,12 @@ export async function buildUpNextProjection({
     ))
     .slice(0, MAX_PROVIDER_OBSERVATIONS);
   const rawProviderCandidates = observations.map((item) => normalizeUpNextCandidate(item));
-  const showRows = shows || ((localFallback || rawProviderCandidates.some((candidate) => candidate.queue_kind === "next_up"))
+  const baseShowRows = shows || ((localFallback || rawProviderCandidates.some((candidate) => candidate.queue_kind === "next_up"))
     ? await getCachedShows()
     : []);
+  const manualShows = listManualUpNextShows();
+  const showRows = [...(Array.isArray(baseShowRows) ? baseShowRows : []), ...manualShows];
+  const manualShowKeys = new Set(manualShows.flatMap((show) => showIdentityKeys(show)));
   // Resolve local resume rows against the known show identities before the
   // canonical key is built. Applying this only after merge is too late: an
   // episode-id key and a series-id key have already become separate groups.
@@ -818,6 +872,24 @@ export async function buildUpNextProjection({
     .filter((candidate) => !stateBlocksCandidate(candidate, playstateIndex, { progressUpdatedAt: candidate.updated_at }));
   const canonicalResumeAliases = canonicalResume.map(aliasesFor);
 
+  // The media detail page is the source of truth for episode progression: its
+  // episode list marks the first released episode not currently watched as
+  // next. Resolve those coordinates before accepting native provider rails so
+  // a stale Continue Watching/Next Up snapshot cannot jump to a later episode.
+  const authoritativeNextEpisodes = localFallback
+    ? await localNextUpCandidates({
+      shows: showRows,
+      playstateIndex,
+      watchedShowKeys,
+      progressCandidates: canonicalResume,
+      providerCandidates: [],
+      episodeRows: trackedEpisodeRows,
+      today: new Date(now).toISOString().slice(0, 10),
+      allowUnplayable: true,
+      manualShowKeys,
+    })
+    : [];
+
   // Provider Continue Watching rows often have a native series handle but no
   // external show ids. Apply the same verified local show identity before
   // filtering/merging; doing it only on the final public item leaves the
@@ -828,12 +900,17 @@ export async function buildUpNextProjection({
   const providerResume = providerCandidates
     .filter((candidate) => candidate.queue_kind === "resume" && (actionableResume(candidate) || providerResumeMembership(candidate)))
     .filter((candidate) => candidate.media_type !== "episode" || showHasWatchedRecord(candidate, watchedShowKeys))
-    .filter((candidate) => !stateBlocksCandidate(candidate, playstateIndex, { progressUpdatedAt: candidate.updated_at }))
+    .filter((candidate) => matchesAuthoritativeNextEpisode(candidate, authoritativeNextEpisodes))
+    .filter((candidate) => stateIsUnwatched(candidate, playstateIndex)
+      || !stateBlocksCandidate(candidate, playstateIndex, { progressUpdatedAt: candidate.updated_at }))
     .filter((candidate) => !stateIsWatched(candidate, playstateIndex));
   const providerNextUp = providerCandidates
     .filter((candidate) => candidate.queue_kind === "next_up" && released(candidate.air_date, new Date(now).toISOString().slice(0, 10)))
     .filter((candidate) => candidate.media_type !== "episode" || showHasWatchedRecord(candidate, watchedShowKeys))
-    .filter((candidate) => !stateBlocksCandidate(candidate, playstateIndex, { progressUpdatedAt: candidate.updated_at }))
+    .filter((candidate) => matchesAuthoritativeNextEpisode(candidate, authoritativeNextEpisodes))
+    .filter((candidate) => stateIsUnwatched(candidate, playstateIndex)
+      || !stateBlocksCandidate(candidate, playstateIndex, { progressUpdatedAt: candidate.updated_at }))
+    .filter((candidate) => !stateIsWatched(candidate, playstateIndex))
     .filter((candidate) => !canonicalResumeAliases.some((aliases) => aliasesIntersect(aliases, aliasesFor(candidate))))
     .map((candidate) => ({ ...candidate, position_ms: 0, duration_ms: null, progress: 0 }));
 
@@ -852,6 +929,7 @@ export async function buildUpNextProjection({
       episodeRows: trackedEpisodeRows,
       today: new Date(now).toISOString().slice(0, 10),
       resolveProviderItems: resolveProviderItems || (mediaConfig ? createUpNextLibraryLookup(mediaConfig) : null),
+      manualShowKeys,
     });
   }
 

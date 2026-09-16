@@ -52,6 +52,7 @@ export function normalizeWatchProvenance(value, defaults = {}) {
   const sourceEvent = text(input.event || input.source_event || input.sourceEvent || defaults.event);
   const sourceTimestamp = timestamp(input.source_timestamp || input.sourceTimestamp || defaults.sourceTimestamp);
   const capturedAt = timestamp(input.captured_at || input.capturedAt || defaults.capturedAt) || new Date().toISOString();
+  const percentComplete = Number(input.percent_complete ?? input.percentComplete ?? defaults.percentComplete);
 
   return {
     version: 1,
@@ -69,6 +70,7 @@ export function normalizeWatchProvenance(value, defaults = {}) {
     source_timestamp: sourceTimestamp,
     captured_at: capturedAt,
     confidence,
+    ...(Number.isFinite(percentComplete) ? { percent_complete: Math.max(0, Math.min(100, percentComplete)) } : {}),
     note: text(input.note || defaults.note || (confidence === "source_only" ? LEGACY_NOTE : ""), 400),
   };
 }
@@ -82,7 +84,8 @@ export function buildWatchProvenance(media = {}, {
   device = "",
   deviceId = "",
   client = "",
-  clientVersion = "",
+    clientVersion = "",
+  percentComplete = undefined,
 } = {}) {
   const source = text(media.source || media.platform);
   const path = text(ingestPath || media.ingest_path || media.ingestPath) || inferredPath(source);
@@ -101,6 +104,7 @@ export function buildWatchProvenance(media = {}, {
     source_timestamp: sourceTimestamp || media.source_timestamp || media.sourceTimestamp || media.playedAt,
     captured_at: capturedAt,
     confidence: confidence || (path === "unknown" ? "source_only" : "exact"),
+    percent_complete: percentComplete ?? media.percent_complete ?? media.percentComplete,
     note: note || (path === "unknown" ? LEGACY_NOTE : ""),
   });
 }

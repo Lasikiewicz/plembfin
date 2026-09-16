@@ -28,7 +28,10 @@ import { getUpcomingCalendarMonth } from "../utils/upcomingCalendarCache.js";
 import { getCanonicalPosterUrl } from "../utils/mediaArtwork.js";
 import { getUpNextCacheSnapshot } from "../utils/upNextCache.js";
 import { buildUpNextProjection } from "../utils/upNextService.js";
+import { refreshUpNextProviderFeeds } from "../utils/upNextProviderSync.js";
 import { getActiveUpNextProviderItemById } from "../utils/upNextRepository.js";
+import { listManualUpNextShows, removeManualUpNextShow, upsertManualUpNextShow } from "../utils/upNextManual.js";
+import { restoreUpNextDismissalsForMedia } from "../utils/upNextDismissals.js";
 import { providerArtworkPathsForCandidate } from "../utils/upNextIdentity.js";
 import { getManualWatchReview } from "../utils/manualWatchReview.js";
 import { getFanartMovieArt, getFanartTvArt, getAllFanartMovieImages, getAllFanartTvImages } from "../utils/fanartGateway.js";
@@ -1242,11 +1245,19 @@ export async function handleUpNext(req, res) {
   const refresh = ["1", "true", "yes"].includes(String(req.query.refresh || "").toLowerCase());
   const revalidate = ["1", "true", "yes"].includes(String(req.query.revalidate || "").toLowerCase());
   try {
+    // An explicit dashboard refresh must re-check provider rails too.
+    // Otherwise a persisted failure from an earlier outage can keep showing
+    // after the same feed endpoints have recovered.
+    let mediaConfig = null;
+    if (refresh) {
+      mediaConfig = await loadMediaConfig().catch(() => null);
+      await refreshUpNextProviderFeeds({ config: mediaConfig || {} });
+    }
     // The projection resolves an unwatched next episode against the real
     // libraries, so the build needs the media config. It is loaded lazily:
     // a warm cache hit never calls the build at all.
     const build = async () => buildUpNextProjection({
-      mediaConfig: await loadMediaConfig().catch(() => null),
+      mediaConfig: mediaConfig || await loadMediaConfig().catch(() => null),
     });
     const snapshot = await getUpNextCacheSnapshot(build, { refresh, revalidate });
     return sendJson(res, {
@@ -1256,10 +1267,46 @@ export async function handleUpNext(req, res) {
       sourceVersion: snapshot.sourceVersion,
       sourceStatus: snapshot.sourceStatus,
       cacheStale: snapshot.stale,
+      manualShows: listManualUpNextShows(),
     }, 200, { "Cache-Control": "private, max-age=60, stale-while-revalidate=120", Vary: "Authorization" });
   } catch (error) {
     console.error("Up Next request failed", error);
     return sendJson(res, { error: error.message || "Up Next request failed" }, error.status || 500);
+  }
+}
+
+export async function handleUpNextShow(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  const body = await readJson(req).catch(() => ({}));
+  const title = String(body.title || body.show_title || body.showTitle || "").trim();
+  if (!title) return sendJson(res, { error: "A TV show title is required" }, 400);
+  try {
+    const show = {
+      title,
+      tmdb_id: body.tmdb_id || body.tmdbId || body.show_tmdb_id || body.showTmdbId || "",
+      tvdb_id: body.tvdb_id || body.tvdbId || body.show_tvdb_id || body.showTvdbId || "",
+      imdb_id: body.imdb_id || body.imdbId || body.show_imdb_id || body.showImdbId || "",
+      poster_url: body.poster_url || body.posterUrl || body.show_poster_url || body.showPosterUrl || "",
+    };
+    if (body.remove === true || body.action === "remove") {
+      const removed = removeManualUpNextShow({ id: body.id, ...show });
+      return sendJson(res, { ok: true, removed, manualShows: listManualUpNextShows() }, 200, { "Cache-Control": "no-store" });
+    }
+    const saved = upsertManualUpNextShow(show);
+    if (!saved) return sendJson(res, { error: "A valid TV show identity is required" }, 400);
+    restoreUpNextDismissalsForMedia({
+      media_type: "episode",
+      show_title: saved.title,
+      show_tmdb_id: saved.tmdb_id,
+      show_tvdb_id: saved.tvdb_id,
+      show_imdb_id: saved.imdb_id,
+    });
+    return sendJson(res, { ok: true, show: saved, manualShows: listManualUpNextShows() }, 200, { "Cache-Control": "no-store" });
+  } catch (error) {
+    console.error("Manual Up Next show update failed", error);
+    return sendJson(res, { error: "Could not update the manual Up Next show" }, 500);
   }
 }
 

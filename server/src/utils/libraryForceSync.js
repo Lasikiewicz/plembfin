@@ -377,7 +377,16 @@ async function syncOneLibraryItem(media, requested, config, loopStore, logger) {
     return { record, inserted, summary };
   }
 
-  const syncMedia = requested.target ? { ...media, syncTargets: [requested.target] } : media;
+  // A library-wide push projects watch history Plembfin already holds onto the
+  // servers, so it is a historical backfill rather than a change the user just
+  // made. Stating that lets the provider matrix apply the Plex historical
+  // policy here (see watchSyncPolicy.js) instead of letting one bulk run create
+  // a whole library's worth of Plex activity dated today.
+  const syncMedia = {
+    ...media,
+    syncIntent: "historical",
+    ...(requested.target ? { syncTargets: [requested.target] } : {}),
+  };
   logger(`[${requested.mode}] ${media.title}: sending watched state to ${requested.target || "all connected servers"}.`);
   const summary = await syncCanonicalPlaystate(syncMedia, config, loopStore, canonicalState);
   for (const target of summary.targetStates || []) {

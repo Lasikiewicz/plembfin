@@ -20,6 +20,13 @@ import {
 import { listActiveUpNextProviderItems } from "./upNextRepository.js";
 import { normalizeUpNextCandidate, upNextIdentityAliases } from "./upNextIdentity.js";
 import { runWithOutboundStateLease } from "./outboundStateLease.js";
+import {
+  PLEX_ALREADY_MATCHING_DETAIL,
+  TARGET_DECISIONS,
+  normalizeWatchSyncIntent,
+  resolveWatchSyncIntent,
+  watchTargetPolicy,
+} from "./watchSyncPolicy.js";
 import { compoundEpisodeForMedia } from "./compoundEpisode.js";
 
 const LOOP_CACHE_TTL_SECONDS = 60;
@@ -202,6 +209,7 @@ const TARGETS_BY_SOURCE = {
   manual: ["plex", "emby", "jellyfin"],
   force_sync: ["plex", "emby", "jellyfin"],
   trakt_import: ["plex", "emby", "jellyfin"],
+  tautulli_import: ["plex", "emby", "jellyfin"],
   trakt_current: ["plex", "emby", "jellyfin"],
 };
 
@@ -350,8 +358,11 @@ function outboundStateLeaseKey(media, target) {
   return `played-state:${String(target || "unknown").toLowerCase()}:${outboundStateLeaseIdentity(media)}`;
 }
 
+// Pins the resolved intent onto the payload the provider adapters receive, so
+// an adapter's own policy guard can never disagree with the routing decision
+// this module already made for the same action.
 function mediaWithLane(media, lane = "sync") {
-  return { ...media, lane };
+  return { ...media, lane, syncIntent: resolveWatchSyncIntent(media) };
 }
 
 function clientFor(target, config, media, lane = "sync") {
@@ -665,14 +676,25 @@ export async function isRecentOutboundPlayedFlagEcho(media, target, kv, options 
   return isRecentOutboundPlayedEcho(media, target, kv, options);
 }
 
-function summarizeResults(targets, results) {
+// `policyStates` carries targets the provider matrix removed before dispatch
+// (see watchSyncPolicy.js). They are real, reported outcomes - not failures,
+// and never retryable - so they belong in targetStates and in the summary text,
+// but must not be counted as errors or as missing library items.
+function summarizeResults(targets, results, policyStates = []) {
   const successfulTargets = [];
+  const alreadyMatchingTargets = [];
   const failedTargets = [];
   const missingTargets = [];
   const deferredTargets = [];
-  const targetStates = [];
+  const policySkippedTargets = policyStates.map((entry) => entry.target);
+  const targetStates = policyStates.map((entry) => ({
+    target: entry.target,
+    status: "skipped",
+    decision: entry.decision || TARGET_DECISIONS.SKIPPED_BY_POLICY,
+    detail: entry.detail || "Skipped by the configured sync policy",
+  }));
 
-  if (!targets.length) {
+  if (!targets.length && !policySkippedTargets.length) {
     return {
       status: "skipped",
       details: "No enabled sync destinations.",
@@ -684,13 +706,24 @@ function summarizeResults(targets, results) {
     const target = targets[index];
     if (result.status === "rejected") {
       failedTargets.push(target);
-      targetStates.push({ target, status: "error", detail: String(result.reason?.message || result.reason) });
+      targetStates.push({ target, status: "error", decision: TARGET_DECISIONS.FAILED, detail: String(result.reason?.message || result.reason) });
+      return;
+    }
+
+    if (result.value?.status === "skipped_by_policy") {
+      policySkippedTargets.push(target);
+      targetStates.push({
+        target,
+        status: "skipped",
+        decision: TARGET_DECISIONS.SKIPPED_BY_POLICY,
+        detail: result.value?.detail || "Skipped by the configured sync policy",
+      });
       return;
     }
 
     if (result.value?.status === "not_found") {
       missingTargets.push(target);
-      targetStates.push({ target, status: "skipped", detail: "No matching item found" });
+      targetStates.push({ target, status: "skipped", decision: TARGET_DECISIONS.UNSUPPORTED, detail: "No matching item found" });
       return;
     }
 
@@ -700,10 +733,28 @@ function summarizeResults(targets, results) {
       return;
     }
 
+    // The provider already agreed with Plembfin, so no write was made. That is
+    // the desired end state, not a skip to retry - and for Plex it is what
+    // keeps a reconcile pass from refreshing its activity timestamp forever.
+    if (result.value?.status === "already_matching") {
+      alreadyMatchingTargets.push(target);
+      successfulTargets.push(target);
+      targetStates.push({
+        target,
+        status: "success",
+        decision: TARGET_DECISIONS.ALREADY_MATCHING,
+        detail: result.value?.detail || PLEX_ALREADY_MATCHING_DETAIL,
+        itemId: result.value?.itemId || "",
+        itemIds: Array.isArray(result.value?.itemIds) ? result.value.itemIds : undefined,
+      });
+      return;
+    }
+
     successfulTargets.push(target);
     targetStates.push({
       target,
       status: "success",
+      decision: TARGET_DECISIONS.SENT,
       detail: result.value?.httpStatus ? `${result.value.httpStatus} OK` : "Marked played",
       itemId: result.value?.itemId || "",
       itemIds: Array.isArray(result.value?.itemIds) ? result.value.itemIds : undefined,
@@ -711,10 +762,17 @@ function summarizeResults(targets, results) {
     });
   });
 
+  const policyNote = policySkippedTargets.length
+    ? `${formatTargets(policySkippedTargets)} skipped by the historical sync policy`
+    : "";
+  const matchNote = alreadyMatchingTargets.length
+    ? `${formatTargets(alreadyMatchingTargets)} already matching`
+    : "";
+
   if (failedTargets.length) {
     return {
       status: successfulTargets.length ? "partial" : "error",
-      details: `Synced to ${formatTargets(successfulTargets)}; failed ${formatTargets(failedTargets)}`,
+      details: [`Synced to ${formatTargets(successfulTargets)}; failed ${formatTargets(failedTargets)}`, matchNote, policyNote].filter(Boolean).join("; "),
       targetStates,
       deferred: deferredTargets.length > 0,
     };
@@ -724,17 +782,31 @@ function summarizeResults(targets, results) {
     const skippedTargets = [...missingTargets, ...deferredTargets];
     return {
       status: successfulTargets.length ? "partial" : "skipped",
-      details: deferredTargets.length
-        ? `Synced to ${formatTargets(successfulTargets)}; held ${formatTargets(skippedTargets)} for a newer state`
-        : `Synced to ${formatTargets(successfulTargets)}; no match on ${formatTargets(missingTargets)}`,
+      details: [
+        deferredTargets.length
+          ? `Synced to ${formatTargets(successfulTargets)}; held ${formatTargets(skippedTargets)} for a newer state`
+          : `Synced to ${formatTargets(successfulTargets)}; no match on ${formatTargets(missingTargets)}`,
+        matchNote,
+        policyNote,
+      ].filter(Boolean).join("; "),
       targetStates,
       deferred: deferredTargets.length > 0,
     };
   }
 
+  if (policySkippedTargets.length) {
+    return {
+      status: successfulTargets.length ? "partial" : "skipped",
+      details: successfulTargets.length
+        ? [`Synced to ${formatTargets(successfulTargets)}`, matchNote, policyNote].filter(Boolean).join("; ")
+        : policyNote,
+      targetStates,
+    };
+  }
+
   return {
     status: "success",
-    details: `Successfully synced to ${formatTargets(successfulTargets)}`,
+    details: [`Successfully synced to ${formatTargets(successfulTargets)}`, matchNote].filter(Boolean).join("; "),
     targetStates,
   };
 }
@@ -892,8 +964,21 @@ async function includeTrackerDispatch(summary, media, state, lane = "sync", isCa
   const targetStates = [...(summary.targetStates || []), ...normalized];
   const successes = targetStates.filter((entry) => entry.status === "success").map((entry) => entry.target);
   const failures = targetStates.filter((entry) => entry.status === "error").map((entry) => entry.target);
-  const skipped = targetStates.filter((entry) => entry.status === "skipped").map((entry) => entry.target);
+  const skippedStates = targetStates.filter((entry) => entry.status === "skipped");
+  const skipped = skippedStates.map((entry) => entry.target);
+  // A deliberate policy skip must not be reported as "no match" - that reads as
+  // a broken library match rather than the choice the user actually made.
+  const policySkipped = skippedStates
+    .filter((entry) => entry.decision === TARGET_DECISIONS.SKIPPED_BY_POLICY)
+    .map((entry) => entry.target);
+  const unmatched = skippedStates
+    .filter((entry) => entry.decision !== TARGET_DECISIONS.SKIPPED_BY_POLICY)
+    .map((entry) => entry.target);
   const cancelled = targetStates.some((entry) => entry.status === "cancelled");
+  const skipNotes = [
+    unmatched.length ? `no match on ${formatTargets(unmatched)}` : "",
+    policySkipped.length ? `${formatTargets(policySkipped)} skipped by the historical sync policy` : "",
+  ].filter(Boolean).join("; ");
   return {
     ...summary,
     targetStates,
@@ -901,7 +986,7 @@ async function includeTrackerDispatch(summary, media, state, lane = "sync", isCa
     details: failures.length
       ? `Synced to ${formatTargets(successes)}; failed ${formatTargets(failures)}`
       : cancelled ? `Synced to ${formatTargets(successes)}; Trakt dispatch cancelled`
-        : skipped.length ? `Synced to ${formatTargets(successes)}; no match on ${formatTargets(skipped)}` : `Successfully synced to ${formatTargets(successes)}`,
+        : skipped.length ? `Synced to ${formatTargets(successes)}; ${skipNotes}` : `Successfully synced to ${formatTargets(successes)}`,
   };
 }
 
@@ -922,7 +1007,7 @@ export async function syncMediaPlaystate(media, config, kv, {
     return { skipped: true, status: "skipped", details: "Invalid normalized media payload", results: [] };
   }
 
-  if (!["manual", "force_sync", "restore", "restore_replay", "trakt", "trakt_import", "trakt_current"].includes(String(media.source || "").toLowerCase()) && !canSendState(config, String(media.source || "").toLowerCase(), "watched")) {
+  if (!["manual", "force_sync", "restore", "restore_replay", "trakt", "trakt_import", "tautulli_import", "trakt_current"].includes(String(media.source || "").toLowerCase()) && !canSendState(config, String(media.source || "").toLowerCase(), "watched")) {
     return { skipped: true, status: "skipped", details: "Source is not allowed to send watched state", targetStates: [], results: [] };
   }
 
@@ -930,7 +1015,17 @@ export async function syncMediaPlaystate(media, config, kv, {
 
   if (await shouldDefer?.()) return deferredDispatchSummary("A newer unwatched state took precedence before watched dispatch");
 
-  const targets = targetsForMedia(media, config, "watched");
+  // The provider matrix runs before the loop claim so a target the policy
+  // removed is never claimed as an outbound write we then never make - a stale
+  // claim there would suppress a later genuine echo from that server.
+  const intent = resolveWatchSyncIntent(media);
+  const policyStates = [];
+  const targets = [];
+  for (const target of targetsForMedia(media, config, "watched")) {
+    const policy = watchTargetPolicy({ target, intent, state: "watched" });
+    if (policy.decision === TARGET_DECISIONS.SEND) targets.push(target);
+    else policyStates.push({ target, decision: policy.decision, detail: policy.detail });
+  }
   if (checkAndClaimLoop(media, media.source, targets, kv)) {
     console.log("Sync playstate skipped: echo loop detected", { source: media.source, title: media.title });
     return {
@@ -941,8 +1036,12 @@ export async function syncMediaPlaystate(media, config, kv, {
       results: [],
     };
   }
+  // Deliberately still keyed on every destination being disabled, not on the
+  // target list being empty: a policy skip that removed the last media-server
+  // target must fall through to the tracker dispatch below. Turning historical
+  // Plex sync off scopes out Plex, never Trakt.
   if (!targets.length && allSyncDestinationsDisabled(config)) {
-    const summary = summarizeResults(targets, []);
+    const summary = summarizeResults(targets, [], policyStates);
     return { ...summary, skipped: summary.status === "skipped", results: [] };
   }
   if (restoreBlocksSync(media)) return deferredDispatchSummary("Paused while an authoritative watch-history restore is running");
@@ -950,7 +1049,9 @@ export async function syncMediaPlaystate(media, config, kv, {
   console.log("Sync playstate dispatch started", {
     source: media.source,
     title: media.title,
+    intent,
     targets,
+    policySkipped: policyStates.map((entry) => entry.target),
     type: media.type,
     ids: media.ids,
   });
@@ -980,7 +1081,7 @@ export async function syncMediaPlaystate(media, config, kv, {
     });
 
     const results = await Promise.allSettled(jobs);
-    let summary = summarizeResults(targets, results);
+    let summary = summarizeResults(targets, results, policyStates);
 
     console.log("Sync playstate dispatch completed", {
       source: media.source,
@@ -1019,6 +1120,18 @@ export async function syncCanonicalPlaystate(media, config, kv, state = "watched
     ...media,
     source: "manual",
     isValid: media?.isValid !== false,
+    // A canonical replay projects a watch Plembfin already holds - a Force Sync,
+    // an availability repair, a webhook reconcile of an older watch - so it is
+    // historical by definition, whatever date it carries. Only a watch the user
+    // just created is "new", and those reach the providers through
+    // applyWatchedTransition/syncMediaPlaystate instead.
+    //
+    // This is why the source rewrite above cannot be left to speak for intent:
+    // it says "manual", which would exempt every replay from the Plex policy
+    // and let a whole library's history reach Plex after the user turned that
+    // off. A caller restoring genuinely-live state passes its own syncIntent,
+    // which wins; only an unstated intent falls back to historical.
+    syncIntent: normalizeWatchSyncIntent(media?.syncIntent ?? media?.sync_intent) || "historical",
   };
   if (String(state).toLowerCase() === "unwatched" || String(state).toLowerCase() === "unplayed") {
     return syncMediaUnplayedPlaystate(canonicalMedia, config, kv, { lane, trackDispatch, includeTrackers });
@@ -1072,7 +1185,7 @@ export async function syncMediaUnplayedPlaystate(media, config, kv, {
     return { skipped: true, status: "skipped", details: "Invalid normalized media payload", results: [] };
   }
 
-  if (!["manual", "force_sync", "restore", "restore_replay", "trakt", "trakt_import", "trakt_current"].includes(String(media.source || "").toLowerCase()) && !canSendState(config, String(media.source || "").toLowerCase(), "unwatched")) {
+  if (!["manual", "force_sync", "restore", "restore_replay", "trakt", "trakt_import", "tautulli_import", "trakt_current"].includes(String(media.source || "").toLowerCase()) && !canSendState(config, String(media.source || "").toLowerCase(), "unwatched")) {
     return { skipped: true, status: "skipped", details: "Source is not allowed to send unwatched state", targetStates: [], results: [] };
   }
   media = compoundEpisodeMediaForDispatch(providerItemsForMedia(media));
@@ -1169,7 +1282,7 @@ export async function syncMediaProgress(media, config, kv, { lane = "sync" } = {
     return { skipped: true, status: "skipped", details: "Resume progress is not actionable", results: [] };
   }
 
-  if (!["manual", "force_sync", "trakt_import", "trakt_current"].includes(String(media.source || "").toLowerCase()) && !canSendState(config, String(media.source || "").toLowerCase(), "progress")) {
+  if (!["manual", "force_sync", "trakt_import", "tautulli_import", "trakt_current"].includes(String(media.source || "").toLowerCase()) && !canSendState(config, String(media.source || "").toLowerCase(), "progress")) {
     return { skipped: true, status: "skipped", details: "Source is not allowed to send progress", targetStates: [], results: [] };
   }
   media = providerItemsForMedia(media);

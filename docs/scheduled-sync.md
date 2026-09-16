@@ -266,8 +266,10 @@ Implementation lives in `server/src/scheduled.js`.
      A `sync_history` row is only written when the outcome changes (first
      failure, success, or giving up), not on every identical failed attempt.
      Targets that answer "No matching item found" are recorded in the row's
-     telemetry and aggregated per platform by the Cross-Platform Match Report
-     (Settings → Sync → Sync Issues, backed by `GET /api/sync-match-report`).
+     telemetry. Unidentified items are surfaced in the standalone Sync Activity
+     page's Issues view, using the Cross-Platform Match Report data from
+     `GET /api/sync-match-report`; identified items that are absent from a
+     library remain an availability difference rather than an issue.
      A skipped/not-found result is terminal for that target rather than a reason
      to rediscover the same absent coordinate every minute. An explicit later
      action or library-history import can retry an item after it enters a library.

@@ -9,7 +9,7 @@ import { handleAddWatchDate, handleClearMissingTelemetry, handleDeleteHistoryRec
 import { handleActiveSessions, handleCronSync, handleCronSyncStatus, handleForceSync, handleForceSyncPlan, handleForceSyncCancellation, handleLibraryForceSync, handleLibraryForceSyncStatus, handleManualUnwatch, handleMediaForceSync, handleMediaForceSyncStatus, handleManualWatch, handleNowPlaying, handlePlaybackProgressList, handlePlaybackProgressUnwatch, handlePlaybackProgressWatch, handleDismissSyncHistory, handleRetryAllSyncActivity, handleRetrySync, handleRetrySyncActivityGroup, handleRetrySyncHistory, handleStopForceSync, handleSyncActivity, handleSyncActivityGroup, handleSyncHistory, handleSyncJobs, handleSyncLibraries, handleUpNextRemove, handleUpNextSync,
   handleUpNextDismissed,
   handleUpNextRestore, handleWebhook } from "./routes/sync.js";
-import { handleDiscover, handleDiscoverDismiss, handleFanartImages, handleFixMatchSearch, handleMediaSearch, handleOmdbRating, handlePoster, handlePosterBatch, handleRemoteArtwork, handleTmdbCollection, handleTmdbDetails, handleTmdbDetailsBatch, handleTmdbImages, handleTmdbPerson, handleTmdbPoster, handleTmdbProfile, handleTmdbSearch, handleTmdbSeason, handleTvdbImages, handleTvdbSearch, handleUpcoming, handleUpNext, handleYoutubeMeta } from "./routes/metadata.js";
+import { handleDiscover, handleDiscoverDismiss, handleFanartImages, handleFixMatchSearch, handleMediaSearch, handleOmdbRating, handlePoster, handlePosterBatch, handleRemoteArtwork, handleTmdbCollection, handleTmdbDetails, handleTmdbDetailsBatch, handleTmdbImages, handleTmdbPerson, handleTmdbPoster, handleTmdbProfile, handleTmdbSearch, handleTmdbSeason, handleTvdbImages, handleTvdbSearch, handleUpcoming, handleUpNext, handleUpNextShow, handleYoutubeMeta } from "./routes/metadata.js";
 import { handleAdminFixHistory, handleBackfillStatus, handleBackfillTrakt, handleCacheStats, handleChangelog, handleClearCache, handleDebugPlexMatch, handleDiagnosticLogs, handleMaintenanceStub, handlePing, handleRefreshTmdbMetadata, handleRefreshTvdbMetadata, handleRematchTvShows, handleSyncHealth, handleSyncMatchReport, handleEpisodeTitleAudit, handleEpisodeTitleBackfill, handlePhantomWatchAudit, handlePhantomWatchRepair, handleStaleTraktImportAudit, handleStaleTraktImportRepair, handleStalePendingWatchAudit, handleStalePendingWatchRepair, handleSplitIdentityUnwatchAudit, handleSplitIdentityUnwatchRepair, handleLikelyFalseUnwatchAudit, handleLikelyFalseUnwatchRepair } from "./routes/maintenance.js";
 import { handleWipeDataPreview, handleWipeData } from "./routes/wipeData.js";
 import { handleEmbyLikeAuth, handleEmbyLikeConnection, handlePlexAuth, handlePlexConnection } from "./routes/mediaAuth.js";
@@ -22,6 +22,7 @@ import { handleRatingSync } from "./routes/ratingSync.js";
 import { handleWatchlistSync } from "./routes/watchlistSync.js";
 import { handleManualWatchReview } from "./routes/manualWatchReview.js";
 import { isDemoMode } from "./utils/demoMode.js";
+import { handleTautulli } from "./routes/tautulli.js";
 
 function routePath(req) {
   const path = req.path || new URL(req.originalUrl || req.url, "https://local").pathname;
@@ -46,6 +47,7 @@ const DEMO_DISABLED_ROUTE_PATTERNS = Object.freeze([
   /^(?:force-sync|full-sync-watchstates|cron-sync|stop-force-sync)(?:\/|$)/i,
   /^(?:sync-jobs|sync\/|sync-match-report|health\/sync|sync-attention|sync-activity|sync-history|manual-watch-review|retry-sync)(?:\/|$)/i,
   /^(?:test-connection|test-plex-notifications|seerr)(?:\/|$)/i,
+  /^(?:tautulli)(?:\/|$)/i,
   /^(?:tmdb-search|tvdb-search|fix-match-search|media-search|refresh-tmdb-metadata|refresh-tvdb-metadata)(?:\/|$)/i,
   /^(?:remote-artwork|tmdb-poster|tmdb-profile|fanart-images|tvdb-images|tmdb-images|youtube-meta|omdb-rating)(?:\/|$)/i,
   /^(?:admin-|phantom-watch-|episode-title-|stale-|split-identity-|likely-false-)/i,
@@ -141,6 +143,13 @@ async function dispatch(req, res) {
     if (path === "tracker-auth/trakt/start" || /^tracker-auth\/trakt\/[a-f\d-]+\/status$/i.test(path)) return handleTrackerAuth(req, res, path);
     if (path === "tracker-connections" || path === "tracker-connections/trakt") return handleTrackerConnections(req, res, path);
     if (path === "config") return handleConfig(req, res);
+    if (path === "tautulli/status") return handleTautulli(req, res, "status");
+    if (path === "tautulli/users") return handleTautulli(req, res, "users");
+    if (path === "tautulli/test") return handleTautulli(req, res, "test");
+    if (path === "tautulli/import/preview/start") return handleTautulli(req, res, "preview-start");
+    if (path === "tautulli/import/preview/status") return handleTautulli(req, res, "preview-status");
+    if (path === "tautulli/import/preview") return handleTautulli(req, res, "preview");
+    if (path === "tautulli/import") return handleTautulli(req, res, "import");
     if (path === "appearance") return handleAppearance(req, res);
     if (path === "history") return handleHistory(req, res);
     if (path === "history-audit") return handleHistoryAudit(req, res);
@@ -164,6 +173,7 @@ async function dispatch(req, res) {
     if (path === "show") return handleShow(req, res);
     if (path === "upcoming") return handleUpcoming(req, res);
     if (path === "up-next") return handleUpNext(req, res);
+    if (path === "up-next/show") return handleUpNextShow(req, res);
     if (path === "up-next/remove") return handleUpNextRemove(req, res);
     if (path === "up-next/sync") return handleUpNextSync(req, res);
     if (path === "up-next/dismissed") return handleUpNextDismissed(req, res);

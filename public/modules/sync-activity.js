@@ -1,7 +1,7 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.2.1";
-import { state, elements } from "./state.js?v=1.1.1.2.1";
-import { escapeHtml, escapeAttribute, formatDate, slug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, showTitleFrom, platformIconMarkup } from "./utils.js?v=1.1.1.2.1";
-import { syncHistoryTone, syncHistoryActionLabel } from "./sync.js?v=1.1.1.2.1";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.3.1";
+import { state, elements } from "./state.js?v=1.1.1.3.1";
+import { escapeHtml, escapeAttribute, formatDate, slug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, showTitleFrom, platformName, platformIconMarkup } from "./utils.js?v=1.1.1.3.1";
+import { syncHistoryTone, syncHistoryActionLabel } from "./sync.js?v=1.1.1.3.1";
 
 const REFRESH_MS = 15000;
 const SEARCH_DEBOUNCE_MS = 180;
@@ -57,6 +57,23 @@ const groupEventView = new Map();
 // one server request. Keep a small local marker so the expanded group can
 // disable competing item actions while that request is in flight.
 const groupRetryProgress = new Map();
+
+// Periodic refreshes replace the API snapshot even when nothing changed. Keep
+// render keys so a quiet refresh does not replace DOM nodes the reader may be
+// looking at (or reset native focus/selection state).
+let lastActivityRowsKey = "";
+let lastActivitySummaryKey = "";
+let lastActivityPaginationKey = "";
+let lastAttentionKey = "";
+let lastTraktProgressKey = "";
+
+function renderSnapshot(value) {
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
+}
 
 function groupEventCacheKey(groupKey, latestOnly = true) {
   return `${String(groupKey || "")}\u0000${latestOnly ? "latest" : "history"}`;
@@ -120,8 +137,59 @@ function clientAttentionItems() {
   return Array.isArray(state.clientAttention) ? state.clientAttention : [];
 }
 
+function unresolvedMatchSamples() {
+  const platforms = state.syncActivityMatchReport?.platforms || {};
+  return Object.entries(platforms).flatMap(([platform, stats]) => (
+    (Array.isArray(stats?.samples) ? stats.samples : []).map((sample) => ({
+      ...sample,
+      platform,
+      platformLabel: platformName(platform),
+    }))
+  ));
+}
+
+function unresolvedMatchIssueCount() {
+  const keys = new Set();
+  for (const sample of unresolvedMatchSamples()) {
+    const key = sample.id || sample.media_key || `${sample.media_type || ""}|${sample.title || ""}`;
+    keys.add(`${key}|${sample.media_type || ""}`);
+  }
+  return keys.size;
+}
+
+function matchAttentionItem() {
+  const samples = unresolvedMatchSamples();
+  const issueCount = unresolvedMatchIssueCount();
+  if (!issueCount) return null;
+  const issueItems = samples.map((sample, index) => ({
+    key: `match:${sample.platform}:${sample.id || sample.media_key || index}`,
+    sourceRowId: String(sample.id || ""),
+    title: sample.title || "Unknown title",
+    sourceTitle: sample.title || "Unknown title",
+    type: sample.media_type || "movie",
+    provider: sample.platform,
+    target: sample.platform,
+    mediaKey: sample.media_key || "",
+    showTitle: sample.show_title || "",
+    season: sample.season ?? null,
+    episode: sample.episode ?? null,
+    watchedAt: sample.watched_at || "",
+    reason: `${sample.platformLabel} could not find this item during sync.`,
+  }));
+  const platforms = [...new Set(samples.map((sample) => sample.platformLabel).filter(Boolean))].join(", ");
+  return {
+    id: "sync-match-report",
+    source: "match_report",
+    kind: "cross_platform_match_issues",
+    severity: "error",
+    summary: `${issueCount} unresolved media match${issueCount === 1 ? "" : "es"} found${platforms ? ` on ${platforms}` : ""}.`,
+    context: { issueCount, issueItems, issueItemsComplete: true },
+  };
+}
+
 function attentionItems() {
-  return [...serverAttentionItems(), ...clientAttentionItems()];
+  const match = matchAttentionItem();
+  return [...serverAttentionItems(), ...(match ? [match] : []), ...clientAttentionItems()];
 }
 
 function serverAttentionCount() {
@@ -130,15 +198,16 @@ function serverAttentionCount() {
 }
 
 function currentActivityIssueCount() {
-  const count = Number(state.syncActivityCurrentIssueCount);
-  return Number.isFinite(count) && count > 0 ? count : 0;
+  const activityCount = Number(state.syncActivityCurrentIssueCount);
+  const matchCount = Number(state.syncActivityMatchIssueCount);
+  return (Number.isFinite(activityCount) && activityCount > 0 ? activityCount : 0)
+    + (Number.isFinite(matchCount) && matchCount > 0 ? matchCount : 0);
 }
 
 function attentionCount() {
-  const serverCount = serverAttentionCount();
-  const clientCount = clientAttentionItems().length;
-  const attentionCheckFailed = state.syncAttentionError && !serverCount && !clientCount ? 1 : 0;
-  return serverCount + clientCount + attentionCheckFailed;
+  const count = attentionItems().length;
+  const attentionCheckFailed = state.syncAttentionError && !count ? 1 : 0;
+  return count + attentionCheckFailed;
 }
 
 function attentionTone() {
@@ -174,10 +243,10 @@ function isActive() {
 // dispatch as Plex here. Sync activity names trackers as well as servers, so it
 // resolves platforms itself.
 const PLATFORMS = {
-  plex: { name: "Plex", icon: "/icons/plex.svg?v=1.1.1.2.1" },
-  emby: { name: "Emby", icon: "/icons/emby.svg?v=1.1.1.2.1" },
-  jellyfin: { name: "Jellyfin", icon: "/icons/jellyfin.svg?v=1.1.1.2.1" },
-  trakt: { name: "Trakt", icon: "/icons/trakt.svg?v=1.1.1.2.1" },
+  plex: { name: "Plex", icon: "/icons/plex.svg?v=1.1.1.3.1" },
+  emby: { name: "Emby", icon: "/icons/emby.svg?v=1.1.1.3.1" },
+  jellyfin: { name: "Jellyfin", icon: "/icons/jellyfin.svg?v=1.1.1.3.1" },
+  trakt: { name: "Trakt", icon: "/icons/trakt.svg?v=1.1.1.3.1" },
   plembfin: { name: "Plembfin", icon: "" },
 };
 
@@ -1697,6 +1766,36 @@ function clientAttentionItemMarkup(item = {}) {
     </article>`;
 }
 
+function matchAttentionItemMarkup(item = {}) {
+  const issues = Array.isArray(item.context?.issueItems) ? item.context.issueItems : [];
+  const issueCount = Number(item.context?.issueCount) || issues.length;
+  return `
+    <article class="sync-attention-item sync-attention-item--match" data-sync-attention-item="${escapeAttribute(item.id)}">
+      <div class="sync-attention-item-header">
+        <div class="sync-attention-item-title">
+          <h3>Cross-Platform Match Issues</h3>
+        </div>
+      </div>
+      <p class="sync-attention-summary">${escapeHtml(item.summary || `${issueCount} unresolved media matches found.`)} Choose the correct match to clear each issue.</p>
+      <div class="sync-attention-issues">
+        <div class="sync-attention-issues-heading">
+          <h4>Items</h4>
+        </div>
+        <div class="sync-attention-issue-list sync-attention-match-list">
+          ${issues.map((issue) => `
+            <div class="sync-attention-match-row">
+              <div>
+                <strong>${escapeHtml(issue.title || "Unknown title")}</strong>
+                <span>${escapeHtml(`${platformName(issue.provider)} · ${issue.type === "episode" ? "TV" : "Movie"}${issue.season != null && issue.episode != null ? ` · S${String(issue.season).padStart(2, "0")}E${String(issue.episode).padStart(2, "0")}` : ""}`)}</span>
+              </div>
+              ${issue.sourceRowId ? `<button class="button-ghost sync-attention-match-fix" type="button" data-sync-attention-match-fix-id="${escapeAttribute(issue.sourceRowId)}" data-sync-attention-match-fix-title="${escapeAttribute(issue.type === "episode" ? issue.showTitle || issue.title : issue.title)}" data-sync-attention-match-fix-type="${escapeAttribute(issue.type || "movie")}">Fix match</button>` : ""}
+            </div>
+          `).join("")}
+        </div>
+      </div>
+    </article>`;
+}
+
 export function renderSyncAttention() {
   const container = elements.syncActivityAttention;
   if (!container) return;
@@ -1705,6 +1804,27 @@ export function renderSyncAttention() {
   const count = attentionCount();
   const loading = state.syncAttentionLoading === true;
   const error = String(state.syncAttentionError || "").trim();
+  const attentionKey = renderSnapshot({
+    items,
+    serverItems,
+    count,
+    loading,
+    loaded: state.syncAttentionLoaded === true,
+    error,
+    tone: attentionTone(),
+    skipping: state.syncAttentionSkipping || "",
+    issueSkipping: state.syncAttentionIssueSkipping || "",
+    issueRetrying: state.syncAttentionIssueRetrying || "",
+    issueRetryTerminal: state.syncAttentionIssueRetryTerminal || null,
+    showSkipping: state.syncAttentionShowSkipping || "",
+    showRetrying: state.syncAttentionShowRetrying || "",
+    showRetryTerminal: state.syncAttentionShowRetryTerminal || null,
+    expandedShows: state.syncAttentionExpandedShows instanceof Set
+      ? [...state.syncAttentionExpandedShows].sort()
+      : [],
+  });
+  if (attentionKey === lastAttentionKey) return;
+  lastAttentionKey = attentionKey;
 
   if (!count && !loading && !error) {
     container.classList.add("hidden");
@@ -1715,7 +1835,7 @@ export function renderSyncAttention() {
 
   container.classList.remove("hidden");
   container.dataset.attentionTone = attentionTone() === "error" ? "error" : "warning";
-  if (loading && !state.syncAttentionLoaded && !clientAttentionItems().length) {
+  if (loading && !state.syncAttentionLoaded && !clientAttentionItems().length && !matchAttentionItem()) {
     container.innerHTML = `<div class="sync-attention-loading"><b>Checking sync blockers</b><span>Reading the latest restore and initial-sync status.</span></div>`;
     return;
   }
@@ -1730,13 +1850,21 @@ export function renderSyncAttention() {
 
   const affectedCount = serverItems.reduce((total, item) => total + (Number(item.context?.issueCount) || 0), 0);
   const blockingCount = items.filter((item) => attentionToneForItem(item) === "error").length;
+  const matchOnly = items.length > 0 && items.every((item) => item.source === "match_report");
+  if (matchOnly) {
+    container.innerHTML = `<div class="sync-attention-list sync-attention-list--match-only">${items.map((item) => matchAttentionItemMarkup(item)).join("")}</div>`;
+    return;
+  }
   const heading = affectedCount
     ? `${count} issue${count === 1 ? "" : "s"} · ${affectedCount} affected play${affectedCount === 1 ? "" : "s"}`
     : `${count} issue${count === 1 ? "" : "s"} need${count === 1 ? "s" : ""} review`;
   const badge = blockingCount ? `${blockingCount} attention` : `${count} to review`;
+  const hasMatchIssues = items.some((item) => item.source === "match_report");
   const description = serverItems.length
     ? "The restore or initial sync is paused to protect your canonical watch history. Review the explanation and recommended fixes below."
-    : "These failed requests are kept here so an important problem is not lost when a temporary message disappears.";
+    : hasMatchIssues
+      ? "Choose the correct title to resolve these matches."
+      : "These failed requests are kept here so an important problem is not lost when a temporary message disappears.";
   container.innerHTML = `
     <div class="sync-attention-heading">
       <div>
@@ -1746,7 +1874,11 @@ export function renderSyncAttention() {
       </div>
       <span class="status-pill status-${blockingCount ? "error" : "warning"}">${escapeHtml(badge)}</span>
     </div>
-    <div class="sync-attention-list">${items.map((item) => item.source === "client" ? clientAttentionItemMarkup(item) : syncAttentionItemMarkup(item)).join("")}</div>`;
+    <div class="sync-attention-list">${items.map((item) => item.source === "client"
+      ? clientAttentionItemMarkup(item)
+      : item.source === "match_report"
+        ? matchAttentionItemMarkup(item)
+        : syncAttentionItemMarkup(item)).join("")}</div>`;
 }
 
 export async function loadSyncAttention({ force = false } = {}) {
@@ -2071,6 +2203,19 @@ function renderSyncActivityPagination() {
   const page = Math.min(Math.max(Number(pagination.page) || 1, 1), totalPages);
   const from = total ? Math.max(Number(pagination.from) || ((page - 1) * pagination.limit + 1), 1) : 0;
   const to = total ? Math.max(Number(pagination.to) || Math.min(page * pagination.limit, total), from) : 0;
+  const paginationKey = renderSnapshot({
+    total,
+    totalPages,
+    page,
+    from,
+    to,
+    hasPrevious: Boolean(pagination.hasPrevious),
+    hasNext: Boolean(pagination.hasNext),
+    loading: Boolean(state.syncActivityLoading),
+    items: paginationItems(page, totalPages),
+  });
+  if (paginationKey === lastActivityPaginationKey) return;
+  lastActivityPaginationKey = paginationKey;
 
   container.classList.toggle("hidden", totalPages <= 1 || !total);
   if (elements.syncActivityPageRange) {
@@ -2137,11 +2282,18 @@ export function resetSyncActivity() {
   state.syncActivityCurrentIssueGroupCount = 0;
   state.syncActivityCurrentIssueCount = 0;
   state.syncActivityRetryableCount = 0;
+  state.syncActivityMatchReport = null;
+  state.syncActivityMatchIssueCount = 0;
   state.syncActivityPagination = { ...DEFAULT_PAGINATION };
   groupEventCache.clear();
   groupEventLoading.clear();
   groupEventView.clear();
   groupRetryProgress.clear();
+  lastActivityRowsKey = "";
+  lastActivitySummaryKey = "";
+  lastActivityPaginationKey = "";
+  lastAttentionKey = "";
+  lastTraktProgressKey = "";
 }
 
 // The failed-only view is server-filtered so issues do not disappear just
@@ -2157,7 +2309,7 @@ export function toggleSyncActivityFailedOnly() {
 
 function syncActivitySummaryMarkup(text, { failedOnly = false, showToggle = false, hasIssues = false } = {}) {
   const toggle = showToggle
-    ? `<button class="button-ghost sync-activity-failed-toggle" type="button" data-sync-activity-failed-toggle="1" aria-pressed="${failedOnly ? "true" : "false"}">${failedOnly ? "Show all" : "Show only Failed"}</button>`
+    ? `<button class="button-ghost sync-activity-failed-toggle" type="button" data-sync-activity-failed-toggle="1" aria-pressed="${failedOnly ? "true" : "false"}">${failedOnly ? "Show all activity" : "Issues only"}</button>`
     : "";
   const issueClass = hasIssues ? " sync-activity-summary-text--issues" : "";
   return `<span class="sync-activity-summary-text${issueClass}">${escapeHtml(text)}</span>${toggle}`;
@@ -2167,6 +2319,9 @@ function renderTraktDispatchProgress() {
   const el = elements.syncActivityTraktProgress;
   if (!el) return;
   const progress = state.traktDispatchProgress;
+  const progressKey = renderSnapshot(progress || null);
+  if (progressKey === lastTraktProgressKey) return;
+  lastTraktProgressKey = progressKey;
   if (!progress || !progress.pending) {
     el.classList.add("hidden");
     el.textContent = "";
@@ -2189,10 +2344,18 @@ export function renderSyncActivity() {
   renderSyncActivityPagination();
 
   if (state.syncActivityLoading && !state.syncActivity.length) {
-    elements.syncActivityRows.innerHTML = `<div class="empty-log"><b>Loading sync activity</b><span>Fetching what has been synced recently.</span></div>`;
+    const loadingRowsKey = "loading";
+    if (loadingRowsKey !== lastActivityRowsKey) {
+      lastActivityRowsKey = loadingRowsKey;
+      elements.syncActivityRows.innerHTML = `<div class="empty-log"><b>Loading sync activity</b><span>Fetching what has been synced recently.</span></div>`;
+    }
     if (elements.syncActivitySummary) {
-      elements.syncActivitySummary.className = "sync-activity-summary";
-      elements.syncActivitySummary.innerHTML = syncActivitySummaryMarkup("Loading");
+      const loadingSummaryKey = "Loading";
+      if (loadingSummaryKey !== lastActivitySummaryKey) {
+        lastActivitySummaryKey = loadingSummaryKey;
+        elements.syncActivitySummary.className = "sync-activity-summary";
+        elements.syncActivitySummary.innerHTML = syncActivitySummaryMarkup("Loading");
+      }
     }
     renderSyncActivityPagination();
     return;
@@ -2202,7 +2365,8 @@ export function renderSyncActivity() {
   const pageRows = [...state.syncActivity];
   const failedGroups = pageRows.filter((group) => groupTone(group) === "error").length;
   const currentIssueGroupCount = Math.max(Number(state.syncActivityCurrentIssueGroupCount) || 0, 0);
-  const currentIssueCount = Math.max(Number(state.syncActivityCurrentIssueCount) || 0, 0);
+  const currentIssueCount = Math.max(Number(state.syncActivityCurrentIssueCount) || 0, 0)
+    + Math.max(Number(state.syncActivityMatchIssueCount) || 0, 0);
   const failedOnly = Boolean(state.syncActivityFailedOnly);
   const rows = failedOnly ? pageRows.filter((group) => groupTone(group) === "error") : pageRows;
   const pagination = { ...DEFAULT_PAGINATION, ...(state.syncActivityPagination || {}) };
@@ -2210,23 +2374,25 @@ export function renderSyncActivity() {
   const from = total ? Math.max(Number(pagination.from) || 1, 1) : 0;
   const to = total ? Math.max(Number(pagination.to) || pageRows.length, from) : 0;
 
-  if (elements.syncActivitySummary) {
+  const summaryText = !pageRows.length
+    ? (failedOnly
+      ? (query ? "Issues only: no matching media groups" : "Issues only: no media groups")
+      : (query ? "No matches" : "No activity"))
+    : (failedOnly
+      ? `Showing issues only: ${from}-${to} of ${total} media groups / ${pluralLabel(currentIssueCount, "current issue")}`
+      : `Showing ${from}-${to} of ${total} media groups / ${pluralLabel(currentIssueGroupCount, "media group")} with ${pluralLabel(currentIssueCount, "current issue")}`);
+  const summaryOptions = {
+    failedOnly,
+    showToggle: pageRows.length
+      ? currentIssueGroupCount > 0 || failedOnly || failedGroups > 0
+      : failedOnly,
+    hasIssues: currentIssueCount > 0,
+  };
+  const summaryKey = renderSnapshot({ text: summaryText, ...summaryOptions });
+  if (elements.syncActivitySummary && summaryKey !== lastActivitySummaryKey) {
+    lastActivitySummaryKey = summaryKey;
     elements.syncActivitySummary.className = "sync-activity-summary";
-    if (!pageRows.length) {
-      const emptyText = failedOnly
-        ? (query ? "Showing failed only: no matching media groups" : "Showing failed only: no media groups")
-        : (query ? "No matches" : "No activity");
-      elements.syncActivitySummary.innerHTML = syncActivitySummaryMarkup(emptyText, { failedOnly, showToggle: failedOnly, hasIssues: false });
-    } else {
-      const summaryText = failedOnly
-        ? `Showing failed only: ${from}-${to} of ${total} media groups / ${pluralLabel(currentIssueCount, "current issue")}`
-        : `Showing ${from}-${to} of ${total} media groups / ${pluralLabel(currentIssueGroupCount, "media group")} with ${pluralLabel(currentIssueCount, "current issue")}`;
-      elements.syncActivitySummary.innerHTML = syncActivitySummaryMarkup(summaryText, {
-        failedOnly,
-        showToggle: currentIssueGroupCount > 0 || failedOnly || failedGroups > 0,
-        hasIssues: currentIssueCount > 0,
-      });
-    }
+    elements.syncActivitySummary.innerHTML = syncActivitySummaryMarkup(summaryText, summaryOptions);
   }
 
   if (elements.syncActivityRetryAllFailed) {
@@ -2246,16 +2412,41 @@ export function renderSyncActivity() {
 
   if (!rows.length) {
     const emptyMarkup = failedOnly
-      ? `<div class="empty-log"><b>${query ? "No failed sync activity matches this search" : "No failed sync activity on this page"}</b><span>Successful media groups are hidden while Show only Failed is active.</span></div>`
+      ? `<div class="empty-log"><b>${query ? "No failed sync activity matches this search" : "No failed sync activity on this page"}</b><span>Successful media groups are hidden while Issues only is active.</span></div>`
       : query
         ? `<div class="empty-log"><b>No matching sync activity</b><span>Try another title, platform, action, or status.</span></div>`
         : `<div class="empty-log"><b>Nothing synced yet</b><span>Watches propagated to your media servers and trackers appear here, newest first.</span></div>`;
-    elements.syncActivityRows.innerHTML = emptyMarkup;
+    const emptyRowsKey = renderSnapshot({ mode: "empty", emptyMarkup, query, failedOnly, pageRows, pagination, retryableCount: state.syncActivityRetryableCount });
+    if (emptyRowsKey !== lastActivityRowsKey) {
+      lastActivityRowsKey = emptyRowsKey;
+      elements.syncActivityRows.innerHTML = emptyMarkup;
+    }
     renderSyncActivityPagination();
     return;
   }
 
-  // A background refresh replaces the markup, so rows the reader has opened are
+  const rowsKey = renderSnapshot({
+    mode: "rows",
+    rows,
+    query,
+    failedOnly,
+    pagination,
+    feedback: [...activityFeedback.entries()],
+    notes: [...activityNotes.entries()],
+    retrying: [...retryingActivityIds].sort(),
+    bulkRetryProgress: bulkRetryProgress ? {
+      index: bulkRetryProgress.index,
+      total: bulkRetryProgress.total,
+      completedIds: [...(bulkRetryProgress.completedIds || [])].sort(),
+    } : null,
+    bulkRetryQueueIds: [...bulkRetryQueueIds].sort(),
+    bulkRetryQueueGroupKeys: [...bulkRetryQueueGroupKeys.entries()],
+    groupRetryProgress: [...groupRetryProgress.entries()],
+  });
+  if (rowsKey === lastActivityRowsKey) return;
+  lastActivityRowsKey = rowsKey;
+
+  // A changed snapshot replaces the markup, so rows the reader has opened are
   // reopened afterwards rather than snapping shut under them.
   const expandedKeys = new Set(
     [...elements.syncActivityRows.querySelectorAll('.sync-activity-row[aria-expanded="true"]')].map((row) => row.dataset.activityGroupKey),
@@ -2290,14 +2481,19 @@ export async function loadSyncActivity({ force = false, page } = {}) {
     if (!response.ok) throw new Error(body.error || `Sync activity load failed with ${response.status}`);
     if (requestToken !== loadRequestToken || requestedSearch !== state.syncActivitySearch) return state.syncActivity;
     state.syncActivity = Array.isArray(body.groups) ? body.groups : [];
+    state.syncActivityMatchReport = body.matchReport && typeof body.matchReport === "object" ? body.matchReport : null;
+    state.syncActivityMatchIssueCount = unresolvedMatchIssueCount();
     const pageIssueGroupCount = state.syncActivity.filter((group) => groupTone(group) === "error").length;
     const pageIssueCount = state.syncActivity.reduce((totalIssues, group) => totalIssues + Math.max(Number(group.problemCount) || 0, 0), 0);
     state.syncActivityCurrentIssueGroupCount = Object.prototype.hasOwnProperty.call(body, "currentIssueGroupCount")
-      ? Math.max(Number(body.currentIssueGroupCount) || 0, 0)
-      : pageIssueGroupCount;
+      ? Math.max(Number(body.currentIssueGroupCount) || 0, 0) + (state.syncActivityMatchIssueCount ? 1 : 0)
+      : pageIssueGroupCount + (state.syncActivityMatchIssueCount ? 1 : 0);
     state.syncActivityCurrentIssueCount = Object.prototype.hasOwnProperty.call(body, "currentIssueCount")
       ? Math.max(Number(body.currentIssueCount) || 0, 0)
       : pageIssueCount;
+    // Keep the activity API's sync-history count separate from the match
+    // report count; currentActivityIssueCount() combines them for the global
+    // attention state and the summary below adds the visible match issues.
     const pageRetryableCount = pageIssueCount;
     state.syncActivityRetryableCount = Object.prototype.hasOwnProperty.call(body, "retryableCount")
       ? Math.max(Number(body.retryableCount) || 0, 0)

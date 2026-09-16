@@ -1,6 +1,6 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.2.1";
-import { state } from "./state.js?v=1.1.1.2.1";
-import { safeImageUrl, escapeAttribute, isDemoMode } from "./utils.js?v=1.1.1.2.1";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.3.1";
+import { state } from "./state.js?v=1.1.1.3.1";
+import { safeImageUrl, escapeAttribute, isDemoMode } from "./utils.js?v=1.1.1.3.1";
 
 // /api/poster resolves most requests from an already-cached DB row or webp
 // file (no outbound API call); the actual TMDB fallback downloads are
@@ -330,6 +330,16 @@ export function posterOverflowMenu(item = {}, options = {}) {
   // them) and misroute a grid unwatch into a no-op "reopen the modal" branch.
   const showTitleAttr = showTitle ? ` data-poster-menu-show-title="${escapeAttribute(showTitle)}"` : "";
   const menuModeAttr = menuMode ? ` data-poster-menu-mode="${escapeAttribute(menuMode)}"` : "";
+  const showUpNextTitle = showTitle || (mediaType === "tv" ? title : "");
+  const showUpNextTmdbId = isEpisode ? (item.show_tmdb_id || item.showTmdbId || "") : (item.tmdb_id || item.tmdbId || "");
+  const showUpNextTvdbId = isEpisode ? (item.show_tvdb_id || item.showTvdbId || "") : (item.tvdb_id || item.tvdbId || "");
+  const showUpNextImdbId = isEpisode ? (item.show_imdb_id || item.showImdbId || "") : (item.imdb_id || item.imdbId || "");
+  const showUpNextAttrs = mediaType === "tv" ? `
+      data-poster-menu-up-next-show-title="${escapeAttribute(showUpNextTitle)}"
+      data-poster-menu-up-next-show-tmdb-id="${escapeAttribute(showUpNextTmdbId)}"
+      data-poster-menu-up-next-show-tvdb-id="${escapeAttribute(showUpNextTvdbId)}"
+      data-poster-menu-up-next-show-imdb-id="${escapeAttribute(showUpNextImdbId)}"
+      data-poster-menu-up-next-show-poster-url="${escapeAttribute(item.show_poster_url || item.showPosterUrl || item.poster_url || item.posterUrl || "")}"` : "";
   const personalActionAttrs = menuMode === "personal" && personalAction
     ? ` data-poster-menu-personal-action="${escapeAttribute(personalAction)}" data-poster-menu-personal-key="${escapeAttribute(personalKey)}" data-poster-menu-personal-remove-label="${escapeAttribute(personalRemoveLabel)}"`
     : "";
@@ -394,7 +404,7 @@ export function posterOverflowMenu(item = {}, options = {}) {
       data-poster-menu-media-type="${escapeAttribute(mediaType)}"
       data-poster-menu-kind="${escapeAttribute(kind)}"
       data-poster-menu-label="${escapeAttribute(label)}"
-      data-poster-menu-grid="1"${showTitleAttr}${menuModeAttr}${personalActionAttrs}${ratingAttrs}${upNextAttrs}${discoverAttrs}
+      data-poster-menu-grid="1"${showTitleAttr}${menuModeAttr}${personalActionAttrs}${ratingAttrs}${upNextAttrs}${showUpNextAttrs}${discoverAttrs}
     >&#8942;</button>
   `;
 }

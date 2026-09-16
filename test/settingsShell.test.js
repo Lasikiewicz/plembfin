@@ -11,7 +11,8 @@ test("settings routes resolve flat sections and panels", () => {
   assert.equal(parseSettingsRoute("/settings/storage").panel, "general");
   assert.equal(parseSettingsRoute("/settings/restore").backupTab, "restore");
   assert.deepEqual(parseSettingsRoute("/settings/account").subPanels, ["general-login"]);
-  assert.equal(parseSettingsRoute("/settings/sync-issues").path, "/settings/sync-issues");
+  assert.equal(settingsPathForLegacy("/settings/sync-match-report"), "/sync-activity");
+  assert.equal(settingsPathForLegacy("/settings/sync-issues"), "/sync-activity");
   assert.equal(parseSettingsRoute("/settings/force-sync").panel, "sync");
   assert.deepEqual(parseSettingsRoute("/settings/force-sync").subPanels, ["sync-tools"]);
 });
@@ -61,7 +62,7 @@ test("parent group routes aggregate every child's panel into one view list", () 
     ["tools"],
   );
   const sync = parseSettingsRoute("/settings/sync");
-  assert.deepEqual(sync.subPanels, ["sync-tuning", "sync-tools", "sync-issues", "sync-history"]);
+  assert.deepEqual(sync.subPanels, ["sync-tuning", "sync-tools", "sync-history"]);
 });
 
 test("legacy and invalid settings routes normalize safely", () => {
@@ -78,7 +79,7 @@ test("legacy and invalid settings routes normalize safely", () => {
   assert.equal(parseSettingsRoute("/settings/data/import").path, "/settings/trakt");
   assert.equal(parseSettingsRoute("/settings/system/advanced").path, "/settings/database-repairs");
   assert.equal(parseSettingsRoute("/settings/tools").path, "/settings/tools");
-  assert.equal(parseSettingsRoute("/sync").path, "/settings/sync-issues");
+  assert.equal(parseSettingsRoute("/sync").path, "/settings/sync");
   assert.equal(parseSettingsRoute("/logs").path, "/settings/logs");
   assert.equal(settingsPathForLegacy("api-keys"), "/settings/metadata");
   assert.equal(settingsPathForLegacy("about"), "/about");

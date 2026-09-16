@@ -11,9 +11,13 @@ const { manualWatchMediaFromRecord } = await import("../server/src/routes/sync.j
 // release day") reached outbound dispatch with no watched_at at all.
 // traktClient.js's syncPayload falls back to Date.now() whenever
 // media.watched_at is missing, so the historical date the user picked in
-// Plembfin got silently replaced with "right now" on Trakt specifically -
-// Plex/Emby/Jellyfin's mark-played APIs don't take a date at all, so this
-// only ever showed up on Trakt.
+// Plembfin got silently replaced with "right now" on Trakt.
+//
+// This field now has two more consumers: markEmbyPlayed sends it as
+// `DatePlayed` and markJellyfinPlayed as `datePlayed`, so dropping it here
+// would lose the original date on those servers too. Plex remains the
+// exception - `/:/scrobble` takes no date and always records the Plex
+// server's own clock. See server/src/utils/watchSyncPolicy.js.
 test("manualWatchMediaFromRecord carries the record's watched_at through to outbound dispatch", () => {
   const media = manualWatchMediaFromRecord({
     title: "Trying - S05E06",

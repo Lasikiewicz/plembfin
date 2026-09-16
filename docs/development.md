@@ -21,11 +21,14 @@ npm run seed:demo # insert fictional demo movies/shows with generated posters
 `npm start` is the canonical local application command and defaults to the `develop`
 channel. The `dev` command uses the same channel with file watching enabled. Set
 `BUILD_CHANNEL=release` or `BUILD_CHANNEL=alpha` explicitly when you need to inspect
-another local channel. When the server is started by Codex on Windows, the command must
-run through the approved elevated network-enabled execution path; do not launch it from
-the restricted sandbox. The restricted sandbox can allow the UI/API to listen on port
-`5055` while denying outbound connections to Plex, Emby, Jellyfin, Trakt, TMDB, or TVDB
-with `EACCES`.
+another local channel. When the user says **“Start the server”**, treat that as the
+Plembfin application-server workflow: start or reuse `npm start` (or `npm run dev` when
+auto-reload is requested) on `http://localhost:5055`. When the server is started by
+Codex on Windows, the command must run through `exec_command` with
+`sandbox_permissions: "require_escalated"` and a justification that network access is
+needed for connected providers. Do not launch it from the restricted sandbox. The
+restricted sandbox can allow the UI/API to listen on port `5055` while denying outbound
+connections to Plex, Emby, Jellyfin, Trakt, TMDB, or TVDB with `EACCES`.
 
 This is an execution-environment requirement, not a second app mode: an ordinary
 PowerShell window on the host can continue to use `npm start` or `npm run dev` directly.
@@ -40,7 +43,7 @@ There is no separate linter configured. A local `.env` at the repo root is loade
 `server/src/env.js` (existing env vars win). Data lands in `<repo>/data/` (override
 with `DATA_DIR`).
 
-When implementation work completes an item in [`TODO.md`](../TODO.md), remove it in
+When implementation work completes an item in [`plan/todo.md`](../plan/todo.md), remove it in
 the same change and refresh the relevant documentation and README section if the
 completed work changes user-visible behavior.
 

@@ -41,9 +41,9 @@ const SECTIONS = {
   },
   sync: {
     label: "Sync",
-    description: "Sync tuning, sync tools, sync issues, and history",
+    description: "Sync tuning, sync tools, and history",
     panel: "sync",
-    subPanels: ["sync-tuning", "sync-tools", "sync-issues", "sync-history"],
+    subPanels: ["sync-tuning", "sync-tools", "sync-history"],
   },
   backup: {
     label: "Backup",
@@ -53,9 +53,9 @@ const SECTIONS = {
   },
   tools: {
     label: "Tools",
-    description: "Guided setup, database repairs, library rebuilds, and wiping data",
+    description: "Database repairs, library rebuilds, and wiping data",
     panel: "tools",
-    subPanels: ["tools-guided-setup", "tools-repairs", "tools-sync", "tools-wipe-data"],
+    subPanels: ["tools-repairs", "tools-sync", "tools-wipe-data"],
   },
   advanced: {
     label: "Advanced",
@@ -74,11 +74,12 @@ const SECTIONS = {
   },
   "sync-tuning": {
     label: "Sync tuning",
-    description: "Control watched flags, sync thresholds, and whether Up Next updates connected apps",
+    description: "Control watched flags, historical Plex syncing, sync thresholds, and whether Up Next updates connected apps",
     panel: "sync",
     subPanels: ["sync-tuning"],
     subSections: [
       { id: "sync-field-watch_import_mode", label: "Watched Flag Policy", description: "Choose now, release day, episode timing, or manual review for app-marked watches" },
+      { id: "sync-field-plex_historical_watched_sync", label: "Sync historical watched items to Plex", description: "Whether imports, restores, backdated marks, and library-wide pushes send historical watched state to Plex; Emby, Jellyfin, and Trakt always keep the original date" },
       { id: "sync-field-watched_threshold", label: "Watched Threshold (%)", description: "Playback progress percentage at which a play counts as watched" },
       { id: "sync-field-min_resume_position", label: "Minimum Resume Position (sec)", description: "Minimum playback position before a stopped play is saved as a resume point" },
       { id: "sync-field-active_session_ttl", label: "Active Session TTL (min)", description: "How long a now playing session is kept without an update before it's considered stale" },
@@ -164,17 +165,6 @@ const SECTIONS = {
     subPanels: ["refresh-metadata"],
     isDisplayOnly: true,
   },
-  "sync-issues": {
-    label: "Sync issues",
-    description: "Shows problems propagating watched states between media servers. Click an issue to view telemetry, retry sync, or fix matches",
-    panel: "sync",
-    subPanels: ["sync-issues"],
-    subSections: [
-      { id: "sync-issues-status", label: "No sync issues", description: "All watched-state dispatches are up to date" },
-      { id: "syncMatchReport", label: "Cross-Platform Match Report", description: "Media each platform could not find during sync" },
-    ],
-    isDisplayOnly: true,
-  },
   "sync-history": {
     label: "Sync history",
     description: "View the history of sync operations",
@@ -236,13 +226,20 @@ const SECTIONS = {
     label: "Connections",
     description: "Connect Trakt or Seerr, or import watch history",
     panel: "tools",
-    subPanels: ["tools-migration", "seerr"],
+    subPanels: ["tools-migration", "tools-tautulli", "seerr"],
   },
   trakt: {
     label: "Trakt",
     description: "Connect live two-way watched sync or import Trakt exports",
     panel: "tools",
     subPanels: ["tools-migration"],
+    isDisplayOnly: true,
+  },
+  tautulli: {
+    label: "Tautulli",
+    description: "Import one user's completed Tautulli watch history with an identity-aware preview",
+    panel: "tools",
+    subPanels: ["tools-tautulli"],
     isDisplayOnly: true,
   },
   "system-integrity": {
@@ -272,13 +269,6 @@ const SECTIONS = {
     description: "Artwork and metadata cache usage",
     panel: "general",
     subPanels: ["cache"],
-    isDisplayOnly: true,
-  },
-  "guided-setup": {
-    label: "Guided setup",
-    description: "Reopen the first-run setup wizard",
-    panel: "tools",
-    subPanels: ["tools-guided-setup"],
     isDisplayOnly: true,
   },
   "database-repairs": {
@@ -351,8 +341,8 @@ const SECTION_GROUPS = [
   {
     id: "connections",
     label: "Connections",
-    sections: ["trakt", "seerr"],
-    displayOnly: ["trakt", "seerr"],
+    sections: ["trakt", "tautulli", "seerr"],
+    displayOnly: ["trakt", "tautulli", "seerr"],
   },
   {
     id: "metadata",
@@ -363,8 +353,8 @@ const SECTION_GROUPS = [
   {
     id: "sync",
     label: "Sync",
-    sections: ["sync-tuning", "sync-tools", "sync-issues", "sync-history"],
-    displayOnly: ["sync-tuning", "sync-tools", "sync-issues", "sync-history"],
+    sections: ["sync-tuning", "sync-tools", "sync-history"],
+    displayOnly: ["sync-tuning", "sync-tools", "sync-history"],
   },
   {
     id: "backup",
@@ -381,8 +371,8 @@ const SECTION_GROUPS = [
   {
     id: "tools",
     label: "Tools",
-    sections: ["guided-setup", "database-repairs", "library-rebuilds", "wipe-data"],
-    displayOnly: ["guided-setup", "database-repairs", "library-rebuilds", "wipe-data"],
+    sections: ["database-repairs", "library-rebuilds", "wipe-data"],
+    displayOnly: ["database-repairs", "library-rebuilds", "wipe-data"],
   },
   {
     id: "logs",
@@ -405,7 +395,7 @@ const GROUP_DESCRIPTIONS = {
   webhooks: "Webhook listener and background scheduler endpoints.",
   connections: "Connect Trakt or Seerr, or import watch history.",
   metadata: "Configure TMDB, TVDB, Fanart.tv, and OMDb, and refresh cached metadata.",
-  sync: "Tune sync behavior, run sync tools, and review sync issues and history.",
+  sync: "Tune sync behavior, run sync tools, and inspect history.",
   backup: "Schedule local and remote backups of watch history and full Plembfin data.",
   restore: "Restore watch history or a full backup from local files or a remote destination.",
   tools: "Reopen guided setup, repair the database, rebuild the library, and wipe data.",
@@ -416,13 +406,15 @@ const GROUP_DESCRIPTIONS = {
 const LEGACY_PATHS = {
   "/settings/media-servers-group": "/settings/media-servers",
   "/settings/sync-group": "/settings/sync",
+  "/settings/sync-issues": "/sync-activity",
+  "/settings/sync-match-report": "/sync-activity",
   "/settings/backup-restore-group": "/settings/backup",
   "/settings/backup-restore": "/settings/backup",
   "/settings/backup-settings": "/settings/backup",
   "/settings/tools-group": "/settings/tools",
   "/settings/advanced-group": "/settings/general",
   "/settings/advanced": "/settings/general",
-  "/sync": "/settings/sync-issues",
+  "/sync": "/settings/sync",
   "/logs": "/settings/logs",
   "/settings/apps": "/settings/media-servers",
   "/settings/api-keys": "/settings/metadata",
@@ -449,12 +441,12 @@ const LEGACY_PATHS = {
   "/settings/system/health": "/settings/system-integrity",
   "/settings/backups": "/settings/backup",
   "/settings/webhook-guides": "/settings/setup-guides",
-  "/settings/system/sync": "/settings/sync-issues",
+  "/settings/system/sync": "/sync-activity",
   "/settings/system/logs": "/settings/logs",
   "/settings/system/storage": "/settings/storage",
   "/settings/system/about": "/about",
   "/settings/system/advanced": "/settings/database-repairs",
-  "/settings/sync/issues": "/settings/sync-issues",
+  "/settings/sync/issues": "/sync-activity",
   "/settings/sync/history": "/settings/sync-history",
   "/settings/sync/tuning": "/settings/sync-tuning",
 };
@@ -464,7 +456,7 @@ const LEGACY_TABS = {
   "api-keys": "/settings/metadata",
   backups: "/settings/backup",
   tools: "/settings/database-repairs",
-  sync: "/settings/sync-issues",
+  sync: "/settings/sync",
   logs: "/settings/logs",
   cache: "/settings/storage",
   about: "/about",
@@ -594,16 +586,6 @@ function renderSettingsSidebar() {
       childButton.textContent = definition.label;
       fragment.append(childButton);
 
-      for (const subSection of definition.subSections || []) {
-        const subButton = document.createElement("button");
-        subButton.type = "button";
-        subButton.className = "settings-tab settings-group-grandchild hidden";
-        subButton.dataset.settingsSubsection = subSection.id;
-        subButton.dataset.settingsParentSection = sectionId;
-        subButton.dataset.settingsPath = `${parentPath}#${subSection.id}`;
-        subButton.textContent = subSection.label;
-        fragment.append(subButton);
-      }
     }
   }
   menu.insertBefore(fragment, lockButton || null);
@@ -692,10 +674,12 @@ export function prepareHelpReadMore() {
     if (!content) {
       content = document.createElement("div");
       content.className = "help-content";
+      const heading = article.querySelector(":scope > .section-heading");
       [...article.children].forEach((child) => {
-        if (!child.matches(".help-read-more")) content.append(child);
+        if (!child.matches(".help-read-more") && child !== heading) content.append(child);
       });
-      article.prepend(content);
+      if (heading) heading.after(content);
+      else article.prepend(content);
     }
 
     let button = article.querySelector(":scope > .help-read-more");
@@ -721,7 +705,15 @@ export function prepareHelpReadMore() {
       article.append(button);
     }
 
+    if (article.dataset.helpStatic === "true") {
+      button.remove();
+      article.classList.remove("help-collapsed", "help-expanded");
+      article.style.maxHeight = "";
+      return;
+    }
+
     if (article.classList.contains("help-expanded")) {
+      button.classList.remove("hidden");
       button.textContent = "Read less";
       article.style.maxHeight = "";
       return;
@@ -730,17 +722,19 @@ export function prepareHelpReadMore() {
     const compStyle = getComputedStyle(article);
     const paddingTop = parseFloat(compStyle.paddingTop) || 0;
     const paddingBottom = parseFloat(compStyle.paddingBottom) || 0;
-    const fullHelpHeight = content.scrollHeight + paddingTop + paddingBottom + button.offsetHeight + 12;
+    const headingHeight = article.querySelector(":scope > .section-heading")?.offsetHeight || 0;
+    const fullHelpHeight = content.scrollHeight + headingHeight + paddingTop + paddingBottom;
 
     if (fullHelpHeight > targetHeight + 2) {
+      button.classList.remove("hidden");
       article.classList.add("help-collapsed");
       article.classList.remove("help-expanded");
       article.style.maxHeight = `${targetHeight}px`;
       button.textContent = "Read more";
     } else {
+      button.classList.add("hidden");
       article.classList.remove("help-collapsed", "help-expanded");
       article.style.maxHeight = "";
-      button.textContent = "Read more";
     }
   });
 

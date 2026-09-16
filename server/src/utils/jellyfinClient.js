@@ -3,6 +3,7 @@ import { compoundEpisodeItemsForMedia } from "./compoundEpisode.js";
 import { restoreLookupKey } from "./restoreLookupCache.js";
 import { nativeProviderItemIds } from "./providerItemIds.js";
 import { jellyfinAuthHeaders, jellyfinCredential } from "./jellyfinAuth.js";
+import { canonicalPlayedDateIso } from "./watchSyncPolicy.js";
 
 function trimTrailingSlash(value = "") {
   return String(value).replace(/\/+$/, "");
@@ -371,10 +372,18 @@ export async function markJellyfinPlayed(config, media) {
       return { platform: "jellyfin", status: "not_found" };
     }
 
+    // Jellyfin's mark-played request accepts the original play date as a
+    // `datePlayed` query parameter, so an import or a backdated manual mark
+    // keeps its real date instead of being recorded as watched today.
+    const datePlayed = canonicalPlayedDateIso(media);
     let lastHttpStatus = 200;
     const markJobs = items.map(async (item) => {
-      const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${config.userId}/PlayedItems/${item.Id}`);
-      const response = await fetchWithTimeout(url, {
+      const buildUrl = (withDate) => {
+        const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${config.userId}/PlayedItems/${item.Id}`);
+        if (withDate && datePlayed) url.searchParams.set("datePlayed", datePlayed);
+        return url;
+      };
+      const requestInit = {
         method: "POST",
         headers: {
           ...authHeaders(config),
@@ -382,13 +391,23 @@ export async function markJellyfinPlayed(config, media) {
         },
         lane: media?.lane || "sync",
         body: JSON.stringify({}),
-      });
+      };
+
+      let response = await fetchWithTimeout(buildUrl(true), requestInit);
+      // Server versions that do not accept datePlayed answer with a 4xx rather
+      // than ignoring it. The watched state must still land, so retry without
+      // the date. A 404 is left alone - that is a missing item, and the
+      // caller's identity-retry below owns it.
+      if (!response.ok && datePlayed && response.status >= 400 && response.status < 500 && response.status !== 404) {
+        console.log("Jellyfin rejected datePlayed; retrying mark played without the original date", { itemId: item.Id, status: response.status });
+        response = await fetchWithTimeout(buildUrl(false), requestInit);
+      }
       if (!response.ok) {
         const error = new Error(`Jellyfin mark played failed with status ${response.status} for item ${item.Id}`);
         error.status = response.status;
         throw error;
       }
-      console.log("Jellyfin item marked played", { itemId: item.Id });
+      console.log("Jellyfin item marked played", { itemId: item.Id, datePlayed: datePlayed || "server time" });
       lastHttpStatus = response.status;
       return response.status;
     });

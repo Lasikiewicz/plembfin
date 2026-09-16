@@ -1,7 +1,7 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.2.1";
-import { state, elements } from "./state.js?v=1.1.1.2.1";
-import { escapeHtml, escapeAttribute, formatNumber, formatDate } from "./utils.js?v=1.1.1.2.1";
-import { openSettingsEditModal, openSettingsPickerModal, renderServiceCardGrid } from "./settings-ui.js?v=1.1.1.2.1";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.3.1";
+import { state, elements } from "./state.js?v=1.1.1.3.1";
+import { escapeHtml, escapeAttribute, formatNumber, formatDate } from "./utils.js?v=1.1.1.3.1";
+import { openSettingsEditModal, openSettingsPickerModal, renderServiceCardGrid } from "./settings-ui.js?v=1.1.1.3.1";
 
 let _setMessage = () => {};
 let _openConfirmDialog = async () => false;
@@ -331,6 +331,16 @@ function formatBytes(bytes) {
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
 }
+function setEnabledStatus(element, enabled, loading = false) {
+  if (!element) return;
+  if (loading) {
+    element.textContent = "Loading";
+    element.className = "status-pill status-warning";
+    return;
+  }
+  element.textContent = enabled ? "Enabled" : "Disabled";
+  element.className = `status-pill status-${enabled ? "ready" : "muted"}`;
+}
 // Restore lists show only the two newest backups; the rest live inside a
 // collapsed disclosure so long histories don't dominate the page.
 function collapseOlderRows(rows) {
@@ -341,8 +351,9 @@ export function renderWatchBackups() {
   if (!elements.watchBackupList) return;
   const data = state.watchBackups;
   if (!data) {
-    elements.watchBackupSummary && (elements.watchBackupSummary.textContent = state.watchBackupsLoading ? "Loading" : "Not loaded");
-    elements.watchBackupSummary && (elements.watchBackupSummary.className = `status-pill status-${state.watchBackupsLoading ? "warning" : "muted"}`);
+    setEnabledStatus(elements.watchBackupSummary, false, state.watchBackupsLoading);
+    setEnabledStatus(elements.remoteWatchBackupSummary, false, state.watchBackupsLoading);
+    setEnabledStatus(elements.backupDestinationSummary, false, state.watchBackupsLoading);
     const loadingCopy = `<div class="empty-log"><b>${state.watchBackupsLoading ? "Loading backups..." : "Backups not loaded"}</b><span>Watch-history backups and Plembfin backups restore from separate sections.</span></div>`;
     elements.watchBackupList.innerHTML = loadingCopy;
     if (elements.remoteWatchBackupList) elements.remoteWatchBackupList.innerHTML = loadingCopy;
@@ -360,8 +371,8 @@ export function renderWatchBackups() {
     elements.remoteWatchBackupEnabled && (elements.remoteWatchBackupEnabled.checked = Boolean(config.remoteEnabled));
     elements.remoteWatchBackupTime && (elements.remoteWatchBackupTime.value = config.remoteTime || "03:00");
     elements.remoteWatchBackupRetention && (elements.remoteWatchBackupRetention.value = String(config.remoteRetention || 14));
-    elements.watchBackupSummary && (elements.watchBackupSummary.textContent = config.enabled ? "Scheduled" : "Disabled");
-    elements.watchBackupSummary && (elements.watchBackupSummary.className = `status-pill status-${config.enabled ? "ready" : "muted"}`);
+    setEnabledStatus(elements.watchBackupSummary, Boolean(config.enabled));
+    setEnabledStatus(elements.remoteWatchBackupSummary, Boolean(config.remoteEnabled));
     const localPathEl = document.querySelector("#watchBackupLocalPath");
     if (localPathEl && data.backupsDir) localPathEl.textContent = data.backupsDir;
     if (elements.watchBackupRuntime) {
@@ -635,6 +646,7 @@ function openBackupDestinationPicker() {
 export function renderBackupDestinationCards() {
   const destinations = Array.isArray(state.watchBackups?.destinations) ? state.watchBackups.destinations : [];
   const statusMap = state.watchBackups?.runtime?.destinations || {};
+  setEnabledStatus(elements.backupDestinationSummary, destinations.some((destination) => destination.enabled));
   renderServiceCardGrid(elements.backupDestinationCards, {
     items: destinations.map((destination) => ({
       id: destination.id,
@@ -740,8 +752,8 @@ export function renderPlembfinBackups() {
   if (!elements.plembfinBackupList) return;
   const data = state.plembfinBackups;
   if (!data) {
-    elements.plembfinBackupSummary && (elements.plembfinBackupSummary.textContent = state.plembfinBackupsLoading ? "Loading" : "Not loaded");
-    elements.plembfinBackupSummary && (elements.plembfinBackupSummary.className = `status-pill status-${state.plembfinBackupsLoading ? "warning" : "muted"}`);
+    setEnabledStatus(elements.plembfinBackupSummary, false, state.plembfinBackupsLoading);
+    setEnabledStatus(elements.plembfinBackupRemoteSummary, false, state.plembfinBackupsLoading);
     const loadingCopy = `<div class="empty-log"><b>${state.plembfinBackupsLoading ? "Loading backups..." : "Backups not loaded"}</b><span>Watch-history backups and Plembfin backups restore from separate sections.</span></div>`;
     elements.plembfinBackupList.innerHTML = loadingCopy;
     return;
@@ -768,8 +780,8 @@ export function renderPlembfinBackups() {
     elements.plembfinBackupRemotePassphrase.placeholder = config.remotePassphraseStored ? "Saved - leave blank to keep" : "";
   }
   
-  elements.plembfinBackupSummary && (elements.plembfinBackupSummary.textContent = config.enabled ? "Scheduled" : "Disabled");
-  elements.plembfinBackupSummary && (elements.plembfinBackupSummary.className = `status-pill status-${config.enabled ? "ready" : "muted"}`);
+  setEnabledStatus(elements.plembfinBackupSummary, Boolean(config.enabled));
+  setEnabledStatus(elements.plembfinBackupRemoteSummary, Boolean(config.remoteEnabled));
   
   if (elements.plembfinBackupRuntime) {
     elements.plembfinBackupRuntime.innerHTML = `
@@ -1077,14 +1089,14 @@ export async function saveAppearanceSettings() {
   applyAppearanceToBody(prefs);
 
   if (state.activeShowModalKey) {
-    const { openShowInlineDetail, renderImmersiveShowModal } = await import("./media-detail-show.js?v=1.1.1.2.1");
+    const { openShowInlineDetail, renderImmersiveShowModal } = await import("./media-detail-show.js?v=1.1.1.3.1");
     if (state.mediaDetailInline) {
       openShowInlineDetail(state.activeShowModalKey, state.activeShowModalSeason).catch(() => null);
     } else {
       renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason).catch(() => null);
     }
   } else if (state.activeMovieTmdbId || state.activeMovieModalId) {
-    const { openMovieImmersiveModalByTmdbId, openMovieImmersiveModal } = await import("./media-detail-movie.js?v=1.1.1.2.1");
+    const { openMovieImmersiveModalByTmdbId, openMovieImmersiveModal } = await import("./media-detail-movie.js?v=1.1.1.3.1");
     if (state.activeMovieTmdbId) {
       openMovieImmersiveModalByTmdbId(state.activeMovieTmdbId).catch(() => null);
     } else if (state.activeMovieModalId) {

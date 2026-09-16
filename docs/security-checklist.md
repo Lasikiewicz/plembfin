@@ -24,6 +24,9 @@ the checks to complete before exposing it beyond a trusted local network.
   the shared timeout, redirect, and URL-validation boundary.
 - Plex and YouTube credentials are sent in request headers rather than URL query
   parameters.
+- Tautulli is the compatibility exception: its REST API uses the `apikey` query
+  parameter on supported older versions. Protect Tautulli and reverse-proxy access
+  logs accordingly; Plembfin does not write outbound URLs to its own diagnostics.
 - Webhook access logs redact sensitive query parameters.
 - Configured media-server URLs are administrator-controlled destinations; keep the
   Plembfin administration surface behind a trusted network, VPN, or authenticated

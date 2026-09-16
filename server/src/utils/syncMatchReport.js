@@ -12,6 +12,16 @@ const TARGET_LINE_RE = /^(?:Target\s+)?(Plex|Emby|Jellyfin)\s+(?:progress\s+)?st
 
 const SAMPLE_LIMIT = 20;
 
+// A missing provider id means Plembfin never established the media identity.
+// A provider id plus a missing library item is a cross-library availability
+// difference, not a match issue, so it must not raise Sync Activity attention.
+export function isUnresolvedMatchSample(sample = {}) {
+  if (sample.imdb_id || sample.tmdb_id || sample.tvdb_id) return false;
+  const key = String(sample.media_key || "");
+  if (!key) return true;
+  return !/:(imdb|tmdb|tvdb):/.test(key);
+}
+
 function telemetryLineValue(value = "", label = "") {
   const prefix = `${label}:`.toLowerCase();
   const line = String(value || "").split(/\r?\n/).find((item) => item.toLowerCase().startsWith(prefix));
@@ -122,4 +132,26 @@ export function buildSyncMatchReport(rows = []) {
     report.totalUnmatchedRows += finalized.rowCount;
   }
   return report;
+}
+
+export function unresolvedSyncMatchReport(report = {}) {
+  const next = {
+    scannedRows: Number(report.scannedRows) || 0,
+    totalUnmatchedRows: 0,
+    platforms: {},
+  };
+  for (const [platform, stats] of Object.entries(report.platforms || {})) {
+    const samples = (Array.isArray(stats?.samples) ? stats.samples : []).filter(isUnresolvedMatchSample);
+    const rowCount = samples.reduce((sum, sample) => sum + (Number(sample.rowCount) || 1), 0);
+    const normalized = {
+      rowCount,
+      uniqueMediaCount: samples.length,
+      movies: samples.filter((sample) => sample.media_type === "movie").length,
+      episodes: samples.filter((sample) => sample.media_type === "episode").length,
+      samples,
+    };
+    next.platforms[platform] = normalized;
+    next.totalUnmatchedRows += rowCount;
+  }
+  return next;
 }

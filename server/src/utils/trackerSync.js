@@ -346,6 +346,17 @@ async function pollTrakt({ reconcile = false } = {}) {
     initialSyncMode: publicConnection.initialSyncMode,
     reconcileKeys,
   });
+  // Two ways to reach a bulk historical projection, and neither can be worked
+  // out from an entry's timestamp: the import mode's very first poll, and any
+  // explicit reconcile (the onboarding Trakt import and the Import from Trakt
+  // action both ask for one). "Start from current state" never reaches this
+  // branch with anything to apply, so it creates no outbound work at all.
+  //
+  // A genuinely new watch that lands inside a reconcile pass is tagged the same
+  // way. That is a deliberate trade: the pass exists to project history, and
+  // mislabelling one minute's activity is far cheaper than letting a whole
+  // account's backfill through a policy the user turned off.
+  const historicalTraktImport = reconcile || (!baseline && publicConnection.initialSyncMode === "import");
   // A "watched" mark just pushed to Trakt does not always show up in the
   // very next watched-snapshot fetch - Trakt's API can lag behind its own
   // write for several seconds. Without this guard, that stale snapshot looks
@@ -400,7 +411,17 @@ async function pollTrakt({ reconcile = false } = {}) {
     if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active", watched: 0, unwatched: 0 };
     await runTransitionBatch(watched, async (item) => {
       try {
-        const media = { ...item.media, source: "trakt", watched_at: new Date(item.watchedAt || Date.now()).toISOString() };
+        const media = {
+          ...item.media,
+          source: "trakt",
+          watched_at: new Date(item.watchedAt || Date.now()).toISOString(),
+          // Every later poll reports genuine new activity, but the very first
+          // poll of an "Import all existing Trakt watched state" connection is
+          // a bulk historical import. The provider matrix needs that stated
+          // explicitly (see watchSyncPolicy.js) - an entry's timestamp alone
+          // proves nothing, since a freshly imported play can be from today.
+          ...(historicalTraktImport ? { syncIntent: "import" } : {}),
+        };
         const shouldDefer = () => {
           const latestOutbound = findLatestTrackerOutboundSince(
             "trakt",

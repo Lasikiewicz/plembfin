@@ -48,6 +48,7 @@ import { dispatchTraktWatchStateBatch } from "../utils/trackerDispatcher.js";
 import { buildWatchProvenance, provenanceTelemetryLines } from "../utils/watchProvenance.js";
 import { releaseDateForItem, resolveWatchImportDate, runtimeMinutesForSourceItem } from "../utils/watchDates.js";
 import { watchImportMode } from "../utils/tuning.js";
+import { formatProviderOutcomeSummary, normalizeWatchSyncIntent, summarizeProviderOutcomes } from "../utils/watchSyncPolicy.js";
 import {
   dismissPendingManualWatchReviewsForMedia,
   enqueueManualWatchReview,
@@ -64,6 +65,7 @@ import { getCanonicalPosterUrl } from "../utils/mediaArtwork.js";
 import { syncUpNextToProviders } from "../utils/upNextProviderSync.js";
 import { mediaIsUpNextRailSeed } from "../utils/upNextSeedLedger.js";
 import { DISMISSED_TRAKT_NOT_FOUND_DETAIL } from "../utils/traktDismissals.js";
+import { buildSyncMatchReport, unresolvedSyncMatchReport } from "../utils/syncMatchReport.js";
 import {
   listUpNextDismissals,
   recordUpNextDismissal,
@@ -489,6 +491,11 @@ export function manualWatchMediaFromRecord(record = {}) {
     // watch with an explicit historical date (e.g. "watched on release day")
     // reached Trakt stamped as watched right now instead.
     watched_at: record.watched_at || undefined,
+    // The client says whether this was "watched now" or a backdated mark. The
+    // date alone cannot decide it - a user can pick today from the calendar -
+    // so the intent travels with the record. Absent/unknown values fall back to
+    // a current manual action, which no policy gates.
+    syncIntent: normalizeWatchSyncIntent(record.sync_intent ?? record.syncIntent) || "manual",
     posterUrl: record.poster_url || undefined,
     watchProvenance: record.watch_provenance || null,
     providerItems: record.provider_items || record.providerItems || {},
@@ -779,11 +786,23 @@ export async function applyWatchedStateToNewItem(media, loadedConfig = null) {
     // still in flight; writing only after the request leaves a race where the
     // callback is recorded as a fresh watch.
     await recordOutboundPlayedMarks(media, [target], loopStore).catch(() => null);
+    // This projects a watch Plembfin already recorded onto a library item that
+    // has only just appeared - a historical backfill, not a new event. Naming
+    // the intent lets the provider matrix apply the Plex historical policy, and
+    // carrying the original watched_at is what lets Emby and Jellyfin record
+    // the real date rather than today.
+    const outboundMedia = { ...media, syncIntent: "historical", watched_at: existing.watched_at || media.watched_at };
     let targetResult = null;
-    if (target === "plex") targetResult = await markPlexPlayed(config.plex, media);
-    if (target === "emby") targetResult = await markEmbyPlayed(config.emby, media);
-    if (target === "jellyfin") targetResult = await markJellyfinPlayed(config.jellyfin, media);
+    if (target === "plex") targetResult = await markPlexPlayed(config.plex, outboundMedia);
+    if (target === "emby") targetResult = await markEmbyPlayed(config.emby, outboundMedia);
+    if (target === "jellyfin") targetResult = await markJellyfinPlayed(config.jellyfin, outboundMedia);
     await recordOutboundPlayedMarks(media, [target], loopStore).catch(() => null);
+    if (targetResult?.status === "skipped_by_policy") {
+      return { applied: false, reason: targetResult.detail || "Skipped by the historical sync policy" };
+    }
+    if (targetResult?.status === "already_matching") {
+      return { applied: false, reason: `${platformLabel(target)} already has this item watched` };
+    }
     summary = {
       skipped: false,
       status: "success",
@@ -1030,6 +1049,7 @@ export async function handleSyncActivity(req, res) {
   const failedOnly = ["1", "true", "failed"].includes(String(req.query.failedOnly || "").trim().toLowerCase());
   const offset = (page - 1) * limit;
   const result = await getSyncActivityGroupsPage({ limit, offset, search, failedOnly });
+  const matchReport = unresolvedSyncMatchReport(buildSyncMatchReport(await getCachedHistory().catch(() => [])));
   const totalPages = Math.max(1, Math.ceil(result.total / result.limit));
   const resolvedPage = Math.min(page, totalPages);
   // A new event can move a group onto page one between requests. Re-read the
@@ -1047,6 +1067,7 @@ export async function handleSyncActivity(req, res) {
     currentIssueGroupCount: Number(resolved.currentIssueGroupCount) || 0,
     currentIssueCount: Number(resolved.currentIssueCount) || 0,
     retryableCount: Number(resolved.retryableCount) || 0,
+    matchReport,
     pagination: {
       page: resolvedPage,
       limit: resolved.limit,
@@ -1999,6 +2020,9 @@ export async function handleManualWatch(req, res) {
         ...record,
         provider_items: rawRecord.provider_items || rawRecord.providerItems || {},
         provider_item_id: rawRecord.provider_item_id || rawRecord.providerItemId,
+        // normalizeWatchRecordForInsert keeps only watch-history columns, so
+        // the intent has to be read back off the original request body.
+        sync_intent: rawRecord.sync_intent || rawRecord.syncIntent,
       });
 
       const exactExistingWatched = existing?.sync_action === "watched";
@@ -2072,6 +2096,8 @@ export async function handleManualWatch(req, res) {
   // only flips a row to watched once this response comes back, so the client
   // needs the real per-target outcome, not just "a watch record was queued".
   let propagated = 0;
+  let providerSummary = [];
+  let providerOutcomes = [];
   if (syncTasks.length > 0) {
     // A show-level mark can contain dozens or hundreds of episodes. Trakt's
     // history endpoint accepts grouped season/episode payloads, so keep the
@@ -2081,6 +2107,11 @@ export async function handleManualWatch(req, res) {
       && syncTasks.length > 1
       && syncTasks.every(({ media }) => String(media?.type || media?.mediaType || "").toLowerCase() === "episode");
     const taskSummaries = new Array(syncTasks.length);
+    // Every per-item target outcome, rolled up into one per-provider summary
+    // for the response. A bulk mark-watched must be able to say "Plex: 12 sent,
+    // 3 already matching, 40 skipped by policy" rather than a single generic
+    // success that hides a deliberate policy skip.
+    const providerTargetStates = [];
     const trackingReservation = reserveDispatchBatch(syncTasks.length);
     try {
       await runWithConcurrency(syncTasks, async (task, index) => {
@@ -2101,6 +2132,7 @@ export async function handleManualWatch(req, res) {
             return;
           }
 
+          providerTargetStates.push(...(summary.targetStates || []));
           if (summary.status === "success" || summary.status === "partial") propagated += 1;
 
           // Remote watched-state APIs can synchronously echo a temporary
@@ -2155,6 +2187,7 @@ export async function handleManualWatch(req, res) {
             details: "Manual watch propagation did not return a result.",
             targetStates: [],
           }, trackerResult);
+          providerTargetStates.push(...(summary.targetStates || []));
           if (summary.status === "success" || summary.status === "partial") propagated += 1;
 
           // Remote watched-state APIs can synchronously echo a temporary
@@ -2172,10 +2205,12 @@ export async function handleManualWatch(req, res) {
     } finally {
       finishDispatchTracking(trackingReservation);
     }
+    providerSummary = formatProviderOutcomeSummary(providerTargetStates);
+    providerOutcomes = summarizeProviderOutcomes(providerTargetStates);
     await invalidateHistoryDerivedCaches("handleManualWatch").catch(() => null);
   }
 
-  return sendJson(res, { ok: true, inserted, skipped, rejected, propagated, syncQueued: syncTasks.length, results });
+  return sendJson(res, { ok: true, inserted, skipped, rejected, propagated, syncQueued: syncTasks.length, providerSummary, providerOutcomes, results });
 }
 
 export async function handlePlaybackProgressList(req, res) {
@@ -2503,6 +2538,16 @@ export async function handleUpNextDismissed(req, res) {
   if (!(await requireAdmin(req, res))) return;
   try {
     restoreUpNextDismissalsSupersededByUnwatch();
+    // Older dismissal snapshots can be title-only and therefore have no
+    // artwork or trusted provider id of their own. The cached TV library has
+    // already resolved those shows from watch history, so use it as the same
+    // source of truth as the main TV grid before falling back to direct
+    // canonical-artwork lookup.
+    const cachedShows = await getCachedShows();
+    const showByTitle = new Map(cachedShows.map((show) => [
+      showTitleFrom(show.title || "").toLowerCase(),
+      show,
+    ]));
     const items = listUpNextDismissals().map((dismissal) => {
       const snapshot = dismissal.snapshot && typeof dismissal.snapshot === "object"
         ? dismissal.snapshot
@@ -2513,13 +2558,26 @@ export async function handleUpNextDismissed(req, res) {
       // so the dismissed-card view can use the same cached artwork as the
       // rest of the app without mutating the stored dismissal.
       const isEpisode = dismissal.media_type === "episode";
-      const poster = getCanonicalPosterUrl({
+      const cachedShow = isEpisode
+        ? showByTitle.get(showTitleFrom(showTitle).toLowerCase())
+        : null;
+      const showIdentity = {
         media_type: isEpisode ? "tv" : "movie",
         title: isEpisode ? showTitle : (snapshot.title || dismissal.title || ""),
-        tmdb_id: isEpisode ? (snapshot.show_tmdb_id || snapshot.showTmdbId || "") : (snapshot.tmdb_id || snapshot.tmdbId || ""),
-        tvdb_id: isEpisode ? (snapshot.show_tvdb_id || snapshot.showTvdbId || "") : (snapshot.tvdb_id || snapshot.tvdbId || ""),
-        imdb_id: isEpisode ? (snapshot.show_imdb_id || snapshot.showImdbId || "") : (snapshot.imdb_id || snapshot.imdbId || ""),
-      });
+        tmdb_id: isEpisode
+          ? (snapshot.show_tmdb_id || snapshot.showTmdbId || cachedShow?.tmdb_id || "")
+          : (snapshot.tmdb_id || snapshot.tmdbId || ""),
+        tvdb_id: isEpisode
+          ? (snapshot.show_tvdb_id || snapshot.showTvdbId || cachedShow?.tvdb_id || "")
+          : (snapshot.tvdb_id || snapshot.tvdbId || ""),
+        imdb_id: isEpisode
+          ? (snapshot.show_imdb_id || snapshot.showImdbId || cachedShow?.imdb_id || "")
+          : (snapshot.imdb_id || snapshot.imdbId || ""),
+      };
+      const poster = getCanonicalPosterUrl(showIdentity)
+        || (isEpisode
+          ? (cachedShow?.show_poster_url || cachedShow?.canonical_poster_url || cachedShow?.poster_url || "")
+          : "");
       const item = {
         ...snapshot,
         ...(showTitle ? { show_title: showTitle } : {}),

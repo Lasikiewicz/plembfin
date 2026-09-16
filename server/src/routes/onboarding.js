@@ -125,6 +125,7 @@ export async function handleSetupStatus(req, res) {
     },
     options: {
       watchImportMode: config.tuning?.watchImportMode || null,
+      plexHistoricalWatchedSync: config.tuning?.plexHistoricalWatchedSync?.value !== false,
       fastLocalPacing: config.pacing?.profile === "fast",
       upNextSync: config.upNextSync?.enabled !== false,
     },

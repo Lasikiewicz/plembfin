@@ -3,7 +3,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const websiteRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const astroCli = path.join(websiteRoot, "node_modules", "astro", "astro.js");
+const astroCli = path.join(websiteRoot, "node_modules", "astro", "bin", "astro.mjs");
 const result = spawnSync(process.execPath, [astroCli, ...process.argv.slice(2)], {
   cwd: websiteRoot,
   env: {

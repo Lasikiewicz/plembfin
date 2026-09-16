@@ -1773,7 +1773,9 @@ body.demo-mode #manualWatchReviewButton {
 }
 
 .shared-media-card--up-next-dismissed {
+  justify-self: start;
   width: 100%;
+  max-width: min(100%, 20rem);
   min-height: 11rem;
 }
 
@@ -2774,6 +2776,13 @@ html.light-mode .theme-aware-icon-set .theme-aware-icon--dark {
 .import-terminal.compact-terminal {
   min-height: 5.5rem;
   max-height: 9rem;
+}
+
+#tautulliImportSummary {
+  max-height: none;
+  overflow: visible;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
 }
 
 .source-plex {
@@ -5070,13 +5079,26 @@ details[open] .tool-accordion-chevron::before {
 #syncTuningFields,
 .sync-tuning-fields,
 #syncIssuesContent,
+#syncMatchReportContent,
 #syncIssuesContainer,
 .sync-issues-empty,
 #webhookSetupGuides,
 #rebuildsContent,
 #databaseRepairsContent,
 #diagnosticsContent,
+#imageCacheContent,
+#plexServerContent,
+#embyServerContent,
+#jellyfinServerContent,
+#webhookSecretContent,
+#metadataProviderContent,
+#syncTuningContent,
+#syncToolsContent,
+#syncHistoryContent,
 #migrationContent,
+#tautulliImportContent,
+#seerrContent,
+#accountContent,
 #refreshMetadataContent {
   display: flex !important;
   flex-direction: column !important;
@@ -5088,6 +5110,13 @@ details[open] .tool-accordion-chevron::before {
   border: none !important;
   background: transparent !important;
   padding: 0 !important;
+}
+
+.metadata-provider-disclosures {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 100%;
 }
 
 details.sync-match-report,
@@ -5314,47 +5343,7 @@ details.sync-tool-details {
   gap: var(--space-2) !important;
 }
 
-/* Diagnostics rows (Refresh Sync Health, Run System Diagnostic) keep the
-   stacked title/description-then-button layout, since each has a bottom-right
-   action button. */
-#diagnosticsContent > .settings-modal-field {
-  display: flex !important;
-  flex-direction: column !important;
-  gap: var(--space-2) !important;
-  padding: var(--space-3) !important;
-  border: 1px solid var(--line) !important;
-  border-radius: var(--radius) !important;
-  background: color-mix(in srgb, #1a1a1a, white 10%) !important;
-  transition: border-color 160ms ease, background 160ms ease !important;
-}
-
-#diagnosticsContent > .settings-modal-field:hover,
-#diagnosticsContent > .settings-modal-field:focus-within {
-  border-color: var(--blue) !important;
-  background: color-mix(in srgb, #1a1a1a, white 16%) !important;
-}
-
-html.light-mode #diagnosticsContent > .settings-modal-field {
-  background: var(--panel) !important;
-}
-
-html.light-mode #diagnosticsContent > .settings-modal-field:hover,
-html.light-mode #diagnosticsContent > .settings-modal-field:focus-within {
-  background: var(--panel-2) !important;
-}
-
-#diagnosticsContent > .settings-modal-field .settings-modal-field-title {
-  color: var(--text) !important;
-  font-size: inherit !important;
-}
-
-#diagnosticsContent > .settings-modal-field .settings-field-help {
-  color: var(--muted) !important;
-  font-size: inherit !important;
-  line-height: 1.45 !important;
-}
-
-#diagnosticsContent > .settings-modal-field .settings-modal-field-control:has(button) {
+#diagnosticsContent .diagnostics-action-content .settings-modal-field-control:has(button) {
   display: flex;
   align-items: flex-end;
 }
@@ -5363,10 +5352,10 @@ html.light-mode #diagnosticsContent > .settings-modal-field:focus-within {
    single compact row per field: label + description on the left, a small
    fixed-width control on the right, instead of the taller stacked layout
    used for the diagnostics action rows above. */
-#syncTuningFields > .settings-modal-field {
+#syncTuningFields .settings-modal-field {
   display: grid !important;
-  grid-template-columns: minmax(0, 1fr) auto !important;
-  grid-template-areas: "title title" "desc control" !important;
+  grid-template-columns: minmax(0, 1fr) max-content auto !important;
+  grid-template-areas: "desc default control" !important;
   align-items: center !important;
   gap: 2px var(--space-4) !important;
   padding: var(--space-2) var(--space-3) !important;
@@ -5376,35 +5365,36 @@ html.light-mode #diagnosticsContent > .settings-modal-field:focus-within {
   transition: border-color 160ms ease, background 160ms ease !important;
 }
 
-#syncTuningFields > .settings-modal-field:hover,
-#syncTuningFields > .settings-modal-field:focus-within {
+#syncTuningFields .settings-modal-field:hover,
+#syncTuningFields .settings-modal-field:focus-within {
   border-color: var(--blue) !important;
   background: color-mix(in srgb, #1a1a1a, white 16%) !important;
 }
 
-html.light-mode #syncTuningFields > .settings-modal-field {
+html.light-mode #syncTuningFields .settings-modal-field {
   background: var(--panel) !important;
 }
 
-html.light-mode #syncTuningFields > .settings-modal-field:hover,
-html.light-mode #syncTuningFields > .settings-modal-field:focus-within {
+html.light-mode #syncTuningFields .settings-modal-field:hover,
+html.light-mode #syncTuningFields .settings-modal-field:focus-within {
   background: var(--panel-2) !important;
 }
 
 /* `display: contents` drops the wrapper out of layout so its title/help
    children become direct grid items of .settings-modal-field, placeable by
    grid-area independently (title spanning the row, help beside the input). */
-#syncTuningFields > .settings-modal-field .settings-modal-field-label {
+#syncTuningFields .settings-modal-field .settings-modal-field-label {
   display: contents !important;
 }
 
-#syncTuningFields > .settings-modal-field .settings-modal-field-title {
+#syncTuningFields .settings-modal-field .settings-modal-field-title {
+  display: none !important;
   grid-area: title;
   color: var(--text) !important;
   font-size: inherit !important;
 }
 
-#syncTuningFields > .settings-modal-field .settings-field-help {
+#syncTuningFields .settings-modal-field .settings-field-help {
   grid-area: desc;
   align-self: center;
   color: var(--muted) !important;
@@ -5414,22 +5404,32 @@ html.light-mode #syncTuningFields > .settings-modal-field:focus-within {
   margin-left: 0 !important;
 }
 
-#syncTuningFields > .settings-modal-field .settings-modal-field-control {
+#syncTuningFields .settings-modal-field .settings-modal-field-control {
   grid-area: control;
   width: auto !important;
   flex: 0 0 auto;
 }
 
-#syncTuningFields > .settings-modal-field .settings-modal-field-control .field {
+#syncTuningFields .settings-modal-field .settings-modal-field-control .field {
   width: 7rem !important;
   text-align: center;
+}
+
+#syncTuningFields .settings-field-default {
+  grid-area: default;
+  align-self: center;
+  color: var(--muted) !important;
+  font-size: 0.78rem !important;
+  line-height: 1.4 !important;
+  text-align: right;
+  white-space: nowrap;
 }
 
 /* The watched-flag policy has four meaningful choices, so keep them visible
    instead of hiding them inside the browser's native select popup. The radio
    inputs preserve keyboard and screen-reader semantics while the option tiles
    make the active choice obvious before the form is saved. */
-#syncTuningFields > .settings-modal-field--choice {
+#syncTuningFields .settings-modal-field--choice {
   display: flex !important;
   flex-direction: column !important;
   align-items: stretch !important;
@@ -5437,15 +5437,33 @@ html.light-mode #syncTuningFields > .settings-modal-field:focus-within {
   padding: var(--space-3) !important;
 }
 
-#syncTuningFields > .settings-modal-field--choice .settings-modal-field-label {
+#syncTuningFields .settings-modal-field--choice .settings-modal-field-label {
   display: flex !important;
   align-items: flex-start !important;
   justify-content: space-between !important;
   gap: var(--space-3) !important;
 }
 
-#syncTuningFields > .settings-modal-field--choice .settings-field-help {
+#syncTuningFields .settings-modal-field--choice .settings-field-help {
   max-width: 48rem;
+}
+
+/* The disclosure is the setting's box. Keep the generated field wrapper
+   transparent so its controls use the full body width without a second card
+   border or an empty label row above the choice tiles. */
+#syncTuningFields .settings-modal-field {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+#syncTuningFields .settings-modal-field--choice {
+  gap: var(--space-2) !important;
+}
+
+#syncTuningFields .settings-modal-field--choice .settings-modal-field-label {
+  display: none !important;
 }
 
 .settings-choice-grid {
@@ -5500,6 +5518,15 @@ html.light-mode #syncTuningFields > .settings-modal-field:focus-within {
   min-width: 0;
 }
 
+.settings-choice-option-body--inline {
+  grid-template-columns: max-content minmax(0, 1fr);
+  align-items: baseline;
+}
+
+.settings-choice-option-description--block {
+  grid-column: 1 / -1;
+}
+
 .settings-choice-option-title,
 .settings-choice-option-description {
   overflow-wrap: anywhere;
@@ -5529,6 +5556,11 @@ html.light-mode .settings-choice-option:has(input:checked) {
 @media (max-width: 760px) {
   .settings-choice-grid {
     grid-template-columns: 1fr;
+  }
+
+  #syncTuningFields .settings-modal-field:not(.settings-modal-field--choice) {
+    grid-template-columns: minmax(0, 1fr) auto !important;
+    grid-template-areas: "desc desc" "default control" !important;
   }
 
   #syncTuningFields > .settings-modal-field--choice .settings-modal-field-label {
@@ -6076,6 +6108,16 @@ details.sync-tool-details[open] > summary {
   flex: 0 0 auto;
   display: grid;
   gap: var(--space-2);
+}
+
+/* `.sync-tuning-fields` declares `display: flex !important`, which beat the
+   `.hidden` utility on equal specificity purely by coming later in this file -
+   so the Trakt connect form's first-connection fields never actually hid once
+   the account was connected, leaving a "First connection" picker on screen for
+   an already-connected user. Two classes outrank one, so this wins regardless
+   of order. tracker-settings.js is the only place that toggles the pair. */
+.sync-tuning-fields.hidden {
+  display: none !important;
 }
 
 .media-force-sync-choice,
@@ -10922,6 +10964,17 @@ html.light-mode .progress-bar-fill {
   cursor: pointer;
 }
 
+.watch-date-unreleased-toggle {
+  border-color: rgba(251, 191, 36, 0.45);
+  color: var(--text);
+}
+
+.watch-date-unreleased-toggle small {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
 .watch-date-options {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
@@ -11329,6 +11382,10 @@ html.light-mode .progress-bar-fill {
   background: #2a1416;
   border-color: #b4474f;
   color: #fca5a5;
+}
+
+.media-up-next-show-btn.is-added {
+  color: var(--green);
 }
 
 /* Strong destructive variant for the permanent "Delete" action. */
@@ -14636,6 +14693,10 @@ html.light-mode #timeline-view .part-watched-app-badge {
   body #mediaDetailActions .personal-media-detail-action.has-personal-state {
     color: var(--accent) !important;
     opacity: 1;
+  }
+
+  body #mediaDetailActions .media-up-next-show-btn.is-added {
+    color: var(--green) !important;
   }
 
   body #mediaDetailActions .action-pill svg,
@@ -21856,6 +21917,30 @@ html.light-mode .settings-group-section:focus-visible {
 .setup-options-toggle-copy { display: grid; gap: var(--space-1); min-width: 0; }
 .setup-options-toggle-copy b { font-size: 1.05rem; }
 .setup-options-toggle-copy span { max-width: 75ch; color: var(--muted); font-size: 0.9rem; line-height: 1.45; }
+/* A toggle that lives inside a policy card rather than being the card itself,
+   so it has to bring its own flex row; the card owns the surrounding note and
+   the collapsed consequence list. */
+.setup-step-body .setup-options-toggle--inline {
+  display: flex;
+  gap: var(--space-3);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+}
+.setup-options-recommended {
+  margin-left: var(--space-2);
+  color: var(--muted);
+  font-size: 0.8rem;
+  font-style: normal;
+  font-weight: 500;
+}
+.setup-options-provider-note { max-width: 75ch; margin: 0; font-size: 0.9rem; line-height: 1.5; }
+.setup-options-consequences summary { cursor: pointer; font-size: 0.9rem; font-weight: 600; }
+.setup-options-consequences > div { max-width: 75ch; margin-top: var(--space-2); font-size: 0.9rem; line-height: 1.5; }
+/* Shared by the setup card and the Sync Tuning field help, which renders the
+   same list inside its own help span. */
+.policy-consequence-list { margin: var(--space-1) 0; padding-left: 1.2em; display: grid; gap: 2px; }
 .setup-options-switch {
   appearance: none;
   flex: 0 0 auto;
@@ -22077,6 +22162,7 @@ html.light-mode .settings-group-section:focus-visible {
   .dashboard-setup-actions { grid-template-columns: minmax(0, 1fr); }
   .setup-options-radio-grid { grid-template-columns: minmax(0, 1fr); }
   .setup-step-body .setup-options-toggle { align-items: flex-start; }
+  .setup-options-recommended { display: block; margin-left: 0; }
   .setup-claim-panel { padding: var(--space-4); }
   .setup-claim-panel-heading { flex-direction: column; gap: var(--space-2); }
   .setup-claim-password-grid { grid-template-columns: minmax(0, 1fr); }
@@ -22467,6 +22553,35 @@ html.light-mode .settings-modal-foot {
 .trakt-sync-progress-copy {
   display: grid;
   gap: var(--space-1);
+}
+
+/* The one thing the Trakt box says for itself: what the First connection choice
+   will actually do about Plex. Everything else about the two modes lives in the
+   Trakt Help panel beside it rather than being repeated here. Reads as plain
+   guidance when historical Plex sync is on, and as a warning when it is off. */
+.trakt-first-connection-plex-note {
+  max-width: 80ch;
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+.trakt-first-connection-plex-note.is-warning {
+  padding: var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--yellow, var(--line-strong)), transparent 55%);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--yellow, var(--panel-2)), transparent 90%);
+  color: inherit;
+}
+.trakt-sync-policy-note {
+  max-width: 80ch;
+  margin: 0 0 var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--yellow, var(--line-strong)), transparent 55%);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--yellow, var(--panel-2)), transparent 90%);
+  font-size: 0.85rem;
+  line-height: 1.5;
 }
 
 .trakt-sync-progress-copy b {
@@ -22949,16 +23064,32 @@ html.light-mode .settings-help-body code {
    Restore the shared Sync Tools inset and compact row rhythm. */
 .settings-pane .settings-row-main #refreshMetadataContent,
 .settings-pane .settings-row-main #diagnosticsContent,
+.settings-pane .settings-row-main #imageCacheContent,
+.settings-pane .settings-row-main #plexServerContent,
+.settings-pane .settings-row-main #embyServerContent,
+.settings-pane .settings-row-main #jellyfinServerContent,
+.settings-pane .settings-row-main #webhookSecretContent,
+.settings-pane .settings-row-main #metadataProviderContent,
 .settings-pane .settings-row-main #migrationContent,
 .settings-pane .settings-row-main #databaseRepairsContent,
 .settings-pane .settings-row-main #rebuildsContent,
+.settings-pane .settings-row-main #syncTuningContent,
+.settings-pane .settings-row-main #syncToolsContent,
 .settings-pane .settings-row-main #syncIssuesContent,
+.settings-pane .settings-row-main #syncMatchReportContent,
 .settings-pane .settings-row-main #syncHistoryContent,
+.settings-pane .settings-row-main #tautulliImportContent,
+.settings-pane .settings-row-main #seerrContent,
+.settings-pane .settings-row-main #accountContent,
 .settings-pane .settings-row-main #webhookSetupGuides,
 .settings-pane .settings-row-main #syncTuningFields {
   margin-top: 0 !important;
   padding: var(--space-3) !important;
   gap: var(--space-2) !important;
+}
+
+.settings-pane .settings-row-main #syncTuningContent #syncTuningFields {
+  padding: 0 !important;
 }
 
 .settings-pane .settings-row-main #syncIssuesContainer,
@@ -23027,18 +23158,6 @@ html.light-mode .settings-pane .settings-row-main :is(details.sync-tool-details,
 .settings-pane .settings-row-main :is(details.sync-tool-details, details.sync-match-report, details.issue-category) > summary:focus-visible {
   outline: 2px solid var(--blue);
   outline-offset: -2px;
-}
-
-/* Backup / restore: description shares the title's row instead of stacking underneath it. */
-.settings-pane[data-settings-panel="backups"] .settings-row-main details.sync-tool-details > summary {
-  grid-template-rows: auto !important;
-}
-
-.settings-pane[data-settings-panel="backups"] .settings-row-main details.sync-tool-details > summary > span {
-  grid-column: 2 !important;
-  grid-row: 1 !important;
-  text-align: right !important;
-  justify-self: end;
 }
 
 .settings-pane .settings-row-main details.sync-tool-details[open] > summary,
@@ -23157,6 +23276,21 @@ html.light-mode .settings-pane .settings-row-main > :is(.settings-card, .sync-pa
   min-width: 0;
 }
 
+/* Keep one-off section actions in the same top control bar as the heading. */
+.settings-pane .settings-row-main .settings-heading-action {
+  display: inline-flex !important;
+  flex: 0 0 auto !important;
+  align-items: center;
+  justify-content: center;
+  margin-left: auto;
+  white-space: nowrap;
+}
+
+/* The page top bar clips its action row; don't lift a hovered action outside it. */
+#pageTopbarActions .sync-action-btn:hover:not(:disabled) {
+  transform: none;
+}
+
 /* #restore-local/#restore-remote are card shells too, but they sit one level
    deeper than the rule above expects - inside #restoreSectionsHome, kept there
    because the onboarding wizard's "Restore from backup" step reparents them
@@ -23254,9 +23388,11 @@ html.light-mode .settings-pane .settings-row-help > :is(.settings-card, .sync-pa
 
 .settings-pane .settings-row-help > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > .section-heading {
   display: flex !important;
+  flex: 0 0 auto;
   align-items: center !important;
   justify-content: space-between !important;
   flex-wrap: wrap;
+  min-height: 46px;
   gap: var(--space-3) !important;
   margin: calc(var(--space-3) * -1) calc(var(--space-3) * -1) 0 !important;
   padding: var(--space-3) !important;
@@ -23268,6 +23404,28 @@ html.light-mode .settings-pane .settings-row-help > :is(.settings-card, .sync-pa
   margin: 0 !important;
 }
 
+.settings-pane .settings-row-help > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > .section-heading > .settings-help-link {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--accent);
+  font-size: 0.78rem;
+  font-weight: 600;
+  line-height: 1.35;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.settings-pane .settings-row-help > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > .section-heading > .settings-help-link:hover {
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.settings-pane .settings-row-help > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > .section-heading > .settings-help-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+
 .settings-pane .settings-row-help > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > .section-heading > span {
   min-width: 0;
   color: var(--muted) !important;
@@ -23275,6 +23433,78 @@ html.light-mode .settings-pane .settings-row-help > :is(.settings-card, .sync-pa
   font-weight: 400 !important;
   line-height: 1.45;
   text-align: right;
+}
+
+/* Help mirrors the left-hand controls: each topic gets its own readable block
+   instead of becoming one uninterrupted paragraph column. */
+.settings-pane .settings-row-help > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > :not(.section-heading) {
+  display: grid !important;
+  gap: var(--space-3);
+  margin: 0 !important;
+}
+
+.settings-pane .settings-row-help > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > :not(.section-heading) > div {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0 !important;
+  padding: 0 0 var(--space-3);
+  border-bottom: 1px solid var(--line);
+}
+
+/* Use the same scan pattern as Account Help everywhere: each help topic has a
+   visible bullet, an indented title, and its explanation on the following line.
+   Account's semantic list keeps its own native bullet treatment. */
+.settings-pane .settings-row-help > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > :not(.section-heading) > div:not(:has(ul)):not(:empty) {
+  position: relative;
+  padding-left: 1.2rem;
+}
+
+.settings-pane .settings-row-help > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > :not(.section-heading) > div:not(:has(ul)):not(:empty)::before {
+  content: "•";
+  position: absolute;
+  top: 0;
+  left: 0;
+  color: var(--text);
+  font-weight: 800;
+}
+
+.settings-pane .settings-row-help > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > :not(.section-heading) > div:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.settings-pane .settings-row-help .settings-help-content > div > b,
+.settings-pane .settings-row-help > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > :not(.section-heading) > div > b {
+  color: var(--text);
+  font-size: 0.85rem;
+  line-height: 1.35;
+}
+
+.settings-pane .settings-row-help .settings-help-content p,
+.settings-pane .settings-row-help .settings-help-content ul,
+.settings-pane .settings-row-help .settings-help-content ol,
+.settings-pane .settings-row-help > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > :not(.section-heading) p,
+.settings-pane .settings-row-help > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > :not(.section-heading) ul,
+.settings-pane .settings-row-help > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > :not(.section-heading) ol {
+  margin: 0 !important;
+  line-height: 1.45 !important;
+}
+
+.settings-pane .settings-row-help .settings-help-content ul,
+.settings-pane .settings-row-help .settings-help-content ol,
+.settings-pane .settings-row-help > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > :not(.section-heading) ul,
+.settings-pane .settings-row-help > :is(.settings-card, .sync-panel, .logs-panel, .backup-settings-panel) > :not(.section-heading) ol {
+  display: grid;
+  gap: var(--space-1);
+  padding-left: 1.2rem;
+}
+
+.settings-pane .settings-row-help .settings-help-content li > span {
+  display: block;
+}
+
+.settings-pane .settings-row-help .settings-help-content li > span + span {
+  margin-top: var(--space-1);
 }
 
 /* Account fields are action rows like Sync Tuning, rather than a three-column
@@ -23707,6 +23937,34 @@ html.light-mode .settings-pane .settings-card-grid .service-card:focus-visible {
   min-width: 0;
   overflow: auto;
   padding-right: 0.15rem;
+}
+
+.sync-attention-match-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) - 1px);
+  background: var(--panel-3);
+}
+
+.sync-attention-match-row > div {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.sync-attention-match-row strong,
+.sync-attention-match-row span {
+  overflow-wrap: anywhere;
+}
+
+.sync-attention-match-row span {
+  color: var(--muted);
+  font-size: 0.77rem;
 }
 
 .sync-attention-show-group {
@@ -26320,8 +26578,299 @@ html.light-mode .about-share-option.button-primary {
 }
 
 @media (max-width: 560px) {
-  .about-share-modal {
-    padding: var(--space-4);
-  }
+.about-share-modal {
+  padding: var(--space-4);
+}
 
+}
+
+/* Tautulli importer flow */
+.tautulli-import-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.tautulli-step {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr);
+  gap: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-3) 78%, transparent);
+}
+.tautulli-step-marker {
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  border: 1px solid color-mix(in srgb, var(--blue) 55%, var(--line));
+  border-radius: 50%;
+  color: var(--blue);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+.tautulli-step-content { min-width: 0; }
+.tautulli-step-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.tautulli-step-heading h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+.tautulli-step-heading p,
+.tautulli-target-help,
+.tautulli-step-note {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+.tautulli-import-options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+}
+.tautulli-targets {
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-3) 0 0;
+  border: 0;
+  border-top: 1px solid var(--line);
+}
+.tautulli-targets legend {
+  padding: 0;
+  color: var(--text);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+.tautulli-target-options {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+.tautulli-target-option {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-2) 76%, transparent);
+  cursor: pointer;
+}
+.tautulli-target-option:has(input:checked) {
+  border-color: color-mix(in srgb, var(--blue) 60%, var(--line));
+  background: color-mix(in srgb, var(--blue) 10%, var(--panel-2));
+}
+.tautulli-target-option input {
+  flex: 0 0 auto;
+  margin: 0;
+  accent-color: var(--blue);
+}
+.tautulli-target-option span {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.tautulli-target-option strong {
+  color: var(--text);
+  font-size: 0.8rem;
+}
+.tautulli-target-option small {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+.tautulli-field-hint {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.4;
+}
+.tautulli-action-hint {
+  margin: calc(var(--space-2) * -1) 0 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+.tautulli-preview-message {
+  margin: 0;
+  white-space: nowrap;
+}
+
+.tautulli-preview-message.is-loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.tautulli-preview-message.is-loading::before {
+  width: 0.7rem;
+  height: 0.7rem;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  content: "";
+  animation: tautulli-preview-spin 0.8s linear infinite;
+}
+
+.tautulli-preview-progress {
+  height: 0.45rem;
+  overflow: hidden;
+  margin-top: 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.tautulli-preview-progress-bar {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--yellow);
+  transition: width 180ms ease;
+}
+
+.tautulli-preview-progress.is-indeterminate .tautulli-preview-progress-bar {
+  width: 35%;
+  animation: tautulli-preview-progress-slide 1.2s ease-in-out infinite alternate;
+}
+
+.tautulli-preview-progress-text {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+@keyframes tautulli-preview-progress-slide {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(285%); }
+}
+
+@keyframes tautulli-preview-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tautulli-preview-message.is-loading::before,
+  .tautulli-preview-progress.is-indeterminate .tautulli-preview-progress-bar { animation: none; }
+}
+.tautulli-backup-step .tautulli-step-heading { align-items: center; }
+.tautulli-backup-status {
+  margin: var(--space-2) 0 0;
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+.tautulli-import-note {
+  padding: 0 var(--space-2);
+  color: var(--muted);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+/* Where this import will actually be sent: the per-target decision plus the
+   standing Plex historical policy, shown before the import rather than
+   discovered in the result. */
+.tautulli-policy-note {
+  max-width: 80ch;
+  margin: var(--space-2) 0 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+/* Possible-match review: one row per ambiguous play, with its candidate
+   records and the three resolutions. */
+.tautulli-review-panel {
+  display: grid;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--panel-2), transparent 15%);
+}
+.tautulli-review-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.tautulli-review-list { display: grid; gap: var(--space-2); max-height: 26rem; overflow-y: auto; }
+.tautulli-review-row {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel);
+}
+/* Shown only when the user has turned historical Plex sync off, so this import
+   will not reach Plex. Silent when the setting is on - there is nothing to ask. */
+.tautulli-plex-notice {
+  max-width: 80ch;
+  margin: var(--space-2) 0 0;
+  padding: var(--space-2);
+  border: 1px solid color-mix(in srgb, var(--yellow, var(--line-strong)), transparent 55%);
+  border-radius: var(--radius);
+  background: color-mix(in srgb, var(--yellow, var(--panel-2)), transparent 90%);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+.tautulli-review-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding-bottom: var(--space-1);
+}
+.tautulli-review-item { display: grid; gap: 2px; min-width: 0; justify-items: start; }
+.tautulli-review-badge { align-self: start; }
+.tautulli-review-item b { font-size: 0.92rem; overflow-wrap: anywhere; }
+.tautulli-review-choices { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: stretch; }
+.tautulli-review-candidate,
+.tautulli-review-action {
+  display: grid;
+  gap: 2px;
+  /* Settings standardises its buttons at 2.05rem; these match rather than
+     introducing a one-off control height on this panel alone. */
+  min-height: 2.05rem;
+  padding: var(--space-2);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  color: inherit;
+  font-size: 0.82rem;
+  text-align: left;
+  cursor: pointer;
+}
+.tautulli-review-candidate small { color: var(--muted); font-size: 0.75rem; }
+.tautulli-review-candidate:hover,
+.tautulli-review-action:hover { border-color: var(--accent); }
+.tautulli-review-candidate.is-chosen,
+.tautulli-review-action.is-chosen {
+  border-color: var(--accent);
+  background: color-mix(in oklch, var(--accent) 18%, var(--panel-2));
+}
+@media (max-width: 48rem) {
+  .tautulli-target-options { grid-template-columns: 1fr; }
+  .tautulli-step-heading,
+  .tautulli-backup-step .tautulli-step-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .tautulli-review-panel { padding: var(--space-2); }
+  .tautulli-review-choices { flex-direction: column; }
+  .tautulli-review-candidate,
+  .tautulli-review-action { width: 100%; }
 }

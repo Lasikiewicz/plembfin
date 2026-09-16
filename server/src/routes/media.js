@@ -555,7 +555,10 @@ function applyRestoreResult(summary, target, result) {
   if (!summary[target]) summary[target] = { success: 0, skipped: 0, notFound: 0, error: 0 };
   if (result?.status === "not_found") {
     summary[target].notFound += 1;
-  } else if (result?.status === "skipped") {
+  } else if (result?.status === "skipped" || result?.status === "skipped_by_policy") {
+    // A provider the historical sync policy deliberately left alone is a skip,
+    // never a success - a restore must not claim it wrote to Plex when the
+    // user turned historical Plex sync off.
     summary[target].skipped += 1;
   } else {
     summary[target].success += 1;

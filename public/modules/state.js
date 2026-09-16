@@ -1,6 +1,6 @@
-import { readStoredAdminToken } from "./auth.js?v=1.1.1.2.1";
-import { readStoredDebugLogs } from "./logs.js?v=1.1.1.2.1";
-import { isDemoMode } from "./utils.js?v=1.1.1.2.1";
+import { readStoredAdminToken } from "./auth.js?v=1.1.1.3.1";
+import { readStoredDebugLogs } from "./logs.js?v=1.1.1.3.1";
+import { isDemoMode } from "./utils.js?v=1.1.1.3.1";
 
 const TOKEN_KEY = "adminToken";
 const LEGACY_UPPER_TOKEN_KEY = "ADMIN_TOKEN";
@@ -79,6 +79,8 @@ const initialState = {
   syncActivityCurrentIssueGroupCount: 0,
   syncActivityCurrentIssueCount: 0,
   syncActivityRetryableCount: 0,
+  syncActivityMatchReport: null,
+  syncActivityMatchIssueCount: 0,
   syncActivityPagination: { page: 1, limit: 25, total: 0, totalPages: 1, from: 0, to: 0, hasPrevious: false, hasNext: false },
   syncActivityProgress: { total: 0, completed: 0, active: false, label: "" },
   syncAttention: [],
@@ -147,6 +149,7 @@ const initialState = {
   partWatchedRequestVersion: 0,
   partWatchedAbortController: null,
   upNextItems: [],
+  upNextManualShows: [],
   upNextDismissed: [],
   upNextLoading: false,
   upNextSyncing: false,

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import "./domStubs.js";
 
-const { applyWatchDateChoice, closeWatchDatePrompt, confirmAndMarkUnwatched, hasSavingWatchActionForShow, initWatchAction, markSavingEpisodeComplete, renderWatchDatePrompt, savingEpisodeKeysForShow, watchActionFromButton, watchedAtForChoice, watchedAtForEpisodeBatch, watchedReferenceFor } = await import("../public/modules/watch-action.js");
+const { applyWatchDateChoice, closeWatchDatePrompt, confirmAndMarkUnwatched, hasSavingWatchActionForShow, initWatchAction, markSavingEpisodeComplete, renderWatchDatePrompt, savingEpisodeKeysForShow, toggleWatchDateIncludeUnreleased, watchActionFromButton, watchedAtForChoice, watchedAtForEpisodeBatch, watchedReferenceFor } = await import("../public/modules/watch-action.js");
 const { state } = await import("../public/modules/state.js");
 
 test("closeWatchDatePrompt removes every mounted date dialog", () => {
@@ -189,6 +189,28 @@ test("release-day watch batches keep each episode's air date despite later exist
   assert.equal(entries[0].watchedAt.slice(0, 10), "2005-09-05");
 });
 
+test("same-as-other-episodes dates never predate a later episode's release", () => {
+  const scope = [
+    { seasonNumber: 1, episodeNumber: 1, airDate: "2026-09-01", runtime: 42, watched: { watched_at: "2026-09-01T12:00:00.000Z" } },
+    { seasonNumber: 1, episodeNumber: 2, airDate: "2026-09-05", runtime: 42 },
+    { seasonNumber: 1, episodeNumber: 3, airDate: "2026-09-12", runtime: 42 },
+  ];
+
+  const entries = watchedAtForEpisodeBatch(
+    "match_watched",
+    [scope[1], scope[2]],
+    "",
+    scope[0].watched.watched_at,
+    scope[0].runtime,
+    scope,
+  );
+
+  assert.deepEqual(entries.map(({ episode, watchedAt }) => [episode.episodeNumber, watchedAt.slice(0, 10)]), [
+    [2, "2026-09-05"],
+    [3, "2026-09-12"],
+  ]);
+});
+
 test("episode watch actions carry the directional reference into the prompt", () => {
   const previousEpisodes = state.showModalEpisodes;
   const previousIndex = state.showModalEpisodeIndex;
@@ -245,6 +267,39 @@ test("show watch actions include every hydrated regular-season episode", () => {
     assert.equal(action.hasSpecials, true);
   } finally {
     state.showModalEpisodes = previousEpisodes;
+  }
+});
+
+test("season watch actions query before including unreleased episodes", () => {
+  const previousEpisodes = state.showModalEpisodes;
+  const previousPending = state.pendingWatchAction;
+  const previousQuerySelector = document.querySelector;
+  const previousBody = document.body;
+  const episodes = [
+    { key: "S01E01", seasonNumber: 1, episodeNumber: 1, showTitle: "The Last Stream", title: "Pilot", airDate: "2026-08-01" },
+    { key: "S01E02", seasonNumber: 1, episodeNumber: 2, showTitle: "The Last Stream", title: "Early Upload", airDate: "2099-01-01" },
+  ];
+  state.showModalEpisodes = episodes;
+
+  try {
+    const action = watchActionFromButton({ dataset: { watchScope: "season", seasonNumber: "1" } });
+    assert.deepEqual(action.episodes.map((episode) => episode.key), ["S01E01"]);
+    assert.deepEqual(action.allUnreleasedEpisodes.map((episode) => episode.key), ["S01E02"]);
+    assert.equal(action.hasUnreleased, true);
+    assert.match(renderWatchDatePrompt(action), /Include unreleased episodes/);
+    assert.doesNotMatch(renderWatchDatePrompt(action), /checked/);
+
+    document.querySelector = () => null;
+    document.body = { insertAdjacentHTML() {} };
+    state.pendingWatchAction = action;
+    toggleWatchDateIncludeUnreleased(true);
+    assert.equal(action.includeUnreleased, true);
+    assert.deepEqual(action.episodes.map((episode) => episode.key), ["S01E01", "S01E02"]);
+  } finally {
+    document.querySelector = previousQuerySelector;
+    document.body = previousBody;
+    state.showModalEpisodes = previousEpisodes;
+    state.pendingWatchAction = previousPending;
   }
 });
 

@@ -1,19 +1,20 @@
-import { state, elements } from "./state.js?v=1.1.1.2.1";
-import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel, formatSeasonTitle, sourceBadgeHtml, platformSourceValues, normalizePlatformSource, actualWatchHistory, tvShowTmdbHref, tvShowTvdbHref, isDemoMode } from "./utils.js?v=1.1.1.2.1";
-import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters, isCachedStorageImageUrl } from "./images.js?v=1.1.1.2.1";
-import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js?v=1.1.1.2.1";
-import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading, cachedShowDetail, rememberShowDetail, cachedShowDetailMiss, rememberShowDetailMiss } from "./explorer.js?v=1.1.1.2.1";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.1.1.2.1";
-import { renderWatchDatePrompt, seasonUnwatchButtonHtml, showUnwatchButtonHtml, savingEpisodeKeysForShow, markSavingEpisodeComplete, hasSavingWatchActionForShow } from "./watch-action.js?v=1.1.1.2.1";
-import { authHeaders, setMessage, syncPageTopbar, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=1.1.1.2.1";
-import { personalRatingPillHtml, personalEpisodeRatingButtonHtml, personalMediaActionsHtml } from "./personal-media.js?v=1.1.1.2.1";
+import { state, elements } from "./state.js?v=1.1.1.3.1";
+import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel, formatSeasonTitle, sourceBadgeHtml, platformSourceValues, normalizePlatformSource, actualWatchHistory, tvShowTmdbHref, tvShowTvdbHref, isDemoMode } from "./utils.js?v=1.1.1.3.1";
+import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters, isCachedStorageImageUrl } from "./images.js?v=1.1.1.3.1";
+import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js?v=1.1.1.3.1";
+import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading, cachedShowDetail, rememberShowDetail, cachedShowDetailMiss, rememberShowDetailMiss } from "./explorer.js?v=1.1.1.3.1";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.1.1.3.1";
+import { renderWatchDatePrompt, seasonUnwatchButtonHtml, showUnwatchButtonHtml, savingEpisodeKeysForShow, markSavingEpisodeComplete, hasSavingWatchActionForShow } from "./watch-action.js?v=1.1.1.3.1";
+import { authHeaders, setMessage, syncPageTopbar, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=1.1.1.3.1";
+import { personalRatingPillHtml, personalEpisodeRatingButtonHtml, personalMediaActionsHtml } from "./personal-media.js?v=1.1.1.3.1";
+import { upNextShowActionHtml } from "./up-next.js?v=1.1.1.3.1";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderRelatedShowsSection,
   renderMediaFacts, renderMediaImagesSection, renderExternalRatingPills, ratingPillHtml,
   renderSeasonSeerrControls, renderSeerrRequestPill, fetchSeerrMediaStatus,
   refreshActiveMediaDetailAfterSeerrStatus, tvSeasonAvailabilityHtml, episodeResolutionPillHtml,
   hydrateMediaAppLinks, mediaAppLinksHtml,
-} from "./media-detail-shared.js?v=1.1.1.2.1";
+} from "./media-detail-shared.js?v=1.1.1.3.1";
 
 let _playbackProgressRows = [];
 let _playbackProgressLoaded = false;
@@ -1461,6 +1462,7 @@ function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitl
     .filter((episode) => episode.seasonNumber === seasonNumber)
     .sort((a, b) => Number(a.episodeNumber || 0) - Number(b.episodeNumber || 0));
   const seasonUnwatched = seasonEpisodes.filter((episode) => !episode.watched && !isUnreleased(episode));
+  const seasonUnreleased = seasonEpisodes.filter((episode) => !episode.watched && isUnreleased(episode));
   const seasonSummary = showSeasonSummary(seasonNumber, seasonEpisodes, seasonRecord, showTitle, tmdbData, seasonDetailsByNumber);
   const seasonSeerrControls = renderSeasonSeerrControls(tvSeerrTmdbId, seasonNumber, tvSeerrStatus);
   const seasonWatchCount = seasonSummary.totalWatches > seasonSummary.watchedInSeason
@@ -1485,8 +1487,8 @@ function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitl
           ${seasonSeerrControls}
           ${seasonSummary.watchedInSeason ? `<button class="action-pill" type="button" data-edit-season-date="${seasonNumber}" ${(seasonBusy || seasonRemoving) ? "disabled" : ""}>Edit season date</button>` : ""}
           <button class="action-pill" type="button" data-watch-scope="season" data-season-number="${seasonNumber}" ${(seasonEpisodes.length && !seasonBusy && !seasonRemoving) ? "" : "disabled"}
-            title="${seasonUnwatched.length ? "" : "Re-push this season's watched state to Plex, Emby, Jellyfin & Trakt"}">
-            ${seasonBusy ? "Saving…" : seasonUnwatched.length ? "Mark season watched" : "Resync season"}
+            title="${seasonUnreleased.length ? "Some episodes are unreleased and will require confirmation" : seasonUnwatched.length ? "" : "Re-push this season's watched state to Plex, Emby, Jellyfin & Trakt"}">
+            ${seasonBusy ? "Saving…" : seasonUnwatched.length || seasonUnreleased.length ? "Mark season watched" : "Resync season"}
           </button>${seasonUnwatchButtonHtml(seasonEpisodes.filter((episode) => episode.watched).map((episode) => episode.watched.id), seasonNumber, showTitle, seasonBusy, seasonRemoving)}
         </div>
       </div>
@@ -1638,10 +1640,11 @@ export function renderShowModalContent(show, {
     return !Number.isNaN(air.getTime()) && air > new Date();
   };
   const unwatchedRows = episodeRows.filter((episode) => !episode.watched && !isUnreleased(episode));
+  const unreleasedRows = episodeRows.filter((episode) => !episode.watched && isUnreleased(episode));
   // The visible rows are lazy-loaded by season. Metadata still tells us when
   // the show has episodes outside the active season, so keep the show-wide
   // action available until the full episode set has been hydrated.
-  const hasPotentialUnwatchedEpisodes = unwatchedRows.length > 0 || watchedCount < metadataEpisodeCount;
+  const hasPotentialUnwatchedEpisodes = unwatchedRows.length > 0 || unreleasedRows.length > 0 || watchedCount < metadataEpisodeCount;
   const canStartShowWatch = episodeRows.length > 0 || metadataEpisodeCount > 0;
   const hideSpoilers = state.hideEpisodeSpoilers;
 
@@ -1744,6 +1747,13 @@ export function renderShowModalContent(show, {
 
   setMediaDetailActions(`
     ${personalMediaActionsHtml(personalMediaItem)}
+    ${upNextShowActionHtml({
+      title: showTitle,
+      tmdb_id: tmdbData?.id || show.tmdb_id || "",
+      tvdb_id: tmdbData?.external_ids?.tvdb_id || show.tvdb_id || "",
+      imdb_id: tmdbData?.external_ids?.imdb_id || show.imdb_id || "",
+      poster_url: showPosterUrl || show.poster_url || posterUrl || "",
+    })}
     <label class="action-pill media-spoiler-toggle" title="Hide synopsis and artwork for unwatched episodes">
       <input type="checkbox" data-hide-episode-spoilers ${hideSpoilers ? "checked" : ""} />
       <span>Hide <br>Spoilers</span>
@@ -2057,6 +2067,9 @@ export function syncShowModalWatchActionControls() {
     const seasonUnwatched = seasonEpisodes.filter((episode) => (
       !episode.watched && !episodeIsUnreleasedForWatchControl(episode)
     ));
+    const seasonUnreleased = seasonEpisodes.filter((episode) => (
+      !episode.watched && episodeIsUnreleasedForWatchControl(episode)
+    ));
     const seasonBusy = hasSavingWatchActionForShow(showTitle, seasonNumber)
       || seasonEpisodes.some((episode) => savingEpisodeKeys.has(episode.key));
     const seasonRemoving = seasonEpisodes.some((episode) => episode.watched && state.savingUnwatchIds.has(episode.watched.id));
@@ -2068,7 +2081,7 @@ export function syncShowModalWatchActionControls() {
     const collapsedLabel = watchedInSeason
       ? `${watchedInSeason} watched${totalWatches > watchedInSeason ? ` · ${totalWatches} plays` : ""}`
       : "";
-    return { seasonEpisodes, seasonUnwatched, seasonBusy, seasonRemoving, normalLabel, collapsedLabel };
+    return { seasonEpisodes, seasonUnwatched, seasonUnreleased, seasonBusy, seasonRemoving, normalLabel, collapsedLabel };
   };
 
   // Update both the mounted season panel and collapsed season rows. The latter
@@ -2092,8 +2105,10 @@ export function syncShowModalWatchActionControls() {
     const seasonNumber = Number(button.dataset?.seasonNumber);
     const season = seasonDisplayState(seasonNumber);
     button.disabled = !season.seasonEpisodes.length || season.seasonBusy || season.seasonRemoving;
-    button.textContent = season.seasonBusy ? "Saving…" : season.seasonUnwatched.length ? "Mark season watched" : "Resync season";
-    button.title = season.seasonUnwatched.length ? "" : "Re-push this season's watched state to Plex, Emby, Jellyfin & Trakt";
+    button.textContent = season.seasonBusy ? "Saving…" : season.seasonUnwatched.length || season.seasonUnreleased.length ? "Mark season watched" : "Resync season";
+    button.title = season.seasonUnreleased.length
+      ? "Some episodes are unreleased and will require confirmation"
+      : season.seasonUnwatched.length ? "" : "Re-push this season's watched state to Plex, Emby, Jellyfin & Trakt";
 
     const seasonBlock = button.closest?.(".show-season-block");
     const seasonLabel = seasonBlock?.querySelector?.(".show-season-label");

@@ -5,6 +5,7 @@ const pathname = Astro.url.pathname;
 const isDocs = pathname.startsWith("/docs");
 const isFeatures = pathname.startsWith("/features");
 const isChangelog = pathname.startsWith("/changelog");
+const isSupport = pathname.startsWith("/support");
 const globalSearchQuery = Astro.url.searchParams.get("q")?.trim() || "";
 ---
 
@@ -42,6 +43,7 @@ const globalSearchQuery = Astro.url.searchParams.get("q")?.trim() || "";
         <a class:list={{ active: isFeatures }} href="/features/">Features</a>
         <a class:list={{ active: isDocs }} href="/docs/">Documentation</a>
         <a class:list={{ active: isChangelog }} href="/changelog/">Changelog</a>
+        <a class:list={{ active: isSupport }} href="/support/">Support</a>
       </div>
       <form class="site-global-search" action="/docs/" method="get" role="search">
         <label class="sr-only" for="docs-search-input">Search documentation</label>

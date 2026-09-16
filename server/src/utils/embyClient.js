@@ -2,6 +2,7 @@ import { fetchWithTimeout } from "./outbound.js";
 import { compoundEpisodeItemsForMedia } from "./compoundEpisode.js";
 import { restoreLookupKey } from "./restoreLookupCache.js";
 import { nativeProviderItemIds } from "./providerItemIds.js";
+import { canonicalPlayedDateIso } from "./watchSyncPolicy.js";
 
 function trimTrailingSlash(value = "") {
   return String(value).replace(/\/+$/, "");
@@ -28,6 +29,17 @@ export function embyResumeLastPlayedDate(media = {}, now = Date.now()) {
     : Date.parse(String(sourceValue || ""));
   const fallbackTime = Number.isFinite(Number(now)) ? Number(now) : Date.now();
   return new Date(Number.isFinite(sourceTime) && sourceTime > 0 ? sourceTime : fallbackTime).toISOString();
+}
+
+// Emby's mark-played endpoint takes the play date as a `DatePlayed` query
+// parameter in compact UTC form (yyyyMMddHHmmss). This is the only supported
+// way to preserve an original play date through a watched-state write, so
+// imports, restores, and backdated manual marks all travel through it - unlike
+// Plex, Emby does not have to record an imported watch as happening today.
+export function embyDatePlayedParam(media = {}) {
+  const iso = canonicalPlayedDateIso(media);
+  if (!iso) return "";
+  return iso.slice(0, 19).replace(/[-:T]/g, "");
 }
 
 function providerTerms(ids = {}) {
@@ -389,22 +401,40 @@ export async function markEmbyPlayed(config, media) {
       return { platform: "emby", status: "not_found" };
     }
 
+    const datePlayed = embyDatePlayedParam(media);
     let lastHttpStatus = 200;
     const markJobs = items.map(async (item) => {
-      const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${config.userId}/PlayedItems/${item.Id}`);
-      url.searchParams.set("api_key", config.apiKey);
+      const buildUrl = (withDate) => {
+        const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${config.userId}/PlayedItems/${item.Id}`);
+        url.searchParams.set("api_key", config.apiKey);
+        if (withDate && datePlayed) url.searchParams.set("DatePlayed", datePlayed);
+        return url;
+      };
 
-      const response = await fetchWithTimeout(url, {
+      let response = await fetchWithTimeout(buildUrl(true), {
         method: "POST",
         headers: authHeaders(config),
         lane: media?.lane || "sync",
       });
+      // Emby versions that predate DatePlayed, or parse it differently, answer
+      // with a 4xx rather than ignoring the parameter. The watched state is the
+      // part that must land, so fall back to the plain mark-played request
+      // instead of failing the whole sync over the date. A 404 is left alone -
+      // that is a missing item, and the caller's identity-retry owns it.
+      if (!response.ok && datePlayed && response.status >= 400 && response.status < 500 && response.status !== 404) {
+        console.log("Emby rejected DatePlayed; retrying mark played without the original date", { itemId: item.Id, status: response.status });
+        response = await fetchWithTimeout(buildUrl(false), {
+          method: "POST",
+          headers: authHeaders(config),
+          lane: media?.lane || "sync",
+        });
+      }
       if (!response.ok) {
         const error = new Error(`Emby mark played failed with status ${response.status} for item ${item.Id}`);
         error.status = response.status;
         throw error;
       }
-      console.log("Emby item marked played", { itemId: item.Id });
+      console.log("Emby item marked played", { itemId: item.Id, datePlayed: datePlayed || "server time" });
       lastHttpStatus = response.status;
       return response.status;
     });

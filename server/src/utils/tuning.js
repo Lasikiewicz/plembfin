@@ -46,6 +46,26 @@ function readWatchImportModeEnv() {
   return WATCH_IMPORT_MODES.includes(value) ? value : DEFAULT_WATCH_IMPORT_MODE;
 }
 
+// Plex's server API has no supported way to set a historical play date: a
+// scrobble is always recorded using the server's current time. Emby, Jellyfin,
+// and Trakt can all carry the original date, so this policy is scoped to Plex
+// alone and only to *historical* watched projections (imports, restores,
+// backdated manual marks, backfills). Live and mark-watched-now actions are
+// never routed through it, and unwatch is never gated by it at all. Default on,
+// because a Plex library that silently disagrees with Plembfin is the worse
+// surprise; turning it off is the opt-out for users who do not want an import
+// to create Plex activity dated today.
+export const DEFAULT_PLEX_HISTORICAL_WATCHED_SYNC = true;
+const PLEX_HISTORICAL_WATCHED_SYNC_ENV = "PLEX_HISTORICAL_WATCHED_SYNC";
+
+function readPlexHistoricalWatchedSyncEnv() {
+  const raw = String(process.env[PLEX_HISTORICAL_WATCHED_SYNC_ENV] ?? "").trim().toLowerCase();
+  if (!raw) return DEFAULT_PLEX_HISTORICAL_WATCHED_SYNC;
+  if (["0", "false", "no", "off"].includes(raw)) return false;
+  if (["1", "true", "yes", "on"].includes(raw)) return true;
+  return DEFAULT_PLEX_HISTORICAL_WATCHED_SYNC;
+}
+
 function clamp(key, value) {
   const [min, max] = CLAMPS[key];
   return Math.min(max, Math.max(min, value));
@@ -74,6 +94,7 @@ let effective = {
   outboundTimeoutSec: envOrDefault("outboundTimeoutSec"),
 };
 let effectiveWatchImportMode = readWatchImportModeEnv();
+let effectivePlexHistoricalWatchedSync = readPlexHistoricalWatchedSyncEnv();
 
 // Stored settings use null for "use the environment/default". Invalid values
 // are normalized to null here and rejected by configStore.validateConfig when
@@ -82,6 +103,17 @@ export function normalizeWatchImportMode(value) {
   if (value === null || value === undefined || String(value).trim() === "") return null;
   const normalized = String(value).trim().toLowerCase();
   return WATCH_IMPORT_MODES.includes(normalized) ? normalized : null;
+}
+
+// Same null-means-not-overridden contract as the fields above. Accepts the
+// string forms a JSON settings payload or a hand-edited config can carry.
+export function normalizePlexHistoricalWatchedSync(value) {
+  if (value === null || value === undefined || String(value).trim() === "") return null;
+  if (typeof value === "boolean") return value;
+  const normalized = String(value).trim().toLowerCase();
+  if (["0", "false", "no", "off"].includes(normalized)) return false;
+  if (["1", "true", "yes", "on"].includes(normalized)) return true;
+  return null;
 }
 
 // Normalizes a raw stored/incoming tuning section (numbers-or-null/blank) into
@@ -118,6 +150,8 @@ export function applyTuningConfig(section = {}) {
   }
   effective = next;
   effectiveWatchImportMode = normalizeWatchImportMode(section?.watchImportMode) || readWatchImportModeEnv();
+  const historicalOverride = normalizePlexHistoricalWatchedSync(section?.plexHistoricalWatchedSync);
+  effectivePlexHistoricalWatchedSync = historicalOverride === null ? readPlexHistoricalWatchedSyncEnv() : historicalOverride;
   return effective;
 }
 
@@ -132,6 +166,7 @@ export function resetTuningForTests() {
     outboundTimeoutSec: envOrDefault("outboundTimeoutSec"),
   };
   effectiveWatchImportMode = readWatchImportModeEnv();
+  effectivePlexHistoricalWatchedSync = readPlexHistoricalWatchedSyncEnv();
 }
 
 export function watchedThresholdPercent() {
@@ -156,6 +191,14 @@ export function watchImportMode() {
 
 export function watchImportModeDefault() {
   return readWatchImportModeEnv();
+}
+
+export function plexHistoricalWatchedSyncEnabled() {
+  return effectivePlexHistoricalWatchedSync;
+}
+
+export function plexHistoricalWatchedSyncDefault() {
+  return readPlexHistoricalWatchedSyncEnv();
 }
 
 export function tuningDefaults() {

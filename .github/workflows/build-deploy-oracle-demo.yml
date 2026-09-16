@@ -60,7 +60,7 @@ jobs:
           echo "Building demo-only image $image from $source_sha"
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v4
         with:
           platforms: arm64
 

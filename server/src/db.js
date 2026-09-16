@@ -1241,6 +1241,25 @@ const migrations = [
       `);
     },
   },
+  {
+    id: 40,
+    up(database) {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS up_next_manual_shows (
+          id TEXT PRIMARY KEY,
+          title TEXT NOT NULL,
+          tmdb_id TEXT,
+          tvdb_id TEXT,
+          imdb_id TEXT,
+          poster_url TEXT,
+          added_at INTEGER NOT NULL,
+          updated_at INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_up_next_manual_shows_added_at
+          ON up_next_manual_shows(added_at ASC, id ASC);
+      `);
+    },
+  },
 ];
 
 function parseJsonValue(value, fallback) {

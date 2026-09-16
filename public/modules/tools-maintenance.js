@@ -1,8 +1,8 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.2.1";
-import { state, elements } from "./state.js?v=1.1.1.2.1";
-import { escapeHtml, escapeAttribute, platformName, formatDate, formatNumber } from "./utils.js?v=1.1.1.2.1";
-import { categorizeIssues } from "./sync.js?v=1.1.1.2.1";
-import { openFixMatchDialog } from "./edit-dialogs.js?v=1.1.1.2.1";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.3.1";
+import { state, elements } from "./state.js?v=1.1.1.3.1";
+import { escapeHtml, escapeAttribute, platformName, formatDate, formatNumber } from "./utils.js?v=1.1.1.3.1";
+import { categorizeIssues } from "./sync.js?v=1.1.1.3.1";
+import { openFixMatchDialog } from "./edit-dialogs.js?v=1.1.1.3.1";
 
 let _setMessage = () => {};
 let _showConfirmModal = () => {};
@@ -346,7 +346,7 @@ export async function runSystemIntegrityCheck() {
       else if (res.name === "Server Configuration") { fixInstruction = "Fix: Try saving your configuration again in Settings → Media Servers. If the error persists, check that data/config.json is writable."; }
       else if (res.name === "Webhook Listener Endpoint") { fixInstruction = "Fix: Confirm the server is running and accessible at the expected host and port. Check for firewall or reverse-proxy rules blocking /api/webhook."; }
       else if (res.name === "Outbound Playstate Sync") { fixInstruction = "Fix: Open the latest history row debug details, review sync_dispatch_telemetry, then correct the failed platform credentials or provider-ID match."; }
-      else if (res.name === "Cross-Platform Library Matching") { fixInstruction = "Fix: Open the Cross-Platform Match Report under Settings → Sync → Sync Issues to see which media each platform could not find, then add the media to that library or correct its metadata/external IDs."; settingsPath = "/settings/sync#syncMatchReport"; }
+      else if (res.name === "Cross-Platform Library Matching") { fixInstruction = "Fix: Open Sync Activity and use Issues only to see which media each platform could not find, then correct its metadata or external IDs."; settingsPath = "/sync-activity"; }
       else if (res.name === "Plex Media Server") { fixInstruction = "Fix: Sign in with Plex or enter the Plex Server URL and Plex Token in Settings → Media Servers, then confirm the server is reachable from the machine running Plembfin."; settingsPath = "/settings/media-servers"; }
       else if (res.name === "Plex Realtime Notifications") { fixInstruction = "Fix: Ensure any reverse proxy / Cloudflare in front of Plex forwards WebSocket upgrades on /:/websockets/notifications, or set the Plex Server URL to the direct LAN address (e.g. http://192.168.x.x:32400). Adaptive polling and unwatch sync will continue working."; settingsPath = "/settings/media-servers"; }
       else if (res.name === "Emby Media Server") { fixInstruction = "Fix: Sign in to Emby or enter the Emby Server URL, API Key, and User ID in Settings → Media Servers, then confirm the server is reachable from the machine running Plembfin."; settingsPath = "/settings/media-servers"; }

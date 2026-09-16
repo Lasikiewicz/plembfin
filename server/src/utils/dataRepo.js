@@ -1512,8 +1512,12 @@ function defaultTelemetry(record) {
   return [`Origin: ${source}`, `Loop-check: Pending`, `Dispatch status: pending`, `Details: Awaiting outbound sync telemetry`].join("\n");
 }
 
-export async function batchInsertWatchRecords(records) {
-  assertRestoreWriteAllowed("trakt_import");
+export async function batchInsertWatchRecords(records, {
+  source = "trakt_import",
+  telemetryForRecord = null,
+  prefetch = true,
+} = {}) {
+  assertRestoreWriteAllowed(source);
   let inserted = 0;
   let skipped = 0;
   const rejected = [];
@@ -1523,7 +1527,7 @@ export async function batchInsertWatchRecords(records) {
   const tmdbApiKey = config.tmdb?.apiKey;
 
   const prepareRecord = async (record, index) => {
-    const normalized = normalizeWatchRecord(record, "trakt_import");
+    const normalized = normalizeWatchRecord({ ...record, source: record?.source || source }, source);
     const errors = validateWatchRecord(normalized);
     if (errors.length) return { action: "reject", index, errors };
 
@@ -1562,7 +1566,7 @@ export async function batchInsertWatchRecords(records) {
         const id = crypto.randomUUID();
         const params = watchRowParams({
           ...normalized,
-          sync_dispatch_telemetry: normalized.sync_dispatch_telemetry || defaultTelemetry(normalized),
+          sync_dispatch_telemetry: normalized.sync_dispatch_telemetry || telemetryForRecord?.(normalized) || defaultTelemetry(normalized),
         });
         const storedAt = Date.now();
         insertWatchStmt.run({ id, ...params, created_at: storedAt, updated_at: storedAt });
@@ -1635,7 +1639,7 @@ export async function batchInsertWatchRecords(records) {
       }
     }
     for (const normalized of insertedRecords) {
-      if (isWatchedAction(normalized) && (normalized.media_type === "movie" || normalized.tmdb_id || normalized.title)) {
+      if (prefetch && isWatchedAction(normalized) && (normalized.media_type === "movie" || normalized.tmdb_id || normalized.title)) {
         prefetchTmdbMetadataBackground(normalized.media_type, normalized.tmdb_id, normalized.title, normalized.id, normalized).catch(() => null);
       }
     }

@@ -44,6 +44,7 @@ const WIPE_SCOPES = {
       "tracker_play_history",
       "up_next_provider_items",
       "up_next_provider_feed_state",
+      "up_next_manual_shows",
     ],
   },
   watchlist: {
@@ -130,6 +131,7 @@ WIPE_SCOPES.factory = {
     "personal_watchlist_activity",
     "up_next_provider_items",
     "up_next_provider_feed_state",
+    "up_next_manual_shows",
   ],
 };
 

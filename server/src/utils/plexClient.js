@@ -3,6 +3,13 @@ import { fetchPlexWithRefresh, plexRequestHeaders } from "./plexFetch.js";
 import { compoundEpisodeForMedia, compoundEpisodeItemsForMedia } from "./compoundEpisode.js";
 import { restoreLookupKey } from "./restoreLookupCache.js";
 import { nativeProviderItemIds } from "./providerItemIds.js";
+import {
+  PLEX_ALREADY_MATCHING_DETAIL,
+  PLEX_POLICY_SKIP_DETAIL,
+  isHistoricalWatchIntent,
+  plexHistoricalWatchedAllowed,
+  resolveWatchSyncIntent,
+} from "./watchSyncPolicy.js";
 
 // Plex accepts the token as a header everywhere the query parameter works; the
 // header keeps it out of Plex/reverse-proxy access logs and our own error logs.
@@ -562,9 +569,45 @@ export async function findPlexItem(config, media) {
   return findPlexItemUncached(config, media);
 }
 
+// True only when every item Plex resolved for this media is already watched, so
+// a mark-watched request would change nothing. Plex records `/:/scrobble` using
+// its own clock, which means a redundant scrobble silently moves the item's
+// activity date to today - exactly what a reconcile pass must not keep doing.
+//
+// The item Plex returned usually already carries `viewCount`. When it does not
+// (a cached ratingKey resolved without metadata), one extra lookup is worth
+// spending on a projection of state Plembfin already holds - a historical
+// import, or a user's explicit mark-watched - but not on a live playback event,
+// which is a new state change we intend to write regardless.
+async function plexItemsAlreadyWatched(config, items, media) {
+  const lane = media?.lane || "sync";
+  const intent = resolveWatchSyncIntent(media);
+  const compareBeforeWriting = isHistoricalWatchIntent(intent) || intent === "manual";
+  const states = await Promise.all(items.map(async (targetItem) => {
+    if (targetItem?.viewCount !== undefined && targetItem?.viewCount !== null) {
+      return Number(targetItem.viewCount) > 0;
+    }
+    if (!compareBeforeWriting || !targetItem?.ratingKey) return null;
+    const metadata = await fetchPlexMetadataItem(config, targetItem.ratingKey, { lane }).catch(() => null);
+    if (!metadata) return null;
+    return Number(metadata.viewCount || 0) > 0;
+  }));
+  return states.length > 0 && states.every((state) => state === true);
+}
+
 export async function markPlexPlayed(config, media) {
   try {
     requirePlexConfig(config);
+
+    // Adapter-level enforcement of the provider matrix, deliberately redundant
+    // with syncOrchestrator's target filtering: `/:/scrobble` is the only
+    // supported watched-state write Plex offers and it always stamps the
+    // server's current time, so a historical projection the user has disabled
+    // must not be able to reach this client from any entry point.
+    if (!plexHistoricalWatchedAllowed(media)) {
+      console.log("Plex mark played skipped by historical sync policy", { title: media?.title });
+      return { platform: "plex", status: "skipped_by_policy", detail: PLEX_POLICY_SKIP_DETAIL };
+    }
 
     const item = await findPlexItem(config, media);
     if (!item?.ratingKey) {
@@ -573,6 +616,16 @@ export async function markPlexPlayed(config, media) {
     }
 
     const items = item.__compoundItems || [item];
+    if (await plexItemsAlreadyWatched(config, items, media)) {
+      console.log("Plex item already watched; no mark-played request sent", { ratingKey: items[0].ratingKey });
+      return {
+        platform: "plex",
+        status: "already_matching",
+        detail: PLEX_ALREADY_MATCHING_DETAIL,
+        itemId: items[0].ratingKey,
+        itemIds: items.map((targetItem) => targetItem.ratingKey),
+      };
+    }
     let lastHttpStatus = 200;
     await Promise.all(items.map(async (targetItem) => {
       const url = new URL(`${trimTrailingSlash(config.baseUrl)}/:/scrobble`);

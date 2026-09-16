@@ -19,7 +19,12 @@ import {
   hideJellyfinFromResume,
   updateJellyfinUserData,
 } from "./jellyfinClient.js";
-import { isPlembfinPrimaryUpNextFeed, recordUpNextProviderFeed } from "./upNextRepository.js";
+import {
+  completeUpNextProviderFeed,
+  failUpNextProviderFeed,
+  isPlembfinPrimaryUpNextFeed,
+  startUpNextProviderFeed,
+} from "./upNextRepository.js";
 import { normalizeUpNextCandidate, upNextIdentityAliases } from "./upNextIdentity.js";
 import { createLoopStore } from "./loopStore.js";
 import { recordOutboundJellyfinNextUpNudge, recordOutboundPlayedMarks, recordOutboundProgressMarks, syncMediaProgress } from "./syncOrchestrator.js";
@@ -422,13 +427,14 @@ function actionableProgressItem(item = {}) {
 }
 
 async function fetchAndRecordFeed(definition) {
+  const generation = startUpNextProviderFeed(definition.provider, definition.feedKind);
   try {
     const rawItems = await definition.fetch();
     const items = feedCandidates(definition.provider, definition.feedKind, rawItems);
     // This feed read is part of an outbound reconciliation. The repository
     // normally schedules an automatic push when a feed changes, but allowing
     // this read to schedule another push would create a feedback loop.
-    recordUpNextProviderFeed(definition.provider, definition.feedKind, rawItems, { triggerAutoSync: false });
+    completeUpNextProviderFeed(definition.provider, definition.feedKind, generation, rawItems, { triggerAutoSync: false });
     return {
       provider: definition.provider,
       feed_kind: definition.feedKind,
@@ -438,6 +444,7 @@ async function fetchAndRecordFeed(definition) {
       supportsDismissal: definition.supportsDismissal,
     };
   } catch (error) {
+    failUpNextProviderFeed(definition.provider, definition.feedKind, generation, error);
     return {
       provider: definition.provider,
       feed_kind: definition.feedKind,
@@ -448,6 +455,15 @@ async function fetchAndRecordFeed(definition) {
       error: text(error?.message || error) || "Provider feed refresh failed",
     };
   }
+}
+
+// Refresh provider observations without pushing or dismissing provider items.
+// This is used by the dashboard's explicit refresh action to clear stale feed
+// failures after a media server or network outage has recovered.
+export async function refreshUpNextProviderFeeds({ config = {} } = {}) {
+  const definitions = feedDefinitions(config);
+  const configuredDefinitions = definitions.filter((definition) => definition.configured);
+  return Promise.all(configuredDefinitions.map(fetchAndRecordFeed));
 }
 
 async function propagateKnownProgress(items, config) {

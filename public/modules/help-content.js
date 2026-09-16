@@ -1,5 +1,5 @@
-import { getWebhookToken } from "./auth.js?v=1.1.1.2.1";
-import { escapeHtml, escapeAttribute } from "./utils.js?v=1.1.1.2.1";
+import { getWebhookToken } from "./auth.js?v=1.1.1.3.1";
+import { escapeHtml, escapeAttribute } from "./utils.js?v=1.1.1.3.1";
 
 function snippet(code, language = "text") {
   const trimmed = String(code).trim();
@@ -152,7 +152,14 @@ export function traktBridgeGuide() {
         </div>
       </details>
 
-      <p class="tool-accordion-desc" style="margin: 0;"><b>First connection:</b> “Start from current state” records a safe baseline without changing other apps. “Import all existing Trakt watched state” deliberately treats every current Trakt watch as input. After that baseline, the complete snapshot is checked each minute; additions become watched actions and removals become unwatched actions. <b>Sync Now</b> is a safe repair pass: it restores missing watched state from Trakt, but never treats a partial Trakt response as a bulk unwatch. While it runs, the connection card shows progress and changes the action to “Syncing”; completion reports how many Trakt items were checked and how many changes were applied.</p>
+      <div class="guide-callout">
+        <b>Choose the first-connection mode</b>
+        <p style="margin: var(--space-1) 0 0;"><b>Use “Start from current state”</b> when your media servers already have watch history, or you are not sure which service is complete. Plembfin records Trakt's current state as a baseline without sending existing Trakt watches to Plex, Emby, or Jellyfin. Future changes still sync.</p>
+        <p style="margin: var(--space-1) 0 0;"><b>Use “Import all existing Trakt watched state”</b> when Trakt is your trusted source, your other servers are new or empty, or you are migrating to Plembfin. It imports Trakt's existing history and queues matching items as watched on your connected servers.</p>
+        <p style="margin: var(--space-1) 0 0;">This imports watched state, not every historical play date into each media server. Plembfin keeps Trakt play dates and rewatches in its own history, while Plex, Emby, and Jellyfin typically receive watched/unwatched updates.</p>
+        <p style="margin: var(--space-1) 0 0;"><b>Rule of thumb:</b> keep the safe default unless you intentionally want Trakt to populate the other servers.</p>
+      </div>
+      <p class="tool-accordion-desc" style="margin: 0;"><b>After the first connection:</b> Plembfin checks the complete Trakt snapshot each minute; additions become watched actions and removals become unwatched actions. <b>Sync Now</b> is a safe repair pass: it restores missing watched state from Trakt, but never treats a partial Trakt response as a bulk unwatch. While it runs, the connection card shows progress and changes the action to “Syncing”; completion reports how many Trakt items were checked and how many changes were applied.</p>
     </div>
   `;
 }
@@ -465,15 +472,16 @@ export function renderSettingsInlineHelp() {
   const webhookSetupGuides = document.getElementById("webhookSetupGuides");
   if (webhookSetupGuides) {
     webhookSetupGuides.innerHTML = `
-      <details class="sync-tool-details settings-static-details" open>
-        <summary class="accordion-header" tabindex="-1">
-          <div class="sync-tool-summary-title" style="justify-content: space-between; display: flex; align-items: center;">
+      <details class="sync-tool-details">
+        <summary class="accordion-header">
+          <div class="sync-tool-summary-title">
+            <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
             <b>Plex</b>
             <span class="badge badge-success">Automatic</span>
           </div>
           <span>No webhook setup required</span>
         </summary>
-        <div class="tool-item-row" style="padding: var(--space-3); width: 100%;">
+        <div class="tool-item-row">
           <p style="font-size: 0.9rem; color: var(--muted); margin: 0;">Plembfin watches Plex automatically. It picks up watched and unwatched changes in real time, and also checks playback progress every minute.</p>
           <p style="font-size: 0.9rem; color: var(--muted); margin: var(--space-2) 0 0;">Changes are saved to Plembfin and passed on to your other servers.</p>
           <div class="guide-callout warning-callout" style="gap: var(--space-1); border-color: rgba(234, 179, 8, 0.45); background: rgba(234, 179, 8, 0.08); margin-top: var(--space-3);">
@@ -498,7 +506,7 @@ export function renderSettingsInlineHelp() {
           </div>
           <span>Instructions for adding webhooks in Emby Server</span>
         </summary>
-        <div class="tool-item-row" style="padding: var(--space-3); width: 100%;">${embyWebhookSetup()}</div>
+        <div class="tool-item-row">${embyWebhookSetup()}</div>
       </details>
       <details class="sync-tool-details">
         <summary class="accordion-header">
@@ -508,19 +516,8 @@ export function renderSettingsInlineHelp() {
           </div>
           <span>Instructions for adding webhooks in Jellyfin Media Server</span>
         </summary>
-        <div class="tool-item-row" style="padding: var(--space-3); width: 100%;">${jellyfinWebhookSetup()}</div>
+        <div class="tool-item-row">${jellyfinWebhookSetup()}</div>
       </details>
-    `;
-  }
-
-
-  const syncIssuesHelp = document.getElementById("syncIssuesHelp");
-  if (syncIssuesHelp) {
-    syncIssuesHelp.innerHTML = `
-      <b style="display: block; margin-bottom: var(--space-1);">Cross-Platform Match Report</b>
-      <p class="tool-accordion-desc" style="margin: 0;">Lists media Plembfin couldn't identify, grouped by platform. Pick the right title to fix each one.</p>
-      <p class="tool-accordion-desc" style="margin: 4px 0 0;">Media that's identified but just missing from a library isn't listed - the watch is already recorded correctly, and it's marked watched automatically if the file shows up there later.</p>
-      <p class="tool-accordion-desc" style="margin: 4px 0 0;"><b>Rescan</b> re-runs the sync for every listed item and rebuilds the report. <b>Fix All Matches</b> does the same, then walks you through fixing them one at a time.</p>
     `;
   }
 

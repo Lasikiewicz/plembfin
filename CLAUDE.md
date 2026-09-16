@@ -110,6 +110,7 @@ procedures from memory.**
 | "Force to main" (exactly) | `force-to-main` |
 | "Push website live" (case-insensitive) | `push-website-live` |
 | "Start the website" (case-insensitive) | `start-website` |
+| "Start the server" (case-insensitive) | Start or reuse the Plembfin application server using the network-enabled launch path |
 | "Check requests" (case-insensitive) | `.claude/check-requests.md` |
 
 These hold regardless of which skill is running, so they are repeated here:
@@ -124,6 +125,13 @@ These hold regardless of which skill is running, so they are repeated here:
 - "Start the website" is local-only: start or reuse the Astro dev server on
   `http://localhost:4321/` and open that URL for editing/testing. Do not deploy it or
   run the root Plembfin build.
+- "Start the server" is the Plembfin application-server workflow: start or reuse
+  `npm start` (or `npm run dev` when auto-reload is requested) on `http://localhost:5055`.
+  On Windows, the agent must launch it with `exec_command` using
+  `sandbox_permissions: "require_escalated"` and a user-facing justification that
+  network access is required for Plex, Emby, Jellyfin, Trakt, TMDB, or TVDB. Never
+  launch this server from the restricted sandbox; it can bind localhost while blocking
+  the outbound connections the application needs.
 - "Check requests" is local-only and read-only: inspect the registered Plex, Emby, and
   Jellyfin request pages in connected Chrome, compare public status/vote/comment data
   with the ignored local snapshot, and draft (but do not post) replies when a maintainer
@@ -145,10 +153,41 @@ These hold regardless of which skill is running, so they are repeated here:
 
 ## Documentation and backlog sync
 
-When implementing or finishing work described in `TODO.md`, remove the completed
-item from the TODO file in the same change. If the completed work changes user-visible
-behavior, also update the relevant `docs/` page and README section. Before removing
-an item, verify that the code and documentation both describe the current behavior.
+[`plan/todo.md`](plan/todo.md) is the single backlog: it indexes every plan in `plan/`,
+records each one's status, and carries the unscheduled items below that index. There is no
+root `TODO.md`; it was retired on 15 September 2026 and its items were folded into plans.
+
+When implementing or finishing work described there, update the entry in the same change -
+remove it when it is genuinely finished, or move it to a truthful status when it is not. If
+the completed work changes user-visible behavior, also update the relevant `docs/` page and
+README section. Before removing an item, verify that the code and documentation both
+describe the current behavior.
+
+### MANDATORY: keep the TODO current, and never overstate status
+
+**Before ending any turn that changed code, and before starting a new phase of work,
+update [`plan/todo.md`](plan/todo.md) with the real status**, together with the status line
+in the plan the work belongs to. This is not optional and does not wait to be asked. Work
+with no plan of its own goes under that file's "Unscheduled backlog" heading; if it is
+substantial enough to need one, write the plan.
+
+The status must be accurate rather than flattering. Specifically:
+
+- **Distinguish "implemented", "unit-tested", and "verified".** Code that compiles is not
+  tested. Code covered by tests that stub the network is not verified against the real
+  service. Each is a separate claim; only make the ones that are true.
+- **A plan is only `Completed` once its own verification section has actually been run.**
+  Until then it is `Implemented and unit-tested; not yet Completed`, with the outstanding
+  checks listed individually as unticked boxes, not summarized.
+- **List what is NOT verified explicitly**, including the failure mode. "Emby `DatePlayed`
+  unconfirmed - a wrong format degrades silently to watched-dated-today while still
+  reporting success" is useful; "some testing remains" is not.
+- **Record scoping calls made during implementation** that the user has not reviewed, so a
+  decision taken for expediency cannot quietly become settled behaviour.
+- **Never mark a downstream plan unblocked** because an upstream plan was implemented. It
+  unblocks when the upstream plan reaches `Completed`.
+
+A task is finished when it is verified, not when it is written.
 
 ### Decision records
 
@@ -301,6 +340,7 @@ When adding frontend code, place it in the most specific existing module that ow
 | TMDB detail/season/person enrichment helpers | `modules/tmdb.js` |
 | Trailer playback and photo lightbox | `modules/media-lightbox.js` |
 | Trakt/CSV import and settings tools bridge | `modules/tools.js` |
+| Tautulli connection and one-time watch-history importer | `modules/settings-services.js`, `modules/tautulli-import.js` |
 | Live Trakt connection and initial-sync controls | `modules/tracker-settings.js` |
 | Authenticated live watch-state refresh stream | `modules/live-updates.js` |
 | Backup and appearance tools | `modules/tools-backups.js` |
@@ -318,6 +358,7 @@ When adding frontend code, place it in the most specific existing module that ow
 | Shared `state` and `elements` objects | `modules/state.js` |
 | App event wiring | `modules/app-events.js` |
 | Media-detail modal click delegation (cast/trailers/poster edit/watch actions/card navigation) | `modules/media-detail-events.js` |
+| Shared copy for the Plex historical watched-sync setting (setup wizard and Sync Tuning) | `modules/plex-history-policy.js` |
 | Poster-card three-dot overflow menu (Mark Unwatched / Edit watch date / Fix match) outside the media detail pages | `modules/poster-menu.js` |
 | App startup, routing, `bindElements` | `app.js` |
 

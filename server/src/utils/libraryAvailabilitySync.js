@@ -163,8 +163,13 @@ export async function reconcileAvailableWatchedItems(config = {}, {
     providers: {},
   };
 
+  // Repairing a provider item that is present but unplayed replays a watch
+  // Plembfin already holds, so it is a historical backfill rather than new
+  // activity. Naming the intent lets the Plex historical policy apply here the
+  // same way it does to an import (see utils/watchSyncPolicy.js); a policy skip
+  // comes back as a non-success and is counted as skipped, not marked.
   const mark = markWatched || ((media, provider) => syncCanonicalPlaystate(
-    { ...media, syncTargets: [provider] },
+    { ...media, syncIntent: "historical", syncTargets: [provider] },
     config,
     loopStore,
     "watched",

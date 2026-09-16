@@ -863,3 +863,74 @@ depend on which page is currently open.
 **Enforced by:** `upNextAutoSync.js`, the `up_next_sync` worker job, the queue invalidation
 hooks in `dataRepo.js`, `upNextRepository.js`, `upNextDismissals.js`, and `upNextCache.js`,
 and `test/upNextAutoSync.test.js`.
+
+### 30. Scope the historical watched-sync opt-out to Plex, and make a policy skip a reported outcome
+**Date:** 2026-09-15  |  **Status:** Active
+
+**Context:** Plembfin is the source of truth for watched state, and every provider is
+supposed to end up agreeing with it. The providers are not equally capable of that. Trakt
+keeps exact play dates and rewatch history. Emby accepts the original date through
+`DatePlayed` on its mark-played endpoint, and Jellyfin through `datePlayed`. Plex has no
+supported historical-date setter on its server API: `/:/scrobble` is the only watched-state
+write available, and it always records the Plex server's own clock. A Trakt or Tautulli
+import, a restore onto a new server, or a library-wide push therefore lands in Plex as a
+flood of activity dated today. There is no way to make that date correct through a
+supported API, so the only honest choices are to accept it or to skip the write.
+
+**Decision:** One Plex-scoped setting, `tuning.plexHistoricalWatchedSync`, default on, that
+governs only *historical* watched projections: imports, restores, backdated manual marks,
+and library-wide pushes. It never gates a live watch, a **Now** manual mark, a per-item
+Force Sync, or any unwatch. Turning it off never affects Emby, Jellyfin, or Trakt, which
+keep receiving the original date. Intent is carried explicitly on the media payload
+(`syncIntent`) and resolved in one place, `watchSyncPolicy.js`, which both
+`syncOrchestrator.js` and the Plex adapter consult. A suppressed target is reported as
+`skipped_by_policy` - a terminal, non-retryable outcome distinct from `failed`,
+`unsupported`, and `already_matching` - so an import summary can say Plex was skipped by
+the selected policy rather than reporting a silent success.
+
+**Rejected:**
+
+- *Inferring "historical" from an old timestamp.* A user can mark something watched today
+  from the calendar picker, and an imported play can be from an hour ago. Guessing from the
+  date would both block current actions and let imports through.
+- *A global "disable history sync" switch.* Users would reasonably read that as stopping
+  all history sync, and it would take Emby, Jellyfin, and Trakt down with a limitation only
+  Plex has.
+- *Making the setting default off to avoid the activity flood.* State consistency between
+  Plembfin and Plex is the more common expectation; a Plex library that silently disagrees
+  is the worse surprise. The flood is explained before an import and can be opted out of.
+- *Working around the Plex limitation.* Editing the Plex database, moving the server or host
+  clock, and using `/:/timeline` as a date setter are all explicitly out of bounds. The last
+  is a playback timeline endpoint, not a historical watch-date API, and misusing it risks
+  corrupting real playback state on the user's server.
+- *Exempting a per-item Force Sync.* This was the original call and it was **wrong**; see
+  the amendment below.
+
+**Consequence to know:** with the setting off, a new Plex server will not receive older
+watched history from Plembfin, and Plex badges and counts can disagree with Plembfin until
+the user marks those items there. Existing Plex watch history is never removed or changed.
+
+**Amendment, 16 September 2026 - off means off.** The first implementation exempted a
+per-item Force Sync, on the reasoning that it was a targeted repair the user had just asked
+for and was the escape hatch for items the policy leaves behind. The maintainer rejected
+that: unchecking the setting means the user has decided historical watches should not reach
+Plex *at all*, and only genuinely new watches should. An exemption that quietly pushes old
+watches to Plex defeats the setting, and the setting itself - not a side door - is how a
+user asks for their history to be pushed.
+
+So `force_sync` now resolves to `historical`, and `syncCanonicalPlaystate` defaults to
+`historical` rather than inheriting the `manual` source it rewrites onto the payload. Every
+replay of a watch Plembfin already holds - Force Sync, availability repair, a webhook
+reconcile of an older watch - is therefore gated. A caller restoring genuinely live state
+passes an explicit `syncIntent: "live"`, which wins; the Plex adaptive poller's
+transient-unwatch repair is the one such caller, because that watch just happened with
+threshold playback evidence and Plex dropped it itself.
+
+Without the `syncCanonicalPlaystate` default the setting would have been close to
+decorative: the source rewrite to `"manual"` exempted every replay, so a library's worth of
+history could still reach Plex through ordinary reconciliation after the user turned the
+setting off. This was observed in testing before it was fixed.
+
+**Enforced by:** `server/src/utils/watchSyncPolicy.js`, the target filter in
+`syncMediaPlaystate`, the `syncCanonicalPlaystate` intent default, and the adapter guard in
+`markPlexPlayed`; `test/historicalWatchSyncPolicy.test.js`.

@@ -1,6 +1,6 @@
-import { HIDE_EPISODE_SPOILERS_KEY, state } from "./state.js?v=1.1.1.2.1";
-import { escapeAttribute, formatDate, showTitleFrom, showName, slug, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, tvShowTmdbHref, tvShowTvdbHref, normalizePlatformSource } from "./utils.js?v=1.1.1.2.1";
-import { isCachedStorageImageUrl, proxiedArtworkUrl, rememberPosterLookup } from "./images.js?v=1.1.1.2.1";
+import { HIDE_EPISODE_SPOILERS_KEY, state } from "./state.js?v=1.1.1.3.1";
+import { escapeAttribute, formatDate, showTitleFrom, showName, slug, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, tvShowTmdbHref, tvShowTvdbHref, normalizePlatformSource } from "./utils.js?v=1.1.1.3.1";
+import { isCachedStorageImageUrl, proxiedArtworkUrl, rememberPosterLookup } from "./images.js?v=1.1.1.3.1";
 import {
   openEditDateDialog,
   openEditShowDateDialog,
@@ -11,7 +11,7 @@ import {
   openEditSeasonDateDialog,
   applyWatchedAtToLocalWatchRecord,
   editDateOptionsFromButton,
-} from "./edit-dialogs.js?v=1.1.1.2.1";
+} from "./edit-dialogs.js?v=1.1.1.3.1";
 import {
   openWatchDatePrompt,
   closeWatchDatePrompt,
@@ -25,9 +25,10 @@ import {
   confirmAndMarkUnwatched,
   confirmAndDeleteMedia,
   toggleWatchDateIncludeSpecials,
-} from "./watch-action.js?v=1.1.1.2.1";
-import { triggerRetrySync, loadSyncJobs, loadSyncHistory, showAvailIssuePopup, isWatchedHistoryAction } from "./sync.js?v=1.1.1.2.1";
-import { renderExplorer, renderHistoryView, resolvedTmdbCache, refreshMovieExplorerInPlace, refreshHistoryViewInPlace } from "./explorer.js?v=1.1.1.2.1";
+  toggleWatchDateIncludeUnreleased,
+} from "./watch-action.js?v=1.1.1.3.1";
+import { triggerRetrySync, loadSyncJobs, loadSyncHistory, showAvailIssuePopup, isWatchedHistoryAction } from "./sync.js?v=1.1.1.3.1";
+import { renderExplorer, renderHistoryView, resolvedTmdbCache, refreshMovieExplorerInPlace, refreshHistoryViewInPlace } from "./explorer.js?v=1.1.1.3.1";
 import {
   movieBySlugOrId,
   openShowInlineDetail,
@@ -41,9 +42,10 @@ import {
   patchMovieWatchedState,
   openHistoryDebugModal,
   openMediaInfoModal,
-} from "./media-detail.js?v=1.1.1.2.1";
-import { fetchWatchedMovieByTmdb, syncRewatchHistoryToggle } from "./media-detail-movie.js?v=1.1.1.2.1";
-import { addToWatchlist, removeFromWatchlist, openAddToListDialog, personalItemFromDetailDataset, refreshRenderedPersonalMediaControls, loadPersonalMedia } from "./personal-media.js?v=1.1.1.2.1";
+} from "./media-detail.js?v=1.1.1.3.1";
+import { fetchWatchedMovieByTmdb, syncRewatchHistoryToggle } from "./media-detail-movie.js?v=1.1.1.3.1";
+import { addToWatchlist, removeFromWatchlist, openAddToListDialog, personalItemFromDetailDataset, refreshRenderedPersonalMediaControls, loadPersonalMedia } from "./personal-media.js?v=1.1.1.3.1";
+import { addShowToUpNext, removeShowFromUpNext, upNextAttentionOptions } from "./up-next.js?v=1.1.1.3.1";
 
 // Callbacks injected by app-events.js (forwarded from app.js) to avoid circular imports.
 let _cb = {};
@@ -841,6 +843,12 @@ export function attachMediaDetailEvents() {
       return;
     }
 
+    const includeUnreleasedToggle = event.target.closest("[data-watch-date-include-unreleased]");
+    if (includeUnreleasedToggle) {
+      toggleWatchDateIncludeUnreleased(includeUnreleasedToggle.checked);
+      return;
+    }
+
     const spoilerToggle = event.target.closest("[data-hide-episode-spoilers]");
     if (!spoilerToggle) return;
     state.hideEpisodeSpoilers = spoilerToggle.checked;
@@ -862,6 +870,23 @@ export function attachMediaDetailEvents() {
     // clicking the three dots would navigate to the media page instead of
     // opening the menu.
     if (event.target.closest(".poster-overflow-btn")) return;
+
+    const upNextShowButton = event.target.closest("[data-up-next-show-add]");
+    if (upNextShowButton) {
+      event.preventDefault();
+      event.stopPropagation();
+      const remove = upNextShowButton.dataset.upNextShowAction === "remove";
+      const request = remove
+        ? openConfirmDialog({
+            title: "Remove from Up Next",
+            body: `Remove "${upNextShowButton.dataset.upNextShowTitle || "this show"}" from Up Next?`,
+            confirmLabel: "Remove from Up Next",
+            danger: true,
+          }).then((confirmed) => confirmed ? removeShowFromUpNext(upNextShowButton) : null)
+        : addShowToUpNext(upNextShowButton);
+      request.catch((error) => setMessage(error.message, "error", upNextAttentionOptions(error, remove ? "remove" : "add")));
+      return;
+    }
 
     // Tools is always a popup menu, so close it when a click lands outside it.
     const openDropdowns = document.querySelectorAll("#mediaDetailActions .actions-tools-dropdown[open]");

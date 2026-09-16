@@ -1,0 +1,42 @@
+{
+  "movies": [
+    {
+      "row_id": 101,
+      "user_id": 7,
+      "media_type": "movie",
+      "title": "Example Film",
+      "year": 2020,
+      "guid": "com.plexapp.agents.imdb://tt1234567?lang=en",
+      "date": 1757900000,
+      "stopped": 1757903600,
+      "watched_status": 1,
+      "percent_complete": 100
+    },
+    {
+      "row_id": 102,
+      "user_id": 7,
+      "media_type": "movie",
+      "title": "Example Film",
+      "year": 2020,
+      "date": 1757986400,
+      "stopped": 1757987000,
+      "watched_status": 0
+    }
+  ],
+  "episodes": [
+    {
+      "rating_key": 201,
+      "user_id": 7,
+      "media_type": "episode",
+      "grandparent_title": "Example Show",
+      "title": "The Example Episode",
+      "parent_media_index": 1,
+      "media_index": 2,
+      "grandparent_guid": "com.plexapp.agents.thetvdb://99999?lang=en",
+      "guid": "com.plexapp.agents.thetvdb://88888?lang=en",
+      "date": 1758000000,
+      "stopped": 0,
+      "watched_status": 1
+    }
+  ]
+}

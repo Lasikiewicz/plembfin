@@ -1,7 +1,7 @@
-import { buildAuthHeaders, buildNowPlayingUrl } from "./auth.js?v=1.1.1.2.1";
-import { state, elements } from "./state.js?v=1.1.1.2.1";
-import { escapeHtml, escapeAttribute, platformBadge, sourceClass, sourceBadgeHtml, computeProgress, formatDate, formatPlaybackClock, showName } from "./utils.js?v=1.1.1.2.1";
-import { hydratePosters, posterMarkup } from "./images.js?v=1.1.1.2.1";
+import { buildAuthHeaders, buildNowPlayingUrl } from "./auth.js?v=1.1.1.3.1";
+import { state, elements } from "./state.js?v=1.1.1.3.1";
+import { escapeHtml, escapeAttribute, platformBadge, sourceClass, sourceBadgeHtml, computeProgress, formatDate, formatPlaybackClock, showName } from "./utils.js?v=1.1.1.3.1";
+import { hydratePosters, posterMarkup } from "./images.js?v=1.1.1.3.1";
 
 const NOW_PLAYING_POLL_MS = 10000;
 
@@ -611,11 +611,10 @@ export function renderSyncHistory() {
   }
 
   const history = [...state.syncHistory].sort((a, b) => Number(b.timestamp || 0) - Number(a.timestamp || 0));
-  const errorCount = history.filter((entry) => syncHistoryTone(entry) === "error").length;
 
   if (elements.syncHistorySummary) {
-    elements.syncHistorySummary.textContent = history.length ? `${history.length} recent / ${errorCount} failed` : "No history";
-    elements.syncHistorySummary.className = `status-pill ${errorCount ? "status-error" : history.length ? "status-ready" : "status-muted"}`;
+    elements.syncHistorySummary.textContent = "Log only";
+    elements.syncHistorySummary.className = "status-pill status-muted";
   }
 
   if (!history.length) {

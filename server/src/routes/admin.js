@@ -213,7 +213,7 @@ export async function handleConfig(req, res) {
     // are validated, matching the previous per-section semantics.
     const merged = await mergeIncomingConfig(config);
     const toValidate = {};
-    for (const section of ["plex", "emby", "jellyfin", "seerr", "tuning", "pacing", "ratingSync", "watchlistSync", "upNextSync"]) {
+    for (const section of ["plex", "emby", "jellyfin", "seerr", "tautulli", "tuning", "pacing", "ratingSync", "watchlistSync", "upNextSync"]) {
       if (config[section]) toValidate[section] = merged[section];
     }
     const errors = validateConfig(toValidate);
@@ -615,7 +615,7 @@ async function mediaFromAppLinksRequest(req) {
   return media;
 }
 
-async function plexMachineIdentifier(config = {}) {
+export async function plexMachineIdentifier(config = {}) {
   if (!config.baseUrl || !config.token) return "";
   const url = new URL(`${trimTrailingSlash(config.baseUrl)}/identity`);
   try {

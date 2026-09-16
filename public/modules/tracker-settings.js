@@ -1,5 +1,11 @@
+import { state } from "./state.js?v=1.1.1.3.1";
+import { plexHistoricalSyncEnabled } from "./plex-history-policy.js?v=1.1.1.3.1";
+
 let getHeaders = () => ({ "Content-Type": "application/json" });
 let bound = false;
+// Last known connection state, so the Plex notes can be repainted when the
+// saved config arrives without re-querying the tracker API.
+let lastConnected = false;
 let traktProvider = { appConfigured: false, configurationIncomplete: false, personalAppSupported: true };
 
 const el = (id) => document.getElementById(id);
@@ -40,10 +46,16 @@ export function traktSyncCompletionMessage(result = {}) {
 
 function renderConnection(connection) {
   const connected = connection?.status === "connected" || connection?.status === "reauth_required";
+  lastConnected = connected;
   const summary = el("traktConnectedSummary");
   const fields = el("traktConnectForm")?.querySelector(".sync-tuning-fields");
   el("traktConnectButton")?.classList.toggle("hidden", connected);
   el("traktSyncNowButton")?.classList.toggle("hidden", !connected);
+  // Sync Now is an explicit historical import. Say something only when there is
+  // something to act on: with historical Plex sync off, these watches will not
+  // reach Plex at all. With it on there is no decision to make, so stay quiet
+  // rather than repeating provider trivia above every button.
+  refreshTrackerPolicyNotes();
   el("traktDisconnectButton")?.classList.toggle("hidden", !connected);
   fields?.classList.toggle("hidden", connected);
   el("traktPersonalAppFields")?.classList.toggle("hidden", connected);
@@ -55,6 +67,37 @@ function renderConnection(connection) {
   }
   setStatus(connection.status === "connected" ? "Connected" : "Reconnect required", connection.status === "connected" ? "ready" : "warning");
   if (summary) summary.innerHTML = `<b>${escapeText(connection.remoteUsername || "Trakt account")}</b><span>${connection.baselineComplete ? "Live bidirectional sync is active." : "The first complete Trakt snapshot is waiting to run."}</span>${connection.lastError ? `<small>${escapeText(connection.lastError)}</small>` : ""}`;
+}
+
+/**
+ * Repaints the two Plex notes: the one under the First connection picker, which
+ * says what choosing "Import all existing Trakt watched state" will actually do
+ * about Plex, and the warning beside Sync Now. Both depend on the standing
+ * setting, so neither can be static copy, and with no Plex connected there is
+ * nothing to say at all.
+ *
+ * Exported and free of network calls because the saved config loads
+ * asynchronously and often lands after the first render - the settings route
+ * calls this once the config is available, and a Sync Tuning save re-fires it
+ * so the notes track the setting without a reload.
+ */
+export function refreshTrackerPolicyNotes() {
+  const plexConnected = Boolean(state.savedConfig?.plex?.configured) && !state.savedConfig?.plex?.disabled;
+  const plexHistoricalOff = !plexHistoricalSyncEnabled(state.savedConfig || {});
+  el("traktSyncPolicyNote")?.classList.toggle("hidden", !(lastConnected && plexConnected && plexHistoricalOff));
+
+  const node = el("traktFirstConnectionPlexNote");
+  if (!node) return;
+  if (!plexConnected) {
+    node.hidden = true;
+    node.innerHTML = "";
+    return;
+  }
+  node.hidden = false;
+  node.classList.toggle("is-warning", plexHistoricalOff);
+  node.innerHTML = plexHistoricalOff
+    ? `<b>Plex will not receive an import.</b> <b>Sync historical watched items to Plex</b> is off in Sync Tuning, so choosing <b>Import all existing Trakt watched state</b> will not mark those items watched in Plex.`
+    : `Plex receives the watched state only; its activity date may read as today, because the Plex server sets it. Turn off <b>Sync historical watched items to Plex</b> in Sync Tuning if you would rather Plex was left alone.`;
 }
 
 function renderProvider() {
@@ -203,4 +246,10 @@ export function initTrackerSettings({ authHeaders } = {}) {
   el("traktManualForm")?.addEventListener("submit", saveManual);
   el("traktSyncNowButton")?.addEventListener("click", syncNow);
   el("traktDisconnectButton")?.addEventListener("click", disconnect);
+  // The Plex notes below the picker and beside Sync Now are derived from the
+  // saved config, which loads asynchronously and can land after the first
+  // render. Without this they would keep whatever they were built with on the
+  // very first paint - in practice, nothing, because savedConfig was still
+  // empty. Re-render when the config arrives or changes.
+  document.addEventListener("plembfin:config-changed", refreshTrackerPolicyNotes);
 }

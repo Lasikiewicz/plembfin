@@ -1,10 +1,10 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.2.1";
-import { state, elements } from "./state.js?v=1.1.1.2.1";
-import { escapeHtml, slug } from "./utils.js?v=1.1.1.2.1";
-import { hydratePosters } from "./images.js?v=1.1.1.2.1";
-import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=1.1.1.2.1";
-import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=1.1.1.2.1";
-import { renderMediaCard } from "./media-card.js?v=1.1.1.2.1";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.3.1";
+import { state, elements } from "./state.js?v=1.1.1.3.1";
+import { escapeAttribute, escapeHtml, slug } from "./utils.js?v=1.1.1.3.1";
+import { hydratePosters } from "./images.js?v=1.1.1.3.1";
+import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=1.1.1.3.1";
+import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=1.1.1.3.1";
+import { renderMediaCard } from "./media-card.js?v=1.1.1.3.1";
 
 const UP_NEXT_TTL_MS = 2 * 60 * 1000;
 const UP_NEXT_TIMEOUT_MS = 20000;
@@ -26,6 +26,209 @@ let cacheHydrated = false;
 let dismissedUpNext = readDismissedUpNext();
 let upNextExitDeferred = false;
 let upNextExitRepaintTimer = null;
+
+function identityValues(item = {}, kind = "tmdb") {
+  const capitalized = `${kind.charAt(0).toUpperCase()}${kind.slice(1)}`;
+  return [
+    item[`${kind}_id`],
+    item[`show_${kind}_id`],
+    item[`${kind}Id`],
+    item[`show${capitalized}Id`],
+  ].map((value) => String(value || "").trim()).filter(Boolean);
+}
+
+export function manualShowMatches(show = {}, candidate = {}) {
+  const ids = ["tmdb", "tvdb", "imdb"];
+  const sameId = ids.some((kind) => {
+    const left = identityValues(show, kind);
+    const right = identityValues(candidate, kind);
+    return left.some((value) => right.includes(value));
+  });
+  if (sameId) return true;
+  const leftTitle = slug(show.title || show.show_title || show.showTitle || "");
+  const rightTitle = slug(candidate.title || candidate.show_title || candidate.showTitle || "");
+  return Boolean(leftTitle && rightTitle && leftTitle === rightTitle);
+}
+
+export function isShowInUpNext(show = {}) {
+  if ((state.upNextManualShows || []).some((candidate) => manualShowMatches(show, candidate))) return true;
+  return (state.upNextItems || []).some((candidate) => (
+    String(candidate?.media_type || candidate?.mediaType || "").toLowerCase() === "episode"
+    && manualShowMatches(show, candidate)
+  ));
+}
+
+function showFromUpNextButton(button) {
+  const d = button?.dataset || {};
+  return {
+    title: d.upNextShowTitle || "TV show",
+    tmdb_id: d.upNextShowTmdbId || "",
+    tvdb_id: d.upNextShowTvdbId || "",
+    imdb_id: d.upNextShowImdbId || "",
+    poster_url: d.upNextShowPosterUrl || "",
+  };
+}
+
+export function upNextShowActionHtml(show = {}) {
+  const selected = isShowInUpNext(show);
+  const title = show.title || show.show_title || "TV show";
+  const action = selected ? "remove" : "add";
+  return `
+    <button class="action-pill action-pill-ghost media-up-next-show-btn${selected ? " is-added" : ""}" type="button"
+      data-up-next-show-add
+      data-up-next-show-action="${action}"
+      data-up-next-show-title="${escapeAttribute(title)}"
+      data-up-next-show-tmdb-id="${escapeAttribute(show.tmdb_id || show.tmdbId || show.show_tmdb_id || "")}"
+      data-up-next-show-tvdb-id="${escapeAttribute(show.tvdb_id || show.tvdbId || show.show_tvdb_id || "")}"
+      data-up-next-show-imdb-id="${escapeAttribute(show.imdb_id || show.imdbId || show.show_imdb_id || "")}"
+      data-up-next-show-poster-url="${escapeAttribute(show.poster_url || show.posterUrl || show.show_poster_url || "")}"
+      title="${selected ? "Remove this show from the dashboard Up Next rail" : "Add the next unwatched episode to the dashboard Up Next rail"}">
+      <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+        ${selected ? '<path d="M3 8h10" />' : '<path d="M8 3v10M3 8h10" />'}
+      </svg>
+      <span>${selected ? "Remove from <br>Up Next" : "Add to <br>Up Next"}</span>
+    </button>
+  `;
+}
+
+export function upNextAttentionOptions(error, action = "update") {
+  const verb = action === "remove" ? "remove" : "add";
+  const message = String(error?.message || `Could not ${verb} this show to Up Next`).trim();
+  if (error?.code === "UP_NEXT_SHOW_ROUTE_MISSING") {
+    return {
+      title: `Could not ${verb} show in Up Next`,
+      explanation: "The media page is newer than the Plembfin server currently handling requests. The server returned HTTP 404 for the Up Next show endpoint, so it does not have this feature loaded.",
+      recommendations: [
+        "Stop and restart Plembfin so the local server loads the current build.",
+        "Reload the media page after the restart, then add the show to Up Next again.",
+        "If it still fails, open Settings → Logs and check that the page and server are using the same Plembfin installation.",
+      ],
+    };
+  }
+  return {
+    title: `Could not ${verb} show in Up Next`,
+    explanation: `Plembfin could not ${verb} this show in the dashboard Up Next rail. The request reported: ${message}`,
+    recommendations: [
+      "Try the action again once; this may be a temporary request failure.",
+      "If it keeps failing, open Settings → Logs and check the Up Next request details.",
+    ],
+  };
+}
+
+export async function addShowToUpNext(button) {
+  if (!button || button.disabled) return;
+  const title = button.dataset.upNextShowTitle || "TV show";
+  button.disabled = true;
+  button.setAttribute("aria-busy", "true");
+  try {
+    const response = await fetch("/api/up-next/show", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...buildAuthHeaders(state.token) },
+      body: JSON.stringify({
+        title,
+        tmdb_id: button.dataset.upNextShowTmdbId || "",
+        tvdb_id: button.dataset.upNextShowTvdbId || "",
+        imdb_id: button.dataset.upNextShowImdbId || "",
+        poster_url: button.dataset.upNextShowPosterUrl || "",
+      }),
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(response.status === 404 && body.error === "Not found"
+        ? "The running Plembfin server does not support adding TV shows to Up Next (POST /api/up-next/show). Restart Plembfin, reload this page, and try again."
+        : body.error || `Could not add "${title}" to Up Next`);
+      error.status = response.status;
+      if (response.status === 404 && body.error === "Not found") error.code = "UP_NEXT_SHOW_ROUTE_MISSING";
+      throw error;
+    }
+    if (Array.isArray(body.manualShows)) state.upNextManualShows = body.manualShows;
+    button.classList.add("is-added");
+    const label = button.querySelector("span");
+    if (label) label.innerHTML = "Remove from <br>Up Next";
+    else button.textContent = "Remove from up next";
+    button.dataset.upNextShowAction = "remove";
+    button.dataset.upNextShowToggle = "remove";
+    button.title = "Remove this show from the dashboard Up Next rail";
+    _cb.setMessage?.(`Added "${title}" to Up Next`, "success");
+    await loadUpNext({ force: true });
+  } finally {
+    button.disabled = false;
+    button.removeAttribute("aria-busy");
+  }
+}
+
+export async function removeManualShowFromUpNext(show = {}) {
+  const manual = (state.upNextManualShows || []).find((candidate) => manualShowMatches(show, candidate)) || null;
+  const response = await fetch("/api/up-next/show", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...buildAuthHeaders(state.token) },
+    body: JSON.stringify({
+      remove: true,
+      id: manual?.id || "",
+      title: show.title || manual?.title || "TV show",
+      tmdb_id: show.tmdb_id || show.tmdbId || manual?.tmdb_id || "",
+      tvdb_id: show.tvdb_id || show.tvdbId || manual?.tvdb_id || "",
+      imdb_id: show.imdb_id || show.imdbId || manual?.imdb_id || "",
+    }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body.error || `Could not remove "${show.title || manual?.title || "TV show"}" from Up Next`);
+  if (Array.isArray(body.manualShows)) state.upNextManualShows = body.manualShows;
+  return Boolean(body.removed);
+}
+
+export async function removeShowFromUpNext(button) {
+  if (!button || button.disabled) return;
+  const show = showFromUpNextButton(button);
+  const manual = (state.upNextManualShows || []).find((candidate) => manualShowMatches(show, candidate)) || null;
+  const item = (state.upNextItems || []).find((candidate) => (
+    String(candidate?.media_type || candidate?.mediaType || "").toLowerCase() === "episode"
+    && manualShowMatches(show, candidate)
+  )) || null;
+  if (!manual && !item) return;
+
+  button.disabled = true;
+  button.setAttribute("aria-busy", "true");
+  try {
+    if (item) {
+      const response = await fetch("/api/up-next/remove", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...buildAuthHeaders(state.token) },
+        body: JSON.stringify({
+          media_key: item.media_key || item.id || "",
+          media_type: "episode",
+          queue_kind: item.queue_kind || item.queueKind || "next_up",
+          title: item.title || item.episode_title || show.title,
+          show_title: item.show_title || item.showTitle || show.title,
+          tmdb_id: item.tmdb_id || item.tmdbId || item.show_tmdb_id || item.showTmdbId || show.tmdb_id,
+          imdb_id: item.imdb_id || item.imdbId || item.show_imdb_id || item.showImdbId || show.imdb_id,
+          tvdb_id: item.tvdb_id || item.tvdbId || item.show_tvdb_id || item.showTvdbId || show.tvdb_id,
+          season: item.season ?? "",
+          episode: item.episode ?? "",
+          provider_items: item.provider_items || item.providerItems || {},
+        }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || `Could not remove "${show.title}" from Up Next`);
+      removeUpNextItem(item.id || item.media_key, item, { showScope: true });
+    }
+
+    if (manual || item) await removeManualShowFromUpNext(show);
+
+    button.classList.remove("is-added");
+    const label = button.querySelector("span");
+    if (label) label.innerHTML = "Add to <br>Up Next";
+    else button.textContent = "Add to up next";
+    button.dataset.upNextShowAction = "add";
+    button.dataset.upNextShowToggle = "add";
+    button.title = "Add the next unwatched episode to the dashboard Up Next rail";
+    _cb.setMessage?.(`Removed "${show.title}" from Up Next`, "success");
+    await loadUpNext({ force: true });
+  } finally {
+    button.disabled = false;
+    button.removeAttribute("aria-busy");
+  }
+}
 
 function readDismissedUpNext() {
   try {
@@ -1140,7 +1343,7 @@ export function renderUpNext({ exitIds = [] } = {}) {
   if (section) section.classList.remove("hidden");
   const html = items.slice(0, 30).map((item, index) => renderDashboardUpNextCard({
     ...item,
-    saving: isUpNextWatchSaving(item),
+    saving: item.pending_sync === true || isUpNextWatchSaving(item),
     pending_removal: isUpNextRemovalPending(item),
     eager_poster: index < 12,
   })).join("");
@@ -1197,6 +1400,7 @@ export async function loadUpNext({ force = false, fromSse = false } = {}) {
     const nextIds = new Set(nextItems.filter((item) => !isUpNextItemDismissed(item)).map((item) => String(item?.id || "")).filter(Boolean));
     state.upNextExitIds = [...previousIds].filter((id) => !nextIds.has(id));
     state.upNextItems = nextItems;
+    if (Array.isArray(body.manualShows)) state.upNextManualShows = body.manualShows;
     const responseVersion = Number(body.upNextVersion);
     if (Number.isFinite(responseVersion) && responseVersion > 0) state.upNextVersion = responseVersion;
     state.upNextSourceVersion = String(body.sourceVersion || "");

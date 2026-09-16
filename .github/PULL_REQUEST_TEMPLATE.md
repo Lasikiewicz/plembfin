@@ -22,5 +22,5 @@
 - [ ] I've read [CONTRIBUTING.md](../CONTRIBUTING.md)
 - [ ] I've tested this change locally
 - [ ] I've updated relevant documentation (`docs/`, `README.md`) if behavior changed
-- [ ] I've reviewed `TODO.md` and removed the related item if this completes backlog work
+- [ ] I've reviewed `plan/todo.md` and updated or removed the related item if this completes backlog work
 - [ ] My change follows the existing frontend module boundaries described in `CLAUDE.md`

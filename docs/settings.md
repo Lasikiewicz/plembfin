@@ -13,9 +13,9 @@ and mobile use the **Settings section** select control for the full settings cat
 | General | `/settings/general` | Account, System Integrity Check, Storage & Cache | `/settings/general#account`, `/settings/general#system-integrity`, `/settings/general#storage` |
 | Media servers | `/settings/media-servers` | Plex, Emby, Jellyfin | `/settings/media-servers#plex`, `/settings/media-servers#emby`, `/settings/media-servers#jellyfin` |
 | Webhooks | `/settings/webhooks` | Setup Guides, Webhook Secret | `/settings/webhooks#setup-guides`, `/settings/webhooks#webhook-secret` |
-| Connections | `/settings/connections` | Trakt, Seerr | `/settings/connections#trakt`, `/settings/connections#seerr` |
+| Connections | `/settings/connections` | Trakt, Tautulli watch-history import, Seerr | `/settings/connections#trakt`, `/settings/connections#tautulli`, `/settings/connections#seerr` |
 | Metadata | `/settings/metadata` | Metadata Providers, Refresh Metadata (TMDB, TVDB) | `/settings/metadata#metadata-providers`, `/settings/metadata#refresh-metadata` |
-| Sync | `/settings/sync` | Sync Tuning, Sync Tools (Repair Recent Items, Full Sync Watchstates, Force Sync, Personal Rating Sync, Plex Watchlist Sync), Sync Issues, Sync History | `/settings/sync#sync-tuning`, `/settings/sync#sync-tools`, `/settings/sync#sync-issues`, `/settings/sync#sync-history` |
+| Sync | `/settings/sync` | Sync Tuning, Sync Tools (Repair Recent Items, Full Sync Watchstates, Force Sync, Personal Rating Sync, Plex Watchlist Sync), Sync History | `/settings/sync#sync-tuning`, `/settings/sync#sync-tools`, `/settings/sync#sync-history` |
 | Backup | `/settings/backup` | Local (Watch History, Plembfin), Remote (Watch History, Plembfin) | `/settings/backup#backup-local`, `/settings/backup#backup-remote` |
 | Restore | `/settings/restore` | Local (Watch History, Plembfin), Remote (Watch History, Plembfin) | `/settings/restore#restore-local`, `/settings/restore#restore-remote` |
 | Tools | `/settings/tools` | Guided Setup, Database Repairs, Library Rebuilds and Backfills, Wipe data (Watch History, Personal Watchlist, Sync History & Logs, Everything Tracked, Wipe All / Fresh Start) | `/settings/tools#guided-setup`, `/settings/tools#database-repairs`, `/settings/tools#library-rebuilds`, `/settings/tools#wipe-data` |
@@ -73,6 +73,26 @@ asks only for the initial-sync policy and then displays a Trakt authorization co
 rotation or a private deployment. The advanced personal-app fields remain a fallback
 for Trakt VIP developers and their values are encrypted at rest.
 
+The Connections page also includes the one-time **Tautulli Watch-History Importer**.
+It stores the Tautulli URL and API key separately from the Plex connection, scopes
+each request to one selected Tautulli user, and previews completed movies and episodes
+before writing. A local watch-history backup is created before a confirmed import.
+
+The importer does not ask which servers to project to: Plembfin's scheduled sync reconciles
+Emby and Jellyfin with imported watches regardless, and both receive the original playback
+date. It shows a notice before importing only when **Sync historical watched items to Plex**
+is off, because that is the one case where a server will not receive the import at all. The
+preview still reports the per-target outcome as `will receive this import` or `skipped by
+the historical sync policy`. A play matching more than one existing
+record, or sitting within 31 days of a single existing record, is held in a review list with
+its candidates; the administrator chooses to use an existing record, import it as a separate
+play, or skip it, and anything left undecided is not imported. A bulk control applies one
+answer to every undecided possible rewatch. A real playback timestamp within two days of an
+approximated date (a round clock hour) is merged automatically as the same viewing. The final summary breaks the result down into imported,
+already represented, incomplete, reviewed-and-merged, reviewed-and-imported,
+reviewed-and-skipped, still undecided, unresolved, and rejected.
+See [backups.md](backups.md) for the full importer behaviour.
+
 Media Servers uses account setup by default and keeps manual credentials as an optional
 fallback. Plex signs in through Plex, verifies the selected server, and maintains an
 encrypted account/server token pair. Emby exchanges a server URL, username, and password
@@ -103,6 +123,53 @@ chooses a policy on the **Manual Watch review** page. The page is linked in the 
 above **Sync - Idle**, shows the provider evidence, and offers now, release-day, episode-
 timing, or dismiss actions. Leaving an item untouched defers it; repeated scans do not
 create duplicate review rows.
+
+### Sync Tuning: historical watched items and Plex
+
+The **Sync historical watched items to Plex** setting controls whether an import, a
+restore, a backdated manual mark, or a library-wide push projects an already-known watch
+onto Plex. It is **on by default** and is the recommended setting.
+
+The setting exists because the providers are not equivalent. Plembfin and Trakt keep the
+canonical play date and rewatch history, Emby receives the original date through its
+`DatePlayed` parameter, and Jellyfin through `datePlayed`. Plex's server API has no
+supported way to set a historical play date, so a scrobble is always recorded using the
+Plex server's own clock: the watched state is correct, but the activity date reads as
+today. Plembfin says so rather than implying the original date survived.
+
+Turning the setting off means historical items may remain unwatched in Plex; Plex badges,
+counts, and homepage sections may not match Plembfin; a new Plex server will not receive
+older watched history; imported or restored watches will be missing from Plex activity;
+and you may need to mark those items in Plex yourself later. Existing Plex watch history
+is never removed or changed. Day-to-day watching is not affected - a new watch still
+reaches Plex normally - and Emby, Jellyfin, and Trakt keep receiving historical watches
+with their original dates either way.
+
+The setting is scoped to Plex and to *historical* watched projections, and within that it
+is absolute: with it off, no watch Plembfin already holds reaches Plex by any route. That
+includes Full Sync Watchstates, a per-item Force Sync, Trakt and Tautulli imports, restores,
+backdated manual marks, availability repair, and the reconcile that follows a webhook for an
+item Plembfin already had watched.
+
+What still reaches Plex with the setting off:
+
+- a live play, synced normally;
+- a **Now** manual mark, which is a watch the user is creating rather than replaying;
+- any **unwatch**, which is a state change rather than a backfill;
+- the Plex adaptive poller restoring a watch Plex itself dropped moments after threshold
+  playback - that watch just happened, so it is live rather than historical.
+
+Turning the setting back on is how you ask for your history to be pushed to Plex; there is
+deliberately no per-operation override that bypasses it.
+
+When a target is skipped this way, Plembfin reports it as *skipped by policy* rather than
+as a failure, in the item's dispatch telemetry, in Sync Activity, and in the per-provider
+summary an import or bulk mark-watched returns. A policy skip is never retried. Plembfin
+also checks Plex's current state before a mark-watched write and reports *already
+matching* instead of sending a redundant scrobble that would only move the activity date.
+
+The same control and copy appear during guided first-run setup, next to the Trakt
+first-connection choice, because it changes what an import will do.
 
 Full Sync Watchstates replays Plembfin's canonical watched and resume rows in two phases. It takes a fixed snapshot for each phase, temporarily suppresses inbound media-server callbacks and scheduled catch-up work, and shows rows processed, throughput, and an estimated remaining time. The shared sync-operation lock prevents it from overlapping Force Sync or a backup restore. The Stop Restore control cancels future batches; already completed batches remain applied. Reset Restore Lock is an administrator-confirmed recovery action for a run abandoned by a browser or server restart; it stops any in-flight restore before allowing another run to start.
 
@@ -183,7 +250,8 @@ help, and Save/Cancel actions. Media-server dialogs also provide **Test** and an
 switch. Fixed services can be disabled but not deleted because the config API has no
 credential-clear operation.
 
-**Sync Tuning is the one exception**: its watched-flag policy, four numeric fields
+**Sync Tuning is the one exception**: its watched-flag policy, the Plex historical
+watched-sync checkbox, four numeric fields
 (watched threshold, minimum resume position, active-session TTL, outbound timeout) plus the Fast
 Local-Network Sync and Up Next sync checkboxes render directly inline on the Sync page in a plain form
 with its own Save button - not behind a card + edit modal - since there's only ever
@@ -249,7 +317,8 @@ Old bookmarks are normalized with `history.replaceState`:
 | `/settings/system`, `/settings/system/health`, `/settings/health` | `/settings/system-integrity` (UI: `/settings/general#system-integrity`) |
 | `/settings/webhook-guides` | `/settings/setup-guides` (UI: `/settings/webhooks#setup-guides`) |
 | `/settings/system/advanced` | `/settings/database-repairs` (UI: `/settings/tools#database-repairs`) |
-| `/sync`, `/settings/sync/issues`, `/settings/system/sync` | `/settings/sync-issues` (UI: `/settings/sync#sync-issues`) |
+| `/sync` | `/settings/sync` |
+| `/settings/sync/issues`, `/settings/sync-issues`, `/settings/system/sync` | `/sync-activity` |
 | `/settings/sync/history` | `/settings/sync-history` (UI: `/settings/sync#sync-history`) |
 | `/settings/sync/tuning` | `/settings/sync-tuning` (UI: `/settings/sync#sync-tuning`) |
 | `/logs`, `/settings/system/logs` | `/settings/logs` |
@@ -270,9 +339,11 @@ URLs are restricted to HTTP/HTTPS, embedded credentials and cloud-metadata hosts
 rejected, and saved values take precedence over environment defaults. Connection tests
 fall back to stored credentials when the modal secret field is blank.
 
-The **Sync Tuning** form (on the Sync page) exposes four optional numeric settings:
-watched threshold, minimum resume position, active-session TTL, and outbound request
-timeout. Blank fields inherit the matching environment variable or built-in default;
+The **Sync Tuning** form (on the Sync page) exposes the **Sync historical watched items
+to Plex** checkbox (on by default, stored as `tuning.plexHistoricalWatchedSync`, also
+settable via the `PLEX_HISTORICAL_WATCHED_SYNC` environment variable) and four optional
+numeric settings: watched threshold, minimum resume position, active-session TTL, and
+outbound request timeout. Blank fields inherit the matching environment variable or built-in default;
 saved values take precedence. The defaults remain 90%, 60 seconds, 5 minutes, and 10
 seconds respectively. It also includes a **Sync Up Next to media apps** toggle, enabled by
 default. When enabled, Plembfin keeps its Up Next queue in sync with Plex and Emby's Continue
@@ -313,13 +384,13 @@ server reached over the public internet from being overwhelmed by a large sync.
 
 - System Integrity Check runs the integrity, database, webhook, scheduler, media-server, and
   cross-platform library matching checks.
-- Sync combines unresolved jobs, history, repair-recent, force, stop/reset, and refresh.
-  The Sync Issues panel also contains the Cross-Platform Match Report (backed by the
-  admin-guarded `GET /api/sync-match-report` endpoint), which groups every
-  "no matching item found" sync result by platform with per-platform unique-media
-  counts, movie/episode splits, and sample rows. See
-  [Cross-Platform Match Report](#cross-platform-match-report) for what the two
-  failure kinds mean and what each button does.
+- Sync combines history, repair-recent, force, stop/reset, and refresh. Current
+  watched-state failures and unresolved cross-platform media matches are reviewed
+  in the standalone `/sync-activity` page with its **Issues only** filter. The
+  activity page uses the admin-guarded `GET /api/sync-match-report` data to show
+  unidentified media alongside the matching actions. Identified media that is
+  simply absent from a connected library remains an availability difference,
+  not an issue.
 - Storage & Cache (under Advanced) displays and clears image cache categories.
 - Tools retains history repair, deduplication, full watch-state sync, metadata refresh,
   TV rematching, and Trakt poster backfill with their confirmations and logs, split
@@ -343,35 +414,35 @@ server reached over the public internet from being overwhelmed by a large sync.
 No maintenance API or stored media configuration format changes are introduced by the
 settings shell.
 
-## Cross-Platform Match Report
+## Cross-Platform Match Report data
 
-The panel lists media Plembfin could not identify - records carrying no IMDB,
-TMDB, or TVDB id, where nothing reliable was ever resolved. Picking the right
-title fixes these, and the row leaves the list once an id is stamped on it. The
-classification reads the record's ids rather than its media key, because the key
-is written when the row is created and is not rebuilt when a later Fix Match
-resolves an id.
+Sync Activity's **Issues only** view includes unresolved cross-platform matches:
+records carrying no IMDB, TMDB, or TVDB id, where nothing reliable was ever
+resolved. Picking the right title from the issue's **Fix match** action fixes
+the identity, and the issue leaves Sync Activity once the corrected record has
+been dispatched successfully. The classification reads the record's ids rather
+than its media key, because the key is written when the row is created and is
+not rebuilt when a later Fix Match resolves an id.
 
 Records that *are* identified and still report "no matching item found" are not
 listed. That result means the platform has no copy of the media, which is a
 difference between your libraries rather than a fault, and no action in this
-panel can change it. Those items need nothing: the watch is recorded correctly in
+issue view can change it. Those items need nothing: the watch is recorded correctly in
 Plembfin, and if the media is later added to that server it is marked watched
 automatically (see [Catching up newly added media](webhooks.md#catching-up-newly-added-media)).
 The unfiltered per-platform totals are still returned by
 `GET /api/sync-match-report` and reported by Sync Health.
 
-Rows are built from each record's stored `sync_dispatch_telemetry`, so a row only
-leaves the report once that record has been dispatched again and reported a
-match. Two buttons act on the list:
+Rows are built from each record's stored `sync_dispatch_telemetry`, so an issue
+only leaves Sync Activity once that record has been dispatched again and
+reported a match. The issue panel provides a per-item **Fix match** action; the
+normal Sync Activity controls remain available for retrying or reviewing the
+underlying sync events.
 
-- **Rescan** re-runs the sync for every listed item and rebuilds the report from
-  the results, reporting how many now match. Media a library genuinely does not
-  hold stays listed, because that is still true afterwards.
-- **Fix All Matches** re-runs the sync first, then queues the still-unmatched
-  items for manual matching one at a time. Only unidentified items are queued; an
-  item that already knows what it is cannot be repaired by choosing a search
-  result, so those are counted in the summary instead of being asked about.
+Only unidentified items are offered for matching. An item that already knows
+what it is cannot be repaired by choosing a search result, so an identified
+item that is absent from one library remains an availability difference rather
+than an issue.
 
 ## Server Logs
 

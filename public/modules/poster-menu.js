@@ -5,8 +5,9 @@
 // usually sits inside an <a> card - portaling the menu items out of that
 // anchor means clicking them never triggers card navigation.
 
-import { state } from "./state.js?v=1.1.1.2.1";
-import { customListsForPersonalItem, isPersonalWatchlisted, personalItemFromPosterMenuDataset } from "./personal-media.js?v=1.1.1.2.1";
+import { state } from "./state.js?v=1.1.1.3.1";
+import { customListsForPersonalItem, isPersonalWatchlisted, personalItemFromPosterMenuDataset } from "./personal-media.js?v=1.1.1.3.1";
+import { isShowInUpNext } from "./up-next.js?v=1.1.1.3.1";
 
 let openMenu = null; // { dropdown, button, submenu, submenuTrigger, actionPending, keepOpen, actionButton }
 
@@ -245,6 +246,27 @@ function appendPersonalMenuActions(dropdown, button) {
   }
 }
 
+function appendUpNextShowMenuAction(dropdown, button) {
+  const d = button.dataset;
+  if (d.posterMenuMediaType !== "tv") return;
+  const show = {
+    title: d.posterMenuUpNextShowTitle || d.posterMenuShowTitle || d.posterMenuTitle || "TV show",
+    tmdb_id: d.posterMenuUpNextShowTmdbId || "",
+    tvdb_id: d.posterMenuUpNextShowTvdbId || "",
+    imdb_id: d.posterMenuUpNextShowImdbId || "",
+    poster_url: d.posterMenuUpNextShowPosterUrl || "",
+  };
+  const selected = isShowInUpNext(show);
+  dropdown.appendChild(menuItem(selected ? "poster-overflow-item-danger" : "", selected ? "Remove from up next" : "Add to up next", {
+    upNextShowToggle: selected ? "remove" : "add",
+    upNextShowTitle: show.title,
+    upNextShowTmdbId: show.tmdb_id,
+    upNextShowTvdbId: show.tvdb_id,
+    upNextShowImdbId: show.imdb_id,
+    upNextShowPosterUrl: show.poster_url,
+  }));
+}
+
 function buildDropdown(button) {
   const d = button.dataset;
   const dropdown = document.createElement("div");
@@ -253,6 +275,7 @@ function buildDropdown(button) {
 
   if (d.posterMenuMode === "personal") {
     appendPersonalMenuActions(dropdown, button);
+    appendUpNextShowMenuAction(dropdown, button);
     return dropdown;
   }
 
@@ -360,6 +383,7 @@ function buildDropdown(button) {
       ...discoverItem,
     }));
     appendPersonalMenuActions(dropdown, button);
+    appendUpNextShowMenuAction(dropdown, button);
     return dropdown;
   }
 
@@ -375,6 +399,7 @@ function buildDropdown(button) {
   }));
   dropdown.appendChild(menuItem("", "Rate", ratingDataset(d)));
   appendPersonalMenuActions(dropdown, button);
+  appendUpNextShowMenuAction(dropdown, button);
   dropdown.appendChild(menuItem("poster-overflow-item-danger", "Mark unwatched", {
     unwatchId: d.posterMenuId,
     unwatchKind: d.posterMenuKind || "item",

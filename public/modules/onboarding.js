@@ -3,12 +3,17 @@
 // wherever possible - openServiceEditModal() for every provider connect/test
 // flow, and the webhook-guide functions - so setup and Settings never diverge
 // in behavior, only in presentation.
-import { state, elements } from "./state.js?v=1.1.1.2.1";
-import { escapeHtml, escapeAttribute, isDemoMode } from "./utils.js?v=1.1.1.2.1";
-import { openServiceEditModal } from "./settings-services.js?v=1.1.1.2.1";
-import { embyWebhookSetup, jellyfinWebhookSetup, buildWebhookUrl } from "./help-content.js?v=1.1.1.2.1";
-import { claimAdminAccount } from "./auth.js?v=1.1.1.2.1";
-import { loadWatchBackups, loadPlembfinBackups } from "./tools-backups.js?v=1.1.1.2.1";
+import { state, elements } from "./state.js?v=1.1.1.3.1";
+import { escapeHtml, escapeAttribute, isDemoMode } from "./utils.js?v=1.1.1.3.1";
+import { openServiceEditModal } from "./settings-services.js?v=1.1.1.3.1";
+import { embyWebhookSetup, jellyfinWebhookSetup, buildWebhookUrl } from "./help-content.js?v=1.1.1.3.1";
+import { claimAdminAccount } from "./auth.js?v=1.1.1.3.1";
+import { loadWatchBackups, loadPlembfinBackups } from "./tools-backups.js?v=1.1.1.3.1";
+import {
+  PLEX_HISTORICAL_SYNC_CHOICES,
+  PLEX_HISTORICAL_SYNC_LABEL,
+  plexHistoricalSyncEnabled,
+} from "./plex-history-policy.js?v=1.1.1.3.1";
 
 let _cb = {};
 export function initOnboarding(callbacks = {}) {
@@ -200,7 +205,7 @@ function createPreClaimStatus() {
     servers: [],
     trakt: { connected: false, username: "", baselineComplete: false },
     metadata: { tmdbConfigured: false, builtInAvailable: { tvdb: false, fanart: false } },
-    options: { watchImportMode: null, fastLocalPacing: false, upNextSync: true },
+    options: { watchImportMode: null, plexHistoricalWatchedSync: true, fastLocalPacing: false, upNextSync: true },
     watchHistoryCount: 0,
     pushSyncAvailable: false,
     syncLocked: false,
@@ -335,12 +340,13 @@ let pendingWatchlistChoice = null;
 let pendingWatchImportMode = null;
 let pendingFastLocalPacing = null;
 let pendingUpNextSync = null;
+let pendingPlexHistoricalSync = null;
 
 const WATCH_IMPORT_MODES = Object.freeze([
+  { value: "review", label: "Require review", description: "Hold the item for a decision in Manual Watch review." },
   { value: "now", label: "Mark as watched now", description: "Use the time the scanner sees the watched flag." },
   { value: "release_day", label: "Mark as watched on release day", description: "Use the movie or episode release date." },
   { value: "episode_timing", label: "Mark as watched at the same time as other episodes", description: "Use the before/after timing from the media pages." },
-  { value: "review", label: "Require review", description: "Hold the item for a decision in Manual Watch review." },
 ]);
 
 function savedWatchImportMode() {
@@ -363,6 +369,14 @@ function setupUpNextSync() {
   if (pendingUpNextSync !== null) return pendingUpNextSync;
   if (state.savedConfig?.upNextSync?.enabled !== undefined) return state.savedConfig.upNextSync.enabled !== false;
   return cachedStatus?.options?.upNextSync !== false;
+}
+
+function setupPlexHistoricalSync() {
+  if (pendingPlexHistoricalSync !== null) return pendingPlexHistoricalSync;
+  if (state.savedConfig?.tuning?.plexHistoricalWatchedSync !== undefined) {
+    return plexHistoricalSyncEnabled(state.savedConfig);
+  }
+  return cachedStatus?.options?.plexHistoricalWatchedSync !== false;
 }
 
 function serverImportPending(provider) {
@@ -391,10 +405,11 @@ async function saveSetupOptions() {
   const mode = setupWatchImportMode();
   const fastLocalPacing = setupFastLocalPacing();
   const upNextSync = setupUpNextSync();
+  const plexHistoricalWatchedSync = setupPlexHistoricalSync();
   const body = await api("/api/config", {
     method: "POST",
     body: JSON.stringify({
-      tuning: { watchImportMode: mode },
+      tuning: { watchImportMode: mode, plexHistoricalWatchedSync },
       pacing: { profile: fastLocalPacing ? "fast" : "standard" },
       upNextSync: { enabled: upNextSync },
     }),
@@ -403,6 +418,7 @@ async function saveSetupOptions() {
   pendingWatchImportMode = null;
   pendingFastLocalPacing = null;
   pendingUpNextSync = null;
+  pendingPlexHistoricalSync = null;
   document.dispatchEvent(new CustomEvent("plembfin:config-changed", { detail: { refreshSyncTuning: true } }));
 }
 
@@ -1037,8 +1053,29 @@ function renderOptions() {
   const selectedMode = setupWatchImportMode();
   const fastLocalPacing = setupFastLocalPacing();
   const upNextSync = setupUpNextSync();
+  const plexHistoricalSync = setupPlexHistoricalSync();
+  const plexConnected = (cachedStatus?.servers || []).some((server) => server.provider === "plex" && (server.connected || server.tested));
   return `
     <div class="setup-options-fields">
+      ${plexConnected ? `
+      <section class="settings-card setup-options-card setup-options-policy">
+        <div class="setup-options-heading">
+          <b>${escapeHtml(PLEX_HISTORICAL_SYNC_LABEL)}</b>
+          <p class="muted-copy">Choose whether older watched items are sent to Plex.</p>
+        </div>
+        <div class="settings-choice-grid setup-options-radio-grid" role="radiogroup" aria-label="${escapeAttribute(PLEX_HISTORICAL_SYNC_LABEL)}">
+          ${PLEX_HISTORICAL_SYNC_CHOICES.map((option) => `
+            <label class="settings-choice-option">
+              <input type="radio" name="setup-plex-historical-sync" value="${escapeAttribute(option.value)}" data-setup-plex-historical-sync="1" ${plexHistoricalSync === (option.value === "on") ? "checked" : ""} />
+              <span class="settings-choice-option-body${option.inlineDescription ? " settings-choice-option-body--inline" : ""}">
+                <span class="settings-choice-option-title">${escapeHtml(option.label)}</span>
+                ${option.inlineDescription ? `<span class="settings-choice-option-description settings-choice-option-description--inline">${escapeHtml(option.inlineDescription)}</span>` : ""}
+                ${(option.descriptionLines || [option.description]).map((line) => `<span class="settings-choice-option-description settings-choice-option-description--block">${escapeHtml(line)}</span>`).join("")}
+              </span>
+            </label>`).join("")}
+        </div>
+      </section>
+      ` : ""}
       <section class="settings-card setup-options-card setup-options-policy">
         <div class="setup-options-heading">
           <b>When you manually mark an item as watched in Plex / Emby / Jellyfin</b>
@@ -1512,6 +1549,10 @@ function handleSetupChange(event) {
   if (event.target.matches("[data-setup-up-next-sync]")) {
     pendingUpNextSync = event.target.checked;
     event.target.setAttribute("aria-checked", event.target.checked ? "true" : "false");
+    return;
+  }
+  if (event.target.matches("[data-setup-plex-historical-sync]")) {
+    pendingPlexHistoricalSync = event.target.value === "on";
     return;
   }
   const importToggle = event.target.closest("[data-setup-import-toggle]");

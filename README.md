@@ -56,7 +56,7 @@ None of these talk to each other - they all talk to Plembfin.
 - **Cross-platform resume** - Pause playback on one server and pick up right where you left off on another
 - **Rewatch tracking** - Full multi-watch history logging with smart deduplication that preserves authentic repeat viewings
 - **Now Playing dashboard** - Real-time playback monitoring, optional Plembfin-authoritative Up Next sync that queues a coalesced provider push whenever the queue changes (to Plex/Emby Continue Watching and Jellyfin Next Up), show-level Up Next dismissals, media-type-aware Watch History, weekly watch activity trends, and recent history
-- **Sync Activity hub** - Live grouped activity by movie/show, with all resume checkpoints and destination results preserved behind each row, targeted retry for actual failed destinations (only the newest unresolved result per movie/episode is retried, individually or all at once as a background job that survives closing the tab; expected missing-library skips are excluded), show-wide Fix Match and retry-all controls for Trakt mismatches, dismiss controls for shows Trakt does not contain, blocked-restore repair grouped by show with Fix Match and skip controls, and downloadable group logs
+- **Sync Activity hub** - Live grouped activity by movie/show, with all resume checkpoints and destination results preserved behind each row, unresolved cross-platform matches with per-item Fix match actions, targeted retry for actual failed destinations (only the newest unresolved result per movie/episode is retried, individually or all at once as a background job that survives closing the tab; expected missing-library skips are excluded), show-wide Fix Match and retry-all controls for Trakt mismatches, dismiss controls for shows Trakt does not contain, blocked-restore repair grouped by show with Fix Match and skip controls, and downloadable group logs
 - **Rich analytics & stats** - In-depth all-time and period reports, top shows, and platform playback distribution
 - **Personal media organization** - Save movies, shows, and episodes to a watch list or custom lists, and rate them from their media pages; episode ratings use one canonical show/season/episode identity everywhere
 - **Cache-first media detail pages** - Reuse the latest local history snapshot on reload so known artwork, summaries, watched rows, and watch dates stay visible while provider metadata refreshes
@@ -289,8 +289,8 @@ Until then, add it from **Docker → Add Container**:
 
 Sign in with the administrator credentials from your installation, or claim a fresh
 instance by creating its administrator username and password. Claiming can only be done
-once. Plembfin then opens the guided `/setup` wizard. You can return to it later from
-Settings → **Tools → Guided setup**, and your progress is saved as you go.
+once. Plembfin then opens the guided `/setup` wizard. You can return to it later with
+**Reopen Onboarding** on the Settings → Tools page, and your progress is saved as you go.
 
 The wizard has nine stages:
 
@@ -370,7 +370,7 @@ can be marked manually from search. Any skipped item can be completed later from
 or the dashboard setup checklist.
 
 After onboarding, tune thresholds and timeouts under Settings → Sync → **Sync Tuning**.
-Items Plembfin could not identify appear under **Sync Issues**. New media that arrives
+Items Plembfin could not identify appear in Sync Activity's **Issues only** view. New media that arrives
 already watched in Plembfin can be marked watched on the server automatically; see
 [webhooks.md](docs/webhooks.md#catching-up-newly-added-media) for the library-add flow.
 
@@ -425,6 +425,12 @@ manual Back Up Now button.
 **Settings → Sync → Sync Tools → Full Sync Watchstates** afterward to replay everything
 to a newly connected server.
 
+**From Tautulli (one-time):** open **Settings → Connections → Tautulli Watch-History
+Importer**, configure the Tautulli URL/API key, select one user, preview completed
+history, and choose the media-server targets. Plembfin creates a local watch-history
+backup before importing, keeps Tautulli unchanged, and merges same-day plays already
+represented by Trakt or another source while preserving rewatches on different days.
+
 **Live Trakt sync (ongoing):** Settings → Connections → Trakt → **Connect Trakt**, authorize
 with the displayed device code - no Trakt VIP or personal API credentials needed. Once connected,
 watched/unwatched state flows both ways every minute, including individual rewatches.
@@ -439,8 +445,9 @@ Disable any Emby/Jellyfin Trakt plugins so Plembfin is the only Trakt writer. Se
 `.log` file, and see web/worker output merged together. Set `LOG_VERBOSE=true` for full
 per-request tracing when chasing a specific issue.
 
-**Settings → Sync → Sync Issues** reports data-quality problems (duplicate watches,
-episodes missing a season number, etc.) with a plain-language fix for each.
+**Sync Activity → Issues only** reports current sync failures and unresolved
+cross-platform matches with a plain-language explanation and the relevant fix action.
+Duplicate watches and episode metadata repairs remain under **Settings → Tools**.
 
 ---
 
@@ -488,6 +495,7 @@ is in [`.env.example`](.env.example).
 | `JELLYFIN_UNWATCHED_CONFIRMATION_WINDOW_MS` | `1200000` (20m) | Window in which Jellyfin must report the same false state twice before the fallback propagates it. |
 | `WATCHED_THRESHOLD_PERCENT` | `90` | Playback % counted as watched (50-100). Settings takes precedence. |
 | `WATCH_IMPORT_MODE` | `review` | Default policy for app-marked watched flags: `review`, `now`, `release_day`, or `episode_timing`. Settings takes precedence. |
+| `PLEX_HISTORICAL_WATCHED_SYNC` | `true` | Whether imports, restores, backdated marks, and library-wide pushes project historical watched state onto Plex. Plex-only; Emby, Jellyfin, and Trakt always receive the original date. Settings takes precedence. |
 | `MIN_RESUME_POSITION_SEC` | `60` | Minimum position saved as resume progress (0-3600s). Settings takes precedence. |
 | `ACTIVE_SESSION_TTL_MIN` | `5` | Time before an active session goes stale (1-120 min). Settings takes precedence. |
 | `OUTBOUND_TIMEOUT_SEC` | `10` | Default outbound request timeout (2-120s). |
@@ -569,6 +577,7 @@ after they pass; the retried push must still pass the complete build gate.
 
 ## Community
 
+- **[Support Plembfin](https://github.com/sponsors/Lasikiewicz)** - help keep the complete self-hosted application free, private, and maintained. Sponsorship does not unlock features or change roadmap priority.
 - **[Discord](https://discord.gg/7ZmEGKcRC5)** - chat with other users, get help, and follow along with development.
 - **[r/plembfin](https://www.reddit.com/r/plembfin/)** - discussions, feature requests, and release announcements on Reddit.
 

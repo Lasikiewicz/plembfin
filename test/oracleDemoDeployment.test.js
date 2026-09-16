@@ -9,7 +9,7 @@ const manualWorkflow = fs.readFileSync(path.join(root, ".github", "workflows", "
 const deployScript = fs.readFileSync(path.join(root, "scripts", "deploy-oracle-demo.sh"), "utf8");
 
 test("main release builds an OCI-compatible image and gates the public demo deployment", () => {
-  assert.match(workflow, /docker\/setup-qemu-action@v3/);
+  assert.match(workflow, /docker\/setup-qemu-action@v4/);
   assert.match(workflow, /platforms: linux\/amd64,linux\/arm64/);
   assert.match(workflow, /deploy-oracle-demo:/);
   assert.match(workflow, /needs: update/);

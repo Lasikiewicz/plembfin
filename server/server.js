@@ -117,6 +117,10 @@ const PORT = Number(process.env.PORT || 5055);
 const HOST = String(process.env.HOST || "0.0.0.0").trim() || "0.0.0.0";
 const app = express();
 app.disable("x-powered-by");
+// Settings and integration status are mutable application state. Do not let a
+// browser revalidate an old JSON response and turn a saved connection into a
+// stale/default-looking form after a refresh.
+app.disable("etag");
 // The public demo is served through one Cloudflare reverse-proxy hop. Trusting
 // that hop lets rate-limit middleware use the visitor address from
 // X-Forwarded-For instead of treating every visitor as the same edge IP.
@@ -240,6 +244,7 @@ app.use([
   "/api/admin-backfill-trakt",
   "/api/admin-fix-history",
   "/api/clear-cache",
+  "/api/tautulli/import",
 ], rateLimit({
   windowMs: 60 * 1000,
   max: 15,
@@ -270,6 +275,11 @@ app.use(rateLimit({
 app.get("/analytics-config.json", (_req, res) => {
   res.setHeader("Cache-Control", "no-store");
   res.json(TRAKS_CONFIG);
+});
+
+app.use("/api", (_req, res, next) => {
+  res.setHeader("Cache-Control", "no-store");
+  next();
 });
 
 app.all("/api/*path", express.raw({ type: "*/*", limit: "15mb" }), (req, res) => {

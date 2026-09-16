@@ -15,6 +15,8 @@ const {
 const { db } = await import("../server/src/db.js");
 const { insertWatchRecordSync } = await import("../server/src/utils/dataRepo.js");
 const { buildUpNextProjection } = await import("../server/src/utils/upNextService.js");
+const { handleUpNextDismissed } = await import("../server/src/routes/sync.js");
+const { AUTH } = await import("../server/src/appConfig.js");
 
 const reacher = {
   media_key: "reacher-s04e07",
@@ -226,4 +228,46 @@ test("a dismissed item comes back once it is genuinely played again", async () =
     progressRows: rows(dismissedAt + 60000, 300000),
   });
   assert.equal(fresh.items.length, 1);
+});
+
+test("dismissed title-only snapshots reuse the cached show poster", async () => {
+  restoreAllUpNextDismissals();
+  insertWatchRecordSync({
+    title: "Poster Recovery Show - S01E01",
+    show_title: "Poster Recovery Show",
+    episode_title: "Pilot",
+    media_type: "episode",
+    season: 1,
+    episode: 1,
+    poster_url: "/media/posters/poster-recovery.webp",
+    watched_at: "2026-09-15T12:00:00.000Z",
+    source: "manual",
+  });
+  recordUpNextDismissal({
+    media_key: "poster-recovery-show-s01e02",
+    media_type: "episode",
+    title: "Poster Recovery Show - S01E02",
+    show_title: "Poster Recovery Show",
+    season: 1,
+    episode: 2,
+  });
+
+  let responseData = null;
+  const response = {
+    status() { return this; },
+    set() { return this; },
+    send(data) {
+      responseData = JSON.parse(data);
+      return this;
+    },
+  };
+  const request = {
+    method: "GET",
+    headers: { authorization: `Bearer ${AUTH.apiKey}` },
+    get(name) { return this.headers[name.toLowerCase()]; },
+  };
+
+  await handleUpNextDismissed(request, response);
+  assert.equal(responseData?.items?.length, 1);
+  assert.equal(responseData.items[0].item.show_poster_url, "/media/posters/poster-recovery.webp");
 });

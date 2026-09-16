@@ -1,13 +1,14 @@
-import { state, elements } from "./state.js?v=1.1.1.2.1";
-import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeCode, seasonLabel, formatSeasonTitle, formatTmdbDate, showEpisodeKey } from "./utils.js?v=1.1.1.2.1";
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.2.1";
-import { isWatchedHistoryAction } from "./sync.js?v=1.1.1.2.1";
-import { mergeShowDetail } from "./explorer.js?v=1.1.1.2.1";
-import { dedupeMediaRecords, resetPartWatchedView, renderPartWatched } from "./dashboard.js?v=1.1.1.2.1";
-import { tvSeasonAvailability } from "./media-detail-shared.js?v=1.1.1.2.1";
-import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=1.1.1.2.1";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.1.1.2.1";
-import { tmdbPoster } from "./images.js?v=1.1.1.2.1";
+import { state, elements } from "./state.js?v=1.1.1.3.1";
+import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeCode, seasonLabel, formatSeasonTitle, formatTmdbDate, showEpisodeKey } from "./utils.js?v=1.1.1.3.1";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.3.1";
+import { isWatchedHistoryAction } from "./sync.js?v=1.1.1.3.1";
+import { mergeShowDetail } from "./explorer.js?v=1.1.1.3.1";
+import { dedupeMediaRecords, resetPartWatchedView, renderPartWatched } from "./dashboard.js?v=1.1.1.3.1";
+import { tvSeasonAvailability } from "./media-detail-shared.js?v=1.1.1.3.1";
+import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=1.1.1.3.1";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.1.1.3.1";
+import { tmdbPoster } from "./images.js?v=1.1.1.3.1";
+import { mergeProviderOutcomes, providerOutcomeNotice } from "./plex-history-policy.js?v=1.1.1.3.1";
 
 // Callbacks injected by app.js at startup to break circular-import chains.
 let _setMessage = () => {};
@@ -173,6 +174,8 @@ export function renderWatchDatePrompt(action) {
   const episodeCount = action.episodes.length;
   const them = episodeCount === 1 ? "this episode" : "these episodes";
   const hasAirDate = action.episodes.some((episode) => episode.airDate);
+  const hasSelectableEpisodes = episodeCount > 0;
+  const canUseReleaseChoice = hasSelectableEpisodes && hasAirDate && !action.includeUnreleased;
   const lastPlayedLabel = action.lastPlayedAt ? formatDate(action.lastPlayedAt) : "";
   const episodesHtml = action.episodes
     .map((episode) => `
@@ -182,7 +185,7 @@ export function renderWatchDatePrompt(action) {
         <span class="watch-date-episode-air">${episode.airDate ? escapeHtml(formatTmdbDate(episode.airDate)) : "Air date TBA"}</span>
       </li>
     `)
-    .join("");
+    .join("") || `<li class="watch-date-episode watch-date-episode--empty">Select an optional early online release below to add these episodes.</li>`;
 
   return `
     <div class="watch-date-overlay" role="dialog" aria-modal="true" aria-label="Choose watched date">
@@ -212,24 +215,31 @@ export function renderWatchDatePrompt(action) {
         </label>
         ` : ""}
 
+        ${action.hasUnreleased ? `
+        <label class="watch-date-specials-toggle watch-date-unreleased-toggle">
+          <input type="checkbox" data-watch-date-include-unreleased ${action.includeUnreleased ? "checked" : ""} />
+          <span>Include unreleased episodes<br><small>Only select this if you watched them through an early online release.</small></span>
+        </label>
+        ` : ""}
+
         <div class="watch-date-section-label">Watched date</div>
         <div class="watch-date-options">
-          <button class="watch-date-pick" type="button" data-watch-date-choice="release"${hasAirDate ? "" : " disabled"}>
+          <button class="watch-date-pick" type="button" data-watch-date-choice="release"${canUseReleaseChoice ? "" : " disabled"}>
             <span class="watch-date-pick-title">Day of release</span>
-            <span class="watch-date-pick-sub">Use each episode's air date</span>
+            <span class="watch-date-pick-sub">${action.includeUnreleased ? "Unavailable for unreleased episodes" : "Use each episode's air date"}</span>
           </button>
           ${action.referenceWatchedAt ? `
-          <button class="watch-date-pick" type="button" data-watch-date-choice="match_watched">
+          <button class="watch-date-pick" type="button" data-watch-date-choice="match_watched"${hasSelectableEpisodes ? "" : " disabled"}>
             <span class="watch-date-pick-title">${referenceTitle}</span>
             <span class="watch-date-pick-sub">${escapeHtml(action.referenceEpisodeLabel)} was watched ${escapeHtml(formatDate(action.referenceWatchedAt))}</span>
           </button>
           ` : ""}
-          <button class="watch-date-pick" type="button" data-watch-date-choice="now">
+          <button class="watch-date-pick" type="button" data-watch-date-choice="now"${hasSelectableEpisodes ? "" : " disabled"}>
             <span class="watch-date-pick-title">Now</span>
             <span class="watch-date-pick-sub">Today, ${escapeHtml(formatTmdbDate(customValue))}</span>
           </button>
           ${lastPlayedLabel ? `
-          <button class="watch-date-pick" type="button" data-watch-date-choice="last_played">
+          <button class="watch-date-pick" type="button" data-watch-date-choice="last_played"${hasSelectableEpisodes ? "" : " disabled"}>
             <span class="watch-date-pick-title">Last played</span>
             <span class="watch-date-pick-sub">${escapeHtml(lastPlayedLabel)}</span>
           </button>
@@ -259,6 +269,24 @@ function isEpisodeUnreleased(episode) {
   if (parts.length !== 3) return false;
   const air = new Date(parts[0], parts[1] - 1, parts[2]);
   return !Number.isNaN(air.getTime()) && air > new Date();
+}
+
+function rebuildWatchActionEpisodeLists(action) {
+  if (!action) return;
+  const isSpecial = (episode) => Number(episode?.seasonNumber) === 0;
+  const candidates = [
+    ...(action.allEpisodes || []),
+    ...(action.includeUnreleased ? (action.allUnreleasedEpisodes || []) : []),
+  ];
+  action.episodes = action.scope === "show" && !action.includeSpecials
+    ? candidates.filter((episode) => !isSpecial(episode))
+    : candidates;
+  if (action.scope === "show") {
+    action.resyncEpisodes = action.includeSpecials
+      ? [...(action.allResyncEpisodes || [])]
+      : (action.allResyncEpisodes || []).filter((episode) => !isSpecial(episode));
+  }
+  action.countLabel = `${action.episodes.length} episode${action.episodes.length === 1 ? "" : "s"}`;
 }
 
 function showTitleKey(value) {
@@ -429,25 +457,51 @@ export function watchActionFromButton(button) {
   } else if (scope === "season") {
     const seasonNumber = Number(button.dataset.seasonNumber);
     const seasonEpisodes = state.showModalEpisodes.filter((row) => row.seasonNumber === seasonNumber);
-    episodes = seasonEpisodes.filter((episode) => !episode.watched && !isEpisodeUnreleased(episode));
+    const allUnwatched = seasonEpisodes.filter((episode) => !episode.watched);
+    const allEpisodes = allUnwatched.filter((episode) => !isEpisodeUnreleased(episode));
+    const allUnreleasedEpisodes = allUnwatched.filter((episode) => isEpisodeUnreleased(episode));
+    episodes = allEpisodes;
     // A mixed season action is intended to finish the season, not replay the
     // episodes that are already watched. Keep the explicit resync path only
-    // when there are no eligible unwatched episodes left for this season.
-    resyncEpisodes = episodes.length ? [] : seasonEpisodes.filter((episode) => episode.watched);
+    // when there are no released or unreleased unwatched episodes left for
+    // this season.
+    resyncEpisodes = episodes.length || allUnreleasedEpisodes.length ? [] : seasonEpisodes.filter((episode) => episode.watched);
     referenceScope = seasonEpisodes;
+    if (!episodes.length && !resyncEpisodes.length && !allUnreleasedEpisodes.length) return null;
+    return {
+      scope,
+      showTitle: seasonEpisodes[0]?.showTitle || "Show",
+      showTmdbId: seasonEpisodes[0]?.showTmdbId || "",
+      episodes,
+      allEpisodes,
+      allUnreleasedEpisodes,
+      hasUnreleased: allUnreleasedEpisodes.length > 0,
+      includeUnreleased: false,
+      episodeScope: referenceScope,
+      resyncEpisodes,
+      allResyncEpisodes: seasonEpisodes.filter((episode) => episode.watched),
+      label: `Mark ${seasonEpisodes[0]?.showTitle || "Show"} ${seasonLabel(seasonNumber)} watched`,
+      countLabel: `${episodes.length} episode${episodes.length === 1 ? "" : "s"}`,
+      referenceWatchedAt: watchedReferenceFor(referenceScope)?.watchedAt || "",
+      referenceEpisodeLabel: watchedReferenceFor(referenceScope)?.label || "",
+      referenceRuntime: watchedReferenceFor(referenceScope)?.runtime ?? null,
+      referenceDirection: watchedReferenceFor(referenceScope)?.direction || "",
+    };
   } else if (scope === "show") {
     // Specials (season 0) are excluded from a whole-show "Mark watched" by
     // default - they're usually bonus/behind-the-scenes content the user
     // hasn't actually seen, so bulk-marking a show shouldn't silently sweep
     // them in. The dialog offers an opt-in "Include specials" toggle.
-    const allEpisodes = state.showModalEpisodes.filter((episode) => !episode.watched && !isEpisodeUnreleased(episode));
+    const allUnwatched = state.showModalEpisodes.filter((episode) => !episode.watched);
+    const allEpisodes = allUnwatched.filter((episode) => !isEpisodeUnreleased(episode));
+    const allUnreleasedEpisodes = allUnwatched.filter((episode) => isEpisodeUnreleased(episode));
     const allResyncEpisodes = state.showModalEpisodes.filter((episode) => episode.watched);
     const isSpecial = (episode) => Number(episode.seasonNumber) === 0;
     episodes = allEpisodes.filter((episode) => !isSpecial(episode));
     resyncEpisodes = allResyncEpisodes.filter((episode) => !isSpecial(episode));
     referenceScope = state.showModalEpisodes;
 
-    if (!episodes.length && !resyncEpisodes.length && !allEpisodes.length && !allResyncEpisodes.length) return null;
+    if (!episodes.length && !resyncEpisodes.length && !allEpisodes.length && !allUnreleasedEpisodes.length && !allResyncEpisodes.length) return null;
 
     const anchor = episodes[0] || resyncEpisodes[0] || allEpisodes[0] || allResyncEpisodes[0];
     const showTitle = anchor?.showTitle || "Show";
@@ -461,7 +515,10 @@ export function watchActionFromButton(button) {
       episodeScope: referenceScope,
       resyncEpisodes,
       allEpisodes,
+      allUnreleasedEpisodes,
       allResyncEpisodes,
+      hasUnreleased: allUnreleasedEpisodes.length > 0,
+      includeUnreleased: false,
       includeSpecials: false,
       hasSpecials: allEpisodes.some(isSpecial) || allResyncEpisodes.some(isSpecial),
       label: `Mark ${showTitle} watched`,
@@ -504,11 +561,16 @@ export function watchActionFromButton(button) {
 export function toggleWatchDateIncludeSpecials(checked) {
   const action = state.pendingWatchAction;
   if (!action || action.scope !== "show" || !action.hasSpecials) return;
-  const isSpecial = (episode) => Number(episode.seasonNumber) === 0;
   action.includeSpecials = checked;
-  action.episodes = checked ? action.allEpisodes : action.allEpisodes.filter((episode) => !isSpecial(episode));
-  action.resyncEpisodes = checked ? action.allResyncEpisodes : action.allResyncEpisodes.filter((episode) => !isSpecial(episode));
-  action.countLabel = `${action.episodes.length} episode${action.episodes.length === 1 ? "" : "s"}`;
+  rebuildWatchActionEpisodeLists(action);
+  openWatchDatePrompt(action);
+}
+
+export function toggleWatchDateIncludeUnreleased(checked) {
+  const action = state.pendingWatchAction;
+  if (!action || !["season", "show"].includes(action.scope) || !action.hasUnreleased) return;
+  action.includeUnreleased = Boolean(checked);
+  rebuildWatchActionEpisodeLists(action);
   openWatchDatePrompt(action);
 }
 
@@ -664,6 +726,7 @@ export function watchedAtForEpisodeBatch(
   referenceWatchedAt = "",
   referenceRuntime = null,
   episodeScope = [],
+  allowBeforeRelease = false,
 ) {
   const orderedEpisodes = [...episodes].sort(episodeOrderAscending);
   let offsetMs = choice === "match_watched" && referenceWatchedAt
@@ -691,7 +754,10 @@ export function watchedAtForEpisodeBatch(
     ));
     const existing = watchedAtByEpisode.get(key);
     if (selected) {
-      const generated = watchedAtForChoice(choice, episode, customDate, offsetMs, referenceWatchedAt);
+      const canWatchBeforeRelease = typeof allowBeforeRelease === "function"
+        ? allowBeforeRelease(episode)
+        : Boolean(allowBeforeRelease);
+      const generated = watchedAtForChoice(choice, episode, customDate, offsetMs, referenceWatchedAt, "", null, canWatchBeforeRelease);
       const generatedMs = Date.parse(generated);
       // Release-day selection is an explicit historical date choice. Do not
       // let a later existing watch (including a bad date from an earlier
@@ -723,7 +789,10 @@ export function watchedAtForEpisodeBatch(
   // batch behavior. The exported helper is also used by the movie/single-item
   // tests and by callers that intentionally have no surrounding episode data.
   if (!(episodeScope || []).length) return orderedEpisodes.map((episode) => {
-    const watchedAt = watchedAtForChoice(choice, episode, customDate, offsetMs, referenceWatchedAt);
+    const canWatchBeforeRelease = typeof allowBeforeRelease === "function"
+      ? allowBeforeRelease(episode)
+      : Boolean(allowBeforeRelease);
+    const watchedAt = watchedAtForChoice(choice, episode, customDate, offsetMs, referenceWatchedAt, "", null, canWatchBeforeRelease);
     if (usesSharedWatchDate(choice)) offsetMs += runtimeSeparationMs(episode.runtime);
     return { episode, watchedAt };
   });
@@ -731,13 +800,14 @@ export function watchedAtForEpisodeBatch(
   return entries;
 }
 
-export function watchedAtForChoice(choice, episode, customDate, offsetMs = 0, referenceWatchedAt = "", referenceDirection = "", referenceRuntime = null) {
-  if (choice === "release") return dateAtMiddayIso(episode.airDate);
+export function watchedAtForChoice(choice, episode, customDate, offsetMs = 0, referenceWatchedAt = "", referenceDirection = "", referenceRuntime = null, allowBeforeRelease = false) {
+  let watchedAt;
+  if (choice === "release") watchedAt = dateAtMiddayIso(episode.airDate);
   if (choice === "last_played") {
     const value = Number(episode.lastPlayedAt || 0);
-    if (Number.isFinite(value) && value > 0) return new Date(value).toISOString();
+    if (Number.isFinite(value) && value > 0) watchedAt = new Date(value).toISOString();
   }
-  if (choice === "custom") return new Date(new Date(customWatchedAtIso(customDate)).getTime() + offsetMs).toISOString();
+  if (choice === "custom") watchedAt = new Date(new Date(customWatchedAtIso(customDate)).getTime() + offsetMs).toISOString();
   if (choice === "match_watched" && referenceWatchedAt) {
     const base = Date.parse(referenceWatchedAt);
     const referenceOffset = referenceDirection === "after_last"
@@ -745,19 +815,43 @@ export function watchedAtForChoice(choice, episode, customDate, offsetMs = 0, re
       : referenceDirection === "before_next"
         ? -runtimeSeparationMs(referenceRuntime)
         : 0;
-    return new Date((Number.isNaN(base) ? Date.now() : base) + referenceOffset + offsetMs).toISOString();
+    watchedAt = new Date((Number.isNaN(base) ? Date.now() : base) + referenceOffset + offsetMs).toISOString();
   }
-  return new Date(Date.now() + offsetMs).toISOString();
+  if (!watchedAt) watchedAt = new Date(Date.now() + offsetMs).toISOString();
+
+  // A shared reference date can predate a later episode's air date. Keep the
+  // generated watch history chronological without inventing an impossible
+  // pre-air watch. The explicit unreleased opt-in passes `allowBeforeRelease`
+  // for only those episodes the user confirmed they watched early online.
+  const releaseDate = String(episode?.airDate || "").slice(0, 10);
+  if (!allowBeforeRelease && /^\d{4}-\d{2}-\d{2}$/.test(releaseDate)) {
+    const releaseAt = Date.parse(`${releaseDate}T12:00:00`);
+    const watchedAtMs = Date.parse(watchedAt);
+    if (Number.isFinite(releaseAt) && Number.isFinite(watchedAtMs) && watchedAtMs < releaseAt) {
+      watchedAt = new Date(releaseAt).toISOString();
+    }
+  }
+  return watchedAt;
 }
 
 // ── Watch record builders ──────────────────────────────────────────────────
 
-function watchRecordFromEpisode(episode, watchedAt) {
+// "Now" is a current action; every other choice records a date the user picked
+// for a watch that already happened, which the provider matrix treats as a
+// historical projection (server/src/utils/watchSyncPolicy.js). The server
+// cannot work this out from the date on its own - "custom" can legitimately be
+// today - so the intent travels with the record.
+export function syncIntentForWatchDateChoice(choice) {
+  return choice === "now" ? "manual" : "historical";
+}
+
+function watchRecordFromEpisode(episode, watchedAt, syncIntent = "manual") {
   return {
     media_type: "episode",
     title: `${episode.showTitle} - ${episodeCode(episode.seasonNumber, episode.episodeNumber)} - ${episode.title}`,
     watched_at: watchedAt,
     source: "manual",
+    sync_intent: syncIntent,
     tmdb_id: episode.showTmdbId || null,
     imdb_id: episode.imdbId || episode.showImdbId || null,
     tvdb_id: episode.tvdbId || episode.showTvdbId || null,
@@ -769,12 +863,13 @@ function watchRecordFromEpisode(episode, watchedAt) {
   };
 }
 
-function watchRecordFromMovie(movie, watchedAt) {
+function watchRecordFromMovie(movie, watchedAt, syncIntent = "manual") {
   return {
     media_type: "movie",
     title: movie.title,
     watched_at: watchedAt,
     source: "manual",
+    sync_intent: syncIntent,
     tmdb_id: movie.tmdbId || null,
     imdb_id: movie.imdbId || null,
     tvdb_id: movie.tvdbId || null,
@@ -1056,6 +1151,7 @@ export async function postManualWatchRecords(records, onProgress) {
   let propagated = 0;
   let syncQueued = 0;
   const results = [];
+  const providerOutcomeBatches = [];
 
   for (let index = 0; index < records.length; index += IMPORT_BATCH_SIZE) {
     const batch = records.slice(index, index + IMPORT_BATCH_SIZE);
@@ -1072,10 +1168,19 @@ export async function postManualWatchRecords(records, onProgress) {
     propagated += Number(body.propagated || 0);
     syncQueued += Number(body.syncQueued || 0);
     if (Array.isArray(body.results)) results.push(...body.results);
+    if (Array.isArray(body.providerOutcomes)) providerOutcomeBatches.push(body.providerOutcomes);
     onProgress?.(Math.min(index + batch.length, records.length), records.length);
   }
 
-  return { inserted, skipped, rejected, propagated, syncQueued, results };
+  return {
+    inserted,
+    skipped,
+    rejected,
+    propagated,
+    syncQueued,
+    results,
+    providerOutcomes: mergeProviderOutcomes(providerOutcomeBatches),
+  };
 }
 
 async function fetchWatchRowById(id) {
@@ -1206,7 +1311,7 @@ async function applyMovieWatchDateChoice(choice) {
   const root = mediaDetailRoot();
   const customDate = getCustomWatchDateValue();
   const watchedAt = watchedAtForChoice(choice, { airDate: movie.releaseDate }, customDate);
-  const record = watchRecordFromMovie(movie, watchedAt);
+  const record = watchRecordFromMovie(movie, watchedAt, syncIntentForWatchDateChoice(choice));
 
   document.querySelector(".watch-date-overlay")?.querySelectorAll("[data-watch-date-choice], [data-watch-date-cancel]").forEach((button) => {
     button.disabled = true;
@@ -1234,7 +1339,7 @@ async function applyMovieWatchDateChoice(choice) {
     rememberLocalWatchedMovie(watchedMovie);
     _clearDerivedUiCaches({ resetExplorer: false });
     _setMessage(
-      `Marked "${movie.title}" watched${result.skipped ? " (already logged)" : ""}; pushed ${result.propagated} of ${result.syncQueued} to media apps.`,
+      `Marked "${movie.title}" watched${result.skipped ? " (already logged)" : ""}; pushed ${result.propagated} of ${result.syncQueued} to media apps.${providerOutcomeNotice(result.providerOutcomes)}`,
       result.rejected ? "error" : "success",
     );
     const patchedCurrentDetail = _patchMovieWatchedState(watchedMovie);
@@ -1369,7 +1474,16 @@ export async function applyWatchDateChoice(choice) {
   const watchedEntries = action.scope === "episode"
     ? action.episodes.map((episode) => ({
       episode,
-      watchedAt: watchedAtForChoice(choice, episode, customDate, 0, action.referenceWatchedAt, action.referenceDirection, action.referenceRuntime),
+      watchedAt: watchedAtForChoice(
+        choice,
+        episode,
+        customDate,
+        0,
+        action.referenceWatchedAt,
+        action.referenceDirection,
+        action.referenceRuntime,
+        action.includeUnreleased && isEpisodeUnreleased(episode),
+      ),
     }))
     : watchedAtForEpisodeBatch(
       choice,
@@ -1378,8 +1492,10 @@ export async function applyWatchDateChoice(choice) {
       action.referenceWatchedAt,
       action.referenceRuntime,
       action.episodeScope,
+      (episode) => action.includeUnreleased && isEpisodeUnreleased(episode),
     );
-  const records = watchedEntries.map(({ episode, watchedAt }) => watchRecordFromEpisode(episode, watchedAt));
+  const episodeSyncIntent = syncIntentForWatchDateChoice(choice);
+  const records = watchedEntries.map(({ episode, watchedAt }) => watchRecordFromEpisode(episode, watchedAt, episodeSyncIntent));
   // Explicit resync-only rows are used when a season/show has no new watch
   // records to add. They re-push the existing watched_at without creating a
   // new watch-history row.
@@ -1422,7 +1538,7 @@ export async function applyWatchDateChoice(choice) {
     _clearDerivedUiCaches({ resetExplorer: false });
     const totalMarked = result.inserted + result.skipped;
     _setMessage(
-      `Marked ${totalMarked} episode${totalMarked === 1 ? "" : "s"} watched; pushed ${result.propagated} of ${result.syncQueued} to media apps${result.skipped ? `, ${result.skipped} already logged` : ""}.`,
+      `Marked ${totalMarked} episode${totalMarked === 1 ? "" : "s"} watched; pushed ${result.propagated} of ${result.syncQueued} to media apps${result.skipped ? `, ${result.skipped} already logged` : ""}.${providerOutcomeNotice(result.providerOutcomes)}`,
       result.rejected ? "error" : "success",
     );
     await patchShowEpisodesFromWatchResponse(action, result, watchedEntries, action.resyncEpisodes || []);

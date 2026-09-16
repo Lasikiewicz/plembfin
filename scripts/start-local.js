@@ -7,5 +7,8 @@ loadLocalEnv();
 if (!String(process.env.BUILD_CHANNEL || "").trim()) {
   process.env.BUILD_CHANNEL = "develop";
 }
+if (!String(process.env.PLEMBFIN_DEV_NO_CACHE_ASSETS || "").trim()) {
+  process.env.PLEMBFIN_DEV_NO_CACHE_ASSETS = "1";
+}
 
 await import("../server/server.js");
