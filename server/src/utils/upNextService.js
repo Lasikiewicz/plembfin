@@ -15,12 +15,11 @@ import {
   listActiveUpNextProviderItems,
   listUpNextProviderFeedStates,
 } from "./upNextRepository.js";
-import { createUpNextLibraryLookup } from "./upNextLibraryLookup.js";
+import { createUpNextLibraryEpisodeLookup, createUpNextLibraryLookup } from "./upNextLibraryLookup.js";
 import { createUpNextDismissalFilter } from "./upNextDismissals.js";
 import { listManualUpNextShows } from "./upNextManual.js";
 import { isDemoMode } from "./demoMode.js";
 
-const MAX_LOCAL_SHOWS = 24;
 const LOCAL_METADATA_CONCURRENCY = 4;
 const MAX_PROVIDER_OBSERVATIONS = 500;
 // Per show, not per build: the first released unwatched episode is the one
@@ -68,6 +67,17 @@ function text(value = "") {
 function number(value, fallback = 0) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function isRegularUpNextEpisode(candidate = {}) {
+  if (candidate.media_type !== "episode") return true;
+  const season = number(candidate.season, NaN);
+  const episode = number(candidate.episode, NaN);
+  // Specials are useful in a show's detail page, but S00 is not a linear
+  // season to continue in the dashboard rail. Provider feeds occasionally
+  // expose specials as their next item, so keep them out of Up Next.
+  return Number.isInteger(season) && season > 0
+    && Number.isInteger(episode) && episode > 0;
 }
 
 function coordinate(row = {}) {
@@ -611,6 +621,7 @@ async function localNextUpForShow(show, {
   episodeRows,
   today,
   resolveProviderItems = null,
+  resolveProviderEpisodes = null,
   allowUnplayable = false,
 }) {
   const detail = await queryShowDetail({
@@ -642,7 +653,9 @@ async function localNextUpForShow(show, {
   });
   const tmdbId = text(show.tmdb_id || metadata?.id);
   const tvdbId = text(show.tvdb_id || metadata?.external_ids?.tvdb_id);
-  if (!tmdbId && !tvdbId) return null;
+  // Provider inventory can resolve a show by title alone. Keep this fallback
+  // available even when the local record has no external metadata identity.
+  if (!tmdbId && !tvdbId && !resolveProviderEpisodes) return null;
 
   const seasonNumbers = [...new Set((metadata?.seasons || [])
     .map((season) => number(season.season_number, NaN))
@@ -719,6 +732,51 @@ async function localNextUpForShow(show, {
       return { ...candidate, provider_items: providerItems };
     }
   }
+
+  // Provider inventory is the availability authority when metadata lags the
+  // media server. This is especially important for a show whose prior seasons
+  // are all watched: there is no provider resume row and a stale season list
+  // otherwise leaves the show with no candidate at all.
+  if (resolveProviderEpisodes) {
+    const inventoryCandidates = await resolveProviderEpisodes(show).catch(() => []);
+    const firstAvailable = inventoryCandidates
+      .map((item) => normalizeUpNextCandidate({
+        ...item,
+        show_ids: {
+          imdb: show.imdb_id,
+          tmdb: show.tmdb_id,
+          tvdb: show.tvdb_id,
+        },
+        show_latest_watched_at: show.latest_watched_at,
+        poster_url: show.poster_url,
+      }))
+      .filter((candidate) => candidate.media_type === "episode")
+      .filter(isRegularUpNextEpisode)
+      .filter((candidate) => released(candidate.air_date, today))
+      .filter((candidate) => !watched.has(episodeCoordinateForCandidate(candidate)))
+      .filter((candidate) => !stateIsWatched(candidate, playstateIndex))
+      .filter((candidate) => !progressCandidates.some((resume) => aliasesIntersect(aliasesFor(candidate), aliasesFor(resume))))
+      .sort((left, right) => Number(left.season || 0) - Number(right.season || 0)
+        || Number(left.episode || 0) - Number(right.episode || 0)
+        || String(left.source || "").localeCompare(String(right.source || "")));
+    if (firstAvailable.length) {
+      const first = firstAvailable[0];
+      const sameCoordinate = firstAvailable.filter((candidate) => episodeCoordinateMatches(candidate, first));
+      return sameCoordinate.reduce((merged, candidate) => ({
+        ...merged,
+        provider_items: [...new Set([
+          ...Object.keys(merged.provider_items || {}),
+          ...Object.keys(candidate.provider_items || {}),
+        ])].reduce((providerItems, provider) => ({
+          ...providerItems,
+          [provider]: [...new Set([
+            ...(Array.isArray(merged.provider_items?.[provider]) ? merged.provider_items[provider] : []),
+            ...(Array.isArray(candidate.provider_items?.[provider]) ? candidate.provider_items[provider] : []),
+          ])],
+        }), {}),
+      }), first);
+    }
+  }
   return null;
 }
 
@@ -778,6 +836,7 @@ async function localNextUpCandidates({
   episodeRows = [],
   today,
   resolveProviderItems = null,
+  resolveProviderEpisodes = null,
   allowUnplayable = false,
   manualShowKeys = new Set(),
 }) {
@@ -794,7 +853,10 @@ async function localNextUpCandidates({
         || String(left.title || "").localeCompare(String(right.title || ""))
         || String(left.id || "").localeCompare(String(right.id || ""))
     ))
-    .slice(0, MAX_LOCAL_SHOWS);
+    // Do not cap this list by recency. A newly arrived episode can belong to
+    // any show the user has watched before, including one far below the most
+    // recently active titles. The worker pool above still bounds the active
+    // metadata/provider work.
   const results = [];
   let cursor = 0;
   async function worker() {
@@ -807,6 +869,7 @@ async function localNextUpCandidates({
         episodeRows,
         today,
         resolveProviderItems,
+        resolveProviderEpisodes,
         allowUnplayable,
       });
       if (candidate) results.push(candidate);
@@ -830,6 +893,7 @@ export async function buildUpNextProjection({
   // Injectable so a test can stand in for the real library lookup. In
   // production this is built from the media config below.
   resolveProviderItems = null,
+  resolveProviderEpisodes = null,
 } = {}) {
   const rawProgressRows = progressRows || selectProgressRowsStmt.all();
   const observations = (providerItems || listActiveUpNextProviderItems())
@@ -869,6 +933,7 @@ export async function buildUpNextProjection({
     .map((candidate) => ensureDemoSeriesIdentity(candidate, showIdentities))
     .map((candidate) => decorateShowRecency(candidate, showRecency))
     .filter(actionableResume)
+    .filter(isRegularUpNextEpisode)
     .filter((candidate) => !stateBlocksCandidate(candidate, playstateIndex, { progressUpdatedAt: candidate.updated_at }));
   const canonicalResumeAliases = canonicalResume.map(aliasesFor);
 
@@ -899,6 +964,7 @@ export async function buildUpNextProjection({
     .map((candidate) => decorateShowRecency(candidate, showRecency));
   const providerResume = providerCandidates
     .filter((candidate) => candidate.queue_kind === "resume" && (actionableResume(candidate) || providerResumeMembership(candidate)))
+    .filter(isRegularUpNextEpisode)
     .filter((candidate) => candidate.media_type !== "episode" || showHasWatchedRecord(candidate, watchedShowKeys))
     .filter((candidate) => matchesAuthoritativeNextEpisode(candidate, authoritativeNextEpisodes))
     .filter((candidate) => stateIsUnwatched(candidate, playstateIndex)
@@ -906,6 +972,7 @@ export async function buildUpNextProjection({
     .filter((candidate) => !stateIsWatched(candidate, playstateIndex));
   const providerNextUp = providerCandidates
     .filter((candidate) => candidate.queue_kind === "next_up" && released(candidate.air_date, new Date(now).toISOString().slice(0, 10)))
+    .filter(isRegularUpNextEpisode)
     .filter((candidate) => candidate.media_type !== "episode" || showHasWatchedRecord(candidate, watchedShowKeys))
     .filter((candidate) => matchesAuthoritativeNextEpisode(candidate, authoritativeNextEpisodes))
     .filter((candidate) => stateIsUnwatched(candidate, playstateIndex)
@@ -929,6 +996,7 @@ export async function buildUpNextProjection({
       episodeRows: trackedEpisodeRows,
       today: new Date(now).toISOString().slice(0, 10),
       resolveProviderItems: resolveProviderItems || (mediaConfig ? createUpNextLibraryLookup(mediaConfig) : null),
+      resolveProviderEpisodes: resolveProviderEpisodes || (mediaConfig ? createUpNextLibraryEpisodeLookup(mediaConfig) : null),
       manualShowKeys,
     });
   }
@@ -943,7 +1011,7 @@ export async function buildUpNextProjection({
     ...providerResume,
     ...providerNextUp,
     ...localNextUp,
-  ]).filter((candidate) => {
+  ]).filter(isRegularUpNextEpisode).filter((candidate) => {
     const dismissedAt = dismissals.dismissedAt(candidate);
     if (!dismissedAt) return true;
     const updatedAt = number(candidate.updated_at);

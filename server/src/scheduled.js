@@ -25,9 +25,12 @@ import { reconcileAvailableWatchedItems } from "./utils/libraryAvailabilitySync.
 
 // A library-history endpoint exposes the server's current played snapshot; it
 // does not prove another viewing occurred. A canonical Plembfin playstate can
-// outlive the provider history row the user deliberately removed.
+// outlive the provider history row the user deliberately removed. Keep an
+// explicit canonical unwatch sticky here: provider history is polled data and
+// can repeat the old played flag after Plembfin has cleared it.
 export function shouldSkipLibraryHistoryImport(existing, playstate) {
-  return !existing && playstate?.state === "watched";
+  return playstate?.state === "unwatched"
+    || (!existing && playstate?.state === "watched");
 }
 import {
   playstateBlocksStoredResumeProgress,

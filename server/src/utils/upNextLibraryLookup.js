@@ -1,6 +1,18 @@
-import { fetchPlexMetadataItem, findPlexItem } from "./plexClient.js";
-import { fetchEmbyItemRuntimeMs, findEmbyItems } from "./embyClient.js";
-import { fetchJellyfinItemRuntimeMs, findJellyfinItems } from "./jellyfinClient.js";
+import {
+  fetchPlexMetadataItem,
+  fetchPlexSeriesEpisodes,
+  findPlexItem,
+} from "./plexClient.js";
+import {
+  fetchEmbyItemRuntimeMs,
+  fetchEmbySeriesEpisodes,
+  findEmbyItems,
+} from "./embyClient.js";
+import {
+  fetchJellyfinItemRuntimeMs,
+  fetchJellyfinSeriesEpisodes,
+  findJellyfinItems,
+} from "./jellyfinClient.js";
 import { runWithConcurrency } from "./concurrency.js";
 
 const PROVIDERS = ["plex", "emby", "jellyfin"];
@@ -9,13 +21,15 @@ const PROVIDERS = ["plex", "emby", "jellyfin"];
 // episode that has not been downloaded yet - so it is retried far sooner.
 const RESOLVED_TTL_MS = 6 * 60 * 60 * 1000;
 const MISSING_TTL_MS = 15 * 60 * 1000;
-// One projection rebuild examines at most MAX_LOCAL_SHOWS shows. Cap the
-// outbound lookups it can start so a cold cache cannot turn a dashboard
-// refresh into a burst of provider searches.
+// Cap direct episode-item lookups so a cold cache cannot turn a dashboard
+// refresh into a burst of provider searches. Full-series inventory lookups
+// are separately cached and run through the projection's bounded worker pool.
 const MAX_LOOKUPS_PER_BUILD = 32;
 const MAX_CACHE_ENTRIES = 2000;
+const EPISODE_INVENTORY_TTL_MS = 5 * 60 * 1000;
 
 const lookupCache = new Map();
+const episodeInventoryCache = new Map();
 
 function text(value = "") {
   return String(value ?? "").trim();
@@ -244,7 +258,108 @@ function writeCache(key, providerItemId) {
 
 export function clearUpNextLibraryLookupCache() {
   lookupCache.clear();
+  episodeInventoryCache.clear();
   runtimeCache.clear();
+}
+
+function providerEpisodeId(provider, episode = {}) {
+  return text(provider === "plex" ? (episode.ratingKey || episode.key) : episode.Id || episode.id);
+}
+
+function providerEpisodeCoordinate(provider, episode = {}) {
+  const season = Number(provider === "plex" ? episode.parentIndex : episode.ParentIndexNumber);
+  const number = Number(provider === "plex" ? episode.index : episode.IndexNumber);
+  if (!Number.isInteger(season) || season < 0 || !Number.isInteger(number) || number < 1) return null;
+  return { season, episode: number };
+}
+
+function providerEpisodeTitle(provider, episode = {}) {
+  return text(provider === "plex" ? episode.title : episode.Name || episode.name || episode.Title || episode.title);
+}
+
+function providerEpisodeAirDate(provider, episode = {}) {
+  return text(provider === "plex"
+    ? episode.originallyAvailableAt || episode.originallyAvailableAtUtc
+    : episode.PremiereDate || episode.PremiereDateUtc || episode.premiereDate);
+}
+
+function providerSeriesEpisodes(provider, config, media) {
+  if (provider === "plex") return fetchPlexSeriesEpisodes(config.plex, media);
+  if (provider === "emby") return fetchEmbySeriesEpisodes(config.emby, media);
+  return fetchJellyfinSeriesEpisodes(config.jellyfin, media);
+}
+
+function providerInventoryKey(provider, config, show = {}) {
+  const ids = [show.imdb_id, show.tmdb_id, show.tvdb_id].map((value) => text(value).toLowerCase()).join("|");
+  return `${provider}:${text(config?.[provider]?.baseUrl).toLowerCase()}:${ids}:${text(show.title).toLowerCase()}`;
+}
+
+// A new episode can exist in a configured media-server library before the
+// cached TMDB/TVDB season list knows about it. In that window an episode-level
+// lookup has no coordinate to search for. Keep a short-lived series inventory
+// snapshot so the Up Next projection can discover the first available episode
+// after the user's canonical watched history without turning every dashboard
+// refresh into a full provider scan.
+export function createUpNextLibraryEpisodeLookup(config = {}) {
+  const providers = PROVIDERS.filter((provider) => configuredProvider(config, provider));
+  if (!providers.length) return null;
+
+  return async function resolveProviderEpisodes(show = {}) {
+    const media = upNextLookupMedia({
+      media_type: "episode",
+      title: show.title,
+      show_title: show.title,
+      show_imdb_id: show.imdb_id,
+      show_tmdb_id: show.tmdb_id,
+      show_tvdb_id: show.tvdb_id,
+    });
+    if (!media.title || !media.show_title) return [];
+
+    const results = await Promise.all(providers.map(async (provider) => {
+      const key = providerInventoryKey(provider, config, show);
+      const cached = episodeInventoryCache.get(key);
+      if (cached && Date.now() - cached.at < EPISODE_INVENTORY_TTL_MS) return cached.episodes;
+      try {
+        const rawEpisodes = await providerSeriesEpisodes(provider, config, media);
+        const episodes = (Array.isArray(rawEpisodes) ? rawEpisodes : [])
+          .map((episode) => {
+            const coordinate = providerEpisodeCoordinate(provider, episode);
+            const providerItemId = providerEpisodeId(provider, episode);
+            if (!coordinate || !providerItemId) return null;
+            return {
+              queue_kind: "next_up",
+              media_type: "episode",
+              title: `${show.title} - S${String(coordinate.season).padStart(2, "0")}E${String(coordinate.episode).padStart(2, "0")}`,
+              show_title: show.title,
+              episode_title: providerEpisodeTitle(provider, episode),
+              season: coordinate.season,
+              episode: coordinate.episode,
+              show_ids: {
+                imdb: text(show.imdb_id),
+                tmdb: text(show.tmdb_id),
+                tvdb: text(show.tvdb_id),
+              },
+              provider_items: { [provider]: [providerItemId] },
+              provider: provider,
+              source: provider,
+              air_date: providerEpisodeAirDate(provider, episode),
+            };
+          })
+          .filter(Boolean);
+        if (episodeInventoryCache.size >= MAX_CACHE_ENTRIES) {
+          const oldest = episodeInventoryCache.keys().next().value;
+          if (oldest !== undefined) episodeInventoryCache.delete(oldest);
+        }
+        episodeInventoryCache.set(key, { at: Date.now(), episodes });
+        return episodes;
+      } catch {
+        // A failed inventory is not evidence that the show is absent. Do not
+        // cache failures, so the next projection can retry after an outage.
+        return [];
+      }
+    }));
+    return results.flat();
+  };
 }
 
 // Local history plus TMDB metadata is enough to know which episode comes next,

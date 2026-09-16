@@ -109,6 +109,28 @@ test("an explicit unwatched state suppresses a stale provider next-up card", asy
   assert.equal(projection.items.length, 0);
 });
 
+test("provider specials are not promoted into the Up Next rail", async () => {
+  const projection = await buildUpNextProjection({
+    now: Date.parse("2026-09-01T12:00:00.000Z"),
+    localFallback: false,
+    progressRows: [],
+    playstateRows: [],
+    providerItems: [{
+      provider: "jellyfin",
+      feed_kind: "next_up",
+      provider_item_id: "special-1",
+      media_type: "episode",
+      title: "Special Show - S00E01",
+      show_title: "Special Show",
+      season: 0,
+      episode: 1,
+      air_date: "2026-08-01",
+    }],
+  });
+
+  assert.equal(projection.items.length, 0);
+});
+
 test("a watched episode suppresses a stale provider resume card", async () => {
   const projection = await buildUpNextProjection({
     now: Date.parse("2026-09-01T12:00:00.000Z"),
@@ -817,6 +839,113 @@ test("local fallback crosses from an exhausted season to the first episode of th
   });
 
   assert.equal(projection.items.length, 1);
+  assert.equal(projection.items[0].season, 2);
+  assert.equal(projection.items[0].episode, 1);
+});
+
+test("local fallback discovers a newly available season from provider inventory when metadata is stale", async () => {
+  seedShowMetadata({
+    tmdbId: "88003",
+    tvdbId: "88003",
+    title: "New Season",
+    seasonNumber: 1,
+    episodes: [
+      { number: 1, name: "Finale", aired: "2026-08-01" },
+    ],
+  });
+  insertWatchRecordSync({
+    title: "New Season - S01E01",
+    show_title: "New Season",
+    episode_title: "Finale",
+    media_type: "episode",
+    season: 1,
+    episode: 1,
+    show_tmdb_id: "88003",
+    show_tvdb_id: "88003",
+    watched_at: "2026-08-02T11:00:00.000Z",
+    source: "manual",
+  });
+
+  const projection = await buildUpNextProjection({
+    now: Date.parse("2026-09-10T12:00:00.000Z"),
+    shows: [{
+      id: "new-season",
+      title: "New Season",
+      tmdb_id: "88003",
+      tvdb_id: "88003",
+      episode_count: 1,
+      latest_watched_at: "2026-08-02T11:00:00.000Z",
+    }],
+    progressRows: [],
+    playstateRows: [],
+    providerItems: [],
+    resolveProviderEpisodes: async () => [{
+      source: "plex",
+      provider: "plex",
+      provider_items: { plex: ["new-season-s02e01"] },
+      media_type: "episode",
+      title: "New Season - S02E01",
+      show_title: "New Season",
+      season: 2,
+      episode: 1,
+      air_date: "2026-09-01",
+    }],
+  });
+
+  assert.equal(projection.items.length, 1);
+  assert.equal(projection.items[0].season, 2);
+  assert.equal(projection.items[0].episode, 1);
+  assert.deepEqual(projection.items[0].provider_items, { plex: ["new-season-s02e01"] });
+});
+
+test("local fallback scans watched shows beyond the previous recency boundary", async () => {
+  const targetTitle = "Long Tail New Season";
+  insertWatchRecordSync({
+    title: `${targetTitle} - S01E01`,
+    show_title: targetTitle,
+    episode_title: "The Old Finale",
+    media_type: "episode",
+    season: 1,
+    episode: 1,
+    show_tmdb_id: "88004",
+    watched_at: "2026-01-02T11:00:00.000Z",
+    source: "manual",
+  });
+
+  const shows = Array.from({ length: 50 }, (_, index) => ({
+    title: `Recent Show ${index + 1}`,
+    tmdb_id: `recent-${index + 1}`,
+    episode_count: 1,
+    latest_watched_at: `2026-09-${String(index + 1).padStart(2, "0")}T11:00:00.000Z`,
+  }));
+  shows.push({
+    title: targetTitle,
+    tmdb_id: "88004",
+    episode_count: 1,
+    latest_watched_at: "2026-01-02T11:00:00.000Z",
+  });
+
+  const projection = await buildUpNextProjection({
+    now: Date.parse("2026-09-10T12:00:00.000Z"),
+    shows,
+    progressRows: [],
+    playstateRows: [],
+    providerItems: [],
+    resolveProviderEpisodes: async (show) => show.title === targetTitle ? [{
+      source: "plex",
+      provider: "plex",
+      provider_items: { plex: ["long-tail-s02e01"] },
+      media_type: "episode",
+      title: `${targetTitle} - S02E01`,
+      show_title: targetTitle,
+      season: 2,
+      episode: 1,
+      air_date: "2026-09-01",
+    }] : [],
+  });
+
+  assert.equal(projection.items.length, 1);
+  assert.equal(projection.items[0].show_title, targetTitle);
   assert.equal(projection.items[0].season, 2);
   assert.equal(projection.items[0].episode, 1);
 });

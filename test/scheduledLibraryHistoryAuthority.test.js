@@ -9,7 +9,7 @@ test("a provider library snapshot cannot recreate a date removed from an already
 
 test("library history can still add genuinely unknown watched items", () => {
   assert.equal(shouldSkipLibraryHistoryImport(null, null), false);
-  assert.equal(shouldSkipLibraryHistoryImport(null, { state: "unwatched" }), false);
+  assert.equal(shouldSkipLibraryHistoryImport(null, { state: "unwatched" }), true);
 });
 
 test("an existing matching watch remains an ordinary no-op", () => {
