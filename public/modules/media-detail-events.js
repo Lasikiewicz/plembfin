@@ -1,6 +1,6 @@
-import { HIDE_EPISODE_SPOILERS_KEY, state } from "./state.js?v=1.1.1.3.1";
-import { escapeAttribute, formatDate, showTitleFrom, showName, slug, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, tvShowTmdbHref, tvShowTvdbHref, normalizePlatformSource } from "./utils.js?v=1.1.1.3.1";
-import { isCachedStorageImageUrl, proxiedArtworkUrl, rememberPosterLookup } from "./images.js?v=1.1.1.3.1";
+import { HIDE_EPISODE_SPOILERS_KEY, state } from "./state.js?v=1.1.1.3.2";
+import { escapeAttribute, formatDate, showTitleFrom, showName, slug, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, tvShowTmdbHref, tvShowTvdbHref, normalizePlatformSource } from "./utils.js?v=1.1.1.3.2";
+import { isCachedStorageImageUrl, proxiedArtworkUrl, rememberPosterLookup } from "./images.js?v=1.1.1.3.2";
 import {
   openEditDateDialog,
   openEditShowDateDialog,
@@ -11,7 +11,7 @@ import {
   openEditSeasonDateDialog,
   applyWatchedAtToLocalWatchRecord,
   editDateOptionsFromButton,
-} from "./edit-dialogs.js?v=1.1.1.3.1";
+} from "./edit-dialogs.js?v=1.1.1.3.2";
 import {
   openWatchDatePrompt,
   closeWatchDatePrompt,
@@ -26,9 +26,9 @@ import {
   confirmAndDeleteMedia,
   toggleWatchDateIncludeSpecials,
   toggleWatchDateIncludeUnreleased,
-} from "./watch-action.js?v=1.1.1.3.1";
-import { triggerRetrySync, loadSyncJobs, loadSyncHistory, showAvailIssuePopup, isWatchedHistoryAction } from "./sync.js?v=1.1.1.3.1";
-import { renderExplorer, renderHistoryView, resolvedTmdbCache, refreshMovieExplorerInPlace, refreshHistoryViewInPlace } from "./explorer.js?v=1.1.1.3.1";
+} from "./watch-action.js?v=1.1.1.3.2";
+import { triggerRetrySync, loadSyncJobs, loadSyncHistory, showAvailIssuePopup, isWatchedHistoryAction } from "./sync.js?v=1.1.1.3.2";
+import { renderExplorer, renderHistoryView, resolvedTmdbCache, refreshMovieExplorerInPlace, refreshHistoryViewInPlace } from "./explorer.js?v=1.1.1.3.2";
 import {
   movieBySlugOrId,
   openShowInlineDetail,
@@ -42,10 +42,10 @@ import {
   patchMovieWatchedState,
   openHistoryDebugModal,
   openMediaInfoModal,
-} from "./media-detail.js?v=1.1.1.3.1";
-import { fetchWatchedMovieByTmdb, syncRewatchHistoryToggle } from "./media-detail-movie.js?v=1.1.1.3.1";
-import { addToWatchlist, removeFromWatchlist, openAddToListDialog, personalItemFromDetailDataset, refreshRenderedPersonalMediaControls, loadPersonalMedia } from "./personal-media.js?v=1.1.1.3.1";
-import { addShowToUpNext, removeShowFromUpNext, upNextAttentionOptions } from "./up-next.js?v=1.1.1.3.1";
+} from "./media-detail.js?v=1.1.1.3.2";
+import { fetchWatchedMovieByTmdb, syncRewatchHistoryToggle } from "./media-detail-movie.js?v=1.1.1.3.2";
+import { addToWatchlist, removeFromWatchlist, openAddToListDialog, personalItemFromDetailDataset, refreshRenderedPersonalMediaControls, loadPersonalMedia } from "./personal-media.js?v=1.1.1.3.2";
+import { addShowToUpNext, removeShowFromUpNext, upNextAttentionOptions } from "./up-next.js?v=1.1.1.3.2";
 
 // Callbacks injected by app-events.js (forwarded from app.js) to avoid circular imports.
 let _cb = {};
