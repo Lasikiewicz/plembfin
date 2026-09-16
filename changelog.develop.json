@@ -1,14 +1,14 @@
 {
-  "version": "1.1.1.3.3",
-  "build": 3,
+  "version": "1.1.1.3.4",
+  "build": 4,
   "resetCommit": "a8046ebe20559d9d180450a7a4420532e2419609",
-  "updatedAt": "2026-09-16T15:16:25.217Z",
+  "updatedAt": "2026-09-16T15:33:48.225Z",
   "entries": [
     {
-      "build": 3,
-      "date": "2026-09-16T15:16:25.217Z",
-      "commit": "6fe85b1ad04f323c87c3ca40fb69a2f891d1e7a2",
-      "message": "This update includes improve sync, onboarding, and settings workflows and include all watched shows in up next.",
+      "build": 4,
+      "date": "2026-09-16T15:33:48.225Z",
+      "commit": "e40799a1774266117a8d84146e6c9ca7735d820f",
+      "message": "This update includes improve sync, onboarding, and settings workflows, include all watched shows in up next, and keep Up Next on first unwatched episode.",
       "author": "Lasikiewicz",
       "details": [
         "Add reviewable one-time Tautulli history imports with safe merges and preserved watch dates.",
@@ -16,11 +16,13 @@
         "Standardize settings sections, help guides, backup controls, and onboarding access.",
         "Surface sync outcomes, retries, and unresolved media matches in the Sync Activity hub.",
         "Improve provider-aware watch-state synchronization and recovery safeguards.",
-        "Up Next now checks every previously watched show, so new episodes are no longer missed because of a recency cap."
+        "Up Next now checks every previously watched show, so new episodes are no longer missed because of a recency cap.",
+        "Keep the Up Next rail on the first released unwatched episode instead of jumping to a later season."
       ],
       "messageFragments": [
         "Feature - Improve sync, onboarding, and settings workflows",
-        "Fix - Include all watched shows in up next"
+        "Fix - Include all watched shows in up next",
+        "Fix - Keep Up Next on first unwatched episode"
       ]
     }
   ]
