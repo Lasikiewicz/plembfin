@@ -705,6 +705,10 @@ async function localNextUpForShow(show, {
       });
       if (stateIsWatched(candidate, playstateIndex)) continue;
       if (progressCandidates.some((resume) => aliasesIntersect(aliasesFor(candidate), aliasesFor(resume)))) continue;
+      // The metadata-backed episode order is authoritative. Once it identifies
+      // the first released unwatched episode, a later provider-inventory row
+      // must not leap over it just because the direct lookup missed. Returning
+      // no card is safer than surfacing a newer season out of order.
       // Local history and TMDB metadata can tell us what should come next, but
       // cannot prove that a guessed episode still exists in a configured media
       // server library, and a card nobody can play is worse than no card.
@@ -728,7 +732,10 @@ async function localNextUpForShow(show, {
       };
       if (allowUnplayable) return candidate;
       const providerItems = await lookupProviderItems();
-      if (!Object.keys(providerItems).length) continue;
+      // Do not try a later episode when the first released unwatched one is
+      // not currently resolvable. Provider inventory may be broader than the
+      // metadata snapshot, but it must not override the canonical order.
+      if (!Object.keys(providerItems).length) return null;
       return { ...candidate, provider_items: providerItems };
     }
   }

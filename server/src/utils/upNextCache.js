@@ -6,7 +6,9 @@ import { getUpNextFeedSourceVersion, listUpNextProviderFeedStates } from "./upNe
 import { getCanonicalPosterUrl } from "./mediaArtwork.js";
 import { publicUpNextItems } from "./upNextService.js";
 
-const CACHE_VERSION = 5;
+// Bump when the projection's episode-order rules change so a persisted queue
+// built by the previous rule cannot keep showing a later-season episode.
+const CACHE_VERSION = 6;
 const CACHE_FILE = path.join(DATA_DIR, "up-next-cache.json");
 const TEMP_FILE = `${CACHE_FILE}.${process.pid}.tmp`;
 const UP_NEXT_TTL_MS = 2 * 60 * 1000;

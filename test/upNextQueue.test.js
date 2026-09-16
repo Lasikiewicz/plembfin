@@ -898,6 +898,64 @@ test("local fallback discovers a newly available season from provider inventory 
   assert.deepEqual(projection.items[0].provider_items, { plex: ["new-season-s02e01"] });
 });
 
+test("provider inventory cannot jump past the first released unwatched episode", async () => {
+  seedShowMetadata({
+    tmdbId: "88005",
+    tvdbId: "88005",
+    title: "Ordered Seasons",
+    seasonNumber: 1,
+    episodes: [
+      { number: 1, name: "Watched", aired: "2026-08-01" },
+      { number: 2, name: "Next", aired: "2026-08-08" },
+    ],
+    additionalSeasons: [{
+      seasonNumber: 3,
+      episodes: [{ number: 1, name: "Later", aired: "2026-09-01" }],
+    }],
+  });
+  insertWatchRecordSync({
+    title: "Ordered Seasons - S01E01",
+    show_title: "Ordered Seasons",
+    episode_title: "Watched",
+    media_type: "episode",
+    season: 1,
+    episode: 1,
+    show_tmdb_id: "88005",
+    show_tvdb_id: "88005",
+    watched_at: "2026-08-02T11:00:00.000Z",
+    source: "manual",
+  });
+
+  const projection = await buildUpNextProjection({
+    now: Date.parse("2026-09-10T12:00:00.000Z"),
+    shows: [{
+      id: "ordered-seasons",
+      title: "Ordered Seasons",
+      tmdb_id: "88005",
+      tvdb_id: "88005",
+      episode_count: 1,
+      latest_watched_at: "2026-08-02T11:00:00.000Z",
+    }],
+    progressRows: [],
+    playstateRows: [],
+    providerItems: [],
+    resolveProviderItems: async () => ({}),
+    resolveProviderEpisodes: async () => [{
+      source: "plex",
+      provider: "plex",
+      provider_items: { plex: ["ordered-seasons-s03e01"] },
+      media_type: "episode",
+      title: "Ordered Seasons - S03E01",
+      show_title: "Ordered Seasons",
+      season: 3,
+      episode: 1,
+      air_date: "2026-09-01",
+    }],
+  });
+
+  assert.equal(projection.items.find((item) => item.show_title === "Ordered Seasons"), undefined);
+});
+
 test("local fallback scans watched shows beyond the previous recency boundary", async () => {
   const targetTitle = "Long Tail New Season";
   insertWatchRecordSync({
