@@ -1,21 +1,26 @@
 {
-  "version": "1.1.1.3.2",
-  "build": 2,
+  "version": "1.1.1.3.3",
+  "build": 3,
   "resetCommit": "a8046ebe20559d9d180450a7a4420532e2419609",
-  "updatedAt": "2026-09-16T14:32:28.315Z",
+  "updatedAt": "2026-09-16T15:16:25.217Z",
   "entries": [
     {
-      "build": 2,
-      "date": "2026-09-16T14:32:28.315Z",
-      "commit": "f286728ef90ec1f50c3875dd88a36285222f7c5b",
-      "message": "Feature - Improve sync, onboarding, and settings workflows",
+      "build": 3,
+      "date": "2026-09-16T15:16:25.217Z",
+      "commit": "6fe85b1ad04f323c87c3ca40fb69a2f891d1e7a2",
+      "message": "This update includes improve sync, onboarding, and settings workflows and include all watched shows in up next.",
       "author": "Lasikiewicz",
       "details": [
         "Add reviewable one-time Tautulli history imports with safe merges and preserved watch dates.",
         "Keep Up Next aligned with media-page watch state, episode release dates, and TV-show actions.",
         "Standardize settings sections, help guides, backup controls, and onboarding access.",
         "Surface sync outcomes, retries, and unresolved media matches in the Sync Activity hub.",
-        "Improve provider-aware watch-state synchronization and recovery safeguards."
+        "Improve provider-aware watch-state synchronization and recovery safeguards.",
+        "Up Next now checks every previously watched show, so new episodes are no longer missed because of a recency cap."
+      ],
+      "messageFragments": [
+        "Feature - Improve sync, onboarding, and settings workflows",
+        "Fix - Include all watched shows in up next"
       ]
     }
   ]
