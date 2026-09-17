@@ -14,7 +14,13 @@ Agent instructions for working with this codebase.
 > **For website publishing setup, follow [`docs/website-deployment.md`](docs/website-deployment.md).**
 > The website is a static Astro site in `website/`; do not push or deploy it without an
 > explicit user request.
->
+
+> **IMPORTANT — website/Traks work is isolated and this rule is mandatory.** Read the
+> website deployment docs and skill before acting; use only the local `website/` tree and
+> direct Wrangler deployment to `plembfin-website`. Never use GitHub, modify `main`, run
+> application CI, run the root Plembfin build, or touch the `plembfin` application project
+> unless the user explicitly requests **"Force to main"**.
+
 > **For the explicit phrase "Push website live", follow
 > [`.claude/skills/push-website-live/SKILL.md`](.claude/skills/push-website-live/SKILL.md).**
 > This is a website-only publish from the current local `website/` tree to the separate
@@ -45,6 +51,7 @@ machines.
 - **No Deployments** - Never deploy the application or run deployment commands unless explicitly instructed by the user.
 - **No Unsolicited Actions** - Do only exactly what the user asks. Do not perform unsolicited refactorings, add extra features, or modify files outside the direct scope of the request.
 - **No Browser Actions Unless Asked** - Never open web browsers/browser tools unless the user has explicitly requested it. Test commands are part of the normal project checks: run `npm test` or `npm run build` when a change touches code covered by those checks or when the user asks for verification.
+- **Website-only safety** - Website/Traks work must use the local `website/` checks/build and direct deployment to `plembfin-website`; it must never modify GitHub `main`, trigger application CI, run the root build, or touch the `plembfin` application project. The only exception is the explicit release workflow **"Force to main"**.
 - **Act immediately on simple requests** - If the user describes a clear, specific change, make it directly without preamble, planning steps, or explanation. Save analysis for genuinely complex or ambiguous tasks.
 
 ## Branching model: `develop` → `alpha` → `main`

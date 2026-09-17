@@ -11,7 +11,7 @@ import {
 } from "./trackerConnectionRepo.js";
 import { withFreshTraktConnection } from "./trackerDispatcher.js";
 import { applyUnwatchedTransition, applyWatchedTransition } from "./watchStateTransitions.js";
-import { completeDispatchTracking, finishDispatchTracking, reserveDispatchBatch } from "./syncOrchestrator.js";
+import { completeDispatchTracking, dispatchProgressKey, finishDispatchTracking, markReservedDispatchStarted, reserveDispatchBatch } from "./syncOrchestrator.js";
 
 const OUTBOUND_ECHO_WINDOW_MS = 30 * 60_000;
 const TRACKER_TRANSITION_CONCURRENCY = 8;
@@ -403,7 +403,9 @@ async function pollTrakt({ reconcile = false } = {}) {
   // up front, instead of letting it climb one item at a time as the bounded-
   // concurrency workers below pick up new items over the life of the batch -
   // see reserveDispatchBatch in syncOrchestrator.js.
-  const trackingReservation = reserveDispatchBatch(watched.length + unwatched.length);
+  const trackingReservation = reserveDispatchBatch(watched.length + unwatched.length, {
+    progressKeys: [...watched, ...unwatched].map((item) => dispatchProgressKey(item.media)),
+  });
   const deferredWatchedKeys = new Set();
   let deferredWatched = 0;
   let appliedUnwatched = 0;
@@ -411,6 +413,7 @@ async function pollTrakt({ reconcile = false } = {}) {
     if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active", watched: 0, unwatched: 0 };
     await runTransitionBatch(watched, async (item) => {
       try {
+        markReservedDispatchStarted(trackingReservation, item.media);
         const media = {
           ...item.media,
           source: "trakt",
@@ -440,11 +443,12 @@ async function pollTrakt({ reconcile = false } = {}) {
         }
         signalHistoryDataChanged();
       } finally {
-        completeDispatchTracking(trackingReservation);
+        completeDispatchTracking(trackingReservation, item.media);
       }
     });
     await runTransitionBatch(unwatched, async (item) => {
       try {
+        markReservedDispatchStarted(trackingReservation, item.media);
         // The poll's snapshot/diff is not atomic with outbound Trakt writes.
         // Re-read the persistent ledger at the last responsible moment: a
         // canonical replay may have primed its watched intent after this poll
@@ -468,7 +472,7 @@ async function pollTrakt({ reconcile = false } = {}) {
         appliedUnwatched += 1;
         signalHistoryDataChanged();
       } finally {
-        completeDispatchTracking(trackingReservation);
+        completeDispatchTracking(trackingReservation, item.media);
       }
     });
   } finally {

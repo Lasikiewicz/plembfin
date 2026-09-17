@@ -759,7 +759,7 @@ export async function handleTmdbDetails(req, res) {
   }
 
   try {
-    const details = await getTmdbDetails({ mediaType, tmdbId, title, ids });
+    const details = await getTmdbDetails({ mediaType, tmdbId, title, ids, lane: "interactive" });
     return sendJson(res, details, 200, { "Cache-Control": "private, max-age=300, stale-while-revalidate=86400", Vary: "Authorization" });
   } catch (error) {
     console.error("Failed handling TMDB details API", error);
@@ -799,7 +799,16 @@ export async function handleTmdbDetailsBatch(req, res) {
         continue;
       }
       try {
-        const details = await getTmdbDetails({ mediaType, tmdbId, title, ids, light: item?.light === true });
+        const details = await getTmdbDetails({
+          mediaType,
+          tmdbId,
+          title,
+          ids,
+          light: item?.light === true,
+          // Explorer prefetch is intentionally lower priority; a full detail
+          // request is user-visible and must jump ahead of it.
+          lane: item?.light === true ? "enrichment" : "interactive",
+        });
         results[index] = { details };
       } catch (error) {
         results[index] = { error: error.message || "failed", status: error.status || 500 };
@@ -896,6 +905,7 @@ export async function handleFixMatchSearch(req, res) {
       if (!existing.poster_url && candidate.poster_url) existing.poster_url = candidate.poster_url;
       if (!existing.poster_path && candidate.poster_path) existing.poster_path = candidate.poster_path;
       if (!existing.image_url && candidate.image_url) existing.image_url = candidate.image_url;
+      if (!existing.overview && (candidate.overview || candidate.summary)) existing.overview = candidate.overview || candidate.summary;
       if (!existing.year && candidate.year) existing.year = candidate.year;
       if (!existing.imdb_id && candidate.imdb_id) existing.imdb_id = candidate.imdb_id;
       // A later source can know an id the first one lacked - carry it onto the
@@ -934,6 +944,7 @@ export async function handleFixMatchSearch(req, res) {
         addResult({
           source,
           title: String(item.title || "").trim(),
+          overview: item.overview || item.summary || "",
           year: "",
           poster_url: item.poster_url || "",
           poster_path: "",
@@ -959,6 +970,7 @@ export async function handleFixMatchSearch(req, res) {
         addResult({
           source,
           title: String(item.title || item.name || "").trim(),
+          overview: item.overview || item.summary || "",
           year: String(item.release_date || item.first_air_date || "").slice(0, 4),
           poster_url: "",
           poster_path: item.poster_path || "",
@@ -977,6 +989,7 @@ export async function handleFixMatchSearch(req, res) {
       addResult({
         source,
         title: String(item.name || "").trim(),
+        overview: item.overview || item.summary || "",
         year: String(item.year || "").trim(),
         poster_url: "",
         poster_path: "",
@@ -1319,6 +1332,7 @@ export async function handleTmdbSeason(req, res) {
       tmdbId: req.query.tmdbId || req.query.id,
       tvdbId: req.query.tvdbId || req.query.tvdb_id,
       seasonNumber: req.query.seasonNumber || req.query.season,
+      lane: "interactive",
     });
     return sendJson(res, details, 200, { "Cache-Control": "private, max-age=3600, stale-while-revalidate=86400", Vary: "Authorization" });
   } catch (error) {
@@ -1336,6 +1350,7 @@ export async function handleTmdbImages(req, res) {
       tmdbId: req.query.tmdbId || req.query.id,
       title: req.query.title,
       ids: { tvdbId: req.query.tvdbId || req.query.tvdb_id },
+      lane: "interactive",
     });
     return sendJson(res, details);
   } catch (error) {
@@ -1416,7 +1431,7 @@ export async function handleTmdbPerson(req, res) {
   }
 
   try {
-    const personData = await getTmdbPerson(personId);
+    const personData = await getTmdbPerson(personId, { lane: "interactive" });
     
     // Deep clone the credits cast so we can enrich them without mutating the cached details
     const responseData = {

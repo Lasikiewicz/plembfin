@@ -9,7 +9,7 @@ import { buildWebhookUrl, renderSettingsInlineHelp } from "./modules/help-conten
 import { isCachedStorageImageUrl, compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, rememberPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, tmdbProfile, proxiedArtworkUrl } from "./modules/images.js?v=1.1.1.4.0";
 import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, loadRemotePlembfinBackupsForRestoreTab, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runPhantomWatchAudit, runPhantomWatchRepair, runTraktBackfill, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, loadPlembfinBackups, renderPlembfinBackups, runDuplicateWatchCleanup, loadWipeDataPreview, runWipeData } from "./modules/tools.js?v=1.1.1.4.0";
 import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, showAvailIssuePopup, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerRetrySync, triggerCronSync, triggerStopSync, triggerForceSync, isSyncProgressActive } from "./modules/sync.js?v=1.1.1.4.0";
-import { renderSyncActivity, renderSyncActivityStatus, setSyncActivityProgress, setSyncAttentionSummary, loadSyncAttention, renderSyncAttention, skipSyncAttention, skipSyncAttentionItem, retrySyncAttentionItem, skipSyncAttentionShow, retrySyncAttentionShow, recordClientAttention, clearClientAttention, clearClientAttentionForRoute, setSyncActivitySearch, resetSyncActivity, loadSyncActivity, downloadSyncActivityLog, retrySyncActivity, dismissSyncActivity, dismissSyncActivityGroup, retrySyncActivityGroup, startRetryAllSyncActivity, resumeRetryAllSyncActivityIfRunning, fetchAllRetryableSyncActivityIds, toggleSyncActivityRowLog, setSyncActivityGroupView, loadOlderSyncActivityGroup, toggleSyncActivityFailedOnly, startSyncActivityRefresh, stopSyncActivityRefresh } from "./modules/sync-activity.js?v=1.1.1.4.0";
+import { renderSyncActivity, renderSyncActivityStatus, setSyncActivityProgress, setSyncAttentionSummary, loadSyncAttention, renderSyncAttention, skipSyncAttention, skipSyncAttentionItem, retrySyncAttentionItem, skipSyncAttentionShow, retrySyncAttentionShow, recordClientAttention, clearClientAttention, clearClientAttentionForRoute, retryClientAttention, setSyncActivitySearch, resetSyncActivity, loadSyncActivity, queueSyncActivityRefresh, downloadSyncActivityLog, retrySyncActivity, dismissSyncActivity, dismissSyncActivityGroup, retrySyncActivityGroup, startRetryAllSyncActivity, resumeRetryAllSyncActivityIfRunning, fetchAllRetryableSyncActivityIds, toggleSyncActivityRowLog, setSyncActivityGroupView, loadOlderSyncActivityGroup, toggleSyncActivityFailedOnly, toggleSyncActivityPaused, startSyncActivityRefresh, stopSyncActivityRefresh } from "./modules/sync-activity.js?v=1.1.1.4.0";
 import { initSyncPreview } from "./modules/sync-preview.js?v=1.1.1.4.0";
 import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, refreshDashboardHistoryInPlace, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched } from "./modules/dashboard.js?v=1.1.1.4.0";
 import { initUpNext, renderUpNext, loadUpNext, resetUpNext, removeWatchedUpNextItems, removeDismissedUpNextItems, setUpNextWatchSavingState, setUpNextUnwatchSavingState } from "./modules/up-next.js?v=1.1.1.4.0";
@@ -131,10 +131,18 @@ function bindElements() {
     sidebarSyncAttentionButton: document.querySelector("#sidebarSyncAttentionButton"),
     sidebarSyncAttentionTitle: document.querySelector("#sidebarSyncAttentionTitle"),
     sidebarSyncAttentionText: document.querySelector("#sidebarSyncAttentionText"),
+    startupScanNotice: document.querySelector("#startupScanNotice"),
     syncProgressIndicator: document.querySelector("#syncProgressIndicator"),
     syncProgressText: document.querySelector("#syncProgressText"),
     syncActivityStatus: document.querySelector("#syncActivityStatus"),
     syncActivityStatusText: document.querySelector("#syncActivityStatusText"),
+    syncActivityCurrentProgress: document.querySelector("#syncActivityCurrentProgress"),
+    syncActivityCurrentProgressLabel: document.querySelector("#syncActivityCurrentProgressLabel"),
+    syncActivityCurrentProgressTrack: document.querySelector("#syncActivityCurrentProgressTrack"),
+    syncActivityCurrentProgressFill: document.querySelector("#syncActivityCurrentProgressFill"),
+    syncActivityCurrentProgressMeta: document.querySelector("#syncActivityCurrentProgressMeta"),
+    syncActivityPause: document.querySelector("#syncActivityPause"),
+    syncActivityPauseStatus: document.querySelector("#syncActivityPauseStatus"),
     syncActivityAttention: document.querySelector("#syncActivityAttention"),
     syncActivitySummary: document.querySelector("#syncActivitySummary"),
     syncActivityRetryAllFailed: document.querySelector("#syncActivityRetryAllFailed"),
@@ -2534,16 +2542,22 @@ function clearDerivedUiCaches({ resetExplorer = true } = {}) {
 }
 
 let isBackgroundSyncing = false;
-let syncActivityRefreshTimer = null;
 let syncIdleGraceTimer = null;
 const SYNC_IDLE_GRACE_MS = 3000;
+let lastReportedSyncCompleted = 0;
+let lastReportedSyncActive = false;
 
 function isAnySyncRunning() {
   return isBackgroundSyncing || Boolean(state.fullSyncActive) || isSyncProgressActive();
 }
 
-function renderSyncProgress({ total = 0, completed = 0, active = false, label = "" } = {}) {
+function renderSyncProgress({ total = 0, completed = 0, active = false, label = "", currentItemLabel = "", startupScanActive = false } = {}) {
   const syncing = Boolean(active) || (total > 0 && completed < total);
+  const normalizedCompleted = Math.max(Number(completed) || 0, 0);
+  const completedItem = normalizedCompleted > lastReportedSyncCompleted;
+  const finishedSync = lastReportedSyncActive && !syncing;
+  lastReportedSyncCompleted = normalizedCompleted;
+  lastReportedSyncActive = syncing;
 
   // A long sync runs as a sequence of small batches with brief idle gaps
   // between them (one batch finishes, completed>=total, before the next
@@ -2570,18 +2584,12 @@ function renderSyncProgress({ total = 0, completed = 0, active = false, label = 
   // The sidebar indicator is permanent: it reads "Sync - Idle" when nothing is
   // running, shows item counts for a known dispatch burst, and uses the
   // operation label for scans/imports whose total is not known yet.
-  setSyncActivityProgress({ total, completed, active: syncing, label });
+  setSyncActivityProgress({ total, completed, active: syncing, label, currentItemLabel, startupScanActive });
 
-  // A live-update sync-progress event can arrive several times a second while
-  // a batch is in flight. Reloading the whole Sync Activity list on every tick
-  // re-rendered the page that often, which is what caused the visible
-  // flickering during an active sync - throttle it to at most once a second.
-  if (state.activeView === "syncActivity" && !syncActivityRefreshTimer) {
-    syncActivityRefreshTimer = window.setTimeout(() => {
-      syncActivityRefreshTimer = null;
-      if (state.activeView === "syncActivity") loadSyncActivity({ force: true }).catch(() => null);
-    }, 1000);
-  }
+  // Progress heartbeats only refresh this list when a completed item or the
+  // finished run can have appended a sync-history row. The activity module
+  // coalesces these requests and patches/reorders existing DOM rows in place.
+  if (completedItem || finishedSync) queueSyncActivityRefresh({ immediate: finishedSync });
 }
 
 function handleSyncAttentionUpdate(summary = {}) {
@@ -2592,7 +2600,7 @@ function handleSyncAttentionUpdate(summary = {}) {
   // as a new blocker arrives instead of making the user wait for its periodic
   // refresh.
   const nextCount = Number(summary.count) || 0;
-  if (state.activeView === "syncActivity" && nextCount > 0 && (!state.syncAttentionLoaded || previousCount !== nextCount)) {
+  if (state.activeView === "syncActivity" && !state.syncActivityPaused && nextCount > 0 && (!state.syncAttentionLoaded || previousCount !== nextCount)) {
     loadSyncAttention({ force: true }).catch((error) => logDebug(`Live sync attention refresh failed: ${error.message}`));
   }
 }
@@ -2940,6 +2948,7 @@ async function lockDashboard() {
   state.syncActivity = [];
   state.syncActivityLoaded = false;
   state.syncActivityLoading = false;
+  state.syncActivityPaused = false;
   state.syncActivitySearch = "";
   state.manualWatchReviews = [];
   state.manualWatchReviewCount = 0;
@@ -2964,6 +2973,7 @@ async function lockDashboard() {
   state.syncAttentionShowSkipping = "";
   state.syncAttentionShowRetrying = "";
   state.syncAttentionShowRetryTerminal = null;
+  state.clientAttentionRetrying = "";
   if (elements.syncActivitySearch) elements.syncActivitySearch.value = "";
   state.syncActivityPagination = { page: 1, limit: 25, total: 0, totalPages: 1, from: 0, to: 0, hasPrevious: false, hasNext: false };
   state.importRecords = [];
@@ -3262,6 +3272,7 @@ function initialize() {
     removeDismissedUpNextItems,
     setUpNextWatchSavingState,
     setUpNextUnwatchSavingState,
+    recordClientAttention,
   });
   initMediaLightbox();
   initSync({
@@ -3380,6 +3391,7 @@ function initialize() {
     skipSyncAttention,
     skipSyncAttentionItem,
     retrySyncAttentionItem,
+    retryClientAttention,
     skipSyncAttentionShow,
     retrySyncAttentionShow,
     setSyncActivitySearch,
@@ -3394,6 +3406,7 @@ function initialize() {
     toggleSyncActivityRowLog,
     setSyncActivityGroupView,
     toggleSyncActivityFailedOnly,
+    toggleSyncActivityPaused,
   });
   applyAppearanceToBody(APPEARANCE_DEFAULTS);
   applyDemoUiRestrictions(false);
@@ -3426,7 +3439,10 @@ function initialize() {
       if (!isDemoMode()) {
         startLiveUpdates({
           authHeaders,
-          onHistoryVersion: (version, { changes = [] } = {}) => queueLiveHistoryRefresh({ changes }),
+          onHistoryVersion: (version, { changes = [] } = {}) => {
+            queueLiveHistoryRefresh({ changes });
+            if (state.activeView === "syncActivity") queueSyncActivityRefresh();
+          },
           onUpNextVersion: (version, { initial = false, pairedWithHistory = false } = {}) => {
             const normalized = Number(version);
             if (!Number.isFinite(normalized)) return;

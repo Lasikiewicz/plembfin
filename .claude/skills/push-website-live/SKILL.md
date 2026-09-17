@@ -5,18 +5,21 @@ description: "Publish the current local Astro website directly to the separate C
 
 # Push website live
 
-When the user explicitly says **"Push website live"**, publish the latest website
+When the user explicitly says **"Push website live"**, or asks to repair/publish the
+website or its Traks analytics outside the release workflow, publish the latest website
 working tree directly to the existing `plembfin-website` Cloudflare Pages project.
 The current checkout is the source of truth, including uncommitted website fixes.
 
 ## Boundaries
 
 - Work from the repository root, with the site in `website/`.
-- Do not checkout, pull, reset, stash, commit, or push Git branches.
+- Do not use the GitHub editor/API, checkout, pull, reset, stash, commit, or push Git branches.
 - Do not run the root Plembfin build, Docker build, or any GitHub workflow.
 - Do not deploy the `plembfin` application Pages project; the target is only
   `plembfin-website`.
 - Do not deploy when a website check or build fails.
+- If the request is ambiguous, keep the same boundary: website/Traks work is local
+  website-only unless the user explicitly invokes **"Force to main"**.
 
 ## Workflow
 

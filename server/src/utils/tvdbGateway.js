@@ -31,7 +31,10 @@ const SEARCH_MATCH_SCHEMA_VERSION = 3;
 const SEARCH_LIST_SCHEMA_VERSION = 2;
 const inflight = new Map();
 let nextRequestAt = 0;
-let throttleTail = Promise.resolve();
+let throttleQueue = [];
+let throttleTimer = null;
+let throttleSequence = 0;
+const THROTTLE_PRIORITY = { interactive: 0, sync: 1, enrichment: 2 };
 
 const seriesGetStmt = db.prepare("SELECT * FROM tvdb_metadata_cache WHERE id = ?");
 const seriesSetStmt = db.prepare(
@@ -212,15 +215,32 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function throttle() {
-  const previous = throttleTail;
-  let release;
-  throttleTail = new Promise((resolve) => { release = resolve; });
-  await previous;
+function drainThrottleQueue() {
+  throttleTimer = null;
+  if (!throttleQueue.length) return;
   const delay = Math.max(0, nextRequestAt - Date.now());
-  if (delay) await wait(delay);
+  if (delay) {
+    throttleTimer = setTimeout(drainThrottleQueue, delay);
+    return;
+  }
+  throttleQueue.sort((a, b) => (
+    THROTTLE_PRIORITY[a.lane] - THROTTLE_PRIORITY[b.lane] || a.sequence - b.sequence
+  ));
+  const next = throttleQueue.shift();
   nextRequestAt = Date.now() + 350;
-  release();
+  next.resolve();
+  if (throttleQueue.length) drainThrottleQueue();
+}
+
+async function throttle({ lane = "enrichment" } = {}) {
+  return new Promise((resolve) => {
+    throttleQueue.push({
+      lane: Object.prototype.hasOwnProperty.call(THROTTLE_PRIORITY, lane) ? lane : "enrichment",
+      sequence: throttleSequence++,
+      resolve,
+    });
+    drainThrottleQueue();
+  });
 }
 
 async function effectiveApiKey() {
@@ -228,18 +248,19 @@ async function effectiveApiKey() {
   return String(config.tvdb?.apiKey || "").trim() || PROJECT_KEY;
 }
 
-async function getToken({ forceRefresh = false } = {}) {
+async function getToken({ forceRefresh = false, lane = "enrichment" } = {}) {
   const apiKey = await effectiveApiKey();
   const keyHash = secretFingerprint(apiKey);
   const runtime = await loadRuntimeState().catch(() => ({}));
   if (!forceRefresh && runtime.tvdbToken && runtime.tvdbTokenKeyHash === keyHash && fresh(runtime.tvdbTokenIssuedAtMs, TOKEN_LIFETIME_MS)) {
     return runtime.tvdbToken;
   }
-  await throttle();
+  await throttle({ lane });
   const response = await fetchWithTimeout(`${API_ROOT}/login`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({ apikey: apiKey }),
+    lane,
   });
   if (!response.ok) {
     const error = new Error(`TVDB login failed with ${response.status}`);
@@ -299,19 +320,19 @@ function tvdbEndpointUrl(endpoint, params = {}) {
 // fall back to their stale SQLite caches.
 let rateLimitCooldownUntil = 0;
 
-async function upstream(endpoint, params = {}, attempt = 0) {
+async function upstream(endpoint, params = {}, attempt = 0, { lane = "enrichment" } = {}) {
   if (Date.now() < rateLimitCooldownUntil) {
     const error = new Error("TVDB requests are cooling down after repeated 429 responses");
     error.status = 429;
     throw error;
   }
-  await throttle();
-  const token = await getToken();
+  await throttle({ lane });
+  const token = await getToken({ lane });
   const url = tvdbEndpointUrl(endpoint, params);
-  const response = await fetchWithTimeout(url, { headers: { Accept: "application/json", Authorization: `Bearer ${token}` } });
+  const response = await fetchWithTimeout(url, { headers: { Accept: "application/json", Authorization: `Bearer ${token}` }, lane });
   if (response.status === 401 && attempt < 1) {
-    await getToken({ forceRefresh: true });
-    return upstream(endpoint, params, attempt + 1);
+    await getToken({ forceRefresh: true, lane });
+    return upstream(endpoint, params, attempt + 1, { lane });
   }
   if (response.status === 429) {
     const retryAfterSec = Number(response.headers.get("retry-after"));
@@ -339,18 +360,18 @@ async function upstream(endpoint, params = {}, attempt = 0) {
 // TVDB directly what show this id's episode actually belongs to. Safe to try
 // on any id: if it genuinely is a series id, the episode lookup 404s quickly
 // and the caller's existing series lookup already succeeded anyway.
-export async function resolveTvdbSeriesIdFromEpisodeId(tvdbEpisodeId) {
+export async function resolveTvdbSeriesIdFromEpisodeId(tvdbEpisodeId, { lane = "enrichment" } = {}) {
   const id = normalizeTvdbId(tvdbEpisodeId);
   if (!id) return "";
   try {
-    const episode = await upstream({ type: "episode", id });
+    const episode = await upstream({ type: "episode", id }, {}, 0, { lane });
     return episode?.seriesId ? String(episode.seriesId) : "";
   } catch {
     return "";
   }
 }
 
-export async function resolveTvdbSeriesId({ tvdbId = "", title = "" } = {}) {
+export async function resolveTvdbSeriesId({ tvdbId = "", title = "", lane = "enrichment" } = {}) {
   const cleanedId = normalizeTvdbId(tvdbId);
   if (cleanedId) return cleanedId;
 
@@ -367,7 +388,7 @@ export async function resolveTvdbSeriesId({ tvdbId = "", title = "" } = {}) {
   }
 
   try {
-    const results = await upstream("search", { query: cleanedTitle, type: "series" });
+    const results = await upstream("search", { query: cleanedTitle, type: "series" }, 0, { lane });
     const best = selectTvdbSeriesMatch(results, cleanedTitle);
     const resolvedId = best?.tvdb_id || "";
     seriesSetStmt.run({
@@ -473,7 +494,7 @@ export async function getTvdbSeriesArtwork(tvdbId) {
   }
 }
 
-export async function getTvdbSeriesExtended(tvdbId, { force = false } = {}) {
+export async function getTvdbSeriesExtended(tvdbId, { force = false, lane = "enrichment" } = {}) {
   const id = normalizeTvdbId(tvdbId);
   if (!id) return null;
   return collapse(`series:${id}`, async () => {
@@ -484,7 +505,7 @@ export async function getTvdbSeriesExtended(tvdbId, { force = false } = {}) {
     // meta switch below (which lacked per-season episode counts) are refetched.
     if (!force && cached?.details && Array.isArray(cached.details.episodes) && fresh(cached.updatedAtMs, seriesCacheTtl(cached.details))) return cached.details;
     try {
-      const details = await upstream({ type: "series-extended", id }, { meta: "episodes" });
+      const details = await upstream({ type: "series-extended", id }, { meta: "episodes" }, 0, { lane });
       seriesSetStmt.run({ id: cacheId, tvdb_id: id, title: details?.name || "", details: toJson(details), updated_at_ms: Date.now() });
       return details;
     } catch (error) {
@@ -501,7 +522,7 @@ function pickSeasonId(extended, seasonNumber) {
   return official || seasons.find((season) => Number(season.number) === number) || null;
 }
 
-export async function getTvdbSeasonEpisodes({ tvdbId, seasonNumber }) {
+export async function getTvdbSeasonEpisodes({ tvdbId, seasonNumber, lane = "enrichment" }) {
   const id = normalizeTvdbId(tvdbId);
   const number = Number(seasonNumber);
   if (!id || !Number.isInteger(number) || number < 0) {
@@ -515,13 +536,13 @@ export async function getTvdbSeasonEpisodes({ tvdbId, seasonNumber }) {
     const cached = row ? { details: parseJson(row.details), updatedAtMs: row.updated_at_ms } : null;
     if (cached?.details && fresh(cached.updatedAtMs, seasonCacheTtl(cached.details))) return shapeEpisodes(cached.details);
     try {
-      const extended = await getTvdbSeriesExtended(id);
+      const extended = await getTvdbSeriesExtended(id, { lane });
       const season = pickSeasonId(extended, number);
       if (!season?.id) {
         if (cached?.details) return shapeEpisodes(cached.details);
         return { episodes: [] };
       }
-      const seasonDetails = await upstream({ type: "season-extended", id: season.id });
+      const seasonDetails = await upstream({ type: "season-extended", id: season.id }, {}, 0, { lane });
       seasonSetStmt.run({ id: cacheId, tvdb_id: id, season_number: number, details: toJson(seasonDetails), updated_at_ms: Date.now() });
       return shapeEpisodes(seasonDetails);
     } catch (error) {

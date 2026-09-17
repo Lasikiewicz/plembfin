@@ -8,5 +8,8 @@ export default defineConfig({
   build: {
     format: "directory",
   },
+  legacy: {
+    collectionsBackwardsCompat: true,
+  },
   integrations: [mdx(), sitemap()],
 });

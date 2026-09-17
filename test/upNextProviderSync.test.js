@@ -402,11 +402,15 @@ test("a legacy Jellyfin rail seed is cleared while the watched predecessor refre
   assert.equal(summary.jellyfinRail.failed_count, 0);
   assert.equal(listUpNextRailSeeds("jellyfin").some((seed) => seed.providerItemId === "jelly-target"), false);
 
-  const predecessorWrite = calls.find((call) => call.method === "POST" && call.url.pathname.endsWith("/Items/jelly-e2/UserData"));
-  assert.ok(predecessorWrite, "the watched predecessor is updated");
-  assert.match(predecessorWrite.body, /"LastPlayedDate":"/);
-  const predecessorBody = JSON.parse(predecessorWrite.body);
-  assert.deepEqual(Object.keys(predecessorBody), ["LastPlayedDate"]);
+  const predecessorUnplayed = calls.find((call) => call.method === "DELETE" && call.url.pathname.endsWith("/PlayedItems/jelly-e2"));
+  const predecessorPlayed = calls.find((call) => call.method === "POST" && call.url.pathname.endsWith("/PlayedItems/jelly-e2"));
+  assert.ok(predecessorUnplayed, "the watched predecessor is first marked unwatched");
+  assert.ok(predecessorPlayed, "the watched predecessor is then marked watched");
+  assert.equal(predecessorPlayed.url.searchParams.get("datePlayed"), "2026-08-02T10:00:00.000Z");
+  assert.ok(calls.indexOf(predecessorUnplayed) < calls.indexOf(predecessorPlayed), "the provider sees the unplayed-to-played transition in order");
+  const predecessorDateRestore = calls.find((call) => call.method === "POST" && call.url.pathname.endsWith("/Items/jelly-e2/UserData"));
+  assert.ok(predecessorDateRestore, "the watched predecessor date is explicitly restored");
+  assert.deepEqual(JSON.parse(predecessorDateRestore.body), { LastPlayedDate: "2026-08-02T10:00:00.000Z" });
 
   const seedClear = calls.find((call) => {
     if (call.method !== "POST" || !call.url.pathname.endsWith("/Items/jelly-target/UserData")) return false;
@@ -488,12 +492,118 @@ test("the native rail refresh applies to Plex, Emby, and Jellyfin", async (t) =>
   ]);
   assert.ok(calls.some((call) => call.method === "GET" && call.url.hostname === "plex-native.test" && call.url.pathname === "/library/metadata/plex-series/allLeaves"));
   assert.ok(calls.some((call) => call.method === "GET" && call.url.hostname === "plex-native.test" && call.url.pathname === "/:/scrobble" && call.url.searchParams.get("key") === "plex-prev"));
+  assert.ok(calls.some((call) => call.method === "GET" && call.url.hostname === "plex-native.test" && call.url.pathname === "/:/unscrobble" && call.url.searchParams.get("key") === "plex-prev"));
+  assert.ok(calls.some((call) => call.method === "DELETE" && call.url.hostname === "emby-native.test" && call.url.pathname.endsWith("/PlayedItems/emby-prev")));
   assert.ok(calls.some((call) => call.method === "POST" && call.url.hostname === "emby-native.test" && call.url.pathname.endsWith("/PlayedItems/emby-prev")));
   const embyRailCalls = calls.filter((call) => call.method === "POST" && call.url.hostname === "emby-native.test" && ["/Sessions/Playing", "/Sessions/Playing/Progress", "/Sessions/Playing/Stopped"].includes(call.url.pathname));
   assert.deepEqual(embyRailCalls.map((call) => call.url.pathname), ["/Sessions/Playing", "/Sessions/Playing/Progress", "/Sessions/Playing/Stopped"]);
   assert.ok(embyRailCalls.every((call) => JSON.parse(call.body).PositionTicks === 0), "the Emby rail touch never writes resume progress");
   assert.ok(embyRailCalls.every((call) => call.body.includes("plembfin-up-next-refresh-emby-target")), "the Emby rail touch uses the reserved refresh session");
-  assert.ok(calls.some((call) => call.method === "POST" && call.url.hostname === "jelly-native.test" && call.url.pathname.endsWith("/Items/jelly-prev/UserData") && /LastPlayedDate/.test(call.body)));
+  assert.ok(calls.some((call) => call.method === "DELETE" && call.url.hostname === "jelly-native.test" && call.url.pathname.endsWith("/PlayedItems/jelly-prev")));
+  assert.ok(calls.some((call) => call.method === "POST" && call.url.hostname === "jelly-native.test" && call.url.pathname.endsWith("/PlayedItems/jelly-prev")));
+});
+
+test("a new season uses the watched final episode of the previous season as its rail predecessor", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  const episodes = {
+    plex: [
+      { ratingKey: "plex-s1e1", type: "episode", title: "Season Boundary - S01E01", parentIndex: 1, index: 1, viewCount: 0, viewOffset: 0, originallyAvailableAt: "2025-01-01" },
+      { ratingKey: "plex-s1e2", type: "episode", title: "Season Boundary - S01E02", parentIndex: 1, index: 2, viewCount: 4, viewOffset: 0, originallyAvailableAt: "2025-01-02" },
+      { ratingKey: "plex-s2e1", type: "episode", title: "Season Boundary - S02E01", parentIndex: 2, index: 1, viewCount: 0, viewOffset: 0, originallyAvailableAt: "2026-01-01" },
+    ],
+    emby: [
+      { Id: "emby-s1e1", Type: "Episode", Name: "Season Boundary - S01E01", SeriesName: "Season Boundary", ParentIndexNumber: 1, IndexNumber: 1, PremiereDate: "2025-01-01", UserData: { Played: false, PlaybackPositionTicks: 0 } },
+      { Id: "emby-s1e2", Type: "Episode", Name: "Season Boundary - S01E02", SeriesName: "Season Boundary", ParentIndexNumber: 1, IndexNumber: 2, PremiereDate: "2025-01-02", UserData: { Played: true, PlaybackPositionTicks: 0, LastPlayedDate: "2025-01-03T10:00:00.000Z" } },
+      { Id: "emby-s2e1", Type: "Episode", Name: "Season Boundary - S02E01", SeriesName: "Season Boundary", ParentIndexNumber: 2, IndexNumber: 1, PremiereDate: "2026-01-01", UserData: { Played: false, PlaybackPositionTicks: 0 } },
+    ],
+    jellyfin: [
+      { Id: "jelly-s1e1", Type: "Episode", Name: "Season Boundary - S01E01", SeriesName: "Season Boundary", ParentIndexNumber: 1, IndexNumber: 1, PremiereDate: "2025-01-01", UserData: { Played: false, PlaybackPositionTicks: 0 } },
+      { Id: "jelly-s1e2", Type: "Episode", Name: "Season Boundary - S01E02", SeriesName: "Season Boundary", ParentIndexNumber: 1, IndexNumber: 2, PremiereDate: "2025-01-02", UserData: { Played: true, PlaybackPositionTicks: 0, LastPlayedDate: "2025-01-03T10:00:00.000Z" } },
+      { Id: "jelly-s2e1", Type: "Episode", Name: "Season Boundary - S02E01", SeriesName: "Season Boundary", ParentIndexNumber: 2, IndexNumber: 1, PremiereDate: "2026-01-01", UserData: { Played: false, PlaybackPositionTicks: 0 } },
+    ],
+  };
+  globalThis.fetch = async (input, options = {}) => {
+    const url = new URL(String(input));
+    const method = String(options.method || "GET").toUpperCase();
+    calls.push({ url, method, body: String(options.body || "") });
+    if (method === "POST") return new Response(null, { status: 204 });
+
+    let body = { Items: [] };
+    if (url.hostname === "plex-boundary.test" && url.pathname === "/library/all") {
+      body = { MediaContainer: { Metadata: [{ ratingKey: "plex-series", type: "show", title: "Season Boundary" }] } };
+    } else if (url.hostname === "plex-boundary.test" && url.pathname === "/library/metadata/plex-series/allLeaves") {
+      body = { MediaContainer: { Metadata: episodes.plex } };
+    } else if (url.hostname === "emby-boundary.test" && url.pathname === "/Users/emby-user/Items" && url.searchParams.get("AnyProviderIdEquals")) {
+      body = { Items: [{ Id: "emby-series", Type: "Series", Name: "Season Boundary", ProviderIds: { Tmdb: "season-boundary" } }] };
+    } else if (url.hostname === "emby-boundary.test" && url.pathname === "/Users/emby-user/Items" && url.searchParams.get("ParentId") === "emby-series") {
+      body = { Items: episodes.emby, TotalRecordCount: episodes.emby.length };
+    } else if (url.hostname === "jelly-boundary.test" && url.pathname === "/Users/jelly-user/Items" && url.searchParams.get("AnyProviderIdEquals")) {
+      body = { Items: [{ Id: "jelly-series", Type: "Series", Name: "Season Boundary", ProviderIds: { Tmdb: "season-boundary" } }] };
+    } else if (url.hostname === "jelly-boundary.test" && url.pathname === "/Users/jelly-user/Items" && url.searchParams.get("ParentId") === "jelly-series") {
+      body = { Items: episodes.jellyfin, TotalRecordCount: episodes.jellyfin.length };
+    }
+    return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  const item = {
+    id: "season-boundary-s02e01",
+    media_key: "season-boundary-s02e01",
+    media_type: "episode",
+    title: "Season Boundary - S02E01",
+    show_title: "Season Boundary",
+    season: 2,
+    episode: 1,
+    show_tmdb_id: "season-boundary",
+    position_ms: 0,
+    progress: 0,
+  };
+  const configs = {
+    plex: { baseUrl: "http://plex-boundary.test", token: "plex-token" },
+    emby: { baseUrl: "http://emby-boundary.test", apiKey: "emby-key", userId: "emby-user" },
+    jellyfin: { baseUrl: "http://jelly-boundary.test", apiKey: "jelly-key", userId: "jelly-user" },
+  };
+  const results = await Promise.all(["plex", "emby", "jellyfin"].map((provider) => refreshProviderRail({
+    provider,
+    config: configs,
+    targets: [{ item, providerItemId: `${provider === "plex" ? "plex" : provider === "emby" ? "emby" : "jelly"}-s2e1` }],
+  })));
+
+  assert.deepEqual(results.map((result) => [result.provider, result.status, result.refreshed_count, result.failed_count]), [
+    ["plex", "succeeded", 1, 0],
+    ["emby", "succeeded", 1, 0],
+    ["jellyfin", "succeeded", 1, 0],
+  ]);
+  assert.ok(calls.some((call) => call.method === "GET" && call.url.hostname === "plex-boundary.test" && call.url.pathname === "/:/scrobble" && call.url.searchParams.get("key") === "plex-s1e2"));
+  assert.ok(calls.some((call) => call.method === "DELETE" && call.url.hostname === "emby-boundary.test" && call.url.pathname.endsWith("/PlayedItems/emby-s1e2")));
+  assert.ok(calls.some((call) => call.method === "DELETE" && call.url.hostname === "jelly-boundary.test" && call.url.pathname.endsWith("/PlayedItems/jelly-s1e2")));
+});
+
+test("Plex native rail refresh does not touch Plex when historical sync is disabled", async (t) => {
+  const originalFetch = globalThis.fetch;
+  let called = false;
+  globalThis.fetch = async () => {
+    called = true;
+    throw new Error("Plex must not be contacted for a policy-disabled rail toggle");
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  const result = await refreshProviderRail({
+    provider: "plex",
+    config: {
+      tuning: { plexHistoricalWatchedSync: false },
+      plex: { baseUrl: "http://plex-policy.test", token: "plex-token" },
+    },
+    targets: [{
+      providerItemId: "plex-target",
+      item: { media_type: "episode", title: "Policy Show - S01E02", show_title: "Policy Show", season: 1, episode: 2 },
+    }],
+  });
+
+  assert.equal(result.status, "skipped");
+  assert.match(result.reason, /historical watched sync is disabled/i);
+  assert.equal(called, false);
 });
 
 test("an empty Emby resume feed falls back to the legacy resumable query", async (t) => {

@@ -35,6 +35,47 @@ function authHeaders() {
   return buildAuthHeaders(state.token);
 }
 
+// Search providers often return a related series with a year suffix (for
+// example, "The Grand Tour" and "The Grand Tour (2016)"). Use this only as a
+// title guard when assigning a provider-specific alternate match; the
+// provider IDs still decide whether the series is actually the same.
+export function sameShowTitle(left, right) {
+  const normalize = (value) => String(value || "")
+    .replace(/\s*\(\d{4}\)\s*$/, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+  const leftKey = normalize(left);
+  const rightKey = normalize(right);
+  return Boolean(leftKey && rightKey && leftKey === rightKey);
+}
+
+// Provider catalogues commonly append the premiere year to a series title,
+// while another catalogue treats the continuation as a separate title. Search
+// the base title first so a title such as "The Grand Tour (2016)" can still
+// surface the separate "The Grand Tour" Trakt/TMDB record.
+export function fixMatchSearchTitle(title, mediaType = "tv") {
+  const value = String(title || "").trim();
+  if (String(mediaType || "").toLowerCase() !== "tv") return value;
+  return value.replace(/\s*\(\d{4}\)\s*$/, "").trim() || value;
+}
+
+export function isProviderSplitMatch(currentTvdbId, currentTitle, candidate = {}, options = {}) {
+  return Boolean(
+    currentTvdbId
+      && !candidate.tvdb_id
+      && candidate.tmdb_id
+      && sameShowTitle(currentTitle, candidate.title)
+      && Number.isInteger(Number(options.traktSourceSeason)),
+  );
+}
+
+export function hasProviderSplitConflict(currentTvdbId, currentTitle, results = [], options = {}) {
+  return Array.isArray(results) && results.some((candidate) => (
+    isProviderSplitMatch(currentTvdbId, currentTitle, candidate, options)
+  ));
+}
+
 // ── Core API helper ────────────────────────────────────────────────────────
 
 // `media_key` is optional and identifies the same media across a row being
@@ -108,11 +149,26 @@ async function apiDeleteWatchDates(ids) {
   return body;
 }
 
-async function apiRematchShow(id, showTitle, tvdbId, newShowTitle = "") {
+async function apiRematchShow(id, showTitle, tvdbId, newShowTitle = "", traktMatch = null) {
+  const payload = { id, show_title: showTitle, tvdb_id: tvdbId, new_show_title: newShowTitle };
+  if (traktMatch?.tmdbId) {
+    payload.trakt_tmdb_id = traktMatch.tmdbId;
+    payload.trakt_source_season = traktMatch.sourceSeason;
+    payload.trakt_source_episode = traktMatch.sourceEpisode;
+    payload.trakt_target_season = traktMatch.targetSeason;
+    if (traktMatch.targetEpisode != null) payload.trakt_target_episode = traktMatch.targetEpisode;
+
+    // Keep the generic aliases for older server bundles and API consumers;
+    // the trakt_* fields remain the canonical names for this split mapping.
+    payload.source_season = traktMatch.sourceSeason;
+    payload.source_episode = traktMatch.sourceEpisode;
+    payload.target_season = traktMatch.targetSeason;
+    if (traktMatch.targetEpisode != null) payload.target_episode = traktMatch.targetEpisode;
+  }
   const res = await fetch("/api/rematch-show", {
     method: "POST",
     headers: authHeaders(),
-    body: JSON.stringify({ id, show_title: showTitle, tvdb_id: tvdbId, new_show_title: newShowTitle }),
+    body: JSON.stringify(payload),
   });
   const body = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(body.error || `HTTP ${res.status}`);
@@ -1550,6 +1606,8 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
   const isTv = mediaType !== "movie";
   const headerTitle = options.headerTitle || "Fix Match";
   const currentTvdbId = String(options.currentTvdbId || "").trim();
+  const initialSearchTitle = fixMatchSearchTitle(currentTitle, isTv ? "tv" : "movie");
+  const hasTraktSplitContext = isTv && currentTvdbId && Number.isInteger(Number(options.traktSourceSeason));
 
   const overlay = document.createElement("div");
   overlay.className = "edit-dialog-overlay";
@@ -1564,9 +1622,10 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
       <h3>${escapeHtml(headerTitle)}</h3>
       <p class="muted-copy" style="margin-bottom: 0.75rem;">Search all available sources to link the correct ${isTv ? "TV show" : "movie"}${isTv ? " - this rematches every episode of the show" : ""}, or match to a YouTube video.</p>
       <div style="display: flex; gap: 0.5rem;">
-        <input type="search" class="field fix-match-input" placeholder="${escapeAttribute(currentTitle || "Search title…")}" value="${escapeAttribute(currentTitle || "")}" style="flex: 1;" />
+        <input type="search" class="field fix-match-input" placeholder="${escapeAttribute(initialSearchTitle || "Search title…")}" value="${escapeAttribute(initialSearchTitle)}" style="flex: 1;" />
         <button class="button-primary fix-match-search-btn" type="button">Search all sources</button>
       </div>
+      ${hasTraktSplitContext ? `<p class="muted-copy fix-match-split-hint" style="margin: 0.5rem 0 0;">This failed Trakt episode is Season ${escapeHtml(options.traktSourceSeason)} locally. Keep the TVDB/media-app match and skip Trakt for now if the provider uses a different series or season numbering. Only choose <strong>Unsplit for Trakt/TMDB</strong> after confirming that separate provider series is correct.</p>` : ""}
       <div class="fix-match-results"></div>
       <hr style="border:0;border-top:1px solid var(--border);margin:1rem 0 0.75rem;" />
       <p class="muted-copy" style="margin-bottom:0.5rem;">YouTube content not on TMDB? Paste the video URL below.</p>
@@ -1577,7 +1636,7 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
       <div class="fix-match-yt-preview" style="display:none;margin-top:0.75rem;"></div>
       <p class="edit-dialog-status"></p>
       <div class="edit-dialog-actions" style="margin-top: 0.5rem;">
-        ${options.onSkip ? `<button class="button-ghost edit-dialog-skip" type="button">Skip / Next</button>` : ""}
+        ${options.onSkip ? `<button class="button-ghost edit-dialog-skip" type="button">${escapeHtml(options.onSkipLabel || "Skip / Next")}</button>` : ""}
         <button class="button-ghost edit-dialog-cancel" type="button">Cancel</button>
       </div>
     </div>
@@ -1608,11 +1667,33 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
     `;
   };
 
-  const doTvRematch = async (tvdbId, title, resultButton) => {
+  const doTvRematch = async (tvdbId, title, resultButton, traktMatch = null) => {
     const rows = fullShowWatchedRows(currentTitle);
     status.textContent = "";
     if (resultButton) setResultBusy(resultButton, "Updating show match...");
-    const result = await apiRematchShow(id, currentTitle, tvdbId, title);
+    const result = await apiRematchShow(id, currentTitle, tvdbId, title, traktMatch);
+    if (traktMatch) {
+      overlay.remove();
+      _setMessage(
+        `Trakt match updated for ${Number(result.updated_rows || 0) || 1} episode${Number(result.updated_rows || 0) === 1 ? "" : "s"}. The TVDB show match was kept unchanged.`,
+        "success",
+      );
+      await Promise.resolve(onSaved?.({
+        tmdb_id: "",
+        tvdb_id: tvdbId,
+        title: currentTitle,
+        show_title: currentTitle,
+        trakt_tmdb_id: traktMatch.tmdbId,
+        trakt_source_season: traktMatch.sourceSeason,
+        trakt_target_season: traktMatch.targetSeason,
+        updated_rows: result.updated_rows,
+        refreshed: true,
+      })).catch((error) => {
+        console.error("Failed refreshing show after Trakt match", error);
+        _setMessage("Trakt match saved, but the sync activity could not be refreshed automatically.", "warning");
+      });
+      return;
+    }
     let metadataReady = false;
     if (resultButton) setResultBusy(resultButton, "Loading show metadata...");
     try {
@@ -1701,32 +1782,62 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
   };
 
   const renderMatchResults = (results) => {
+    const providerConflict = hasProviderSplitConflict(currentTvdbId, currentTitle, results, options);
+    const providerWarning = providerConflict
+      ? `<div class="fix-match-provider-warning" role="alert"><strong>Possible provider split detected.</strong><span>TVDB and TMDB/Trakt appear to use different series identities for this show. Your media apps use Season ${escapeHtml(options.traktSourceSeason)} of the TVDB show, so splitting it could create misleading show history. Skip Trakt for now unless you have confirmed the separate provider series is correct.</span>${options.onSkip ? `<button class="button-ghost edit-dialog-skip-warning" type="button">${escapeHtml(options.onSkipLabel || "Skip Trakt for now")}</button>` : ""}</div>`
+      : "";
     resultsEl.innerHTML = results.map((item) => {
-      const sourceLabels = Array.isArray(item.source_labels) && item.source_labels.length
-        ? item.source_labels
-        : [item.source || "Available source"];
-      const sourceText = [...sourceLabels, item.year ? String(item.year) : ""].filter(Boolean).join(" · ");
       const isCurrentMatch = Boolean(currentTvdbId && String(item.tvdb_id || "").trim() === currentTvdbId);
+      const isProviderSplit = isTv && isProviderSplitMatch(currentTvdbId, currentTitle, item, options);
+      const providerIds = [
+        item.tvdb_id ? `TVDB ${item.tvdb_id}` : "",
+        item.tmdb_id ? `TMDB ${item.tmdb_id}` : "",
+        item.imdb_id ? `IMDb ${item.imdb_id}` : "",
+      ].filter(Boolean);
+      const sourceLabels = Array.isArray(item.source_labels) ? item.source_labels.filter(Boolean) : [];
+      const identityParts = [...sourceLabels, ...providerIds];
+      if (isCurrentMatch) identityParts.push("Current match");
+      if (isProviderSplit) identityParts.push("Trakt/TMDB-only");
+      const identityText = identityParts.join(" · ") || "Provider ID unavailable";
+      const description = isProviderSplit
+        ? "Unsplit for Trakt/TMDB - keep the TVDB show and local season numbering."
+        : (item.overview || item.summary || "No summary available.");
       return `
-        <button class="fix-match-result" type="button"
+        <button class="fix-match-result shared-media-card shared-media-card--discover is-compact fix-match-result--discover${isCurrentMatch ? " is-current-match" : ""}" type="button"
           data-match-source="${escapeAttribute(item.source || "")}"
           data-tmdb-id="${escapeAttribute(item.tmdb_id || "")}"
           data-tvdb-id="${escapeAttribute(item.tvdb_id || "")}"
           data-title="${escapeAttribute(item.title || "")}">
-          <img src="${escapeAttribute(matchPosterUrl(item))}" alt="" data-err="fav" />
-          <span class="fix-match-result-title">${escapeHtml(item.title || "Unknown title")}<small>${escapeHtml(sourceText)}${isCurrentMatch ? " · Current match" : ""}</small></span>
+          <span class="shared-media-card-poster-wrap">
+            <span class="shared-media-card-poster"><img class="shared-media-card-poster-image" src="${escapeAttribute(matchPosterUrl(item))}" alt="" data-err="fav" /></span>
+          </span>
+          <span class="shared-media-card-body">
+            <span class="shared-media-card-title">${escapeHtml(item.title || "Unknown title")}</span>
+            <span class="shared-media-card-meta" title="${escapeAttribute(identityText)}">${escapeHtml(identityText)}</span>
+            <span class="shared-media-card-description"><span class="shared-media-card-description-text">${escapeHtml(description)}</span></span>
+          </span>
         </button>
       `;
     }).join("");
+    if (providerWarning) resultsEl.insertAdjacentHTML("afterbegin", providerWarning);
+    const skipWarning = resultsEl.querySelector(".edit-dialog-skip-warning");
+    if (skipWarning && typeof options.onSkip === "function") {
+      skipWarning.addEventListener("click", () => {
+        overlay.remove();
+        options.onSkip();
+      });
+    }
   };
 
-  const resolveTvdbIdFromTmdb = async (tmdbId) => {
+  const resolveTvdbIdFromTmdb = async (tmdbId, title = "") => {
     if (!tmdbId) throw new Error("This result has no TVDB series identity to rematch.");
-    const res = await fetch(`/api/tmdb-details?mediaType=tv&tmdbId=${encodeURIComponent(tmdbId)}`, { headers: authHeaders() });
+    const params = new URLSearchParams({ mediaType: "tv", tmdbId });
+    if (title) params.set("title", title);
+    const res = await fetch(`/api/tmdb-details?${params.toString()}`, { headers: authHeaders() });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(body.error || `Could not resolve the TVDB match (HTTP ${res.status})`);
     const tvdbId = String(body.tvdb_id || body.external_ids?.tvdb_id || "").trim();
-    if (!tvdbId) throw new Error("This result has no TVDB series identity to rematch.");
+    if (!tvdbId) throw new Error("TMDB did not provide a TVDB series ID for this result. Choose the matching TVDB result instead, or search again.");
     return tvdbId;
   };
 
@@ -1734,11 +1845,26 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
     resultsEl.querySelectorAll(".fix-match-result").forEach((btn) => {
       btn.addEventListener("click", async () => {
         status.textContent = "";
-        setResultBusy(btn, isTv && !btn.dataset.tvdbId ? "Resolving show match..." : (isTv ? "Preparing rematch..." : "Saving match..."));
+        const isAlternateTraktMatch = isProviderSplitMatch(currentTvdbId, currentTitle, {
+          tvdb_id: btn.dataset.tvdbId,
+          tmdb_id: btn.dataset.tmdbId,
+          title: btn.dataset.title,
+        }, options);
+        setResultBusy(btn, isTv && !btn.dataset.tvdbId && !isAlternateTraktMatch
+          ? "Resolving show match..."
+          : (isAlternateTraktMatch ? "Unsplitting for Trakt/TMDB..." : (isTv ? "Preparing rematch..." : "Saving match...")));
         try {
           if (isTv) {
-            const tvdbId = btn.dataset.tvdbId || await resolveTvdbIdFromTmdb(btn.dataset.tmdbId);
-            await doTvRematch(tvdbId, btn.dataset.title, btn);
+            const traktMatch = isAlternateTraktMatch
+              ? {
+                tmdbId: btn.dataset.tmdbId,
+                sourceSeason: Number(options.traktSourceSeason),
+                sourceEpisode: options.traktSourceEpisode == null ? null : Number(options.traktSourceEpisode),
+                targetSeason: Number(options.traktTargetSeason || 1),
+              }
+              : null;
+            const tvdbId = btn.dataset.tvdbId || (traktMatch ? currentTvdbId : await resolveTvdbIdFromTmdb(btn.dataset.tmdbId, btn.dataset.title));
+            await doTvRematch(tvdbId, traktMatch ? currentTitle : btn.dataset.title, btn, traktMatch);
             return;
           }
 

@@ -57,6 +57,7 @@ import {
   listLibraryItemsForRefresh,
   relatedPosterRows,
   rematchShowWatchRecords,
+  setTraktEpisodeMatch,
   setWatchPosterUrls,
   setWatchBackdropUrl,
   listPlaybackProgressRowsForReplay,
@@ -1265,6 +1266,43 @@ export async function handleRematchShow(req, res) {
   if (!(await requireAdmin(req, res))) return;
 
   const body = await readJson(req);
+  const alternateTraktTmdbId = String(body.trakt_tmdb_id || body.traktTmdbId || "").trim();
+  if (alternateTraktTmdbId) {
+    const result = await setTraktEpisodeMatch({
+      id: String(body.id || "").trim(),
+      showTitle: String(body.show_title || "").trim(),
+      traktTmdbId: alternateTraktTmdbId,
+      sourceSeason: body.trakt_source_season
+        ?? body.traktSourceSeason
+        ?? body.source_season
+        ?? body.sourceSeason,
+      sourceEpisode: body.trakt_source_episode
+        ?? body.traktSourceEpisode
+        ?? body.source_episode
+        ?? body.sourceEpisode,
+      targetSeason: body.trakt_target_season
+        ?? body.traktTargetSeason
+        ?? body.target_season
+        ?? body.targetSeason
+        ?? 1,
+      targetEpisode: body.trakt_target_episode
+        ?? body.traktTargetEpisode
+        ?? body.target_episode
+        ?? body.targetEpisode,
+    });
+    if (!result.ok) return sendJson(res, { error: result.error }, 400);
+    return sendJson(res, {
+      ok: true,
+      updated_rows: result.updatedRows,
+      show_title: result.showTitle,
+      renamed: false,
+      tvdb_id: String(body.tvdb_id || body.tvdbId || "").trim(),
+      trakt_tmdb_id: result.traktTmdbId,
+      trakt_source_season: result.sourceSeason,
+      trakt_target_season: result.targetSeason,
+      metadata_refresh: "not_required",
+    }, 202);
+  }
   const result = await rematchShowWatchRecords({
     id: String(body.id || "").trim(),
     showTitle: String(body.show_title || "").trim(),

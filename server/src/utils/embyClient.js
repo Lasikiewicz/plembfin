@@ -828,6 +828,10 @@ export async function touchEmbyResumeRail(config, itemId, { lane = "interactive"
   return { platform: "emby", status: "fulfilled", itemId: id, positionMs: 0 };
 }
 
+// Emby's Continue Watching index is populated by playback-session handlers,
+// not by a UserData position alone. Report the short-lived, paused session and
+// then restore the unplayed state at the exact seed position. The reserved
+// device identity keeps this bookkeeping out of live-playback ingestion.
 // Runtime for an item whose native id is already known. An item resolved
 // straight from a stored provider id never passes through a search result that
 // carries its runtime, so native-rail verification can fetch it here.

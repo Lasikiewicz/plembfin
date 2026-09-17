@@ -3,6 +3,7 @@ import {
   fetchPlexSeriesEpisodes,
   hidePlexFromContinueWatching,
   markPlexPlayed,
+  markPlexUnplayed,
 } from "./plexClient.js";
 import {
   fetchEmbyNextUpItems,
@@ -10,6 +11,7 @@ import {
   fetchEmbySeriesEpisodes,
   hideEmbyFromResume,
   markEmbyPlayed,
+  markEmbyUnplayed,
   touchEmbyResumeRail,
 } from "./embyClient.js";
 import {
@@ -17,6 +19,8 @@ import {
   fetchJellyfinResumableItems,
   fetchJellyfinSeriesEpisodes,
   hideJellyfinFromResume,
+  markJellyfinPlayed,
+  markJellyfinUnplayed,
   updateJellyfinUserData,
 } from "./jellyfinClient.js";
 import {
@@ -27,10 +31,11 @@ import {
 } from "./upNextRepository.js";
 import { normalizeUpNextCandidate, upNextIdentityAliases } from "./upNextIdentity.js";
 import { createLoopStore } from "./loopStore.js";
-import { recordOutboundJellyfinNextUpNudge, recordOutboundPlayedMarks, recordOutboundProgressMarks, syncMediaProgress } from "./syncOrchestrator.js";
+import { recordOutboundPlayedMarks, recordOutboundProgressMarks, recordOutboundUnplayedMarks, syncMediaProgress } from "./syncOrchestrator.js";
 import { clearLegacyUpNextRailSeeds, clearLegacyUpNextRailSeed } from "./upNextRailSeed.js";
 import { resolveUpNextProviderTargets, upNextLookupMedia } from "./upNextLibraryLookup.js";
 import { isUpNextRailSeedPosition, listUpNextRailSeeds } from "./upNextSeedLedger.js";
+import { plexHistoricalSyncAllowed } from "./watchSyncPolicy.js";
 
 // All three media servers participate in Up Next. Jellyfin was briefly
 // excluded; see docs/decisions.md entry 20 for why that was reversed.
@@ -121,6 +126,38 @@ function providerEpisodeReleased(provider, item = {}, now = Date.now()) {
   if (!raw) return true;
   const timestamp = Date.parse(String(raw));
   return !Number.isFinite(timestamp) || timestamp <= now;
+}
+
+function providerPlayedDateIso(provider, item = {}) {
+  const raw = provider === "plex"
+    ? item.lastViewedAt ?? item.viewedAt
+    : item.UserData?.LastPlayedDate ?? item.LastPlayedDate ?? item.UserData?.PlayedDate ?? item.PlayedDate;
+  if (raw === null || raw === undefined || String(raw).trim() === "") return "";
+  const numericValue = Number(raw);
+  const timestamp = Number.isFinite(numericValue) && provider === "plex"
+    ? numericValue * 1000
+    : Number.isFinite(numericValue) ? numericValue : Date.parse(String(raw));
+  return Number.isFinite(timestamp) && timestamp > 0 ? new Date(timestamp).toISOString() : "";
+}
+
+function plexRailRefreshAllowed(config = {}) {
+  const field = config?.tuning?.plexHistoricalWatchedSync;
+  const configAllows = field === undefined || field === null
+    ? true
+    : typeof field === "object" ? field.value !== false : field !== false;
+  return configAllows && plexHistoricalSyncAllowed() !== false;
+}
+
+async function markProviderPlayed(provider, config, media) {
+  if (provider === "plex") return markPlexPlayed(config.plex, media);
+  if (provider === "emby") return markEmbyPlayed(config.emby, media);
+  return markJellyfinPlayed(config.jellyfin, media);
+}
+
+async function markProviderUnplayed(provider, config, media) {
+  if (provider === "plex") return markPlexUnplayed(config.plex, media);
+  if (provider === "emby") return markEmbyUnplayed(config.emby, media);
+  return markJellyfinUnplayed(config.jellyfin, media);
 }
 
 function providerEpisodeSeriesIds(provider, episode = {}) {
@@ -460,9 +497,16 @@ async function fetchAndRecordFeed(definition) {
 // Refresh provider observations without pushing or dismissing provider items.
 // This is used by the dashboard's explicit refresh action to clear stale feed
 // failures after a media server or network outage has recovered.
-export async function refreshUpNextProviderFeeds({ config = {} } = {}) {
+export async function refreshUpNextProviderFeeds({ config = {}, providers = null } = {}) {
   const definitions = feedDefinitions(config);
-  const configuredDefinitions = definitions.filter((definition) => definition.configured);
+  const providerFilter = providers == null
+    ? null
+    : new Set((Array.isArray(providers) ? providers : [providers])
+      .map((provider) => text(provider).toLowerCase())
+      .filter(Boolean));
+  const configuredDefinitions = definitions.filter((definition) => (
+    definition.configured && (!providerFilter || providerFilter.has(definition.provider))
+  ));
   return Promise.all(configuredDefinitions.map(fetchAndRecordFeed));
 }
 
@@ -498,12 +542,15 @@ async function propagateKnownProgress(items, config) {
 // Plex Continue Watching, Emby Continue Watching, and Jellyfin Next Up are
 // calculated rails. They cannot accept an arbitrary queue write, but they can
 // recalculate when the watched episode immediately before a ready episode is
-// touched. Use the provider's native playstate input for that refresh:
-// Plex/Emby receive a watched mark, while Jellyfin only receives a
-// LastPlayedDate update so its PlayCount, watched flag, and resume position are
-// left exactly as they were. A genuine target resume position is always
-// protected. The old ledger is consulted only to migrate positions written by
-// pre-refresh builds; no new synthetic position is created here.
+// toggled. The predecessor is deliberately marked unplayed and then watched so
+// the provider sees a real playstate transition. The original play date is
+// carried back into providers that support it, and both synthetic callbacks are
+// recorded in the outbound ledger so they never become Plembfin watch events.
+// Plex has no historical-date setter; when its policy is enabled its server
+// clock is therefore the only date it can retain. A genuine target resume
+// position is always protected. The old ledger is consulted only to migrate
+// positions written by pre-refresh builds; no new synthetic position is created
+// here.
 export async function refreshProviderRail({ provider, config, targets = [] } = {}) {
   const base = {
     provider,
@@ -519,6 +566,12 @@ export async function refreshProviderRail({ provider, config, targets = [] } = {
     results: [],
   };
   if (!configuredProvider(config, provider)) return { ...base, reason: `${provider} is not configured.` };
+  if (provider === "plex" && !plexRailRefreshAllowed(config)) {
+    return {
+      ...base,
+      reason: "Plex native rail refresh skipped because historical watched sync is disabled.",
+    };
+  }
 
   const seedById = new Map(listUpNextRailSeeds(provider).map((seed) => [seed.providerItemId, seed]));
   const outcomes = [];
@@ -589,7 +642,10 @@ export async function refreshProviderRail({ provider, config, targets = [] } = {
     }
 
     const earlier = ordered.slice(0, targetIndex);
-    if (earlier.some(({ episode }) => !providerItemPlayed(provider, episode) && providerEpisodeReleased(provider, episode))) {
+    const crossesSeasonBoundary = targetIndex > 0
+      && coordinate.season > ordered[targetIndex - 1].coordinate.season
+      && coordinate.episode === 1;
+    if (!crossesSeasonBoundary && earlier.some(({ episode }) => !providerItemPlayed(provider, episode) && providerEpisodeReleased(provider, episode))) {
       addSkipped(title, `An earlier released episode is still unwatched, so ${provider} cannot calculate this as Up Next.`);
       continue;
     }
@@ -614,7 +670,6 @@ export async function refreshProviderRail({ provider, config, targets = [] } = {
   }
 
   const loopStore = createLoopStore();
-  const now = Date.now();
   // Native rails sort newest watched input first. Reverse the desired list so
   // the first Plembfin item receives the newest provider timestamp.
   for (let index = candidates.length - 1; index >= 0; index -= 1) {
@@ -627,23 +682,51 @@ export async function refreshProviderRail({ provider, config, targets = [] } = {
       predecessor_item_id: providerEpisodeId(provider, candidate.predecessor),
     };
     let refreshed = false;
+    let predecessorUnplayed = false;
+    const originalPlayedAt = providerPlayedDateIso(provider, candidate.predecessor);
+    const refreshMedia = {
+      ...predecessorMedia,
+      // A native rail refresh is a historical projection of an existing
+      // watched state. This makes the Plex policy explicit while still letting
+      // the setting-on path perform the requested toggle.
+      syncIntent: "historical",
+      watched_at: originalPlayedAt || undefined,
+      // The preceding unplay makes the following Plex scrobble intentional;
+      // do not let a briefly stale metadata read collapse it as idempotent.
+      forcePlayedWrite: true,
+    };
     try {
-      if (provider === "jellyfin") {
-        const lastPlayedDate = new Date(now - index * 1000).toISOString();
-        await recordOutboundJellyfinNextUpNudge(predecessorMedia, loopStore);
-        await updateJellyfinUserData(config.jellyfin, providerEpisodeId(provider, candidate.predecessor), { LastPlayedDate: lastPlayedDate }, { lane: "interactive" });
-        result.last_played_date = lastPlayedDate;
-      } else {
-        await recordOutboundPlayedMarks(predecessorMedia, [provider], loopStore);
-        const outcome = provider === "plex"
-          ? await markPlexPlayed(config.plex, predecessorMedia)
-          : await markEmbyPlayed(config.emby, predecessorMedia);
-        if (outcome?.status !== "fulfilled") throw new Error(`${provider} did not accept the watched predecessor mark.`);
-        if (provider === "emby") {
-          const rail = await touchEmbyResumeRail(config.emby, candidate.providerItemId, { lane: "interactive" });
-          if (rail?.status !== "fulfilled") throw new Error("Emby did not accept the native Continue Watching rail refresh.");
-          result.resume_rail_touched = true;
-        }
+      await recordOutboundUnplayedMarks(refreshMedia, [provider], loopStore);
+      const unplayedOutcome = await markProviderUnplayed(provider, config, refreshMedia);
+      if (unplayedOutcome?.status !== "fulfilled") throw new Error(`${provider} did not accept the unwatched predecessor mark.`);
+      predecessorUnplayed = true;
+
+      await recordOutboundPlayedMarks(refreshMedia, [provider], loopStore);
+      const playedOutcome = await markProviderPlayed(provider, config, refreshMedia);
+      if (playedOutcome?.status !== "fulfilled") throw new Error(`${provider} did not accept the watched predecessor mark.`);
+
+      if (originalPlayedAt) result.original_played_at = originalPlayedAt;
+      if (provider === "plex") {
+        result.watch_date_restored = false;
+        result.watch_date_note = originalPlayedAt
+          ? "Plex has no supported historical-date setter; its server time was retained."
+          : "Plex has no supported historical-date setter.";
+      } else if (provider === "emby" && originalPlayedAt) {
+        result.watch_date_restored = true;
+      } else if (provider === "jellyfin" && originalPlayedAt) {
+        const dateRestore = await updateJellyfinUserData(
+          config.jellyfin,
+          providerEpisodeId(provider, candidate.predecessor),
+          { LastPlayedDate: originalPlayedAt },
+          { lane: "interactive" },
+        );
+        if (dateRestore?.status !== "fulfilled") throw new Error("Jellyfin did not restore the watched predecessor date.");
+        result.watch_date_restored = true;
+      }
+      if (provider === "emby") {
+        const rail = await touchEmbyResumeRail(config.emby, candidate.providerItemId, { lane: "interactive" });
+        if (rail?.status !== "fulfilled") throw new Error("Emby did not accept the native Continue Watching rail refresh.");
+        result.resume_rail_touched = true;
       }
       refreshed = true;
       base.refreshed_count += 1;
@@ -651,6 +734,15 @@ export async function refreshProviderRail({ provider, config, targets = [] } = {
       result.status = "refreshed";
       result.reason = `${provider} native Up Next rail refreshed.`;
     } catch (error) {
+      if (predecessorUnplayed) {
+        try {
+          await recordOutboundPlayedMarks(refreshMedia, [provider], loopStore);
+          await markProviderPlayed(provider, config, refreshMedia);
+          result.predecessor_restored_after_failure = true;
+        } catch (restoreError) {
+          result.predecessor_restore_error = text(restoreError?.message || restoreError) || "Could not restore the watched predecessor.";
+        }
+      }
       result.reason = text(error?.message || error) || `${provider} native Up Next refresh failed.`;
     }
 
@@ -781,8 +873,7 @@ export async function syncUpNextToProviders({ desiredItems = [], config = {} } =
     new Set((targetsByProvider[provider]?.resolved || []).map((target) => text(target.providerItemId)).filter(Boolean)),
   ]));
   // Older alpha builds may have left 6% positions tracked in the ledger. They
-  // are migrated out of the provider rails, but this path never writes a new
-  // synthetic position.
+  // are cleared when stale; no new synthetic position is created here.
   const legacyRailCleanup = await clearLegacyUpNextRailSeeds({
     config,
     providers: pushProviders,

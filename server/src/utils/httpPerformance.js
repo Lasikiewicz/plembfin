@@ -47,7 +47,7 @@ export function createCspImageOriginMemo({ readRevision, loadConfig }) {
 // carrying that query is therefore asking for one immutable version of a file
 // and can be cached indefinitely; a request without it may be any version, so
 // it still has to revalidate.
-export function setPublicAssetCacheHeaders(response, filePath) {
+export function setPublicAssetCacheHeaders(response, filePath, { disableCaching = false } = {}) {
   const fileName = path.basename(filePath).toLowerCase();
   if (fileName === "index.html" || fileName === "manifest.webmanifest") {
     response.setHeader("Cache-Control", "no-cache");
@@ -58,7 +58,7 @@ export function setPublicAssetCacheHeaders(response, filePath) {
   // changing the release cache contract used by deployed builds. This keeps
   // a browser with an older stamped query string from hiding current source
   // changes while the elevated test server is running.
-  if (process.env.PLEMBFIN_DEV_NO_CACHE_ASSETS === "1") {
+  if (disableCaching) {
     response.setHeader("Cache-Control", "no-store");
     return;
   }

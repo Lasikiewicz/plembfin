@@ -1203,6 +1203,10 @@ function attachEvents() {
     navigateTo("/sync-activity");
   });
 
+  elements.syncActivityPause?.addEventListener("click", () => {
+    _cb.toggleSyncActivityPaused?.();
+  });
+
   elements.syncActivityRefresh?.addEventListener("click", () => {
     _cb.loadSyncActivity?.({ force: true })?.catch?.(() => { });
   });
@@ -1278,6 +1282,19 @@ function attachEvents() {
           if (matchFix.isConnected) matchFix.disabled = false;
         },
       });
+      return;
+    }
+
+    const clientRetry = event.target.closest("[data-sync-client-retry]");
+    if (clientRetry && !clientRetry.disabled) {
+      const id = String(clientRetry.dataset.syncClientRetry || "");
+      try {
+        const result = await _cb.retryClientAttention?.(id);
+        setMessage(result?.rejected ? "The watch update was retried, but some items were rejected." : "Watch update retried successfully.", result?.rejected ? "warning" : "success");
+        await _cb.loadSyncActivity?.({ force: true, page: 1 });
+      } catch (error) {
+        setMessage(error.message || "Could not retry the watch update.", "error");
+      }
       return;
     }
 
@@ -1458,6 +1475,9 @@ function attachEvents() {
           const result = await _cb.retrySyncActivityGroup?.(groupKey, {
             tvdbId: saved.tvdb_id || saved.tvdbId || "",
             showTitle: saved.show_title || saved.showTitle || saved.title || showTitle,
+            traktTmdbId: saved.trakt_tmdb_id || saved.traktTmdbId || "",
+            traktSourceSeason: saved.trakt_source_season || saved.traktSourceSeason || "",
+            traktTargetSeason: saved.trakt_target_season || saved.traktTargetSeason || "",
           });
           const processed = Number(result?.processed || result?.total || 0);
           const failed = Number(result?.stillFailed || 0) + Number(result?.errored || 0);
@@ -1471,6 +1491,17 @@ function attachEvents() {
       }, {
         headerTitle: `Fix show match · ${showTitle}`,
         currentTvdbId: fixShow.dataset.syncActivityFixShowCurrentTvdb || "",
+        traktSourceSeason: fixShow.dataset.syncActivityFixShowSourceSeason || "",
+        traktTargetSeason: "1",
+        onSkipLabel: "Skip Trakt for now",
+        onSkip: async () => {
+          try {
+            const result = await _cb.dismissSyncActivityGroup?.(groupKey);
+            setMessage(`Skipped ${Number(result?.dismissed || 0) || "the"} Trakt error${Number(result?.dismissed || 0) === 1 ? "" : "s"} for ${showTitle} for now.`, "muted");
+          } catch (error) {
+            setMessage(`Could not skip the Trakt errors for ${showTitle}: ${error.message || String(error)}`, "error");
+          }
+        },
         onCancel: () => {
           if (fixShow.isConnected) fixShow.disabled = false;
         },
@@ -1561,6 +1592,9 @@ function attachEvents() {
           const result = await _cb.retrySyncActivity?.(activityId, {
             tvdbId: saved.tvdb_id || saved.tvdbId || "",
             showTitle: saved.show_title || saved.showTitle || saved.title || showTitle,
+            traktTmdbId: saved.trakt_tmdb_id || saved.traktTmdbId || "",
+            traktSourceSeason: saved.trakt_source_season || saved.traktSourceSeason || "",
+            traktTargetSeason: saved.trakt_target_season || saved.traktTargetSeason || "",
           });
           if (result?.status === "success") {
             setMessage(`Show match updated and the Trakt issue for ${showTitle} was resolved.`, "success");
@@ -1575,6 +1609,18 @@ function attachEvents() {
       }, {
         headerTitle: `Fix show match · ${showTitle}`,
         currentTvdbId: fixMatch.dataset.syncActivityFixMatchCurrentTvdb || "",
+        traktSourceSeason: fixMatch.dataset.syncActivityFixMatchSourceSeason || "",
+        traktSourceEpisode: fixMatch.dataset.syncActivityFixMatchSourceEpisode || "",
+        traktTargetSeason: "1",
+        onSkipLabel: "Skip Trakt for now",
+        onSkip: async () => {
+          try {
+            await _cb.dismissSyncActivity?.(activityId);
+            setMessage(`Skipped the Trakt error for ${showTitle} for now.`, "muted");
+          } catch (error) {
+            setMessage(`Could not skip the Trakt error for ${showTitle}: ${error.message || String(error)}`, "error");
+          }
+        },
       });
       return;
     }

@@ -1432,7 +1432,9 @@ export function attachMediaDetailEvents() {
     const watchDateChoice = event.target.closest("[data-watch-date-choice]");
     if (watchDateChoice) {
       event.preventDefault();
-      applyWatchDateChoice(watchDateChoice.dataset.watchDateChoice).catch((error) => setMessage(error.message, "error"));
+      applyWatchDateChoice(watchDateChoice.dataset.watchDateChoice).catch((error) => {
+        if (!error?.clientAttentionReported) setMessage(error.message, "error");
+      });
       return;
     }
 

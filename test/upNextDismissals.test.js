@@ -85,6 +85,27 @@ test("an explicit unwatch restores the matching show dismissal", () => {
   assert.equal(listUpNextDismissals().length, 0);
 });
 
+test("an explicit media-page add restores the matching show dismissal", () => {
+  restoreAllUpNextDismissals();
+  recordUpNextDismissal({
+    media_type: "episode",
+    show_title: "The Assembly (UK)",
+    show_ids: { tvdb: "453869" },
+    season: 1,
+    episode: 1,
+    title: "The Assembly (UK) - S01E01",
+  });
+
+  // This is the show-only identity sent by POST /api/up-next/show from a
+  // media page; it intentionally has no episode coordinate yet.
+  assert.equal(restoreUpNextDismissalsForMedia({
+    media_type: "episode",
+    show_title: "The Assembly (UK)",
+    show_tvdb_id: "453869",
+  }), 1);
+  assert.equal(listUpNextDismissals().length, 0);
+});
+
 test("the dismissed list reconciliation removes an older row after an unwatch", () => {
   restoreAllUpNextDismissals();
   recordUpNextDismissal({

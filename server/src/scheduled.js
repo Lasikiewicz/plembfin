@@ -20,7 +20,8 @@ import { buildWatchProvenance, provenanceTelemetryLines } from "./utils/watchPro
 import { recordWatchAuditEvent, recordWatchAuditEvents } from "./utils/watchAudit.js";
 import { canReceiveState } from "./utils/syncRoles.js";
 import { earliestTraktWatchedAt, loadTraktWatchedDateIndex } from "./utils/mediaForceSync.js";
-import { startUpNextProviderFeed, completeUpNextProviderFeed, failUpNextProviderFeed, redactUpNextProviderError } from "./utils/upNextRepository.js";
+import { startUpNextProviderFeed, completeUpNextProviderFeed, failUpNextProviderFeed, listUpNextProviderFeedStates, redactUpNextProviderError } from "./utils/upNextRepository.js";
+import { refreshUpNextProviderFeeds } from "./utils/upNextProviderSync.js";
 import { reconcileAvailableWatchedItems } from "./utils/libraryAvailabilitySync.js";
 
 // A library-history endpoint exposes the server's current played snapshot; it
@@ -188,6 +189,13 @@ async function clearJellyfinUnwatchedObservation(media, loopStore) {
 // These serve as backstops for events missed by webhooks/live session tracking, so they
 // do not need to run on every 1-minute tick.
 const CATCHUP_SYNC_INTERVAL_MS = Number(process.env.CATCHUP_SYNC_INTERVAL_MS || process.env.CATCHUP_SYNC_INTERVAL || 15 * 60 * 1000);
+// A failed provider feed is a connection-health signal. Retry only that
+// provider on a short cadence instead of waiting for the full catch-up window
+// or polling healthy media servers more often than necessary.
+const UP_NEXT_FAILED_FEED_RETRY_INTERVAL_MS = Math.max(
+  60_000,
+  Number(process.env.UP_NEXT_FAILED_FEED_RETRY_INTERVAL_MS || 2 * 60 * 1000),
+);
 let lastCatchupSyncAt = 0;
 
 // Automatic re-dispatch backoff for records whose sync targets keep failing.
@@ -197,6 +205,33 @@ let lastCatchupSyncAt = 0;
 // offline target would be re-dispatched every minute forever.
 const SYNC_RETRY_BACKOFF_MS = [60_000, 5 * 60_000, 15 * 60_000, 60 * 60_000, 6 * 60 * 60_000];
 export const SYNC_RETRY_MAX_ATTEMPTS = 10;
+
+function failedUpNextProvidersDue(now = Date.now()) {
+  const providers = new Set();
+  for (const feed of listUpNextProviderFeedStates()) {
+    if (!["failed", "partial"].includes(String(feed?.status || "").toLowerCase())) continue;
+    const updatedAt = Number(feed?.updated_at || 0);
+    if (!updatedAt || now - updatedAt < UP_NEXT_FAILED_FEED_RETRY_INTERVAL_MS) continue;
+    const provider = String(feed?.provider || "").trim().toLowerCase();
+    if (["plex", "emby", "jellyfin"].includes(provider)) providers.add(provider);
+  }
+  return [...providers];
+}
+
+async function retryFailedUpNextProviderFeeds(config, logger = console.log) {
+  const providers = failedUpNextProvidersDue().filter((provider) => {
+    const section = config?.[provider] || {};
+    if (section.disabled || !section.baseUrl) return false;
+    if (provider === "plex") return Boolean(section.token);
+    return Boolean((section.apiKey || section.api_key || section.token) && section.userId);
+  });
+  if (!providers.length) return 0;
+  logger(`Scheduled Sync: retrying failed Up Next connection(s): ${providers.join(", ")} (interval: ${UP_NEXT_FAILED_FEED_RETRY_INTERVAL_MS / 60000}m)...`);
+  const results = await refreshUpNextProviderFeeds({ config, providers });
+  const failed = results.filter((result) => result?.status === "failed").length;
+  logger(`Scheduled Sync: retried ${results.length} Up Next feed(s); ${failed} still unavailable.`);
+  return results.length;
+}
 
 export function syncRetryDelayMs(retryCount) {
   const index = Math.min(Math.max(Number(retryCount) || 1, 1), SYNC_RETRY_BACKOFF_MS.length) - 1;
@@ -2156,6 +2191,15 @@ async function runScheduledSyncCore(logger = console.log, { forceCatchup = false
   let manualSynced = 0;
 
   const shouldRunCatchup = forceCatchup || !lastCatchupSyncAt || (Date.now() - lastCatchupSyncAt >= CATCHUP_SYNC_INTERVAL_MS);
+  let upNextFailedFeedsRetried = 0;
+  if (!shouldRunCatchup) {
+    // The normal 15-minute catch-up already polls every active provider. On
+    // intervening ticks, only retry providers whose last Up Next feed failed.
+    upNextFailedFeedsRetried = await retryFailedUpNextProviderFeeds(config, logger).catch((error) => {
+      logger(`Scheduled Sync ERROR: failed Up Next connection retry: ${error.message}`);
+      return 0;
+    });
+  }
   if (shouldRunCatchup) {
     lastCatchupSyncAt = Date.now();
     if (forceCatchup) logger("Scheduled Sync: running requested recent-item repair...");
@@ -2276,14 +2320,14 @@ async function runScheduledSyncCore(logger = console.log, { forceCatchup = false
   const liveSessionSnapshot = await loadLiveTrackingCache({ includeCompleted: false }).catch(() => []);
 
   const totalSynced = plexSynced + embySynced + jellyfinSynced + availabilityRepairs + plexResumeSynced + embyResumeSynced + jellyfinResumeSynced + embyNextUpFetched + jellyfinNextUpFetched + manualSynced;
-  const hasActivity = totalSynced > 0 || liveSessionSnapshot.length > 0 || shouldRunCatchup;
+  const hasActivity = totalSynced > 0 || liveSessionSnapshot.length > 0 || shouldRunCatchup || upNextFailedFeedsRetried > 0;
 
   if (totalSynced > 0) {
     await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
   }
 
   if (hasActivity) {
-    logger(`Scheduled Sync complete! Synced Plex: ${plexSynced}, Emby: ${embySynced}, Jellyfin: ${jellyfinSynced}, Library availability repairs: ${availabilityRepairs}, Resume Plex: ${plexResumeSynced}, Resume Emby: ${embyResumeSynced}, Resume Jellyfin: ${jellyfinResumeSynced}, Next Up Emby: ${embyNextUpFetched}, Next Up Jellyfin: ${jellyfinNextUpFetched}, Manual: ${manualSynced}`);
+    logger(`Scheduled Sync complete! Synced Plex: ${plexSynced}, Emby: ${embySynced}, Jellyfin: ${jellyfinSynced}, Library availability repairs: ${availabilityRepairs}, Resume Plex: ${plexResumeSynced}, Resume Emby: ${embyResumeSynced}, Resume Jellyfin: ${jellyfinResumeSynced}, Next Up Emby: ${embyNextUpFetched}, Next Up Jellyfin: ${jellyfinNextUpFetched}, Failed Up Next feeds retried: ${upNextFailedFeedsRetried}, Manual: ${manualSynced}`);
   }
   return {
     didWork: hasActivity,
@@ -2301,6 +2345,7 @@ async function runScheduledSyncCore(logger = console.log, { forceCatchup = false
     jellyfinResumeSynced,
     embyNextUpFetched,
     jellyfinNextUpFetched,
+    upNextFailedFeedsRetried,
     manualDispatchesSynced: manualSynced,
   };
 }

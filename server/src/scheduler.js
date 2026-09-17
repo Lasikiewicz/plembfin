@@ -14,6 +14,9 @@ import { isRecentOutboundPlayedEcho, isRecentOutboundUnplayedFlagEcho, lastOutbo
 import { applyUnwatchedTransition } from "./utils/watchStateTransitions.js";
 import { shouldRepairRecentPlexUnwatch } from "./utils/plexWatchstate.js";
 import { pollConnectedTrackers } from "./utils/trackerSync.js";
+import { getTrackerConnection } from "./utils/trackerConnectionRepo.js";
+import { withFreshTraktConnection } from "./utils/trackerDispatcher.js";
+import { reconcileTraktProviderOverrides } from "./utils/traktProviderReconciliation.js";
 import { getTmdbDetails, prewarmTmdbLibrary } from "./utils/tmdbGateway.js";
 import { cachedNextAiringFor, mergeNextAiringCacheEntries, nextAiringCacheEntryStale, nextAiringCacheKey, readNextAiringCache } from "./utils/nextAiringCache.js";
 import { refreshUpcomingCalendarCache } from "./utils/upcomingCalendarCache.js";
@@ -38,16 +41,19 @@ import {
   upsertPlaystateForMedia,
   loadLiveTrackingCache,
   repairEpisodeSeriesIdentity,
+  clearTraktProviderOverrides,
 } from "./utils/dataRepo.js";
 import { resolvePlexWatchDate, resolveWatchImportDate, runtimeMinutesForSourceItem } from "./utils/watchDates.js";
 import { enqueueManualWatchReview } from "./utils/manualWatchReview.js";
 
 const NEXT_AIRING_REFRESH_INTERVAL_MS = 30 * 60 * 1000;
 const EPISODE_IDENTITY_REPAIR_INTERVAL_MS = 15 * 60 * 1000;
+const TRAKT_PROVIDER_RECONCILIATION_INTERVAL_MS = 6 * 60 * 60 * 1000;
 const UPCOMING_CALENDAR_REFRESH_INTERVAL_MS = 10 * 60 * 1000;
 const NEXT_AIRING_REFRESH_LIMIT = 40;
 let lastNextAiringRefreshAt = 0;
 let lastEpisodeIdentityRepairAt = 0;
+let lastTraktProviderReconciliationAt = 0;
 let nextAiringInitialBuildPending = true;
 let lastUpcomingCalendarRefreshAt = 0;
 const LARGE_DISPATCH_PENDING_THRESHOLD = 8;
@@ -353,6 +359,34 @@ async function runWithTimeBudget(label, task, timeoutMs) {
   }
 }
 
+async function reconcileTraktProviderMappings() {
+  const rows = (await getCachedHistory()).filter((row) => (
+    row.media_type === "episode"
+    && row.provider_overrides?.trakt?.tmdb_id
+  ));
+  if (!rows.length) return { checked: 0, changed: 0 };
+
+  const configured = getTrackerConnection("trakt");
+  if (!configured || configured.status !== "connected") {
+    return { skipped: true, reason: "trakt-not-connected", checked: 0, changed: 0 };
+  }
+  const connection = await withFreshTraktConnection();
+  if (!connection) return { skipped: true, reason: "trakt-not-connected", checked: 0, changed: 0 };
+
+  const result = await reconcileTraktProviderOverrides({
+    connection,
+    rows,
+    clearOverrides: (groupRows) => clearTraktProviderOverrides(groupRows),
+  });
+  if (result.changed > 0) {
+    console.log(`Trakt provider reconciliation: cleared ${result.changed} override${result.changed === 1 ? "" : "s"}; pending rows will be sent with canonical TVDB IDs and seasons.`);
+  }
+  if (result.errors > 0) {
+    console.warn(`Trakt provider reconciliation: ${result.errors} mapping check${result.errors === 1 ? "" : "s"} could not be completed; local mappings were left unchanged.`);
+  }
+  return result;
+}
+
 // Invoked once per minute by the elected worker coordinator. The wrapper opens
 // and closes the per-step timing window; every early return inside the tick
 // body still lands in `finally`, so a lease-lost or restore-paused tick is
@@ -372,6 +406,15 @@ async function runScheduledTickSteps({ isLeader = () => true } = {}) {
   if (!isLeader()) return { skipped: true, reason: "lease-lost" };
   if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active" };
   pruneSyncPlans();
+  // A Trakt/TMDB-only split is deliberately an escape hatch for provider
+  // numbering conflicts. Re-check it infrequently in the background; when
+  // Trakt eventually adopts the canonical TVDB series and season numbers,
+  // clear only that override before Scheduled sync runs in this same tick.
+  if (Date.now() - lastTraktProviderReconciliationAt >= TRAKT_PROVIDER_RECONCILIATION_INTERVAL_MS) {
+    if (!isLeader()) return { skipped: true, reason: "lease-lost" };
+    lastTraktProviderReconciliationAt = Date.now();
+    await runWithTimeBudget("Trakt provider mapping reconciliation", () => reconcileTraktProviderMappings(), 45_000);
+  }
   // A large outstanding backlog (checkUnwatched + recently-watched/resumable
   // polling across all three platforms, then up to 15 manual-dispatch
   // retries) can genuinely take longer than one minute to finish a full

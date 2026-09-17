@@ -119,6 +119,9 @@
             <div id="demoModeBanner" class="demo-mode-banner hidden" role="status">
               Public demo: actions are simulated in this browser only. Nothing is saved and no media or metadata services are connected.
             </div>
+            <div id="startupScanNotice" class="startup-scan-notice hidden" role="status" aria-live="polite">
+              Startup scan running. The app may feel slow until the initial scan completes. Please wait.
+            </div>
             <button id="syncProgressIndicator" class="sync-progress-indicator" type="button" data-sync-state="idle" title="Open sync activity">
               <span class="sync-progress-dot" aria-hidden="true"></span>
               <span id="syncProgressText" class="sync-progress-text" role="status">Sync - Idle</span>
@@ -304,6 +307,7 @@
                   <svg class="up-next-sync-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                     <path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08c-.82 2.33-3.04 4-5.65 4-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35Z" />
                   </svg>
+                  <span class="up-next-sync-label" aria-hidden="true"></span>
                 </button>
                 <button id="upNextDismissedButton" class="icon-button up-next-dismissed-button hidden" type="button" aria-label="Show dismissed Up Next items" title="Show dismissed Up Next items">
                   <svg class="up-next-dismissed-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -311,7 +315,7 @@
                   </svg>
                   <span class="up-next-dismissed-count">0</span>
                 </button>
-                <span id="upNextSourceStatus" class="up-next-source-status status-pill status-warning hidden" role="status"></span>
+                <div id="upNextSourceStatus" class="up-next-source-status status-pill status-warning hidden" role="status"></div>
               </div>
             </div>
             <div id="upNextPanel" class="horizontal-scroll-row dashboard-history-card-row" aria-live="polite"></div>
@@ -528,8 +532,23 @@
                 <button id="syncActivityRefresh" class="button-ghost" type="button">Refresh</button>
               </div>
             </div>
+            <section id="syncActivityCurrentProgress" class="sync-activity-current-progress" data-sync-state="idle" aria-live="polite" aria-label="Current sync progress">
+              <div class="sync-activity-current-progress-header">
+                <div class="sync-activity-current-progress-copy">
+                  <span class="sync-activity-current-progress-kicker">Currently syncing</span>
+                  <strong id="syncActivityCurrentProgressLabel">No sync running</strong>
+                </div>
+                <button id="syncActivityPause" class="button-ghost sync-activity-pause" type="button" aria-pressed="false">Pause page updates</button>
+              </div>
+              <div id="syncActivityCurrentProgressTrack" class="sync-activity-current-progress-track" role="progressbar" aria-label="Current sync progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <span id="syncActivityCurrentProgressFill" class="sync-activity-current-progress-fill"></span>
+              </div>
+              <div class="sync-activity-current-progress-footer">
+                <span id="syncActivityCurrentProgressMeta">Waiting for a sync to start.</span>
+                <span id="syncActivityPauseStatus" class="sync-activity-pause-status hidden">Page updates paused; sync continues in the background.</span>
+              </div>
+            </section>
             <p class="sync-activity-help">One row per movie or show. Use Issues only to focus on current failures; expand a row for retry and match actions.</p>
-            <section id="syncActivityAttention" class="sync-attention-panel hidden" aria-live="polite" aria-label="Sync attention details"></section>
             <div id="syncActivityTraktProgress" class="guide-callout sync-activity-trakt-progress hidden"></div>
             <div id="syncActivityRows" class="sync-activity-rows"></div>
             <div id="syncActivityPagination" class="sync-activity-pagination hidden" aria-label="Sync activity pages">

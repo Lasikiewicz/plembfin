@@ -68,6 +68,17 @@ function trackerShowTitle(media = {}) {
   return String(media.title || "").replace(/\s+-\s+S\d{1,2}E\d{1,2}.*$/i, "").trim();
 }
 
+export function mediaWithTraktOverride(media = {}) {
+  const override = media?.traktOverride || media?.providerOverrides?.trakt || media?.provider_overrides?.trakt;
+  if ((media.type || media.mediaType) !== "episode" || !override?.tmdb_id) return media;
+  return {
+    ...media,
+    ids: { tmdb: String(override.tmdb_id) },
+    season: override.season == null ? media.season : Number(override.season),
+    episode: override.episode == null ? media.episode : Number(override.episode),
+  };
+}
+
 // A stored id on the episode itself (from the media server or an import)
 // identifies this exact row and must win over a title-based guess - a short
 // or common show title ("G'wed") can resolve TMDB's search to the wrong
@@ -1345,7 +1356,7 @@ async function dispatchTrakt(media, state, lane = "sync", isCancelled = () => fa
   // Trakt has one canonical coordinate for some two-part episodes. Local
   // source media may arrive as the second split part, so normalize the
   // outbound tracker payload while keeping the local history row untouched.
-  media = canonicalCompoundEpisodeMedia(media);
+  media = mediaWithTraktOverride(canonicalCompoundEpisodeMedia(media));
   let connection = await withFreshTraktConnection();
   if (!connection) return { target: "trakt", status: "skipped", detail: "Trakt is not connected" };
   // Anything sourced from Trakt itself - the live poller ("trakt") or a bulk

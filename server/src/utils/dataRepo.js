@@ -3,9 +3,9 @@ import { db, getDataVersion, getProgressVersion, bumpDataVersion, dataVersionTri
 import { recordCacheRebuild, timeCacheRebuild, timeCacheRebuildAsync } from "./cacheTelemetry.js";
 import { isAuthoritativeRestoreActive, loadMediaConfig } from "./configStore.js";
 import { fetchPosterFromTmdb } from "./tmdbClient.js";
-import { getTmdbDetails, getTmdbSeason, queueTmdbMetadataWarmup } from "./tmdbGateway.js";
+import { getCachedTmdbDetails, getTmdbDetails, getTmdbSeason, queueTmdbMetadataWarmup } from "./tmdbGateway.js";
 import { cachedNextAiringFor, readNextAiringCache } from "./nextAiringCache.js";
-import { buildWatchProvenance, normalizeWatchProvenance } from "./watchProvenance.js";
+import { buildWatchProvenance, normalizeProviderOverrides, normalizeWatchProvenance } from "./watchProvenance.js";
 import { recordWatchAuditEvent, recordWatchAuditEvents } from "./watchAudit.js";
 import { remoteEpisodeImportError } from "./episodeImportGuard.js";
 import { episodeNameFromSeason, isPlaceholderEpisodeTitleValue, resolvedEpisodeTitleForRecord } from "./episodeTitleRepair.js";
@@ -457,6 +457,13 @@ export function normalizeWatchRecord(record = {}, fallbackSource = "trakt_import
     }),
     episode_title: emptyToNull(record.episode_title || record.episodeTitle || record.episode?.title),
   };
+  const providerOverrides = normalizeProviderOverrides(record.provider_overrides || record.providerOverrides);
+  if (providerOverrides) {
+    normalized.watch_provenance = normalizeWatchProvenance({
+      ...(normalized.watch_provenance || {}),
+      provider_overrides: providerOverrides,
+    });
+  }
   // A media server sometimes reports only the episode coordinate ("8",
   // "Episode 08") instead of the real episode name. Persisting that makes the
   // dashboard's TV "recently watched" row and /history show a coordinate
@@ -635,6 +642,7 @@ function rowToWatch(row) {
     sync_action: row.sync_action || "watched",
     sync_dispatch_telemetry: row.sync_dispatch_telemetry || null,
     watch_provenance: normalizeWatchProvenance(row.watch_provenance),
+    provider_overrides: normalizeWatchProvenance(row.watch_provenance)?.provider_overrides || null,
     sync_retry_count: Number(row.sync_retry_count || 0),
     sync_next_retry_at: Number(row.sync_next_retry_at || 0),
     media_key: row.media_key || null,
@@ -3754,8 +3762,20 @@ export async function updateWatchRecord(id, fields = {}, { preserveDispatchState
   if (fields.imdb_id != null) { sets.push("imdb_id = ?"); params.push(String(fields.imdb_id).trim()); }
   if (fields.tmdb_id != null) { sets.push("tmdb_id = ?"); params.push(String(fields.tmdb_id).trim()); }
   if (fields.tvdb_id != null) { sets.push("tvdb_id = ?"); params.push(String(fields.tvdb_id).trim()); }
+  let providerOverridesChanged = false;
+  if (fields.provider_overrides != null || fields.providerOverrides != null) {
+    const nextOverrides = normalizeProviderOverrides(fields.provider_overrides || fields.providerOverrides);
+    const currentProvenance = normalizeWatchProvenance(existing.watch_provenance) || {};
+    const nextProvenance = normalizeWatchProvenance({
+      ...currentProvenance,
+      provider_overrides: nextOverrides || undefined,
+    });
+    sets.push("watch_provenance = ?");
+    params.push(toJson(nextProvenance));
+    providerOverridesChanged = true;
+  }
   const identityChanged = fields.imdb_id != null || fields.tmdb_id != null || fields.tvdb_id != null;
-  if (identityChanged && !preserveDispatchState) {
+  if ((identityChanged || providerOverridesChanged) && !preserveDispatchState) {
     sets.push("sync_dispatch_telemetry = ?", "sync_retry_count = ?", "sync_next_retry_at = ?");
     params.push("Identity updated via Fix Match. Pending outbound sync.", 0, 0);
   }
@@ -4043,12 +4063,11 @@ export async function rematchShowWatchRecords({ id = "", showTitle = "", tvdbId 
   const rows = [...exactRows, ...aliasRows];
   if (!rows.length) return { ok: false, error: "No episodes found for show" };
 
-  if (!renameTo && rows.every((row) => cleanString(row.tvdb_id) === cleanTvdbId)) {
-    return {
-      ok: false,
-      error: `This show is already matched to TVDB ${cleanTvdbId}. Choose a different match.`,
-    };
-  }
+  // Selecting the already-current result is a valid Fix Match action. It is
+  // especially important for Trakt not-found issues: the local identity may
+  // already be correct, but the user still needs this action to continue to
+  // the normal metadata warm-up and failed-entry retry flow. The transaction
+  // below is idempotent and also repairs any stale title-only aliases.
 
   const oldTmdbIds = new Set(rows.map((row) => cleanString(row.tmdb_id)).filter(Boolean));
   // The progress cache can hold a resolved tmdb_id that was never written back
@@ -4187,6 +4206,133 @@ export async function rematchShowWatchRecords({ id = "", showTitle = "", tvdbId 
     renamed: Boolean(renameTo || aliasRows.some((row) => cleanNewShowTitle && canonicalTitleKey(row.show_title || row.title) !== canonicalTitleKey(cleanNewShowTitle))),
     tvdbId: cleanTvdbId,
   };
+}
+
+// Trakt/TMDB can publish a continuation as a new series while TVDB keeps it
+// under the original series and season numbering. Store that provider-only
+// mapping on the affected local episode rows; the canonical TVDB show and its
+// local coordinates must remain untouched for metadata and media-server sync.
+export async function setTraktEpisodeMatch({
+  id = "",
+  showTitle = "",
+  traktTmdbId = "",
+  sourceSeason = null,
+  sourceEpisode = null,
+  targetSeason = 1,
+  targetEpisode = null,
+} = {}) {
+  const cleanTmdbId = cleanString(traktTmdbId);
+  if (!cleanTmdbId) return { ok: false, error: "trakt_tmdb_id is required" };
+  const cleanSourceSeason = Number(sourceSeason);
+  const cleanSourceEpisode = sourceEpisode == null || sourceEpisode === "" ? null : Number(sourceEpisode);
+  const cleanTargetSeason = Number(targetSeason);
+  const cleanTargetEpisode = targetEpisode == null || targetEpisode === "" ? null : Number(targetEpisode);
+  if (!Number.isInteger(cleanSourceSeason) || cleanSourceSeason < 0) return { ok: false, error: "source_season is required" };
+  if (cleanSourceEpisode != null && (!Number.isInteger(cleanSourceEpisode) || cleanSourceEpisode < 1)) return { ok: false, error: "source_episode is invalid" };
+  if (!Number.isInteger(cleanTargetSeason) || cleanTargetSeason < 0) return { ok: false, error: "target_season is invalid" };
+  if (cleanTargetEpisode != null && (!Number.isInteger(cleanTargetEpisode) || cleanTargetEpisode < 1)) return { ok: false, error: "target_episode is invalid" };
+
+  const anchor = id ? selectByIdStmt.get(String(id)) : null;
+  if (id && !anchor) return { ok: false, error: "Watch record not found" };
+  if (anchor && anchor.media_type !== "episode") return { ok: false, error: "Watch record is not a TV episode" };
+  const resolvedTitle = cleanString(anchor?.show_title || (anchor?.title ? showTitleFrom(anchor.title) : showTitle));
+  if (!resolvedTitle) return { ok: false, error: "show_title is required" };
+
+  const showKey = canonicalTitleKey(showTitleFrom(resolvedTitle));
+  const rows = selectAllEpisodesStmt.all().filter((row) => (
+    canonicalTitleKey(showTitleFrom(row.show_title || row.title)) === showKey
+    && Number(row.season) === cleanSourceSeason
+    && (cleanSourceEpisode == null || Number(row.episode) === cleanSourceEpisode)
+  ));
+  if (!rows.length) return { ok: false, error: "No episodes found for show and season" };
+
+  const updatedAt = Date.now();
+  transaction(() => {
+    for (const row of rows) {
+      const current = normalizeWatchProvenance(row.watch_provenance) || buildWatchProvenance({ source: row.source });
+      const overrides = current.provider_overrides || {};
+      const trakt = {
+        ...(overrides.trakt || {}),
+        tmdb_id: cleanTmdbId,
+        season: cleanTargetSeason,
+        episode: cleanTargetEpisode == null ? Number(row.episode) : cleanTargetEpisode,
+      };
+      const next = normalizeWatchProvenance({
+        ...current,
+        provider_overrides: { ...overrides, trakt },
+      });
+      db.prepare("UPDATE watch_history SET watch_provenance = ?, updated_at = ?, sync_retry_count = 0, sync_next_retry_at = 0 WHERE id = ?")
+        .run(toJson(next), updatedAt, row.id);
+    }
+  });
+
+  bumpDataVersion();
+  await invalidateHistoryDerivedCaches("setTraktEpisodeMatch");
+  return {
+    ok: true,
+    updatedRows: rows.length,
+    showTitle: resolvedTitle,
+    traktTmdbId: cleanTmdbId,
+    sourceSeason: cleanSourceSeason,
+    targetSeason: cleanTargetSeason,
+  };
+}
+
+// Remove only the provider-specific Trakt mapping after a background identity
+// check has proved that Trakt now uses the canonical TVDB series and season
+// numbering. Local/media-server identity fields are intentionally untouched.
+export async function clearTraktProviderOverrides(rows = []) {
+  assertRestoreWriteAllowed("scheduled_trakt_reconciliation");
+  const ids = [...new Set((Array.isArray(rows) ? rows : []).map((row) => String(row?.id || "").trim()).filter(Boolean))];
+  if (!ids.length) return { ok: true, updatedRows: 0 };
+
+  const updatedAt = Date.now();
+  let updatedRows = 0;
+  transaction(() => {
+    for (const id of ids) {
+      const existing = selectByIdStmt.get(id);
+      const current = normalizeWatchProvenance(existing?.watch_provenance);
+      if (!existing || !current?.provider_overrides?.trakt) continue;
+      const { trakt: _removed, ...remainingOverrides } = current.provider_overrides;
+      const nextProvenance = normalizeWatchProvenance({
+        ...current,
+        provider_overrides: Object.keys(remainingOverrides).length ? remainingOverrides : undefined,
+      });
+      db.prepare(`UPDATE watch_history
+        SET watch_provenance = ?, sync_dispatch_telemetry = ?, sync_retry_count = 0,
+            sync_next_retry_at = 0, updated_at = ?
+        WHERE id = ?`).run(
+        toJson(nextProvenance),
+        "Trakt provider mapping reconciled. Pending outbound sync.",
+        updatedAt,
+        id,
+      );
+      recordWatchAuditEvent({
+        eventType: "history_record_updated",
+        timestamp: updatedAt,
+        action: existing.sync_action || "watched",
+        watchRecordId: existing.id,
+        mediaKey: existing.media_key,
+        mediaType: existing.media_type,
+        title: existing.title,
+        showTitle: existing.show_title,
+        source: "scheduled_trakt_reconciliation",
+        ids: { imdb: existing.imdb_id, tmdb: existing.tmdb_id, tvdb: existing.tvdb_id },
+        season: existing.season,
+        episode: existing.episode,
+        status: "updated",
+        details: "Trakt now agrees with the canonical TVDB series and local season numbering; queued outbound sync.",
+        payload: { previousProviderOverrides: current.provider_overrides, updatedAt },
+      });
+      updatedRows += 1;
+    }
+  });
+
+  if (updatedRows) {
+    bumpDataVersion();
+    await invalidateHistoryDerivedCaches("clearTraktProviderOverrides");
+  }
+  return { ok: true, updatedRows };
 }
 
 const updateShowTitleStmt = db.prepare("UPDATE watch_history SET title = ?, title_lower = ?, show_title = ?, show_title_lower = ?, updated_at = ? WHERE id = ?");
@@ -6051,6 +6197,7 @@ export function watchRowToMedia(row = {}, source = "plex") {
     },
     season: row.season == null ? undefined : Number(row.season),
     episode: row.episode == null ? undefined : Number(row.episode),
+    traktOverride: provenance?.provider_overrides?.trakt || undefined,
     posterUrl: row.poster_url || undefined,
     watched_at: row.watched_at || undefined,
     isValid: Boolean(row.title && ["movie", "episode"].includes(row.media_type)),
@@ -6192,9 +6339,19 @@ async function persistMovieProviderIds(recordId, record = {}, details = {}) {
 }
 
 async function prefetchTmdbMetadataBackground(mediaType, tmdbId, title, recordId = "", record = {}) {
+  // Watch-record tests intentionally use synthetic titles and provider ids.
+  // Their fire-and-forget enrichment must not open real TMDB/TVDB requests or
+  // leave the Node test runner waiting on the gateway throttle after the
+  // assertions have completed. Production processes never include --test;
+  // the explicit env switch also lets isolated build/test harnesses opt out.
+  const testRuntime = process.env.NODE_ENV === "test"
+    || process.env.PLEMBFIN_DISABLE_METADATA_PREFETCH === "1"
+    || Boolean(process.env.NODE_TEST_CONTEXT)
+    || process.execArgv.includes("--test")
+    || process.argv.includes("--test");
   try {
     const lookupTitle = String(mediaType).toLowerCase() === "movie" ? title : showTitleFrom(title);
-    const details = await getTmdbDetails({
+    const metadataRequest = {
       mediaType,
       tmdbId,
       title: lookupTitle,
@@ -6202,12 +6359,22 @@ async function prefetchTmdbMetadataBackground(mediaType, tmdbId, title, recordId
         imdbId: record.imdb_id,
         tvdbId: record.tvdb_id,
       },
-      // Automatic media-server imports should never trust a valid-but-wrong
-      // TVDB id without checking it against the server's show title. Manual
-      // title selections remain unchanged; they already represent an explicit
-      // user choice.
-      verifyTvdbTitle: ["plex", "emby", "jellyfin"].includes(String(record.source || "").toLowerCase()),
-    });
+    };
+    // Test workers may still need to hydrate provider ids from a deliberately
+    // seeded metadata row. Keep that path synchronous and cache-only so the
+    // test runtime never opens a real TMDB/TVDB request or leaves a throttle
+    // timer behind.
+    const details = testRuntime
+      ? getCachedTmdbDetails(metadataRequest)
+      : await getTmdbDetails({
+        ...metadataRequest,
+        // Automatic media-server imports should never trust a valid-but-wrong
+        // TVDB id without checking it against the server's show title. Manual
+        // title selections remain unchanged; they already represent an explicit
+        // user choice.
+        verifyTvdbTitle: ["plex", "emby", "jellyfin"].includes(String(record.source || "").toLowerCase()),
+      });
+    if (!details) return null;
     await persistMovieProviderIds(recordId, record, details).catch((error) => {
       console.error("Failed to persist TMDB movie ids", error);
     });

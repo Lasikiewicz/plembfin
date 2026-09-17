@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import "./domStubs.js";
 
-const { attentionIssueMarkup, renderSyncActivityStatus } = await import("../public/modules/sync-activity.js");
+const { attentionIssueMarkup, clientAttentionItemMarkup, recordClientAttention, renderSyncActivityStatus, retryClientAttention } = await import("../public/modules/sync-activity.js");
 const { elements, state } = await import("../public/modules/state.js");
 
 test("sync status reflects current activity issues after an otherwise idle run", () => {
@@ -68,6 +68,46 @@ test("restore attention rows expose a target-specific retry action alongside ski
   assert.match(markup, /data-sync-attention-item-key="restore-target:jellyfin:episode-key:1:1"/);
   assert.match(markup, />Retry on Jellyfin<\/button>/);
   assert.match(markup, /data-sync-attention-skip-item/);
+});
+
+test("client attention keeps the affected media and a safe retry payload", async () => {
+  const previousAttention = state.clientAttention;
+  const previousRetrying = state.clientAttentionRetrying;
+  const previousFetch = globalThis.fetch;
+  const calls = [];
+  state.clientAttention = [];
+  state.clientAttentionRetrying = "";
+  globalThis.fetch = async (url, options) => {
+    calls.push({ url, options });
+    return { ok: true, json: async () => ({ ok: true, inserted: 1, propagated: 1 }) };
+  };
+
+  try {
+    const item = recordClientAttention("Manual watch update failed with 502", "error", {
+      title: "Watch update failed",
+      summary: "Could not mark The Walking Dead · S07E12 watched. Server response: Manual watch update failed with 502",
+      context: { actionLabel: "Manual watch update", affectedMedia: "The Walking Dead · S07E12" },
+      retry: { endpoint: "/api/manual-watch", method: "POST", body: { records: [{ title: "The Walking Dead - S07E12", resync_only: true }] }, label: "Retry watch update" },
+    });
+
+    assert.equal(item.context.affectedMedia, "The Walking Dead · S07E12");
+    assert.equal(item.context.retry.label, "Retry watch update");
+    const markup = clientAttentionItemMarkup(item);
+    assert.match(markup, /The Walking Dead · S07E12/);
+    assert.match(markup, /data-sync-client-retry=/);
+    assert.match(markup, />Retry watch update<\/button>/);
+    assert.match(markup, />Open affected page<\/a>/);
+    const result = await retryClientAttention(item.id);
+    assert.equal(result.ok, true);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].url, "/api/manual-watch");
+    assert.deepEqual(JSON.parse(calls[0].options.body), { records: [{ title: "The Walking Dead - S07E12", resync_only: true }] });
+    assert.equal(state.clientAttention.length, 0);
+  } finally {
+    globalThis.fetch = previousFetch;
+    state.clientAttention = previousAttention;
+    state.clientAttentionRetrying = previousRetrying;
+  }
 });
 test("media-server rows with retained source data stay retryable when the capability flag is stale", () => {
   const markup = attentionIssueMarkup("restore:run-789:projection-failed", {

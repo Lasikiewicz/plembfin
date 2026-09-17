@@ -82,13 +82,16 @@ async function loadSyncStatus() {
   const dispatchActive = total > 0 && completed < total;
   const operation = syncOperationIsFresh(runtime) ? activeSyncOperation(runtime) : null;
   const importing = onboardingImportIsActive();
-  const active = retryAll?.active || importing || Boolean(operation) || dispatchActive;
+  const startupScanActive = runtime.startupScanActive === true;
+  const active = retryAll?.active || importing || startupScanActive || Boolean(operation) || dispatchActive;
   const attention = syncAttentionState(runtime, getOnboardingState());
   return {
     total: retryAll ? retryAll.total : total,
     completed: retryAll ? retryAll.completed : completed,
     active,
-    label: retryAll?.label || (importing ? "Importing" : labelForSyncOperation(operation) || (dispatchActive ? "Syncing" : "")),
+    label: retryAll?.label || (importing ? "Importing" : startupScanActive ? "Scanning" : labelForSyncOperation(operation) || (dispatchActive ? "Syncing" : "")),
+    currentItemLabel: retryAll?.currentItemLabel || String(progress.currentItemLabel || ""),
+    startupScanActive,
     attentionCount: attention.count,
     attentionStatus: attention.status,
   };
@@ -100,6 +103,8 @@ function syncEventFields(status) {
     syncCompleted: status.completed,
     syncActive: status.active,
     syncLabel: status.label,
+    syncCurrentItemLabel: status.currentItemLabel,
+    syncStartupScanActive: status.startupScanActive,
     syncAttentionCount: status.attentionCount,
     syncAttentionStatus: status.attentionStatus,
   };

@@ -5,12 +5,12 @@ import { forgetUpNextRailSeed, listUpNextRailSeeds } from "./upNextSeedLedger.js
 import { runWithConcurrency } from "./concurrency.js";
 
 const PROVIDERS = ["plex", "emby", "jellyfin"];
-const SEED_CONCURRENCY = 4;
 
 function text(value = "") {
   return String(value ?? "").trim();
 }
 
+const SEED_CONCURRENCY = 4;
 // The old alpha implementation used a 6% position to make a future episode
 // enter a calculated native rail. The writer has deliberately been removed.
 // This clear-only operation remains so an upgrade can safely remove a legacy

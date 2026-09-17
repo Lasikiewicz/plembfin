@@ -4,7 +4,7 @@ import { makeTempDataDir } from "./helpers.js";
 
 makeTempDataDir("plembfin-dispatch-progress-");
 
-const { reserveDispatchBatch, completeDispatchTracking, finishDispatchTracking } = await import("../server/src/utils/syncOrchestrator.js");
+const { dispatchProgressKey, reserveDispatchBatch, markReservedDispatchStarted, completeDispatchTracking, finishDispatchTracking } = await import("../server/src/utils/syncOrchestrator.js");
 const { loadRuntimeState } = await import("../server/src/utils/configStore.js");
 
 // The sidebar "Syncing N of M" indicator (public/app.js renderSyncProgress)
@@ -20,6 +20,72 @@ const { loadRuntimeState } = await import("../server/src/utils/configStore.js");
 // timer (DISPATCH_PROGRESS_IDLE_MS), which these fast, back-to-back tests
 // never wait out - so state legitimately carries across test cases here,
 // just as separate real bursts can share one open window in production.
+
+test("dispatch progress uses one identity for the same episode across provider aliases", () => {
+  const plex = dispatchProgressKey({
+    type: "episode",
+    title: "Slow Horses - S04E01",
+    season: 4,
+    episode: 1,
+    ids: { tmdb: "12345" },
+  });
+  const emby = dispatchProgressKey({
+    type: "episode",
+    title: "Slow Horses (2022) - S04E01",
+    season: 4,
+    episode: 1,
+    ids: { tvdb: "67890" },
+  });
+
+  assert.equal(plex, "episode:slow-horses:s4:e1");
+  assert.equal(emby, plex);
+  assert.notEqual(emby, dispatchProgressKey({
+    type: "episode",
+    title: "Slow Horses - S04E02",
+    season: 4,
+    episode: 2,
+  }));
+});
+
+test("a keyed batch counts duplicate dispatch rows for one episode once", async () => {
+  const before = await loadRuntimeState();
+  const media = { type: "episode", title: "Slow Horses - S04E01", season: 4, episode: 1 };
+  const key = dispatchProgressKey(media);
+  const reservation = reserveDispatchBatch(2, { progressKeys: [key, key] });
+  const reserved = await loadRuntimeState();
+  assert.equal(reserved.backgroundSyncProgress.total - (before.backgroundSyncProgress?.total || 0), 1);
+
+  completeDispatchTracking(reservation, media);
+  const midway = await loadRuntimeState();
+  assert.equal(midway.backgroundSyncProgress.completed - (before.backgroundSyncProgress?.completed || 0), 0);
+
+  completeDispatchTracking(reservation, media);
+  const after = await loadRuntimeState();
+  assert.equal(after.backgroundSyncProgress.completed - (before.backgroundSyncProgress?.completed || 0), 1);
+});
+
+test("dispatch progress exposes the active media item label", async () => {
+  const before = await loadRuntimeState();
+  const first = { type: "episode", title: "Clarkson's Farm - S05E06", season: 5, episode: 6 };
+  const second = { type: "episode", title: "Slow Horses - S04E01", season: 4, episode: 1 };
+  const reservation = reserveDispatchBatch(2, {
+    progressKeys: [dispatchProgressKey(first), dispatchProgressKey(second)],
+  });
+
+  markReservedDispatchStarted(reservation, first);
+  const active = await loadRuntimeState();
+  assert.equal(active.backgroundSyncProgress.total - (before.backgroundSyncProgress?.total || 0), 2);
+  assert.equal(active.backgroundSyncProgress.currentItemLabel, "Clarkson's Farm S05E06");
+
+  completeDispatchTracking(reservation, first);
+  const next = await loadRuntimeState();
+  assert.equal(next.backgroundSyncProgress.currentItemLabel || "", "");
+  markReservedDispatchStarted(reservation, second);
+  const secondActive = await loadRuntimeState();
+  assert.equal(secondActive.backgroundSyncProgress.currentItemLabel, "Slow Horses S04E01");
+
+  completeDispatchTracking(reservation, second);
+});
 
 test("reserveDispatchBatch reports the full total immediately, before any item completes", async () => {
   const before = await loadRuntimeState();

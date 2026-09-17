@@ -57,6 +57,29 @@ export function getTraktUser({ clientId, accessToken }) {
   return request(`${API_BASE}/users/settings`, { clientId, accessToken });
 }
 
+// Provider identity lookups are used by the background reconciliation pass.
+// Keep them separate from watched/history snapshots: a show can be absent from
+// the user's watched list while still being a perfectly valid Trakt catalogue
+// match for an outbound episode update.
+export async function fetchTraktShowByProviderId(connection, provider, id) {
+  const providerName = String(provider || "").trim().toLowerCase();
+  if (!new Set(["tmdb", "tvdb"]).has(providerName)) throw new Error("Trakt show lookup requires a TMDB or TVDB provider");
+  const cleanId = String(id || "").trim();
+  if (!cleanId) return null;
+  const matches = await request(`${API_BASE}/search/${providerName}/${encodeURIComponent(cleanId)}?type=show&limit=1`, connection);
+  const show = Array.isArray(matches) ? matches[0]?.show : null;
+  if (!show || typeof show !== "object") return null;
+  return { ...show, ids: cleanIds(show.ids || {}) };
+}
+
+export async function fetchTraktSeasonEpisodes(connection, traktShowId, season) {
+  const showId = String(traktShowId || "").trim();
+  const seasonNumber = Number(season);
+  if (!showId || !Number.isInteger(seasonNumber) || seasonNumber < 0) return [];
+  const episodes = await request(`${API_BASE}/shows/${encodeURIComponent(showId)}/seasons/${seasonNumber}?extended=full`, connection);
+  return Array.isArray(episodes) ? episodes : [];
+}
+
 async function fetchAllWatchedPages(type, connection, { extended = "full" } = {}) {
   const limit = 250;
   const items = [];

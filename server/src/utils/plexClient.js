@@ -616,7 +616,10 @@ export async function markPlexPlayed(config, media) {
     }
 
     const items = item.__compoundItems || [item];
-    if (await plexItemsAlreadyWatched(config, items, media)) {
+    // Native Up Next refresh deliberately performs an unscrobble immediately
+    // before this call. A stale Plex metadata response must not collapse the
+    // second half of that transition into an idempotent no-op.
+    if (!media?.forcePlayedWrite && await plexItemsAlreadyWatched(config, items, media)) {
       console.log("Plex item already watched; no mark-played request sent", { ratingKey: items[0].ratingKey });
       return {
         platform: "plex",

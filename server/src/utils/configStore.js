@@ -1053,6 +1053,7 @@ function normalizedBackgroundSyncProgressOwners(value = {}) {
     owners[ownerId] = {
       total,
       completed,
+      currentItemLabel: String(raw.currentItemLabel || ""),
       startedAt: Math.max(0, Number(raw.startedAt) || Number(raw.updatedAt) || 0),
       heartbeatAt: Math.max(0, Number(raw.heartbeatAt) || Number(raw.updatedAt) || 0),
       expiresAt: Math.max(0, Number(raw.expiresAt) || 0),
@@ -1064,11 +1065,15 @@ function normalizedBackgroundSyncProgressOwners(value = {}) {
 
 function aggregateBackgroundSyncProgress(owners = {}, now = Date.now(), recoveredAt = 0) {
   const values = Object.values(owners);
+  const currentOwner = values
+    .filter((owner) => owner.completed < owner.total && owner.currentItemLabel)
+    .sort((left, right) => Number(right.updatedAt || 0) - Number(left.updatedAt || 0))[0];
   return {
     total: values.reduce((sum, owner) => sum + owner.total, 0),
     completed: values.reduce((sum, owner) => sum + Math.min(owner.completed, owner.total), 0),
     ownerCount: values.length,
     updatedAt: values.reduce((latest, owner) => Math.max(latest, owner.updatedAt), now),
+    ...(currentOwner?.currentItemLabel ? { currentItemLabel: currentOwner.currentItemLabel } : {}),
     ...(recoveredAt ? { recoveredAt } : {}),
   };
 }
@@ -1120,6 +1125,7 @@ function legacyOwnerFromRuntime(runtime, now, staleMs, maxOwnerMs) {
     [ownerId]: {
       total: progress.total,
       completed: progress.completed,
+      currentItemLabel: String(progress.currentItemLabel || ""),
       startedAt,
       heartbeatAt: Number(progress.heartbeatAt || progress.updatedAt || now),
       expiresAt: Number(progress.expiresAt || (startedAt + maxOwnerMs)),
@@ -1137,6 +1143,7 @@ export async function startBackgroundSyncProgressOwner({
   ownerId,
   total,
   completed = 0,
+  currentItemLabel = "",
   now = Date.now(),
   maxOwnerMs = BACKGROUND_SYNC_PROGRESS_MAX_OWNER_MS,
 } = {}) {
@@ -1151,6 +1158,7 @@ export async function startBackgroundSyncProgressOwner({
     pruned.owners[key] = {
       total: normalizedTotal,
       completed: Math.max(0, Number(completed) || 0),
+      currentItemLabel: String(currentItemLabel || ""),
       startedAt: now,
       heartbeatAt: now,
       expiresAt: now + Math.max(1, Number(maxOwnerMs) || BACKGROUND_SYNC_PROGRESS_MAX_OWNER_MS),
@@ -1165,6 +1173,7 @@ export async function updateBackgroundSyncProgressOwner({
   ownerId,
   total,
   completed,
+  currentItemLabel,
   now = Date.now(),
   staleMs = BACKGROUND_SYNC_PROGRESS_STALE_MS,
   maxOwnerMs = BACKGROUND_SYNC_PROGRESS_MAX_OWNER_MS,
@@ -1183,6 +1192,7 @@ export async function updateBackgroundSyncProgressOwner({
         ...owner,
         total: Math.max(0, Number(total) || 0),
         completed: Math.max(0, Number(completed) || 0),
+        ...(currentItemLabel !== undefined ? { currentItemLabel: String(currentItemLabel || "") } : {}),
         heartbeatAt: now,
         updatedAt: now,
       };

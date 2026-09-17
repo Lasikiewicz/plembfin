@@ -142,6 +142,12 @@ export async function addShowToUpNext(button) {
       throw error;
     }
     if (Array.isArray(body.manualShows)) state.upNextManualShows = body.manualShows;
+    clearLocalUpNextDismissalsForShow({
+      title,
+      tmdb_id: button.dataset.upNextShowTmdbId || "",
+      tvdb_id: button.dataset.upNextShowTvdbId || "",
+      imdb_id: button.dataset.upNextShowImdbId || "",
+    });
     button.classList.add("is-added");
     const label = button.querySelector("span");
     if (label) label.innerHTML = "Remove from <br>Up Next";
@@ -287,6 +293,54 @@ function upNextShowDismissalKeys(item = {}) {
     .replace(/^-+|-+$/g, "");
   if (showTitle) keys.push(`show:title:${showTitle}`);
   return [...new Set(keys)];
+}
+
+// Adding a show from its media page is an explicit request to make it
+// eligible again. The server removes its dismissal, but older browser
+// sessions can still have the pre-server dismissal key in localStorage. Clear
+// every matching local key before the refreshed projection is rendered so the
+// newly added card cannot be filtered out locally.
+function clearLocalUpNextDismissalsForShow(show = {}) {
+  const identity = {
+    media_type: "episode",
+    show_title: show.title || show.show_title || show.showTitle || "",
+    show_tmdb_id: show.tmdb_id || show.tmdbId || show.show_tmdb_id || show.showTmdbId || "",
+    show_tvdb_id: show.tvdb_id || show.tvdbId || show.show_tvdb_id || show.showTvdbId || "",
+    show_imdb_id: show.imdb_id || show.imdbId || show.show_imdb_id || show.showImdbId || "",
+  };
+  const keys = new Set(upNextShowDismissalKeys(identity));
+  const candidates = [
+    ...(Array.isArray(state.upNextItems) ? state.upNextItems : []),
+    ...dismissedUpNextItems().map((entry) => {
+      const snapshot = dismissalSnapshot(entry);
+      return {
+        ...snapshot,
+        ...entry,
+        title: entry.show_title || snapshot.show_title || snapshot.showTitle || snapshot.title || "",
+        show_title: entry.show_title || snapshot.show_title || snapshot.showTitle || "",
+        show_tmdb_id: entry.show_tmdb_id || snapshot.show_tmdb_id || snapshot.showTmdbId || "",
+        show_tvdb_id: entry.show_tvdb_id || snapshot.show_tvdb_id || snapshot.showTvdbId || "",
+        show_imdb_id: entry.show_imdb_id || snapshot.show_imdb_id || snapshot.showImdbId || "",
+        media_type: "episode",
+      };
+    }),
+  ];
+  let changed = false;
+  for (const candidate of candidates) {
+    if (!manualShowMatches(show, candidate)) continue;
+    for (const key of upNextDismissalKeys(candidate)) {
+      if (!Object.prototype.hasOwnProperty.call(dismissedUpNext, key)) continue;
+      delete dismissedUpNext[key];
+      changed = true;
+    }
+  }
+  for (const key of keys) {
+    if (!Object.prototype.hasOwnProperty.call(dismissedUpNext, key)) continue;
+    delete dismissedUpNext[key];
+    changed = true;
+  }
+  if (changed) persistDismissedUpNext();
+  return changed;
 }
 
 function upNextDismissalKeys(item = {}, mediaKey = "") {
@@ -926,28 +980,97 @@ function renderUpNextSourceStatus() {
     : [];
   const unavailable = failedFeeds.length > 0;
   if (unavailable) {
-    const providerLabels = upNextListLabel(failedFeeds.map((feed) => UP_NEXT_PROVIDER_LABELS[feed?.provider] || feed?.provider));
-    const reasons = [...new Set(failedFeeds.map(upNextFailureReason))];
-    const scope = failedFeeds.length === 1
-      ? upNextFeedLabel(failedFeeds[0])
-      : `${providerLabels} feeds`;
-    const reason = reasons.length === 1 ? reasons[0] : "some refresh requests failed";
+    const providerIssues = new Map();
+    for (const feed of failedFeeds) {
+      const provider = String(feed?.provider || "provider").toLowerCase();
+      if (!providerIssues.has(provider)) providerIssues.set(provider, []);
+      providerIssues.get(provider).push(feed);
+    }
+    const providerLabels = upNextListLabel([...providerIssues.keys()]
+      .map((provider) => UP_NEXT_PROVIDER_LABELS[provider] || provider));
     const hasSavedItems = visibleUpNextItems().length > 0
       || failedFeeds.some((feed) => Number(feed?.active_generation || 0) > 0 && Number(feed?.item_count || 0) > 0);
-    const fallback = hasSavedItems ? "Showing saved items." : "Using the local fallback.";
-    const copy = `${scope} unavailable — ${reason}. ${fallback}`;
+    const fallback = hasSavedItems
+      ? "Saved Up Next items remain visible."
+      : "Plembfin is using its local fallback.";
     const details = failedFeeds
       .map((feed) => `${upNextFeedLabel(feed)}: ${String(feed?.last_error || "No error detail recorded.")}`)
       .join("\n");
-    status.textContent = copy;
-    status.title = `${details}\n\nPlembfin will retry during the next sync. If this continues, check Settings → Connections.`;
+    const rows = [...providerIssues.entries()].map(([provider, feeds]) => {
+      const providerLabel = UP_NEXT_PROVIDER_LABELS[provider] || provider;
+      const feedDetail = feeds
+        .map((feed) => `${upNextFeedLabel(feed)}: ${upNextFailureReason(feed)}`)
+        .join(" · ");
+      const retrying = state.upNextConnectionRetryingProvider === provider;
+      const retryError = state.upNextConnectionRetryErrorProvider === provider
+        ? state.upNextConnectionRetryError
+        : "";
+      return `
+        <div class="up-next-source-status-row">
+          <div class="up-next-source-status-row-copy">
+            <strong>${escapeHtml(providerLabel)} connection unavailable</strong>
+            <span>${escapeHtml(feedDetail)}</span>
+            ${retryError ? `<span class="up-next-source-status-retry-error">${escapeHtml(`Retry failed: ${retryError}`)}</span>` : ""}
+          </div>
+          <button class="button-ghost up-next-source-retry" type="button"
+            data-up-next-retry-connection="${escapeAttribute(provider)}"
+            aria-label="Retry ${escapeAttribute(providerLabel)} connection"
+            ${retrying ? "disabled aria-busy=\"true\"" : ""}>${retrying ? "Checking…" : "Retry connection"}</button>
+        </div>
+      `;
+    }).join("");
+    const copy = `Up Next is using ${hasSavedItems ? "saved items" : "local data"} while ${providerLabels} ${providerIssues.size === 1 ? "is" : "are"} unavailable.`;
+    status.innerHTML = `
+      <div class="up-next-source-status-head">
+        <strong>Media server connection issue</strong>
+        <span>${escapeHtml(fallback)} Plembfin will retry the affected server more often.</span>
+      </div>
+      <div class="up-next-source-status-list">${rows}</div>
+    `;
+    status.title = `${details}\n\nPlembfin retries failed provider connections every few minutes. If a retry keeps failing, check Settings → Connections.`;
     status.setAttribute("aria-label", copy);
   } else {
-    status.textContent = "";
+    status.innerHTML = "";
     status.title = "";
     status.removeAttribute("aria-label");
   }
   status.classList.toggle("hidden", !unavailable);
+}
+
+export async function retryUpNextConnection(provider) {
+  const normalizedProvider = String(provider || "").trim().toLowerCase();
+  if (!UP_NEXT_PROVIDERS.has(normalizedProvider) || !state.token || state.upNextConnectionRetryingProvider) return null;
+  const providerLabel = UP_NEXT_PROVIDER_LABELS[normalizedProvider] || normalizedProvider;
+  state.upNextConnectionRetryingProvider = normalizedProvider;
+  state.upNextConnectionRetryError = "";
+  state.upNextConnectionRetryErrorProvider = "";
+  renderUpNextSourceStatus();
+  try {
+    const response = await fetch("/api/test-connection", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...buildAuthHeaders(state.token) },
+      body: JSON.stringify({ type: normalizedProvider }),
+      cache: "no-store",
+    });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok || !body.ok) {
+      const error = new Error(body.error || `Could not connect to ${providerLabel}`);
+      error.status = response.status;
+      throw error;
+    }
+    _cb.setMessage?.(`${providerLabel} connection restored. Refreshing Up Next…`, "success");
+    await loadUpNext({ force: true });
+    return body;
+  } catch (error) {
+    state.upNextConnectionRetryError = upNextFailureReason({ last_error: error?.message || "Connection failed" });
+    state.upNextConnectionRetryErrorProvider = normalizedProvider;
+    _cb.setMessage?.(`Could not connect to ${providerLabel}: ${state.upNextConnectionRetryError}`, "error");
+    renderUpNextSourceStatus();
+    return null;
+  } finally {
+    state.upNextConnectionRetryingProvider = "";
+    renderUpNextSourceStatus();
+  }
 }
 
 function readUpNextCache() {
@@ -1062,8 +1185,10 @@ function renderUpNextSyncControl() {
   const loading = state.upNextLoading === true;
   const signedIn = Boolean(state.token);
   const syncEnabled = state.savedConfig?.upNextSync?.enabled !== false;
+  const label = button.querySelector(".up-next-sync-label");
   button.disabled = !signedIn || !syncEnabled || syncing || loading;
   button.setAttribute("aria-busy", String(syncing));
+  if (label) label.textContent = syncing ? "Syncing…" : "";
   button.title = syncing
     ? "Pushing Plembfin Up Next to Plex, Emby, and Jellyfin…"
     : !signedIn
@@ -1225,6 +1350,12 @@ export function initUpNext(callbacks = {}) {
     event.preventDefault();
     loadUpNext({ force: true }).catch(() => { });
   });
+  elements.upNextSourceStatus?.addEventListener("click", (event) => {
+    const retry = event.target.closest("[data-up-next-retry-connection]");
+    if (!retry) return;
+    event.preventDefault();
+    retryUpNextConnection(retry.dataset.upNextRetryConnection).catch(() => { });
+  });
   elements.upNextSyncButton?.addEventListener("click", (event) => {
     event.preventDefault();
     syncUpNextToProviders().catch(() => { });
@@ -1256,6 +1387,9 @@ export function resetUpNext({ preserveItems = false } = {}) {
   }
   state.upNextLoading = false;
   state.upNextSyncing = false;
+  state.upNextConnectionRetryingProvider = "";
+  state.upNextConnectionRetryError = "";
+  state.upNextConnectionRetryErrorProvider = "";
   state.upNextLoadedAt = 0;
   state.upNextError = "";
   state.upNextErrorCode = "";

@@ -1,31 +1,35 @@
 ---
-import { getCollection } from "astro:content";
+import { getCollection, render } from "astro:content";
 import SiteLayout from "../../layouts/SiteLayout.astro";
 import DocsSidebar from "../../components/DocsSidebar.astro";
 import DocsPageRail from "../../components/DocsPageRail.astro";
 import DocsArticleSearch from "../../components/DocsArticleSearch.astro";
 import { flatDocs } from "../../data/site.js";
 
+const getEntrySlug = (entry) => entry.slug ?? entry.id.replace(/\.(?:md|mdx)$/i, "");
+
 export async function getStaticPaths() {
   const entries = await getCollection("docs");
+  const getPathSlug = (entry) => entry.slug ?? entry.id.replace(/\.(?:md|mdx)$/i, "");
   return entries.map((entry) => ({
-    params: { slug: entry.slug },
+    params: { slug: getPathSlug(entry) },
     props: { entry },
   }));
 }
 
 const { entry } = Astro.props;
-const { Content } = await entry.render();
-const currentIndex = flatDocs.findIndex((item) => item.slug === entry.slug);
+const entrySlug = getEntrySlug(entry);
+const { Content } = await render(entry);
+const currentIndex = flatDocs.findIndex((item) => item.slug === entrySlug);
 const previous = currentIndex > 0 ? flatDocs[currentIndex - 1] : null;
 const next = currentIndex >= 0 && currentIndex < flatDocs.length - 1 ? flatDocs[currentIndex + 1] : null;
 const sourceLinks = entry.data.sourcePaths;
-const browserTitle = entry.slug === "history-search" ? "History" : entry.data.title;
+const browserTitle = entrySlug === "history-search" ? "History" : entry.data.title;
 ---
 
 <SiteLayout title={browserTitle} description={entry.data.description}>
   <div class="docs-shell docs-shell--article">
-    <DocsSidebar currentSlug={entry.slug} />
+    <DocsSidebar currentSlug={entrySlug} />
     <article class="docs-main">
       <header class="article-header">
         <button

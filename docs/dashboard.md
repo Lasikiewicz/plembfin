@@ -24,6 +24,12 @@ Fully documented in [now-playing.md](now-playing.md): the merge of
 events), polled by the browser every 10 seconds with visibility gating.
 The episode label and playback progress use the active appearance accent, matching
 Part Watched, while the green Live indicator remains a semantic playback-status color.
+On the dashboard, the section keeps a small inset from the page edge, and the no-media
+state stays transparent so it follows the surrounding surface in both themes. If a
+connected media server cannot refresh its provider feed, the dashboard identifies that
+server, keeps the last usable queue visible, and offers a Retry connection action. The
+background scheduler retries only the affected provider every two minutes by default;
+the normal multi-provider catch-up remains on its longer cadence.
 
 ### Up Next
 

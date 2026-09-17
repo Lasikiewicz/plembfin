@@ -104,7 +104,7 @@ test("Fix Match without a new name still repoints the ids", async () => {
   assert.equal(row.tvdb_id, "999111");
 });
 
-test("Fix Match rejects selecting the show's existing TVDB identity", async () => {
+test("Fix Match accepts selecting the show's existing TVDB identity", async () => {
   const result = await repo.insertWatchRecord({
     title: "Already Matched Show - S01E01",
     media_type: "episode",
@@ -118,10 +118,59 @@ test("Fix Match rejects selecting the show's existing TVDB identity", async () =
 
   const rematch = await repo.rematchShowWatchRecords({ id: result.id, tvdbId: "123123" });
 
-  assert.equal(rematch.ok, false);
-  assert.match(rematch.error, /already matched to TVDB 123123/i);
+  assert.equal(rematch.ok, true);
+  assert.equal(rematch.updatedRows, 1);
   const row = await repo.getWatchRecordById(result.id);
   assert.equal(row.tvdb_id, "123123");
+});
+
+test("Fix Match can map one TVDB season to a separate Trakt series", async () => {
+  const first = await repo.insertWatchRecord({
+    title: "The Grand Tour - S07E01",
+    media_type: "episode",
+    show_title: "The Grand Tour",
+    season: 7,
+    episode: 1,
+    tvdb_id: "314087",
+    watched_at: "2026-09-04T20:00:00.000Z",
+    source: "plex",
+  });
+  const second = await repo.insertWatchRecord({
+    title: "The Grand Tour - S07E02",
+    media_type: "episode",
+    show_title: "The Grand Tour",
+    season: 7,
+    episode: 2,
+    tvdb_id: "314087",
+    watched_at: "2026-09-04T20:01:00.000Z",
+    source: "plex",
+  });
+  await first.assetPrefetch;
+  await second.assetPrefetch;
+
+  const result = await repo.setTraktEpisodeMatch({
+    showTitle: "The Grand Tour",
+    traktTmdbId: "329471",
+    sourceSeason: 7,
+    targetSeason: 1,
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.updatedRows, 2);
+  const row = await repo.getWatchRecordById(first.id);
+  assert.equal(row.tvdb_id, "314087");
+  assert.equal(row.season, 7);
+  assert.deepEqual(row.provider_overrides, { trakt: { tmdb_id: "329471", season: 1, episode: 1 } });
+  const other = await repo.getWatchRecordById(second.id);
+  assert.deepEqual(other.provider_overrides, { trakt: { tmdb_id: "329471", season: 1, episode: 2 } });
+
+  const cleared = await repo.clearTraktProviderOverrides([row, other]);
+  assert.equal(cleared.updatedRows, 2);
+  const canonical = await repo.getWatchRecordById(first.id);
+  assert.equal(canonical.provider_overrides, null);
+  assert.equal(canonical.tvdb_id, "314087");
+  assert.equal(canonical.season, 7);
+  assert.match(canonical.sync_dispatch_telemetry, /Pending outbound sync/);
 });
 
 test("Fix Match rebuilds the media key and moves playstate with it", async () => {

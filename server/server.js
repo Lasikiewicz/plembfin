@@ -393,7 +393,12 @@ app.all(["/health", "/health/"], (req, res) => {
 });
 
 // Static SPA assets, then SPA fallback to index.html for client-side routes.
-app.use(express.static(PUBLIC_DIR, { extensions: ["html"], setHeaders: setPublicAssetCacheHeaders }));
+app.use(express.static(PUBLIC_DIR, {
+  extensions: ["html"],
+  setHeaders: (res, filePath) => setPublicAssetCacheHeaders(res, filePath, {
+    disableCaching: process.env.PLEMBFIN_DEV_NO_CACHE_ASSETS === "1",
+  }),
+}));
 app.get("/*name", (req, res) => {
   // The SPA fallback serves index.html for client-side routes, and bypasses the
   // static setHeaders hook, so it needs the same revalidation rule set here.

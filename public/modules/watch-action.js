@@ -33,6 +33,7 @@ let _removeWatchedUpNextItems = () => 0;
 let _removeDismissedUpNextItems = async () => 0;
 let _setUpNextWatchSavingState = () => {};
 let _setUpNextUnwatchSavingState = () => {};
+let _recordClientAttention = () => {};
 
 export function initWatchAction(callbacks) {
   if (callbacks.setMessage) _setMessage = callbacks.setMessage;
@@ -57,6 +58,46 @@ export function initWatchAction(callbacks) {
   if (callbacks.removeDismissedUpNextItems) _removeDismissedUpNextItems = callbacks.removeDismissedUpNextItems;
   if (callbacks.setUpNextWatchSavingState) _setUpNextWatchSavingState = callbacks.setUpNextWatchSavingState;
   if (callbacks.setUpNextUnwatchSavingState) _setUpNextUnwatchSavingState = callbacks.setUpNextUnwatchSavingState;
+  if (callbacks.recordClientAttention) _recordClientAttention = callbacks.recordClientAttention;
+}
+
+function manualWatchFailureOptions(action, records, error) {
+  const firstEpisode = action?.episodes?.[0] || action?.resyncEpisodes?.[0] || null;
+  const mediaLabel = firstEpisode
+    ? `${action?.showTitle || firstEpisode.showTitle || "Show"} · ${episodeCode(firstEpisode.seasonNumber, firstEpisode.episodeNumber)}${action?.episodes?.length > 1 ? ` (+${action.episodes.length - 1} more)` : ""}`
+    : String(action?.movie?.title || action?.title || action?.showTitle || "Selected media");
+  const route = typeof window !== "undefined"
+    ? `${window.location?.pathname || "/"}${window.location?.search || ""}${window.location?.hash || ""}`
+    : "/";
+  const failure = String(error?.message || error || "The server did not confirm the request.").trim();
+  const retryRecords = Array.isArray(records)
+    ? records.map((record) => ({ ...record, resync_only: true }))
+    : records;
+  return {
+    title: "Watch update failed",
+    summary: `Could not mark ${mediaLabel} watched. Server response: ${failure}`,
+    explanation: "The manual watch request did not return a successful confirmation, so Plembfin left the page's watch state unchanged. Retrying is safe; matching existing watch rows are reused where possible.",
+    route,
+    context: {
+      actionLabel: "Manual watch update",
+      affectedMedia: mediaLabel,
+    },
+    retry: {
+      endpoint: "/api/manual-watch",
+      method: "POST",
+      body: { records: retryRecords },
+      label: "Retry watch update",
+    },
+    recommendations: [
+      "Retry the watch update from here once the server or connection is available.",
+      "If it fails again, review Settings → Logs for the full request and upstream service response.",
+    ],
+  };
+}
+
+function reportManualWatchFailure(action, records, error, message) {
+  _recordClientAttention(message, "error", manualWatchFailureOptions(action, records, error));
+  if (error && typeof error === "object") error.clientAttentionReported = true;
 }
 
 // Up Next is derived from both playback progress and canonical watch state.
@@ -1355,7 +1396,9 @@ async function applyMovieWatchDateChoice(choice) {
       markWatchedBtn.disabled = false;
       markWatchedBtn.textContent = "Mark watched";
     }
-    _setMessage(`Manual watch update failed: ${error.message}`, "error");
+    const message = `Manual watch update failed: ${error.message}`;
+    _setMessage(message, "error", manualWatchFailureOptions(action, [record], error));
+    reportManualWatchFailure(action, [record], error, message);
     throw error;
   }
 }
@@ -1547,7 +1590,9 @@ export async function applyWatchDateChoice(choice) {
     state.savingWatchActions.delete(action);
     syncUpNextSavingState(action, false);
     await restoreActiveShowEpisodeState(action);
-    _setMessage(`Manual watch update failed: ${error.message}`, "error");
+    const message = `Manual watch update failed: ${error.message}`;
+    _setMessage(message, "error", manualWatchFailureOptions(action, allRecords, error));
+    reportManualWatchFailure(action, allRecords, error, message);
     throw error;
   }
 }

@@ -27,3 +27,24 @@ test("interactive lane can admit a request while sync slots are occupied", async
   syncReleases.forEach((release) => release());
   resetOutboundGovernor();
 });
+
+test("queued interactive requests overtake queued sync work", async () => {
+  resetOutboundGovernor();
+  configureOutboundGovernor("fast");
+
+  const heldReleases = await Promise.all(
+    Array.from({ length: 10 }, () => acquireOutboundSlot("media.example.test", { lane: "interactive" })),
+  );
+  const syncRequest = acquireOutboundSlot("media.example.test", { lane: "sync" })
+    .then((release) => ({ lane: "sync", release }));
+  const interactiveRequest = acquireOutboundSlot("media.example.test", { lane: "interactive" })
+    .then((release) => ({ lane: "interactive", release }));
+
+  heldReleases[0]();
+  const first = await Promise.race([syncRequest, interactiveRequest]);
+  assert.equal(first.lane, "interactive");
+  first.release();
+  heldReleases.slice(1).forEach((release) => release());
+  (await syncRequest).release();
+  resetOutboundGovernor();
+});

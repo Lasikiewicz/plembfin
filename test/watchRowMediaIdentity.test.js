@@ -24,6 +24,26 @@ test("watchRowToMedia preserves provider item identity for deletion echo suppres
   assert.equal(media.itemId, "41780");
 });
 
+test("watchRowToMedia carries a provider-only Trakt series override", () => {
+  const media = watchRowToMedia({
+    title: "The Grand Tour - S07E01",
+    show_title: "The Grand Tour",
+    media_type: "episode",
+    season: 7,
+    episode: 1,
+    tvdb_id: "314087",
+    watch_provenance: JSON.stringify({
+      version: 1,
+      source: "manual",
+      provider_overrides: { trakt: { tmdb_id: "329471", season: 1, episode: 1 } },
+    }),
+  });
+
+  assert.deepEqual(media.traktOverride, { tmdb_id: "329471", season: 1, episode: 1 });
+  assert.equal(media.ids.tvdb, "314087");
+  assert.equal(media.season, 7);
+});
+
 test("a deleted provider date is tombstoned by native item identity", () => {
   const watchedAt = "2025-02-13T00:00:00.000Z";
   const row = {

@@ -7,7 +7,7 @@ makeTempDataDir("plembfin-canonical-watch-state-");
 const repo = await import("../server/src/utils/dataRepo.js");
 const runtime = await import("../server/src/utils/configStore.js");
 const { applyWatchedStateToNewItem } = await import("../server/src/routes/sync.js");
-const { trackerMediaWithSeriesIds } = await import("../server/src/utils/trackerDispatcher.js");
+const { mediaWithTraktOverride, trackerMediaWithSeriesIds } = await import("../server/src/utils/trackerDispatcher.js");
 const { selectTraktWatchedTransitions } = await import("../server/src/utils/trackerSync.js");
 
 test("a rematched episode with new provider ids is still recognized as already watched via the show title", async () => {
@@ -307,6 +307,21 @@ test("Trakt episode dispatch fills in only the IDs an episode is missing", () =>
 
   assert.equal(media.showTitle, "Trying");
   assert.deepEqual(media.ids, { tmdb: "episode-tmdb", tvdb: "375903", imdb: "tt10982034" });
+});
+
+test("a Trakt-only series override replaces the outbound series identity and season", () => {
+  const media = mediaWithTraktOverride({
+    title: "The Grand Tour - S07E01",
+    type: "episode",
+    season: 7,
+    episode: 1,
+    ids: { tvdb: "314087" },
+    traktOverride: { tmdb_id: "329471", season: 1, episode: 1 },
+  });
+
+  assert.deepEqual(media.ids, { tmdb: "329471" });
+  assert.equal(media.season, 1);
+  assert.equal(media.episode, 1);
 });
 
 test("manual Trakt reconciliation replays an unchanged remote watch over local drift", () => {

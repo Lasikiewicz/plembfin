@@ -6,7 +6,8 @@ import ScreenshotFigure from "../../components/ScreenshotFigure.astro";
 import { docsNav } from "../../data/site.js";
 
 const entries = await getCollection("docs");
-const docsBySlug = new Map(entries.map((entry) => [entry.slug, entry]));
+const getEntrySlug = (entry) => entry.slug ?? entry.id.replace(/\.(?:md|mdx)$/i, "");
+const docsBySlug = new Map(entries.map((entry) => [getEntrySlug(entry), entry]));
 type HeadingInfo = { level: number; text: string };
 type NavChild = { id: string; label: string; children?: NavChild[] };
 type NavItem = { slug: string; label: string; description: string; children?: NavChild[] };

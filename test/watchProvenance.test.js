@@ -55,3 +55,14 @@ test("provenance normalization accepts stored JSON but drops unknown fields", ()
   assert.equal(normalized.item_id, "item-1");
   assert.equal("rawPayload" in normalized, false);
 });
+
+test("provenance preserves a provider-only Trakt series override", () => {
+  const normalized = normalizeWatchProvenance({
+    source: "plex",
+    provider_overrides: { trakt: { tmdb_id: "329471", season: 1, episode: 1 } },
+  });
+
+  assert.deepEqual(normalized.provider_overrides, {
+    trakt: { tmdb_id: "329471", season: 1, episode: 1 },
+  });
+});

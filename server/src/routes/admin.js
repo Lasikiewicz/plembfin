@@ -997,13 +997,13 @@ export async function handleTestConnection(req, res) {
     let response;
     if (type === "plex") {
       const url = assertSafeOutboundUrl(`${baseUrl}/identity`);
-      response = await fetchWithTimeout(url, { headers: { Accept: "application/json, application/xml, text/xml", "X-Plex-Token": token } }, 8000);
+      response = await fetchWithTimeout(url, { headers: { Accept: "application/json, application/xml, text/xml", "X-Plex-Token": token }, lane: "interactive" }, 8000);
     } else if (type === "emby") {
       const url = assertSafeOutboundUrl(`${baseUrl}/System/Info/Public`);
-      response = await fetchWithTimeout(url, { headers: { Accept: "application/json", "X-Emby-Token": token, "X-MediaBrowser-Token": token } }, 8000);
+      response = await fetchWithTimeout(url, { headers: { Accept: "application/json", "X-Emby-Token": token, "X-MediaBrowser-Token": token }, lane: "interactive" }, 8000);
     } else if (type === "jellyfin") {
       const url = assertSafeOutboundUrl(`${baseUrl}/System/Info/Public`);
-      response = await fetchWithTimeout(url, { headers: jellyfinAuthHeaders({ apiKey: token }) }, 8000);
+      response = await fetchWithTimeout(url, { headers: jellyfinAuthHeaders({ apiKey: token }), lane: "interactive" }, 8000);
     } else {
       return sendJson(res, { ok: false, error: "Unsupported connection type" }, 400);
     }

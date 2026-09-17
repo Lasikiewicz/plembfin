@@ -30,7 +30,7 @@ import { isUpNextSeedDeviceId, markEmbyPlayed, setEmbyProgress, markEmbyUnplayed
 import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems, fetchJellyfinSeriesEpisodes, listJellyfinLibraries } from "../utils/jellyfinClient.js";
 import { setJellyfinApiKey } from "../utils/jellyfinAuth.js";
 import { buildPlexMediaFromMetadata, normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexMediaIds, parsePlexWebhook } from "../utils/parsers.js";
-import { clearOutboundPlayedMarks, completeDispatchTracking, finishDispatchTracking, getTargetsForSource, isRecentOutboundJellyfinNextUpNudge, isRecentOutboundPlayedEcho, isRecentOutboundPlayedFlagEcho, isRecentOutboundProgressEcho, isRecentOutboundUnplayedFlagEcho, recordOutboundPlayedMarks, reserveDispatchBatch, shouldSyncResumeProgress, syncCanonicalPlaystate, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
+import { clearOutboundPlayedMarks, completeDispatchTracking, dispatchProgressKey, finishDispatchTracking, getTargetsForSource, isRecentOutboundJellyfinNextUpNudge, isRecentOutboundPlayedEcho, isRecentOutboundPlayedFlagEcho, isRecentOutboundProgressEcho, isRecentOutboundUnplayedFlagEcho, markReservedDispatchStarted, recordOutboundPlayedMarks, reserveDispatchBatch, shouldSyncResumeProgress, syncCanonicalPlaystate, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
 import { canReceiveState } from "../utils/syncRoles.js";
 import {
   playstateBlocksStoredResumeProgress,
@@ -497,6 +497,7 @@ export function manualWatchMediaFromRecord(record = {}) {
     // a current manual action, which no policy gates.
     syncIntent: normalizeWatchSyncIntent(record.sync_intent ?? record.syncIntent) || "manual",
     posterUrl: record.poster_url || undefined,
+    traktOverride: record.provider_overrides?.trakt || undefined,
     watchProvenance: record.watch_provenance || null,
     providerItems: record.provider_items || record.providerItems || {},
     providerItemId: record.provider_item_id || record.providerItemId || undefined,
@@ -1890,6 +1891,7 @@ export async function handleManualUnwatch(req, res) {
         const record = await getWatchRecordById(id);
         if (!record) throw new Error("Watch record not found");
         const media = mediaFromWatchRecord(record);
+        markReservedDispatchStarted(trackingReservation, media);
         const { id: unwatchedId, summary } = await applyManualUnwatch(media, config, loopStore, id, {
           includeSourcePlatform: true,
           trackDispatch: false,
@@ -2112,10 +2114,13 @@ export async function handleManualWatch(req, res) {
     // 3 already matching, 40 skipped by policy" rather than a single generic
     // success that hides a deliberate policy skip.
     const providerTargetStates = [];
-    const trackingReservation = reserveDispatchBatch(syncTasks.length);
+    const trackingReservation = reserveDispatchBatch(syncTasks.length, {
+      progressKeys: syncTasks.map(({ media }) => dispatchProgressKey(media)),
+    });
     try {
       await runWithConcurrency(syncTasks, async (task, index) => {
         try {
+          markReservedDispatchStarted(trackingReservation, task.media);
           const summary = await syncMediaPlaystate(task.media, config, loopStore, {
             trackDispatch: false,
             lane: records.length === 1 ? "interactive" : "sync",
@@ -2161,7 +2166,7 @@ export async function handleManualWatch(req, res) {
             };
           }
         } finally {
-          if (!batchTraktWatch) completeDispatchTracking(trackingReservation);
+          if (!batchTraktWatch) completeDispatchTracking(trackingReservation, task.media);
         }
       }, MANUAL_SYNC_ITEM_CONCURRENCY);
 
@@ -2199,7 +2204,7 @@ export async function handleManualWatch(req, res) {
           await setPlaystateForMediaIdentity(task.media, "watched", task.record.watched_at, { skipInvalidate: true });
           await updateWatchTelemetry(task.id, formatDispatchTelemetry(summary, task.media, "watched"), { skipInvalidate: true });
           await recordSyncHistory(task.media, summary, "watched");
-          completeDispatchTracking(trackingReservation);
+          completeDispatchTracking(trackingReservation, task.media);
         }
       }
     } finally {
@@ -2418,6 +2423,11 @@ export async function handlePlaybackProgressUnwatch(req, res) {
     const loopStore = createLoopStore();
 
     const { id: unwatchedId, summary } = await applyManualUnwatch(media, config, loopStore, "", { includeSourcePlatform: true, force: true, lane: "interactive" });
+    // Clearing a resume point must also dismiss the native resume rail. The
+    // unplayed transition above resets provider playback state, but Plex and
+    // the other providers can retain the item in Continue Watching/Resume
+    // until their separate rail-dismissal action is applied.
+    const providerDismissals = await hideUpNextAcrossProviders(config, media, body, { lane: "interactive" });
     return sendJson(res, {
       ok: true,
       id: unwatchedId,
@@ -2425,6 +2435,7 @@ export async function handlePlaybackProgressUnwatch(req, res) {
       status: summary.status,
       queued: Boolean(summary.deferred),
       targetStates: summary.targetStates || [],
+      providerDismissals,
     });
   } catch (error) {
     console.error("Playback progress unwatch failed", error);
@@ -2440,27 +2451,29 @@ function directUpNextProviderIds(body = {}, provider) {
   return [...new Set(values.map((value) => String(value || "").trim()).filter(Boolean))];
 }
 
-async function resolveUpNextProviderIds(provider, config, media, body) {
+async function resolveUpNextProviderIds(provider, config, media, body, { lane = "sync" } = {}) {
   const direct = directUpNextProviderIds(body, provider);
   if (direct.length) return direct;
+  const lookupMedia = { ...media, lane };
   if (provider === "plex") {
-    const item = await findPlexItem(config.plex, media);
+    const item = await findPlexItem(config.plex, lookupMedia);
     return item?.ratingKey ? [String(item.ratingKey)] : [];
   }
   if (provider !== "emby") return [];
-  const items = await findEmbyItems(config.emby, media);
+  const items = await findEmbyItems(config.emby, lookupMedia);
   return [...new Set((items || []).map((item) => String(item?.Id || "").trim()).filter(Boolean))];
 }
 
-async function hideUpNextAcrossProviders(config, media, body) {
+async function hideUpNextAcrossProviders(config, media, body, { lane = "sync" } = {}) {
   const definitions = [
-    { provider: "plex", configured: Boolean(config.plex?.baseUrl && config.plex?.token), hide: (id) => hidePlexFromContinueWatching(config.plex, id) },
-    { provider: "emby", configured: Boolean(config.emby?.baseUrl && config.emby?.apiKey && config.emby?.userId), hide: (id) => hideEmbyFromResume(config.emby, id) },
+    { provider: "plex", configured: Boolean(config.plex?.baseUrl && config.plex?.token), hide: (id) => hidePlexFromContinueWatching(config.plex, id, { lane }) },
+    { provider: "emby", configured: Boolean(config.emby?.baseUrl && config.emby?.apiKey && config.emby?.userId), hide: (id) => hideEmbyFromResume(config.emby, id, { lane }) },
+    { provider: "jellyfin", configured: Boolean(config.jellyfin?.baseUrl && (config.jellyfin?.apiKey || config.jellyfin?.api_key || config.jellyfin?.token) && config.jellyfin?.userId), hide: (id) => hideJellyfinFromResume(config.jellyfin, id, { lane }) },
   ].filter((entry) => entry.configured);
 
   return Promise.all(definitions.map(async ({ provider, hide }) => {
     try {
-      const ids = await resolveUpNextProviderIds(provider, config, media, body);
+      const ids = await resolveUpNextProviderIds(provider, config, media, body, { lane });
       if (!ids.length) return { target: provider, status: "not_found", details: "No matching provider item was found" };
       const results = await Promise.allSettled(ids.map((id) => hide(id)));
       const failed = results.find((result) => result.status === "rejected");
@@ -2487,8 +2500,9 @@ export async function handleUpNextRemove(req, res) {
     const media = mediaFromProgressRequest(progressRow, body, mediaKey);
     if (!media.isValid) return sendJson(res, { error: "A valid media item is required" }, 400);
     const loopStore = createLoopStore();
+    const interactiveMedia = { ...media, lane: "interactive" };
     const { id: unwatchedId, summary } = await applyManualUnwatch(
-      media,
+      interactiveMedia,
       config,
       loopStore,
       "",
@@ -2498,7 +2512,7 @@ export async function handleUpNextRemove(req, res) {
     // its watched predecessor. Hide it only after the canonical unwatch has
     // propagated, otherwise the unplayed transition immediately undoes the
     // provider dismissal.
-    const providerDismissals = await hideUpNextAcrossProviders(config, media, body);
+    const providerDismissals = await hideUpNextAcrossProviders(config, interactiveMedia, body, { lane: "interactive" });
     // Record the dismissal after the unwatch and provider callbacks have
     // settled. Those callbacks can echo the old resume position; recording
     // earlier lets that echo look like a genuinely newer playback event and

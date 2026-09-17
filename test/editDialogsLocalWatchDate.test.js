@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import "./domStubs.js";
 
 import { state } from "../public/modules/state.js";
-import { applyArtworkToLocalWatchRecords, applyWatchedAtToLocalWatchRecord, editDateOptionsFromButton } from "../public/modules/edit-dialogs.js";
+import { applyArtworkToLocalWatchRecords, applyWatchedAtToLocalWatchRecord, editDateOptionsFromButton, fixMatchSearchTitle, hasProviderSplitConflict, isProviderSplitMatch, sameShowTitle } from "../public/modules/edit-dialogs.js";
 import { renderShowRecord } from "../public/modules/explorer.js";
 
 test("editing a movie watch date updates the retained Movies page record", () => {
@@ -24,6 +24,43 @@ test("editing a movie watch date updates the retained Movies page record", () =>
   assert.equal(record, state.moviesRaw[0]);
   assert.equal(state.moviesRaw[0].watched_at, updated);
   assert.equal(state.moviesRaw[0].playHistory[0].watched_at, updated);
+});
+
+test("same-show title variants are recognized for provider-specific matching", () => {
+  assert.equal(sameShowTitle("The Grand Tour", "The Grand Tour (2016)"), true);
+  assert.equal(sameShowTitle("The Grand Tour", "The Grand-ish Tour"), false);
+  assert.equal(sameShowTitle("", "The Grand Tour"), false);
+});
+
+test("Fix Match searches a TV base title without losing the displayed year-specific identity", () => {
+  assert.equal(fixMatchSearchTitle("The Grand Tour (2016)", "tv"), "The Grand Tour");
+  assert.equal(fixMatchSearchTitle("The Grand Tour", "tv"), "The Grand Tour");
+  assert.equal(fixMatchSearchTitle("Movie (2016)", "movie"), "Movie (2016)");
+});
+
+test("Fix Match marks a same-title TMDB-only result as an explicit provider split", () => {
+  const options = { traktSourceSeason: 7 };
+  assert.equal(isProviderSplitMatch("314087", "The Grand Tour (2016)", {
+    title: "The Grand Tour",
+    tmdb_id: "329471",
+    tvdb_id: "",
+  }, options), true);
+  assert.equal(isProviderSplitMatch("314087", "The Grand Tour (2016)", {
+    title: "The Grand-ish Tour",
+    tmdb_id: "321267",
+    tvdb_id: "",
+  }, options), false);
+  assert.equal(isProviderSplitMatch("314087", "The Grand Tour (2016)", {
+    title: "The Grand Tour",
+    tmdb_id: "329471",
+    tvdb_id: "314087",
+  }, options), false);
+  assert.equal(hasProviderSplitConflict("314087", "The Grand Tour (2016)", [
+    { title: "The Grand Tour", tmdb_id: "329471", tvdb_id: "" },
+  ], options), true);
+  assert.equal(hasProviderSplitConflict("314087", "The Grand Tour (2016)", [
+    { title: "The Grand-ish Tour", tmdb_id: "321267", tvdb_id: "" },
+  ], options), false);
 });
 
 test("an existing watched episode exposes the same-as-other-episodes date choice", () => {

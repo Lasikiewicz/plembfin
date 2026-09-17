@@ -34,7 +34,10 @@ const MAX_METADATA_WARMUP_QUEUE = 1000;
 let metadataWarmupDrain = null;
 let metadataWarmupEnabled = false;
 let nextRequestAt = 0;
-let throttleTail = Promise.resolve();
+let throttleQueue = [];
+let throttleTimer = null;
+let throttleSequence = 0;
+const THROTTLE_PRIORITY = { interactive: 0, sync: 1, enrichment: 2 };
 
 // --- SQLite-backed cache helpers ---
 const metaGetStmt = db.prepare("SELECT * FROM tmdb_metadata_cache WHERE id = ?");
@@ -352,15 +355,32 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function throttle() {
-  const previous = throttleTail;
-  let release;
-  throttleTail = new Promise((resolve) => { release = resolve; });
-  await previous;
+function drainThrottleQueue() {
+  throttleTimer = null;
+  if (!throttleQueue.length) return;
   const delay = Math.max(0, nextRequestAt - Date.now());
-  if (delay) await wait(delay);
+  if (delay) {
+    throttleTimer = setTimeout(drainThrottleQueue, delay);
+    return;
+  }
+  throttleQueue.sort((a, b) => (
+    THROTTLE_PRIORITY[a.lane] - THROTTLE_PRIORITY[b.lane] || a.sequence - b.sequence
+  ));
+  const next = throttleQueue.shift();
   nextRequestAt = Date.now() + 350;
-  release();
+  next.resolve();
+  if (throttleQueue.length) drainThrottleQueue();
+}
+
+async function throttle({ lane = "enrichment" } = {}) {
+  return new Promise((resolve) => {
+    throttleQueue.push({
+      lane: Object.prototype.hasOwnProperty.call(THROTTLE_PRIORITY, lane) ? lane : "enrichment",
+      sequence: throttleSequence++,
+      resolve,
+    });
+    drainThrottleQueue();
+  });
 }
 
 async function apiKey() {
@@ -373,19 +393,19 @@ async function apiKey() {
   return config.tmdb.apiKey;
 }
 
-async function upstream(path, params = {}, attempt = 0) {
-  await throttle();
+async function upstream(path, params = {}, attempt = 0, { lane = "enrichment" } = {}) {
+  await throttle({ lane });
   const key = await apiKey();
   const url = new URL(`${API_ROOT}/${String(path).replace(/^\/+/, "")}`);
   url.searchParams.set("api_key", key);
   for (const [name, value] of Object.entries(params)) {
     if (value !== undefined && value !== null && value !== "") url.searchParams.set(name, String(value));
   }
-  const response = await fetchWithTimeout(url, { headers: { Accept: "application/json" } });
+  const response = await fetchWithTimeout(url, { headers: { Accept: "application/json" }, lane });
   if (response.status === 429 && attempt < 2) {
     const retryAfter = Math.max(1, Number(response.headers.get("retry-after") || 1));
     await wait(retryAfter * 1000 + Math.floor(Math.random() * 250));
-    return upstream(path, params, attempt + 1);
+    return upstream(path, params, attempt + 1, { lane });
   }
   if (!response.ok) {
     const error = new Error(`TMDB request failed with ${response.status}`);
@@ -395,21 +415,21 @@ async function upstream(path, params = {}, attempt = 0) {
   return response.json();
 }
 
-async function fetchTmdbRaw(type, id) {
+async function fetchTmdbRaw(type, id, lane = "enrichment") {
   const appends = "credits,videos,reviews,similar,recommendations,watch/providers,keywords,external_ids,release_dates,content_ratings,images";
   return compactDetails(await upstream(`${type}/${id}`, {
     append_to_response: type === "tv" ? `${appends},aggregate_credits` : appends,
-  }));
+  }, 0, { lane }));
 }
 
 // The movie details response only stubs belongs_to_collection ({id, name, poster_path,
 // backdrop_path}) - the member films (`parts`) require this separate collection call.
-async function fetchCollectionParts(collectionId) {
+async function fetchCollectionParts(collectionId, lane = "enrichment") {
   const cacheId = `collection_${collectionId}`;
   const cached = metaGet(cacheId);
   if (cached?.details && fresh(cached, 7 * DAY_MS)) return cached.details;
   try {
-    const collection = await upstream(`collection/${collectionId}`, {});
+    const collection = await upstream(`collection/${collectionId}`, {}, 0, { lane });
     const parts = (collection.parts || []).slice(0, 20);
     metaSet(cacheId, { tmdbId: collectionId, mediaType: "collection", details: parts, schemaVersion: DETAILS_SCHEMA_VERSION, updatedAtMs: Date.now() });
     return parts;
@@ -483,7 +503,7 @@ async function cacheCanonicalArtwork(mediaType, tmdbId, details) {
   };
 }
 
-async function resolveTmdbExternalId(type, source, externalId) {
+async function resolveTmdbExternalId(type, source, externalId, lane = "enrichment") {
   const cleaned = String(externalId || "").trim();
   if (!cleaned) return "";
   const key = `external_${type}_${source}_${hash(cleaned.toLowerCase())}`;
@@ -491,7 +511,7 @@ async function resolveTmdbExternalId(type, source, externalId) {
   if (cached?.tmdbId) return String(cached.tmdbId);
 
   try {
-    const result = await upstream(`find/${encodeURIComponent(cleaned)}`, { external_source: source });
+    const result = await upstream(`find/${encodeURIComponent(cleaned)}`, { external_source: source }, 0, { lane });
     const list = type === "movie" ? result.movie_results : result.tv_results;
     // The given id can belong to an episode rather than its series (TMDB
     // assigns episodes their own ids) - `find` still resolves it, just under
@@ -509,18 +529,18 @@ async function resolveTmdbExternalId(type, source, externalId) {
   }
 }
 
-async function resolveTmdbId(mediaType, tmdbId, title, ids = {}, { ignoreTmdbId = false } = {}) {
+async function resolveTmdbId(mediaType, tmdbId, title, ids = {}, { ignoreTmdbId = false, lane = "enrichment" } = {}) {
   if (tmdbId && !ignoreTmdbId) return String(tmdbId);
   const type = mediaTypeFor(mediaType);
   const imdbId = String(ids.imdbId || ids.imdb_id || ids.imdb || "").trim();
   const tvdbId = String(ids.tvdbId || ids.tvdb_id || ids.tvdb || "").trim();
 
   if (imdbId) {
-    const resolved = await resolveTmdbExternalId(type, "imdb_id", imdbId);
+    const resolved = await resolveTmdbExternalId(type, "imdb_id", imdbId, lane);
     if (resolved) return resolved;
   }
   if (type === "tv" && tvdbId) {
-    const resolved = await resolveTmdbExternalId(type, "tvdb_id", tvdbId);
+    const resolved = await resolveTmdbExternalId(type, "tvdb_id", tvdbId, lane);
     if (resolved) return resolved;
   }
 
@@ -536,7 +556,7 @@ async function resolveTmdbId(mediaType, tmdbId, title, ids = {}, { ignoreTmdbId 
     if (type === "tv") searchParams.first_air_date_year = searchParts.year;
     else searchParams.primary_release_year = searchParts.year;
   }
-  const result = await upstream(`search/${type}`, searchParams);
+  const result = await upstream(`search/${type}`, searchParams, 0, { lane });
   const resolved = String(result.results?.[0]?.id || "");
   if (resolved) {
     metaSet(titleKey, { tmdbId: resolved, title: searchTitle, mediaType: type, updatedAtMs: Date.now() });
@@ -544,13 +564,13 @@ async function resolveTmdbId(mediaType, tmdbId, title, ids = {}, { ignoreTmdbId 
   return resolved;
 }
 
-async function deriveNextAiring(details, tvdbId) {
+async function deriveNextAiring(details, tvdbId, lane = "enrichment") {
   const today = new Date().toISOString().slice(0, 10);
   const maxSeason = Math.max(0, ...(details.seasons || []).map((season) => Number(season.season_number) || 0));
   const candidates = new Set([maxSeason, maxSeason + 1].filter((value) => value > 0));
   let earliest = null;
   for (const seasonNumber of [...candidates].sort((a, b) => a - b)) {
-    const season = await getTvdbSeasonEpisodes({ tvdbId, seasonNumber }).catch(() => null);
+    const season = await getTvdbSeasonEpisodes({ tvdbId, seasonNumber, lane }).catch(() => null);
     const dates = (season?.episodes || []).map((episode) => episode.air_date).filter((date) => date && date >= today).sort();
     if (dates[0] && (!earliest || dates[0] < earliest)) earliest = dates[0];
   }
@@ -562,7 +582,7 @@ async function deriveNextAiring(details, tvdbId) {
 // don't need (collection parts, next-airing derivation, artwork/fanart
 // caching). Light-fetched rows are stamped `details_light` so the next full
 // caller refetches and completes them.
-export async function getTmdbDetails({ mediaType, tmdbId = "", title = "", ids = {}, force = false, forceTvdb = force, light = false, verifyTvdbTitle = false }) {
+export async function getTmdbDetails({ mediaType, tmdbId = "", title = "", ids = {}, force = false, forceTvdb = force, light = false, verifyTvdbTitle = false, lane = "enrichment" }) {
   if (isDemoMode()) {
     const cached = getCachedTmdbDetails({ mediaType, tmdbId, title, ids });
     if (cached) return cached;
@@ -571,8 +591,8 @@ export async function getTmdbDetails({ mediaType, tmdbId = "", title = "", ids =
     throw error;
   }
   const type = mediaTypeFor(mediaType);
-  if (type === "tv") return getTvShowDetails({ tmdbId, title, ids, force, forceTvdb, light: light && !force, verifyTvdbTitle });
-  return getMovieDetails({ tmdbId, title, ids, force, light: light && !force });
+  if (type === "tv") return getTvShowDetails({ tmdbId, title, ids, force, forceTvdb, light: light && !force, verifyTvdbTitle, lane });
+  return getMovieDetails({ tmdbId, title, ids, force, light: light && !force, lane });
 }
 
 async function drainMetadataWarmupQueue() {
@@ -654,9 +674,9 @@ export function queueTmdbMetadataWarmup(items = [], { reason = "discovery" } = {
   return { queued: accepted.length, pending: metadataWarmupQueue.length };
 }
 
-async function getMovieDetails({ tmdbId = "", title = "", ids = {}, force = false, light = false }) {
+async function getMovieDetails({ tmdbId = "", title = "", ids = {}, force = false, light = false, lane = "enrichment" }) {
   const type = "movie";
-  const resolvedId = await resolveTmdbId(type, tmdbId, title, ids);
+  const resolvedId = await resolveTmdbId(type, tmdbId, title, ids, { lane });
   if (!resolvedId) {
     const error = new Error("Could not resolve TMDB ID");
     error.status = 404;
@@ -668,7 +688,7 @@ async function getMovieDetails({ tmdbId = "", title = "", ids = {}, force = fals
     const cached = metaGet(cacheId);
     if (!force && cacheSatisfies(cached, { light })) return cached.details;
     try {
-      const fetched = await fetchTmdbRaw(type, resolvedId);
+      const fetched = await fetchTmdbRaw(type, resolvedId, lane);
       const details = { ...(cached?.details || {}), ...fetched };
       if (light) {
         details.details_light = true;
@@ -677,7 +697,7 @@ async function getMovieDetails({ tmdbId = "", title = "", ids = {}, force = fals
         if (details.belongs_to_collection?.id) {
           details.belongs_to_collection = {
             ...details.belongs_to_collection,
-            parts: await fetchCollectionParts(details.belongs_to_collection.id),
+            parts: await fetchCollectionParts(details.belongs_to_collection.id, lane),
           };
         }
         Object.assign(details, await cacheCanonicalArtwork(type, resolvedId, details));
@@ -687,9 +707,9 @@ async function getMovieDetails({ tmdbId = "", title = "", ids = {}, force = fals
     } catch (error) {
       if (cached?.details) return { ...cached.details, cache_stale: true };
       if (error.status === 404 && (title || ids.imdbId || ids.imdb_id || ids.imdb)) {
-        const fallbackId = await resolveTmdbId(type, "", title, ids, { ignoreTmdbId: true }).catch(() => "");
+        const fallbackId = await resolveTmdbId(type, "", title, ids, { ignoreTmdbId: true, lane }).catch(() => "");
         if (fallbackId && String(fallbackId) !== String(resolvedId)) {
-          return getMovieDetails({ tmdbId: fallbackId, title, ids, force, light });
+          return getMovieDetails({ tmdbId: fallbackId, title, ids, force, light, lane });
         }
       }
       throw error;
@@ -703,11 +723,10 @@ async function getMovieDetails({ tmdbId = "", title = "", ids = {}, force = fals
 // trailers, reviews, similar/recommendations, watch providers) and to keep
 // `id` = TMDB id, since Seerr requests and `/tvshow/tmdb/:id` routing are
 // TMDB-keyed throughout the rest of the app.
-async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = false, forceTvdb = force, light = false, verifyTvdbTitle = false }) {
+async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = false, forceTvdb = force, light = false, verifyTvdbTitle = false, lane = "enrichment" }) {
   const requestedImdbId = String(ids.imdbId || ids.imdb_id || ids.imdb || "").trim();
   const requestedTvdbId = String(ids.tvdbId || ids.tvdb_id || ids.tvdb || "").trim();
   let tvdbId = String(ids.tvdbId || ids.tvdb_id || ids.tvdb || "").trim();
-  if (!tvdbId) tvdbId = await resolveTvdbSeriesId({ title });
   // The cache below is keyed by TVDB id, so nothing can be served from it until
   // that id is known. When the caller has only a TMDB id, this used to resolve
   // it with `fetchTmdbRaw`, which is uncached and asks TMDB for the entire
@@ -721,9 +740,14 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
     tvdbId = String(cachedMapping?.details?.external_ids?.tvdb_id || "").trim();
   }
   if (!tvdbId && tmdbId) {
-    const fallback = await fetchTmdbRaw("tv", tmdbId).catch(() => null);
+    const fallback = await fetchTmdbRaw("tv", tmdbId, lane).catch(() => null);
     tvdbId = String(fallback?.external_ids?.tvdb_id || "");
   }
+  // A TMDB result is already an exact catalogue identity. Only fall back to a
+  // title search when the provider did not expose a TVDB mapping; resolving by
+  // title first can select the wrong same-named series (or reject a perfectly
+  // valid TMDB result) before we ever inspect its own external ids.
+  if (!tvdbId) tvdbId = await resolveTvdbSeriesId({ title, lane });
   if (!tvdbId) {
     const error = new Error("Could not resolve TVDB ID");
     error.status = 404;
@@ -759,17 +783,17 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
       let seriesTvdbId = tvdbId;
       let extended;
       try {
-        extended = await getTvdbSeriesExtended(seriesTvdbId, { force: forceTvdb });
+        extended = await getTvdbSeriesExtended(seriesTvdbId, { force: forceTvdb, lane });
       } catch (error) {
-        const fallbackSeriesId = await resolveTvdbSeriesIdFromEpisodeId(seriesTvdbId)
-          || (title && await resolveTvdbSeriesId({ title }));
+        const fallbackSeriesId = await resolveTvdbSeriesIdFromEpisodeId(seriesTvdbId, { lane })
+          || (title && await resolveTvdbSeriesId({ title, lane }));
         if (!fallbackSeriesId || fallbackSeriesId === seriesTvdbId) throw error;
         seriesTvdbId = fallbackSeriesId;
-        extended = await getTvdbSeriesExtended(seriesTvdbId, { force: forceTvdb });
+        extended = await getTvdbSeriesExtended(seriesTvdbId, { force: forceTvdb, lane });
       }
 
       if (verifyTvdbTitle && title && !tvdbSeriesTitleMatches(title, extended)) {
-        const fallbackSeriesId = await resolveTvdbSeriesId({ title });
+        const fallbackSeriesId = await resolveTvdbSeriesId({ title, lane });
         if (!fallbackSeriesId || fallbackSeriesId === seriesTvdbId) {
           const error = new Error("TVDB series match does not agree with the media-server title");
           error.code = "TVDB_TITLE_MISMATCH";
@@ -777,7 +801,7 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
           throw error;
         }
         seriesTvdbId = fallbackSeriesId;
-        extended = await getTvdbSeriesExtended(seriesTvdbId, { force: forceTvdb });
+        extended = await getTvdbSeriesExtended(seriesTvdbId, { force: forceTvdb, lane });
         if (!tvdbSeriesTitleMatches(title, extended)) {
           const error = new Error("TVDB title search did not produce a matching series");
           error.code = "TVDB_TITLE_MISMATCH";
@@ -797,14 +821,14 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
           : (tmdbId || tvdbTmdbId || ""),
       );
 
-      let raw = resolvedTmdbId ? await fetchTmdbRaw("tv", resolvedTmdbId).catch(() => null) : null;
+      let raw = resolvedTmdbId ? await fetchTmdbRaw("tv", resolvedTmdbId, lane).catch(() => null) : null;
       if (!raw && resolvedTmdbId && shaped.name) {
         // TVDB's remoteIds mapping is community-submitted and occasionally points at a
         // stale/incorrect TMDB id (the fetch above 404s) - fall back to a title search
         // rather than silently leaving cast/trailers/images empty for this show forever.
-        const fallbackId = await resolveTmdbId("tv", "", shaped.name, {}, { ignoreTmdbId: true }).catch(() => "");
+        const fallbackId = await resolveTmdbId("tv", "", shaped.name, {}, { ignoreTmdbId: true, lane }).catch(() => "");
         if (fallbackId && fallbackId !== resolvedTmdbId) {
-          const fallbackRaw = await fetchTmdbRaw("tv", fallbackId).catch(() => null);
+          const fallbackRaw = await fetchTmdbRaw("tv", fallbackId, lane).catch(() => null);
           if (fallbackRaw) {
             raw = fallbackRaw;
             resolvedTmdbId = fallbackId;
@@ -870,7 +894,7 @@ async function getTvShowDetails({ tmdbId = "", title = "", ids = {}, force = fal
         }
         details.details_light = true;
       } else {
-        const nextAiring = await deriveNextAiring(details, seriesTvdbId);
+        const nextAiring = await deriveNextAiring(details, seriesTvdbId, lane);
         if (nextAiring) details.next_airing_date = nextAiring;
         else delete details.next_airing_date;
 
@@ -1266,7 +1290,7 @@ export async function getTmdbDiscovery({ mediaType = "all", genreId = "", force 
 // Seasons only exist for TV, so this is entirely TVDB-backed now - it resolves
 // the TVDB ID off the show details already cached under tv_{tmdbId} (getTmdbDetails
 // always runs first in every caller's flow) and fetches episodes from TVDB.
-export async function getTmdbSeason({ tmdbId, tvdbId: requestedTvdbId = "", seasonNumber }) {
+export async function getTmdbSeason({ tmdbId, tvdbId: requestedTvdbId = "", seasonNumber, lane = "enrichment" }) {
   const id = String(tmdbId || "");
   const directTvdbId = String(requestedTvdbId || "");
   const number = Number(seasonNumber);
@@ -1297,7 +1321,7 @@ export async function getTmdbSeason({ tmdbId, tvdbId: requestedTvdbId = "", seas
     error.status = 404;
     throw error;
   }
-  return getTvdbSeasonEpisodes({ tvdbId, seasonNumber: number });
+  return getTvdbSeasonEpisodes({ tvdbId, seasonNumber: number, lane });
 }
 
 // Cache-only companion for Up Next. It deliberately accepts stale season rows:
@@ -1314,14 +1338,14 @@ export function getCachedTmdbSeason({ tmdbId = "", tvdbId: requestedTvdbId = "",
   return getCachedTvdbSeasonEpisodes({ tvdbId, seasonNumber: number });
 }
 
-export async function getTmdbPerson(personId) {
+export async function getTmdbPerson(personId, { lane = "enrichment" } = {}) {
   const id = String(personId || "");
   return collapse(`person:${id}`, async () => {
     const row = personGetStmt.get(`person_${id}`);
     const cached = row ? { details: parseJson(row.details), schemaVersion: row.schema_version, updatedAtMs: row.updated_at_ms } : null;
     if (cached?.details && cached.schemaVersion >= PERSON_SCHEMA_VERSION && fresh(cached, PERSON_TTL_MS)) return cached.details;
     try {
-      const fetched = await upstream(`person/${id}`, { append_to_response: "combined_credits,images,tagged_images,external_ids" });
+      const fetched = await upstream(`person/${id}`, { append_to_response: "combined_credits,images,tagged_images,external_ids" }, 0, { lane });
       const details = {
         ...fetched,
         combined_credits: {
@@ -1341,13 +1365,13 @@ export async function getTmdbPerson(personId) {
   });
 }
 
-export async function getTmdbImages({ mediaType, tmdbId, title = "", ids = {} }) {
-  const details = await getTmdbDetails({ mediaType, tmdbId, title, ids });
+export async function getTmdbImages({ mediaType, tmdbId, title = "", ids = {}, lane = "enrichment" }) {
+  const details = await getTmdbDetails({ mediaType, tmdbId, title, ids, lane });
   const images = imageGroups(details);
   if (hasImageCandidates(images)) return images;
 
   try {
-    const refreshed = await getTmdbDetails({ mediaType, tmdbId, title, ids, force: true });
+    const refreshed = await getTmdbDetails({ mediaType, tmdbId, title, ids, force: true, lane });
     return imageGroups(refreshed);
   } catch {
     return imageGroups(details);

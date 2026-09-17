@@ -20,6 +20,14 @@ function progressFromEvent(event, { standalone = false } = {}) {
   const labelKey = standalone ? "label" : "syncLabel";
   if (activeKey in event) progress.active = event[activeKey] === true;
   if (labelKey in event) progress.label = String(event[labelKey] || "");
+  const currentItemKey = standalone && !("currentItemLabel" in event)
+    ? "syncCurrentItemLabel"
+    : standalone ? "currentItemLabel" : "syncCurrentItemLabel";
+  if (currentItemKey in event) progress.currentItemLabel = String(event[currentItemKey] || "");
+  const startupKey = standalone && !("startupScanActive" in event)
+    ? "syncStartupScanActive"
+    : standalone ? "startupScanActive" : "syncStartupScanActive";
+  if (startupKey in event) progress.startupScanActive = event[startupKey] === true;
   return progress;
 }
 

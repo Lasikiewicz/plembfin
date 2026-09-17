@@ -36,6 +36,32 @@ function inferredPath(source = "") {
   return "unknown";
 }
 
+function integer(value) {
+  const number = Number(value);
+  return Number.isInteger(number) && number >= 0 ? number : null;
+}
+
+// Some providers split one catalogue series into another series and renumber
+// its seasons. Keep that mapping on the watch row without changing the
+// canonical TVDB identity or the local episode coordinates used by the rest
+// of the application.
+export function normalizeProviderOverrides(value) {
+  const input = objectFrom(value);
+  const rawTrakt = input.trakt || input.trakt_match || input.traktMatch;
+  if (!rawTrakt || typeof rawTrakt !== "object" || Array.isArray(rawTrakt)) return null;
+  const tmdbId = text(rawTrakt.tmdb_id || rawTrakt.tmdbId || rawTrakt.tmdb, 100);
+  if (!tmdbId) return null;
+  const season = integer(rawTrakt.season ?? rawTrakt.season_number ?? rawTrakt.seasonNumber);
+  const episode = integer(rawTrakt.episode ?? rawTrakt.episode_number ?? rawTrakt.episodeNumber);
+  return {
+    trakt: {
+      tmdb_id: tmdbId,
+      ...(season != null ? { season } : {}),
+      ...(episode != null ? { episode } : {}),
+    },
+  };
+}
+
 /**
  * Normalize the compact provenance object stored alongside a watch row. Raw
  * webhook payloads never belong in this object; the durable audit event keeps
@@ -53,6 +79,7 @@ export function normalizeWatchProvenance(value, defaults = {}) {
   const sourceTimestamp = timestamp(input.source_timestamp || input.sourceTimestamp || defaults.sourceTimestamp);
   const capturedAt = timestamp(input.captured_at || input.capturedAt || defaults.capturedAt) || new Date().toISOString();
   const percentComplete = Number(input.percent_complete ?? input.percentComplete ?? defaults.percentComplete);
+  const providerOverrides = normalizeProviderOverrides(input.provider_overrides || input.providerOverrides || defaults.provider_overrides || defaults.providerOverrides);
 
   return {
     version: 1,
@@ -71,6 +98,7 @@ export function normalizeWatchProvenance(value, defaults = {}) {
     captured_at: capturedAt,
     confidence,
     ...(Number.isFinite(percentComplete) ? { percent_complete: Math.max(0, Math.min(100, percentComplete)) } : {}),
+    ...(providerOverrides ? { provider_overrides: providerOverrides } : {}),
     note: text(input.note || defaults.note || (confidence === "source_only" ? LEGACY_NOTE : ""), 400),
   };
 }

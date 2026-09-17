@@ -54,6 +54,7 @@ let dispatchBurstOwnerId = "";
 let dispatchBurstExpiresAt = 0;
 let dispatchBurstSequence = 0;
 let dispatchReservationSequence = 0;
+const dispatchProgressItems = new Map();
 const dispatchReservations = new Map();
 let dispatchIdleTimer = null;
 let dispatchHeartbeatTimer = null;
@@ -69,6 +70,7 @@ function resetLocalDispatchBurst(ownerId) {
   dispatchBurstCompleted = 0;
   dispatchBurstOwnerId = "";
   dispatchBurstExpiresAt = 0;
+  dispatchProgressItems.clear();
   dispatchReservations.clear();
 }
 
@@ -76,9 +78,10 @@ function reportDispatchProgress({ start = false } = {}) {
   const now = Date.now();
   const ownerId = dispatchBurstOwnerId;
   if (!dispatchBurstActive || !ownerId) return;
+  const currentItemLabel = currentDispatchLabel();
   const update = start
-    ? startBackgroundSyncProgressOwner({ ownerId, total: dispatchBurstTotal, completed: dispatchBurstCompleted, now })
-    : updateBackgroundSyncProgressOwner({ ownerId, total: dispatchBurstTotal, completed: dispatchBurstCompleted, now });
+    ? startBackgroundSyncProgressOwner({ ownerId, total: dispatchBurstTotal, completed: dispatchBurstCompleted, currentItemLabel, now })
+    : updateBackgroundSyncProgressOwner({ ownerId, total: dispatchBurstTotal, completed: dispatchBurstCompleted, currentItemLabel, now });
   update
     .then((result) => {
       // A hard owner lease is never extended by heartbeats. Once SQLite has
@@ -121,11 +124,81 @@ function openDispatchBurstIfIdle() {
   return started;
 }
 
-function beginDispatchTracking() {
+// Progress is a user-facing media count, not a count of provider HTTP calls.
+// Keep one unit for an episode even when Plex, Emby, Jellyfin, or a retry feeds
+// the same episode back through the dispatcher during one burst.
+export function dispatchProgressKey(media = {}) {
+  const type = String(media?.type || media?.media_type || media?.mediaType || "media").trim().toLowerCase();
+  const ids = media?.ids && typeof media.ids === "object" ? media.ids : {};
+  const id = String(
+    media?.media_key
+      || media?.mediaKey
+      || media?.imdb_id
+      || media?.imdb
+      || ids.imdb
+      || media?.tmdb_id
+      || media?.tmdb
+      || ids.tmdb
+      || media?.tvdb_id
+      || media?.tvdb
+      || ids.tvdb
+      || "",
+  ).trim().toLowerCase();
+
+  if (type === "episode") {
+    const show = canonicalShowTitleKey(media?.show_title || media?.showTitle || showTitleFrom(media?.title || ""));
+    const season = Number(media?.season);
+    const episode = Number(media?.episode);
+    if (show && Number.isInteger(season) && Number.isInteger(episode) && season >= 0 && episode >= 0) {
+      return `episode:${show}:s${season}:e${episode}`;
+    }
+  }
+
+  return `${type}:${id || canonicalTitleKey(media?.title || "unknown") || "unknown"}`;
+}
+
+function dispatchMediaLabel(media = {}) {
+  const type = String(media?.type || media?.media_type || media?.mediaType || "").trim().toLowerCase();
+  const title = String(media?.title || "").trim();
+  if (type === "episode") {
+    const show = String(media?.show_title || media?.showTitle || showTitleFrom(title)).trim();
+    const season = Number(media?.season);
+    const episode = Number(media?.episode);
+    if (show && Number.isInteger(season) && Number.isInteger(episode)) {
+      return `${show} S${String(season).padStart(2, "0")}E${String(episode).padStart(2, "0")}`;
+    }
+  }
+  return title;
+}
+
+function currentDispatchLabel() {
+  const candidates = [];
+  for (const item of dispatchProgressItems.values()) {
+    if (item.active > 0 && item.label) candidates.push(item);
+  }
+  for (const reservation of dispatchReservations.values()) {
+    for (const item of reservation.activeItems || []) {
+      if (item.label) candidates.push(item);
+    }
+  }
+  candidates.sort((left, right) => (right.sequence || 0) - (left.sequence || 0));
+  return candidates[0]?.label || "";
+}
+
+function beginDispatchTracking(media = {}) {
   const started = openDispatchBurstIfIdle();
-  dispatchBurstTotal += 1;
+  const progressKey = dispatchProgressKey(media);
+  let item = dispatchProgressItems.get(progressKey);
+  if (!item) {
+    item = { active: 0, completed: false, label: dispatchMediaLabel(media), sequence: 0 };
+    dispatchProgressItems.set(progressKey, item);
+    dispatchBurstTotal += 1;
+  }
+  if (!item.label) item.label = dispatchMediaLabel(media);
+  item.sequence = ++dispatchReservationSequence;
+  item.active += 1;
   reportDispatchProgress({ start: started });
-  return dispatchBurstOwnerId;
+  return { ownerId: dispatchBurstOwnerId, progressKey };
 }
 
 // For a caller that already knows how many items it is about to dispatch
@@ -136,8 +209,13 @@ function beginDispatchTracking() {
 // settles on a final number. Pair with `trackDispatch: false` on the
 // batch's own syncMediaPlaystate/syncMediaUnplayedPlaystate calls so those
 // items aren't counted a second time when they individually start.
-export function reserveDispatchBatch(size) {
-  const reservedSize = Math.max(0, Math.floor(Number(size) || 0));
+export function reserveDispatchBatch(size, { progressKeys = [] } = {}) {
+  const normalizedProgressKeys = (Array.isArray(progressKeys) ? progressKeys : [])
+    .map((key) => String(key || "").trim())
+    .filter(Boolean);
+  const uniqueProgressKeys = [...new Set(normalizedProgressKeys)];
+  const reservedSize = uniqueProgressKeys.length
+    || Math.max(0, Math.floor(Number(size) || 0));
   if (!(reservedSize > 0)) return null;
   const started = openDispatchBurstIfIdle();
   dispatchBurstTotal += reservedSize;
@@ -146,9 +224,29 @@ export function reserveDispatchBatch(size) {
     ownerId: dispatchBurstOwnerId,
     reservationId: `${dispatchBurstOwnerId}:reservation:${dispatchReservationSequence}`,
   };
-  dispatchReservations.set(reservation.reservationId, { total: reservedSize, completed: 0 });
+  dispatchReservations.set(reservation.reservationId, {
+    total: reservedSize,
+    completed: 0,
+    activeItems: [],
+    pendingByKey: uniqueProgressKeys.length
+      ? new Map(uniqueProgressKeys.map((key) => [key, normalizedProgressKeys.filter((candidate) => candidate === key).length]))
+      : null,
+  });
   reportDispatchProgress({ start: started });
   return reservation;
+}
+
+export function markReservedDispatchStarted(tracking, media = {}) {
+  const ownerId = tracking?.ownerId;
+  if (!dispatchBurstActive || !ownerId || ownerId !== dispatchBurstOwnerId) return;
+  const reservation = dispatchReservations.get(tracking?.reservationId);
+  if (!reservation) return;
+  reservation.activeItems.push({
+    progressKey: dispatchProgressKey(media),
+    label: dispatchMediaLabel(media),
+    sequence: ++dispatchReservationSequence,
+  });
+  reportDispatchProgress();
 }
 
 // Exported for callers that pre-reserve a batch slot (trackDispatch: false)
@@ -167,12 +265,43 @@ function scheduleDispatchIdleIfComplete() {
   }, DISPATCH_PROGRESS_IDLE_MS);
 }
 
-export function completeDispatchTracking(tracking = dispatchBurstOwnerId) {
+export function completeDispatchTracking(tracking = dispatchBurstOwnerId, media = null) {
   const ownerId = typeof tracking === "object" ? tracking?.ownerId : tracking;
   if (!dispatchBurstActive || !ownerId || ownerId !== dispatchBurstOwnerId) return;
+  if (tracking && typeof tracking === "object" && tracking.progressKey) {
+    const item = dispatchProgressItems.get(tracking.progressKey);
+    if (!item || item.active <= 0) return;
+    item.active -= 1;
+    if (item.active === 0 && !item.completed) {
+      item.completed = true;
+      dispatchBurstCompleted = Math.min(dispatchBurstTotal, dispatchBurstCompleted + 1);
+    }
+    reportDispatchProgress();
+    scheduleDispatchIdleIfComplete();
+    return;
+  }
   if (tracking && typeof tracking === "object") {
     const reservation = dispatchReservations.get(tracking.reservationId);
     if (!reservation || reservation.completed >= reservation.total) return;
+    const progressKey = media ? dispatchProgressKey(media) : "";
+    const activeIndex = reservation.activeItems?.findIndex((item) => !progressKey || item.progressKey === progressKey) ?? -1;
+    if (activeIndex >= 0) reservation.activeItems.splice(activeIndex, 1);
+    if (reservation.pendingByKey) {
+      const completedKey = dispatchProgressKey(media || {});
+      if (!reservation.pendingByKey.has(completedKey)) return;
+      const pending = reservation.pendingByKey.get(completedKey) || 0;
+      if (pending <= 0) return;
+      reservation.pendingByKey.set(completedKey, pending - 1);
+      if (pending === 1) {
+        reservation.pendingByKey.delete(completedKey);
+        reservation.completed += 1;
+        dispatchBurstCompleted = Math.min(dispatchBurstTotal, dispatchBurstCompleted + 1);
+      }
+      if (reservation.completed >= reservation.total) dispatchReservations.delete(tracking.reservationId);
+      reportDispatchProgress();
+      scheduleDispatchIdleIfComplete();
+      return;
+    }
     reservation.completed += 1;
     if (reservation.completed >= reservation.total) dispatchReservations.delete(tracking.reservationId);
   }
@@ -457,7 +586,7 @@ function targetCacheKeys(media, target, prefix = "loop") {
 // both pass the check before either claim becomes visible.
 function checkAndClaimLoop(media, target, targets, kv, prefix = "loop") {
   const checkKeys = targetCacheKeys(media, target, prefix);
-  if (!kv || !checkKeys.length) return false;
+  if (!kv?.checkAndClaim || !checkKeys.length) return false;
 
   try {
     const claimKeys = targets.flatMap((t) => targetCacheKeys(media, t, prefix));
@@ -1056,7 +1185,7 @@ export async function syncMediaPlaystate(media, config, kv, {
     ids: media.ids,
   });
 
-  const trackingOwnerId = trackDispatch ? beginDispatchTracking() : "";
+  const trackingOwnerId = trackDispatch ? beginDispatchTracking(media) : "";
   try {
     const jobs = targets.map((target) => {
       const leaseKey = outboundStateLeaseKey(media, target);
@@ -1213,7 +1342,7 @@ export async function syncMediaUnplayedPlaystate(media, config, kv, {
     ids: media.ids,
   });
 
-  const trackingOwnerId = trackDispatch ? beginDispatchTracking() : "";
+  const trackingOwnerId = trackDispatch ? beginDispatchTracking(media) : "";
   try {
     const jobs = targets.map((target) => {
       const leaseKey = outboundStateLeaseKey(media, target);

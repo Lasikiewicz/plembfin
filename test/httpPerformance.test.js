@@ -121,3 +121,11 @@ test("only a versioned asset request is cached immutably", () => {
   setPublicAssetCacheHeaders(respond({ v: "0.15.0" }), "/public/manifest.webmanifest");
   assert.equal(headers.get("Cache-Control"), "no-cache");
 });
+
+test("local development can explicitly disable public asset caching", () => {
+  const headers = new Map();
+  const response = { setHeader(name, value) { headers.set(name, value); } };
+
+  setPublicAssetCacheHeaders(response, "/public/app.js", { disableCaching: true });
+  assert.equal(headers.get("Cache-Control"), "no-store");
+});

@@ -80,6 +80,7 @@ export function createWorkerCoordinator({ holderId, role }) {
   let activeTickPromise = null;
   let activeJobPromise = null;
   let lastSettingsUpdatedAt = null;
+  let startupScanGeneration = null;
   const timers = new Set();
 
   const isLeader = () => Boolean(lease && validateSchedulerLease({ holderId, generation: lease.generation }));
@@ -92,11 +93,27 @@ export function createWorkerCoordinator({ holderId, role }) {
     timers.add(timer);
   };
 
+  async function finishStartupScan(generation) {
+    if (startupScanGeneration !== generation) return;
+    startupScanGeneration = null;
+    await setRuntimeState({
+      startupScanActive: false,
+      startupScanCompletedAt: Date.now(),
+    }).catch(() => null);
+  }
+
   async function becomeLeader(nextLease) {
     const changed = !lease || lease.generation !== nextLease.generation;
     lease = nextLease;
     if (!changed) return;
     console.log(`[worker] scheduler leadership acquired (generation ${lease.generation})`);
+    const startupGeneration = lease.generation;
+    startupScanGeneration = startupGeneration;
+    await setRuntimeState({
+      startupScanActive: true,
+      startupScanStartedAt: Date.now(),
+      startupScanCompletedAt: 0,
+    }).catch(() => null);
     startPlexNotificationListener();
     startPlexAdaptivePoller();
     startLiveSessionPoller();
@@ -112,8 +129,12 @@ export function createWorkerCoordinator({ holderId, role }) {
     // renewal and the HTTP server remain responsive while metadata is fetched.
     if (!SCHEDULED_WORKER_PAUSED) {
       later(() => refreshUpcomingCalendarCache({ forceCurrent: true }), 0);
-      later(runTick, FIRST_TICK_MS);
+      later(async () => {
+        await runTick();
+        await finishStartupScan(startupGeneration);
+      }, FIRST_TICK_MS);
     } else {
+      await finishStartupScan(startupGeneration);
       console.log("[worker] scheduled sync and background jobs paused by PLEMBFIN_PAUSE_SCHEDULED_WORKER");
     }
   }
@@ -121,6 +142,11 @@ export function createWorkerCoordinator({ holderId, role }) {
   function loseLeadership(reason) {
     if (!lease) return;
     console.warn(`[worker] scheduler leadership lost: ${reason}`);
+    const lostStartupGeneration = startupScanGeneration;
+    startupScanGeneration = null;
+    if (lostStartupGeneration !== null) {
+      setRuntimeState({ startupScanActive: false, startupScanCompletedAt: Date.now() }).catch(() => null);
+    }
     lease = null;
     stopPlexNotificationListener();
     stopPlexAdaptivePoller();
@@ -293,6 +319,11 @@ export function createWorkerCoordinator({ holderId, role }) {
       stopped = true;
       for (const timer of timers) clearTimeout(timer);
       timers.clear();
+      const stoppingStartupGeneration = startupScanGeneration;
+      startupScanGeneration = null;
+      if (stoppingStartupGeneration !== null) {
+        await setRuntimeState({ startupScanActive: false, startupScanCompletedAt: Date.now() }).catch(() => null);
+      }
       stopPlexNotificationListener();
       const closingLease = lease;
       await Promise.allSettled([activeTickPromise, activeJobPromise].filter(Boolean));
