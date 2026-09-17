@@ -157,6 +157,12 @@ are not imported. Unix-second timestamps are converted before entering the norma
 history pipeline, and missing dates fall back to the release date only when a new
 local record is needed.
 
+The final backup-and-import confirmation is shown in Plembfin's in-app dialog, including
+the multiline target summary and any possible-match plays that will remain unimported.
+After confirmation, the Connections page keeps the operation visible as `Importing...` and
+then reports `Import complete` while explaining that Plembfin is now syncing the imported
+watches to the connected media servers.
+
 The merge is identity-aware and same-local-day: provider IDs are compared
 independently, episodes can match by show/season/episode, and movies can match by
 title when identity is unambiguous. A different local day is not automatically a rewatch -

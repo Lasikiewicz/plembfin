@@ -11692,6 +11692,9 @@ html.light-mode .progress-bar-fill {
   color: var(--muted);
   font-size: 0.88rem;
   line-height: 1.5;
+  white-space: pre-wrap;
+  max-height: min(52vh, 30rem);
+  overflow-y: auto;
 }
 
 @media (max-width: 760px) {
@@ -27061,7 +27064,8 @@ html.light-mode .about-share-option.button-primary {
   gap: 0.4rem;
 }
 
-.tautulli-preview-message.is-loading::before {
+.tautulli-preview-message.is-loading::before,
+.tautulli-import-status.is-loading::before {
   width: 0.7rem;
   height: 0.7rem;
   border: 2px solid currentColor;
@@ -27111,9 +27115,17 @@ html.light-mode .about-share-option.button-primary {
 
 @media (prefers-reduced-motion: reduce) {
   .tautulli-preview-message.is-loading::before,
+  .tautulli-import-status.is-loading::before,
   .tautulli-preview-progress.is-indeterminate .tautulli-preview-progress-bar { animation: none; }
 }
 .tautulli-backup-step .tautulli-step-heading { align-items: center; }
+.tautulli-import-status {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: var(--space-2) 0 0;
+  line-height: 1.4;
+}
 .tautulli-backup-status {
   margin: var(--space-2) 0 0;
   color: var(--muted);

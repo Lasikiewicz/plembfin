@@ -1,7 +1,20 @@
 {
-  "version": "1.1.1.4.0",
-  "build": 0,
+  "version": "1.1.1.4.1",
+  "build": 1,
   "resetCommit": "8e60f074eef20ca3fc858f55f964b0987b37024c",
-  "updatedAt": "2026-09-16T16:22:53.133Z",
-  "entries": []
+  "updatedAt": "2026-09-17T11:22:22.128Z",
+  "entries": [
+    {
+      "build": 1,
+      "date": "2026-09-17T11:22:22.128Z",
+      "commit": "ee8381f30944c334a561ce25182825d9adacd2ae",
+      "message": "Fix - Clarify Tautulli backup and import progress",
+      "author": "Lasikiewicz",
+      "details": [
+        "Use Plembfin's in-app confirmation for the multiline backup and import summary.",
+        "Show Importing while the backup and import request runs and keep the action disabled.",
+        "Confirm completion and that Plembfin is syncing imported watches to connected media servers."
+      ]
+    }
+  ]
 }

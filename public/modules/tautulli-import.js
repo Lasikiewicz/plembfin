@@ -1,10 +1,10 @@
-import { state } from "./state.js?v=1.1.1.4.0";
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.4.0";
-import { escapeAttribute, escapeHtml } from "./utils.js?v=1.1.1.4.0";
+import { state } from "./state.js?v=1.1.1.4.1";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.4.1";
+import { escapeAttribute, escapeHtml } from "./utils.js?v=1.1.1.4.1";
 import {
   PLEX_HISTORICAL_SYNC_LABEL,
   plexHistoricalSyncEnabled,
-} from "./plex-history-policy.js?v=1.1.1.4.0";
+} from "./plex-history-policy.js?v=1.1.1.4.1";
 
 let bound = false;
 let preview = null;
@@ -16,6 +16,8 @@ let previewPending = false;
 let previewTimer = null;
 let previewStartedAt = 0;
 let previewPhase = "starting";
+let importPending = false;
+let _openConfirmDialog = async () => false;
 
 function el(id) { return document.getElementById(id); }
 function headers(json = false) { return { ...buildAuthHeaders(state.token), ...(json ? { "Content-Type": "application/json" } : {}) }; }
@@ -27,6 +29,14 @@ function message(text, tone = "muted", targetId = "tautulliConfigMessage") {
   node.className = `message ${tone}${loading ? " is-loading" : ""}`;
   node.setAttribute("aria-busy", loading ? "true" : "false");
   node.style.display = text ? "block" : "none";
+}
+function importStatus(text = "", tone = "muted", loading = false) {
+  const node = el("tautulliImportStatus");
+  if (!node) return;
+  node.textContent = text;
+  node.className = `message tautulli-import-status ${tone}${loading ? " is-loading" : ""}`;
+  node.setAttribute("aria-busy", loading ? "true" : "false");
+  node.style.display = text ? (loading ? "inline-flex" : "block") : "none";
 }
 // There is deliberately no per-server choice here. Plembfin is the source of
 // truth, so its scheduled sync brings Emby and Jellyfin into line with imported
@@ -56,7 +66,7 @@ function updateActionState() {
   const userId = el("tautulliUserId")?.value || config.userId || "";
   const ready = Boolean(config.configured);
   if (el("tautulliPreviewButton")) el("tautulliPreviewButton").disabled = previewPending || !ready || !userId;
-  if (el("tautulliImportButton")) el("tautulliImportButton").disabled = previewPending || !ready || !userId || !preview || preview.result?.new === 0;
+  if (el("tautulliImportButton")) el("tautulliImportButton").disabled = importPending || previewPending || !ready || !userId || !preview || preview.result?.new === 0;
 }
 
 function previewElapsedLabel(startedAt) {
@@ -114,6 +124,7 @@ function startPreviewProgress() {
   previewStartedAt = Date.now();
   previewPhase = "starting";
   previewPending = true;
+  importStatus();
   updateActionState();
   if (el("tautulliImportSummary")) {
     el("tautulliImportSummary").textContent = "[working] Checking the history size first, then reading completed movie and episode records from Tautulli.";
@@ -461,12 +472,24 @@ function importConfirmationText(result = {}) {
 
 async function runImport() {
   if (!preview) return previewImport();
-  if (!window.confirm(importConfirmationText(preview.result))) return;
+  const confirmed = await _openConfirmDialog({
+    title: "Confirm Tautulli import",
+    body: importConfirmationText(preview.result),
+    confirmLabel: "Create backup & import",
+    cancelLabel: "Cancel",
+  });
+  if (!confirmed) return;
+  importPending = true;
+  updateActionState();
+  const importButton = el("tautulliImportButton");
+  if (importButton) importButton.textContent = "Importing…";
   const body = { ...preview.body, reviewDecisions, backup: true };
-  message("Creating backup and importing Tautulli history…", "muted", "tautulliPreviewMessage");
+  importStatus("Importing Tautulli history and creating a local backup…", "muted", true);
+  message("Importing Tautulli history…", "muted", "tautulliPreviewMessage");
   const response = await fetch("/api/tautulli/import", { method: "POST", headers: headers(true), body: JSON.stringify(body) });
   const result = await response.json().catch(() => ({}));
   if (!response.ok || !result.ok) throw new Error(result.error || "Tautulli import failed");
+  const targetPlan = Array.isArray(result.targetPlan) ? result.targetPlan : [];
   const summary = [
     `Imported ${Number(result.inserted || 0).toLocaleString()} new record(s).`,
     `• ${Number(result.merged || 0).toLocaleString()} already represented in Plembfin.`,
@@ -479,18 +502,37 @@ async function runImport() {
     `• ${Number(result.rejectedRows || 0).toLocaleString()} rejected on insert.`,
     "",
     "Outbound projection:",
-    ...(result.targetPlan || []).map((entry) => `• ${TARGET_LABELS[entry.target] || entry.target}: ${DECISION_COPY[entry.decision] || entry.decision}`),
+    ...targetPlan.map((entry) => `• ${TARGET_LABELS[entry.target] || entry.target}: ${DECISION_COPY[entry.decision] || entry.decision}`),
     "Selected targets are queued for background sync; skipped ones were not queued and will not retry.",
   ].join("\n");
   if (el("tautulliImportSummary")) el("tautulliImportSummary").textContent = summary;
-  renderPolicyNote(result.targetPlan || []);
-  // Decisions belong to the import that consumed them.
-  reviewDecisions = {};
-  renderReviews(result.reviews || []);
+  try {
+    renderPolicyNote(targetPlan);
+    // Decisions belong to the import that consumed them.
+    reviewDecisions = {};
+    renderReviews(Array.isArray(result.reviews) ? result.reviews : []);
+  } catch (error) {
+    console.warn("Tautulli import result rendering failed after a successful import", error);
+  }
   preview = null;
-  if (el("tautulliImportButton")) el("tautulliImportButton").disabled = true;
-  message("Tautulli import complete.", "success", "tautulliPreviewMessage");
+  importPending = false;
+  if (importButton) {
+    importButton.disabled = true;
+    importButton.textContent = "Import complete";
+  }
+  importStatus("Import complete. Plembfin is now syncing imported watches to your connected media servers.", "success");
+  message("Import complete — now syncing imported watches…", "success", "tautulliPreviewMessage");
   await loadStatus().catch(() => null);
+}
+
+function handleImportError(error) {
+  importPending = false;
+  const importButton = el("tautulliImportButton");
+  if (importButton) importButton.textContent = "Back up & import";
+  updateActionState();
+  const text = error?.message || "Tautulli import failed";
+  importStatus(text, "error");
+  message(text, "error", "tautulliPreviewMessage");
 }
 
 function handleReviewClick(event) {
@@ -516,14 +558,15 @@ function handleReviewClick(event) {
     "tautulliPreviewMessage",
   );
 }
-export function initTautulliImport() {
+export function initTautulliImport(callbacks = {}) {
+  if (callbacks.openConfirmDialog) _openConfirmDialog = callbacks.openConfirmDialog;
   if (bound) return;
   bound = true;
   el("tautulliConfigForm")?.addEventListener("submit", (event) => saveConnection(event).catch((error) => message(error.message, "error")));
   el("tautulliTestButton")?.addEventListener("click", () => testAndLoadUsers().catch((error) => message(error.message, "error")));
   el("tautulliUserId")?.addEventListener("change", updateActionState);
   el("tautulliPreviewButton")?.addEventListener("click", () => previewImport().catch((error) => message(error.message, "error", "tautulliPreviewMessage")));
-  el("tautulliImportButton")?.addEventListener("click", () => runImport().catch((error) => message(error.message, "error", "tautulliPreviewMessage")));
+  el("tautulliImportButton")?.addEventListener("click", () => runImport().catch(handleImportError));
   el("tautulliReviewList")?.addEventListener("click", handleReviewClick);
   el("tautulliReviewBulk")?.addEventListener("click", (event) => {
     const button = event.target.closest("[data-tautulli-review-bulk]");
