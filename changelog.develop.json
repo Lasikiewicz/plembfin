@@ -1,33 +1,20 @@
 {
-  "version": "1.1.1.5.1",
-  "build": 1,
+  "version": "1.1.1.5.2",
+  "build": 2,
   "resetCommit": "f8c7ffd1d6a5020cf4767b7ee1b91f823cb41b2e",
-  "updatedAt": "2026-09-17T12:39:58.313Z",
+  "updatedAt": "2026-09-17T12:46:56.227Z",
   "entries": [
     {
-      "build": 1,
-      "date": "2026-09-17T12:39:58.313Z",
-      "commit": "52901e184c50dacea5c624882fa37640e1c4f796",
-      "message": "This update includes stage tautulli backup and import flow, refresh detail after watch date removal, show affected media sync state, keep multi-item sync updates responsive, and keep queued media changes visible.",
+      "build": 2,
+      "date": "2026-09-17T12:46:56.227Z",
+      "commit": "f88286afeeef26083f15f6a69ef53d6afdb3a179",
+      "message": "Fix - Keep media changes visible during sync",
       "author": "Lasikiewicz",
       "details": [
-        "Tautulli imports now separate preview review, the recommended local backup, and the final import with clear progress and syncing completion states.",
-        "Removing one watch date now refreshes the open detail from authoritative history while preserving any surviving watch.",
-        "Surface live syncing notices on affected movie and show detail pages.",
-        "Pause only the visible item's watch controls until import or dispatch completes.",
-        "Document and test the targeted sync-state behavior.",
-        "Index visible episodes and cache season state during live progress updates.",
-        "Prevent repeated bulk watch actions from stalling the detail page before the sync notice paints.",
-        "Treat pending dispatch telemetry as active detail sync even between progress heartbeats.",
-        "Animate Up Next add and remove requests while preserving labels on failure.",
-        "Extend the sync-state regression coverage for queued work."
-      ],
-      "messageFragments": [
-        "Fix - Stage tautulli backup and import flow",
-        "Fix - Refresh detail after watch date removal",
-        "Fix - Show affected media sync state",
-        "Fix - Keep multi-item sync updates responsive",
-        "Fix - Keep queued media changes visible"
+        "Give Tautulli backup and import a clear preview, backup, import, and syncing flow with progress feedback.",
+        "Refresh open media details immediately after removing one watch date while preserving surviving watches.",
+        "Show syncing state and pause only affected media controls while queued imports and dispatches finish.",
+        "Keep repeated watch actions responsive and visible, including animated Up Next requests with failure-safe labels."
       ]
     }
   ]

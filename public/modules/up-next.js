@@ -1,10 +1,10 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.5.1";
-import { state, elements } from "./state.js?v=1.1.1.5.1";
-import { escapeAttribute, escapeHtml, slug } from "./utils.js?v=1.1.1.5.1";
-import { hydratePosters } from "./images.js?v=1.1.1.5.1";
-import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=1.1.1.5.1";
-import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=1.1.1.5.1";
-import { renderMediaCard } from "./media-card.js?v=1.1.1.5.1";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.5.2";
+import { state, elements } from "./state.js?v=1.1.1.5.2";
+import { escapeAttribute, escapeHtml, slug } from "./utils.js?v=1.1.1.5.2";
+import { hydratePosters } from "./images.js?v=1.1.1.5.2";
+import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=1.1.1.5.2";
+import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=1.1.1.5.2";
+import { renderMediaCard } from "./media-card.js?v=1.1.1.5.2";
 
 const UP_NEXT_TTL_MS = 2 * 60 * 1000;
 const UP_NEXT_TIMEOUT_MS = 20000;
