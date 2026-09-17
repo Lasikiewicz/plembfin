@@ -23,6 +23,32 @@ function writeConsent(value) {
   }
 }
 
+function parseConfig(config) {
+  if (!config?.enabled || typeof config.scriptUrl !== "string" || typeof config.siteKey !== "string") return null;
+  if (!/^https:\/\//i.test(config.scriptUrl)) return null;
+  return config;
+}
+
+function readInlineConfig() {
+  const element = document.getElementById("plembfin-traks-config");
+  if (!element?.textContent) return null;
+  try {
+    return parseConfig(JSON.parse(element.textContent));
+  } catch {
+    return null;
+  }
+}
+
+async function fetchConfig() {
+  try {
+    const response = await fetch(CONFIG_URL, { credentials: "same-origin", cache: "no-store" });
+    if (!response.ok) return null;
+    return parseConfig(await response.json());
+  } catch {
+    return null;
+  }
+}
+
 function loadTraks(config) {
   if (window.__plembfinTraksLoaded || privacySignalIsSet()) return;
 
@@ -87,22 +113,10 @@ function showConsentPrompt(config) {
 async function boot() {
   if (privacySignalIsSet()) return;
 
-  let response;
-  try {
-    response = await fetch(CONFIG_URL, { credentials: "same-origin", cache: "no-store" });
-  } catch {
-    return;
-  }
-  if (!response.ok) return;
-
-  let config;
-  try {
-    config = await response.json();
-  } catch {
-    return;
-  }
-  if (!config?.enabled || typeof config.scriptUrl !== "string" || typeof config.siteKey !== "string") return;
-  if (!/^https:\/\//i.test(config.scriptUrl)) return;
+  // Prefer the same-page config so privacy extensions cannot hide the consent
+  // prompt by blocking the separately named analytics endpoint.
+  const config = readInlineConfig() || await fetchConfig();
+  if (!config) return;
 
   const consent = readConsent();
   if (config.requireConsent !== false) {

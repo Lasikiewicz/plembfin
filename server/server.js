@@ -50,6 +50,27 @@ const { schedulerLeaseStatus } = await import("./src/utils/schedulerLease.js");
 const { createWorkerCoordinator } = await import("./src/workerCoordinator.js");
 const { flushPending: flushDiagnosticLogs } = await import("./src/utils/diagnosticLogger.js");
 
+// Keep the public demo's consent configuration in the HTML as well as the
+// endpoint below. Privacy extensions commonly block paths containing
+// "analytics"; the consent UI must still be available when that happens.
+const INDEX_HTML = fs.readFileSync(path.join(PUBLIC_DIR, "index.html"), "utf8");
+const DEMO_INDEX_HTML = DEMO_MODE
+  ? INDEX_HTML.replace(
+      "</head>",
+      `    <script id="plembfin-traks-config" type="application/json">${JSON.stringify({
+        enabled: TRAKS_CONFIG.enabled,
+        scriptUrl: TRAKS_CONFIG.scriptUrl,
+        siteKey: TRAKS_CONFIG.siteKey,
+        requireConsent: TRAKS_CONFIG.requireConsent,
+      }).replace(/</g, "\\u003c")}</script>\n  </head>`,
+    )
+  : INDEX_HTML;
+
+function sendDemoIndex(_req, res) {
+  res.setHeader("Cache-Control", "no-cache");
+  res.type("html").send(DEMO_INDEX_HTML);
+}
+
 ensureDataDirs();
 if (!DEMO_MODE) enableTmdbMetadataWarmup();
 
@@ -383,12 +404,13 @@ app.all(["/health", "/health/"], (req, res) => {
 });
 
 // Static SPA assets, then SPA fallback to index.html for client-side routes.
+app.get("/", sendDemoIndex);
+app.get("/index.html", sendDemoIndex);
 app.use(express.static(PUBLIC_DIR, { extensions: ["html"], setHeaders: setPublicAssetCacheHeaders }));
 app.get("/*name", (req, res) => {
   // The SPA fallback serves index.html for client-side routes, and bypasses the
   // static setHeaders hook, so it needs the same revalidation rule set here.
-  res.setHeader("Cache-Control", "no-cache");
-  res.sendFile(path.join(PUBLIC_DIR, "index.html"));
+  sendDemoIndex(req, res);
 });
 
 // ROLE=web omits this coordinator; ROLE=all preserves the default combined process.
