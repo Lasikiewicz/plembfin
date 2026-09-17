@@ -25,7 +25,7 @@ function writeConsent(value) {
 
 function parseConfig(config) {
   if (!config?.enabled || typeof config.scriptUrl !== "string" || typeof config.siteKey !== "string") return null;
-  if (!/^https:\/\//i.test(config.scriptUrl)) return null;
+  if (!/^https:\/\//i.test(config.scriptUrl) && !config.scriptUrl.startsWith("/")) return null;
   return config;
 }
 
@@ -93,7 +93,7 @@ function showConsentPrompt(config) {
     "font:14px/1.45 system-ui,sans-serif",
   ].join(";");
   banner.innerHTML = `
-    <p style="margin:0;max-width:720px">Help improve this public demo with privacy-friendly usage statistics. No cookies are used.</p>
+    <p style="margin:0;max-width:720px">Allow Plembfin to share page views, time-on-page, browser/device details, referrer, and a coarse region with Traks to improve this public demo. No cookies are used.</p>
     <span style="display:flex;gap:8px;flex:0 0 auto">
       <button type="button" data-analytics-decline style="padding:8px 12px;border:1px solid #64748b;border-radius:8px;background:transparent;color:inherit;cursor:pointer">Decline</button>
       <button type="button" data-analytics-allow style="padding:8px 12px;border:0;border-radius:8px;background:#38bdf8;color:#082f49;cursor:pointer;font-weight:600">Allow analytics</button>

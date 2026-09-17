@@ -39,6 +39,18 @@ const TRAKS_CONFIG = (() => {
   }
 })();
 
+// The browser-facing script is served by this demo origin so privacy blockers
+// do not classify the consented telemetry as a third-party script. Events are
+// still relayed to the fixed Traks collector; there is no user-controlled
+// proxy target here.
+const PUBLIC_TRAKS_CONFIG = {
+  enabled: TRAKS_CONFIG.enabled,
+  scriptUrl: TRAKS_CONFIG.enabled ? "/traks.js" : "",
+  siteKey: TRAKS_CONFIG.siteKey,
+  requireConsent: TRAKS_CONFIG.requireConsent,
+};
+const TRAKS_EVENT_URL = TRAKS_CONFIG.enabled ? `${TRAKS_CONFIG.origin}/api/event` : "";
+
 const { DATA_DIR, PUBLIC_DIR, MEDIA_DIR, ensureDataDirs } = await import("./src/paths.js");
 const { dispatch } = await import("./src/index.js");
 const { db } = await import("./src/db.js");
@@ -57,12 +69,7 @@ const INDEX_HTML = fs.readFileSync(path.join(PUBLIC_DIR, "index.html"), "utf8");
 const DEMO_INDEX_HTML = DEMO_MODE
   ? INDEX_HTML.replace(
       "</head>",
-      `    <script id="plembfin-traks-config" type="application/json">${JSON.stringify({
-        enabled: TRAKS_CONFIG.enabled,
-        scriptUrl: TRAKS_CONFIG.scriptUrl,
-        siteKey: TRAKS_CONFIG.siteKey,
-        requireConsent: TRAKS_CONFIG.requireConsent,
-      }).replace(/</g, "\\u003c")}</script>\n  </head>`,
+      `    <script id="plembfin-traks-config" type="application/json">${JSON.stringify(PUBLIC_TRAKS_CONFIG).replace(/</g, "\\u003c")}</script>\n  </head>`,
     )
   : INDEX_HTML;
 
@@ -290,7 +297,59 @@ app.use(rateLimit({
 // req.body to a Buffer, which the requestBody helpers already understand.
 app.get("/analytics-config.json", (_req, res) => {
   res.setHeader("Cache-Control", "no-store");
-  res.json(TRAKS_CONFIG);
+  res.json(PUBLIC_TRAKS_CONFIG);
+});
+
+app.get("/traks.js", async (_req, res) => {
+  if (!TRAKS_CONFIG.enabled) return res.status(404).end();
+  try {
+    const response = await fetch(TRAKS_CONFIG.scriptUrl, { signal: AbortSignal.timeout(5000) });
+    if (!response.ok) return res.status(502).end();
+    res.setHeader("Cache-Control", "no-store");
+    res.type("application/javascript").send(await response.text());
+  } catch {
+    res.status(502).end();
+  }
+});
+
+// Relay the collector's unchanged text payload to the fixed Traks origin.
+// Keeping the exact body preserves session IDs, page views, and engagement
+// seconds. The forwarded address is only for Traks' coarse geo enrichment;
+// this demo does not persist it locally.
+app.post("/api/event", express.text({ type: "text/plain", limit: "32kb" }), async (req, res) => {
+  if (!TRAKS_EVENT_URL) return res.status(404).end();
+
+  const body = typeof req.body === "string" ? req.body : "";
+  if (!body) return res.status(400).end();
+
+  let event;
+  try {
+    event = JSON.parse(body);
+  } catch {
+    return res.status(400).end();
+  }
+  if (!event || typeof event !== "object" || event.s !== TRAKS_CONFIG.siteKey || typeof event.t !== "string") {
+    return res.status(400).end();
+  }
+
+  const headers = { "Content-Type": "text/plain" };
+  const clientIp = String(req.ip || "").trim();
+  if (clientIp) {
+    headers["X-Forwarded-For"] = clientIp;
+    headers["X-Real-IP"] = clientIp;
+  }
+
+  try {
+    const upstream = await fetch(TRAKS_EVENT_URL, {
+      method: "POST",
+      headers,
+      body,
+      signal: AbortSignal.timeout(5000),
+    });
+    res.status(upstream.ok ? 204 : 502).end();
+  } catch {
+    res.status(502).end();
+  }
 });
 
 app.all("/api/*path", express.raw({ type: "*/*", limit: "15mb" }), (req, res) => {
