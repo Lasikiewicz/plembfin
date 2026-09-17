@@ -204,6 +204,14 @@ list arrives shows a loading placeholder instead of a premature "no episodes" me
   merge, so a delayed provider played-flag callback cannot repaint the episode as
   watched; a later explicit provider Mark played event or genuinely newer watch can
   establish it again.
+- **Live import and sync protection** - the detail page consumes the same live
+  sync-progress snapshot as the Sync Activity view. When a visible movie or
+  episode has pending import/dispatch telemetry, or is the active item reported
+  by a force or scheduled sync, the page shows a **Syncing…** notice and pauses
+  its watched/unwatched controls (including the affected season/show controls).
+  The notice is removed and the controls are recalculated when the item's
+  dispatch completes, so unrelated media can still be edited while a different
+  item is syncing (`isMediaSyncing`, `syncActiveMediaDetailState`).
 - **Personal ratings** - the show detail page is the source of truth for episode
   ratings. Each rating uses the parent show's provider identity plus season/episode,
   so the same episode remains one item on the Ratings page even when another surface
@@ -449,7 +457,10 @@ list arrives shows a loading placeholder instead of a premature "no episodes" me
   see `scheduled-sync.md`) watches for; left unpersisted, that sweep would
   re-dispatch the row later using its own media object, which does not carry
   this row's `watched_at`, sending Trakt today's date instead of the real one
-  this replay just correctly sent. The
+  this replay just correctly sent. The open movie/show detail also clears its
+  short-lived detail cache and re-renders from the authoritative response after
+  a single-date delete, so the removed watch disappears immediately while a
+  surviving watch keeps the episode watched without requiring a page reload. The
   per-season "Edit season date" dialog additionally offers **Remove duplicate
   watches** when any episode in the season has more than one recorded watch: it
   keeps only the oldest watch per episode and bulk-deletes the rest in a single

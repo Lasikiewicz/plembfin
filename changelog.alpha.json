@@ -1,10 +1,35 @@
 {
   "baseVersion": "1.1.1",
-  "build": 4,
-  "version": "1.1.1.4.0",
-  "updatedAt": "2026-09-16T16:22:53.133Z",
+  "build": 5,
+  "version": "1.1.1.5.0",
+  "updatedAt": "2026-09-17T11:24:51.728Z",
   "releaseMessage": "",
   "entries": [
+    {
+      "build": 5,
+      "version": "1.1.1.5.0",
+      "shortVersion": "1.1.1.5.0",
+      "date": "2026-09-17T11:24:51.728Z",
+      "commit": "f8c7ffd1d6a5020cf4767b7ee1b91f823cb41b2e",
+      "message": "Fix - Clarify Tautulli backup and import progress",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix: Clarify Tautulli backup and import progress",
+        "Fix: Use Plembfin's in-app confirmation for the multiline backup and import summary.",
+        "Fix: Show Importing while the backup and import request runs and keep the action disabled.",
+        "Fix: Confirm completion and that Plembfin is syncing imported watches to connected media servers."
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Clarify Tautulli backup and import progress",
+          "Use Plembfin's in-app confirmation for the multiline backup and import summary.",
+          "Show Importing while the backup and import request runs and keep the action disabled.",
+          "Confirm completion and that Plembfin is syncing imported watches to connected media servers."
+        ],
+        "tweaks": []
+      }
+    },
     {
       "build": 4,
       "version": "1.1.1.4.0",
@@ -132,5 +157,5 @@
       }
     }
   ],
-  "shortVersion": "1.1.1.4.0"
+  "shortVersion": "1.1.1.5.0"
 }

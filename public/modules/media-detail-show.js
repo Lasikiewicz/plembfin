@@ -1,20 +1,20 @@
-import { state, elements } from "./state.js?v=1.1.1.4.1";
-import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel, formatSeasonTitle, sourceBadgeHtml, platformSourceValues, normalizePlatformSource, actualWatchHistory, tvShowTmdbHref, tvShowTvdbHref, isDemoMode } from "./utils.js?v=1.1.1.4.1";
-import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters, isCachedStorageImageUrl } from "./images.js?v=1.1.1.4.1";
-import { isWatchedHistoryAction, renderSyncStatusDot } from "./sync.js?v=1.1.1.4.1";
-import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading, cachedShowDetail, rememberShowDetail, cachedShowDetailMiss, rememberShowDetailMiss } from "./explorer.js?v=1.1.1.4.1";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.1.1.4.1";
-import { renderWatchDatePrompt, seasonUnwatchButtonHtml, showUnwatchButtonHtml, savingEpisodeKeysForShow, markSavingEpisodeComplete, hasSavingWatchActionForShow } from "./watch-action.js?v=1.1.1.4.1";
-import { authHeaders, setMessage, syncPageTopbar, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=1.1.1.4.1";
-import { personalRatingPillHtml, personalEpisodeRatingButtonHtml, personalMediaActionsHtml } from "./personal-media.js?v=1.1.1.4.1";
-import { upNextShowActionHtml } from "./up-next.js?v=1.1.1.4.1";
+import { state, elements } from "./state.js?v=1.1.1.5.1";
+import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, slug, showTitleFrom, episodeTitle, formatDate, formatTmdbDate, formatLongAiringDate, formatEpisodeAirtime, toDateInputValue, showEpisodeKey, episodeCode, seasonLabel, formatSeasonTitle, sourceBadgeHtml, platformSourceValues, normalizePlatformSource, actualWatchHistory, tvShowTmdbHref, tvShowTvdbHref, isDemoMode } from "./utils.js?v=1.1.1.5.1";
+import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters, isCachedStorageImageUrl } from "./images.js?v=1.1.1.5.1";
+import { isWatchedHistoryAction, isMediaSyncing, mediaSyncNoticeHtml, renderSyncStatusDot } from "./sync.js?v=1.1.1.5.1";
+import { mergeShowDetail, loadShowDetail, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, syncInlineMediaDetailHeading, cachedShowDetail, rememberShowDetail, cachedShowDetailMiss, rememberShowDetailMiss } from "./explorer.js?v=1.1.1.5.1";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.1.1.5.1";
+import { renderWatchDatePrompt, seasonUnwatchButtonHtml, showUnwatchButtonHtml, savingEpisodeKeysForShow, markSavingEpisodeComplete, hasSavingWatchActionForShow } from "./watch-action.js?v=1.1.1.5.1";
+import { authHeaders, setMessage, syncPageTopbar, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, prepareInlineMediaDetail, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=1.1.1.5.1";
+import { personalRatingPillHtml, personalEpisodeRatingButtonHtml, personalMediaActionsHtml } from "./personal-media.js?v=1.1.1.5.1";
+import { upNextShowActionHtml } from "./up-next.js?v=1.1.1.5.1";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderRelatedShowsSection,
   renderMediaFacts, renderMediaImagesSection, renderExternalRatingPills, ratingPillHtml,
   renderSeasonSeerrControls, renderSeerrRequestPill, fetchSeerrMediaStatus,
   refreshActiveMediaDetailAfterSeerrStatus, tvSeasonAvailabilityHtml, episodeResolutionPillHtml,
   hydrateMediaAppLinks, mediaAppLinksHtml,
-} from "./media-detail-shared.js?v=1.1.1.4.1";
+} from "./media-detail-shared.js?v=1.1.1.5.1";
 
 let _playbackProgressRows = [];
 let _playbackProgressLoaded = false;
@@ -1390,6 +1390,7 @@ function renderEpisodeRowHtml(episode, {
   const episodeWatchHistoryPending = Boolean(watchHistoryLoading && episode.watched && !hasWatchHistory);
   const episodeBusy = savingEpisodeKeys.has(episode.key);
   const episodeUnwatching = Boolean(episode.watched && state.savingUnwatchIds.has(episode.watched.id));
+  const episodeSyncing = isMediaSyncing(episode.watched || episode);
   const episodeTilesLoading = Boolean(loading || watchHistoryLoading || seasonDataPending);
   const personalEpisodeRatingHtml = personalEpisodeRatingButtonHtml({
     media_type: "episode",
@@ -1410,10 +1411,10 @@ function renderEpisodeRowHtml(episode, {
     episode: episode.episodeNumber,
   });
   return `
-            <article class="immersive-episode-row ${episode.watched ? "is-watched" : ""} ${episodeIsUnreleased ? "is-unreleased" : ""} ${isHighlighted ? "is-highlighted" : ""} ${(episodeBusy || episodeUnwatching) ? "is-saving" : ""} ${episodeTilesLoading ? "is-loading-data" : ""}" ${isHighlighted ? 'id="highlightedEpisode"' : ""} ${episodeTilesLoading ? 'aria-busy="true"' : ""} data-immersive-episode-key="${escapeAttribute(episode.key)}" data-immersive-episode-num="${episode.episodeNumber}" data-immersive-season-num="${episode.seasonNumber}">
+            <article class="immersive-episode-row ${episode.watched ? "is-watched" : ""} ${episodeIsUnreleased ? "is-unreleased" : ""} ${isHighlighted ? "is-highlighted" : ""} ${(episodeBusy || episodeUnwatching || episodeSyncing) ? "is-saving" : ""} ${episodeTilesLoading ? "is-loading-data" : ""}" ${isHighlighted ? 'id="highlightedEpisode"' : ""} ${episodeTilesLoading || episodeSyncing ? 'aria-busy="true"' : ""} data-immersive-episode-key="${escapeAttribute(episode.key)}" data-immersive-episode-num="${episode.episodeNumber}" data-immersive-season-num="${episode.seasonNumber}">
               <div class="episode-thumb-wrap">
                 ${episodeThumbMarkup(episode, hideSpoilers)}
-                ${(episodeBusy || episodeUnwatching) ? `<span class="episode-thumb-syncing">Syncing…</span>` : ""}
+                ${(episodeBusy || episodeUnwatching || episodeSyncing) ? `<span class="episode-thumb-syncing">Syncing…</span>` : ""}
               </div>
               <div class="immersive-episode-copy">
                 <div class="immersive-episode-title-row">
@@ -1435,11 +1436,11 @@ function renderEpisodeRowHtml(episode, {
                     ${episodeIsUnreleased
         ? `<span class="unreleased-pill">Not yet released</span>`
         : !episode.watched
-          ? episodeBusy
-            ? `<button class="action-pill" type="button" disabled>Saving…</button>`
+          ? episodeBusy || episodeSyncing
+            ? `<button class="action-pill" type="button" disabled>${episodeSyncing ? "Syncing…" : "Saving…"}</button>`
             : `<button class="action-pill" type="button" data-watch-scope="episode" data-episode-key="${escapeAttribute(episode.key)}">Mark watched</button>`
-          : episodeUnwatching
-            ? `<button class="action-pill action-pill-ghost" type="button" disabled>Unwatching…</button>`
+          : episodeUnwatching || episodeSyncing
+            ? `<button class="action-pill action-pill-ghost" type="button" disabled>${episodeSyncing ? "Syncing…" : "Unwatching…"}</button>`
             : `<button class="action-pill action-pill-ghost" type="button" ${episodeBusy ? "disabled" : ""} data-unwatch-id="${escapeAttribute(episode.watched.id)}" data-unwatch-kind="episode" data-unwatch-label="${escapeAttribute(`${episodeCode(episode.seasonNumber, episode.episodeNumber)} ${episode.title}`)}" data-show-title="${escapeAttribute(episode.showTitle || showTitle)}">Mark unwatched</button>`}
                   </span>
                 </div>
@@ -1475,6 +1476,7 @@ function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitl
   // other seasons stay clickable in the meantime.
   const seasonBusy = hasSavingWatchActionForShow(showTitle, seasonNumber)
     || seasonEpisodes.some((episode) => savingEpisodeKeys.has(episode.key));
+  const seasonSyncing = seasonEpisodes.some((episode) => isMediaSyncing(episode.watched || episode));
   const episodeTilesLoading = Boolean(loading || watchHistoryLoading || seasonDataPending);
   return `
     <section class="show-season-block" id="showSeason${seasonNumber}">
@@ -1485,11 +1487,11 @@ function renderSeasonPanelHtml(seasonNumber, seasonRecord, episodeRows, showTitl
         </span>
         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
           ${seasonSeerrControls}
-          ${seasonSummary.watchedInSeason ? `<button class="action-pill" type="button" data-edit-season-date="${seasonNumber}" ${(seasonBusy || seasonRemoving) ? "disabled" : ""}>Edit season date</button>` : ""}
-          <button class="action-pill" type="button" data-watch-scope="season" data-season-number="${seasonNumber}" ${(seasonEpisodes.length && !seasonBusy && !seasonRemoving) ? "" : "disabled"}
+          ${seasonSummary.watchedInSeason ? `<button class="action-pill" type="button" data-edit-season-date="${seasonNumber}" ${(seasonBusy || seasonRemoving || seasonSyncing) ? "disabled" : ""}>Edit season date</button>` : ""}
+          <button class="action-pill" type="button" data-watch-scope="season" data-season-number="${seasonNumber}" ${(seasonEpisodes.length && !seasonBusy && !seasonRemoving && !seasonSyncing) ? "" : "disabled"}
             title="${seasonUnreleased.length ? "Some episodes are unreleased and will require confirmation" : seasonUnwatched.length ? "" : "Re-push this season's watched state to Plex, Emby, Jellyfin & Trakt"}">
-            ${seasonBusy ? "Saving…" : seasonUnwatched.length || seasonUnreleased.length ? "Mark season watched" : "Resync season"}
-          </button>${seasonUnwatchButtonHtml(seasonEpisodes.filter((episode) => episode.watched).map((episode) => episode.watched.id), seasonNumber, showTitle, seasonBusy, seasonRemoving)}
+            ${seasonSyncing ? "Syncing…" : seasonBusy ? "Saving…" : seasonUnwatched.length || seasonUnreleased.length ? "Mark season watched" : "Resync season"}
+          </button>${seasonUnwatchButtonHtml(seasonEpisodes.filter((episode) => episode.watched).map((episode) => episode.watched.id), seasonNumber, showTitle, seasonBusy || seasonSyncing, seasonRemoving)}
         </div>
       </div>
       <div class="show-episode-list">
@@ -1555,6 +1557,8 @@ export function renderShowModalContent(show, {
   const episodeRows = buildShowEpisodeRows(show, seasonsList, seasonDetailsByNumber, tmdbData?.id || show.tmdb_id || "", tmdbData);
   const regularEpisodeRows = episodeRows.filter((episode) => Number(episode.seasonNumber) > 0);
   const watchedRows = regularEpisodeRows.filter((episode) => episode.watched);
+  const syncingEpisodeRows = regularEpisodeRows.filter((episode) => isMediaSyncing(episode.watched || episode));
+  const showSyncing = syncingEpisodeRows.length > 0;
   const showWatchSummary = watchSummaryForRows(regularEpisodeRows);
   const metadataEpisodeCount = regularSeasonsList.reduce((total, season) => total + Number(season.episode_count || 0), 0);
   const totalCount = Math.max(regularEpisodeRows.length, metadataEpisodeCount, watchedRows.length, 1);
@@ -1690,10 +1694,13 @@ export function renderShowModalContent(show, {
     // watch action can take a while for a season this size, so this collapsed
     // row should say so instead of showing a stale watched count until the
     // whole thing settles.
+    const seasonSyncing = seasonEpisodes.some((episode) => isMediaSyncing(episode.watched || episode));
     const seasonSaving = hasSavingWatchActionForShow(showTitle, seasonNumber)
       || seasonEpisodes.some((episode) => savingEpisodeKeys.has(episode.key));
     const seasonUnwatching = seasonEpisodes.some((episode) => episode.watched && state.savingUnwatchIds.has(episode.watched.id));
-    const watchedText = seasonSaving
+    const watchedText = seasonSyncing
+      ? "Syncing…"
+      : seasonSaving
       ? "Saving…"
       : seasonUnwatching
         ? "Removing…"
@@ -1702,7 +1709,7 @@ export function renderShowModalContent(show, {
           : "";
     const seasonAvailabilityHtml = tvSeasonAvailabilityHtml(tvSeerrStatus, seasonNumber);
     return `
-      <article class="season-accordion ${isActive ? "is-open" : ""} ${(!isActive && (seasonSaving || seasonUnwatching)) ? "is-saving" : ""}">
+      <article class="season-accordion ${isActive ? "is-open" : ""} ${(!isActive && (seasonSaving || seasonUnwatching || seasonSyncing)) ? "is-saving" : ""}">
         <button class="season-accordion-trigger" type="button" data-season-accordion="${seasonNumber}" aria-expanded="${isActive}" aria-controls="${panelId}">
           <span class="season-row-title"><strong>${escapeHtml(formatSeasonTitle(seasonNumber, season.name))}</strong></span>
           <span class="season-row-col season-row-episodes">${escapeHtml(episodeCountText)}</span>
@@ -1759,11 +1766,11 @@ export function renderShowModalContent(show, {
       <span>Hide <br>Spoilers</span>
     </label>
     ${hasPotentialUnwatchedEpisodes ? `
-      <button class="action-pill" type="button" data-watch-scope="show" ${(canStartShowWatch && !isShowBusy && !showRemoving) ? "" : "disabled"}>
+      <button class="action-pill" type="button" data-watch-scope="show" ${(canStartShowWatch && !isShowBusy && !showRemoving && !showSyncing) ? "" : "disabled"}>
         ${checkIcon}
-        <span>${isShowBusy ? "Saving..." : "Mark <br>Watched"}</span>
+        <span>${showSyncing ? "Syncing…" : isShowBusy ? "Saving..." : "Mark <br>Watched"}</span>
       </button>` : ""}
-    ${showUnwatchButtonHtml(watchedRows.map((episode) => episode.watched.id), showTitle, isShowBusy, showRemoving)}
+    ${showUnwatchButtonHtml(watchedRows.map((episode) => episode.watched.id), showTitle, isShowBusy || showSyncing, showRemoving)}
     ${tmdbOnly ? "" : `
       ${orphanHistoryId ? `
         <button class="action-pill media-remove-history-btn action-pill--danger" type="button" data-delete-history-id="${escapeAttribute(orphanHistoryId)}">
@@ -1777,7 +1784,7 @@ export function renderShowModalContent(show, {
         tmdbId: tmdbData?.id || show.tmdb_id || "",
         tvdbId: tmdbData?.external_ids?.tvdb_id || show.tvdb_id || "",
         imdbId: tmdbData?.external_ids?.imdb_id || show.imdb_id || "",
-        disabled: isShowBusy,
+        disabled: isShowBusy || showSyncing,
         seasons: [...regularSeasonsList]
           .sort((a, b) => Number(a.season_number) - Number(b.season_number))
           .map((season) => ({ number: Number(season.season_number), episodeCount: Number(season.episode_count || 0) })),
@@ -1808,6 +1815,7 @@ export function renderShowModalContent(show, {
   const modalMarkup = `
       <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(backdropUrl || posterUrl || "")}');"></div>
       <div class="immersive-container media-detail-page">
+        ${mediaSyncNoticeHtml(syncingEpisodeRows.map((episode) => episode.watched || episode), "this show")}
 
         <header class="immersive-header">
           <div class="immersive-poster-frame${loading ? " is-loading" : ""}"${loading ? ' aria-busy="true"' : ""}>
@@ -2027,15 +2035,30 @@ export function syncShowModalWatchActionControls() {
   const current = state.activeShowRenderContext;
   const root = mediaDetailRoot();
   if (!current?.show || !root) return false;
+  const actionRoot = typeof document?.getElementById === "function"
+    ? document.getElementById("mediaDetailActions") || root
+    : root;
 
   const episodes = Array.isArray(state.showModalEpisodes) ? state.showModalEpisodes : [];
   const showTitle = sanitizeTitle(current.show.title) || "Unknown Show";
   const savingEpisodeKeys = savingEpisodeKeysForShow(showTitle);
   const showBusy = savingEpisodeKeys.size > 0 || hasSavingWatchActionForShow(showTitle);
   const showRemoving = episodes.some((episode) => episode.watched && state.savingUnwatchIds.has(episode.watched.id));
+  const syncingEpisodeKeys = new Set(episodes
+    .filter((episode) => isMediaSyncing(episode.watched || episode))
+    .map((episode) => episode.key));
+  const showSyncing = syncingEpisodeKeys.size > 0;
   const regularEpisodes = episodes.filter((episode) => Number(episode.seasonNumber) > 0);
   const regularSeasons = (Array.isArray(current.tmdbData?.seasons) ? current.tmdbData.seasons : [])
     .filter((season) => Number(season.season_number) > 0);
+  const episodeByKey = new Map(episodes.map((episode) => [String(episode.key || ""), episode]));
+  const episodesBySeason = new Map();
+  for (const episode of episodes) {
+    const seasonNumber = Number(episode.seasonNumber);
+    const seasonEpisodes = episodesBySeason.get(seasonNumber) || [];
+    seasonEpisodes.push(episode);
+    episodesBySeason.set(seasonNumber, seasonEpisodes);
+  }
   const metadataEpisodeCount = regularSeasons.reduce((total, season) => total + Number(season.episode_count || 0), 0);
   const watchedCount = regularEpisodes.filter((episode) => episode.watched).length;
   const hasPotentialUnwatchedEpisodes = regularEpisodes.some((episode) => (
@@ -2043,27 +2066,29 @@ export function syncShowModalWatchActionControls() {
   )) || watchedCount < metadataEpisodeCount;
   const canStartShowWatch = episodes.length > 0 || metadataEpisodeCount > 0;
 
-  const showButton = root.querySelector?.('[data-watch-scope="show"]');
+  const showButton = actionRoot.querySelector?.('[data-watch-scope="show"]');
   if (showButton) {
-    showButton.disabled = !canStartShowWatch || showBusy || showRemoving || !hasPotentialUnwatchedEpisodes;
+    showButton.disabled = !canStartShowWatch || showBusy || showRemoving || showSyncing || !hasPotentialUnwatchedEpisodes;
     showButton.hidden = !hasPotentialUnwatchedEpisodes;
     const label = showButton.querySelector?.("span");
-    if (label) label.innerHTML = showBusy ? "Saving..." : "Mark <br>Watched";
+    if (label) label.innerHTML = showSyncing ? "Syncing…" : showBusy ? "Saving..." : "Mark <br>Watched";
   }
 
-  const showUnwatchButton = root.querySelector?.('[data-unwatch-kind="show"]');
+  const showUnwatchButton = actionRoot.querySelector?.('[data-unwatch-kind="show"]');
   if (showUnwatchButton) {
-    showUnwatchButton.disabled = showBusy || showRemoving;
+    showUnwatchButton.disabled = showBusy || showRemoving || showSyncing;
     const label = showUnwatchButton.querySelector?.("span");
-    if (label) label.innerHTML = showRemoving ? "Unwatching…" : "Mark <br>Unwatched";
+    if (label) label.innerHTML = showSyncing ? "Syncing…" : showRemoving ? "Unwatching…" : "Mark <br>Unwatched";
   }
 
   const seasonMetadataByNumber = new Map(
     (Array.isArray(current.tmdbData?.seasons) ? current.tmdbData.seasons : [])
       .map((season) => [Number(season.season_number), season]),
   );
+  const seasonStateCache = new Map();
   const seasonDisplayState = (seasonNumber) => {
-    const seasonEpisodes = episodes.filter((episode) => Number(episode.seasonNumber) === seasonNumber);
+    if (seasonStateCache.has(seasonNumber)) return seasonStateCache.get(seasonNumber);
+    const seasonEpisodes = episodesBySeason.get(seasonNumber) || [];
     const seasonUnwatched = seasonEpisodes.filter((episode) => (
       !episode.watched && !episodeIsUnreleasedForWatchControl(episode)
     ));
@@ -2072,6 +2097,7 @@ export function syncShowModalWatchActionControls() {
     ));
     const seasonBusy = hasSavingWatchActionForShow(showTitle, seasonNumber)
       || seasonEpisodes.some((episode) => savingEpisodeKeys.has(episode.key));
+    const seasonSyncing = seasonEpisodes.some((episode) => syncingEpisodeKeys.has(episode.key));
     const seasonRemoving = seasonEpisodes.some((episode) => episode.watched && state.savingUnwatchIds.has(episode.watched.id));
     const watchedInSeason = seasonEpisodes.filter((episode) => episode.watched).length;
     const totalWatches = watchSummaryForRows(seasonEpisodes).totalWatches;
@@ -2081,7 +2107,9 @@ export function syncShowModalWatchActionControls() {
     const collapsedLabel = watchedInSeason
       ? `${watchedInSeason} watched${totalWatches > watchedInSeason ? ` · ${totalWatches} plays` : ""}`
       : "";
-    return { seasonEpisodes, seasonUnwatched, seasonUnreleased, seasonBusy, seasonRemoving, normalLabel, collapsedLabel };
+    const result = { seasonEpisodes, seasonUnwatched, seasonUnreleased, seasonBusy, seasonRemoving, seasonSyncing, normalLabel, collapsedLabel };
+    seasonStateCache.set(seasonNumber, result);
+    return result;
   };
 
   // Update both the mounted season panel and collapsed season rows. The latter
@@ -2094,32 +2122,56 @@ export function syncShowModalWatchActionControls() {
     if (!accordion) return;
     const watchedCell = accordion.querySelector?.(".season-row-watched");
     if (watchedCell) {
-      watchedCell.textContent = season.seasonBusy ? "Saving…" : season.seasonRemoving ? "Removing…" : season.collapsedLabel;
+      watchedCell.textContent = season.seasonSyncing ? "Syncing…" : season.seasonBusy ? "Saving…" : season.seasonRemoving ? "Removing…" : season.collapsedLabel;
     }
-    accordion.classList.toggle("is-saving", season.seasonBusy || season.seasonRemoving);
-    if (season.seasonBusy || season.seasonRemoving) accordion.setAttribute("aria-busy", "true");
+    accordion.classList.toggle("is-saving", season.seasonBusy || season.seasonRemoving || season.seasonSyncing);
+    if (season.seasonBusy || season.seasonRemoving || season.seasonSyncing) accordion.setAttribute("aria-busy", "true");
     else accordion.removeAttribute("aria-busy");
   });
 
   root.querySelectorAll?.('[data-watch-scope="season"]').forEach((button) => {
     const seasonNumber = Number(button.dataset?.seasonNumber);
     const season = seasonDisplayState(seasonNumber);
-    button.disabled = !season.seasonEpisodes.length || season.seasonBusy || season.seasonRemoving;
-    button.textContent = season.seasonBusy ? "Saving…" : season.seasonUnwatched.length || season.seasonUnreleased.length ? "Mark season watched" : "Resync season";
+    button.disabled = !season.seasonEpisodes.length || season.seasonBusy || season.seasonRemoving || season.seasonSyncing;
+    button.textContent = season.seasonSyncing ? "Syncing…" : season.seasonBusy ? "Saving…" : season.seasonUnwatched.length || season.seasonUnreleased.length ? "Mark season watched" : "Resync season";
     button.title = season.seasonUnreleased.length
       ? "Some episodes are unreleased and will require confirmation"
       : season.seasonUnwatched.length ? "" : "Re-push this season's watched state to Plex, Emby, Jellyfin & Trakt";
 
     const seasonBlock = button.closest?.(".show-season-block");
     const seasonLabel = seasonBlock?.querySelector?.(".show-season-label");
-    if (seasonLabel) seasonLabel.textContent = season.seasonBusy ? "Saving…" : season.seasonRemoving ? "Removing…" : season.normalLabel;
+    if (seasonLabel) seasonLabel.textContent = season.seasonSyncing ? "Syncing…" : season.seasonBusy ? "Saving…" : season.seasonRemoving ? "Removing…" : season.normalLabel;
     const accordion = seasonBlock?.closest?.(".season-accordion");
     if (accordion) {
-      accordion.classList.toggle("is-saving", season.seasonBusy || season.seasonRemoving);
-      if (season.seasonBusy || season.seasonRemoving) accordion.setAttribute("aria-busy", "true");
+      accordion.classList.toggle("is-saving", season.seasonBusy || season.seasonRemoving || season.seasonSyncing);
+      if (season.seasonBusy || season.seasonRemoving || season.seasonSyncing) accordion.setAttribute("aria-busy", "true");
       else accordion.removeAttribute("aria-busy");
     }
   });
+
+  root.querySelectorAll?.("[data-immersive-episode-key]").forEach((article) => {
+    const episode = episodeByKey.get(String(article.dataset.immersiveEpisodeKey || ""));
+    if (!episode) return;
+    const syncing = syncingEpisodeKeys.has(episode.key);
+    const episodeBusy = savingEpisodeKeys.has(episode.key);
+    const episodeUnwatching = Boolean(episode.watched && state.savingUnwatchIds.has(episode.watched.id));
+    article.classList.toggle("is-syncing", syncing);
+    if (syncing) article.setAttribute("aria-busy", "true");
+    else if (!episodeBusy && !episodeUnwatching) article.removeAttribute("aria-busy");
+    article.querySelectorAll?.('[data-watch-scope="episode"], [data-unwatch-kind="episode"]').forEach((button) => {
+      button.disabled = syncing || episodeBusy || episodeUnwatching;
+      if (syncing) button.title = "This episode is syncing; watch changes are paused until it completes.";
+      else button.removeAttribute("title");
+    });
+  });
+
+  const notice = root.querySelector?.("[data-media-detail-sync-notice]");
+  if (showSyncing && !notice) {
+    const page = root.querySelector?.(".media-detail-page");
+    page?.insertAdjacentHTML("afterbegin", mediaSyncNoticeHtml(episodes.map((episode) => episode.watched || episode), "this show"));
+  } else if (!showSyncing) {
+    notice?.remove();
+  }
 
   return true;
 }

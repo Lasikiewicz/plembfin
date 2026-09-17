@@ -1,23 +1,23 @@
-import { state, elements } from "./state.js?v=1.1.1.4.1";
-import { slug, movieSlug, movieHref, movieTmdbHref, tvShowTmdbHref, showName, showTitleFrom } from "./utils.js?v=1.1.1.4.1";
-import { dedupeMediaRecords } from "./dashboard.js?v=1.1.1.4.1";
-import { isWatchedHistoryAction } from "./sync.js?v=1.1.1.4.1";
+import { state, elements } from "./state.js?v=1.1.1.5.1";
+import { slug, movieSlug, movieHref, movieTmdbHref, tvShowTmdbHref, showName, showTitleFrom } from "./utils.js?v=1.1.1.5.1";
+import { dedupeMediaRecords } from "./dashboard.js?v=1.1.1.5.1";
+import { isWatchedHistoryAction } from "./sync.js?v=1.1.1.5.1";
 import {
   initMediaDetail, authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions,
   prepareInlineMediaDetail, syncMediaActionsMenuState, syncTopbarControlsMenuState,
   openDebugModal, closeDebugModal, clearMediaDetailState, closeMediaDetail,
   openMediaInfoModal, closeMediaInfoModal,
   bumpMediaRenderToken, currentMediaRenderToken,
-} from "./media-detail-context.js?v=1.1.1.4.1";
+} from "./media-detail-context.js?v=1.1.1.5.1";
 import {
   openShowImmersiveModalByTitle, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openShowInlineDetail,
   renderImmersiveShowModal, renderShowModalContent, ensureAllShowEpisodeDetailsForWatch, patchShowModalEpisodeFromLive, patchShowModalEpisodesSavingState, syncShowModalWatchActionControls, scrollSeasonAccordionIntoView,
-} from "./media-detail-show.js?v=1.1.1.4.1";
+} from "./media-detail-show.js?v=1.1.1.5.1";
 import {
-  renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, patchMovieWatchedState,
-} from "./media-detail-movie.js?v=1.1.1.4.1";
-import { fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail-shared.js?v=1.1.1.4.1";
-import { fetchTmdbDetails } from "./tmdb.js?v=1.1.1.4.1";
+  renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, patchMovieWatchedState, syncMovieWatchActionControls,
+} from "./media-detail-movie.js?v=1.1.1.5.1";
+import { fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail-shared.js?v=1.1.1.5.1";
+import { fetchTmdbDetails } from "./tmdb.js?v=1.1.1.5.1";
 
 export {
   initMediaDetail,
@@ -43,9 +43,16 @@ export {
   renderMovieImmersiveModalContent,
   openMovieImmersiveModalByTmdbId,
   patchMovieWatchedState,
+  syncMovieWatchActionControls,
   fetchSeerrMediaStatus,
   refreshActiveMediaDetailAfterSeerrStatus,
 };
+
+export function syncActiveMediaDetailState() {
+  const showUpdated = syncShowModalWatchActionControls();
+  const movieUpdated = syncMovieWatchActionControls();
+  return showUpdated || movieUpdated;
+}
 
 export function historyById(id) {
   return state.history.find((entry) => String(entry.id) === String(id));

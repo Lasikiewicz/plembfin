@@ -1,10 +1,10 @@
-import { state } from "./state.js?v=1.1.1.4.1";
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.4.1";
-import { escapeAttribute, escapeHtml } from "./utils.js?v=1.1.1.4.1";
+import { state } from "./state.js?v=1.1.1.5.1";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.5.1";
+import { escapeAttribute, escapeHtml } from "./utils.js?v=1.1.1.5.1";
 import {
   PLEX_HISTORICAL_SYNC_LABEL,
   plexHistoricalSyncEnabled,
-} from "./plex-history-policy.js?v=1.1.1.4.1";
+} from "./plex-history-policy.js?v=1.1.1.5.1";
 
 let bound = false;
 let preview = null;
@@ -16,6 +16,8 @@ let previewPending = false;
 let previewTimer = null;
 let previewStartedAt = 0;
 let previewPhase = "starting";
+let backupPending = false;
+let backupDecision = "pending";
 let importPending = false;
 let _openConfirmDialog = async () => false;
 
@@ -66,7 +68,10 @@ function updateActionState() {
   const userId = el("tautulliUserId")?.value || config.userId || "";
   const ready = Boolean(config.configured);
   if (el("tautulliPreviewButton")) el("tautulliPreviewButton").disabled = previewPending || !ready || !userId;
-  if (el("tautulliImportButton")) el("tautulliImportButton").disabled = importPending || previewPending || !ready || !userId || !preview || preview.result?.new === 0;
+  const hasImportableRecords = Boolean(preview && preview.result?.new !== 0);
+  if (el("tautulliBackupButton")) el("tautulliBackupButton").disabled = backupPending || importPending || previewPending || !ready || !userId || !hasImportableRecords || backupDecision !== "pending";
+  if (el("tautulliSkipBackupButton")) el("tautulliSkipBackupButton").disabled = backupPending || importPending || previewPending || !ready || !userId || !hasImportableRecords || backupDecision !== "pending";
+  if (el("tautulliImportButton")) el("tautulliImportButton").disabled = importPending || backupPending || previewPending || !ready || !userId || !hasImportableRecords || backupDecision === "pending";
 }
 
 function previewElapsedLabel(startedAt) {
@@ -114,7 +119,7 @@ function setPreviewProgress(status = null) {
       : hasTotal
         ? `Read ${Number(progress.completed || 0).toLocaleString()} of ${Number(progress.total).toLocaleString()} history records (${percent}%).`
         : "Reading completed movie and episode history…";
-  const summary = el("tautulliImportSummary");
+  const summary = el("tautulliPreviewSummary");
   if (summary && status.phase === "preparing") {
     summary.textContent = "[working] Matching completed plays against existing Plembfin history and preparing the preview summary.";
   }
@@ -125,9 +130,22 @@ function startPreviewProgress() {
   previewPhase = "starting";
   previewPending = true;
   importStatus();
+  backupDecision = "pending";
+  if (el("tautulliBackupButton")) el("tautulliBackupButton").textContent = "Create backup (Recommended)";
+  if (el("tautulliImportButton")) el("tautulliImportButton").textContent = "Import Tautulli history";
+  setOperationProgress("tautulliBackup");
+  setOperationProgress("tautulliImport");
+  if (el("tautulliBackupStatus")) {
+    el("tautulliBackupStatus").textContent = "";
+    el("tautulliBackupStatus").style.display = "none";
+  }
+  if (el("tautulliImportStatus")) {
+    el("tautulliImportStatus").textContent = "";
+    el("tautulliImportStatus").style.display = "none";
+  }
   updateActionState();
-  if (el("tautulliImportSummary")) {
-    el("tautulliImportSummary").textContent = "[working] Checking the history size first, then reading completed movie and episode records from Tautulli.";
+  if (el("tautulliPreviewSummary")) {
+    el("tautulliPreviewSummary").textContent = "[working] Checking the history size first, then reading completed movie and episode records from Tautulli.";
   }
   setPreviewProgress({ phase: previewPhase, progress: {} });
   message(previewElapsedLabel(previewStartedAt), "muted", "tautulliPreviewMessage");
@@ -141,6 +159,30 @@ function stopPreviewProgress() {
   setPreviewProgress();
   previewPending = false;
   updateActionState();
+}
+
+function setOperationProgress(prefix, text = "", state = "working") {
+  const container = el(`${prefix}Progress`);
+  const bar = el(`${prefix}ProgressBar`);
+  const status = el(`${prefix}ProgressText`);
+  if (!container || !bar || !status) return;
+  if (!text) {
+    container.hidden = true;
+    status.hidden = true;
+    container.classList.remove("is-indeterminate", "is-complete", "is-error");
+    bar.style.width = "0%";
+    return;
+  }
+  const complete = state === "complete";
+  container.hidden = false;
+  container.classList.toggle("is-indeterminate", state === "working");
+  container.classList.toggle("is-complete", complete);
+  container.classList.toggle("is-error", state === "error");
+  bar.style.width = complete ? "100%" : "35%";
+  container.setAttribute("aria-valuenow", complete ? "100" : "0");
+  status.hidden = false;
+  status.textContent = text;
+  status.className = `tautulli-operation-progress-text ${state === "error" ? "is-error" : complete ? "is-complete" : ""}`;
 }
 
 async function readPreviewJob(body) {
@@ -373,7 +415,7 @@ async function loadStatus() {
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || "Tautulli status failed");
   const latest = body.latestBackup;
-  const node = el("tautulliBackupStatus");
+  const node = el("tautulliLastBackupStatus");
   if (node) node.textContent = latest ? `Last local backup: ${latest.name} (${new Date(latest.createdAt).toLocaleString()})` : "No local backup yet. One will be created automatically before import.";
 }
 async function testAndLoadUsers() {
@@ -439,8 +481,8 @@ async function previewImport() {
       "Where this import will be sent:",
       ...(result.targetPlan || []).map((entry) => `• ${TARGET_LABELS[entry.target] || entry.target}: ${DECISION_COPY[entry.decision] || entry.decision}`),
     ].join("\n");
-    if (el("tautulliImportSummary")) el("tautulliImportSummary").textContent = summary;
-    if (el("tautulliImportButton")) el("tautulliImportButton").disabled = result.new === 0;
+    if (el("tautulliPreviewSummary")) el("tautulliPreviewSummary").textContent = summary;
+    backupDecision = "pending";
     const pending = Number(result.needs_review || 0);
     message(
       pending
@@ -457,7 +499,7 @@ async function previewImport() {
 // because the policy decides whether Plex sees this import at all and the user
 // should not discover that afterwards.
 function importConfirmationText(result = {}) {
-  const lines = [`Create a local backup and import ${Number(result.new || 0)} new Tautulli watch record(s)?`];
+  const lines = [`Import ${Number(result.new || 0)} new Tautulli watch record(s)?`];
   const pending = Number(result.needs_review || 0);
   if (pending) lines.push(`${pending} play(s) with more than one possible match have no decision yet and will NOT be imported.`);
   for (const entry of result.targetPlan || []) {
@@ -471,11 +513,11 @@ function importConfirmationText(result = {}) {
 }
 
 async function runImport() {
-  if (!preview) return previewImport();
+  if (!preview || backupDecision === "pending") return;
   const confirmed = await _openConfirmDialog({
     title: "Confirm Tautulli import",
     body: importConfirmationText(preview.result),
-    confirmLabel: "Create backup & import",
+    confirmLabel: "Import Tautulli history",
     cancelLabel: "Cancel",
   });
   if (!confirmed) return;
@@ -483,9 +525,9 @@ async function runImport() {
   updateActionState();
   const importButton = el("tautulliImportButton");
   if (importButton) importButton.textContent = "Importing…";
-  const body = { ...preview.body, reviewDecisions, backup: true };
-  importStatus("Importing Tautulli history and creating a local backup…", "muted", true);
-  message("Importing Tautulli history…", "muted", "tautulliPreviewMessage");
+  const body = { ...preview.body, reviewDecisions, backup: false };
+  setOperationProgress("tautulliImport", "Importing Tautulli history…", "working");
+  importStatus("Importing Tautulli history…", "muted", true);
   const response = await fetch("/api/tautulli/import", { method: "POST", headers: headers(true), body: JSON.stringify(body) });
   const result = await response.json().catch(() => ({}));
   if (!response.ok || !result.ok) throw new Error(result.error || "Tautulli import failed");
@@ -520,19 +562,76 @@ async function runImport() {
     importButton.disabled = true;
     importButton.textContent = "Import complete";
   }
+  setOperationProgress("tautulliImport", "Import complete.", "complete");
   importStatus("Import complete. Plembfin is now syncing imported watches to your connected media servers.", "success");
-  message("Import complete — now syncing imported watches…", "success", "tautulliPreviewMessage");
   await loadStatus().catch(() => null);
+}
+
+async function runBackup() {
+  if (!preview || backupDecision !== "pending" || backupPending) return;
+  backupPending = true;
+  updateActionState();
+  const backupButton = el("tautulliBackupButton");
+  if (backupButton) backupButton.textContent = "Creating backup…";
+  setOperationProgress("tautulliBackup", "Creating a local watch-history backup…", "working");
+  const status = el("tautulliBackupStatus");
+  if (status) {
+    status.textContent = "Creating a restore point before import…";
+    status.className = "message tautulli-operation-status muted";
+    status.style.display = "block";
+  }
+  try {
+    const response = await fetch("/api/tautulli/backup", {
+      method: "POST",
+      headers: headers(true),
+      body: JSON.stringify({}),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.ok) throw new Error(result.error || "Tautulli backup failed");
+    backupDecision = "created";
+    backupPending = false;
+    if (backupButton) backupButton.textContent = "Backup complete";
+    setOperationProgress("tautulliBackup", "Backup complete. Your restore point is ready.", "complete");
+    if (status) {
+      status.textContent = `Backup complete${result.backup?.name ? `: ${result.backup.name}` : ""}. Import is ready when you are.`;
+      status.className = "message tautulli-operation-status success";
+    }
+    await loadStatus().catch(() => null);
+    updateActionState();
+  } catch (error) {
+    backupPending = false;
+    if (backupButton) backupButton.textContent = "Create backup (Recommended)";
+    setOperationProgress("tautulliBackup", error?.message || "Tautulli backup failed", "error");
+    if (status) {
+      status.textContent = error?.message || "Tautulli backup failed";
+      status.className = "message tautulli-operation-status error";
+    }
+    updateActionState();
+    throw error;
+  }
+}
+
+function skipBackup() {
+  if (!preview || backupDecision !== "pending" || backupPending) return;
+  backupDecision = "skipped";
+  setOperationProgress("tautulliBackup");
+  const status = el("tautulliBackupStatus");
+  if (status) {
+    status.textContent = "Backup skipped. You can continue, but there is no pre-import restore point for this import.";
+    status.className = "message tautulli-operation-status warning";
+    status.style.display = "block";
+  }
+  updateActionState();
 }
 
 function handleImportError(error) {
   importPending = false;
   const importButton = el("tautulliImportButton");
-  if (importButton) importButton.textContent = "Back up & import";
+  if (importButton) importButton.textContent = "Import Tautulli history";
   updateActionState();
   const text = error?.message || "Tautulli import failed";
+  setOperationProgress("tautulliImport", text, "error");
   importStatus(text, "error");
-  message(text, "error", "tautulliPreviewMessage");
 }
 
 function handleReviewClick(event) {
@@ -566,6 +665,8 @@ export function initTautulliImport(callbacks = {}) {
   el("tautulliTestButton")?.addEventListener("click", () => testAndLoadUsers().catch((error) => message(error.message, "error")));
   el("tautulliUserId")?.addEventListener("change", updateActionState);
   el("tautulliPreviewButton")?.addEventListener("click", () => previewImport().catch((error) => message(error.message, "error", "tautulliPreviewMessage")));
+  el("tautulliBackupButton")?.addEventListener("click", () => runBackup().catch((error) => message(error.message, "error", "tautulliBackupStatus")));
+  el("tautulliSkipBackupButton")?.addEventListener("click", skipBackup);
   el("tautulliImportButton")?.addEventListener("click", () => runImport().catch(handleImportError));
   el("tautulliReviewList")?.addEventListener("click", handleReviewClick);
   el("tautulliReviewBulk")?.addEventListener("click", (event) => {

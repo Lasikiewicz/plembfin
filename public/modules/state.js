@@ -1,6 +1,6 @@
-import { readStoredAdminToken } from "./auth.js?v=1.1.1.4.1";
-import { readStoredDebugLogs } from "./logs.js?v=1.1.1.4.1";
-import { isDemoMode } from "./utils.js?v=1.1.1.4.1";
+import { readStoredAdminToken } from "./auth.js?v=1.1.1.5.1";
+import { readStoredDebugLogs } from "./logs.js?v=1.1.1.5.1";
+import { isDemoMode } from "./utils.js?v=1.1.1.5.1";
 
 const TOKEN_KEY = "adminToken";
 const LEGACY_UPPER_TOKEN_KEY = "ADMIN_TOKEN";
@@ -299,6 +299,15 @@ const initialState = {
   seerrSupports4k: { movie: false, tv: false },
   seerrMediaStatusCache: new Map(),
   fullSyncActive: false,
+  // Shared live sync snapshot used by media detail pages to pause controls
+  // only when the visible item's own watch state is in flight.
+  syncProgress: {
+    active: false,
+    total: 0,
+    completed: 0,
+    label: "",
+    currentItemLabel: "",
+  },
   backupImport: null,
   watchBackups: null,
   watchBackupsLoading: false,

@@ -1,19 +1,33 @@
 {
-  "version": "1.1.1.4.1",
+  "version": "1.1.1.5.1",
   "build": 1,
-  "resetCommit": "8e60f074eef20ca3fc858f55f964b0987b37024c",
-  "updatedAt": "2026-09-17T11:22:22.128Z",
+  "resetCommit": "f8c7ffd1d6a5020cf4767b7ee1b91f823cb41b2e",
+  "updatedAt": "2026-09-17T12:39:58.313Z",
   "entries": [
     {
       "build": 1,
-      "date": "2026-09-17T11:22:22.128Z",
-      "commit": "ee8381f30944c334a561ce25182825d9adacd2ae",
-      "message": "Fix - Clarify Tautulli backup and import progress",
+      "date": "2026-09-17T12:39:58.313Z",
+      "commit": "52901e184c50dacea5c624882fa37640e1c4f796",
+      "message": "This update includes stage tautulli backup and import flow, refresh detail after watch date removal, show affected media sync state, keep multi-item sync updates responsive, and keep queued media changes visible.",
       "author": "Lasikiewicz",
       "details": [
-        "Use Plembfin's in-app confirmation for the multiline backup and import summary.",
-        "Show Importing while the backup and import request runs and keep the action disabled.",
-        "Confirm completion and that Plembfin is syncing imported watches to connected media servers."
+        "Tautulli imports now separate preview review, the recommended local backup, and the final import with clear progress and syncing completion states.",
+        "Removing one watch date now refreshes the open detail from authoritative history while preserving any surviving watch.",
+        "Surface live syncing notices on affected movie and show detail pages.",
+        "Pause only the visible item's watch controls until import or dispatch completes.",
+        "Document and test the targeted sync-state behavior.",
+        "Index visible episodes and cache season state during live progress updates.",
+        "Prevent repeated bulk watch actions from stalling the detail page before the sync notice paints.",
+        "Treat pending dispatch telemetry as active detail sync even between progress heartbeats.",
+        "Animate Up Next add and remove requests while preserving labels on failure.",
+        "Extend the sync-state regression coverage for queued work."
+      ],
+      "messageFragments": [
+        "Fix - Stage tautulli backup and import flow",
+        "Fix - Refresh detail after watch date removal",
+        "Fix - Show affected media sync state",
+        "Fix - Keep multi-item sync updates responsive",
+        "Fix - Keep queued media changes visible"
       ]
     }
   ]

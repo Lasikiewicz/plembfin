@@ -1,17 +1,17 @@
-import { state, elements } from "./state.js?v=1.1.1.4.1";
-import { escapeHtml, escapeAttribute, formatDate, formatTmdbDate, isDemoMode } from "./utils.js?v=1.1.1.4.1";
-import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=1.1.1.4.1";
-import { isWatchedHistoryAction, getMediaTargetSyncStatus, renderSyncStatusDot } from "./sync.js?v=1.1.1.4.1";
-import { fetchTmdbDetails } from "./tmdb.js?v=1.1.1.4.1";
-import { renderWatchDatePrompt, isMovieSavingWatchAction } from "./watch-action.js?v=1.1.1.4.1";
-import { authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=1.1.1.4.1";
-import { personalRatingPillHtml, personalMediaActionsHtml } from "./personal-media.js?v=1.1.1.4.1";
+import { state, elements } from "./state.js?v=1.1.1.5.1";
+import { escapeHtml, escapeAttribute, formatDate, formatTmdbDate, isDemoMode } from "./utils.js?v=1.1.1.5.1";
+import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=1.1.1.5.1";
+import { isWatchedHistoryAction, isMediaSyncing, mediaSyncNoticeHtml, getMediaTargetSyncStatus, renderSyncStatusDot } from "./sync.js?v=1.1.1.5.1";
+import { fetchTmdbDetails } from "./tmdb.js?v=1.1.1.5.1";
+import { renderWatchDatePrompt, isMovieSavingWatchAction } from "./watch-action.js?v=1.1.1.5.1";
+import { authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=1.1.1.5.1";
+import { personalRatingPillHtml, personalMediaActionsHtml } from "./personal-media.js?v=1.1.1.5.1";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderMediaImagesSection, renderMediaFacts,
   renderExternalRatingPills, ratingPillHtml, renderSeerrRequestPill, fetchSeerrMediaStatus,
   refreshActiveMediaDetailAfterSeerrStatus, rankedRecommendations, recommendedTvShowsForMovie,
   renderRecommendationSection, hydrateMediaAppLinks, renderCollectionSection, mediaAppLinksHtml,
-} from "./media-detail-shared.js?v=1.1.1.4.1";
+} from "./media-detail-shared.js?v=1.1.1.5.1";
 
 // Watch history list - playHistory (every { id, watched_at, source } entry for
 // this movie, collapsed server-side in dedupeMovies/collapseMovieCluster) has
@@ -221,6 +221,7 @@ function _renderWatchedMovieContent(root, movie, {
   isSaving = null,
 } = {}) {
   const localPoster = posterUrlFor(movie) || "/favicon.svg";
+  const isSyncing = isMediaSyncing(movie);
   let backdropUrl = proxiedArtworkUrl(movie.backdrop_url, "backdrop") || "";
   let posterUrl = posterUrlFor(movie);
   let overview = loading ? "Loading synopsis…" : "No synopsis available.";
@@ -267,7 +268,7 @@ function _renderWatchedMovieContent(root, movie, {
             <div style="display: flex; gap: 0.5rem; align-items: center; margin-left: auto;">
               <span style="font-size: 0.72rem; color: var(--muted); font-weight: 800; text-transform: uppercase;">Sync Status:</span>
               ${syncStatusDotHtml}
-              ${!allSynced ? `<button class="retry-sync-btn action-pill" type="button" ${isSaving ? "disabled" : ""} data-retry-sync-id="${escapeAttribute(movie.id)}" style="font-size: 0.7rem; padding: 0.15rem 0.45rem;">Retry Sync</button>` : ""}
+              ${!allSynced ? `<button class="retry-sync-btn action-pill" type="button" ${isSaving || isSyncing ? "disabled" : ""} data-retry-sync-id="${escapeAttribute(movie.id)}" style="font-size: 0.7rem; padding: 0.15rem 0.45rem;">Retry Sync</button>` : ""}
             </div>
   ` : "";
   setMediaInfoContext({
@@ -305,7 +306,7 @@ function _renderWatchedMovieContent(root, movie, {
 
   setMediaDetailActions(`
     ${personalMediaActionsHtml(personalMediaItem)}
-    <button class="action-pill action-pill-ghost" type="button" ${isSaving ? "disabled" : ""} data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-tmdb-id="${escapeAttribute(tmdbData?.id || movie.tmdb_id || "")}" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">
+    <button class="action-pill action-pill-ghost" type="button" ${isSaving || isSyncing ? "disabled" : ""} data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-tmdb-id="${escapeAttribute(tmdbData?.id || movie.tmdb_id || "")}" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">
       ${eyeSlashIcon}
       <span>Mark <br>Unwatched</span>
     </button>
@@ -317,7 +318,7 @@ function _renderWatchedMovieContent(root, movie, {
         tmdbId: tmdbData?.id || movie.tmdb_id || "",
         tvdbId: movie.tvdb_id || "",
         imdbId: tmdbData?.imdb_id || movie.imdb_id || "",
-        disabled: isSaving,
+        disabled: isSaving || isSyncing,
       })}
       ${mediaInfoActionHtml()}
       <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-artwork-scope="movie" data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || movieTitle || "")}" data-poster-url="${escapeAttribute(movie.poster_url || "")}" data-logo-url="${escapeAttribute(movie.logo_url || "")}" data-backdrop-url="${escapeAttribute(movie.backdrop_url || "")}">
@@ -338,6 +339,7 @@ function _renderWatchedMovieContent(root, movie, {
   root.innerHTML = `
       <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(backdropUrl || posterUrl || localPoster)}');"></div>
       <div class="immersive-container media-detail-page${loading ? " is-loading-metadata" : ""}">
+        ${mediaSyncNoticeHtml([movie], "this movie")}
         <header class="immersive-header">
           <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || localPoster)}" alt="${escapeHtml(movieTitle)} poster" data-err="fav" data-lightbox-src="${escapeAttribute(posterUrl || localPoster)}" />
           <div class="immersive-meta">
@@ -406,6 +408,7 @@ export function patchMovieWatchedState(movie) {
       summary: { watchedCount: 1, totalCount: 1, progressPercent: 100 },
     });
   }
+  syncMovieWatchActionControls();
   const ratingsRow = page.querySelector(".ratings-row");
   if (ratingsRow && syncStatusBlockHtml && !ratingsRow.querySelector("[data-sync-status-dot]")) {
     ratingsRow.insertAdjacentHTML("beforeend", syncStatusBlockHtml);
@@ -485,6 +488,42 @@ export function patchMovieWatchedState(movie) {
   return true;
 }
 
+export function syncMovieWatchActionControls() {
+  const root = mediaDetailRoot();
+  const page = root?.querySelector?.(".media-detail-page");
+  const actionRoot = typeof document?.getElementById === "function"
+    ? document.getElementById("mediaDetailActions")
+    : null;
+  const movie = state.activeMediaInfo?.mediaType === "movie" ? state.activeMediaInfo.media : null;
+  if (!page || !movie) return false;
+  const syncing = isMediaSyncing(movie);
+  const locallySaving = isMovieSavingWatchAction(movie.tmdb_id);
+  const locallyUnwatching = Boolean(movie.id && state.savingUnwatchIds.has(movie.id));
+  const controls = [
+    ...Array.from(page.querySelectorAll?.('[data-movie-mark-watched]') || []),
+    ...Array.from(actionRoot?.querySelectorAll?.('[data-unwatch-kind="movie"]') || []),
+    ...Array.from(actionRoot?.querySelectorAll?.('[data-media-force-sync]') || []),
+  ];
+  for (const button of controls) {
+    if (syncing) {
+      button.disabled = true;
+      button.title = "This movie is syncing; watch changes are paused until it completes.";
+    } else if (button.dataset.syncDetailManaged === "true") {
+      button.disabled = button.matches?.('[data-movie-mark-watched]')
+        ? locallySaving
+        : button.matches?.('[data-unwatch-kind="movie"]')
+          ? locallyUnwatching
+          : false;
+      button.removeAttribute("title");
+    }
+    button.dataset.syncDetailManaged = "true";
+  }
+  const notice = page.querySelector("[data-media-detail-sync-notice]");
+  if (syncing && !notice) page.insertAdjacentHTML("afterbegin", mediaSyncNoticeHtml([movie], "this movie"));
+  else if (!syncing) notice?.remove();
+  return true;
+}
+
 export async function openMovieImmersiveModalByTmdbId(tmdbId) {
   const renderToken = bumpMediaRenderToken();
   state.showModalRequestToken += 1;
@@ -543,6 +582,7 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
   if (currentMediaRenderToken() !== renderToken) return;
   if (persistedWatched) return renderMovieImmersiveModalContent(persistedWatched);
   const isSaving = isMovieSavingWatchAction(tmdbId);
+  const isSyncing = isMediaSyncing({ media_type: "movie", title: movieTitle, tmdb_id: tmdbId });
   const backdropUrl = tmdbData.cached_backdrop_url || tmdbImage(tmdbData.backdrop_path, "original");
   const posterUrl = tmdbData.cached_poster_url || tmdbPoster(tmdbData.poster_path, tmdbData.id, "movie") || "/favicon.svg";
   const overview = tmdbData.overview || "No synopsis available.";
@@ -582,6 +622,7 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
   const buildUnwatchedHtml = (tvRecommendations = []) => `
     <div class="modal-backdrop-image" style="background-image: url('${escapeAttribute(backdropUrl || posterUrl)}');"></div>
     <div class="immersive-container media-detail-page">
+      ${mediaSyncNoticeHtml([{ media_type: "movie", title: movieTitle, tmdb_id: tmdbId }], "this movie")}
       <header class="immersive-header">
         <img class="immersive-poster-img" src="${escapeAttribute(posterUrl)}" alt="${escapeHtml(movieTitle)} poster" data-err="fav" data-lightbox-src="${escapeAttribute(posterUrl)}" />
         <div class="immersive-meta">
@@ -600,11 +641,11 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
                 <div class="progress-bar-fill" style="width: 0%;"></div>
               </div>
               <div class="immersive-actions" style="margin-top: 0.75rem;">
-                <button class="action-pill" type="button" ${isSaving ? "disabled" : ""}
+                <button class="action-pill" type="button" ${isSaving || isSyncing ? "disabled" : ""}
                   data-movie-mark-watched="${escapeAttribute(String(tmdbId))}"
                   data-movie-title="${escapeAttribute(movieTitle)}"
                   data-movie-poster="${escapeAttribute(posterUrl)}"
-                  data-movie-release="${escapeAttribute(tmdbData.release_date || "")}">${isSaving ? "Saving watched state…" : "Mark watched"}</button>
+                  data-movie-release="${escapeAttribute(tmdbData.release_date || "")}">${isSyncing ? "Syncing…" : isSaving ? "Saving watched state…" : "Mark watched"}</button>
               </div>
             </section>
           </div>

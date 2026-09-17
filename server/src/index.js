@@ -146,6 +146,7 @@ async function dispatch(req, res) {
     if (path === "tautulli/status") return handleTautulli(req, res, "status");
     if (path === "tautulli/users") return handleTautulli(req, res, "users");
     if (path === "tautulli/test") return handleTautulli(req, res, "test");
+    if (path === "tautulli/backup") return handleTautulli(req, res, "backup");
     if (path === "tautulli/import/preview/start") return handleTautulli(req, res, "preview-start");
     if (path === "tautulli/import/preview/status") return handleTautulli(req, res, "preview-status");
     if (path === "tautulli/import/preview") return handleTautulli(req, res, "preview");

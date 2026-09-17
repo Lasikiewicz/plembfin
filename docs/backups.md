@@ -45,6 +45,13 @@ Small, automatic backups of just the data needed to restore watch state.
   (`handleWatchBackups` in `index.js`): status, list, create, download, upload,
   restore, destination CRUD, destination test, remote list/pull.
 
+The Tautulli one-time importer uses the same local watch-history backup format, but
+stages its workflow separately: preview and resolve matches first, create the
+recommended pre-import backup (or explicitly skip it), then run the import. The
+backup and import stages each show their own progress state in the UI. After a
+successful import, Plembfin reports completion and queues the selected targets for
+background syncing.
+
 ### Remote destinations (`backupDestinations/`)
 
 Watch-history backups upload to destinations on their own daily schedule (the Remote

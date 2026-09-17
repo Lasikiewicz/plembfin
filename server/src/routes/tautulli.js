@@ -178,6 +178,10 @@ export async function handleTautulli(req, res, action = "") {
       const [serverInfo, users] = await Promise.all([client.getServerInfo(), client.getUsers()]);
       return sendJson(res, { ok: true, serverInfo: { pms_identifier: serverInfo?.pms_identifier || null, version: serverInfo?.version || null }, users });
     }
+    if (action === "backup" && req.method === "POST") {
+      const backup = await createWatchHistoryBackup({ reason: "pre_tautulli_import", mirrorRemote: false });
+      return sendJson(res, { ok: true, backup });
+    }
     if (action === "preview-start" && req.method === "POST") {
       const body = await readJson(req);
       if (!String(body.userId || config.tautulli?.userId || "").trim()) {

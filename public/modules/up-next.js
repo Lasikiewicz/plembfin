@@ -1,10 +1,10 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.4.1";
-import { state, elements } from "./state.js?v=1.1.1.4.1";
-import { escapeAttribute, escapeHtml, slug } from "./utils.js?v=1.1.1.4.1";
-import { hydratePosters } from "./images.js?v=1.1.1.4.1";
-import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=1.1.1.4.1";
-import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=1.1.1.4.1";
-import { renderMediaCard } from "./media-card.js?v=1.1.1.4.1";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.5.1";
+import { state, elements } from "./state.js?v=1.1.1.5.1";
+import { escapeAttribute, escapeHtml, slug } from "./utils.js?v=1.1.1.5.1";
+import { hydratePosters } from "./images.js?v=1.1.1.5.1";
+import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=1.1.1.5.1";
+import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=1.1.1.5.1";
+import { renderMediaCard } from "./media-card.js?v=1.1.1.5.1";
 
 const UP_NEXT_TTL_MS = 2 * 60 * 1000;
 const UP_NEXT_TIMEOUT_MS = 20000;
@@ -120,6 +120,10 @@ export async function addShowToUpNext(button) {
   const title = button.dataset.upNextShowTitle || "TV show";
   button.disabled = true;
   button.setAttribute("aria-busy", "true");
+  const label = button.querySelector("span");
+  const originalLabel = label?.innerHTML || "";
+  let actionSucceeded = false;
+  if (label) label.innerHTML = "Adding…";
   try {
     const response = await fetch("/api/up-next/show", {
       method: "POST",
@@ -149,15 +153,16 @@ export async function addShowToUpNext(button) {
       imdb_id: button.dataset.upNextShowImdbId || "",
     });
     button.classList.add("is-added");
-    const label = button.querySelector("span");
     if (label) label.innerHTML = "Remove from <br>Up Next";
     else button.textContent = "Remove from up next";
     button.dataset.upNextShowAction = "remove";
     button.dataset.upNextShowToggle = "remove";
     button.title = "Remove this show from the dashboard Up Next rail";
+    actionSucceeded = true;
     _cb.setMessage?.(`Added "${title}" to Up Next`, "success");
     await loadUpNext({ force: true });
   } finally {
+    if (!actionSucceeded && label) label.innerHTML = originalLabel;
     button.disabled = false;
     button.removeAttribute("aria-busy");
   }
@@ -195,6 +200,10 @@ export async function removeShowFromUpNext(button) {
 
   button.disabled = true;
   button.setAttribute("aria-busy", "true");
+  const label = button.querySelector("span");
+  const originalLabel = label?.innerHTML || "";
+  let actionSucceeded = false;
+  if (label) label.innerHTML = "Removing…";
   try {
     if (item) {
       const response = await fetch("/api/up-next/remove", {
@@ -222,15 +231,16 @@ export async function removeShowFromUpNext(button) {
     if (manual || item) await removeManualShowFromUpNext(show);
 
     button.classList.remove("is-added");
-    const label = button.querySelector("span");
     if (label) label.innerHTML = "Add to <br>Up Next";
     else button.textContent = "Add to up next";
     button.dataset.upNextShowAction = "add";
     button.dataset.upNextShowToggle = "add";
     button.title = "Add the next unwatched episode to the dashboard Up Next rail";
+    actionSucceeded = true;
     _cb.setMessage?.(`Removed "${show.title}" from Up Next`, "success");
     await loadUpNext({ force: true });
   } finally {
+    if (!actionSucceeded && label) label.innerHTML = originalLabel;
     button.disabled = false;
     button.removeAttribute("aria-busy");
   }

@@ -1,10 +1,10 @@
-import { state } from "./state.js?v=1.1.1.4.1";
-import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, formatDate, actualWatchHistory, sourceBadgeHtml, isDemoMode, tvShowTvdbHref } from "./utils.js?v=1.1.1.4.1";
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.4.1";
-import { isWatchedHistoryAction } from "./sync.js?v=1.1.1.4.1";
-import { tmdbPoster, tmdbImage, proxiedArtworkUrl } from "./images.js?v=1.1.1.4.1";
-import { dateAtMiddayIso, refreshShowAfterManualWatch, watchedAtForChoice, watchedReferenceFor } from "./watch-action.js?v=1.1.1.4.1";
-import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=1.1.1.4.1";
+import { state } from "./state.js?v=1.1.1.5.1";
+import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, formatDate, actualWatchHistory, sourceBadgeHtml, isDemoMode, tvShowTvdbHref } from "./utils.js?v=1.1.1.5.1";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.5.1";
+import { isWatchedHistoryAction } from "./sync.js?v=1.1.1.5.1";
+import { tmdbPoster, tmdbImage, proxiedArtworkUrl } from "./images.js?v=1.1.1.5.1";
+import { dateAtMiddayIso, refreshShowAfterManualWatch, watchedAtForChoice, watchedReferenceFor } from "./watch-action.js?v=1.1.1.5.1";
+import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=1.1.1.5.1";
 
 // Callbacks injected by app.js at startup.
 let _setMessage = () => {};
@@ -644,12 +644,13 @@ export function openEditDateDialog(_container, id, currentWatchedAt, onSaved, op
         updateRemoveButtonsState();
         overlay.remove();
         if (options.liveOnly) {
-          // The DELETE emits a keyed watch_history SSE event. Let that event
-          // reconcile the authoritative remaining play and patch only the
-          // affected episode article; a history refetch here used to repaint
-          // the entire open show before SSE had a chance to do its job.
-          await onSaved?.({ deleted: true, deletedId: rowId });
+          // Clear the short-lived show-detail cache before the callback asks
+          // an open detail page to render again. The DELETE emits a keyed
+          // watch_history SSE event too, but that event only patches the
+          // lightweight episode card; it cannot remove a deleted rewatch from
+          // the mounted episode's full watch-date list.
           _clearDerivedUiCaches({ resetExplorer: true });
+          await onSaved?.({ deleted: true, deletedId: rowId });
         } else {
           const remainingDates = [...listEl.querySelectorAll(".watch-date-value-btn")]
             .map((btn) => btn.dataset.watchedIso)

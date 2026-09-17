@@ -60,6 +60,41 @@
   font-family: 'Outfit', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
+.media-detail-sync-notice {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin: 0 0 1rem;
+  padding: 0.7rem 0.85rem;
+  border: 1px solid color-mix(in srgb, var(--accent) 45%, var(--line));
+  border-radius: 0.65rem;
+  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
+  color: var(--text);
+  font-size: 0.86rem;
+}
+
+.media-detail-sync-notice strong { color: var(--accent); }
+
+.media-detail-sync-notice-spinner {
+  width: 0.85rem;
+  height: 0.85rem;
+  flex: 0 0 auto;
+  border: 2px solid color-mix(in srgb, var(--accent) 28%, transparent);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: media-detail-sync-spin 0.8s linear infinite;
+}
+
+.immersive-episode-row.is-syncing { opacity: 0.8; }
+
+@keyframes media-detail-sync-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .media-detail-sync-notice-spinner { animation: none; }
+}
+
 /* Media detail loading states ------------------------------------------------
    Keep the poster mounted while metadata is enriched. The poster itself
    carries the state, rather than adding a floating metadata pill to the copy. */
@@ -1733,6 +1768,15 @@ body.demo-mode #manualWatchReviewButton {
   animation: up-next-sync-spin 850ms linear infinite;
 }
 
+.media-up-next-show-btn[aria-busy="true"] {
+  opacity: 0.72;
+  cursor: progress;
+}
+
+.media-up-next-show-btn[aria-busy="true"] svg {
+  animation: up-next-sync-spin 850ms linear infinite;
+}
+
 @keyframes up-next-sync-spin {
   to { transform: rotate(360deg); }
 }
@@ -2794,6 +2838,7 @@ html.light-mode .theme-aware-icon-set .theme-aware-icon--dark {
   max-height: 9rem;
 }
 
+#tautulliPreviewSummary,
 #tautulliImportSummary {
   max-height: none;
   overflow: visible;
@@ -27055,7 +27100,7 @@ html.light-mode .about-share-option.button-primary {
 }
 .tautulli-preview-message {
   margin: 0;
-  white-space: nowrap;
+  max-width: 80ch;
 }
 
 .tautulli-preview-message.is-loading {
@@ -27104,6 +27149,78 @@ html.light-mode .about-share-option.button-primary {
   font-size: 0.74rem;
 }
 
+.tautulli-preview-actions,
+.tautulli-operation-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.tautulli-preview-actions {
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--line);
+}
+
+.tautulli-preview-actions b {
+  color: var(--text);
+  font-size: 0.84rem;
+}
+
+.tautulli-preview-actions p {
+  margin: 0.2rem 0 0;
+}
+
+.tautulli-operation-actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.tautulli-operation-progress {
+  height: 0.45rem;
+  overflow: hidden;
+  margin-top: var(--space-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.12);
+}
+
+.tautulli-operation-progress-bar {
+  display: block;
+  width: 0;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--blue);
+  transition: width 180ms ease;
+}
+
+.tautulli-operation-progress.is-indeterminate .tautulli-operation-progress-bar {
+  width: 35%;
+  animation: tautulli-preview-progress-slide 1.2s ease-in-out infinite alternate;
+}
+
+.tautulli-operation-progress.is-complete .tautulli-operation-progress-bar {
+  background: var(--green, #22c55e);
+}
+
+.tautulli-operation-progress.is-error .tautulli-operation-progress-bar {
+  background: var(--red, #ef4444);
+}
+
+.tautulli-operation-progress-text {
+  margin: 0.35rem 0 0;
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.tautulli-operation-progress-text.is-complete {
+  color: var(--green, #22c55e);
+}
+
+.tautulli-operation-progress-text.is-error {
+  color: var(--red, #ef4444);
+}
+
 @keyframes tautulli-preview-progress-slide {
   from { transform: translateX(-100%); }
   to { transform: translateX(285%); }
@@ -27116,13 +27233,19 @@ html.light-mode .about-share-option.button-primary {
 @media (prefers-reduced-motion: reduce) {
   .tautulli-preview-message.is-loading::before,
   .tautulli-import-status.is-loading::before,
-  .tautulli-preview-progress.is-indeterminate .tautulli-preview-progress-bar { animation: none; }
+  .tautulli-preview-progress.is-indeterminate .tautulli-preview-progress-bar,
+  .tautulli-operation-progress.is-indeterminate .tautulli-operation-progress-bar { animation: none; }
 }
-.tautulli-backup-step .tautulli-step-heading { align-items: center; }
+.tautulli-backup-step .tautulli-step-heading,
+.tautulli-import-step .tautulli-step-heading { align-items: center; }
 .tautulli-import-status {
   display: flex;
   align-items: center;
   gap: 0.4rem;
+  margin: var(--space-2) 0 0;
+  line-height: 1.4;
+}
+.tautulli-operation-status {
   margin: var(--space-2) 0 0;
   line-height: 1.4;
 }
@@ -27192,7 +27315,8 @@ html.light-mode .about-share-option.button-primary {
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
-  padding-bottom: var(--space-1);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--line);
 }
 .tautulli-review-item { display: grid; gap: 2px; min-width: 0; justify-items: start; }
 .tautulli-review-badge { align-self: start; }
@@ -27225,10 +27349,13 @@ html.light-mode .about-share-option.button-primary {
 @media (max-width: 48rem) {
   .tautulli-target-options { grid-template-columns: 1fr; }
   .tautulli-step-heading,
-  .tautulli-backup-step .tautulli-step-heading {
+  .tautulli-backup-step .tautulli-step-heading,
+  .tautulli-import-step .tautulli-step-heading {
     align-items: flex-start;
     flex-direction: column;
   }
+  .tautulli-preview-actions { align-items: flex-start; flex-direction: column; }
+  .tautulli-operation-actions { justify-content: flex-start; }
   .tautulli-review-panel { padding: var(--space-2); }
   .tautulli-review-choices { flex-direction: column; }
   .tautulli-review-candidate,

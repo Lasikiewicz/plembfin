@@ -1,7 +1,7 @@
-import { buildAuthHeaders, buildNowPlayingUrl } from "./auth.js?v=1.1.1.4.1";
-import { state, elements } from "./state.js?v=1.1.1.4.1";
-import { escapeHtml, escapeAttribute, platformBadge, sourceClass, sourceBadgeHtml, computeProgress, formatDate, formatPlaybackClock, showName } from "./utils.js?v=1.1.1.4.1";
-import { hydratePosters, posterMarkup } from "./images.js?v=1.1.1.4.1";
+import { buildAuthHeaders, buildNowPlayingUrl } from "./auth.js?v=1.1.1.5.1";
+import { state, elements } from "./state.js?v=1.1.1.5.1";
+import { escapeHtml, escapeAttribute, platformBadge, sourceClass, sourceBadgeHtml, computeProgress, formatDate, formatPlaybackClock, showName } from "./utils.js?v=1.1.1.5.1";
+import { hydratePosters, posterMarkup } from "./images.js?v=1.1.1.5.1";
 
 const NOW_PLAYING_POLL_MS = 10000;
 
@@ -59,6 +59,52 @@ export function syncStatus(entry = {}) {
     return { tone: "success", label: "Sync skipped intentionally", detail: "No outbound sync was required for this history row." };
   }
   return { tone: "error", label: "Sync needs attention", detail: status ? "One or more target apps did not confirm this watched-state change." : "No dispatch telemetry was recorded for this history row." };
+}
+
+function normalizedSyncText(value = "") {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/&/g, " and ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function syncLabelMatchesEntry(entry = {}, label = "") {
+  const currentLabel = normalizedSyncText(label);
+  if (!currentLabel) return false;
+  const mediaType = String(entry.media_type || entry.mediaType || entry.type || "").toLowerCase();
+  if (mediaType === "episode" || entry.season != null || entry.episode != null || entry.seasonNumber != null || entry.episodeNumber != null) {
+    const showTitle = normalizedSyncText(entry.show_title || entry.showTitle || entry.title || "");
+    const season = Number(entry.season ?? entry.seasonNumber);
+    const episode = Number(entry.episode ?? entry.episodeNumber);
+    if (!showTitle || !Number.isInteger(season) || !Number.isInteger(episode)) return false;
+    const code = `s${String(season).padStart(2, "0")}e${String(episode).padStart(2, "0")}`;
+    return currentLabel.includes(showTitle) && currentLabel.includes(code);
+  }
+  const title = normalizedSyncText(entry.title || entry.name || "");
+  return Boolean(title && currentLabel === title);
+}
+
+// Pending telemetry identifies imported/queued rows. The current-item label
+// covers force and scheduled syncs while the row is being written, before its
+// final telemetry snapshot reaches the browser.
+export function isMediaSyncing(entry = {}) {
+  const progress = state.syncProgress || {};
+  if (syncStatus(entry).tone === "pending") return true;
+  if (!progress.active) return false;
+  return syncLabelMatchesEntry(entry, progress.currentItemLabel);
+}
+
+export function mediaSyncNoticeHtml(entries = [], scopeLabel = "this item") {
+  const affected = (Array.isArray(entries) ? entries : []).filter((entry) => isMediaSyncing(entry));
+  if (!affected.length) return "";
+  return `
+    <div class="media-detail-sync-notice" data-media-detail-sync-notice role="status" aria-live="polite">
+      <span class="media-detail-sync-notice-spinner" aria-hidden="true"></span>
+      <span><strong>Syncing…</strong> Plembfin is updating ${escapeHtml(scopeLabel)}. Watch controls are paused until the sync completes.</span>
+    </div>
+  `;
 }
 
 export function historySyncPill(entry = {}) {

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import "./domStubs.js";
 
 const { state, elements } = await import("../public/modules/state.js?v=0.16.3.4");
-const { telemetryTargetStates, targetStateUnavailable, categorizeIssues, nowPlayingPosterItem, setActiveSessions } = await import("../public/modules/sync.js");
+const { telemetryTargetStates, targetStateUnavailable, categorizeIssues, nowPlayingPosterItem, setActiveSessions, isMediaSyncing } = await import("../public/modules/sync.js");
 const { posterMarkup, posterUrlFor } = await import("../public/modules/images.js");
 
 class FakeElement {
@@ -95,6 +95,31 @@ test("targetStateUnavailable recognizes every not-found spelling used by telemet
   assert.equal(targetStateUnavailable({ rawStatus: "not_found" }), true);
   assert.equal(targetStateUnavailable({ status: "unavailable" }), true);
   assert.equal(targetStateUnavailable({ status: "success" }), false);
+});
+
+test("detail sync state only blocks a visible item while its own import or dispatch is active", () => {
+  const previous = state.syncProgress;
+  state.syncProgress = { active: false, currentItemLabel: "" };
+  try {
+    assert.equal(isMediaSyncing({
+      media_type: "episode",
+      show_title: "Prison Break",
+      season: 1,
+      episode: 2,
+      sync_dispatch_telemetry: "Dispatch status: pending",
+    }), true);
+    state.syncProgress = { active: true, currentItemLabel: "Prison Break S01E02" };
+    assert.equal(isMediaSyncing({
+      media_type: "episode",
+      show_title: "Prison Break",
+      season: 1,
+      episode: 1,
+      sync_dispatch_telemetry: "Dispatch status: success",
+    }), false);
+    assert.equal(isMediaSyncing({ media_type: "movie", title: "Other Movie" }), false);
+  } finally {
+    state.syncProgress = previous;
+  }
 });
 
 test("categorizeIssues preserves the existing Sync Issues buckets", () => {
