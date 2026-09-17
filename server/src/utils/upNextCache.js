@@ -20,6 +20,7 @@ let memoryCache = null;
 let memoryMtimeMs = 0;
 let writeChain = Promise.resolve();
 let buildInFlight = null;
+let buildInFlightVersion = 0;
 let lastRevalidateAt = 0;
 
 function queueAutomaticUpNextSync(reason) {
@@ -151,11 +152,25 @@ async function storeCache(result, fallbackSourceVersion) {
 }
 
 function buildAndStore(build) {
-  if (buildInFlight) return buildInFlight;
+  const requestedVersion = getUpNextVersion();
+  if (buildInFlight) {
+    // A manual queue change can arrive while a projection is already being
+    // built. Do not let the caller receive that older projection and stamp it
+    // as current; wait for it to finish, then build against the new queue
+    // generation.
+    if (buildInFlightVersion !== requestedVersion) {
+      return buildInFlight.then(() => buildAndStore(build));
+    }
+    return buildInFlight;
+  }
+  buildInFlightVersion = requestedVersion;
   buildInFlight = Promise.resolve()
     .then(() => build())
     .then((result) => storeCache(result, getUpNextFeedSourceVersion()))
-    .finally(() => { buildInFlight = null; });
+    .finally(() => {
+      buildInFlight = null;
+      buildInFlightVersion = 0;
+    });
   return buildInFlight;
 }
 
@@ -206,12 +221,13 @@ export async function getUpNextCacheSnapshot(build, { refresh = false, revalidat
 
   const sourceVersion = getUpNextFeedSourceVersion();
   const historyChanged = Number(cache.historyVersion || 0) !== getDataVersion();
-  const stale = historyChanged || sourceVersion !== cache.sourceVersion || Date.now() - cache.builtAt >= UP_NEXT_TTL_MS;
+  const upNextChanged = Number(cache.upNextVersion || 0) !== getUpNextVersion();
+  const stale = historyChanged || upNextChanged || sourceVersion !== cache.sourceVersion || Date.now() - cache.builtAt >= UP_NEXT_TTL_MS;
   // Watch-state changes are safety-critical: serving the old snapshot while a
   // background rebuild runs can briefly put an already-watched episode back
   // in the rail. Provider-feed-only staleness keeps the old fast revalidate
   // behavior, but a history mismatch waits for the authoritative projection.
-  if (historyChanged) return publicSnapshot(await buildAndStore(build));
+  if (historyChanged || upNextChanged) return publicSnapshot(await buildAndStore(build));
   if (!stale) return publicSnapshot(cache);
   if (revalidate) {
     queueBackgroundRebuild(build);

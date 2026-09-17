@@ -2,7 +2,7 @@ import { db, bumpUpNextVersion } from "../db.js";
 
 function queueAutomaticUpNextSync(reason) {
   void import("./upNextAutoSync.js")
-    .then(({ requestUpNextAutoSync }) => requestUpNextAutoSync(reason))
+    .then(({ requestUpNextAutoSync }) => requestUpNextAutoSync(reason, { priority: true }))
     .catch((error) => console.error(`[up-next] Manual queue sync request failed: ${error?.message || error}`));
 }
 

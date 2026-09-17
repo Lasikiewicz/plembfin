@@ -380,9 +380,10 @@ already in flight is not cancelled; the guard only prevents new competing outbou
      a configured policy for app-marked watched flags. The default policy dates a manual
      watched flag at the current time; release-day and same-season episode-timing policies
      use their respective stable dates. With **Require review**, the scanner stores a
-     deduplicated pending item in `manual_watch_reviews` and waits for the Manual Watch
-     review page. Unscoped library scans remain diagnostic evidence rather than asserted
-     watches.
+      deduplicated pending item in `manual_watch_reviews` and waits for the Manual Watch
+      review page. A flag already superseded by a newer canonical watched state is not
+      reported as a new queued review. Unscoped library scans remain diagnostic evidence
+      rather than asserted watches.
    - Emby/Jellyfin episode resume rows retain series provider IDs so the corresponding SxxExx item can be found on another server. Resume and playstate records sharing any IMDb, TMDB, or TVDB ID are treated as one media item even when app titles differ. When a server reads back the same position with a stale or missing `LastPlayedDate`, Plembfin retains the newer timestamp already stored for that position; generic item-save/create dates never outrank an explicit watch-state change, and a genuinely newer unwatch still clears older progress.
    - Propagates playstate changes that were missed by webhooks. A server-side unwatch
      that conflicts with Plembfin's watched state is repaired instead of imported as a

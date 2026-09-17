@@ -10,6 +10,11 @@ import { buildUpNextProjection } from "./upNextService.js";
 import { syncUpNextToProviders } from "./upNextProviderSync.js";
 
 export const UP_NEXT_AUTO_SYNC_JOB = "up_next_sync";
+// Media-detail actions are user intent and must be delivered before older
+// queued background work. A separate job type lets one ordinary and one
+// interactive request coexist without allowing the ordinary singleton to
+// swallow the interactive change.
+export const UP_NEXT_PRIORITY_SYNC_JOB = "up_next_priority_sync";
 
 const FINGERPRINT_RUNTIME_KEY = "upNextAutoSyncFingerprint";
 const LAST_SYNC_RUNTIME_KEY = "upNextAutoSyncAt";
@@ -89,12 +94,13 @@ export function upNextSyncCompleted(providers, summary = {}) {
 // Queueing is intentionally lightweight and durable. The worker builds the
 // latest projection when it claims the job, so a burst of queue changes is
 // represented by one job rather than a push per mutation.
-export async function requestUpNextAutoSync(reason = "") {
+export async function requestUpNextAutoSync(reason = "", { priority = false } = {}) {
   if (!db.open) return { queued: false, skipped: "database-closed" };
   const config = await loadMediaConfig({ resolveConnections: false }).catch(() => null);
   if (config?.upNextSync?.enabled === false) return { queued: false, skipped: "disabled" };
   try {
-    const job = enqueueBackgroundJob(UP_NEXT_AUTO_SYNC_JOB, { reason: text(reason) });
+    const type = priority ? UP_NEXT_PRIORITY_SYNC_JOB : UP_NEXT_AUTO_SYNC_JOB;
+    const job = enqueueBackgroundJob(type, { reason: text(reason) });
     return { queued: true, job };
   } catch (error) {
     if (error?.code === "JOB_ACTIVE") return { queued: false, coalesced: true };

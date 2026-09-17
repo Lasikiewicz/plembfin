@@ -73,6 +73,35 @@ test("manual watch reviews are durable, deduplicated, and re-open on a changed p
   assert.equal(getManualWatchReview(first.review.id).status, "pending");
 });
 
+test("a pending review remains visible when an older watched record already exists", async () => {
+  const reviewMedia = {
+    title: "Existing Date Review Movie",
+    type: "movie",
+    source: "emby",
+    itemId: "emby-existing-date-review-movie",
+    ids: { tmdb: "existing-date-review-movie" },
+    releaseDate: "2026-08-01",
+    isValid: true,
+  };
+  await repo.insertWatchRecord({
+    title: reviewMedia.title,
+    media_type: "movie",
+    tmdb_id: reviewMedia.ids.tmdb,
+    watched_at: "2026-08-01T12:00:00.000Z",
+    source: "plex",
+    sync_action: "watched",
+  });
+
+  const queued = enqueueManualWatchReview(reviewMedia, {
+    releaseDate: "2026-08-01T00:00:00.000Z",
+    sourceFingerprint: "emby|existing-date-review-movie|1",
+  });
+
+  assert.equal(queued.status, "pending");
+  assert.equal(listPendingManualWatchReviews().some((review) => review.id === queued.review.id), true);
+  setManualWatchReviewStatus(queued.review.id, "dismissed");
+});
+
 test("approved reviews stay closed when the same provider flag is seen again", () => {
   const review = listPendingManualWatchReviews()[0];
   setManualWatchReviewStatus(review.id, "approved", "now");
@@ -107,6 +136,12 @@ test("pending reviews are hidden after the item becomes canonically watched", as
 
   assert.equal(listPendingManualWatchReviews().some((review) => review.id === queued.review.id), false);
   assert.equal(countPendingManualWatchReviews(), 0);
+  const repeat = enqueueManualWatchReview(reviewMedia, {
+    releaseDate: "2026-08-01T00:00:00.000Z",
+    sourceFingerprint: "plex|stale-review-402|2",
+  });
+  assert.equal(repeat.queued, false);
+  assert.equal(repeat.status, "already_watched");
   setManualWatchReviewStatus(queued.review.id, "dismissed");
 });
 
@@ -340,7 +375,7 @@ test("manual watch review accepts an explicit date and time", async () => {
   assert.equal(countPendingManualWatchReviews(), 0);
 });
 
-test("dismissing a review marks it unwatched only on the reporting app", async (t) => {
+test("dismissing a review marks it unwatched across connected media apps", async (t) => {
   const originalFetch = globalThis.fetch;
   const calls = [];
   t.after(() => { globalThis.fetch = originalFetch; });
@@ -395,14 +430,21 @@ test("dismissing a review marks it unwatched only on the reporting app", async (
     assert.equal(responseBody.ok, true);
     assert.equal(responseBody.action, "unwatched");
     assert.equal(responseBody.source, source);
-    assert.equal(responseBody.targetStates.length, 1);
-    assert.deepEqual(responseBody.targetStates[0].target, source);
-    assert.equal(responseBody.targetStates[0].status, "success");
+    assert.deepEqual(
+      responseBody.targetStates.map((target) => target.target).sort(),
+      ["emby", "jellyfin", "plex"],
+    );
+    assert.ok(responseBody.targetStates.every((target) => (
+      target.status === "success"
+      || (target.status === "skipped" && /no matching item found/i.test(target.detail || ""))
+    )));
     assert.equal(getManualWatchReview(queued.review.id).status, "dismissed");
 
     const sourceCalls = calls.slice(beforeCalls);
     assert.ok(sourceCalls.length > 0);
-    assert.ok(sourceCalls.every(({ url }) => url.startsWith(`http://${source}-review.test/`)));
+    assert.ok(sourceCalls.some(({ url }) => url.startsWith("http://plex-review.test/")));
+    assert.ok(sourceCalls.some(({ url }) => url.startsWith("http://emby-review.test/")));
+    assert.ok(sourceCalls.some(({ url }) => url.startsWith("http://jellyfin-review.test/")));
   }
 
   globalThis.fetch = async (url, options = {}) => {

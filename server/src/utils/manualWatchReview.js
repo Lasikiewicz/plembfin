@@ -169,6 +169,34 @@ export function countPendingManualWatchReviews() {
   return listPendingManualWatchReviews().length;
 }
 
+function reviewDisplayKey(review = {}) {
+  const type = text(review.media_type || review.media?.type || review.media?.media_type).toLowerCase();
+  if (type !== "episode") return `review:${review.id || review.media_key || canonicalTitleKey(review.title || "unknown")}`;
+
+  const media = review.media || {};
+  const showIds = media.showIds || media.show_ids || {};
+  const showIdentity = text(
+    showIds.tvdb
+      || showIds.tmdb
+      || showIds.imdb
+      || media.showTvdbId
+      || media.show_tvdb_id
+      || media.showTmdbId
+      || media.show_tmdb_id
+      || media.showImdbId
+      || media.show_imdb_id,
+  ) || canonicalShowTitleKey(review.show_title || media.showTitle || media.show_title || showTitleFromMedia(review));
+  const season = integerOrNull(review.season ?? media.season);
+  const episode = integerOrNull(review.episode ?? media.episode);
+  if (showIdentity && season != null && episode != null) return `episode:${showIdentity}:s${season}:e${episode}`;
+  return `episode:${canonicalTitleKey(review.title || media.title || review.id || "unknown")}`;
+}
+
+export function countPendingManualWatchReviewItems(reviews = null) {
+  const pending = Array.isArray(reviews) ? reviews : listPendingManualWatchReviews();
+  return new Set(pending.map(reviewDisplayKey)).size;
+}
+
 export function getManualWatchReview(id) {
   return rowToReview(selectReviewByIdStmt.get(text(id)));
 }
@@ -220,6 +248,12 @@ export function enqueueManualWatchReview(media = {}, {
   if (existing?.status === "dismissed" && existing.source_fingerprint === fingerprint) {
     return { queued: false, status: "dismissed", review: rowToReview(existing) };
   }
+  if (existing?.status === "pending") {
+    const existingReview = rowToReview(existing);
+    if (reviewIsAlreadyWatched(existingReview)) {
+      return { queued: false, status: "already_watched", review: existingReview };
+    }
+  }
 
   const values = {
     id: existing?.id || crypto.randomUUID(),
@@ -240,7 +274,11 @@ export function enqueueManualWatchReview(media = {}, {
   };
   if (existing) updateReviewStmt.run(values);
   else insertReviewStmt.run({ ...values, created_at: now });
-  return { queued: true, status: "pending", review: getManualWatchReview(values.id) };
+  const review = getManualWatchReview(values.id);
+  if (reviewIsAlreadyWatched(review)) {
+    return { queued: false, status: "already_watched", review };
+  }
+  return { queued: true, status: "pending", review };
 }
 
 export function setManualWatchReviewStatus(id, status, decisionMode = null) {
@@ -341,17 +379,34 @@ export function dismissPendingManualWatchReviewsForMedia(media = {}, { before = 
 function reviewIsAlreadyWatched(review = {}) {
   try {
     const media = manualWatchReviewMedia(review);
+    const reviewCreatedAt = Number(review.created_at || 0);
     const playstate = getPlaystateForMediaSync(media);
     // An explicit current unwatch must win over an older watched history row;
     // only use the history fallback for legacy records with no playstate yet.
-    if (playstate?.state === "watched") return true;
+    if (playstate?.state === "watched") {
+      if (!reviewCreatedAt) return true;
+      // SQLite timestamps and review creation both use millisecond precision.
+      // A canonical watch written in the same millisecond as the queue entry
+      // is still the newer user-visible decision and must retire the review.
+      if (Number(playstate.updated_at || 0) >= reviewCreatedAt) return true;
+    }
     // A generic/stale provider review is resolved by a local unwatch and must
     // not suddenly become visible merely because the canonical state changed
     // from watched to unwatched. Explicit provider Mark played events are the
     // exception: they represent a new user decision and may remain reviewable.
     if (playstate?.state === "unwatched") return !isExplicitPlayedMedia(media);
     if (!playstate && hasManualUnwatchForMedia(media) && !isExplicitPlayedMedia(media)) return true;
-    return Boolean(findWatchedByAnyMediaKeySync(media));
+
+    // A review can be legitimate even when an older watched record already
+    // exists: the provider flag may be the first signal that this item needs a
+    // trustworthy date decision, and the review approval can update that old
+    // record. Only hide a watched state that was written after the review was
+    // queued (or preserve the old behaviour for legacy rows without a queue
+    // timestamp).
+    const watched = findWatchedByAnyMediaKeySync(media);
+    if (!watched) return false;
+    if (!reviewCreatedAt) return true;
+    return Number(watched.updated_at || 0) >= reviewCreatedAt;
   } catch {
     // A malformed legacy review should remain visible so it can be corrected
     // manually instead of disappearing because a read-only filter failed.

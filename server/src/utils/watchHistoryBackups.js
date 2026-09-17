@@ -423,7 +423,7 @@ export async function pushBackupToRemotes(localAbsolutePath, filename, retention
 function essentialWatchHistory() {
   return db.prepare(`
     SELECT id, title, title_lower, media_type, watched_at, source, imdb_id, tmdb_id,
-      tvdb_id, season, episode, sync_action, sync_dispatch_telemetry, watch_provenance, media_key, show_title,
+      tvdb_id, season, episode, sync_action, sync_dispatch_telemetry, sync_match_ignored_at, watch_provenance, media_key, show_title,
       show_title_lower, episode_title, episode_title_status, episode_title_checked_at,
       episode_title_resolution_error, created_at, updated_at
     FROM watch_history ORDER BY id
@@ -591,11 +591,11 @@ function restoreSummary(document, mode) {
 const insertWatch = db.prepare(`
   INSERT INTO watch_history (
     id,title,title_lower,media_type,watched_at,source,imdb_id,tmdb_id,tvdb_id,
-    season,episode,sync_action,sync_dispatch_telemetry,watch_provenance,media_key,show_title,show_title_lower,episode_title,
+    season,episode,sync_action,sync_dispatch_telemetry,sync_match_ignored_at,watch_provenance,media_key,show_title,show_title_lower,episode_title,
     episode_title_status,episode_title_checked_at,episode_title_resolution_error,created_at,updated_at
   ) VALUES (
     @id,@title,@title_lower,@media_type,@watched_at,@source,@imdb_id,@tmdb_id,@tvdb_id,
-    @season,@episode,@sync_action,@sync_dispatch_telemetry,@watch_provenance,@media_key,@show_title,@show_title_lower,@episode_title,
+    @season,@episode,@sync_action,@sync_dispatch_telemetry,@sync_match_ignored_at,@watch_provenance,@media_key,@show_title,@show_title_lower,@episode_title,
     @episode_title_status,@episode_title_checked_at,@episode_title_resolution_error,@created_at,@updated_at
   ) ON CONFLICT(id) DO UPDATE SET
     title=excluded.title,title_lower=excluded.title_lower,media_type=excluded.media_type,
@@ -604,6 +604,7 @@ const insertWatch = db.prepare(`
     episode=excluded.episode,sync_action=excluded.sync_action,media_key=excluded.media_key,
     show_title=excluded.show_title,show_title_lower=excluded.show_title_lower,
     episode_title=excluded.episode_title,sync_dispatch_telemetry=excluded.sync_dispatch_telemetry,
+    sync_match_ignored_at=excluded.sync_match_ignored_at,
     watch_provenance=excluded.watch_provenance,episode_title_status=excluded.episode_title_status,
     episode_title_checked_at=excluded.episode_title_checked_at,
     episode_title_resolution_error=excluded.episode_title_resolution_error,
@@ -658,6 +659,7 @@ export function restoreWatchHistoryBackup(filename, { mode = "merge", dryRun = f
         ...row,
         ...derived,
         sync_dispatch_telemetry: row.sync_dispatch_telemetry || null,
+        sync_match_ignored_at: row.sync_match_ignored_at || null,
         watch_provenance: row.watch_provenance || null,
         episode_title_status: row.episode_title_status || (
           row.media_type === "episode" && (!row.episode_title || /^Episode\s+\d+$/i.test(String(row.episode_title)) || /^\d+$/.test(String(row.episode_title)))

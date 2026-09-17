@@ -70,6 +70,12 @@ recently-dispatched events keyed by platform + media identifier in the SQLite
 incoming webhook matching a recent dispatch is detected as an echo and dropped
 before it can trigger another round.
 
+Played callbacks caused by Plembfin's own outbound mark are also dropped before
+the canonical-repair path, even when the item is already watched locally. This
+prevents a provider acknowledgement from being sent back to every provider and
+starting a reconciliation loop. A callback without a matching outbound marker
+still enters the normal canonical repair path.
+
 > `loop_keys` rows are persisted in the database, so loop detection survives a
 > process restart. The check-then-claim step (`checkAndClaim`) runs the read and
 > the write inside a single SQLite transaction, so a concurrent claim for the

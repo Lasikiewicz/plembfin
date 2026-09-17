@@ -1,10 +1,10 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.5.2";
-import { state, elements } from "./state.js?v=1.1.1.5.2";
-import { escapeAttribute, escapeHtml, slug } from "./utils.js?v=1.1.1.5.2";
-import { hydratePosters } from "./images.js?v=1.1.1.5.2";
-import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=1.1.1.5.2";
-import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=1.1.1.5.2";
-import { renderMediaCard } from "./media-card.js?v=1.1.1.5.2";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.7.3";
+import { state, elements } from "./state.js?v=1.1.1.7.3";
+import { escapeAttribute, escapeHtml, slug } from "./utils.js?v=1.1.1.7.3";
+import { hydratePosters } from "./images.js?v=1.1.1.7.3";
+import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=1.1.1.7.3";
+import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=1.1.1.7.3";
+import { renderMediaCard } from "./media-card.js?v=1.1.1.7.3";
 
 const UP_NEXT_TTL_MS = 2 * 60 * 1000;
 const UP_NEXT_TIMEOUT_MS = 20000;
@@ -15,6 +15,8 @@ const UP_NEXT_CACHE_KEY = "plembfin:upNextCache:v6";
 const UP_NEXT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 const UP_NEXT_SYNC_TIMEOUT_MS = 60_000;
 const UP_NEXT_PROVIDERS = new Set(["plex", "emby", "jellyfin"]);
+const UP_NEXT_CONNECTION_HELP_URL = "https://plembfin.com/docs/troubleshooting/#media-server-connection-failures";
+const UP_NEXT_CONNECTION_HELP_THRESHOLD = 2;
 // Mirrors dashboard.js's DASHBOARD_CARD_EXIT_MS so overlapping refreshes wait
 // for a removal exit to finish before repainting the rail with a fresh
 // snapshot (otherwise the exit is cut short by the immediate innerHTML swap).
@@ -998,11 +1000,6 @@ function renderUpNextSourceStatus() {
     }
     const providerLabels = upNextListLabel([...providerIssues.keys()]
       .map((provider) => UP_NEXT_PROVIDER_LABELS[provider] || provider));
-    const hasSavedItems = visibleUpNextItems().length > 0
-      || failedFeeds.some((feed) => Number(feed?.active_generation || 0) > 0 && Number(feed?.item_count || 0) > 0);
-    const fallback = hasSavedItems
-      ? "Saved Up Next items remain visible."
-      : "Plembfin is using its local fallback.";
     const details = failedFeeds
       .map((feed) => `${upNextFeedLabel(feed)}: ${String(feed?.last_error || "No error detail recorded.")}`)
       .join("\n");
@@ -1015,28 +1012,25 @@ function renderUpNextSourceStatus() {
       const retryError = state.upNextConnectionRetryErrorProvider === provider
         ? state.upNextConnectionRetryError
         : "";
+      const retryAttempts = Number(state.upNextConnectionRetryAttempts?.[provider] || 0);
+      const showHelp = retryAttempts >= UP_NEXT_CONNECTION_HELP_THRESHOLD;
       return `
         <div class="up-next-source-status-row">
           <div class="up-next-source-status-row-copy">
             <strong>${escapeHtml(providerLabel)} connection unavailable</strong>
-            <span>${escapeHtml(feedDetail)}</span>
-            ${retryError ? `<span class="up-next-source-status-retry-error">${escapeHtml(`Retry failed: ${retryError}`)}</span>` : ""}
           </div>
+          <span class="up-next-source-status-separator" aria-hidden="true">—</span>
           <button class="button-ghost up-next-source-retry" type="button"
             data-up-next-retry-connection="${escapeAttribute(provider)}"
             aria-label="Retry ${escapeAttribute(providerLabel)} connection"
-            ${retrying ? "disabled aria-busy=\"true\"" : ""}>${retrying ? "Checking…" : "Retry connection"}</button>
+            title="${escapeAttribute(retryError ? `Retry failed: ${retryError}. ${feedDetail}` : feedDetail)}"
+            ${retrying ? "disabled aria-busy=\"true\"" : ""}>${retrying ? "Checking…" : "Retry Connection"}</button>
+          ${showHelp ? `<a class="up-next-source-help" href="${UP_NEXT_CONNECTION_HELP_URL}" target="_blank" rel="noopener noreferrer" aria-label="Open help for ${escapeAttribute(providerLabel)} connection failures">Help</a>` : ""}
         </div>
       `;
     }).join("");
-    const copy = `Up Next is using ${hasSavedItems ? "saved items" : "local data"} while ${providerLabels} ${providerIssues.size === 1 ? "is" : "are"} unavailable.`;
-    status.innerHTML = `
-      <div class="up-next-source-status-head">
-        <strong>Media server connection issue</strong>
-        <span>${escapeHtml(fallback)} Plembfin will retry the affected server more often.</span>
-      </div>
-      <div class="up-next-source-status-list">${rows}</div>
-    `;
+    const copy = `${providerLabels} ${providerIssues.size === 1 ? "is" : "are"} unavailable.`;
+    status.innerHTML = rows;
     status.title = `${details}\n\nPlembfin retries failed provider connections every few minutes. If a retry keeps failing, check Settings → Connections.`;
     status.setAttribute("aria-label", copy);
   } else {
@@ -1068,10 +1062,17 @@ export async function retryUpNextConnection(provider) {
       error.status = response.status;
       throw error;
     }
+    state.upNextConnectionRetryAttempts = { ...(state.upNextConnectionRetryAttempts || {}) };
+    delete state.upNextConnectionRetryAttempts[normalizedProvider];
     _cb.setMessage?.(`${providerLabel} connection restored. Refreshing Up Next…`, "success");
     await loadUpNext({ force: true });
     return body;
   } catch (error) {
+    const attempts = Number(state.upNextConnectionRetryAttempts?.[normalizedProvider] || 0) + 1;
+    state.upNextConnectionRetryAttempts = {
+      ...(state.upNextConnectionRetryAttempts || {}),
+      [normalizedProvider]: attempts,
+    };
     state.upNextConnectionRetryError = upNextFailureReason({ last_error: error?.message || "Connection failed" });
     state.upNextConnectionRetryErrorProvider = normalizedProvider;
     _cb.setMessage?.(`Could not connect to ${providerLabel}: ${state.upNextConnectionRetryError}`, "error");
@@ -1398,6 +1399,7 @@ export function resetUpNext({ preserveItems = false } = {}) {
   state.upNextLoading = false;
   state.upNextSyncing = false;
   state.upNextConnectionRetryingProvider = "";
+  state.upNextConnectionRetryAttempts = {};
   state.upNextConnectionRetryError = "";
   state.upNextConnectionRetryErrorProvider = "";
   state.upNextLoadedAt = 0;

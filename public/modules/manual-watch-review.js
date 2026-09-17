@@ -1,9 +1,10 @@
-import { state } from "./state.js?v=1.1.1.5.2";
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.5.2";
-import { posterMarkup, hydratePosters } from "./images.js?v=1.1.1.5.2";
-import { escapeAttribute, escapeHtml, formatDate, movieHref, movieTmdbHref, slug, toDateTimeInputValue, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js?v=1.1.1.5.2";
+import { state } from "./state.js?v=1.1.1.7.3";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.7.3";
+import { posterMarkup, hydratePosters } from "./images.js?v=1.1.1.7.3";
+import { escapeAttribute, escapeHtml, formatDate, movieHref, movieTmdbHref, slug, toDateTimeInputValue, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js?v=1.1.1.7.3";
 
 let _cb = {};
+let _openConfirmDialog = async () => false;
 let reviewPollTimer = null;
 let manualDatePrompt = null;
 let manualWatchReviewGroupOrder = [];
@@ -11,9 +12,13 @@ let manualWatchReviewRequestSerial = 0;
 let latestManualWatchReviewCountRequest = 0;
 let latestManualWatchReviewFullRequest = 0;
 let manualWatchReviewLastRefreshCount = null;
-const expandedReviewShowKeys = new Set();
-const collapsedReviewShowKeys = new Set();
-const expandedReviewShowOverflowKeys = new Set();
+const pendingManualWatchReviewConfirmations = new Set();
+const pendingManualWatchReviewActions = new Map();
+const suppressedManualWatchReviewIds = new Map();
+const expandedReviewSeasonKeys = new Set();
+const collapsedReviewSeasonKeys = new Set();
+const expandedReviewSeasonOverflowKeys = new Set();
+const REVIEW_EPISODE_PREVIEW_COUNT = 3;
 
 function mediaTypeForReview(review = {}) {
   return String(review.media_type || review.media?.type || review.media?.media_type || "").toLowerCase();
@@ -179,6 +184,12 @@ export function groupManualWatchReviews(reviews = []) {
   return groups;
 }
 
+function manualWatchReviewDisplayCount(reviews = []) {
+  return groupManualWatchReviews(reviews).reduce((total, group) => (
+    total + (group.kind === "show" ? groupReviewsByEpisode(group.reviews).length : group.reviews.length)
+  ), 0);
+}
+
 export function orderManualWatchReviewGroups(groups = [], previousOrder = []) {
   const groupList = Array.isArray(groups) ? groups : [];
   const currentKeys = new Set(groupList.map((group) => group.key));
@@ -259,13 +270,102 @@ function reviewPosterHtml(review, title) {
   return posterMarkup(reviewPosterItem(review, title), "manual-watch-review-poster");
 }
 
-function reviewActionButtons({ includeEpisodeTiming = true } = {}) {
+function reviewActionButtons({ includeEpisodeTiming = true, source = "" } = {}) {
   return `
     <button class="button-ghost" type="button" data-manual-watch-review-action="approve" data-manual-watch-review-mode="now">Mark watched now</button>
     <button class="button-ghost" type="button" data-manual-watch-review-action="approve" data-manual-watch-review-mode="release_day">Use release day</button>
     ${includeEpisodeTiming ? `<button class="button-ghost" type="button" data-manual-watch-review-action="approve" data-manual-watch-review-mode="episode_timing">Use episode timing</button>` : ""}
     <button class="button-ghost" type="button" data-manual-watch-review-custom="item">Choose date &amp; time</button>
     <button class="button-danger" type="button" data-manual-watch-review-action="dismiss">Dismiss &amp; mark unwatched</button>
+  `;
+}
+
+function reviewSeasonKey(review = {}) {
+  const season = reviewSeason(review);
+  return Number.isInteger(season) ? String(season) : "unknown";
+}
+
+function reviewSeasonLabel(seasonKey) {
+  if (String(seasonKey) === "0") return "Specials";
+  if (String(seasonKey) === "unknown") return "Season unknown";
+  return `Season ${seasonKey}`;
+}
+
+function reviewSeasonStateKey(groupKey, seasonKey) {
+  return `${groupKey}:${seasonKey}`;
+}
+
+function reviewEpisodeStateKey(review = {}) {
+  const season = reviewSeason(review);
+  const episode = reviewEpisode(review);
+  if (Number.isInteger(season) && Number.isInteger(episode)) return `${season}:${episode}`;
+  return `title:${String(reviewEpisodeTitle(review) || reviewTitle(review)).trim().toLowerCase()}`;
+}
+
+export function groupReviewsByEpisode(reviews = []) {
+  const byKey = new Map();
+  for (const review of Array.isArray(reviews) ? reviews : []) {
+    const key = reviewEpisodeStateKey(review);
+    let group = byKey.get(key);
+    if (!group) {
+      group = { ...review, key, reviews: [], sources: [] };
+      byKey.set(key, group);
+    }
+    group.reviews.push(review);
+    const source = reviewSource(review);
+    if (!group.sources.includes(source)) group.sources.push(source);
+  }
+  return [...byKey.values()].sort((left, right) => compareEpisodeReviews(left, right));
+}
+
+function groupReviewsBySeason(reviews = []) {
+  const byKey = new Map();
+  for (const review of Array.isArray(reviews) ? reviews : []) {
+    const key = reviewSeasonKey(review);
+    if (!byKey.has(key)) byKey.set(key, []);
+    byKey.get(key).push(review);
+  }
+  return [...byKey.entries()]
+    .map(([key, seasonReviews]) => ({
+      key,
+      title: reviewSeasonLabel(key),
+      reviews: seasonReviews,
+      episodes: groupReviewsByEpisode(seasonReviews),
+    }))
+    .sort((left, right) => {
+      const leftNumber = left.key === "unknown" ? -1 : Number(left.key);
+      const rightNumber = right.key === "unknown" ? -1 : Number(right.key);
+      return rightNumber - leftNumber;
+    });
+}
+
+export { groupReviewsBySeason };
+
+export function reviewActionScopeLabel(scope, action, source = "", seasonLabel = "the season") {
+  if (action === "dismiss") return scope === "show" ? "Mark all show unwatched" : `Mark ${seasonLabel} unwatched`;
+  const prefix = scope === "show" ? "Mark all show" : `Mark ${seasonLabel}`;
+  if (action === "release_day") return `${prefix} on release day`;
+  if (action === "episode_timing") return `${prefix} with episode timing`;
+  return `${prefix} watched now`;
+}
+
+function scopedReviewActionButtons({ scope, groupKey, seasonKey = "", source = "" } = {}) {
+  const actionAttribute = scope === "show" ? "data-manual-watch-review-group-action" : "data-manual-watch-review-season-action";
+  const keyAttribute = scope === "show"
+    ? `data-manual-watch-review-group-key="${escapeAttribute(groupKey)}"`
+    : `data-manual-watch-review-group-key="${escapeAttribute(groupKey)}" data-manual-watch-review-season-key="${escapeAttribute(seasonKey)}"`;
+  const customAttributes = scope === "show"
+    ? `data-manual-watch-review-custom="group" data-manual-watch-review-group-key="${escapeAttribute(groupKey)}"`
+    : `data-manual-watch-review-custom="season" data-manual-watch-review-group-key="${escapeAttribute(groupKey)}" data-manual-watch-review-season-key="${escapeAttribute(seasonKey)}"`;
+  const makeButton = (action, mode, label) => `
+    <button class="button-ghost" type="button" ${actionAttribute}="${action}" ${keyAttribute}${mode ? ` data-manual-watch-review-mode="${mode}"` : ""}>${escapeHtml(label)}</button>
+  `;
+  return `
+    ${makeButton("approve", "now", reviewActionScopeLabel(scope, "now", source, reviewSeasonLabel(seasonKey)))}
+    ${makeButton("approve", "release_day", reviewActionScopeLabel(scope, "release_day", source, reviewSeasonLabel(seasonKey)))}
+    ${makeButton("approve", "episode_timing", reviewActionScopeLabel(scope, "episode_timing", source, reviewSeasonLabel(seasonKey)))}
+    <button class="button-ghost" type="button" ${customAttributes}>${escapeHtml(scope === "show" ? "Choose date & time for show" : "Choose date & time for season")}</button>
+    <button class="button-danger" type="button" ${actionAttribute}="dismiss" ${keyAttribute}>${escapeHtml(reviewActionScopeLabel(scope, "dismiss", source, reviewSeasonLabel(seasonKey)))}</button>
   `;
 }
 
@@ -289,35 +389,42 @@ function renderReviewCard(review) {
           <span class="status-pill status-warning">${escapeHtml(reviewSource(review))}</span>
         </div>
         <div class="manual-watch-review-meta">
-          <span>App flag detected ${escapeHtml(review.updated_at ? dateLabel(new Date(review.updated_at).toISOString()) : "Not supplied")}</span>
+          <span>Request: ${escapeHtml(reviewSource(review))} marked this watched</span>
+          <span>Review detected ${escapeHtml(review.updated_at ? dateLabel(new Date(review.updated_at).toISOString()) : "Not supplied")}</span>
           <span>Release day ${escapeHtml(dateLabel(review.release_date))}</span>
           ${review.observed_watched_at ? `<span>Source date ${escapeHtml(dateLabel(review.observed_watched_at))}</span>` : ""}
         </div>
-        <p class="manual-watch-review-copy">This app reported the item as watched without a reliable playback completion time. Choose how Plembfin should date it; leaving this card alone keeps it pending.</p>
-        <div class="manual-watch-review-actions">${reviewActionButtons({ includeEpisodeTiming: false })}</div>
+        <p class="manual-watch-review-copy">${escapeHtml(reviewSource(review))} marked this watched. Choose a date or mark it unwatched across connected media apps.</p>
+        <div class="manual-watch-review-actions">${reviewActionButtons({ includeEpisodeTiming: false, source: reviewSource(review) })}</div>
       </div>
     </article>
   `;
 }
 
 function renderReviewEpisodeRow(review) {
+  const reviews = Array.isArray(review.reviews) ? review.reviews : [review];
   const episodeTitle = reviewEpisodeTitle(review);
   const title = reviewTitle(review);
+  const sources = [...new Set(reviews.map(reviewSource))];
+  const source = sources.join(", ");
+  const ids = reviews.map((item) => String(item.id || "")).filter(Boolean).join(",");
+  const reviewDates = [...new Set(reviews.map((item) => item.updated_at ? dateLabel(new Date(item.updated_at).toISOString()) : "Not supplied"))];
+  const releaseDates = [...new Set(reviews.map((item) => dateLabel(item.release_date)))];
   return `
-    <article class="manual-watch-review-episode-row" data-manual-watch-review-id="${escapeAttribute(review.id)}">
+    <article class="manual-watch-review-episode-row" data-manual-watch-review-ids="${escapeAttribute(ids)}" data-manual-watch-review-episode-key="${escapeAttribute(review.key || reviewEpisodeStateKey(review))}">
       <div class="manual-watch-review-episode-copy">
         <div class="manual-watch-review-episode-heading">
           <span class="manual-watch-review-episode-code">${escapeHtml(reviewEpisodeCode(review))}</span>
           <h4>${escapeHtml(episodeTitle || title)}</h4>
-          <span class="status-pill status-warning">${escapeHtml(reviewSource(review))}</span>
+          ${sources.map((item) => `<span class="status-pill status-warning">Marked watched on ${escapeHtml(item)}</span>`).join("")}
         </div>
         <div class="manual-watch-review-meta">
-          <span>Flag detected ${escapeHtml(review.updated_at ? dateLabel(new Date(review.updated_at).toISOString()) : "Not supplied")}</span>
-          <span>Release day ${escapeHtml(dateLabel(review.release_date))}</span>
-          ${review.observed_watched_at ? `<span>Source date ${escapeHtml(dateLabel(review.observed_watched_at))}</span>` : ""}
+          <span>Review detected ${escapeHtml(reviewDates.join(", "))}</span>
+          <span>Release day ${escapeHtml(releaseDates.join(", "))}</span>
+          ${reviews.some((item) => item.observed_watched_at) ? `<span>Source dates ${escapeHtml([...new Set(reviews.filter((item) => item.observed_watched_at).map((item) => dateLabel(item.observed_watched_at)))].join(", "))}</span>` : ""}
         </div>
+        <div class="manual-watch-review-episode-actions manual-watch-review-actions">${reviewActionButtons({ includeEpisodeTiming: true, source })}</div>
       </div>
-      <div class="manual-watch-review-episode-actions manual-watch-review-actions">${reviewActionButtons({ includeEpisodeTiming: true })}</div>
     </article>
   `;
 }
@@ -328,11 +435,10 @@ function groupSourceLabel(reviews) {
 }
 
 function renderReviewShowGroup(group, query = "") {
-  const open = expandedReviewShowKeys.has(group.key) || !collapsedReviewShowKeys.has(group.key) || Boolean(query);
-  const previewReviews = group.reviews.slice(0, 2);
-  const remainingReviews = group.reviews.slice(2);
-  const overflowOpen = expandedReviewShowOverflowKeys.has(group.key) || Boolean(query);
-  const count = group.reviews.length;
+  const count = groupReviewsByEpisode(group.reviews).length;
+  const source = groupSourceLabel(group.reviews);
+  const seasons = groupReviewsBySeason(group.reviews);
+  const latestSeasonKey = seasons[0]?.key || "";
   const href = reviewShowHref(group.reviews[0]);
   return `
     <article class="manual-watch-review-show" data-manual-watch-review-show-key="${escapeAttribute(group.key)}">
@@ -347,27 +453,43 @@ function renderReviewShowGroup(group, query = "") {
             <h3><a class="manual-watch-review-title-link" href="${escapeAttribute(href)}" data-manual-watch-review-link="${escapeAttribute(href)}">${escapeHtml(group.title)}</a></h3>
             <div class="manual-watch-review-meta">
               <span>${count} episode${count === 1 ? "" : "s"} waiting</span>
-              <span>${escapeHtml(groupSourceLabel(group.reviews))}</span>
+              <span>Marked watched on ${escapeHtml(source)}</span>
             </div>
           </div>
-          <div class="manual-watch-review-show-actions manual-watch-review-actions">
-            <button class="button-ghost" type="button" data-manual-watch-review-group-action="approve" data-manual-watch-review-group-key="${escapeAttribute(group.key)}" data-manual-watch-review-mode="now">Mark all watched now</button>
-            <button class="button-ghost" type="button" data-manual-watch-review-group-action="approve" data-manual-watch-review-group-key="${escapeAttribute(group.key)}" data-manual-watch-review-mode="release_day">All on release day</button>
-            <button class="button-ghost" type="button" data-manual-watch-review-group-action="approve" data-manual-watch-review-group-key="${escapeAttribute(group.key)}" data-manual-watch-review-mode="episode_timing">All with episode timing</button>
-            <button class="button-ghost" type="button" data-manual-watch-review-custom="group" data-manual-watch-review-group-key="${escapeAttribute(group.key)}">All at date &amp; time</button>
-            <button class="button-danger" type="button" data-manual-watch-review-group-action="dismiss" data-manual-watch-review-group-key="${escapeAttribute(group.key)}">Dismiss all &amp; mark unwatched</button>
-          </div>
+          <div class="manual-watch-review-show-actions manual-watch-review-actions">${scopedReviewActionButtons({ scope: "show", groupKey: group.key, source })}</div>
         </div>
-        <details class="manual-watch-review-episodes" data-manual-watch-review-show-key="${escapeAttribute(group.key)}"${open ? " open" : ""}>
-          <summary><span>Episodes</span><span>${count} waiting</span></summary>
-          <div class="manual-watch-review-episode-list">${previewReviews.map(renderReviewEpisodeRow).join("")}</div>
-          ${remainingReviews.length ? `
-            <details class="manual-watch-review-more-episodes" data-manual-watch-review-overflow-key="${escapeAttribute(group.key)}"${overflowOpen ? " open" : ""}>
-              <summary>Show ${remainingReviews.length} more episode${remainingReviews.length === 1 ? "" : "s"}</summary>
-              <div class="manual-watch-review-episode-list">${remainingReviews.map(renderReviewEpisodeRow).join("")}</div>
-            </details>
-          ` : ""}
-        </details>
+      </div>
+      <div class="manual-watch-review-episodes" data-manual-watch-review-show-key="${escapeAttribute(group.key)}">
+        <div class="manual-watch-review-season-list">${seasons.map((season) => {
+            const seasonStateKey = reviewSeasonStateKey(group.key, season.key);
+            const seasonOpen = expandedReviewSeasonKeys.has(seasonStateKey)
+              || (!collapsedReviewSeasonKeys.has(seasonStateKey) && season.key === latestSeasonKey)
+              || Boolean(query);
+            const previewReviews = season.episodes.slice(0, REVIEW_EPISODE_PREVIEW_COUNT);
+            const remainingReviews = season.episodes.slice(REVIEW_EPISODE_PREVIEW_COUNT);
+            const overflowOpen = expandedReviewSeasonOverflowKeys.has(seasonStateKey) || Boolean(query);
+            return `
+            <section class="manual-watch-review-season" data-manual-watch-review-season-key="${escapeAttribute(season.key)}">
+              <div class="manual-watch-review-season-header">
+                <div class="manual-watch-review-season-heading">
+                  <strong>${escapeHtml(season.title)}</strong>
+                  <span>${season.episodes.length} waiting</span>
+                </div>
+                <div class="manual-watch-review-season-actions manual-watch-review-actions">${scopedReviewActionButtons({ scope: "season", groupKey: group.key, seasonKey: season.key, source })}</div>
+              </div>
+              <details class="manual-watch-review-season-episodes" data-manual-watch-review-season-details-key="${escapeAttribute(seasonStateKey)}"${seasonOpen ? " open" : ""}>
+                <summary><span>Episodes</span><span>${season.episodes.length} waiting</span></summary>
+                <div class="manual-watch-review-episode-list">${previewReviews.map(renderReviewEpisodeRow).join("")}</div>
+                ${remainingReviews.length ? `
+                  <details class="manual-watch-review-season-more-episodes" data-manual-watch-review-season-overflow-key="${escapeAttribute(seasonStateKey)}"${overflowOpen ? " open" : ""}>
+                    <summary>Show ${remainingReviews.length} more episode${remainingReviews.length === 1 ? "" : "s"}</summary>
+                    <div class="manual-watch-review-episode-list">${remainingReviews.map(renderReviewEpisodeRow).join("")}</div>
+                  </details>
+                ` : ""}
+              </details>
+            </section>
+          `;
+        }).join("")}</div>
       </div>
     </article>
   `;
@@ -381,13 +503,19 @@ function manualReviewDateInputValue(reviews = []) {
 
 function renderManualDatePrompt(target) {
   const isGroup = target?.kind === "group";
-  const reviews = isGroup ? target.reviews : [target.review];
-  const title = isGroup ? target.title : reviewTitle(target.review);
-  const sub = isGroup
+  const isSeason = target?.kind === "season";
+  const isEpisode = target?.kind === "episode";
+  const reviews = isGroup || isSeason || isEpisode ? target.reviews : [target.review];
+  const title = isGroup || isSeason || isEpisode ? (target.title || reviewTitle(reviews[0])) : reviewTitle(target.review);
+  const sub = isGroup || isSeason
     ? `${reviews.length} episode${reviews.length === 1 ? "" : "s"}`
+    : isEpisode
+      ? `${groupSourceLabel(reviews)} · ${reviewEpisodeCode(reviews[0])}`
     : reviewSource(target.review);
-  const help = isGroup
-    ? "This date and time will be applied to every episode in this show."
+  const help = isGroup || isSeason
+    ? `This date and time will be applied to every episode in ${isSeason ? "this season" : "this show"}.`
+    : isEpisode
+      ? "This date and time will be saved for this episode on every reporting app shown."
     : "This date and time will be saved as the watch date for this item.";
   return `
     <div class="watch-date-overlay manual-watch-review-date-overlay" role="dialog" aria-modal="true" aria-label="Choose watch date and time">
@@ -405,7 +533,7 @@ function renderManualDatePrompt(target) {
         </label>
         <p class="manual-watch-review-date-help">${escapeHtml(help)}</p>
         <div class="watch-date-calendar-actions">
-          <button class="button-primary" type="button" data-manual-watch-review-date-save>Save date &amp; time</button>
+          <button class="button-primary" type="button" data-manual-watch-review-date-save>Confirm date &amp; time</button>
           <button class="button-ghost" type="button" data-manual-watch-review-date-cancel>Cancel</button>
         </div>
       </div>
@@ -426,6 +554,51 @@ function reviewElementById(id) {
 function groupElementByKey(key) {
   return [...document.querySelectorAll(".manual-watch-review-show[data-manual-watch-review-show-key]")]
     .find((element) => String(element.dataset.manualWatchReviewShowKey) === String(key)) || null;
+}
+
+function seasonElementByKey(groupKey, seasonKey) {
+  const group = groupElementByKey(groupKey);
+  if (!group) return null;
+  return [...group.querySelectorAll(".manual-watch-review-season[data-manual-watch-review-season-key]")]
+    .find((element) => String(element.dataset.manualWatchReviewSeasonKey) === String(seasonKey)) || null;
+}
+
+function seasonReviewsForGroup(groupKey, seasonKey) {
+  return state.manualWatchReviews.filter((review) => (
+    isEpisodeReview(review)
+      && reviewGroupKey(review) === groupKey
+      && reviewSeasonKey(review) === String(seasonKey)
+  ));
+}
+
+function reviewRecordsForCard(card) {
+  if (!card) return [];
+  const ids = String(card.dataset.manualWatchReviewIds || "")
+    .split(",")
+    .map((id) => id.trim())
+    .filter(Boolean);
+  if (ids.length) {
+    const wanted = new Set(ids);
+    return state.manualWatchReviews.filter((review) => wanted.has(String(review.id)));
+  }
+  const id = card.dataset.manualWatchReviewId;
+  const review = state.manualWatchReviews.find((item) => String(item.id) === String(id));
+  return review ? [review] : [];
+}
+
+function expandSeasonReviewDetails(seasonElement) {
+  if (!seasonElement) return;
+  const groupElement = seasonElement.closest("[data-manual-watch-review-show-key]");
+  const groupKey = groupElement?.dataset.manualWatchReviewShowKey || "";
+  const seasonKey = seasonElement.dataset.manualWatchReviewSeasonKey || "";
+  const stateKey = reviewSeasonStateKey(groupKey, seasonKey);
+  expandedReviewSeasonKeys.add(stateKey);
+  collapsedReviewSeasonKeys.delete(stateKey);
+  expandedReviewSeasonOverflowKeys.add(stateKey);
+  const details = seasonElement.querySelector(".manual-watch-review-season-episodes");
+  if (details) details.open = true;
+  const overflow = seasonElement.querySelector(".manual-watch-review-season-more-episodes");
+  if (overflow) overflow.open = true;
 }
 
 function openManualDatePrompt(target) {
@@ -483,6 +656,27 @@ function bindManualDatePrompt() {
       ).catch((error) => _cb.setMessage?.(error.message || "Manual watch review failed.", "error"));
       return;
     }
+    if (target.kind === "season") {
+      handleSeasonAction(
+        target.groupKey,
+        target.seasonKey,
+        "approve",
+        "custom",
+        seasonElementByKey(target.groupKey, target.seasonKey),
+        date.toISOString(),
+      ).catch((error) => _cb.setMessage?.(error.message || "Manual watch review failed.", "error"));
+      return;
+    }
+    if (target.kind === "episode") {
+      handleEpisodeAction(
+        target.reviews,
+        "approve",
+        "custom",
+        target.card,
+        date.toISOString(),
+      ).catch((error) => _cb.setMessage?.(error.message || "Manual watch review failed.", "error"));
+      return;
+    }
     handleReviewAction(
       target.review.id,
       "approve",
@@ -519,31 +713,32 @@ function setSummaryVisibility() {
 }
 
 function bindRenderedReviewDetails(container) {
-  for (const details of container.querySelectorAll(".manual-watch-review-episodes[data-manual-watch-review-show-key]")) {
+  for (const details of container.querySelectorAll(".manual-watch-review-season-episodes[data-manual-watch-review-season-details-key]")) {
     details.addEventListener("toggle", () => {
-      const key = details.dataset.manualWatchReviewShowKey;
+      const key = details.dataset.manualWatchReviewSeasonDetailsKey;
       if (!key) return;
       if (details.open) {
-        expandedReviewShowKeys.add(key);
-        collapsedReviewShowKeys.delete(key);
+        expandedReviewSeasonKeys.add(key);
+        collapsedReviewSeasonKeys.delete(key);
       } else {
-        expandedReviewShowKeys.delete(key);
-        collapsedReviewShowKeys.add(key);
+        expandedReviewSeasonKeys.delete(key);
+        collapsedReviewSeasonKeys.add(key);
       }
     });
   }
-  for (const details of container.querySelectorAll(".manual-watch-review-more-episodes[data-manual-watch-review-overflow-key]")) {
+  for (const details of container.querySelectorAll(".manual-watch-review-season-more-episodes[data-manual-watch-review-season-overflow-key]")) {
     details.addEventListener("toggle", () => {
-      const key = details.dataset.manualWatchReviewOverflowKey;
+      const key = details.dataset.manualWatchReviewSeasonOverflowKey;
       if (!key) return;
-      if (details.open) expandedReviewShowOverflowKeys.add(key);
-      else expandedReviewShowOverflowKeys.delete(key);
+      if (details.open) expandedReviewSeasonOverflowKeys.add(key);
+      else expandedReviewSeasonOverflowKeys.delete(key);
     });
   }
 }
 
 export function initManualWatchReview(callbacks = {}) {
   _cb = callbacks;
+  if (typeof callbacks.openConfirmDialog === "function") _openConfirmDialog = callbacks.openConfirmDialog;
   const container = document.querySelector("#manualWatchReviewRows");
   if (!container) return;
   bindManualDatePrompt();
@@ -561,6 +756,10 @@ export function initManualWatchReview(callbacks = {}) {
         }
       }
 
+      const clickedButton = event.target.closest?.("button");
+      const seasonElement = event.target.closest?.(".manual-watch-review-season");
+      if (clickedButton && seasonElement) expandSeasonReviewDetails(seasonElement);
+
       const customButton = event.target.closest?.("[data-manual-watch-review-custom]");
       if (customButton && !customButton.disabled) {
         const kind = customButton.dataset.manualWatchReviewCustom;
@@ -568,11 +767,53 @@ export function initManualWatchReview(callbacks = {}) {
           const groupKey = customButton.dataset.manualWatchReviewGroupKey || "";
           const reviews = state.manualWatchReviews.filter((review) => isEpisodeReview(review) && reviewGroupKey(review) === groupKey);
           if (groupKey && reviews.length) openManualDatePrompt({ kind: "group", groupKey, title: reviewShowTitle(reviews[0]), reviews });
+        } else if (kind === "season") {
+          const groupKey = customButton.dataset.manualWatchReviewGroupKey || "";
+          const seasonKey = customButton.dataset.manualWatchReviewSeasonKey || "";
+          const reviews = seasonReviewsForGroup(groupKey, seasonKey);
+          if (groupKey && seasonKey && reviews.length) {
+            openManualDatePrompt({
+              kind: "season",
+              groupKey,
+              seasonKey,
+              title: `${reviewShowTitle(reviews[0])} · ${reviewSeasonLabel(seasonKey)}`,
+              reviews,
+            });
+          }
         } else {
-          const card = customButton.closest("[data-manual-watch-review-id]");
-          const id = card?.dataset.manualWatchReviewId;
-          const review = state.manualWatchReviews.find((item) => String(item.id) === String(id));
-          if (review) openManualDatePrompt({ kind: "item", review });
+          const card = customButton.closest("[data-manual-watch-review-id], [data-manual-watch-review-ids]");
+          const reviews = reviewRecordsForCard(card);
+          if (reviews.length > 1) {
+            openManualDatePrompt({ kind: "episode", reviews, title: reviewTitle(reviews[0]), card });
+          } else if (reviews[0]) {
+            openManualDatePrompt({ kind: "item", review: reviews[0], card });
+          }
+        }
+        return;
+      }
+
+      const seasonButton = event.target.closest("[data-manual-watch-review-season-action]");
+      if (seasonButton && !seasonButton.disabled) {
+        const groupKey = seasonButton.dataset.manualWatchReviewGroupKey || "";
+        const seasonKey = seasonButton.dataset.manualWatchReviewSeasonKey || "";
+        const season = seasonButton.closest(".manual-watch-review-season");
+        const action = seasonButton.dataset.manualWatchReviewSeasonAction;
+        const mode = seasonButton.dataset.manualWatchReviewMode || "";
+        const reviews = seasonReviewsForGroup(groupKey, seasonKey);
+        if (groupKey && seasonKey && reviews.length) {
+          confirmManualWatchReviewAction({
+            key: `season:${groupKey}:${seasonKey}:${action}:${mode}`,
+            action,
+            mode,
+            title: `${reviewShowTitle(reviews[0])} · ${reviewSeasonLabel(seasonKey)}`,
+            count: groupReviewsByEpisode(reviews).length,
+            source: groupSourceLabel(reviews),
+          }).then((confirmed) => {
+            if (!confirmed) return;
+            return handleSeasonAction(groupKey, seasonKey, action, mode, season);
+          }).catch((error) => {
+            _cb.setMessage?.(error.message || "Manual watch review failed.", "error");
+          });
         }
         return;
       }
@@ -584,7 +825,19 @@ export function initManualWatchReview(callbacks = {}) {
         const action = groupButton.dataset.manualWatchReviewGroupAction;
         const mode = groupButton.dataset.manualWatchReviewMode || "";
         if (groupKey) {
-          handleGroupAction(groupKey, action, mode, group).catch((error) => {
+          const reviews = state.manualWatchReviews.filter((review) => isEpisodeReview(review) && reviewGroupKey(review) === groupKey);
+          const groupTitle = reviews.length ? reviewShowTitle(reviews[0]) : "this show";
+          confirmManualWatchReviewAction({
+            key: `group:${groupKey}:${action}:${mode}`,
+            action,
+            mode,
+            title: groupTitle,
+            count: groupReviewsByEpisode(reviews).length,
+            source: groupSourceLabel(reviews),
+          }).then((confirmed) => {
+            if (!confirmed) return;
+            return handleGroupAction(groupKey, action, mode, group);
+          }).catch((error) => {
             _cb.setMessage?.(error.message || "Manual watch review failed.", "error");
           });
         }
@@ -593,12 +846,25 @@ export function initManualWatchReview(callbacks = {}) {
 
       const button = event.target.closest("[data-manual-watch-review-action]");
       if (!button || button.disabled) return;
-      const card = button.closest("[data-manual-watch-review-id]");
-      const id = card?.dataset.manualWatchReviewId;
-      if (!id) return;
+      const card = button.closest("[data-manual-watch-review-id], [data-manual-watch-review-ids]");
+      const reviews = reviewRecordsForCard(card);
+      if (!reviews.length) return;
       const action = button.dataset.manualWatchReviewAction;
       const mode = button.dataset.manualWatchReviewMode || "";
-      handleReviewAction(id, action, mode, card).catch((error) => {
+      const review = reviews[0];
+      confirmManualWatchReviewAction({
+        key: `review:${reviews.map((item) => item.id).join(",")}:${action}:${mode}`,
+        action,
+        mode,
+        title: reviewTitle(review),
+        source: groupSourceLabel(reviews),
+      }).then((confirmed) => {
+        if (!confirmed) return;
+        if (reviews.length > 1 || card?.dataset.manualWatchReviewIds) {
+          return handleEpisodeAction(reviews, action, mode, card);
+        }
+        return handleReviewAction(review.id, action, mode, card);
+      }).catch((error) => {
         _cb.setMessage?.(error.message || "Manual watch review failed.", "error");
       });
     });
@@ -638,6 +904,8 @@ export function renderManualWatchReviewPage() {
   const query = String(state.manualWatchReviewSearch || "").trim();
   const reviews = Array.isArray(state.manualWatchReviews) ? state.manualWatchReviews : [];
   const filtered = filterManualWatchReviews(reviews, query);
+  const displayCount = manualWatchReviewDisplayCount(reviews);
+  const filteredDisplayCount = manualWatchReviewDisplayCount(filtered);
   const orderedGroups = reviewGroupsForDisplay(groupManualWatchReviews(reviews));
   if (!reviews.length) {
     container.innerHTML = `<div class="idle-state"><b>No manual watch decisions are waiting.</b><span>Items detected under Require review will appear here.</span></div>`;
@@ -659,15 +927,17 @@ export function renderManualWatchReviewPage() {
   }
 
   if (status) {
-    status.textContent = reviews.length
+    status.textContent = displayCount
       ? query
-        ? `${filtered.length} of ${reviews.length} item${reviews.length === 1 ? "" : "s"} waiting for a decision.`
-        : `${reviews.length} item${reviews.length === 1 ? "" : "s"} waiting for a decision.`
+        ? `${filteredDisplayCount} of ${displayCount} item${displayCount === 1 ? "" : "s"} waiting for a decision.`
+        : `${displayCount} item${displayCount === 1 ? "" : "s"} waiting for a decision.`
       : "Nothing is waiting for review.";
     status.className = "message muted";
   }
   if (filterStatus) {
-    filterStatus.textContent = query && reviews.length ? `${filtered.length} match${filtered.length === 1 ? "" : "es"}` : "";
+    filterStatus.textContent = query && displayCount
+      ? `${filteredDisplayCount} match${filteredDisplayCount === 1 ? "" : "es"}`
+      : "";
   }
   setSummaryVisibility();
 }
@@ -676,6 +946,8 @@ export async function loadManualWatchReview({ summaryOnly = false } = {}) {
   if (!state.token) {
     state.manualWatchReviews = [];
     state.manualWatchReviewCount = 0;
+    pendingManualWatchReviewActions.clear();
+    suppressedManualWatchReviewIds.clear();
     state.manualWatchReviewLoaded = false;
     manualWatchReviewGroupOrder = [];
     renderManualWatchReviewSummary();
@@ -699,36 +971,58 @@ export async function loadManualWatchReview({ summaryOnly = false } = {}) {
     });
     const body = await response.json().catch(() => ({}));
     if (!response.ok || !body.ok) throw new Error(body.error || `Manual Watch review failed with ${response.status}`);
+    const serverCount = Number(body.count || 0);
+    const responseReviews = Array.isArray(body.reviews) ? body.reviews : [];
+    const responseIds = new Set(responseReviews.map((review) => String(review.id)));
+    if (!summaryOnly) {
+      for (const id of suppressedManualWatchReviewIds.keys()) {
+        if (!responseIds.has(id)) suppressedManualWatchReviewIds.delete(id);
+      }
+    }
+    const hiddenReviews = [
+      ...pendingManualWatchReviewActions.values(),
+      ...suppressedManualWatchReviewIds.values(),
+    ];
+    const hiddenCount = manualWatchReviewDisplayCount(hiddenReviews);
+    const visibleServerCount = Math.max(0, serverCount - hiddenCount);
     // Summary and full-page requests can overlap during navigation or while a
     // provider event is arriving. Never let an older response put the page
     // back into a state that disagrees with the newer sidebar count.
     if (requestId >= latestManualWatchReviewCountRequest) {
       latestManualWatchReviewCountRequest = requestId;
-      state.manualWatchReviewCount = Number(body.count || 0);
+      state.manualWatchReviewCount = summaryOnly
+        ? visibleServerCount
+        : manualWatchReviewDisplayCount(responseReviews.filter((review) => (
+          !pendingManualWatchReviewActions.has(String(review.id))
+          && !suppressedManualWatchReviewIds.has(String(review.id))
+        )));
     }
     const isLatestFullRequest = !summaryOnly && requestId === latestManualWatchReviewFullRequest;
     if (isLatestFullRequest) {
-      state.manualWatchReviews = Array.isArray(body.reviews) ? body.reviews : [];
+      state.manualWatchReviews = responseReviews.filter((review) => (
+        !pendingManualWatchReviewActions.has(String(review.id))
+        && !suppressedManualWatchReviewIds.has(String(review.id))
+      ));
       // A fresh server snapshot establishes the preferred newest-first order.
       // Single-item decisions keep any remaining show at its current position.
       manualWatchReviewGroupOrder = [];
       state.manualWatchReviewLoaded = true;
-      if (state.manualWatchReviews.length === state.manualWatchReviewCount) manualWatchReviewLastRefreshCount = null;
+      if (manualWatchReviewDisplayCount(state.manualWatchReviews) === state.manualWatchReviewCount) manualWatchReviewLastRefreshCount = null;
     }
     renderManualWatchReviewSummary();
     if (state.activeView === "manualWatchReview" && isLatestFullRequest) renderManualWatchReviewPage();
     if (
       summaryOnly
       && state.activeView === "manualWatchReview"
-      && Number(body.count || 0) !== state.manualWatchReviews.length
-      && manualWatchReviewLastRefreshCount !== Number(body.count || 0)
+      && visibleServerCount !== manualWatchReviewDisplayCount(state.manualWatchReviews)
+      && manualWatchReviewLastRefreshCount !== visibleServerCount
     ) {
       // A summary response can win the race with the full page request that
       // was already in flight when the provider flag arrived. Start one newer
       // full request for this count so the stale response cannot hide the new
       // review row. The request serial above makes the older full response a
       // no-op when it eventually completes.
-      manualWatchReviewLastRefreshCount = Number(body.count || 0);
+      manualWatchReviewLastRefreshCount = visibleServerCount;
       loadManualWatchReview().catch((error) => {
         logManualWatchReviewError(error);
       });
@@ -763,9 +1057,41 @@ async function postReviewAction(id, action, mode = "", watchedAt = "") {
   return body;
 }
 
-function removeReviewFromState(id, count) {
-  state.manualWatchReviews = state.manualWatchReviews.filter((review) => String(review.id) !== String(id));
-  state.manualWatchReviewCount = Number(count ?? state.manualWatchReviews.length);
+function optimisticallyRemoveReviews(reviews = []) {
+  const ids = new Set();
+  const removed = [];
+  for (const review of Array.isArray(reviews) ? reviews : []) {
+    const id = String(review?.id || "");
+    if (!id || ids.has(id)) continue;
+    ids.add(id);
+    pendingManualWatchReviewActions.set(id, review);
+    removed.push(review);
+  }
+  if (!removed.length) return removed;
+  state.manualWatchReviews = state.manualWatchReviews.filter((review) => !ids.has(String(review.id)));
+  state.manualWatchReviewCount = manualWatchReviewDisplayCount(state.manualWatchReviews);
+  return removed;
+}
+
+function completeOptimisticReview(id) {
+  const key = String(id);
+  const review = pendingManualWatchReviewActions.get(key);
+  pendingManualWatchReviewActions.delete(key);
+  if (review) suppressedManualWatchReviewIds.set(key, review);
+  state.manualWatchReviewCount = manualWatchReviewDisplayCount(state.manualWatchReviews);
+}
+
+function restoreOptimisticReviews(reviews = []) {
+  const existingIds = new Set(state.manualWatchReviews.map((review) => String(review.id)));
+  const restored = reviews.filter((review) => {
+    const id = String(review?.id || "");
+    pendingManualWatchReviewActions.delete(id);
+    suppressedManualWatchReviewIds.delete(id);
+    return id && !existingIds.has(id);
+  });
+  if (!restored.length) return;
+  state.manualWatchReviews = [...state.manualWatchReviews, ...restored];
+  state.manualWatchReviewCount = manualWatchReviewDisplayCount(state.manualWatchReviews);
 }
 
 function policyLabel(mode) {
@@ -773,6 +1099,38 @@ function policyLabel(mode) {
   if (mode === "episode_timing") return "episode timing";
   if (mode === "custom") return "manual date & time";
   return "now";
+}
+
+export function manualWatchReviewConfirmation({ action = "approve", mode = "now", title = "this item", count = 1, source = "the reporting app" } = {}) {
+  const itemCount = Number(count) || 1;
+  const subject = itemCount === 1
+    ? `“${title}”`
+    : `${itemCount} episodes from “${title}”`;
+  if (action === "dismiss") {
+    return {
+      title: itemCount === 1 ? "Dismiss manual watch review?" : "Dismiss all manual watch reviews?",
+      body: `This will dismiss ${subject} and mark ${itemCount === 1 ? "it" : "them"} unwatched across connected media apps. The unwatched state will be queued for sync.`,
+      confirmLabel: itemCount === 1 ? "Dismiss & mark unwatched" : "Dismiss all & mark unwatched",
+      danger: true,
+    };
+  }
+  return {
+    title: itemCount === 1 ? "Confirm manual watch decision" : "Confirm manual watch decisions",
+    body: `Mark ${subject} watched using the ${policyLabel(mode)} date? This will save the decision and queue it for sync to connected apps.`,
+    confirmLabel: itemCount === 1 ? "Confirm watch decision" : "Confirm all decisions",
+    danger: false,
+  };
+}
+
+async function confirmManualWatchReviewAction({ key, action, mode, title, count = 1, source } = {}) {
+  const confirmationKey = String(key || `${action}:${mode}:${title}:${count}`);
+  if (pendingManualWatchReviewConfirmations.has(confirmationKey)) return false;
+  pendingManualWatchReviewConfirmations.add(confirmationKey);
+  try {
+    return Boolean(await _openConfirmDialog(manualWatchReviewConfirmation({ action, mode, title, count, source })));
+  } finally {
+    pendingManualWatchReviewConfirmations.delete(confirmationKey);
+  }
 }
 
 function setReviewBusy(element, busy) {
@@ -786,32 +1144,92 @@ async function handleReviewAction(id, action, mode, card, watchedAt = "") {
   const buttons = [...(card?.querySelectorAll("button") || [])];
   buttons.forEach((button) => { button.disabled = true; });
   setReviewBusy(card, true);
+  const review = state.manualWatchReviews.find((item) => String(item.id) === String(id));
+  const optimistic = action === "defer" || !review ? [] : optimisticallyRemoveReviews([review]);
+  if (optimistic.length) {
+    renderManualWatchReviewPage();
+    _cb.setMessage?.("Decision removed from review; syncing in the background.", "muted");
+  }
   try {
     const body = await postReviewAction(id, action, mode, watchedAt);
     if (action !== "defer") {
-      removeReviewFromState(id, body.count);
-      renderManualWatchReviewPage();
+      completeOptimisticReview(id);
     }
     _cb.setMessage?.(
       action === "dismiss"
-        ? `Manual watch review dismissed; marked unwatched on ${body.source ? String(body.source).replace(/^./, (value) => value.toUpperCase()) : "the reporting app"}.`
+        ? "Manual watch review dismissed; marked unwatched across connected media apps."
         : action === "defer"
           ? "Manual watch review left pending."
           : `Watch decision saved (${policyLabel(mode)}) and sync queued.`,
       "success",
     );
+  } catch (error) {
+    if (optimistic.length) {
+      restoreOptimisticReviews(optimistic);
+      renderManualWatchReviewPage();
+    }
+    throw error;
   } finally {
     setReviewBusy(card, false);
     buttons.forEach((button) => { button.disabled = false; });
   }
 }
 
+async function handleEpisodeAction(reviews, action, mode, card, watchedAt = "") {
+  const records = Array.isArray(reviews) ? reviews : [];
+  if (!records.length) return;
+  const buttons = [...(card?.querySelectorAll("button") || [])];
+  buttons.forEach((button) => { button.disabled = true; });
+  setReviewBusy(card, true);
+  const optimistic = action === "defer" ? [] : optimisticallyRemoveReviews(records);
+  if (optimistic.length) {
+    renderManualWatchReviewPage();
+    _cb.setMessage?.("Episode removed from review; syncing in the background.", "muted");
+  }
+  let completed = 0;
+  let failure = null;
+  try {
+    for (const review of records) {
+      try {
+        await postReviewAction(review.id, action, mode, watchedAt);
+        if (action !== "defer") completeOptimisticReview(review.id);
+        completed += 1;
+      } catch (error) {
+        failure = error;
+        break;
+      }
+    }
+  } finally {
+    setReviewBusy(card, false);
+    buttons.forEach((button) => { button.disabled = false; });
+  }
+  if (failure) {
+    if (optimistic.length) {
+      restoreOptimisticReviews(records.slice(completed));
+      renderManualWatchReviewPage();
+    }
+    throw new Error(`${completed} of ${records.length} provider records updated. ${failure.message}`);
+  }
+  _cb.setMessage?.(
+    action === "dismiss"
+      ? "Episode dismissed and marked unwatched across connected media apps."
+      : `Episode watch decision saved (${policyLabel(mode)}); sync queued.`,
+    "success",
+  );
+}
+
 async function handleGroupAction(groupKey, action, mode, groupElement, watchedAt = "") {
   const reviews = state.manualWatchReviews.filter((review) => isEpisodeReview(review) && reviewGroupKey(review) === groupKey);
   if (!reviews.length) return;
+  const episodeCount = groupReviewsByEpisode(reviews).length;
   const buttons = [...(groupElement?.querySelectorAll("button") || [])];
   buttons.forEach((button) => { button.disabled = true; });
   setReviewBusy(groupElement, true);
+  const optimistic = action === "defer" ? [] : optimisticallyRemoveReviews(reviews);
+  if (optimistic.length) {
+    renderManualWatchReviewPage();
+    _cb.setMessage?.(`${optimistic.length} review${optimistic.length === 1 ? "" : "s"} removed; syncing in the background.`, "muted");
+  }
   let completed = 0;
   let failure = null;
   try {
@@ -819,8 +1237,8 @@ async function handleGroupAction(groupKey, action, mode, groupElement, watchedAt
     // queues outbound sync, so a large show should not fan out all at once.
     for (const review of reviews) {
       try {
-        const body = await postReviewAction(review.id, action, mode, watchedAt);
-        if (action !== "defer") removeReviewFromState(review.id, body.count);
+        await postReviewAction(review.id, action, mode, watchedAt);
+        if (action !== "defer") completeOptimisticReview(review.id);
         completed += 1;
       } catch (error) {
         failure = error;
@@ -831,14 +1249,64 @@ async function handleGroupAction(groupKey, action, mode, groupElement, watchedAt
     setReviewBusy(groupElement, false);
     buttons.forEach((button) => { button.disabled = false; });
   }
-  renderManualWatchReviewPage();
   if (failure) {
+    const unresolved = reviews.slice(completed);
+    if (optimistic.length) {
+      restoreOptimisticReviews(unresolved);
+      renderManualWatchReviewPage();
+    }
     throw new Error(`${completed} of ${reviews.length} episode${reviews.length === 1 ? "" : "s"} updated. ${failure.message}`);
   }
   _cb.setMessage?.(
     action === "dismiss"
-      ? `${completed} episode${completed === 1 ? "" : "s"} dismissed and marked unwatched on the reporting app${completed === 1 ? "" : "s"}.`
-      : `${completed} episode${completed === 1 ? "" : "s"} marked watched (${policyLabel(mode)}); sync queued.`,
+      ? `${episodeCount} episode${episodeCount === 1 ? "" : "s"} dismissed and marked unwatched across connected media apps.`
+      : `${episodeCount} episode${episodeCount === 1 ? "" : "s"} marked watched (${policyLabel(mode)}); sync queued.`,
+    "success",
+  );
+}
+
+async function handleSeasonAction(groupKey, seasonKey, action, mode, seasonElement, watchedAt = "") {
+  const reviews = seasonReviewsForGroup(groupKey, seasonKey);
+  if (!reviews.length) return;
+  const episodeCount = groupReviewsByEpisode(reviews).length;
+  const buttons = [...(seasonElement?.querySelectorAll("button") || [])];
+  buttons.forEach((button) => { button.disabled = true; });
+  setReviewBusy(seasonElement, true);
+  const optimistic = action === "defer" ? [] : optimisticallyRemoveReviews(reviews);
+  if (optimistic.length) {
+    renderManualWatchReviewPage();
+    _cb.setMessage?.(`${optimistic.length} review${optimistic.length === 1 ? "" : "s"} removed; syncing in the background.`, "muted");
+  }
+  let completed = 0;
+  let failure = null;
+  try {
+    for (const review of reviews) {
+      try {
+        await postReviewAction(review.id, action, mode, watchedAt);
+        if (action !== "defer") completeOptimisticReview(review.id);
+        completed += 1;
+      } catch (error) {
+        failure = error;
+        break;
+      }
+    }
+  } finally {
+    setReviewBusy(seasonElement, false);
+    buttons.forEach((button) => { button.disabled = false; });
+  }
+  if (failure) {
+    const unresolved = reviews.slice(completed);
+    if (optimistic.length) {
+      restoreOptimisticReviews(unresolved);
+      renderManualWatchReviewPage();
+    }
+    throw new Error(`${completed} of ${reviews.length} episode${reviews.length === 1 ? "" : "s"} in ${reviewSeasonLabel(seasonKey)} updated. ${failure.message}`);
+  }
+  const source = groupSourceLabel(reviews);
+  _cb.setMessage?.(
+    action === "dismiss"
+      ? `${episodeCount} episode${episodeCount === 1 ? "" : "s"} in ${reviewSeasonLabel(seasonKey)} dismissed and marked unwatched across connected media apps.`
+      : `${episodeCount} episode${episodeCount === 1 ? "" : "s"} in ${reviewSeasonLabel(seasonKey)} marked watched (${policyLabel(mode)}); sync queued.`,
     "success",
   );
 }

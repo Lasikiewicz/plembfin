@@ -7,6 +7,9 @@ makeTempDataDir("plembfin-webhook-content-type-");
 const { handleWebhook, normalizeWebhook } = await import("../server/src/routes/sync.js");
 const { AUTH } = await import("../server/src/appConfig.js");
 const { deleteActiveSession, listActiveSessions } = await import("../server/src/utils/activeSessions.js");
+const { insertWatchRecord, upsertPlaystateForMedia } = await import("../server/src/utils/dataRepo.js");
+const { createLoopStore } = await import("../server/src/utils/loopStore.js");
+const { recordOutboundPlayedMarks } = await import("../server/src/utils/syncOrchestrator.js");
 const { UP_NEXT_SEED_DEVICE_ID } = await import("../server/src/utils/embyClient.js");
 
 function request({ contentType = "", userAgent = "test-agent", body = "" } = {}) {
@@ -84,6 +87,41 @@ test("a declared JSON content type still parses the same payload", async () => {
   );
   assert.equal(media.isValid, true);
   assert.equal(media.source, "jellyfin");
+});
+
+test("a watched callback caused by Plembfin is acknowledged without re-reconciling", async () => {
+  const media = {
+    title: "Echo Guard Movie",
+    type: "movie",
+    mediaType: "movie",
+    ids: { tmdb: "echo-guard-movie" },
+    isValid: true,
+  };
+  const record = await insertWatchRecord({
+    title: media.title,
+    media_type: "movie",
+    tmdb_id: media.ids.tmdb,
+    watched_at: "2026-09-17T08:00:00.000Z",
+    source: "manual",
+  });
+  await upsertPlaystateForMedia(media, "watched", record.record.watched_at);
+  await recordOutboundPlayedMarks(media, ["jellyfin"], createLoopStore());
+
+  const response = responseCapture();
+  await handleWebhook(webhookRequest({
+    ServerId: "echo-guard-server",
+    NotificationType: "ItemMarkPlayed",
+    Item: {
+      Type: "Movie",
+      Name: media.title,
+      ProviderIds: { Tmdb: media.ids.tmdb },
+      UserData: { Played: true, LastPlayedDate: "2026-09-17T08:01:00.000Z" },
+    },
+  }), response);
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.skipped, true);
+  assert.match(response.body.reason, /outbound mark/i);
 });
 
 test("a body that is not JSON at all is rejected with the sender recorded", async () => {

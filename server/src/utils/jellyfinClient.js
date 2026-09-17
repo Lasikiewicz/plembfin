@@ -4,6 +4,7 @@ import { restoreLookupKey } from "./restoreLookupCache.js";
 import { nativeProviderItemIds } from "./providerItemIds.js";
 import { jellyfinAuthHeaders, jellyfinCredential } from "./jellyfinAuth.js";
 import { canonicalPlayedDateIso } from "./watchSyncPolicy.js";
+import { traceLog } from "./logVerbose.js";
 
 function trimTrailingSlash(value = "") {
   return String(value).replace(/\/+$/, "");
@@ -258,7 +259,7 @@ async function searchJellyfinFallback(config, media, targetType) {
   // Jellyfin's Fields parameter accepts ItemFields enum values. UserData is
   // controlled separately by EnableUserData and is not an ItemFields value.
   url.searchParams.set("Fields", "ProviderIds");
-  console.log("Jellyfin search fallback started", { query: queryTitle, targetType });
+  traceLog("Jellyfin search fallback started", { query: queryTitle, targetType });
   try {
     const body = await fetchJson(url, config, media);
     const results = body?.Items || [];
@@ -270,7 +271,7 @@ async function searchJellyfinFallback(config, media, targetType) {
     });
 
     if (matched.length > 0) {
-      console.log("Jellyfin search fallback matched items", { count: matched.length, itemIds: matched.map(i => i.Id) });
+      traceLog("Jellyfin search fallback matched items", { count: matched.length, itemIds: matched.map(i => i.Id) });
       return matched;
     }
   } catch (error) {
@@ -290,7 +291,7 @@ async function findByProviderIds(config, media, itemTypes) {
     url.searchParams.set("IncludeItemTypes", itemTypes);
     url.searchParams.set("Fields", "ProviderIds");
     url.searchParams.set("AnyProviderIdEquals", providerTerm);
-    console.log("Jellyfin lookup started", { itemTypes, providerTerm });
+    traceLog("Jellyfin lookup started", { itemTypes, providerTerm });
     const body = await fetchJson(url, config, media);
       const [prov, val] = providerTerm.split(".");
       const providerKey = prov.charAt(0).toUpperCase() + prov.slice(1);
@@ -318,7 +319,7 @@ async function findByProviderIds(config, media, itemTypes) {
 
   const results = Array.from(allMatched.values());
   if (results.length > 0) {
-    console.log("Jellyfin lookup matched items", { count: results.length, itemIds: results.map(i => i.Id) });
+    traceLog("Jellyfin lookup matched items", { count: results.length, itemIds: results.map(i => i.Id) });
     return results;
   }
 

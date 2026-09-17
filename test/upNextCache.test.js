@@ -5,7 +5,7 @@ import path from "node:path";
 import { makeTempDataDir } from "./helpers.js";
 
 const dataDir = makeTempDataDir("plembfin-up-next-cache-");
-const { bumpDataVersion, getUpNextVersion } = await import("../server/src/db.js");
+const { bumpDataVersion, bumpUpNextVersion, getUpNextVersion } = await import("../server/src/db.js");
 const { getUpNextCacheSnapshot } = await import("../server/src/utils/upNextCache.js");
 
 test("Up Next rebuilds synchronously when watch history changes", async () => {
@@ -33,6 +33,24 @@ test("Up Next rebuilds synchronously when watch history changes", async () => {
   assert.equal(buildCount, 2);
   assert.ok(refreshed.upNextVersion > initialVersion);
   assert.deepEqual(JSON.parse(await fs.readFile(cacheFile, "utf8")).items.map((item) => item.id), ["episode-b"]);
+});
+
+test("Up Next rebuilds synchronously when the queue generation changes", async () => {
+  let buildCount = 0;
+  await getUpNextCacheSnapshot(async () => {
+    buildCount += 1;
+    return [{ id: "episode-c", title: "Gamma" }];
+  }, { refresh: true });
+
+  bumpUpNextVersion();
+  const refreshed = await getUpNextCacheSnapshot(async () => {
+    buildCount += 1;
+    return [{ id: "episode-d", title: "Delta" }];
+  }, { revalidate: true });
+
+  assert.deepEqual(refreshed.items.map((item) => item.id), ["episode-d"]);
+  assert.equal(refreshed.stale, false);
+  assert.equal(buildCount, 2);
 });
 
 test("reading a legacy cache snapshot collapses identity and title-only episode duplicates", async () => {

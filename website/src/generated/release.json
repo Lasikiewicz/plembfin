@@ -5114,10 +5114,56 @@
   ],
   "alpha": {
     "baseVersion": "1.1.1",
-    "build": 4,
-    "version": "1.1.1.4.0",
-    "updatedAt": "2026-09-16T16:22:53.133Z",
+    "build": 7,
+    "version": "1.1.1.7.0",
+    "updatedAt": "2026-09-17T15:48:29.193Z",
     "entries": [
+      {
+        "build": 7,
+        "version": "1.1.1.7.0",
+        "date": "17 September 2026",
+        "title": "Alpha build 7",
+        "summary": "Improves Up Next reliability, sync visibility, media-server recovery guidance, and manual watch review clarity.",
+        "bullets": [
+          "Feature: Add clearer progress and removal feedback for background sync actions.",
+          "Feature: Add Help after two failed provider retries and publish Jellyfin connection troubleshooting guidance.",
+          "Tweak: Keep completed shows out of Up Next while retaining manually queued never-watched shows.",
+          "Tweak: Surface media-server connection retries inline and improve Sync Activity match issue handling.",
+          "Tweak: Media-page Up Next changes now appear promptly by prioritizing their sync and rebuilding stale queue projections.",
+          "Tweak: Existing provider requests finish safely before the priority update is sent.",
+          "Tweak: Refresh Up Next immediately after dashboard unwatch actions and keep valid manual watch reviews visible when older watch history exists.",
+          "Tweak: Require confirmation before applying individual or show-level watch and unwatched decisions from Manual Watch review.",
+          "Tweak: Show which connected app reported a watch and where dismissing the review will mark it unwatched.",
+          "Tweak: Organize Manual Watch review actions by show, season, and episode with concise provider-specific labels."
+        ]
+      },
+      {
+        "build": 6,
+        "version": "1.1.1.6.0",
+        "date": "17 September 2026",
+        "title": "Alpha build 6",
+        "summary": "Fix - Keep media changes visible during sync",
+        "bullets": [
+          "Fix: Keep media changes visible during sync",
+          "Fix: Give Tautulli backup and import a clear preview, backup, import, and syncing flow with progress feedback.",
+          "Fix: Refresh open media details immediately after removing one watch date while preserving surviving watches.",
+          "Fix: Show syncing state and pause only affected media controls while queued imports and dispatches finish.",
+          "Fix: Keep repeated watch actions responsive and visible, including animated Up Next requests with failure-safe labels."
+        ]
+      },
+      {
+        "build": 5,
+        "version": "1.1.1.5.0",
+        "date": "17 September 2026",
+        "title": "Alpha build 5",
+        "summary": "Fix - Clarify Tautulli backup and import progress",
+        "bullets": [
+          "Fix: Clarify Tautulli backup and import progress",
+          "Fix: Use Plembfin's in-app confirmation for the multiline backup and import summary.",
+          "Fix: Show Importing while the backup and import request runs and keep the action disabled.",
+          "Fix: Confirm completion and that Plembfin is syncing imported watches to connected media servers."
+        ]
+      },
       {
         "build": 4,
         "version": "1.1.1.4.0",

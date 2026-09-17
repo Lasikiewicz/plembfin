@@ -16,6 +16,7 @@ sourcePaths:
   - public/modules/watchlist-sync-settings.js
   - docs/personal-ratings.md
   - docs/personal-watchlist.md
+  - public/modules/up-next.js
 screenshots:
   - /assets/app-captures/dashboard-dark.png
   - /assets/app-captures/dashboard-light.png
@@ -106,6 +107,28 @@ It does not automatically mean the title was watched.
 
 If the dashboard is healthy but the live panel remains empty, continue with [media-server
 event setup](/docs/integrations/#media-servers).
+
+## Media-server connection failures
+
+If **Up Next** shows **Jellyfin connection unavailable**, or the equivalent notice for Plex or
+Emby, Plembfin keeps the saved Up Next items visible while it retries the affected server in the
+background. A connection problem does not delete your local watch history or clear the rail.
+
+1. Select **Retry Connection** beside the notice.
+2. Check the server URL and credentials under [Settings → Media servers](/docs/settings/media-servers/).
+3. Confirm the Plembfin host can reach the media server. Test the URL from the machine running
+   Plembfin, not only from the browser.
+4. After two unsuccessful retries, select **Help** beside the retry action to return to this
+   guide, then check the provider-specific setup and the recent error in [Settings → Logs](/docs/settings/logs/).
+
+For Jellyfin, confirm that the server is running, the configured URL is reachable from the
+Plembfin container or host, the API key or user token is current, and the user can read the
+libraries used by Up Next. If the server was moved or its reverse-proxy path changed, update the
+connection URL and retry.
+
+When the connection recovers, refresh the dashboard. Plembfin replaces the saved snapshot with
+the latest provider response; until then, avoid marking an item watched solely because the
+provider rail is unavailable.
 
 ## Up Next resume progress is missing or wrong
 

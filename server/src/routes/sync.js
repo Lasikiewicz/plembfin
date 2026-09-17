@@ -65,6 +65,7 @@ import { getCanonicalPosterUrl } from "../utils/mediaArtwork.js";
 import { syncUpNextToProviders } from "../utils/upNextProviderSync.js";
 import { mediaIsUpNextRailSeed } from "../utils/upNextSeedLedger.js";
 import { DISMISSED_TRAKT_NOT_FOUND_DETAIL } from "../utils/traktDismissals.js";
+import { traceLog } from "../utils/logVerbose.js";
 import { buildSyncMatchReport, unresolvedSyncMatchReport } from "../utils/syncMatchReport.js";
 import {
   listUpNextDismissals,
@@ -81,6 +82,7 @@ import {
   deletePlaybackProgress,
   deleteWatchRecord,
   deleteWatchRecordById,
+  dismissSyncMatchRecord,
   updateWatchRecord,
   mergeShows,
   getWatchRecordById,
@@ -144,6 +146,28 @@ import {
 
 import { shouldSkipPostRestoreCompletedWebhook } from "./backups.js";
 import { activityItemKeyFor } from "../utils/syncActivityIdentity.js";
+
+const SYNC_ACTIVITY_MATCH_REPORT_TTL_MS = 3000;
+let syncActivityMatchReportCache = { expiresAt: 0, value: null };
+let syncActivityMatchReportPromise = null;
+
+async function currentSyncActivityMatchReport() {
+  const now = Date.now();
+  if (syncActivityMatchReportCache.value && syncActivityMatchReportCache.expiresAt > now) {
+    return syncActivityMatchReportCache.value;
+  }
+  if (syncActivityMatchReportPromise) return syncActivityMatchReportPromise;
+  syncActivityMatchReportPromise = (async () => {
+    const value = unresolvedSyncMatchReport(buildSyncMatchReport(await getCachedHistory().catch(() => [])));
+    syncActivityMatchReportCache = { expiresAt: Date.now() + SYNC_ACTIVITY_MATCH_REPORT_TTL_MS, value };
+    return value;
+  })();
+  try {
+    return await syncActivityMatchReportPromise;
+  } finally {
+    syncActivityMatchReportPromise = null;
+  }
+}
 
 function imagePath(path, params = {}) {
   const cleanPath = String(path || "").trim();
@@ -1050,7 +1074,7 @@ export async function handleSyncActivity(req, res) {
   const failedOnly = ["1", "true", "failed"].includes(String(req.query.failedOnly || "").trim().toLowerCase());
   const offset = (page - 1) * limit;
   const result = await getSyncActivityGroupsPage({ limit, offset, search, failedOnly });
-  const matchReport = unresolvedSyncMatchReport(buildSyncMatchReport(await getCachedHistory().catch(() => [])));
+  const matchReport = await currentSyncActivityMatchReport();
   const totalPages = Math.max(1, Math.ceil(result.total / result.limit));
   const resolvedPage = Math.min(page, totalPages);
   // A new event can move a group onto page one between requests. Re-read the
@@ -1081,6 +1105,50 @@ export async function handleSyncActivity(req, res) {
     },
     ...(traktDispatchProgress.pending > 0 ? { traktDispatchProgress } : {}),
   }, 200, { "Cache-Control": "private, no-store", Vary: "Authorization" });
+}
+
+export async function handleDismissSyncMatch(req, res) {
+  if (req.method === "OPTIONS") return sendOptions(res);
+  if (req.method !== "POST") return methodNotAllowed(res);
+  if (!(await requireAdmin(req, res))) return;
+  if (isAuthoritativeRestoreActive()) {
+    return sendJson(res, { ok: false, error: "An authoritative watch-history restore is active; Sync Activity changes are paused until it completes." }, 409);
+  }
+
+  const body = await readJson(req);
+  const ids = Array.isArray(body.ids)
+    ? body.ids.map((value) => String(value || "").trim()).filter(Boolean)
+    : String(body.id || "").trim() ? [String(body.id).trim()] : [];
+  if (!ids.length) return sendJson(res, { error: "id or ids is required" }, 400);
+  if (ids.length > 500) return sendJson(res, { error: "Batch size must be 500 records or fewer" }, 413);
+
+  const results = [];
+  let dismissed = 0;
+  let failed = 0;
+  for (const id of ids) {
+    try {
+      const result = await dismissSyncMatchRecord(id);
+      if (!result.ok) {
+        const error = new Error(result.error || "Could not remove match issue");
+        error.status = result.error === "Watch record not found" ? 404 : 400;
+        throw error;
+      }
+      dismissed += 1;
+      results.push({ id, status: "removed", ...result });
+    } catch (error) {
+      failed += 1;
+      const code = Number.isInteger(error?.status) && error.status >= 400 && error.status < 600 ? error.status : 500;
+      console.error("Remove sync match issue failed", error);
+      results.push({ id, status: "error", error: code === 404 ? "Watch record not found" : "Could not remove match issue", code });
+    }
+  }
+
+  if (ids.length === 1) {
+    const only = results[0];
+    if (only.status === "error") return sendJson(res, { ok: false, error: only.error }, only.code || 500);
+    return sendJson(res, { ok: true, ...only });
+  }
+  return sendJson(res, { ok: true, dismissed, failed, results });
 }
 
 export async function handleSyncActivityGroup(req, res) {
@@ -3716,26 +3784,12 @@ export async function handleWebhook(req, res) {
       // then. Emby/Jellyfin retain the stricter flag-only check so genuine
       // completed playback remains a rewatch.
       const echoCheck = source === "plex" ? isRecentOutboundPlayedEcho : isRecentOutboundPlayedFlagEcho;
-      let ownPlayedEcho = await echoCheck(media, media.source, loopStore).catch(() => false);
-      if (ownPlayedEcho && media.playedFlagOnly) {
-        // A provider flag event after Plembfin has become unwatched is a new
-        // user decision, not the old outbound mark being acknowledged. The
-        // regular deleted-date guard below still suppresses stale generic
-        // callbacks, while explicit re-marks are allowed to reopen review.
-        // If the item is still canonically watched, fall through to the
-        // reconciliation branch below so a failed earlier target write can
-        // be repaired instead of being hidden by the echo guard. The history
-        // fallback also covers older rows that predate playstate pointers.
-        const currentCanonicalState = await getCanonicalWatchState(media).catch(() => null);
-        if (currentCanonicalState === "watched") ownPlayedEcho = false;
-      }
+      const ownPlayedEcho = await echoCheck(media, media.source, loopStore).catch(() => false);
       if (ownPlayedEcho) {
-        console.log("Webhook: skipped outbound played echo", {
-          source: media.source,
-          title: media.title,
-          event: media.event,
-          reason: "played-flag callback followed Plembfin outbound mark",
-        });
+        // A provider callback caused by Plembfin's own watched write is an
+        // acknowledgement, even when the local item is still watched. Do not
+        // enter the canonical-repair branch: that branch writes to every
+        // provider and can turn one callback into an endless fan-out loop.
         await deletePlaybackProgress(media).catch(() => null);
         await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
         return sendJson(res, {

@@ -15,9 +15,13 @@ const pageTitle = title ? `${site.name} - ${title}` : site.title;
 const canonical = new URL(Astro.url.pathname, site.url).href;
 const previewBranch = import.meta.env.MODE !== "development" && process.env.CF_PAGES_BRANCH && process.env.CF_PAGES_BRANCH !== "main";
 const robots = noindex || previewBranch ? "noindex,nofollow" : "index,follow";
+const gaMeasurementId = import.meta.env.PUBLIC_GA_MEASUREMENT_ID ?? site.analyticsMeasurementId ?? "";
+const gaEnabled = /^G-[A-Z0-9]+$/i.test(gaMeasurementId);
 const traksScriptUrl = import.meta.env.PUBLIC_TRAKS_SCRIPT_URL ?? "";
 const traksSiteKey = import.meta.env.PUBLIC_TRAKS_SITE_KEY ?? "";
 const traksRequireConsent = import.meta.env.PUBLIC_TRAKS_REQUIRE_CONSENT !== "false";
+const gaRequireConsent = import.meta.env.PUBLIC_GA_REQUIRE_CONSENT !== "false";
+const analyticsRequireConsent = traksRequireConsent || gaRequireConsent;
 const traksUrlIsSafe = (() => {
   try {
     return new URL(traksScriptUrl).protocol === "https:";
@@ -26,6 +30,7 @@ const traksUrlIsSafe = (() => {
   }
 })();
 const traksEnabled = Boolean(traksScriptUrl && traksSiteKey && traksUrlIsSafe);
+const analyticsEnabled = traksEnabled || gaEnabled;
 ---
 
 <!doctype html>
@@ -75,11 +80,11 @@ const traksEnabled = Boolean(traksScriptUrl && traksSiteKey && traksUrlIsSafe);
     </main>
     <SiteFooter />
 
-    {traksEnabled && traksRequireConsent && (
+    {analyticsEnabled && analyticsRequireConsent && (
       <aside class="analytics-consent" data-analytics-consent hidden aria-labelledby="analytics-consent-title">
         <div class="analytics-consent-copy">
           <p class="analytics-consent-title" id="analytics-consent-title">Help improve Plembfin</p>
-          <p>Allow Plembfin to share page views, time-on-page, browser/device details, referrer, and a coarse region with Traks to improve this website. No cookies are used.</p>
+          <p>Allow Plembfin to share page views, time-on-page, browser/device details, referrer, and a coarse region with Traks and Google Analytics to improve this website. Traks is cookieless; Google Analytics may use cookies or similar measurement technologies.</p>
         </div>
         <div class="analytics-consent-actions">
           <button type="button" data-analytics-decline>Decline</button>
@@ -273,12 +278,12 @@ const traksEnabled = Boolean(traksScriptUrl && traksSiteKey && traksUrlIsSafe);
       const syncTheme = Reflect.get(window, "__plembfinSyncTheme");
       if (typeof syncTheme === "function") syncTheme();
     </script>
-    {traksEnabled && (
-      <script is:inline define:vars={{ traksScriptUrl, traksSiteKey, traksRequireConsent }}>
+    {analyticsEnabled && (
+      <script is:inline define:vars={{ gaMeasurementId, gaEnabled, gaRequireConsent, traksScriptUrl, traksSiteKey, traksEnabled, traksRequireConsent, analyticsRequireConsent }}>
         (() => {
           const analyticsWindow = window;
           const consentBanner = document.querySelector("[data-analytics-consent]");
-          const consentKey = "plembfin:analytics-consent";
+          const consentKey = "plembfin:analytics-consent-v2";
           const hasPrivacySignal = navigator.doNotTrack === "1"
             || analyticsWindow.doNotTrack === "1"
             || navigator.globalPrivacyControl === true;
@@ -303,12 +308,43 @@ const traksEnabled = Boolean(traksScriptUrl && traksSiteKey && traksUrlIsSafe);
             if (consentBanner instanceof HTMLElement) consentBanner.hidden = true;
           };
 
-          const loadTraks = () => {
+          const loadGoogleAnalytics = () => {
             if (
-              analyticsWindow.__plembfinTraksLoaded
+              !gaEnabled
+              || analyticsWindow.__plembfinGoogleAnalyticsLoaded
+              || analyticsWindow.__plembfinGoogleAnalyticsLoading
               || hasPrivacySignal
             ) return;
-            if (traksRequireConsent && analyticsWindow.__plembfinAnalyticsConsent !== true) return;
+            if (analyticsRequireConsent && analyticsWindow.__plembfinAnalyticsConsent !== true) return;
+
+            analyticsWindow.__plembfinGoogleAnalyticsLoading = true;
+            analyticsWindow.dataLayer = analyticsWindow.dataLayer || [];
+            analyticsWindow.gtag = function gtag() {
+              analyticsWindow.dataLayer.push(arguments);
+            };
+            analyticsWindow.gtag("js", new Date());
+            analyticsWindow.gtag("config", gaMeasurementId, { anonymize_ip: true });
+
+            const script = document.createElement("script");
+            script.async = true;
+            script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(gaMeasurementId)}`;
+            script.onload = () => {
+              analyticsWindow.__plembfinGoogleAnalyticsLoaded = true;
+              analyticsWindow.__plembfinGoogleAnalyticsLoading = false;
+            };
+            script.onerror = () => {
+              analyticsWindow.__plembfinGoogleAnalyticsLoading = false;
+            };
+            document.head.appendChild(script);
+          };
+
+          const loadTraks = () => {
+            if (
+              !traksEnabled
+              || analyticsWindow.__plembfinTraksLoaded
+              || hasPrivacySignal
+            ) return;
+            if (analyticsRequireConsent && analyticsWindow.__plembfinAnalyticsConsent !== true) return;
 
             const script = document.createElement("script");
             script.defer = true;
@@ -320,12 +356,17 @@ const traksEnabled = Boolean(traksScriptUrl && traksSiteKey && traksUrlIsSafe);
             document.head.appendChild(script);
           };
 
-          if (traksRequireConsent) {
+          const loadAnalytics = () => {
+            loadGoogleAnalytics();
+            loadTraks();
+          };
+
+          if (analyticsRequireConsent) {
             const savedConsent = readConsent();
             if (savedConsent === "accepted") {
               analyticsWindow.__plembfinAnalyticsConsent = true;
               hideConsentBanner();
-              loadTraks();
+              loadAnalytics();
             } else if (savedConsent === "declined" || hasPrivacySignal) {
               hideConsentBanner();
             } else if (consentBanner instanceof HTMLElement) {
@@ -335,7 +376,7 @@ const traksEnabled = Boolean(traksScriptUrl && traksSiteKey && traksUrlIsSafe);
             window.addEventListener("plembfin:analytics-consent", () => {
               analyticsWindow.__plembfinAnalyticsConsent = true;
               hideConsentBanner();
-              loadTraks();
+              loadAnalytics();
             }, { once: true });
 
             consentBanner?.querySelector("[data-analytics-accept]")?.addEventListener("click", () => {
@@ -347,9 +388,9 @@ const traksEnabled = Boolean(traksScriptUrl && traksSiteKey && traksUrlIsSafe);
               hideConsentBanner();
             });
           } else if ("requestIdleCallback" in window) {
-            window.requestIdleCallback(loadTraks, { timeout: 2000 });
+            window.requestIdleCallback(loadAnalytics, { timeout: 2000 });
           } else {
-            window.setTimeout(loadTraks, 2000);
+            window.setTimeout(loadAnalytics, 2000);
           }
         })();
       </script>

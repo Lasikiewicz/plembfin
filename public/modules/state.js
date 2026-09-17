@@ -1,6 +1,6 @@
-import { readStoredAdminToken } from "./auth.js?v=1.1.1.5.2";
-import { readStoredDebugLogs } from "./logs.js?v=1.1.1.5.2";
-import { isDemoMode } from "./utils.js?v=1.1.1.5.2";
+import { readStoredAdminToken } from "./auth.js?v=1.1.1.7.3";
+import { readStoredDebugLogs } from "./logs.js?v=1.1.1.7.3";
+import { isDemoMode } from "./utils.js?v=1.1.1.7.3";
 
 const TOKEN_KEY = "adminToken";
 const LEGACY_UPPER_TOKEN_KEY = "ADMIN_TOKEN";
@@ -166,6 +166,7 @@ const initialState = {
   upNextSourceVersion: "",
   upNextSourceStatus: [],
   upNextConnectionRetryingProvider: "",
+  upNextConnectionRetryAttempts: {},
   upNextConnectionRetryError: "",
   upNextConnectionRetryErrorProvider: "",
   upNextRefreshQueued: false,

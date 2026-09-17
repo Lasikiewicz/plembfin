@@ -1,7 +1,7 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.5.2";
-import { state, elements } from "./state.js?v=1.1.1.5.2";
-import { escapeHtml, escapeAttribute, formatDate, slug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, showTitleFrom, platformName, platformIconMarkup } from "./utils.js?v=1.1.1.5.2";
-import { syncHistoryTone, syncHistoryActionLabel } from "./sync.js?v=1.1.1.5.2";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.7.3";
+import { state, elements } from "./state.js?v=1.1.1.7.3";
+import { escapeHtml, escapeAttribute, formatDate, slug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, showTitleFrom, platformName, platformIconMarkup } from "./utils.js?v=1.1.1.7.3";
+import { syncHistoryTone, syncHistoryActionLabel } from "./sync.js?v=1.1.1.7.3";
 
 const REFRESH_MS = 15000;
 const SEARCH_DEBOUNCE_MS = 180;
@@ -22,6 +22,7 @@ let searchTimer = null;
 let activityChangeRefreshTimer = null;
 let loadRequestToken = 0;
 let attentionRequestToken = 0;
+let syncAttentionLoadPromise = null;
 const retryingActivityIds = new Set();
 // "Retry all failed" runs one item at a time rather than in parallel, so it
 // doesn't fire a burst of simultaneous requests at Plex/Emby/Jellyfin/Trakt -
@@ -245,10 +246,10 @@ function isActive() {
 // dispatch as Plex here. Sync activity names trackers as well as servers, so it
 // resolves platforms itself.
 const PLATFORMS = {
-  plex: { name: "Plex", icon: "/icons/plex.svg?v=1.1.1.5.2" },
-  emby: { name: "Emby", icon: "/icons/emby.svg?v=1.1.1.5.2" },
-  jellyfin: { name: "Jellyfin", icon: "/icons/jellyfin.svg?v=1.1.1.5.2" },
-  trakt: { name: "Trakt", icon: "/icons/trakt.svg?v=1.1.1.5.2" },
+  plex: { name: "Plex", icon: "/icons/plex.svg?v=1.1.1.7.3" },
+  emby: { name: "Emby", icon: "/icons/emby.svg?v=1.1.1.7.3" },
+  jellyfin: { name: "Jellyfin", icon: "/icons/jellyfin.svg?v=1.1.1.7.3" },
+  trakt: { name: "Trakt", icon: "/icons/trakt.svg?v=1.1.1.7.3" },
   plembfin: { name: "Plembfin", icon: "" },
 };
 
@@ -1927,7 +1928,7 @@ function matchAttentionItemMarkup(item = {}) {
                 <strong>${escapeHtml(issue.title || "Unknown title")}</strong>
                 <span>${escapeHtml(`${platformName(issue.provider)} · ${issue.type === "episode" ? "TV" : "Movie"}${issue.season != null && issue.episode != null ? ` · S${String(issue.season).padStart(2, "0")}E${String(issue.episode).padStart(2, "0")}` : ""}`)}</span>
               </div>
-              ${issue.sourceRowId ? `<button class="button-ghost sync-attention-match-fix" type="button" data-sync-attention-match-fix-id="${escapeAttribute(issue.sourceRowId)}" data-sync-attention-match-fix-title="${escapeAttribute(issue.type === "episode" ? issue.showTitle || issue.title : issue.title)}" data-sync-attention-match-fix-type="${escapeAttribute(issue.type || "movie")}">Fix match</button>` : ""}
+              ${issue.sourceRowId ? `<div class="sync-attention-match-actions"><button class="button-ghost sync-attention-match-fix" type="button" data-sync-attention-match-fix-id="${escapeAttribute(issue.sourceRowId)}" data-sync-attention-match-fix-title="${escapeAttribute(issue.type === "episode" ? issue.showTitle || issue.title : issue.title)}" data-sync-attention-match-fix-type="${escapeAttribute(issue.type || "movie")}">Fix match</button><button class="button-ghost sync-attention-match-dismiss" type="button" data-sync-attention-match-dismiss-id="${escapeAttribute(issue.sourceRowId)}" data-sync-attention-match-dismiss-title="${escapeAttribute(issue.type === "episode" ? issue.showTitle || issue.title : issue.title)}" title="Keep local watch history and stop reporting this issue">Remove</button></div>` : ""}
             </div>
           `).join("")}
         </div>
@@ -2023,36 +2024,44 @@ export function renderSyncAttention() {
 
 export async function loadSyncAttention({ force = false } = {}) {
   if (!state.token || (state.syncAttentionLoading && !force)) return state.syncAttention;
+  if (syncAttentionLoadPromise) return syncAttentionLoadPromise;
   const requestToken = ++attentionRequestToken;
-  state.syncAttentionLoading = true;
-  state.syncAttentionError = "";
-  renderSyncAttention();
+  syncAttentionLoadPromise = (async () => {
+    state.syncAttentionLoading = true;
+    state.syncAttentionError = "";
+    renderSyncAttention();
+    try {
+      const response = await fetch("/api/sync-attention", { headers: authHeaders(), cache: "no-store" });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body.error || `Sync attention load failed with ${response.status}`);
+      if (requestToken !== attentionRequestToken) return state.syncAttention;
+      state.syncAttention = Array.isArray(body.attention) ? body.attention : [];
+      state.syncAttentionCount = Math.max(Number(body.count) || state.syncAttention.length, 0);
+      state.syncAttentionStatus = state.syncAttentionCount ? "attention" : "clear";
+      state.syncAttentionSeverity = state.syncAttentionCount
+        ? (state.syncAttention.some((item) => attentionToneForItem(item) === "error") ? "error" : "warning")
+        : "clear";
+      state.syncAttentionLoaded = true;
+      return state.syncAttention;
+    } catch (error) {
+      if (requestToken === attentionRequestToken) {
+        state.syncAttentionError = error.message || "Could not load sync attention details.";
+        state.syncAttentionStatus = "attention";
+        state.syncAttentionSeverity = "error";
+      }
+      throw error;
+    } finally {
+      if (requestToken === attentionRequestToken) {
+        state.syncAttentionLoading = false;
+        renderSyncActivityStatus();
+        renderSyncAttention();
+      }
+    }
+  })();
   try {
-    const response = await fetch("/api/sync-attention", { headers: authHeaders(), cache: "no-store" });
-    const body = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(body.error || `Sync attention load failed with ${response.status}`);
-    if (requestToken !== attentionRequestToken) return state.syncAttention;
-    state.syncAttention = Array.isArray(body.attention) ? body.attention : [];
-    state.syncAttentionCount = Math.max(Number(body.count) || state.syncAttention.length, 0);
-    state.syncAttentionStatus = state.syncAttentionCount ? "attention" : "clear";
-    state.syncAttentionSeverity = state.syncAttentionCount
-      ? (state.syncAttention.some((item) => attentionToneForItem(item) === "error") ? "error" : "warning")
-      : "clear";
-    state.syncAttentionLoaded = true;
-    return state.syncAttention;
-  } catch (error) {
-    if (requestToken === attentionRequestToken) {
-      state.syncAttentionError = error.message || "Could not load sync attention details.";
-      state.syncAttentionStatus = "attention";
-      state.syncAttentionSeverity = "error";
-    }
-    throw error;
+    return await syncAttentionLoadPromise;
   } finally {
-    if (requestToken === attentionRequestToken) {
-      state.syncAttentionLoading = false;
-      renderSyncActivityStatus();
-      renderSyncAttention();
-    }
+    syncAttentionLoadPromise = null;
   }
 }
 
@@ -2539,8 +2548,9 @@ export function renderSyncActivity() {
   const pageRows = [...state.syncActivity];
   const failedGroups = pageRows.filter((group) => groupTone(group) === "error").length;
   const currentIssueGroupCount = Math.max(Number(state.syncActivityCurrentIssueGroupCount) || 0, 0);
-  const currentIssueCount = Math.max(Number(state.syncActivityCurrentIssueCount) || 0, 0)
-    + Math.max(Number(state.syncActivityMatchIssueCount) || 0, 0);
+  const activityIssueCount = Math.max(Number(state.syncActivityCurrentIssueCount) || 0, 0);
+  const matchIssueCount = Math.max(Number(state.syncActivityMatchIssueCount) || 0, 0);
+  const currentIssueCount = activityIssueCount + matchIssueCount;
   const failedOnly = Boolean(state.syncActivityFailedOnly);
   const rows = failedOnly ? pageRows.filter((group) => groupTone(group) === "error") : pageRows;
   const pagination = { ...DEFAULT_PAGINATION, ...(state.syncActivityPagination || {}) };
@@ -2548,18 +2558,30 @@ export function renderSyncActivity() {
   const from = total ? Math.max(Number(pagination.from) || 1, 1) : 0;
   const to = total ? Math.max(Number(pagination.to) || pageRows.length, from) : 0;
 
+  const currentIssueSummary = [
+    activityIssueCount > 0
+      ? (currentIssueGroupCount > 0
+        ? `${pluralLabel(currentIssueGroupCount, "media group")} with ${pluralLabel(activityIssueCount, "current issue")}`
+        : `${pluralLabel(activityIssueCount, "current issue")} need review`)
+      : "",
+    matchIssueCount > 0 ? `${pluralLabel(matchIssueCount, "cross-platform match issue")} need review` : "",
+  ].filter(Boolean).join(" / ") || "no current issues";
   const summaryText = !pageRows.length
     ? (failedOnly
-      ? (query ? "Issues only: no matching media groups" : "Issues only: no media groups")
-      : (query ? "No matches" : "No activity"))
+      ? (query
+        ? `Issues only: no matching media groups${matchIssueCount ? ` / ${pluralLabel(matchIssueCount, "cross-platform match issue")} need review` : ""}`
+        : matchIssueCount
+          ? `Issues only: ${pluralLabel(matchIssueCount, "cross-platform match issue")} need review`
+          : "Issues only: no media groups")
+      : (query ? "No matches" : matchIssueCount ? `${pluralLabel(matchIssueCount, "cross-platform match issue")} need review` : "No activity"))
     : (failedOnly
-      ? `Showing issues only: ${from}-${to} of ${total} media groups / ${pluralLabel(currentIssueCount, "current issue")}`
-      : `Showing ${from}-${to} of ${total} media groups / ${pluralLabel(currentIssueGroupCount, "media group")} with ${pluralLabel(currentIssueCount, "current issue")}`);
+      ? `Showing issues only: ${from}-${to} of ${total} media groups / ${currentIssueSummary}`
+      : `Showing ${from}-${to} of ${total} media groups / ${currentIssueSummary}`);
   const summaryOptions = {
     failedOnly,
     showToggle: pageRows.length
-      ? currentIssueGroupCount > 0 || failedOnly || failedGroups > 0
-      : failedOnly,
+      ? currentIssueGroupCount > 0 || matchIssueCount > 0 || failedOnly || failedGroups > 0
+      : failedOnly || matchIssueCount > 0,
     hasIssues: currentIssueCount > 0,
   };
   const summaryKey = renderSnapshot({ text: summaryText, ...summaryOptions });
@@ -2585,8 +2607,11 @@ export function renderSyncActivity() {
   }
 
   if (!rows.length) {
+    const failedOnlyEmptyHint = matchIssueCount
+      ? "Cross-platform match issues are shown above; successful media groups are hidden while Issues only is active."
+      : "Successful media groups are hidden while Issues only is active.";
     const emptyMarkup = failedOnly
-      ? `<div class="empty-log"><b>${query ? "No failed sync activity matches this search" : "No failed sync activity on this page"}</b><span>Successful media groups are hidden while Issues only is active.</span></div>`
+      ? `<div class="empty-log"><b>${query ? "No failed sync activity groups match this search" : "No failed sync activity groups on this page"}</b><span>${failedOnlyEmptyHint}</span></div>`
       : query
         ? `<div class="empty-log"><b>No matching sync activity</b><span>Try another title, platform, action, or status.</span></div>`
         : `<div class="empty-log"><b>Nothing synced yet</b><span>Watches propagated to your media servers and trackers appear here, newest first.</span></div>`;
@@ -2746,8 +2771,8 @@ export async function loadSyncActivity({ force = false, page } = {}) {
     const pageIssueGroupCount = state.syncActivity.filter((group) => groupTone(group) === "error").length;
     const pageIssueCount = state.syncActivity.reduce((totalIssues, group) => totalIssues + Math.max(Number(group.problemCount) || 0, 0), 0);
     state.syncActivityCurrentIssueGroupCount = Object.prototype.hasOwnProperty.call(body, "currentIssueGroupCount")
-      ? Math.max(Number(body.currentIssueGroupCount) || 0, 0) + (state.syncActivityMatchIssueCount ? 1 : 0)
-      : pageIssueGroupCount + (state.syncActivityMatchIssueCount ? 1 : 0);
+      ? Math.max(Number(body.currentIssueGroupCount) || 0, 0)
+      : pageIssueGroupCount;
     state.syncActivityCurrentIssueCount = Object.prototype.hasOwnProperty.call(body, "currentIssueCount")
       ? Math.max(Number(body.currentIssueCount) || 0, 0)
       : pageIssueCount;

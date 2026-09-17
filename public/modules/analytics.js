@@ -1,5 +1,5 @@
 const CONFIG_URL = "/analytics-config.json";
-const CONSENT_KEY = "plembfin:demo-analytics-consent";
+const CONSENT_KEY = "plembfin:demo-analytics-consent-v2";
 
 function privacySignalIsSet() {
   return navigator.doNotTrack === "1"
@@ -24,23 +24,65 @@ function writeConsent(value) {
 }
 
 function loadTraks(config) {
-  if (window.__plembfinTraksLoaded || privacySignalIsSet()) return;
+  if (!config?.enabled || window.__plembfinTraksLoaded || window.__plembfinTraksLoading || privacySignalIsSet()) return;
 
+  window.__plembfinTraksLoading = true;
   const script = document.createElement("script");
   script.defer = true;
   script.src = config.scriptUrl;
   script.dataset.site = config.siteKey;
   script.onload = () => {
     window.__plembfinTraksLoaded = true;
+    window.__plembfinTraksLoading = false;
+  };
+  script.onerror = () => {
+    window.__plembfinTraksLoading = false;
   };
   document.head.appendChild(script);
 }
 
-function scheduleTraksLoad(config) {
+function loadGoogleAnalytics(config) {
+  const googleAnalytics = config?.googleAnalytics;
+  if (
+    !googleAnalytics?.enabled
+    || !/^G-[A-Z0-9]+$/i.test(googleAnalytics.measurementId || "")
+    || window.__plembfinGoogleAnalyticsLoaded
+    || window.__plembfinGoogleAnalyticsLoading
+    || privacySignalIsSet()
+  ) return;
+
+  window.__plembfinGoogleAnalyticsLoading = true;
+  window.dataLayer = window.dataLayer || [];
+  function gtag() {
+    window.dataLayer.push(arguments);
+  }
+  window.gtag = gtag;
+  gtag("js", new Date());
+  gtag("config", googleAnalytics.measurementId, { anonymize_ip: true });
+
+  const script = document.createElement("script");
+  script.async = true;
+  script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(googleAnalytics.measurementId)}`;
+  script.onload = () => {
+    window.__plembfinGoogleAnalyticsLoaded = true;
+    window.__plembfinGoogleAnalyticsLoading = false;
+  };
+  script.onerror = () => {
+    window.__plembfinGoogleAnalyticsLoading = false;
+  };
+  document.head.appendChild(script);
+}
+
+function loadAnalytics(config) {
+  loadTraks(config.traks);
+  loadGoogleAnalytics(config);
+}
+
+function scheduleAnalyticsLoad(config) {
   if ("requestIdleCallback" in window) {
-    window.requestIdleCallback(() => loadTraks(config), { timeout: 2000 });
+    window.requestIdleCallback(() => loadAnalytics(config), { timeout: 2000 });
   } else {
-    window.setTimeout(() => loadTraks(config), 2000);
+    window.setTimeout(() => loadAnalytics(config), 2000);
   }
 }
 
@@ -67,7 +109,7 @@ function showConsentPrompt(config) {
     "font:14px/1.45 system-ui,sans-serif",
   ].join(";");
   banner.innerHTML = `
-    <p style="margin:0;max-width:720px">Help improve this public demo with privacy-friendly usage statistics. No cookies are used.</p>
+    <p style="margin:0;max-width:720px">Allow Plembfin to share page views, time-on-page, browser/device details, referrer, and a coarse region with Traks and Google Analytics. Traks is cookieless; Google Analytics may use cookies or similar measurement technologies.</p>
     <span style="display:flex;gap:8px;flex:0 0 auto">
       <button type="button" data-analytics-decline style="padding:8px 12px;border:1px solid #64748b;border-radius:8px;background:transparent;color:inherit;cursor:pointer">Decline</button>
       <button type="button" data-analytics-allow style="padding:8px 12px;border:0;border-radius:8px;background:#38bdf8;color:#082f49;cursor:pointer;font-weight:600">Allow analytics</button>
@@ -76,7 +118,7 @@ function showConsentPrompt(config) {
   const finish = (choice) => {
     writeConsent(choice);
     banner.remove();
-    if (choice === "granted") loadTraks(config);
+    if (choice === "granted") loadAnalytics(config);
   };
 
   banner.querySelector("[data-analytics-decline]")?.addEventListener("click", () => finish("denied"));
@@ -101,17 +143,27 @@ async function boot() {
   } catch {
     return;
   }
-  if (!config?.enabled || typeof config.scriptUrl !== "string" || typeof config.siteKey !== "string") return;
-  if (!/^https:\/\//i.test(config.scriptUrl)) return;
+  if (!config?.enabled) return;
+
+  const traksConfig = config.traks;
+  const googleAnalyticsConfig = config.googleAnalytics;
+  const traksEnabled = traksConfig?.enabled
+    && typeof traksConfig.scriptUrl === "string"
+    && typeof traksConfig.siteKey === "string"
+    && /^https:\/\//i.test(traksConfig.scriptUrl);
+  const googleAnalyticsEnabled = googleAnalyticsConfig?.enabled
+    && typeof googleAnalyticsConfig.measurementId === "string"
+    && /^G-[A-Z0-9]+$/i.test(googleAnalyticsConfig.measurementId);
+  if (!traksEnabled && !googleAnalyticsEnabled) return;
 
   const consent = readConsent();
   if (config.requireConsent !== false) {
-    if (consent === "granted") loadTraks(config);
+    if (consent === "granted") loadAnalytics(config);
     else if (consent !== "denied") showConsentPrompt(config);
     return;
   }
 
-  scheduleTraksLoad(config);
+  scheduleAnalyticsLoad(config);
 }
 
 void boot();

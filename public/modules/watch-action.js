@@ -1,14 +1,14 @@
-import { state, elements } from "./state.js?v=1.1.1.5.2";
-import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeCode, seasonLabel, formatSeasonTitle, formatTmdbDate, showEpisodeKey } from "./utils.js?v=1.1.1.5.2";
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.5.2";
-import { isWatchedHistoryAction } from "./sync.js?v=1.1.1.5.2";
-import { mergeShowDetail } from "./explorer.js?v=1.1.1.5.2";
-import { dedupeMediaRecords, resetPartWatchedView, renderPartWatched } from "./dashboard.js?v=1.1.1.5.2";
-import { tvSeasonAvailability } from "./media-detail-shared.js?v=1.1.1.5.2";
-import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=1.1.1.5.2";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.1.1.5.2";
-import { tmdbPoster } from "./images.js?v=1.1.1.5.2";
-import { mergeProviderOutcomes, providerOutcomeNotice } from "./plex-history-policy.js?v=1.1.1.5.2";
+import { state, elements } from "./state.js?v=1.1.1.7.3";
+import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeCode, seasonLabel, formatSeasonTitle, formatTmdbDate, showEpisodeKey } from "./utils.js?v=1.1.1.7.3";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.7.3";
+import { isWatchedHistoryAction } from "./sync.js?v=1.1.1.7.3";
+import { mergeShowDetail } from "./explorer.js?v=1.1.1.7.3";
+import { dedupeMediaRecords, resetPartWatchedView, renderPartWatched } from "./dashboard.js?v=1.1.1.7.3";
+import { tvSeasonAvailability } from "./media-detail-shared.js?v=1.1.1.7.3";
+import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=1.1.1.7.3";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.1.1.7.3";
+import { tmdbPoster } from "./images.js?v=1.1.1.7.3";
+import { mergeProviderOutcomes, providerOutcomeNotice } from "./plex-history-policy.js?v=1.1.1.7.3";
 
 // Callbacks injected by app.js at startup to break circular-import chains.
 let _setMessage = () => {};
@@ -103,9 +103,9 @@ function reportManualWatchFailure(action, records, error, message) {
 // Up Next is derived from both playback progress and canonical watch state.
 // Refresh only after the awaited provider dispatch has settled so a dashboard
 // cannot briefly repaint from the pre-watch projection.
-async function refreshUpNextAfterWatchSync() {
+async function refreshUpNextAfterWatchSync({ force = false } = {}) {
   try {
-    await _refreshUpNext();
+    await _refreshUpNext(force ? { force: true } : {});
   } catch {
     // A watch action remains successful if this secondary derived-cache
     // refresh is unavailable; the next dashboard load will retry it.
@@ -1767,7 +1767,7 @@ export async function confirmAndMarkUnwatched(button) {
     }
 
     await _removeDismissedUpNextItems(showUnwatchAction);
-    await refreshUpNextAfterWatchSync();
+    await refreshUpNextAfterWatchSync({ force: true });
     state.savingUnwatchActions.delete(upNextUnwatchAction);
     _setUpNextUnwatchSavingState(upNextUnwatchAction, false);
     for (const id of ids) state.savingUnwatchIds.delete(id);

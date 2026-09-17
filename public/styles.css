@@ -13539,84 +13539,98 @@ html.light-mode #timeline-view .part-watched-app-badge {
 }
 
 .up-next-source-status {
-  display: grid;
-  width: min(100%, 38rem);
+  display: inline-flex;
+  width: auto;
   max-width: 100%;
-  gap: var(--space-2);
-  align-items: stretch;
-  border-radius: var(--radius);
-  padding: 0.55rem 0.7rem;
-  font-weight: 650;
+  align-items: center;
+  gap: var(--space-3);
+  margin-left: var(--space-1);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--yellow);
+  font-weight: 700;
   white-space: normal;
   line-height: 1.3;
 }
 
-.up-next-source-status-head,
 .up-next-source-status-row-copy {
-  display: grid;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.3rem;
   min-width: 0;
-  gap: 0.15rem;
 }
 
-.up-next-source-status-head > span,
+.up-next-source-status-row {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.up-next-source-status-row-copy > strong {
+  color: var(--yellow);
+  font-size: 0.76rem;
+}
+
+.up-next-source-status-separator {
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
 .up-next-source-status-row-copy > span {
   overflow-wrap: anywhere;
 }
 
-.up-next-source-status-head > span {
-  font-size: 0.72rem;
-  font-weight: 650;
-}
-
-.up-next-source-status-list {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.up-next-source-status-row {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  border-top: 1px solid color-mix(in srgb, currentColor 22%, transparent);
-  padding-top: var(--space-2);
-}
-
-.up-next-source-status-row-copy {
-  flex: 1 1 auto;
-}
-
-.up-next-source-status-row-copy > strong {
-  color: var(--text);
-  font-size: 0.76rem;
-}
-
-.up-next-source-status-row-copy > span {
-  font-size: 0.7rem;
-  font-weight: 650;
-}
-
-.up-next-source-status-retry-error {
-  color: var(--red);
-}
-
 .up-next-source-retry {
   flex: 0 0 auto;
-  padding: 0.3rem 0.55rem;
+  min-height: 1.7rem;
+  border-color: transparent;
+  background: transparent;
+  padding: 0.2rem 0.1rem;
+  color: var(--yellow);
   font-size: 0.7rem;
   white-space: nowrap;
 }
 
+.up-next-source-retry:hover,
+.up-next-source-retry:focus-visible {
+  border-color: transparent;
+  background: transparent;
+  color: var(--text);
+  text-decoration: underline;
+}
+
+.up-next-source-help {
+  display: inline-flex;
+  min-height: 1.7rem;
+  align-items: center;
+  border: 1px solid var(--border);
+  border-radius: 0.35rem;
+  background: var(--soft);
+  padding: 0.2rem 0.55rem;
+  color: var(--text);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.up-next-source-help:hover,
+.up-next-source-help:focus-visible {
+  border-color: var(--blue);
+  background: var(--panel);
+  color: var(--blue);
+  text-decoration: none;
+}
+
 @media (max-width: 640px) {
   .up-next-source-status {
-    flex-basis: 100%;
-    width: 100%;
-  }
-
-  .up-next-source-status-row {
-    align-items: flex-start;
     flex-wrap: wrap;
+    margin-left: 0;
   }
 }
 
@@ -24214,6 +24228,43 @@ html.light-mode .settings-pane .settings-card-grid .service-card:focus-visible {
   min-width: 0;
 }
 
+.sync-attention-match-row > .sync-attention-match-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-1);
+  flex-wrap: nowrap;
+  flex: 0 0 auto;
+}
+
+.sync-attention-match-row--removing {
+  pointer-events: none;
+  animation: sync-attention-match-removing 760ms ease-in-out infinite alternate;
+  will-change: opacity, transform;
+}
+
+.sync-attention-match-row--removed {
+  opacity: 0;
+  transform: translateX(0.6rem) scale(0.985);
+  transition: opacity 220ms cubic-bezier(0.25, 1, 0.5, 1), transform 220ms cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+@keyframes sync-attention-match-removing {
+  from { opacity: 0.62; transform: scale(0.995); }
+  to { opacity: 0.92; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sync-attention-match-row--removing {
+    animation: none;
+    opacity: 0.62;
+  }
+
+  .sync-attention-match-row--removed {
+    transition: none;
+  }
+}
+
 .sync-attention-match-row strong,
 .sync-attention-match-row span {
   overflow-wrap: anywhere;
@@ -25981,11 +26032,12 @@ html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
 }
 
 .manual-watch-review-show {
-  display: flex;
-  align-items: flex-start;
-  gap: 0;
+  display: grid;
+  grid-template-columns: minmax(7.5rem, 10rem) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-3);
   min-width: 0;
-  padding: 0;
+  padding: var(--space-3);
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--yellow) 38%, var(--line));
   border-radius: var(--radius);
@@ -26029,13 +26081,14 @@ html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
 }
 
 .manual-watch-review-show-poster-wrap {
-  border-radius: var(--poster-radius, 8px) 0 0 var(--poster-radius, 8px);
+  width: 100%;
+  border-radius: var(--poster-radius, 8px);
 }
 
 .manual-watch-review-show-content {
-  flex: 1 1 auto;
+  grid-column: 2;
   min-width: 0;
-  padding: var(--space-3);
+  padding: 0;
 }
 
 .manual-watch-review-show-header {
@@ -26071,15 +26124,115 @@ html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
   min-height: 2rem;
 }
 
-.manual-watch-review-episodes {
-  margin: var(--space-3) 0 0;
-  padding: 0;
-  border-top: 1px solid var(--line);
+.manual-watch-review-season-list {
+  display: grid;
+  gap: var(--space-3);
 }
 
-.manual-watch-review-more-episodes {
-  margin-top: var(--space-3);
+.manual-watch-review-season {
+  min-width: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.14);
+}
+
+.manual-watch-review-season-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.manual-watch-review-season-heading {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.manual-watch-review-season-heading strong {
+  color: var(--text);
+  font-size: 0.86rem;
+}
+
+.manual-watch-review-season-heading span {
+  color: var(--muted);
+  font-size: 0.74rem;
+}
+
+.manual-watch-review-season-actions {
+  justify-content: flex-end;
+}
+
+.manual-watch-review-season-episodes {
+  margin-top: var(--space-2);
   border-top: 1px solid color-mix(in srgb, var(--line) 72%, transparent);
+}
+
+.manual-watch-review-season-episodes > summary,
+.manual-watch-review-season-more-episodes > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: 0.55rem 0 0.1rem;
+  color: var(--muted);
+  cursor: pointer;
+  font-size: 0.74rem;
+  font-weight: 700;
+  list-style: none;
+}
+
+.manual-watch-review-season-episodes > summary::-webkit-details-marker,
+.manual-watch-review-season-more-episodes > summary::-webkit-details-marker {
+  display: none;
+}
+
+.manual-watch-review-season-episodes > summary::after {
+  content: "⌄";
+  margin-left: auto;
+  color: var(--yellow);
+  font-size: 0.95rem;
+  line-height: 1;
+  transform: translateY(-1px);
+  transition: transform 160ms ease;
+}
+
+.manual-watch-review-season-episodes[open] > summary::after {
+  transform: rotate(180deg) translateY(-1px);
+}
+
+.manual-watch-review-season-more-episodes {
+  margin-top: var(--space-2);
+  border-top: 1px solid color-mix(in srgb, var(--line) 58%, transparent);
+}
+
+.manual-watch-review-season-more-episodes > summary {
+  justify-content: flex-start;
+  padding-top: var(--space-2);
+}
+
+.manual-watch-review-season-more-episodes > summary::before {
+  content: "＋";
+  color: var(--yellow);
+  font-size: 0.9rem;
+  line-height: 1;
+}
+
+.manual-watch-review-season-more-episodes[open] > summary::before {
+  content: "−";
+}
+
+.manual-watch-review-episodes {
+  grid-column: 1 / -1;
+  margin: var(--space-3) 0 0;
+  min-width: 0;
+  padding: var(--space-3) 0 0;
+  border-top: 1px solid var(--line);
 }
 
 .manual-watch-review-episodes > summary {
@@ -26113,44 +26266,13 @@ html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
   transform: rotate(180deg) translateY(-1px);
 }
 
-.manual-watch-review-more-episodes > summary {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  gap: var(--space-2);
-  padding: var(--space-2) 0 0;
-  color: var(--muted);
-  cursor: pointer;
-  font-size: 0.75rem;
-  font-weight: 700;
-  list-style: none;
-}
-
-.manual-watch-review-more-episodes > summary::-webkit-details-marker {
-  display: none;
-}
-
-.manual-watch-review-more-episodes > summary::before {
-  content: "＋";
-  color: var(--yellow);
-  font-size: 0.9rem;
-  line-height: 1;
-}
-
-.manual-watch-review-more-episodes[open] > summary::before {
-  content: "−";
-}
-
 .manual-watch-review-episode-list {
   display: grid;
   gap: 0;
 }
 
 .manual-watch-review-episode-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
-  align-items: center;
-  gap: var(--space-3);
+  display: block;
   min-width: 0;
   padding: var(--space-3) 0 0;
   margin-top: var(--space-3);
@@ -26187,7 +26309,8 @@ html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
 }
 
 .manual-watch-review-episode-actions {
-  justify-content: flex-end;
+  justify-content: flex-start;
+  margin-top: 0.15rem;
 }
 
 .manual-watch-review-episode-actions button {
@@ -26227,6 +26350,11 @@ html.light-mode .manual-watch-review-card {
 
 html.light-mode .manual-watch-review-show {
   background: color-mix(in srgb, var(--yellow) 6%, var(--panel-2));
+}
+
+html.light-mode .manual-watch-review-season {
+  background: var(--panel-2);
+  box-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
 }
 
 @media (max-width: 760px) {
@@ -26271,6 +26399,17 @@ html.light-mode .manual-watch-review-show {
     padding: var(--space-2);
   }
 
+  .manual-watch-review-show {
+    grid-template-columns: 5.6rem minmax(0, 1fr);
+    gap: var(--space-2);
+    padding: var(--space-2);
+  }
+
+  .manual-watch-review-show-content {
+    grid-column: 2;
+    padding: 0;
+  }
+
   .manual-watch-review-episodes {
     padding: 0;
   }
@@ -26290,20 +26429,27 @@ html.light-mode .manual-watch-review-show {
     padding: 0;
   }
 
-  .manual-watch-review-episode-row {
-    grid-template-columns: 1fr;
-    align-items: stretch;
+  .manual-watch-review-episodes {
+    grid-column: 1 / -1;
+    padding-top: var(--space-2);
   }
 
   .manual-watch-review-show-actions,
+  .manual-watch-review-season-actions,
   .manual-watch-review-episode-actions {
     align-items: stretch;
     flex-direction: column;
   }
 
   .manual-watch-review-show-actions button,
+  .manual-watch-review-season-actions button,
   .manual-watch-review-episode-actions button {
     width: 100%;
+  }
+
+  .manual-watch-review-season-header {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 

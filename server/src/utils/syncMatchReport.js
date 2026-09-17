@@ -82,6 +82,7 @@ export function buildSyncMatchReport(rows = []) {
   let scannedRows = 0;
 
   for (const row of rows) {
+    if (row?.sync_match_ignored_at) continue;
     const telemetry = String(row?.sync_dispatch_telemetry || "");
     if (!telemetry.trim()) continue;
     scannedRows += 1;

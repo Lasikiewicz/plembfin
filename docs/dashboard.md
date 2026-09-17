@@ -95,7 +95,10 @@ provider delivery follows the latest queue content and order. It sends the lates
 to the 100-item API bound; the visible dashboard
 still renders its smaller card window. The existing header action remains available for an
 explicit immediate push, while the scheduled provider-feed catch-up remains the 15-minute
-backstop.
+backstop. An add or remove from a media detail page is treated as interactive intent: its
+provider push uses a priority worker lane ahead of queued background syncs, while any provider
+request already in flight is allowed to finish safely. The projection generation is checked before
+serving a warm cache, so the newly selected show is not hidden behind an older rebuild.
 
 Building the projection is synchronous work on the shared event loop, so its cost is a
 whole-process cost: while it runs, nothing else is served and no timer fires. That includes
@@ -165,15 +168,17 @@ its episodes has a newer real playback position. Adding one back clears the dism
 runs the authoritative push, so every connected server mirrors the restored queue.
 
 The local fallback can queue the detail page's first unwatched released episode even when no
-provider feed mentions it, but only for a show with a current watched record. Watch history only
-records a native provider item id once something has been played, so a next unwatched episode
-never carries one; the projection resolves it against the configured Plex, Emby, and Jellyfin
-libraries with the same lookup the push uses (`upNextLibraryLookup.js`), caching hits for six hours
-and misses for fifteen minutes. An episode that no configured library contains is still not queued.
-A show with no watched record, or whose current records are all explicit unwatch actions, is
-excluded from provider observations and local fallback candidates, so stale Continue Watching or
-Next Up data cannot resurrect it. An episode-level unwatch remains an authoritative unwatched
-state for selecting the next episode and cannot be skipped by a stale provider card.
+provider feed mentions it. Watch history only records a native provider item id once something
+has been played, so a next unwatched episode never carries one; the projection resolves it against
+the configured Plex, Emby, and Jellyfin libraries with the same lookup the push uses
+(`upNextLibraryLookup.js`), caching hits for six hours and misses for fifteen minutes. An episode
+that no configured library contains is still not queued. A show manually added to Up Next is also
+eligible before its first watch, but a show whose current records are all explicit unwatch actions
+is excluded, so a deliberate clear cannot be resurrected by a stale Continue Watching or Next Up
+row. A fully completed show is removed from the rail as well, including stale provider Next Up
+observations; a later released episode can make the manually retained show eligible again. An
+episode-level unwatch remains an authoritative unwatched state for selecting the next episode and
+cannot be skipped by a stale provider card.
 
 Episode cards build series routes only from explicit `show_*` identities. An episode-level
 `tmdb_id`, `tvdb_id`, or `imdb_id` is never substituted into a `/tvshow/<provider>/<id>`
@@ -301,7 +306,9 @@ An actual target error, including a Trakt error, remains actionable.
 
 Unresolved cross-platform matches also appear in the Sync Activity attention area and
 the **Issues only** view. These are watched items for which the target server has no
-reliable provider identity; each item has a **Fix match** action. Items that already
+reliable provider identity; each item has a **Fix match** action and a **Remove** action.
+Remove keeps the local watch history but stops reporting that unresolved match issue.
+Items that already
 have a provider identity but are absent from a connected library remain availability
 differences and are not raised as issues.
 

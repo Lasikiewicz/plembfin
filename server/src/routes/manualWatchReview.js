@@ -25,7 +25,7 @@ import { watchImportMode } from "../utils/tuning.js";
 import { buildWatchProvenance, provenanceTelemetryLines } from "../utils/watchProvenance.js";
 import { isoDateTime, resolveWatchImportDate } from "../utils/watchDates.js";
 import {
-  countPendingManualWatchReviews,
+  countPendingManualWatchReviewItems,
   getManualWatchReview,
   listPendingManualWatchReviews,
   manualWatchReviewMedia,
@@ -70,20 +70,11 @@ function reviewMediaSummary(media = {}) {
   };
 }
 
-function reviewSourceLabel(source = "") {
-  const value = String(source || "unknown");
-  return value.charAt(0).toUpperCase() + value.slice(1);
-}
-
 function reviewSourceConfigured(config = {}, source = "") {
   const section = config?.[source] || {};
   if (section.disabled) return false;
   if (source === "plex") return Boolean(section.baseUrl && section.token);
   return Boolean(section.baseUrl && section.apiKey && section.userId);
-}
-
-function sourceTargetState(summary = {}, source = "") {
-  return (summary.targetStates || []).find((target) => String(target.target || "").toLowerCase() === source);
 }
 
 async function dismissReview(review) {
@@ -97,8 +88,9 @@ async function dismissReview(review) {
   if (!REVIEW_SOURCES.has(source)) {
     throw Object.assign(new Error("This review has no supported reporting app, so it remains pending."), { status: 400 });
   }
-  if (!reviewSourceConfigured(config, source)) {
-    throw Object.assign(new Error(`${reviewSourceLabel(source)} is not configured or is disabled; the review remains pending.`), { status: 409 });
+  const syncTargets = [...REVIEW_SOURCES].filter((target) => reviewSourceConfigured(config, target));
+  if (!syncTargets.length) {
+    throw Object.assign(new Error("No connected media apps are configured; the review remains pending."), { status: 409 });
   }
 
   const sourceItemId = String(review.source_item_id || media.itemId || media.providerItemId || "").trim();
@@ -120,10 +112,10 @@ async function dismissReview(review) {
     ...(sourceItemId && !media.itemId ? { itemId: sourceItemId } : {}),
     providerItems,
     provider_items: providerItems,
-    // This is an explicit correction of the provider that produced the review.
-    // Keep the target list authoritative so dismissing a Plex review cannot
-    // unexpectedly change Emby, Jellyfin, or a tracker as a side effect.
-    syncTargets: [source],
+    // Dismissing a manual review is a Plembfin-wide unwatch decision. Keep the
+    // target list authoritative so every configured media app receives the
+    // correction, regardless of which app reported the original watch.
+    syncTargets,
   };
   if (!dispatchMedia.isValid || !["movie", "episode"].includes(dispatchMedia.type)) {
     throw Object.assign(new Error("This review does not contain a valid movie or episode identity; the review remains pending."), { status: 400 });
@@ -145,11 +137,18 @@ async function dismissReview(review) {
   // retry.
   await invalidateHistoryDerivedCaches("dismissManualWatchReview").catch(() => null);
 
-  const target = sourceTargetState(result.summary, source);
-  if (target?.status !== "success") {
-    const detail = target?.detail || result.summary?.details || "The reporting app did not confirm the unwatched change.";
+  const targetStates = result.summary?.targetStates || [];
+  const failedTarget = targetStates.find((target) => {
+    const status = String(target.status || "").toLowerCase();
+    const detail = String(target.detail || "").toLowerCase();
+    if (["success"].includes(status)) return false;
+    if (status === "skipped" && (/no matching item found|skipped by the configured sync policy/.test(detail))) return false;
+    return true;
+  });
+  if (!targetStates.length || failedTarget) {
+    const detail = failedTarget?.detail || result.summary?.details || "Connected media apps did not all confirm the unwatched change.";
     throw Object.assign(
-      new Error(`${reviewSourceLabel(source)} did not accept the unwatched correction (${detail}). The review remains pending.`),
+      new Error(`The connected media apps did not all accept the unwatched correction (${detail}). The review remains pending.`),
       // This is an actionable provider-state conflict rather than an
       // unhandled server fault. Keep the user-safe reason visible to the UI;
       // the review remains pending so it can be retried after the app is
@@ -187,7 +186,7 @@ async function dismissReview(review) {
     season: dispatchMedia.season,
     episode: dispatchMedia.episode,
     status: "dismissed",
-    details: `Manual watch review dismissed; marked unwatched on ${reviewSourceLabel(source)}.`,
+    details: "Manual watch review dismissed; marked unwatched across connected media apps.",
     payload: {
       reviewId: review.id,
       sourcePlatform: source,
@@ -409,10 +408,16 @@ export async function handleManualWatchReview(req, res, path) {
 
   if (req.method === "GET" && !action) {
     const summaryOnly = String(req.query?.summary || "") === "1";
+    const pendingReviews = listPendingManualWatchReviews();
     return sendJson(res, {
       ok: true,
-      count: countPendingManualWatchReviews(),
-      reviews: summaryOnly ? [] : listPendingManualWatchReviews(),
+      // `count` is the number of logical decisions shown in the UI. Keep the
+      // raw provider-row count available for diagnostics because Plex and
+      // Emby can report the same episode independently and the page merges
+      // those records into one row.
+      count: countPendingManualWatchReviewItems(pendingReviews),
+      reviewCount: pendingReviews.length,
+      reviews: summaryOnly ? [] : pendingReviews,
     }, 200, { "Cache-Control": "no-store" });
   }
   if (req.method !== "POST") return methodNotAllowed(res);
@@ -425,14 +430,26 @@ export async function handleManualWatchReview(req, res, path) {
       const result = review.status === "pending"
         ? await dismissReview(review)
         : { id, status: review.status, action: "unwatched", source: review.source, review };
-      return sendJson(res, { ok: true, ...result, count: countPendingManualWatchReviews() }, 200, { "Cache-Control": "no-store" });
+      const pendingReviews = listPendingManualWatchReviews();
+      return sendJson(res, {
+        ok: true,
+        ...result,
+        count: countPendingManualWatchReviewItems(pendingReviews),
+        reviewCount: pendingReviews.length,
+      }, 200, { "Cache-Control": "no-store" });
     } catch (error) {
       const status = Number(error?.status);
       return sendJson(res, { ok: false, error: error.message || "Manual watch review dismissal failed" }, Number.isInteger(status) ? status : 500);
     }
   }
   if (action === "defer") {
-    return sendJson(res, { ok: true, review, count: countPendingManualWatchReviews() });
+    const pendingReviews = listPendingManualWatchReviews();
+    return sendJson(res, {
+      ok: true,
+      review,
+      count: countPendingManualWatchReviewItems(pendingReviews),
+      reviewCount: pendingReviews.length,
+    });
   }
 
   const body = await readJson(req);
@@ -440,7 +457,13 @@ export async function handleManualWatchReview(req, res, path) {
     const result = review.status === "pending"
       ? await approveReview(review, body.mode || body.watchImportMode, body.watched_at || body.watchedAt)
       : { id, status: review.status, mode: review.decision_mode, watchedAt: review.media?.watched_at || "", review };
-    return sendJson(res, { ok: true, ...result, count: countPendingManualWatchReviews() }, 200, { "Cache-Control": "no-store" });
+    const pendingReviews = listPendingManualWatchReviews();
+    return sendJson(res, {
+      ok: true,
+      ...result,
+      count: countPendingManualWatchReviewItems(pendingReviews),
+      reviewCount: pendingReviews.length,
+    }, 200, { "Cache-Control": "no-store" });
   } catch (error) {
     const status = Number(error?.status);
     return sendJson(res, { ok: false, error: error.message || "Manual watch review approval failed" }, Number.isInteger(status) ? status : 500);

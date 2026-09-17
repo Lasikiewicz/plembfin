@@ -1260,6 +1260,15 @@ const migrations = [
       `);
     },
   },
+  {
+    id: 41,
+    up(database) {
+      const watchCols = new Set(database.pragma("table_info(watch_history)").map((column) => column.name));
+      if (!watchCols.has("sync_match_ignored_at")) {
+        database.exec("ALTER TABLE watch_history ADD COLUMN sync_match_ignored_at INTEGER");
+      }
+    },
+  },
 ];
 
 function parseJsonValue(value, fallback) {
@@ -1300,6 +1309,7 @@ try {
   if (!watchCols.includes("logo_url")) db.exec("ALTER TABLE watch_history ADD COLUMN logo_url TEXT");
   if (!watchCols.includes("backdrop_url")) db.exec("ALTER TABLE watch_history ADD COLUMN backdrop_url TEXT");
   if (!watchCols.includes("watch_provenance")) db.exec("ALTER TABLE watch_history ADD COLUMN watch_provenance TEXT");
+  if (!watchCols.includes("sync_match_ignored_at")) db.exec("ALTER TABLE watch_history ADD COLUMN sync_match_ignored_at INTEGER");
 } catch { /* column already exists */ }
 
 // The main schema is executed before legacy migrations. Keep the item-level

@@ -168,9 +168,10 @@ These controls reduce risk.
 
 They do not replace host, network, or media-server security.
 
-## Website analytics with Traks
+## Website analytics with Traks and Google Analytics
 
-The public website can use Traks instead of Google Analytics. Traks is self-hosted in a
+The public website uses Traks and Google Analytics 4 together so their aggregate
+page-view and time-on-page measurements can be compared. Traks is self-hosted in a
 Cloudflare account and provides cookieless pageviews, referrers, campaigns, devices,
 locations, custom events, goals, funnels, and real-time reports.
 
@@ -180,13 +181,17 @@ website build environment:
 ```dotenv
 PUBLIC_TRAKS_SCRIPT_URL=https://analytics-collect.example.workers.dev/t.js
 PUBLIC_TRAKS_SITE_KEY=your-site-key
+PUBLIC_GA_MEASUREMENT_ID=G-58YXZG7GTB
 ```
 
-The integration is disabled when either value is missing and refuses non-HTTPS tracker
-URLs. It also respects the browser's Do Not Track and Global Privacy Control signals. The
-integration is consent-gated by default; set `PUBLIC_TRAKS_REQUIRE_CONSENT=false` only after
-reviewing your privacy obligations. When consent gating is enabled, dispatch this event
-after your consent UI records a visitor's choice:
+Traks is disabled when either Traks value is missing and refuses non-HTTPS tracker URLs.
+Google Analytics is disabled when the Measurement ID is missing or invalid. Both trackers
+respect the browser's Do Not Track and Global Privacy Control signals and share one
+consent-gated loader by default. Existing choices are re-prompted after the analytics
+policy changes. Set `PUBLIC_TRAKS_REQUIRE_CONSENT=false` or
+`PUBLIC_GA_REQUIRE_CONSENT=false` only after reviewing your privacy obligations. When
+consent gating is enabled, dispatch this event after your consent UI records a visitor's
+choice:
 
 ```js
 window.__plembfinAnalyticsConsent = true;
@@ -194,8 +199,9 @@ window.dispatchEvent(new Event("plembfin:analytics-consent"));
 ```
 
 Do not put names, email addresses, account IDs, media titles, or other personal data in
-custom event properties. Cookieless tracking does not by itself settle UK GDPR, PECR, or
-other local privacy obligations; publish a clear notice and choose the consent mode that
+custom event properties. Traks is cookieless; Google Analytics may use cookies or similar
+measurement technologies. Analytics configuration does not by itself settle UK GDPR, PECR,
+or other local privacy obligations; publish a clear notice and choose the consent mode that
 matches your use of the reports.
 
 ### Access the reports

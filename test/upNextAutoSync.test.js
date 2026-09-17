@@ -7,6 +7,7 @@ makeTempDataDir("plembfin-up-next-auto-sync-");
 
 const { db } = await import("../server/src/db.js");
 const {
+  UP_NEXT_PRIORITY_SYNC_JOB,
   requestUpNextAutoSync,
   runAutomaticUpNextSync,
   upNextQueueFingerprint,
@@ -51,8 +52,20 @@ test("automatic Up Next requests coalesce into one durable background job", asyn
   });
 });
 
+test("manual Up Next changes use a priority job lane", async () => {
+  db.prepare("DELETE FROM background_job_logs").run();
+  db.prepare("DELETE FROM background_jobs").run();
+
+  const normal = await requestUpNextAutoSync("background queue change");
+  const priority = await requestUpNextAutoSync("media page add", { priority: true });
+
+  assert.equal(normal.queued, true);
+  assert.equal(priority.queued, true);
+  assert.equal(priority.job.type, UP_NEXT_PRIORITY_SYNC_JOB);
+  assert.equal(db.prepare("SELECT COUNT(*) AS count FROM background_jobs WHERE status='queued'").get().count, 2);
+});
+
 test("automatic Up Next sync skips cleanly when no provider is configured", async () => {
   const result = await runAutomaticUpNextSync();
   assert.deepEqual(result, { status: "skipped", reason: "no-configured-providers" });
 });
-

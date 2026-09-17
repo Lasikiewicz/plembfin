@@ -87,7 +87,7 @@ const WATCH_COLUMNS = [
   "id", "title", "title_lower", "media_type", "watched_at", "source",
   "imdb_id", "tmdb_id", "tvdb_id", "season", "episode", "poster_url", "logo_url",
   "backdrop_url", "youtube_url", "sync_action", "sync_dispatch_telemetry", "media_key",
-  "watch_provenance", "show_title", "show_title_lower", "episode_title", "episode_title_status",
+  "watch_provenance", "sync_match_ignored_at", "show_title", "show_title_lower", "episode_title", "episode_title_status",
   "episode_title_checked_at", "episode_title_resolution_error", "created_at", "updated_at",
 ];
 
@@ -579,6 +579,7 @@ function watchRowParams(record) {
     youtube_url: null,
     sync_action: record.sync_action || "watched",
     sync_dispatch_telemetry: record.sync_dispatch_telemetry || null,
+    sync_match_ignored_at: record.sync_match_ignored_at || null,
     watch_provenance: toJson(record.watch_provenance || buildWatchProvenance({ source: record.source })),
     media_key: mediaKeyFor(record),
     show_title: showTitle,
@@ -641,6 +642,7 @@ function rowToWatch(row) {
     youtube_url: row.youtube_url || null,
     sync_action: row.sync_action || "watched",
     sync_dispatch_telemetry: row.sync_dispatch_telemetry || null,
+    sync_match_ignored_at: Number(row.sync_match_ignored_at || 0) || null,
     watch_provenance: normalizeWatchProvenance(row.watch_provenance),
     provider_overrides: normalizeWatchProvenance(row.watch_provenance)?.provider_overrides || null,
     sync_retry_count: Number(row.sync_retry_count || 0),
@@ -3775,6 +3777,9 @@ export async function updateWatchRecord(id, fields = {}, { preserveDispatchState
     providerOverridesChanged = true;
   }
   const identityChanged = fields.imdb_id != null || fields.tmdb_id != null || fields.tvdb_id != null;
+  if (identityChanged || providerOverridesChanged) {
+    sets.push("sync_match_ignored_at = NULL");
+  }
   if ((identityChanged || providerOverridesChanged) && !preserveDispatchState) {
     sets.push("sync_dispatch_telemetry = ?", "sync_retry_count = ?", "sync_next_retry_at = ?");
     params.push("Identity updated via Fix Match. Pending outbound sync.", 0, 0);
@@ -3902,6 +3907,20 @@ export async function updateWatchRecord(id, fields = {}, { preserveDispatchState
 
   await invalidateHistoryDerivedCaches("updateWatchRecord");
   return { ok: true };
+}
+
+export async function dismissSyncMatchRecord(id) {
+  assertRestoreWriteAllowed("manual");
+  const requestedId = String(id || "").trim();
+  if (!requestedId) return { ok: false, error: "id is required" };
+  const existing = selectByIdStmt.get(requestedId);
+  if (!existing) return { ok: false, error: "Watch record not found" };
+
+  const ignoredAt = Date.now();
+  db.prepare("UPDATE watch_history SET sync_match_ignored_at = ?, updated_at = ? WHERE id = ?")
+    .run(ignoredAt, ignoredAt, existing.id);
+  await invalidateHistoryDerivedCaches("dismissSyncMatchRecord");
+  return { ok: true, id: String(existing.id), ignoredAt };
 }
 
 // Update a set of existing watch rows in one transaction. This is deliberately

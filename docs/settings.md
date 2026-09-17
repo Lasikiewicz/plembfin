@@ -122,7 +122,8 @@ as the media-page watch-date picker. A real provider playback timestamp is alway
 chooses a policy on the **Manual Watch review** page. The page is linked in the sidebar
 above **Sync - Idle**, shows the provider evidence, and offers now, release-day, episode-
 timing, or dismiss actions. Leaving an item untouched defers it; repeated scans do not
-create duplicate review rows.
+create duplicate review rows or re-announce a flag that is already resolved by Plembfin's
+canonical watched state.
 
 ### Sync Tuning: historical watched items and Plex
 
@@ -435,9 +436,10 @@ The unfiltered per-platform totals are still returned by
 
 Rows are built from each record's stored `sync_dispatch_telemetry`, so an issue
 only leaves Sync Activity once that record has been dispatched again and
-reported a match. The issue panel provides a per-item **Fix match** action; the
-normal Sync Activity controls remain available for retrying or reviewing the
-underlying sync events.
+reported a match. The issue panel provides a per-item **Fix match** action and a
+**Remove** action. Remove keeps the local watch history and suppresses that unresolved
+issue from future reports. The normal Sync Activity controls remain available for
+retrying or reviewing the underlying sync events.
 
 Only unidentified items are offered for matching. An item that already knows
 what it is cannot be repaired by choosing a search result, so an identified

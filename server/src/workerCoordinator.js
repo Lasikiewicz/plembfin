@@ -18,7 +18,7 @@ import {
 } from "./scheduler.js";
 import { refreshUpcomingCalendarCache } from "./utils/upcomingCalendarCache.js";
 import { backfillUnknownShowTitles, backfillMissingEpisodeSeasons, repairEpisodeSeriesIdentity } from "./utils/dataRepo.js";
-import { requestUpNextAutoSync, runAutomaticUpNextSync } from "./utils/upNextAutoSync.js";
+import { UP_NEXT_AUTO_SYNC_JOB, UP_NEXT_PRIORITY_SYNC_JOB, requestUpNextAutoSync, runAutomaticUpNextSync } from "./utils/upNextAutoSync.js";
 import { db } from "./db.js";
 import { setRuntimeState } from "./utils/configStore.js";
 import {
@@ -221,7 +221,7 @@ export function createWorkerCoordinator({ holderId, role }) {
       if (job.type === "cron_sync") {
         log("Cron Sync started...");
         result = await runScheduledSync(log, { forceCatchup: true });
-      } else if (job.type === "up_next_sync") {
+      } else if (job.type === UP_NEXT_AUTO_SYNC_JOB || job.type === UP_NEXT_PRIORITY_SYNC_JOB) {
         log("Automatic Up Next provider sync started...");
         result = await runAutomaticUpNextSync({
           logger: log,
@@ -268,8 +268,10 @@ export function createWorkerCoordinator({ holderId, role }) {
       const cancelled = current?.cancelRequested || result?.aborted;
       appendBackgroundJobLog(job.id, `RESULT: ${JSON.stringify(result)}`);
       finishBackgroundJob({ ...token, status: cancelled ? "cancelled" : "succeeded", result });
-      if (job.type === "up_next_sync" && result?.rerun && !cancelled) {
-        await requestUpNextAutoSync("Up Next changed while the previous automatic sync was running").catch((error) => {
+      if ((job.type === UP_NEXT_AUTO_SYNC_JOB || job.type === UP_NEXT_PRIORITY_SYNC_JOB) && result?.rerun && !cancelled) {
+        await requestUpNextAutoSync("Up Next changed while the previous automatic sync was running", {
+          priority: job.type === UP_NEXT_PRIORITY_SYNC_JOB,
+        }).catch((error) => {
           console.error(`[worker] Failed to requeue automatic Up Next sync: ${error?.message || error}`);
         });
       }

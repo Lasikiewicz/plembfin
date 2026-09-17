@@ -58,6 +58,16 @@ test("background jobs are durably claimed, logged, cancelled, and completed", ()
   assert.equal(jobs.claimNextBackgroundJob({ holderId: "job-worker", generation: lease.generation, now: 2_011 }), null);
 });
 
+test("priority Up Next jobs are claimed ahead of older queued background work", () => {
+  const lease = leaseStore.claimSchedulerLease({ holderId: "priority-worker", role: "worker", ttlMs: 10_000, now: 20_000 });
+  const normal = jobs.enqueueBackgroundJob("up_next_sync", {}, 20_001);
+  const priority = jobs.enqueueBackgroundJob("up_next_priority_sync", {}, 20_002);
+  const claimed = jobs.claimNextBackgroundJob({ holderId: "priority-worker", generation: lease.generation, now: 20_003 });
+
+  assert.equal(claimed.id, priority.id);
+  assert.notEqual(claimed.id, normal.id);
+});
+
 test("runtime state merges preserve unrelated fields", async () => {
   await runtime.setRuntimeState({ alpha: 1 });
   await runtime.setRuntimeState({ beta: 2 });

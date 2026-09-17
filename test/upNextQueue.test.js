@@ -731,6 +731,121 @@ function seedShowMetadata({ tmdbId, tvdbId, title, seasonNumber, episodes, addit
   }
 }
 
+test("completed shows leave Up Next while a never-watched manually queued show remains", async () => {
+  insertWatchRecordSync({
+    title: "Completed Queue Show - S01E01",
+    show_title: "Completed Queue Show",
+    media_type: "episode",
+    season: 1,
+    episode: 1,
+    show_tmdb_id: "88010",
+    watched_at: "2026-08-01T11:00:00.000Z",
+    source: "manual",
+  });
+  insertWatchRecordSync({
+    title: "Completed Queue Show - S01E02",
+    show_title: "Completed Queue Show",
+    media_type: "episode",
+    season: 1,
+    episode: 2,
+    show_tmdb_id: "88010",
+    watched_at: "2026-08-02T11:00:00.000Z",
+    source: "manual",
+  });
+
+  const completed = await buildUpNextProjection({
+    now: Date.parse("2026-09-10T12:00:00.000Z"),
+    localFallback: false,
+    shows: [{
+      title: "Completed Queue Show",
+      tmdb_id: "88010",
+      episode_count: 2,
+      total_episodes: 2,
+      latest_watched_at: "2026-08-02T11:00:00.000Z",
+    }],
+    progressRows: [],
+    playstateRows: [],
+    providerItems: [{
+      provider: "jellyfin",
+      feed_kind: "next_up",
+      provider_item_id: "completed-queue-show-s01e03",
+      media_type: "episode",
+      title: "Completed Queue Show - S01E03",
+      show_title: "Completed Queue Show",
+      season: 1,
+      episode: 3,
+      show_ids: { tmdb: "88010" },
+      air_date: "2026-08-03",
+    }],
+  });
+  assert.equal(completed.items.find((item) => item.show_title === "Completed Queue Show"), undefined);
+
+  upsertManualUpNextShow({ title: "Never Watched Queue Show", tmdb_id: "88011" }, {
+    now: Date.parse("2026-09-10T12:00:00.000Z"),
+  });
+  const neverWatched = await buildUpNextProjection({
+    now: Date.parse("2026-09-10T12:00:00.000Z"),
+    localFallback: false,
+    shows: [],
+    progressRows: [],
+    playstateRows: [],
+    providerItems: [{
+      provider: "jellyfin",
+      feed_kind: "next_up",
+      provider_item_id: "never-watched-queue-show-s01e01",
+      media_type: "episode",
+      title: "Never Watched Queue Show - S01E01",
+      show_title: "Never Watched Queue Show",
+      season: 1,
+      episode: 1,
+      show_ids: { tmdb: "88011" },
+      air_date: "2026-08-03",
+    }],
+  });
+  assert.equal(neverWatched.items.find((item) => item.show_title === "Never Watched Queue Show")?.episode, 1);
+  removeManualUpNextShow({ tmdb_id: "88011" });
+});
+
+test("a manually queued show with only explicit unwatches stays out of Up Next", async () => {
+  insertWatchRecordSync({
+    title: "Cleared Queue Show - S01E01",
+    show_title: "Cleared Queue Show",
+    media_type: "episode",
+    season: 1,
+    episode: 1,
+    show_tmdb_id: "88012",
+    watched_at: "2026-08-01T11:00:00.000Z",
+    source: "manual",
+    sync_action: "unwatched",
+  });
+  upsertManualUpNextShow({ title: "Cleared Queue Show", tmdb_id: "88012" }, {
+    now: Date.parse("2026-09-10T12:00:00.000Z"),
+  });
+
+  const projection = await buildUpNextProjection({
+    now: Date.parse("2026-09-10T12:00:00.000Z"),
+    localFallback: false,
+    shows: [],
+    progressRows: [],
+    playstateRows: [],
+    providerItems: [{
+      provider: "jellyfin",
+      feed_kind: "next_up",
+      provider_item_id: "cleared-queue-show-s01e01",
+      media_type: "episode",
+      title: "Cleared Queue Show - S01E01",
+      show_title: "Cleared Queue Show",
+      season: 1,
+      episode: 1,
+      show_ids: { tmdb: "88012" },
+      air_date: "2026-08-03",
+    }],
+  });
+
+  assert.equal(projection.items.find((item) => item.show_title === "Cleared Queue Show"), undefined);
+  removeManualUpNextShow({ tmdb_id: "88012" });
+});
+
 test("local fallback resolves an unwatched next episode against the configured libraries", async () => {
   seedShowMetadata({
     tmdbId: "108978",

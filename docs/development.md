@@ -310,16 +310,19 @@ guardrail, and `/changelog.json` against the release version. If an OCI setting 
 missing or the deployment/verification fails, the main release workflow remains
 failed instead of reporting the demo as current.
 
-Optional Traks analytics for `demo.plembfin.com` is configured with repository
-Variables `PLEMBFIN_TRAKS_SCRIPT_URL`, `PLEMBFIN_TRAKS_SITE_KEY`, and
-`PLEMBFIN_TRAKS_REQUIRE_CONSENT` (defaults to `true`). If the URL or site key is
-empty, the demo does not load an analytics script. The URL and site key are public
-configuration; never place a Cloudflare API token or R2 credential in the demo
-container or Actions variables. The demo shows a consent banner by default and also
-honors browser Do Not Track and Global Privacy Control signals. Traks reports are
-opened from the dashboard URL created by the Traks deployment; they are not exposed
-through the public demo URL. Use a separate Traks site key for the demo if you want
-its traffic reported separately from `plembfin.com`.
+Optional Traks and GA4 analytics for `demo.plembfin.com` are configured with repository
+Variables `PLEMBFIN_TRAKS_SCRIPT_URL`, `PLEMBFIN_TRAKS_SITE_KEY`,
+`PLEMBFIN_TRAKS_REQUIRE_CONSENT`, `PLEMBFIN_GA_MEASUREMENT_ID`, and
+`PLEMBFIN_GA_REQUIRE_CONSENT` (consent defaults to `true`). If the Traks URL/site key
+are empty and the GA4 Measurement ID is empty or invalid, the demo loads no analytics.
+These values are public configuration; never place a Cloudflare API token or R2
+credential in the demo container or Actions variables. The demo shows one consent
+banner for both trackers by default, re-prompts visitors who have the previous Traks-only
+choice, and honors browser Do Not Track and Global Privacy Control signals. Traks is
+cookieless; Google Analytics may use cookies or similar measurement technologies. Traks
+reports are opened from the dashboard URL created by the Traks deployment; they are not
+exposed through the public demo URL. Use a separate Traks site key for the demo if you
+want its traffic reported separately from `plembfin.com`.
 
 Pushes to `main` and `alpha` trigger `.github/workflows/windows-installer.yml`. That job
 runs on a Windows runner, installs and probes the Windows builds of `better-sqlite3` and

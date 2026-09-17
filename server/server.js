@@ -39,6 +39,26 @@ const TRAKS_CONFIG = (() => {
   }
 })();
 
+const GOOGLE_ANALYTICS_CONFIG = (() => {
+  const measurementId = String(process.env.PLEMBFIN_GA_MEASUREMENT_ID || "").trim();
+  const requireConsent = String(process.env.PLEMBFIN_GA_REQUIRE_CONSENT || "true").trim().toLowerCase() !== "false";
+  if (!DEMO_MODE || !measurementId) {
+    return { enabled: false, measurementId: "", requireConsent };
+  }
+  if (!/^G-[A-Z0-9]+$/i.test(measurementId)) {
+    console.warn("[security] Google Analytics disabled: invalid GA4 Measurement ID");
+    return { enabled: false, measurementId: "", requireConsent };
+  }
+  return { enabled: true, measurementId, requireConsent };
+})();
+
+const ANALYTICS_CONFIG = {
+  enabled: TRAKS_CONFIG.enabled || GOOGLE_ANALYTICS_CONFIG.enabled,
+  requireConsent: TRAKS_CONFIG.requireConsent || GOOGLE_ANALYTICS_CONFIG.requireConsent,
+  traks: TRAKS_CONFIG,
+  googleAnalytics: GOOGLE_ANALYTICS_CONFIG,
+};
+
 const { DATA_DIR, PUBLIC_DIR, MEDIA_DIR, ensureDataDirs } = await import("./src/paths.js");
 const { dispatch } = await import("./src/index.js");
 const { db } = await import("./src/db.js");
@@ -182,7 +202,12 @@ app.use(async (_req, res, next) => {
     // Keeping the policy local also prevents a future UI regression from
     // quietly reintroducing a provider, image, font, or iframe request.
     const traksOrigin = TRAKS_CONFIG.enabled ? ` ${TRAKS_CONFIG.origin}` : "";
-    contentSecurityPolicy = `default-src 'self'; img-src 'self' data: blob:; script-src 'self'${traksOrigin}; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self'${traksOrigin}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; frame-src 'none';`;
+    const googleAnalyticsScriptOrigin = GOOGLE_ANALYTICS_CONFIG.enabled ? " https://www.googletagmanager.com" : "";
+    const googleAnalyticsImageOrigin = GOOGLE_ANALYTICS_CONFIG.enabled ? " https://www.google-analytics.com" : "";
+    const googleAnalyticsConnectOrigins = GOOGLE_ANALYTICS_CONFIG.enabled
+      ? " https://www.google-analytics.com https://region1.google-analytics.com https://analytics.google.com"
+      : "";
+    contentSecurityPolicy = `default-src 'self'; img-src 'self' data: blob:${googleAnalyticsImageOrigin}; script-src 'self'${traksOrigin}${googleAnalyticsScriptOrigin}; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self'${traksOrigin}${googleAnalyticsConnectOrigins}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; frame-src 'none';`;
   } else {
     let extraImgSrc = "";
     try {
@@ -274,7 +299,7 @@ app.use(rateLimit({
 // req.body to a Buffer, which the requestBody helpers already understand.
 app.get("/analytics-config.json", (_req, res) => {
   res.setHeader("Cache-Control", "no-store");
-  res.json(TRAKS_CONFIG);
+  res.json(ANALYTICS_CONFIG);
 });
 
 app.use("/api", (_req, res, next) => {

@@ -245,22 +245,53 @@ function showIdentityKeys(item = {}) {
   return [...new Set(keys)];
 }
 
-function showHasWatchedRecord(item, watchedShowKeys) {
-  return showIdentityKeys(item).some((key) => watchedShowKeys.has(key));
+function showIsCompleted(item = {}) {
+  const watchedEpisodes = Number(item.episode_count || 0);
+  const totalEpisodes = Number(item.total_episodes || 0);
+  return totalEpisodes > 0 && watchedEpisodes >= totalEpisodes;
+}
+
+function buildShowStateKeys(episodeRows = [], playstateIndex, showIdentities, expectedState) {
+  const keys = new Set();
+  for (const row of episodeRows) {
+    const candidate = rowCandidate(row, { queueKind: "next_up", showIdentities });
+    if (newestStateFor(candidate, playstateIndex)?.state !== expectedState) continue;
+    for (const key of showIdentityKeys(candidate)) keys.add(key);
+  }
+  return keys;
 }
 
 function buildWatchedShowKeys(episodeRows = [], playstateIndex, showIdentities, shows = []) {
-  const watchedShowKeys = new Set();
-  for (const row of episodeRows) {
-    const candidate = rowCandidate(row, { queueKind: "next_up", showIdentities });
-    if (newestStateFor(candidate, playstateIndex)?.state !== "watched") continue;
-    for (const key of showIdentityKeys(candidate)) watchedShowKeys.add(key);
-  }
+  const watchedShowKeys = buildShowStateKeys(episodeRows, playstateIndex, showIdentities, "watched");
   for (const show of Array.isArray(shows) ? shows : []) {
     if (!text(show.latest_watched_at)) continue;
     for (const key of showIdentityKeys(show)) watchedShowKeys.add(key);
   }
   return watchedShowKeys;
+}
+
+function buildCompletedShowKeys(shows = []) {
+  const completedShowKeys = new Set();
+  for (const show of Array.isArray(shows) ? shows : []) {
+    if (!showIsCompleted(show)) continue;
+    for (const key of showIdentityKeys(show)) completedShowKeys.add(key);
+  }
+  return completedShowKeys;
+}
+
+function showEligibleForUpNext(
+  item,
+  { watchedShowKeys, unwatchedShowKeys, manualShowKeys, completedShowKeys },
+) {
+  const keys = showIdentityKeys(item);
+  if (!keys.length || keys.some((key) => completedShowKeys.has(key))) return false;
+  const hasWatched = keys.some((key) => watchedShowKeys.has(key));
+  const hasExplicitUnwatch = keys.some((key) => unwatchedShowKeys.has(key));
+  // A manually queued show with no history is intentional. A show whose
+  // current records are all explicit unwatches is not: manual membership must
+  // not resurrect a show the user deliberately cleared.
+  if (!hasWatched && hasExplicitUnwatch) return false;
+  return hasWatched || keys.some((key) => manualShowKeys.has(key));
 }
 
 function actionableResume(candidate) {
@@ -838,6 +869,8 @@ async function localNextUpCandidates({
   shows,
   playstateIndex,
   watchedShowKeys,
+  unwatchedShowKeys,
+  completedShowKeys,
   progressCandidates,
   providerCandidates = [],
   episodeRows = [],
@@ -850,8 +883,12 @@ async function localNextUpCandidates({
   // Every show resolves against the same episode snapshot, so read and dedupe
   // the episode table once for the whole pass rather than once per show.
   const selectedShows = (Array.isArray(shows) ? shows : [])
-    .filter((show) => showHasWatchedRecord(show, watchedShowKeys)
-      || showIdentityKeys(show).some((key) => manualShowKeys.has(key)))
+    .filter((show) => showEligibleForUpNext(show, {
+      watchedShowKeys,
+      unwatchedShowKeys,
+      manualShowKeys,
+      completedShowKeys,
+    }))
     .filter((show) => Number(show.episode_count || 0) > 0)
     .sort((left, right) => (
       Number(showIdentityKeys(right).some((key) => manualShowKeys.has(key)))
@@ -934,6 +971,8 @@ export async function buildUpNextProjection({
     showIdentities,
   );
   const watchedShowKeys = buildWatchedShowKeys(trackedEpisodeRows, playstateIndex, showIdentities, showRows);
+  const unwatchedShowKeys = buildShowStateKeys(trackedEpisodeRows, playstateIndex, showIdentities, "unwatched");
+  const completedShowKeys = buildCompletedShowKeys(showRows);
   const showRecency = showRecencyIndex(showRows);
   const canonicalResume = rawProgressRows
     .map((row) => rowCandidate(row, { queueKind: "resume", canonical: true, showIdentities }))
@@ -953,6 +992,8 @@ export async function buildUpNextProjection({
       shows: showRows,
       playstateIndex,
       watchedShowKeys,
+      unwatchedShowKeys,
+      completedShowKeys,
       progressCandidates: canonicalResume,
       providerCandidates: [],
       episodeRows: trackedEpisodeRows,
@@ -972,7 +1013,12 @@ export async function buildUpNextProjection({
   const providerResume = providerCandidates
     .filter((candidate) => candidate.queue_kind === "resume" && (actionableResume(candidate) || providerResumeMembership(candidate)))
     .filter(isRegularUpNextEpisode)
-    .filter((candidate) => candidate.media_type !== "episode" || showHasWatchedRecord(candidate, watchedShowKeys))
+    .filter((candidate) => candidate.media_type !== "episode" || showEligibleForUpNext(candidate, {
+      watchedShowKeys,
+      unwatchedShowKeys,
+      manualShowKeys,
+      completedShowKeys: new Set(),
+    }))
     .filter((candidate) => matchesAuthoritativeNextEpisode(candidate, authoritativeNextEpisodes))
     .filter((candidate) => stateIsUnwatched(candidate, playstateIndex)
       || !stateBlocksCandidate(candidate, playstateIndex, { progressUpdatedAt: candidate.updated_at }))
@@ -980,7 +1026,12 @@ export async function buildUpNextProjection({
   const providerNextUp = providerCandidates
     .filter((candidate) => candidate.queue_kind === "next_up" && released(candidate.air_date, new Date(now).toISOString().slice(0, 10)))
     .filter(isRegularUpNextEpisode)
-    .filter((candidate) => candidate.media_type !== "episode" || showHasWatchedRecord(candidate, watchedShowKeys))
+    .filter((candidate) => candidate.media_type !== "episode" || showEligibleForUpNext(candidate, {
+      watchedShowKeys,
+      unwatchedShowKeys,
+      manualShowKeys,
+      completedShowKeys,
+    }))
     .filter((candidate) => matchesAuthoritativeNextEpisode(candidate, authoritativeNextEpisodes))
     .filter((candidate) => stateIsUnwatched(candidate, playstateIndex)
       || !stateBlocksCandidate(candidate, playstateIndex, { progressUpdatedAt: candidate.updated_at }))
@@ -994,6 +1045,8 @@ export async function buildUpNextProjection({
       shows: showRows,
       playstateIndex,
       watchedShowKeys,
+      unwatchedShowKeys,
+      completedShowKeys,
       progressCandidates: canonicalResume,
       // Only the observations that survived their own filters. Passing the
       // raw list let a provider card that had just been suppressed - by a

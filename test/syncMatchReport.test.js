@@ -198,3 +198,11 @@ test("a record with no provider ids reports them as null rather than omitting th
   assert.equal(sample.tmdb_id, null);
   assert.equal(sample.tvdb_id, null);
 });
+
+test("dismissed match rows are excluded from the unresolved report", () => {
+  const report = buildSyncMatchReport([
+    row({ sync_match_ignored_at: Date.now(), sync_dispatch_telemetry: FIXTURES.embyNotFound }),
+  ]);
+  assert.equal(report.scannedRows, 0);
+  assert.equal(report.totalUnmatchedRows, 0);
+});

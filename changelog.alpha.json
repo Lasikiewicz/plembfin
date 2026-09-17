@@ -1,10 +1,91 @@
 {
   "baseVersion": "1.1.1",
-  "build": 5,
-  "version": "1.1.1.5.0",
-  "updatedAt": "2026-09-17T11:24:51.728Z",
+  "build": 7,
+  "version": "1.1.1.7.0",
+  "updatedAt": "2026-09-17T15:48:29.193Z",
   "releaseMessage": "",
   "entries": [
+    {
+      "build": 7,
+      "version": "1.1.1.7.0",
+      "shortVersion": "1.1.1.7.0",
+      "date": "2026-09-17T15:48:29.193Z",
+      "commit": "6ebe91a62e0d0e0f9021d54ccce6d70894f076e3",
+      "message": "Improves Up Next reliability, sync visibility, media-server recovery guidance, and manual watch review clarity.",
+      "author": "Lasikiewicz",
+      "details": [
+        "Feature: Add clearer progress and removal feedback for background sync actions.",
+        "Feature: Add Help after two failed provider retries and publish Jellyfin connection troubleshooting guidance.",
+        "Tweak: Keep completed shows out of Up Next while retaining manually queued never-watched shows.",
+        "Tweak: Surface media-server connection retries inline and improve Sync Activity match issue handling.",
+        "Tweak: Media-page Up Next changes now appear promptly by prioritizing their sync and rebuilding stale queue projections.",
+        "Tweak: Existing provider requests finish safely before the priority update is sent.",
+        "Tweak: Refresh Up Next immediately after dashboard unwatch actions and keep valid manual watch reviews visible when older watch history exists.",
+        "Tweak: Require confirmation before applying individual or show-level watch and unwatched decisions from Manual Watch review.",
+        "Tweak: Show which connected app reported a watch and where dismissing the review will mark it unwatched.",
+        "Tweak: Organize Manual Watch review actions by show, season, and episode with concise provider-specific labels.",
+        "Tweak: Show newest review seasons first in boxed panels beneath the poster, preview only a few latest-season episodes, merge duplicate provider records into one row with source pills, remove the redundant show-level count summary, and remove accepted decisions optimistically while sync continues.",
+        "Fix: Use a generic Dismiss & mark unwatched action, send the unwatched correction to all configured media apps, and keep the dismissed row hidden while stale refreshes settle."
+      ],
+      "sections": {
+        "newFeatures": [
+          "Add clearer progress and removal feedback for background sync actions.",
+          "Add Help after two failed provider retries and publish Jellyfin connection troubleshooting guidance."
+        ],
+        "majorBugFixes": [
+          "Use a generic Dismiss & mark unwatched action, send the unwatched correction to all configured media apps, and keep the dismissed row hidden while stale refreshes settle."
+        ],
+      "tweaks": [
+        "Keep completed shows out of Up Next while retaining manually queued never-watched shows.",
+        "Surface media-server connection retries inline and improve Sync Activity match issue handling.",
+        "Media-page Up Next changes now appear promptly by prioritizing their sync and rebuilding stale queue projections.",
+        "Existing provider requests finish safely before the priority update is sent.",
+        "Refresh Up Next immediately after dashboard unwatch actions and keep valid manual watch reviews visible when older watch history exists.",
+        "Require confirmation before applying individual or show-level watch and unwatched decisions from Manual Watch review.",
+        "Show which connected app reported a watch and where dismissing the review will mark it unwatched.",
+        "Organize Manual Watch review actions by show, season, and episode with concise provider-specific labels.",
+        "Show newest review seasons first in boxed panels beneath the poster, preview only a few latest-season episodes, merge duplicate provider records into one row with source pills, remove the redundant show-level count summary, and remove accepted decisions optimistically while sync continues."
+      ]
+      },
+      "messageFragments": [
+        "Feature - Refine up next and sync issue handling",
+        "Feature - Add media server connection help",
+        "Fix - Prioritize media page up next updates",
+        "Fix - Keep watch review and up next state current",
+        "Fix - Confirm manual watch review decisions",
+        "Fix - Clarify manual watch review source and target",
+        "Fix - Simplify manual watch review layout",
+        "Fix - Keep manual watch review responsive during background sync",
+        "Fix - Send manual review unwatches to every configured media app"
+      ]
+    },
+    {
+      "build": 6,
+      "version": "1.1.1.6.0",
+      "shortVersion": "1.1.1.6.0",
+      "date": "2026-09-17T12:50:55.229Z",
+      "commit": "a0b72e63ebdb0238479016bb4c0d289af6226e34",
+      "message": "Fix - Keep media changes visible during sync",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix: Keep media changes visible during sync",
+        "Fix: Give Tautulli backup and import a clear preview, backup, import, and syncing flow with progress feedback.",
+        "Fix: Refresh open media details immediately after removing one watch date while preserving surviving watches.",
+        "Fix: Show syncing state and pause only affected media controls while queued imports and dispatches finish.",
+        "Fix: Keep repeated watch actions responsive and visible, including animated Up Next requests with failure-safe labels."
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Keep media changes visible during sync",
+          "Give Tautulli backup and import a clear preview, backup, import, and syncing flow with progress feedback.",
+          "Refresh open media details immediately after removing one watch date while preserving surviving watches.",
+          "Show syncing state and pause only affected media controls while queued imports and dispatches finish.",
+          "Keep repeated watch actions responsive and visible, including animated Up Next requests with failure-safe labels."
+        ],
+        "tweaks": []
+      }
+    },
     {
       "build": 5,
       "version": "1.1.1.5.0",
@@ -157,5 +238,5 @@
       }
     }
   ],
-  "shortVersion": "1.1.1.5.0"
+  "shortVersion": "1.1.1.7.0"
 }

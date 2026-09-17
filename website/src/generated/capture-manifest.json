@@ -3,10 +3,7 @@
   "generatedBy": "website/scripts/capture-inventory.mjs",
   "changes": {
     "added": [],
-    "changed": [
-      "public/assets/app-captures/settings-connections-dark.png",
-      "public/assets/app-captures/settings-connections-light.png"
-    ],
+    "changed": [],
     "removed": [],
     "unreferenced": [
       "public/assets/app-captures/dashboard-home-dark.png",

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import "./domStubs.js";
 
-const { attentionIssueMarkup, clientAttentionItemMarkup, recordClientAttention, renderSyncActivityStatus, retryClientAttention } = await import("../public/modules/sync-activity.js");
+const { attentionIssueMarkup, clientAttentionItemMarkup, recordClientAttention, renderSyncActivityStatus, renderSyncAttention, retryClientAttention } = await import("../public/modules/sync-activity.js");
 const { elements, state } = await import("../public/modules/state.js");
 
 test("sync status reflects current activity issues after an otherwise idle run", () => {
@@ -47,6 +47,63 @@ test("sync status reflects current activity issues after an otherwise idle run",
     elements.syncProgressText = previous.indicatorText;
     elements.syncActivityStatus = previous.pageStatus;
     elements.syncActivityStatusText = previous.pageStatusText;
+  }
+});
+
+test("cross-platform match issues render in the Sync Activity attention panel", () => {
+  const previous = {
+    attentionElement: elements.syncActivityAttention,
+    matchReport: state.syncActivityMatchReport,
+    matchIssueCount: state.syncActivityMatchIssueCount,
+    syncAttention: state.syncAttention,
+    clientAttention: state.clientAttention,
+    attentionError: state.syncAttentionError,
+    attentionLoading: state.syncAttentionLoading,
+    attentionLoaded: state.syncAttentionLoaded,
+    attentionSeverity: state.syncAttentionSeverity,
+  };
+  const classes = new Set(["hidden"]);
+  const container = {
+    classList: {
+      add: (...names) => names.forEach((name) => classes.add(name)),
+      remove: (...names) => names.forEach((name) => classes.delete(name)),
+    },
+    dataset: {},
+    innerHTML: "",
+    removeAttribute() {},
+  };
+  elements.syncActivityAttention = container;
+  state.syncActivityMatchReport = {
+    platforms: {
+      plex: {
+        samples: [{ id: "match-1", title: "The Missing Episode", media_type: "episode", show_title: "The Missing Show", season: 1, episode: 2 }],
+      },
+    },
+  };
+  state.syncActivityMatchIssueCount = 1;
+  state.syncAttention = [];
+  state.clientAttention = [];
+  state.syncAttentionError = "";
+  state.syncAttentionLoading = false;
+  state.syncAttentionLoaded = true;
+  state.syncAttentionSeverity = "clear";
+
+  try {
+    renderSyncAttention();
+    assert.match(container.innerHTML, /Cross-Platform Match Issues/);
+    assert.match(container.innerHTML, /The Missing Episode/);
+    assert.match(container.innerHTML, /Fix match/);
+    assert.equal(classes.has("hidden"), false);
+  } finally {
+    elements.syncActivityAttention = previous.attentionElement;
+    state.syncActivityMatchReport = previous.matchReport;
+    state.syncActivityMatchIssueCount = previous.matchIssueCount;
+    state.syncAttention = previous.syncAttention;
+    state.clientAttention = previous.clientAttention;
+    state.syncAttentionError = previous.attentionError;
+    state.syncAttentionLoading = previous.attentionLoading;
+    state.syncAttentionLoaded = previous.attentionLoaded;
+    state.syncAttentionSeverity = previous.attentionSeverity;
   }
 });
 

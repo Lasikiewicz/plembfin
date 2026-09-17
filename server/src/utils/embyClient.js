@@ -3,6 +3,7 @@ import { compoundEpisodeItemsForMedia } from "./compoundEpisode.js";
 import { restoreLookupKey } from "./restoreLookupCache.js";
 import { nativeProviderItemIds } from "./providerItemIds.js";
 import { canonicalPlayedDateIso } from "./watchSyncPolicy.js";
+import { traceLog } from "./logVerbose.js";
 
 function trimTrailingSlash(value = "") {
   return String(value).replace(/\/+$/, "");
@@ -285,7 +286,7 @@ async function searchEmbyFallback(config, media, targetType) {
   url.searchParams.set("Fields", "ProviderIds,UserData");
   url.searchParams.set("api_key", config.apiKey);
 
-  console.log("Emby search fallback started", { query: queryTitle, targetType });
+  traceLog("Emby search fallback started", { query: queryTitle, targetType });
   try {
     const body = await fetchJson(url, config, media);
     const results = body?.Items || [];
@@ -297,7 +298,7 @@ async function searchEmbyFallback(config, media, targetType) {
     });
 
     if (matched.length > 0) {
-      console.log("Emby search fallback matched items", { count: matched.length, itemIds: matched.map(i => i.Id) });
+      traceLog("Emby search fallback matched items", { count: matched.length, itemIds: matched.map(i => i.Id) });
       return matched;
     }
   } catch (error) {
@@ -319,7 +320,7 @@ async function findByProviderIds(config, media, itemTypes) {
     url.searchParams.set("AnyProviderIdEquals", providerTerm);
     url.searchParams.set("api_key", config.apiKey);
 
-    console.log("Emby lookup started", { itemTypes, providerTerm });
+    traceLog("Emby lookup started", { itemTypes, providerTerm });
     const body = await fetchJson(url, config, media);
       const [prov, val] = providerTerm.split(".");
       const providerKey = prov.charAt(0).toUpperCase() + prov.slice(1);
@@ -347,7 +348,7 @@ async function findByProviderIds(config, media, itemTypes) {
 
   const results = Array.from(allMatched.values());
   if (results.length > 0) {
-    console.log("Emby lookup matched items", { count: results.length, itemIds: results.map(i => i.Id) });
+    traceLog("Emby lookup matched items", { count: results.length, itemIds: results.map(i => i.Id) });
     return results;
   }
 

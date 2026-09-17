@@ -6,7 +6,7 @@ import { runScheduledTick, startPlexNotificationListener, stopPlexNotificationLi
 import { handleBackupExport, handleBackupImport, handleImport, handlePlembfinBackups, handleWatchBackups } from "./routes/backups.js";
 import { handleAppearance, handleConfig, handleMediaAppLinks, handleSeerrMediaStatus, handleSeerrRequest, handleSeerrStatus, handleTestConnection, handleTestPlexNotifications } from "./routes/admin.js";
 import { handleAddWatchDate, handleClearMissingTelemetry, handleDeleteHistoryRecord, handleDeleteMedia, handleDeleteWatchDate, handleDeleteWatchDates, handleDuplicateWatchCleanup, handleDuplicateWatchScan, handleFullSyncWatchstates, handleHistory, handleHistoryAudit, handleMergeShows, handleMovies, handleRematchShow, handleShow, handleShows, handleUpdateWatch, handleUpdateWatchDates, handleWatchDates } from "./routes/media.js";
-import { handleActiveSessions, handleCronSync, handleCronSyncStatus, handleForceSync, handleForceSyncPlan, handleForceSyncCancellation, handleLibraryForceSync, handleLibraryForceSyncStatus, handleManualUnwatch, handleMediaForceSync, handleMediaForceSyncStatus, handleManualWatch, handleNowPlaying, handlePlaybackProgressList, handlePlaybackProgressUnwatch, handlePlaybackProgressWatch, handleDismissSyncHistory, handleRetryAllSyncActivity, handleRetrySync, handleRetrySyncActivityGroup, handleRetrySyncHistory, handleStopForceSync, handleSyncActivity, handleSyncActivityGroup, handleSyncHistory, handleSyncJobs, handleSyncLibraries, handleUpNextRemove, handleUpNextSync,
+import { handleActiveSessions, handleCronSync, handleCronSyncStatus, handleForceSync, handleForceSyncPlan, handleForceSyncCancellation, handleLibraryForceSync, handleLibraryForceSyncStatus, handleManualUnwatch, handleMediaForceSync, handleMediaForceSyncStatus, handleManualWatch, handleNowPlaying, handlePlaybackProgressList, handlePlaybackProgressUnwatch, handlePlaybackProgressWatch, handleDismissSyncHistory, handleDismissSyncMatch, handleRetryAllSyncActivity, handleRetrySync, handleRetrySyncActivityGroup, handleRetrySyncHistory, handleStopForceSync, handleSyncActivity, handleSyncActivityGroup, handleSyncHistory, handleSyncJobs, handleSyncLibraries, handleUpNextRemove, handleUpNextSync,
   handleUpNextDismissed,
   handleUpNextRestore, handleWebhook } from "./routes/sync.js";
 import { handleDiscover, handleDiscoverDismiss, handleFanartImages, handleFixMatchSearch, handleMediaSearch, handleOmdbRating, handlePoster, handlePosterBatch, handleRemoteArtwork, handleTmdbCollection, handleTmdbDetails, handleTmdbDetailsBatch, handleTmdbImages, handleTmdbPerson, handleTmdbPoster, handleTmdbProfile, handleTmdbSearch, handleTmdbSeason, handleTvdbImages, handleTvdbSearch, handleUpcoming, handleUpNext, handleUpNextShow, handleYoutubeMeta } from "./routes/metadata.js";
@@ -158,6 +158,7 @@ async function dispatch(req, res) {
     if (path === "sync-jobs") return handleSyncJobs(req, res);
     if (path === "sync/libraries") return handleSyncLibraries(req, res);
     if (path === "sync-match-report") return handleSyncMatchReport(req, res);
+    if (path === "sync-match-report/dismiss") return handleDismissSyncMatch(req, res);
     if (path === "health/sync") return handleSyncHealth(req, res);
     if (path === "sync-attention") return handleSyncAttention(req, res);
     if (path === "sync-activity") return handleSyncActivity(req, res);
