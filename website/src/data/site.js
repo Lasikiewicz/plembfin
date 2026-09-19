@@ -448,7 +448,6 @@ export const docsNav = [
             label: "Sync",
             children: [
               { id: "sync-tuning", label: "Sync Tuning" },
-              { id: "manual-watch-review", label: "Manual Watch review" },
               { id: "sync-tools", label: "Sync Tools" },
               { id: "sync-issues-and-match-report", label: "Sync Issues and Match Report" },
               { id: "sync-history", label: "Sync History" },
@@ -502,6 +501,17 @@ export const docsNav = [
           },
           { id: "sync-issues-and-match-report", label: "Sync Issues and Match Report" },
           { id: "sync-history-and-logs", label: "Sync History and Logs" },
+        ],
+      },
+      {
+        slug: "manual-watch-review",
+        label: "Manual Watch review",
+        description: "Resolve uncertain watch events, correct provider state, and recheck stale reviews.",
+        children: [
+          { id: "how-review-queue-works", label: "How the review queue works" },
+          { id: "choose-a-watch-date", label: "Choose a watch date" },
+          { id: "correct-provider-state", label: "Correct provider state" },
+          { id: "recheck-status", label: "Recheck status" },
         ],
       },
       {
@@ -597,6 +607,7 @@ export const docsSidebarNav = [
     ],
   },
   { id: "sync-activity", label: "Sync Activity", slug: "sync-tools" },
+  { id: "manual-watch-review", label: "Manual Watch review", slug: "manual-watch-review" },
   {
     id: "guides",
     label: "Guides",
@@ -654,6 +665,7 @@ export const docsPageNav = [
   { slug: "settings/about", label: "About" },
   { slug: "settings/changelog", label: "Changelog" },
   { slug: "sync-tools", label: "Sync Activity" },
+  { slug: "manual-watch-review", label: "Manual Watch review" },
   { slug: "operations", label: "Backups and operations" },
   { slug: "safe-daily-workflows", label: "Safe daily workflows" },
   { slug: "troubleshooting", label: "Troubleshooting" },

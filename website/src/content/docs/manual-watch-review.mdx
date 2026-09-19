@@ -1,0 +1,66 @@
+---
+title: Manual Watch review
+description: Resolve uncertain watch events, correct provider state, and recheck stale reviews.
+category: Sync and maintain
+order: 6.5
+sourceVersion: "1.2.0"
+sourcePaths:
+  - public/index.html
+  - public/modules/manual-watch-review.js
+  - public/modules/sync.js
+  - public/modules/app-events.js
+  - public/modules/state.js
+  - server/src/routes/manualWatchReview.js
+  - server/src/utils/manualWatchReview.js
+  - docs/settings.md
+  - docs/scheduled-sync.md
+  - docs/webhooks.md
+screenshots: []
+---
+
+Manual Watch review is the decision queue for watch events that do not have a reliable
+completion time. It keeps Plembfin from assigning an invented date and gives you a focused
+place to confirm, correct, or dismiss the event.
+
+## How the review queue works
+
+Enable **Require review** in [Settings → Sync → Sync tuning](/docs/settings/sync/#sync-tuning).
+When a provider reports **Mark Played** without enough timing information, Plembfin keeps the
+event pending and shows **Manual Watch review** in the sidebar. The link is shown while there
+are decisions to make.
+
+Episode reviews are grouped by show, while movies appear as individual items. Use the search
+field to narrow the queue, then open a show group when you want to process its episodes together.
+
+## Choose a watch date
+
+For an episode or show group, choose the date policy that matches what happened:
+
+- **Mark watched now** records the current date and time.
+- **Use release day** uses the movie or episode release date.
+- **Use episode timing** uses nearby episode dates when that context is available.
+- **Choose date & time** records a specific custom date.
+
+Show-level actions apply the same choice to the selected episodes. Review the resulting date
+before confirming it.
+
+## Correct provider state
+
+Choose **Confirm** to record the watch in Plembfin and send the normal correction to the
+reporting provider. Choose **Dismiss & mark unwatched** when the provider event was wrong;
+Plembfin clears the local review and corrects the provider state before closing the item.
+
+Use the show-level bulk action when every pending episode in a group should receive the same
+decision. If a provider correction fails, the review remains pending so it can be retried. An
+explicit unwatch clears an existing review, while a later deliberate provider event can create
+a new one.
+
+## Recheck status
+
+Use **Recheck status** when a watch was already handled in another client or the queue looks
+stale. Plembfin rereads its canonical watch state and the pending review queue, then removes
+items that are already marked watched in Plembfin. This keeps provider leftovers from appearing
+as decisions that still need action.
+
+For delivery outcomes and targeted retries, see [Sync Activity](/docs/sync-tools/). For the
+policy and timing controls that feed this queue, see [Settings → Sync](/docs/settings/sync/).

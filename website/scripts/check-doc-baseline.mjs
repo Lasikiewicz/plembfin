@@ -11,8 +11,9 @@
 // failure mode and told the operator to resolve the baseline from origin/main;
 // it was prose with nothing enforcing it.
 //
-// The released version is read from origin/main when that ref resolves, and from
-// the working tree otherwise. Cloudflare Pages clones a single commit with no
+// The released version is read from PLEMBFIN_WEBSITE_RELEASE_REF when set,
+// otherwise from origin/main when that ref resolves, and from the working tree otherwise.
+// Cloudflare Pages clones a single commit with no
 // remote-tracking refs, and builds `main` itself, so the fallback is correct
 // there. Same pattern as build-release-data.mjs.
 //
@@ -28,6 +29,7 @@ import { fileURLToPath } from "node:url";
 const websiteRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = path.resolve(websiteRoot, "..");
 const docsDir = path.join(websiteRoot, "src", "content", "docs");
+const releaseRef = process.env.PLEMBFIN_WEBSITE_RELEASE_REF || "origin/main";
 
 export function releasedVersion({ readRef, readWorkingTree } = {}) {
   const fromRef = readRef ? readRef() : readReleasedFile("changelog.json");
@@ -46,7 +48,7 @@ export function releasedVersion({ readRef, readWorkingTree } = {}) {
 
 function readReleasedFile(relativePath) {
   try {
-    return execFileSync("git", ["show", `origin/main:${relativePath}`], {
+    return execFileSync("git", ["show", `${releaseRef}:${relativePath}`], {
       cwd: repositoryRoot,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],

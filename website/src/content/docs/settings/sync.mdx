@@ -88,29 +88,13 @@ For the target mapping and native-rail behavior, see [Dashboard → Up Next](/do
 
 ## Manual Watch review
 
-When a media server reports **Mark Played** without a reliable completion time, select
-**Require review** in Sync Tuning to hold that change for a deliberate decision instead of
-assigning a guessed watch date. The **Manual Watch review** page appears in the sidebar while
-decisions are pending.
+Select **Require review** in Sync Tuning when a media server reports **Mark Played** without a
+reliable completion time. The sidebar then shows **Manual Watch review** while decisions are
+pending. That page handles grouped episode reviews, movie reviews, date choices, provider
+corrections, and the **Recheck status** action.
 
-Episode reviews are grouped by show; movies appear as individual items. Search by title, then
-choose the date policy that matches what happened:
-
-- **Mark watched now** uses the current date and time.
-- **Use release day** uses the movie or episode release date.
-- **Use episode timing** uses the surrounding episode dates when that context is available.
-- **Choose date & time** records a specific custom date.
-
-Show groups provide the same choices in bulk. If the provider event was incorrect, choose
-**Dismiss & mark unwatched** for one item or **Dismiss all & mark unwatched** for a show. Plembfin
-corrects the reporting media server before closing the review; if that correction fails, the
-review stays pending so it can be retried. An explicit unwatch clears an existing review, while a
-later deliberate provider Mark Played event can create a new one.
-
-Choose **Recheck status** when a provider watch has already been handled elsewhere or the review
-list looks stale. Plembfin rereads its canonical watch state and the pending review queue, so items
-already marked watched in Plembfin are removed from Manual Watch review even if a provider still
-reports an older pending flag.
+See the focused [Manual Watch review guide](/docs/manual-watch-review/) for the decision rules
+and recovery workflow.
 
 See [Sync Activity](/docs/sync-tools/#trakt-show-match-repair) for a separate repair path when
 Trakt cannot identify a show.
