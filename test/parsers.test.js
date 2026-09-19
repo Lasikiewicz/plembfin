@@ -74,6 +74,27 @@ test("Emby and Jellyfin webhooks derive progress from position when a stale zero
   assert.equal(jellyfin.phase, "ended");
 });
 
+test("Emby playback-stop payloads read completion position from nested PlaybackInfo", () => {
+  const emby = parseEmbyWebhook({
+    Event: "playback.stop",
+    Item: {
+      Type: "Episode",
+      Name: "Richmond's Got Talent",
+      RunTimeTicks: 27_897_870_000,
+      ProviderIds: { Tvdb: "11767183" },
+    },
+    PlaybackInfo: {
+      PlayedToCompletion: true,
+      PositionTicks: 27_890_050_000,
+      MediaSource: { RunTimeTicks: 27_897_870_000 },
+    },
+  });
+
+  assert.equal(emby.phase, "completed");
+  assert.ok(emby.progress >= 99.9);
+  assert.ok(emby.offsetMs > 0);
+});
+
 test("parseJellyfinWebhook derives phase boundaries", () => {
   const base = { Item: { Type: "Movie", Name: "Arrival", ProviderIds: { Tmdb: "329865" } } };
   assert.equal(parseJellyfinWebhook({ NotificationType: "PlaybackStop", Progress: 89, ...base }).phase, "ended");

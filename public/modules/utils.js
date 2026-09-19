@@ -305,9 +305,9 @@ export function platformSourceValues(entry = {}) {
 
 export function platformIconUrl(value) {
   const normalized = normalizePlatformSource(value);
-  if (normalized === "plembfin") return "/icons/plembfin.png?v=1.1.1.7.3";
+  if (normalized === "plembfin") return "/icons/plembfin.png?v=1.1.1.8.1";
   const extension = "svg";
-  return `/icons/${normalized}.${extension}?v=1.1.1.7.3`;
+  return `/icons/${normalized}.${extension}?v=1.1.1.8.1`;
 }
 
 export function platformIconMarkup(value, className = "source-badge-icon", wrapperClass = "source-badge-icon-set") {
@@ -318,8 +318,8 @@ export function platformIconMarkup(value, className = "source-badge-icon", wrapp
   }
 
   return `<span class="${escapeAttribute(wrapperClass)} theme-aware-icon-set" aria-hidden="true">
-    <img class="${safeClassName} theme-aware-icon--light" src="/icons/plembfin-light.png?v=1.1.1.7.3" alt="" loading="eager" decoding="async" />
-    <img class="${safeClassName} theme-aware-icon--dark" src="/icons/plembfin.png?v=1.1.1.7.3" alt="" loading="eager" decoding="async" />
+    <img class="${safeClassName} theme-aware-icon--light" src="/icons/plembfin-light.png?v=1.1.1.8.1" alt="" loading="eager" decoding="async" />
+    <img class="${safeClassName} theme-aware-icon--dark" src="/icons/plembfin.png?v=1.1.1.8.1" alt="" loading="eager" decoding="async" />
   </span>`;
 }
 
@@ -508,4 +508,52 @@ export function actualWatchHistory(watched = {}) {
     seen.add(key);
     return true;
   });
+}
+
+// Short dates for lists and the changelog ("14 Sept 2026"). Core, so a screen
+// that shows dates never depends on the Stats route module being loaded.
+export function formatListDate(isoString) {
+  if (!isoString) return "";
+  const d = new Date(isoString);
+  if (Number.isNaN(d.getTime())) return "";
+  return new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric" }).format(d);
+}
+
+// Build versions are five segments, major.minor.patch.alpha.dev. Trim trailing
+// zero segments so a release reads "1.1.0" and an alpha build reads "1.1.0.1",
+// but never go below three segments and never touch a zero that is not
+// trailing, so a develop build stays "1.1.0.0.2".
+//
+// docs/decisions.md entry 7 cut an earlier fifth segment precisely because it
+// was always zero and rendered as noise ("v0.14.0.3.0"). This trimming is what
+// makes a meaningful fifth segment acceptable - do not render the raw string.
+//
+// Core rather than changelog-only: the sidebar version badge renders it on
+// every page, before any Settings module has loaded.
+export function formatBuildVersion(value) {
+  const text = String(value ?? "").trim().replace(/^v/i, "");
+  if (!text) return "";
+  const parts = text.split(".");
+  if (parts.length > 5 || !parts.every((part) => /^\d+$/.test(part))) return text;
+  const segments = parts.map(Number);
+  while (segments.length < 5) segments.push(0);
+  while (segments.length > 3 && segments[segments.length - 1] === 0) segments.pop();
+  return segments.join(".");
+}
+
+// Turns the raw version into the label shown in the sidebar, About, and the
+// Changelog heading. Develop no longer appends "Build N": the build number IS
+// the fifth segment.
+export function versionDisplayLabel(version, channel, alphaBuild, developBuild) {
+  if (channel === "develop") {
+    const developVersion = formatBuildVersion(developBuild?.version);
+    if (developVersion) return developVersion;
+    return developBuild?.build != null ? `Develop Build ${developBuild.build}` : "Develop";
+  }
+  if (channel === "alpha") {
+    const full = formatBuildVersion(alphaBuild?.shortVersion || alphaBuild?.version)
+      || (alphaBuild?.baseVersion && alphaBuild?.build != null ? formatBuildVersion(`${alphaBuild.baseVersion}.${alphaBuild.build}`) : (version ? formatBuildVersion(`${version}.${alphaBuild?.build || 1}`) : "alpha"));
+    return `${full} (Alpha)`;
+  }
+  return formatBuildVersion(version) || "";
 }

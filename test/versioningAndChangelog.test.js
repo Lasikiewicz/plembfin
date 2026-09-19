@@ -10,10 +10,11 @@ import { makeTempDataDir } from "./helpers.js";
 makeTempDataDir("plembfin-versioning-");
 
 const { categorizeEntries, simplifyEntries } = await import("../scripts/promote-develop-to-alpha.js");
+const { buildChangelogSectionGroups } = await import("../scripts/changelog-sections.js");
 const { bumpPatchVersion, createDevelopReset } = await import("../scripts/promote-alpha-to-main.js");
 const { buildDevelopEntry, validateDevelopChangelog } = await import("../scripts/rebuild-develop-changelog.js");
 const { synthesizeHeadline, isReleaseToolingText, filterChangelogDetails } = await import("../scripts/changelog-message.js");
-const { describePendingDevelopBuild, describePendingAlphaBuild, handleChangelog } = await import("../server/src/routes/maintenance.js");
+const { describePendingDevelopBuild, describePendingAlphaBuild, handleChangelog, mergeChangelogEntries } = await import("../server/src/routes/maintenance.js");
 
 test("simplifyEntries classifies and deduplicates features and fixes", () => {
   const entries = [
@@ -64,6 +65,52 @@ test("categorizeEntries preserves features, major fixes, and tweaks as separate 
     majorBugFixes: ["Prevent stale refreshes", "Keep the current grid position"],
     tweaks: ["Update setup guide", "Explain the new wizard"],
   });
+});
+
+test("default changelog groups keep related product changes together", () => {
+  const groups = buildChangelogSectionGroups({
+    newFeatures: [
+      "Redesign Settings as a task-oriented administration area",
+      "Personalize recommendations from recent watch history.",
+      "Add reviewable one-time Tautulli history imports.",
+      "Add clearer progress feedback for background sync actions.",
+    ],
+    majorBugFixes: [
+      "Keep removed TV shows out of Up Next.",
+      "Show Importing while the backup and import request runs.",
+      "Match pending actions by show identity and episode coordinates.",
+      "Restore Jellyfin watched imports against current API field rules.",
+    ],
+    tweaks: [
+      "Keep Up Next aligned with media-page watch state.",
+      "Organize Manual Watch review actions by show, season, and episode.",
+      "Keep recommendation exclusions saved across browsers.",
+      "Surface sync outcomes and unresolved media matches.",
+    ],
+  });
+
+  assert.deepEqual(groups.newFeatures.map((group) => group.title), [
+    "Settings",
+    "Discover & recommendations",
+    "Tautulli imports",
+    "Sync & connection recovery",
+  ]);
+  assert.deepEqual(groups.majorBugFixes.map((group) => group.title), [
+    "Up Next & watch-state",
+    "Tautulli imports",
+    "Manual Watch & watch actions",
+    "Sync & provider recovery",
+  ]);
+  assert.deepEqual(groups.tweaks.map((group) => group.title), [
+    "Up Next & watch-state",
+    "Manual Watch review",
+    "Discover & recommendations",
+    "Sync & connection recovery",
+  ]);
+  assert.equal(
+    groups.majorBugFixes.flatMap((group) => group.details).length,
+    4,
+  );
 });
 
 test("categorizeEntries drops changelog-process entries and bullets during promotion", () => {
@@ -282,6 +329,25 @@ test("describePendingDevelopBuild ignores an older remote cycle after a main pro
   const pending = describePendingDevelopBuild(local, remote);
   assert.equal(pending.newerBuildAvailable, false);
   assert.deepEqual(pending.pendingEntries, []);
+});
+
+test("mergeChangelogEntries keeps local thematic groups when the remote copy is older", () => {
+  const local = {
+    version: "1.1.2",
+    message: "Grouped release",
+    sections: { newFeatures: ["Settings redesign"] },
+    sectionGroups: {
+      newFeatures: [{ title: "Settings", details: ["Settings redesign"] }],
+    },
+  };
+  const remote = {
+    version: "1.1.2",
+    message: "Grouped release",
+    sections: { newFeatures: ["Settings redesign"] },
+  };
+
+  const [merged] = mergeChangelogEntries([local], [remote]);
+  assert.deepEqual(merged.sectionGroups, local.sectionGroups);
 });
 
 test("handleChangelog returns channel metadata properly", async () => {

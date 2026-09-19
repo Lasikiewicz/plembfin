@@ -1,4 +1,5 @@
 import { db } from "../db.js";
+import { yieldToEventLoop } from "./eventLoop.js";
 import { getCachedShows, loadTrackedEpisodeRows, queryShowDetail, showTitleFrom } from "./dataRepo.js";
 import { getCachedTmdbDetails, getCachedTmdbSeason } from "./tmdbGateway.js";
 import { getCanonicalPosterUrl } from "./mediaArtwork.js";
@@ -21,6 +22,8 @@ import { listManualUpNextShows } from "./upNextManual.js";
 import { isDemoMode } from "./demoMode.js";
 
 const LOCAL_METADATA_CONCURRENCY = 4;
+// Longest synchronous slice of the local Up Next projection before it yields.
+const LOCAL_PROJECTION_YIELD_MS = 20;
 const MAX_PROVIDER_OBSERVATIONS = 500;
 // Per show, not per build: the first released unwatched episode is the one
 // that matters, and a show whose next two episodes are both absent is a show
@@ -903,9 +906,18 @@ async function localNextUpCandidates({
     // metadata/provider work.
   const results = [];
   let cursor = 0;
+  // queryShowDetail is async but does its work synchronously, so without an
+  // explicit yield the whole library walk ran as one multi-second block that
+  // stalled every page load queued behind it (application-speed plan, Phase B).
+  let sliceStartedAt = Date.now();
   async function worker() {
     while (cursor < selectedShows.length) {
+      if (Date.now() - sliceStartedAt >= LOCAL_PROJECTION_YIELD_MS) {
+        await yieldToEventLoop();
+        sliceStartedAt = Date.now();
+      }
       const show = selectedShows[cursor++];
+      if (!show) break;
       const candidate = await localNextUpForShow(show, {
         playstateIndex,
         progressCandidates,

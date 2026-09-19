@@ -17,6 +17,8 @@ const {
   enqueueManualWatchReview,
   getManualWatchReview,
   listPendingManualWatchReviews,
+  listPendingManualWatchReviewsCached,
+  manualWatchReviewWatchContext,
   setManualWatchReviewStatus,
 } = await import("../server/src/utils/manualWatchReview.js");
 
@@ -142,6 +144,77 @@ test("pending reviews are hidden after the item becomes canonically watched", as
   });
   assert.equal(repeat.queued, false);
   assert.equal(repeat.status, "already_watched");
+  setManualWatchReviewStatus(queued.review.id, "dismissed");
+});
+
+test("a review is ignored when Plembfin already marked the whole show watched", () => {
+  const before = db.prepare("SELECT COUNT(*) AS count FROM manual_watch_reviews").get().count;
+  const result = enqueueManualWatchReview({
+    title: "Already Complete Show - S02E04",
+    showTitle: "Already Complete Show",
+    type: "episode",
+    season: 2,
+    episode: 4,
+    source: "plex",
+    itemId: "plex-already-complete-s02e04",
+    ids: { tvdb: "already-complete-episode" },
+    showWatchedEpisodes: 8,
+    showTotalEpisodes: 8,
+    isValid: true,
+  }, {
+    releaseDate: "2026-08-01T00:00:00.000Z",
+    sourceFingerprint: "plex|already-complete-s02e04|1",
+  });
+
+  assert.equal(result.queued, false);
+  assert.equal(result.status, "already_watched");
+  assert.equal(result.suppressed, true);
+  assert.equal(db.prepare("SELECT COUNT(*) AS count FROM manual_watch_reviews").get().count, before);
+});
+
+test("episode reviews expose the watched state of the surrounding episodes", async () => {
+  const previous = {
+    title: "Review Context Show - S01E01",
+    showTitle: "Review Context Show",
+    type: "episode",
+    source: "manual",
+    ids: { tmdb: "review-context-show" },
+    season: 1,
+    episode: 1,
+    watched_at: "2026-09-01T19:00:00.000Z",
+    isValid: true,
+  };
+  const following = {
+    ...previous,
+    title: "Review Context Show - S01E03",
+    season: 1,
+    episode: 3,
+    watched_at: "2026-09-01T20:00:00.000Z",
+  };
+  await repo.upsertPlaystateForMedia(previous, "watched", previous.watched_at, { skipInvalidate: true });
+  await repo.upsertPlaystateForMedia(following, "watched", following.watched_at, { skipInvalidate: true });
+
+  const queued = enqueueManualWatchReview({
+    title: "Review Context Show - S01E02",
+    showTitle: "Review Context Show",
+    type: "episode",
+    source: "plex",
+    itemId: "plex-review-context-s01e02",
+    ids: { tvdb: "review-context-episode-2" },
+    season: 1,
+    episode: 2,
+    isValid: true,
+  }, {
+    releaseDate: "2026-09-01T00:00:00.000Z",
+    sourceFingerprint: "plex|review-context-s01e02|1",
+  });
+
+  assert.equal(queued.status, "pending");
+  assert.deepEqual({
+    before: queued.review.watch_context.before.watched,
+    after: queued.review.watch_context.after.watched,
+  }, { before: true, after: true });
+  assert.deepEqual(manualWatchReviewWatchContext(queued.review).before, queued.review.watch_context.before);
   setManualWatchReviewStatus(queued.review.id, "dismissed");
 });
 
@@ -482,6 +555,65 @@ test("dismissing a review marks it unwatched across connected media apps", async
     `manual-watch-review/${encodeURIComponent(failed.review.id)}/dismiss`,
   );
   assert.equal(failedStatusCode, 409);
+  assert.match(failedResponseBody.error, /Could not complete the unwatched correction/);
+  assert.match(failedResponseBody.error, /Failed on (Plex|Emby|Jellyfin)/);
+  assert.ok(Array.isArray(failedResponseBody.failureTargets));
+  assert.ok(failedResponseBody.failureTargets.some((target) => target.provider === "Plex"));
+  assert.ok(failedResponseBody.failureTargets.every((target) => target.target && target.status && target.detail));
   assert.match(failedResponseBody.error, /remains pending/i);
   assert.equal(getManualWatchReview(failed.review.id).status, "pending");
+});
+
+test("the cached pending listing is reused until a review changes or its ceiling passes", () => {
+  const queued = enqueueManualWatchReview({
+    title: "Cached Listing Movie",
+    type: "movie",
+    source: "plex",
+    itemId: "plex-cached-listing-movie",
+    ids: { tmdb: "cached-listing-movie" },
+    isValid: true,
+  }, {
+    releaseDate: "2026-08-01T00:00:00.000Z",
+    sourceFingerprint: "plex|cached-listing-movie|1",
+  });
+  assert.equal(queued.status, "pending");
+
+  const now = Date.now();
+  const first = listPendingManualWatchReviewsCached({ now });
+  assert.ok(first.some((review) => review.id === queued.review.id));
+  assert.equal(listPendingManualWatchReviewsCached({ now: now + 1000 }), first, "an unchanged listing is served from the cache");
+  assert.notEqual(listPendingManualWatchReviewsCached({ now: now + 16_000 }), first, "the ceiling forces a rebuild");
+
+  // Deciding a review changes the pending set; the next read must not show it.
+  const beforeDecision = listPendingManualWatchReviewsCached({ now: now + 16_500 });
+  setManualWatchReviewStatus(queued.review.id, "dismissed");
+  const afterDecision = listPendingManualWatchReviewsCached({ now: now + 17_000 });
+  assert.notEqual(afterDecision, beforeDecision);
+  assert.ok(!afterDecision.some((review) => review.id === queued.review.id));
+});
+
+test("the cached summary listing skips episode watch context while the full listing keeps it", () => {
+  const queued = enqueueManualWatchReview({
+    title: "Cached Listing Episode - S01E01",
+    showTitle: "Cached Listing Episode",
+    type: "episode",
+    season: 1,
+    episode: 1,
+    source: "plex",
+    itemId: "plex-cached-listing-episode",
+    ids: { tmdb: "cached-listing-episode" },
+    isValid: true,
+  }, {
+    releaseDate: "2026-08-01T00:00:00.000Z",
+    sourceFingerprint: "plex|cached-listing-episode|1",
+  });
+  assert.equal(queued.status, "pending");
+
+  const now = Date.now() + 30_000;
+  const summary = listPendingManualWatchReviewsCached({ now, includeWatchContext: false });
+  const full = listPendingManualWatchReviewsCached({ now: now + 1000, includeWatchContext: true });
+  assert.equal(summary.find((review) => review.id === queued.review.id)?.watch_context, undefined);
+  assert.ok(full.find((review) => review.id === queued.review.id)?.watch_context);
+
+  setManualWatchReviewStatus(queued.review.id, "dismissed");
 });

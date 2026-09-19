@@ -13,6 +13,33 @@ const OUTBOUND_POLICY_CODES = Object.freeze({
   DEMO_DISABLED: "OUTBOUND_DEMO_DISABLED",
 });
 
+// Keep transport failures safe to show in the UI without leaking a configured
+// URL, credential, host name, or upstream stack. The old generic message was
+// safe but useless: it erased the one piece of information an operator needs
+// first - whether the service refused, reset, or never resolved the request.
+const SAFE_NETWORK_FAILURES = Object.freeze({
+  ECONNREFUSED: "connection refused",
+  ENOTFOUND: "DNS lookup failed",
+  EAI_AGAIN: "DNS lookup timed out",
+  ETIMEDOUT: "connection timed out",
+  ECONNRESET: "connection was reset",
+  EHOSTUNREACH: "host unreachable",
+  ENETUNREACH: "network unreachable",
+  EPIPE: "connection closed unexpectedly",
+});
+
+function safeNetworkFailure(error = {}) {
+  const code = String(error?.cause?.code || error?.code || "").trim().toUpperCase();
+  if (SAFE_NETWORK_FAILURES[code]) return { code, label: SAFE_NETWORK_FAILURES[code] };
+
+  // Undici normally supplies a cause code, but keep a useful fallback for
+  // fetch implementations that only expose TypeError("fetch failed").
+  if (String(error?.name || "").toLowerCase() === "typeerror" && /fetch failed/i.test(String(error?.message || ""))) {
+    return { code: "FETCH_FAILED", label: "connection failed before the service returned a response" };
+  }
+  return null;
+}
+
 function outboundPolicyError(message, code) {
   const error = new Error(message);
   error.code = code;
@@ -203,7 +230,16 @@ export async function fetchWithTimeout(url, options = {}, timeoutMs = undefined)
       cancelled.name = "AbortError";
       throw cancelled;
     }
-    throw new Error("Upstream request failed");
+    const networkFailure = safeNetworkFailure(error);
+    const safeError = new Error(networkFailure
+      ? `Upstream request failed (${networkFailure.label})`
+      : "Upstream request failed");
+    safeError.code = "UPSTREAM_REQUEST_FAILED";
+    if (networkFailure) {
+      safeError.failureCode = networkFailure.code;
+      safeError.failureReason = networkFailure.label;
+    }
+    throw safeError;
   } finally {
     clearTimeout(timeout);
     if (upstreamSignal) upstreamSignal.removeEventListener("abort", abortFromUpstream);

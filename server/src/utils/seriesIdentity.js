@@ -37,7 +37,7 @@ function trimTrailingSlash(value = "") {
 }
 
 function hasAnyId(ids = {}) {
-  return Boolean(ids.imdb || ids.tmdb || ids.tvdb);
+  return Boolean(ids && (ids.imdb || ids.tmdb || ids.tvdb));
 }
 
 function cacheKey(source, seriesItemId) {

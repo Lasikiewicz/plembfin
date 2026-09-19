@@ -1,6 +1,6 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.7.3";
-import { state } from "./state.js?v=1.1.1.7.3";
-import { safeImageUrl, escapeAttribute, isDemoMode } from "./utils.js?v=1.1.1.7.3";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.8.1";
+import { state } from "./state.js?v=1.1.1.8.1";
+import { safeImageUrl, escapeAttribute, isDemoMode } from "./utils.js?v=1.1.1.8.1";
 
 // /api/poster resolves most requests from an already-cached DB row or webp
 // file (no outbound API call); the actual TMDB fallback downloads are
@@ -220,6 +220,14 @@ export function posterUrlFor(item = {}) {
   // hide the new shared artwork.
   const resolvedRaw = proxiedArtworkUrl(raw, "poster");
   const resolvedShow = proxiedArtworkUrl(showRaw, "poster");
+  if (item.prefer_show_poster || item.preferShowPoster) {
+    // Some episode records carry a provider still in poster_url. Surfaces that
+    // represent the parent show can opt out of both that raw image and any
+    // id-keyed cache entry created for the episode, leaving the authenticated
+    // poster fallback to resolve canonical show artwork instead.
+    if (isLocalArtworkUrl(resolvedShow)) return resolvedShow;
+    return configuredImageUrl(resolvedShow, item);
+  }
   const preferLocalArtwork = isLocalArtworkUrl(resolvedRaw) || (!resolvedRaw && isLocalArtworkUrl(resolvedShow));
   if (idValue != null) {
     const cached = cachedPosterLookup(String(idValue));

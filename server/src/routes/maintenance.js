@@ -1333,7 +1333,7 @@ function compareSemver(a, b) {
   return 0;
 }
 
-function mergeChangelogEntries(localEntries = [], remoteEntries = []) {
+export function mergeChangelogEntries(localEntries = [], remoteEntries = []) {
   const map = new Map();
   const entryKey = (e) => e.commit || `${e.version || ""}|${e.message || ""}`;
 
@@ -1350,11 +1350,24 @@ function mergeChangelogEntries(localEntries = [], remoteEntries = []) {
     if (!existing) {
       map.set(key, entry);
     } else {
-      map.set(key, {
+      const mergedEntry = {
         ...existing,
         ...entry,
         details: Array.isArray(entry.details) && entry.details.length ? entry.details : existing.details,
-      });
+      };
+      // A local working-tree release can carry richer presentation metadata
+      // than the already-published GitHub copy. Keep that metadata until the
+      // next release publishes it, otherwise the local preview silently falls
+      // back to the remote flat section lists.
+      if ((!entry.sectionGroups || typeof entry.sectionGroups !== "object")
+        && existing.sectionGroups && typeof existing.sectionGroups === "object") {
+        mergedEntry.sectionGroups = existing.sectionGroups;
+      }
+      if ((!entry.sections || typeof entry.sections !== "object")
+        && existing.sections && typeof existing.sections === "object") {
+        mergedEntry.sections = existing.sections;
+      }
+      map.set(key, mergedEntry);
     }
   }
 

@@ -172,15 +172,14 @@ test("a publishable entry passes the quality gate", () => {
   }), []);
 });
 
-// The two boundaries carry different ceilings on purpose. Develop's rolling entry
-// grows across every push in a cycle, so enforcing the release limit at alpha
-// would block normal work with no good remedy but hand-editing the manifest.
-test("alpha tolerates a multi-push cycle while a release does not", () => {
+// Alpha keeps a finite runaway ceiling for one rolling build, while the main
+// release keeps every reviewed change from the completed cycle.
+test("alpha limits runaway entries while a release keeps the reviewed cycle", () => {
   const entry = (n) => ({ details: Array.from({ length: n }, (_, i) => `Real user-visible bullet number ${i}`) });
   const alpha = { maxBullets: CHANGELOG_ALPHA_MAX_BULLETS, boundary: "alpha" };
 
   assert.deepEqual(changelogEntryQualityViolations(entry(12), alpha), [], "three normal pushes must promote to alpha");
-  assert.ok(changelogEntryQualityViolations(entry(12)).length > 0, "the same entry must not become a release");
+  assert.deepEqual(changelogEntryQualityViolations(entry(12)), [], "a release keeps all reviewed user-visible changes");
   assert.ok(changelogEntryQualityViolations(entry(25), alpha).length > 0, "a runaway entry is still refused at alpha");
 
   // Jargon is wrong at either boundary and must be caught at both.
@@ -189,15 +188,12 @@ test("alpha tolerates a multi-push cycle while a release does not", () => {
   assert.ok(changelogEntryQualityViolations(jargon).length > 0);
 });
 
-test("the quality gate refuses an entry with too few or too many bullets", () => {
+test("the quality gate refuses an entry with too few bullets", () => {
   assert.ok(changelogEntryQualityViolations({ details: ["One", "Two"] }).length > 0);
   const many = changelogEntryQualityViolations({
     details: Array.from({ length: 12 }, (_, i) => `Real user-visible bullet number ${i}`),
   });
-  assert.ok(many.length > 0);
-  // The message must name the remedy that applies at this boundary: combining
-  // the cycle's bullets, not re-consolidating commits that are already pushed.
-  assert.match(many.join("\n"), /Combine the cycle's alpha bullets/);
+  assert.deepEqual(many, [], "main release notes must not truncate reviewed changes");
 });
 
 test("the quality gate refuses bullets that name internals", () => {

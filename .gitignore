@@ -42,3 +42,6 @@ reasonix.toml
 # (it sat at 1.0.2 while the repo was at 1.1.0) and both the website build and predev
 # regenerate it, so it is not tracked. See docs/decisions.md entry 18.
 website/src/generated/release.json
+
+# Console and page dumps written by the Playwright MCP browser tool.
+.playwright-mcp/

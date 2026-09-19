@@ -1,0 +1,274 @@
+{
+  "origin": "http://localhost:5055",
+  "startedAt": "2026-09-19T09:20:43.365Z",
+  "node": "v22.23.1",
+  "assets": 20,
+  "populations": [
+    {
+      "index": 0,
+      "documents": 80,
+      "ttfb": {
+        "median": 4.5,
+        "p95": 7,
+        "max": 18.6
+      },
+      "totalMax": 18.7,
+      "over5s": 0,
+      "status429": 0,
+      "status5xx": 0,
+      "errors": 0,
+      "nonHtmlDocuments": 0,
+      "byRoute": {
+        "/": {
+          "medianTtfb": 4.4,
+          "p95Ttfb": 5.4,
+          "maxTotal": 5.6
+        },
+        "/movies": {
+          "medianTtfb": 4.4,
+          "p95Ttfb": 6.4,
+          "maxTotal": 6.5
+        },
+        "/tvshows": {
+          "medianTtfb": 4.5,
+          "p95Ttfb": 4.9,
+          "maxTotal": 5.4
+        },
+        "/upcoming": {
+          "medianTtfb": 5,
+          "p95Ttfb": 12.9,
+          "maxTotal": 13
+        },
+        "/discover": {
+          "medianTtfb": 4.3,
+          "p95Ttfb": 5.5,
+          "maxTotal": 5.6
+        },
+        "/watchlist": {
+          "medianTtfb": 4.4,
+          "p95Ttfb": 6,
+          "maxTotal": 6.1
+        },
+        "/ratings": {
+          "medianTtfb": 4.2,
+          "p95Ttfb": 4.8,
+          "maxTotal": 5.3
+        },
+        "/custom-lists": {
+          "medianTtfb": 4.4,
+          "p95Ttfb": 4.7,
+          "maxTotal": 4.8
+        },
+        "/history": {
+          "medianTtfb": 4.4,
+          "p95Ttfb": 14.9,
+          "maxTotal": 15
+        },
+        "/stats": {
+          "medianTtfb": 4.6,
+          "p95Ttfb": 6.8,
+          "maxTotal": 6.8
+        },
+        "/settings": {
+          "medianTtfb": 5.3,
+          "p95Ttfb": 7.6,
+          "maxTotal": 7.7
+        },
+        "/about": {
+          "medianTtfb": 4.5,
+          "p95Ttfb": 6.2,
+          "maxTotal": 6.3
+        },
+        "/tvshow/tvdb/435298-ludwig": {
+          "medianTtfb": 4.5,
+          "p95Ttfb": 4.8,
+          "maxTotal": 5.1
+        },
+        "/tvshow/tmdb/108978-reacher": {
+          "medianTtfb": 4.6,
+          "p95Ttfb": 5.2,
+          "maxTotal": 5.3
+        },
+        "/movie/jackass-presents-bad-grandpa": {
+          "medianTtfb": 4.7,
+          "p95Ttfb": 5.2,
+          "maxTotal": 5.3
+        },
+        "/movie/a-quiet-place": {
+          "medianTtfb": 4.3,
+          "p95Ttfb": 18.6,
+          "maxTotal": 18.7
+        }
+      },
+      "shell": {
+        "requests": 20,
+        "bytesOnWire": 347467,
+        "totalMs": 40,
+        "slowest": [
+          {
+            "path": "/styles.css",
+            "ms": 7
+          },
+          {
+            "path": "/app.js",
+            "ms": 3
+          },
+          {
+            "path": "/modules/sync.js",
+            "ms": 3
+          }
+        ],
+        "cacheHeaders": [
+          "no-store",
+          "no-cache"
+        ],
+        "uncompressedText": []
+      }
+    },
+    {
+      "index": 1,
+      "documents": 80,
+      "ttfb": {
+        "median": 4.7,
+        "p95": 9.2,
+        "max": 131.4
+      },
+      "totalMax": 131.9,
+      "over5s": 0,
+      "status429": 0,
+      "status5xx": 0,
+      "errors": 0,
+      "nonHtmlDocuments": 0,
+      "byRoute": {
+        "/": {
+          "medianTtfb": 4.3,
+          "p95Ttfb": 5.7,
+          "maxTotal": 5.9
+        },
+        "/movies": {
+          "medianTtfb": 4.5,
+          "p95Ttfb": 9.2,
+          "maxTotal": 9.3
+        },
+        "/tvshows": {
+          "medianTtfb": 4.6,
+          "p95Ttfb": 6.9,
+          "maxTotal": 7
+        },
+        "/upcoming": {
+          "medianTtfb": 4.8,
+          "p95Ttfb": 5.6,
+          "maxTotal": 5.7
+        },
+        "/discover": {
+          "medianTtfb": 4.4,
+          "p95Ttfb": 5.5,
+          "maxTotal": 5.6
+        },
+        "/watchlist": {
+          "medianTtfb": 5.6,
+          "p95Ttfb": 38.2,
+          "maxTotal": 38.3
+        },
+        "/ratings": {
+          "medianTtfb": 4.5,
+          "p95Ttfb": 6.6,
+          "maxTotal": 6.7
+        },
+        "/custom-lists": {
+          "medianTtfb": 4.7,
+          "p95Ttfb": 7.9,
+          "maxTotal": 8
+        },
+        "/history": {
+          "medianTtfb": 4.3,
+          "p95Ttfb": 4.5,
+          "maxTotal": 4.8
+        },
+        "/stats": {
+          "medianTtfb": 4.8,
+          "p95Ttfb": 131.4,
+          "maxTotal": 131.9
+        },
+        "/settings": {
+          "medianTtfb": 5.8,
+          "p95Ttfb": 22.2,
+          "maxTotal": 22.3
+        },
+        "/about": {
+          "medianTtfb": 5.1,
+          "p95Ttfb": 7.5,
+          "maxTotal": 7.6
+        },
+        "/tvshow/tvdb/435298-ludwig": {
+          "medianTtfb": 5,
+          "p95Ttfb": 5.6,
+          "maxTotal": 5.7
+        },
+        "/tvshow/tmdb/108978-reacher": {
+          "medianTtfb": 4.6,
+          "p95Ttfb": 6.1,
+          "maxTotal": 6.2
+        },
+        "/movie/jackass-presents-bad-grandpa": {
+          "medianTtfb": 4.6,
+          "p95Ttfb": 6,
+          "maxTotal": 6.3
+        },
+        "/movie/a-quiet-place": {
+          "medianTtfb": 4.9,
+          "p95Ttfb": 6.4,
+          "maxTotal": 7.3
+        }
+      },
+      "shell": {
+        "requests": 20,
+        "bytesOnWire": 347467,
+        "totalMs": 41,
+        "slowest": [
+          {
+            "path": "/styles.css",
+            "ms": 8
+          },
+          {
+            "path": "/app.js",
+            "ms": 3
+          },
+          {
+            "path": "/modules/sync.js",
+            "ms": 2
+          }
+        ],
+        "cacheHeaders": [
+          "no-store",
+          "no-cache"
+        ],
+        "uncompressedText": []
+      }
+    }
+  ],
+  "finishedAt": "2026-09-19T09:21:43.086Z",
+  "endpoints": [
+    {
+      "path": "/health",
+      "status": 200,
+      "ttfb": 1.8,
+      "bytes": 152,
+      "type": "application/json; charset=utf-8"
+    },
+    {
+      "path": "/version.json",
+      "status": 200,
+      "ttfb": 2.7,
+      "bytes": 19,
+      "type": "application/json; charset=utf-8"
+    },
+    {
+      "path": "/favicon.ico",
+      "status": 200,
+      "ttfb": 1.5,
+      "bytes": 345,
+      "type": "image/svg+xml"
+    }
+  ]
+}

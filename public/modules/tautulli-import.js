@@ -1,10 +1,10 @@
-import { state } from "./state.js?v=1.1.1.7.3";
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.7.3";
-import { escapeAttribute, escapeHtml } from "./utils.js?v=1.1.1.7.3";
+import { state } from "./state.js?v=1.1.1.8.1";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.8.1";
+import { escapeAttribute, escapeHtml } from "./utils.js?v=1.1.1.8.1";
 import {
   PLEX_HISTORICAL_SYNC_LABEL,
   plexHistoricalSyncEnabled,
-} from "./plex-history-policy.js?v=1.1.1.7.3";
+} from "./plex-history-policy.js?v=1.1.1.8.1";
 
 let bound = false;
 let preview = null;
@@ -410,10 +410,21 @@ function renderConfig({ selectedUserId = "" } = {}) {
   }
   updateActionState();
 }
-async function loadStatus() {
+// Settings init and the saved-config event both ask within moments of each
+// other; maxAgeMs lets them share one request. Imports always refetch.
+let statusRequest = null;
+let statusAt = 0;
+function loadStatus({ maxAgeMs = 0 } = {}) {
+  if (maxAgeMs && statusRequest) return statusRequest;
+  if (maxAgeMs && Date.now() - statusAt < maxAgeMs) return Promise.resolve();
+  statusRequest = fetchStatus().finally(() => { statusRequest = null; });
+  return statusRequest;
+}
+async function fetchStatus() {
   const response = await fetch("/api/tautulli/status", { headers: headers() });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || "Tautulli status failed");
+  statusAt = Date.now();
   const latest = body.latestBackup;
   const node = el("tautulliLastBackupStatus");
   if (node) node.textContent = latest ? `Last local backup: ${latest.name} (${new Date(latest.createdAt).toLocaleString()})` : "No local backup yet. One will be created automatically before import.";
@@ -673,9 +684,9 @@ export function initTautulliImport(callbacks = {}) {
     const button = event.target.closest("[data-tautulli-review-bulk]");
     if (button) applyBulkRewatchDecision(button.dataset.tautulliReviewBulk);
   });
-  document.addEventListener("plembfin:config-changed", () => { renderConfig(); loadStatus().catch(() => null); });
+  document.addEventListener("plembfin:config-changed", () => { renderConfig(); loadStatus({ maxAgeMs: 2000 }).catch(() => null); });
   renderConfig();
-  loadStatus().catch(() => null);
+  loadStatus({ maxAgeMs: 2000 }).catch(() => null);
 }
 
 // The settings shell can mount this panel before the first async config load

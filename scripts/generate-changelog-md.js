@@ -9,6 +9,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { changelogSectionGroups } from "./changelog-sections.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const changelogPath = path.join(root, "changelog.json");
@@ -38,18 +39,16 @@ export function generateChangelogMarkdown() {
     lines.push("");
     lines.push(entry.message || "Release update");
     lines.push("");
-    const sections = entry.sections && typeof entry.sections === "object" ? entry.sections : null;
-    const sectionGroups = sections ? [
-      ["New Features", sections.newFeatures],
-      ["Major Bug Fixes", sections.majorBugFixes],
-      ["Tweaks", sections.tweaks],
-    ] : [];
-    if (sectionGroups.some(([, details]) => Array.isArray(details) && details.length)) {
-      for (const [heading, details] of sectionGroups) {
-        if (!Array.isArray(details) || !details.length) continue;
-        lines.push(`### ${heading}`, "");
-        for (const detail of details) lines.push(`- ${detail}`);
-        lines.push("");
+    const sectionGroups = changelogSectionGroups(entry);
+    if (sectionGroups.some((section) => section.groups.length)) {
+      for (const section of sectionGroups) {
+        if (!section.groups.length) continue;
+        lines.push(`### ${section.title}`, "");
+        for (const group of section.groups) {
+          if (group.title) lines.push(`#### ${group.title}`, "");
+          for (const detail of group.details) lines.push(`- ${detail}`);
+          lines.push("");
+        }
       }
     } else if (Array.isArray(entry.details) && entry.details.length) {
       for (const detail of entry.details) lines.push(`- ${detail}`);

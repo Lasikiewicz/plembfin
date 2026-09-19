@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { db, parseJson, toJson } from "../db.js";
+import { db, getDataVersion, parseJson, toJson } from "../db.js";
 import {
   canonicalShowTitleKey,
   canonicalTitleKey,
@@ -7,6 +7,7 @@ import {
   getPlaystateForMediaSync,
   mediaKeyFor,
 } from "./dataRepo.js";
+import { getCachedShowProgress } from "./showProgressCache.js";
 
 const EXPLICIT_PLAYED_EVENT_KEYS = new Set([
   "itemmarkplayed",
@@ -95,6 +96,165 @@ function showTitleFromMedia(media = {}) {
   return title.match(/^(.*?)(?:\s+-\s+S\d{1,2}E\d{1,2})(?:\s+-\s+.*)?$/i)?.[1]?.trim() || "";
 }
 
+function reviewShowProgress(media = {}) {
+  const showTitle = showTitleFromMedia(media);
+  if (!showTitle) return null;
+  const keys = [...new Set([
+    canonicalTitleKey(showTitle),
+    canonicalShowTitleKey(showTitle),
+  ].filter(Boolean))];
+  for (const key of keys) {
+    const progress = getCachedShowProgress(key);
+    if (progress) return progress;
+  }
+  return null;
+}
+
+function truthyReviewFlag(value) {
+  return value === true || ["true", "1", "yes"].includes(text(value).toLowerCase());
+}
+
+function reviewShowMarkedWatched(media = {}) {
+  if (text(media.type || media.media_type).toLowerCase() !== "episode") return false;
+
+  // Keep this compatible with callers that already carry a show-level result
+  // (for example a detail-page or container action), while treating the local
+  // progress cache as the normal source of truth for provider callbacks.
+  const explicitShowFlag = [
+    media.showWatched,
+    media.show_watched,
+    media.showCompleted,
+    media.show_completed,
+    media.completedShow,
+    media.completed_show,
+    media.showAlreadyWatched,
+    media.show_already_watched,
+  ].some(truthyReviewFlag);
+  if (explicitShowFlag) return true;
+
+  const explicitWatchedCount = Number(
+    media.showWatchedEpisodes
+      ?? media.show_watched_episodes
+      ?? media.watchedEpisodes
+      ?? media.watched_episodes,
+  );
+  const explicitTotal = Number(
+    media.showTotalEpisodes
+      ?? media.show_total_episodes
+      ?? media.totalEpisodes
+      ?? media.total_episodes,
+  );
+  if (Number.isFinite(explicitWatchedCount) && Number.isFinite(explicitTotal) && explicitTotal > 0) {
+    return explicitWatchedCount >= explicitTotal;
+  }
+
+  const progress = reviewShowProgress(media);
+  const watchedCount = Number(progress?.episode_count || 0);
+  const totalEpisodes = Number(progress?.total_episodes || 0);
+  return totalEpisodes > 0 && watchedCount >= totalEpisodes;
+}
+
+function reviewShowWatchState(media = {}) {
+  const progress = reviewShowProgress(media);
+  const watchedCount = Number(
+    media.showWatchedEpisodes
+      ?? media.show_watched_episodes
+      ?? media.watchedEpisodes
+      ?? media.watched_episodes
+      ?? progress?.episode_count
+      ?? 0,
+  );
+  const totalEpisodes = Number(
+    media.showTotalEpisodes
+      ?? media.show_total_episodes
+      ?? media.totalEpisodes
+      ?? media.total_episodes
+      ?? progress?.total_episodes
+      ?? 0,
+  );
+  const watched = reviewShowMarkedWatched(media);
+  return {
+    watched,
+    status: watched ? "watched" : totalEpisodes > 0 && watchedCount > 0 ? "partial" : "unknown",
+    watched_count: Number.isFinite(watchedCount) ? watchedCount : 0,
+    total_episodes: Number.isFinite(totalEpisodes) ? totalEpisodes : 0,
+  };
+}
+
+function reviewEpisodeCode(season, episode) {
+  return `S${String(season).padStart(2, "0")}E${String(episode).padStart(2, "0")}`;
+}
+
+function reviewSiblingMedia(media = {}, season, episode) {
+  const showTitle = showTitleFromMedia(media) || "Unknown show";
+  // Webhook parsers put the resolved series identity in `ids`, while a few
+  // callers pass it in the explicit `showIds` fields. Preserve either shape
+  // so a sibling lookup can use provider identity before falling back to its
+  // show title and coordinates.
+  const showIds = media.showIds || media.show_ids || media.ids || {};
+  return {
+    title: `${showTitle} - ${reviewEpisodeCode(season, episode)}`,
+    showTitle,
+    show_title: showTitle,
+    type: "episode",
+    media_type: "episode",
+    ids: {
+      imdb: text(showIds.imdb || media.showImdbId || media.show_imdb_id) || undefined,
+      tmdb: text(showIds.tmdb || media.showTmdbId || media.show_tmdb_id) || undefined,
+      tvdb: text(showIds.tvdb || media.showTvdbId || media.show_tvdb_id) || undefined,
+    },
+    season,
+    episode,
+    isValid: true,
+  };
+}
+
+function reviewSiblingWatchState(media = {}, season, episode) {
+  const sibling = reviewSiblingMedia(media, season, episode);
+  let playstate = null;
+  try {
+    playstate = getPlaystateForMediaSync(sibling);
+  } catch {
+    playstate = null;
+  }
+  let watched = null;
+  if (playstate?.state === "watched") watched = playstate;
+  if (!playstate) {
+    try {
+      watched = findWatchedByAnyMediaKeySync(sibling);
+    } catch {
+      watched = null;
+    }
+  }
+  const state = playstate?.state === "unwatched"
+    ? "unwatched"
+    : watched
+      ? "watched"
+      : "unknown";
+  return {
+    season,
+    episode,
+    code: reviewEpisodeCode(season, episode),
+    state,
+    watched: state === "watched",
+    known: state !== "unknown",
+    watched_at: watched?.watched_at || null,
+  };
+}
+
+export function manualWatchReviewWatchContext(review = {}) {
+  const media = manualWatchReviewMedia(review);
+  if (text(media.type || media.media_type).toLowerCase() !== "episode") return null;
+  const season = integerOrNull(review.season ?? media.season);
+  const episode = integerOrNull(review.episode ?? media.episode);
+  if (season === null || episode === null) return null;
+  return {
+    show: reviewShowWatchState(media),
+    before: episode > 1 ? reviewSiblingWatchState(media, season, episode - 1) : null,
+    after: reviewSiblingWatchState(media, season, episode + 1),
+  };
+}
+
 function serializableMedia(media = {}) {
   const showIds = media.showIds || media.show_ids || {};
   const normalized = {
@@ -122,6 +282,38 @@ function serializableMedia(media = {}) {
     providerItems: media.providerItems || media.provider_items || undefined,
     event: text(media.event) || undefined,
     playedFlagOnly: Boolean(media.playedFlagOnly),
+    showWatched: [
+      media.showWatched,
+      media.show_watched,
+      media.showCompleted,
+      media.show_completed,
+      media.completedShow,
+      media.completed_show,
+      media.showAlreadyWatched,
+      media.show_already_watched,
+    ].some(truthyReviewFlag),
+    showWatchedEpisodes: Number.isFinite(Number(
+      media.showWatchedEpisodes
+        ?? media.show_watched_episodes
+        ?? media.watchedEpisodes
+        ?? media.watched_episodes,
+    ))
+      ? Number(media.showWatchedEpisodes
+        ?? media.show_watched_episodes
+        ?? media.watchedEpisodes
+        ?? media.watched_episodes)
+      : undefined,
+    showTotalEpisodes: Number.isFinite(Number(
+      media.showTotalEpisodes
+        ?? media.show_total_episodes
+        ?? media.totalEpisodes
+        ?? media.total_episodes,
+    ))
+      ? Number(media.showTotalEpisodes
+        ?? media.show_total_episodes
+        ?? media.totalEpisodes
+        ?? media.total_episodes)
+      : undefined,
     releaseDate: text(media.releaseDate || media.release_date) || undefined,
     runtimeMinutes: Number.isFinite(Number(media.runtimeMinutes ?? media.runtime_minutes))
       ? Number(media.runtimeMinutes ?? media.runtime_minutes)
@@ -133,10 +325,10 @@ function serializableMedia(media = {}) {
   return normalized;
 }
 
-function rowToReview(row) {
+function rowToReview(row, { includeWatchContext = true } = {}) {
   if (!row) return null;
   const media = parseJson(row.media_json, {}) || {};
-  return {
+  const review = {
     id: row.id,
     media_key: row.media_key,
     source: row.source,
@@ -157,12 +349,40 @@ function rowToReview(row) {
     reviewed_at: Number(row.reviewed_at || 0) || null,
     media,
   };
+  if (includeWatchContext && review.media_type === "episode") review.watch_context = manualWatchReviewWatchContext(review);
+  return review;
 }
 
-export function listPendingManualWatchReviews() {
+export function listPendingManualWatchReviews({ includeWatchContext = true } = {}) {
   return selectPendingReviewsStmt.all()
-    .map(rowToReview)
+    .map((row) => rowToReview(row, { includeWatchContext }))
     .filter((review) => !reviewIsAlreadyWatched(review));
+}
+
+// The GET listing (sidebar badge on every page load, a 30 s poll, and the
+// review page) rebuilt every review's watch context synchronously - about
+// 400 ms of blocked event loop per request on a real library. The result only
+// changes when watch history/playstate moves (the shared data version) or a
+// pending review is added, edited, or decided (the signature below). The
+// short ceiling covers inputs neither tracks, such as show episode totals.
+// Decision paths keep calling listPendingManualWatchReviews() directly.
+const selectPendingSignatureStmt = db.prepare(`
+  SELECT COUNT(*) AS count, MAX(updated_at) AS updated, MAX(created_at) AS created
+  FROM manual_watch_reviews
+  WHERE status = 'pending'
+`);
+const PENDING_LIST_CACHE_MS = 15_000;
+let pendingListCache = null;
+
+export function listPendingManualWatchReviewsCached({ now = Date.now(), includeWatchContext = true } = {}) {
+  const signature = selectPendingSignatureStmt.get() || {};
+  const key = `${getDataVersion()}|${signature.count}|${signature.updated}|${signature.created}|context:${includeWatchContext ? "full" : "summary"}`;
+  if (pendingListCache && pendingListCache.key === key && now - pendingListCache.builtAt < PENDING_LIST_CACHE_MS) {
+    return pendingListCache.reviews;
+  }
+  const reviews = listPendingManualWatchReviews({ includeWatchContext });
+  pendingListCache = { key, builtAt: now, reviews };
+  return reviews;
 }
 
 export function countPendingManualWatchReviews() {
@@ -212,6 +432,20 @@ export function enqueueManualWatchReview(media = {}, {
   const mediaKey = mediaKeyFor(normalizedMedia);
   const source = text(normalizedMedia.source) || "unknown";
   const existing = selectReviewByMediaKeyStmt.get(mediaKey);
+
+  // A whole-show mark from Plembfin writes the episode history and can race a
+  // provider's flag-only callback. The callback is not a new watch decision;
+  // do not create (or refresh) a review for a show that is already complete
+  // locally. The per-episode guard below still handles identity matches when
+  // the show is only partially watched.
+  if (reviewShowMarkedWatched(normalizedMedia)) {
+    return {
+      queued: false,
+      status: "already_watched",
+      suppressed: true,
+      review: existing ? rowToReview(existing) : null,
+    };
+  }
 
   // A generic provider flag arriving after an explicit local unwatch is almost
   // always the provider acknowledging the old watched state. Do not turn that
@@ -379,6 +613,7 @@ export function dismissPendingManualWatchReviewsForMedia(media = {}, { before = 
 function reviewIsAlreadyWatched(review = {}) {
   try {
     const media = manualWatchReviewMedia(review);
+    if (reviewShowMarkedWatched(media)) return true;
     const reviewCreatedAt = Number(review.created_at || 0);
     const playstate = getPlaystateForMediaSync(media);
     // An explicit current unwatch must win over an older watched history row;

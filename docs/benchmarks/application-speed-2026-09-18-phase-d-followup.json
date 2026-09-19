@@ -1,0 +1,58 @@
+{
+  "generatedAt": "2026-09-18",
+  "benchmark": "application-speed-phase-d-followup",
+  "status": "measured-not-gate",
+  "environment": {
+    "origin": "http://localhost:5055",
+    "browser": "Chrome through Codex CDP",
+    "authentication": "existing authenticated Chrome profile",
+    "cacheMode": "warm sequential populations in one authenticated tab; unique query per hard navigation",
+    "runsPerRoute": 6,
+    "discardedRunsPerRoute": 1,
+    "primaryReady": "not captured in this document-level follow-up; dedicated detail timing remains open"
+  },
+  "populations": {
+    "warmSequentialA": {
+      "/": {"medianLoadMs": 167.7, "p95LoadMs": 825.3, "medianTtfbMs": 35.2, "p95TtfbMs": 582.1, "maxRequests": 107, "medianDecodedBytes": 4357466},
+      "/movies": {"medianLoadMs": 95.2, "p95LoadMs": 114.0, "medianTtfbMs": 9.0, "p95TtfbMs": 31.8, "maxRequests": 152, "medianDecodedBytes": 5467062},
+      "/tvshows": {"medianLoadMs": 168.4, "p95LoadMs": 234.3, "medianTtfbMs": 31.0, "p95TtfbMs": 116.5, "maxRequests": 146, "medianDecodedBytes": 5422338},
+      "/upcoming": {"medianLoadMs": 113.8, "p95LoadMs": 229.7, "medianTtfbMs": 10.4, "p95TtfbMs": 31.4, "maxRequests": 78, "medianDecodedBytes": 3448688},
+      "/discover": {"medianLoadMs": 147.3, "p95LoadMs": 495.2, "medianTtfbMs": 20.4, "p95TtfbMs": 408.2, "maxRequests": 115, "medianDecodedBytes": 4547437},
+      "/watchlist": {"medianLoadMs": 89.5, "p95LoadMs": 113.5, "medianTtfbMs": 16.5, "p95TtfbMs": 24.1, "maxRequests": 93, "medianDecodedBytes": 4274595},
+      "/ratings": {"medianLoadMs": 91.0, "p95LoadMs": 135.5, "medianTtfbMs": 18.8, "p95TtfbMs": 21.5, "maxRequests": 94, "medianDecodedBytes": 4316321},
+      "/custom-lists": {"medianLoadMs": 109.5, "p95LoadMs": 110.5, "medianTtfbMs": 21.8, "p95TtfbMs": 25.7, "maxRequests": 93, "medianDecodedBytes": 4252125},
+      "/history": {"medianLoadMs": 559.5, "p95LoadMs": 637.1, "medianTtfbMs": 402.6, "p95TtfbMs": 543.4, "maxRequests": 51, "medianDecodedBytes": 3177265},
+      "/stats": {"medianLoadMs": 85.0, "p95LoadMs": 647.8, "medianTtfbMs": 7.3, "p95TtfbMs": 581.6, "maxRequests": 72, "medianDecodedBytes": 3481807},
+      "/settings": {"medianLoadMs": 86.4, "p95LoadMs": 109.0, "medianTtfbMs": 17.5, "p95TtfbMs": 21.7, "maxRequests": 69, "medianDecodedBytes": 3566127},
+      "/about": {"medianLoadMs": 85.1, "p95LoadMs": 91.3, "medianTtfbMs": 15.2, "p95TtfbMs": 16.6, "maxRequests": 59, "medianDecodedBytes": 3124862},
+      "/tvshow/tvdb/435298-ludwig-2024-": {"medianLoadMs": 218.3, "p95LoadMs": 392.3, "medianTtfbMs": 125.7, "p95TtfbMs": 288.8, "maxRequests": 96, "medianDecodedBytes": 4666944},
+      "/tvshow/tvdb/366924-reacher": {"medianLoadMs": 82.5, "p95LoadMs": 268.2, "medianTtfbMs": 10.9, "p95TtfbMs": 125.7, "maxRequests": 107, "medianDecodedBytes": 3333702},
+      "/movie/tmdb/208134-jackass-presents-bad-grandpa": {"medianLoadMs": 69.0, "p95LoadMs": 77.3, "medianTtfbMs": 8.4, "p95TtfbMs": 9.0, "maxRequests": 55, "medianDecodedBytes": 3333702},
+      "/movie/tmdb/447332-a-quiet-place": {"medianLoadMs": 68.5, "p95LoadMs": 79.0, "medianTtfbMs": 8.8, "p95TtfbMs": 9.3, "maxRequests": 55, "medianDecodedBytes": 3333702}
+    },
+    "warmSequentialB": {
+      "/": {"medianLoadMs": 97.3, "p95LoadMs": 106.7, "medianTtfbMs": 7.8, "p95TtfbMs": 9.9, "maxRequests": 79, "medianDecodedBytes": 3512532},
+      "/movies": {"medianLoadMs": 66.2, "p95LoadMs": 74.4, "medianTtfbMs": 7.9, "p95TtfbMs": 8.3, "maxRequests": 46, "medianDecodedBytes": 2901846},
+      "/tvshows": {"medianLoadMs": 66.7, "p95LoadMs": 79.9, "medianTtfbMs": 8.5, "p95TtfbMs": 8.9, "maxRequests": 46, "medianDecodedBytes": 2901846},
+      "/upcoming": {"medianLoadMs": 90.6, "p95LoadMs": 506.1, "medianTtfbMs": 8.1, "p95TtfbMs": 406.6, "maxRequests": 76, "medianDecodedBytes": 3050074},
+      "/discover": {"medianLoadMs": 151.1, "p95LoadMs": 188.8, "medianTtfbMs": 22.1, "p95TtfbMs": 84.9, "maxRequests": 115, "medianDecodedBytes": 4649972},
+      "/watchlist": {"medianLoadMs": 117.6, "p95LoadMs": 141.2, "medianTtfbMs": 10.5, "p95TtfbMs": 22.8, "maxRequests": 97, "medianDecodedBytes": 4320835},
+      "/ratings": {"medianLoadMs": 106.1, "p95LoadMs": 114.4, "medianTtfbMs": 29.2, "p95TtfbMs": 31.8, "maxRequests": 98, "medianDecodedBytes": 4362561},
+      "/custom-lists": {"medianLoadMs": 102.3, "p95LoadMs": 475.9, "medianTtfbMs": 12.9, "p95TtfbMs": 22.0, "maxRequests": 95, "medianDecodedBytes": 4298365},
+      "/history": {"medianLoadMs": 548.3, "p95LoadMs": 715.5, "medianTtfbMs": 394.5, "p95TtfbMs": 550.6, "maxRequests": 53, "medianDecodedBytes": 3223505},
+      "/stats": {"medianLoadMs": 88.1, "p95LoadMs": 100.9, "medianTtfbMs": 9.6, "p95TtfbMs": 20.6, "maxRequests": 73, "medianDecodedBytes": 3684071},
+      "/settings": {"medianLoadMs": 96.2, "p95LoadMs": 111.2, "medianTtfbMs": 7.7, "p95TtfbMs": 13.2, "maxRequests": 72, "medianDecodedBytes": 3612367},
+      "/about": {"medianLoadMs": 72.5, "p95LoadMs": 377.3, "medianTtfbMs": 7.6, "p95TtfbMs": 313.6, "maxRequests": 62, "medianDecodedBytes": 3171102},
+      "/tvshow/tvdb/435298-ludwig-2024-": {"medianLoadMs": 214.1, "p95LoadMs": 236.3, "medianTtfbMs": 124.0, "p95TtfbMs": 141.5, "maxRequests": 79, "medianDecodedBytes": 4242850},
+      "/tvshow/tvdb/366924-reacher": {"medianLoadMs": 208.2, "p95LoadMs": 449.5, "medianTtfbMs": 110.9, "p95TtfbMs": 305.8, "maxRequests": 78, "medianDecodedBytes": 3956382},
+      "/movie/tmdb/208134-jackass-presents-bad-grandpa": {"medianLoadMs": 67.5, "p95LoadMs": 77.3, "medianTtfbMs": 8.2, "p95TtfbMs": 11.4, "maxRequests": 57, "medianDecodedBytes": 3365134},
+      "/movie/tmdb/447332-a-quiet-place": {"medianLoadMs": 67.6, "p95LoadMs": 79.4, "medianTtfbMs": 7.9, "p95TtfbMs": 8.3, "maxRequests": 56, "medianDecodedBytes": 3365134}
+    }
+  },
+  "limitations": [
+    "This is a warm sequential follow-up in one authenticated tab, not two isolated-tab populations.",
+    "All document loads completed after the warm-up discard; the large A/B spread shows that cache state is still material.",
+    "Primary-data-ready timing was not captured; TV-detail budget and request inventory remain open.",
+    "Settled decoded bytes and request counts still exceed the critical-shell budget on several routes, so this artifact does not close Phase A, C, or E."
+  ]
+}

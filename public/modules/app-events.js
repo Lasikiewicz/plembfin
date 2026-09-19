@@ -1,26 +1,47 @@
-import { buildAuthHeaders, buildNowPlayingUrl, getWebhookToken, onAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./auth.js?v=1.1.1.7.3";
-import { claimWithForm } from "./onboarding.js?v=1.1.1.7.3";
-import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs } from "./logs.js?v=1.1.1.7.3";
-import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS, EXPLORER_VIEW_KEY_MOVIES, EXPLORER_VIEW_KEY_SHOWS, HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS, HISTORY_VIEW_KEY, HISTORY_FILTER_KEY, HISTORY_VIEW_MODES, HISTORY_FILTERS, PRIMARY_VIEWS } from "./state.js?v=1.1.1.7.3";
-import { escapeHtml, sanitizeTitle, safeImageUrl, movieSlug, showTitleFrom, slug, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel } from "./utils.js?v=1.1.1.7.3";
-import { renderSettingsInlineHelp } from "./help-content.js?v=1.1.1.7.3";
-import { compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, markArtworkUnavailable, tmdbProfile } from "./images.js?v=1.1.1.7.3";
-import { initTools, APPEARANCE_DEFAULTS, setBackupTransferState, exportPlembfinBackup, readPlembfinBackup, importPlembfinBackup, renderWatchBackups, loadRemoteBackupsForRestoreTab, restoreRemoteBackupFromCard, loadCacheStats, renderCachePanel, loadWatchBackups, postWatchBackupAction, applyAppearanceToBody, loadAppearanceSettings, saveAppearanceSettings, saveWatchBackupSettings, createWatchBackupNow, downloadWatchBackup, uploadWatchBackupFile, restoreWatchBackup, parseSelectedFiles, renderImportPreview, renderImportActivity, startImport, runRepairWorkflow, runTraktBackfill, runEpisodeTitleAudit, runEpisodeTitleBackfill, runRematchTvShows, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory, appendImportLog, loadPlembfinBackups, savePlembfinBackupSettings, createPlembfinBackupNow, downloadPlembfinBackup, deletePlembfinBackupFile, restorePlembfinBackupFromServer, restoreRemotePlembfinBackup, renderPlembfinBackups, updatePlembfinButtonsState, savePlembfinBackupRemoteSettings, createPlembfinBackupRemoteNow, createRemoteWatchBackupNow, saveRemoteWatchBackupSettings } from "./tools.js?v=1.1.1.7.3";
-import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerCronSync, triggerStopSync } from "./sync.js?v=1.1.1.7.3";
-import { initDashboard, getRowFitLimit, mediaRecordIdentity, dedupeMediaRecords, progressRecordIdentity, dedupePlaybackProgress, renderHistoryCard, observeDashboardPosters, renderDashboard, updateDashboardSplitState, resetPartWatchedView, renderPartWatchedCard, renderPartWatched } from "./dashboard.js?v=1.1.1.7.3";
-import { loadUpNext, removeUpNextItem, removeShowFromUpNext, removeManualShowFromUpNext, addShowToUpNext, upNextAttentionOptions, restoreUpNextItem, setUpNextRemovalPending } from "./up-next.js?v=1.1.1.7.3";
-import { initStats, formatListDate, futureListDate, showStatusLabel, nextAiringDateValue, nextAiringCell, statsReports, statsPeriodLabel, syncStatsPeriodOptions, selectedStatsReport, statsFilteredRows, statsPeriodNoun, statsTrackingSpanText, statsPlatformLabel, statsSelectedMediaLabel, statsIntroCards, renderStatsKpis, renderStatsLeaderboard, renderStatsMoviesTvSplit, renderStatsPlatformRows, renderStatsBookends, renderMonthChart, renderStats, renderRankingTable } from "./stats.js?v=1.1.1.7.3";
-import { initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, triggerSearchPage, loadMoreSearchPeople, loadSearchCollection, renderSearchPage, renderExplorer, explorerQueryKey, updateAlphaFilter, handleAlphaFilterClick, resetMovieExplorer, resetShowExplorer, renderExplorerSentinel, observeExplorerSentinel, observeExplorerTmdbPrefetch, scheduleNextAirResort, currentExplorerView, currentExplorerSort, currentPosterWidthKey, setCurrentExplorerSort, applyExplorerPosterWidth, applyListHeaderSort, renderMovieCard, renderMovieExplorer, loadExplorerMovies, applyHistoryPosterWidth, resetHistoryView, renderHistoryItems, renderHistoryView, loadHistoryView, observeHistorySentinel, renderShowExplorer, loadExplorerShows, mergeShowDetail, loadShowDetail, matchesExplorerSearch, sortExplorerItems, renderShowRecord, renderShowFolder, renderSeasonFolder, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, emptyExplorer, FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver } from "./explorer.js?v=1.1.1.7.3";
-import { openWatchDatePrompt, markDiscoverWatched, submitSeerrRequest, watchedReferenceFor } from "./watch-action.js?v=1.1.1.7.3";
-import { addToWatchlist, removeFromWatchlist, openRatingDialog, openAddToListDialog, addToCustomList, removeFromCustomList, openCreateListDialog, personalItemFromPosterMenuDataset, handlePersonalAction } from "./personal-media.js?v=1.1.1.7.3";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails, resolveEpisodeTitleFromTmdb } from "./tmdb.js?v=1.1.1.7.3";
-import { initMediaDetail, nowPlayingHref, openMovieInlineDetail, clearMediaDetailState, syncMediaActionsMenuState, syncTopbarControlsMenuState, closeDebugModal, closeMediaDetail, closeMediaInfoModal, openMovieImmersiveModalByTmdbId, openShowImmersiveModalByTmdbId, openHistoryDebugModal, fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail.js?v=1.1.1.7.3";
-import { closePersonProfile, loadCastMemberDetails } from "./media-person.js?v=1.1.1.7.3";
-import { initMediaLightbox } from "./media-lightbox.js?v=1.1.1.7.3";
-import { initMediaDetailEvents, attachMediaDetailEvents, initLibraryForceSyncPanel } from "./media-detail-events.js?v=1.1.1.7.3";
-import { attachSidebarMiddleClickNavigation } from "./sidebar-navigation.js?v=1.1.1.7.3";
-import { initPosterOverflowMenu, closePosterOverflowMenu, setPosterOverflowMenuActionPending } from "./poster-menu.js?v=1.1.1.7.3";
-import { dontRecommendDiscoverItem } from "./discover.js?v=1.1.1.7.3";
+import { buildAuthHeaders, buildNowPlayingUrl, getWebhookToken, onAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./auth.js?v=1.1.1.8.1";
+import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs } from "./logs.js?v=1.1.1.8.1";
+import { state, elements } from "./state.js?v=1.1.1.8.1";
+import { escapeHtml, sanitizeTitle, safeImageUrl, movieSlug, showTitleFrom, slug, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel } from "./utils.js?v=1.1.1.8.1";
+import { compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, markArtworkUnavailable, tmdbProfile } from "./images.js?v=1.1.1.8.1";
+import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerCronSync, triggerStopSync } from "./sync.js?v=1.1.1.8.1";
+import { attachSidebarMiddleClickNavigation } from "./sidebar-navigation.js?v=1.1.1.8.1";
+import { WATCH_ROUTE_MODULES, ifLoaded, lazyExport, loadRouteModules, onRouteModuleLoaded } from "./route-modules.js?v=1.1.1.8.1";
+
+// Route modules are not imported statically: that pulled the whole route graph
+// (about 1 MB) into the event wiring every page loads. Actions load their module
+// on first use (lazyExport); renders and cleanups only run when the module is
+// already on the page (ifLoaded). See docs/frontend.md.
+const claimWithForm = lazyExport("onboarding", "claimWithForm");
+const renderSettingsInlineHelp = ifLoaded("help-content", "renderSettingsInlineHelp");
+const lazyBackups = (name) => lazyExport("tools-backups", name);
+const saveAppearanceSettings = lazyBackups("saveAppearanceSettings");
+const renderDashboard = ifLoaded("dashboard", "renderDashboard");
+const resetPartWatchedView = ifLoaded("dashboard", "resetPartWatchedView");
+const renderPartWatched = ifLoaded("dashboard", "renderPartWatched");
+const lazyUpNext = (name) => lazyExport("up-next", name, ["dashboard"]);
+const loadUpNext = lazyUpNext("loadUpNext");
+const removeUpNextItem = lazyUpNext("removeUpNextItem");
+const removeShowFromUpNext = lazyUpNext("removeShowFromUpNext");
+const removeManualShowFromUpNext = lazyUpNext("removeManualShowFromUpNext");
+const addShowToUpNext = lazyUpNext("addShowToUpNext");
+const upNextAttentionOptions = ifLoaded("up-next", "upNextAttentionOptions", () => ({}));
+const restoreUpNextItem = lazyUpNext("restoreUpNextItem");
+const setUpNextRemovalPending = ifLoaded("up-next", "setUpNextRemovalPending");
+const renderSearchPage = ifLoaded("explorer", "renderSearchPage"), applyExplorerPosterWidth = ifLoaded("explorer", "applyExplorerPosterWidth"), applyHistoryPosterWidth = ifLoaded("explorer", "applyHistoryPosterWidth");
+const loadMoreSearchPeople = lazyExport("explorer", "loadMoreSearchPeople"), loadSearchCollection = lazyExport("explorer", "loadSearchCollection"), loadShowDetail = lazyExport("explorer", "loadShowDetail");
+const openWatchDatePrompt = lazyExport("watch-action", "openWatchDatePrompt", WATCH_ROUTE_MODULES), markDiscoverWatched = lazyExport("watch-action", "markDiscoverWatched", WATCH_ROUTE_MODULES), submitSeerrRequest = lazyExport("watch-action", "submitSeerrRequest", WATCH_ROUTE_MODULES);
+// Synchronous: callers load WATCH_ROUTE_MODULES before using it.
+const watchedReferenceFor = ifLoaded("watch-action", "watchedReferenceFor", null);
+const lazyPersonal = (name) => lazyExport("personal-media", name);
+const addToWatchlist = lazyPersonal("addToWatchlist"), removeFromWatchlist = lazyPersonal("removeFromWatchlist"), openRatingDialog = lazyPersonal("openRatingDialog"), openAddToListDialog = lazyPersonal("openAddToListDialog"), addToCustomList = lazyPersonal("addToCustomList"), removeFromCustomList = lazyPersonal("removeFromCustomList"), openCreateListDialog = lazyPersonal("openCreateListDialog"), handlePersonalAction = lazyPersonal("handlePersonalAction");
+// Poster-menu actions only exist once poster-menu (which imports personal-media) has built them.
+const personalItemFromPosterMenuDataset = ifLoaded("personal-media", "personalItemFromPosterMenuDataset", {});
+const closePosterOverflowMenu = ifLoaded("poster-menu", "closePosterOverflowMenu"), setPosterOverflowMenuActionPending = ifLoaded("poster-menu", "setPosterOverflowMenuActionPending");
+const dontRecommendDiscoverItem = lazyExport("discover", "dontRecommendDiscoverItem");
+const syncMediaActionsMenuState = ifLoaded("media-detail", "syncMediaActionsMenuState"), closeDebugModal = ifLoaded("media-detail", "closeDebugModal"), closeMediaDetail = ifLoaded("media-detail", "closeMediaDetail"), closeMediaInfoModal = ifLoaded("media-detail", "closeMediaInfoModal");
+const openHistoryDebugModal = lazyExport("media-detail", "openHistoryDebugModal");
+const closePersonProfile = ifLoaded("media-person", "closePersonProfile");
+import { hydrateDeferredCastDisclosure } from "./cast-disclosure.js?v=1.1.1.8.1";
 
 let _cb = {};
 
@@ -68,13 +89,25 @@ export function closeMobileMenu() {
 
 export function initAppEvents(callbacks = {}) {
   _cb = callbacks;
-  initMediaDetailEvents(callbacks);
-  initLibraryForceSyncPanel();
-  initPosterOverflowMenu();
   attachEvents();
+  // Detail/watch-prompt change handlers and the poster-card menu belong to
+  // modules that load later (or may already have loaded); wire each once.
+  onRouteModuleLoaded((key, module) => {
+    if (key === "media-detail-events") {
+      module.initMediaDetailEvents(callbacks);
+      module.initLibraryForceSyncPanel();
+      module.attachMediaDetailEvents();
+    } else if (key === "sync-activity") {
+      module.initSyncActivityEvents?.(callbacks);
+    } else if (key === "settings-events") {
+      module.initSettingsEvents(callbacks);
+    } else if (key === "poster-menu") {
+      module.initPosterOverflowMenu();
+    }
+  });
 }
 
-const authHeaders = (...args) => _cb.authHeaders?.(...args), setMessage = (...args) => _cb.setMessage?.(...args), unlockWithToken = (...args) => _cb.unlockWithToken?.(...args), clearSearchInputs = (...args) => _cb.clearSearchInputs?.(...args), selectView = (...args) => _cb.selectView?.(...args), renderLogs = (...args) => _cb.renderLogs?.(...args), logsText = (...args) => _cb.logsText?.(...args), copyToClipboard = (...args) => _cb.copyToClipboard?.(...args), selectBackupsTab = (...args) => _cb.selectBackupsTab?.(...args), navigateTo = (...args) => _cb.navigateTo?.(...args), renderChangelog = (...args) => _cb.renderChangelog?.(...args), lockDashboard = (...args) => _cb.lockDashboard?.(...args), toggleTheme = (...args) => _cb.toggleTheme?.(...args), showConfirmModal = (...args) => _cb.showConfirmModal?.(...args), openConfirmDialog = (...args) => _cb.openConfirmDialog?.(...args) || Promise.resolve(true), closeGlobalSearchDropdown = (...args) => _cb.closeGlobalSearchDropdown?.(...args), saveAdminCredentials = (...args) => _cb.saveAdminCredentials?.(...args), applyActiveView = (...args) => _cb.applyActiveView?.(...args), handleRouting = (...args) => _cb.handleRouting?.(...args), loadHistory = (...args) => _cb.loadHistory?.(...args), loadStats = (...args) => _cb.loadStats?.(...args), loadSavedConfig = (...args) => _cb.loadSavedConfig?.(...args), renderHelp = (...args) => _cb.renderHelp?.(...args), renderDbStatus = (...args) => _cb.renderDbStatus?.(...args), showErrorExplainModal = (...args) => _cb.showErrorExplainModal?.(...args), runRefreshMetadataWorkflow = (...args) => _cb.runRefreshMetadataWorkflow?.(...args), runRefreshTvdbMetadataWorkflow = (...args) => _cb.runRefreshTvdbMetadataWorkflow?.(...args), showToast = (...args) => _cb.showToast?.(...args), logDebug = (...args) => _cb.logDebug?.(...args), syncPageTopbar = (...args) => _cb.syncPageTopbar?.(...args), setUnlocked = (...args) => _cb.setUnlocked?.(...args), renderSettingsStatus = (...args) => _cb.renderSettingsStatus?.(...args), renderAdminCredentialsStatus = (...args) => _cb.renderAdminCredentialsStatus?.(...args), toggleSet = (...args) => _cb.toggleSet?.(...args), renderGlobalSearchDropdown = (...args) => _cb.renderGlobalSearchDropdown?.(...args), loadGlobalDiscovery = (...args) => _cb.loadGlobalDiscovery?.(...args);
+const authHeaders = (...args) => _cb.authHeaders?.(...args), setMessage = (...args) => _cb.setMessage?.(...args), unlockWithToken = (...args) => _cb.unlockWithToken?.(...args), clearSearchInputs = (...args) => _cb.clearSearchInputs?.(...args), selectView = (...args) => _cb.selectView?.(...args), renderLogs = (...args) => _cb.renderLogs?.(...args), logsText = (...args) => _cb.logsText?.(...args), copyToClipboard = (...args) => _cb.copyToClipboard?.(...args), selectBackupsTab = (...args) => _cb.selectBackupsTab?.(...args), navigateTo = (...args) => _cb.navigateTo?.(...args), renderChangelog = (...args) => _cb.renderChangelog?.(...args), lockDashboard = (...args) => _cb.lockDashboard?.(...args), toggleTheme = (...args) => _cb.toggleTheme?.(...args), showConfirmModal = (...args) => _cb.showConfirmModal?.(...args), openConfirmDialog = (...args) => _cb.openConfirmDialog?.(...args) || Promise.resolve(true), closeGlobalSearchDropdown = (...args) => _cb.closeGlobalSearchDropdown?.(...args), saveAdminCredentials = (...args) => _cb.saveAdminCredentials?.(...args), applyActiveView = (...args) => _cb.applyActiveView?.(...args), handleRouting = (...args) => _cb.handleRouting?.(...args), loadHistory = (...args) => _cb.loadHistory?.(...args), loadSavedConfig = (...args) => _cb.loadSavedConfig?.(...args), renderHelp = (...args) => _cb.renderHelp?.(...args), renderDbStatus = (...args) => _cb.renderDbStatus?.(...args), showErrorExplainModal = (...args) => _cb.showErrorExplainModal?.(...args), runRefreshMetadataWorkflow = (...args) => _cb.runRefreshMetadataWorkflow?.(...args), runRefreshTvdbMetadataWorkflow = (...args) => _cb.runRefreshTvdbMetadataWorkflow?.(...args), showToast = (...args) => _cb.showToast?.(...args), logDebug = (...args) => _cb.logDebug?.(...args), syncPageTopbar = (...args) => _cb.syncPageTopbar?.(...args), setUnlocked = (...args) => _cb.setUnlocked?.(...args), renderSettingsStatus = (...args) => _cb.renderSettingsStatus?.(...args), renderAdminCredentialsStatus = (...args) => _cb.renderAdminCredentialsStatus?.(...args), toggleSet = (...args) => _cb.toggleSet?.(...args), renderGlobalSearchDropdown = (...args) => _cb.renderGlobalSearchDropdown?.(...args), loadGlobalDiscovery = (...args) => _cb.loadGlobalDiscovery?.(...args);
 
 function syncAttentionIssueMediaType(issue = {}) {
   const type = String(issue.type || issue.mediaType || "").trim().toLowerCase();
@@ -256,6 +289,11 @@ function attachEvents() {
       return;
     }
 
+    const castMore = e.target.closest("[data-cast-more-trigger]");
+    if (castMore) {
+      hydrateDeferredCastDisclosure(castMore);
+      return;
+    }
     const castCard = e.target.closest("[data-person-id]");
     if (castCard) {
       window.showCastMemberDetails(castCard.dataset.personId, castCard.dataset.personName);
@@ -388,56 +426,6 @@ function attachEvents() {
 
   // No scroll events or arrow click handlers needed for fixed-fit rows
 
-  elements.clearLogsButton.addEventListener("click", () => {
-    state.debugLogs = clearDebugLogs();
-    clearBackendDiagnosticLogs(authHeaders())
-      .catch((error) => setMessage(error.message, "error"))
-      .finally(() => renderLogs().catch(() => { }));
-  });
-
-  elements.copyLogsButton.addEventListener("click", () => {
-    copyToClipboard(state.renderedLogsText || logsText() || "[no diagnostic logs captured yet]", elements.copyLogsButton);
-  });
-
-  elements.downloadLogsButton?.addEventListener("click", async () => {
-    try {
-      const backendLogs = await fetchDiagnosticLogs(authHeaders(), "all");
-      const localLogs = logsText();
-      const content = [
-        `=== PLEMBFIN DIAGNOSTIC LOGS EXPORT (${new Date().toISOString()}) ===`,
-        ...backendLogs,
-        "",
-        "=== FRONTEND DEBUG LOGS ===",
-        localLogs || "[no frontend logs]"
-      ].join("\n");
-
-      const blob = new Blob([content], { type: "text/plain;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      const dateStr = new Date().toISOString().slice(0, 10);
-      link.href = url;
-      link.download = `plembfin-logs-${dateStr}.log`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
-      setMessage("Logs downloaded successfully", "success");
-    } catch (error) {
-      setMessage(`Download logs failed: ${error.message || String(error)}`, "error");
-    }
-  });
-
-  document.querySelector("#logsCategoryFilter")?.addEventListener("click", (event) => {
-    const btn = event.target.closest(".logs-cat-btn");
-    if (!btn) return;
-    const category = btn.dataset.category || "all";
-    state.activeLogCategory = category;
-    document.querySelectorAll("#logsCategoryFilter .logs-cat-btn").forEach((b) => {
-      b.classList.toggle("active", b === btn);
-    });
-    renderLogs(true).catch(() => {});
-  });
-
   document.querySelector("#settingsSectionSelect")?.addEventListener("change", (event) => {
     navigateTo(event.currentTarget.value);
   });
@@ -465,134 +453,6 @@ function attachEvents() {
     elements[id]?.addEventListener("change", () => saveAppearanceSettings().catch(() => null));
   }
 
-  elements.saveWatchBackupConfigButton?.addEventListener("click", () => {
-    saveWatchBackupSettings().catch((error) => setMessage(error.message, "error"));
-  });
-  elements.createWatchBackupButton?.addEventListener("click", () => {
-    createWatchBackupNow().catch((error) => setMessage(error.message, "error"));
-  });
-  elements.chooseWatchBackupFileButton?.addEventListener("click", () => {
-    elements.watchBackupUploadFile?.click();
-  });
-  elements.watchBackupUploadFile?.addEventListener("change", () => {
-    const file = elements.watchBackupUploadFile.files?.[0];
-    uploadWatchBackupFile(file)
-      .catch((error) => {
-        if (elements.watchBackupUploadStatus) elements.watchBackupUploadStatus.textContent = "Upload failed";
-        setMessage(error.message, "error");
-      })
-      .finally(() => {
-        if (elements.watchBackupUploadFile) elements.watchBackupUploadFile.value = "";
-      });
-  });
-  elements.refreshWatchBackupsButton?.addEventListener("click", () => {
-    state.watchBackups = null;
-    loadWatchBackups({ force: true }).catch((error) => setMessage(error.message, "error"));
-  });
-  const handleWatchBackupListClick = (event) => {
-    const download = event.target.closest("[data-watch-backup-download]");
-    if (download) {
-      downloadWatchBackup(download.dataset.watchBackupDownload).catch((error) => setMessage(error.message, "error"));
-      return;
-    }
-    const dryRun = event.target.closest("[data-watch-backup-dry-run]");
-    if (dryRun) {
-      restoreWatchBackup(dryRun.dataset.watchBackupDryRun, "reconcile", true).catch((error) => setMessage(error.message, "error"));
-      return;
-    }
-    const restore = event.target.closest("[data-watch-backup-restore]");
-    if (restore) {
-      const clearMode = state.restoreClearMode || "wipe";
-      const destId = restore.dataset.restoreDestId;
-      if (destId) {
-        restoreRemoteBackupFromCard({ dataset: { destId } }, restore.dataset.watchBackupRestore, clearMode).catch((error) => setMessage(error.message, "error"));
-      } else {
-        restoreWatchBackup(restore.dataset.watchBackupRestore, clearMode).catch((error) => setMessage(error.message, "error"));
-      }
-    }
-  };
-  elements.watchBackupList?.addEventListener("click", handleWatchBackupListClick);
-  elements.remoteWatchBackupList?.addEventListener("click", handleWatchBackupListClick);
-
-  const handleWatchBackupListChange = (event) => {
-    const clearModeInput = event.target.closest("[data-restore-clear-mode]");
-    if (clearModeInput) {
-      state.restoreClearMode = clearModeInput.value === "wipe" ? "wipe" : "reconcile";
-    }
-  };
-  elements.watchBackupList?.addEventListener("change", handleWatchBackupListChange);
-  elements.remoteWatchBackupList?.addEventListener("change", handleWatchBackupListChange);
-
-  elements.watchBackupRuntime?.addEventListener("click", (event) => {
-    const clearBtn = event.target.closest("[data-clear-restore-status]");
-    if (clearBtn) {
-      postWatchBackupAction({ action: "clear-restore-status" })
-        .then(() => loadWatchBackups({ force: true }))
-        .catch((error) => setMessage(error.message, "error"));
-    }
-  });
-
-  elements.explorerButtons.forEach((button) => {
-    button.addEventListener("click", () => {
-      state.explorerMode = button.dataset.explorerMode;
-      renderExplorer();
-      selectView("explorer");
-    });
-  });
-
-  elements.explorerSort?.addEventListener("change", () => {
-    setCurrentExplorerSort(elements.explorerSort.value || "title_asc");
-    renderExplorer();
-  });
-  elements.explorerHideWatched?.addEventListener("change", () => {
-    state.hideWatchedShows = elements.explorerHideWatched.checked;
-    localStorage.setItem(HIDE_WATCHED_KEY_SHOWS, String(state.hideWatchedShows));
-    renderExplorer();
-  });
-  elements.explorerHideEnded?.addEventListener("change", () => {
-    state.hideEndedShows = elements.explorerHideEnded.checked;
-    localStorage.setItem(HIDE_ENDED_KEY_SHOWS, String(state.hideEndedShows));
-    renderExplorer();
-  });
-  elements.statsMediaFilter?.addEventListener("change", () => {
-    state.statsMediaFilter = elements.statsMediaFilter.value || "all";
-    renderStats();
-  });
-  elements.statsPeriodType?.addEventListener("change", () => {
-    state.statsPeriodType = elements.statsPeriodType.value || "all";
-    state.statsPeriodValue = state.statsPeriodType === "all" ? "all" : "";
-    renderStats();
-    // The stats response now carries only the selected period's report, so a
-    // period change has to refetch rather than re-render what is already held.
-    loadStats({ force: true }).catch((error) => setMessage(error.message, "error"));
-  });
-  elements.statsPeriodValue?.addEventListener("change", () => {
-    state.statsPeriodValue = elements.statsPeriodValue.value || "all";
-    renderStats();
-    loadStats({ force: true }).catch((error) => setMessage(error.message, "error"));
-  });
-  document.querySelector("#stats-view")?.addEventListener("click", (event) => {
-    const card = event.target.closest("[data-stats-media-href]");
-    if (!card) return;
-    navigateTo(card.dataset.statsMediaHref);
-  });
-  document.querySelector("#stats-view")?.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" && event.key !== " ") return;
-    const card = event.target.closest("[data-stats-media-href]");
-    if (!card) return;
-    event.preventDefault();
-    navigateTo(card.dataset.statsMediaHref);
-  });
-
-  elements.explorerPanel?.addEventListener("click", (e) => {
-    const header = e.target.closest("[data-sort-key]");
-    if (!header) return;
-    applyListHeaderSort(header.dataset.sortKey);
-  });
-
-  elements.alphaFilterNav?.addEventListener("click", handleAlphaFilterClick);
-
-
   const brandLink = document.querySelector("#brandLink");
   if (brandLink) {
     brandLink.addEventListener("click", (event) => {
@@ -603,7 +463,16 @@ function attachEvents() {
   }
 
   document.addEventListener("click", (event) => {
-    if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    // Click activation can be delivered without a pointer button (for example
+    // through keyboard or automation).  The click event itself is already the
+    // left-button activation boundary, so only reject modified activations.
+    if (event.defaultPrevented || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const nowPlayingCard = event.target.closest("[data-now-playing-href]");
+    if (nowPlayingCard?.dataset.nowPlayingHref) {
+      event.preventDefault();
+      navigateTo(nowPlayingCard.dataset.nowPlayingHref);
+      return;
+    }
     const link = event.target.closest("a[data-media-card-href]");
     if (!link?.dataset.mediaCardHref) return;
     event.preventDefault();
@@ -697,6 +566,8 @@ function attachEvents() {
     event?.stopPropagation();
     const item = upNextPayloadFromButton(watchBtn);
     if (!item.id) return;
+    // upNextWatchedReference() reads watch-action synchronously.
+    await loadRouteModules(WATCH_ROUTE_MODULES);
 
     if (!item.isEpisode) {
       state.pendingWatchAction = {
@@ -1203,65 +1074,6 @@ function attachEvents() {
     navigateTo("/sync-activity");
   });
 
-  elements.syncActivityPause?.addEventListener("click", () => {
-    _cb.toggleSyncActivityPaused?.();
-  });
-
-  elements.syncActivityRefresh?.addEventListener("click", () => {
-    _cb.loadSyncActivity?.({ force: true })?.catch?.(() => { });
-  });
-
-  elements.syncActivityRetryAllFailed?.addEventListener("click", async () => {
-    const button = elements.syncActivityRetryAllFailed;
-    if (!button || button.disabled) return;
-    const idleLabel = button.textContent;
-    button.disabled = true;
-    button.textContent = "Checking...";
-    let started = false;
-    try {
-      const ids = await _cb.fetchAllRetryableSyncActivityIds?.() || [];
-      if (!ids.length) {
-        setMessage("No failed sync items to retry.", "muted");
-        return;
-      }
-      const confirmed = await openConfirmDialog({
-        title: "Retry all failed sync items?",
-        body: `This retries the latest failed result for ${ids.length} movie/episode item${ids.length === 1 ? "" : "s"} across your entire sync history, not just this page. Missing media on a connected app is treated as skipped and is not retried. Older duplicate results and issues already resolved by a newer result are left alone. The retry runs one at a time in the background, even if you close this tab.`,
-        confirmLabel: "Retry all",
-      });
-      if (!confirmed) return;
-      started = true;
-      await _cb.startRetryAllSyncActivity?.((result) => {
-        if (!result) return;
-        if (result.cancelled) {
-          setMessage("Retry all was cancelled.", "muted");
-        } else if (result.success) {
-          setMessage(`Retry all complete: ${result.succeeded || 0} succeeded, ${result.stillFailed || 0} still failed, ${result.skipped || 0} skipped, out of ${result.total || 0}.`, (result.stillFailed || result.errored) ? "warning" : "success");
-        } else {
-          setMessage(result.error || "Retry all finished with an error.", "error");
-        }
-      }, ids);
-    } catch (error) {
-      setMessage(error.message || "Could not start retry all.", "error");
-    } finally {
-      // Once a run actually starts, the polling loop's own renderSyncActivity
-      // calls own the button's label/disabled state from here on (including
-      // re-disabling it once the job finishes) - only reset it directly for
-      // the paths above that returned before a run ever started (checking
-      // failed, nothing found, cancelled, or the start request itself failed).
-      if (!started) {
-        button.textContent = idleLabel;
-        button.disabled = false;
-      }
-    }
-  });
-
-  elements.syncActivitySummary?.addEventListener("click", (event) => {
-    const toggle = event.target.closest("[data-sync-activity-failed-toggle]");
-    if (!toggle || !elements.syncActivitySummary.contains(toggle)) return;
-    _cb.toggleSyncActivityFailedOnly?.();
-  });
-
   elements.syncActivityAttention?.addEventListener("click", async (event) => {
     const matchDismiss = event.target.closest("[data-sync-attention-match-dismiss-id]");
     if (matchDismiss && !matchDismiss.disabled) {
@@ -1488,251 +1300,6 @@ function attachEvents() {
     if (!toggleShow) return;
     event.preventDefault();
     toggleShow.click();
-  });
-
-  elements.syncActivitySearch?.addEventListener("input", (event) => {
-    _cb.setSyncActivitySearch?.(event.target.value);
-  });
-
-  const changeSyncActivityPage = (delta) => {
-    const pagination = state.syncActivityPagination || {};
-    const page = Math.max(Number(pagination.page) || 1, 1) + delta;
-    if (page < 1 || (pagination.totalPages && page > Number(pagination.totalPages))) return;
-    _cb.loadSyncActivity?.({ page })?.catch?.(() => { });
-  };
-
-  elements.syncActivityPrevious?.addEventListener("click", () => changeSyncActivityPage(-1));
-  elements.syncActivityNext?.addEventListener("click", () => changeSyncActivityPage(1));
-
-  elements.syncActivityPagination?.addEventListener("click", (event) => {
-    const pageButton = event.target.closest("[data-sync-activity-page]");
-    if (!pageButton) return;
-    const page = Number(pageButton.dataset.syncActivityPage);
-    if (!Number.isFinite(page) || page < 1 || page === Number(state.syncActivityPagination?.page)) return;
-    _cb.loadSyncActivity?.({ page })?.catch?.(() => { });
-  });
-
-  elements.syncActivityRows?.addEventListener("click", (event) => {
-    const fixShow = event.target.closest("[data-sync-activity-fix-show]");
-    if (fixShow) {
-      const groupKey = String(fixShow.dataset.syncActivityFixShow || "").trim();
-      const showTitle = String(fixShow.dataset.syncActivityFixShowTitle || "").trim();
-      if (!groupKey || !showTitle) {
-        setMessage("This show activity group does not contain enough information to fix the show match.", "error");
-        return;
-      }
-      fixShow.disabled = true;
-      _cb.openFixMatchDialog?.(null, "", showTitle, "episode", async (saved = {}) => {
-        setMessage(`Show match updated for ${showTitle}. Retrying all current failed entries...`, "success");
-        try {
-          const result = await _cb.retrySyncActivityGroup?.(groupKey, {
-            tvdbId: saved.tvdb_id || saved.tvdbId || "",
-            showTitle: saved.show_title || saved.showTitle || saved.title || showTitle,
-            traktTmdbId: saved.trakt_tmdb_id || saved.traktTmdbId || "",
-            traktSourceSeason: saved.trakt_source_season || saved.traktSourceSeason || "",
-            traktTargetSeason: saved.trakt_target_season || saved.traktTargetSeason || "",
-          });
-          const processed = Number(result?.processed || result?.total || 0);
-          const failed = Number(result?.stillFailed || 0) + Number(result?.errored || 0);
-          setMessage(
-            `Show match updated. Retried ${processed} entr${processed === 1 ? "y" : "ies"}: ${result?.succeeded || 0} succeeded, ${result?.stillFailed || 0} still failed, ${result?.skipped || 0} skipped.`,
-            failed ? "warning" : "success",
-          );
-        } catch (error) {
-          setMessage(`Show match updated, but retrying the ${showTitle} entries failed: ${error.message || String(error)}`, "error");
-        }
-      }, {
-        headerTitle: `Fix show match · ${showTitle}`,
-        currentTvdbId: fixShow.dataset.syncActivityFixShowCurrentTvdb || "",
-        traktSourceSeason: fixShow.dataset.syncActivityFixShowSourceSeason || "",
-        traktTargetSeason: "1",
-        onSkipLabel: "Skip Trakt for now",
-        onSkip: async () => {
-          try {
-            const result = await _cb.dismissSyncActivityGroup?.(groupKey);
-            setMessage(`Skipped ${Number(result?.dismissed || 0) || "the"} Trakt error${Number(result?.dismissed || 0) === 1 ? "" : "s"} for ${showTitle} for now.`, "muted");
-          } catch (error) {
-            setMessage(`Could not skip the Trakt errors for ${showTitle}: ${error.message || String(error)}`, "error");
-          }
-        },
-        onCancel: () => {
-          if (fixShow.isConnected) fixShow.disabled = false;
-        },
-      });
-      return;
-    }
-
-    const dismissShow = event.target.closest("[data-sync-activity-dismiss-show]");
-    if (dismissShow && !dismissShow.disabled) {
-      const groupKey = String(dismissShow.dataset.syncActivityDismissShow || "").trim();
-      const showTitle = String(dismissShow.dataset.syncActivityDismissShowTitle || "").trim() || "this show";
-      const count = Math.max(Number(dismissShow.dataset.syncActivityDismissShowCount) || 0, 1);
-      const confirmed = _cb.openConfirmDialog
-        ? _cb.openConfirmDialog({
-          title: `Dismiss Trakt errors for ${showTitle}?`,
-          body: `${count} ${count === 1 ? "episode" : "episodes"} will be marked as intentionally skipped because Trakt does not have this show. Plembfin will keep the local watched state and remember this choice if a later retry still gets the same Trakt not-found result.`,
-          confirmLabel: `Dismiss ${count} error${count === 1 ? "" : "s"}`,
-        })
-        : Promise.resolve(true);
-      dismissShow.disabled = true;
-      Promise.resolve(confirmed).then(async (accepted) => {
-        if (!accepted) {
-          if (dismissShow.isConnected) dismissShow.disabled = false;
-          return;
-        }
-        try {
-          const result = await _cb.dismissSyncActivityGroup?.(groupKey);
-          const dismissed = Number(result?.dismissed || 0);
-          const failed = Number(result?.failed || 0);
-          setMessage(
-            failed ? `Dismissed ${dismissed} Trakt error${dismissed === 1 ? "" : "s"}; ${failed} could not be dismissed.` : `Dismissed ${dismissed} Trakt error${dismissed === 1 ? "" : "s"} for ${showTitle}.`,
-            failed ? "warning" : "muted",
-          );
-        } catch (error) {
-          setMessage(error.message || `Could not dismiss the Trakt errors for ${showTitle}.`, "error");
-          if (dismissShow.isConnected) dismissShow.disabled = false;
-        }
-      }).catch((error) => {
-        setMessage(error.message || `Could not dismiss the Trakt errors for ${showTitle}.`, "error");
-        if (dismissShow.isConnected) dismissShow.disabled = false;
-      });
-      return;
-    }
-
-    const dismiss = event.target.closest("[data-sync-activity-dismiss]");
-    if (dismiss && !dismiss.disabled) {
-      const activityId = String(dismiss.dataset.syncActivityDismiss || "").trim();
-      const showTitle = String(dismiss.dataset.syncActivityDismissTitle || "").trim() || "this show";
-      const confirmed = _cb.openConfirmDialog
-        ? _cb.openConfirmDialog({
-          title: "Dismiss this Trakt error?",
-          body: `Trakt does not have ${showTitle}. The local watched state will stay unchanged and this Trakt update will be marked as intentionally skipped.`,
-          confirmLabel: "Dismiss error",
-        })
-        : Promise.resolve(true);
-      dismiss.disabled = true;
-      Promise.resolve(confirmed).then(async (accepted) => {
-        if (!accepted) {
-          if (dismiss.isConnected) dismiss.disabled = false;
-          return;
-        }
-        try {
-          await _cb.dismissSyncActivity?.(activityId);
-          setMessage(`Dismissed the Trakt error for ${showTitle}.`, "muted");
-        } catch (error) {
-          setMessage(error.message || `Could not dismiss the Trakt error for ${showTitle}.`, "error");
-          if (dismiss.isConnected) dismiss.disabled = false;
-        }
-      }).catch((error) => {
-        setMessage(error.message || `Could not dismiss the Trakt error for ${showTitle}.`, "error");
-        if (dismiss.isConnected) dismiss.disabled = false;
-      });
-      return;
-    }
-
-    const fixMatch = event.target.closest("[data-sync-activity-fix-match]");
-    if (fixMatch) {
-      const activityId = String(fixMatch.dataset.syncActivityFixMatch || "").trim();
-      const showTitle = String(fixMatch.dataset.syncActivityFixMatchTitle || "").trim();
-      if (!activityId || !showTitle) {
-        setMessage("This Trakt issue does not contain enough information to fix the show match.", "error");
-        return;
-      }
-      fixMatch.disabled = true;
-      _cb.openFixMatchDialog?.(null, "", showTitle, "episode", async (saved = {}) => {
-        setMessage(`Show match updated for ${showTitle}. Retrying the Trakt update...`, "success");
-        try {
-          const result = await _cb.retrySyncActivity?.(activityId, {
-            tvdbId: saved.tvdb_id || saved.tvdbId || "",
-            showTitle: saved.show_title || saved.showTitle || saved.title || showTitle,
-            traktTmdbId: saved.trakt_tmdb_id || saved.traktTmdbId || "",
-            traktSourceSeason: saved.trakt_source_season || saved.traktSourceSeason || "",
-            traktTargetSeason: saved.trakt_target_season || saved.traktTargetSeason || "",
-          });
-          if (result?.status === "success") {
-            setMessage(`Show match updated and the Trakt issue for ${showTitle} was resolved.`, "success");
-          } else if (result?.status === "skipped") {
-            setMessage(`Show match updated, but Trakt skipped the ${showTitle} update: ${result.details || "no Trakt destination is configured"}.`, "warning");
-          } else if (result?.details) {
-            setMessage(`Show match updated, but Trakt still needs attention for ${showTitle}: ${result.details}`, "warning");
-          }
-        } catch (error) {
-          setMessage(`Show match updated, but the Trakt retry failed: ${error.message || String(error)}`, "error");
-        }
-      }, {
-        headerTitle: `Fix show match · ${showTitle}`,
-        currentTvdbId: fixMatch.dataset.syncActivityFixMatchCurrentTvdb || "",
-        traktSourceSeason: fixMatch.dataset.syncActivityFixMatchSourceSeason || "",
-        traktSourceEpisode: fixMatch.dataset.syncActivityFixMatchSourceEpisode || "",
-        traktTargetSeason: "1",
-        onSkipLabel: "Skip Trakt for now",
-        onSkip: async () => {
-          try {
-            await _cb.dismissSyncActivity?.(activityId);
-            setMessage(`Skipped the Trakt error for ${showTitle} for now.`, "muted");
-          } catch (error) {
-            setMessage(`Could not skip the Trakt error for ${showTitle}: ${error.message || String(error)}`, "error");
-          }
-        },
-      });
-      return;
-    }
-
-    const retry = event.target.closest("[data-sync-activity-retry]");
-    if (retry) {
-      // Feedback renders inline on the row itself (and is folded into its log)
-      // rather than as a toast - retrySyncActivity handles every outcome
-      // internally and never throws, so there's nothing to do with the result here.
-      _cb.retrySyncActivity?.(retry.dataset.syncActivityRetry)?.catch?.(() => { });
-      return;
-    }
-
-    const older = event.target.closest("[data-sync-activity-group-more]");
-    if (older) {
-      older.disabled = true;
-      older.textContent = "Loading older events...";
-      _cb.loadOlderSyncActivityGroup?.(older.dataset.syncActivityGroupMore, older.dataset.syncActivityGroupPage, older.dataset.syncActivityGroupLatestOnly)
-        ?.catch?.((error) => setMessage(error.message || "Could not load older activity.", "error"));
-      return;
-    }
-
-    const groupView = event.target.closest("[data-sync-activity-group-view]");
-    if (groupView) {
-      const key = groupView.dataset.syncActivityGroupKey;
-      const latestOnly = groupView.dataset.syncActivityGroupView !== "history";
-      _cb.setSyncActivityGroupView?.(key, latestOnly)?.catch?.((error) => setMessage(error.message || "Could not change the activity view.", "error"));
-      return;
-    }
-
-    const download = event.target.closest("[data-sync-activity-download]");
-    if (download) {
-      Promise.resolve(_cb.downloadSyncActivityLog?.(download.dataset.syncActivityDownload))
-        .then((downloaded) => {
-          if (!downloaded) setMessage("That sync log is no longer available - refresh the page.", "error");
-        })
-        .catch((error) => setMessage(error.message || "Could not download the sync log.", "error"));
-      return;
-    }
-
-    const titleLink = event.target.closest("[data-media-href]");
-    if (titleLink?.dataset.mediaHref) {
-      navigateTo(titleLink.dataset.mediaHref);
-      return;
-    }
-
-    if (event.target.closest(".sync-activity-group-detail")) return;
-
-    const row = event.target.closest(".sync-activity-row");
-    if (row) _cb.toggleSyncActivityRowLog?.(row);
-  });
-
-  elements.syncActivityRows?.addEventListener("keydown", (event) => {
-    if (event.key !== "Enter" && event.key !== " ") return;
-    if (event.target.closest(".sync-activity-group-detail") || event.target.closest("button,[data-media-href]")) return;
-    const row = event.target.closest(".sync-activity-group-row");
-    if (!row) return;
-    event.preventDefault();
-    _cb.toggleSyncActivityRowLog?.(row);
   });
 
   elements.appVersion?.addEventListener("click", () => {
@@ -1965,7 +1532,6 @@ function attachEvents() {
     }
   }, { passive: false });
 
-  attachMediaDetailEvents();
 
   document.addEventListener("keydown", (event) => {
     if (!["Enter", " "].includes(event.key)) return;
@@ -1975,61 +1541,6 @@ function attachEvents() {
     if (!historyRow) return;
     event.preventDefault();
     openHistoryDebugModal(historyRow.dataset.historyId).catch((error) => setMessage(error.message, "error"));
-  });
-
-  elements.adminCredentialsForm.addEventListener("submit", (event) => {
-    event.preventDefault();
-    saveAdminCredentials().catch((error) => {
-      renderAdminCredentialsStatus(error.message, "error");
-      setMessage(error.message, "error");
-    });
-  });
-
-  elements.rotateWebhookButton?.addEventListener("click", () => {
-    showConfirmModal(
-      "Rotating your webhook secret will immediately invalidate your current webhook token.\n\nAll incoming webhook events sent using the old secret will fail with an HTTP 401 Unauthorized error until you update the URL in every configured service.",
-      () => {
-        showConfirmModal(
-          "Are you 100% sure you want to rotate your webhook secret right now?\n\nRemember: Your media servers (Plex, Emby, Jellyfin) and automation scripts will stop syncing watchstates until you paste the new URL into their settings.",
-          async () => {
-            try {
-              await rotateWebhookSecret();
-              renderSettingsInlineHelp();
-              setMessage("Webhook secret rotated successfully. Remember to update the URL in Plex, Emby, Jellyfin, and your automation clients.", "success");
-            } catch (error) {
-              setMessage(`Failed to rotate webhook secret: ${error.message}`, "error");
-            }
-          },
-          {
-            title: "Final Confirmation: Rotate Webhook Secret",
-            approveLabel: "Yes, Rotate Secret Now",
-          }
-        );
-      },
-      {
-        title: "Rotate Webhook Secret - Step 1 of 2",
-        approveLabel: "Proceed to Final Step",
-        mediaHtml: `
-          <div style="background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.25); border-radius: 8px; padding: 12px; margin-bottom: 12px; font-size: 0.82rem; line-height: 1.5; color: var(--text);">
-            <b style="color: #ef4444; display: block; margin-bottom: 6px; font-size: 0.88rem;">⚠️ Required Updates After Rotation:</b>
-            <ol style="margin: 0; padding-left: 1.2rem; display: grid; gap: 4px;">
-              <li><b>Plex Media Server:</b> Update the Webhook URL in Plex Web Settings ➔ Webhooks.</li>
-              <li><b>Emby Server:</b> Update the Webhook URL in Emby Server Settings ➔ Webhooks.</li>
-              <li><b>Jellyfin Server:</b> Update the generic webhook URL in Jellyfin Dashboard ➔ Plugins ➔ Webhooks.</li>
-              <li><b>Automation Clients:</b> Update any scripts, daemons, or tools passing <code>X-Plembfin-Webhook-Secret</code> or <code>Authorization: Bearer</code> headers.</li>
-            </ol>
-          </div>
-        `,
-      }
-    );
-  });
-
-  elements.explorerSearchInput?.addEventListener("input", () => {
-    window.clearTimeout(state.explorerSearchTimer);
-    state.explorerSearchTimer = window.setTimeout(() => {
-      state.explorerSearch = elements.explorerSearchInput.value.trim();
-      renderExplorer();
-    }, 220);
   });
 
   elements.globalSearchInput?.addEventListener("keydown", (event) => {
@@ -2118,316 +1629,6 @@ function attachEvents() {
     }
   });
 
-  elements.importFile.addEventListener("change", async () => {
-    const files = elements.importFile.files;
-    if (!files?.length) return;
-    try {
-      await parseSelectedFiles(files);
-      setMessage(`Parsed ${state.importRecords.length} records from ${files.length} file${files.length === 1 ? "" : "s"}.`, "success");
-    } catch (error) {
-      state.importRecords = [];
-      state.importFileNames = [];
-      appendImportLog(`Parse failed: ${error.message}`);
-      renderImportPreview();
-      setMessage(`Import parse failed: ${error.message}`, "error");
-    }
-  });
-
-  elements.startImportButton.addEventListener("click", () => {
-    startImport().catch((error) => setMessage(error.message, "error"));
-  });
-
-  elements.clearImportButton.addEventListener("click", () => {
-    state.importRecords = [];
-    state.importFileNames = [];
-    state.importLogs = ["[idle] Waiting for files."];
-    state.importProgressValue = 0;
-    elements.importFile.value = "";
-    renderImportPreview();
-    setMessage("Import selection cleared.");
-  });
-
-  elements.backupExportPassphrase?.addEventListener("input", () => {
-    updatePlembfinButtonsState();
-  });
-  elements.backupExportRememberPassphrase?.addEventListener("change", () => {
-    updatePlembfinButtonsState();
-  });
-  elements.plembfinBackupEnabled?.addEventListener("change", () => {
-    updatePlembfinButtonsState();
-  });
-
-  elements.plembfinBackupRemotePassphrase?.addEventListener("input", () => {
-    updatePlembfinButtonsState();
-  });
-  elements.plembfinBackupRemoteRememberPassphrase?.addEventListener("change", () => {
-    updatePlembfinButtonsState();
-  });
-  elements.plembfinBackupRemoteEnabled?.addEventListener("change", () => {
-    updatePlembfinButtonsState();
-  });
-
-  elements.savePlembfinBackupRemoteButton?.addEventListener("click", () => {
-    savePlembfinBackupRemoteSettings().catch((error) => setMessage(error.message, "error"));
-  });
-
-  elements.createPlembfinBackupRemoteButton?.addEventListener("click", () => {
-    createPlembfinBackupRemoteNow().catch((error) => setMessage(error.message, "error"));
-  });
-
-  elements.createRemoteWatchBackupButton?.addEventListener("click", () => {
-    createRemoteWatchBackupNow().catch((error) => setMessage(error.message, "error"));
-  });
-
-  elements.saveRemoteWatchBackupConfigButton?.addEventListener("click", () => {
-    saveRemoteWatchBackupSettings().catch((error) => setMessage(error.message, "error"));
-  });
-
-  elements.savePlembfinBackupConfigButton?.addEventListener("click", () => {
-    savePlembfinBackupSettings().catch((error) => setMessage(error.message, "error"));
-  });
-
-  elements.createPlembfinBackupButton?.addEventListener("click", () => {
-    createPlembfinBackupNow().catch((error) => setMessage(error.message, "error"));
-  });
-
-  elements.plembfinBackupList?.addEventListener("click", (event) => {
-    const downloadBtn = event.target.closest("[data-plembfin-backup-download]");
-    if (downloadBtn) {
-      const filename = downloadBtn.dataset.plembfinBackupDownload;
-      downloadPlembfinBackup(filename).catch((error) => setMessage(error.message, "error"));
-    }
-    const restoreBtn = event.target.closest("[data-plembfin-backup-restore]");
-    if (restoreBtn) {
-      const filename = restoreBtn.dataset.plembfinBackupRestore;
-      restorePlembfinBackupFromServer(filename).catch((error) => setMessage(error.message, "error"));
-    }
-    const deleteBtn = event.target.closest("[data-plembfin-backup-delete]");
-    if (deleteBtn) {
-      const filename = deleteBtn.dataset.plembfinBackupDelete;
-      deletePlembfinBackupFile(filename).catch((error) => setMessage(error.message, "error"));
-    }
-  });
-
-  elements.remotePlembfinBackupList?.addEventListener("click", (event) => {
-    const restoreBtn = event.target.closest("[data-plembfin-remote-backup-restore]");
-    if (restoreBtn) {
-      const filename = restoreBtn.dataset.plembfinRemoteBackupRestore;
-      const destinationId = restoreBtn.dataset.restoreDestId;
-      restoreRemotePlembfinBackup(destinationId, filename).catch((error) => setMessage(error.message, "error"));
-    }
-  });
-
-  elements.backupRestorePassphrase?.addEventListener("input", () => {
-    const disabled = elements.backupRestorePassphrase.value.trim().length < 12;
-    if (elements.backupImportFile) {
-      elements.backupImportFile.disabled = disabled;
-    }
-    const fileLabel = document.querySelector(".backup-file-button");
-    if (fileLabel) {
-      if (disabled) {
-        fileLabel.classList.add("disabled");
-        fileLabel.style.opacity = "0.5";
-        fileLabel.style.pointerEvents = "none";
-      } else {
-        fileLabel.classList.remove("disabled");
-        fileLabel.style.opacity = "";
-        fileLabel.style.pointerEvents = "";
-      }
-    }
-  });
-
-  elements.backupImportFile?.addEventListener("change", async () => {
-    state.backupImport = null;
-    elements.backupImportButton.disabled = true;
-    const file = elements.backupImportFile.files?.[0];
-    if (!file) {
-      setBackupTransferState("Idle", "muted", "[idle] Enter a passphrase, then choose an encrypted Plembfin backup.", "restore");
-      return;
-    }
-    try {
-      state.backupImport = await readPlembfinBackup(file);
-      const documentCount = state.backupImport.included.reduce((sum, name) => sum + state.backupImport.backup.collections[name].length, 0);
-      elements.backupImportButton.disabled = false;
-      const encryptionLabel = state.backupImport.encrypted ? "Encrypted Plembfin backup" : "Legacy unencrypted Plembfin backup";
-      setBackupTransferState("Ready", "ready", `${encryptionLabel}: ${file.name}\n${formatNumber(documentCount)} documents across ${formatNumber(state.backupImport.included.length)} supported collections.`, "restore");
-    } catch (error) {
-      setBackupTransferState("Invalid", "error", `Backup file rejected: ${error.message}`, "restore");
-      setMessage(error.message, "error");
-    }
-  });
-
-  elements.backupImportButton?.addEventListener("click", () => {
-    importPlembfinBackup().catch((error) => setMessage(error.message, "error"));
-  });
-
-  if (elements.runCompleteCheckButton) {
-    elements.runCompleteCheckButton.addEventListener("click", () => {
-      runSystemIntegrityCheck().catch((error) => {
-        setMessage(`Integrity check exception: ${error.message}`, "error");
-      });
-    });
-  }
-
-  if (elements.refreshCacheStatsButton) {
-    elements.refreshCacheStatsButton.addEventListener("click", () => {
-      loadCacheStats({ force: true }).catch((error) => setMessage(error.message, "error"));
-    });
-  }
-
-  if (elements.runRepairButton) {
-    elements.runRepairButton.addEventListener("click", () => {
-      runRepairWorkflow().catch((error) => {
-        renderSettingsStatus(error.message, "error");
-        setMessage(error.message, "error");
-      });
-    });
-  }
-
-  if (elements.traktBackfillButton) {
-    elements.traktBackfillButton.addEventListener("click", () => {
-      runTraktBackfill().catch((error) => {
-        elements.traktBackfillStatus.textContent = `Error: ${error?.message || String(error)}`;
-      });
-    });
-  }
-
-  if (elements.phantomAuditButton) {
-    elements.phantomAuditButton.addEventListener("click", () => {
-      _cb.runPhantomWatchAudit?.().catch((error) => {
-        if (elements.phantomAuditStatus) elements.phantomAuditStatus.textContent = `Error: ${error?.message || String(error)}`;
-      });
-    });
-  }
-
-  if (elements.phantomRepairButton) {
-    elements.phantomRepairButton.addEventListener("click", () => {
-      _cb.runPhantomWatchRepair?.().catch((error) => {
-        if (elements.phantomAuditStatus) elements.phantomAuditStatus.textContent = `Error: ${error?.message || String(error)}`;
-      });
-    });
-  }
-
-  if (elements.duplicateWatchTvButton) {
-    elements.duplicateWatchTvButton.addEventListener("click", () => {
-      _cb.runDuplicateWatchCleanup?.("episode").catch((error) => {
-        if (elements.duplicateWatchStatus) elements.duplicateWatchStatus.textContent = `Error: ${error?.message || String(error)}`;
-      });
-    });
-  }
-
-  if (elements.duplicateWatchMovieButton) {
-    elements.duplicateWatchMovieButton.addEventListener("click", () => {
-      _cb.runDuplicateWatchCleanup?.("movie").catch((error) => {
-        if (elements.duplicateWatchStatus) elements.duplicateWatchStatus.textContent = `Error: ${error?.message || String(error)}`;
-      });
-    });
-  }
-
-  if (elements.episodeTitleAuditButton) {
-    elements.episodeTitleAuditButton.addEventListener("click", () => {
-      runEpisodeTitleAudit().catch((error) => {
-        if (elements.episodeTitleStatus) elements.episodeTitleStatus.textContent = `Error: ${error?.message || String(error)}`;
-      });
-    });
-  }
-
-  if (elements.episodeTitleBackfillButton) {
-    elements.episodeTitleBackfillButton.addEventListener("click", () => {
-      runEpisodeTitleBackfill().catch((error) => {
-        if (elements.episodeTitleStatus) elements.episodeTitleStatus.textContent = `Error: ${error?.message || String(error)}`;
-      });
-    });
-  }
-
-  if (elements.wipeDataContent) {
-    elements.wipeDataContent.addEventListener("click", (event) => {
-      const button = event.target.closest("[data-wipe-scope]");
-      if (!button) return;
-      _cb.runWipeData?.(button.dataset.wipeScope)?.catch?.(() => {});
-    });
-  }
-
-  if (elements.refreshMetadataButton) {
-    elements.refreshMetadataButton.addEventListener("click", () => {
-      runRefreshMetadataWorkflow().catch((error) => {
-        if (elements.refreshMetadataStatus) elements.refreshMetadataStatus.textContent = `Error: ${error?.message || String(error)}`;
-      });
-    });
-  }
-
-  if (elements.refreshTvdbButton) {
-    elements.refreshTvdbButton.addEventListener("click", () => {
-      runRefreshTvdbMetadataWorkflow().catch((error) => {
-        if (elements.refreshTvdbStatus) elements.refreshTvdbStatus.textContent = `Error: ${error?.message || String(error)}`;
-      });
-    });
-  }
-
-  if (elements.rematchTvButton) {
-    elements.rematchTvButton.addEventListener("click", () => {
-      runRematchTvShows().catch((error) => {
-        if (elements.rematchTvStatus) elements.rematchTvStatus.textContent = `Error: ${error?.message || String(error)}`;
-      });
-    });
-  }
-
-  if (elements.runCronSyncButton) {
-    elements.runCronSyncButton.addEventListener("click", () => {
-      triggerCronSync().catch(() => { });
-    });
-  }
-
-  if (elements.refreshSyncButton) {
-    elements.refreshSyncButton.addEventListener("click", () => {
-      loadSyncJobs({ force: true }).catch((error) => setMessage(error.message, "error"));
-      loadSyncHistory({ force: true }).catch((error) => setMessage(error.message, "error"));
-    });
-  }
-
-  if (elements.stopSyncButton) {
-    elements.stopSyncButton.addEventListener("click", () => {
-      triggerStopSync().catch(() => { });
-    });
-  }
-
-  // Sync issues toggle
-  if (elements.syncIssuesToggle) {
-    elements.syncIssuesToggle.addEventListener("click", () => {
-      const isHidden = elements.syncIssuesContent.classList.contains("hidden");
-      if (isHidden) {
-        elements.syncIssuesContent.classList.remove("hidden");
-        elements.syncIssuesToggleIcon.textContent = "▼";
-      } else {
-        elements.syncIssuesContent.classList.add("hidden");
-        elements.syncIssuesToggleIcon.textContent = "▶";
-      }
-    });
-  }
-
-  // Event delegation for action buttons in sync issues
-  document.addEventListener("click", (e) => {
-    if (e.target.dataset.action === "clearMissingTelemetry") {
-      triggerClearMissingTelemetry(e.target).catch(() => { });
-    }
-    if (e.target.dataset.action === "retryAllCategory") {
-      triggerRetryAllCategory(e.target.dataset.category, e.target).catch(() => { });
-    }
-    if (e.target.classList.contains("dismiss-issue-btn")) {
-      const issueCard = e.target.closest(".sync-issue-card");
-      if (issueCard) {
-        issueCard.style.animation = "fadeOut 0.3s ease forwards";
-        setTimeout(() => {
-          issueCard.remove();
-          const container = document.getElementById("syncIssuesContainer");
-          if (container && container.querySelectorAll(".sync-issue-card").length === 0) {
-            loadSyncJobs({ force: true }).catch(() => { });
-          }
-        }, 300);
-      }
-    }
-  });
-
   window.addEventListener("error", (event) => {
     logDebug("Global browser error captured.", {
       message: event.message,
@@ -2495,18 +1696,6 @@ function attachEvents() {
     _cb.resetPageEntryState?.(path);
     handleRouting(path);
     applyActiveView();
-  });
-
-  elements.explorerPosterSize?.addEventListener("input", (e) => {
-    const val = e.target.value;
-    document.documentElement.style.setProperty("--poster-width", `${val}px`);
-    localStorage.setItem(currentPosterWidthKey(), `${val}px`);
-  });
-
-  elements.historyPosterSize?.addEventListener("input", (e) => {
-    const val = e.target.value;
-    document.documentElement.style.setProperty("--history-poster-width", `${val}px`);
-    localStorage.setItem("plembfin:history:posterWidth", `${val}px`);
   });
 
   // Keep the legacy Part Watched panel fallbacks for older embeds. The current
@@ -2627,64 +1816,6 @@ function attachEvents() {
       }, { title: "Clear Progress", mediaHtml });
     }
   });
-
-  elements.historySearchInput?.addEventListener("input", () => {
-    window.clearTimeout(state.historyViewSearchTimer);
-    state.historyViewSearchTimer = window.setTimeout(() => {
-      state.historyViewSearch = elements.historySearchInput.value.trim();
-      renderHistoryView();
-    }, 220);
-  });
-
-  const unlockHistorySearch = () => elements.historySearchInput?.removeAttribute("readonly");
-  elements.historySearchInput?.addEventListener("pointerdown", unlockHistorySearch);
-  elements.historySearchInput?.addEventListener("focus", unlockHistorySearch);
-
-  for (const btn of elements.historyFilterButtons || []) {
-    btn.addEventListener("click", () => {
-      const filter = btn.dataset.historyFilter || "all";
-      if (!HISTORY_FILTERS.includes(filter)) return;
-      if (filter === state.historyViewFilter) return;
-      state.historyViewFilter = filter;
-      localStorage.setItem(HISTORY_FILTER_KEY, filter);
-      resetHistoryView([state.historyViewSearch, state.historyViewFilter].join("|"));
-      renderHistoryView();
-    });
-  }
-
-  for (const btn of elements.historyViewButtons || []) {
-    btn.addEventListener("click", () => {
-      const view = btn.dataset.historyView || "grid";
-      if (!HISTORY_VIEW_MODES.includes(view)) return;
-      if (view === state.historyViewMode) return;
-      state.historyViewMode = view;
-      localStorage.setItem(HISTORY_VIEW_KEY, view);
-      renderHistoryView();
-    });
-  }
-
-  for (const btn of elements.explorerViewButtons || []) {
-    btn.addEventListener("click", () => {
-      const view = btn.dataset.explorerView;
-      if (!view || view === currentExplorerView()) return;
-      if (state.explorerMode === "shows") {
-        state.explorerViewShows = view;
-        localStorage.setItem(EXPLORER_VIEW_KEY_SHOWS, view);
-        state.showsRaw = [];
-        state.showsOffset = 0;
-        state.showsHasMore = true;
-        state.showsLoading = false;
-      } else {
-        state.explorerViewMovies = view;
-        localStorage.setItem(EXPLORER_VIEW_KEY_MOVIES, view);
-        state.moviesRaw = [];
-        state.moviesOffset = 0;
-        state.moviesHasMore = true;
-        state.moviesLoading = false;
-      }
-      renderExplorer();
-    });
-  }
 
   elements.closeTerminalModalButton?.addEventListener("click", () => {
     elements.terminalModal?.classList.add("hidden");

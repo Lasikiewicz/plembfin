@@ -328,13 +328,15 @@ to expand the group so the actual failed episode is visible instead of presentin
 later skip as the issue.
 
 Clicking a row loads the current result for each movie or episode in that show, newest
-first. This is the actionable view: it is deliberately one row per item, so the issue
-count is not buried under repeated retries or resume checkpoints. The header shows the
-number of current item results and the number that need attention. "Show audit history"
-switches to the complete chronological event stream when older checkpoints or target
-responses need investigating; that view has a "Load older audit records" button for
-unusually large groups. The event details are fetched only when opened, so the default
-list stays quick and readable without deleting audit data.
+first. This is the actionable view: current items with issues get their own issue card
+above the history, with every destination response and the actions that apply to that
+item. Other current results stay available below the issue cards without competing with
+the failure. The header shows the number of current item results and the number that
+need attention. **Failed audit history** is collapsed by default and loads the older
+failed attempts only when opened; that view has a **Load older failed audit records**
+button for unusually large groups. Historical failures are kept for context, but only
+the current issue cards are actionable. The event details are fetched only when opened,
+so the default list stays quick and readable without deleting audit data.
 
 The summary above the list (for example, "Showing 1-25 of 26 media groups / 11 media
 groups with 14 current issues") is red when the activity store contains current issues,

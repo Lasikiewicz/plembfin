@@ -22,6 +22,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { CHANGELOG_ALPHA_MAX_BULLETS, changelogEntryQualityViolations, changelogEntryProcessViolations, filterChangelogEntries, synthesizeHeadline } from "./changelog-message.js";
+import { buildChangelogSectionGroups } from "./changelog-sections.js";
 import { buildVersion } from "./version.js";
 import { gitHeadAuthor, gitHeadCommit } from "./changelog-git-helpers.js";
 import { spawnSync } from "node:child_process";
@@ -189,6 +190,7 @@ export function promoteDevelopToAlpha({ sourceDate = new Date().toISOString(), s
     author: sourceAuthor,
     details: simplifiedDetails,
     sections,
+    sectionGroups: buildChangelogSectionGroups(sections),
   };
   if (messageFragments.length > 1) alphaEntry.messageFragments = messageFragments;
 

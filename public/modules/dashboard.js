@@ -1,9 +1,14 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.7.3";
-import { state, elements } from "./state.js?v=1.1.1.7.3";
-import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, sourceBadgeHtml, formatDate, formatTmdbDate, resolveEpisodeTitle, episodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress, isDemoMode } from "./utils.js?v=1.1.1.7.3";
-import { posterMarkup, posterOverflowMenu, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, isLocalArtworkUrl } from "./images.js?v=1.1.1.7.3";
-import { renderDashboardChecklist } from "./onboarding.js?v=1.1.1.7.3";
-import { initialMediaAppLinksContent } from "./media-detail-shared.js?v=1.1.1.7.3";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.8.1";
+import { state, elements } from "./state.js?v=1.1.1.8.1";
+import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, sourceBadgeHtml, formatDate, formatTmdbDate, resolveEpisodeTitle, episodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress, isDemoMode } from "./utils.js?v=1.1.1.8.1";
+import { posterMarkup, posterOverflowMenu, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, isLocalArtworkUrl } from "./images.js?v=1.1.1.8.1";
+import { ifLoaded } from "./route-modules.js?v=1.1.1.8.1";
+import { initialMediaAppLinksContent } from "./media-detail-shared.js?v=1.1.1.8.1";
+import { dedupeMediaRecords } from "./media-records.js?v=1.1.1.8.1";
+
+// The setup wizard loads only when setup is unfinished or its checklist has
+// items (see the deferred check in app.js); until then there is nothing to show.
+const renderDashboardChecklist = ifLoaded("onboarding", "renderDashboardChecklist");
 
 const PART_WATCHED_DASHBOARD_LIMIT = 30;
 const EXPLORER_PAGE_SIZE = 240;
@@ -82,59 +87,6 @@ export function getRowFitLimit(rowElement) {
   if (width <= 0) return 10;
   const maxCards = Math.floor((width + 12) / 172);
   return Math.max(2, maxCards);
-}
-
-function stablePosterIdentity(value = "") {
-  const raw = String(value || "").trim();
-  if (!raw) return "";
-  const lowered = raw.toLowerCase();
-  if (lowered.includes("favicon") || lowered.includes("placeholder") || lowered.includes("no-poster")) return "";
-  try {
-    const url = new URL(raw, window.location.origin);
-    if (url.hostname.toLowerCase() === "image.tmdb.org") {
-      return `tmdb-poster:${url.pathname.split("/").filter(Boolean).pop() || raw}`;
-    }
-    url.search = "";
-    url.hash = "";
-    return url.toString();
-  } catch {
-    return raw;
-  }
-}
-
-export function mediaRecordIdentity(record = {}, mode = "") {
-  if (mode === "shows" || record.media_type === "episode") {
-    const title = record.show_title || record.title || "";
-    const tmdbId = record.show_tmdb_id || (mode === "shows" ? record.tmdb_id : "");
-    const tvdbId = record.show_tvdb_id || (mode === "shows" ? record.tvdb_id : "");
-    const imdbId = record.show_imdb_id || (mode === "shows" ? record.imdb_id : "");
-    if (tmdbId) return `show:tmdb:${String(tmdbId).toLowerCase()}`;
-    if (tvdbId) return `show:tvdb:${String(tvdbId).toLowerCase()}`;
-    if (imdbId) return `show:imdb:${String(imdbId).toLowerCase()}`;
-    return `show:${slug(title)}`;
-  }
-  const poster = stablePosterIdentity(record.poster_url || record.posterUrl || record.imageUrl || record.thumb || "");
-  if (poster) return `movie:poster:${poster}`;
-  if (record.imdb_id) return `movie:imdb:${String(record.imdb_id).toLowerCase()}`;
-  if (record.tmdb_id) return `movie:tmdb:${String(record.tmdb_id).toLowerCase()}`;
-  if (record.tvdb_id) return `movie:tvdb:${String(record.tvdb_id).toLowerCase()}`;
-  return `movie:title:${slug(record.title)}`;
-}
-
-export function dedupeMediaRecords(records = [], mode = "") {
-  const map = new Map();
-  for (const record of records) {
-    const key = mediaRecordIdentity(record, mode);
-    const existing = map.get(key);
-    if (!existing) {
-      map.set(key, record);
-      continue;
-    }
-    const existingDate = existing.latest_watched_at || existing.watched_at || "";
-    const recordDate = record.latest_watched_at || record.watched_at || "";
-    if (recordDate > existingDate) map.set(key, record);
-  }
-  return [...map.values()];
 }
 
 export function progressRecordIdentity(record = {}) {

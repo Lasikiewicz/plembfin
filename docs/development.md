@@ -250,9 +250,14 @@ in `scripts/promote-alpha-to-main.js`, run before the force-push:
    has been approved. Bumps the real semver - the patch segment, honouring a manually-set higher
    `package.json` version instead (a deliberate major/minor bump). `public/app.js` and
    `generate-changelog-md.js` render `entry.sections` -
-   `newFeatures`/`majorBugFixes`/`tweaks` - as separate "New Features" / "Major Bug
-   Fixes" / "Tweaks" headed groups in Settings → Changelog and `CHANGELOG.md` whenever
+   `newFeatures`/`majorBugFixes`/`tweaks` - as separate "New Features" / "Bug Fixes" /
+   "Tweaks" headed groups in Settings → Changelog and `CHANGELOG.md` whenever
    any section is populated, falling back to the flat `entry.details` list otherwise.
+   Alpha and main promotion automatically derive thematic `entry.sectionGroups`
+   (including Up Next & watch-state, Manual Watch review, Discover & recommendations,
+   and sync recovery); a reviewed release may override those defaults. They render as
+   `####` headings beneath the three impact sections while the flat section arrays
+   remain the compatibility source for release tooling.
 3. Runs the same release-content check (`changelogEntryProcessViolations` in
    `scripts/changelog-message.js`) the alpha promotion already ran, and throws instead
    of writing the entry if any recognized release-process text survives (changelog
@@ -386,8 +391,9 @@ It has its own build/deploy tooling independent of this repo's CI - see
 
 ## Docker
 
-- **`Dockerfile`** - `node:22-slim`, production deps only, non-root `plembfin` user
-  (uid 1000), `VOLUME /data`, healthcheck against `/api/ping`, entrypoint
+- **`Dockerfile`** - `node:25-trixie-slim`, production deps only, non-root `plembfin`
+  user (uid 1000), `VOLUME /data`, and a separate SQLite worker-health probe so
+  synchronous maintenance cannot make the container fail its HTTP healthcheck; entrypoint
   (`scripts/docker-entrypoint.sh`) chowns `/data` and drops privileges via gosu when
   started as root. Dependencies install with `npm ci --omit=dev --ignore-scripts`:
   better-sqlite3 ships a `binding.gyp`, and npm runs `node-gyp rebuild` for any package

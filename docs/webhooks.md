@@ -62,6 +62,10 @@ platforms via their clients (`plexClient.js`, `embyClient.js`, `jellyfinClient.j
 An explicit unwatched event from a configured source changes Plembfin's canonical state
 and propagates unplayed to the other eligible destinations. Manual unwatches in Plembfin
 follow the same transition path and include the originating platform as a destination.
+A later provider watched event does not undo a manual unwatch unless it is an exact
+live-session playback completion whose provider timestamp and Plembfin receive time are
+both newer than the unwatch; generic played flags go to manual review instead (see
+`docs/decisions.md` entry 31).
 
 **Loop detection:** when Plembfin writes a state to (say) Emby, Emby fires its own
 webhook back. `loopStore` (`server/src/utils/loopStore.js`) tracks

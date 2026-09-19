@@ -5,6 +5,7 @@ import { makeTempDataDir } from "./helpers.js";
 makeTempDataDir("plembfin-data-repo-caches-");
 
 const repo = await import("../server/src/utils/dataRepo.js");
+const cacheTelemetry = await import("../server/src/utils/cacheTelemetry.js");
 
 const getters = {
   history: repo.getCachedHistory,
@@ -279,6 +280,17 @@ test("dashboard preview routes an unqualified title-only row through the unique 
   assert.equal(row?.show_tvdb_id, "453869");
 });
 
+test("dashboard preview does not rebuild the full shows cache", async () => {
+  await repo.invalidateHistoryDerivedCaches("preview-cache-regression");
+  cacheTelemetry.resetCacheRebuildTelemetry();
+
+  await repo.queryWatchHistoryPreview({ limit: 20 });
+
+  const rebuilds = cacheTelemetry.cacheRebuildTelemetry().caches;
+  assert.equal(rebuilds.some((entry) => entry.cache === "shows"), false,
+    "dashboard preview should derive its compact show index from history without rebuilding TV library summaries");
+});
+
 test("TV Shows listing excludes groups with no currently watched episodes", async () => {
   await insert({
     title: "Zero Watch Listing Show - S01E01 - Pilot",
@@ -389,6 +401,23 @@ test("dashboard history reuses show artwork and trusted show identity for sparse
   const sparse = preview.find((row) => row.id === sparseId);
   assert.equal(sparse.poster_url, "https://example.test/preview-show.jpg");
   assert.equal(sparse.show_tmdb_id, "808080");
+});
+
+test("history artwork lookup is reused until the history generation changes", async () => {
+  await repo.invalidateHistoryDerivedCaches("history-artwork-cache-test", { skipUpNextAutoSync: true });
+  cacheTelemetry.resetCacheRebuildTelemetry();
+
+  await repo.queryWatchHistory({ mediaType: "episode", limit: 20, offset: 0, dedupe: false });
+  await repo.queryWatchHistory({ mediaType: "episode", limit: 20, offset: 0, dedupe: false });
+
+  let entry = cacheTelemetry.cacheRebuildTelemetry().caches.find((cache) => cache.cache === "historyArtwork");
+  assert.equal(entry?.rebuilds, 1, "repeated history reads should share the artwork index");
+
+  await repo.invalidateHistoryDerivedCaches("history-artwork-cache-test-refresh", { skipUpNextAutoSync: true });
+  await repo.queryWatchHistory({ mediaType: "episode", limit: 20, offset: 0, dedupe: false });
+
+  entry = cacheTelemetry.cacheRebuildTelemetry().caches.find((cache) => cache.cache === "historyArtwork");
+  assert.equal(entry?.rebuilds, 2, "a new history generation must rebuild the artwork index");
 });
 
 test("the watch-date editor finds every play of an episode despite a year-suffix mismatch", async () => {

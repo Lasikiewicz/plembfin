@@ -199,12 +199,16 @@ function progressPercentFrom(values = {}) {
     Number(values.PlaybackPositionTicks) ||
     Number(values.PositionTicks) ||
     Number(values.PlayState?.PositionTicks) ||
-    Number(values.UserData?.PlaybackPositionTicks);
+    Number(values.UserData?.PlaybackPositionTicks) ||
+    Number(values.PlaybackInfo?.PositionTicks) ||
+    Number(values.PlaybackInfo?.PlayState?.PositionTicks);
   const duration =
     Number(values.duration) ||
     Number(values.RunTimeTicks) ||
     Number(values.DurationTicks) ||
-    Number(values.Item?.RunTimeTicks);
+    Number(values.Item?.RunTimeTicks) ||
+    Number(values.PlaybackInfo?.MediaSource?.RunTimeTicks) ||
+    Number(values.PlaybackInfo?.RunTimeTicks);
 
   if (position > 0 && duration > 0) {
     return Math.max(0, Math.min(100, (position / duration) * 100));
@@ -309,7 +313,9 @@ function positionMillisecondsFrom(values = {}) {
       values.PlayState?.PositionTicks ||
       values.UserData?.PlaybackPositionTicks ||
       values.Item?.UserData?.PlaybackPositionTicks ||
-      values.Item?.PlaybackPositionTicks,
+      values.Item?.PlaybackPositionTicks ||
+      values.PlaybackInfo?.PositionTicks ||
+      values.PlaybackInfo?.PlayState?.PositionTicks,
   );
 }
 
@@ -321,7 +327,9 @@ function durationMillisecondsFrom(values = {}) {
     values.RunTimeTicks ||
       values.DurationTicks ||
       values.Item?.RunTimeTicks ||
-      values.Item?.DurationTicks,
+      values.Item?.DurationTicks ||
+      values.PlaybackInfo?.MediaSource?.RunTimeTicks ||
+      values.PlaybackInfo?.RunTimeTicks,
   );
 }
 

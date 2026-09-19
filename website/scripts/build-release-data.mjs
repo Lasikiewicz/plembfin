@@ -50,8 +50,39 @@ function parseEntries(markdown) {
       const summary = paragraphs.find((part) => !part.startsWith("#") && !part.startsWith("-")) || "Release notes for this version.";
       const bullets = [...body.matchAll(/^[-*]\s+(.+)$/gm)]
         .map((item) => item[1].trim())
-        .filter(Boolean)
-        .slice(0, 10);
+        .filter(Boolean);
+
+      const sections = [];
+      let currentSection = null;
+      let currentGroup = null;
+      for (const line of body.split(/\r?\n/)) {
+        const sectionMatch = line.match(/^###\s+(.+)$/);
+        if (sectionMatch) {
+          currentSection = { title: sectionMatch[1].trim(), groups: [] };
+          sections.push(currentSection);
+          currentGroup = null;
+          continue;
+        }
+
+        const groupMatch = line.match(/^####\s+(.+)$/);
+        if (groupMatch && currentSection) {
+          currentGroup = { title: groupMatch[1].trim(), bullets: [] };
+          currentSection.groups.push(currentGroup);
+          continue;
+        }
+
+        const bulletMatch = line.match(/^[-*]\s+(.+)$/);
+        if (!bulletMatch || !currentSection) continue;
+        if (!currentGroup) {
+          currentGroup = { title: "", bullets: [] };
+          currentSection.groups.push(currentGroup);
+        }
+        currentGroup.bullets.push(bulletMatch[1].trim());
+      }
+
+      const hasNamedGroups = sections.some((section) =>
+        section.groups.some((group) => group.title),
+      );
 
       return {
         version: match[1].replace(/^v/, ""),
@@ -59,6 +90,7 @@ function parseEntries(markdown) {
         title: match[1],
         summary: summary.replace(/\s+/g, " "),
         bullets,
+        ...(hasNamedGroups ? { sections } : {}),
       };
     })
     .filter(Boolean);

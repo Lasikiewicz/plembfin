@@ -203,7 +203,10 @@ list arrives shows a loading placeholder instead of a premature "no episodes" me
   unwatch transition remains as an invisible local tombstone until the next history
   merge, so a delayed provider played-flag callback cannot repaint the episode as
   watched; a later explicit provider Mark played event or genuinely newer watch can
-  establish it again.
+  establish it again. On the server, a manual unwatch stays canonical against every
+  generic provider watched flag. Only an exact live-session playback completion whose
+  provider timestamp and Plembfin receive time are both newer than the unwatch can
+  replace it (see `docs/decisions.md` entry 31).
 - **Live import and sync protection** - the detail page consumes the same live
   sync-progress snapshot as the Sync Activity view. When a visible movie or
   episode has pending import/dispatch telemetry, or is the active item reported

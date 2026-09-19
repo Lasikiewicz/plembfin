@@ -1,0 +1,35 @@
+{
+  "capturedAt": "2026-09-18",
+  "status": "mixed-followup-not-gate",
+  "browser": "Chrome via CDP",
+  "server": "http://localhost:5055/",
+  "profile": "warm authenticated profile",
+  "method": "two navigations per route in one isolated tab; document/load events; unique benchmark query",
+  "summary": {
+    "routes": 16,
+    "requestedLoads": 32,
+    "completedLoads": 31,
+    "truncatedLoads": 1,
+    "maxCompletedLoadMs": 2327.2,
+    "maxCompletedTtfbMs": 1846.0,
+    "truncatedRoute": "/movies"
+  },
+  "routeMediansMs": {
+    "/": {"load": 1453.1, "ttfb": 895.6},
+    "/movies": {"load": 1544.1, "ttfb": 822.1},
+    "/tvshows": {"load": 2278.8, "ttfb": 1718.4},
+    "/upcoming": {"load": 2165.4, "ttfb": 1295.1},
+    "/discover": {"load": 2120.9, "ttfb": 1581.9},
+    "/watchlist": {"load": 1935.6, "ttfb": 1446.1},
+    "/ratings": {"load": 926.5, "ttfb": 415.1},
+    "/custom-lists": {"load": 808.2, "ttfb": 309.7},
+    "/history": {"load": 2327.2, "ttfb": 1846.0},
+    "/stats": {"load": 1976.8, "ttfb": 1400.6},
+    "/settings": {"load": 699.7, "ttfb": 183.5},
+    "/about": {"load": 751.4, "ttfb": 264.9},
+    "/media/tv/ludwig": {"load": 1930.1, "ttfb": 1264.8},
+    "/media/tv/reacher": {"load": 1781.8, "ttfb": 1146.2},
+    "/media/movie/bad-grandpa": {"load": 1522.5, "ttfb": 822.5},
+    "/media/movie/a-quiet-place": {"load": 1643.7, "ttfb": 1117.1}
+  }
+}

@@ -5,6 +5,7 @@ import { test } from "node:test";
 import express from "express";
 import {
   createCspImageOriginMemo,
+  createHttpTimingMiddleware,
   createResponseCompression,
   setPublicAssetCacheHeaders,
 } from "../server/src/utils/httpPerformance.js";
@@ -80,6 +81,34 @@ test("ordinary responses are gzip-compressed while live updates are not", async 
     assert.match(String(events.response.headers["cache-control"]), /no-transform/);
     assert.match(events.body.toString(), /data: ok/);
   });
+});
+
+test("opt-in HTTP timing reports slow responses and event-loop context", async () => {
+  const events = [];
+  const timing = createHttpTimingMiddleware({
+    enabled: true,
+    thresholdMs: 0,
+    logger: (event) => events.push(event),
+  });
+  const app = express();
+  app.use(timing);
+  app.get("/slow", (_req, res) => res.status(204).end());
+
+  await withServer(app, async (server) => {
+    const result = await request(server, "/slow");
+    assert.equal(result.response.statusCode, 204);
+  });
+  timing.stop();
+
+  assert.equal(events.length, 1);
+  assert.equal(events[0].event, "http-slow-request");
+  assert.equal(events[0].method, "GET");
+  assert.equal(events[0].path, "/slow");
+  assert.equal(events[0].status, 204);
+  assert.equal(typeof events[0].durationMs, "number");
+  assert.equal(typeof events[0].activeRequests, "number");
+  assert.equal(typeof events[0].eventLoopDelayMs, "number");
+  assert.equal(typeof events[0].eventLoopMaxMs, "number");
 });
 
 test("public static headers revalidate index and manifest without starting long max-age", () => {

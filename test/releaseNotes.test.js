@@ -55,7 +55,7 @@ test("release notes render categorized changes and shared release guidance", () 
 
   assert.match(notes, /## What changed in this release/);
   assert.match(notes, /### New Features\n\n- Explainable Sync Activity/);
-  assert.match(notes, /### Major Bug Fixes\n\n- Repair provider identity matches/);
+  assert.match(notes, /### Bug Fixes\n\n- Repair provider identity matches/);
   assert.match(notes, /## Start safely/);
   assert.match(notes, /## Known limitations/);
   assert.match(notes, /ghcr\.io\/lasikiewicz\/plembfin:latest/);

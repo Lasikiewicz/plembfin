@@ -1,0 +1,87 @@
+{
+  "benchmark": "application-speed-phase-e-tv-details",
+  "date": "2026-09-18",
+  "browser": "Chrome 153.0.0.0 on Windows 10 (authenticated local tab)",
+  "appVersion": "1.1.2",
+  "cacheMode": "normal browser cache; sequential hard navigations with a unique query string",
+  "workers": "normal local worker configuration; no provider or media-server state was mutated",
+  "method": "Six navigations per representative TV detail route; discard the first sample and calculate the median from the remaining five. Chrome Navigation Timing, the detail-primary-ready performance mark, CDP Network loadingFinished bytes, and page resource entries were captured.",
+  "routes": {
+    "Ludwig": {
+      "path": "/tvshow/tvdb/435298-ludwig",
+      "samples": [
+        { "ttfbMs": 7.0, "loadMs": 129.2, "primaryReadyMs": 1235.1, "requests": 105, "apiRequests": 27, "transferBytes": 941200 },
+        { "ttfbMs": 7.8, "loadMs": 154.3, "primaryReadyMs": 904.4, "requests": 102, "apiRequests": 26, "transferBytes": 939318 },
+        { "ttfbMs": 16.2, "loadMs": 136.6, "primaryReadyMs": 822.7, "requests": 104, "apiRequests": 26, "transferBytes": 941200 },
+        { "ttfbMs": 7.4, "loadMs": 129.4, "primaryReadyMs": 711.1, "requests": 104, "apiRequests": 26, "transferBytes": 941200 },
+        { "ttfbMs": 6.7, "loadMs": 136.9, "primaryReadyMs": 1051.3, "requests": 103, "apiRequests": 26, "transferBytes": 940259 },
+        { "ttfbMs": 18.3, "loadMs": 164.1, "primaryReadyMs": 951.0, "requests": 104, "apiRequests": 26, "transferBytes": 941200 }
+      ],
+      "postWarmupMedian": { "primaryReadyMs": 904.4, "apiRequests": 26, "transferBytes": 941200 },
+      "imageRequests": 30,
+      "imageDecodedBytes": 634596,
+      "consoleErrorsOrWarnings": 0,
+      "apiInventoryPerSteadySample": {
+        "/api/ping": 1,
+        "/api/auth/status": 1,
+        "/api/auth/apikey": 1,
+        "/api/auth/webhook-secret": 1,
+        "/api/refresh-tmdb-metadata": 1,
+        "/api/refresh-tvdb-metadata": 1,
+        "/api/now-playing": 3,
+        "/api/history": 1,
+        "/api/manual-watch-review": 1,
+        "/api/sync-attention": 1,
+        "/api/setup/status": 2,
+        "/api/config": 1,
+        "/api/appearance": 1,
+        "/api/show": 1,
+        "/api/tmdb-details-batch": 1,
+        "/api/playback-progress": 1,
+        "/api/tmdb-profile": 7
+      }
+    },
+    "Reacher": {
+      "path": "/tvshow/tmdb/108978-reacher",
+      "samples": [
+        { "ttfbMs": 7.7, "loadMs": 131.0, "primaryReadyMs": 930.0, "requests": 108, "apiRequests": 28, "transferBytes": 950049 },
+        { "ttfbMs": 7.6, "loadMs": 126.7, "primaryReadyMs": 752.6, "requests": 106, "apiRequests": 26, "transferBytes": 949058 },
+        { "ttfbMs": 8.9, "loadMs": 126.9, "primaryReadyMs": 763.9, "requests": 107, "apiRequests": 27, "transferBytes": 950117 },
+        { "ttfbMs": 8.4, "loadMs": 135.1, "primaryReadyMs": 884.8, "requests": 107, "apiRequests": 27, "transferBytes": 950117 },
+        { "ttfbMs": 6.9, "loadMs": 135.8, "primaryReadyMs": 1159.7, "requests": 107, "apiRequests": 27, "transferBytes": 950117 },
+        { "ttfbMs": 11.2, "loadMs": 138.4, "primaryReadyMs": 902.1, "requests": 107, "apiRequests": 27, "transferBytes": 950117 }
+      ],
+      "postWarmupMedian": { "primaryReadyMs": 884.8, "apiRequests": 27, "transferBytes": 950117 },
+      "imageRequests": 33,
+      "imageDecodedBytes": 817723,
+      "consoleErrorsOrWarnings": 0,
+      "apiInventoryPerSteadySample": {
+        "/api/ping": 1,
+        "/api/auth/status": 1,
+        "/api/auth/apikey": 1,
+        "/api/auth/webhook-secret": 1,
+        "/api/refresh-tmdb-metadata": 1,
+        "/api/refresh-tvdb-metadata": 1,
+        "/api/now-playing": 3,
+        "/api/history": 1,
+        "/api/manual-watch-review": 1,
+        "/api/sync-attention": 1,
+        "/api/setup/status": 2,
+        "/api/config": 1,
+        "/api/appearance": 1,
+        "/api/show": 1,
+        "/api/tmdb-details-batch": 1,
+        "/api/playback-progress": 1,
+        "/api/tmdb-profile": 8
+      }
+    }
+  },
+  "result": {
+    "tvPrimaryReadyBudgetMs": 2500,
+    "tvApiBudget": 30,
+    "tvImageBudget": 35,
+    "tvTransferBudgetBytes": 2000000,
+    "status": "representative warm detail budget met; full cold/warm route matrix and shell gates remain open",
+    "comparison": "The previous baseline recorded 66 API calls for Ludwig and 71 for Reacher, with primary-ready times of 5605 ms and 4547 ms respectively. This run recorded lower provider-facing volume and faster primary-ready milestones."
+  }
+}

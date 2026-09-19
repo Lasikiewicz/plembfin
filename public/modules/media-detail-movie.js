@@ -1,17 +1,18 @@
-import { state, elements } from "./state.js?v=1.1.1.7.3";
-import { escapeHtml, escapeAttribute, formatDate, formatTmdbDate, isDemoMode } from "./utils.js?v=1.1.1.7.3";
-import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=1.1.1.7.3";
-import { isWatchedHistoryAction, isMediaSyncing, mediaSyncNoticeHtml, getMediaTargetSyncStatus, renderSyncStatusDot } from "./sync.js?v=1.1.1.7.3";
-import { fetchTmdbDetails } from "./tmdb.js?v=1.1.1.7.3";
-import { renderWatchDatePrompt, isMovieSavingWatchAction } from "./watch-action.js?v=1.1.1.7.3";
-import { authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=1.1.1.7.3";
-import { personalRatingPillHtml, personalMediaActionsHtml } from "./personal-media.js?v=1.1.1.7.3";
+import { state, elements } from "./state.js?v=1.1.1.8.1";
+import { escapeHtml, escapeAttribute, formatDate, formatTmdbDate, isDemoMode } from "./utils.js?v=1.1.1.8.1";
+import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=1.1.1.8.1";
+import { isWatchedHistoryAction, isMediaSyncing, mediaSyncNoticeHtml, getMediaTargetSyncStatus, renderSyncStatusDot } from "./sync.js?v=1.1.1.8.1";
+import { fetchTmdbDetails } from "./tmdb.js?v=1.1.1.8.1";
+import { renderWatchDatePrompt, isMovieSavingWatchAction } from "./watch-action.js?v=1.1.1.8.1";
+import { authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=1.1.1.8.1";
+import { personalRatingPillHtml, personalMediaActionsHtml } from "./personal-media.js?v=1.1.1.8.1";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderMediaImagesSection, renderMediaFacts,
   renderExternalRatingPills, ratingPillHtml, renderSeerrRequestPill, fetchSeerrMediaStatus,
   refreshActiveMediaDetailAfterSeerrStatus, rankedRecommendations, recommendedTvShowsForMovie,
   renderRecommendationSection, hydrateMediaAppLinks, renderCollectionSection, mediaAppLinksHtml,
-} from "./media-detail-shared.js?v=1.1.1.7.3";
+  markDetailPrimaryReady,
+} from "./media-detail-shared.js?v=1.1.1.8.1";
 
 // Watch history list - playHistory (every { id, watched_at, source } entry for
 // this movie, collapsed server-side in dedupeMovies/collapseMovieCluster) has
@@ -379,6 +380,9 @@ function _renderWatchedMovieContent(root, movie, {
   hydratePosters(root);
   hydrateMediaAppLinks(root);
   syncRewatchHistoryToggle(root);
+  // Title, artwork, synopsis, watch state, and actions are all real once the
+  // TMDB pass has rendered (loading=false).
+  if (!loading) markDetailPrimaryReady("movie");
 }
 
 export function patchMovieWatchedState(movie) {

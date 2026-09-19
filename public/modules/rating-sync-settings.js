@@ -1,5 +1,5 @@
-import { state } from "./state.js?v=1.1.1.7.3";
-import { escapeHtml } from "./utils.js?v=1.1.1.7.3";
+import { state } from "./state.js?v=1.1.1.8.1";
+import { escapeHtml } from "./utils.js?v=1.1.1.8.1";
 
 const PROVIDERS = ["plex", "emby", "jellyfin", "trakt"];
 const PROVIDER_LABELS = { plex: "Plex", emby: "Emby", jellyfin: "Jellyfin", trakt: "Trakt" };
@@ -134,12 +134,25 @@ export function applyRatingSyncConfig(config = {}) {
   renderStatus(status);
 }
 
-export async function refreshRatingSyncStatus() {
+// Opening Settings and applying its saved config both ask for status within
+// moments of each other; maxAgeMs lets those callers share one request. Saves
+// and explicit refreshes pass nothing and always fetch.
+let statusRequest = null;
+let statusAt = 0;
+export async function refreshRatingSyncStatus({ maxAgeMs = 0 } = {}) {
   if (!state.token) return null;
+  if (maxAgeMs && statusRequest) return statusRequest;
+  if (maxAgeMs && status && Date.now() - statusAt < maxAgeMs) return status;
+  statusRequest = fetchRatingSyncStatus().finally(() => { statusRequest = null; });
+  return statusRequest;
+}
+
+async function fetchRatingSyncStatus() {
   const response = await fetch("/api/rating-sync/status", { headers: authHeaders(), cache: "no-store" });
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || `Rating sync status failed with ${response.status}`);
   status = body;
+  statusAt = Date.now();
   if (body.config) {
     state.savedConfig = { ...state.savedConfig, ratingSync: body.config };
     applyControls(body.config);
@@ -201,6 +214,18 @@ export function runRatingSyncNow() {
   return runSync();
 }
 
+function startRefreshTimer() {
+  if (refreshTimer) return;
+  refreshTimer = window.setInterval(() => {
+    if (document.visibilityState === "visible" && state.token) refreshRatingSyncStatus().catch(() => null);
+  }, 30_000);
+}
+
+export function resumeRatingSyncSettings() {
+  startRefreshTimer();
+  return refreshRatingSyncStatus({ maxAgeMs: 2000 });
+}
+
 export function initRatingSyncSettings(nextCallbacks = {}) {
   callbacks = nextCallbacks;
   const ui = elements();
@@ -218,11 +243,9 @@ export function initRatingSyncSettings(nextCallbacks = {}) {
   });
   document.addEventListener("plembfin:config-changed", () => {
     applyControls(currentConfig());
-    refreshRatingSyncStatus().catch(() => null);
+    refreshRatingSyncStatus({ maxAgeMs: 2000 }).catch(() => null);
   });
-  refreshTimer = window.setInterval(() => {
-    if (document.visibilityState === "visible" && state.token) refreshRatingSyncStatus().catch(() => null);
-  }, 30_000);
+  startRefreshTimer();
 }
 
 export function stopRatingSyncSettings() {

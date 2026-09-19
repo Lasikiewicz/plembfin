@@ -1,4 +1,5 @@
 import path from "node:path";
+import { monitorEventLoopDelay, performance } from "node:perf_hooks";
 import compression from "compression";
 
 const STATIC_ASSET_EXTENSIONS = /\.(?:m?js|css|svg|png|jpe?g|webp|gif|ico|webmanifest|woff2?)$/i;
@@ -78,4 +79,55 @@ export function createResponseCompression() {
       return compression.filter(request, response);
     },
   });
+}
+
+// Opt-in request timing for diagnosing the localhost stalls recorded in the
+// application-speed plan. The middleware is inert unless enabled explicitly,
+// so normal installs pay no event-loop-monitor or logging cost.
+export function createHttpTimingMiddleware({
+  enabled = process.env.PLEMBFIN_DEBUG_HTTP === "1",
+  thresholdMs = Number(process.env.PLEMBFIN_DEBUG_HTTP_THRESHOLD_MS || 500),
+  logger = console.warn,
+} = {}) {
+  if (!enabled) return (_request, _response, next) => next();
+
+  const eventLoop = monitorEventLoopDelay({ resolution: 20 });
+  eventLoop.enable();
+  let activeRequests = 0;
+
+  const middleware = (request, response, next) => {
+    const startedAt = performance.now();
+    activeRequests += 1;
+    let completed = false;
+
+    const finish = () => {
+      if (completed) return;
+      completed = true;
+      activeRequests = Math.max(0, activeRequests - 1);
+      const durationMs = performance.now() - startedAt;
+      const status = Number(response.statusCode || 0);
+      if (durationMs < thresholdMs && status < 500) return;
+
+      logger({
+        event: "http-slow-request",
+        method: request.method,
+        path: request.path || request.url,
+        status,
+        durationMs: Math.round(durationMs * 10) / 10,
+        activeRequests,
+        eventLoopDelayMs: Number.isFinite(eventLoop.mean) ? Math.round((eventLoop.mean / 1e6) * 10) / 10 : 0,
+        eventLoopMaxMs: Number.isFinite(eventLoop.max) ? Math.round((eventLoop.max / 1e6) * 10) / 10 : 0,
+      });
+    };
+
+    response.once("finish", finish);
+    response.once("close", finish);
+    next();
+  };
+
+  // Tests and short-lived diagnostic servers can stop the histogram without
+  // reaching into the implementation. Production servers leave it running for
+  // the lifetime of the opt-in diagnostic process.
+  middleware.stop = () => eventLoop.disable();
+  return middleware;
 }

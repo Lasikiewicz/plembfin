@@ -1,3 +1,5 @@
+import { changelogSectionGroups } from "./changelog-sections.js";
+
 const RELEASE_TYPES = new Set(["feat", "fix", "security", "enhance", "perf", "docs"]);
 
 // Release-pipeline bookkeeping commits (rebuilding/promoting the changelog
@@ -109,6 +111,16 @@ export function changelogEntryProcessViolations(entry = {}) {
   ]) {
     for (const value of Array.isArray(values) ? values : []) {
       if (isChangelogProcessText(value) || isReleaseToolingText(value)) violations.push(`${field}: ${String(value).trim()}`);
+    }
+  }
+
+  for (const [section, groups] of Object.entries(entry.sectionGroups || {})) {
+    for (const group of Array.isArray(groups) ? groups : []) {
+      for (const value of Array.isArray(group?.details) ? group.details : []) {
+        if (isChangelogProcessText(value) || isReleaseToolingText(value)) {
+          violations.push(`sectionGroups.${section}: ${String(value).trim()}`);
+        }
+      }
     }
   }
 
@@ -287,7 +299,10 @@ export function validateReleaseMessage(message) {
 // "provider_item_id") reached the changelog from an otherwise well-written
 // commit. Neither was caught by anything.
 export const CHANGELOG_MIN_BULLETS = 3;
-export const CHANGELOG_MAX_BULLETS = 8;
+// A reviewed main release keeps every distinct user-visible change. Alpha still
+// has a finite runaway ceiling below, because one rolling build should remain
+// readable while the release can legitimately combine a whole cycle.
+export const CHANGELOG_MAX_BULLETS = Number.POSITIVE_INFINITY;
 // Alpha's ceiling catches a genuinely runaway entry without blocking a normal
 // multi-push cycle. See changelogEntryQualityViolations for why they differ.
 export const CHANGELOG_ALPHA_MAX_BULLETS = 20;
@@ -306,25 +321,20 @@ const CODE_IDENTIFIER_PATTERNS = [
 function bulletsOf(entry = {}) {
   const details = Array.isArray(entry.details) ? entry.details.filter(Boolean) : [];
   if (details.length) return details;
-  const sections = entry.sections || {};
-  return [
-    ...(Array.isArray(sections.newFeatures) ? sections.newFeatures : []),
-    ...(Array.isArray(sections.majorBugFixes) ? sections.majorBugFixes : []),
-    ...(Array.isArray(sections.tweaks) ? sections.tweaks : []),
-  ].filter(Boolean);
+  return changelogSectionGroups(entry).flatMap((section) => section.details).filter(Boolean);
 }
 
 // `maxBullets` differs by boundary, because the two entries mean different things.
 //
 // An alpha build entry is develop's rolling entry, which legitimately grows across
 // every push in a cycle - three pushes of four bullets is normal work, not a
-// mistake, and blocking it at 8 would strand the operator with no good remedy
+// mistake, and blocking it at a small release-style ceiling would strand the operator with no good remedy
 // except hand-editing changelog.develop.json. Alpha only gets a runaway ceiling.
 //
-// The main release entry is the one a user actually reads, and it is produced by
-// consolidating the cycle, so 8 is a real limit there. The per-push consolidation
-// rule is enforced separately by scripts/check-pending-commits.js, which is what
-// keeps the rolling entry from growing through sheer commit sprawl.
+// The main release entry is the one a user actually reads, so it keeps the full
+// reviewed cycle rather than silently dropping valid changes. The per-push
+// consolidation rule is enforced separately by scripts/check-pending-commits.js,
+// which keeps the rolling entry from growing through sheer commit sprawl.
 export function changelogEntryQualityViolations(entry = {}, { maxBullets = CHANGELOG_MAX_BULLETS, boundary = "release" } = {}) {
   const violations = [];
   const bullets = bulletsOf(entry);
@@ -332,10 +342,10 @@ export function changelogEntryQualityViolations(entry = {}, { maxBullets = CHANG
   if (bullets.length < CHANGELOG_MIN_BULLETS) {
     violations.push(`only ${bullets.length} bullet(s); a published entry needs at least ${CHANGELOG_MIN_BULLETS}`);
   }
-  if (bullets.length > maxBullets) {
+  if (Number.isFinite(maxBullets) && bullets.length > maxBullets) {
     violations.push(boundary === "alpha"
       ? `${bullets.length} bullets, past the ${maxBullets} runaway ceiling. Merge related bullets in changelog.develop.json's entry so testers can read it, then promote again.`
-      : `${bullets.length} bullets; at most ${maxBullets} should be published. Combine the cycle's alpha bullets into the ${CHANGELOG_MAX_BULLETS} most significant user-visible changes.`);
+      : `${bullets.length} bullets; at most ${maxBullets} should be published. Combine the cycle's alpha bullets into the most significant user-visible changes.`);
   }
 
   for (const bullet of bullets) {

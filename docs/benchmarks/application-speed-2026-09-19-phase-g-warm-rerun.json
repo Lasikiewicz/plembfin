@@ -1,0 +1,64 @@
+{
+  "benchmark": "application-speed Phase G warm document matrix rerun after manual-review summary optimization",
+  "date": "2026-09-19",
+  "environment": {
+    "application": "http://localhost:5055",
+    "role": "web",
+    "immutableAssetCaching": true,
+    "liveSiteUsed": false
+  },
+  "method": {
+    "routes": 16,
+    "runsPerPopulation": 6,
+    "populations": 2,
+    "totalSamples": 192,
+    "discardedFirstSamplePerRoute": true,
+    "paceMs": 1200,
+    "quietWindowMs": 800
+  },
+  "populations": [
+    {
+      "index": 0,
+      "measuredSamples": 80,
+      "ttfbP95Ms": 30.8,
+      "ttfbMaxMs": 46.4,
+      "loadP95Ms": 130.9,
+      "loadMaxMs": 147.1,
+      "incomplete": 0,
+      "http429": 0,
+      "http5xx": 0
+    },
+    {
+      "index": 1,
+      "measuredSamples": 80,
+      "ttfbP95Ms": 25.6,
+      "ttfbMaxMs": 39.6,
+      "loadP95Ms": 140.4,
+      "loadMaxMs": 156.8,
+      "incomplete": 0,
+      "http429": 0,
+      "http5xx": 0
+    }
+  ],
+  "populationConsistency": {
+    "loadWithin15Percent": 12,
+    "loadRoutes": 16,
+    "exceptions": [
+      { "route": "/", "population0MedianMs": 76.8, "population1MedianMs": 43.2, "differencePercent": 43.7 },
+      { "route": "/tvshows", "population0MedianMs": 44.4, "population1MedianMs": 69.7, "differencePercent": 36.3 },
+      { "route": "/discover", "population0MedianMs": 49.6, "population1MedianMs": 120.0, "differencePercent": 58.7 },
+      { "route": "/movie/a-quiet-place", "population0MedianMs": 70.2, "population1MedianMs": 51.5, "differencePercent": 26.6 }
+    ],
+    "interpretation": "All TTFB and load values are within the absolute timing budgets; the remaining repeatability misses are image-cache-sensitive load medians during the first versus second warm population."
+  },
+  "settingsDiagnostic": {
+    "preFixFirstPopulationP95TtfbMs": 726.1,
+    "postFixFirstPopulationP95TtfbMs": 46.4,
+    "change": "Summary requests no longer build episode watch_context data; full review-page requests retain it."
+  },
+  "verification": {
+    "manualWatchReviewTests": { "tests": 15, "passed": 15, "failed": 0 },
+    "fullBuild": { "command": "npm run build", "tests": 1030, "passed": 1030, "failed": 0, "documentation": "passed", "assetVersion": "passed", "plembfinBuildCheck": "passed" },
+    "diffCheck": "passed"
+  }
+}

@@ -1,8 +1,22 @@
-import { state } from "./state.js?v=1.1.1.7.3";
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.7.3";
-import { escapeHtml, escapeAttribute, slug, formatTmdbDate, tvShowTmdbHref, movieTmdbHref, platformIconUrl, isDemoMode } from "./utils.js?v=1.1.1.7.3";
-import { tmdbImage, tmdbPoster, tmdbProfile } from "./images.js?v=1.1.1.7.3";
-import { fetchTmdbDetails } from "./tmdb.js?v=1.1.1.7.3";
+import { state } from "./state.js?v=1.1.1.8.1";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.8.1";
+import { escapeHtml, escapeAttribute, slug, movieSlug, movieHref, showName, formatTmdbDate, tvShowTmdbHref, movieTmdbHref, platformIconUrl, isDemoMode } from "./utils.js?v=1.1.1.8.1";
+import { tmdbImage, tmdbPoster, tmdbProfile } from "./images.js?v=1.1.1.8.1";
+import { fetchTmdbDetails } from "./tmdb.js?v=1.1.1.8.1";
+import { movieById, movieBySlugOrId, nowPlayingHref } from "./media-routing.js?v=1.1.1.8.1";
+import { hydrateDeferredCastDisclosure, renderCastActor } from "./cast-disclosure.js?v=1.1.1.8.1";
+
+export { movieById, movieBySlugOrId, nowPlayingHref, hydrateDeferredCastDisclosure };
+
+// Performance milestone: the detail page shows its title, artwork, watch state,
+// and primary actions from real data. Cast, images, trailers, and other
+// enrichment may still be loading. Read by the application-speed benchmark
+// (plan/application-speed-remediation.md, Phase E); it has no runtime effect.
+export function markDetailPrimaryReady(kind) {
+  try {
+    performance.mark("plembfin:detail-primary-ready", { detail: { kind, path: location.pathname } });
+  } catch { /* mark() without detail support: timing is optional */ }
+}
 
 function authHeaders() {
   return buildAuthHeaders(state.token);
@@ -87,20 +101,24 @@ function writeAppLinksCacheEntry(cacheKey, links) {
 export function renderCastSection(tmdbData) {
   const cast = tmdbData?.credits?.cast || [];
   if (!cast.length) return "";
+  // The browser's lazy-image threshold still eagerly fetches a long cast row
+  // when the detail page is tall. Keep the first visible credits available and
+  // put the remainder behind an explicit card so opening a detail page does not
+  // fan out into one profile request per actor.
+  const visibleCast = cast.slice(0, 8);
+  const deferredCast = cast.slice(8, 30);
   return `
     <section class="seasons-section cast-section">
       <div class="show-section-title"><h3>Cast</h3></div>
       <div class="cast-compact-row cast-scroll-row">
-        ${cast.slice(0, 30).map((actor) => {
-    const avatarUrl = tmdbProfile(actor.profile_path) || "/favicon.svg";
-    return `
-            <div class="cast-member-card" style="cursor: pointer;" data-person-id="${actor.id}" data-person-name="${escapeAttribute(actor.name)}">
-              <img class="cast-avatar-img" src="${escapeAttribute(avatarUrl)}" alt="${escapeAttribute(actor.name)}" loading="lazy" decoding="async" data-err="fav" />
-              <span class="cast-actor-name">${escapeHtml(actor.name)}</span>
-              <span class="cast-character-name">${escapeHtml(actor.character)}</span>
-            </div>
-          `;
-  }).join("")}
+        ${visibleCast.map(renderCastActor).join("")}
+        ${deferredCast.length ? `
+          <button class="cast-more-card" type="button" data-cast-more-trigger data-cast-more="${escapeAttribute(JSON.stringify(deferredCast))}" aria-label="Show ${deferredCast.length} more cast members">
+            <span class="cast-more-card-image" aria-hidden="true"><span class="cast-more-card-plus">+</span></span>
+            <span class="cast-actor-name">Show more cast</span>
+            <span class="cast-character-name">${deferredCast.length} more</span>
+          </button>
+        ` : ""}
       </div>
     </section>
   `;
@@ -189,19 +207,97 @@ export function renderTrailersReviewsSection(tmdbData) {
     ${renderReviewsSection(tmdbData)}
   `;
 }
+// Rail artwork (Images, Related Shows, recommendations, Collection) renders
+// with data-rail-src instead of src. Native loading="lazy" fetches anything
+// within roughly 1,250 px of the viewport, including every card in a
+// horizontally scrolling rail, so a detail page requested dozens of posters and
+// backdrops nobody had scrolled to (application-speed plan, Phase E). A rail
+// loads its images once it comes near the viewport, and only as far along the
+// row as the user has scrolled plus one screen of lead.
+const RAIL_VIEWPORT_MARGIN = "300px 0px";
+const RAIL_HORIZONTAL_LEAD_PX = 600;
+let railIntersectionObserver = null;
+let railMutationObserver = null;
+let railScanQueued = false;
+
+function loadRailImage(image) {
+  const src = image.getAttribute("data-rail-src");
+  image.removeAttribute("data-rail-src");
+  if (src) image.src = src;
+}
+
+function loadVisibleRailImages(row) {
+  const rowLeft = row.getBoundingClientRect().left;
+  const limit = row.scrollLeft + row.clientWidth + RAIL_HORIZONTAL_LEAD_PX;
+  for (const image of row.querySelectorAll("img[data-rail-src]")) {
+    const offset = image.getBoundingClientRect().left - rowLeft + row.scrollLeft;
+    if (offset <= limit) loadRailImage(image);
+  }
+  if (!row.querySelector("img[data-rail-src]")) {
+    row.removeEventListener("scroll", onRailScroll);
+    railIntersectionObserver?.unobserve(row);
+  }
+}
+
+function onRailScroll(event) {
+  const row = event.currentTarget;
+  if (row._railFrame) return;
+  row._railFrame = requestAnimationFrame(() => {
+    row._railFrame = 0;
+    loadVisibleRailImages(row);
+  });
+}
+
+function observeDeferredRails() {
+  railScanQueued = false;
+  for (const row of document.querySelectorAll("[data-deferred-rail]:not([data-rail-observed])")) {
+    row.setAttribute("data-rail-observed", "");
+    if (typeof IntersectionObserver !== "function") {
+      row.querySelectorAll("img[data-rail-src]").forEach(loadRailImage);
+      continue;
+    }
+    railIntersectionObserver ||= new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (!entry.isIntersecting) continue;
+        const rail = entry.target;
+        if (!rail._railScrollBound) {
+          rail._railScrollBound = true;
+          rail.addEventListener("scroll", onRailScroll, { passive: true });
+        }
+        loadVisibleRailImages(rail);
+      }
+    }, { rootMargin: RAIL_VIEWPORT_MARGIN });
+    railIntersectionObserver.observe(row);
+  }
+}
+
+// Called by every rail template, so whichever render path inserts the markup
+// (show, movie, person, TMDB-only pages, in-place patches) gets observed.
+function deferredRailAttribute() {
+  if (!railMutationObserver && typeof MutationObserver === "function" && typeof document !== "undefined") {
+    railMutationObserver = new MutationObserver(() => {
+      if (railScanQueued) return;
+      railScanQueued = true;
+      queueMicrotask(observeDeferredRails);
+    });
+    railMutationObserver.observe(document.body, { childList: true, subtree: true });
+  }
+  return "data-deferred-rail";
+}
+
 export function renderRelatedShowsSection(tmdbData) {
   const related = tmdbData?.similar?.results || [];
   if (!related.length) return "";
   return `
     <section class="seasons-section related-section">
       <div class="show-section-title"><h3>Related Shows</h3></div>
-      <div class="horizontal-scroll-row" style="margin-top: 0.5rem;">
+      <div class="horizontal-scroll-row" style="margin-top: 0.5rem;" ${deferredRailAttribute()}>
         ${related.slice(0, 20).map((item) => {
     const poster = tmdbPoster(item.poster_path) || "/favicon.svg";
     const year = (item.first_air_date || "").slice(0, 4);
     return `
             <a class="season-poster-card related-show-card" data-immersive-related-tmdb="${item.id}" href="${escapeAttribute(tvShowTmdbHref(item.id, item.name))}">
-              <img class="season-poster-img" src="${escapeAttribute(poster)}" alt="${escapeAttribute(item.name || "")}" loading="lazy" decoding="async" data-err="fav" />
+              <img class="season-poster-img" data-rail-src="${escapeAttribute(poster)}" alt="${escapeAttribute(item.name || "")}" loading="lazy" decoding="async" data-err="fav" />
               <span class="season-poster-name">${escapeHtml(item.name || "")}${year ? ` <small>(${escapeHtml(year)})</small>` : ""}</span>
             </a>
           `;
@@ -292,14 +388,14 @@ export function renderRecommendationSection({ title, items = [], mediaType = "mo
   return `
         <section class="seasons-section">
           <h3>${escapeHtml(title)}</h3>
-          <div class="horizontal-scroll-row">
+          <div class="horizontal-scroll-row" ${deferredRailAttribute()}>
             ${items.slice(0, 15).map((item) => {
     const itemTitle = recommendationTitle(item, mediaType);
     const year = recommendationDate(item, mediaType).slice(0, 4);
     const poster = item.poster_path ? tmdbPoster(item.poster_path, item.id, mediaType) : "/favicon.svg";
     return `
                   <a class="season-poster-card" ${isTv ? `data-immersive-related-tmdb="${escapeAttribute(String(item.id))}" href="${escapeAttribute(tvShowTmdbHref(item.id, itemTitle))}"` : `data-immersive-movie-id="${escapeAttribute(String(item.id))}" href="${escapeAttribute(movieTmdbHref(item.id, itemTitle))}"`}>
-                    <img class="season-poster-img" src="${escapeAttribute(poster)}" alt="${escapeAttribute(itemTitle)}" loading="lazy" decoding="async" data-err="fav" />
+                    <img class="season-poster-img" data-rail-src="${escapeAttribute(poster)}" alt="${escapeAttribute(itemTitle)}" loading="lazy" decoding="async" data-err="fav" />
                     <span class="season-poster-name">${escapeHtml(itemTitle)}${year ? ` <small>(${escapeHtml(year)})</small>` : ""}</span>
                   </a>
                 `;
@@ -329,12 +425,12 @@ export function renderMediaImagesSection(tmdbData) {
   return `
     <section class="seasons-section media-images-section">
       <div class="show-section-title"><h3>Images</h3><span>${backdrops.length} available</span></div>
-      <div class="media-images-scroll-row">
+      <div class="media-images-scroll-row" ${deferredRailAttribute()}>
         ${backdrops.map((img, i) => {
     const thumb = tmdbImage(img.file_path, "w780");
     const full = tmdbImage(img.file_path, "original");
     return `<button class="media-image-card" type="button" data-lightbox-index="${i}" data-lightbox-src="${escapeAttribute(full)}">
-            <img class="media-image-thumb" src="${escapeAttribute(thumb)}" alt="Scene image" loading="lazy" data-err="hide-parent" />
+            <img class="media-image-thumb" data-rail-src="${escapeAttribute(thumb)}" alt="Scene image" loading="lazy" decoding="async" data-err="hide-parent" />
           </button>`;
   }).join("")}
       </div>
@@ -350,14 +446,14 @@ export function renderCollectionSection(tmdbData) {
   return `
     <section class="seasons-section collection-section">
       <div class="show-section-title"><h3>${escapeHtml(collection.name)}</h3></div>
-      <div class="horizontal-scroll-row" style="margin-top: 0.5rem;">
+      <div class="horizontal-scroll-row" style="margin-top: 0.5rem;" ${deferredRailAttribute()}>
         ${movies.map((movie) => {
     const poster = movie.poster_path ? tmdbPoster(movie.poster_path, movie.id, "movie") : "/favicon.svg";
     const year = (movie.release_date || "").slice(0, 4);
     const title = movie.title || movie.original_title || "";
     return `
             <a class="season-poster-card collection-movie" data-immersive-movie-id="${escapeAttribute(String(movie.id))}" href="${escapeAttribute(movieTmdbHref(movie.id, title))}">
-              <img class="season-poster-img" src="${escapeAttribute(poster)}" alt="${escapeAttribute(title)}" loading="lazy" decoding="async" data-err="fav" />
+              <img class="season-poster-img" data-rail-src="${escapeAttribute(poster)}" alt="${escapeAttribute(title)}" loading="lazy" decoding="async" data-err="fav" />
               <span class="season-poster-name">${escapeHtml(title)}${year ? ` <small>(${escapeHtml(year)})</small>` : ""}</span>
             </a>
           `;
@@ -669,15 +765,15 @@ export async function hydrateMediaAppLinks(root = document, { allowNetwork = tru
       : `
         <b class="media-app-link-row">
           <a class="media-app-link media-app-link--plex media-app-link--disabled" title="Checking Plex..." aria-label="Checking Plex..." style="opacity: 0.4; cursor: not-allowed;">
-            <img class="media-app-link-logo" src="/icons/plex.svg?v=1.1.1.7.3" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
+            <img class="media-app-link-logo" src="/icons/plex.svg?v=1.1.1.8.1" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
             <span>Plex</span>
           </a>
           <a class="media-app-link media-app-link--emby media-app-link--disabled" title="Checking Emby..." aria-label="Checking Emby..." style="opacity: 0.4; cursor: not-allowed;">
-            <img class="media-app-link-logo" src="/icons/emby.svg?v=1.1.1.7.3" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
+            <img class="media-app-link-logo" src="/icons/emby.svg?v=1.1.1.8.1" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
             <span>Emby</span>
           </a>
           <a class="media-app-link media-app-link--jellyfin media-app-link--disabled" title="Checking Jellyfin..." aria-label="Checking Jellyfin..." style="opacity: 0.4; cursor: not-allowed;">
-            <img class="media-app-link-logo" src="/icons/jellyfin.svg?v=1.1.1.7.3" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
+            <img class="media-app-link-logo" src="/icons/jellyfin.svg?v=1.1.1.8.1" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
             <span>Jellyfin</span>
           </a>
         </b>
@@ -758,7 +854,7 @@ export function tvdbSeriesUrl(tvdbId) {
   return `https://thetvdb.com/dereferrer/series/${encodeURIComponent(id)}`;
 }
 
-const RATING_SOURCE_ICONS = { TMDB: "/icons/tmdb.svg?v=1.1.1.7.3", TVDB: "/icons/tvdb.svg?v=1.1.1.7.3", IMDb: "/icons/imdb.svg?v=1.1.1.7.3" };
+const RATING_SOURCE_ICONS = { TMDB: "/icons/tmdb.svg?v=1.1.1.8.1", TVDB: "/icons/tvdb.svg?v=1.1.1.8.1", IMDb: "/icons/imdb.svg?v=1.1.1.8.1" };
 
 export function ratingPillHtml({ label, value = "View", href = "", title = "" } = {}) {
   if (!label || !href) return "";

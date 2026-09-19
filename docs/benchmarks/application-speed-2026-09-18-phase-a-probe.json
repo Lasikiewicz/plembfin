@@ -1,0 +1,34 @@
+{
+  "generatedAt": "2026-09-18T08:22:11Z",
+  "benchmark": "application-speed-phase-a-probe",
+  "status": "probe-not-gate",
+  "environment": {
+    "origin": "http://localhost:5055",
+    "browser": "Chrome through Codex CDP",
+    "authentication": "existing authenticated browser session",
+    "cacheMode": "browser default",
+    "runsPerRoute": 1,
+    "settleMs": 900,
+    "measurement": "Network.requestWillBeSent, Network.responseReceived, Network.loadingFinished, Page.loadEventFired"
+  },
+  "limitations": [
+    "This is a single post-change probe, not the six-load Phase A population.",
+    "Movies and TV Shows exceeded the CDP event buffer and are marked truncated.",
+    "Decoded bytes are not exposed by this CDP event stream; transfer bytes are recorded.",
+    "No cold-cache, warm-cache, or SPA-transition populations are claimed from this file."
+  ],
+  "routes": [
+    { "route": "/", "navigationElapsedMs": 1301, "ttfbMs": 84, "loadMs": 332, "requests": 121, "apiRequests": 14, "transferBytes": 1122551, "truncated": false },
+    { "route": "/movies", "navigationElapsedMs": 2732, "ttfbMs": null, "loadMs": null, "requests": 178, "apiRequests": 9, "transferBytes": 1096710, "truncated": true },
+    { "route": "/tvshows", "navigationElapsedMs": 2111, "ttfbMs": null, "loadMs": null, "requests": 168, "apiRequests": 15, "transferBytes": 1761044, "truncated": true },
+    { "route": "/upcoming", "navigationElapsedMs": 2405, "ttfbMs": 1063, "loadMs": 1424, "requests": 115, "apiRequests": 26, "transferBytes": 1179456, "truncated": false },
+    { "route": "/discover", "navigationElapsedMs": 1442, "ttfbMs": 20, "loadMs": 301, "requests": 136, "apiRequests": 10, "transferBytes": 1101776, "truncated": false },
+    { "route": "/watchlist", "navigationElapsedMs": 2580, "ttfbMs": 1293, "loadMs": 1577, "requests": 77, "apiRequests": 12, "transferBytes": 1115195, "truncated": false },
+    { "route": "/ratings", "navigationElapsedMs": 1962, "ttfbMs": 548, "loadMs": 818, "requests": 78, "apiRequests": 14, "transferBytes": 983616, "truncated": false },
+    { "route": "/custom-lists", "navigationElapsedMs": 1672, "ttfbMs": 422, "loadMs": 661, "requests": 114, "apiRequests": 17, "transferBytes": 1231021, "truncated": false },
+    { "route": "/history", "navigationElapsedMs": 1752, "ttfbMs": 506, "loadMs": 752, "requests": 109, "apiRequests": 15, "transferBytes": 1111218, "truncated": false },
+    { "route": "/stats", "navigationElapsedMs": 3160, "ttfbMs": 1851, "loadMs": 2187, "requests": 84, "apiRequests": 19, "transferBytes": 1138087, "truncated": false },
+    { "route": "/settings", "navigationElapsedMs": 2558, "ttfbMs": 1351, "loadMs": 1598, "requests": 93, "apiRequests": 18, "transferBytes": 1116232, "truncated": false },
+    { "route": "/about", "navigationElapsedMs": 1751, "ttfbMs": 500, "loadMs": 763, "requests": 81, "apiRequests": 17, "transferBytes": 1110878, "truncated": false }
+  ]
+}

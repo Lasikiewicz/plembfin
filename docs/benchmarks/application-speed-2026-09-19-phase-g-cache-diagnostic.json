@@ -1,0 +1,32 @@
+{
+  "benchmark": "application-speed Phase G bounded warm-cache resource diagnostic",
+  "date": "2026-09-19",
+  "environment": {
+    "application": "http://localhost:5055",
+    "role": "web",
+    "immutableAssetCaching": true,
+    "liveSiteUsed": false
+  },
+  "method": {
+    "routes": ["/", "/tvshows", "/discover", "/movie/a-quiet-place"],
+    "samplesPerRoute": 2,
+    "delayAfterNavigationMs": 1600,
+    "purpose": "bounded resource/cache diagnosis only; not a replacement for the formal six-load acceptance matrix",
+    "metrics": ["document TTFB", "document load", "image count", "image transfer-zero count", "last image response end", "maximum image duration"]
+  },
+  "samples": [
+    { "route": "/", "sample": 0, "ttfbMs": 8.7, "loadMs": 120.3, "images": 27, "imageCacheHits": 26, "imageLastEndMs": 612.1, "imageMaxDurationMs": 25.9 },
+    { "route": "/", "sample": 1, "ttfbMs": 70.7, "loadMs": 391.7, "images": 27, "imageCacheHits": 26, "imageLastEndMs": 697.2, "imageMaxDurationMs": 52.1 },
+    { "route": "/tvshows", "sample": 0, "ttfbMs": 9.6, "loadMs": 85.5, "images": 91, "imageCacheHits": 90, "imageLastEndMs": 1249.2, "imageMaxDurationMs": 71.9 },
+    { "route": "/tvshows", "sample": 1, "ttfbMs": 8.2, "loadMs": 156.2, "images": 91, "imageCacheHits": 90, "imageLastEndMs": 301.1, "imageMaxDurationMs": 18.4 },
+    { "route": "/discover", "sample": 0, "ttfbMs": 13.7, "loadMs": 171.3, "images": 30, "imageCacheHits": 29, "imageLastEndMs": 1324.8, "imageMaxDurationMs": 582.4 },
+    { "route": "/discover", "sample": 1, "ttfbMs": 9.5, "loadMs": 77.1, "images": 30, "imageCacheHits": 29, "imageLastEndMs": 208.5, "imageMaxDurationMs": 19.4 },
+    { "route": "/movie/a-quiet-place", "sample": 0, "ttfbMs": 8.3, "loadMs": 180.9, "images": 26, "imageCacheHits": 25, "imageLastEndMs": 1336.1, "imageMaxDurationMs": 117.7 },
+    { "route": "/movie/a-quiet-place", "sample": 1, "ttfbMs": 10.3, "loadMs": 120.7, "images": 26, "imageCacheHits": 25, "imageLastEndMs": 426.3, "imageMaxDurationMs": 19.7 }
+  ],
+  "finding": {
+    "imageCacheBehavior": "Most images were transfer-zero cache hits, but first-use image completion and decode duration varied substantially on TV Shows, Discover, and the movie detail.",
+    "dashboardBehavior": "The Dashboard also varied in document load while its image completion changed only modestly, so image decoding is not the sole cause of the four-route population comparison.",
+    "conclusion": "No safe application-side change is supported by this bounded diagnostic. Keep the formal warm-cache consistency exception explicit; a strict closure would require a controlled fresh-profile benchmark or a revised consistency protocol."
+  }
+}

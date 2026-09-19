@@ -1,23 +1,27 @@
-import { state, elements } from "./state.js?v=1.1.1.7.3";
-import { slug, movieSlug, movieHref, movieTmdbHref, tvShowTmdbHref, showName, showTitleFrom } from "./utils.js?v=1.1.1.7.3";
-import { dedupeMediaRecords } from "./dashboard.js?v=1.1.1.7.3";
-import { isWatchedHistoryAction } from "./sync.js?v=1.1.1.7.3";
+import { state, elements } from "./state.js?v=1.1.1.8.1";
+import { slug, movieSlug, movieHref, movieTmdbHref, tvShowTmdbHref, showName, showTitleFrom } from "./utils.js?v=1.1.1.8.1";
+import { dedupeMediaRecords } from "./media-records.js?v=1.1.1.8.1";
+import { isWatchedHistoryAction } from "./sync.js?v=1.1.1.8.1";
 import {
   initMediaDetail, authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions,
   prepareInlineMediaDetail, syncMediaActionsMenuState, syncTopbarControlsMenuState,
   openDebugModal, closeDebugModal, clearMediaDetailState, closeMediaDetail,
   openMediaInfoModal, closeMediaInfoModal,
   bumpMediaRenderToken, currentMediaRenderToken,
-} from "./media-detail-context.js?v=1.1.1.7.3";
+} from "./media-detail-context.js?v=1.1.1.8.1";
 import {
   openShowImmersiveModalByTitle, openShowImmersiveModalByTmdbId, openShowImmersiveModalByTvdbId, openShowInlineDetail,
   renderImmersiveShowModal, renderShowModalContent, ensureAllShowEpisodeDetailsForWatch, patchShowModalEpisodeFromLive, patchShowModalEpisodesSavingState, syncShowModalWatchActionControls, scrollSeasonAccordionIntoView,
-} from "./media-detail-show.js?v=1.1.1.7.3";
+} from "./media-detail-show.js?v=1.1.1.8.1";
 import {
   renderMovieImmersiveModalContent, openMovieImmersiveModalByTmdbId, patchMovieWatchedState, syncMovieWatchActionControls,
-} from "./media-detail-movie.js?v=1.1.1.7.3";
-import { fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail-shared.js?v=1.1.1.7.3";
-import { fetchTmdbDetails } from "./tmdb.js?v=1.1.1.7.3";
+} from "./media-detail-movie.js?v=1.1.1.8.1";
+import { fetchSeerrMediaStatus, refreshActiveMediaDetailAfterSeerrStatus } from "./media-detail-shared.js?v=1.1.1.8.1";
+import { movieById, movieBySlugOrId, nowPlayingHref } from "./media-routing.js?v=1.1.1.8.1";
+// Lookup helpers live in the core graph so the dashboard (Now Playing links)
+// can use them without loading media detail; re-exported for existing importers.
+export { movieById, movieBySlugOrId, nowPlayingHref };
+import { fetchTmdbDetails } from "./tmdb.js?v=1.1.1.8.1";
 
 export {
   initMediaDetail,
@@ -57,19 +61,6 @@ export function syncActiveMediaDetailState() {
 export function historyById(id) {
   return state.history.find((entry) => String(entry.id) === String(id));
 }
-export function movieById(id) {
-  return state.history.find((entry) => String(entry.id) === String(id)) ||
-    state.moviesRaw.find((entry) => String(entry.id) === String(id)) ||
-    state.activeSessions.find((entry) => String(entry.id || entry.key) === String(id));
-}
-export function movieBySlugOrId(value) {
-  const key = decodeURIComponent(String(value || ""));
-  const keySlug = slug(key);
-  return movieById(key) ||
-    state.moviesRaw.find((entry) => movieSlug(entry) === keySlug) ||
-    state.history.find((entry) => entry.media_type === "movie" && movieSlug(entry) === keySlug) ||
-    null;
-}
 export function movieSearchFromRouteValue(value) {
   return decodeURIComponent(String(value || ""))
     .replace(/^tmdb\/\d+$/i, "")
@@ -108,22 +99,6 @@ export async function resolveMovieBySlugOrId(value) {
   if (directRecord) return directRecord;
   return await fetchMovieBySlugOrId(value) || movieBySlugOrId(value);
 }
-export function nowPlayingHref(session = {}) {
-  const mediaType = session.mediaType || (session.season != null || session.episode != null ? "tv" : "movie");
-  const tmdbId = session.ids?.tmdb || session.tmdb_id || session.tmdbId || "";
-  if (mediaType === "tv" || mediaType === "tvshow" || mediaType === "show" || mediaType === "episode") {
-    const title = showName(session.showTitle || session.show_title || session.title || "");
-    if (tmdbId) return tvShowTmdbHref(tmdbId, title);
-    return `/tvshow/${slug(title)}`;
-  }
-  if (tmdbId) return movieTmdbHref(tmdbId, session.title || session.movieTitle || "");
-  const movie = movieBySlugOrId(session.id || session.key || session.title || "") || {
-    id: session.id || session.key || session.title || "",
-    title: session.title || session.movieTitle || "Movie",
-  };
-  return movieHref(movie);
-}
-
 export async function openImmersiveModal(id) {
   const renderToken = bumpMediaRenderToken();
   setMediaDetailActions("");

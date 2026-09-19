@@ -143,7 +143,12 @@ test("client attention keeps the affected media and a safe retry payload", async
     const item = recordClientAttention("Manual watch update failed with 502", "error", {
       title: "Watch update failed",
       summary: "Could not mark The Walking Dead · S07E12 watched. Server response: Manual watch update failed with 502",
-      context: { actionLabel: "Manual watch update", affectedMedia: "The Walking Dead · S07E12" },
+      context: {
+        actionLabel: "Manual watch update",
+        affectedMedia: "The Walking Dead · S07E12",
+        provider: "Jellyfin",
+        failureReason: "Jellyfin: Upstream request failed (connection refused)",
+      },
       retry: { endpoint: "/api/manual-watch", method: "POST", body: { records: [{ title: "The Walking Dead - S07E12", resync_only: true }] }, label: "Retry watch update" },
     });
 
@@ -154,6 +159,9 @@ test("client attention keeps the affected media and a safe retry payload", async
     assert.match(markup, /data-sync-client-retry=/);
     assert.match(markup, />Retry watch update<\/button>/);
     assert.match(markup, />Open affected page<\/a>/);
+    assert.match(markup, /Failure reason/);
+    assert.match(markup, /Jellyfin: Upstream request failed \(connection refused\)/);
+    assert.match(markup, />Open logs<\/a>/);
     const result = await retryClientAttention(item.id);
     assert.equal(result.ok, true);
     assert.equal(calls.length, 1);

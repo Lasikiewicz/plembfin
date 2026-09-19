@@ -22,7 +22,23 @@ const alphaEntries = (release.alpha as { entries?: typeof release.entries } | nu
             <div class="changelog-entry-content">
               <h2>{entry.title}</h2>
               <p>{entry.summary}</p>
-              {entry.bullets?.length > 0 && <ul>{entry.bullets.map((bullet) => <li>{bullet}</li>)}</ul>}
+              {entry.sections?.length > 0 ? (
+                <div class="changelog-sections">
+                  {entry.sections.map((section) => (
+                    <section class="changelog-section">
+                      <h3>{section.title}</h3>
+                      <div class="changelog-subgroups">
+                        {section.groups.map((group) => (
+                          <div class="changelog-subgroup">
+                            {group.title && <h4>{group.title}</h4>}
+                            <ul>{group.bullets.map((bullet) => <li>{bullet}</li>)}</ul>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              ) : entry.bullets?.length > 0 ? <ul>{entry.bullets.map((bullet) => <li>{bullet}</li>)}</ul> : null}
             </div>
           </article>
         ))}

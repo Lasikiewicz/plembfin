@@ -1,9 +1,9 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.7.3";
-import { state, elements } from "./state.js?v=1.1.1.7.3";
-import { escapeAttribute, escapeHtml, formatTmdbDate, episodeCode } from "./utils.js?v=1.1.1.7.3";
-import { hydratePosters } from "./images.js?v=1.1.1.7.3";
-import { normalizeMediaCardRecord, renderMediaCard } from "./media-card.js?v=1.1.1.7.3";
-import { fetchTmdbDetails } from "./tmdb.js?v=1.1.1.7.3";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.8.1";
+import { state, elements } from "./state.js?v=1.1.1.8.1";
+import { escapeAttribute, escapeHtml, formatTmdbDate, episodeCode } from "./utils.js?v=1.1.1.8.1";
+import { hydratePosters } from "./images.js?v=1.1.1.8.1";
+import { normalizeMediaCardRecord, renderMediaCard } from "./media-card.js?v=1.1.1.8.1";
+import { hydratePersonalMetadata, personalMetadataItems, propagatePersonalMetadata } from "./personal-media-metadata.js?v=1.1.1.8.1";
 
 const PERSONAL_MEDIA_TTL_MS = 2 * 60 * 1000;
 const PERSONAL_MEDIA_TIMEOUT_MS = 15000;
@@ -17,7 +17,6 @@ const PERSONAL_RATING_SECTIONS = [
 let _cb = {};
 let panelBound = false;
 let loadPromise = null;
-let personalMetadataHydrationPromise = null;
 let dialogCleanup = null;
 let personalSyncBusy = "";
 
@@ -560,78 +559,10 @@ function emptyPersonalState(title, detail) {
   return `<div class="empty-log personal-media-empty"><b>${escapeHtml(title)}</b><span>${escapeHtml(detail)}</span></div>`;
 }
 
-function personalMetadataItems() {
-  return [
-    ...(state.personalRatings || []),
-    ...(state.personalWatchlist || []),
-    ...(state.personalLists || []).flatMap((list) => list.items || []),
-  ].filter(Boolean);
-}
-
-function hydratePersonalMetadata() {
-  if (personalMetadataHydrationPromise) return personalMetadataHydrationPromise;
-  const targets = personalMetadataItems().filter((item) => !item.overview || !item.release_date);
-  if (!targets.length) return Promise.resolve(false);
-
-  personalMetadataHydrationPromise = Promise.allSettled(targets.map(async (item) => {
-    const normalized = normalizeItem(item);
-    const isEpisode = normalized.media_type === "episode";
-    const mediaType = isEpisode ? "tv" : normalized.media_type;
-    const tmdbId = isEpisode ? (normalized.show_tmdb_id || normalized.tmdb_id) : normalized.tmdb_id;
-    const title = isEpisode ? (normalized.show_title || normalized.title) : normalized.title;
-    const details = await fetchTmdbDetails(mediaType, tmdbId, title, {
-      imdbId: isEpisode ? normalized.show_imdb_id : normalized.imdb_id,
-      tvdbId: isEpisode ? normalized.show_tvdb_id : normalized.tvdb_id,
-    }, { light: true });
-    if (!details) return false;
-    let changed = false;
-    if (!item.overview && details.overview) {
-      item.overview = details.overview;
-      changed = true;
-    }
-    if (!item.release_date && (details.release_date || details.first_air_date)) {
-      item.release_date = details.release_date || details.first_air_date;
-      changed = true;
-    }
-    return changed;
-  })).then((results) => results.some((result) => result.status === "fulfilled" && result.value === true))
-    .finally(() => {
-      personalMetadataHydrationPromise = null;
-    });
-  return personalMetadataHydrationPromise;
-}
-
-function propagatePersonalMetadata() {
-  const sourceByKey = new Map();
-  for (const item of personalMetadataItems()) {
-    const key = String(item.media_key || mediaKeyForPersonalItem(item));
-    if (!key) continue;
-    const source = sourceByKey.get(key) || {};
-    if (!source.overview && item.overview) source.overview = item.overview;
-    if (!source.release_date && item.release_date) source.release_date = item.release_date;
-    sourceByKey.set(key, source);
-  }
-
-  let changed = false;
-  for (const item of personalMetadataItems()) {
-    const source = sourceByKey.get(String(item.media_key || mediaKeyForPersonalItem(item)));
-    if (!source) continue;
-    if (!item.overview && source.overview) {
-      item.overview = source.overview;
-      changed = true;
-    }
-    if (!item.release_date && source.release_date) {
-      item.release_date = source.release_date;
-      changed = true;
-    }
-  }
-  return changed;
-}
-
 function refreshPersonalMetadata() {
-  hydratePersonalMetadata()
+  hydratePersonalMetadata({ normalizeItem })
     .then((changed) => {
-      if (changed || propagatePersonalMetadata()) refreshPersonalViews();
+      if (changed || propagatePersonalMetadata(mediaKeyForPersonalItem)) refreshPersonalViews();
     })
     .catch(() => { });
 }
@@ -812,10 +743,12 @@ async function refreshPersonalViews() {
   refreshRenderedPersonalMediaControls();
 }
 
-export async function loadPersonalMedia({ force = false } = {}) {
+// maxAgeMs lets a page entry ask for fresh data without refetching a snapshot
+// that another pass of the same navigation loaded moments ago.
+export async function loadPersonalMedia({ force = false, maxAgeMs = PERSONAL_MEDIA_TTL_MS } = {}) {
   if (!state.token) return;
   if (loadPromise) return loadPromise;
-  if (!force && state.personalMediaLoadedAt && Date.now() - state.personalMediaLoadedAt < PERSONAL_MEDIA_TTL_MS) {
+  if (!force && state.personalMediaLoadedAt && Date.now() - state.personalMediaLoadedAt < maxAgeMs) {
     renderPersonalMedia();
     refreshPersonalMetadata();
     return;

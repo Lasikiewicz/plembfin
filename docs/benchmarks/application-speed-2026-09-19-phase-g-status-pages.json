@@ -1,0 +1,41 @@
+{
+  "benchmark": "application-speed Phase G focused status-page document benchmark",
+  "date": "2026-09-19",
+  "environment": {
+    "application": "http://localhost:5055",
+    "role": "web",
+    "immutableAssetCaching": true,
+    "liveSiteUsed": false,
+    "browser": "authenticated local Chrome"
+  },
+  "method": {
+    "routes": ["/sync-activity", "/manual-watch-review"],
+    "runsPerPopulation": 6,
+    "populations": 3,
+    "discardedFirstSamplePerRoute": true,
+    "delayAfterNavigationMs": 1800,
+    "totalSamples": 36,
+    "measuredSamples": 30,
+    "metrics": ["document TTFB", "document load", "DCL", "FCP", "requests", "transfer", "decoded", "API requests", "image requests", "route module", "rendered content"],
+    "purpose": "focused coverage for status pages omitted from the original 16-route matrix"
+  },
+  "populations": {
+    "/sync-activity": [
+      { "index": 0, "measured": 5, "medianTtfbMs": 9.1, "ttfbP95Ms": 12.1, "medianLoadMs": 134.8, "loadP95Ms": 174.4, "loadMaxMs": 174.4, "requestRange": [48, 54], "apiRange": [16, 20], "imageRange": [6, 6], "incomplete": 0, "http429": 0, "http5xx": 0, "renderedRows": 25 },
+      { "index": 1, "measured": 5, "medianTtfbMs": 8.2, "ttfbP95Ms": 14.5, "medianLoadMs": 131.1, "loadP95Ms": 152.7, "loadMaxMs": 152.7, "requestRange": [53, 54], "apiRange": [20, 20], "imageRange": [6, 6], "incomplete": 0, "http429": 0, "http5xx": 0, "renderedRows": 25 },
+      { "index": 2, "measured": 5, "medianTtfbMs": 8.6, "ttfbP95Ms": 9.4, "medianLoadMs": 86.2, "loadP95Ms": 97.9, "loadMaxMs": 97.9, "requestRange": [53, 54], "apiRange": [20, 20], "imageRange": [6, 6], "incomplete": 0, "http429": 0, "http5xx": 0, "renderedRows": 25 }
+    ],
+    "/manual-watch-review": [
+      { "index": 0, "measured": 5, "medianTtfbMs": 7.5, "ttfbP95Ms": 11.3, "medianLoadMs": 103.3, "loadP95Ms": 106.0, "loadMaxMs": 106.0, "requestRange": [49, 51], "apiRange": [16, 16], "imageRange": [7, 9], "incomplete": 0, "http429": 0, "http5xx": 0, "renderedGroups": 1 },
+      { "index": 1, "measured": 5, "medianTtfbMs": 8.7, "ttfbP95Ms": 9.0, "medianLoadMs": 125.2, "loadP95Ms": 153.0, "loadMaxMs": 153.0, "requestRange": [49, 50], "apiRange": [16, 16], "imageRange": [7, 7], "incomplete": 0, "http429": 0, "http5xx": 0, "renderedGroups": 1 },
+      { "index": 2, "measured": 5, "medianTtfbMs": 7.7, "ttfbP95Ms": 8.3, "medianLoadMs": 92.2, "loadP95Ms": 104.2, "loadMaxMs": 104.2, "requestRange": [49, 49], "apiRange": [16, 16], "imageRange": [7, 7], "incomplete": 0, "http429": 0, "http5xx": 0, "renderedGroups": 1 }
+    ]
+  },
+  "interpretation": {
+    "coverage": "Both status pages now have focused benchmark coverage. Sync Activity rendered 25 rows in every measured population. Manual Watch Review rendered one review group in every measured population.",
+    "absoluteBudgets": "Both pages stayed below 175 ms load p95 in every measured population, with no incomplete loads, HTTP 429s, or HTTP 5xx responses.",
+    "repeatability": "Sync Activity population medians were within 2.8% between the first two populations. Manual Watch Review differed by 21.2% between the first two, then measured 92.2 ms in the third; the difference is a small warm-up fluctuation, not an absolute performance failure.",
+    "routeModules": "The expected sync-activity.js and manual-watch-review.js route modules were observed during the loads.",
+    "formalMatrix": "These pages were omitted from the original 16-route matrix and are recorded here as a focused extension."
+  }
+}

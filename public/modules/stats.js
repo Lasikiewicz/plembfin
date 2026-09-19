@@ -1,12 +1,47 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.7.3";
-import { state, elements } from "./state.js?v=1.1.1.7.3";
-import { escapeHtml, escapeAttribute, platformName, formatNumber, formatDate, shortMonthLabel, movieHref } from "./utils.js?v=1.1.1.7.3";
-import { posterMarkup, hydratePosterFallbacks } from "./images.js?v=1.1.1.7.3";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.8.1";
+import { state, elements } from "./state.js?v=1.1.1.8.1";
+import { escapeHtml, escapeAttribute, platformName, formatNumber, formatDate, formatListDate, shortMonthLabel, movieHref } from "./utils.js?v=1.1.1.8.1";
+import { posterMarkup, hydratePosterFallbacks } from "./images.js?v=1.1.1.8.1";
 
 let _cb = {};
 
 export function initStats(callbacks) {
   _cb = callbacks;
+  initStatsEvents();
+}
+
+let statsEventsInitialized = false;
+
+function initStatsEvents() {
+  if (statsEventsInitialized) return;
+  statsEventsInitialized = true;
+
+  elements.statsMediaFilter?.addEventListener("change", () => {
+    state.statsMediaFilter = elements.statsMediaFilter.value || "all";
+    renderStats();
+  });
+  elements.statsPeriodType?.addEventListener("change", () => {
+    state.statsPeriodType = elements.statsPeriodType.value || "all";
+    state.statsPeriodValue = state.statsPeriodType === "all" ? "all" : "";
+    renderStats();
+    loadStats({ force: true }).catch((error) => _cb.setMessage?.(error.message, "error"));
+  });
+  elements.statsPeriodValue?.addEventListener("change", () => {
+    state.statsPeriodValue = elements.statsPeriodValue.value || "all";
+    renderStats();
+    loadStats({ force: true }).catch((error) => _cb.setMessage?.(error.message, "error"));
+  });
+  document.querySelector("#stats-view")?.addEventListener("click", (event) => {
+    const card = event.target.closest("[data-stats-media-href]");
+    if (card) _cb.navigateTo?.(card.dataset.statsMediaHref);
+  });
+  document.querySelector("#stats-view")?.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const card = event.target.closest("[data-stats-media-href]");
+    if (!card) return;
+    event.preventDefault();
+    _cb.navigateTo?.(card.dataset.statsMediaHref);
+  });
 }
 
 function authHeaders() {
@@ -15,12 +50,7 @@ function authHeaders() {
 
 // --- Date helpers used by explorer.js as well ---
 
-export function formatListDate(isoString) {
-  if (!isoString) return "";
-  const d = new Date(isoString);
-  if (Number.isNaN(d.getTime())) return "";
-  return new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric" }).format(d);
-}
+export { formatListDate };
 
 export function futureListDate(isoString) {
   if (!isoString) return "";

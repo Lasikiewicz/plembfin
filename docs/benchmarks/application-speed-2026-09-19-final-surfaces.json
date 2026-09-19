@@ -1,0 +1,211 @@
+{
+  "version": 1,
+  "generatedAt": "2026-09-19T09:20:16.122Z",
+  "durationMs": 5411,
+  "workload": {
+    "dataDir": "<scratchpad copy of data/plembfin.db, taken with the SQLite online backup API on 19 September 2026>",
+    "runsPerSurface": 5,
+    "explorerPageSize": 240,
+    "dashboardPreviewLimit": 120,
+    "library": null,
+    "observedCounts": {
+      "watchHistoryRows": 9026,
+      "distinctMovies": 657,
+      "distinctEpisodes": 7621,
+      "distinctShows": 310,
+      "tmdbCacheRows": 2101
+    },
+    "historyCache": {
+      "rows": 9026,
+      "capped": false,
+      "oldCeilingCrossed": false,
+      "note": "getCachedHistory() and Stats are uncapped. MAX_HISTORY_LIMIT remains an API pagination safety bound only."
+    },
+    "databaseBytes": 676868096
+  },
+  "hardware": {
+    "platform": "win32 10.0.26200",
+    "cpu": "12th Gen Intel(R) Core(TM) i7-12700KF",
+    "cores": 20,
+    "totalMemoryBytes": 68498657280,
+    "node": "v22.23.1"
+  },
+  "fullCacheRebuild": {
+    "runs": 1,
+    "totalMs": 1098.897,
+    "perCache": [
+      {
+        "cache": "shows",
+        "rebuilds": 1,
+        "totalMs": 506.202,
+        "trigger": "observed"
+      },
+      {
+        "cache": "stats",
+        "rebuilds": 1,
+        "totalMs": 289.017,
+        "trigger": "observed"
+      },
+      {
+        "cache": "scheduledShows",
+        "rebuilds": 1,
+        "totalMs": 192.743,
+        "trigger": "observed"
+      },
+      {
+        "cache": "history",
+        "rebuilds": 1,
+        "totalMs": 104.033,
+        "trigger": "observed"
+      },
+      {
+        "cache": "movies",
+        "rebuilds": 1,
+        "totalMs": 5.965,
+        "trigger": "observed"
+      }
+    ]
+  },
+  "instrumentationOverhead": {
+    "probe": "recordCacheRebuild",
+    "iterations": 200000,
+    "perCallNs": 464.187,
+    "atWorstMeasuredChurnMsPerMinute": 0.534,
+    "note": "1,150 rebuilds per minute is test 5 part 1's worst measured window (an import), used here as an upper bound."
+  },
+  "surfaces": [
+    {
+      "surface": "dashboard-payload",
+      "runs": 5,
+      "medianMs": 202.086,
+      "minMs": 197.681,
+      "maxMs": 207.496,
+      "spreadPercent": 4.857,
+      "spreadRule": "pass",
+      "payloadBytes": 325136,
+      "items": 240,
+      "resultHash": "4dce15bf5198393adc76d34a3a0f844a49e58b9c93fbff245bb28f0252b9d669"
+    },
+    {
+      "surface": "stats-cached-read",
+      "runs": 5,
+      "medianMs": 0.001,
+      "minMs": 0,
+      "maxMs": 0.019,
+      "spreadPercent": 3800,
+      "spreadRule": "below-50ms-floor",
+      "payloadBytes": 1890461,
+      "items": null,
+      "resultHash": "898dcb95cae99c9e091fc233928fe85237112bb5c1d77834b5e0a00715d44f58"
+    },
+    {
+      "surface": "history-page-1",
+      "runs": 5,
+      "medianMs": 193.424,
+      "minMs": 191.285,
+      "maxMs": 206.858,
+      "spreadPercent": 8.051,
+      "spreadRule": "pass",
+      "payloadBytes": 410937,
+      "items": 240,
+      "resultHash": "2918e019a4fa97f3cf0e89f81e0f53ebd38542d6fb507dc2d80802b1241ac440"
+    },
+    {
+      "surface": "movies-page-1",
+      "runs": 5,
+      "medianMs": 0.191,
+      "minMs": 0.184,
+      "maxMs": 30.658,
+      "spreadPercent": 15938.023,
+      "spreadRule": "below-50ms-floor",
+      "payloadBytes": 398503,
+      "items": 240,
+      "resultHash": "ce7ec5198344b0b7b68c60931f56b03c1fc182da29ab0983b654531e5f280cc4"
+    },
+    {
+      "surface": "shows-page-1",
+      "runs": 5,
+      "medianMs": 0.659,
+      "minMs": 0.359,
+      "maxMs": 30.63,
+      "spreadPercent": 4595.552,
+      "spreadRule": "below-50ms-floor",
+      "payloadBytes": 340459,
+      "items": 240,
+      "resultHash": "4e0dc79c10e5704bf677d944c5fdcc8294ce022d60adc75a708cae730be9a645"
+    },
+    {
+      "surface": "history-page-5",
+      "runs": 5,
+      "medianMs": 210.703,
+      "minMs": 209.281,
+      "maxMs": 222.162,
+      "spreadPercent": 6.113,
+      "spreadRule": "pass",
+      "payloadBytes": 417697,
+      "items": 240,
+      "resultHash": "c24de05c4ae7d4a98b5079930c009fb80edcb6f9868cb65fbe16599a362d30b3"
+    },
+    {
+      "surface": "movies-page-5",
+      "runs": 5,
+      "medianMs": 0.18,
+      "minMs": 0.164,
+      "maxMs": 0.307,
+      "spreadPercent": 79.222,
+      "spreadRule": "below-50ms-floor",
+      "payloadBytes": 2,
+      "items": 0,
+      "resultHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "surface": "shows-page-5",
+      "runs": 5,
+      "medianMs": 0.736,
+      "minMs": 0.306,
+      "maxMs": 0.891,
+      "spreadPercent": 79.541,
+      "spreadRule": "below-50ms-floor",
+      "payloadBytes": 2,
+      "items": 0,
+      "resultHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "surface": "history-page-10",
+      "runs": 5,
+      "medianMs": 210.21,
+      "minMs": 208.611,
+      "maxMs": 216.002,
+      "spreadPercent": 3.516,
+      "spreadRule": "pass",
+      "payloadBytes": 403778,
+      "items": 240,
+      "resultHash": "6eadd4143919438398ce60aafe9ed6ae4cedb6c3082e69587071c830b5c98781"
+    },
+    {
+      "surface": "movies-page-10",
+      "runs": 5,
+      "medianMs": 0.137,
+      "minMs": 0.132,
+      "maxMs": 0.199,
+      "spreadPercent": 48.798,
+      "spreadRule": "below-50ms-floor",
+      "payloadBytes": 2,
+      "items": 0,
+      "resultHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    },
+    {
+      "surface": "shows-page-10",
+      "runs": 5,
+      "medianMs": 0.298,
+      "minMs": 0.238,
+      "maxMs": 0.498,
+      "spreadPercent": 87.181,
+      "spreadRule": "below-50ms-floor",
+      "payloadBytes": 2,
+      "items": 0,
+      "resultHash": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945"
+    }
+  ],
+  "dataDir": "<scratchpad copy of data/plembfin.db, taken with the SQLite online backup API on 19 September 2026>"
+}

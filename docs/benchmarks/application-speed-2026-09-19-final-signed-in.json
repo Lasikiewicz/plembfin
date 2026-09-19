@@ -1,0 +1,78 @@
+{
+  "benchmark": "application-speed final signed-in route matrix (cold document loads and SPA transitions)",
+  "date": "2026-09-19",
+  "environment": {
+    "browser": "Chrome 153, the user's signed-in profile, visible maximized window (2560x1392) plus a visible 1296x873 measurement popup",
+    "harness": "scripts/browser-route-benchmark.js (document and spa modes), with a per-sample popupHidden flag added for this run",
+    "server": "npm run dev (ROLE=all, PLEMBFIN_DEV_NO_CACHE_ASSETS=1: every asset re-sent, a cold asset cache), providers configured",
+    "library": { "watchHistoryRows": 9026, "movies": 657, "episodes": 7621, "shows": 310, "databaseBytes": 676868096 },
+    "code": "develop working tree after step 63 (theme boot, self-hosted fonts, versioned logos)"
+  },
+  "note": "Per-route medians for population A / population B, first round of each population discarded (5 measured samples per route per population). The browser tool returns about 1,000 characters per call, so per-sample raw data was not exported; the outlier samples are listed individually.",
+  "document": {
+    "startedAt": "2026-09-19T11:25:09.325Z",
+    "finishedAt": "2026-09-19T11:34:08.505Z",
+    "measured": 160,
+    "incomplete": 0,
+    "over5s": 0,
+    "status429": 0,
+    "status5xx": 0,
+    "hiddenSamples": 0,
+    "ttfbMs": { "median": 11.7, "p95": 34.4, "max": 1985.5 },
+    "maxLoadMs": 2221.9,
+    "maxLcpMs": 2340,
+    "outliers": [
+      { "population": 0, "sampleIndex": 71, "route": "/custom-lists", "ttfb": 1986, "load": 2222, "lcp": 2340 },
+      { "population": 0, "sampleIndex": 79, "route": "/movie/a-quiet-place", "ttfb": 940, "load": 1453, "lcp": 1656 },
+      { "population": 0, "sampleIndex": 85, "route": "/watchlist", "ttfb": 479, "load": 657, "lcp": 924 },
+      { "population": 1, "sampleIndex": 53, "route": "/watchlist", "ttfb": 230, "load": 360, "lcp": 404 }
+    ],
+    "columns": ["loadA", "loadB", "p95TtfbA", "p95TtfbB", "fcpA", "lcpA", "lcpB", "primaryReadyA", "primaryReadyB", "requests", "api", "images", "shellRequests", "shellTransferKB", "shellDecodedKB", "transferKB"],
+    "routes": {
+      "/": [116.8, 99.9, 90.6, 14.5, 228, 256, 240, null, null, 75, 16, 25, 34, 306, 1651, 415],
+      "/movies": [110.2, 151.5, 34.4, 24.7, 312, 372, 324, null, null, 109, 10, 66, 33, 306, 1609, 373],
+      "/tvshows": [149.9, 127.2, 29.1, 12.2, 388, 428, 404, null, null, 104, 13, 58, 33, 306, 1609, 718],
+      "/upcoming": [129.1, 115.1, 12.1, 27.6, 512, 512, 472, null, null, 76, 20, 25, 31, 306, 1502, 385],
+      "/discover": [137.9, 126.1, 11.5, 15.1, 212, 356, 340, null, null, 73, 16, 25, 31, 306, 1493, 552],
+      "/watchlist": [118.8, 164.7, 479.1, 229.9, 204, 260, 224, null, null, 69, 11, 27, 31, 306, 1493, 469],
+      "/ratings": [92.8, 94.3, 13, 29.8, 164, 200, 208, null, null, 70, 11, 28, 31, 306, 1493, 420],
+      "/custom-lists": [125.3, 99.3, 1985.5, 14.3, 200, 224, 208, null, null, 67, 11, 25, 31, 306, 1493, 410],
+      "/history": [124.3, 135, 29.1, 24.4, 176, 1628, 1552, null, null, 92, 23, 37, 33, 306, 1609, 574],
+      "/stats": [185.6, 109, 34.5, 12.8, 200, 244, 224, null, null, 47, 10, 12, 25, 303, 1400, 374],
+      "/settings": [126.4, 171.4, 29.9, 32.3, 200, 200, 180, null, null, 68, 15, 2, 51, 306, 2262, 377],
+      "/about": [98.6, 108.4, 12.6, 63.9, 180, 180, 192, null, null, 35, 9, 2, 24, 303, 1378, 369],
+      "/tvshow/tvdb/435298-ludwig": [122.3, 90.6, 12, 13.3, 172, 1036, 1024, 969.3, 995.5, 89, 15, 29, 45, 306, 2144, 392],
+      "/tvshow/tmdb/108978-reacher": [96.7, 101, 31.8, 30.5, 180, 616, 644, 558.5, 585, 84, 14, 24, 46, 321, 2159, 415],
+      "/movie/jackass-presents-bad-grandpa": [98.1, 114.3, 12, 13.8, 164, 340, 328, 264.8, 255.6, 89, 16, 28, 45, 306, 2144, 394],
+      "/movie/a-quiet-place": [120.5, 102.7, 940.2, 25.1, 180, 312, 296, 220.6, 234, 94, 15, 34, 45, 306, 2144, 403]
+    }
+  },
+  "spa": {
+    "measured": 160,
+    "timedOut": 0,
+    "over5s": 0,
+    "status429": 0,
+    "status5xx": 0,
+    "hiddenSamples": 0,
+    "maxSettledMs": 1574,
+    "columns": ["settledA", "settledB", "p95A", "p95B", "primaryReadyA", "primaryReadyB", "requests", "api", "images"],
+    "routes": {
+      "/": [652, 663, 750, 717, null, null, 4, 4, 0],
+      "/movies": [121, 145, 155, 844, null, null, 41, 1, 40],
+      "/tvshows": [196, 187, 762, 201, null, null, 28, 2, 26],
+      "/upcoming": [84, 88, 90, 507, null, null, 2, 2, 0],
+      "/discover": [107, 111, 616, 111, null, null, 3, 3, 0],
+      "/watchlist": [62, 60, 66, 65, null, null, 4, 2, 2],
+      "/ratings": [100, 109, 153, 132, null, null, 4, 3, 1],
+      "/custom-lists": [128, 30, 594, 32, null, null, 2, 2, 0],
+      "/history": [944, 917, 1116, 1574, null, null, 3, 3, 0],
+      "/stats": [30, 30, 278, 556, null, null, 2, 2, 0],
+      "/settings": [51, 43, 64, 63, null, null, 6, 6, 0],
+      "/about": [28, 29, 844, 313, null, null, 1, 1, 0],
+      "/tvshow/tvdb/435298-ludwig": [342, 354, 626, 1224, 335, 330, 25, 2, 23],
+      "/tvshow/tmdb/108978-reacher": [348, 304, 1108, 319, 327, 320, 17, 2, 15],
+      "/movie/jackass-presents-bad-grandpa": [189, 246, 604, 586, 73, 74, 24, 4, 20],
+      "/movie/a-quiet-place": [143, 128, 604, 597, 73, 73, 26, 3, 23]
+    }
+  }
+}

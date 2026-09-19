@@ -1,0 +1,33 @@
+{
+  "capturedAt": "2026-09-18T10:20:30Z",
+  "route": "/",
+  "browser": "Chrome via CUA/CDP",
+  "appUrl": "http://localhost:5055/",
+  "modulepreloadCount": 13,
+  "navigation": {
+    "ttfbMs": 12.7,
+    "domContentLoadedMs": 378.5,
+    "loadMs": 545.9,
+    "documentTransferBytes": 31537,
+    "documentDecodedBytes": 223400,
+    "totalResourcesAfter3500Ms": 133
+  },
+  "criticalShellCutoffs": [
+    { "startTimeCutoffMs": 50, "requests": 16, "transferBytes": 473671, "decodedBytes": 1516018 },
+    { "startTimeCutoffMs": 100, "requests": 17, "transferBytes": 473971, "decodedBytes": 1516704 },
+    { "startTimeCutoffMs": 200, "requests": 22, "transferBytes": 511250, "decodedBytes": 1659562 },
+    { "startTimeCutoffMs": 300, "requests": 29, "transferBytes": 531493, "decodedBytes": 1801466 }
+  ],
+  "verification": {
+    "authenticatedDashboardRendered": true,
+    "moviesRouteRendered": true,
+    "settingsRouteRendered": true,
+    "backForwardPreservedRoute": true,
+    "recentConsoleErrorsOrWarnings": 0
+  },
+  "notes": [
+    "The 200ms critical-shell snapshot is within the 35-request, 600KB-transfer, and 1.75MB-decoded budgets.",
+    "The deferred graph still loads additional modules after the shell; total resource count is intentionally reported separately.",
+    "The route smoke used the authenticated local Chrome session; no provider data was changed."
+  ]
+}

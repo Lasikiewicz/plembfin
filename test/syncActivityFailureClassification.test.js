@@ -7,6 +7,7 @@ const {
   isFailedSyncActivityEntry,
   isRetryableActivity,
   isTraktNotFoundMatchIssue,
+  syncActivityIssueMarkup,
   targetResults,
 } = await import("../public/modules/sync-activity.js");
 
@@ -59,4 +60,34 @@ test("Trakt not_found episode failures offer a show-match repair", () => {
     ...entry,
     targetStates: [{ target: "trakt", status: "error", detail: "HTTP 503" }],
   }), false);
+});
+
+test("current issue markup shows every destination response and targeted Trakt actions", () => {
+  const markup = syncActivityIssueMarkup({
+    id: "activity-1",
+    mediaType: "episode",
+    title: "Black Sails - S04E02",
+    status: "partial",
+    action: "unwatched",
+    timestamp: Date.parse("2026-09-17T18:30:00.000Z"),
+    isLatestForItem: true,
+    rawPayloadDebug: { ids: { tvdb: "5944779" }, season: 4, episode: 2 },
+    targetStates: [
+      { target: "plex", status: "success", detail: "200 OK" },
+      { target: "emby", status: "success", detail: "200 OK" },
+      { target: "jellyfin", status: "success", detail: "200 OK" },
+      { target: "trakt", status: "error", detail: 'Trakt could not match this item to mark it unwatched (not_found: {"shows":[]})' },
+    ],
+  }, "show:black-sails");
+
+  assert.match(markup, /Marked Unwatched Failed/);
+  assert.match(markup, /Black Sails - S04E02/);
+  assert.match(markup, /Plex:<\/span><\/span><span class="sync-activity-target-status">success/);
+  assert.match(markup, /Emby:<\/span><\/span><span class="sync-activity-target-status">success/);
+  assert.match(markup, /Jellyfin:<\/span><\/span><span class="sync-activity-target-status">success/);
+  assert.match(markup, /Trakt:<\/span><\/span><span class="sync-activity-target-status">error/);
+  assert.match(markup, /Trakt could not match this item to mark it unwatched/);
+  assert.match(markup, /Fix show match/);
+  assert.match(markup, /Dismiss Trakt error/);
+  assert.doesNotMatch(markup, /data-sync-activity-retry/);
 });

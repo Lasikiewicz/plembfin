@@ -684,6 +684,7 @@ html.light-mode .button-secondary:focus-visible {
 .support-hero {
   grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.72fr);
   align-items: start;
+  padding-bottom: clamp(0.5rem, 1vw, 1rem);
 }
 
 .support-hero .hero-copy h1 {
@@ -730,35 +731,35 @@ html.light-mode .button-secondary:focus-visible {
   line-height: 1.6;
 }
 
-.support-launch-notice {
-  display: grid;
-  max-width: 34rem;
-  gap: 0.3rem;
-  margin-top: 1.25rem;
-  border: 1px solid color-mix(in srgb, var(--accent) 55%, var(--line));
-  border-radius: 0.8rem;
-  background: color-mix(in srgb, var(--accent) 10%, var(--panel));
-  padding: 0.85rem 1rem;
-}
-
-.support-launch-notice-label {
-  color: var(--accent);
-  font-family: var(--mono);
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.support-launch-notice strong {
-  color: var(--heading);
+.support-paywall-note {
+  justify-content: center;
+  margin: 0 auto;
+  padding-block: clamp(0.5rem, 1vw, 0.75rem);
   font-size: 1rem;
+  line-height: 1.5;
+  text-align: center;
 }
 
-.support-launch-notice p {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.9rem;
+.support-paywall-note .status-dot {
+  animation: support-note-breathe 2.8s ease-in-out infinite;
+  transform-origin: center;
+}
+
+.support-paywall-note + .section {
+  padding-top: clamp(0.75rem, 1.5vw, 1.25rem);
+}
+
+@keyframes support-note-breathe {
+  0%,
+  100% {
+    opacity: 0.72;
+    transform: scale(0.92);
+  }
+
+  50% {
+    opacity: 1;
+    transform: scale(1.12);
+  }
 }
 
 .support-tier-grid {
@@ -2583,6 +2584,45 @@ html.light-mode .docs-page-outline-link.active {
   color: var(--muted);
   font-size: 0.82rem;
   line-height: 1.5;
+}
+
+.changelog-sections {
+  display: grid;
+  gap: var(--space-5);
+  margin-top: var(--space-5);
+}
+
+.changelog-section {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.changelog-section h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.changelog-subgroups {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.changelog-subgroup {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.changelog-subgroup h4 {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.changelog-subgroup ul {
+  margin-top: 0;
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -1257,6 +1257,7 @@ export async function handleUpNext(req, res) {
   if (!(await requireAdmin(req, res))) return;
   const refresh = ["1", "true", "yes"].includes(String(req.query.refresh || "").toLowerCase());
   const revalidate = ["1", "true", "yes"].includes(String(req.query.revalidate || "").toLowerCase());
+  const allowStale = ["1", "true", "yes"].includes(String(req.query.allowStale || "").toLowerCase());
   try {
     // An explicit dashboard refresh must re-check provider rails too.
     // Otherwise a persisted failure from an earlier outage can keep showing
@@ -1272,7 +1273,7 @@ export async function handleUpNext(req, res) {
     const build = async () => buildUpNextProjection({
       mediaConfig: mediaConfig || await loadMediaConfig().catch(() => null),
     });
-    const snapshot = await getUpNextCacheSnapshot(build, { refresh, revalidate });
+    const snapshot = await getUpNextCacheSnapshot(build, { refresh, revalidate, allowStale });
     return sendJson(res, {
       items: snapshot.items,
       builtAt: snapshot.builtAt,

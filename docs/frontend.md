@@ -18,6 +18,7 @@ the module rules. Feature-specific behavior lives in the per-feature docs
   callback objects passed to each module's `init*(callbacks)` function. Modules never
   import from `app.js` - dependencies flow one way, and cross-module calls that would
   point "upward" go through those init callbacks instead.
+
 - **`public/modules/*.js`** - feature modules with named ES exports (soft limit 1,200
   lines, hard limit 1,500). The module ownership rules in this document and the file map
   in [architecture.md](architecture.md) are authoritative.
@@ -26,6 +27,84 @@ the module rules. Feature-specific behavior lives in the per-feature docs
   `tools-backups.js` consumes the same primitives for remote destinations.
 - **`public/styles.css`** - all styling, including the ≤ 760px mobile rules. Any
   layout/appearance change must be verified on mobile.
+
+### Core graph and route modules
+
+`app.js` statically imports only the core graph needed for the first paint: auth,
+state, utils, images, logs, settings shell, sync,
+live updates, the small appearance, status-indicator, media-routing, and cast-disclosure
+helpers, and `route-modules.js`. Dashboard, Up Next, backup tools, the metadata helper,
+shared detail renderer, and the full status pages are registered route modules, so
+their graphs load only when the relevant route or action needs them. The `modulepreload`
+links in `index.html` cover the remaining core graph only.
+
+Everything else is a **route module**, registered in `public/modules/route-modules.js` and
+loaded on demand with native `import()`:
+
+- **Shell modules** (`SHELL_ROUTE_MODULES`) load right after the first paint on every page:
+  `app-events.js` (the document-wide click and change wiring). The changelog helper is
+  Settings-scoped, while detail event wiring is route-scoped with the detail group and
+  Settings explicitly loads it for the library Force Sync panel. The tracker, rating-sync,
+  watchlist-sync, and Tautulli modules are Settings-only and load with that route, after
+  the saved config has been fetched. So does `settings-events.js`, which holds the Settings
+  page's own handlers (logs, admin login, import, backups, maintenance tools, sync controls);
+  `app-events.js` initializes it through `onRouteModuleLoaded()`.
+- **Status modules** (`STATUS_ROUTE_MODULES`: sync activity and manual watch review) load only
+  when their pages are opened. The small `status-indicators.js` core helper keeps the sidebar
+  sync progress, attention, and Manual Watch review count live and polls their compact summaries
+  after sign-in. Poster-card menus are route work and load only for library, dashboard,
+  discovery, upcoming, personal-media, and detail views.
+- The onboarding wizard is also route-scoped: its large setup/claim module loads only for
+  `/setup`, a claim-required session, or when the deferred `/api/setup/status` check for a
+  signed-in account finds something for it to show (setup unfinished and not dismissed, or a
+  non-empty dashboard checklist). A finished install never downloads it, and the dashboard
+  renders its checklist through `ifLoaded("onboarding", ...)`.
+- The Settings service renderer (`settings-services.js`, with its `settings-ui.js` and
+  `help-content.js` dependencies) is route-scoped as well. Direct Settings routes initialize
+  it before applying saved config; Dashboard reaches it only through the onboarding checklist
+  dependency. Help-content is therefore absent from the global shell and loaded when Settings
+  or onboarding needs its guides.
+- **Route groups** load when their route is opened: `routeModulesForState()` in `app.js`
+  maps each view to its modules (Dashboard and Up Next, Explorer/History/Search, Stats, Upcoming, Discover and the
+  personal-media pages, Settings/Tools/Backups, Sync Activity, Manual Watch Review, and the detail
+  group for movie, show, and person pages). `handleRouting()` and `applyActiveView()` render
+  the core parts immediately and replay once the route's modules arrive; a newer navigation
+  supersedes a pending replay.
+
+Rules that keep this correct:
+
+- Each registry entry lists the registered modules it imports statically (`deps`), so they
+  load and initialize first. `test/routeModules.test.js` checks this against the real
+  import lines, and fails if a shell module or the core graph statically imports a route
+  module (that would pull the route's whole graph onto every page).
+- `app-events.js` and the route-scoped `media-detail-events.js` reach route modules only through
+  `lazyExport()` (actions: loads the module on first use) and `ifLoaded()` (renders and
+  cleanups: never triggers a load). A synchronous read of another module (for example the
+  watch-date reference or edit-date options) must `await loadRouteModules([...])` first.
+- Each route-module export used by `app.js` is a `let` holding a no-op placeholder until its
+  module loads. **Never hand one to another module by value**: that module keeps the
+  placeholder forever. Pass `live(() => name)` for renders or `viaModule(key, () => name)`
+  for actions. A placeholder whose result is chained with `.then`/`.catch` must be
+  `lazyNoopAsync`. `test/frontendLazyGraph.test.js` enforces all three.
+- Each route module is initialized once, by its entry in `ROUTE_MODULE_INITIALIZERS`.
+  `loadSavedConfig()` waits for the document-wide shell modules; Settings-only initializers
+  apply the already-fetched config when that route is opened, so other routes do not download
+  or poll those controls.
+- Until the shell modules are ready, `installEarlyActivationCapture()` (in
+  `route-modules.js`, next to `ensureShellModules()`) holds the last click
+  or form submit and replays it afterwards. It never lets a form fall back to a native GET
+  submit.
+- The theme is applied before first paint by `theme-boot.js`, a blocking classic script in
+  `<head>`. Header logos (`img[data-theme-logo]`) have no `src` in `index.html`; the boot
+  script assigns the variant for the saved or system theme as each one is parsed, so a load
+  requests exactly one logo whatever the combination of saved theme and system preference.
+  The two logo URLs and the fonts are versioned (`?v=`) like other assets, so production
+  caches them immutably and a theme toggle is served from cache.
+- Every dynamic import carries the canonical `?v=` token. `assets:check` fails an unstamped
+  or stale one (`test/assetVersionDynamicImports.test.js`).
+- Detail pages mark `plembfin:detail-primary-ready` (`markDetailPrimaryReady()` in
+  `media-detail-shared.js`) when title, artwork, synopsis, watch state, and primary actions
+  are rendered from real data. The application-speed benchmark reads it.
 
 ## State
 
@@ -119,7 +198,10 @@ stays set to the slug throughout, so the address bar keeps the `/tvshow/:key` fo
 3. Each module's `init*(callbacks)` is called, handing it the app-level functions it
    may call (`navigateTo`, `setMessage`, `renderExplorer`, …).
 4. `initAppEvents` (`modules/app-events.js`) binds the delegated global handlers
-   (nav clicks, form submits, search inputs, keyboard shortcuts).
+  (nav clicks, form submits, search inputs, keyboard shortcuts). Sync Activity's
+  pause, refresh, retry-all, failed-only, search, paging, retry, match-fix, dismiss, log, and row-keyboard handlers are
+   initialized by `sync-activity.js` only when that route module loads. Explorer/History
+   controls and Stats filters/link handlers are initialized by their owning route modules.
 5. `onAuthChange` checks `/api/auth/status`; on success the shell shows,
    `handleRouting(location.pathname)` runs, and the active view loads.
 
@@ -150,7 +232,11 @@ stays set to the slug throughout, so the address bar keeps the `/tvshow/:key` fo
   changed Up Next snapshot announces its generation on `/api/live-updates`, and feed
   failures/partial refreshes expose source status while retaining the last good rows.
   Watch-state history events refresh the rail after the authoritative history snapshot
-  arrives. Discover loads cached TMDB feeds and a bounded rolling-12-month watch-history recommendation rail
+  arrives. Only the dashboard's first paint of a page load sends `allowStale=1`, which may
+  return a snapshot built before the latest watch history. The server always queues a
+  rebuild in that case (bypassing its 10-minute provider-feed throttle), and the client asks
+  once more about 2.5 s later without `allowStale`, so a stale first paint is always replaced
+  by the authoritative rail. Discover loads cached TMDB feeds and a bounded rolling-12-month watch-history recommendation rail
   through `/api/discover` with type/genre filters and a longer TTL, hydrates the selected rail
   set from a bounded localStorage cache for the first paint, then reconciles it with the server
   cache. Watched titles are removed from every rail using provider identity and title fallback.
@@ -361,7 +447,10 @@ Responsive behavior:
 ## Adding a new module
 
 1. Create `public/modules/<feature>.js` with named ES exports.
-2. Add `<link rel="modulepreload" href="/modules/<feature>.js" />` to `index.html`.
+2. If the module is part of the core graph (needed for the first paint), add
+   `<link rel="modulepreload" href="/modules/<feature>.js" />` to `index.html`. A route,
+   dialog, or tool module is instead registered in `route-modules.js` (see "Core graph and
+   route modules" above) and gets no preload.
 3. Import it in `app.js` (or the owning module) and, if it needs app-level functions,
    give it an `init<Feature>(callbacks)` entry point.
 4. Add the module to the file map in [architecture.md](architecture.md) and the relevant

@@ -1,0 +1,84 @@
+{
+  "benchmark": "application-speed Phase G local mutation checklist",
+  "date": "2026-09-18",
+  "environment": {
+    "application": "http://localhost:5055",
+    "mediaServer": "http://192.168.1.213:32402",
+    "liveSiteUsed": false
+  },
+  "checks": [
+    {
+      "id": "up-next-rail-mark-watched",
+      "item": "Ludwig (2024) S02E02",
+      "result": "pass",
+      "evidence": "Mark Watched from the local Up Next overflow removed the card without a reload and added the episode to local history.",
+      "restoration": "The episode was marked unwatched again locally; provider playback was not left running."
+    },
+    {
+      "id": "discover-detail-mark-watched",
+      "item": "The Old Man",
+      "result": "pass",
+      "evidence": "The local Discover detail changed from 0 of 15 episodes watched to 15 of 15; returning to Discover without a reload removed the recommendation.",
+      "restoration": "The title was marked unwatched again and returned to 0 of 15 episodes watched."
+    },
+    {
+      "id": "now-playing-link",
+      "item": "Ludwig (2024) S02E03",
+      "result": "pass",
+      "evidence": "The local Now Playing card opened the Ludwig detail and settled at /tvshow/tmdb/243360-ludwig#season0. The provider session initially omitted show IDs, so the route helper now uses local identity or a canonical title fallback.",
+      "restoration": "The temporary local Plex playback was stopped and the dashboard cleared to No media currently playing."
+    },
+    {
+      "id": "provider-watched-arrival",
+      "item": "Ludwig (2024) S02E03",
+      "result": "safeguarded",
+      "evidence": "Plex Mark as Watched was received while Plembfin remained canonically unwatched. The server intentionally logged that it ignored the generic provider watched flag and kept the item in manual review.",
+      "restoration": "Plex was returned to unwatched and the local playback session was stopped."
+    },
+    {
+      "id": "provider-arrival-redraw-views",
+      "result": "pass",
+      "provider": "emby",
+      "item": "Ludwig (2024) S02E02, S02E03, and S02E04",
+      "acceptedTransitions": [
+        {
+          "source": "emby",
+          "ingestPath": "live_session",
+          "event": "playback.complete",
+          "phase": "completed",
+          "confidence": "exact"
+        }
+      ],
+      "evidence": "The generic Plex watched flag remained safeguarded, then real accepted Emby threshold completions supplied exact live-session provenance. The open detail changed from 11/12 to 12/12 without reload; the local Movies, TV Shows, History, and Stats routes then rendered the canonical 12/12 state without page reload.",
+      "implementation": "A newer exact live completion can supersede an older manual unwatched tombstone. Generic provider watched flags remain subordinate to the canonical manual-review decision."
+    }
+  ],
+  "codeFollowUp": {
+    "files": [
+      "public/app.js",
+      "public/modules/app-events.js",
+      "public/modules/media-routing.js",
+      "test/frontendCoreHelpers.test.js"
+    ],
+    "summary": "Keep early and delegated click activation reliable, keep the Now Playing handler in the shell, resolve ID-less provider sessions to a local show route when possible, repair durable-record identity rekeys, and refresh the TV Shows explorer in place on accepted live history changes."
+  },
+  "verification": {
+    "targetedTests": {
+      "command": "npm test -- test/frontendCoreHelpers.test.js test/frontendSync.test.js test/mediaForceSyncCanonicalState.test.js",
+      "tests": 24,
+      "passed": 24,
+      "failed": 0
+    },
+    "diffCheck": "passed",
+    "build": {
+      "command": "npm run build",
+      "tests": 1030,
+      "passed": 1030,
+      "failed": 0,
+      "documentation": "passed",
+      "assetVersion": "passed",
+      "plembfinBuildCheck": "passed"
+    }
+  },
+  "liveSiteTouched": false
+}

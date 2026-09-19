@@ -1,4 +1,5 @@
 import { runWithConcurrency } from "./concurrency.js";
+import { yieldToEventLoop } from "./eventLoop.js";
 import { getCanonicalWatchState } from "./dataRepo.js";
 import { normalizeProviderIds, parsePlexMediaIds } from "./parsers.js";
 import { fetchPlexLibraryItems } from "./plexClient.js";
@@ -9,6 +10,8 @@ import { buildWatchProvenance } from "./watchProvenance.js";
 
 const PROVIDERS = ["plex", "emby", "jellyfin"];
 const RECONCILIATION_CONCURRENCY = 4;
+// Longest synchronous slice of the availability pass before it yields.
+const AVAILABILITY_YIELD_MS = 20;
 
 const defaultClients = {
   plex: { fetch: fetchPlexLibraryItems },
@@ -222,13 +225,26 @@ export async function reconcileAvailableWatchedItems(config = {}, {
     result.candidates += providerResult.candidates;
     result.skipped += providerResult.skipped;
 
+    // Every await below resolves as a microtask when the lookups are local, so
+    // without an explicit yield a large library runs this whole loop as one
+    // synchronous stretch. Profiling measured 8-10 s stretches that stalled
+    // every page load and API request queued behind them.
+    let sliceStartedAt = Date.now();
     await runWithConcurrency(candidates, async (media) => {
-      if (await shouldStop()) return;
+      if (Date.now() - sliceStartedAt >= AVAILABILITY_YIELD_MS) {
+        await yieldToEventLoop();
+        sliceStartedAt = Date.now();
+      }
       const canonicalState = await getCanonicalWatchState(media).catch(() => null);
       if (canonicalState !== "watched") {
         providerResult.skipped += 1;
         return;
       }
+      // The restore fence guards the provider write below. Checking it here,
+      // immediately before that write, keeps the guarantee while skipping a
+      // runtime-state read and JSON parse for every candidate that is not
+      // canonically watched (the large majority of an unplayed inventory).
+      if (await shouldStop()) return;
 
       providerResult.canonicalWatched += 1;
       result.canonicalWatched += 1;

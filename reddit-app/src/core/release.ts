@@ -11,16 +11,22 @@ type ChangelogSections = {
   tweaks?: string[];
 };
 
+type ChangelogSectionGroups = Partial<Record<keyof ChangelogSections, {
+  title?: string;
+  details?: string[];
+}[]>>;
+
 type ChangelogEntry = {
   version: string;
   message: string;
   sections?: ChangelogSections;
+  sectionGroups?: ChangelogSectionGroups;
   details?: string[];
 };
 
 const SECTION_LABELS: [keyof ChangelogSections, string][] = [
   ["newFeatures", "New Features"],
-  ["majorBugFixes", "Major Bug Fixes"],
+  ["majorBugFixes", "Bug Fixes"],
   ["tweaks", "Tweaks"],
 ];
 
@@ -40,10 +46,21 @@ function bulletList(items: string[] | undefined): string | null {
   return lines.join("\n");
 }
 
+function sectionBulletList(entry: ChangelogEntry, key: keyof ChangelogSections): string | null {
+  const groups = entry.sectionGroups?.[key];
+  if (!Array.isArray(groups) || groups.length === 0) return bulletList(entry.sections?.[key]);
+  const items: string[] = [];
+  for (const group of groups) {
+    if (group.title) items.push(`**${group.title}**`);
+    if (Array.isArray(group.details)) items.push(...group.details);
+  }
+  return bulletList(items);
+}
+
 function buildPost(entry: ChangelogEntry): { title: string; text: string } {
   const sections: string[] = [];
   for (const [key, label] of SECTION_LABELS) {
-    const list = bulletList(entry.sections?.[key]);
+    const list = sectionBulletList(entry, key);
     if (list) sections.push(`**${label}**\n\n${list}`);
   }
   if (sections.length === 0) {

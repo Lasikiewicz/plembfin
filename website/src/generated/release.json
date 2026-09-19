@@ -5114,10 +5114,28 @@
   ],
   "alpha": {
     "baseVersion": "1.1.1",
-    "build": 7,
-    "version": "1.1.1.7.0",
-    "updatedAt": "2026-09-17T15:48:29.193Z",
+    "build": 8,
+    "version": "1.1.1.8.0",
+    "updatedAt": "2026-09-17T17:44:57.251Z",
     "entries": [
+      {
+        "build": 8,
+        "version": "1.1.1.8.0",
+        "date": "17 September 2026",
+        "title": "Alpha build 8",
+        "summary": "Improve sync visibility and streamline watch-state review and updates.",
+        "bullets": [
+          "Tweak: Keep media changes visible while sync is in progress.",
+          "Tweak: Give Tautulli backup and import a clear preview, backup, import, and syncing flow with progress feedback.",
+          "Tweak: Refresh open media details immediately after removing one watch date while preserving surviving watches.",
+          "Tweak: Show syncing state and pause only affected media controls while queued imports and dispatches finish.",
+          "Tweak: Keep repeated watch actions responsive and visible, including animated Up Next requests with failure-safe labels.",
+          "Tweak: Keep Up Next and watch-state changes visible immediately while provider sync continues in the background",
+          "Tweak: Make Manual Watch review decisions clearer, confirmed, merged by episode, and removed from the working list without layout jumps",
+          "Tweak: Align review counts with the actionable episodes shown and stop re-announcing flags already resolved by Plembfin",
+          "Tweak: Improve Sync Activity issue handling and add connection recovery guidance for unavailable media servers"
+        ]
+      },
       {
         "build": 7,
         "version": "1.1.1.7.0",
@@ -5134,7 +5152,9 @@
           "Tweak: Refresh Up Next immediately after dashboard unwatch actions and keep valid manual watch reviews visible when older watch history exists.",
           "Tweak: Require confirmation before applying individual or show-level watch and unwatched decisions from Manual Watch review.",
           "Tweak: Show which connected app reported a watch and where dismissing the review will mark it unwatched.",
-          "Tweak: Organize Manual Watch review actions by show, season, and episode with concise provider-specific labels."
+          "Tweak: Organize Manual Watch review actions by show, season, and episode with concise provider-specific labels.",
+          "Tweak: Show newest review seasons first in boxed panels beneath the poster, preview only a few latest-season episodes, merge duplicate provider records into one row with source pills, remove the redundant show-level count summary, and remove accepted decisions optimistically while sync continues.",
+          "Fix: Use a generic Dismiss & mark unwatched action, send the unwatched correction to all configured media apps, and keep the dismissed row hidden while stale refreshes settle."
         ]
       },
       {

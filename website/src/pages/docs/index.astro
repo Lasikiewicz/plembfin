@@ -1,12 +1,13 @@
 ---
-import { getCollection } from "astro:content";
+import { getCollection, type CollectionEntry } from "astro:content";
 import SiteLayout from "../../layouts/SiteLayout.astro";
 import DocsSidebar from "../../components/DocsSidebar.astro";
 import ScreenshotFigure from "../../components/ScreenshotFigure.astro";
 import { docsNav } from "../../data/site.js";
 
 const entries = await getCollection("docs");
-const getEntrySlug = (entry) => entry.slug ?? entry.id.replace(/\.(?:md|mdx)$/i, "");
+type DocEntry = CollectionEntry<"docs">;
+const getEntrySlug = (entry: DocEntry) => entry.id.replace(/\.(?:md|mdx)$/i, "");
 const docsBySlug = new Map(entries.map((entry) => [getEntrySlug(entry), entry]));
 type HeadingInfo = { level: number; text: string };
 type NavChild = { id: string; label: string; children?: NavChild[] };
@@ -107,7 +108,7 @@ const docsSearchEntries = (docsNav as NavSection[]).flatMap((section) => section
   const page = {
     ...item,
     section: section.label,
-    body: entry.body,
+    body: entry.body ?? "",
     excerpt: item.description,
     screenshot: null,
     headingPath: [item.label],

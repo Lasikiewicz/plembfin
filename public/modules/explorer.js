@@ -1,4 +1,4 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.7.3";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.8.1";
 import {
   state, elements,
   EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS,
@@ -6,21 +6,21 @@ import {
   HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS,
   HISTORY_VIEW_KEY, HISTORY_FILTER_KEY,
   HISTORY_VIEW_MODES, HISTORY_FILTERS,
-} from "./state.js?v=1.1.1.7.3";
+} from "./state.js?v=1.1.1.8.1";
 import {
   escapeHtml, escapeAttribute, slug, showTitleFrom, showName, tvShowBaseHrefFromEpisode,
   movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, platformBadge, sourceClass, sourceBadgeHtml, formatDate,
   computeProgress, sanitizeTitle, episodeTitle, episodeCode,
-} from "./utils.js?v=1.1.1.7.3";
-import { posterMarkup, posterOverflowMenu, hydratePosters, bindPosterImageErrorHandler, tmdbPoster, tmdbProfile, proxiedArtworkUrl } from "./images.js?v=1.1.1.7.3";
+} from "./utils.js?v=1.1.1.8.1";
+import { posterMarkup, posterOverflowMenu, hydratePosters, bindPosterImageErrorHandler, tmdbPoster, tmdbProfile, proxiedArtworkUrl } from "./images.js?v=1.1.1.8.1";
 import {
   historySyncPill, renderSyncStatusDot, renderMediaSyncPills,
   renderAvailabilityPills, renderShowAvailabilityPills, showAvailIssuePopup,
   isWatchedHistoryAction,
-} from "./sync.js?v=1.1.1.7.3";
-import { dedupeMediaRecords, renderHistoryCard } from "./dashboard.js?v=1.1.1.7.3";
-import { renderMediaCard } from "./media-card.js?v=1.1.1.7.3";
-import { nextAiringCell, nextAiringDateValue, formatListDate, futureListDate } from "./stats.js?v=1.1.1.7.3";
+} from "./sync.js?v=1.1.1.8.1";
+import { dedupeMediaRecords } from "./media-records.js?v=1.1.1.8.1";
+import { renderMediaCard } from "./media-card.js?v=1.1.1.8.1";
+import { nextAiringCell, nextAiringDateValue, formatListDate, futureListDate } from "./stats.js?v=1.1.1.8.1";
 // ---------------------------------------------------------------------------
 // Callback injection - functions defined outside the 2636-4016 range in app.js
 // ---------------------------------------------------------------------------
@@ -44,6 +44,117 @@ function clearHistoryViewLoadWatchers() {
 export function initExplorer(callbacks) {
   _cb = callbacks;
   initExplorerPosterScrollHydration();
+  initExplorerEvents();
+}
+
+let explorerEventsInitialized = false;
+
+function initExplorerEvents() {
+  if (explorerEventsInitialized) return;
+  explorerEventsInitialized = true;
+
+  elements.explorerButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      state.explorerMode = button.dataset.explorerMode;
+      renderExplorer();
+      _cb.selectView?.("explorer");
+    });
+  });
+
+  elements.explorerSort?.addEventListener("change", () => {
+    setCurrentExplorerSort(elements.explorerSort.value || "title_asc");
+    renderExplorer();
+  });
+  elements.explorerHideWatched?.addEventListener("change", () => {
+    state.hideWatchedShows = elements.explorerHideWatched.checked;
+    localStorage.setItem(HIDE_WATCHED_KEY_SHOWS, String(state.hideWatchedShows));
+    renderExplorer();
+  });
+  elements.explorerHideEnded?.addEventListener("change", () => {
+    state.hideEndedShows = elements.explorerHideEnded.checked;
+    localStorage.setItem(HIDE_ENDED_KEY_SHOWS, String(state.hideEndedShows));
+    renderExplorer();
+  });
+  elements.explorerSearchInput?.addEventListener("input", () => {
+    window.clearTimeout(state.explorerSearchTimer);
+    state.explorerSearchTimer = window.setTimeout(() => {
+      state.explorerSearch = elements.explorerSearchInput.value.trim();
+      renderExplorer();
+    }, 220);
+  });
+  elements.explorerPanel?.addEventListener("click", (event) => {
+    const header = event.target.closest("[data-sort-key]");
+    if (!header) return;
+    applyListHeaderSort(header.dataset.sortKey);
+  });
+  elements.alphaFilterNav?.addEventListener("click", handleAlphaFilterClick);
+
+  elements.explorerPosterSize?.addEventListener("input", (event) => {
+    const value = event.target.value;
+    document.documentElement.style.setProperty("--poster-width", `${value}px`);
+    const widthKey = currentPosterWidthKey();
+    if (widthKey) localStorage.setItem(widthKey, `${value}px`);
+  });
+  elements.historyPosterSize?.addEventListener("input", (event) => {
+    const value = event.target.value;
+    document.documentElement.style.setProperty("--history-poster-width", `${value}px`);
+    localStorage.setItem("plembfin:history:posterWidth", `${value}px`);
+  });
+
+  elements.historySearchInput?.addEventListener("input", () => {
+    window.clearTimeout(state.historyViewSearchTimer);
+    state.historyViewSearchTimer = window.setTimeout(() => {
+      state.historyViewSearch = elements.historySearchInput.value.trim();
+      renderHistoryView();
+    }, 220);
+  });
+  const unlockHistorySearch = () => elements.historySearchInput?.removeAttribute("readonly");
+  elements.historySearchInput?.addEventListener("pointerdown", unlockHistorySearch);
+  elements.historySearchInput?.addEventListener("focus", unlockHistorySearch);
+
+  for (const button of elements.historyFilterButtons || []) {
+    button.addEventListener("click", () => {
+      const filter = button.dataset.historyFilter || "all";
+      if (!HISTORY_FILTERS.includes(filter) || filter === state.historyViewFilter) return;
+      state.historyViewFilter = filter;
+      localStorage.setItem(HISTORY_FILTER_KEY, filter);
+      resetHistoryView([state.historyViewSearch, state.historyViewFilter].join("|"));
+      renderHistoryView();
+    });
+  }
+
+  for (const button of elements.historyViewButtons || []) {
+    button.addEventListener("click", () => {
+      const view = button.dataset.historyView || "grid";
+      if (!HISTORY_VIEW_MODES.includes(view) || view === state.historyViewMode) return;
+      state.historyViewMode = view;
+      localStorage.setItem(HISTORY_VIEW_KEY, view);
+      renderHistoryView();
+    });
+  }
+
+  for (const button of elements.explorerViewButtons || []) {
+    button.addEventListener("click", () => {
+      const view = button.dataset.explorerView;
+      if (!view || view === currentExplorerView()) return;
+      if (state.explorerMode === "shows") {
+        state.explorerViewShows = view;
+        localStorage.setItem(EXPLORER_VIEW_KEY_SHOWS, view);
+        state.showsRaw = [];
+        state.showsOffset = 0;
+        state.showsHasMore = true;
+        state.showsLoading = false;
+      } else {
+        state.explorerViewMovies = view;
+        localStorage.setItem(EXPLORER_VIEW_KEY_MOVIES, view);
+        state.moviesRaw = [];
+        state.moviesOffset = 0;
+        state.moviesHasMore = true;
+        state.moviesLoading = false;
+      }
+      renderExplorer();
+    });
+  }
 }
 
 // hydratePosters() and observeExplorerTmdbPrefetch() both only look at the
@@ -1303,6 +1414,37 @@ export async function refreshMovieExplorerInPlace() {
   state.moviesOffset = movies.length;
   state.moviesHasMore = movies.length === loadedCount;
   renderMovieExplorer();
+}
+
+// Same in-place refresh as the movie explorer, for the TV Shows library. A
+// live provider completion can arrive while the detail page is open and the
+// user can then return to this list without a full reload. Refetch the pages
+// already mounted, preserving the list shell while replacing its summaries.
+export async function refreshShowExplorerInPlace() {
+  if (!isCurrentExplorerRoute("shows") || state.showsLoading) return;
+  const requestVersion = state.showsRequestVersion;
+  const loadedCount = Math.max(state.showsOffset, EXPLORER_PAGE_SIZE);
+  const url = new URL("/api/shows", window.location.origin);
+  url.searchParams.set("limit", String(loadedCount));
+  url.searchParams.set("offset", "0");
+  url.searchParams.set("sort", state.explorerSortShows);
+  if (state.explorerSearch) url.searchParams.set("search", state.explorerSearch);
+  if (shouldHideWatchedShows()) url.searchParams.set("hideWatched", "true");
+  if (state.hideEndedShows) url.searchParams.set("hideEnded", "true");
+  let body;
+  try {
+    const res = await fetch(url, { headers: authHeaders(), cache: "reload" });
+    body = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(body.error || `Shows load failed ${res.status}`);
+  } catch {
+    return;
+  }
+  if (requestVersion !== state.showsRequestVersion || !isCurrentExplorerRoute("shows")) return;
+  const shows = Array.isArray(body.shows) ? body.shows : [];
+  state.showsRaw = dedupeMediaRecords(shows, "shows");
+  state.showsOffset = shows.length;
+  state.showsHasMore = shows.length === loadedCount;
+  renderShowExplorer();
 }
 
 // Same idea as refreshMovieExplorerInPlace(), for the flat History page/grid.

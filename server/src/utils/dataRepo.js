@@ -24,6 +24,7 @@ import {
   persistedWatchDerivedFields,
   repairedStoredEpisodeTitle as repairedEpisodeTitle,
 } from "./watchDerivedFields.js";
+import { yieldToEventLoop } from "./eventLoop.js";
 
 // Initialize TV show progress cache on startup
 initShowProgressCache().catch((err) => {
@@ -36,6 +37,12 @@ const HISTORY_VISIBILITY_CACHE_VERSION = 4;
 const HISTORY_PREVIEW_SCAN_LIMIT = 600;
 
 let historyCache = { version: null, rows: [] };
+// History pages return episode rows, but each row also needs the canonical
+// artwork and series identity from its show. Build that lookup once per
+// history generation instead of regrouping the entire episode library for
+// every page, filter, or pagination request.
+let historyArtworkCache = { version: null, byId: null, byMediaKey: null, byCoordinate: null };
+const historyArtworkBuilds = new Map();
 let showCache = { version: null, shows: [] };
 // The includeScheduledLibraryHistory variant returns a different show set, so it
 // needs its own slot. Without one it was recomputed from the full watch history
@@ -280,13 +287,34 @@ function normalizeKeyPart(value) {
   return String(value ?? "none").trim().toLowerCase().replace(/[^a-z0-9._:-]+/g, "-");
 }
 
+// Title normalisation is pure, but show lookups run it for every history and
+// playstate row: queryShowDetail once per show during an Up Next rebuild, and
+// getPlaystateForMediaSync for every row at an episode's coordinates during the
+// scheduled availability pass. Profiling showed those loops holding the event
+// loop for several seconds at a time, stalling unrelated page loads. Memoize by
+// the raw string; the bound stops a pathological library from growing it
+// without limit (clearing only costs recomputation).
+const TITLE_MEMO_LIMIT = 20000;
+const canonicalTitleKeyMemo = new Map();
+const showTitleFromMemo = new Map();
+function rememberTitle(memo, value, result) {
+  if (memo.size >= TITLE_MEMO_LIMIT) memo.clear();
+  memo.set(value, result);
+  return result;
+}
+
 export function canonicalTitleKey(value) {
-  return decodeBasicHtmlEntities(value)
+  if (typeof value === "string") {
+    const cached = canonicalTitleKeyMemo.get(value);
+    if (cached !== undefined) return cached;
+  }
+  const key = decodeBasicHtmlEntities(value)
     .trim()
     .toLowerCase()
     .replace(/\s+/g, " ")
     .replace(/[^\p{L}\p{N}]+/gu, "-")
     .replace(/^-+|-+$/g, "");
+  return typeof value === "string" ? rememberTitle(canonicalTitleKeyMemo, value, key) : key;
 }
 
 function stablePosterKey(value) {
@@ -334,6 +362,15 @@ export function canonicalShowTitleKey(value) {
 }
 
 export function showTitleFrom(title = "") {
+  if (typeof title === "string") {
+    const cached = showTitleFromMemo.get(title);
+    if (cached !== undefined) return cached;
+    return rememberTitle(showTitleFromMemo, title, computeShowTitleFrom(title));
+  }
+  return computeShowTitleFrom(title);
+}
+
+function computeShowTitleFrom(title = "") {
   const text = cleanString(decodeBasicHtmlEntities(title)) || "Unknown Show";
   const seasonMatch = text.match(/^(.*?)(?:\s+-\s+S\d{1,2}E\d{1,2})(?:\s+-\s+.*)?$/i);
   if (seasonMatch?.[1]) return removeTrailingYear(seasonMatch[1]) || "Unknown Show";
@@ -3073,14 +3110,36 @@ function canonicalTransitionTime(row = {}) {
   return Number.isFinite(updatedAt) && updatedAt > 0 ? updatedAt : 0;
 }
 
+function acceptedLiveWatchSourceTime(row = {}) {
+  if (!isWatchedAction(row) || !isMediaServerHistorySource(row.source)) return 0;
+  const provenance = normalizeWatchProvenance(row.watch_provenance || row.watchProvenance);
+  if (provenance?.ingest_path !== "live_session"
+    || provenance?.event !== "playback.complete"
+    || provenance?.phase !== "completed"
+    || provenance?.confidence !== "exact") return 0;
+  const sourceTime = Date.parse(String(provenance.source_timestamp || ""));
+  return Number.isFinite(sourceTime) ? sourceTime : 0;
+}
+
+// The provider's source_timestamp comes from the media server's clock and
+// created_at from Plembfin's. Requiring both to be newer than the manual
+// unwatch means neither a skewed provider clock nor a late-ingested replay of
+// an older completion can revive the tombstone. See docs/decisions.md entry 31.
+function acceptedLiveWatchIsNewerThanManual(liveRow = {}, manualRow = {}) {
+  const manualTime = canonicalTransitionTime(manualRow);
+  return acceptedLiveWatchSourceTime(liveRow) > manualTime
+    && canonicalTransitionTime(liveRow) > manualTime;
+}
+
 function canonicalTransitionIsNewer(row = {}, existing = {}) {
   // Plembfin's explicit action is authoritative over a provider echo. A
   // media-server *unwatch* is the one opposite-state exception: it can be a
   // deliberate user action made directly in Plex/Emby/Jellyfin, so a newer
   // provider unwatch is allowed to clear an older manual watch. Tracker
   // unwatches remain subordinate to Plembfin because those callbacks are also
-  // used for reconciliation/echoes. A manual unwatch still cannot be revived
-  // by a later provider watched callback.
+  // used for reconciliation/echoes. A manual unwatch can be revived only by
+  // a newer exact live-session playback completion, which represents a real
+  // later watch rather than a generic provider flag.
   const rowIsWatched = isWatchedAction(row);
   const existingIsWatched = isWatchedAction(existing);
   const rowTime = canonicalTransitionTime(row);
@@ -3090,6 +3149,14 @@ function canonicalTransitionIsNewer(row = {}, existing = {}) {
   if (rowIsWatched !== existingIsWatched) {
     const rowIsMediaServerUnwatch = !rowIsWatched && isMediaServerHistorySource(row.source);
     const existingIsMediaServerUnwatch = !existingIsWatched && isMediaServerHistorySource(existing.source);
+    const rowIsAcceptedLiveWatch = rowIsWatched && acceptedLiveWatchSourceTime(row) > 0;
+    const existingIsAcceptedLiveWatch = existingIsWatched && acceptedLiveWatchSourceTime(existing) > 0;
+    if (rowIsAcceptedLiveWatch && !existingIsWatched && existingSource === "manual") {
+      return acceptedLiveWatchIsNewerThanManual(row, existing);
+    }
+    if (!rowIsWatched && existingIsAcceptedLiveWatch && rowSource === "manual") {
+      return !acceptedLiveWatchIsNewerThanManual(existing, row);
+    }
     if (rowSource === "manual" && existingSource === "manual") return rowTime > existingTime;
     if (rowIsMediaServerUnwatch && existingSource === "manual") return rowTime > existingTime;
     if (existingIsMediaServerUnwatch && rowSource === "manual") return rowTime > existingTime;
@@ -3364,7 +3431,11 @@ function compactHistoryPreviewRow(row = {}) {
 
 export async function queryWatchHistoryPreview({ limit = 120 } = {}) {
   const safeLimit = Math.min(Math.max(Number(limit) || 120, 1), 300);
-  const [all] = await Promise.all([getCachedHistory(), getCachedShows()]);
+  // The preview builds its own lightweight show index from the history rows
+  // below. Calling getCachedShows() here rebuilt the entire TV library even
+  // though the result was never consumed, making the dashboard's first
+  // /api/history request block the event loop behind a full show projection.
+  const all = await getCachedHistory();
   // Same-title series must be enriched from the provider-aware episode group,
   // not a title map whose last entry wins. The resulting show_* fields let
   // dashboard history links use the same unambiguous route as the TV Shows
@@ -4442,6 +4513,7 @@ const updateWatchSeasonStmt = db.prepare("UPDATE watch_history SET season = ?, u
 const movePlaystateSeasonKeyStmt = db.prepare(
   "UPDATE playstate SET media_key = ?, season = ?, updated_at = ? WHERE media_key = ?",
 );
+const STARTUP_BACKFILL_BATCH_SIZE = 100;
 
 // Episode rows with no season number cannot match reliably for sync and do not
 // count toward show progress, but the season is still written in the title
@@ -4453,38 +4525,43 @@ export async function backfillMissingEpisodeSeasons() {
   if (!rows.length) return 0;
 
   const updatedAt = Date.now();
-  const keyMigrations = new Map();
   let fixed = 0;
+  for (let offset = 0; offset < rows.length; offset += STARTUP_BACKFILL_BATCH_SIZE) {
+    const batch = rows.slice(offset, offset + STARTUP_BACKFILL_BATCH_SIZE);
+    let batchFixed = 0;
+    transaction(() => {
+      const keyMigrations = new Map();
+      for (const row of batch) {
+        const { season } = episodeCoordinatesFromTitle(row.title);
+        if (season == null || !Number.isFinite(Number(season))) continue;
 
-  transaction(() => {
-    for (const row of rows) {
-      const { season } = episodeCoordinatesFromTitle(row.title);
-      if (season == null || !Number.isFinite(Number(season))) continue;
+        updateWatchSeasonStmt.run(Number(season), updatedAt, row.id);
+        batchFixed++;
 
-      updateWatchSeasonStmt.run(Number(season), updatedAt, row.id);
-      fixed++;
-
-      const previousKey = cleanString(row.media_key);
-      const nextKey = mediaKeyFor({
-        media_type: "episode",
-        season: Number(season),
-        episode: row.episode,
-        imdb_id: row.imdb_id,
-        tmdb_id: row.tmdb_id,
-        tvdb_id: row.tvdb_id,
-        title: row.title,
-      });
-      if (nextKey && nextKey !== previousKey) {
-        updateWatchMediaKeyStmt.run(nextKey, updatedAt, row.id);
-        if (previousKey) keyMigrations.set(previousKey, { nextKey, season: Number(season) });
+        const previousKey = cleanString(row.media_key);
+        const nextKey = mediaKeyFor({
+          media_type: "episode",
+          season: Number(season),
+          episode: row.episode,
+          imdb_id: row.imdb_id,
+          tmdb_id: row.tmdb_id,
+          tvdb_id: row.tvdb_id,
+          title: row.title,
+        });
+        if (nextKey && nextKey !== previousKey) {
+          updateWatchMediaKeyStmt.run(nextKey, updatedAt, row.id);
+          if (previousKey) keyMigrations.set(previousKey, { nextKey, season: Number(season) });
+        }
       }
-    }
 
-    for (const [previousKey, { nextKey, season }] of keyMigrations) {
-      if (selectPlaystateKeyStmt.get(nextKey)) deletePlaystateByKeyStmt.run(previousKey);
-      else movePlaystateSeasonKeyStmt.run(nextKey, season, updatedAt, previousKey);
-    }
-  });
+      for (const [previousKey, { nextKey, season }] of keyMigrations) {
+        if (selectPlaystateKeyStmt.get(nextKey)) deletePlaystateByKeyStmt.run(previousKey);
+        else movePlaystateSeasonKeyStmt.run(nextKey, season, updatedAt, previousKey);
+      }
+    });
+    fixed += batchFixed;
+    await yieldToEventLoop();
+  }
 
   if (fixed) {
     await invalidateHistoryDerivedCaches("backfillMissingEpisodeSeasons");
@@ -4497,28 +4574,34 @@ export async function backfillUnknownShowTitles() {
   const rows = selectUnknownShowRowsStmt.all();
   if (!rows.length) return 0;
   let fixed = 0;
-  transaction(() => {
-    for (const row of rows) {
-      let recovered = recoverShowTitle(row.tmdb_id, row.tvdb_id);
-      let newTitle = null;
-      if (recovered) {
-        const oldTitle = row.title || "";
-        newTitle = oldTitle.replace(/^Unknown Show(\s+-\s+S\d)/i, `${recovered}$1`);
-      } else {
-        // No sibling record shares this episode's ids (e.g. Plex supplies only
-        // episode-unique TMDB/IMDb ids). Fall back to the resolved title recorded
-        // in the dispatch telemetry, which also restores the episode coordinate.
-        const fromTelemetry = recoverTitleFromTelemetry(row.sync_dispatch_telemetry);
-        if (fromTelemetry) {
-          recovered = fromTelemetry.showTitle;
-          newTitle = fromTelemetry.fullTitle;
+  for (let offset = 0; offset < rows.length; offset += STARTUP_BACKFILL_BATCH_SIZE) {
+    const batch = rows.slice(offset, offset + STARTUP_BACKFILL_BATCH_SIZE);
+    let batchFixed = 0;
+    transaction(() => {
+      for (const row of batch) {
+        let recovered = recoverShowTitle(row.tmdb_id, row.tvdb_id);
+        let newTitle = null;
+        if (recovered) {
+          const oldTitle = row.title || "";
+          newTitle = oldTitle.replace(/^Unknown Show(\s+-\s+S\d)/i, `${recovered}$1`);
+        } else {
+          // No sibling record shares this episode's ids (e.g. Plex supplies only
+          // episode-unique TMDB/IMDb ids). Fall back to the resolved title recorded
+          // in the dispatch telemetry, which also restores the episode coordinate.
+          const fromTelemetry = recoverTitleFromTelemetry(row.sync_dispatch_telemetry);
+          if (fromTelemetry) {
+            recovered = fromTelemetry.showTitle;
+            newTitle = fromTelemetry.fullTitle;
+          }
         }
+        if (!recovered || !newTitle) continue;
+        updateShowTitleStmt.run(newTitle, newTitle.toLowerCase(), recovered, recovered.toLowerCase(), Date.now(), row.id);
+        batchFixed++;
       }
-      if (!recovered || !newTitle) continue;
-      updateShowTitleStmt.run(newTitle, newTitle.toLowerCase(), recovered, recovered.toLowerCase(), Date.now(), row.id);
-      fixed++;
-    }
-  });
+    });
+    fixed += batchFixed;
+    await yieldToEventLoop();
+  }
   if (fixed) {
     await invalidateHistoryDerivedCaches("backfillUnknownShowTitles");
     console.log(`[dataRepo] backfillUnknownShowTitles: fixed ${fixed} of ${rows.length} records`);
@@ -5861,6 +5944,52 @@ function groupShowRows(rows = []) {
   });
 }
 
+async function getCachedHistoryArtworkIndex() {
+  while (true) {
+    const version = getDataVersion();
+    if (historyArtworkCache.version === version) return historyArtworkCache;
+
+    let pending = historyArtworkBuilds.get(version);
+    if (!pending) {
+      pending = timeCacheRebuildAsync("historyArtwork", version, dataVersionTrigger(version), async () => {
+        const allEpisodeRows = (await getCachedHistory()).filter((row) => (
+          row?.media_type === "episode" && isPlembfinTrackedEpisodeRow(row)
+        ));
+        const groups = groupShowRows(dedupeHistory(allEpisodeRows));
+        const byId = new Map();
+        const byMediaKey = new Map();
+        const byCoordinate = new Map();
+        for (const group of groups) {
+          for (const episode of group.episodes || []) {
+            if (episode.id != null) byId.set(String(episode.id), group);
+            if (episode.media_key) byMediaKey.set(String(episode.media_key), group);
+            const titleKey = canonicalTitleKey(group.title || episode.show_title || showTitleFrom(episode.title));
+            if (!titleKey || episode.season == null || episode.episode == null) continue;
+            const coordinateKey = `${titleKey}|${episode.season}|${episode.episode}`;
+            const existing = byCoordinate.get(coordinateKey);
+            if (!existing) byCoordinate.set(coordinateKey, group);
+            else if (existing !== group) byCoordinate.set(coordinateKey, null);
+          }
+        }
+        return { version, byId, byMediaKey, byCoordinate };
+      });
+      historyArtworkBuilds.set(version, pending);
+    }
+
+    try {
+      const index = await pending;
+      // A write can land while the grouping work is yielding. Do not retain or
+      // return an index built against an older generation.
+      if (getDataVersion() === version) {
+        historyArtworkCache = index;
+        return index;
+      }
+    } finally {
+      if (historyArtworkBuilds.get(version) === pending) historyArtworkBuilds.delete(version);
+    }
+  }
+}
+
 // History endpoints return episode rows rather than the grouped show objects
 // used by the TV library. Attach the shared show artwork as a separate field
 // so history cards can fall back to it without replacing an explicit episode
@@ -5884,25 +6013,7 @@ async function enrichHistoryRowsWithShowArtwork(rows = []) {
   const episodeRows = movieEnriched.filter((row) => row?.media_type === "episode");
   if (!episodeRows.length) return movieEnriched;
 
-  const allEpisodeRows = (await getCachedHistory()).filter((row) => (
-    row?.media_type === "episode" && isPlembfinTrackedEpisodeRow(row)
-  ));
-  const groups = groupShowRows(dedupeHistory(allEpisodeRows));
-  const byId = new Map();
-  const byMediaKey = new Map();
-  const byCoordinate = new Map();
-  for (const group of groups) {
-    for (const episode of group.episodes || []) {
-      if (episode.id != null) byId.set(String(episode.id), group);
-      if (episode.media_key) byMediaKey.set(String(episode.media_key), group);
-      const titleKey = canonicalTitleKey(group.title || episode.show_title || showTitleFrom(episode.title));
-      if (!titleKey || episode.season == null || episode.episode == null) continue;
-      const coordinateKey = `${titleKey}|${episode.season}|${episode.episode}`;
-      const existing = byCoordinate.get(coordinateKey);
-      if (!existing) byCoordinate.set(coordinateKey, group);
-      else if (existing !== group) byCoordinate.set(coordinateKey, null);
-    }
-  }
+  const { byId, byMediaKey, byCoordinate } = await getCachedHistoryArtworkIndex();
 
   return movieEnriched.map((row) => {
     if (row?.media_type !== "episode") return row;
@@ -6545,6 +6656,8 @@ function buildSeriesIdentityProfiles() {
 
 const SERIES_IDS_CACHE_TTL_MS = 60_000;
 let seriesIdentityIndexCache = { expiresAt: 0, values: new Map() };
+const IDENTITY_REPAIR_BATCH_SIZE = 100;
+const IDENTITY_REPAIR_YIELD_EVERY = 100;
 
 function seriesIdentityProfilesForShowTitle(showTitle = "") {
   const key = normalizeRepairShowTitle(showTitle);
@@ -6612,9 +6725,11 @@ export async function repairEpisodeSeriesIdentity() {
   const historyRows = db.prepare(
     "SELECT id, media_key, title, show_title, season, episode, imdb_id, tmdb_id, tvdb_id FROM watch_history WHERE media_type = 'episode'",
   ).all();
-  for (const row of historyRows) {
+  for (let index = 0; index < historyRows.length; index += 1) {
+    const row = historyRows[index];
     const key = normalizeRepairShowTitle(row.show_title || showTitleFromEpisodeTitle(row.title));
-    if (key) profilesByShow.set(key, seriesIdentityProfilesForShowTitle(key));
+    if (key && !profilesByShow.has(key)) profilesByShow.set(key, seriesIdentityProfilesForShowTitle(key));
+    if ((index + 1) % IDENTITY_REPAIR_YIELD_EVERY === 0) await yieldToEventLoop();
   }
 
   const historyUpdateStmt = db.prepare(
@@ -6627,59 +6742,104 @@ export async function repairEpisodeSeriesIdentity() {
   const progressRows = db.prepare(
     "SELECT * FROM playback_progress WHERE media_type = 'episode' ORDER BY COALESCE(updated_at, 0) DESC, media_key DESC",
   ).all();
+  await yieldToEventLoop();
   const now = Date.now();
-  let historyFixed = 0;
-  let progressFixed = 0;
-  let progressDuplicatesRemoved = 0;
-
-  transaction(() => {
-    for (const row of historyRows) {
-      const key = normalizeRepairShowTitle(row.show_title || showTitleFromEpisodeTitle(row.title));
-      const ids = seriesIdsForRow(row, profilesByShow.get(key) || []);
-      if (!ids) continue;
+  const historyRepairs = [];
+  for (let index = 0; index < historyRows.length; index += 1) {
+    const row = historyRows[index];
+    const key = normalizeRepairShowTitle(row.show_title || showTitleFromEpisodeTitle(row.title));
+    const ids = seriesIdsForRow(row, profilesByShow.get(key) || []);
+    if (ids) {
       const nextKey = mediaKeyFor({ ...row, media_type: "episode", ...ids, imdb_id: ids.imdb, tmdb_id: ids.tmdb, tvdb_id: ids.tvdb });
-      if (row.imdb_id === (ids.imdb || null) && row.tmdb_id === (ids.tmdb || null)
-        && row.tvdb_id === (ids.tvdb || null) && row.media_key === nextKey) continue;
-      historyUpdateStmt.run(ids.imdb || null, ids.tmdb || null, ids.tvdb || null, nextKey, now, row.id);
-      historyFixed += 1;
+      if (!(row.imdb_id === (ids.imdb || null) && row.tmdb_id === (ids.tmdb || null)
+        && row.tvdb_id === (ids.tvdb || null) && row.media_key === nextKey)) {
+        historyRepairs.push({
+          ids,
+          nextKey,
+          id: row.id,
+        });
+      }
     }
+    if ((index + 1) % IDENTITY_REPAIR_YIELD_EVERY === 0) await yieldToEventLoop();
+  }
 
-    const buckets = new Map();
-    for (const row of progressRows) {
-      const key = `${normalizeRepairShowTitle(progressShowTitle(row))}|${seriesCoordinate(row)}`;
-      if (!key.startsWith("|")) {
-        if (!buckets.has(key)) buckets.set(key, []);
-        buckets.get(key).push(row);
-      }
+  const buckets = new Map();
+  for (let index = 0; index < progressRows.length; index += 1) {
+    const row = progressRows[index];
+    const key = `${normalizeRepairShowTitle(progressShowTitle(row))}|${seriesCoordinate(row)}`;
+    if (!key.startsWith("|")) {
+      if (!buckets.has(key)) buckets.set(key, []);
+      buckets.get(key).push(row);
     }
-    for (const rows of buckets.values()) {
-      const showKey = normalizeRepairShowTitle(progressShowTitle(rows[0]));
-      const profiles = profilesByShow.get(showKey) || [];
-      const groups = sameProgressGroupRows(rows, profiles);
-      for (const group of groups) {
-        const ids = group.profile?.ids || null;
-        if (!ids) continue;
-        const winner = group.rows.slice().sort((left, right) => Number(right.updated_at || 0) - Number(left.updated_at || 0))[0];
-        const nextKey = mediaKeyFor({ ...winner, media_type: "episode", imdb_id: ids.imdb, tmdb_id: ids.tmdb, tvdb_id: ids.tvdb });
-        for (const row of group.rows) {
-          if (row.media_key !== winner.media_key) {
-            progressDeleteStmt.run(row.media_key);
-            progressDuplicatesRemoved += 1;
-          }
-        }
-        const idsChanged = ["imdb", "tmdb", "tvdb"].some((provider) => (
-          cleanString(winner[`${provider}_id`]) !== cleanString(ids[provider])
-        ));
-        if (winner.media_key !== nextKey || idsChanged) {
-          // When only null/empty id fields differ, the canonical key can be
-          // unchanged. Do not delete the winner before updating it.
-          if (nextKey !== winner.media_key) progressDeleteStmt.run(nextKey);
-          progressUpdateStmt.run(ids.imdb || null, ids.tmdb || null, ids.tvdb || null, nextKey, winner.media_key);
-          progressFixed += 1;
+    if ((index + 1) % IDENTITY_REPAIR_YIELD_EVERY === 0) await yieldToEventLoop();
+  }
+
+  const progressRepairs = [];
+  let progressDuplicatesRemoved = 0;
+  for (const rows of buckets.values()) {
+    const showKey = normalizeRepairShowTitle(progressShowTitle(rows[0]));
+    const profiles = profilesByShow.get(showKey) || [];
+    const groups = sameProgressGroupRows(rows, profiles);
+    for (const group of groups) {
+      const ids = group.profile?.ids || null;
+      if (!ids) continue;
+      const winner = group.rows.slice().sort((left, right) => Number(right.updated_at || 0) - Number(left.updated_at || 0))[0];
+      const nextKey = mediaKeyFor({ ...winner, media_type: "episode", imdb_id: ids.imdb, tmdb_id: ids.tmdb, tvdb_id: ids.tvdb });
+      const deleteKeys = group.rows
+        .filter((row) => row.media_key !== winner.media_key)
+        .map((row) => row.media_key);
+      progressDuplicatesRemoved += deleteKeys.length;
+      const idsChanged = ["imdb", "tmdb", "tvdb"].some((provider) => (
+        cleanString(winner[`${provider}_id`]) !== cleanString(ids[provider])
+      ));
+      const shouldUpdate = winner.media_key !== nextKey || idsChanged;
+      progressRepairs.push({
+        deleteKeys,
+        deleteNextKey: shouldUpdate && nextKey !== winner.media_key ? nextKey : "",
+        update: shouldUpdate ? {
+          imdb: ids.imdb || null,
+          tmdb: ids.tmdb || null,
+          tvdb: ids.tvdb || null,
+          nextKey,
+          previousKey: winner.media_key,
+        } : null,
+      });
+    }
+    if (progressRepairs.length > 0 && progressRepairs.length % IDENTITY_REPAIR_YIELD_EVERY === 0) await yieldToEventLoop();
+  }
+
+  for (let offset = 0; offset < historyRepairs.length; offset += IDENTITY_REPAIR_BATCH_SIZE) {
+    const batch = historyRepairs.slice(offset, offset + IDENTITY_REPAIR_BATCH_SIZE);
+    transaction(() => {
+      for (const repair of batch) {
+        historyUpdateStmt.run(repair.ids.imdb || null, repair.ids.tmdb || null, repair.ids.tvdb || null, repair.nextKey, now, repair.id);
+      }
+    });
+    await yieldToEventLoop();
+  }
+
+  for (let offset = 0; offset < progressRepairs.length; offset += IDENTITY_REPAIR_BATCH_SIZE) {
+    const batch = progressRepairs.slice(offset, offset + IDENTITY_REPAIR_BATCH_SIZE);
+    transaction(() => {
+      for (const repair of batch) {
+        for (const key of repair.deleteKeys) progressDeleteStmt.run(key);
+        if (repair.deleteNextKey) progressDeleteStmt.run(repair.deleteNextKey);
+        if (repair.update) {
+          progressUpdateStmt.run(
+            repair.update.imdb,
+            repair.update.tmdb,
+            repair.update.tvdb,
+            repair.update.nextKey,
+            repair.update.previousKey,
+          );
         }
       }
-    }
-  });
+    });
+    await yieldToEventLoop();
+  }
+
+  const historyFixed = historyRepairs.length;
+  const progressFixed = progressRepairs.filter((repair) => repair.update).length;
 
   invalidateSeriesIdentityIndex();
   if (historyFixed || progressFixed || progressDuplicatesRemoved) {

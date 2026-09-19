@@ -3,19 +3,21 @@
 // wherever possible - openServiceEditModal() for every provider connect/test
 // flow, and the webhook-guide functions - so setup and Settings never diverge
 // in behavior, only in presentation.
-import { state, elements } from "./state.js?v=1.1.1.7.3";
-import { escapeHtml, escapeAttribute, isDemoMode } from "./utils.js?v=1.1.1.7.3";
-import { openServiceEditModal } from "./settings-services.js?v=1.1.1.7.3";
-import { embyWebhookSetup, jellyfinWebhookSetup, buildWebhookUrl } from "./help-content.js?v=1.1.1.7.3";
-import { claimAdminAccount } from "./auth.js?v=1.1.1.7.3";
-import { loadWatchBackups, loadPlembfinBackups } from "./tools-backups.js?v=1.1.1.7.3";
+import { state, elements } from "./state.js?v=1.1.1.8.1";
+import { escapeHtml, escapeAttribute, isDemoMode } from "./utils.js?v=1.1.1.8.1";
+import { openServiceEditModal } from "./settings-services.js?v=1.1.1.8.1";
+import { embyWebhookSetup, jellyfinWebhookSetup, buildWebhookUrl } from "./help-content.js?v=1.1.1.8.1";
+import { claimAdminAccount } from "./auth.js?v=1.1.1.8.1";
+import { lazyExport } from "./route-modules.js?v=1.1.1.8.1";
 import {
   PLEX_HISTORICAL_SYNC_CHOICES,
   PLEX_HISTORICAL_SYNC_LABEL,
   plexHistoricalSyncEnabled,
-} from "./plex-history-policy.js?v=1.1.1.7.3";
+} from "./plex-history-policy.js?v=1.1.1.8.1";
 
 let _cb = {};
+const loadWatchBackups = lazyExport("tools-backups", "loadWatchBackups");
+const loadPlembfinBackups = lazyExport("tools-backups", "loadPlembfinBackups");
 export function initOnboarding(callbacks = {}) {
   _cb = callbacks;
   document.addEventListener("click", handleSetupClick);
@@ -271,6 +273,7 @@ export async function loadSetupStatus() {
       cachedStatus = data;
       renderSetupPage();
       renderSidebarOnboardingCta();
+      if (state.activeView === "dashboard") renderDashboardChecklist();
       return data;
     })
     .catch((error) => {
@@ -505,7 +508,7 @@ export function renderSetupPage() {
     root.innerHTML = `<div class="settings-content"><p class="muted-copy">Loading setup...</p></div>`;
     return;
   }
-  const logoSrc = document.documentElement.classList.contains("light-mode") ? "/plembfin_header_logo_light.png" : "/plembfin_header_logo_dark.png";
+  const logoSrc = document.documentElement.classList.contains("light-mode") ? "/plembfin_header_logo_light.png?v=1.1.1.8.1" : "/plembfin_header_logo_dark.png?v=1.1.1.8.1";
   if (restoreView) {
     renderRestoreView(root, logoSrc);
     return;

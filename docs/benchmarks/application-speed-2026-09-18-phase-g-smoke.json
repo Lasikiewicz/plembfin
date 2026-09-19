@@ -1,0 +1,111 @@
+{
+  "benchmark": "application-speed Phase G signed-in smoke checks",
+  "origin": "http://localhost:5055",
+  "startedAt": "2026-09-18T20:39:25.808Z",
+  "originalViewport": {
+    "width": 1280,
+    "height": 900
+  },
+  "mobileNavigationError": null,
+  "mobileNavigation": {
+    "path": "/settings",
+    "readyState": "complete",
+    "innerWidth": 760,
+    "scrollWidth": 760,
+    "bodyScrollWidth": 760,
+    "primaryNavigation": true,
+    "visibleNavigationItems": 2,
+    "serverControls": [
+      "Plex",
+      "Emby",
+      "Jellyfin",
+      "Plex",
+      "Emby",
+      "Jellyfin",
+      "- Sync tuning: Sync historical watched items to Plex",
+      "Connect Plex, Emby, and Jellyfin.",
+      "Plex / Emby / Jellyfin Media Server",
+      "Plex Realtime Notifications",
+      "Locally stored artwork from Plex, TMDB, and other sources",
+      "Locally stored artwork from Plex, TMDB, and other sources"
+    ],
+    "timing": {
+      "responseStart": 31.099999964237213,
+      "loadEventEnd": 70.19999998807907
+    }
+  },
+  "slow4g": {
+    "supported": true,
+    "navigationError": null,
+    "path": "/settings/media-servers",
+    "readyState": "complete",
+    "innerWidth": 760,
+    "scrollWidth": 760,
+    "bodyScrollWidth": 760,
+    "primaryNavigation": true,
+    "visibleNavigationItems": 0,
+    "serverControls": [
+      "Plex",
+      "Emby",
+      "Jellyfin",
+      "Plex",
+      "Emby",
+      "Jellyfin",
+      "- Sync tuning: Sync historical watched items to Plex",
+      "Connect Plex, Emby, and Jellyfin.",
+      "Plex / Emby / Jellyfin Media Server",
+      "Plex Realtime Notifications",
+      "Locally stored artwork from Plex, TMDB, and other sources",
+      "Locally stored artwork from Plex, TMDB, and other sources"
+    ],
+    "timing": {
+      "responseStart": 38.10000002384186,
+      "loadEventEnd": 3915.100000023842
+    }
+  },
+  "cls": [
+    {
+      "path": "/",
+      "navigationError": null,
+      "cls": 0.15,
+      "entries": 1,
+      "unsupported": false,
+      "readyState": "complete",
+      "innerWidth": 1280,
+      "scrollWidth": 1280
+    },
+    {
+      "path": "/about",
+      "navigationError": null,
+      "cls": 0.1502,
+      "entries": 2,
+      "unsupported": false,
+      "readyState": "complete",
+      "innerWidth": 1280,
+      "scrollWidth": 1280
+    },
+    {
+      "path": "/settings/media-servers",
+      "navigationError": null,
+      "cls": 0.1502,
+      "entries": 2,
+      "unsupported": false,
+      "readyState": "complete",
+      "innerWidth": 1280,
+      "scrollWidth": 1280
+    }
+  ],
+  "authExpiry": {
+    "path": "/about",
+    "title": "Plembfin",
+    "hasPasswordInput": true,
+    "hasSignInText": true,
+    "primaryNavigation": true,
+    "navigationError": null
+  },
+  "consoleErrors": [],
+  "consoleWarnings": [],
+  "pageErrors": [],
+  "restoredUrl": "http://localhost:5055/about",
+  "finishedAt": "2026-09-18T20:39:25.808Z"
+}

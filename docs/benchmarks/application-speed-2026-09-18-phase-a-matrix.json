@@ -1,0 +1,65 @@
+{
+  "generatedAt": "2026-09-18T10:03:00Z",
+  "benchmark": "application-speed-phase-a-matrix",
+  "status": "measured-not-gate",
+  "environment": {
+    "origin": "http://localhost:5055",
+    "browser": "Chrome through Codex CDP",
+    "authentication": "existing authenticated Chrome profile",
+    "cacheMode": "warm browser profile; unique bench query per document navigation",
+    "runsPerRoute": 6,
+    "settleProtocol": "Network and Page CDP events polled at 100ms until load event",
+    "decodedBytes": null,
+    "paintMetrics": null
+  },
+  "populations": {
+    "repeatA": {
+      "note": "First complete isolated-tab population. One history load and one Ludwig load did not produce a complete event sample.",
+      "routes": {
+        "/": {"validRuns": 6, "medianLoadMs": 259.7, "p95LoadMs": 1562.5, "medianTtfbMs": 14.3, "maxTtfbMs": 1343.6, "minRequests": 107, "maxRequests": 115, "minTransferBytes": 1122706, "maxTransferBytes": 1129425, "truncatedRuns": 0},
+        "/movies": {"validRuns": 6, "medianLoadMs": 1000.7, "p95LoadMs": 1109.7, "medianTtfbMs": 748.1, "maxTtfbMs": 856.5, "minRequests": 186, "maxRequests": 190, "minTransferBytes": 1095919, "maxTransferBytes": 1104257, "truncatedRuns": 0},
+        "/tvshows": {"validRuns": 6, "medianLoadMs": 927.9, "p95LoadMs": 1918.3, "medianTtfbMs": 455.6, "maxTtfbMs": 1050.7, "minRequests": 173, "maxRequests": 181, "minTransferBytes": 1094859, "maxTransferBytes": 1850984, "truncatedRuns": 0},
+        "/upcoming": {"validRuns": 6, "medianLoadMs": 377, "p95LoadMs": 1472.3, "medianTtfbMs": 14.4, "maxTtfbMs": 1095.2, "minRequests": 107, "maxRequests": 109, "minTransferBytes": 1109970, "maxTransferBytes": 1114093, "truncatedRuns": 0},
+        "/discover": {"validRuns": 6, "medianLoadMs": 280.1, "p95LoadMs": 1467.7, "medianTtfbMs": 13.9, "maxTtfbMs": 1230.2, "minRequests": 64, "maxRequests": 138, "minTransferBytes": 681462, "maxTransferBytes": 1305550, "truncatedRuns": 0},
+        "/watchlist": {"validRuns": 6, "medianLoadMs": 650.5, "p95LoadMs": 2557.2, "medianTtfbMs": 389.3, "maxTtfbMs": 2312.2, "minRequests": 115, "maxRequests": 120, "minTransferBytes": 1097390, "maxTransferBytes": 1287760, "truncatedRuns": 0},
+        "/ratings": {"validRuns": 6, "medianLoadMs": 517.5, "p95LoadMs": 569.6, "medianTtfbMs": 256.4, "maxTtfbMs": 325.3, "minRequests": 116, "maxRequests": 118, "minTransferBytes": 1097321, "maxTransferBytes": 1280315, "truncatedRuns": 0},
+        "/custom-lists": {"validRuns": 6, "medianLoadMs": 614.4, "p95LoadMs": 1693.4, "medianTtfbMs": 298.1, "maxTtfbMs": 353.7, "minRequests": 113, "maxRequests": 115, "minTransferBytes": 1097321, "maxTransferBytes": 1215960, "truncatedRuns": 0},
+        "/history": {"validRuns": 5, "medianLoadMs": 1777, "p95LoadMs": 2071.7, "medianTtfbMs": 1449.1, "maxTtfbMs": 1803.6, "minRequests": 63, "maxRequests": 88, "minTransferBytes": 680472, "maxTransferBytes": 1095754, "truncatedRuns": 1},
+        "/stats": {"validRuns": 6, "medianLoadMs": 651.2, "p95LoadMs": 3075.3, "medianTtfbMs": 404.5, "maxTtfbMs": 2715.7, "minRequests": 88, "maxRequests": 96, "minTransferBytes": 1100471, "maxTransferBytes": 1110488, "truncatedRuns": 0},
+        "/settings": {"validRuns": 6, "medianLoadMs": 566, "p95LoadMs": 672.9, "medianTtfbMs": 288.8, "maxTtfbMs": 411.8, "minRequests": 80, "maxRequests": 83, "minTransferBytes": 1094945, "maxTransferBytes": 1097870, "truncatedRuns": 0},
+        "/about": {"validRuns": 6, "medianLoadMs": 547.8, "p95LoadMs": 1801.7, "medianTtfbMs": 300.2, "maxTtfbMs": 1566.3, "minRequests": 83, "maxRequests": 86, "minTransferBytes": 1095850, "maxTransferBytes": 1097921, "truncatedRuns": 0},
+        "/tvshow/tvdb/435298-ludwig-2024-": {"validRuns": 5, "medianLoadMs": 819.8, "p95LoadMs": 1549.5, "medianTtfbMs": 605.7, "maxTtfbMs": 1282.2, "minRequests": 100, "maxRequests": 149, "minTransferBytes": 725964, "maxTransferBytes": 1129149, "truncatedRuns": 1},
+        "/tvshow/tvdb/366924-reacher": {"validRuns": 6, "medianLoadMs": 958.2, "p95LoadMs": 2190.1, "medianTtfbMs": 698.8, "maxTtfbMs": 1892.8, "minRequests": 100, "maxRequests": 203, "minTransferBytes": 1094978, "maxTransferBytes": 1126637, "truncatedRuns": 0},
+        "/movie/tmdb/208134-jackass-presents-bad-grandpa": {"validRuns": 6, "medianLoadMs": 931.5, "p95LoadMs": 1454.4, "medianTtfbMs": 16.5, "maxTtfbMs": 910.6, "minRequests": 141, "maxRequests": 152, "minTransferBytes": 1097862, "maxTransferBytes": 1165974, "truncatedRuns": 0},
+        "/movie/tmdb/447332-a-quiet-place": {"validRuns": 6, "medianLoadMs": 342, "p95LoadMs": 1535.5, "medianTtfbMs": 14.7, "maxTtfbMs": 1312, "minRequests": 152, "maxRequests": 160, "minTransferBytes": 1169267, "maxTransferBytes": 1179667, "truncatedRuns": 0}
+      }
+    },
+    "repeatB": {
+      "note": "Second isolated-tab population. History and Reacher each had incomplete event samples; all other routes recorded six valid loads.",
+      "routes": {
+        "/": {"validRuns": 6, "medianLoadMs": 299.1, "p95LoadMs": 6940, "medianTtfbMs": 67.8, "maxTtfbMs": 6659.6, "minRequests": 67, "maxRequests": 120, "minTransferBytes": 769998, "maxTransferBytes": 1159832, "truncatedRuns": 0},
+        "/movies": {"validRuns": 6, "medianLoadMs": 1367.3, "p95LoadMs": 2155.5, "medianTtfbMs": 925.7, "maxTtfbMs": 1861.5, "minRequests": 180, "maxRequests": 190, "minTransferBytes": 1097801, "maxTransferBytes": 1103316, "truncatedRuns": 0},
+        "/tvshows": {"validRuns": 6, "medianLoadMs": 1722.6, "p95LoadMs": 2957, "medianTtfbMs": 1175.5, "maxTtfbMs": 2678.6, "minRequests": 165, "maxRequests": 188, "minTransferBytes": 973088, "maxTransferBytes": 1838436, "truncatedRuns": 0},
+        "/upcoming": {"validRuns": 6, "medianLoadMs": 1283.6, "p95LoadMs": 2149.6, "medianTtfbMs": 955.4, "maxTtfbMs": 1825.3, "minRequests": 115, "maxRequests": 117, "minTransferBytes": 1114093, "maxTransferBytes": 1300274, "truncatedRuns": 0},
+        "/discover": {"validRuns": 6, "medianLoadMs": 862.8, "p95LoadMs": 1347.6, "medianTtfbMs": 569.9, "maxTtfbMs": 1049.3, "minRequests": 132, "maxRequests": 133, "minTransferBytes": 1138621, "maxTransferBytes": 1467487, "truncatedRuns": 0},
+        "/watchlist": {"validRuns": 6, "medianLoadMs": 503, "p95LoadMs": 1781.8, "medianTtfbMs": 246.1, "maxTtfbMs": 1509.1, "minRequests": 81, "maxRequests": 152, "minTransferBytes": 1094978, "maxTransferBytes": 1098471, "truncatedRuns": 0},
+        "/ratings": {"validRuns": 6, "medianLoadMs": 519.5, "p95LoadMs": 544.5, "medianTtfbMs": 253.7, "maxTtfbMs": 276.8, "minRequests": 81, "maxRequests": 151, "minTransferBytes": 1094933, "maxTransferBytes": 1098471, "truncatedRuns": 0},
+        "/custom-lists": {"validRuns": 6, "medianLoadMs": 534.8, "p95LoadMs": 565.1, "medianTtfbMs": 265.5, "maxTtfbMs": 289.3, "minRequests": 82, "maxRequests": 114, "minTransferBytes": 1094910, "maxTransferBytes": 1098401, "truncatedRuns": 0},
+        "/history": {"validRuns": 5, "medianLoadMs": 1572.4, "p95LoadMs": 2024.1, "medianTtfbMs": 1317.9, "maxTtfbMs": 1679.2, "minRequests": 70, "maxRequests": 83, "minTransferBytes": 955891, "maxTransferBytes": 1094910, "truncatedRuns": 1},
+        "/stats": {"validRuns": 5, "medianLoadMs": 581.3, "p95LoadMs": 1705.5, "medianTtfbMs": 314.3, "maxTtfbMs": 1449.8, "minRequests": 93, "maxRequests": 95, "minTransferBytes": 1100471, "maxTransferBytes": 1132925, "truncatedRuns": 1},
+        "/settings": {"validRuns": 6, "medianLoadMs": 471.5, "p95LoadMs": 561, "medianTtfbMs": 199.9, "maxTtfbMs": 302.4, "minRequests": 81, "maxRequests": 82, "minTransferBytes": 1094978, "maxTransferBytes": 1095919, "truncatedRuns": 0},
+        "/about": {"validRuns": 6, "medianLoadMs": 534, "p95LoadMs": 562.1, "medianTtfbMs": 267.3, "maxTtfbMs": 309.7, "minRequests": 81, "maxRequests": 84, "minTransferBytes": 1094910, "maxTransferBytes": 1095850, "truncatedRuns": 0},
+        "/tvshow/tvdb/435298-ludwig-2024-": {"validRuns": 6, "medianLoadMs": 932.9, "p95LoadMs": 2616.6, "medianTtfbMs": 657.1, "maxTtfbMs": 1236.5, "minRequests": 100, "maxRequests": 148, "minTransferBytes": 1094910, "maxTransferBytes": 1279211, "truncatedRuns": 0},
+        "/tvshow/tvdb/366924-reacher": {"validRuns": 4, "medianLoadMs": 943.1, "p95LoadMs": 983.2, "medianTtfbMs": 651, "maxTtfbMs": 679.1, "minRequests": 55, "maxRequests": 149, "minTransferBytes": 36315, "maxTransferBytes": 1280116, "truncatedRuns": 2},
+        "/movie/tmdb/208134-jackass-presents-bad-grandpa": {"validRuns": 6, "medianLoadMs": 628.9, "p95LoadMs": 2443.9, "medianTtfbMs": 371.9, "maxTtfbMs": 2182, "minRequests": 111, "maxRequests": 193, "minTransferBytes": 1096884, "maxTransferBytes": 1176909, "truncatedRuns": 0},
+        "/movie/tmdb/447332-a-quiet-place": {"validRuns": 6, "medianLoadMs": 674.3, "p95LoadMs": 9067.7, "medianTtfbMs": 369.4, "maxTtfbMs": 7679.8, "minRequests": 101, "maxRequests": 154, "minTransferBytes": 1096724, "maxTransferBytes": 1154300, "truncatedRuns": 0}
+      }
+    }
+  },
+  "limitations": [
+    "Decoded bytes, FCP, LCP, and primary-data-ready were not exposed by this CDP probe.",
+    "A small number of route loads were incomplete under provider/server contention and are counted in truncatedRuns rather than imputed.",
+    "This is a warm authenticated population; cold-cache and pure SPA-transition populations remain separate work.",
+    "The measured p95 and maximum values still exceed the release budgets, so this artifact does not close Phase A or Phase B."
+  ]
+}

@@ -5,26 +5,32 @@ import { site } from "../data/site.js";
 const tiers = [
   {
     name: "Backer",
-    amount: "£2 / month",
+    amount: "$2 / month",
+    checkoutAmount: 2,
     text: "A small recurring contribution that helps keep the project moving.",
   },
   {
     name: "Supporter",
-    amount: "£5 / month",
+    amount: "$5 / month",
+    checkoutAmount: 5,
     text: "Help fund maintenance, releases, documentation, and the public demo.",
     recommended: true,
   },
   {
     name: "Sponsor",
-    amount: "£10 / month",
+    amount: "$10 / month",
+    checkoutAmount: 10,
     text: "A larger contribution for people who rely on Plembfin every week.",
   },
   {
     name: "Maintainer",
-    amount: "£25 / month",
+    amount: "$25 / month",
+    checkoutAmount: 25,
     text: "Help create room for sustained security and development work.",
   },
 ];
+
+const sponsorshipUrl = (amount) => `${site.support}/sponsorships?amount=${amount}&frequency=recurring`;
 ---
 
 <SiteLayout
@@ -39,15 +45,9 @@ const tiers = [
           Plembfin is community-funded software for people who want their watch history to stay private and under their control. If it saves you time or keeps your media stack in sync, you can help support the work.
         </p>
         <div class="button-row support-actions">
-          <a class="button-primary" href={site.support} target="_blank" rel="noreferrer">Support on GitHub <span aria-hidden="true">↗</span></a>
+          <a class="button-primary" href={site.support} target="_blank" rel="noreferrer">Open GitHub Sponsors <span aria-hidden="true">↗</span></a>
           <a class="button-secondary" href="/docs/getting-started/">Get started</a>
         </div>
-        <aside class="support-launch-notice" aria-label="Sponsorship availability">
-          <span class="support-launch-notice-label">Not live yet</span>
-          <strong>GitHub Sponsors is not live yet.</strong>
-          <p>Sponsorship will open soon. This page will be updated when it is available.</p>
-        </aside>
-        <p class="hero-note"><span class="status-dot" aria-hidden="true"></span>No features, integrations, or sync paths are behind a paywall.</p>
       </div>
 
       <aside class="support-hero-note" aria-label="Community funding promise">
@@ -56,6 +56,8 @@ const tiers = [
         <p>Your contribution funds maintenance, infrastructure, security work, documentation, and development time—not access control.</p>
       </aside>
     </section>
+
+    <p class="hero-note support-paywall-note"><span class="status-dot" aria-hidden="true"></span>No features, integrations, or sync paths are behind a paywall.</p>
 
     <section class="section" aria-labelledby="tiers-title">
       <div class="section-header">
@@ -73,7 +75,7 @@ const tiers = [
             <h3>{tier.name}</h3>
             <p class="support-tier-amount">{tier.amount}</p>
             <p>{tier.text}</p>
-            <a class="support-tier-link" href={site.support} target="_blank" rel="noreferrer">Choose {tier.name} <span aria-hidden="true">↗</span></a>
+            <a class="support-tier-link" href={sponsorshipUrl(tier.checkoutAmount)} target="_blank" rel="noreferrer">Support at {tier.amount} <span aria-hidden="true">↗</span></a>
           </article>
         ))}
       </div>

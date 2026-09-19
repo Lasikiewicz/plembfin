@@ -196,16 +196,24 @@ function currentPublicSourceStatus() {
     });
 }
 
-function queueBackgroundRebuild(build) {
-  if (Date.now() - lastRevalidateAt < REVALIDATE_MIN_INTERVAL_MS) return false;
+// `force` skips the provider-feed throttle. It is used when the served snapshot
+// predates the latest watch history, where a rebuild must always follow.
+function queueBackgroundRebuild(build, { force = false } = {}) {
+  if (!force && Date.now() - lastRevalidateAt < REVALIDATE_MIN_INTERVAL_MS) return false;
   lastRevalidateAt = Date.now();
-  buildAndStore(build)
-    .then((result) => {
-      console.log(`Up Next cache background rebuild complete: ${result.items.length} item${result.items.length === 1 ? "" : "s"}${result.changed ? ", cache updated" : ", unchanged"}.`);
-    })
-    .catch((error) => {
-      console.warn(`Up Next cache background rebuild failed: ${error.message}`);
-    });
+  // Start on a later timer turn rather than a promise microtask. A stale
+  // dashboard response should finish before the provider-backed projection
+  // can begin its synchronous cache assembly and compete with sibling APIs.
+  const timer = setTimeout(() => {
+    buildAndStore(build)
+      .then((result) => {
+        console.log(`Up Next cache background rebuild complete: ${result.items.length} item${result.items.length === 1 ? "" : "s"}${result.changed ? ", cache updated" : ", unchanged"}.`);
+      })
+      .catch((error) => {
+        console.warn(`Up Next cache background rebuild failed: ${error.message}`);
+      });
+  }, 0);
+  timer.unref?.();
   return true;
 }
 
@@ -213,11 +221,21 @@ function queueBackgroundRebuild(build) {
 // the dashboard: stale data remains visible while one deduplicated rebuild
 // runs behind the request. Explicit `refresh` keeps the existing manual retry
 // semantics and waits for a fresh snapshot.
-export async function getUpNextCacheSnapshot(build, { refresh = false, revalidate = false } = {}) {
+export async function getUpNextCacheSnapshot(build, {
+  refresh = false,
+  revalidate = false,
+  allowStale = false,
+} = {}) {
   if (refresh) return publicSnapshot(await buildAndStore(build));
 
   const cache = await readCache();
-  if (!cache.builtAt) return publicSnapshot(await buildAndStore(build));
+  if (!cache.builtAt) {
+    if (allowStale) {
+      queueBackgroundRebuild(build, { force: true });
+      return publicSnapshot(cache, true, currentPublicSourceStatus());
+    }
+    return publicSnapshot(await buildAndStore(build));
+  }
 
   const sourceVersion = getUpNextFeedSourceVersion();
   const historyChanged = Number(cache.historyVersion || 0) !== getDataVersion();
@@ -227,7 +245,15 @@ export async function getUpNextCacheSnapshot(build, { refresh = false, revalidat
   // background rebuild runs can briefly put an already-watched episode back
   // in the rail. Provider-feed-only staleness keeps the old fast revalidate
   // behavior, but a history mismatch waits for the authoritative projection.
-  if (historyChanged || upNextChanged) return publicSnapshot(await buildAndStore(build));
+  if (historyChanged || upNextChanged) {
+    if (allowStale) {
+      // Always rebuild here: the throttle below is for provider-feed staleness,
+      // and skipping it would leave an already-watched episode in the rail.
+      queueBackgroundRebuild(build, { force: true });
+      return publicSnapshot(cache, true, currentPublicSourceStatus());
+    }
+    return publicSnapshot(await buildAndStore(build));
+  }
   if (!stale) return publicSnapshot(cache);
   if (revalidate) {
     queueBackgroundRebuild(build);

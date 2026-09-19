@@ -11,9 +11,11 @@ const stylesSource = fs.readFileSync(path.join(root, "public/styles.css"), "utf8
 test("locked login keeps its logo in sync with the selected theme", () => {
   assert.match(indexSource, /<body class="auth-locked">/);
   assert.match(indexSource, /<section id="authView" class="auth-view hidden">/);
-  assert.match(indexSource, /class="auth-brand-logo" data-theme-logo src="\/plembfin_header_logo_dark\.png"/);
+  // No src in the markup: theme-boot.js picks the variant before the preload
+  // scanner could fetch the wrong one (see test/themeBoot.test.js).
+  assert.match(indexSource, /<img class="auth-brand-logo" data-theme-logo alt="Plembfin"/);
   assert.match(appSource, /querySelectorAll\("\.brand-logo, \[data-theme-logo\]"\)/);
-  assert.match(appSource, /isLightMode \? "\/plembfin_header_logo_light\.png" : "\/plembfin_header_logo_dark\.png"/);
+  assert.match(appSource, /isLightMode \? "\/plembfin_header_logo_light\.png\?v=[^"]+" : "\/plembfin_header_logo_dark\.png\?v=[^"]+"/);
 });
 
 test("locked login uses an onboarding-style shell and footer controls", () => {

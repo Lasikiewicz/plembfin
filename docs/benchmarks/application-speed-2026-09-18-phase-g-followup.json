@@ -1,0 +1,47 @@
+{
+  "benchmark": "application-speed Phase G CLS and isolated auth follow-up",
+  "origin": "http://localhost:5055",
+  "startedAt": "2026-09-18T21:22:12.639Z",
+  "cls": {
+    "beforeFix": {
+      "routes": {
+        "/": 0.15,
+        "/about": 0.1502,
+        "/settings/media-servers": 0.1502
+      },
+      "source": "application-speed-2026-09-18-phase-g-smoke.json",
+      "primaryCause": "MAIN.page-shell moved from x=0 to x=192 when the authenticated sidebar became visible."
+    },
+    "afterFix": {
+      "desktop": {
+        "/": 0,
+        "/about": 0.000183,
+        "/settings/media-servers": 0.000183
+      },
+      "mobile760": {
+        "/settings/media-servers": 0
+      },
+      "target": "CLS < 0.1 per route",
+      "pass": true,
+      "pageShellDesktopX": 192,
+      "pageShellMobileY": 56
+    }
+  },
+  "authExpiry": {
+    "contextIsolation": true,
+    "credentialsEntered": false,
+    "beforeExpiry": "authenticated shell visible",
+    "afterExpiry": "auth-locked shell and password form visible; navigation hidden",
+    "afterRestore": "authenticated shell visible; auth view and password form hidden",
+    "pass": true
+  },
+  "build": {
+    "command": "npm run build",
+    "tests": 1025,
+    "passed": 1025,
+    "documentation": "passed",
+    "assetVersion": "passed",
+    "plembfinBuildCheck": "passed"
+  },
+  "finishedAt": "2026-09-18T21:23:07.163Z"
+}

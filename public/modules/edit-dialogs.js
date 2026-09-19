@@ -1,10 +1,10 @@
-import { state } from "./state.js?v=1.1.1.7.3";
-import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, formatDate, actualWatchHistory, sourceBadgeHtml, isDemoMode, tvShowTvdbHref } from "./utils.js?v=1.1.1.7.3";
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.7.3";
-import { isWatchedHistoryAction } from "./sync.js?v=1.1.1.7.3";
-import { tmdbPoster, tmdbImage, proxiedArtworkUrl } from "./images.js?v=1.1.1.7.3";
-import { dateAtMiddayIso, refreshShowAfterManualWatch, watchedAtForChoice, watchedReferenceFor } from "./watch-action.js?v=1.1.1.7.3";
-import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=1.1.1.7.3";
+import { state } from "./state.js?v=1.1.1.8.1";
+import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, formatDate, actualWatchHistory, sourceBadgeHtml, isDemoMode, tvShowTvdbHref } from "./utils.js?v=1.1.1.8.1";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.8.1";
+import { isWatchedHistoryAction } from "./sync.js?v=1.1.1.8.1";
+import { tmdbPoster, tmdbImage, proxiedArtworkUrl } from "./images.js?v=1.1.1.8.1";
+import { dateAtMiddayIso, refreshShowAfterManualWatch, watchedAtForChoice, watchedReferenceFor } from "./watch-action.js?v=1.1.1.8.1";
+import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=1.1.1.8.1";
 
 // Callbacks injected by app.js at startup.
 let _setMessage = () => {};
@@ -1622,10 +1622,15 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
     <div class="edit-dialog edit-dialog--wide fix-match-dialog glass-panel">
       <h3>${escapeHtml(headerTitle)}</h3>
       <p class="muted-copy" style="margin-bottom: 0.75rem;">Search all available sources to link the correct ${isTv ? "TV show" : "movie"}${isTv ? " - this rematches every episode of the show" : ""}, or match to a YouTube video.</p>
-      <div style="display: flex; gap: 0.5rem;">
-        <input type="search" class="field fix-match-input" placeholder="${escapeAttribute(initialSearchTitle || "Search title…")}" value="${escapeAttribute(initialSearchTitle)}" style="flex: 1;" />
+      <div class="fix-match-search-row">
+        <input type="search" class="field fix-match-input" placeholder="${escapeAttribute(initialSearchTitle || "Search title…")}" value="${escapeAttribute(initialSearchTitle)}" />
         <button class="button-primary fix-match-search-btn" type="button">Search all sources</button>
       </div>
+      <div class="fix-match-search-progress" role="status" aria-live="polite" aria-busy="false" hidden>
+        <div class="fix-match-search-progress-copy"><span class="fix-match-search-progress-spinner" aria-hidden="true"></span><span>Searching all sources…</span></div>
+        <span class="fix-match-search-progress-track" aria-hidden="true"><span></span></span>
+      </div>
+      <p class="edit-dialog-status fix-match-search-status" role="status" aria-live="polite"></p>
       ${hasTraktSplitContext ? `<p class="muted-copy fix-match-split-hint" style="margin: 0.5rem 0 0;">This failed Trakt episode is Season ${escapeHtml(options.traktSourceSeason)} locally. Keep the TVDB/media-app match and skip Trakt for now if the provider uses a different series or season numbering. Only choose <strong>Unsplit for Trakt/TMDB</strong> after confirming that separate provider series is correct.</p>` : ""}
       <div class="fix-match-results"></div>
       <hr style="border:0;border-top:1px solid var(--border);margin:1rem 0 0.75rem;" />
@@ -1635,7 +1640,6 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
         <button class="button-ghost fix-match-yt-fetch-btn" type="button">Fetch</button>
       </div>
       <div class="fix-match-yt-preview" style="display:none;margin-top:0.75rem;"></div>
-      <p class="edit-dialog-status"></p>
       <div class="edit-dialog-actions" style="margin-top: 0.5rem;">
         ${options.onSkip ? `<button class="button-ghost edit-dialog-skip" type="button">${escapeHtml(options.onSkipLabel || "Skip / Next")}</button>` : ""}
         <button class="button-ghost edit-dialog-cancel" type="button">Cancel</button>
@@ -1646,10 +1650,20 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
   const resultsEl = overlay.querySelector(".fix-match-results");
   const status = overlay.querySelector(".edit-dialog-status");
   const input = overlay.querySelector(".fix-match-input");
+  const searchBtn = overlay.querySelector(".fix-match-search-btn");
+  const searchProgress = overlay.querySelector(".fix-match-search-progress");
   const ytInput = overlay.querySelector(".fix-match-yt-input");
   const ytFetchBtn = overlay.querySelector(".fix-match-yt-fetch-btn");
   const ytPreview = overlay.querySelector(".fix-match-yt-preview");
   const tmdbType = mediaType === "movie" ? "movie" : "tv";
+
+  const setSearchBusy = (busy) => {
+    if (searchProgress) {
+      searchProgress.hidden = !busy;
+      searchProgress.setAttribute("aria-busy", busy ? "true" : "false");
+    }
+    if (searchBtn) searchBtn.disabled = Boolean(busy);
+  };
 
   const setResultBusy = (button, label = "Saving match...") => {
     for (const result of resultsEl.querySelectorAll(".fix-match-result")) {
@@ -1660,11 +1674,11 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
     if (!progress) {
       progress = document.createElement("span");
       progress.className = "fix-match-result-progress";
-      button.appendChild(progress);
+      (button.querySelector(".shared-media-card-body") || button).appendChild(progress);
     }
     progress.innerHTML = `
+      <span class="fix-match-result-progress-spinner" aria-hidden="true"></span>
       <span class="fix-match-result-progress-label">${escapeHtml(label)}</span>
-      <span class="fix-match-result-progress-track"><span style="width: 100%;"></span></span>
     `;
   };
 
@@ -1880,6 +1894,7 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
         } catch (err) {
           status.textContent = `Error: ${err.message}`;
           btn.classList.remove("is-rematching");
+          btn.querySelector(".fix-match-result-progress")?.remove();
           for (const result of resultsEl.querySelectorAll(".fix-match-result")) result.disabled = false;
         }
       });
@@ -1889,9 +1904,14 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
   let searchRequestId = 0;
   const doSearch = async () => {
     const query = input.value.trim();
-    if (!query) return;
+    if (!query) {
+      setSearchBusy(false);
+      status.textContent = "Enter a title to search.";
+      return;
+    }
     const requestId = ++searchRequestId;
-    status.textContent = "Searching…";
+    setSearchBusy(true);
+    status.textContent = "";
     resultsEl.innerHTML = "";
     try {
       const res = await fetch(`/api/fix-match-search?mediaType=${encodeURIComponent(tmdbType)}&query=${encodeURIComponent(query)}`, { headers: authHeaders() });
@@ -1916,6 +1936,8 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
       }
     } catch (err) {
       if (requestId === searchRequestId) status.textContent = `Search failed: ${err.message}`;
+    } finally {
+      if (requestId === searchRequestId) setSearchBusy(false);
     }
   };
 
@@ -1974,7 +1996,7 @@ export function openFixMatchDialog(_container, id, currentTitle, mediaType, onSa
     }
   };
 
-  overlay.querySelector(".fix-match-search-btn").addEventListener("click", doSearch);
+  searchBtn.addEventListener("click", doSearch);
   input.addEventListener("keydown", (e) => { if (e.key === "Enter") doSearch(); });
   ytFetchBtn.addEventListener("click", doYtFetch);
   ytInput.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); doYtFetch(); } });

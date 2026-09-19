@@ -1,10 +1,11 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.7.3";
-import { state, elements } from "./state.js?v=1.1.1.7.3";
-import { escapeAttribute, escapeHtml, slug } from "./utils.js?v=1.1.1.7.3";
-import { hydratePosters } from "./images.js?v=1.1.1.7.3";
-import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=1.1.1.7.3";
-import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=1.1.1.7.3";
-import { renderMediaCard } from "./media-card.js?v=1.1.1.7.3";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.8.1";
+import { state, elements } from "./state.js?v=1.1.1.8.1";
+import { escapeAttribute, escapeHtml, slug } from "./utils.js?v=1.1.1.8.1";
+import { hydratePosters } from "./images.js?v=1.1.1.8.1";
+import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=1.1.1.8.1";
+import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=1.1.1.8.1";
+import { manualShowMatches, isShowInUpNext, upNextShowActionHtml } from "./up-next-shared.js?v=1.1.1.8.1";
+import { renderMediaCard } from "./media-card.js?v=1.1.1.8.1";
 
 const UP_NEXT_TTL_MS = 2 * 60 * 1000;
 const UP_NEXT_TIMEOUT_MS = 20000;
@@ -29,37 +30,6 @@ let dismissedUpNext = readDismissedUpNext();
 let upNextExitDeferred = false;
 let upNextExitRepaintTimer = null;
 
-function identityValues(item = {}, kind = "tmdb") {
-  const capitalized = `${kind.charAt(0).toUpperCase()}${kind.slice(1)}`;
-  return [
-    item[`${kind}_id`],
-    item[`show_${kind}_id`],
-    item[`${kind}Id`],
-    item[`show${capitalized}Id`],
-  ].map((value) => String(value || "").trim()).filter(Boolean);
-}
-
-export function manualShowMatches(show = {}, candidate = {}) {
-  const ids = ["tmdb", "tvdb", "imdb"];
-  const sameId = ids.some((kind) => {
-    const left = identityValues(show, kind);
-    const right = identityValues(candidate, kind);
-    return left.some((value) => right.includes(value));
-  });
-  if (sameId) return true;
-  const leftTitle = slug(show.title || show.show_title || show.showTitle || "");
-  const rightTitle = slug(candidate.title || candidate.show_title || candidate.showTitle || "");
-  return Boolean(leftTitle && rightTitle && leftTitle === rightTitle);
-}
-
-export function isShowInUpNext(show = {}) {
-  if ((state.upNextManualShows || []).some((candidate) => manualShowMatches(show, candidate))) return true;
-  return (state.upNextItems || []).some((candidate) => (
-    String(candidate?.media_type || candidate?.mediaType || "").toLowerCase() === "episode"
-    && manualShowMatches(show, candidate)
-  ));
-}
-
 function showFromUpNextButton(button) {
   const d = button?.dataset || {};
   return {
@@ -69,28 +39,6 @@ function showFromUpNextButton(button) {
     imdb_id: d.upNextShowImdbId || "",
     poster_url: d.upNextShowPosterUrl || "",
   };
-}
-
-export function upNextShowActionHtml(show = {}) {
-  const selected = isShowInUpNext(show);
-  const title = show.title || show.show_title || "TV show";
-  const action = selected ? "remove" : "add";
-  return `
-    <button class="action-pill action-pill-ghost media-up-next-show-btn${selected ? " is-added" : ""}" type="button"
-      data-up-next-show-add
-      data-up-next-show-action="${action}"
-      data-up-next-show-title="${escapeAttribute(title)}"
-      data-up-next-show-tmdb-id="${escapeAttribute(show.tmdb_id || show.tmdbId || show.show_tmdb_id || "")}"
-      data-up-next-show-tvdb-id="${escapeAttribute(show.tvdb_id || show.tvdbId || show.show_tvdb_id || "")}"
-      data-up-next-show-imdb-id="${escapeAttribute(show.imdb_id || show.imdbId || show.show_imdb_id || "")}"
-      data-up-next-show-poster-url="${escapeAttribute(show.poster_url || show.posterUrl || show.show_poster_url || "")}"
-      title="${selected ? "Remove this show from the dashboard Up Next rail" : "Add the next unwatched episode to the dashboard Up Next rail"}">
-      <svg viewBox="0 0 16 16" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
-        ${selected ? '<path d="M3 8h10" />' : '<path d="M8 3v10M3 8h10" />'}
-      </svg>
-      <span>${selected ? "Remove from <br>Up Next" : "Add to <br>Up Next"}</span>
-    </button>
-  `;
 }
 
 export function upNextAttentionOptions(error, action = "update") {
@@ -1499,7 +1447,13 @@ export function renderUpNext({ exitIds = [] } = {}) {
   });
 }
 
-export async function loadUpNext({ force = false, fromSse = false } = {}) {
+// A stale-tolerant request is allowed once per page load (the first dashboard
+// paint). Later dashboard visits in the same session wait for fresh data.
+let initialStaleLoadAvailable = true;
+// Delay before the one follow-up request that replaces a stale first paint.
+const UP_NEXT_STALE_FOLLOW_UP_MS = 2_500;
+
+export async function loadUpNext({ force = false, fromSse = false, initial = false } = {}) {
   if (!state.token) return;
   if (state.upNextLoading) {
     if (fromSse || force) state.upNextRefreshQueued = true;
@@ -1523,7 +1477,14 @@ export async function loadUpNext({ force = false, fromSse = false } = {}) {
   const timeout = setTimeout(() => controller.abort(), UP_NEXT_TIMEOUT_MS);
 
   try {
-    const params = force ? "refresh=1" : "revalidate=1";
+    // Only the first dashboard paint may accept a projection built before the
+    // latest watch history (allowStale). The rebuild runs behind it and its
+    // version bump reloads the rail over the live stream. Every later load
+    // (after a manual watch, or from a live history event) must wait for the
+    // authoritative projection so a just-watched episode cannot come back.
+    const allowStale = !force && initial && initialStaleLoadAvailable;
+    initialStaleLoadAvailable = false;
+    const params = force ? "refresh=1" : allowStale ? "revalidate=1&allowStale=1" : "revalidate=1";
     const response = await fetch(`/api/up-next?${params}`, {
       headers: buildAuthHeaders(state.token),
       cache: force ? "reload" : "no-store",
@@ -1564,6 +1525,13 @@ export async function loadUpNext({ force = false, fromSse = false } = {}) {
       Promise.resolve().then(() => loadUpNext({ force: true })).catch(() => { });
     } else {
       await loadDismissedUpNext();
+      // A stale first paint may predate the latest watch history and no live
+      // version bump is guaranteed, so ask once more for the rebuilt rail.
+      if (allowStale && state.upNextFromCache) {
+        setTimeout(() => {
+          if (state.activeView === "dashboard") loadUpNext({ fromSse: true }).catch(() => { });
+        }, UP_NEXT_STALE_FOLLOW_UP_MS);
+      }
     }
   } catch (error) {
     if (requestVersion !== state.upNextRequestVersion) return;

@@ -7,20 +7,56 @@ const source = fs.readFileSync(
   path.resolve(import.meta.dirname, "../public/modules/media-detail-shared.js"),
   "utf8",
 );
+const castSource = fs.readFileSync(
+  path.resolve(import.meta.dirname, "../public/modules/cast-disclosure.js"),
+  "utf8",
+);
 
-// A first visit to a title issued 78 API requests, 49 of them per-image
-// proxies: 30 cast headshots and 19 rail posters, every one of them below the
-// fold and fetched eagerly. That burst is what the page's genuinely slow
-// provider calls queued behind - a 9ms endpoint took 2,089ms during it.
+// A first visit to a title issued dozens of per-image proxy requests. Cast
+// avatars remain lazy and the first eight are visible immediately; the rest
+// sit behind an in-rail "show more" card so a long credits list does not turn
+// the page's slow provider calls into an image-request burst.
 
-function imgTags(className) {
-  return source.match(new RegExp(`<img class="${className}"[^>]*>`, "g")) || [];
+function imgTags(className, input = source) {
+  return input.match(new RegExp(`<img class="${className}"[^>]*>`, "g")) || [];
 }
 
 test("every cast avatar is lazy-loaded", () => {
-  const tags = imgTags("cast-avatar-img");
+  const tags = imgTags("cast-avatar-img", castSource);
   assert.ok(tags.length > 0, "expected at least one cast avatar tag");
   for (const tag of tags) assert.match(tag, /loading="lazy"/, `eager cast image: ${tag.slice(0, 90)}`);
+});
+
+test("long cast lists defer the extra avatars behind an in-rail card", () => {
+  assert.match(source, /const visibleCast = cast\.slice\(0, 8\)/);
+  assert.match(source, /<button class="cast-more-card" type="button" data-cast-more-trigger/);
+  assert.match(source, /<span class="cast-more-card-image"/);
+  assert.match(source, /<span class="cast-actor-name">Show more cast<\/span>/);
+  assert.match(source, /<span class="cast-character-name">\$\{deferredCast\.length\} more<\/span>/);
+  assert.match(castSource, /export function hydrateDeferredCastDisclosure/);
+  assert.match(castSource, /trigger\.insertAdjacentHTML\("afterend", cast\.map\(renderCastActor\)\.join\(""\)\)/);
+});
+
+test("revealing more cast moves keyboard focus to the first revealed actor", () => {
+  const body = castSource.match(/export function hydrateDeferredCastDisclosure[\s\S]*?\n}/)?.[0] || "";
+  assert.match(body, /const firstRevealed = trigger\.nextElementSibling;/);
+  assert.match(body, /const hadFocus = trigger === document\.activeElement;/);
+  assert.match(body, /firstRevealed\.focus\(\)/);
+});
+
+test("rail artwork waits for its rail to be reached instead of native lazy loading alone", () => {
+  // Native lazy loading fetched every card in a horizontally scrolling rail
+  // within ~1,250 px, so a detail page requested dozens of unseen images.
+  for (const className of ["season-poster-img", "media-image-thumb"]) {
+    for (const tag of source.match(new RegExp(`<img class="${className}"[^>]*>`, "g")) || []) {
+      assert.match(tag, /data-rail-src="/, `rail image loads eagerly: ${tag.slice(0, 90)}`);
+      assert.doesNotMatch(tag, /\ssrc="/, `rail image has an eager src: ${tag.slice(0, 90)}`);
+    }
+  }
+  const railRows = source.match(/<div class="(?:horizontal-scroll-row|media-images-scroll-row)"[^>]*>/g) || [];
+  assert.ok(railRows.length >= 4, "expected the related, recommendation, images, and collection rails");
+  for (const row of railRows) assert.match(row, /\$\{deferredRailAttribute\(\)\}/);
+  assert.match(source, /new IntersectionObserver\([\s\S]*?rootMargin: RAIL_VIEWPORT_MARGIN/);
 });
 
 test("every rail poster is lazy-loaded", () => {
@@ -30,8 +66,8 @@ test("every rail poster is lazy-loaded", () => {
 });
 
 test("lazy images decode off the main thread", () => {
-  for (const className of ["cast-avatar-img", "season-poster-img"]) {
-    for (const tag of imgTags(className)) {
+  for (const [className, input] of [["cast-avatar-img", castSource], ["season-poster-img", source]]) {
+    for (const tag of imgTags(className, input)) {
       assert.match(tag, /decoding="async"/, `blocking decode: ${tag.slice(0, 90)}`);
     }
   }

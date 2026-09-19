@@ -212,3 +212,56 @@ test("a failed provider inventory produces no writes and no inferred unwatch", a
   assert.equal(result.marked, 0);
   assert.match(result.providers.emby.error, /temporary library timeout/);
 });
+
+test("the restore fence is checked immediately before a provider write, not for every candidate", async () => {
+  // Reacher S03E03 is canonically watched from the first test; S03E09 is not.
+  let fenceChecks = 0;
+  let markCount = 0;
+  const result = await reconcileAvailableWatchedItems(embyConfig(), {
+    clients: {
+      emby: {
+        fetch: async () => [
+          embyEpisode(),
+          embyEpisode({ Id: "emby-4k-reacher-s3e9", IndexNumber: 9, Name: "Unwatched", ProviderIds: { Imdb: "tt-episode-9" } }),
+        ],
+      },
+    },
+    shouldStop: async () => {
+      fenceChecks += 1;
+      return true;
+    },
+    markWatched: async () => {
+      markCount += 1;
+      return { status: "success" };
+    },
+  });
+
+  assert.equal(markCount, 0, "an active restore fence must still block the write");
+  assert.equal(result.marked, 0);
+  assert.equal(fenceChecks, 1, "only the canonically watched candidate reaches the fence");
+});
+
+test("a large availability pass yields so timers and requests are not starved", async () => {
+  const items = Array.from({ length: 3000 }, (_, index) => embyEpisode({
+    Id: `emby-bulk-${index}`,
+    SeriesName: `Bulk Show ${index % 50}`,
+    ParentIndexNumber: 1,
+    IndexNumber: index + 1,
+    ProviderIds: { Imdb: `tt-bulk-episode-${index}` },
+    SeriesProviderIds: { Imdb: `tt-bulk-show-${index % 50}` },
+  }));
+  let timerRuns = 0;
+  const interval = setInterval(() => { timerRuns += 1; }, 5);
+  const started = Date.now();
+  try {
+    await reconcileAvailableWatchedItems(embyConfig(), {
+      clients: { emby: { fetch: async () => items } },
+      markWatched: async () => ({ status: "success" }),
+    });
+  } finally {
+    clearInterval(interval);
+  }
+  const elapsed = Date.now() - started;
+  // Only meaningful when the pass is long enough to need a yield at all.
+  if (elapsed > 100) assert.ok(timerRuns > 0, `a ${elapsed} ms pass never let a timer run`);
+});

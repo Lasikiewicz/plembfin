@@ -143,6 +143,90 @@ test("a newer provider unwatch supersedes an older explicit watched row", () => 
   }
 });
 
+test("a newer exact live completion supersedes an older manual unwatched tombstone", () => {
+  const manualUnwatch = {
+    ...canonicalFixture("manual-unwatch-before-live-watch", "unwatched", 1_000),
+    source: "manual",
+  };
+  const liveWatch = {
+    ...canonicalFixture("accepted-live-watch", "watched", 2_000),
+    source: "emby",
+    watch_provenance: JSON.stringify({
+      source: "emby",
+      ingest_path: "live_session",
+      event: "playback.complete",
+      phase: "completed",
+      confidence: "exact",
+      source_timestamp: "2026-08-23T20:05:00.000Z",
+    }),
+  };
+
+  for (const rows of [[manualUnwatch, liveWatch], [liveWatch, manualUnwatch]]) {
+    const [result] = repo.dedupeHistory(rows);
+    assert.equal(result.id, "accepted-live-watch");
+    assert.equal(result.sync_action, "watched");
+  }
+});
+
+function exactLiveWatch(id, createdAt, sourceTimestamp) {
+  return {
+    ...canonicalFixture(id, "watched", createdAt),
+    source: "emby",
+    watch_provenance: JSON.stringify({
+      source: "emby",
+      ingest_path: "live_session",
+      event: "playback.complete",
+      phase: "completed",
+      confidence: "exact",
+      source_timestamp: sourceTimestamp,
+    }),
+  };
+}
+
+test("a live completion needs both clocks newer than the manual unwatch to revive it", () => {
+  const unwatchedAt = Date.parse("2026-08-23T20:00:00.000Z");
+  const manualUnwatch = {
+    ...canonicalFixture("manual-unwatch-clock-guard", "unwatched", unwatchedAt),
+    source: "manual",
+  };
+  // Replayed/late-ingested completion: received after the unwatch, but the
+  // playback itself finished before it.
+  const lateReplay = exactLiveWatch("late-replayed-live-watch", unwatchedAt + 60_000, "2026-08-23T19:55:00.000Z");
+  // Provider clock running ahead: claims a later completion, but Plembfin
+  // received it before the unwatch.
+  const skewedClock = exactLiveWatch("skewed-clock-live-watch", unwatchedAt - 60_000, "2026-08-23T20:05:00.000Z");
+
+  for (const liveWatch of [lateReplay, skewedClock]) {
+    for (const rows of [[manualUnwatch, liveWatch], [liveWatch, manualUnwatch]]) {
+      const [result] = repo.dedupeHistory(rows);
+      assert.equal(result.id, "manual-unwatch-clock-guard", liveWatch.id);
+      assert.equal(result.sync_action, "unwatched");
+    }
+  }
+
+  const realLaterWatch = exactLiveWatch("real-later-live-watch", unwatchedAt + 300_000, "2026-08-23T20:04:00.000Z");
+  for (const rows of [[manualUnwatch, realLaterWatch], [realLaterWatch, manualUnwatch]]) {
+    const [result] = repo.dedupeHistory(rows);
+    assert.equal(result.id, "real-later-live-watch");
+    assert.equal(result.sync_action, "watched");
+  }
+});
+
+test("a generic provider watch remains subordinate to a manual unwatched tombstone", () => {
+  const manualUnwatch = {
+    ...canonicalFixture("manual-unwatch-generic-provider", "unwatched", 1_000),
+    source: "manual",
+  };
+  const genericProviderWatch = {
+    ...canonicalFixture("generic-provider-watch", "watched", 2_000),
+    source: "emby",
+  };
+
+  const [result] = repo.dedupeHistory([manualUnwatch, genericProviderWatch]);
+  assert.equal(result.id, "manual-unwatch-generic-provider");
+  assert.equal(result.sync_action, "unwatched");
+});
+
 test("an in-place promotion advances the canonical transition clock", async () => {
   const database = repo.requireDb();
   const insert = database.prepare(`INSERT INTO watch_history

@@ -28,6 +28,7 @@ import {
   countPendingManualWatchReviewItems,
   getManualWatchReview,
   listPendingManualWatchReviews,
+  listPendingManualWatchReviewsCached,
   manualWatchReviewMedia,
   setManualWatchReviewStatus,
 } from "../utils/manualWatchReview.js";
@@ -75,6 +76,34 @@ function reviewSourceConfigured(config = {}, source = "") {
   if (section.disabled) return false;
   if (source === "plex") return Boolean(section.baseUrl && section.token);
   return Boolean(section.baseUrl && section.apiKey && section.userId);
+}
+
+function reviewProviderLabel(value = "") {
+  const provider = String(value || "").trim().toLowerCase();
+  if (provider === "plex") return "Plex";
+  if (provider === "emby") return "Emby";
+  if (provider === "jellyfin") return "Jellyfin";
+  if (provider === "trakt") return "Trakt";
+  return provider ? provider.replace(/^./, (character) => character.toUpperCase()) : "Unknown app";
+}
+
+function reviewTargetStateIsAcceptable(target = {}) {
+  const status = String(target.status || "").trim().toLowerCase();
+  const detail = String(target.detail || "").trim().toLowerCase();
+  if (status === "success") return true;
+  return status === "skipped" && (/no matching item found|skipped by the configured sync policy/.test(detail));
+}
+
+function safeReviewTargetState(target = {}) {
+  const provider = String(target.target || "").trim().toLowerCase();
+  const status = String(target.status || "unknown").trim().toLowerCase();
+  const detail = String(target.detail || "").replace(/\s+/g, " ").trim().slice(0, 320);
+  return {
+    target: provider || "unknown",
+    provider: reviewProviderLabel(provider),
+    status,
+    ...(detail ? { detail } : {}),
+  };
 }
 
 async function dismissReview(review) {
@@ -137,24 +166,35 @@ async function dismissReview(review) {
   // retry.
   await invalidateHistoryDerivedCaches("dismissManualWatchReview").catch(() => null);
 
-  const targetStates = result.summary?.targetStates || [];
-  const failedTarget = targetStates.find((target) => {
-    const status = String(target.status || "").toLowerCase();
-    const detail = String(target.detail || "").toLowerCase();
-    if (["success"].includes(status)) return false;
-    if (status === "skipped" && (/no matching item found|skipped by the configured sync policy/.test(detail))) return false;
-    return true;
-  });
-  if (!targetStates.length || failedTarget) {
-    const detail = failedTarget?.detail || result.summary?.details || "Connected media apps did not all confirm the unwatched change.";
-    throw Object.assign(
-      new Error(`The connected media apps did not all accept the unwatched correction (${detail}). The review remains pending.`),
-      // This is an actionable provider-state conflict rather than an
-      // unhandled server fault. Keep the user-safe reason visible to the UI;
-      // the review remains pending so it can be retried after the app is
-      // reachable or the match is corrected.
-      { status: 409 },
+  const targetStates = Array.isArray(result.summary?.targetStates) ? result.summary.targetStates : [];
+  const failedTargets = targetStates.filter((target) => !reviewTargetStateIsAcceptable(target));
+  if (!targetStates.length || failedTargets.length) {
+    const successfulTargets = targetStates
+      .filter((target) => String(target.status || "").trim().toLowerCase() === "success")
+      .map((target) => reviewProviderLabel(target.target));
+    const failureSummary = failedTargets.length
+      ? failedTargets.map((target) => {
+        const safeTarget = safeReviewTargetState(target);
+        return `${safeTarget.provider}: ${safeTarget.detail || "did not confirm the correction"}`;
+      }).join("; ")
+      : "No provider result was returned";
+    const acceptedSummary = successfulTargets.length
+      ? `${successfulTargets.join(" and ")} accepted the correction. `
+      : "";
+    const error = new Error(
+      `Could not complete the unwatched correction for "${dispatchMedia.title || "this item"}". `
+      + `${acceptedSummary}Failed on ${failureSummary}. The review remains pending.`,
     );
+    // This is an actionable provider-state conflict rather than an unhandled
+    // server fault. Keep a small, user-safe diagnostic payload so the UI can
+    // name the target app and preserve the retry context without exposing
+    // configured URLs, credentials, or upstream stacks.
+    Object.assign(error, {
+      status: 409,
+      failureTargets: failedTargets.map(safeReviewTargetState),
+      targetStates: targetStates.map(safeReviewTargetState),
+    });
+    throw error;
   }
 
   await appendSyncHistory({
@@ -408,7 +448,7 @@ export async function handleManualWatchReview(req, res, path) {
 
   if (req.method === "GET" && !action) {
     const summaryOnly = String(req.query?.summary || "") === "1";
-    const pendingReviews = listPendingManualWatchReviews();
+    const pendingReviews = listPendingManualWatchReviewsCached({ includeWatchContext: !summaryOnly });
     return sendJson(res, {
       ok: true,
       // `count` is the number of logical decisions shown in the UI. Keep the
@@ -439,7 +479,12 @@ export async function handleManualWatchReview(req, res, path) {
       }, 200, { "Cache-Control": "no-store" });
     } catch (error) {
       const status = Number(error?.status);
-      return sendJson(res, { ok: false, error: error.message || "Manual watch review dismissal failed" }, Number.isInteger(status) ? status : 500);
+      return sendJson(res, {
+        ok: false,
+        error: error.message || "Manual watch review dismissal failed",
+        ...(Array.isArray(error?.failureTargets) ? { failureTargets: error.failureTargets } : {}),
+        ...(Array.isArray(error?.targetStates) ? { targetStates: error.targetStates } : {}),
+      }, Number.isInteger(status) ? status : 500);
     }
   }
   if (action === "defer") {

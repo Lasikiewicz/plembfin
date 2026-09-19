@@ -18,6 +18,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { changelogEntryQualityViolations, changelogEntryProcessViolations, filterChangelogEntries } from "./changelog-message.js";
+import { buildChangelogSectionGroups, changelogSectionGroups } from "./changelog-sections.js";
 import { formatSections, mergeSections } from "./promote-develop-to-alpha.js";
 import { generateChangelogMarkdown } from "./generate-changelog-md.js";
 import { fileAtRef, gitHeadAuthor, gitHeadCommit } from "./changelog-git-helpers.js";
@@ -149,6 +150,7 @@ function computeAlphaToMainRelease({ targetVersion = "", sourceDate = new Date()
     author: sourceAuthor,
     details: simplifiedDetails,
     sections,
+    sectionGroups: buildChangelogSectionGroups(sections),
   };
 
   // Safety net: filterChangelogEntries above, and categorizeEntries when each alpha
@@ -180,15 +182,16 @@ function renderReleasePreview({ newMainVersion, new5DigitVersion, mainEntry }) {
   lines.push("Message:");
   lines.push(`  ${mainEntry.message}`);
   lines.push("");
-  const renderSection = (title, values) => {
-    if (!values || values.length === 0) return;
-    lines.push(`${title}:`);
-    for (const value of values) lines.push(`  - ${value}`);
+  const renderSection = (section) => {
+    if (!section.groups.length) return;
+    lines.push(`${section.title}:`);
+    for (const group of section.groups) {
+      if (group.title) lines.push(`  ${group.title}:`);
+      for (const value of group.details) lines.push(`    - ${value}`);
+    }
     lines.push("");
   };
-  renderSection("New Features", mainEntry.sections?.newFeatures);
-  renderSection("Major Bug Fixes", mainEntry.sections?.majorBugFixes);
-  renderSection("Tweaks", mainEntry.sections?.tweaks);
+  for (const section of changelogSectionGroups(mainEntry)) renderSection(section);
   lines.push("(details[] carries the same items each prefixed Feature:/Fix:/Tweak:.)");
   console.log(lines.join("\n"));
 }

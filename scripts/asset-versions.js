@@ -80,6 +80,9 @@ function managesAsset(assetPath) {
     || assetPath === "/app.js"
     || assetPath === "/styles.css"
     || assetPath === "/manifest.webmanifest"
+    || assetPath === "/theme-boot.js"
+    || assetPath.startsWith("/fonts/")
+    || /^\/plembfin_header_logo_(?:dark|light)\.png$/.test(assetPath)
     || assetPath.startsWith("./")
     || assetPath.startsWith("../");
 }

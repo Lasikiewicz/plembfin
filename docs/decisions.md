@@ -934,3 +934,40 @@ setting off. This was observed in testing before it was fixed.
 **Enforced by:** `server/src/utils/watchSyncPolicy.js`, the target filter in
 `syncMediaPlaystate`, the `syncCanonicalPlaystate` intent default, and the adapter guard in
 `markPlexPlayed`; `test/historicalWatchSyncPolicy.test.js`.
+
+### 31. An exact live-session completion may revive a manual unwatch; a provider watched flag may not
+**Date:** 2026-09-19  |  **Status:** Active
+
+**Context:** A manual unwatch in Plembfin used to be permanent against every provider
+watched signal. That rule exists because providers report watched state that is not
+evidence of a play: a generic played flag, a reconciliation echo, or a Trakt callback can
+all arrive after the user deliberately cleared a watch, and letting them win put phantom
+watches back. The rule was too broad in one case. While verifying the application-speed
+plan, the user unwatched Ludwig episodes in Plembfin and then really watched them again in
+Emby. The accepted live-session completions were recorded, but the canonical state stayed
+unwatched, so a genuine later watch was lost.
+
+**Decision:** A manual unwatch is superseded only by a media-server row that carries exact
+live-session provenance (`ingest_path=live_session`, `event=playback.complete`,
+`phase=completed`, `confidence=exact`), and only when **both** of its clocks are newer than
+the unwatch: the provider's `source_timestamp` and Plembfin's own `created_at` for the row.
+Every other provider watched signal stays subordinate to the manual unwatch and continues
+to go to manual review.
+
+**Rejected:**
+
+- *Keeping the unwatch absolute.* It drops real later watches, which the user then has to
+  re-mark by hand, and it is the one place the live pipeline's exact threshold evidence
+  was being ignored.
+- *Comparing only the provider's `source_timestamp`.* The first implementation did this.
+  It compared the media server's clock with Plembfin's, so a provider clock running ahead
+  could revive an unwatch made after the playback really ended.
+- *Comparing only Plembfin's receive time.* A late-ingested or replayed completion of an
+  older playback would then revive an unwatch the user made after watching.
+- *Accepting any media-server watched row that is newer.* That reintroduces the played-flag
+  phantom watches this guard was written to stop.
+
+**Enforced by:** `acceptedLiveWatchSourceTime` and `acceptedLiveWatchIsNewerThanManual` in
+`canonicalTransitionIsNewer` (`server/src/utils/dataRepo.js`);
+`test/mediaForceSyncCanonicalState.test.js` covers the accepted revival, the generic-flag
+safeguard, the late replay, and the skewed provider clock.

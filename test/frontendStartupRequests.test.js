@@ -8,8 +8,9 @@ const appEventsSource = fs.readFileSync(path.resolve(import.meta.dirname, "../pu
 const indexSource = fs.readFileSync(path.resolve(import.meta.dirname, "../public/index.html"), "utf8");
 const bundledVersion = JSON.parse(fs.readFileSync(path.resolve(import.meta.dirname, "../changelog.json"), "utf8")).version;
 
-test("media-detail startup reads the bundled version without a remote changelog check", () => {
-  assert.match(appSource, /checksForUpdates \? "\/api\/changelog\?refresh=1" : "\/changelog\.json"/);
+test("startup reads the bundled version before deferring a remote changelog check", () => {
+  assert.match(appSource, /fetch\("\/version\.json"/);
+  assert.match(appSource, /window\.setTimeout\(async \(\) => \{[\s\S]*?fetch\("\/api\/changelog\?refresh=1"/);
   assert.match(appSource, /pathname === "\/" \|\| pathname === "\/dashboard"/);
 });
 

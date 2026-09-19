@@ -4,18 +4,17 @@
 // echoes credentials, only a `configured` flag per section, and a blank secret
 // on save means "keep the stored credential" (except Seerr, whose key is only
 // sent when non-empty).
-import { state } from "./state.js?v=1.1.1.7.3";
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.7.3";
-import { openSettingsEditModal, openSettingsPickerModal, renderFieldRow, collectFieldValues, renderInlineServicePanel } from "./settings-ui.js?v=1.1.1.7.3";
-import { prepareHelpReadMore } from "./settings-shell.js?v=1.1.1.7.3";
-import { escapeAttribute, escapeHtml } from "./utils.js?v=1.1.1.7.3";
-import { initTautulliImport, refreshTautulliImport } from "./tautulli-import.js?v=1.1.1.7.3";
+import { state } from "./state.js?v=1.1.1.8.1";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.8.1";
+import { openSettingsEditModal, openSettingsPickerModal, renderFieldRow, collectFieldValues, renderInlineServicePanel } from "./settings-ui.js?v=1.1.1.8.1";
+import { prepareHelpReadMore } from "./settings-shell.js?v=1.1.1.8.1";
+import { escapeAttribute, escapeHtml } from "./utils.js?v=1.1.1.8.1";
 import {
   plexCredentialGuide,
   embyCredentialGuide,
   jellyfinCredentialGuide,
   savedCredentialNote,
-} from "./help-content.js?v=1.1.1.7.3";
+} from "./help-content.js?v=1.1.1.8.1";
 import {
   PLEX_HISTORICAL_SYNC_HELP_HTML,
   PLEX_HISTORICAL_SYNC_CHOICES,
@@ -23,12 +22,20 @@ import {
   PROVIDER_DATE_NOTE_HTML,
   plexHistoricalSyncEnabled,
   plexHistoricalSyncOffWarningHtml,
-} from "./plex-history-policy.js?v=1.1.1.7.3";
+} from "./plex-history-policy.js?v=1.1.1.8.1";
 
 let _cb = {};
+let _tautulliImport = {
+  initTautulliImport: () => {},
+  refreshTautulliImport: () => {},
+};
+
+export function setTautulliImportModule(module) {
+  _tautulliImport = module || _tautulliImport;
+}
+
 export function initSettingsServices(callbacks = {}) {
   _cb = callbacks;
-  initTautulliImport({ openConfirmDialog: callbacks.openConfirmDialog });
   // The onboarding Options step saves the same Sync Tuning fields while the
   // Settings DOM remains mounted in the background. Refresh only that form
   // for its explicit event so unrelated config changes cannot wipe another
@@ -37,7 +44,9 @@ export function initSettingsServices(callbacks = {}) {
     if (event.detail?.refreshSyncTuning) renderSyncTuningCard();
   });
 }
-export { refreshTautulliImport };
+export function refreshTautulliImport(...args) {
+  return _tautulliImport.refreshTautulliImport(...args);
+}
 const setMessage = (...args) => _cb.setMessage?.(...args);
 const clearDerivedUiCaches = (...args) => _cb.clearDerivedUiCaches?.(...args);
 const renderDashboard = (...args) => _cb.renderDashboard?.(...args);

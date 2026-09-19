@@ -1,0 +1,45 @@
+{
+  "date": "2026-09-18",
+  "purpose": "Post-change Chrome verification for Settings-only status and Tautulli route scoping, plus the previously blocked Slow 4G check.",
+  "browser": "Chrome via CUA",
+  "browserVersion": "not captured by this probe",
+  "server": "http://localhost:5055",
+  "cache": "route-scope checks used the normal browser cache; Slow 4G disabled cache",
+  "routes": {
+    "/about": {
+      "readyState": "complete",
+      "resources": 53,
+      "settingsOnlyModuleResources": [],
+      "consoleErrorsOrWarnings": 0
+    },
+    "/settings/tools": {
+      "readyState": "complete",
+      "resources": 75,
+      "settingsOnlyModuleResources": [
+        "/modules/tautulli-import.js?v=1.1.2.0.0"
+      ],
+      "consoleErrorsOrWarnings": 0
+    },
+    "/settings/media-servers": {
+      "network": {
+        "latencyMs": 150,
+        "downloadBytesPerSecond": 200000,
+        "uploadBytesPerSecond": 100000,
+        "cacheDisabled": true
+      },
+      "readyState": "complete",
+      "renderedContent": "Settings - Media servers; Plex; Emby; Jellyfin",
+      "resources": 73,
+      "ttfbMs": 16.6,
+      "loadEventMs": 4796.6,
+      "wallClockIncludingSettledWaitMs": 7328,
+      "consoleErrorsOrWarnings": 0
+    }
+  },
+  "interpretation": [
+    "About no longer downloads tracker-sync, rating-sync, watchlist-sync, or Tautulli route modules.",
+    "Settings/tools does download the Tautulli route module when that route is active.",
+    "The Slow 4G route reached readyState=complete and rendered its server controls without console errors.",
+    "This is a route-scoping and browser-smoke artifact, not the six-load matrix or a release-budget pass."
+  ]
+}

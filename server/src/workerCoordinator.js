@@ -17,10 +17,11 @@ import {
   stopLiveSessionPoller,
 } from "./scheduler.js";
 import { refreshUpcomingCalendarCache } from "./utils/upcomingCalendarCache.js";
-import { backfillUnknownShowTitles, backfillMissingEpisodeSeasons, repairEpisodeSeriesIdentity } from "./utils/dataRepo.js";
+import { backfillUnknownShowTitles, backfillMissingEpisodeSeasons } from "./utils/dataRepo.js";
 import { UP_NEXT_AUTO_SYNC_JOB, UP_NEXT_PRIORITY_SYNC_JOB, requestUpNextAutoSync, runAutomaticUpNextSync } from "./utils/upNextAutoSync.js";
 import { db } from "./db.js";
 import { setRuntimeState } from "./utils/configStore.js";
+import { yieldToEventLoop } from "./utils/eventLoop.js";
 import {
   claimSchedulerLease,
   markSchedulerTick,
@@ -79,6 +80,7 @@ export function createWorkerCoordinator({ holderId, role }) {
   let jobRunning = false;
   let activeTickPromise = null;
   let activeJobPromise = null;
+  let activeStartupScanPromise = null;
   let lastSettingsUpdatedAt = null;
   let startupScanGeneration = null;
   const timers = new Set();
@@ -102,6 +104,78 @@ export function createWorkerCoordinator({ holderId, role }) {
     }).catch(() => null);
   }
 
+  async function runStartupMaintenance(generation) {
+    try {
+      // Keep leadership acquisition and the first authenticated HTTP requests
+      // cheap. The historical-title/season backfills are synchronous SQLite
+      // work and can monopolize the event loop for seconds on a large library,
+      // so they are scheduled below after the initial startup window.
+      await yieldToEventLoop();
+    } finally {
+      if (startupScanGeneration !== generation || stopped || !isLeader()) return;
+      // Deferred startup work belongs to this leadership term only. A timer
+      // left over from a lost term must not start pollers or scans under a
+      // later lease.
+      const stillCurrentLeader = () => !stopped && lease?.generation === generation && isLeader();
+      // Give the web process one clean startup window before opening the
+      // provider sockets/pollers. This is tied to the first scheduled tick,
+      // rather than an independent arbitrary timeout, and keeps a provider
+      // outage from competing with the initial authenticated page load.
+      const startProviderPollers = () => {
+        if (!stillCurrentLeader()) return;
+        startPlexNotificationListener();
+        startPlexAdaptivePoller();
+        startLiveSessionPoller();
+      };
+      later(startProviderPollers, FIRST_TICK_MS);
+      // The startup scan stays "active" (the sidebar's Scanning label and the
+      // Sync Activity notice) until these backfills have actually run. The
+      // flag does not block requests, so keeping it truthful costs nothing.
+      later(async () => {
+        const backfills = (async () => {
+          try {
+            if (!stillCurrentLeader()) return;
+            await backfillUnknownShowTitles().catch((error) => console.error("backfillUnknownShowTitles failed", error));
+            await yieldToEventLoop();
+            if (!stillCurrentLeader()) return;
+            await backfillMissingEpisodeSeasons().catch((error) => console.error("backfillMissingEpisodeSeasons failed", error));
+          } finally {
+            await finishStartupScan(generation);
+          }
+        })();
+        // stop() waits on this promise, so shutdown cannot interrupt a
+        // backfill part-way through its writes.
+        activeStartupScanPromise = backfills;
+        try {
+          await backfills;
+        } finally {
+          if (activeStartupScanPromise === backfills) activeStartupScanPromise = null;
+        }
+      }, FIRST_TICK_MS + 1_000);
+      // Episode identity repair is already a scheduled tick step. Keeping it
+      // out of the leadership-acquisition path avoids running the same large
+      // synchronous repair twice during a restart loop.
+      if (!SCHEDULED_WORKER_PAUSED) {
+        later(() => refreshUpcomingCalendarCache({ forceCurrent: true }), 0);
+        later(async () => {
+          await runTick();
+        }, FIRST_TICK_MS);
+      } else {
+        console.log("[worker] scheduled sync and background jobs paused by PLEMBFIN_PAUSE_SCHEDULED_WORKER");
+      }
+    }
+  }
+
+  function queueStartupMaintenance(generation) {
+    const promise = runStartupMaintenance(generation).catch((error) => {
+      console.error("Startup maintenance failed", error);
+    });
+    activeStartupScanPromise = promise;
+    promise.then(() => {
+      if (activeStartupScanPromise === promise) activeStartupScanPromise = null;
+    });
+  }
+
   async function becomeLeader(nextLease) {
     const changed = !lease || lease.generation !== nextLease.generation;
     lease = nextLease;
@@ -114,29 +188,7 @@ export function createWorkerCoordinator({ holderId, role }) {
       startupScanStartedAt: Date.now(),
       startupScanCompletedAt: 0,
     }).catch(() => null);
-    startPlexNotificationListener();
-    startPlexAdaptivePoller();
-    startLiveSessionPoller();
-    await backfillUnknownShowTitles().catch((error) => console.error("backfillUnknownShowTitles failed", error));
-    await backfillMissingEpisodeSeasons().catch((error) => console.error("backfillMissingEpisodeSeasons failed", error));
-    // Runs after the two above because it reads show titles and episode
-    // coordinates that they repair. Each pass also gets more effective than the
-    // last: once a show gains one correctly keyed record, that record is the
-    // proof this repair needs for every other row of the same show.
-    await repairEpisodeSeriesIdentity().catch((error) => console.error("repairEpisodeSeriesIdentity failed", error));
-    // Warm the persisted Upcoming snapshot as soon as this process becomes the
-    // scheduler leader. The refresh is intentionally detached so leadership
-    // renewal and the HTTP server remain responsive while metadata is fetched.
-    if (!SCHEDULED_WORKER_PAUSED) {
-      later(() => refreshUpcomingCalendarCache({ forceCurrent: true }), 0);
-      later(async () => {
-        await runTick();
-        await finishStartupScan(startupGeneration);
-      }, FIRST_TICK_MS);
-    } else {
-      await finishStartupScan(startupGeneration);
-      console.log("[worker] scheduled sync and background jobs paused by PLEMBFIN_PAUSE_SCHEDULED_WORKER");
-    }
+    queueStartupMaintenance(startupGeneration);
   }
 
   function loseLeadership(reason) {
@@ -315,7 +367,10 @@ export function createWorkerCoordinator({ holderId, role }) {
     async start() {
       stopped = false;
       await maintainLease();
-      if (!SCHEDULED_WORKER_PAUSED) later(pollJobs, 25);
+      // Durable jobs can contain provider-backed syncs. Keep the queue asleep
+      // through the same first-request window as scheduled work so a stale
+      // backlog cannot turn startup into a multi-second event-loop stall.
+      if (!SCHEDULED_WORKER_PAUSED) later(pollJobs, FIRST_TICK_MS + 1_000);
     },
     async stop() {
       stopped = true;
@@ -328,7 +383,7 @@ export function createWorkerCoordinator({ holderId, role }) {
       }
       stopPlexNotificationListener();
       const closingLease = lease;
-      await Promise.allSettled([activeTickPromise, activeJobPromise].filter(Boolean));
+      await Promise.allSettled([activeTickPromise, activeJobPromise, activeStartupScanPromise].filter(Boolean));
       if (closingLease) releaseSchedulerLease({ holderId, generation: closingLease.generation });
       lease = null;
     },

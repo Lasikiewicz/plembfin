@@ -64,7 +64,7 @@ const { dispatch } = await import("./src/index.js");
 const { db } = await import("./src/db.js");
 const { enableTmdbMetadataWarmup } = await import("./src/utils/tmdbGateway.js");
 const { clearRestoreSyncState, loadMediaConfig, loadRuntimeState, RESTORE_KIND_FULL_SYNC } = await import("./src/utils/configStore.js");
-const { createCspImageOriginMemo, createResponseCompression, setPublicAssetCacheHeaders } = await import("./src/utils/httpPerformance.js");
+const { createCspImageOriginMemo, createHttpTimingMiddleware, createResponseCompression, setPublicAssetCacheHeaders } = await import("./src/utils/httpPerformance.js");
 const { recoverInterruptedBackgroundImports } = await import("./src/utils/onboardingStore.js");
 const { schedulerLeaseStatus } = await import("./src/utils/schedulerLease.js");
 const { createWorkerCoordinator } = await import("./src/workerCoordinator.js");
@@ -137,6 +137,10 @@ const PORT = Number(process.env.PORT || 5055);
 const HOST = String(process.env.HOST || "0.0.0.0").trim() || "0.0.0.0";
 const app = express();
 app.disable("x-powered-by");
+// Request timing is deliberately opt-in for diagnosing the performance plan's
+// localhost stalls. It logs only slow/error responses and includes event-loop
+// delay, so normal deployments do not add per-request telemetry overhead.
+app.use(createHttpTimingMiddleware());
 // Settings and integration status are mutable application state. Do not let a
 // browser revalidate an old JSON response and turn a saved connection into a
 // stale/default-looking form after a refresh.
@@ -220,7 +224,7 @@ app.use(async (_req, res, next) => {
     }
     contentSecurityPolicy =
       `default-src 'self'; img-src 'self' data: blob: https://image.tmdb.org https://img.youtube.com https://assets.fanart.tv https://fanart.tv https://artworks.thetvdb.com https://thetvdb.com${extraImgSrc}; ` +
-      "script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; connect-src 'self'; " +
+      "script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self'; " +
       "frame-ancestors 'none'; base-uri 'self'; form-action 'self'; " +
       "frame-src https://www.youtube.com https://www.youtube-nocookie.com;";
   }
@@ -332,6 +336,26 @@ app.use("/icons", express.static(path.join(PUBLIC_DIR, "icons"), { maxAge: "7d" 
 
 app.get("/changelog.json", (_req, res) => {
   res.sendFile(path.resolve(PUBLIC_DIR, "..", "changelog.json"));
+});
+
+// Browsers still probe the conventional path when an installed profile has
+// remembered an older favicon. Keep that fallback tiny instead of letting the
+// SPA catch-all return the full index document.
+app.get("/favicon.ico", (_req, res) => {
+  res.type("image/svg+xml").sendFile(path.resolve(PUBLIC_DIR, "favicon.svg"));
+});
+
+// The shell only needs the installed version for its sidebar badge. Keep the
+// full release history on the Changelog route instead of paying for it on
+// every authenticated page.
+app.get("/version.json", (_req, res) => {
+  res.setHeader("Cache-Control", "no-store");
+  try {
+    const bundled = JSON.parse(fs.readFileSync(path.resolve(PUBLIC_DIR, "..", "changelog.json"), "utf8"));
+    return res.json({ version: String(bundled.version || "").trim() || null });
+  } catch {
+    return res.status(503).json({ error: "Version unavailable" });
+  }
 });
 
 app.get("/auth/plex/return", (_req, res) => {

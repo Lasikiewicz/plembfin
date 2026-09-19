@@ -1,16 +1,17 @@
 ---
-import { getCollection, render } from "astro:content";
+import { getCollection, render, type CollectionEntry } from "astro:content";
 import SiteLayout from "../../layouts/SiteLayout.astro";
 import DocsSidebar from "../../components/DocsSidebar.astro";
 import DocsPageRail from "../../components/DocsPageRail.astro";
 import DocsArticleSearch from "../../components/DocsArticleSearch.astro";
 import { flatDocs } from "../../data/site.js";
 
-const getEntrySlug = (entry) => entry.slug ?? entry.id.replace(/\.(?:md|mdx)$/i, "");
+type DocEntry = CollectionEntry<"docs">;
+const getEntrySlug = (entry: DocEntry) => entry.id.replace(/\.(?:md|mdx)$/i, "");
 
 export async function getStaticPaths() {
   const entries = await getCollection("docs");
-  const getPathSlug = (entry) => entry.slug ?? entry.id.replace(/\.(?:md|mdx)$/i, "");
+  const getPathSlug = (entry: DocEntry) => entry.id.replace(/\.(?:md|mdx)$/i, "");
   return entries.map((entry) => ({
     params: { slug: getPathSlug(entry) },
     props: { entry },

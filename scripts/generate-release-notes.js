@@ -9,14 +9,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { changelogSectionGroups } from "./changelog-sections.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-
-const SECTION_GROUPS = [
-  ["newFeatures", "New Features"],
-  ["majorBugFixes", "Major Bug Fixes"],
-  ["tweaks", "Tweaks"],
-];
 
 function normalizeText(value) {
   return String(value || "").replace(/\r\n/g, "\n").trim();
@@ -79,12 +74,17 @@ export function getReleaseMetadata({ channel, manifest } = {}) {
   };
 }
 
-function addSection(lines, heading, values) {
-  const items = uniqueItems(values);
-  if (!items.length) return false;
-  lines.push(`### ${heading}`, "");
-  for (const item of items) lines.push(`- ${item}`);
-  lines.push("");
+function addSection(lines, section) {
+  const groups = section.groups
+    .map((group) => ({ ...group, details: uniqueItems(group.details) }))
+    .filter((group) => group.details.length);
+  if (!groups.length) return false;
+  lines.push(`### ${section.title}`, "");
+  for (const group of groups) {
+    if (group.title) lines.push(`#### ${group.title}`, "");
+    for (const item of group.details) lines.push(`- ${item}`);
+    lines.push("");
+  }
   return true;
 }
 
@@ -102,12 +102,17 @@ export function generateReleaseNotes({ channel, manifest, repository = "Lasikiew
     "",
   ];
 
-  const sections = entry.sections && typeof entry.sections === "object" ? entry.sections : {};
-  const renderedSections = SECTION_GROUPS.some(([key]) => uniqueItems(sections[key]).length);
+  const sections = changelogSectionGroups(entry);
+  const renderedSections = sections.some((section) => section.groups.length);
   if (renderedSections) {
-    for (const [key, heading] of SECTION_GROUPS) addSection(lines, heading, sections[key]);
+    for (const section of sections) addSection(lines, section);
   } else {
-    addSection(lines, "Changes", entry.details);
+    const details = uniqueItems(entry.details);
+    if (details.length) {
+      lines.push("### Changes", "");
+      for (const item of details) lines.push(`- ${item}`);
+      lines.push("");
+    }
   }
 
   lines.push(

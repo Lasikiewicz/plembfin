@@ -1,0 +1,40 @@
+{
+  "date": "2026-09-18",
+  "purpose": "Paced Chrome follow-up after the rapid isolated benchmark hit the server API limiter.",
+  "browser": "Chrome via CUA",
+  "browserVersion": "not captured by this probe",
+  "server": "http://localhost:5055",
+  "population": "one authenticated Chrome tab, normal cache, 3 second inter-navigation pacing",
+  "count": 31,
+  "completed": 31,
+  "rateLimited": 0,
+  "navigationErrors": 0,
+  "loadErrors": 0,
+  "maxLoadMs": 469.8,
+  "p95LoadMs": 443.4,
+  "maxTtfbMs": 235,
+  "p95TtfbMs": 163,
+  "routes": {
+    "/": { "samples": 2, "maxLoadMs": 418.9, "maxTtfbMs": 22.5, "maxRequests": 104, "maxDecodedBytes": 5615641 },
+    "/movies": { "samples": 2, "maxLoadMs": 375.4, "maxTtfbMs": 38, "maxRequests": 164, "maxDecodedBytes": 6698749 },
+    "/tvshows": { "samples": 2, "maxLoadMs": 293.7, "maxTtfbMs": 12, "maxRequests": 155, "maxDecodedBytes": 8784925 },
+    "/upcoming": { "samples": 2, "maxLoadMs": 277.2, "maxTtfbMs": 8.8, "maxRequests": 78, "maxDecodedBytes": 3885154 },
+    "/discover": { "samples": 2, "maxLoadMs": 292.1, "maxTtfbMs": 6.3, "maxRequests": 128, "maxDecodedBytes": 5929095 },
+    "/watchlist": { "samples": 2, "maxLoadMs": 287.7, "maxTtfbMs": 10.7, "maxRequests": 91, "maxDecodedBytes": 4613985 },
+    "/ratings": { "samples": 2, "maxLoadMs": 443.4, "maxTtfbMs": 163, "maxRequests": 94, "maxDecodedBytes": 4724489 },
+    "/custom-lists": { "samples": 2, "maxLoadMs": 335, "maxTtfbMs": 7.2, "maxRequests": 90, "maxDecodedBytes": 4436815 },
+    "/history": { "samples": 2, "maxLoadMs": 314.4, "maxTtfbMs": 10.3, "maxRequests": 101, "maxDecodedBytes": 5710514 },
+    "/stats": { "samples": 2, "maxLoadMs": 307.1, "maxTtfbMs": 12.3, "maxRequests": 59, "maxDecodedBytes": 4349844 },
+    "/settings": { "samples": 2, "maxLoadMs": 327.8, "maxTtfbMs": 18.3, "maxRequests": 75, "maxDecodedBytes": 3946275 },
+    "/about": { "samples": 2, "maxLoadMs": 271.6, "maxTtfbMs": 8.6, "maxRequests": 53, "maxDecodedBytes": 3557319 },
+    "/tvshow/tvdb/435298-ludwig-2024-": { "samples": 2, "maxLoadMs": 281.1, "maxTtfbMs": 8.4, "maxRequests": 109, "maxDecodedBytes": 5340351 },
+    "/tvshow/tvdb/366924-reacher": { "samples": 2, "maxLoadMs": 469.8, "maxTtfbMs": 235, "maxRequests": 109, "maxDecodedBytes": 5489715 },
+    "/movie/tmdb/208134-jackass-presents-bad-grandpa": { "samples": 2, "maxLoadMs": 408, "maxTtfbMs": 11.8, "maxRequests": 116, "maxDecodedBytes": 5450507 },
+    "/movie/tmdb/447332-a-quiet-place": { "samples": 1, "maxLoadMs": 301.9, "maxTtfbMs": 19.2, "maxRequests": 115, "maxDecodedBytes": 5286658 }
+  },
+  "interpretation": [
+    "All 31 navigations reached readyState=complete without rate limiting or navigation/load errors.",
+    "No load event exceeded five seconds in this paced sample.",
+    "This is not the required six-load-per-route isolated cold/warm matrix: it used one authenticated tab and normal cache, so the release gate remains provisional."
+  ]
+}

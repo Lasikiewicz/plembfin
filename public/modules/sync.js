@@ -1,7 +1,7 @@
-import { buildAuthHeaders, buildNowPlayingUrl } from "./auth.js?v=1.1.1.7.3";
-import { state, elements } from "./state.js?v=1.1.1.7.3";
-import { escapeHtml, escapeAttribute, platformBadge, sourceClass, sourceBadgeHtml, computeProgress, formatDate, formatPlaybackClock, showName } from "./utils.js?v=1.1.1.7.3";
-import { hydratePosters, posterMarkup } from "./images.js?v=1.1.1.7.3";
+import { buildAuthHeaders, buildNowPlayingUrl } from "./auth.js?v=1.1.1.8.1";
+import { state, elements } from "./state.js?v=1.1.1.8.1";
+import { escapeHtml, escapeAttribute, platformBadge, sourceClass, sourceBadgeHtml, computeProgress, formatDate, formatPlaybackClock, showName } from "./utils.js?v=1.1.1.8.1";
+import { hydratePosters, posterMarkup } from "./images.js?v=1.1.1.8.1";
 
 const NOW_PLAYING_POLL_MS = 10000;
 
@@ -718,8 +718,12 @@ export async function loadSyncJobs({ force = false } = {}) {
   }
 }
 
-export async function loadSyncHistory({ force = false } = {}) {
+// maxAgeMs lets a route that re-renders during one navigation reuse the list it
+// just loaded instead of asking again.
+let syncHistoryLoadedAt = 0;
+export async function loadSyncHistory({ force = false, maxAgeMs = 0 } = {}) {
   if (!state.token || (state.syncHistoryLoading && !force)) return state.syncHistory;
+  if (!force && maxAgeMs && state.syncHistoryLoaded && Date.now() - syncHistoryLoadedAt < maxAgeMs) return state.syncHistory;
   state.syncHistoryLoading = true;
   renderSyncHistory();
   try {
@@ -730,6 +734,7 @@ export async function loadSyncHistory({ force = false } = {}) {
     if (!response.ok) throw new Error(body.error || `Sync history load failed with ${response.status}`);
     state.syncHistory = Array.isArray(body.history) ? body.history : [];
     state.syncHistoryLoaded = true;
+    syncHistoryLoadedAt = Date.now();
     return state.syncHistory;
   } finally {
     state.syncHistoryLoading = false;

@@ -1,5 +1,5 @@
-import { state } from "./state.js?v=1.1.1.7.3";
-import { escapeHtml } from "./utils.js?v=1.1.1.7.3";
+import { state } from "./state.js?v=1.1.1.8.1";
+import { escapeHtml } from "./utils.js?v=1.1.1.8.1";
 
 // Plex-only: Emby and Jellyfin have no watchlist concept, so they were retired
 // from this projection. See the note on WATCHLIST_SYNC_PROVIDERS in configStore.js.
@@ -251,13 +251,22 @@ async function requestStatus() {
   const body = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(body.error || `Watchlist sync status failed with ${response.status}`);
   status = body;
+  statusAt = Date.now();
   renderStatus(body);
   return body;
 }
 
-export async function refreshWatchlistSyncStatus() {
+// Opening Settings and applying its saved config both ask for status within
+// moments of each other; maxAgeMs lets those callers share one request. Saves
+// and explicit refreshes pass nothing and always fetch.
+let statusRequest = null;
+let statusAt = 0;
+export async function refreshWatchlistSyncStatus({ maxAgeMs = 0 } = {}) {
   if (!state.token) return null;
-  return requestStatus();
+  if (maxAgeMs && statusRequest) return statusRequest;
+  if (maxAgeMs && status && Date.now() - statusAt < maxAgeMs) return status;
+  statusRequest = requestStatus().finally(() => { statusRequest = null; });
+  return statusRequest;
 }
 
 async function saveSettings() {
@@ -308,6 +317,18 @@ export function runWatchlistSyncNow() {
   return runSync("run");
 }
 
+function startRefreshTimer() {
+  if (refreshTimer) return;
+  refreshTimer = window.setInterval(() => {
+    if (document.visibilityState === "visible" && state.token) refreshWatchlistSyncStatus().catch(() => null);
+  }, 30_000);
+}
+
+export function resumeWatchlistSyncSettings() {
+  startRefreshTimer();
+  return refreshWatchlistSyncStatus({ maxAgeMs: 2000 });
+}
+
 export function initWatchlistSyncSettings(nextCallbacks = {}) {
   callbacks = nextCallbacks;
   const ui = elements();
@@ -326,11 +347,9 @@ export function initWatchlistSyncSettings(nextCallbacks = {}) {
   });
   document.addEventListener("plembfin:config-changed", () => {
     applyControls(currentConfig());
-    refreshWatchlistSyncStatus().catch(() => null);
+    refreshWatchlistSyncStatus({ maxAgeMs: 2000 }).catch(() => null);
   });
-  refreshTimer = window.setInterval(() => {
-    if (document.visibilityState === "visible" && state.token) refreshWatchlistSyncStatus().catch(() => null);
-  }, 30_000);
+  startRefreshTimer();
 }
 
 export function stopWatchlistSyncSettings() {

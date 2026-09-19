@@ -1,14 +1,18 @@
-import { state, elements } from "./state.js?v=1.1.1.7.3";
-import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeCode, seasonLabel, formatSeasonTitle, formatTmdbDate, showEpisodeKey } from "./utils.js?v=1.1.1.7.3";
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.7.3";
-import { isWatchedHistoryAction } from "./sync.js?v=1.1.1.7.3";
-import { mergeShowDetail } from "./explorer.js?v=1.1.1.7.3";
-import { dedupeMediaRecords, resetPartWatchedView, renderPartWatched } from "./dashboard.js?v=1.1.1.7.3";
-import { tvSeasonAvailability } from "./media-detail-shared.js?v=1.1.1.7.3";
-import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=1.1.1.7.3";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.1.1.7.3";
-import { tmdbPoster } from "./images.js?v=1.1.1.7.3";
-import { mergeProviderOutcomes, providerOutcomeNotice } from "./plex-history-policy.js?v=1.1.1.7.3";
+import { state, elements } from "./state.js?v=1.1.1.8.1";
+import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeCode, seasonLabel, formatSeasonTitle, formatTmdbDate, showEpisodeKey } from "./utils.js?v=1.1.1.8.1";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.8.1";
+import { isWatchedHistoryAction } from "./sync.js?v=1.1.1.8.1";
+import { mergeShowDetail } from "./explorer.js?v=1.1.1.8.1";
+import { dedupeMediaRecords } from "./media-records.js?v=1.1.1.8.1";
+import { tvSeasonAvailability } from "./media-detail-shared.js?v=1.1.1.8.1";
+import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=1.1.1.8.1";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.1.1.8.1";
+import { tmdbPoster } from "./images.js?v=1.1.1.8.1";
+import { mergeProviderOutcomes, providerOutcomeNotice } from "./plex-history-policy.js?v=1.1.1.8.1";
+import { ifLoaded } from "./route-modules.js?v=1.1.1.8.1";
+
+const resetPartWatchedView = ifLoaded("dashboard", "resetPartWatchedView");
+const renderPartWatched = ifLoaded("dashboard", "renderPartWatched");
 
 // Callbacks injected by app.js at startup to break circular-import chains.
 let _setMessage = () => {};

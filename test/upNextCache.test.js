@@ -35,6 +35,51 @@ test("Up Next rebuilds synchronously when watch history changes", async () => {
   assert.deepEqual(JSON.parse(await fs.readFile(cacheFile, "utf8")).items.map((item) => item.id), ["episode-b"]);
 });
 
+test("Up Next can serve a stale projection while the dashboard rebuilds it", async () => {
+  let buildCount = 0;
+  await getUpNextCacheSnapshot(async () => {
+    buildCount += 1;
+    return [{ id: "episode-stale", title: "Stale" }];
+  }, { refresh: true });
+
+  bumpDataVersion();
+  let resolveBuild;
+  const rebuilding = new Promise((resolve) => { resolveBuild = resolve; });
+  const snapshot = await getUpNextCacheSnapshot(async () => {
+    buildCount += 1;
+    await rebuilding;
+    return [{ id: "episode-fresh", title: "Fresh" }];
+  }, { revalidate: true, allowStale: true });
+
+  assert.deepEqual(snapshot.items.map((item) => item.id), ["episode-stale"]);
+  assert.equal(snapshot.stale, true);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(buildCount, 2);
+  resolveBuild();
+  await new Promise((resolve) => setTimeout(resolve, 20));
+});
+
+test("a stale first paint after a history change always queues a rebuild, even inside the throttle window", async () => {
+  // The previous test already used the provider-feed revalidate slot. Before
+  // the fix a second history-stale first paint inside that ten-minute window
+  // queued nothing, so an episode watched elsewhere stayed in the rail.
+  let buildCount = 0;
+  await getUpNextCacheSnapshot(async () => [{ id: "episode-watched-elsewhere", title: "Watched" }], { refresh: true });
+
+  bumpDataVersion();
+  const snapshot = await getUpNextCacheSnapshot(async () => {
+    buildCount += 1;
+    return [{ id: "episode-after-watch", title: "After" }];
+  }, { revalidate: true, allowStale: true });
+  assert.equal(snapshot.stale, true);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(buildCount, 1, "the history-stale snapshot must be followed by a rebuild");
+
+  const followUp = await getUpNextCacheSnapshot(async () => [{ id: "unused", title: "Unused" }], { revalidate: true });
+  assert.deepEqual(followUp.items.map((item) => item.id), ["episode-after-watch"]);
+  assert.equal(followUp.stale, false);
+});
+
 test("Up Next rebuilds synchronously when the queue generation changes", async () => {
   let buildCount = 0;
   await getUpNextCacheSnapshot(async () => {

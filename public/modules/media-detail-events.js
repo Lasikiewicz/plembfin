@@ -1,51 +1,38 @@
-import { HIDE_EPISODE_SPOILERS_KEY, state } from "./state.js?v=1.1.1.7.3";
-import { escapeAttribute, formatDate, showTitleFrom, showName, slug, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, tvShowTmdbHref, tvShowTvdbHref, normalizePlatformSource } from "./utils.js?v=1.1.1.7.3";
-import { isCachedStorageImageUrl, proxiedArtworkUrl, rememberPosterLookup } from "./images.js?v=1.1.1.7.3";
-import {
-  openEditDateDialog,
-  openEditShowDateDialog,
-  openEditImageDialog,
-  applyArtworkToLocalWatchRecords,
-  openFixMatchDialog,
-  openMergeShowDialog,
-  openEditSeasonDateDialog,
-  applyWatchedAtToLocalWatchRecord,
-  editDateOptionsFromButton,
-} from "./edit-dialogs.js?v=1.1.1.7.3";
-import {
-  openWatchDatePrompt,
-  closeWatchDatePrompt,
-  watchActionFromButton,
-  runResyncWatchAction,
-  submitSeerrRequest,
-  openSeerrSeasonRequestDialog,
-  markMovieWatched,
-  refreshShowAfterManualWatch,
-  applyWatchDateChoice,
-  confirmAndMarkUnwatched,
-  confirmAndDeleteMedia,
-  toggleWatchDateIncludeSpecials,
-  toggleWatchDateIncludeUnreleased,
-} from "./watch-action.js?v=1.1.1.7.3";
-import { triggerRetrySync, loadSyncJobs, loadSyncHistory, showAvailIssuePopup, isWatchedHistoryAction } from "./sync.js?v=1.1.1.7.3";
-import { renderExplorer, renderHistoryView, resolvedTmdbCache, refreshMovieExplorerInPlace, refreshHistoryViewInPlace } from "./explorer.js?v=1.1.1.7.3";
-import {
-  movieBySlugOrId,
-  openShowInlineDetail,
-  closeMediaDetail,
-  renderImmersiveShowModal,
-  renderShowModalContent,
-  ensureAllShowEpisodeDetailsForWatch,
-  patchShowModalEpisodeFromLive,
-  scrollSeasonAccordionIntoView,
-  renderMovieImmersiveModalContent,
-  patchMovieWatchedState,
-  openHistoryDebugModal,
-  openMediaInfoModal,
-} from "./media-detail.js?v=1.1.1.7.3";
-import { fetchWatchedMovieByTmdb, syncRewatchHistoryToggle } from "./media-detail-movie.js?v=1.1.1.7.3";
-import { addToWatchlist, removeFromWatchlist, openAddToListDialog, personalItemFromDetailDataset, refreshRenderedPersonalMediaControls, loadPersonalMedia } from "./personal-media.js?v=1.1.1.7.3";
-import { addShowToUpNext, removeShowFromUpNext, upNextAttentionOptions } from "./up-next.js?v=1.1.1.7.3";
+import { HIDE_EPISODE_SPOILERS_KEY, state } from "./state.js?v=1.1.1.8.1";
+import { escapeAttribute, formatDate, showTitleFrom, showName, slug, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, tvShowTmdbHref, tvShowTvdbHref, normalizePlatformSource } from "./utils.js?v=1.1.1.8.1";
+import { isCachedStorageImageUrl, proxiedArtworkUrl, rememberPosterLookup } from "./images.js?v=1.1.1.8.1";
+import { triggerRetrySync, loadSyncJobs, loadSyncHistory, showAvailIssuePopup, isWatchedHistoryAction } from "./sync.js?v=1.1.1.8.1";
+import { movieBySlugOrId } from "./media-routing.js?v=1.1.1.8.1";
+import { ifLoaded, lazyExport, loadRouteModules, loadedRouteModule } from "./route-modules.js?v=1.1.1.8.1";
+
+// This module wires document-wide handlers that the dashboard and library
+// pages use too, so it loads with the shell. Its route modules are therefore
+// not imported statically (that pulled the whole ~700 KB detail graph onto
+// every page). Actions load their module on first use (lazyExport); renders
+// and patches only run when that module is already on the page (ifLoaded).
+const lazyEdit = (name) => lazyExport("edit-dialogs", name);
+const openEditDateDialog = lazyEdit("openEditDateDialog"), openEditShowDateDialog = lazyEdit("openEditShowDateDialog"), openEditImageDialog = lazyEdit("openEditImageDialog"), openFixMatchDialog = lazyEdit("openFixMatchDialog"), openMergeShowDialog = lazyEdit("openMergeShowDialog"), openEditSeasonDateDialog = lazyEdit("openEditSeasonDateDialog");
+const applyArtworkToLocalWatchRecords = ifLoaded("edit-dialogs", "applyArtworkToLocalWatchRecords"), applyWatchedAtToLocalWatchRecord = ifLoaded("edit-dialogs", "applyWatchedAtToLocalWatchRecord");
+// Synchronous; the edit-date branches load edit-dialogs before calling it.
+const editDateOptionsFromButton = ifLoaded("edit-dialogs", "editDateOptionsFromButton", {});
+const explorerTmdbCache = () => loadedRouteModule("explorer")?.resolvedTmdbCache;
+const lazyWatch = (name) => lazyExport("watch-action", name);
+const openWatchDatePrompt = lazyWatch("openWatchDatePrompt"), runResyncWatchAction = lazyWatch("runResyncWatchAction"), submitSeerrRequest = lazyWatch("submitSeerrRequest"), openSeerrSeasonRequestDialog = lazyWatch("openSeerrSeasonRequestDialog"), markMovieWatched = lazyWatch("markMovieWatched"), refreshShowAfterManualWatch = lazyWatch("refreshShowAfterManualWatch"), applyWatchDateChoice = lazyWatch("applyWatchDateChoice"), confirmAndMarkUnwatched = lazyWatch("confirmAndMarkUnwatched"), confirmAndDeleteMedia = lazyWatch("confirmAndDeleteMedia");
+// The prompt these act on only exists once watch-action has opened it.
+const closeWatchDatePrompt = ifLoaded("watch-action", "closeWatchDatePrompt"), toggleWatchDateIncludeSpecials = ifLoaded("watch-action", "toggleWatchDateIncludeSpecials"), toggleWatchDateIncludeUnreleased = ifLoaded("watch-action", "toggleWatchDateIncludeUnreleased");
+// Synchronous; the watch-button branch loads watch-action before calling it.
+const watchActionFromButton = ifLoaded("watch-action", "watchActionFromButton", null);
+const renderExplorer = ifLoaded("explorer", "renderExplorer"), renderHistoryView = ifLoaded("explorer", "renderHistoryView"), refreshMovieExplorerInPlace = ifLoaded("explorer", "refreshMovieExplorerInPlace"), refreshHistoryViewInPlace = ifLoaded("explorer", "refreshHistoryViewInPlace");
+const openShowInlineDetail = lazyExport("media-detail", "openShowInlineDetail"), ensureAllShowEpisodeDetailsForWatch = lazyExport("media-detail", "ensureAllShowEpisodeDetailsForWatch"), openHistoryDebugModal = lazyExport("media-detail", "openHistoryDebugModal"), openMediaInfoModal = lazyExport("media-detail", "openMediaInfoModal");
+const closeMediaDetail = ifLoaded("media-detail", "closeMediaDetail"), renderImmersiveShowModal = ifLoaded("media-detail", "renderImmersiveShowModal"), renderShowModalContent = ifLoaded("media-detail", "renderShowModalContent"), patchShowModalEpisodeFromLive = ifLoaded("media-detail", "patchShowModalEpisodeFromLive"), scrollSeasonAccordionIntoView = ifLoaded("media-detail", "scrollSeasonAccordionIntoView"), renderMovieImmersiveModalContent = ifLoaded("media-detail", "renderMovieImmersiveModalContent"), patchMovieWatchedState = ifLoaded("media-detail", "patchMovieWatchedState");
+const fetchWatchedMovieByTmdb = lazyExport("media-detail-movie", "fetchWatchedMovieByTmdb"), syncRewatchHistoryToggle = ifLoaded("media-detail-movie", "syncRewatchHistoryToggle");
+const lazyPersonal = (name) => lazyExport("personal-media", name);
+const addToWatchlist = lazyPersonal("addToWatchlist"), removeFromWatchlist = lazyPersonal("removeFromWatchlist"), openAddToListDialog = lazyPersonal("openAddToListDialog"), loadPersonalMedia = lazyPersonal("loadPersonalMedia");
+const personalItemFromDetailDataset = ifLoaded("personal-media", "personalItemFromDetailDataset", {}), refreshRenderedPersonalMediaControls = ifLoaded("personal-media", "refreshRenderedPersonalMediaControls");
+const lazyUpNext = (name) => lazyExport("up-next", name, ["dashboard"]);
+const addShowToUpNext = lazyUpNext("addShowToUpNext");
+const removeShowFromUpNext = lazyUpNext("removeShowFromUpNext");
+const upNextAttentionOptions = ifLoaded("up-next", "upNextAttentionOptions", () => ({}));
 
 // Callbacks injected by app-events.js (forwarded from app.js) to avoid circular imports.
 let _cb = {};
@@ -112,6 +99,19 @@ function liveChangeValue(change = {}, camelName, snakeName = camelName) {
 
 function liveChangeKey(change = {}) {
   return String(liveChangeValue(change, "mediaKey", "media_key") || "").trim();
+}
+
+async function fetchLiveHistoryItemByRecordId(recordId) {
+  const normalizedId = String(recordId || "").trim();
+  if (!normalizedId) return null;
+  try {
+    const response = await fetch(`/api/history?id=${encodeURIComponent(normalizedId)}`, { headers: authHeaders(), cache: "no-store" });
+    const body = await response.json().catch(() => ({}));
+    if (!response.ok) return null;
+    return { row: body.row || null, progress: body.progress || null };
+  } catch {
+    return null;
+  }
 }
 
 function historyRowMatchesLiveChange(row = {}, change = {}) {
@@ -251,10 +251,21 @@ async function fetchLiveHistoryItems(changes = []) {
       const body = await response.json().catch(() => ({}));
       if (!response.ok) continue;
       const byKey = new Map((Array.isArray(body.items) ? body.items : []).map((item) => [String(item.mediaKey || ""), item]));
-      for (const change of batch) {
+      await Promise.all(batch.map(async (change) => {
         const item = byKey.get(liveChangeKey(change));
-        items.push({ change, row: item?.row || null, progress: item?.progress || null });
-      }
+        let row = item?.row || null;
+        let progress = item?.progress || null;
+        const recordId = liveChangeValue(change, "recordId", "record_id");
+        // Identity repair can rewrite a provider episode key after the SSE
+        // journal has recorded it. Resolve the canonical row by its durable
+        // history id when the keyed lookup has already gone stale.
+        if (!row && !progress && recordId) {
+          const fallback = await fetchLiveHistoryItemByRecordId(recordId);
+          row = fallback?.row || null;
+          progress = fallback?.progress || null;
+        }
+        items.push({ change, row, progress });
+      }));
     } catch {
       // A transient item request should not turn the live stream into a page
       // refresh. The next canonical mutation will carry the item again.
@@ -262,13 +273,8 @@ async function fetchLiveHistoryItems(changes = []) {
   }
   await Promise.all(unkeyed.map(async (change) => {
     const recordId = String(liveChangeValue(change, "recordId", "record_id") || "");
-    try {
-      const response = await fetch(`/api/history?id=${encodeURIComponent(recordId)}`, { headers: authHeaders(), cache: "no-store" });
-      const body = await response.json().catch(() => ({}));
-      if (response.ok) items.push({ change, row: body.row || null, progress: body.progress || null });
-    } catch {
-      // Ignore one failed item; the stream remains healthy.
-    }
+    const item = await fetchLiveHistoryItemByRecordId(recordId);
+    if (item) items.push({ change, ...item });
   }));
   return items;
 }
@@ -921,12 +927,6 @@ export function attachMediaDetailEvents() {
       return;
     }
 
-    const nowPlayingCard = event.target.closest("[data-now-playing-href]");
-    if (nowPlayingCard) {
-      navigateTo(nowPlayingCard.dataset.nowPlayingHref);
-      return;
-    }
-
     const retryBtn = event.target.closest("[data-retry-sync-id]");
     if (retryBtn) {
       triggerRetrySync(retryBtn.dataset.retrySyncId, retryBtn).catch((error) => setMessage(error.message, "error"));
@@ -1022,6 +1022,8 @@ export function attachMediaDetailEvents() {
 
     const editDateBtn = event.target.closest(".media-edit-date-btn");
     if (editDateBtn) {
+      // editDateOptionsFromButton() and the TMDB cache are read synchronously below.
+      await loadRouteModules(["edit-dialogs"]);
       const container = editDateBtn.closest(".immersive-container, .modal-body") || document.body;
       const currentEntry = state.history.find((h) => h.id === editDateBtn.dataset.editId);
       openEditDateDialog(container, editDateBtn.dataset.editId, editDateBtn.dataset.watchedAt, async ({ watched_at = "", deleted = false } = {}) => {
@@ -1039,7 +1041,7 @@ export function attachMediaDetailEvents() {
         if (state.activeView === "history") {
           renderHistoryView();
         }
-      }, { ...editDateOptionsFromButton(editDateBtn, currentEntry, resolvedTmdbCache), liveOnly: true });
+      }, { ...editDateOptionsFromButton(editDateBtn, currentEntry, explorerTmdbCache()), liveOnly: true });
       return;
     }
 
@@ -1388,6 +1390,8 @@ export function attachMediaDetailEvents() {
     const editDateIconBtn = event.target.closest(".edit-date-icon-btn");
     if (editDateIconBtn) {
       const id = editDateIconBtn.dataset.editId;
+      // editDateOptionsFromButton() and the TMDB cache are read synchronously below.
+      await loadRouteModules(["edit-dialogs"]);
       const currentEntry = state.history.find((h) => h.id === id);
       openEditDateDialog(null, id, editDateIconBtn.dataset.watchedAt, async ({ watched_at = "", deleted = false } = {}) => {
         if (deleted) {
@@ -1407,7 +1411,7 @@ export function attachMediaDetailEvents() {
         if (state.activeView === "history") {
           renderHistoryView();
         }
-      }, { ...editDateOptionsFromButton(editDateIconBtn, currentEntry, resolvedTmdbCache), liveOnly: true });
+      }, { ...editDateOptionsFromButton(editDateIconBtn, currentEntry, explorerTmdbCache()), liveOnly: true });
       return;
     }
 
@@ -1587,9 +1591,9 @@ export function attachMediaDetailEvents() {
     if (watchButton) {
       event.preventDefault();
       const isShowWatchButton = watchButton.dataset.watchScope === "show";
-      const prepareShowAction = isShowWatchButton
-        ? ensureAllShowEpisodeDetailsForWatch()
-        : Promise.resolve();
+      // watchActionFromButton() below reads watch-action synchronously.
+      const prepareShowAction = loadRouteModules(["watch-action"])
+        .then(() => (isShowWatchButton ? ensureAllShowEpisodeDetailsForWatch() : null));
       if (isShowWatchButton) watchButton.disabled = true;
       prepareShowAction
         .then(() => {

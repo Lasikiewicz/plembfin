@@ -6,6 +6,7 @@
 // webhook secret isn't configured, so forks and local runs never fail on it.
 
 import fs from "node:fs";
+import { changelogSectionGroups } from "./changelog-sections.js";
 
 const channel = process.argv[2];
 if (channel !== "main" && channel !== "alpha") {
@@ -40,6 +41,17 @@ function bulletList(items) {
   return lines.join("\n");
 }
 
+function sectionBulletList(entry, key) {
+  const section = changelogSectionGroups(entry).find((candidate) => candidate.key === key);
+  if (!section?.groups.length) return null;
+  const items = [];
+  for (const group of section.groups) {
+    if (group.title) items.push(`**${group.title}**`);
+    items.push(...group.details.map((detail) => `- ${detail}`));
+  }
+  return bulletList(items);
+}
+
 function buildMainEmbed() {
   const changelog = JSON.parse(fs.readFileSync("changelog.json", "utf8"));
   const entry = changelog.entries?.[0];
@@ -47,12 +59,12 @@ function buildMainEmbed() {
 
   const sectionLabels = [
     ["newFeatures", "New Features"],
-    ["majorBugFixes", "Major Bug Fixes"],
+    ["majorBugFixes", "Bug Fixes"],
     ["tweaks", "Tweaks"],
   ];
   const fields = [];
   for (const [key, label] of sectionLabels) {
-    const list = bulletList(entry.sections?.[key]);
+    const list = sectionBulletList(entry, key);
     if (list) fields.push({ name: label, value: list });
   }
   if (fields.length === 0) {

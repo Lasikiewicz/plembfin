@@ -75,6 +75,28 @@ test("fetchWithTimeout replaces upstream exception objects with a safe error", a
   );
 });
 
+test("fetchWithTimeout preserves a safe network cause when the upstream exposes one", async (t) => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async () => {
+    const error = new TypeError("fetch failed");
+    error.cause = { code: "ECONNREFUSED", message: "private provider host" };
+    throw error;
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  await assert.rejects(
+    fetchWithTimeout("https://media.example.test/image.jpg"),
+    (error) => {
+      assert.equal(error.code, "UPSTREAM_REQUEST_FAILED");
+      assert.equal(error.failureCode, "ECONNREFUSED");
+      assert.equal(error.failureReason, "connection refused");
+      assert.equal(error.message, "Upstream request failed (connection refused)");
+      assert.doesNotMatch(error.message, /private provider host/);
+      return true;
+    },
+  );
+});
+
 test("fetchWithTimeout falls back to the tunable default when no explicit timeout is given", async (t) => {
   t.after(() => resetTuningForTests());
   applyTuningConfig({ outboundTimeoutSec: 2 }); // clamp minimum, 2000ms

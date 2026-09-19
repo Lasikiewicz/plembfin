@@ -1,0 +1,34 @@
+{
+  "capturedAt": "2026-09-18",
+  "status": "focused-post-fix-not-gate",
+  "browser": "Chrome via CDP",
+  "server": "http://localhost:5055/",
+  "profile": "warm authenticated profile",
+  "method": "isolated benchmark tab, unique query per navigation, document and load events",
+  "notes": [
+    "Focused verification after deferring startup backfills and durable jobs, then serving stale Up Next projections while rebuilding them on a later timer turn.",
+    "Not a replacement for the six-load all-route Phase A matrix: no FCP/LCP/decoded-byte fields and no cold-cache population are included."
+  ],
+  "routes": {
+    "/": {
+      "runs": 5,
+      "loadMs": [253.6, 1361.1, 1001.9, 923.4, 807.0],
+      "ttfbMs": [19.3, 1133.2, 641.7, 686.1, 596.3],
+      "requests": [110, 112, 113, 111, 113],
+      "apiRequests": [21, 24, 24, 23, 24],
+      "medianLoadMs": 923.4,
+      "p95LoadMs": 1361.1,
+      "medianTtfbMs": 641.7
+    },
+    "/media/movie/a-quiet-place": {
+      "runs": 5,
+      "loadMs": [967.4, 931.7, 918.3, 2208.9, 888.4],
+      "ttfbMs": [690.5, 658.8, 644.2, 1935.1, 620.6],
+      "requests": [114, 113, 113, 116, 114],
+      "apiRequests": [21, 22, 21, 22, 21],
+      "medianLoadMs": 931.7,
+      "p95LoadMs": 2208.9,
+      "medianTtfbMs": 658.8
+    }
+  }
+}

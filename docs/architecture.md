@@ -56,12 +56,12 @@ new metadata requests.
 | Dashboard rendering | `public/modules/dashboard.js` | [dashboard.md](dashboard.md) |
 | Up Next queue, provider push, dismissals | `public/modules/up-next.js`, `server/src/utils/upNextService.js`, `upNextProviderSync.js`, `upNextRailSeed.js`, `upNextSeedLedger.js`, `upNextDismissals.js`, `upNextLibraryLookup.js` | [dashboard.md](dashboard.md) |
 | Settings changelog channels | `public/modules/changelog-channels.js`, `handleChangelog` in `routes/maintenance.js` | this document |
-| Sidebar sync indicator, Sync Activity page | `public/modules/sync-activity.js`, `handleSyncHistory` / `handleSyncActivity` in `routes/sync.js` | [dashboard.md](dashboard.md) |
+| Sidebar sync indicator, Sync Activity page | `public/modules/status-indicators.js`, `public/modules/sync-activity.js`, `handleSyncHistory` / `handleSyncActivity` in `routes/sync.js` | [dashboard.md](dashboard.md) |
 | Movies library page | `public/modules/explorer.js`, `queryMovies` in `dataRepo.js` | [movies.md](movies.md) |
 | TV Shows library page | `public/modules/explorer.js`, `queryShows`, `showProgressCache.js`, `nextAiringCache.js` | [tv-shows.md](tv-shows.md) |
 | Upcoming episode calendar | `public/modules/upcoming.js`, `handleUpcoming` in `routes/metadata.js`, `upcomingCalendarCache.js`, `nextAiringCache.js` | [upcoming.md](upcoming.md) |
 | Movie/show/person detail pages | `public/modules/media-detail*.js`, `media-person.js` | [media-detail.md](media-detail.md) |
-| Personal media pages | `public/modules/personal-media.js`, `handlePersonalMedia` in `routes/personal.js` | [frontend.md](frontend.md) |
+| Personal media pages | `public/modules/personal-media.js`, `public/modules/personal-media-metadata.js`, `handlePersonalMedia` in `routes/personal.js` | [frontend.md](frontend.md) |
 | Personal rating sync | `server/src/utils/personalRatingSync.js`, `personalRatingRepository.js`, provider clients, `public/modules/rating-sync-settings.js` | [personal-ratings.md](personal-ratings.md) |
 | Plex watchlist sync | `server/src/utils/personalWatchlistSync.js`, `plexWatchlistClient.js`, `routes/watchlistSync.js`, `public/modules/watchlist-sync-settings.js` | this document, [personal-watchlist.md](personal-watchlist.md) |
 | History page, Search page | `public/modules/explorer.js`, `handleHistory` in `routes/media.js`, `handleMediaSearch` in `routes/metadata.js` | [history-search.md](history-search.md) |
@@ -93,7 +93,7 @@ Repository files relevant to the application, build, and operations, grouped by 
 | `changelog.json` | Bundled release history. `scripts/promote-alpha-to-main.js` appends an entry and bumps the version locally, as part of "Force to main"; served verbatim at `GET /changelog.json` and consumed by the in-app changelog/update check. |
 | `package.json` | Dependencies and npm scripts (`start`, `dev`, `test`, `build`, `docs:check`, `demo:verify`, `seed:demo`, `prepare`). Version is set locally by `scripts/promote-alpha-to-main.js` as part of "Force to main". |
 | `package-lock.json` | Locked dependency tree. Version field is CI-managed alongside `package.json`. |
-| `Dockerfile` | `node:25-trixie-slim` image: installs prod deps, copies `server/`, `public/`, `changelog.json`, creates the non-root `plembfin` user, healthcheck against `/api/ping`, entrypoint drops privileges. |
+| `Dockerfile` | `node:25-trixie-slim` image: installs prod deps, copies `server/`, `public/`, `changelog.json`, creates the non-root `plembfin` user, and uses the separate SQLite worker-health probe so synchronous maintenance cannot make the container fail its HTTP healthcheck. |
 | `docker-compose.yml` | Base compose file: port 5055, `./data:/data` volume, admin env vars, `no-new-privileges`, resource limits. |
 | `docker-compose.secure.yml` | Hardened overlay: read-only rootfs, tmpfs `/tmp`, required env vars (`ADMIN_PASSWORD`, `SESSION_SECRET`, `API_KEY`, `WEBHOOK_SECRET`), forces `COOKIE_SECURE=true`. |
 | `.dockerignore` | Excludes `node_modules`, `data`, `docs`, `scratch`, markdown, and secrets from the Docker build context while whitelisting the required runtime scripts. |
@@ -258,7 +258,9 @@ before reversing something that looks unnecessarily cautious.
 | --- | --- |
 | `index.html` | The single HTML shell: nav tabs (Dashboard / Movies / TV Shows / Upcoming / History / Stats / Settings), one `view-panel` section per view, all modals/dialogs, and `modulepreload` links for every module. Element IDs here are what `bindElements()` queries. |
 | `app.js` | **Frontend orchestrator** (keep under 3,000 lines): startup, theme init, backend warm-up ping, `bindElements`, SPA routing (`handleRouting`/`navigateTo`/`selectView`), auth flow wiring, and the callback objects handed to each module's `init*` function. Feature logic belongs in `public/modules/`, not here. |
-| `styles.css` | All styling for the app, including responsive/mobile rules (mobile ≤ 760px must be verified for any layout change). |
+| `styles.css` | All styling for the app, including responsive/mobile rules (mobile ≤ 760px must be verified for any layout change). Declares the self-hosted `@font-face` rules for the fonts in `fonts/`. |
+| `theme-boot.js` | Tiny classic script loaded with a blocking `<script>` in `<head>`, before the stylesheet. Applies the saved (or system) theme before first paint and gives every `img[data-theme-logo]` the matching header logo as it is parsed. The logo `<img>` tags carry no `src` so the browser's preload scanner cannot fetch the wrong variant. `app.js` (`initializeTheme`/`updateThemeIcon`) keeps the theme in sync afterwards. |
+| `fonts/*.woff2`, `fonts/OFL-*.txt` | Self-hosted Outfit and JetBrains Mono variable fonts (latin and latin-ext subsets) with their SIL Open Font License texts, copied from the `@fontsource-variable` packages the public website uses. The app makes no request to Google Fonts; the CSP allows fonts from `'self'` only. |
 | `favicon.png`, `favicon.svg`, `apple-touch-icon.png`, `icon-192.png`, `icon-512.png`, `icon-maskable-512.png`, `plembfin_header_logo_dark.png`, `plembfin_header_logo_light.png` | `favicon.png` is the browser tab icon; `favicon.svg` is the placeholder art used wherever a poster or profile image is missing. `apple-touch-icon.png` is the 180x180 icon iOS uses on a white background when the app is added to the Home Screen, and the `icon-*.png` files are the Android/Chrome install icons named by the web manifest. The two header logos are swapped by the theme toggle. |
 | `manifest.webmanifest` | Web app manifest: app name, standalone display mode, theme/background colour, and the install icons above. Linked from `index.html`, which also sets `apple-touch-icon`, `apple-mobile-web-app-title` and `theme-color`. |
 | `icons/plex.svg`, `icons/emby.svg`, `icons/jellyfin.svg`, `icons/trakt.svg`, `icons/plembfin.png`, `icons/tmdb.svg`, `icons/tvdb.svg`, `icons/imdb.svg` | Media-server, Plembfin, and metadata-source badge icons used on cards and pills (the media detail page's Ratings/Watch Now rows, and per-watch source badges). A watch recorded with `source: "manual"` (marked watched from within Plembfin itself, not reported by a media server) normalizes to `plembfin` and renders with `icons/plembfin.png` and the "Plembfin" label, rather than defaulting to Plex (`normalizePlatformSource` in `modules/utils.js`). `icons/trakt.svg` is used by the Sync Activity page, which resolves tracker names itself. |
@@ -274,7 +276,7 @@ before reversing something that looks unnecessarily cautious.
 | `settings.js` | Shared connection-label formatting. |
 | `settings-ui.js` | Reusable settings edit dialog, provider picker, and status-card grid primitives. |
 | `settings-services.js` | Media-server and metadata-provider card grids, edit dialogs, config saves, connection tests, and the inline Sync Tuning form, including the app-marked watched-flag policy. |
-| `manual-watch-review.js` | Manual Watch review page, sidebar count, policy actions, and quiet pending-item polling. |
+| `manual-watch-review.js` | Manual Watch review page and policy actions. The compact sidebar count and summary polling live in `status-indicators.js`. |
 | `rating-sync-settings.js` | Personal Rating Sync on/off control, provider summary, Sync now, status polling, and queue feedback. |
 | `watchlist-sync-settings.js` | Plex Watchlist Sync on/off control, Plex summary, Sync now, and status polling. |
 | `settings-shell.js` | Owns hierarchical settings routes (parent groups + child sections), multi-view panel aggregation, legacy aliases, the landing list, sidebar/mobile navigation, section-scoped scrolling, and tools disclosures. |
@@ -282,19 +284,28 @@ before reversing something that looks unnecessarily cautious.
 | `live-updates.js` | Authenticated watch-state/personal-media, Up Next-cache, and Discover-cache version stream, reconnect/backoff, and debounced background data refresh with targeted visible-row reconciliation. |
 | `logs.js` | Frontend debug-log store (localStorage ring buffer) + fetching backend diagnostic logs. |
 | `images.js` | Poster/artwork frontend: `posterMarkup` (with its loading skeleton), `hydratePosterFallbacks`, `/api/poster` lookups with a persistent cache, TMDB image URL builders, `proxiedArtworkUrl`, `isCachedStorageImageUrl`. See [posters-artwork.md](posters-artwork.md). |
+| `appearance.js` | Small always-available appearance preference helper: defaults, body visibility classes, and saved appearance loading. |
+| `status-indicators.js` | Small always-available sidebar sync progress/attention and Manual Watch review count helpers, plus compact authenticated summary fetches and polling. |
+| `media-routing.js` | Small core movie lookup and Now Playing route helpers used by the shell and live dashboard links. |
+| `cast-disclosure.js` | Small core cast-card markup and deferred cast disclosure/focus helper used by the shell event wiring and detail renderer. |
 | `sync.js` | Now Playing polling + rendering, sync-status pills/telemetry parsing, sync jobs + sync history panels, cron/force-sync triggers. |
-| `sync-activity.js` | The always-present sidebar sync indicator (Idle / N of M) and the `/sync-activity` page: per-media rows from `/api/sync-history` newest first, source-to-target route line, icon-plus-status target results (`activityPlatform` names trackers as well as media servers, so Trakt is not folded into Plex), targeted retry for actual failed destinations while expected missing-library skips remain audit-only, a "Retry all failed" background job covering the whole history, title links to the media page, click-to-expand inline logs, and the per-item log download. See [dashboard.md](dashboard.md). |
+| `sync-activity.js` | The on-demand `/sync-activity` page: per-media rows from `/api/sync-history` newest first, source-to-target route line, icon-plus-status target results (`activityPlatform` names trackers as well as media servers, so Trakt is not folded into Plex), targeted retry for actual failed destinations while expected missing-library skips remain audit-only, a "Retry all failed" background job covering the whole history, title links to the media page, click-to-expand inline logs, the per-item log download, and route-scoped search/paging/retry/match-fix/dismiss handlers. See [dashboard.md](dashboard.md). |
+| `media-records.js` | Shared media identity and duplicate-record selection used by dashboard, explorer, detail, and watch-action route modules. |
 | `dashboard.js` | Dashboard rendering: Now Playing grid, completed recent-history rows, mixed Up Next cards, and compatibility-only Part Watched panels. See [dashboard.md](dashboard.md). |
 | `media-card.js` | Shared media-card normalization/rendering for Up Next, Discover, collection members, and later list/library surfaces. |
 | `up-next.js` | Dashboard mixed Up Next loader/rendering backed by browser/server cache hydration, provider/local resume and released-episode observations, SSE revalidation, source-status messaging, and the shared media-card contract. See [dashboard.md](dashboard.md). |
+| `settings-events.js` | Settings-page event wiring (diagnostic logs, admin login and webhook secret rotation, import, backups and restore, maintenance tools, sync controls). A Settings route module, initialized by `app-events.js` through `onRouteModuleLoaded()`, so other pages never parse it. |
+| `personal-media-metadata.js` | Fills missing overview/release date for the personal ratings, watchlist, and custom-list items on the visible page from TMDB (through `tmdb.js`'s session cache), and shares what it learns across the three collections. |
+| `up-next-shared.js` | Small Up Next show identity and action-markup helpers shared by poster menus and media-detail rendering without loading the dashboard Up Next route module. |
 | `discover.js` | `/discover` cached TMDB feeds, watch-history recommendations, watched-title filtering, persisted Don't recommend actions, type/genre filters, browser/server cache hydration, SSE refresh, error/empty states, and poster hydration. See [metadata.md](metadata.md). |
 | `stats.js` | Stats page: KPI cards, leaderboards, platform split, month chart, yearly/monthly review reports. See [stats.md](stats.md). |
 | `explorer.js` | Movies grid, TV Shows grid, History page, Search page: paging, sorting, filters, collection expansion, IntersectionObserver infinite scroll, TMDB prefetch. See [movies.md](movies.md), [tv-shows.md](tv-shows.md), [history-search.md](history-search.md). |
+| `route-modules.js` | Registry of on-demand route modules: their `import()` loaders, dependency order, one-time initializers, and the `lazyExport`/`ifLoaded` wrappers the shell event modules use. See [frontend.md](frontend.md#core-graph-and-route-modules). |
 | `poster-menu.js` | Builds and positions the poster three-dot overflow dropdown (Edit watch date / Fix match / Mark unwatched), portaled to `<body>` so it isn't clipped by a card's `overflow: hidden`. See [movies.md](movies.md#frontend-behavior). |
 | `upcoming.js` | Upcoming page: scrolling month calendar of historical and future TV episode air dates that opens on the current week, search, outside-month matches, poster hydration, and show navigation. See [upcoming.md](upcoming.md). |
 | `media-detail.js` | Detail-page entry points: open movie/show detail by id/slug/TMDB id, lookups, modal-close routing. |
 | `media-detail-context.js` | Detail-modal shell/context: init callbacks, `authHeaders`, modal DOM root, render token, debug modal, shared action markup (including Force Sync), and actions-menu state. |
-| `media-detail-shared.js` | Shared TMDB/Seerr rendering fragments: rating pills, availability labels, Seerr request pills/controls, external ratings, app links. |
+| `media-detail-shared.js` | Route-scoped shared TMDB/Seerr rendering fragments: rating pills, availability labels, Seerr request pills/controls, external ratings, app links, and primary-ready milestone. |
 | `media-detail-show.js` | TV show detail rendering: seasons/episodes accordion, show modal, per-episode actions. |
 | `media-detail-movie.js` | Movie detail rendering + watched-state patching. |
 | `media-detail-events.js` | Click delegation inside the detail modal (cast, trailers, poster edit, watch actions, shared title-scoped Force Sync dialog and Settings library Force Sync panel with live activity polling, card navigation). |
@@ -305,12 +316,12 @@ before reversing something that looks unnecessarily cautious.
 | `watch-action.js` | Manual mark watched/unwatched flows: date prompt (built on `calendar-picker.js`), batched `/api/manual-watch` posts, delete-media, Seerr request submission. |
 | `tmdb.js` | Frontend TMDB enrichment helpers (`fetchTmdbDetails`, season details, episode-title resolution) with in-memory caches. |
 | `tools.js` | Settings tools bridge: Trakt/CSV import flows, `initTools()`, and compatibility re-exports for backup/appearance and maintenance tools. |
-| `tools-backups.js` | Settings backup and appearance UI: full export/import, watch-history backups, encrypted backups, Backblaze destination cards/dialogs, backup passphrase controls, and appearance settings. See [backups.md](backups.md). |
+| `tools-backups.js` | Settings backup UI and appearance save action: full export/import, watch-history backups, encrypted backups, Backblaze destination cards/dialogs, and backup passphrase controls. The always-available appearance defaults/body/loading helper lives in `appearance.js`. See [backups.md](backups.md). |
 | `tools-maintenance.js` | Maintenance diagnostics: System Integrity Check, repair workflow, dedup history, Trakt backfill, TV re-match, full watchstate sync, cache stats/clear, and the "Restore Missing Episode Names" audit/backfill Database Repairs tool. |
 | `tools-duplicates.js` | Library-wide duplicate-watch cleanup (Settings → Tools → Database Repairs): scans then removes every extra watch beyond the oldest, for TV episodes and movies separately. |
 | `tools-wipe-data.js` | Wipe data (Settings → Tools → Wipe data): Watch History, Personal Watchlist, Sync History & Logs, Everything Tracked, and Wipe All / Fresh Start (full factory reset). Two confirm dialogs per action; row-count previews from `GET /api/wipe-data/preview`. |
 | `help-content.js` | Static help/guide HTML: credential guides, webhook setup per platform, cron guide, settings inline help. |
-| `app-events.js` | Global app event wiring (delegated click/submit/keyboard handlers bound at startup). |
+| `app-events.js` | Global app event wiring (delegated click/submit/keyboard handlers bound at startup); route-specific Sync Activity action wiring is initialized by `sync-activity.js` when that page loads. |
 
 ### `scripts/`
 
@@ -335,6 +346,8 @@ before reversing something that looks unnecessarily cautious.
 | `forcePushHistory.js` | Standalone one-shot replicator: fetches Plembfin's `/api/history` and replays every row against Plex/Emby/Jellyfin as mark-played calls. |
 | `seed-demo-content.js` | `npm run seed:demo` - inserts fictional movies/shows with generated poster art for demo screenshots/dev. |
 | `generate-synthetic-library.js` | Builds a disposable library at a stated scale for performance measurement, parameterized by movies, shows, episodes per show, history rows, TMDB cache blob size, and poster pool. Writes only to the `--data-dir` it is given, refuses a directory holding a database it did not create, and drops a `synthetic-library.json` marker recording the parameters and resulting counts. |
+| `browser-route-benchmark.js` | Browser-side route benchmark for the application-speed plan: pasted or injected into a signed-in tab, it drives one same-origin popup (the app sends `X-Frame-Options: DENY`) through document loads or SPA transitions and reports TTFB, load, FCP, LCP, detail primary-ready, request/transfer/decoded totals, the shell subset, and a per-path request inventory. Never handles credentials. |
+| `browser-route-benchmark-playwright.js`, `phase-g-*-playwright.js` | Phase G helpers for the application-speed plan. Each file is one Playwright page function pasted into the Playwright MCP browser tool, not a `node` script: the warm route matrix, the non-mutating smoke pass, the CLS diagnostic and follow-up, and isolated auth expiry/restoration. None enters credentials or changes provider state. |
 | `benchmark-surfaces.js` | Records the server-side surface baseline against a generated library (dashboard payload, stats, History/Movies/Shows page N, and a cold full cache rebuild) and writes it to `docs/benchmarks/`. Each measured result includes a SHA-256 payload fingerprint so before/after timing runs can also prove byte-identical output. Makes no database writes: the cold rebuild is measured from a fresh process's first read of each cache rather than by forcing a miss. |
 
 ### `test/`
@@ -533,7 +546,8 @@ Full detail: [metadata.md](metadata.md).
 
 Each build ships with a bundled `changelog.json` at the repo root (served verbatim at
 `GET /changelog.json`) that records the version this instance was built from - this is what
-the sidebar version badge shows. On dashboard load `loadAppVersion()` calls `/api/changelog`
+the Changelog screen reads. A small `GET /version.json` response carries only that installed
+version for the sidebar badge. On dashboard load `loadAppVersion()` calls `/api/changelog`
 with `?refresh=1` for a quick update check; when a newer release exists the badge changes
 from `v0.2.15` to `v0.2.15 - Update available` (accent-tinted).
 
@@ -552,8 +566,10 @@ reported installed version and never raises an update prompt: the server forces
 told separately about a newer build on its own channel and a newer published release, rather
 than only whichever check ran first. Alpha builds left over from an earlier release are grouped
 under their own heading so they are not read as builds of the installed one. Display formatting
-for the five-segment build version lives in `public/modules/changelog-channels.js`, which trims
-trailing zero segments so a release reads `v1.1.0` and an alpha build `v1.1.0.1`.
+for the five-segment build version (`formatBuildVersion()`, `versionDisplayLabel()`) lives in
+core `public/modules/utils.js`, because the sidebar badge renders it on every page; it trims
+trailing zero segments so a release reads `v1.1.0` and an alpha build `v1.1.0.1`. The Settings
+changelog renderer itself is `public/modules/changelog-channels.js`, loaded with that route.
 
 All three of `changelog.develop.json`, `changelog.alpha.json`, and `changelog.json` are
 written locally, as part of running the selected "Push to git" / "Push all to git" /
@@ -574,8 +590,10 @@ sentence, not a commit-message bullet, and re-categorizing it would land it in t
 a garbled duplicate. Settings → Changelog (`renderChangelogDetails()` in `public/app.js`)
 and the generated `CHANGELOG.md` (`scripts/generate-changelog-md.js`) render `sections`
 as separate headed groups whenever any of the three is non-empty, falling back to the
-flat `entry.details` list otherwise - develop's entry stays flat, since it never carries
-`sections` at all (see below).
+flat `entry.details` list otherwise. Alpha and main promotion automatically derive
+optional `sectionGroups` for thematic `####` subheadings; a reviewed release may
+override those defaults without changing the flat arrays. Develop's entry stays flat,
+since it never carries `sections` at all (see below).
 
 Both promotion scripts run the same release-content check
 (`changelogEntryProcessViolations` in `scripts/changelog-message.js`) on the entry they
