@@ -4,6 +4,104 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v1.2.0 - 19 September 2026
+
+This release makes recommendations more personal, keeps Up Next and watch-state sync reliable across providers, improves manual review and recovery workflows, adds safe Tautulli history import, and makes the whole app noticeably faster.
+
+### New Features
+
+#### Settings
+
+- Improve Settings, Manual Watch review, and sync recovery workflows.
+
+#### Discover & recommendations
+
+- Personalize recommendations from recent watch history.
+- Let users choose Don't recommend to remove unwanted movies and shows from the personalized rail.
+
+#### Tautulli imports
+
+- Add reviewable one-time Tautulli history imports with safe merges and preserved watch dates.
+
+#### Sync & connection recovery
+
+- Complete startup, media detail, Up Next, website, and release refinements.
+- Improve application speed across the app.
+- Add clearer progress and removal feedback for background sync actions.
+- Add Help after two failed provider retries and publish Jellyfin connection troubleshooting guidance.
+
+### Bug Fixes
+
+#### Up Next & watch-state
+
+- Keep repeated watch actions responsive and visible, including animated Up Next requests with failure-safe labels.
+- Keep Up Next stable while watch state syncs
+- Keep stale watched or unwatched cards out of Up Next until an authoritative refresh confirms their removal.
+- Animate matching Up Next cards as Saving while watch and unwatch actions sync.
+- Keep removed or unwatched TV shows out of Up Next, including stale provider and fallback entries.
+- Keep removed TV shows out of Up Next across all episodes and provider refreshes.
+- Hide Clear progress unless a resume item has a positive playback position.
+
+#### Tautulli imports
+
+- Give Tautulli backup and import a clear preview, backup, import, and syncing flow with progress feedback.
+- Show syncing state and pause only affected media controls while queued imports and dispatches finish.
+- Clarify Tautulli backup and import progress
+- Use Plembfin's in-app confirmation for the multiline backup and import summary.
+- Show Importing while the backup and import request runs and keep the action disabled.
+- Confirm completion and that Plembfin is syncing imported watches to connected media servers.
+
+#### Manual Watch & watch actions
+
+- Use a generic Dismiss & mark unwatched action, send the unwatched correction to all configured media apps, and keep the dismissed row hidden while stale refreshes settle.
+- Refresh open media details immediately after removing one watch date while preserving surviving watches.
+- Match pending actions by show identity and episode coordinates so rematches do not affect the wrong title.
+- Preserve selected TVDB identity in watch history and repair same-coordinate title-only episodes during Fix Match.
+
+#### Sync & provider recovery
+
+- Keep media changes visible during sync
+- Restore Jellyfin watched, resume, and rating imports against current API field rules.
+
+### Tweaks
+
+#### Up Next & watch-state
+
+- Keep media changes visible while sync is in progress.
+- Keep Up Next and watch-state changes visible immediately while provider sync continues in the background
+- Keep completed shows out of Up Next while retaining manually queued never-watched shows.
+- Media-page Up Next changes now appear promptly by prioritizing their sync and rebuilding stale queue projections.
+- Improve cross-platform sync and onboarding while making Up Next reliably include watched shows and select the first released unwatched episode.
+- Keep Up Next aligned with media-page watch state, episode release dates, and TV-show actions.
+- Improve provider-aware watch-state synchronization and recovery safeguards.
+- Up Next now checks every previously watched show, so new episodes are no longer missed because of a recency cap.
+- Keep the Up Next rail on the first released unwatched episode instead of jumping to a later season.
+- Improve dismissed Up Next interactions and watch-date actions.
+
+#### Manual Watch review
+
+- Make Manual Watch review decisions clearer, confirmed, merged by episode, and removed from the working list without layout jumps
+- Align review counts with the actionable episodes shown and stop re-announcing flags already resolved by Plembfin
+- Refresh Up Next immediately after dashboard unwatch actions and keep valid manual watch reviews visible when older watch history exists.
+- Require confirmation before applying individual or show-level watch and unwatched decisions from Manual Watch review.
+- Show which connected app reported a watch and where dismissing the review will mark it unwatched.
+- Organize Manual Watch review actions by show, season, and episode with concise provider-specific labels.
+- Show newest review seasons first in boxed panels beneath the poster, preview only a few latest-season episodes, merge duplicate provider records into one row with source pills, remove the redundant show-level count summary, and remove accepted decisions optimistically while sync continues.
+
+#### Discover & recommendations
+
+- Keep recommendation exclusions saved across refreshes and browsers.
+- Hide watched titles and improve poster recovery across Discover.
+- Improve card metadata hierarchy, summary readability, and release-date presentation across personal lists.
+
+#### Sync & connection recovery
+
+- Improve Sync Activity issue handling and add connection recovery guidance for unavailable media servers
+- Surface media-server connection retries inline and improve Sync Activity match issue handling.
+- Existing provider requests finish safely before the priority update is sent.
+- Standardize settings sections, help guides, backup controls, and onboarding access.
+- Surface sync outcomes, retries, and unresolved media matches in the Sync Activity hub.
+
 ## v1.1.1 - 14 September 2026
 
 Up Next now keeps Plex, Emby, and Jellyfin aligned with reliable resume progress, released episodes, dismissals, and background queue updates with direct Watch now links.
@@ -14,7 +112,7 @@ Up Next now keeps Plex, Emby, and Jellyfin aligned with reliable resume progress
 - Keep Plembfin's Up Next aligned with Plex Continue Watching, Emby Continue Watching, and Jellyfin Next Up.
 - Bring the correct released or unwatched next episode into Up Next without inventing resume progress or resetting genuine play counts.
 
-### Major Bug Fixes
+### Bug Fixes
 
 - Dashboard Up Next cards now include Jellyfin in their Watch now links.
 - Show genuine part-watched progress on Up Next cards and keep it consistent with the media detail page across connected servers.
@@ -47,7 +145,7 @@ This release makes whole-series watch sync reliable with release-date choices, l
 
 This update fixes changelog navigation, keeps completed onboarding hidden, preserves Manual Watch review counts while navigating, and hardens concurrent startup.
 
-### Major Bug Fixes
+### Bug Fixes
 
 - Serialize live change trigger setup
 - Prevent concurrent startup races when installing live-change notifications.
@@ -90,7 +188,7 @@ Complete first-run setup and Windows distribution with a self-contained installe
 
 Release the feature-complete Plembfin app with its refreshed documentation website, covering current dashboard, Up Next, sync activity, spoiler guidance, and stabilized live media cards.
 
-### Major Bug Fixes
+### Bug Fixes
 
 - Scope live media updates to affected cards
 - Keep SSE watch and sync changes scoped to the affected tiles while preserving unchanged artwork nodes.
@@ -128,7 +226,7 @@ This hotfix adds show-wide Trakt match repair and retry controls, lets unavailab
 
 - Add dismiss controls for Trakt errors when a show is unavailable
 
-### Major Bug Fixes
+### Bug Fixes
 
 - Repair Trakt show matches and refresh metadata immediately
 - Rematch every episode in a show and retry all current failed entries
@@ -139,7 +237,7 @@ This hotfix adds show-wide Trakt match repair and retry controls, lets unavailab
 
 Support Jellyfin 12 authentication with safer watch-state handling and clearer Sync Activity
 
-### Major Bug Fixes
+### Bug Fixes
 
 - Support Jellyfin 12 with safer watch-state and Sync Activity
 - Keep Jellyfin 12 authentication on its modern MediaBrowser header while preserving manual API-key and Quick Connect credentials.
@@ -171,7 +269,7 @@ This update delivers broad performance improvements across media, library, histo
 - Redesign season and episode details with clearer layouts, season navigation, artwork, and incremental loading
 - Add onboarding and Settings controls for sync tuning, watch thresholds, and fast local-network sync
 
-### Major Bug Fixes
+### Bug Fixes
 
 - Smooth media artwork loading and metadata prefetch
 - Show a shimmer placeholder while media-page artwork loads.
@@ -272,7 +370,7 @@ v0.15.0 brings a Discover feed, a private watchlist and ratings, personal lists 
 - Fix Match from restore - resume a blocked restore by re-matching an item that lost its saved provider identity.
 - Mobile media pages - Discover, Watchlist, Ratings, Custom Lists, and History use the same poster-first rails as the dashboard on phones.
 
-### Major Bug Fixes
+### Bug Fixes
 
 - Dashboard and history cards now show the real episode name stored on the watch record - a watch reported by a media server as only a coordinate gets its name resolved at ingest, and Database Repairs can backfill names onto older rows.
 - Up Next no longer paints the same next-up episode twice and no longer merges a re-release or reboot that aired a different year; dismissing a tile animates it out before the rail refreshes.
@@ -308,7 +406,7 @@ Fix - Compute changelog content locally instead of via unreliable CI push events
 - Marking unwatched from the show control bar now batches requests in groups of 100, fixing shows with more than 100 watched episodes silently failing with no explanation
 - The poster three-dot overflow menu (Mark Unwatched / Edit watch date / Fix match) now appears on TV show library cards and stays legible in light mode instead of rendering as dark-on-dark dots
 
-### Major Bug Fixes
+### Bug Fixes
 
 - Compute changelog content locally instead of via unreliable CI push events
 - Changelog content for develop, alpha, and main is now generated locally as part of running Push to git / Force to alpha / Force to main, using real git history, instead of a CI job reading GitHub's push-event commit list afterward - that list is empty or incomplete for alpha and main, which are always reached by a force-push, and was producing changelog entries with no real content
@@ -333,7 +431,7 @@ Docs - Consolidate v0.12.11 changelog entry into higher-level bullets
 
 Fix - TV show detail and grid bulk-watch fixes
 
-### Major Bug Fixes
+### Bug Fixes
 
 - Restore the missing three-dot overflow menu on TV Shows grid cards
 - Season list rows now show Saving while a bulk watch action is in progress instead of a stale watched count
@@ -371,7 +469,7 @@ Feature - Add Wipe Data tools section and simplify settings help text
 - Every settings section's URL now matches its sidebar label, with redirects kept for old bookmarks
 - Added a Wipe Data section under Settings - Tools with four scopes (Watch History, Sync History & Logs, Everything Tracked, Wipe All / Fresh Start), and simplified the help text across every Settings page
 
-### Major Bug Fixes
+### Bug Fixes
 
 - Settings child section URLs now correctly match their sidebar labels, fixing stale internal ids like #import and #health leaking into the address bar
 - Fixed the Restore page's Local/Remote cards falling back to generic padding instead of matching the Backup page's cards
@@ -406,7 +504,7 @@ Merge pull request #23 from Lasikiewicz/dependabot/github_actions/github/codeql-
 
 Docs - Check GHCR Cleanup isn't running before any push
 
-### Major Bug Fixes
+### Bug Fixes
 
 - Stop updateWatchRecord's playstate rollback timing from racing
 - The known-flaky test (updateWatchRecord rolls the old media_key's playstate back to a survivor) was exposing a real bug, not just test noise: getPlaystateForMediaSync's title-based fallback can surface either an old or a migrated media_key's playstate row for a shared title, and updateWatchRecord picked between them with fresh Date.now() calls a few statements apart
@@ -431,7 +529,7 @@ Chore - Bump alpha build for f3f3d9b
 
 Fix - Publish the release image in the same job that commits the changelog
 
-### Major Bug Fixes
+### Bug Fixes
 
 - Publish the release image in the same job that commits the changelog
 - The prior split (a separate publish-current job gated on the changelog-bump commit re-arriving as a trigger) never actually ran: a commit pushed with the default GITHUB_TOKEN doesn't trigger another workflow run, so this release's 0.12.3 image was never built or pushed to GHCR at all
@@ -443,7 +541,7 @@ Fix - Publish the release image in the same job that commits the changelog
 
 Docs - Refresh dashboard, media, and stats screenshots; add Sync Activity
 
-### Major Bug Fixes
+### Bug Fixes
 
 - Stop duplicate release image builds and add GHCR tag cleanup
 - Fixed the release pipeline building and pushing the Docker image to GHCR twice per push to main; only the final job (which runs against the already-committed changelog/version bump) now builds and publishes it
@@ -486,7 +584,7 @@ Docs - Link Discord and Reddit communities in README
 
 Fix - Correct rewatch and Plex echo sync bugs, clarify webhook setup
 
-### Major Bug Fixes
+### Bug Fixes
 
 - Correct rewatch and Plex echo sync bugs, clarify webhook setup
 - Fixed a bug where rewatching a show on a new day could be silently discarded and left showing a stale watch date instead of recording the new watch
@@ -508,7 +606,7 @@ Feature - Filter Sync Activity to failed items and fix dispatch telemetry accura
 - Show the real dispatch outcome in a background-queue retry's telemetry instead of a generic "sync completed" message regardless of what actually happened
 - Correct the published v0.11.2 changelog entry to describe the guided onboarding release and use the New Features / Major Bug Fixes / Tweaks grouped layout instead of a flat, mistitled bullet list
 
-### Major Bug Fixes
+### Bug Fixes
 
 - Fix target-status telemetry lines prefixed with "Target " (written by the scheduled background queue) that the Sync Activity parser was silently failing to match, leaving target results blank
 
@@ -516,7 +614,7 @@ Feature - Filter Sync Activity to failed items and fix dispatch telemetry accura
 
 Chore - Retrigger release CI after GitHub Actions incident
 
-### Major Bug Fixes
+### Bug Fixes
 
 - Group main release changelog entries by impact
 - Settings -> Changelog and the generated CHANGELOG.md now sort a new main release's bullet points into New Features, Major Bug Fixes, and Tweaks sections instead of one flat list
@@ -553,7 +651,7 @@ Feature - Guided onboarding and faster in-place media management
 - Show New Features, Major Bug Fixes, and Tweaks as distinct sections in the app and generated changelog.
 - Preserve maintenance and documentation notes during branch promotion instead of dropping them when features or fixes are present.
 
-### Major Bug Fixes
+### Bug Fixes
 
 - Merge cross-app episode history cards
 - Merge same-episode history records across apps into one dashboard card and show every contributing source.

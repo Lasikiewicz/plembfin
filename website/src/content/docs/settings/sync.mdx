@@ -3,7 +3,7 @@ title: Sync
 description: Tune synchronization, run controlled repair tools, and review delivery history.
 category: Settings
 order: 5.6
-sourceVersion: "1.1.1"
+sourceVersion: "1.2.0"
 sourcePaths:
   - public/index.html
   - public/modules/settings-shell.js
@@ -106,6 +106,11 @@ Show groups provide the same choices in bulk. If the provider event was incorrec
 corrects the reporting media server before closing the review; if that correction fails, the
 review stays pending so it can be retried. An explicit unwatch clears an existing review, while a
 later deliberate provider Mark Played event can create a new one.
+
+Choose **Recheck status** when a provider watch has already been handled elsewhere or the review
+list looks stale. Plembfin rereads its canonical watch state and the pending review queue, so items
+already marked watched in Plembfin are removed from Manual Watch review even if a provider still
+reports an older pending flag.
 
 See [Sync Activity](/docs/sync-tools/#trakt-show-match-repair) for a separate repair path when
 Trakt cannot identify a show.
