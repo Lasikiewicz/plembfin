@@ -75,7 +75,7 @@ test("manual watch reviews are durable, deduplicated, and re-open on a changed p
   assert.equal(getManualWatchReview(first.review.id).status, "pending");
 });
 
-test("a pending review remains visible when an older watched record already exists", async () => {
+test("a pending review is hidden when an older watched record already exists", async () => {
   const reviewMedia = {
     title: "Existing Date Review Movie",
     type: "movie",
@@ -99,8 +99,8 @@ test("a pending review remains visible when an older watched record already exis
     sourceFingerprint: "emby|existing-date-review-movie|1",
   });
 
-  assert.equal(queued.status, "pending");
-  assert.equal(listPendingManualWatchReviews().some((review) => review.id === queued.review.id), true);
+  assert.equal(queued.status, "already_watched");
+  assert.equal(listPendingManualWatchReviews().some((review) => review.id === queued.review.id), false);
   setManualWatchReviewStatus(queued.review.id, "dismissed");
 });
 
@@ -339,17 +339,6 @@ test("mark watched now updates an existing cross-key watch instead of keeping it
   const title = "Existing Review Show - S01E01 - Pilot";
   const showTitle = "Existing Review Show";
   const oldDate = "2026-08-01T10:00:00.000Z";
-  const existing = await repo.insertWatchRecord({
-    title,
-    show_title: showTitle,
-    media_type: "episode",
-    season: 1,
-    episode: 1,
-    imdb_id: "review-existing-imdb",
-    watched_at: oldDate,
-    source: "trakt_import",
-    sync_action: "watched",
-  });
   const queued = enqueueManualWatchReview({
     title,
     showTitle,
@@ -367,6 +356,17 @@ test("mark watched now updates an existing cross-key watch instead of keeping it
   });
   assert.equal(queued.status, "pending");
 
+  const existing = await repo.insertWatchRecord({
+    title,
+    show_title: showTitle,
+    media_type: "episode",
+    season: 1,
+    episode: 1,
+    imdb_id: "review-existing-imdb",
+    watched_at: oldDate,
+    source: "trakt_import",
+    sync_action: "watched",
+  });
   const request = {
     method: "POST",
     body: { mode: "now" },

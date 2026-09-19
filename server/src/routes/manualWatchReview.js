@@ -448,7 +448,10 @@ export async function handleManualWatchReview(req, res, path) {
 
   if (req.method === "GET" && !action) {
     const summaryOnly = String(req.query?.summary || "") === "1";
-    const pendingReviews = listPendingManualWatchReviewsCached({ includeWatchContext: !summaryOnly });
+    const forceRefresh = String(req.query?.refresh || "") === "1";
+    const pendingReviews = forceRefresh
+      ? listPendingManualWatchReviews({ includeWatchContext: !summaryOnly })
+      : listPendingManualWatchReviewsCached({ includeWatchContext: !summaryOnly });
     return sendJson(res, {
       ok: true,
       // `count` is the number of logical decisions shown in the UI. Keep the

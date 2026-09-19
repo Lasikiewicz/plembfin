@@ -614,17 +614,11 @@ function reviewIsAlreadyWatched(review = {}) {
   try {
     const media = manualWatchReviewMedia(review);
     if (reviewShowMarkedWatched(media)) return true;
-    const reviewCreatedAt = Number(review.created_at || 0);
     const playstate = getPlaystateForMediaSync(media);
-    // An explicit current unwatch must win over an older watched history row;
-    // only use the history fallback for legacy records with no playstate yet.
-    if (playstate?.state === "watched") {
-      if (!reviewCreatedAt) return true;
-      // SQLite timestamps and review creation both use millisecond precision.
-      // A canonical watch written in the same millisecond as the queue entry
-      // is still the newer user-visible decision and must retire the review.
-      if (Number(playstate.updated_at || 0) >= reviewCreatedAt) return true;
-    }
+    // Plembfin's canonical watched state is authoritative for this queue. A
+    // provider flag is not a new manual decision when the item is already
+    // marked watched locally, even if the review row predates that state.
+    if (playstate?.state === "watched") return true;
     // A generic/stale provider review is resolved by a local unwatch and must
     // not suddenly become visible merely because the canonical state changed
     // from watched to unwatched. Explicit provider Mark played events are the
@@ -632,16 +626,10 @@ function reviewIsAlreadyWatched(review = {}) {
     if (playstate?.state === "unwatched") return !isExplicitPlayedMedia(media);
     if (!playstate && hasManualUnwatchForMedia(media) && !isExplicitPlayedMedia(media)) return true;
 
-    // A review can be legitimate even when an older watched record already
-    // exists: the provider flag may be the first signal that this item needs a
-    // trustworthy date decision, and the review approval can update that old
-    // record. Only hide a watched state that was written after the review was
-    // queued (or preserve the old behaviour for legacy rows without a queue
-    // timestamp).
+    // Keep legacy databases safe too: a watched history row is still a local
+    // Plembfin watch even when its playstate pointer has not been rebuilt yet.
     const watched = findWatchedByAnyMediaKeySync(media);
-    if (!watched) return false;
-    if (!reviewCreatedAt) return true;
-    return Number(watched.updated_at || 0) >= reviewCreatedAt;
+    return Boolean(watched);
   } catch {
     // A malformed legacy review should remain visible so it can be corrected
     // manually instead of disappearing because a read-only filter failed.

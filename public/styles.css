@@ -26935,6 +26935,7 @@ html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
 
 .manual-watch-review-season-heading {
   display: flex;
+  flex: 1 1 auto;
   align-items: baseline;
   flex-wrap: wrap;
   gap: var(--space-2);
@@ -26952,6 +26953,8 @@ html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
 }
 
 .manual-watch-review-season-actions {
+  flex: 0 1 auto;
+  margin-left: auto;
   justify-content: flex-end;
 }
 
@@ -26986,7 +26989,7 @@ html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
 
 .manual-watch-review-season-details > summary::after {
   content: "⌄";
-  margin-left: auto;
+  margin-left: var(--space-2);
   color: var(--yellow);
   font-size: 0.95rem;
   flex: 0 0 auto;

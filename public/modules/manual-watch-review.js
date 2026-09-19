@@ -1379,12 +1379,36 @@ function bindRenderedReviewDetails(container) {
   }
 }
 
+function bindManualWatchReviewRefresh() {
+  const refreshButton = document.querySelector("#manualWatchReviewRefresh");
+  if (!refreshButton || refreshButton.dataset.bound) return;
+  refreshButton.dataset.bound = "true";
+  refreshButton.addEventListener("click", async () => {
+    if (refreshButton.disabled) return;
+    const label = refreshButton.textContent;
+    refreshButton.disabled = true;
+    refreshButton.setAttribute("aria-busy", "true");
+    refreshButton.textContent = "Rechecking…";
+    try {
+      await loadManualWatchReview({ refresh: true });
+      _cb.setMessage?.("Manual Watch review status rechecked.", "success");
+    } catch (error) {
+      reportManualWatchReviewFailure(error, "Manual Watch review could not be rechecked.");
+    } finally {
+      refreshButton.disabled = false;
+      refreshButton.removeAttribute("aria-busy");
+      refreshButton.textContent = label || "Recheck status";
+    }
+  });
+}
+
 export function initManualWatchReview(callbacks = {}) {
   _cb = callbacks;
   if (typeof callbacks.openConfirmDialog === "function") _openConfirmDialog = callbacks.openConfirmDialog;
   const container = document.querySelector("#manualWatchReviewRows");
   if (!container) return;
   bindManualDatePrompt();
+  bindManualWatchReviewRefresh();
 
   if (!container.dataset.bound) {
     container.dataset.bound = "true";
@@ -1603,7 +1627,7 @@ export function renderManualWatchReviewPage() {
   setSummaryVisibility();
 }
 
-export async function loadManualWatchReview({ summaryOnly = false } = {}) {
+export async function loadManualWatchReview({ summaryOnly = false, refresh = false } = {}) {
   if (!state.token) {
     state.manualWatchReviews = [];
     state.manualWatchReviewCount = 0;
@@ -1633,7 +1657,11 @@ export async function loadManualWatchReview({ summaryOnly = false } = {}) {
     renderManualWatchReviewPage();
   }
   try {
-    const response = await fetch(`/api/manual-watch-review${summaryOnly ? "?summary=1" : ""}`, {
+    const params = new URLSearchParams();
+    if (summaryOnly) params.set("summary", "1");
+    if (refresh) params.set("refresh", "1");
+    const query = params.toString();
+    const response = await fetch(`/api/manual-watch-review${query ? `?${query}` : ""}`, {
       cache: "no-store",
       headers: authHeaders(),
     });
