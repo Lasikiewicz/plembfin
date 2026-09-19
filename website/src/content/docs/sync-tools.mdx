@@ -15,16 +15,14 @@ sourcePaths:
   - docs/webhooks.md
   - docs/settings.md
 screenshots:
-  - /assets/app-captures/sync-activity-dark.png
-  - /assets/app-captures/sync-activity-light.png
+  - /assets/app-captures/sync-activity-focused-dark.png
+  - /assets/app-captures/sync-activity-focused-light.png
   - /assets/app-captures/settings-sync-tuning-dark.png
   - /assets/app-captures/settings-sync-tuning-light.png
   - /assets/app-captures/settings-sync-tools-dark.png
   - /assets/app-captures/settings-sync-tools-light.png
-  - /assets/app-captures/settings-sync-issues-dark.png
-  - /assets/app-captures/settings-sync-issues-light.png
-  - /assets/app-captures/settings-sync-history-dark.png
-  - /assets/app-captures/settings-sync-history-light.png
+  - /assets/app-captures/sync-activity-issues-focused-dark.png
+  - /assets/app-captures/sync-activity-issues-focused-light.png
   - /assets/app-captures/settings-logs-controls-dark.png
   - /assets/app-captures/settings-logs-controls-light.png
 ---
@@ -63,10 +61,10 @@ The title button opens the matching local or provider detail route without colla
 group.
 
 <ScreenshotFigure
-  darkSrc="/assets/app-captures/sync-activity-dark.png"
-  lightSrc="/assets/app-captures/sync-activity-light.png"
-  alt="Plembfin Sync Activity filtered to successful Scrubs rows with per-destination results and an expanded audit history"
-  caption="A filtered group makes the current destination results and recorded audit history visible without any current issues."
+  darkSrc="/assets/app-captures/sync-activity-focused-dark.png"
+  lightSrc="/assets/app-captures/sync-activity-focused-light.png"
+  alt="Plembfin Sync Activity showing grouped destination results and the current issue state"
+  caption="Sync Activity keeps each destination result and its recorded reason visible for review."
 />
 
 The [sidebar Sync indicator](/docs/navigation/#sidebar-status-and-actions) is only a summary.
@@ -198,10 +196,10 @@ items; the current canonical remove/add pair is allowed to finish before queued 
 ## Sync Issues and Match Report
 
 <ScreenshotFigure
-  darkSrc="/assets/app-captures/settings-sync-issues-dark.png"
-  lightSrc="/assets/app-captures/settings-sync-issues-light.png"
-  alt="Plembfin Sync Issues settings showing unresolved match and delivery issues"
-  caption="Sync Issues groups unresolved matching and destination-library problems for rescan and repair."
+  darkSrc="/assets/app-captures/sync-activity-issues-focused-dark.png"
+  lightSrc="/assets/app-captures/sync-activity-issues-focused-light.png"
+  alt="Plembfin Sync Activity showing current sync issues, failed groups, and the Issues only filter"
+  caption="Sync Activity keeps destination failures and cross-platform match issues visible for review and retry."
 />
 
 Open [Settings → Sync → Sync Issues](/docs/settings/sync/#sync-issues-and-match-report) for unresolved jobs and the
@@ -227,13 +225,6 @@ archive.
 Adding the title to that server allows a later catch-up to apply the local state.
 
 ## Sync History and Logs
-
-<ScreenshotFigure
-  darkSrc="/assets/app-captures/settings-sync-history-dark.png"
-  lightSrc="/assets/app-captures/settings-sync-history-light.png"
-  alt="Plembfin Sync History settings showing recent synchronization operations"
-  caption="Sync History records recent sync, repair, import, backup, and restore operations."
-/>
 
 <ScreenshotFigure
   darkSrc="/assets/app-captures/settings-logs-controls-dark.png"

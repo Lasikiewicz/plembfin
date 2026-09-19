@@ -161,7 +161,9 @@ everything else about setup is identical.
 
 Try the [public Plembfin demo](https://demo.plembfin.com/) with `demo` / `demo`.
 It runs in an isolated demo mode on a dedicated Oracle Cloud Compute instance;
-actions are simulated in the browser and no media or metadata services are connected.
+actions are simulated in the browser, media-provider integrations are disabled,
+and the fixed bundled artwork and metadata catalogue is served without contacting
+live media or metadata services.
 Each **Force to main** publishes the multi-architecture release image and deploys the
 exact released version to this OCI demo. Portainer is used only for local testing.
 If the demo needs a catch-up refresh without another promotion, run the **Deploy Public
@@ -483,7 +485,7 @@ is in [`.env.example`](.env.example).
 | `PUBLIC_TRAKS_REQUIRE_CONSENT` | `true` | Require an explicit visitor choice before the website loads Traks analytics. |
 | `PLEMBFIN_TRAKS_SCRIPT_URL` / `PLEMBFIN_TRAKS_SITE_KEY` | _none_ | Optional public-demo settings for Traks analytics; both are required and the tracker URL must use HTTPS. |
 | `PLEMBFIN_TRAKS_REQUIRE_CONSENT` | `true` | Require an explicit visitor choice before the public demo loads Traks analytics. |
-| `PLEMBFIN_GA_MEASUREMENT_ID` | `G-58YXZG7GTB` | Optional public-demo GA4 Measurement ID; invalid or empty values disable Google Analytics. |
+| `PLEMBFIN_GA_MEASUREMENT_ID` | _none locally; public workflow defaults to `G-58YXZG7GTB`_ | Optional public-demo GA4 Measurement ID; invalid or empty values disable Google Analytics. |
 | `PLEMBFIN_GA_REQUIRE_CONSENT` | `true` | Require an explicit visitor choice before the public demo loads Google Analytics. |
 | `PLEX_SERVER_URL` / `PLEX_TOKEN` / `PLEX_USERNAME` / `PLEX_ENABLED` | _none_ | Default Plex values (Settings takes precedence). |
 | `EMBY_SERVER_URL` / `EMBY_API_KEY` / `EMBY_USER_ID` / `EMBY_ENABLED` | _none_ | Default Emby values (Settings takes precedence). |

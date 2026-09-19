@@ -11,8 +11,6 @@ sourcePaths:
   - docs/webhooks.md
   - docs/settings.md
 screenshots:
-  - /assets/app-captures/settings-webhooks-dark.png
-  - /assets/app-captures/settings-webhooks-light.png
   - /assets/app-captures/settings-webhooks-setup-dark.png
   - /assets/app-captures/settings-webhooks-setup-light.png
   - /assets/app-captures/settings-webhooks-secret-dark.png
@@ -22,13 +20,6 @@ screenshots:
 import ScreenshotFigure from "../../../components/ScreenshotFigure.astro";
 
 Webhooks contains the sender setup guides and the secret used to authenticate incoming events.
-
-<ScreenshotFigure
-  darkSrc="/assets/app-captures/settings-webhooks-dark.png"
-  lightSrc="/assets/app-captures/settings-webhooks-light.png"
-  alt="Plembfin Webhooks settings overview showing setup and secret areas"
-  caption="Webhooks separates sender guidance from the secret used to authenticate incoming events."
-/>
 
 ## Setup guides
 
@@ -42,7 +33,7 @@ Webhooks contains the sender setup guides and the secret used to authenticate in
 Use the platform-specific setup guidance for Plex, Emby, or Jellyfin. Configure the sender to
 reach the Plembfin host and include the authentication value exactly as shown by the app.
 
-Plex normally uses Plembfin's realtime notification listener. Emby and Jellyfin use their
+Plex normally uses Plembfin's realtime WebSocket notification channel. Emby and Jellyfin use their
 webhook integrations for playback events, with scheduled polling providing reconciliation.
 
 After configuring a sender, play a short portion of a known title and confirm both a new
@@ -53,8 +44,8 @@ History row and a Sync Activity result.
 <ScreenshotFigure
   darkSrc="/assets/app-captures/settings-webhooks-secret-dark.png"
   lightSrc="/assets/app-captures/settings-webhooks-secret-light.png"
-  alt="Plembfin Webhooks settings showing the generated secret and rotation controls"
-  caption="Webhook Secret protects inbound events; rotate it only after planning the sender updates."
+  alt="Plembfin Webhook Secret settings card for the generated token and rotation controls"
+  caption="The Webhook Secret card keeps the generated token and rotation controls together; expand it in the app when you need to copy or rotate the secret."
 />
 
 Copy the complete generated URL when the sender cannot set a custom header. In that mode the

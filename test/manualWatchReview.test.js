@@ -274,6 +274,29 @@ test("generic provider watched flags are suppressed while the canonical state is
   assert.equal(result.review, null);
 });
 
+test("review-required provider flags can be held for a decision while locally unwatched", async () => {
+  const media = {
+    title: "Held Provider Flag Movie",
+    type: "movie",
+    source: "jellyfin",
+    itemId: "jellyfin-held-provider-flag-movie",
+    ids: { tmdb: "held-provider-flag-movie" },
+    releaseDate: "2026-08-01",
+    isValid: true,
+  };
+  await repo.upsertPlaystateForMedia(media, "unwatched", "2026-09-08T16:48:00.000Z", { skipInvalidate: true });
+
+  const result = enqueueManualWatchReview(media, {
+    releaseDate: "2026-08-01T00:00:00.000Z",
+    sourceFingerprint: "jellyfin|held-provider-flag-movie|1",
+    allowWhenUnwatched: true,
+  });
+  assert.equal(result.queued, true);
+  assert.equal(result.status, "pending");
+  assert.equal(listPendingManualWatchReviews().some((review) => review.id === result.review.id), true);
+  setManualWatchReviewStatus(result.review.id, "dismissed");
+});
+
 test("a manual unwatch tombstone suppresses a provider alias with a title-normalization mismatch", async () => {
   const localMedia = {
     title: "Alias Guard Movie:\u00a0Part II",

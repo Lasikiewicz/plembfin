@@ -1367,7 +1367,7 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
       if (!scheduledMediaInScope(config, media)) continue;
 
       const playstate = await getPlaystateForMedia(media).catch(() => null);
-      if (recentUnwatchBlocksLibraryImport(playstate)) {
+      if (recentUnwatchBlocksLibraryImport(playstate) && !dateChoice.requiresReview) {
         logger(`Plex: ignored stale watched row immediately after unwatch: ${media.title}`);
         continue;
       }
@@ -1381,7 +1381,7 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
       // the history lookup above, but the broader playstate lookup still says
       // the episode is canonically watched. Never let that stale snapshot
       // recreate the watch date the user just removed.
-      if (shouldSkipLibraryHistoryImport(existing, playstate)) {
+      if (shouldSkipLibraryHistoryImport(existing, playstate) && !dateChoice.requiresReview) {
         logger(`Plex: ignored library-history date for an item already watched in Plembfin: ${media.title}`);
         continue;
       }
@@ -1392,6 +1392,7 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
           observedWatchedAt: watchDate.sourceTimestamp,
           sourceFingerprint: providerWatchFingerprint(item, "plex", item.type === "episode" ? "section_or_history" : "item"),
           reason: watchDate.note || "Plex reported a watched library flag without playback evidence.",
+          allowWhenUnwatched: true,
         });
         if (queued.queued) logger(`Plex: queued manual watch review: ${media.title}`);
         continue;
@@ -1537,14 +1538,14 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
       if (!scheduledMediaInScope(config, media)) continue;
 
       const playstate = await getPlaystateForMedia(media).catch(() => null);
-      if (recentUnwatchBlocksLibraryImport(playstate)) {
+      if (recentUnwatchBlocksLibraryImport(playstate) && !dateChoice.requiresReview) {
         logger(`Emby: ignored stale watched row immediately after unwatch: ${media.title}`);
         continue;
       }
 
       const existing = await findWatchedByAnyMediaKey(media);
 
-      if (shouldSkipLibraryHistoryImport(existing, playstate)) {
+      if (shouldSkipLibraryHistoryImport(existing, playstate) && !dateChoice.requiresReview) {
         logger(`Emby: ignored library-history date for an item already watched in Plembfin: ${media.title}`);
         continue;
       }
@@ -1557,6 +1558,7 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
           reason: watchedAtReason === "marked without playback"
             ? "Emby reported an API-marked watched flag without playback evidence."
             : "Emby reported a watched flag without a usable playback timestamp.",
+          allowWhenUnwatched: true,
         });
         if (queued.queued) logger(`Emby: queued manual watch review: ${media.title}`);
         continue;
@@ -1693,14 +1695,14 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
       if (!scheduledMediaInScope(config, media)) continue;
 
       const playstate = await getPlaystateForMedia(media).catch(() => null);
-      if (recentUnwatchBlocksLibraryImport(playstate)) {
+      if (recentUnwatchBlocksLibraryImport(playstate) && !dateChoice.requiresReview) {
         logger(`Jellyfin: ignored stale watched row immediately after unwatch: ${media.title}`);
         continue;
       }
 
       const existing = await findWatchedByAnyMediaKey(media);
 
-      if (shouldSkipLibraryHistoryImport(existing, playstate)) {
+      if (shouldSkipLibraryHistoryImport(existing, playstate) && !dateChoice.requiresReview) {
         logger(`Jellyfin: ignored library-history date for an item already watched in Plembfin: ${media.title}`);
         continue;
       }
@@ -1713,6 +1715,7 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
           reason: watchedAtReason === "marked without playback"
             ? "Jellyfin reported an API-marked watched flag without playback evidence."
             : "Jellyfin reported a watched flag without a usable playback timestamp.",
+          allowWhenUnwatched: true,
         });
         if (queued.queued) logger(`Jellyfin: queued manual watch review: ${media.title}`);
         continue;

@@ -17,6 +17,8 @@
     "check:privacy": "node scripts/check-capture-privacy.mjs",
     "check:links": "node scripts/check-content-links.mjs",
     "captures:compose": "node scripts/compose-full-page-capture.mjs",
+    "captures:crop-settings": "node scripts/crop-settings-captures.mjs",
+    "captures:neutralize-dark-settings": "node scripts/neutralize-dark-capture-highlights.mjs",
     "captures:inventory": "node scripts/capture-inventory.mjs --write",
     "preview": "node scripts/run-astro.mjs preview",
     "check:baseline": "node scripts/check-doc-baseline.mjs"

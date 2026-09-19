@@ -3552,10 +3552,28 @@ export async function handleWebhook(req, res) {
               && existingPlaystate?.state === "unwatched"
               && !isExplicitPlayedFlagEvent(media)
             ) {
-              // A season/series UserData callback can arrive after a local
-              // episode unwatch while the provider still reports Played=true.
-              // It carries no playback evidence, so never let that stale
-              // container callback resurrect the local unwatched state.
+              // A season/series UserData callback carries no playback
+              // evidence. Keep it out of canonical state, but surface it for
+              // the same manual decision as an item-level provider callback.
+              if (flagDateChoice?.requiresReview) {
+                const queued = enqueueManualWatchReview(episodeMedia, {
+                  releaseDate: episodeMedia.releaseDate,
+                  observedWatchedAt: "",
+                  sourceFingerprint: webhookWatchFingerprint(episodeMedia, episodeMedia.releaseDate),
+                  reason: "The app reported a watched flag for this episode while Plembfin is unwatched.",
+                  allowWhenUnwatched: true,
+                });
+                await deletePlaybackProgress(episodeMedia).catch(() => null);
+                results.push({
+                  episodeId: ep.Id,
+                  title: episodeMedia.title,
+                  success: true,
+                  skipped: true,
+                  queued: Boolean(queued.queued),
+                  reason: "Manual watch review required",
+                });
+                return;
+              }
               results.push({
                 episodeId: ep.Id,
                 title: episodeMedia.title,
@@ -3858,10 +3876,27 @@ export async function handleWebhook(req, res) {
         || (existingWatchedHistory ? "watched" : null);
       if (existingCanonicalState === "unwatched" && !isExplicitPlayedFlagEvent(media)) {
         // Generic UserData/played-flag callbacks do not contain playback
-        // evidence. After a local unwatch they are usually a delayed provider
-        // acknowledgement of the old watched bit; accepting one here would
-        // recreate the episode immediately after the user removed it. An
-        // explicit provider "Mark played" event remains allowed below.
+        // evidence, so they must never be accepted directly. Surface them for
+        // a user decision instead: a real provider-side mark belongs in Manual
+        // Watch review, while a stale acknowledgement can be dismissed there.
+        if (dateChoice.requiresReview) {
+          const queued = enqueueManualWatchReview(media, {
+            releaseDate: media.releaseDate,
+            observedWatchedAt: "",
+            sourceFingerprint: webhookWatchFingerprint(media, media.releaseDate),
+            reason: existingProvenance.note || `${media.source || "The app"} reported a watched flag without playback evidence while Plembfin is unwatched.`,
+            allowWhenUnwatched: true,
+          });
+          await deletePlaybackProgress(media).catch(() => null);
+          await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
+          return sendJson(res, {
+            ok: true,
+            inserted: false,
+            queued: Boolean(queued.queued),
+            reviewId: queued.review?.id || null,
+            reason: "Manual watch review required",
+          });
+        }
         console.log("Webhook: skipped a played flag while Plembfin is unwatched", {
           source: media.source,
           title: media.title,

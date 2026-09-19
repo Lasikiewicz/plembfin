@@ -891,16 +891,21 @@ function scheduleManualWatchReviewCatalogHydration(reviews, requestId) {
   if (manualWatchReviewCatalogTimer) clearTimeout(manualWatchReviewCatalogTimer);
   const catalogRequestId = ++manualWatchReviewCatalogRequestSerial;
   if (!Array.isArray(reviews) || !reviews.some(isEpisodeReview)) return;
-  const topGroup = reviewGroupsForDisplay(groupManualWatchReviews(reviews))[0];
+  const groups = reviewGroupsForDisplay(groupManualWatchReviews(reviews));
+  const showGroups = groups.filter((group) => group.kind === "show");
+  const topGroup = groups[0];
   const topSeason = topGroup?.kind === "show"
     ? groupReviewsBySeason(topGroup.reviews)[0]
     : null;
-  if (!topGroup || !topSeason) return;
-  // Keep the first paint focused on the most important review group. Other
-  // seasons hydrate only when the user opens them.
+  if (!showGroups.length) return;
   manualWatchReviewCatalogTimer = setTimeout(() => {
     manualWatchReviewCatalogTimer = null;
-    hydrateManualWatchReviewSeason(topGroup, topSeason, reviews, requestId, catalogRequestId).catch(() => null);
+    hydrateManualWatchReviewShowPosters(showGroups, reviews, requestId, catalogRequestId).catch(() => null);
+    // Keep episode catalog hydration focused on the most important review
+    // group. Other seasons hydrate when the user opens them.
+    if (topGroup && topSeason) {
+      hydrateManualWatchReviewSeason(topGroup, topSeason, reviews, requestId, catalogRequestId).catch(() => null);
+    }
   }, 0);
 }
 
@@ -983,6 +988,21 @@ async function fetchManualWatchReviewShowMetadata(group) {
   return request;
 }
 
+async function hydrateManualWatchReviewShowPosters(groups, reviews, requestId, catalogRequestId) {
+  await Promise.allSettled(groups.map(async (group) => {
+    const metadata = await fetchManualWatchReviewShowMetadata(group);
+    if (metadata?.showPosterUrl) {
+      manualWatchReviewShowPosterUrls.set(group.key, metadata.showPosterUrl);
+    }
+  }));
+  if (
+    requestId !== latestManualWatchReviewFullRequest
+    || catalogRequestId !== manualWatchReviewCatalogRequestSerial
+    || state.manualWatchReviews !== reviews
+  ) return;
+  if (state.activeView === "manualWatchReview") renderManualWatchReviewPage();
+}
+
 async function fetchManualWatchReviewSeasonCatalog(group, season) {
   const metadata = await fetchManualWatchReviewShowMetadata(group);
   const seasonNumber = manualReviewInteger(season.key);
@@ -1063,7 +1083,7 @@ function renderReviewShowGroup(group, query = "", { isTopmost = false } = {}) {
     <article class="manual-watch-review-show" data-manual-watch-review-show-key="${escapeAttribute(group.key)}">
       <div class="manual-watch-review-poster-wrap manual-watch-review-show-poster-wrap">
         <a class="manual-watch-review-poster-link" href="${escapeAttribute(href)}" data-manual-watch-review-link="${escapeAttribute(href)}" aria-label="View ${escapeAttribute(group.title)}">
-          ${reviewPosterHtml(group.reviews[0], group.title, { showPosterUrl: manualWatchReviewShowPosterUrls.get(group.key) || "", eagerPoster: isTopmost })}
+          ${reviewPosterHtml(group.reviews[0], group.title, { showPosterUrl: manualWatchReviewShowPosterUrls.get(group.key) || "", eagerPoster: true })}
         </a>
       </div>
       <div class="manual-watch-review-show-content">

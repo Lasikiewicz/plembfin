@@ -1,6 +1,6 @@
 ---
 title: Tools
-description: Reopen guided setup, repair local records, rebuild library identities, and wipe data safely.
+description: Reopen onboarding, repair local records, rebuild library identities, and wipe data safely.
 category: Settings
 order: 5.9
 sourceVersion: "1.2.0"
@@ -13,10 +13,6 @@ sourcePaths:
   - docs/settings.md
   - docs/dashboard.md
 screenshots:
-  - /assets/app-captures/settings-tools-dark.png
-  - /assets/app-captures/settings-tools-light.png
-  - /assets/app-captures/settings-tools-guided-setup-dark.png
-  - /assets/app-captures/settings-tools-guided-setup-light.png
   - /assets/app-captures/settings-tools-database-repairs-dark.png
   - /assets/app-captures/settings-tools-database-repairs-light.png
   - /assets/app-captures/settings-tools-library-rebuilds-dark.png
@@ -30,25 +26,11 @@ import ScreenshotFigure from "../../../components/ScreenshotFigure.astro";
 Tools contains focused maintenance actions. Create and verify a backup before any action that
 can change or delete local state.
 
-<ScreenshotFigure
-  darkSrc="/assets/app-captures/settings-tools-dark.png"
-  lightSrc="/assets/app-captures/settings-tools-light.png"
-  alt="Plembfin Tools settings overview showing setup, repair, rebuild, and wipe areas"
-  caption="Tools groups setup recovery, database repairs, library rebuilds, backfills, and destructive wipe controls."
-/>
+## Reopen Onboarding
 
-## Guided Setup
-
-<ScreenshotFigure
-  darkSrc="/assets/app-captures/settings-tools-guided-setup-dark.png"
-  lightSrc="/assets/app-captures/settings-tools-guided-setup-light.png"
-  alt="Plembfin Tools Guided Setup card showing the Reopen Onboarding action"
-  caption="Guided Setup reopens the resumable first-run flow; restore is kept on its own Settings card."
-/>
-
-Guided Setup reopens the resumable first-run configuration flow. Use it for a new install or
-to identify an incomplete setup step. Restore-from-backup is a separate [Settings → Restore](/docs/settings/restore/)
-card so recovery scope is visible on its own.
+Use **Reopen Onboarding** in the Tools page header to return to the resumable first-run
+configuration flow. Restore-from-backup is a separate [Settings → Restore](/docs/settings/restore/)
+page so recovery scope stays visible on its own.
 
 ## Database Repairs
 
@@ -100,10 +82,12 @@ These actions can be expensive on a large archive. Keep Logs open while they run
 Wipe Data is destructive and requires two confirmation steps. Its scopes are:
 
 - **Watch History**: local watch history, playstate, resume markers, and live sessions.
+- **Personal Watchlist**: the canonical local watchlist, provider observations, queued work,
+  sync runs, activity, and Plembfin-owned playlist identifiers.
 - **Sync History & Logs**: synchronization history, watch audit, and diagnostic logs.
 - **Everything Tracked**: both tracked watch state and sync history/logs.
-- **Wipe All / Fresh Start**: all of the above plus settings, connections, cached artwork, and
-  the administrator login.
+- **Wipe All / Fresh Start**: all of the above plus settings, connections, API keys, cached
+  artwork, and the administrator login.
 
 Before a wipe, create and verify a backup, read the preview, and confirm the scope intentionally.
 For one incorrect title or destination, use Fix Match, Edit watch date, or a targeted Sync

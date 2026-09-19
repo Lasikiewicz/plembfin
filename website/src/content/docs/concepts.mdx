@@ -16,8 +16,8 @@ sourcePaths:
   - docs/personal-watchlist.md
 screenshots:
   - /assets/plembfin-hub.svg
-  - /assets/app-captures/sync-activity-dark.png
-  - /assets/app-captures/sync-activity-light.png
+  - /assets/app-captures/sync-activity-focused-dark.png
+  - /assets/app-captures/sync-activity-focused-light.png
 ---
 
 import ScreenshotFigure from "../../components/ScreenshotFigure.astro";
@@ -58,8 +58,8 @@ when the media is added later.
 ## The event lifecycle
 
 <ScreenshotFigure
-  darkSrc="/assets/app-captures/sync-activity-dark.png"
-  lightSrc="/assets/app-captures/sync-activity-light.png"
+  darkSrc="/assets/app-captures/sync-activity-focused-dark.png"
+  lightSrc="/assets/app-captures/sync-activity-focused-light.png"
   alt="Plembfin Sync Activity view showing event sources, destinations, and outcomes"
   caption="Sync Activity is the visible end of the event lifecycle, with a result for each destination."
 />
@@ -141,7 +141,7 @@ visible in History and Stats.
   caption="Webhook setup provides fast inbound events while scheduled polling supplies reconciliation."
 />
 
-Plex can be observed through its built-in notification listener and scheduled checks.
+Plex can be observed through its built-in WebSocket notification channel and scheduled checks.
 
 Emby and Jellyfin use webhooks with scheduled polling as a backstop.
 
@@ -202,8 +202,8 @@ Quick links:
 ## Important boundaries
 
 <ScreenshotFigure
-  darkSrc="/assets/app-captures/settings-sync-dark.png"
-  lightSrc="/assets/app-captures/settings-sync-light.png"
+  darkSrc="/assets/app-captures/settings-sync-overview-focused-dark.png"
+  lightSrc="/assets/app-captures/settings-sync-overview-focused-light.png"
   alt="Plembfin Sync settings showing the boundary between local state and destination operations"
   caption="Sync settings make the local record, timing rules, and destination operations explicit."
 />

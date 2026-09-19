@@ -320,6 +320,7 @@ function serializableMedia(media = {}) {
       : undefined,
     watched_at: text(media.watched_at),
     watchProvenance: media.watchProvenance || media.watch_provenance || null,
+    manualReviewAllowWhenUnwatched: Boolean(media.manualReviewAllowWhenUnwatched),
     isValid: true,
   };
   return normalized;
@@ -428,7 +429,10 @@ export function enqueueManualWatchReview(media = {}, {
   reason = "",
   allowWhenUnwatched = false,
 } = {}) {
-  const normalizedMedia = serializableMedia(media);
+  const normalizedMedia = serializableMedia({
+    ...media,
+    ...(allowWhenUnwatched ? { manualReviewAllowWhenUnwatched: true } : {}),
+  });
   const mediaKey = mediaKeyFor(normalizedMedia);
   const source = text(normalizedMedia.source) || "unknown";
   const existing = selectReviewByMediaKeyStmt.get(mediaKey);
@@ -623,8 +627,12 @@ function reviewIsAlreadyWatched(review = {}) {
     // not suddenly become visible merely because the canonical state changed
     // from watched to unwatched. Explicit provider Mark played events are the
     // exception: they represent a new user decision and may remain reviewable.
-    if (playstate?.state === "unwatched") return !isExplicitPlayedMedia(media);
-    if (!playstate && hasManualUnwatchForMedia(media) && !isExplicitPlayedMedia(media)) return true;
+    if (playstate?.state === "unwatched") {
+      return !isExplicitPlayedMedia(media) && !media.manualReviewAllowWhenUnwatched;
+    }
+    if (!playstate && hasManualUnwatchForMedia(media) && !isExplicitPlayedMedia(media)) {
+      return !media.manualReviewAllowWhenUnwatched;
+    }
 
     // Keep legacy databases safe too: a watched history row is still a local
     // Plembfin watch even when its playstate pointer has not been rebuilt yet.

@@ -25,29 +25,20 @@ sourcePaths:
   - docs/personal-ratings.md
   - docs/personal-watchlist.md
 screenshots:
-  - /assets/app-captures/settings-sync-dark.png
-  - /assets/app-captures/settings-sync-light.png
   - /assets/app-captures/settings-sync-tuning-dark.png
   - /assets/app-captures/settings-sync-tuning-light.png
   - /assets/app-captures/settings-sync-tools-dark.png
   - /assets/app-captures/settings-sync-tools-light.png
-  - /assets/app-captures/settings-sync-issues-dark.png
-  - /assets/app-captures/settings-sync-issues-light.png
-  - /assets/app-captures/settings-sync-history-dark.png
-  - /assets/app-captures/settings-sync-history-light.png
+  - /assets/app-captures/sync-activity-focused-dark.png
+  - /assets/app-captures/sync-activity-focused-light.png
+  - /assets/app-captures/sync-activity-issues-focused-dark.png
+  - /assets/app-captures/sync-activity-issues-focused-light.png
 ---
 
 import ScreenshotFigure from "../../../components/ScreenshotFigure.astro";
 
 Sync brings together timing controls, watched-state repair actions, private-list and rating sync,
 cross-platform diagnostics, and the history of dispatches made by Plembfin.
-
-<ScreenshotFigure
-  darkSrc="/assets/app-captures/settings-sync-dark.png"
-  lightSrc="/assets/app-captures/settings-sync-light.png"
-  alt="Plembfin Sync settings overview showing tuning, repair, and delivery history areas"
-  caption="Sync combines playback thresholds, repair tools, diagnostics, and dispatch history."
-/>
 
 ## Sync tuning
 
@@ -90,8 +81,10 @@ For the target mapping and native-rail behavior, see [Dashboard → Up Next](/do
 
 Select **Require review** in Sync Tuning when a media server reports **Mark Played** without a
 reliable completion time. The sidebar then shows **Manual Watch review** while decisions are
-pending. That page handles grouped episode reviews, movie reviews, date choices, provider
-corrections, and the **Recheck status** action.
+pending. Provider-side watched flags are held there—even when the local item is currently
+unwatched—until you confirm or dismiss them, so they cannot be propagated accidentally. The
+page handles grouped episode reviews, movie reviews, date choices, provider corrections, and
+the **Recheck status** action.
 
 See the focused [Manual Watch review guide](/docs/manual-watch-review/) for the decision rules
 and recovery workflow.
@@ -128,7 +121,7 @@ required queue work stays visible with **Retry queued changes**, and reconnectin
 not roll back the local list.
 
 The same watchlist toggle is available on the Plex card in [Settings → Media servers](/docs/settings/media-servers/)
-and on the Plex step in [Guided Setup](/docs/settings/tools/#guided-setup).
+and on the Plex step in [Onboarding](/docs/settings/tools/#reopen-onboarding).
 
 ## Sync tools
 
@@ -160,24 +153,18 @@ not send changes out or remove remote state.
 ## Sync issues and match report
 
 <ScreenshotFigure
-  darkSrc="/assets/app-captures/settings-sync-issues-dark.png"
-  lightSrc="/assets/app-captures/settings-sync-issues-light.png"
-  alt="Plembfin Sync Issues page showing Plex match issues, unresolved sync issues, and the Cross-Platform Match Report"
-  caption="Sync Issues keeps destination and identity problems visible as separate review categories."
+  darkSrc="/assets/app-captures/sync-activity-issues-focused-dark.png"
+  lightSrc="/assets/app-captures/sync-activity-issues-focused-light.png"
+  alt="Plembfin Sync Activity showing current sync issues, failed groups, and the Issues only filter"
+  caption="Sync Activity keeps destination failures and cross-platform match issues visible for review and retry."
 />
 
-Sync Issues shows dispatches that could not reach a destination, while the match report shows
-media that a platform could not find. Open an issue for its telemetry, verify the title identity,
-then retry the affected destination or use Fix Match for a single incorrect title.
+Sync Activity's **Issues only** view shows dispatches that could not reach a destination, while
+the Cross-Platform Match Report shows media that a platform could not find. Open an issue for its
+telemetry, verify the title identity, then retry the affected destination or use Fix Match for a
+single incorrect title.
 
 ## Sync history
-
-<ScreenshotFigure
-  darkSrc="/assets/app-captures/settings-sync-history-dark.png"
-  lightSrc="/assets/app-captures/settings-sync-history-light.png"
-  alt="Plembfin Sync History settings showing recent operations and outcomes"
-  caption="Sync History preserves the operational trail for manual actions, repairs, imports, and restores."
-/>
 
 Sync History lists recent operations with their source, destination, outcome, and reason. Use it
 to confirm that a manual action or webhook reached every intended destination; use

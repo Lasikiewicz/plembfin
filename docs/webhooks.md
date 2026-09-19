@@ -64,8 +64,9 @@ and propagates unplayed to the other eligible destinations. Manual unwatches in 
 follow the same transition path and include the originating platform as a destination.
 A later provider watched event does not undo a manual unwatch unless it is an exact
 live-session playback completion whose provider timestamp and Plembfin receive time are
-both newer than the unwatch; generic played flags go to manual review instead (see
-`docs/decisions.md` entry 31).
+both newer than the unwatch; generic played flags go to Manual Watch review instead (see
+`docs/decisions.md` entry 31). While that review is pending, Plembfin does not write the
+watched state to any other provider.
 
 **Loop detection:** when Plembfin writes a state to (say) Emby, Emby fires its own
 webhook back. `loopStore` (`server/src/utils/loopStore.js`) tracks
@@ -167,9 +168,10 @@ payload. They carry no playback evidence, so:
 - **A played-flag event for an item already marked watched** is dropped: no new
   `watch_history` row, no re-propagation. The calendar day it lands on is
   meaningless, because delivery time says nothing about when the play happened.
-- **A played-flag event for an item not yet watched** is recorded, dated from the
-  server's own `LastPlayedDate` rather than the arrival time. This is the path a
-  manual "mark as played" in Emby takes.
+- **A played-flag event for an item not yet watched** enters Manual Watch review
+  when review is required, including when Plembfin currently has an explicit
+  unwatched state. It is not written to watch history or propagated until the
+  user confirms it. Dismissing it sends the normal unwatched correction.
 - **A playback event** (`media.scrobble`, `playback.stop` past the watched
   threshold) is real evidence of a play. For an item already watched, one on a
   later UTC day is recorded as a genuine rewatch: a new `watch_history` row is

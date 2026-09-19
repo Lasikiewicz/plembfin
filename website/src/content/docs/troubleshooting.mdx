@@ -28,8 +28,8 @@ screenshots:
   - /assets/app-captures/discover-light.png
   - /assets/app-captures/watchlist-dark.png
   - /assets/app-captures/watchlist-light.png
-  - /assets/app-captures/sync-activity-dark.png
-  - /assets/app-captures/sync-activity-light.png
+  - /assets/app-captures/sync-activity-focused-dark.png
+  - /assets/app-captures/sync-activity-focused-light.png
   - /assets/app-captures/fix-match-dark.png
   - /assets/app-captures/fix-match-light.png
   - /assets/app-captures/library-poster-menu-dark.png
@@ -69,8 +69,8 @@ Logs explains why a request failed.
 ## A quick diagnostic order
 
 <ScreenshotFigure
-  darkSrc="/assets/app-captures/sync-activity-dark.png"
-  lightSrc="/assets/app-captures/sync-activity-light.png"
+  darkSrc="/assets/app-captures/sync-activity-focused-dark.png"
+  lightSrc="/assets/app-captures/sync-activity-focused-light.png"
   alt="Plembfin Sync Activity view used to diagnose source and destination results"
   caption="Use the event row, destination result, and reason to choose the next action."
 />
@@ -368,7 +368,7 @@ The full procedure is [Refresh all metadata](/docs/settings/#refresh-all-metadat
 
 1. Make one new watched/unwatched change on a title already present in the local library.
 2. Check the sender:
-   - Plex needs its connection URL/token and built-in listener available.
+   - Plex needs its connection URL/token and built-in WebSocket notification channel available.
    - Emby needs `Mark Played`/`Mark Unplayed` or the relevant playback events.
    - Jellyfin needs `User Data Saved` or the relevant events from the Webhooks plugin.
    - Trakt needs a healthy authorized connection.
@@ -486,8 +486,8 @@ Read [Trakt setup](/docs/integrations/#trakt) for the intended ownership model.
 ## Settings or config did not save
 
 <ScreenshotFigure
-  darkSrc="/assets/app-captures/settings-index-dark.png"
-  lightSrc="/assets/app-captures/settings-index-light.png"
+  darkSrc="/assets/app-captures/settings-index-focused-dark.png"
+  lightSrc="/assets/app-captures/settings-index-focused-light.png"
   alt="Plembfin Settings landing page showing the settings groups"
   caption="Use the relevant Settings group instead of resetting the whole instance when one value will not save."
 />

@@ -131,8 +131,8 @@ export const featureStories = [
     title: "Keep every change explainable.",
     text: "A local archive is only useful when you can understand what happened. Plembfin keeps source, destination, outcome, and retry context close to the record.",
     bullets: ["Per-destination delivery results", "Targeted retries instead of blind full syncs", "Operational evidence for recovery work"],
-    imageDark: "/assets/app-captures/sync-activity-dark.png",
-    imageLight: "/assets/app-captures/sync-activity-light.png",
+    imageDark: "/assets/app-captures/sync-activity-focused-dark.png",
+    imageLight: "/assets/app-captures/sync-activity-focused-light.png",
     imageAlt: "Plembfin Sync Activity view showing events, sources, and delivery state",
     link: "/docs/sync-tools/",
     linkLabel: "Read the sync activity guide",
@@ -373,7 +373,7 @@ export const docsNav = [
       {
         slug: "integrations",
         label: "Integrations",
-        description: "Connect media servers, Trakt, Seerr, and metadata providers.",
+        description: "Connect media servers, Trakt, Tautulli, Seerr, and metadata providers.",
         children: [
           { id: "media-servers", label: "Media servers" },
           { id: "the-connection-checklist", label: "The connection checklist" },
@@ -381,6 +381,7 @@ export const docsNav = [
           { id: "emby", label: "Emby" },
           { id: "jellyfin", label: "Jellyfin" },
           { id: "trakt", label: "Trakt" },
+          { id: "tautulli", label: "Tautulli" },
           { id: "seerr", label: "Seerr" },
           { id: "metadata-and-artwork-providers", label: "Metadata and artwork providers" },
           { id: "verify-a-connection-without-guessing", label: "Verify a connection without guessing" },
@@ -430,6 +431,7 @@ export const docsNav = [
             label: "Connections",
             children: [
               { id: "trakt", label: "Trakt" },
+              { id: "tautulli", label: "Tautulli" },
               { id: "seerr", label: "Seerr" },
             ],
           },
@@ -466,7 +468,7 @@ export const docsNav = [
             id: "tools",
             label: "Tools",
             children: [
-              { id: "guided-setup", label: "Guided Setup" },
+              { id: "reopen-onboarding", label: "Reopen Onboarding" },
               { id: "database-repairs", label: "Database Repairs" },
               { id: "library-rebuilds-and-backfills", label: "Library Rebuilds and Backfills" },
               { id: "wipe-data", label: "Wipe Data" },

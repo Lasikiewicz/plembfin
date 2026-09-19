@@ -2009,6 +2009,17 @@ body.auth-locked .topnav {
   min-height: 100%;
 }
 
+/* The locked shell keeps the hidden desktop sidebar in the flex layout to
+   avoid a reload shift, but the login itself is a viewport-level surface. The
+   page shell would otherwise center it in the remaining right-hand column,
+   leaving the logo and form half a sidebar width off-centre. */
+@media (min-width: 761px) {
+  body.auth-locked .auth-view {
+    position: relative;
+    left: calc(var(--sidebar-width) / -2);
+  }
+}
+
 .auth-brand {
   display: flex;
   flex: 1 1 0;

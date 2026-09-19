@@ -15,8 +15,12 @@ sourcePaths:
   - docs/settings.md
   - docs/scheduled-sync.md
   - docs/webhooks.md
-screenshots: []
+screenshots:
+  - /assets/app-captures/manual-watch-review-dark.png
+  - /assets/app-captures/manual-watch-review-light.png
 ---
+
+import ScreenshotFigure from "../../components/ScreenshotFigure.astro";
 
 Manual Watch review is the decision queue for watch events that do not have a reliable
 completion time. It keeps Plembfin from assigning an invented date and gives you a focused
@@ -25,9 +29,18 @@ place to confirm, correct, or dismiss the event.
 ## How the review queue works
 
 Enable **Require review** in [Settings → Sync → Sync tuning](/docs/settings/sync/#sync-tuning).
-When a provider reports **Mark Played** without enough timing information, Plembfin keeps the
-event pending and shows **Manual Watch review** in the sidebar. The link is shown while there
-are decisions to make.
+When Plex, Emby, or Jellyfin reports a provider-side watched flag without enough timing
+information, Plembfin keeps the event pending and shows **Manual Watch review** in the
+sidebar. This includes an item that Plembfin currently considers unwatched: the provider
+event is held for a decision instead of being silently rejected or sent on to the other
+media servers. The link is shown while there are decisions to make.
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/manual-watch-review-dark.png"
+  lightSrc="/assets/app-captures/manual-watch-review-light.png"
+  alt="Plembfin Manual Watch review showing a provider-marked episode waiting for a decision"
+  caption="Manual Watch review keeps a provider-marked episode visible with the surrounding season context before confirmation."
+/>
 
 Episode reviews are grouped by show, while movies appear as individual items. Use the search
 field to narrow the queue, then open a show group when you want to process its episodes together.
@@ -46,9 +59,11 @@ before confirming it.
 
 ## Correct provider state
 
-Choose **Confirm** to record the watch in Plembfin and send the normal correction to the
-reporting provider. Choose **Dismiss & mark unwatched** when the provider event was wrong;
-Plembfin clears the local review and corrects the provider state before closing the item.
+Choose **Confirm** to record the watch in Plembfin and send the normal watched-state
+correction to the connected providers. Until that decision, Plembfin does not propagate the
+provider's watched flag. Choose **Dismiss & mark unwatched** when the provider event was
+wrong; Plembfin clears the local review and corrects the provider state before closing the
+item.
 
 Use the show-level bulk action when every pending episode in a group should receive the same
 decision. If a provider correction fails, the review remains pending so it can be retried. An

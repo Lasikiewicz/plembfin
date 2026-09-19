@@ -1,6 +1,6 @@
 ---
 title: Integrations
-description: Connect media servers, Trakt, Seerr, and metadata providers with the right expectations.
+description: Connect media servers, Trakt, Tautulli, Seerr, and metadata providers with the right expectations.
 category: Connect services
 order: 4
 sourceVersion: "1.2.0"
@@ -11,11 +11,13 @@ sourcePaths:
   - docs/metadata.md
   - docs/webhooks.md
   - public/modules/help-content.js
+  - public/modules/tautulli-import.js
+  - server/src/routes/tautulli.js
   - docs/personal-ratings.md
   - docs/personal-watchlist.md
 screenshots:
-  - /assets/app-captures/settings-media-servers-dark.png
-  - /assets/app-captures/settings-media-servers-light.png
+  - /assets/app-captures/settings-media-servers-focused-dark.png
+  - /assets/app-captures/settings-media-servers-focused-light.png
   - /assets/app-captures/settings-media-servers-plex-dark.png
   - /assets/app-captures/settings-media-servers-plex-light.png
   - /assets/app-captures/settings-media-servers-emby-dark.png
@@ -26,12 +28,14 @@ screenshots:
   - /assets/app-captures/settings-webhooks-setup-light.png
   - /assets/app-captures/settings-connections-trakt-dark.png
   - /assets/app-captures/settings-connections-trakt-light.png
+  - /assets/app-captures/settings-connections-tautulli-dark.png
+  - /assets/app-captures/settings-connections-tautulli-light.png
   - /assets/app-captures/settings-connections-seerr-dark.png
   - /assets/app-captures/settings-connections-seerr-light.png
   - /assets/app-captures/settings-metadata-providers-dark.png
   - /assets/app-captures/settings-metadata-providers-light.png
-  - /assets/app-captures/sync-activity-dark.png
-  - /assets/app-captures/sync-activity-light.png
+  - /assets/app-captures/sync-activity-focused-dark.png
+  - /assets/app-captures/sync-activity-focused-light.png
 ---
 
 import ScreenshotFigure from "../../components/ScreenshotFigure.astro";
@@ -46,15 +50,15 @@ Add the other services once the first connection is healthy.
 ## Media servers
 
 <ScreenshotFigure
-  darkSrc="/assets/app-captures/settings-media-servers-dark.png"
-  lightSrc="/assets/app-captures/settings-media-servers-light.png"
+  darkSrc="/assets/app-captures/settings-media-servers-focused-dark.png"
+  lightSrc="/assets/app-captures/settings-media-servers-focused-light.png"
   alt="Plembfin Media servers settings showing Plex, Emby, and Jellyfin connection cards"
   caption="Media server cards keep account setup, manual fallback, testing, and enablement together."
 />
 
 | Service | What Plembfin uses it for | Inbound events |
 | --- | --- | --- |
-| Plex | Library state, playback, watch history, and artwork context | Built-in notification listener, webhooks, and polling |
+| Plex | Library state, playback, watch history, and artwork context | Built-in WebSocket notification channel and scheduled checks |
 | Emby | Library state, playback, watch history, and resume progress | Webhooks plus polling |
 | Jellyfin | Library state, playback, watch history, and resume progress | Webhooks plugin plus polling |
 
@@ -66,9 +70,9 @@ port, and protocol from the Plembfin host.
 ## The connection checklist
 
 <ScreenshotFigure
-  darkSrc="/assets/app-captures/sync-activity-dark.png"
-  lightSrc="/assets/app-captures/sync-activity-light.png"
-  alt="Plembfin Sync Activity showing successful Scrubs destination results after a connection check"
+  darkSrc="/assets/app-captures/sync-activity-focused-dark.png"
+  lightSrc="/assets/app-captures/sync-activity-focused-light.png"
+  alt="Plembfin Sync Activity showing destination results after a connection check"
   caption="A connection is proven by a small real event and its visible destination result."
 />
 
@@ -111,9 +115,9 @@ The Plex card also contains the optional **Sync watchlist with Plex** toggle. It
 account-level Universal Watchlist; Plex is the only provider used for Watchlist sync.
 
 Open [Settings → Webhooks → Setup Guides](/docs/settings/webhooks/#setup-guides) for the
-provider-specific listener and scheduled-task guidance.
+provider-specific notification, webhook, and scheduled-task guidance.
 
-If Plex events are absent, check the token, server URL, listener status, and then
+If Plex events are absent, check the token, server URL, WebSocket status, and then
 [the missing-event steps](/docs/troubleshooting/#a-watched-event-was-not-recorded).
 
 ## Emby
@@ -212,6 +216,22 @@ skips only that destination and preserves the local archive.
 When **Personal Rating Sync** is enabled under [Settings → Sync](/docs/settings/sync/), Trakt also participates
 in the separate two-way 1–10 rating sync. That rating domain has its own queue and conflict
 rules; it is not the watched-state sync described above.
+
+## Tautulli
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-connections-tautulli-dark.png"
+  lightSrc="/assets/app-captures/settings-connections-tautulli-light.png"
+  alt="Plembfin Tautulli connection settings showing the safe history import controls"
+  caption="The Tautulli card previews completed Plex history and keeps backup and identity review before commit."
+/>
+
+Tautulli is an optional import source for completed Plex history. Configure its server URL,
+API key, and user, then preview the import before committing it.
+
+Plembfin creates a watch-history backup before the import, matches rows by provider identity
+where possible, and keeps ambiguous rows in the preview for review. It does not silently
+overwrite existing watch history.
 
 ## Private-list and rating sync
 
