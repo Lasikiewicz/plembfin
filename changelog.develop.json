@@ -1,29 +1,19 @@
 {
-  "version": "1.1.1.7.3",
-  "build": 3,
-  "resetCommit": "f8c7ffd1d6a5020cf4767b7ee1b91f823cb41b2e",
-  "updatedAt": "2026-09-17T17:40:26.773Z",
+  "version": "1.1.1.8.2",
+  "build": 2,
+  "resetCommit": "f416ffc767e5a8a4532fc1dc9182352bb8e6be56",
+  "updatedAt": "2026-09-19T13:43:23.911Z",
   "entries": [
     {
-      "build": 3,
-      "date": "2026-09-17T17:40:26.773Z",
-      "commit": "7bc72aa469aa652183cec08e03508b2459119d17",
-      "message": "This update includes keep media changes visible during sync and streamline sync review and watch-state updates.",
+      "build": 2,
+      "date": "2026-09-19T13:43:23.911Z",
+      "commit": "703319f87c44a9e482658189594342d81daa7832",
+      "message": "Feature - Complete develop release improvements",
       "author": "Lasikiewicz",
       "details": [
-        "Give Tautulli backup and import a clear preview, backup, import, and syncing flow with progress feedback.",
-        "Refresh open media details immediately after removing one watch date while preserving surviving watches.",
-        "Show syncing state and pause only affected media controls while queued imports and dispatches finish.",
-        "Keep repeated watch actions responsive and visible, including animated Up Next requests with failure-safe labels.",
-        "Keep Up Next and watch-state changes visible immediately while provider sync continues in the background",
-        "Make Manual Watch review decisions clearer, confirmed, merged by episode, and removed from the working list without layout jumps",
-        "Align review counts with the actionable episodes shown and stop re-announcing flags already resolved by Plembfin",
-        "Improve Sync Activity issue handling and add connection recovery guidance for unavailable media servers",
-        "Add consent-aware analytics support for the public demo"
-      ],
-      "messageFragments": [
-        "Fix - Keep media changes visible during sync",
-        "Feature - Streamline sync review and watch-state updates"
+        "Improve Settings, Manual Watch review, and sync recovery workflows.",
+        "Complete startup, media detail, Up Next, website, and release refinements.",
+        "Add performance verification artifacts and finish application speed remediation."
       ]
     }
   ]

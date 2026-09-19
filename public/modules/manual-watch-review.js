@@ -1,8 +1,8 @@
-import { state } from "./state.js?v=1.1.1.8.1";
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.8.1";
-import { posterMarkup, hydratePosters, tmdbPoster } from "./images.js?v=1.1.1.8.1";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.1.1.8.1";
-import { escapeAttribute, escapeHtml, formatDate, formatTmdbDate, movieHref, movieTmdbHref, platformSourceValues, slug, sourceBadgeHtml, toDateTimeInputValue, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js?v=1.1.1.8.1";
+import { state } from "./state.js?v=1.1.1.8.2";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.8.2";
+import { posterMarkup, hydratePosters, tmdbPoster } from "./images.js?v=1.1.1.8.2";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.1.1.8.2";
+import { escapeAttribute, escapeHtml, formatDate, formatTmdbDate, movieHref, movieTmdbHref, platformSourceValues, slug, sourceBadgeHtml, toDateTimeInputValue, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js?v=1.1.1.8.2";
 
 let _cb = {};
 let _openConfirmDialog = async () => false;
