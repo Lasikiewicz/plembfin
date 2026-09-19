@@ -1,10 +1,55 @@
 {
   "baseVersion": "1.1.1",
-  "build": 8,
-  "version": "1.1.1.8.0",
-  "updatedAt": "2026-09-17T17:44:57.251Z",
+  "build": 9,
+  "version": "1.1.1.9.0",
+  "updatedAt": "2026-09-19T13:52:10.406Z",
   "releaseMessage": "",
   "entries": [
+    {
+      "build": 9,
+      "version": "1.1.1.9.0",
+      "shortVersion": "1.1.1.9.0",
+      "date": "2026-09-19T13:52:10.406Z",
+      "commit": "dc9f5a936294007fd0e63ab4e16ebdc4572565dc",
+      "message": "Feature - Complete develop release improvements",
+      "author": "Lasikiewicz",
+      "details": [
+        "Feature: Complete develop release improvements",
+        "Feature: Improve Settings, Manual Watch review, and sync recovery workflows.",
+        "Feature: Complete startup, media detail, Up Next, website, and release refinements.",
+        "Feature: Add performance verification artifacts and finish application speed remediation."
+      ],
+      "sections": {
+        "newFeatures": [
+          "Complete develop release improvements",
+          "Improve Settings, Manual Watch review, and sync recovery workflows.",
+          "Complete startup, media detail, Up Next, website, and release refinements.",
+          "Add performance verification artifacts and finish application speed remediation."
+        ],
+        "majorBugFixes": [],
+        "tweaks": []
+      },
+      "sectionGroups": {
+        "newFeatures": [
+          {
+            "title": "Settings",
+            "details": [
+              "Improve Settings, Manual Watch review, and sync recovery workflows."
+            ]
+          },
+          {
+            "title": "Sync & connection recovery",
+            "details": [
+              "Complete develop release improvements",
+              "Complete startup, media detail, Up Next, website, and release refinements.",
+              "Add performance verification artifacts and finish application speed remediation."
+            ]
+          }
+        ],
+        "majorBugFixes": [],
+        "tweaks": []
+      }
+    },
     {
       "build": 8,
       "version": "1.1.1.8.0",
@@ -277,5 +322,5 @@
       }
     }
   ],
-  "shortVersion": "1.1.1.8.0"
+  "shortVersion": "1.1.1.9.0"
 }

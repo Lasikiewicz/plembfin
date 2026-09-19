@@ -1,20 +1,7 @@
 {
-  "version": "1.1.1.8.2",
-  "build": 2,
-  "resetCommit": "f416ffc767e5a8a4532fc1dc9182352bb8e6be56",
-  "updatedAt": "2026-09-19T13:43:23.911Z",
-  "entries": [
-    {
-      "build": 2,
-      "date": "2026-09-19T13:43:23.911Z",
-      "commit": "703319f87c44a9e482658189594342d81daa7832",
-      "message": "Feature - Complete develop release improvements",
-      "author": "Lasikiewicz",
-      "details": [
-        "Improve Settings, Manual Watch review, and sync recovery workflows.",
-        "Complete startup, media detail, Up Next, website, and release refinements.",
-        "Add performance verification artifacts and finish application speed remediation."
-      ]
-    }
-  ]
+  "version": "1.1.1.9.0",
+  "build": 0,
+  "resetCommit": "dc9f5a936294007fd0e63ab4e16ebdc4572565dc",
+  "updatedAt": "2026-09-19T13:52:10.406Z",
+  "entries": []
 }

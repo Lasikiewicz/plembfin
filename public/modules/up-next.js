@@ -1,11 +1,11 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.8.2";
-import { state, elements } from "./state.js?v=1.1.1.8.2";
-import { escapeAttribute, escapeHtml, slug } from "./utils.js?v=1.1.1.8.2";
-import { hydratePosters } from "./images.js?v=1.1.1.8.2";
-import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=1.1.1.8.2";
-import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=1.1.1.8.2";
-import { manualShowMatches, isShowInUpNext, upNextShowActionHtml } from "./up-next-shared.js?v=1.1.1.8.2";
-import { renderMediaCard } from "./media-card.js?v=1.1.1.8.2";
+import { buildAuthHeaders } from "./auth.js?v=1.1.1.9.0";
+import { state, elements } from "./state.js?v=1.1.1.9.0";
+import { escapeAttribute, escapeHtml, slug } from "./utils.js?v=1.1.1.9.0";
+import { hydratePosters } from "./images.js?v=1.1.1.9.0";
+import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=1.1.1.9.0";
+import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=1.1.1.9.0";
+import { manualShowMatches, isShowInUpNext, upNextShowActionHtml } from "./up-next-shared.js?v=1.1.1.9.0";
+import { renderMediaCard } from "./media-card.js?v=1.1.1.9.0";
 
 const UP_NEXT_TTL_MS = 2 * 60 * 1000;
 const UP_NEXT_TIMEOUT_MS = 20000;
