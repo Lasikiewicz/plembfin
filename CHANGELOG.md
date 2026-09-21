@@ -4,6 +4,22 @@ Release history for Plembfin. This file covers published releases on `main` only
 for the current pre-release build on `alpha` or `develop`, open **Settings → About**
 in a running instance, which lists that channel's build history separately.
 
+## v1.2.1 - 21 September 2026
+
+This hotfix improves Plembfin's watch-state review, mobile media navigation, and playback refresh reliability.
+
+[Visit the Plembfin website](https://plembfin.com)
+
+### Bug Fixes
+
+#### Sync & provider recovery
+
+- Improve media review and mobile controls
+- Keep watched items and dismissed title-only movie matches out of Manual Watch review.
+- Improve mobile media and Upcoming layouts with inline season actions, shared controls, and clearer TV show summaries.
+- Refresh stale Now Playing data when returning to suspended pages.
+- Restore locked-login centering and bundled TVDB demo metadata.
+
 ## v1.2.0 - 19 September 2026
 
 This release makes recommendations more personal, keeps Up Next and watch-state sync reliable across providers, improves manual review and recovery workflows, adds safe Tautulli history import, and makes the whole app noticeably faster.

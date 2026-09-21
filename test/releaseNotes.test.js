@@ -7,6 +7,7 @@ const mainManifest = {
   entries: [{
     version: "1.0.0",
     message: "Safer and more explainable synchronization.",
+    websiteUrl: "https://plembfin.com",
     sections: {
       newFeatures: ["Explainable Sync Activity"],
       majorBugFixes: ["Repair provider identity matches"],
@@ -57,6 +58,7 @@ test("release notes render categorized changes and shared release guidance", () 
   assert.match(notes, /### New Features\n\n- Explainable Sync Activity/);
   assert.match(notes, /### Bug Fixes\n\n- Repair provider identity matches/);
   assert.match(notes, /## Start safely/);
+  assert.match(notes, /\[Visit the Plembfin website\]\(https:\/\/plembfin\.com\)/);
   assert.match(notes, /## Known limitations/);
   assert.match(notes, /ghcr\.io\/lasikiewicz\/plembfin:latest/);
   assert.match(notes, /v1\.0\.0/);

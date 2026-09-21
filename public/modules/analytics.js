@@ -24,41 +24,8 @@ function loadTraks(config) {
   document.head.appendChild(script);
 }
 
-function loadGoogleAnalytics(config) {
-  const googleAnalytics = config?.googleAnalytics;
-  if (
-    !googleAnalytics?.enabled
-    || !/^G-[A-Z0-9]+$/i.test(googleAnalytics.measurementId || "")
-    || window.__plembfinGoogleAnalyticsLoaded
-    || window.__plembfinGoogleAnalyticsLoading
-    || privacySignalIsSet()
-  ) return;
-
-  window.__plembfinGoogleAnalyticsLoading = true;
-  window.dataLayer = window.dataLayer || [];
-  function gtag() {
-    window.dataLayer.push(arguments);
-  }
-  window.gtag = gtag;
-  gtag("js", new Date());
-  gtag("config", googleAnalytics.measurementId, { anonymize_ip: true });
-
-  const script = document.createElement("script");
-  script.async = true;
-  script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(googleAnalytics.measurementId)}`;
-  script.onload = () => {
-    window.__plembfinGoogleAnalyticsLoaded = true;
-    window.__plembfinGoogleAnalyticsLoading = false;
-  };
-  script.onerror = () => {
-    window.__plembfinGoogleAnalyticsLoading = false;
-  };
-  document.head.appendChild(script);
-}
-
 function loadAnalytics(config) {
   loadTraks(config.traks);
-  loadGoogleAnalytics(config);
 }
 
 function scheduleAnalyticsLoad(config) {
@@ -89,7 +56,6 @@ async function boot() {
   if (!config?.enabled) return;
 
   const traksConfig = config.traks;
-  const googleAnalyticsConfig = config.googleAnalytics;
   const traksEnabled = traksConfig?.enabled
     && typeof traksConfig.scriptUrl === "string"
     && typeof traksConfig.siteKey === "string"
@@ -101,10 +67,7 @@ async function boot() {
         return false;
       }
     })();
-  const googleAnalyticsEnabled = googleAnalyticsConfig?.enabled
-    && typeof googleAnalyticsConfig.measurementId === "string"
-    && /^G-[A-Z0-9]+$/i.test(googleAnalyticsConfig.measurementId);
-  if (!traksEnabled && !googleAnalyticsEnabled) return;
+  if (!traksEnabled) return;
 
   scheduleAnalyticsLoad(config);
 }

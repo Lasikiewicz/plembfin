@@ -593,7 +593,10 @@ as separate headed groups whenever any of the three is non-empty, falling back t
 flat `entry.details` list otherwise. Alpha and main promotion automatically derive
 optional `sectionGroups` for thematic `####` subheadings; a reviewed release may
 override those defaults without changing the flat arrays. Develop's entry stays flat,
-since it never carries `sections` at all (see below).
+since it never carries `sections` at all (see below). Main release entries may also carry
+`websiteUrl`; GitHub-facing renderers use a Markdown link, while Reddit and the app/website
+views render the same URL through their own compatible output instead of assuming GitHub
+Markdown will be interpreted everywhere.
 
 Both promotion scripts run the same release-content check
 (`changelogEntryProcessViolations` in `scripts/changelog-message.js`) on the entry they
@@ -852,7 +855,6 @@ WebSocket listener is stopped, `server.close()` drains in-flight HTTP requests, 
 - `PLEMBFIN_DEBUG_SCHEDULER` - set to `1` to log per-step scheduler timing (visible in Settings → Logs): each step's name, where in the tick it started, how long it ran, whether it exhausted its time budget, plus a per-tick summary carrying the achieved interval between tick starts
 - `PLEMBFIN_PAUSE_SCHEDULED_WORKER` - set to `1` only for diagnostics that need real-time provider listeners without scheduled sync ticks or background-job polling; the default is off
 - `PLEMBFIN_TRAKS_COLLECTOR_ORIGIN` / `PLEMBFIN_TRAKS_SITE_KEY` - optional public-demo Traks configuration; the browser uses first-party `/t` and `/api/event` routes while the collector origin remains server-side. `PLEMBFIN_TRAKS_SCRIPT_URL` is retained as a legacy origin fallback
-- `PLEMBFIN_GA_MEASUREMENT_ID` - optional public-demo GA4 configuration; only a valid `G-...` Measurement ID is exposed
 - `BUILD_CHANNEL` - baked into published Docker images at build time (`release` by default, `alpha` in the `ghcr.io/lasikiewicz/plembfin:alpha` image, and `develop` in the `ghcr.io/lasikiewicz/plembfin:develop` image); local `npm start` and `npm run dev` default to `develop`, while an explicit value can select another local channel. It controls the channel metadata shown in the sidebar badge, About, and Changelog
 
 Environment variables act as **defaults** for connection and sync-tuning settings:

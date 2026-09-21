@@ -31,6 +31,7 @@ const alphaChangelogPath = path.join(root, "changelog.alpha.json");
 const developChangelogPath = path.join(root, "changelog.develop.json");
 const packagePath = path.join(root, "package.json");
 const packageLockPath = path.join(root, "package-lock.json");
+const PUBLIC_WEBSITE_URL = "https://plembfin.com";
 
 export function bumpPatchVersion(currentVersion = "0.0.0") {
   const parts = currentVersion.split(".").map((n) => Number(n) || 0);
@@ -147,6 +148,7 @@ function computeAlphaToMainRelease({ targetVersion = "", sourceDate = new Date()
     date: sourceDate,
     commit: commit || publicEntries[0]?.commit || "",
     message: mainMessage,
+    websiteUrl: PUBLIC_WEBSITE_URL,
     author: sourceAuthor,
     details: simplifiedDetails,
     sections,
@@ -181,6 +183,7 @@ function renderReleasePreview({ newMainVersion, new5DigitVersion, mainEntry }) {
   lines.push("");
   lines.push("Message:");
   lines.push(`  ${mainEntry.message}`);
+  lines.push(`  Website: ${mainEntry.websiteUrl}`);
   lines.push("");
   const renderSection = (section) => {
     if (!section.groups.length) return;

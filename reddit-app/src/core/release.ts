@@ -19,6 +19,7 @@ type ChangelogSectionGroups = Partial<Record<keyof ChangelogSections, {
 type ChangelogEntry = {
   version: string;
   message: string;
+  websiteUrl?: string;
   sections?: ChangelogSections;
   sectionGroups?: ChangelogSectionGroups;
   details?: string[];
@@ -69,6 +70,8 @@ function buildPost(entry: ChangelogEntry): { title: string; text: string } {
   }
 
   const bodyParts = [entry.message];
+  const websiteUrl = String(entry.websiteUrl ?? "").trim();
+  if (websiteUrl) bodyParts.push(`Website: ${websiteUrl}`);
   if (sections.length) bodyParts.push(sections.join("\n\n"));
   bodyParts.push(
     "[View the full changelog](https://github.com/Lasikiewicz/plembfin/blob/main/CHANGELOG.md)",

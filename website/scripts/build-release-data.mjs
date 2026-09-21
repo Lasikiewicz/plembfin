@@ -51,6 +51,7 @@ function parseEntries(markdown) {
       const body = lines.join("\n").trim();
       const paragraphs = body.split(/\n\s*\n/).map((part) => part.trim()).filter(Boolean);
       const summary = paragraphs.find((part) => !part.startsWith("#") && !part.startsWith("-")) || "Release notes for this version.";
+      const websiteMatch = body.match(/^\[Visit the Plembfin website\]\((https:\/\/plembfin\.com[^)]*)\)$/m);
       const bullets = [...body.matchAll(/^[-*]\s+(.+)$/gm)]
         .map((item) => item[1].trim())
         .filter(Boolean);
@@ -93,6 +94,7 @@ function parseEntries(markdown) {
         title: match[1],
         summary: summary.replace(/\s+/g, " "),
         bullets,
+        ...(websiteMatch ? { websiteUrl: websiteMatch[1] } : {}),
         ...(hasNamedGroups ? { sections } : {}),
       };
     })

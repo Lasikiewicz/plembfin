@@ -1,8 +1,39 @@
 {
-  "version": "1.2.0",
-  "date": "19 September 2026",
-  "summary": "This release makes recommendations more personal, keeps Up Next and watch-state sync reliable across providers, improves manual review and recovery workflows, adds safe Tautulli history import, and makes the whole app noticeably faster.",
+  "version": "1.2.1",
+  "date": "21 September 2026",
+  "summary": "This hotfix improves Plembfin's watch-state review, mobile media navigation, and playback refresh reliability.",
   "entries": [
+    {
+      "version": "1.2.1",
+      "date": "21 September 2026",
+      "title": "v1.2.1",
+      "summary": "This hotfix improves Plembfin's watch-state review, mobile media navigation, and playback refresh reliability.",
+      "bullets": [
+        "Improve media review and mobile controls",
+        "Keep watched items and dismissed title-only movie matches out of Manual Watch review.",
+        "Improve mobile media and Upcoming layouts with inline season actions, shared controls, and clearer TV show summaries.",
+        "Refresh stale Now Playing data when returning to suspended pages.",
+        "Restore locked-login centering and bundled TVDB demo metadata."
+      ],
+      "websiteUrl": "https://plembfin.com",
+      "sections": [
+        {
+          "title": "Bug Fixes",
+          "groups": [
+            {
+              "title": "Sync & provider recovery",
+              "bullets": [
+                "Improve media review and mobile controls",
+                "Keep watched items and dismissed title-only movie matches out of Manual Watch review.",
+                "Improve mobile media and Upcoming layouts with inline season actions, shared controls, and clearer TV show summaries.",
+                "Refresh stale Now Playing data when returning to suspended pages.",
+                "Restore locked-login centering and bundled TVDB demo metadata."
+              ]
+            }
+          ]
+        }
+      ]
+    },
     {
       "version": "1.2.0",
       "date": "19 September 2026",

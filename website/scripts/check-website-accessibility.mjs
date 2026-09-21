@@ -59,8 +59,8 @@ for (const [label, source] of [["index.astro", indexSource], ["features.astro", 
   if (!source.includes("{integration.name}") && !source.includes("{service.name}")) failures.push(`${label} provider names are not visibly rendered beside their icons`);
 }
 
-if (!layoutSource.includes("navigator.doNotTrack === \"1\"")) failures.push("analytics loading does not honor Do Not Track");
-if (/<script async src=\{`https:\/\/www\.googletagmanager\.com/.test(layoutSource)) failures.push("analytics is still injected synchronously in the document head");
+if (!layoutSource.includes("navigator.doNotTrack === \"1\"")) failures.push("Traks loading does not honor Do Not Track");
+if (/(googletagmanager\.com|google-analytics\.com|gaMeasurementId|analyticsMeasurementId|__plembfinGoogleAnalytics|\bgtag\s*\()/i.test(layoutSource)) failures.push("Google Analytics must not be present in the website layout");
 
 const distRoot = path.join(websiteRoot, "dist");
 if (fs.existsSync(distRoot)) {

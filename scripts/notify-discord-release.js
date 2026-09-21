@@ -71,6 +71,7 @@ function buildMainEmbed() {
     const list = bulletList(entry.details);
     if (list) fields.push({ name: "Changes", value: list });
   }
+  if (entry.websiteUrl) fields.push({ name: "Website", value: String(entry.websiteUrl).slice(0, 1024) });
 
   return {
     title: `Plembfin v${entry.version} released`.slice(0, 256),

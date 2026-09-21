@@ -325,19 +325,17 @@ guardrail, and `/changelog.json` against the release version. If an OCI setting 
 missing or the deployment/verification fails, the main release workflow remains
 failed instead of reporting the demo as current.
 
-Optional Traks and GA4 analytics for `demo.plembfin.com` are configured with repository
-Variables `PLEMBFIN_TRAKS_COLLECTOR_ORIGIN`, `PLEMBFIN_TRAKS_SITE_KEY`, and
-`PLEMBFIN_GA_MEASUREMENT_ID`. The existing `PLEMBFIN_TRAKS_SCRIPT_URL` variable remains
-accepted as a legacy collector-origin fallback. If the Traks origin/site key are empty
-and the GA4 Measurement ID is empty or invalid, the demo loads no analytics. These
+Optional Traks analytics for `demo.plembfin.com` are configured with repository
+Variables `PLEMBFIN_TRAKS_COLLECTOR_ORIGIN` and `PLEMBFIN_TRAKS_SITE_KEY`. The existing
+`PLEMBFIN_TRAKS_SCRIPT_URL` variable remains accepted as a legacy collector-origin
+fallback. If the Traks origin or site key is empty, the demo loads no tracking. These
 values are public configuration; never place a Cloudflare API token or R2 credential in
 the demo container or Actions variables. The demo proxies the browser's first-party
-`/t` tracker and `/api/event` collector request, does not show a consent banner, and
-honors browser Do Not Track and Global Privacy Control signals. Traks is cookieless;
-Google Analytics may use cookies or similar measurement technologies. Traks reports are
-opened from the dashboard URL created by the Traks deployment; they are not exposed
-through the public demo URL. Use a separate Traks site key for the demo if you want its
-traffic reported separately from `plembfin.com`.
+`/t` tracker and `/api/event` collector request, and honors browser Do Not Track and
+Global Privacy Control signals. Traks is cookieless. Traks reports are opened from the
+dashboard URL created by the Traks deployment; they are not exposed through the public
+demo URL. Use a separate Traks site key for the demo if you want its traffic reported
+separately from `plembfin.com`.
 
 Pushes to `main` and `alpha` trigger `.github/workflows/windows-installer.yml`. That job
 runs on a Windows runner, installs and probes the Windows builds of `better-sqlite3` and

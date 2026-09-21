@@ -38,6 +38,11 @@ export function generateChangelogMarkdown() {
     lines.push(`## v${entry.version}${entry.date ? ` - ${formatDate(entry.date)}` : ""}`);
     lines.push("");
     lines.push(entry.message || "Release update");
+    const websiteUrl = String(entry.websiteUrl || "").trim();
+    if (websiteUrl) {
+      lines.push("");
+      lines.push(`[Visit the Plembfin website](${websiteUrl})`);
+    }
     lines.push("");
     const sectionGroups = changelogSectionGroups(entry);
     if (sectionGroups.some((section) => section.groups.length)) {

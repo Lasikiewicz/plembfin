@@ -101,6 +101,9 @@ export function generateReleaseNotes({ channel, manifest, repository = "Lasikiew
     normalizeText(entry.message) || "Release update",
     "",
   ];
+  if (entry.websiteUrl) {
+    lines.push(`[Visit the Plembfin website](${normalizeText(entry.websiteUrl)})`, "");
+  }
 
   const sections = changelogSectionGroups(entry);
   const renderedSections = sections.some((section) => section.groups.length);

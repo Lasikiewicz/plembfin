@@ -12,8 +12,8 @@
 // version and never raises an update prompt - the server forces
 // alphaBuild.newerBuildAvailable false off the alpha channel for exactly that
 // reason.
-import { state, elements } from "./state.js?v=1.2.0.1.0";
-import { escapeHtml, formatBuildVersion, formatListDate, versionDisplayLabel } from "./utils.js?v=1.2.0.1.0";
+import { state, elements } from "./state.js?v=1.2.1.0.0";
+import { escapeAttribute, escapeHtml, formatBuildVersion, formatListDate, versionDisplayLabel } from "./utils.js?v=1.2.1.0.0";
 
 export { formatBuildVersion };
 
@@ -88,6 +88,12 @@ export function baseVersionOf(version) {
   const parts = String(version ?? "").trim().replace(/^v/i, "").split(".");
   if (parts.length < 3 || !parts.slice(0, 3).every((part) => /^\d+$/.test(part))) return "";
   return parts.slice(0, 3).join(".");
+}
+
+function renderWebsiteLink(entry) {
+  const websiteUrl = String(entry?.websiteUrl || "").trim();
+  if (!/^https:\/\/plembfin\.com(?:\/|$)/i.test(websiteUrl)) return "";
+  return `<p class="changelog-entry-website"><a href="${escapeAttribute(websiteUrl)}" target="_blank" rel="noopener noreferrer">Visit the Plembfin website</a></p>`;
 }
 
 // Splits alpha build entries into the ones built on the installed release and
@@ -326,6 +332,7 @@ export async function renderChangelog(force = false) {
             <time>${escapeHtml(formatListDate(entry.date) || entry.date || "")}</time>
           </div>
           <p>${escapeHtml(entry.message || "Release update")}</p>
+          ${renderWebsiteLink(entry)}
           ${renderChangelogDetails(entry)}
         </article>
       `;
@@ -352,6 +359,7 @@ export async function renderChangelog(force = false) {
             <time>${escapeHtml(formatListDate(entry.date) || entry.date || "")}</time>
           </div>
           <p>${escapeHtml(entry.message || "Develop build update")}</p>
+          ${renderWebsiteLink(entry)}
           ${renderChangelogDetails(entry)}
         </article>
       `;
@@ -372,6 +380,7 @@ export async function renderChangelog(force = false) {
             <time>${escapeHtml(formatListDate(entry.date) || entry.date || "")}</time>
           </div>
           <p>${escapeHtml(entry.message || "Alpha build update")}</p>
+          ${renderWebsiteLink(entry)}
           ${renderChangelogDetails(entry)}
         </article>
       `;

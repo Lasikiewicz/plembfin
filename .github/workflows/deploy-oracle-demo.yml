@@ -92,8 +92,6 @@ jobs:
       PLEMBFIN_TRAKS_COLLECTOR_ORIGIN: ${{ vars.PLEMBFIN_TRAKS_COLLECTOR_ORIGIN }}
       PLEMBFIN_TRAKS_SITE_KEY: ${{ vars.PLEMBFIN_TRAKS_SITE_KEY }}
       PLEMBFIN_TRAKS_REQUIRE_CONSENT: ${{ vars.PLEMBFIN_TRAKS_REQUIRE_CONSENT || 'true' }}
-      PLEMBFIN_GA_MEASUREMENT_ID: ${{ vars.PLEMBFIN_GA_MEASUREMENT_ID || 'G-58YXZG7GTB' }}
-      PLEMBFIN_GA_REQUIRE_CONSENT: ${{ vars.PLEMBFIN_GA_REQUIRE_CONSENT || 'true' }}
     steps:
       - name: Checkout recovery helper
         uses: actions/checkout@v7
@@ -134,11 +132,10 @@ jobs:
           ssh_opts=(-i "$SSH_KEY_PATH" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$KNOWN_HOSTS_PATH")
           scp "${ssh_opts[@]}" scripts/restore-oracle-demo.sh "$OCI_DEMO_USER@$OCI_DEMO_HOST:$remote_script"
           trap 'ssh "${ssh_opts[@]}" "$OCI_DEMO_USER@$OCI_DEMO_HOST" "rm -f -- $remote_script" >/dev/null 2>&1 || true' EXIT
-          printf -v remote_command 'chmod 700 %q && sudo -n bash %q %q %q %q %q %q %q %q %q %q %q' \
+          printf -v remote_command 'chmod 700 %q && sudo -n bash %q %q %q %q %q %q %q %q %q %q' \
             "$remote_script" "$remote_script" "$OCI_DEMO_CONTAINER" "$OCI_DEMO_DATA_DIR" \
             "$OCI_DEMO_PORT" "$OCI_DEMO_RUNTIME" "$PLEMBFIN_TRAKS_SCRIPT_URL" \
             "$PLEMBFIN_TRAKS_SITE_KEY" "$PLEMBFIN_TRAKS_REQUIRE_CONSENT" \
-            "$PLEMBFIN_GA_MEASUREMENT_ID" "$PLEMBFIN_GA_REQUIRE_CONSENT" \
             "$PLEMBFIN_TRAKS_COLLECTOR_ORIGIN"
           ssh "${ssh_opts[@]}" "$OCI_DEMO_USER@$OCI_DEMO_HOST" "$remote_command"
 
@@ -177,8 +174,6 @@ jobs:
       PLEMBFIN_TRAKS_COLLECTOR_ORIGIN: ${{ vars.PLEMBFIN_TRAKS_COLLECTOR_ORIGIN }}
       PLEMBFIN_TRAKS_SITE_KEY: ${{ vars.PLEMBFIN_TRAKS_SITE_KEY }}
       PLEMBFIN_TRAKS_REQUIRE_CONSENT: ${{ vars.PLEMBFIN_TRAKS_REQUIRE_CONSENT || 'true' }}
-      PLEMBFIN_GA_MEASUREMENT_ID: ${{ vars.PLEMBFIN_GA_MEASUREMENT_ID || 'G-58YXZG7GTB' }}
-      PLEMBFIN_GA_REQUIRE_CONSENT: ${{ vars.PLEMBFIN_GA_REQUIRE_CONSENT || 'true' }}
 
     steps:
       - name: Checkout selected release metadata and deployment helper
@@ -242,11 +237,10 @@ jobs:
           ssh_opts=(-i "$SSH_KEY_PATH" -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$KNOWN_HOSTS_PATH")
           scp "${ssh_opts[@]}" scripts/deploy-oracle-demo.sh "$OCI_DEMO_USER@$OCI_DEMO_HOST:$remote_script"
           trap 'ssh "${ssh_opts[@]}" "$OCI_DEMO_USER@$OCI_DEMO_HOST" "rm -f -- $remote_script" >/dev/null 2>&1 || true' EXIT
-          printf -v remote_command 'chmod 700 %q && sudo -n bash %q %q %q %q %q %q %q %q %q %q %q %q' \
+          printf -v remote_command 'chmod 700 %q && sudo -n bash %q %q %q %q %q %q %q %q %q %q %q' \
             "$remote_script" "$remote_script" "$RELEASE_IMAGE" "$OCI_DEMO_CONTAINER" \
             "$OCI_DEMO_DATA_DIR" "$OCI_DEMO_PORT" "$OCI_DEMO_RUNTIME" \
             "$PLEMBFIN_TRAKS_SCRIPT_URL" "$PLEMBFIN_TRAKS_SITE_KEY" "$PLEMBFIN_TRAKS_REQUIRE_CONSENT" \
-            "$PLEMBFIN_GA_MEASUREMENT_ID" "$PLEMBFIN_GA_REQUIRE_CONSENT" \
             "$PLEMBFIN_TRAKS_COLLECTOR_ORIGIN"
           ssh "${ssh_opts[@]}" "$OCI_DEMO_USER@$OCI_DEMO_HOST" "$remote_command"
 

@@ -40,26 +40,13 @@ const TRAKS_CONFIG = (() => {
   }
 })();
 
-const GOOGLE_ANALYTICS_CONFIG = (() => {
-  const measurementId = String(process.env.PLEMBFIN_GA_MEASUREMENT_ID || "").trim();
-  if (!DEMO_MODE || !measurementId) {
-    return { enabled: false, measurementId: "" };
-  }
-  if (!/^G-[A-Z0-9]+$/i.test(measurementId)) {
-    console.warn("[security] Google Analytics disabled: invalid GA4 Measurement ID");
-    return { enabled: false, measurementId: "" };
-  }
-  return { enabled: true, measurementId };
-})();
-
 const ANALYTICS_CONFIG = {
-  enabled: TRAKS_CONFIG.enabled || GOOGLE_ANALYTICS_CONFIG.enabled,
+  enabled: TRAKS_CONFIG.enabled,
   traks: {
     enabled: TRAKS_CONFIG.enabled,
     scriptUrl: TRAKS_CONFIG.scriptUrl,
     siteKey: TRAKS_CONFIG.siteKey,
   },
-  googleAnalytics: GOOGLE_ANALYTICS_CONFIG,
 };
 
 const { DATA_DIR, PUBLIC_DIR, MEDIA_DIR, ensureDataDirs } = await import("./src/paths.js");
@@ -208,12 +195,7 @@ app.use(async (_req, res, next) => {
     // A public demo must be able to render only its bundled/local resources.
     // Keeping the policy local also prevents a future UI regression from
     // quietly reintroducing a provider, image, font, or iframe request.
-    const googleAnalyticsScriptOrigin = GOOGLE_ANALYTICS_CONFIG.enabled ? " https://www.googletagmanager.com" : "";
-    const googleAnalyticsImageOrigin = GOOGLE_ANALYTICS_CONFIG.enabled ? " https://www.google-analytics.com" : "";
-    const googleAnalyticsConnectOrigins = GOOGLE_ANALYTICS_CONFIG.enabled
-      ? " https://www.google-analytics.com https://region1.google-analytics.com https://analytics.google.com"
-      : "";
-    contentSecurityPolicy = `default-src 'self'; img-src 'self' data: blob:${googleAnalyticsImageOrigin}; script-src 'self'${googleAnalyticsScriptOrigin}; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self'${googleAnalyticsConnectOrigins}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; frame-src 'none';`;
+    contentSecurityPolicy = "default-src 'self'; img-src 'self' data: blob:; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; frame-src 'none';";
   } else {
     let extraImgSrc = "";
     try {

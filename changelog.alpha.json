@@ -1,59 +1,8 @@
 {
-  "baseVersion": "1.2.0",
-  "build": 1,
-  "version": "1.2.0.1.0",
-  "updatedAt": "2026-09-21T12:50:34.129Z",
+  "baseVersion": "1.2.1",
+  "build": 0,
+  "version": "1.2.1.0.0",
+  "updatedAt": "2026-09-21T14:20:15.965Z",
   "releaseMessage": "",
-  "entries": [
-    {
-      "build": 1,
-      "version": "1.2.0.1.0",
-      "shortVersion": "1.2.0.1.0",
-      "date": "2026-09-21T12:50:34.129Z",
-      "commit": "8b3ba338e85aef818cb613fbe81863063fbfee5a",
-      "message": "Fix - Improve media review, mobile controls, and tracker privacy",
-      "author": "Lasikiewicz",
-      "details": [
-        "Fix: Improve media review, mobile controls, and tracker privacy",
-        "Fix: Keep watched items and dismissed title-only movie matches out of Manual Watch review.",
-        "Fix: Improve mobile media and Upcoming layouts with inline season actions, shared controls, and clearer TV show summaries.",
-        "Fix: Refresh stale Now Playing data when returning to suspended pages.",
-        "Fix: Route tracker scripts and events through first-party website and demo endpoints while honoring DNT and GPC.",
-        "Fix: Restore locked-login centering and bundled TVDB demo metadata, with refreshed release documentation and captures.",
-        "Fix: Block release publication when unresolved high-severity CodeQL findings remain."
-      ],
-      "sections": {
-        "newFeatures": [],
-        "majorBugFixes": [
-          "Improve media review, mobile controls, and tracker privacy",
-          "Keep watched items and dismissed title-only movie matches out of Manual Watch review.",
-          "Improve mobile media and Upcoming layouts with inline season actions, shared controls, and clearer TV show summaries.",
-          "Refresh stale Now Playing data when returning to suspended pages.",
-          "Route tracker scripts and events through first-party website and demo endpoints while honoring DNT and GPC.",
-          "Restore locked-login centering and bundled TVDB demo metadata, with refreshed release documentation and captures.",
-          "Block release publication when unresolved high-severity CodeQL findings remain."
-        ],
-        "tweaks": []
-      },
-      "sectionGroups": {
-        "newFeatures": [],
-        "majorBugFixes": [
-          {
-            "title": "Sync & provider recovery",
-            "details": [
-              "Improve media review, mobile controls, and tracker privacy",
-              "Keep watched items and dismissed title-only movie matches out of Manual Watch review.",
-              "Improve mobile media and Upcoming layouts with inline season actions, shared controls, and clearer TV show summaries.",
-              "Refresh stale Now Playing data when returning to suspended pages.",
-              "Route tracker scripts and events through first-party website and demo endpoints while honoring DNT and GPC.",
-              "Restore locked-login centering and bundled TVDB demo metadata, with refreshed release documentation and captures.",
-              "Block release publication when unresolved high-severity CodeQL findings remain."
-            ]
-          }
-        ],
-        "tweaks": []
-      }
-    }
-  ],
-  "shortVersion": "1.2.0.1.0"
+  "entries": []
 }

@@ -3,7 +3,7 @@ title: Backups and operations
 description: Keep Plembfin recoverable with backups, safe imports, hardening, and routine maintenance.
 category: Sync and maintain
 order: 6
-sourceVersion: "1.2.0"
+sourceVersion: "1.2.1"
 sourcePaths:
   - docs/backups.md
   - docs/watch-history-backups.md
@@ -167,49 +167,6 @@ authenticated routes.
 These controls reduce risk.
 
 They do not replace host, network, or media-server security.
-
-## Website analytics with Traks and Google Analytics
-
-The public website uses Traks and Google Analytics 4 together so their aggregate
-page-view and time-on-page measurements can be compared. Traks is self-hosted in a
-Cloudflare account and provides cookieless pageviews, referrers, campaigns, devices,
-locations, custom events, goals, funnels, and real-time reports.
-
-To enable it, add the current site key from the Traks Installation panel to the website
-build environment and set the collector origin as a Cloudflare Pages runtime variable:
-
-```dotenv
-PUBLIC_TRAKS_SITE_KEY=your-site-key
-PUBLIC_GA_MEASUREMENT_ID=G-58YXZG7GTB
-TRAKS_COLLECTOR_ORIGIN=https://analytics-collect.example.workers.dev
-```
-
-The browser always loads Traks from the website's first-party `/t` route and sends events
-to first-party `/api/event`; the external collector host is never used directly by the
-browser. Traks is disabled when the site key or Pages runtime origin is missing. Google
-Analytics is disabled when the Measurement ID is missing or invalid. Both trackers
-respect the browser's Do Not Track and Global Privacy Control signals, and the website
-does not show an analytics consent banner. Traks is cookieless; Google Analytics may use
-cookies or similar measurement technologies. Keep the site's privacy notice and legal
-basis aligned with the tracking configuration.
-
-Do not put names, email addresses, account IDs, media titles, or other personal data in
-custom event properties. Traks is cookieless; Google Analytics may use cookies or similar
-measurement technologies. Analytics configuration does not by itself settle UK GDPR, PECR,
-or other local privacy obligations; publish a clear notice and choose the lawful basis and
-measurement practice that matches your use of the reports.
-
-### Access the reports
-
-Open the dashboard URL printed by Traks after deployment. It is normally the API/dashboard
-Worker URL created in your Cloudflare account. Sign in with the owner account created on
-first launch. The reports remain in your Cloudflare account; the Traks website is only used
-for the deployment/update workflow.
-
-Create separate read-only report tokens for agents or integrations, and keep manage tokens
-out of browser code. Review and narrow the Cloudflare token to the analytics bucket where
-the platform allows it, then enable Cloudflare billing alerts before adding the tracker to
-a high-traffic site.
 
 ## Updates and release channels
 

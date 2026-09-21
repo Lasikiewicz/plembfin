@@ -24,7 +24,7 @@
 
 ---
 
-> **v1.2.0.** Plembfin writes watched state and playback progress to connected media
+> **v1.2.1.** Plembfin writes watched state and playback progress to connected media
 > servers, so **back up first** (Settings → Backup → Local). Report
 > issues on the [issue tracker](https://github.com/Lasikiewicz/plembfin/issues).
 
@@ -484,7 +484,6 @@ is in [`.env.example`](.env.example).
 | `PUBLIC_TRAKS_SITE_KEY` | _none_ | Optional public website build setting for Traks; the browser uses first-party `/t` and `/api/event` routes. Use the current key from the Traks Installation panel. |
 | `TRAKS_COLLECTOR_ORIGIN` | _none_ | Cloudflare Pages runtime origin for the Traks collector; it is kept out of browser configuration. `PUBLIC_TRAKS_SCRIPT_URL` remains a legacy fallback. |
 | `PLEMBFIN_TRAKS_COLLECTOR_ORIGIN` / `PLEMBFIN_TRAKS_SITE_KEY` | _none_ | Optional public-demo Traks settings; the demo proxies `/t` and `/api/event` first-party. `PLEMBFIN_TRAKS_SCRIPT_URL` remains a legacy origin fallback. |
-| `PLEMBFIN_GA_MEASUREMENT_ID` | _none locally; public workflow defaults to `G-58YXZG7GTB`_ | Optional public-demo GA4 Measurement ID; invalid or empty values disable Google Analytics. |
 | `PLEX_SERVER_URL` / `PLEX_TOKEN` / `PLEX_USERNAME` / `PLEX_ENABLED` | _none_ | Default Plex values (Settings takes precedence). |
 | `EMBY_SERVER_URL` / `EMBY_API_KEY` / `EMBY_USER_ID` / `EMBY_ENABLED` | _none_ | Default Emby values (Settings takes precedence). |
 | `JELLYFIN_SERVER_URL` / `JELLYFIN_API_KEY` / `JELLYFIN_USER_ID` / `JELLYFIN_ENABLED` | _none_ | Default Jellyfin values (Settings takes precedence). |

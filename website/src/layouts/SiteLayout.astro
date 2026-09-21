@@ -15,12 +15,9 @@ const pageTitle = title ? `${site.name} - ${title}` : site.title;
 const canonical = new URL(Astro.url.pathname, site.url).href;
 const previewBranch = import.meta.env.MODE !== "development" && process.env.CF_PAGES_BRANCH && process.env.CF_PAGES_BRANCH !== "main";
 const robots = noindex || previewBranch ? "noindex,nofollow" : "index,follow";
-const gaMeasurementId = import.meta.env.PUBLIC_GA_MEASUREMENT_ID ?? site.analyticsMeasurementId ?? "";
-const gaEnabled = /^G-[A-Z0-9]+$/i.test(gaMeasurementId);
 const traksScriptUrl = "/t";
 const traksSiteKey = import.meta.env.PUBLIC_TRAKS_SITE_KEY ?? "";
 const traksEnabled = Boolean(traksSiteKey);
-const analyticsEnabled = traksEnabled || gaEnabled;
 ---
 
 <!doctype html>
@@ -255,47 +252,18 @@ const analyticsEnabled = traksEnabled || gaEnabled;
       const syncTheme = Reflect.get(window, "__plembfinSyncTheme");
       if (typeof syncTheme === "function") syncTheme();
     </script>
-    {analyticsEnabled && (
-      <script is:inline define:vars={{ gaMeasurementId, gaEnabled, traksScriptUrl, traksSiteKey, traksEnabled }}>
+    {traksEnabled && (
+      <script is:inline define:vars={{ traksScriptUrl, traksSiteKey, traksEnabled }}>
         (() => {
-          const analyticsWindow = window;
+          const trackingWindow = window;
           const hasPrivacySignal = navigator.doNotTrack === "1"
-            || analyticsWindow.doNotTrack === "1"
+            || trackingWindow.doNotTrack === "1"
             || navigator.globalPrivacyControl === true;
-
-          const loadGoogleAnalytics = () => {
-            if (
-              !gaEnabled
-              || analyticsWindow.__plembfinGoogleAnalyticsLoaded
-              || analyticsWindow.__plembfinGoogleAnalyticsLoading
-              || hasPrivacySignal
-            ) return;
-
-            analyticsWindow.__plembfinGoogleAnalyticsLoading = true;
-            analyticsWindow.dataLayer = analyticsWindow.dataLayer || [];
-            analyticsWindow.gtag = function gtag() {
-              analyticsWindow.dataLayer.push(arguments);
-            };
-            analyticsWindow.gtag("js", new Date());
-            analyticsWindow.gtag("config", gaMeasurementId, { anonymize_ip: true });
-
-            const script = document.createElement("script");
-            script.async = true;
-            script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(gaMeasurementId)}`;
-            script.onload = () => {
-              analyticsWindow.__plembfinGoogleAnalyticsLoaded = true;
-              analyticsWindow.__plembfinGoogleAnalyticsLoading = false;
-            };
-            script.onerror = () => {
-              analyticsWindow.__plembfinGoogleAnalyticsLoading = false;
-            };
-            document.head.appendChild(script);
-          };
 
           const loadTraks = () => {
             if (
               !traksEnabled
-              || analyticsWindow.__plembfinTraksLoaded
+              || trackingWindow.__plembfinTraksLoaded
               || hasPrivacySignal
             ) return;
 
@@ -304,21 +272,16 @@ const analyticsEnabled = traksEnabled || gaEnabled;
             script.src = traksScriptUrl;
             script.dataset.site = traksSiteKey;
             script.onload = () => {
-              analyticsWindow.__plembfinTraksLoaded = true;
+              trackingWindow.__plembfinTraksLoaded = true;
             };
             document.head.appendChild(script);
           };
 
-          const loadAnalytics = () => {
-            loadGoogleAnalytics();
-            loadTraks();
-          };
-
           if (hasPrivacySignal) return;
           if ("requestIdleCallback" in window) {
-            window.requestIdleCallback(loadAnalytics, { timeout: 2000 });
+            window.requestIdleCallback(loadTraks, { timeout: 2000 });
           } else {
-            window.setTimeout(loadAnalytics, 2000);
+            window.setTimeout(loadTraks, 2000);
           }
         })();
       </script>

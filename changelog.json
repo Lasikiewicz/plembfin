@@ -1,7 +1,50 @@
 {
-  "version": "1.2.0",
-  "updatedAt": "2026-09-19T15:29:26.115Z",
+  "version": "1.2.1",
+  "updatedAt": "2026-09-21T14:20:15.965Z",
   "entries": [
+    {
+      "version": "1.2.1",
+      "version5Digit": "1.2.1.0.0",
+      "date": "2026-09-21T14:20:15.965Z",
+      "commit": "0c134f768beaaf5fc04f7d6c1b2866c87509f7f6",
+      "message": "This hotfix improves Plembfin's watch-state review, mobile media navigation, and playback refresh reliability.",
+      "websiteUrl": "https://plembfin.com",
+      "author": "Lasikiewicz",
+      "details": [
+        "Fix: Improve media review and mobile controls",
+        "Fix: Keep watched items and dismissed title-only movie matches out of Manual Watch review.",
+        "Fix: Improve mobile media and Upcoming layouts with inline season actions, shared controls, and clearer TV show summaries.",
+        "Fix: Refresh stale Now Playing data when returning to suspended pages.",
+        "Fix: Restore locked-login centering and bundled TVDB demo metadata."
+      ],
+      "sections": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          "Improve media review and mobile controls",
+          "Keep watched items and dismissed title-only movie matches out of Manual Watch review.",
+          "Improve mobile media and Upcoming layouts with inline season actions, shared controls, and clearer TV show summaries.",
+          "Refresh stale Now Playing data when returning to suspended pages.",
+          "Restore locked-login centering and bundled TVDB demo metadata."
+        ],
+        "tweaks": []
+      },
+      "sectionGroups": {
+        "newFeatures": [],
+        "majorBugFixes": [
+          {
+            "title": "Sync & provider recovery",
+            "details": [
+              "Improve media review and mobile controls",
+              "Keep watched items and dismissed title-only movie matches out of Manual Watch review.",
+              "Improve mobile media and Upcoming layouts with inline season actions, shared controls, and clearer TV show summaries.",
+              "Refresh stale Now Playing data when returning to suspended pages.",
+              "Restore locked-login centering and bundled TVDB demo metadata."
+            ]
+          }
+        ],
+        "tweaks": []
+      }
+    },
     {
       "version": "1.2.0",
       "version5Digit": "1.2.0.0.0",
