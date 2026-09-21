@@ -1,38 +1,22 @@
 {
-  "version": "1.2.0.0.1",
-  "build": 1,
-  "resetCommit": "86648083208a3fc32a4a57792795f0f720d9cb05",
-  "updatedAt": "2026-09-21T12:39:35.849Z",
+  "version": "1.2.0.0.2",
+  "build": 2,
+  "resetCommit": "dc9f5a936294007fd0e63ab4e16ebdc4572565dc",
+  "updatedAt": "2026-09-21T12:41:00.444Z",
   "entries": [
     {
-      "build": 1,
-      "date": "2026-09-21T12:39:35.849Z",
-      "commit": "ec899aae29c867cfad4738b6c5e220e72ca72b1a",
-      "message": "This update includes align website with v1.2.0 release, complete v1.2.0 release candidate, enforce high severity CodeQL gate, reconcile movie aliases on manual unwatch, improve mobile media controls and refreshes, refine mobile media page controls, and proxy Traks analytics through first-party routes.",
+      "build": 2,
+      "date": "2026-09-21T12:41:00.444Z",
+      "commit": "5c2ce499cfae526eba54be61ea2a5a91a846b113",
+      "message": "Fix - Improve media review, mobile controls, and tracker privacy",
       "author": "Lasikiewicz",
       "details": [
-        "Refresh dashboard, Up Next, dismissed-item, history, and About captures for v1.2.0.",
-        "Add the Manual Watch review guide and place it between Sync Activity and Guides.",
-        "Verify the prospective website build against the release commit.",
-        "Centre the locked login in the viewport and restore bundled TV show metadata for TVDB-routed demo details.",
-        "Align the release documentation and focused app captures with the v1.2.0 interface.",
-        "Block releases when unresolved high-severity CodeQL findings remain.",
-        "Dismissing title-only movie reviews now prevents matching provider aliases from being watched again.",
-        "Keep season options inline and remove per-episode option menus on phone layouts",
-        "Refresh stale Now Playing data when returning to suspended pages",
-        "Align mobile page controls with the shared media action-bar layout and remove redundant Options disclosures.",
-        "Move TV show summaries beneath the logo while keeping watch progress in its existing mobile row.",
-        "Serve tracker JavaScript and events through first-party website and demo routes.",
-        "Remove analytics consent banners while honoring DNT and GPC."
-      ],
-      "messageFragments": [
-        "Docs - Align website with v1.2.0 release",
-        "Fix - Complete v1.2.0 release candidate",
-        "Fix - Enforce high severity CodeQL gate",
-        "Fix - Reconcile movie aliases on manual unwatch",
-        "Fix - Improve mobile media controls and refreshes",
-        "Fix - Refine mobile media page controls",
-        "Fix - Proxy Traks analytics through first-party routes"
+        "Keep watched items and dismissed title-only movie matches out of Manual Watch review.",
+        "Improve mobile media and Upcoming layouts with inline season actions, shared controls, and clearer TV show summaries.",
+        "Refresh stale Now Playing data when returning to suspended pages.",
+        "Route tracker scripts and events through first-party website and demo endpoints while honoring DNT and GPC.",
+        "Restore locked-login centering and bundled TVDB demo metadata, with refreshed release documentation and captures.",
+        "Block release publication when unresolved high-severity CodeQL findings remain."
       ]
     }
   ]
