@@ -111,7 +111,7 @@ function seedTrackerShowMetadata({ title, tmdbId, tvdbId, imdbId }) {
 
 function seedTrackerMovieMetadata({ title, tmdbId, imdbId }) {
   const canonicalTitle = title.trim().toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
-  const titleHash = crypto.createHash("sha1").update(`${canonicalTitle}|`).digest("hex");
+  const titleHash = crypto.createHash("sha256").update(`${canonicalTitle}|`).digest("hex");
   const insert = database.prepare(`INSERT OR REPLACE INTO tmdb_metadata_cache
     (id,tmdb_id,media_type,title,details,schema_version,updated_at_ms) VALUES (?,?,?,?,?,?,?)`);
   insert.run(`title_movie_${titleHash}`, tmdbId, "movie", title, JSON.stringify({}), 9999, Date.now());

@@ -17,7 +17,7 @@
   const light = saved === "light" || (saved === null && !prefersDark);
   document.documentElement.classList.toggle("light-mode", light);
 
-  const logo = light ? "/plembfin_header_logo_light.png?v=1.1.1.8.2" : "/plembfin_header_logo_dark.png?v=1.1.1.8.2";
+  const logo = light ? "/plembfin_header_logo_light.png?v=1.2.0.0.1" : "/plembfin_header_logo_dark.png?v=1.2.0.0.1";
   const preload = document.createElement("link");
   preload.rel = "preload";
   preload.as = "image";

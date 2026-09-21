@@ -1,15 +1,15 @@
-import { state, elements } from "./state.js?v=1.1.1.8.2";
-import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeCode, seasonLabel, formatSeasonTitle, formatTmdbDate, showEpisodeKey } from "./utils.js?v=1.1.1.8.2";
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.8.2";
-import { isWatchedHistoryAction } from "./sync.js?v=1.1.1.8.2";
-import { mergeShowDetail } from "./explorer.js?v=1.1.1.8.2";
-import { dedupeMediaRecords } from "./media-records.js?v=1.1.1.8.2";
-import { tvSeasonAvailability } from "./media-detail-shared.js?v=1.1.1.8.2";
-import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=1.1.1.8.2";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.1.1.8.2";
-import { tmdbPoster } from "./images.js?v=1.1.1.8.2";
-import { mergeProviderOutcomes, providerOutcomeNotice } from "./plex-history-policy.js?v=1.1.1.8.2";
-import { ifLoaded } from "./route-modules.js?v=1.1.1.8.2";
+import { state, elements } from "./state.js?v=1.2.0.0.1";
+import { escapeHtml, escapeAttribute, formatDate, toDateTimeInputValue, episodeCode, seasonLabel, formatSeasonTitle, formatTmdbDate, showEpisodeKey } from "./utils.js?v=1.2.0.0.1";
+import { buildAuthHeaders } from "./auth.js?v=1.2.0.0.1";
+import { isWatchedHistoryAction } from "./sync.js?v=1.2.0.0.1";
+import { mergeShowDetail } from "./explorer.js?v=1.2.0.0.1";
+import { dedupeMediaRecords } from "./media-records.js?v=1.2.0.0.1";
+import { tvSeasonAvailability } from "./media-detail-shared.js?v=1.2.0.0.1";
+import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=1.2.0.0.1";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.2.0.0.1";
+import { tmdbPoster } from "./images.js?v=1.2.0.0.1";
+import { mergeProviderOutcomes, providerOutcomeNotice } from "./plex-history-policy.js?v=1.2.0.0.1";
+import { ifLoaded } from "./route-modules.js?v=1.2.0.0.1";
 
 const resetPartWatchedView = ifLoaded("dashboard", "resetPartWatchedView");
 const renderPartWatched = ifLoaded("dashboard", "renderPartWatched");
@@ -1859,7 +1859,7 @@ export function seasonUnwatchButtonHtml(ids, seasonNumber, showTitle, disabled, 
 export function showUnwatchButtonHtml(ids, showTitle, disabled, removing = false) {
   if (!ids.length) return "";
   const xIcon = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 1 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/></svg>`;
-  return `<button class="action-pill action-pill-ghost" type="button" ${(disabled || removing) ? "disabled" : ""} data-unwatch-ids="${escapeAttribute(JSON.stringify(ids))}" data-unwatch-kind="show" data-unwatch-label="${escapeAttribute(showTitle)}" data-show-title="${escapeAttribute(showTitle)}">${xIcon}<span>${removing ? "Unwatching…" : "Mark <br>Unwatched"}</span></button>`;
+  return `<button class="action-pill action-pill-ghost" type="button" ${(disabled || removing) ? "disabled" : ""} data-unwatch-ids="${escapeAttribute(JSON.stringify(ids))}" data-unwatch-kind="show" data-unwatch-label="${escapeAttribute(showTitle)}" data-show-title="${escapeAttribute(showTitle)}">${xIcon}<span>${removing ? "Unwatching…" : "Mark Unwatched"}</span></button>`;
 }
 
 // Permanently delete a library item - requires three explicit confirmations.

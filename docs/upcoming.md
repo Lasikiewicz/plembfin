@@ -92,10 +92,12 @@ page rather than at the top. The jump is instant rather than animated, and scrol
 are ignored briefly afterwards, so the month the arrows step from is always the month
 that was just selected.
 
-At `<=760px`, week rows collapse to a single-column agenda list and empty or
-outside-month day cards are hidden so only days with episodes are shown. Weeks with no
-visible days take up no space but still hold their place, so Today and the month controls
-stay accurate.
+At `<=760px`, week rows collapse to a single-column agenda list. Outside-month spacer
+cards are hidden, but empty days remain visible so the current day is still a useful
+anchor when nothing airs. The mobile header is a single row with Search on the left,
+arrow/month navigation in the middle, and Today on the right. Opening the page or
+choosing Today anchors the actual current-day card, then the agenda can keep extending
+as the user scrolls.
 
 The search box switches the page to a dedicated results view: a flat, month-grouped list
 of every matching episode (filtered by show title, episode title, or an episode code

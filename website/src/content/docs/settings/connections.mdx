@@ -1,20 +1,22 @@
 ---
 title: Connections
-description: Connect Trakt for watch-history sync and Seerr for media requests and availability.
+description: Connect Trakt, Tautulli, and Seerr for watch-history imports, sync, and media requests.
 category: Settings
 order: 5.4
-sourceVersion: "1.1.1"
+sourceVersion: "1.2.0"
 sourcePaths:
   - public/index.html
   - public/modules/settings-shell.js
   - public/modules/tracker-settings.js
   - public/modules/settings-services.js
+  - public/modules/tautulli-import.js
+  - server/src/routes/tautulli.js
   - docs/settings.md
 screenshots:
-  - /assets/app-captures/settings-connections-dark.png
-  - /assets/app-captures/settings-connections-light.png
   - /assets/app-captures/settings-connections-trakt-dark.png
   - /assets/app-captures/settings-connections-trakt-light.png
+  - /assets/app-captures/settings-connections-tautulli-dark.png
+  - /assets/app-captures/settings-connections-tautulli-light.png
   - /assets/app-captures/settings-connections-seerr-dark.png
   - /assets/app-captures/settings-connections-seerr-light.png
 ---
@@ -23,13 +25,6 @@ import ScreenshotFigure from "../../../components/ScreenshotFigure.astro";
 
 Connections contains optional services that extend the local archive without replacing a media
 server connection.
-
-<ScreenshotFigure
-  darkSrc="/assets/app-captures/settings-connections-dark.png"
-  lightSrc="/assets/app-captures/settings-connections-light.png"
-  alt="Plembfin Connections settings showing Trakt and Seerr controls"
-  caption="Connections keeps the optional Trakt and Seerr integrations beside their live controls."
-/>
 
 ## Trakt
 
@@ -53,6 +48,22 @@ removals enter the same synchronization pipeline as media-server events.
 
 Plembfin should be the only Trakt bridge. Disable Emby and Jellyfin Trakt plugins and scheduled
 Trakt tasks so a second writer cannot reapply old state.
+
+## Tautulli
+
+<ScreenshotFigure
+  darkSrc="/assets/app-captures/settings-connections-tautulli-dark.png"
+  lightSrc="/assets/app-captures/settings-connections-tautulli-light.png"
+  alt="Plembfin Tautulli Connections settings showing the safe history import controls"
+  caption="Tautulli provides a preview-first history import with a backup and identity review before changes are committed."
+/>
+
+Tautulli is an optional import source for completed Plex history. Configure the server URL,
+API key, and user, then preview the import before committing it.
+
+The import is deliberately safe: Plembfin creates a watch-history backup first, matches rows by
+provider identity where possible, and keeps ambiguous rows in the preview for review. It does
+not silently overwrite existing watch history.
 
 ## Seerr
 

@@ -317,6 +317,41 @@ export function canonicalTitleKey(value) {
   return typeof value === "string" ? rememberTitle(canonicalTitleKeyMemo, value, key) : key;
 }
 
+const MOVIE_PART_ORDINALS = new Map([
+  ["zero", "0"],
+  ["one", "1"],
+  ["two", "2"],
+  ["three", "3"],
+  ["four", "4"],
+  ["five", "5"],
+  ["six", "6"],
+  ["seven", "7"],
+  ["eight", "8"],
+  ["nine", "9"],
+  ["ten", "10"],
+  ["viii", "8"],
+  ["vii", "7"],
+  ["vi", "6"],
+  ["ix", "9"],
+  ["iv", "4"],
+  ["iii", "3"],
+  ["ii", "2"],
+  ["i", "1"],
+]);
+
+const MOVIE_PART_ORDINAL_PATTERN = /\b(part|pt|volume|vol)\s+(viii|vii|vi|ix|iv|iii|ii|i|zero|one|two|three|four|five|six|seven|eight|nine|ten)\b/gi;
+
+function canonicalMovieTitleKey(value) {
+  const normalized = decodeBasicHtmlEntities(value)
+    .trim()
+    .replace(/\s+/g, " ");
+  const normalizedParts = normalized.replace(MOVIE_PART_ORDINAL_PATTERN, (match, prefix, ordinal) => {
+    const number = MOVIE_PART_ORDINALS.get(String(ordinal || "").toLowerCase());
+    return number == null ? match : `${prefix} ${number}`;
+  });
+  return canonicalTitleKey(normalizedParts);
+}
+
 function stablePosterKey(value) {
   const poster = cleanString(value);
   if (!poster) return "";
@@ -1857,6 +1892,12 @@ export function clearWatchHistoryForMediaIdentitySync(media = {}, {
   const type = normalizeMediaType(media.media_type || media.mediaType || media.type);
   const season = media.season == null ? null : Number(media.season);
   const episode = media.episode == null ? null : Number(media.episode);
+  if (type === "movie") {
+    safeMovieIdentityRowsForTitle({
+      ...media,
+      title: media.title || anchorRow?.title || "",
+    }).forEach(add);
+  }
   if (type === "episode" && season != null && episode != null) {
     const showTitle = media.show_title || media.showTitle || media.title || anchorRow?.show_title || anchorRow?.title || "";
     const showKey = canonicalTitleKey(showTitleFrom(showTitle));
@@ -2073,6 +2114,21 @@ function providerClusterCount(rows = []) {
     for (let index = 1; index < ids.length; index += 1) union(ids[0], ids[index]);
   }
   return new Set([...parent.keys()].map(find)).size;
+}
+
+// Plex review titles can spell a movie part as "Part One" while an imported
+// watch record uses "Part I". Only use this alias when every matching watched
+// row belongs to one provider-identity cluster, so same-title remakes remain
+// distinct and are not cleared together.
+function safeMovieIdentityRowsForTitle(media = {}) {
+  const titleKey = canonicalMovieTitleKey(media.title || "");
+  if (!titleKey) return [];
+
+  const rows = selectMoviesStmt.all().filter((row) => (
+    isPlembfinTrackedWatchRow(row)
+      && canonicalMovieTitleKey(row.title || "") === titleKey
+  ));
+  return providerClusterCount(rows) <= 1 ? rows : [];
 }
 
 function providerClusterCountForTitle(rows = [], titleKey = "") {
@@ -5340,6 +5396,10 @@ export function findLatestWatchedByAnyMediaKeySync(media) {
           && canonicalShowTitleKey(showTitleFrom(row.show_title || row.title)) === showKey
       ))
       .forEach(add);
+  }
+
+  if (type === "movie") {
+    safeMovieIdentityRowsForTitle(media).forEach(add);
   }
 
   if (!rows.length) return null;

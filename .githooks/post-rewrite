@@ -1,0 +1,5 @@
+#!/bin/sh
+set -e
+
+# Amend/rebase operations rewrite commits without reliably using post-commit.
+node scripts/update-local-updates.js --quiet

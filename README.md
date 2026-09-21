@@ -24,7 +24,7 @@
 
 ---
 
-> **v1.1.1.** Plembfin writes watched state and playback progress to connected media
+> **v1.2.0.** Plembfin writes watched state and playback progress to connected media
 > servers, so **back up first** (Settings → Backup → Local). Report
 > issues on the [issue tracker](https://github.com/Lasikiewicz/plembfin/issues).
 
@@ -161,7 +161,9 @@ everything else about setup is identical.
 
 Try the [public Plembfin demo](https://demo.plembfin.com/) with `demo` / `demo`.
 It runs in an isolated demo mode on a dedicated Oracle Cloud Compute instance;
-actions are simulated in the browser and no media or metadata services are connected.
+actions are simulated in the browser, media-provider integrations are disabled,
+and the fixed bundled artwork and metadata catalogue is served without contacting
+live media or metadata services.
 Each **Force to main** publishes the multi-architecture release image and deploys the
 exact released version to this OCI demo. Portainer is used only for local testing.
 If the demo needs a catch-up refresh without another promotion, run the **Deploy Public
@@ -479,12 +481,10 @@ is in [`.env.example`](.env.example).
 | `TMDB_API_KEY` | _none_ | Default TMDB key (Settings takes precedence). |
 | `YOUTUBE_API_KEY` | _none_ | Optional key for trailer metadata (Settings takes precedence). |
 | `OMDB_API_KEY` | _none_ | Optional key for IMDb rating badges. Free tier: 1,000 req/day. |
-| `PUBLIC_TRAKS_SCRIPT_URL` / `PUBLIC_TRAKS_SITE_KEY` | _none_ | Optional website-build settings for privacy-friendly Traks analytics; both are required and the tracker URL must use HTTPS. |
-| `PUBLIC_TRAKS_REQUIRE_CONSENT` | `true` | Require an explicit visitor choice before the website loads Traks analytics. |
-| `PLEMBFIN_TRAKS_SCRIPT_URL` / `PLEMBFIN_TRAKS_SITE_KEY` | _none_ | Optional public-demo settings for Traks analytics; both are required and the tracker URL must use HTTPS. |
-| `PLEMBFIN_TRAKS_REQUIRE_CONSENT` | `true` | Require an explicit visitor choice before the public demo loads Traks analytics. |
-| `PLEMBFIN_GA_MEASUREMENT_ID` | `G-58YXZG7GTB` | Optional public-demo GA4 Measurement ID; invalid or empty values disable Google Analytics. |
-| `PLEMBFIN_GA_REQUIRE_CONSENT` | `true` | Require an explicit visitor choice before the public demo loads Google Analytics. |
+| `PUBLIC_TRAKS_SITE_KEY` | _none_ | Optional public website build setting for Traks; the browser uses first-party `/t` and `/api/event` routes. Use the current key from the Traks Installation panel. |
+| `TRAKS_COLLECTOR_ORIGIN` | _none_ | Cloudflare Pages runtime origin for the Traks collector; it is kept out of browser configuration. `PUBLIC_TRAKS_SCRIPT_URL` remains a legacy fallback. |
+| `PLEMBFIN_TRAKS_COLLECTOR_ORIGIN` / `PLEMBFIN_TRAKS_SITE_KEY` | _none_ | Optional public-demo Traks settings; the demo proxies `/t` and `/api/event` first-party. `PLEMBFIN_TRAKS_SCRIPT_URL` remains a legacy origin fallback. |
+| `PLEMBFIN_GA_MEASUREMENT_ID` | _none locally; public workflow defaults to `G-58YXZG7GTB`_ | Optional public-demo GA4 Measurement ID; invalid or empty values disable Google Analytics. |
 | `PLEX_SERVER_URL` / `PLEX_TOKEN` / `PLEX_USERNAME` / `PLEX_ENABLED` | _none_ | Default Plex values (Settings takes precedence). |
 | `EMBY_SERVER_URL` / `EMBY_API_KEY` / `EMBY_USER_ID` / `EMBY_ENABLED` | _none_ | Default Emby values (Settings takes precedence). |
 | `JELLYFIN_SERVER_URL` / `JELLYFIN_API_KEY` / `JELLYFIN_USER_ID` / `JELLYFIN_ENABLED` | _none_ | Default Jellyfin values (Settings takes precedence). |
@@ -550,6 +550,11 @@ must be clarified before committing.
 Changelog content for every branch is generated locally, before each push, from real git
 history - never by CI reading GitHub's push event - which also keeps release-process
 bookkeeping out of what publishes to `alpha` and `main`.
+
+Each completed local commit also refreshes the ignored `plan/updates.md`
+ledger. It lists the unique changelog-ready changes, the committed paths, and the website
+guides affected by those paths; later commits update existing targets instead of creating
+duplicate entries. The push workflow and **Force to main** use it as their review inventory.
 
 Both promotions preview their changelog entry and wait for explicit user approval before
 anything is staged, and both then start the build locally so the release can be checked

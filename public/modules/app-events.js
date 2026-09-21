@@ -1,11 +1,11 @@
-import { buildAuthHeaders, buildNowPlayingUrl, getWebhookToken, onAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./auth.js?v=1.1.1.8.2";
-import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs } from "./logs.js?v=1.1.1.8.2";
-import { state, elements } from "./state.js?v=1.1.1.8.2";
-import { escapeHtml, sanitizeTitle, safeImageUrl, movieSlug, showTitleFrom, slug, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel } from "./utils.js?v=1.1.1.8.2";
-import { compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, markArtworkUnavailable, tmdbProfile } from "./images.js?v=1.1.1.8.2";
-import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerCronSync, triggerStopSync } from "./sync.js?v=1.1.1.8.2";
-import { attachSidebarMiddleClickNavigation } from "./sidebar-navigation.js?v=1.1.1.8.2";
-import { WATCH_ROUTE_MODULES, ifLoaded, lazyExport, loadRouteModules, onRouteModuleLoaded } from "./route-modules.js?v=1.1.1.8.2";
+import { buildAuthHeaders, buildNowPlayingUrl, getWebhookToken, onAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./auth.js?v=1.2.0.0.1";
+import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs } from "./logs.js?v=1.2.0.0.1";
+import { state, elements } from "./state.js?v=1.2.0.0.1";
+import { escapeHtml, sanitizeTitle, safeImageUrl, movieSlug, showTitleFrom, slug, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel } from "./utils.js?v=1.2.0.0.1";
+import { compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, markArtworkUnavailable, tmdbProfile } from "./images.js?v=1.2.0.0.1";
+import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerCronSync, triggerStopSync } from "./sync.js?v=1.2.0.0.1";
+import { attachSidebarMiddleClickNavigation } from "./sidebar-navigation.js?v=1.2.0.0.1";
+import { WATCH_ROUTE_MODULES, ifLoaded, lazyExport, loadRouteModules, onRouteModuleLoaded } from "./route-modules.js?v=1.2.0.0.1";
 
 // Route modules are not imported statically: that pulled the whole route graph
 // (about 1 MB) into the event wiring every page loads. Actions load their module
@@ -41,7 +41,7 @@ const dontRecommendDiscoverItem = lazyExport("discover", "dontRecommendDiscoverI
 const syncMediaActionsMenuState = ifLoaded("media-detail", "syncMediaActionsMenuState"), closeDebugModal = ifLoaded("media-detail", "closeDebugModal"), closeMediaDetail = ifLoaded("media-detail", "closeMediaDetail"), closeMediaInfoModal = ifLoaded("media-detail", "closeMediaInfoModal");
 const openHistoryDebugModal = lazyExport("media-detail", "openHistoryDebugModal");
 const closePersonProfile = ifLoaded("media-person", "closePersonProfile");
-import { hydrateDeferredCastDisclosure } from "./cast-disclosure.js?v=1.1.1.8.2";
+import { hydrateDeferredCastDisclosure } from "./cast-disclosure.js?v=1.2.0.0.1";
 
 let _cb = {};
 
@@ -1680,14 +1680,24 @@ function attachEvents() {
   // pollNowPlayingOnce() stops the interval from any view left the poll dead
   // after a tab was backgrounded anywhere else: nothing restarted it until the
   // next navigation, so watch state and Now Playing silently stopped updating.
+  const resumeNowPlayingPolling = () => {
+    if (!state.token || document.hidden) return;
+    startHistoryPolling({ force: true });
+  };
+
   document.addEventListener("visibilitychange", () => {
     if (!state.token) return;
     if (document.hidden) {
       stopHistoryPolling();
       return;
     }
-    startHistoryPolling();
+    resumeNowPlayingPolling();
   });
+  // Mobile browsers may restore a suspended/bfcache page without emitting a
+  // useful visibility transition. Both events are resume boundaries, so force
+  // a fresh snapshot instead of trusting the page's old in-memory cards.
+  window.addEventListener("pageshow", resumeNowPlayingPolling);
+  window.addEventListener("focus", resumeNowPlayingPolling);
 
   window.addEventListener("popstate", () => {
     state.internalHistoryCount = history.state?.index || 0;

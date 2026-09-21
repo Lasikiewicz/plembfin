@@ -6,9 +6,12 @@ import { fileURLToPath } from "node:url";
 const websiteRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const repositoryRoot = path.resolve(websiteRoot, "..");
 const outputPath = path.join(websiteRoot, "src", "generated", "release.json");
+const releaseRef = process.env.PLEMBFIN_WEBSITE_RELEASE_REF || "origin/main";
 
-// Released data is read from origin/main when that ref resolves, and from the
-// working tree otherwise.
+// Released data is read from PLEMBFIN_WEBSITE_RELEASE_REF when set, otherwise
+// from origin/main when that ref resolves, and from the working tree otherwise.
+// The override lets the pre-push website preview verify the release commit that
+// is about to become main without mutating the local remote-tracking ref.
 //
 // The working tree is the normal path in production. Verified against the real
 // Cloudflare Pages build log (deployment 8246ff18, main, 5f94ea0): Pages clones a
@@ -22,7 +25,7 @@ const outputPath = path.join(websiteRoot, "src", "generated", "release.json");
 // the newest release. Reading the ref when it exists keeps that publish correct.
 function readReleasedFile(relativePath) {
   try {
-    return execFileSync("git", ["show", `origin/main:${relativePath}`], {
+    return execFileSync("git", ["show", `${releaseRef}:${relativePath}`], {
       cwd: repositoryRoot,
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],

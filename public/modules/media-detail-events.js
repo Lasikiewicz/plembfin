@@ -1,9 +1,9 @@
-import { HIDE_EPISODE_SPOILERS_KEY, state } from "./state.js?v=1.1.1.8.2";
-import { escapeAttribute, formatDate, showTitleFrom, showName, slug, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, tvShowTmdbHref, tvShowTvdbHref, normalizePlatformSource } from "./utils.js?v=1.1.1.8.2";
-import { isCachedStorageImageUrl, proxiedArtworkUrl, rememberPosterLookup } from "./images.js?v=1.1.1.8.2";
-import { triggerRetrySync, loadSyncJobs, loadSyncHistory, showAvailIssuePopup, isWatchedHistoryAction } from "./sync.js?v=1.1.1.8.2";
-import { movieBySlugOrId } from "./media-routing.js?v=1.1.1.8.2";
-import { ifLoaded, lazyExport, loadRouteModules, loadedRouteModule } from "./route-modules.js?v=1.1.1.8.2";
+import { HIDE_EPISODE_SPOILERS_KEY, state } from "./state.js?v=1.2.0.0.1";
+import { escapeAttribute, formatDate, showTitleFrom, showName, slug, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, tvShowTmdbHref, tvShowTvdbHref, normalizePlatformSource } from "./utils.js?v=1.2.0.0.1";
+import { isCachedStorageImageUrl, proxiedArtworkUrl, rememberPosterLookup } from "./images.js?v=1.2.0.0.1";
+import { triggerRetrySync, loadSyncJobs, loadSyncHistory, showAvailIssuePopup, isWatchedHistoryAction } from "./sync.js?v=1.2.0.0.1";
+import { movieBySlugOrId } from "./media-routing.js?v=1.2.0.0.1";
+import { ifLoaded, lazyExport, loadRouteModules, loadedRouteModule } from "./route-modules.js?v=1.2.0.0.1";
 
 // This module wires document-wide handlers that the dashboard and library
 // pages use too, so it loads with the shell. Its route modules are therefore
@@ -903,7 +903,7 @@ export function attachMediaDetailEvents() {
       return;
     }
 
-    // Tools is always a popup menu, so close it when a click lands outside it.
+    // Options is always a popup menu, so close it when a click lands outside it.
     const openDropdowns = document.querySelectorAll("#mediaDetailActions .actions-tools-dropdown[open]");
     for (const dropdown of openDropdowns) {
       if (!dropdown.contains(event.target)) {
@@ -1610,7 +1610,7 @@ export function attachMediaDetailEvents() {
 
     const episodeRow = event.target.closest("[data-immersive-episode-num]");
     if (episodeRow) {
-      if (event.target.closest("button") || event.target.closest("a") || event.target.closest(".avail-pill")) {
+      if (event.target.closest("button") || event.target.closest("a") || event.target.closest("details") || event.target.closest(".avail-pill")) {
         return;
       }
       event.preventDefault();

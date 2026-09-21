@@ -21,7 +21,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { CHANGELOG_ALPHA_MAX_BULLETS, changelogEntryQualityViolations, changelogEntryProcessViolations, filterChangelogEntries, synthesizeHeadline } from "./changelog-message.js";
+import { CHANGELOG_ALPHA_MAX_BULLETS, changelogEntryQualityViolations, changelogEntryProcessViolations, dedupeChangelogDetails, filterChangelogEntries, synthesizeHeadline } from "./changelog-message.js";
 import { buildChangelogSectionGroups } from "./changelog-sections.js";
 import { buildVersion } from "./version.js";
 import { gitHeadAuthor, gitHeadCommit } from "./changelog-git-helpers.js";
@@ -79,10 +79,10 @@ export function categorizeEntries(entries = []) {
   }
 
   // Deduplicate and simplify
-  const dedup = (arr) => Array.from(new Set(arr.map((s) => s.trim()))).filter(Boolean);
+  const dedup = (arr) => dedupeChangelogDetails(arr);
   const cleanFeatures = dedup(newFeatures);
-  const cleanFixes = dedup(majorBugFixes).filter((item) => !cleanFeatures.includes(item));
-  const cleanTweaks = dedup(tweaks).filter((item) => !cleanFeatures.includes(item) && !cleanFixes.includes(item));
+  const cleanFixes = dedup(majorBugFixes).filter((item) => !cleanFeatures.some((feature) => dedupeChangelogDetails([feature, item]).length === 1));
+  const cleanTweaks = dedup(tweaks).filter((item) => !cleanFeatures.some((feature) => dedupeChangelogDetails([feature, item]).length === 1) && !cleanFixes.some((fix) => dedupeChangelogDetails([fix, item]).length === 1));
 
   return { newFeatures: cleanFeatures, majorBugFixes: cleanFixes, tweaks: cleanTweaks };
 }
@@ -113,10 +113,10 @@ export function formatSections({ newFeatures = [], majorBugFixes = [], tweaks = 
 // merging its `sections` directly would treat that sentence as an uncategorized
 // bullet and land it in tweaks as a garbled duplicate.
 export function mergeSections(a = {}, b = {}) {
-  const dedup = (arr) => Array.from(new Set(arr.filter(Boolean).map((s) => s.trim())));
+  const dedup = (arr) => dedupeChangelogDetails(arr);
   const newFeatures = dedup([...(a.newFeatures || []), ...(b.newFeatures || [])]);
-  const majorBugFixes = dedup([...(a.majorBugFixes || []), ...(b.majorBugFixes || [])]).filter((item) => !newFeatures.includes(item));
-  const tweaks = dedup([...(a.tweaks || []), ...(b.tweaks || [])]).filter((item) => !newFeatures.includes(item) && !majorBugFixes.includes(item));
+  const majorBugFixes = dedup([...(a.majorBugFixes || []), ...(b.majorBugFixes || [])]).filter((item) => !newFeatures.some((feature) => dedupeChangelogDetails([feature, item]).length === 1));
+  const tweaks = dedup([...(a.tweaks || []), ...(b.tweaks || [])]).filter((item) => !newFeatures.some((feature) => dedupeChangelogDetails([feature, item]).length === 1) && !majorBugFixes.some((fix) => dedupeChangelogDetails([fix, item]).length === 1));
   return { newFeatures, majorBugFixes, tweaks };
 }
 

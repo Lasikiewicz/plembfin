@@ -67,7 +67,11 @@ completed work changes user-visible behavior.
 ## Git hooks
 
 `npm install` runs `scripts/install-git-hooks.js` (via the `prepare` script), which
-points `core.hooksPath` at `.githooks/`. The `.githooks/commit-msg` hook rejects
+points `core.hooksPath` at `.githooks/`. The `.githooks/post-commit`, `post-merge`, and
+`post-rewrite` hooks regenerate the ignored local `plan/updates.md` ledger from committed
+history after every local commit, merge, amend, or rebase. The ledger groups changed application paths with the website
+guides they affect, collapses duplicate changelog bullets, and is refreshed again by the
+push and Force to main workflows. The `.githooks/commit-msg` hook rejects
 user-visible release commits whose body has no meaningful changelog bullet (a repeat
 of the subject does not count). The `.githooks/pre-push` hook reads the actual push
 refspec from stdin: for a same-name push (e.g. `alpha` → `alpha`) it runs
@@ -125,6 +129,12 @@ values already committed" - none of them write anything back to their branch.
   the third develop build after the first alpha of v1.1.0 reads `1.1.0.1.3`.
   **`develop` is covered by `secret-scan.yml`** (while `security.yml` runs on `main` and
   `alpha` alongside scheduled scans).
+- Before the push workflow rebuilds its changelog, and before Force to main begins its
+  website gate, it runs `npm run updates:refresh`.
+  The resulting ignored `plan/updates.md` file is the deduplicated
+  inventory of committed local changes and the mapped website guides/captures to inspect;
+  it is a review aid, while `changelog.develop.json`, `changelog.alpha.json`, and
+  `changelog.json` remain the published sources of truth.
 - **"Force to alpha"** runs `scripts/promote-develop-to-alpha.js` locally (packages
   develop's current entry as its own standalone alpha build entry, prepended to alpha's
   `entries` array - one entry per "Force to alpha" call, not a rolling merge - self-healing
@@ -316,18 +326,18 @@ missing or the deployment/verification fails, the main release workflow remains
 failed instead of reporting the demo as current.
 
 Optional Traks and GA4 analytics for `demo.plembfin.com` are configured with repository
-Variables `PLEMBFIN_TRAKS_SCRIPT_URL`, `PLEMBFIN_TRAKS_SITE_KEY`,
-`PLEMBFIN_TRAKS_REQUIRE_CONSENT`, `PLEMBFIN_GA_MEASUREMENT_ID`, and
-`PLEMBFIN_GA_REQUIRE_CONSENT` (consent defaults to `true`). If the Traks URL/site key
-are empty and the GA4 Measurement ID is empty or invalid, the demo loads no analytics.
-These values are public configuration; never place a Cloudflare API token or R2
-credential in the demo container or Actions variables. The demo shows one consent
-banner for both trackers by default, re-prompts visitors who have the previous Traks-only
-choice, and honors browser Do Not Track and Global Privacy Control signals. Traks is
-cookieless; Google Analytics may use cookies or similar measurement technologies. Traks
-reports are opened from the dashboard URL created by the Traks deployment; they are not
-exposed through the public demo URL. Use a separate Traks site key for the demo if you
-want its traffic reported separately from `plembfin.com`.
+Variables `PLEMBFIN_TRAKS_COLLECTOR_ORIGIN`, `PLEMBFIN_TRAKS_SITE_KEY`, and
+`PLEMBFIN_GA_MEASUREMENT_ID`. The existing `PLEMBFIN_TRAKS_SCRIPT_URL` variable remains
+accepted as a legacy collector-origin fallback. If the Traks origin/site key are empty
+and the GA4 Measurement ID is empty or invalid, the demo loads no analytics. These
+values are public configuration; never place a Cloudflare API token or R2 credential in
+the demo container or Actions variables. The demo proxies the browser's first-party
+`/t` tracker and `/api/event` collector request, does not show a consent banner, and
+honors browser Do Not Track and Global Privacy Control signals. Traks is cookieless;
+Google Analytics may use cookies or similar measurement technologies. Traks reports are
+opened from the dashboard URL created by the Traks deployment; they are not exposed
+through the public demo URL. Use a separate Traks site key for the demo if you want its
+traffic reported separately from `plembfin.com`.
 
 Pushes to `main` and `alpha` trigger `.github/workflows/windows-installer.yml`. That job
 runs on a Windows runner, installs and probes the Windows builds of `better-sqlite3` and

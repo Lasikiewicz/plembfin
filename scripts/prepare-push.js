@@ -53,6 +53,11 @@ function main() {
     process.exit(1);
   }
 
+  // Keep the local change inventory current before the changelog is rebuilt.
+  // It is a planning artifact, not a commit input, and gives the operator one
+  // deduplicated view of the work that the push is about to publish.
+  run("The local update ledger", [path.join(root, "scripts", "update-local-updates.js")]);
+
   // Check before rebuilding. rebuild-develop-changelog.js increments the build
   // counter on every run that finds user-facing commits, so calling it when the
   // changelog is already current burns a build number and produces a second,

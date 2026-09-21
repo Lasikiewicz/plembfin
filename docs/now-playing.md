@@ -121,6 +121,10 @@ liveSessionPoller.js -> live_tracking_cache   active_sessions <- handleWebhook (
   `document.hidden`) or when signed out. `handleNowPlaying` is a cheap local
   SQLite read (no outbound calls to Plex/Emby/Jellyfin), so polling continuously
   across views has negligible cost.
+- Mobile resume boundaries also include `pageshow` and `focus`. They force a fresh
+  `/api/now-playing` request and invalidate any request that was suspended while the
+  page was backgrounded, so a restored phone tab cannot stay on its old in-memory
+  Now Playing snapshot.
 - The `X-Now-Playing-Refresh` response header signals that watch history changed -
   a webhook fired, or the Plex notification listener (`handlePlexLibraryItemChange`
   in `server/src/scheduler.js`, see [plex.md](plex.md)) detected a watched/unwatched

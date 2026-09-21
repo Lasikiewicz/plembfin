@@ -1,9 +1,9 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.8.2";
-import { state, elements } from "./state.js?v=1.1.1.8.2";
-import { escapeHtml, escapeAttribute, platformName, formatDate } from "./utils.js?v=1.1.1.8.2";
-import { historyAction, syncStatus, telemetryLineValue } from "./sync.js?v=1.1.1.8.2";
-import { syncInlineMediaDetailHeading } from "./explorer.js?v=1.1.1.8.2";
-import { auditEventsForRecord, infoSyncSummary, infoSyncTargetStates, infoWatchDetails, mediaInfoGlanceEntries, renderInfoWatchSync } from "./media-info-summary.js?v=1.1.1.8.2";
+import { buildAuthHeaders } from "./auth.js?v=1.2.0.0.1";
+import { state, elements } from "./state.js?v=1.2.0.0.1";
+import { escapeHtml, escapeAttribute, platformName, formatDate } from "./utils.js?v=1.2.0.0.1";
+import { historyAction, syncStatus, telemetryLineValue } from "./sync.js?v=1.2.0.0.1";
+import { syncInlineMediaDetailHeading } from "./explorer.js?v=1.2.0.0.1";
+import { auditEventsForRecord, infoSyncSummary, infoSyncTargetStates, infoWatchDetails, mediaInfoGlanceEntries, renderInfoWatchSync } from "./media-info-summary.js?v=1.2.0.0.1";
 
 let _cb = {};
 let _mediaRenderToken = 0;
@@ -101,13 +101,13 @@ export function mediaInfoActionHtml() {
 export function mediaToolsActionHtml(content = "") {
   return `
     <details class="actions-tools-dropdown">
-      <summary class="action-pill actions-tools-trigger" aria-label="Open media tools" title="Tools">
+      <summary class="action-pill actions-tools-trigger" aria-label="Open media options" title="Options">
         <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true">
           <path d="M2 3.25h6v1.5H2v-1.5zm8 0h4v1.5h-4v-1.5zM6.25 1.5h1.5v5h-1.5v-5zM2 7.25h3v1.5H2v-1.5zm5 0h7v1.5H7v-1.5zM4.25 5.5h1.5v5h-1.5v-5zM2 11.25h7v1.5H2v-1.5zm9 0h3v1.5h-3v-1.5zM8.25 9.5h1.5v5h-1.5v-5z" />
         </svg>
-        <span>Tools</span>
+        <span>Options</span>
       </summary>
-      <div class="actions-tools-panel" role="group" aria-label="Media tools">
+      <div class="actions-tools-panel" role="group" aria-label="Media options">
         ${content}
       </div>
     </details>
@@ -143,7 +143,7 @@ export function mediaForceSyncActionHtml({
         <path d="M2.5 10.5A5.5 5.5 0 0 0 12.8 12l1.2-2" />
         <path d="M14 13.5V10h-3.5" />
       </svg>
-      <span>Force <br>Sync</span>
+      <span>Force Sync</span>
     </button>
   `;
 }

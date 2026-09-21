@@ -1,9 +1,9 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.8.2";
-import { state, elements } from "./state.js?v=1.1.1.8.2";
-import { escapeAttribute, escapeHtml, formatTmdbDate, episodeCode } from "./utils.js?v=1.1.1.8.2";
-import { hydratePosters } from "./images.js?v=1.1.1.8.2";
-import { normalizeMediaCardRecord, renderMediaCard } from "./media-card.js?v=1.1.1.8.2";
-import { hydratePersonalMetadata, personalMetadataItems, propagatePersonalMetadata } from "./personal-media-metadata.js?v=1.1.1.8.2";
+import { buildAuthHeaders } from "./auth.js?v=1.2.0.0.1";
+import { state, elements } from "./state.js?v=1.2.0.0.1";
+import { escapeAttribute, escapeHtml, formatTmdbDate, episodeCode } from "./utils.js?v=1.2.0.0.1";
+import { hydratePosters } from "./images.js?v=1.2.0.0.1";
+import { normalizeMediaCardRecord, renderMediaCard } from "./media-card.js?v=1.2.0.0.1";
+import { hydratePersonalMetadata, personalMetadataItems, propagatePersonalMetadata } from "./personal-media-metadata.js?v=1.2.0.0.1";
 
 const PERSONAL_MEDIA_TTL_MS = 2 * 60 * 1000;
 const PERSONAL_MEDIA_TIMEOUT_MS = 15000;
@@ -634,10 +634,23 @@ function renderPersonalControls() {
   const syncLabel = syncType === "ratings" ? "personal ratings" : "personal watchlist";
   const syncButtonId = syncType === "ratings" ? "personalRatingSyncNow" : "personalWatchlistSyncNow";
   const syncBusy = personalSyncBusy === syncType;
+  const action = syncType
+    ? `<button id="${syncButtonId}" class="action-pill page-action-pill personal-media-sync-button" type="button" data-personal-sync="${syncType}" aria-label="Sync ${syncLabel} now" title="Run a full ${syncLabel} sync now"${syncBusy ? ' disabled aria-busy="true"' : ""}>
+        <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M13.7 3.3A6.9 6.9 0 0 0 8 1a7 7 0 1 0 6.7 9h-1.6A5.5 5.5 0 1 1 8 2.5c1.3 0 2.5.45 3.45 1.2L9.5 5.65H15V.2l-1.3 1.3z"/></svg>
+        <span>${syncBusy ? "Syncing…" : "Sync now"}</span>
+      </button>`
+    : createListSource
+      ? `<button class="action-pill page-action-pill personal-media-create-list-button" type="button" data-personal-create-list="${createListSource}" title="Create a custom list">
+          <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M8 1.5a.75.75 0 0 1 .75.75v5h5a.75.75 0 0 1 0 1h-5v5a.75.75 0 0 1-1.5 0v-5h-5a.75.75 0 0 1 0-1h5v-5A.75.75 0 0 1 8 1.5z"/></svg>
+          <span>New list</span>
+        </button>`
+      : "";
+  if (!action) return "";
   return `
-    <div class="personal-media-toolbar-actions">
-      ${syncType ? `<button id="${syncButtonId}" class="button-ghost personal-media-sync-button" type="button" data-personal-sync="${syncType}" aria-label="Sync ${syncLabel} now" title="Run a full ${syncLabel} sync now"${syncBusy ? ' disabled aria-busy="true"' : ""}>${syncBusy ? "Syncing…" : "Sync now"}</button>` : ""}
-      ${createListSource ? `<button class="button-ghost" type="button" data-personal-create-list="${createListSource}">New list</button>` : ""}
+    <div class="page-action-bar personal-media-toolbar-actions">
+      <div class="page-action-primary" role="toolbar" aria-label="Personal media actions">
+        ${action}
+      </div>
     </div>
   `;
 }

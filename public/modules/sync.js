@@ -1,11 +1,13 @@
-import { buildAuthHeaders, buildNowPlayingUrl } from "./auth.js?v=1.1.1.8.2";
-import { state, elements } from "./state.js?v=1.1.1.8.2";
-import { escapeHtml, escapeAttribute, platformBadge, sourceClass, sourceBadgeHtml, computeProgress, formatDate, formatPlaybackClock, showName } from "./utils.js?v=1.1.1.8.2";
-import { hydratePosters, posterMarkup } from "./images.js?v=1.1.1.8.2";
+import { buildAuthHeaders, buildNowPlayingUrl } from "./auth.js?v=1.2.0.0.1";
+import { state, elements } from "./state.js?v=1.2.0.0.1";
+import { escapeHtml, escapeAttribute, platformBadge, sourceClass, sourceBadgeHtml, computeProgress, formatDate, formatPlaybackClock, showName } from "./utils.js?v=1.2.0.0.1";
+import { hydratePosters, posterMarkup } from "./images.js?v=1.2.0.0.1";
 
 const NOW_PLAYING_POLL_MS = 10000;
 
 let _cb = {};
+let nowPlayingRequestController = null;
+let nowPlayingRequestGeneration = 0;
 
 export function initSync(callbacks) {
   _cb = callbacks;
@@ -980,8 +982,14 @@ export function renderActiveSessions() {
   _cb.updateDashboardSplitState?.();
 }
 
-export async function loadActiveSessions() {
-  if (!state.token || state.nowPlayingRequestActive) return state.activeSessions;
+export async function loadActiveSessions({ force = false } = {}) {
+  if (!state.token) return state.activeSessions;
+  if (state.nowPlayingRequestActive && !force) return state.activeSessions;
+  if (state.nowPlayingRequestActive && force) nowPlayingRequestController?.abort();
+
+  const requestGeneration = ++nowPlayingRequestGeneration;
+  const requestController = typeof AbortController === "function" ? new AbortController() : null;
+  nowPlayingRequestController = requestController;
 
   state.nowPlayingRequestActive = true;
   const url = nowPlayingUrl();
@@ -990,19 +998,27 @@ export async function loadActiveSessions() {
   let response;
   let bodyText = "";
   try {
-    response = await fetch(url, {
+    const request = {
       headers: authHeaders(),
       cache: "no-store",
-    });
+    };
+    if (requestController) request.signal = requestController.signal;
+    response = await fetch(url, request);
     bodyText = await response.clone().text().catch(() => "");
   } catch (error) {
+    if (requestController?.signal.aborted || requestGeneration !== nowPlayingRequestGeneration) return state.activeSessions;
     const message = `Now-playing fetch failed. Reason: FETCH_FAILED (${error?.message || "network request failed"})`;
     _cb.logDebug?.(message);
     throw new Error(message);
   } finally {
-    state.nowPlayingLastFetchAt = Date.now();
-    state.nowPlayingRequestActive = false;
+    if (requestGeneration === nowPlayingRequestGeneration) {
+      state.nowPlayingLastFetchAt = Date.now();
+      state.nowPlayingRequestActive = false;
+      if (nowPlayingRequestController === requestController) nowPlayingRequestController = null;
+    }
   }
+
+  if (requestGeneration !== nowPlayingRequestGeneration) return state.activeSessions;
 
   _cb.logDebug?.(`Now-playing API returned HTTP ${response.status} ${response.statusText || ""}`.trim(), {
     bodyPreview: bodyText.slice(0, 1200),
@@ -1012,12 +1028,14 @@ export async function loadActiveSessions() {
   try {
     body = bodyText ? JSON.parse(bodyText) : [];
   } catch (error) {
+    if (requestGeneration !== nowPlayingRequestGeneration) return state.activeSessions;
     const message = `Now-playing payload parsing exception: ${error?.message || "invalid JSON response"}`;
     _cb.logDebug?.(message, { bodyPreview: bodyText.slice(0, 1200) });
     setActiveSessions([]);
     return [];
   }
   if (!response.ok) {
+    if (requestGeneration !== nowPlayingRequestGeneration) return state.activeSessions;
     const message = `Now playing failed with HTTP ${response.status}`;
     _cb.logDebug?.(message, body);
     setActiveSessions([]);
@@ -1028,28 +1046,29 @@ export async function loadActiveSessions() {
   let sessions = Array.isArray(body) ? body : Array.isArray(body.sessions) ? body.sessions : [];
   _cb.logDebug?.(`Now-playing payload parsed successfully. Active sessions: ${sessions.length}`, sessions);
 
+  if (requestGeneration !== nowPlayingRequestGeneration) return state.activeSessions;
   state.nowPlayingRefreshToken = refreshToken || state.nowPlayingRefreshToken;
   setActiveSessions(sessions);
 
   return sessions;
 }
 
-export function pollNowPlayingOnce() {
+export function pollNowPlayingOnce({ force = false } = {}) {
   if (!state.token || document.hidden) {
     stopHistoryPolling();
     return;
   }
-  loadActiveSessions().catch((error) => {
+  loadActiveSessions({ force }).catch((error) => {
     _cb.logDebug?.(`Now Playing poll failed: ${error?.message || "unknown error"}`);
   });
 }
 
-export function startHistoryPolling() {
+export function startHistoryPolling({ force = false } = {}) {
   stopHistoryPolling();
   if (!state.token || document.hidden) return;
 
   _cb.logDebug?.(`Starting Now Playing polling (every ${NOW_PLAYING_POLL_MS / 1000}s).`);
-  pollNowPlayingOnce();
+  pollNowPlayingOnce({ force });
   state.nowPlayingInterval = setInterval(pollNowPlayingOnce, NOW_PLAYING_POLL_MS);
 }
 
@@ -1057,6 +1076,12 @@ export function stopHistoryPolling() {
   if (state.nowPlayingInterval) {
     clearInterval(state.nowPlayingInterval);
     state.nowPlayingInterval = undefined;
+  }
+  if (state.nowPlayingRequestActive || nowPlayingRequestController) {
+    nowPlayingRequestGeneration += 1;
+    nowPlayingRequestController?.abort();
+    nowPlayingRequestController = null;
+    state.nowPlayingRequestActive = false;
   }
   _cb.logDebug?.("Stopped Now Playing polling.");
 }

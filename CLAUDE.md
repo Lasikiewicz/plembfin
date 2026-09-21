@@ -145,6 +145,12 @@ These hold regardless of which skill is running, so they are repeated here:
   needs an answer. If a provider asks for login, stop at that provider and tell the user
   which session needs attention.
 - Never bypass a hook with `--no-verify`, and never bypass the changelog rebuild.
+- After every completed local commit, merge, amend, or rebase, the `.githooks/post-commit`,
+  `post-merge`, and `post-rewrite` hooks regenerate the ignored `plan/updates.md` ledger
+  from committed history since `origin/main`. Refresh it with `npm run updates:refresh`
+  before Push to git or Force to main; use its unique changelog bullets and grouped website
+  targets as the review inventory. It is not a replacement for the committed changelog
+  manifests or the human website gate.
 - Before any of the three, check that GHCR Cleanup is not mid-run
   (`gh run list --workflow ghcr-cleanup.yml --limit 1`); each skill repeats this as its
   first step.

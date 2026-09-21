@@ -26,6 +26,8 @@
     "public/assets/app-captures/dashboard-light.png",
     "public/assets/app-captures/dashboard-history-movies-dark.png",
     "public/assets/app-captures/dashboard-history-movies-light.png",
+    "public/assets/app-captures/dashboard-home-dark.png",
+    "public/assets/app-captures/dashboard-home-light.png",
     "public/assets/app-captures/dashboard-history-tv-dark.png",
     "public/assets/app-captures/dashboard-history-tv-light.png",
     "public/assets/app-captures/dashboard-up-next-dark.png",
@@ -110,8 +112,12 @@
     "public/assets/app-captures/settings-backup-remote-light.png",
     "public/assets/app-captures/settings-connections-seerr-dark.png",
     "public/assets/app-captures/settings-connections-seerr-light.png",
+    "public/assets/app-captures/settings-connections-tautulli-dark.png",
+    "public/assets/app-captures/settings-connections-tautulli-light.png",
     "public/assets/app-captures/settings-connections-trakt-dark.png",
     "public/assets/app-captures/settings-connections-trakt-light.png",
+    "public/assets/app-captures/manual-watch-review-dark.png",
+    "public/assets/app-captures/manual-watch-review-light.png",
     "public/assets/app-captures/settings-general-account-dark.png",
     "public/assets/app-captures/settings-general-account-light.png",
     "public/assets/app-captures/settings-general-dark.png",
@@ -122,11 +128,15 @@
     "public/assets/app-captures/settings-general-storage-cache-light.png",
     "public/assets/app-captures/settings-index-dark.png",
     "public/assets/app-captures/settings-index-light.png",
+    "public/assets/app-captures/settings-index-focused-dark.png",
+    "public/assets/app-captures/settings-index-focused-light.png",
     "public/assets/app-captures/settings-logs-controls-dark.png",
     "public/assets/app-captures/settings-logs-controls-light.png",
     "public/assets/app-captures/settings-media-servers-dark.png",
     "public/assets/app-captures/settings-media-servers-emby-dark.png",
     "public/assets/app-captures/settings-media-servers-emby-light.png",
+    "public/assets/app-captures/settings-media-servers-focused-dark.png",
+    "public/assets/app-captures/settings-media-servers-focused-light.png",
     "public/assets/app-captures/settings-media-servers-jellyfin-dark.png",
     "public/assets/app-captures/settings-media-servers-jellyfin-light.png",
     "public/assets/app-captures/settings-media-servers-light.png",
@@ -144,6 +154,8 @@
     "public/assets/app-captures/settings-metadata-refresh-tvdb-light.png",
     "public/assets/app-captures/settings-restore-dark.png",
     "public/assets/app-captures/settings-restore-light.png",
+    "public/assets/app-captures/settings-restore-focused-dark.png",
+    "public/assets/app-captures/settings-restore-focused-light.png",
     "public/assets/app-captures/settings-restore-merge-replace-dark.png",
     "public/assets/app-captures/settings-restore-merge-replace-light.png",
     "public/assets/app-captures/settings-restore-watch-history-dark.png",
@@ -151,6 +163,8 @@
     "public/assets/app-captures/settings-sync-dark.png",
     "public/assets/app-captures/settings-sync-history-dark.png",
     "public/assets/app-captures/settings-sync-history-light.png",
+    "public/assets/app-captures/settings-sync-overview-focused-dark.png",
+    "public/assets/app-captures/settings-sync-overview-focused-light.png",
     "public/assets/app-captures/settings-sync-issues-dark.png",
     "public/assets/app-captures/settings-sync-issues-light.png",
     "public/assets/app-captures/settings-sync-light.png",
@@ -178,6 +192,10 @@
     "public/assets/app-captures/stats-light.png",
     "public/assets/app-captures/sync-activity-dark.png",
     "public/assets/app-captures/sync-activity-light.png",
+    "public/assets/app-captures/sync-activity-focused-dark.png",
+    "public/assets/app-captures/sync-activity-focused-light.png",
+    "public/assets/app-captures/sync-activity-issues-focused-dark.png",
+    "public/assets/app-captures/sync-activity-issues-focused-light.png",
     "public/assets/app-captures/tv-cast-focus-dark.png",
     "public/assets/app-captures/tv-cast-focus-light.png",
     "public/assets/app-captures/tv-detail-page-dark.png",
@@ -229,28 +247,6 @@
         { "label": "Trakt account username", "x": 15, "y": 250, "width": 160, "height": 22 }
       ],
       "reviewedUnblurred": "Connection controls, provider labels, status, and generic sync copy remain visible."
-    },
-    "public/assets/app-captures/dashboard-home-dark.png": {
-      "method": "blur",
-      "reason": "Now Playing session cards show the playback account name for each live session.",
-      "reviewedAt": "2026-09-09",
-      "regions": [
-        { "label": "Now Playing card 1 user", "x": 264, "y": 81, "width": 28, "height": 17 },
-        { "label": "Now Playing card 2 user", "x": 577, "y": 71, "width": 30, "height": 17 },
-        { "label": "Now Playing card 3 user", "x": 889, "y": 81, "width": 28, "height": 17 }
-      ],
-      "reviewedUnblurred": "Media titles, season and episode numbers, watch dates, playback progress, and the Plex/Emby/Jellyfin service names stay visible. Device values are generic browser and operating-system labels, not custom hostnames."
-    },
-    "public/assets/app-captures/dashboard-home-light.png": {
-      "method": "blur",
-      "reason": "Now Playing session cards show the playback account name for each live session.",
-      "reviewedAt": "2026-09-09",
-      "regions": [
-        { "label": "Now Playing card 1 user", "x": 264, "y": 81, "width": 28, "height": 17 },
-        { "label": "Now Playing card 2 user", "x": 577, "y": 71, "width": 30, "height": 17 },
-        { "label": "Now Playing card 3 user", "x": 889, "y": 81, "width": 28, "height": 17 }
-      ],
-      "reviewedUnblurred": "Media titles, season and episode numbers, watch dates, playback progress, and the Plex/Emby/Jellyfin service names stay visible. Device values are generic browser and operating-system labels, not custom hostnames."
     }
   }
 }

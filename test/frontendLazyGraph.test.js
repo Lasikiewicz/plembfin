@@ -16,6 +16,10 @@ const lazyNames = [...lazyBlock.matchAll(/(?:let |, )([A-Za-z_$][\w$]*) = /g)].m
 const syncPlaceholders = [...lazyBlock.matchAll(/([A-Za-z_$][\w$]*) = lazyNoop(?![A-Za-z])/g)].map((match) => match[1]);
 const initializerBlock = appSource.slice(appSource.indexOf("const ROUTE_MODULE_INITIALIZERS = {"), appSource.indexOf("for (const [key, initializer] of Object.entries(ROUTE_MODULE_INITIALIZERS))"));
 
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function callArguments(name) {
   const start = appSource.indexOf(`  ${name}({\n`);
   assert.ok(start >= 0, `expected a ${name}({ ... }) call`);
@@ -33,7 +37,8 @@ test("core modules never store a deferred placeholder as a callback", () => {
   for (const initName of ["initSync", "initDashboard", "initSettingsServices"]) {
     const args = callArguments(initName);
     for (const name of lazyNames) {
-      const bare = new RegExp(`^\\s+${name.replace("$", "\\$")},?\\s*$|:\\s*${name.replace("$", "\\$")}\\s*[,}\\n]`, "m");
+      const escapedName = escapeRegExp(name);
+      const bare = new RegExp(`^\\s+${escapedName},?\\s*$|:\\s*${escapedName}\\s*[,}\\n]`, "m");
       assert.doesNotMatch(args, bare, `${initName} stores deferred ${name} by value; pass a wrapper that reads the live binding`);
     }
   }
@@ -41,7 +46,7 @@ test("core modules never store a deferred placeholder as a callback", () => {
     const call = appSource.match(pattern)?.[0] || "";
     assert.ok(call, `expected a one-line call matching ${pattern}`);
     for (const name of lazyNames) {
-      assert.doesNotMatch(call, new RegExp(`[{,\\s]${name}[,\\s}]`), `${call.slice(0, 20)} stores deferred ${name} by value`);
+      assert.doesNotMatch(call, new RegExp(`[{,\\s]${escapeRegExp(name)}[,\\s}]`), `${call.slice(0, 20)} stores deferred ${name} by value`);
     }
   }
 });
@@ -50,8 +55,9 @@ test("route modules never receive another route module's placeholder by value", 
   // Modules load in any order, so every callback that names a lazy binding
   // must go through live(...) or viaModule(...).
   for (const name of lazyNames) {
-    const shorthand = new RegExp(`[{,]\\s*${name.replace("$", "\\$")}\\s*(?=[,}])`);
-    const byValue = new RegExp(`:\\s*${name.replace("$", "\\$")}\\s*[,}\\n]`);
+    const escapedName = escapeRegExp(name);
+    const shorthand = new RegExp(`[{,]\\s*${escapedName}\\s*(?=[,}])`);
+    const byValue = new RegExp(`:\\s*${escapedName}\\s*[,}\\n]`);
     // Destructuring assignments (`({ a, b } = module)`) are the one legitimate shorthand use.
     const withoutAssignments = initializerBlock.replace(/\(\{[^}]*\} = module\);/g, "");
     assert.doesNotMatch(withoutAssignments, shorthand, `an initializer passes deferred ${name} by value`);
@@ -63,9 +69,9 @@ test("each route module is initialized exactly once, from its registry entry", (
   const lazyInits = lazyNames.filter((name) => /^init[A-Z]/.test(name));
   assert.ok(lazyInits.includes("initAppEvents") && lazyInits.includes("initWatchAction"));
   for (const name of lazyInits) {
-    const calls = appSource.match(new RegExp(`(?<![\\w$.])${name}\\(`, "g")) || [];
+    const calls = appSource.match(new RegExp(`(?<![\\w$.])${escapeRegExp(name)}\\(`, "g")) || [];
     assert.equal(calls.length, 1, `${name} is called ${calls.length} times`);
-    assert.match(initializerBlock, new RegExp(`(?<![\\w$.])${name}\\(`), `${name} must be called from ROUTE_MODULE_INITIALIZERS`);
+    assert.match(initializerBlock, new RegExp(`(?<![\\w$.])${escapeRegExp(name)}\\(`), `${name} must be called from ROUTE_MODULE_INITIALIZERS`);
   }
 });
 
@@ -74,7 +80,7 @@ test("no synchronous placeholder is chained like a promise", () => {
   // placeholder that returned undefined; the TypeError aborted initialize()
   // and the signed-in user was left on a black, auth-locked page.
   for (const name of syncPlaceholders) {
-    const chained = new RegExp(`(?<![\\w$.])${name}\\((?:[^()]|\\([^()]*\\))*\\)\\s*\\.(then|catch|finally)\\(`);
+    const chained = new RegExp(`(?<![\\w$.])${escapeRegExp(name)}\\((?:[^()]|\\([^()]*\\))*\\)\\s*\\.(then|catch|finally)\\(`);
     assert.doesNotMatch(appSource, chained, `${name} is chained as a promise but its placeholder is lazyNoop; use lazyNoopAsync`);
   }
 });

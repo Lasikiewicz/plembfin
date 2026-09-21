@@ -132,6 +132,12 @@
     "sourcePaths": ["public/index.html", "public/modules/sync-activity.js", "docs/dashboard.md", "docs/webhooks.md"]
   },
   {
+    "id": "manual-watch-review",
+    "label": "Manual Watch review",
+    "docSlug": "manual-watch-review",
+    "sourcePaths": ["public/index.html", "public/modules/manual-watch-review.js", "public/modules/sync.js", "server/src/routes/manualWatchReview.js", "server/src/utils/manualWatchReview.js", "docs/settings.md"]
+  },
+  {
     "id": "onboarding",
     "label": "Guided setup",
     "docSlug": "getting-started",

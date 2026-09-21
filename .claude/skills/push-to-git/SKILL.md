@@ -192,6 +192,19 @@ rule is missing on some checkout. Never use `git add -f` on it.
 does not cover the commits being pushed is rejected by the pre-push hook, so skipping it
 only costs a failed push.
 
+Refresh the local update ledger immediately before rebuilding so the complete committed
+change set is available while reviewing the changelog:
+
+```bash
+npm run updates:refresh
+```
+
+Read `plan/updates.md`, especially **Changelog-ready changes** and
+**Website check targets**. It is regenerated from the current local history, so a later
+commit that touches an existing app area updates that target in place and exact duplicate
+bullets are collapsed. Use it as the review inventory; the structured changelog manifests
+remain the files that are committed and published.
+
 ```bash
 npm run push:prepare
 ```
@@ -290,4 +303,3 @@ Only pause and ask the user if the merge actually produces a conflict, or if
 `origin/develop` contains commits that touch source files you don't recognize - that
 would mean unrelated work landed on `develop` and needs a real decision, not an
 automatic merge.
-

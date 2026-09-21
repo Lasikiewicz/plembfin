@@ -3,7 +3,7 @@ title: Getting started
 description: Install Plembfin, claim the instance, and complete the in-app Guided Setup flow.
 category: Start here
 order: 1
-sourceVersion: "1.1.1"
+sourceVersion: "1.2.0"
 sourcePaths:
   - README.md
   - docs/onboarding.md
@@ -16,8 +16,8 @@ screenshots:
   - /assets/app-captures/dashboard-light.png
   - /assets/app-captures/settings-tools-guided-setup-dark.png
   - /assets/app-captures/settings-tools-guided-setup-light.png
-  - /assets/app-captures/settings-index-dark.png
-  - /assets/app-captures/settings-index-light.png
+  - /assets/app-captures/settings-index-focused-dark.png
+  - /assets/app-captures/settings-index-focused-light.png
 ---
 
 import ScreenshotFigure from "../../components/ScreenshotFigure.astro";
@@ -37,8 +37,8 @@ connection is healthy.
 ## Before you install
 
 <ScreenshotFigure
-  darkSrc="/assets/app-captures/settings-index-dark.png"
-  lightSrc="/assets/app-captures/settings-index-light.png"
+  darkSrc="/assets/app-captures/settings-index-focused-dark.png"
+  lightSrc="/assets/app-captures/settings-index-focused-light.png"
   alt="Plembfin Settings landing page used to plan connections, metadata, backups, and setup"
   caption="The instance can be claimed and configured before any media server is connected."
 />
@@ -148,7 +148,7 @@ Claiming is a one-time action and should only be done by the person who controls
 
 After claiming, Plembfin opens the resumable setup guide.
 
-You can reopen it from [Settings → Tools → Guided Setup](/docs/settings/tools/#guided-setup).
+You can reopen it from the **Reopen Onboarding** link in [Settings → Tools](/docs/settings/tools/#reopen-onboarding).
 
 ## If you forget the administrator password
 
@@ -178,13 +178,13 @@ Work through the stages in this order when possible:
 3. **Metadata** — add a TMDB key first; add TheTVDB, Fanart.tv, OMDb, or YouTube when you
    need their additional data.
 4. **Media servers** — optionally connect and test Plex, Emby, Jellyfin, or more than one server.
-5. **Webhooks** — configure Emby or Jellyfin event delivery. Plex's built-in listener does
+5. **Webhooks** — configure Emby or Jellyfin event delivery. Plex's built-in WebSocket channel does
    not need a manual webhook.
 6. **Backup** — schedule local backups and optionally configure a Backblaze B2 mirror.
 7. **Import & sync** — watch the import and delivery status rather than starting another
    full sync immediately.
 8. **Options** — choose watched-flag handling in Sync Tuning. **Require review** sends provider
-   Mark Played events without a reliable completion time to [Manual Watch review](/docs/settings/sync/#manual-watch-review);
+   Mark Played events without a reliable completion time to [Manual Watch review](/docs/manual-watch-review/);
    Fast Local-Network Sync is available only for trusted local networks. **Sync Up Next to media
    apps** is enabled by default and coalesces queue additions, removals, reorderings, and
    progress changes into a background push to Plex, Emby, and Jellyfin, including when the

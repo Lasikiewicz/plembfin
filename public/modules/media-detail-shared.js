@@ -1,10 +1,10 @@
-import { state } from "./state.js?v=1.1.1.8.2";
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.8.2";
-import { escapeHtml, escapeAttribute, slug, movieSlug, movieHref, showName, formatTmdbDate, tvShowTmdbHref, movieTmdbHref, platformIconUrl, isDemoMode } from "./utils.js?v=1.1.1.8.2";
-import { tmdbImage, tmdbPoster, tmdbProfile } from "./images.js?v=1.1.1.8.2";
-import { fetchTmdbDetails } from "./tmdb.js?v=1.1.1.8.2";
-import { movieById, movieBySlugOrId, nowPlayingHref } from "./media-routing.js?v=1.1.1.8.2";
-import { hydrateDeferredCastDisclosure, renderCastActor } from "./cast-disclosure.js?v=1.1.1.8.2";
+import { state } from "./state.js?v=1.2.0.0.1";
+import { buildAuthHeaders } from "./auth.js?v=1.2.0.0.1";
+import { escapeHtml, escapeAttribute, slug, movieSlug, movieHref, showName, formatTmdbDate, tvShowTmdbHref, movieTmdbHref, platformIconUrl, isDemoMode } from "./utils.js?v=1.2.0.0.1";
+import { tmdbImage, tmdbPoster, tmdbProfile } from "./images.js?v=1.2.0.0.1";
+import { fetchTmdbDetails } from "./tmdb.js?v=1.2.0.0.1";
+import { movieById, movieBySlugOrId, nowPlayingHref } from "./media-routing.js?v=1.2.0.0.1";
+import { hydrateDeferredCastDisclosure, renderCastActor } from "./cast-disclosure.js?v=1.2.0.0.1";
 
 export { movieById, movieBySlugOrId, nowPlayingHref, hydrateDeferredCastDisclosure };
 
@@ -220,10 +220,23 @@ let railIntersectionObserver = null;
 let railMutationObserver = null;
 let railScanQueued = false;
 
+function safeRailImageUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  try {
+    const url = new URL(raw, document.baseURI);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return "";
+    return url.href;
+  } catch {
+    return "";
+  }
+}
+
 function loadRailImage(image) {
   const src = image.getAttribute("data-rail-src");
   image.removeAttribute("data-rail-src");
-  if (src) image.src = src;
+  const safeSrc = safeRailImageUrl(src);
+  if (safeSrc) image.src = safeSrc;
 }
 
 function loadVisibleRailImages(row) {
@@ -765,15 +778,15 @@ export async function hydrateMediaAppLinks(root = document, { allowNetwork = tru
       : `
         <b class="media-app-link-row">
           <a class="media-app-link media-app-link--plex media-app-link--disabled" title="Checking Plex..." aria-label="Checking Plex..." style="opacity: 0.4; cursor: not-allowed;">
-            <img class="media-app-link-logo" src="/icons/plex.svg?v=1.1.1.8.2" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
+            <img class="media-app-link-logo" src="/icons/plex.svg?v=1.2.0.0.1" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
             <span>Plex</span>
           </a>
           <a class="media-app-link media-app-link--emby media-app-link--disabled" title="Checking Emby..." aria-label="Checking Emby..." style="opacity: 0.4; cursor: not-allowed;">
-            <img class="media-app-link-logo" src="/icons/emby.svg?v=1.1.1.8.2" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
+            <img class="media-app-link-logo" src="/icons/emby.svg?v=1.2.0.0.1" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
             <span>Emby</span>
           </a>
           <a class="media-app-link media-app-link--jellyfin media-app-link--disabled" title="Checking Jellyfin..." aria-label="Checking Jellyfin..." style="opacity: 0.4; cursor: not-allowed;">
-            <img class="media-app-link-logo" src="/icons/jellyfin.svg?v=1.1.1.8.2" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
+            <img class="media-app-link-logo" src="/icons/jellyfin.svg?v=1.2.0.0.1" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
             <span>Jellyfin</span>
           </a>
         </b>
@@ -854,7 +867,7 @@ export function tvdbSeriesUrl(tvdbId) {
   return `https://thetvdb.com/dereferrer/series/${encodeURIComponent(id)}`;
 }
 
-const RATING_SOURCE_ICONS = { TMDB: "/icons/tmdb.svg?v=1.1.1.8.2", TVDB: "/icons/tvdb.svg?v=1.1.1.8.2", IMDb: "/icons/imdb.svg?v=1.1.1.8.2" };
+const RATING_SOURCE_ICONS = { TMDB: "/icons/tmdb.svg?v=1.2.0.0.1", TVDB: "/icons/tvdb.svg?v=1.2.0.0.1", IMDb: "/icons/imdb.svg?v=1.2.0.0.1" };
 
 export function ratingPillHtml({ label, value = "View", href = "", title = "" } = {}) {
   if (!label || !href) return "";
@@ -896,6 +909,29 @@ export function tvAvailability4kLabel(status = {}) {
   if (available4k >= total) return `${available4k}/${total} Available in 4K`;
   if (available4k > 0) return `${available4k}/${total} Available in 4K`;
   return "";
+}
+function tvAvailabilityCompactSummary(status = {}) {
+  const total = Number(status.totalEpisodes || 0);
+  const available = Number(status.availableEpisodes || 0);
+  const available4k = Number(status.available4kEpisodes || 0);
+  if (!total || available <= 0) return null;
+
+  const standardAvailable = Math.max(available - available4k, 0);
+  const standardResolutions = [...new Set(Object.values(status.episodeResolutions || {})
+    .filter((resolution) => KNOWN_RESOLUTIONS.has(resolution) && resolution !== "4K"))];
+  const standardResolution = standardResolutions.length === 1 ? standardResolutions[0] : standardResolutions.length > 1 ? "HD" : "1080p";
+  const labels = [];
+  const details = [];
+  if (standardAvailable > 0) {
+    labels.push(`${standardAvailable} ${standardResolution}`);
+    details.push(`${standardAvailable} of ${total} episodes available at ${standardResolution}`);
+  }
+  if (available4k > 0) {
+    labels.push(`${available4k} 4K`);
+    details.push(`${available4k} of ${total} episodes available in 4K`);
+  }
+
+  return labels.length ? { label: labels.join(" · "), title: details.join("; ") } : null;
 }
 export function tvSeasonAvailability(status = {}, seasonNumber) {
   return (status.seasons || []).find((season) => Number(season.seasonNumber) === Number(seasonNumber)) || null;
@@ -952,7 +988,12 @@ export function renderSeasonSeerrControls(tmdbId, seasonNumber, status = {}) {
     </span>
   `;
 }
-export function renderSeerrRequestPill(mediaType, tmdbId, localAvailable = false) {
+export function renderSeerrRequestPill(
+  mediaType,
+  tmdbId,
+  localAvailable = false,
+  { compactTvSummary = false } = {},
+) {
   if (!state.seerrConfigured || !tmdbId) return "";
   const status = state.seerrMediaStatusCache.get(`${mediaType}:${tmdbId}`) || {};
   const isTv = mediaType === "tv";
@@ -965,9 +1006,14 @@ export function renderSeerrRequestPill(mediaType, tmdbId, localAvailable = false
   const iconAndFallback = `${seerrIconHtml}<span class="seerr-request-fallback" aria-hidden="true">S</span>`;
   const tvAvailableLabel = isTv ? tvAvailabilityLabel(status) : "";
   const tv4kLabel = isTv ? tvAvailability4kLabel(status) : "";
+  const tvCompactSummary = isTv && compactTvSummary && Number(status.availableEpisodes || 0) > 0
+    ? tvAvailabilityCompactSummary(status)
+    : null;
   return `
-    <span id="seerrRequestContainer" style="display: inline-flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;" data-media-type="${escapeAttribute(mediaType)}" data-tmdb-id="${escapeAttribute(String(tmdbId))}" data-local-available="${localAvailable}">
-      ${isAvailable ? `<span class="rating-pill seerr-owned-pill">${escapeHtml(isTv ? tvAvailableLabel || "Available" : movieAvailabilityLabel(status))}</span>` : tvAvailableLabel ? `<span class="rating-pill seerr-owned-pill seerr-owned-pill-partial">${escapeHtml(tvAvailableLabel)}</span>` : `
+    <span id="seerrRequestContainer" style="display: inline-flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;" data-media-type="${escapeAttribute(mediaType)}" data-tmdb-id="${escapeAttribute(String(tmdbId))}" data-local-available="${localAvailable}" data-compact-tv-summary="${compactTvSummary ? "true" : "false"}">
+      ${tvCompactSummary
+        ? `<span class="rating-pill seerr-owned-pill tv-availability-summary" title="${escapeAttribute(tvCompactSummary.title)}">${escapeHtml(tvCompactSummary.label)}</span>`
+        : isAvailable ? `<span class="rating-pill seerr-owned-pill">${escapeHtml(isTv ? tvAvailableLabel || "Available" : movieAvailabilityLabel(status))}</span>` : tvAvailableLabel ? `<span class="rating-pill seerr-owned-pill seerr-owned-pill-partial">${escapeHtml(tvAvailableLabel)}</span>` : `
         <button class="rating-pill seerr-request-btn" type="button"
           data-seerr-media-type="${escapeAttribute(mediaType)}"
           data-seerr-media-id="${escapeAttribute(String(tmdbId))}">
@@ -975,7 +1021,7 @@ export function renderSeerrRequestPill(mediaType, tmdbId, localAvailable = false
           <span>${status.pending ? "Requested on Seerr" : "Request on Seerr"}</span>
         </button>
       `}
-      ${tv4kLabel ? `
+      ${tvCompactSummary && tv4kLabel ? "" : tv4kLabel ? `
         <span class="rating-pill seerr-owned-pill seerr-owned-pill-4k ${status.available4k ? "" : "seerr-owned-pill-partial"}">${escapeHtml(tv4kLabel)}</span>
       ` : supports4k && !status.available4k ? `
         <button class="rating-pill seerr-request-btn seerr-request-btn-4k" type="button"
@@ -1020,7 +1066,8 @@ export function refreshActiveMediaDetailAfterSeerrStatus(mediaType, tmdbId) {
   const container = document.getElementById("seerrRequestContainer");
   if (container && container.getAttribute("data-media-type") === mediaType && String(container.getAttribute("data-tmdb-id")) === String(tmdbId)) {
     const localAvailable = container.getAttribute("data-local-available") === "true";
-    container.outerHTML = renderSeerrRequestPill(mediaType, tmdbId, localAvailable);
+    const compactTvSummary = container.getAttribute("data-compact-tv-summary") === "true";
+    container.outerHTML = renderSeerrRequestPill(mediaType, tmdbId, localAvailable, { compactTvSummary });
   }
 }
 export function renderExternalRatingPills(mediaType, tmdbData, title, rating = "") {

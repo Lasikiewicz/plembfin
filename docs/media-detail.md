@@ -103,15 +103,33 @@ Metadata, local watch detail, playback progress, and the optional IMDb pill enri
 existing page afterward. Enrichment patches the header, facts, and independently loaded
 sections instead of replacing the whole detail root, so the mounted poster/backdrop and
 the internal scroll position survive. Only the season the page is about to expand (if
-any) is fetched before that first render; other season episode lists hydrate lazily. An
-"Expand All" request uses a four-worker cap, and a season expanded before its own episode
-list arrives shows a loading placeholder instead of a premature "no episodes" message.
+any) is fetched before that first render; other season episode lists hydrate lazily. A
+season expanded before its own episode list arrives shows a loading placeholder instead
+of a premature "no episodes" message.
 
 ## What's on the page
 
 - **Metadata** - overview, genres, runtime, status, ratings; TV structure (seasons/
   episodes, air dates) comes from TVDB, extras (cast, trailers, recommendations,
   watch providers) from TMDB - see [metadata.md](metadata.md).
+- **Responsive episode cards** - expanded TV seasons use a six-column desktop grid,
+  narrowing with the available width and settling into two cards per row on phone-sized
+  screens so episode artwork and actions remain scannable without making each tile fill
+  the entire viewport. On phone-sized cards, the content is ordered as title, availability
+  with the personal rating aligned to the right, synopsis, and the latest watched date with
+  its edit action; older watch rows, source badges, and the watched-state action stay
+  available on wider layouts without crowding the mobile tile.
+- **Mobile TV controls** - the phone navigation centers the Plembfin mark with the menu
+  trigger at the left. TV season headers keep episode and watched counts inline, suppress
+  redundant complete-season progress text, and place season options inline with the watched
+  count. Episode cards keep their compact watch state and watch-history controls without a
+  separate per-episode options disclosure.
+  The Seasons summary is one compact row: its count sits beside the title and standard/4K
+  availability is combined into one label such as **8 1080p · 8 4K**; the redundant
+  Expand All control is omitted.
+  Show/movie watched-state actions now live in the Options menu, whose labels stay on one line
+  on narrow screens. Shared watch-date, edit, confirmation, force-sync, and generic modal
+  surfaces collapse or scroll within the phone viewport instead of forcing horizontal overflow.
 - **External ratings** - IMDb rating pill via `GET /api/omdb-rating` when an OMDb key
   is configured. TMDB, TheTVDB, and IMDb each render as a pill with that service's real
   logo (`public/icons/tmdb.svg`, `tvdb.svg`, `imdb.svg`) in a "Ratings" row inside the
@@ -228,8 +246,8 @@ list arrives shows a loading placeholder instead of a premature "no episodes" me
   (plus show/season/episode coordinates for episodes), so the state agrees with the
   Watchlist and Custom Lists pages.
 - **Detail action bar** - the everyday actions stay visible while a permanent
-  **Tools** section groups **Force Sync**, **Info**, **Edit Images**, **Fix Match**,
-  and **Delete**. TV show pages also place **Merge** in Tools. The grouped menu is
+  **Options** section groups **Force Sync**, **Info**, **Edit Images**, **Fix Match**,
+  and **Delete**. TV show pages also place **Merge** in Options. The grouped menu is
   used at every viewport width so the control bar has one predictable layout.
 - **Rewatch tracking** - a genuine rewatch (a webhook playback event for an
   already-watched item on a later UTC calendar day; see [webhooks.md](webhooks.md#rewatch-detection))
@@ -339,9 +357,10 @@ list arrives shows a loading placeholder instead of a premature "no episodes" me
   resolution pills already show a mixed season's real breakdown); a movie states whatever
   resolution `mediaItemResolutionLabel` found for it, walking the same Plex/Emby/Jellyfin
   media-item shapes TV episodes use (`fetchConfiguredAppAvailability` in
-  `server/src/routes/admin.js`) rather than a hardcoded "1080p". For a TV show, the
-  pills (e.g. "15/40 Available", "7/40 Available in 4K") render in the Seasons
-  section header, to the right of the season count, instead of under the ratings row.
+  `server/src/routes/admin.js`) rather than a hardcoded resolution. For a TV show, the
+  standard and 4K counts render as one compact summary (e.g. "8 1080p · 8 4K") in the
+  Seasons section header, to the right of the season count, instead of under the ratings
+  row.
 - **App links** - "open in Plex/Emby/Jellyfin" deep links via
   `GET /api/media-app-links`. The last known links per title are persisted in
   localStorage (`plembfin:appLinksCache:v1`) and rendered instantly; a background

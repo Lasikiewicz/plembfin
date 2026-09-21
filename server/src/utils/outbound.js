@@ -3,6 +3,7 @@ import { acquireOutboundSlot, noteOutboundResponse, configureOutboundGovernor } 
 import { isDemoMode } from "./demoMode.js";
 
 const DEFAULT_FETCH_TIMEOUT_MS = 10_000;
+const MAX_FETCH_TIMEOUT_MS = 120_000;
 const MAX_OUTBOUND_REDIRECTS = 5;
 const OUTBOUND_POLICY_CODES = Object.freeze({
   INVALID_URL: "OUTBOUND_INVALID_URL",
@@ -63,6 +64,14 @@ export function createUpstreamTimeoutError(timeoutMs = DEFAULT_FETCH_TIMEOUT_MS)
   error.status = 504;
   error.code = "UPSTREAM_TIMEOUT";
   return error;
+}
+
+export function boundedFetchTimeoutMs(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) return DEFAULT_FETCH_TIMEOUT_MS;
+  if (numeric <= 0) return 1;
+  if (numeric > MAX_FETCH_TIMEOUT_MS) return MAX_FETCH_TIMEOUT_MS;
+  return Math.trunc(numeric);
 }
 
 export function normalizeHttpUrl(value = "", { label = "URL", allowRelativeMedia = false } = {}) {
@@ -193,13 +202,16 @@ function trackOutbound(url) {
 }
 
 export async function fetchWithTimeout(url, options = {}, timeoutMs = undefined) {
-  if (isDemoMode()) {
+  if (isDemoMode() && options.allowDemoAnalytics !== true) {
     const error = outboundPolicyError("Outbound requests are disabled in demo mode", OUTBOUND_POLICY_CODES.DEMO_DISABLED);
     error.status = 503;
     error.expose = true;
     throw error;
   }
-  const resolvedTimeoutMs = timeoutMs ?? outboundTimeoutMs();
+  // Explicit overrides are used by a few short interactive and upload calls,
+  // but they must remain bounded even if a future caller wires this helper to
+  // request data. A long-lived timer is an easy resource-exhaustion footgun.
+  const resolvedTimeoutMs = boundedFetchTimeoutMs(timeoutMs ?? outboundTimeoutMs());
   const safeUrl = assertSafeOutboundUrl(url, { label: "Outbound URL" });
   const host = safeUrl.hostname.toLowerCase();
   const metadataHost = /themoviedb|thetvdb|fanart|omdbapi|youtube|googlevideo/i.test(host);
@@ -217,7 +229,7 @@ export async function fetchWithTimeout(url, options = {}, timeoutMs = undefined)
   }
 
   try {
-    const { lane: _lane, ...fetchOptions } = options;
+    const { lane: _lane, allowDemoAnalytics: _allowDemoAnalytics, ...fetchOptions } = options;
     const response = await fetchFollowingSafeRedirects(safeUrl, { ...fetchOptions, signal: controller.signal });
     noteOutboundResponse(safeUrl.hostname, response.status, response.headers.get("retry-after") || "");
     return response;

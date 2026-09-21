@@ -3,7 +3,7 @@ title: Media servers
 description: Connect Plex, Emby, and Jellyfin and verify that each server can exchange watch state.
 category: Settings
 order: 5.2
-sourceVersion: "1.1.1"
+sourceVersion: "1.2.0"
 sourcePaths:
   - public/index.html
   - public/modules/settings-shell.js
@@ -14,8 +14,6 @@ sourcePaths:
   - docs/settings.md
   - docs/personal-watchlist.md
 screenshots:
-  - /assets/app-captures/settings-media-servers-dark.png
-  - /assets/app-captures/settings-media-servers-light.png
   - /assets/app-captures/settings-media-servers-plex-dark.png
   - /assets/app-captures/settings-media-servers-plex-light.png
   - /assets/app-captures/settings-media-servers-emby-dark.png
@@ -29,13 +27,6 @@ import ScreenshotFigure from "../../../components/ScreenshotFigure.astro";
 The Media servers group contains one connection card for each supported server. Account-based
 setup is preferred; manual fields remain available as a fallback.
 
-<ScreenshotFigure
-  darkSrc="/assets/app-captures/settings-media-servers-dark.png"
-  lightSrc="/assets/app-captures/settings-media-servers-light.png"
-  alt="Plembfin Media servers settings overview showing the supported connection cards"
-  caption="The overview keeps Plex, Emby, and Jellyfin connection modes together before their provider-specific details."
-/>
-
 ## Plex
 
 <ScreenshotFigure
@@ -48,7 +39,7 @@ setup is preferred; manual fields remain available as a fallback.
 Plex account setup signs in through Plex, lets you select the intended server, and stores the
 encrypted account and server-token pair.
 
-Plex's notification listener provides realtime events, so a separate manual webhook is
+Plex's WebSocket notification channel provides realtime events, so a separate manual webhook is
 normally not required.
 
 After saving:
@@ -68,8 +59,8 @@ rules.
 <ScreenshotFigure
   darkSrc="/assets/app-captures/settings-media-servers-emby-dark.png"
   lightSrc="/assets/app-captures/settings-media-servers-emby-light.png"
-  alt="Plembfin Emby media-server settings showing URL and credential controls"
-  caption="Emby settings keep server connection, user-token exchange, testing, and webhook expectations together."
+  alt="Plembfin Emby media-server settings card showing a configured Emby connection"
+  caption="The Emby card shows the configured connection state; expand it in the app to edit the server URL, credentials, and test controls."
 />
 
 Emby setup uses the server URL and account exchange to obtain a user-scoped token. Manual setup
@@ -83,8 +74,8 @@ After saving, test the server from Plembfin's host and configure the webhook eve
 <ScreenshotFigure
   darkSrc="/assets/app-captures/settings-media-servers-jellyfin-dark.png"
   lightSrc="/assets/app-captures/settings-media-servers-jellyfin-light.png"
-  alt="Plembfin Jellyfin media-server settings showing Quick Connect and manual credential controls"
-  caption="Jellyfin supports Quick Connect, one-time credential exchange, and manual token setup."
+  alt="Plembfin Jellyfin media-server settings card showing a configured Jellyfin connection"
+  caption="The Jellyfin card shows the configured connection state; expand it in the app to use Quick Connect or edit manual credentials."
 />
 
 Jellyfin prefers Quick Connect and also supports a one-time username and password exchange when

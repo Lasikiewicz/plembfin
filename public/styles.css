@@ -7,7 +7,7 @@
   font-style: normal;
   font-display: swap;
   font-weight: 100 900;
-  src: url("/fonts/outfit-latin-ext-wght-normal.woff2?v=1.1.1.8.2") format("woff2");
+  src: url("/fonts/outfit-latin-ext-wght-normal.woff2?v=1.2.0.0.1") format("woff2");
   unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
 }
 
@@ -16,7 +16,7 @@
   font-style: normal;
   font-display: swap;
   font-weight: 100 900;
-  src: url("/fonts/outfit-latin-wght-normal.woff2?v=1.1.1.8.2") format("woff2");
+  src: url("/fonts/outfit-latin-wght-normal.woff2?v=1.2.0.0.1") format("woff2");
   unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
 }
 
@@ -25,7 +25,7 @@
   font-style: normal;
   font-display: swap;
   font-weight: 100 800;
-  src: url("/fonts/jetbrains-mono-latin-ext-wght-normal.woff2?v=1.1.1.8.2") format("woff2");
+  src: url("/fonts/jetbrains-mono-latin-ext-wght-normal.woff2?v=1.2.0.0.1") format("woff2");
   unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
 }
 
@@ -34,7 +34,7 @@
   font-style: normal;
   font-display: swap;
   font-weight: 100 800;
-  src: url("/fonts/jetbrains-mono-latin-wght-normal.woff2?v=1.1.1.8.2") format("woff2");
+  src: url("/fonts/jetbrains-mono-latin-wght-normal.woff2?v=1.2.0.0.1") format("woff2");
   unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
 }
 
@@ -1589,7 +1589,7 @@ body.demo-mode #manualWatchReviewButton {
 
 @media (max-width: 760px) {
   .media-detail-page .show-episode-list {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -2007,6 +2007,17 @@ body.auth-locked .topnav {
   display: flex;
   flex-direction: column;
   min-height: 100%;
+}
+
+/* The locked shell keeps the hidden desktop sidebar in the flex layout to
+   avoid a reload shift, but the login itself is a viewport-level surface. The
+   page shell would otherwise center it in the remaining right-hand column,
+   leaving the logo and form half a sidebar width off-centre. */
+@media (min-width: 761px) {
+  body.auth-locked .auth-view {
+    position: relative;
+    left: calc(var(--sidebar-width) / -2);
+  }
 }
 
 .auth-brand {
@@ -6353,6 +6364,36 @@ details.sync-tool-details[open] > summary {
   }
 }
 
+@media (max-width: 640px) {
+  .modal-overlay {
+    padding: 0.5rem;
+  }
+
+  .modal-panel:not(.modal-panel--immersive) {
+    width: 100%;
+    max-width: 100%;
+    max-height: calc(100vh - 1rem);
+    min-width: 0;
+  }
+
+  .confirm-modal-overlay {
+    padding: 0.5rem;
+  }
+
+  .confirm-modal-panel {
+    max-width: 100%;
+    max-height: calc(100vh - 1rem);
+  }
+
+  .confirm-modal-actions {
+    flex-wrap: wrap;
+  }
+
+  .confirm-modal-actions button {
+    flex: 1 1 7rem;
+  }
+}
+
 .media-force-sync-modal {
   display: flex;
   flex-direction: column;
@@ -6967,6 +7008,14 @@ details.sync-tool-details[open] > summary {
     min-height: 0;
     padding: var(--space-3);
     gap: var(--space-3);
+    width: 100%;
+    max-width: 100%;
+    max-height: calc(100vh - 1rem);
+    overflow-y: auto;
+  }
+
+  .media-force-sync-body {
+    overflow: visible;
   }
 
   .media-force-sync-target-row {
@@ -9734,8 +9783,9 @@ html.light-mode .poster-overflow-btn {
 
 @media (max-width: 640px) {
   .fix-match-dialog {
-    width: min(100% - 1rem, 560px);
-    max-height: 96vh;
+    width: min(calc(100% - 1rem), 560px);
+    max-width: calc(100vw - 1rem);
+    max-height: calc(100vh - 1rem);
     padding: 1rem;
     --fix-match-poster-width: 5.5rem;
     --fix-match-poster-height: 8.25rem;
@@ -9753,6 +9803,30 @@ html.light-mode .poster-overflow-btn {
     grid-template-columns: minmax(0, 1fr);
     gap: 0.7rem;
     max-height: 55vh;
+  }
+}
+
+@media (max-width: 640px) {
+  .edit-dialog-overlay {
+    align-items: center;
+    overflow-y: auto;
+    padding: 0.5rem;
+  }
+
+  .edit-dialog:not(.fix-match-dialog):not(.edit-image-dialog) {
+    width: 100%;
+    max-width: 100%;
+    max-height: calc(100vh - 1rem);
+    min-width: 0;
+    overflow-x: hidden;
+    padding: 0.85rem;
+  }
+
+  .edit-image-dialog {
+    width: min(calc(100% - 1rem), 60rem);
+    max-width: calc(100vw - 1rem);
+    height: calc(100vh - 1rem) !important;
+    max-height: calc(100vh - 1rem) !important;
   }
 }
 
@@ -10775,6 +10849,15 @@ body #mediaDetailActions.actions-collapsed .actions-tools-panel {
   box-shadow: var(--shadow-lg, 0 10px 15px -3px rgba(0, 0, 0, 0.25));
 }
 
+body #mediaDetailActions.actions-collapsed .actions-tools-panel .action-pill span,
+body #mediaDetailActions.actions-collapsed .actions-tools-panel .seerr-request-btn span,
+body #mediaDetailActions.actions-collapsed .actions-tools-panel .rating-pill span {
+  min-height: 0;
+  overflow-wrap: normal;
+  white-space: nowrap;
+  word-break: normal;
+}
+
 body #mediaDetailActions.actions-collapsed .actions-tools-dropdown[open] .actions-tools-panel {
   display: flex;
 }
@@ -10956,6 +11039,15 @@ html.light-mode .progress-bar-fill {
   flex-wrap: wrap;
 }
 
+.show-season-summary {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  flex: 1 1 auto;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
 .show-season-label {
   font-size: 0.9rem;
   font-weight: 700;
@@ -11067,6 +11159,31 @@ html.light-mode .progress-bar-fill {
   justify-content: space-between;
   gap: var(--space-2);
   min-width: 0;
+}
+
+.immersive-episode-availability {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.immersive-episode-availability.has-availability {
+  justify-content: space-between;
+}
+
+.immersive-episode-availability-pills {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  min-width: 0;
+}
+
+.immersive-episode-availability-pills:empty {
+  display: none;
 }
 
 .immersive-episode-title-row > b {
@@ -11502,6 +11619,76 @@ html.light-mode .progress-bar-fill {
   display: flex;
   gap: 0.5rem;
   justify-content: flex-end;
+}
+
+@media (max-width: 640px) {
+  .watch-date-overlay {
+    align-items: stretch;
+    padding: 0.5rem;
+  }
+
+  .watch-date-dialog {
+    width: 100%;
+    max-width: 100%;
+    max-height: calc(100vh - 1rem);
+    gap: 0.75rem;
+    overflow-x: hidden;
+    padding: 0.85rem;
+  }
+
+  .watch-date-head {
+    gap: 0.5rem;
+  }
+
+  .watch-date-head h3 {
+    font-size: 1.05rem;
+  }
+
+  .watch-date-intro {
+    font-size: 0.8rem !important;
+  }
+
+  .watch-date-episode {
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.35rem 0.5rem;
+  }
+
+  .watch-date-episode-air {
+    grid-column: 2;
+    white-space: normal;
+  }
+
+  .watch-date-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wd-body {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .wd-time {
+    width: 100%;
+    align-items: stretch;
+    border-top: 1px solid var(--line);
+    border-left: 0;
+    padding-top: 0.75rem;
+    padding-left: 0;
+  }
+
+  .wd-time-selects {
+    width: 100%;
+  }
+
+  .wd-time-selects .wd-select {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .watch-date-calendar-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
 
 .watch-date-remove-btn {
@@ -14358,6 +14545,7 @@ html.light-mode #timeline-view .part-watched-app-badge {
     display: flex !important;
     flex-direction: row;
     align-items: center;
+    position: relative;
     gap: 0.5rem;
     padding: 0.65rem 0.75rem;
     width: 100%;
@@ -14365,11 +14553,16 @@ html.light-mode #timeline-view .part-watched-app-badge {
   }
 
   .brand-block {
+    position: absolute;
+    top: 0.65rem;
+    left: 50%;
+    z-index: 1;
     min-width: auto;
     flex-shrink: 0;
-    order: 1;
+    order: 2;
     margin: 0 !important;
     padding: 0 !important;
+    transform: translateX(-50%);
   }
 
   .brand-heading {
@@ -14410,8 +14603,10 @@ html.light-mode #timeline-view .part-watched-app-badge {
     align-items: center;
     color: var(--soft);
     flex-shrink: 0;
-    margin-left: auto;
-    order: 2;
+    margin-left: 0;
+    order: 1;
+    position: relative;
+    z-index: 2;
   }
 
   .hamburger-button span {
@@ -14709,7 +14904,7 @@ html.light-mode #timeline-view .part-watched-app-badge {
   }
 
   body .page-topbar-actions .explorer-controls:not(.hidden),
-  body .explorer-controls {
+  body .explorer-controls:not(.hidden) {
     width: 100% !important;
     display: flex !important;
     flex-direction: column !important;
@@ -15364,6 +15559,9 @@ html.light-mode #timeline-view .part-watched-app-badge {
     flex-direction: column !important;
     overflow: hidden !important;
     padding: 0.25rem 0 !important;
+    width: max-content !important;
+    min-width: min(12rem, calc(100vw - 1rem)) !important;
+    max-width: calc(100vw - 1rem) !important;
   }
 
   body #mediaDetailActions.actions-collapsed .actions-tools-dropdown[open] .actions-tools-panel {
@@ -17524,6 +17722,70 @@ html.light-mode .history-mini-card-title {
   margin-left: auto;
 }
 
+.season-section-title {
+  justify-content: flex-start;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.season-section-heading {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.55rem;
+  min-width: 0;
+}
+
+.season-section-heading span {
+  color: var(--muted);
+  font-size: 0.81rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.season-section-title #seerrRequestContainer {
+  margin-left: auto;
+  min-width: 0;
+}
+
+.season-section-title #seerrRequestContainer:has(.tv-availability-summary) {
+  flex-wrap: nowrap !important;
+  gap: 0.35rem !important;
+  white-space: nowrap;
+}
+
+.season-section-title .tv-availability-summary {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.7rem;
+  margin: 0;
+  padding: 0.25rem 0.55rem;
+  white-space: nowrap;
+}
+
+@media (max-width: 760px) {
+  .season-section-title {
+    gap: 0.4rem;
+  }
+
+  .season-section-heading {
+    gap: 0.4rem;
+  }
+
+  .season-section-heading h3 {
+    font-size: 0.9rem;
+  }
+
+  .season-section-heading span {
+    font-size: 0.7rem;
+  }
+
+  .season-section-title .tv-availability-summary {
+    min-height: 1.55rem;
+    padding: 0.2rem 0.4rem;
+    font-size: 0.68rem;
+  }
+}
+
 .season-accordion-list {
   display: grid;
   gap: var(--space-2);
@@ -17588,6 +17850,13 @@ html.light-mode .history-mini-card-title {
   min-width: 0;
 }
 
+.season-row-mobile-summary {
+  display: none;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
 .season-row-title strong {
   font-size: 0.9rem;
   line-height: 1.2;
@@ -17642,6 +17911,16 @@ html.light-mode .history-mini-card-title {
 .season-accordion-panel .show-season-head {
   min-height: 44px;
   padding: var(--space-2) 0;
+}
+
+.season-desktop-action-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.season-mobile-action-menu {
+  display: none;
 }
 
 .season-accordion-panel .show-episode-list {
@@ -17833,23 +18112,110 @@ html:not(.light-mode) .episode-progress-fill {
   }
 
   .season-row-title {
-    flex: 1 1 100%;
+    flex: 1 1 auto;
+    min-width: 0;
+    line-height: 1.25;
   }
 
-  .season-row-col {
-    flex: 0 1 auto;
+  .season-row-mobile-summary {
+    display: inline;
+    margin-left: 0.15rem;
+  }
+
+  .season-row-episodes,
+  .season-row-watched,
+  .season-row-next {
+    display: none;
+  }
+
+  .season-row-availability {
+    margin-left: auto;
   }
 
   .season-accordion-meta {
-    margin-left: auto;
+    margin-left: 0;
   }
 
   .season-accordion-panel {
     padding-inline: var(--space-3);
   }
 
+  .season-accordion-panel .show-season-label.is-complete {
+    display: none;
+  }
+
+  .season-desktop-action-controls {
+    display: none;
+  }
+
+  .season-mobile-action-menu {
+    position: relative;
+    display: block;
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
+
+  .season-mobile-action-trigger {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    min-height: 2rem;
+    padding: 0.35rem 0.55rem;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: color-mix(in srgb, var(--panel-3), transparent 12%);
+    color: var(--soft);
+    font-size: 0.72rem;
+    font-weight: 800;
+    list-style: none;
+    cursor: pointer;
+  }
+
+  .season-mobile-action-trigger::-webkit-details-marker {
+    display: none;
+  }
+
+  .season-mobile-action-trigger::after {
+    content: "⌄";
+    color: var(--muted);
+    font-size: 0.9rem;
+    line-height: 1;
+    transition: transform 160ms ease-out;
+  }
+
+  .season-mobile-action-menu[open] > .season-mobile-action-trigger::after {
+    transform: rotate(180deg);
+  }
+
+  .season-mobile-action-controls {
+    position: absolute;
+    top: calc(100% + 0.35rem);
+    right: 0;
+    z-index: 25;
+    display: grid;
+    min-width: min(15rem, calc(100vw - 3rem));
+    gap: 0.45rem;
+    padding: 0.55rem;
+    border: 1px solid var(--line-strong);
+    border-radius: var(--radius);
+    background: var(--panel-3);
+    box-shadow: 0 14px 28px rgba(0, 0, 0, 0.35);
+  }
+
+  .season-mobile-action-controls .action-pill,
+  .season-mobile-action-controls .season-request-controls,
+  .season-mobile-action-controls .season-request-controls .rating-pill {
+    width: 100%;
+  }
+
+  .season-mobile-action-controls .season-request-controls {
+    display: grid;
+    gap: 0.45rem;
+  }
+
   .season-accordion-panel .show-episode-list {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .media-detail-page .season-accordion-panel .immersive-episode-row {
@@ -17860,6 +18226,68 @@ html:not(.light-mode) .episode-progress-fill {
       "copy";
     min-height: 0;
     gap: var(--space-3);
+  }
+
+  .season-accordion-panel .immersive-episode-row.is-highlighted .immersive-episode-meta-row {
+    display: none;
+  }
+
+  .season-accordion-panel .immersive-episode-row.is-highlighted .immersive-episode-copy p {
+    display: -webkit-box !important;
+    overflow: hidden;
+    -webkit-line-clamp: 3;
+  }
+
+  .season-accordion-panel .immersive-episode-title-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.45rem;
+  }
+
+  .season-accordion-panel .immersive-episode-availability {
+    width: 100%;
+  }
+
+  .season-accordion-panel .immersive-episode-availability.has-availability {
+    justify-content: space-between;
+  }
+
+  .season-accordion-panel .immersive-episode-row.is-watched .immersive-episode-meta-row {
+    display: none;
+  }
+
+  .season-accordion-panel .immersive-episode-row.is-watched .episode-watch-history {
+    margin-top: auto;
+    padding-top: var(--space-2);
+    border-top: 1px solid color-mix(in srgb, var(--line), transparent 12%);
+  }
+
+  .season-accordion-panel .immersive-episode-row.is-watched .episode-watch-history-list {
+    flex-wrap: nowrap;
+    gap: 0.35rem;
+    min-width: 0;
+  }
+
+  .season-accordion-panel .immersive-episode-row.is-watched .episode-watch-history-row {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .season-accordion-panel .immersive-episode-row.is-watched .episode-watch-history-row:not(:first-child),
+  .season-accordion-panel .immersive-episode-row.is-watched .episode-watch-history-row .source-badge {
+    display: none;
+  }
+
+  .season-accordion-panel .immersive-episode-row.is-watched .episode-watch-history-date {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .season-accordion-panel .immersive-episode-row.is-watched .episode-edit-date-btn {
+    flex: 0 0 auto;
+    margin-left: auto;
   }
 
   .season-accordion-panel .immersive-episode-actions {
@@ -21891,8 +22319,9 @@ html.light-mode .upcoming-week-day {
   border-color: rgba(0, 0, 0, 0.08);
 }
 
-/* Mobile (≤760px): the 7-column grid becomes an agenda list - weekday header
-   and empty/outside day cells are hidden, days with episodes stack full-width. */
+/* Mobile (≤760px): the 7-column grid becomes an agenda list. Empty days stay
+   visible so Today remains a useful anchor even when nothing airs that day;
+   only the neighbouring-month spacer cells are hidden. */
 @media (max-width: 760px) {
   .upcoming-controls {
     display: flex;
@@ -22017,8 +22446,7 @@ html.light-mode .upcoming-week-day {
     padding: 0.4rem 0.6rem;
   }
 
-  .upcoming-week-day.is-outside,
-  .upcoming-week-day.is-empty {
+  .upcoming-week-day.is-outside {
     display: none;
   }
 
@@ -22034,6 +22462,184 @@ html.light-mode .upcoming-week-day {
 
   .upcoming-week-day-entries {
     gap: 0.35rem;
+  }
+}
+
+/* Upcoming mobile header --------------------------------------------------
+   Keep the two calendar navigation concerns separate: search/Today share a
+   utility row, while month navigation gets a full-width row with generous
+   touch targets. Search is the only disclosure on this page. */
+.upcoming-calendar-utilities {
+  display: contents;
+}
+
+.upcoming-month-controls {
+  order: 2;
+}
+
+.upcoming-search-dropdown {
+  position: relative;
+  display: flex;
+  order: 1;
+  flex: 0 0 auto;
+}
+
+.upcoming-search-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0.5rem;
+  list-style: none;
+}
+
+.upcoming-search-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.upcoming-search-panel {
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  left: 0;
+  z-index: 999;
+  display: none;
+  width: min(21rem, calc(100vw - 1rem));
+  box-sizing: border-box;
+  padding: 0.55rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-3);
+  box-shadow: var(--shadow-lg, 0 10px 15px -3px rgba(0, 0, 0, 0.25));
+}
+
+.upcoming-search-dropdown[open] > .upcoming-search-panel {
+  display: block;
+}
+
+.upcoming-search-panel .upcoming-search-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  min-width: 0;
+}
+
+.upcoming-search-panel .upcoming-search-field input {
+  width: 100%;
+  min-width: 0;
+}
+
+.upcoming-today-button {
+  order: 3;
+}
+
+body .page-topbar-actions:has(.upcoming-search-dropdown[open]) {
+  overflow: visible !important;
+}
+
+@media (max-width: 760px) {
+  body #upcomingTopbarControls:not(.hidden) {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  body #upcomingTopbarControls .page-action-primary {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    grid-template-areas: "utilities" "month";
+    width: 100% !important;
+    min-width: 0 !important;
+    gap: 0.5rem !important;
+    align-items: stretch !important;
+  }
+
+  body #upcomingTopbarControls .upcoming-calendar-utilities {
+    display: flex !important;
+    grid-area: utilities;
+    width: 100% !important;
+    min-width: 0 !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 0.5rem !important;
+  }
+
+  body #upcomingTopbarControls .upcoming-search-trigger,
+  body #upcomingTopbarControls .upcoming-today-button {
+    display: inline-flex !important;
+    min-height: 2.75rem !important;
+    flex: 0 0 auto !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0.35rem !important;
+    padding: 0.5rem 0.65rem !important;
+    text-transform: none !important;
+    white-space: nowrap !important;
+  }
+
+  body #upcomingTopbarControls .upcoming-search-trigger {
+    width: 2.75rem !important;
+    min-width: 2.75rem !important;
+    padding-inline: 0 !important;
+  }
+
+  body #upcomingTopbarControls .upcoming-today-button {
+    min-width: 6rem !important;
+  }
+
+  body #upcomingTopbarControls .upcoming-month-controls {
+    display: grid !important;
+    grid-area: month;
+    grid-template-columns: minmax(0, 1fr) minmax(8rem, 1.4fr) minmax(0, 1fr) !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    gap: 0.5rem !important;
+    align-items: stretch !important;
+  }
+
+  body #upcomingTopbarControls .upcoming-nav-button {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 2.75rem !important;
+    flex: 1 1 auto !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0.35rem !important;
+    padding-inline: 0.5rem !important;
+    text-transform: none !important;
+    white-space: nowrap !important;
+  }
+
+  body #upcomingTopbarControls .upcoming-nav-button svg {
+    flex: 0 0 auto !important;
+  }
+
+  body #upcomingTopbarControls .upcoming-month-title {
+    display: flex !important;
+    min-width: 0 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    overflow: hidden !important;
+    font-size: 0.9rem !important;
+    text-align: center !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  body #upcomingTopbarControls .upcoming-search-panel {
+    left: 0;
+    width: min(18rem, calc(100vw - 1rem));
+  }
+
+  body #upcomingTopbarControls:has(.upcoming-search-dropdown[open]) {
+    overflow: visible !important;
+  }
+
+  .upcoming-week-day {
+    scroll-margin-top: calc(var(--right-topbar-height) + 3.75rem);
   }
 }
 
@@ -23578,7 +24184,7 @@ html.light-mode .settings-help-body code {
   }
 
   /* Upcoming is a two-part control group: search first, calendar second. */
-  body #upcomingTopbarControls {
+  body #upcomingTopbarControls:not(.hidden) {
     display: grid !important;
     grid-template-columns: minmax(0, 1fr) !important;
     width: 100% !important;
@@ -26935,6 +27541,7 @@ html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
 
 .manual-watch-review-season-heading {
   display: flex;
+  flex: 1 1 auto;
   align-items: baseline;
   flex-wrap: wrap;
   gap: var(--space-2);
@@ -26952,6 +27559,8 @@ html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
 }
 
 .manual-watch-review-season-actions {
+  flex: 0 1 auto;
+  margin-left: auto;
   justify-content: flex-end;
 }
 
@@ -26986,7 +27595,7 @@ html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
 
 .manual-watch-review-season-details > summary::after {
   content: "⌄";
-  margin-left: auto;
+  margin-left: var(--space-2);
   color: var(--yellow);
   font-size: 0.95rem;
   flex: 0 0 auto;
@@ -27338,6 +27947,16 @@ html.light-mode .manual-watch-review-season {
    utility. Keep the mobile tab strip usable across the full mobile range. */
 @media (max-width: 760px) {
   body #topbarControlsMenu.hidden {
+    display: none !important;
+  }
+
+  /* Route changes move each page's controls into the shared topbar. Some of
+     the older page-specific rules use !important for their active layout, so
+     keep an explicit inactive-state guard at the end of the mobile rules. */
+  body .page-topbar-actions > .hidden,
+  body .page-topbar-actions > .view-control-source.hidden,
+  body #upcomingTopbarControls.hidden,
+  body .explorer-controls.hidden {
     display: none !important;
   }
 
@@ -28250,6 +28869,373 @@ html.light-mode .about-share-option.button-primary {
   .tautulli-preview-progress.is-indeterminate .tautulli-preview-progress-bar,
   .tautulli-operation-progress.is-indeterminate .tautulli-operation-progress-bar { animation: none; }
 }
+
+/* Shared media-style page action bars ------------------------------------
+   Page-level controls use the same compact icon/label language as the media
+   detail actions. Secondary fields stay inside a small Tools disclosure so a
+   phone never has to squeeze a full desktop form into the topbar. */
+.view-control-source.page-action-bar,
+.view-control-source .page-action-bar {
+  display: none;
+}
+
+.page-action-bar {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.page-action-primary {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.page-action-pill,
+.page-tools-trigger {
+  cursor: pointer;
+}
+
+.page-tools-dropdown {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  flex: 0 0 auto;
+}
+
+.page-tools-trigger {
+  list-style: none;
+}
+
+.page-tools-trigger::-webkit-details-marker {
+  display: none;
+}
+
+.page-tools-panel {
+  display: none;
+  position: absolute;
+  top: calc(100% + 0.35rem);
+  right: 0;
+  z-index: 999;
+  min-width: min(17rem, calc(100vw - 1rem));
+  max-width: calc(100vw - 1rem);
+  box-sizing: border-box;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 0.35rem;
+  overflow: visible;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel-3);
+  box-shadow: var(--shadow-lg, 0 10px 15px -3px rgba(0, 0, 0, 0.25));
+}
+
+.page-tools-dropdown[open] > .page-tools-panel {
+  display: flex;
+}
+
+.page-tools-panel .compact-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-1);
+  width: 100%;
+  min-width: 0;
+}
+
+.page-tools-panel .compact-field span {
+  color: var(--muted);
+  font-size: 0.7rem;
+}
+
+.page-tools-panel .compact-field input,
+.page-tools-panel .compact-field select,
+.page-tools-panel .settings-mobile-section .field {
+  width: 100%;
+  min-width: 0;
+}
+
+.page-tools-panel .settings-mobile-section {
+  width: 100%;
+  margin-bottom: 0;
+}
+
+.page-tools-panel .explorer-size-slider {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.page-tools-panel .explorer-size-slider input {
+  flex: 1 1 auto;
+  width: auto;
+  min-width: 0;
+}
+
+.page-tools-panel .explorer-hide-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.page-tools-panel .page-tool-action,
+.page-tools-panel .action-pill {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  min-height: 2.25rem;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 0.6rem;
+  padding: 0.45rem 0.6rem;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  text-align: left;
+}
+
+.page-tools-panel .page-tool-action:hover,
+.page-tools-panel .action-pill:hover {
+  background: var(--bg-hover);
+  color: var(--primary);
+}
+
+.page-tools-panel .page-tool-action svg,
+.page-tools-panel .action-pill svg {
+  width: 1rem;
+  height: 1rem;
+  flex: 0 0 auto;
+}
+
+.page-tools-panel .page-tool-action span,
+.page-tools-panel .action-pill span {
+  min-height: 0;
+  white-space: nowrap;
+}
+
+body .page-topbar-actions .page-action-bar:not(.hidden),
+body .page-topbar-actions .view-control-source.page-action-bar:not(.hidden),
+body .page-topbar-actions #personalMediaTopbarControls:not(.hidden) {
+  display: flex !important;
+  min-width: 0 !important;
+  width: auto !important;
+  max-width: 100% !important;
+  flex: 0 1 auto !important;
+  align-items: center !important;
+  gap: 0.35rem !important;
+  border: 0 !important;
+  background: transparent !important;
+  padding: 0 !important;
+}
+
+body .page-topbar-actions .page-action-bar > .page-action-primary,
+body .page-topbar-actions #personalMediaTopbarControls > .page-action-bar {
+  display: flex !important;
+  min-width: 0 !important;
+  align-items: center !important;
+  gap: 0.35rem !important;
+}
+
+body .page-topbar-actions #personalMediaTopbarControls > .page-action-bar > .page-action-primary {
+  min-width: 0 !important;
+}
+
+body .page-topbar-actions:has(.page-tools-dropdown[open]) {
+  overflow: visible !important;
+}
+
+@media (max-width: 760px) {
+  body .page-topbar-actions .page-action-bar:not(.hidden),
+  body .page-topbar-actions .view-control-source.page-action-bar:not(.hidden),
+  body .page-topbar-actions #personalMediaTopbarControls:not(.hidden) {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: 100% !important;
+    flex: 0 1 auto !important;
+    overflow: visible !important;
+    background: transparent !important;
+    border: 0 !important;
+    padding: 0 !important;
+  }
+
+  body .page-topbar-actions .page-action-bar > .page-action-primary,
+  body .page-topbar-actions #personalMediaTopbarControls > .page-action-bar,
+  body .page-topbar-actions #personalMediaTopbarControls > .page-action-bar > .page-action-primary {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+    align-items: stretch !important;
+    gap: 0.15rem !important;
+  }
+
+  body .page-topbar-actions .page-action-bar .page-action-pill,
+  body .page-topbar-actions .page-action-bar .page-tools-trigger {
+    display: inline-flex !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    min-height: 3rem !important;
+    flex: 1 1 0 !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0.2rem !important;
+    padding: 0.35rem 0.15rem !important;
+    border: 0 !important;
+    border-radius: 4px !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    color: var(--text) !important;
+    font-size: 0.55rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.01em !important;
+    line-height: 1.15 !important;
+    text-align: center !important;
+    text-transform: uppercase !important;
+    white-space: normal !important;
+  }
+
+  body .page-topbar-actions .page-action-bar .page-action-pill:hover,
+  body .page-topbar-actions .page-action-bar .page-tools-trigger:hover {
+    background: var(--bg-hover) !important;
+    color: var(--primary) !important;
+  }
+
+  body .page-topbar-actions .page-action-bar .page-action-pill svg,
+  body .page-topbar-actions .page-action-bar .page-tools-trigger svg {
+    width: 1.2rem !important;
+    height: 1.2rem !important;
+    margin: 0 !important;
+    flex: 0 0 auto !important;
+    color: inherit !important;
+    fill: currentColor !important;
+  }
+
+  body .page-topbar-actions .page-action-bar .page-action-pill span,
+  body .page-topbar-actions .page-action-bar .page-tools-trigger span {
+    display: block !important;
+    min-height: 0 !important;
+    max-width: 100% !important;
+    overflow: hidden !important;
+    line-height: 1.15 !important;
+    font-size: 0.55rem !important;
+    text-align: center !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  body .page-topbar-actions .page-action-bar .page-tools-dropdown {
+    position: relative;
+    min-width: 3.6rem !important;
+    flex: 0 0 3.6rem !important;
+  }
+
+  body .page-topbar-actions .page-action-bar .page-tools-dropdown > .page-tools-trigger {
+    width: 100% !important;
+    min-width: 3.6rem !important;
+  }
+
+  body .page-topbar-actions .page-action-bar .page-tools-panel {
+    right: 0;
+    min-width: min(17rem, calc(100vw - 1rem));
+    max-width: calc(100vw - 1rem);
+  }
+
+  body .page-topbar-actions .page-action-bar .page-tools-panel .page-tool-action,
+  body .page-topbar-actions .page-action-bar .page-tools-panel .action-pill {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 2.25rem !important;
+    flex: 0 0 auto !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 0.6rem !important;
+    padding: 0.45rem 0.6rem !important;
+    border: 0 !important;
+    background: transparent !important;
+    font-size: 0.78rem !important;
+    letter-spacing: normal !important;
+    text-align: left !important;
+    text-transform: none !important;
+    white-space: nowrap !important;
+  }
+
+  body .page-topbar-actions .page-action-bar .page-tools-panel .page-tool-action span,
+  body .page-topbar-actions .page-action-bar .page-tools-panel .action-pill span {
+    display: block !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    overflow: visible !important;
+    font-size: 0.78rem !important;
+    text-align: left !important;
+    text-overflow: clip !important;
+    white-space: nowrap !important;
+  }
+
+  body .page-topbar-actions .page-action-bar .mobile-controls-row {
+    display: flex !important;
+    width: auto !important;
+    min-width: 0 !important;
+    min-height: 3.5rem !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    flex: 1 1 auto !important;
+    align-items: stretch !important;
+    overflow: visible !important;
+    border: 0 !important;
+  }
+
+  body .page-topbar-actions .page-action-bar.explorer-controls:not(.hidden) {
+    display: flex !important;
+    width: 100% !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+  }
+
+  body .page-topbar-actions .page-action-bar.explorer-controls > .page-action-primary {
+    width: 100% !important;
+    flex: 1 1 auto !important;
+  }
+
+  body .page-topbar-actions .upcoming-month-controls {
+    display: flex !important;
+    width: auto !important;
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+    grid-template-columns: none !important;
+    align-items: stretch !important;
+    gap: 0.15rem !important;
+  }
+
+  body .page-topbar-actions .upcoming-month-title {
+    display: flex !important;
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+    align-items: center !important;
+    justify-content: center !important;
+    overflow: hidden !important;
+    font-size: 0.75rem !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  body .page-topbar-actions .upcoming-nav-button {
+    width: auto !important;
+    min-width: 3.6rem !important;
+    flex: 0 0 3.6rem !important;
+  }
+
+  body .page-topbar-actions:has(.page-tools-dropdown[open]) {
+    overflow: visible !important;
+  }
+}
 .tautulli-backup-step .tautulli-step-heading,
 .tautulli-import-step .tautulli-step-heading { align-items: center; }
 .tautulli-import-status {
@@ -28374,4 +29360,272 @@ html.light-mode .about-share-option.button-primary {
   .tautulli-review-choices { flex-direction: column; }
   .tautulli-review-candidate,
   .tautulli-review-action { width: 100%; }
+}
+
+/* Upcoming mobile header final cascade ----------------------------------
+   This follows the older shared page-control rules above, so the Upcoming
+   layout keeps one clear touch row at every phone width: Search, month
+   navigation, then Today. */
+@media (max-width: 760px) {
+  body #upcomingTopbarControls:not(.hidden) {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  body #upcomingTopbarControls .page-action-primary {
+    display: grid !important;
+    grid-template-columns: 2.75rem minmax(0, 1fr) 2.75rem !important;
+    grid-template-areas: "search month today" !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    gap: 0.35rem !important;
+    align-items: stretch !important;
+  }
+
+  body #upcomingTopbarControls .upcoming-calendar-utilities {
+    display: contents !important;
+  }
+
+  body #upcomingTopbarControls .upcoming-search-dropdown {
+    display: flex !important;
+    grid-area: search !important;
+    align-items: stretch !important;
+    min-width: 0 !important;
+  }
+
+  body #upcomingTopbarControls .upcoming-search-trigger {
+    width: 100% !important;
+    min-width: 2.75rem !important;
+  }
+
+  body #upcomingTopbarControls .upcoming-search-trigger,
+  body #upcomingTopbarControls .upcoming-today-button {
+    display: inline-flex !important;
+    min-height: 2.75rem !important;
+    flex: 0 0 auto !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0.35rem !important;
+    padding: 0.5rem 0.65rem !important;
+    text-transform: none !important;
+    white-space: nowrap !important;
+  }
+
+  body #upcomingTopbarControls #upcomingTodayButton {
+    grid-area: today !important;
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+    justify-self: stretch !important;
+    width: 100% !important;
+    min-width: 2.75rem !important;
+    padding-inline: 0 !important;
+  }
+
+  body #upcomingTopbarControls #upcomingTodayButton .upcoming-today-label {
+    display: none !important;
+  }
+
+  body #upcomingTopbarControls .upcoming-month-controls {
+    display: grid !important;
+    grid-area: month !important;
+    grid-template-columns: 2rem minmax(0, 1fr) 2rem !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    gap: 0.15rem !important;
+    align-items: stretch !important;
+  }
+
+  body #upcomingTopbarControls .upcoming-nav-button {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    min-height: 2.75rem !important;
+    flex: 1 1 auto !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 0.35rem !important;
+    padding-inline: 0 !important;
+    text-transform: none !important;
+    white-space: nowrap !important;
+  }
+
+  body #upcomingTopbarControls .upcoming-nav-button span {
+    display: none !important;
+  }
+
+  body #upcomingTopbarControls .upcoming-month-title {
+    display: flex !important;
+    min-width: 0 !important;
+    align-items: center !important;
+    justify-content: center !important;
+    overflow: hidden !important;
+    font-size: 0.9rem !important;
+    text-align: center !important;
+    text-overflow: ellipsis !important;
+    white-space: nowrap !important;
+  }
+
+  body #upcomingTopbarControls .upcoming-search-panel {
+    left: 0;
+    width: min(18rem, calc(100vw - 1rem));
+  }
+
+  body #upcomingTopbarControls:has(.upcoming-search-dropdown[open]),
+  body .page-topbar-actions:has(.upcoming-search-dropdown[open]) {
+    overflow: visible !important;
+  }
+}
+
+/* Page-specific controls keep the direct desktop layout flexible while the
+   mobile cascade below gives each route an intentional compact arrangement. */
+.discover-filter-field {
+  min-width: 0;
+  flex: 1 1 12rem;
+}
+
+.discover-refresh-action {
+  flex: 0 0 auto;
+}
+
+/* Final page-specific mobile control cascade ----------------------------
+   These selectors intentionally follow the older shared explorer/discover
+   rules so the page-specific layout wins without changing desktop behavior. */
+@media (max-width: 760px) {
+  body #discoverTopbarControls:not(.hidden) {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  body #discoverTopbarControls .page-action-primary {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 3.6rem !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    align-items: end !important;
+    gap: 0.35rem !important;
+  }
+
+  body #discoverTopbarControls .discover-filter-field {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    gap: 0.2rem !important;
+  }
+
+  body #discoverTopbarControls .discover-filter-field .field {
+    width: 100% !important;
+    min-width: 0 !important;
+    font-size: 0.72rem !important;
+  }
+
+  body #discoverTopbarControls .discover-refresh-action {
+    grid-column: 3 !important;
+    grid-row: 1 !important;
+    width: 100% !important;
+    min-width: 3.6rem !important;
+  }
+
+  body #historyTopbarControls:not(.hidden) {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 0.25rem !important;
+  }
+
+  body #historyTopbarControls > .page-action-primary {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    flex-direction: column !important;
+    gap: 0.2rem !important;
+  }
+
+  body #historyTopbarControls > .page-action-primary > .mobile-controls-row {
+    width: 100% !important;
+    min-height: 3rem !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border-bottom: 0 !important;
+    gap: 0.1rem !important;
+  }
+
+  body #historyTopbarControls > .explorer-search-box.active-mobile-panel,
+  body #historyTopbarControls > .history-size-control.active-mobile-panel {
+    display: grid !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0.1rem 0 0 !important;
+    gap: 0.2rem !important;
+    animation: fadeInControlPanel 0.16s ease;
+  }
+
+  body #historyTopbarControls > .explorer-search-box.active-mobile-panel input {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  body #historyTopbarControls > .history-size-control.active-mobile-panel {
+    display: flex !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    gap: 0.75rem !important;
+  }
+
+  body #historyTopbarControls > .history-size-control.active-mobile-panel input {
+    flex: 1 1 auto !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0 !important;
+  }
+
+  body #statsTopbarControls:not(.hidden) {
+    display: flex !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    flex: 1 1 auto !important;
+  }
+
+  body #statsTopbarControls > .page-action-primary {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    gap: 0.35rem !important;
+    align-items: end !important;
+  }
+
+  body #statsTopbarControls .stats-filter-field {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    gap: 0.2rem !important;
+  }
+
+body #statsTopbarControls .stats-filter-field .field {
+    width: 100% !important;
+    min-width: 0 !important;
+    font-size: 0.72rem !important;
+  }
+}
+
+/* On narrow show detail pages the logo and synopsis share the right side of
+   the artwork hero. The progress section remains the full-width row below it
+   so watch state keeps its existing visual position. */
+@media (max-width: 640px) {
+  .media-detail-page.media-detail-show-page .immersive-overview {
+    grid-column: 2;
+    grid-row: 2 / 6;
+    width: 100%;
+    max-width: 34ch;
+    align-self: start;
+    justify-self: stretch;
+  }
 }

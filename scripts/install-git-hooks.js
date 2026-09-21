@@ -14,4 +14,4 @@ const result = spawnSync("git", ["config", "core.hooksPath", ".githooks"], {
 });
 if (result.error) throw result.error;
 if (result.status !== 0) process.exit(result.status || 1);
-console.log("Configured Git pre-push changelog and build checks.");
+console.log("Configured Git commit/rewrite update ledger plus pre-push changelog and build checks.");

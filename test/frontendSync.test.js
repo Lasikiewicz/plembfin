@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import "./domStubs.js";
 
 const { state, elements } = await import("../public/modules/state.js?v=0.16.3.4");
-const { telemetryTargetStates, targetStateUnavailable, categorizeIssues, nowPlayingPosterItem, setActiveSessions, isMediaSyncing } = await import("../public/modules/sync.js");
+const { telemetryTargetStates, targetStateUnavailable, categorizeIssues, nowPlayingPosterItem, setActiveSessions, loadActiveSessions, stopHistoryPolling, isMediaSyncing } = await import("../public/modules/sync.js");
 const { posterMarkup, posterUrlFor } = await import("../public/modules/images.js");
 
 class FakeElement {
@@ -197,5 +197,62 @@ test("now-playing reconciliation removes the empty placeholder when live cards a
     else elements.nowPlayingGrid = originalGrid;
     state.activeSessions = originalSessions;
     state.nowPlayingSessionKey = originalSessionKey;
+  }
+});
+
+test("forced resume refresh replaces a suspended now-playing request", async () => {
+  const originalFetch = globalThis.fetch;
+  const previousToken = state.token;
+  const previousSessions = state.activeSessions;
+  const previousSessionKey = state.nowPlayingSessionKey;
+  const previousRequestActive = state.nowPlayingRequestActive;
+  const previousRefreshToken = state.nowPlayingRefreshToken;
+  const previousLastFetchAt = state.nowPlayingLastFetchAt;
+  let calls = 0;
+  let aborts = 0;
+
+  state.token = "session";
+  state.activeSessions = [{ source: "plex", sessionId: "stale-session", title: "Finished" }];
+  state.nowPlayingSessionKey = "stale-session";
+  state.nowPlayingRequestActive = false;
+  globalThis.fetch = (_url, options = {}) => {
+    calls += 1;
+    return new Promise((resolve, reject) => {
+      options.signal?.addEventListener("abort", () => {
+        aborts += 1;
+        reject(Object.assign(new Error("aborted"), { name: "AbortError" }));
+      }, { once: true });
+      if (calls === 2) {
+        resolve({
+          ok: true,
+          status: 200,
+          statusText: "OK",
+          headers: { get: () => "" },
+          clone: () => ({ text: async () => "[]" }),
+        });
+      }
+    });
+  };
+
+  try {
+    const firstRequest = loadActiveSessions();
+    await new Promise((resolve) => setImmediate(resolve));
+    const refreshed = await loadActiveSessions({ force: true });
+    await firstRequest;
+
+    assert.equal(calls, 2);
+    assert.equal(aborts, 1);
+    assert.deepEqual(refreshed, []);
+    assert.deepEqual(state.activeSessions, []);
+    assert.equal(state.nowPlayingRequestActive, false);
+  } finally {
+    stopHistoryPolling();
+    globalThis.fetch = originalFetch;
+    state.token = previousToken;
+    state.activeSessions = previousSessions;
+    state.nowPlayingSessionKey = previousSessionKey;
+    state.nowPlayingRequestActive = previousRequestActive;
+    state.nowPlayingRefreshToken = previousRefreshToken;
+    state.nowPlayingLastFetchAt = previousLastFetchAt;
   }
 });

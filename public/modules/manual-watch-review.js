@@ -1,8 +1,8 @@
-import { state } from "./state.js?v=1.1.1.8.2";
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.8.2";
-import { posterMarkup, hydratePosters, tmdbPoster } from "./images.js?v=1.1.1.8.2";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.1.1.8.2";
-import { escapeAttribute, escapeHtml, formatDate, formatTmdbDate, movieHref, movieTmdbHref, platformSourceValues, slug, sourceBadgeHtml, toDateTimeInputValue, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js?v=1.1.1.8.2";
+import { state } from "./state.js?v=1.2.0.0.1";
+import { buildAuthHeaders } from "./auth.js?v=1.2.0.0.1";
+import { posterMarkup, hydratePosters, tmdbPoster } from "./images.js?v=1.2.0.0.1";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.2.0.0.1";
+import { escapeAttribute, escapeHtml, formatDate, formatTmdbDate, movieHref, movieTmdbHref, platformSourceValues, slug, sourceBadgeHtml, toDateTimeInputValue, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js?v=1.2.0.0.1";
 
 let _cb = {};
 let _openConfirmDialog = async () => false;
@@ -891,16 +891,21 @@ function scheduleManualWatchReviewCatalogHydration(reviews, requestId) {
   if (manualWatchReviewCatalogTimer) clearTimeout(manualWatchReviewCatalogTimer);
   const catalogRequestId = ++manualWatchReviewCatalogRequestSerial;
   if (!Array.isArray(reviews) || !reviews.some(isEpisodeReview)) return;
-  const topGroup = reviewGroupsForDisplay(groupManualWatchReviews(reviews))[0];
+  const groups = reviewGroupsForDisplay(groupManualWatchReviews(reviews));
+  const showGroups = groups.filter((group) => group.kind === "show");
+  const topGroup = groups[0];
   const topSeason = topGroup?.kind === "show"
     ? groupReviewsBySeason(topGroup.reviews)[0]
     : null;
-  if (!topGroup || !topSeason) return;
-  // Keep the first paint focused on the most important review group. Other
-  // seasons hydrate only when the user opens them.
+  if (!showGroups.length) return;
   manualWatchReviewCatalogTimer = setTimeout(() => {
     manualWatchReviewCatalogTimer = null;
-    hydrateManualWatchReviewSeason(topGroup, topSeason, reviews, requestId, catalogRequestId).catch(() => null);
+    hydrateManualWatchReviewShowPosters(showGroups, reviews, requestId, catalogRequestId).catch(() => null);
+    // Keep episode catalog hydration focused on the most important review
+    // group. Other seasons hydrate when the user opens them.
+    if (topGroup && topSeason) {
+      hydrateManualWatchReviewSeason(topGroup, topSeason, reviews, requestId, catalogRequestId).catch(() => null);
+    }
   }, 0);
 }
 
@@ -983,6 +988,21 @@ async function fetchManualWatchReviewShowMetadata(group) {
   return request;
 }
 
+async function hydrateManualWatchReviewShowPosters(groups, reviews, requestId, catalogRequestId) {
+  await Promise.allSettled(groups.map(async (group) => {
+    const metadata = await fetchManualWatchReviewShowMetadata(group);
+    if (metadata?.showPosterUrl) {
+      manualWatchReviewShowPosterUrls.set(group.key, metadata.showPosterUrl);
+    }
+  }));
+  if (
+    requestId !== latestManualWatchReviewFullRequest
+    || catalogRequestId !== manualWatchReviewCatalogRequestSerial
+    || state.manualWatchReviews !== reviews
+  ) return;
+  if (state.activeView === "manualWatchReview") renderManualWatchReviewPage();
+}
+
 async function fetchManualWatchReviewSeasonCatalog(group, season) {
   const metadata = await fetchManualWatchReviewShowMetadata(group);
   const seasonNumber = manualReviewInteger(season.key);
@@ -1063,7 +1083,7 @@ function renderReviewShowGroup(group, query = "", { isTopmost = false } = {}) {
     <article class="manual-watch-review-show" data-manual-watch-review-show-key="${escapeAttribute(group.key)}">
       <div class="manual-watch-review-poster-wrap manual-watch-review-show-poster-wrap">
         <a class="manual-watch-review-poster-link" href="${escapeAttribute(href)}" data-manual-watch-review-link="${escapeAttribute(href)}" aria-label="View ${escapeAttribute(group.title)}">
-          ${reviewPosterHtml(group.reviews[0], group.title, { showPosterUrl: manualWatchReviewShowPosterUrls.get(group.key) || "", eagerPoster: isTopmost })}
+          ${reviewPosterHtml(group.reviews[0], group.title, { showPosterUrl: manualWatchReviewShowPosterUrls.get(group.key) || "", eagerPoster: true })}
         </a>
       </div>
       <div class="manual-watch-review-show-content">
@@ -1379,12 +1399,36 @@ function bindRenderedReviewDetails(container) {
   }
 }
 
+function bindManualWatchReviewRefresh() {
+  const refreshButton = document.querySelector("#manualWatchReviewRefresh");
+  if (!refreshButton || refreshButton.dataset.bound) return;
+  refreshButton.dataset.bound = "true";
+  refreshButton.addEventListener("click", async () => {
+    if (refreshButton.disabled) return;
+    const label = refreshButton.textContent;
+    refreshButton.disabled = true;
+    refreshButton.setAttribute("aria-busy", "true");
+    refreshButton.textContent = "Rechecking…";
+    try {
+      await loadManualWatchReview({ refresh: true });
+      _cb.setMessage?.("Manual Watch review status rechecked.", "success");
+    } catch (error) {
+      reportManualWatchReviewFailure(error, "Manual Watch review could not be rechecked.");
+    } finally {
+      refreshButton.disabled = false;
+      refreshButton.removeAttribute("aria-busy");
+      refreshButton.textContent = label || "Recheck status";
+    }
+  });
+}
+
 export function initManualWatchReview(callbacks = {}) {
   _cb = callbacks;
   if (typeof callbacks.openConfirmDialog === "function") _openConfirmDialog = callbacks.openConfirmDialog;
   const container = document.querySelector("#manualWatchReviewRows");
   if (!container) return;
   bindManualDatePrompt();
+  bindManualWatchReviewRefresh();
 
   if (!container.dataset.bound) {
     container.dataset.bound = "true";
@@ -1603,7 +1647,7 @@ export function renderManualWatchReviewPage() {
   setSummaryVisibility();
 }
 
-export async function loadManualWatchReview({ summaryOnly = false } = {}) {
+export async function loadManualWatchReview({ summaryOnly = false, refresh = false } = {}) {
   if (!state.token) {
     state.manualWatchReviews = [];
     state.manualWatchReviewCount = 0;
@@ -1633,7 +1677,11 @@ export async function loadManualWatchReview({ summaryOnly = false } = {}) {
     renderManualWatchReviewPage();
   }
   try {
-    const response = await fetch(`/api/manual-watch-review${summaryOnly ? "?summary=1" : ""}`, {
+    const params = new URLSearchParams();
+    if (summaryOnly) params.set("summary", "1");
+    if (refresh) params.set("refresh", "1");
+    const query = params.toString();
+    const response = await fetch(`/api/manual-watch-review${query ? `?${query}` : ""}`, {
       cache: "no-store",
       headers: authHeaders(),
     });

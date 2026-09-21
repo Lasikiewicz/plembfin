@@ -30,7 +30,7 @@ const tiers = [
   },
 ];
 
-const sponsorshipUrl = (amount) => `${site.support}/sponsorships?amount=${amount}&frequency=recurring`;
+const sponsorshipUrl = (amount: number) => `${site.support}/sponsorships?amount=${amount}&frequency=recurring`;
 ---
 
 <SiteLayout

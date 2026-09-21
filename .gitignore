@@ -20,15 +20,9 @@ data/
 # of megabytes, so they must never be staged.
 backups/
 
-# Local editor/agent tooling. `.claude/skills/` is the exception: the release
-# procedures live there and CLAUDE.md points at them, so they must reach a clone.
-# Everything else under `.claude/` stays local, including settings.local.json and
-# local-environment.md, which hold machine-specific paths and credentials.
-.claude/*
-!.claude/skills/
-# Personal feature-request monitoring workflow and its public-state snapshot.
-.claude/check-requests.md
-.claude/check-requests-state.json
+# Local editor/agent tooling and instructions.
+CLAUDE.md
+.claude/
 .reasonix/
 .Jules/
 reasonix.toml

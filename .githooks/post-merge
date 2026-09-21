@@ -1,0 +1,5 @@
+#!/bin/sh
+set -e
+
+# Keep merge-created commits and their resulting history in the local ledger.
+node scripts/update-local-updates.js --quiet

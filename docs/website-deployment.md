@@ -12,7 +12,7 @@ publishing paths:
 The public application demo is hosted on the dedicated Oracle Cloud Compute instance;
 the existing Cloudflare Pages project named `plembfin` is not part of the application
 release path and must remain untouched. Use the separate Pages project named
-`plembfin-website` for this static site.
+`plembfin-website` for the website and its two small Pages Functions.
 
 ## Current repository shape
 
@@ -21,8 +21,12 @@ release path and must remain untouched. Use the separate Pages project named
 - Astro output: `website/dist/`
 - Build command: `npm run build` from `website/`
 - Current canonical site URL in `website/astro.config.mjs`: `https://plembfin.com`
-- The website is a static Astro build (`output: "static"`); it does not need a Pages
-  Function, Cloudflare Worker, API key, or runtime server.
+- The website is a static Astro build (`output: "static"`) with two Pages Functions:
+  first-party `/t` serves the Traks tracker JavaScript and `/api/event` forwards event
+  requests to the configured collector. The collector origin is a Pages runtime variable;
+  it is never embedded in browser code.
+- `website/public/_routes.json` includes only `/t` and `/api/event`, so those paths reach
+  the Functions instead of falling through to the SPA HTML.
 
 The build reads the repository's root `package.json` and `CHANGELOG.md`, and copies the
 root logo, diagram, and provider icons. Cloudflare must therefore build the repository
@@ -42,6 +46,10 @@ npm run check:deploy
 npm run build
 npx --yes wrangler@latest pages deploy dist --project-name plembfin-website --branch main --commit-message "Update Plembfin website from local source" --commit-dirty=true
 ```
+
+Run the Wrangler command from `website/`, where the sibling `functions/` directory is
+available. Wrangler uploads the Pages Functions together with `dist/`; a dashboard
+drag-and-drop upload does not compile or publish these Functions.
 
 The deployment must be verified at both the returned `pages.dev` URL and
 `https://plembfin.com`. Wrangler deploys the exact `website/dist/` output, so uncommitted
@@ -144,8 +152,11 @@ In Cloudflare:
    | Node version | `22.19.0` via `NODE_VERSION` in Pages environment variables |
 
 Set `NODE_VERSION` for both Production and Preview environments so Pages matches the
-Node version used by the local setup guide. Do not add application secrets: this static
-build only needs its package dependencies and repository files.
+Node version used by the local setup guide. Set `PUBLIC_TRAKS_SITE_KEY` as a public build
+variable and `TRAKS_COLLECTOR_ORIGIN` as a production Pages runtime variable. Use the
+current Traks site key from the Installation panel; do not reuse a previous key. Do not
+add application secrets: the website only needs its package dependencies, repository
+files, and the collector origin/site key.
 
 Leave automatic production branch deployments enabled, set the production branch to
 `main`, and set the preview branch to **None (Disable automatic branch deployments)**.
@@ -178,6 +189,9 @@ Check the deployment log and then test the deployed site at its `pages.dev` host
 custom domain:
 
 - `/` and `/docs/` return the expected pages;
+- `GET /t` returns JavaScript rather than the SPA `index.html`;
+- a real page load produces a 2xx first-party `/api/event` request and a pageview in the
+  Traks dashboard;
 - `/docs/guides/`, `/docs/getting-started/`, `/docs/movies/`, and
   `/docs/tv-shows/media-page/` load directly;
 - all internal links remain path-only and do not expose local hostnames;
@@ -209,6 +223,8 @@ release staging branches rather than public Pages deployment sources.
 ## Official references
 
 - [Cloudflare Pages Astro guide](https://developers.cloudflare.com/pages/framework-guides/deploy-an-astro-site/)
+- [Cloudflare Pages Functions routing](https://developers.cloudflare.com/pages/functions/routing/)
+- [Cloudflare Pages Direct Upload and Functions](https://developers.cloudflare.com/pages/get-started/direct-upload/)
 - [Cloudflare Pages Git integration](https://developers.cloudflare.com/pages/configuration/git-integration/)
 - [Build configuration](https://developers.cloudflare.com/pages/configuration/build-configuration/)
 - [Build image and Node versions](https://developers.cloudflare.com/pages/configuration/build-image/)

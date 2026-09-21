@@ -488,7 +488,7 @@ async function main() {
           : 0;
         const metadataId = `${mediaType}_${item.tmdbId}`;
         const details = demoDetails(item, mediaType, showEpisodeCount);
-        insertMetadata.run({
+        const metadataParams = {
           id: metadataId,
           tmdbId: String(item.tmdbId),
           mediaType,
@@ -500,10 +500,15 @@ async function main() {
           backdropPath: details.backdrop_path || null,
           backdropUrl: item.backdrop.path,
           updatedAt: now,
-        });
+        };
+        insertMetadata.run(metadataParams);
 
         if (mediaType === "tv") {
           const tvdbFixtureId = fixtureTvdbId(item);
+          // Keep the bundled TVDB identity aligned with the real metadata
+          // gateway, which stores a TVDB alias when a show is resolved that
+          // way from a media-server episode.
+          insertMetadata.run({ ...metadataParams, id: `tv_tvdb_${tvdbFixtureId}` });
           const seasonNumbers = (details.seasons || [])
             .map((season) => Number(season.season_number))
             .filter((number) => Number.isInteger(number) && number >= 0);

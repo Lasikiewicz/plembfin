@@ -21,8 +21,8 @@ const requiredCaptures = [
   "custom-lists-light.png",
   "tvshows-dark.png",
   "tvshows-light.png",
-  "sync-activity-dark.png",
-  "sync-activity-light.png",
+  "sync-activity-focused-dark.png",
+  "sync-activity-focused-light.png",
 ];
 const failures = [];
 

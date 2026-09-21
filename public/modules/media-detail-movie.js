@@ -1,18 +1,18 @@
-import { state, elements } from "./state.js?v=1.1.1.8.2";
-import { escapeHtml, escapeAttribute, formatDate, formatTmdbDate, isDemoMode } from "./utils.js?v=1.1.1.8.2";
-import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=1.1.1.8.2";
-import { isWatchedHistoryAction, isMediaSyncing, mediaSyncNoticeHtml, getMediaTargetSyncStatus, renderSyncStatusDot } from "./sync.js?v=1.1.1.8.2";
-import { fetchTmdbDetails } from "./tmdb.js?v=1.1.1.8.2";
-import { renderWatchDatePrompt, isMovieSavingWatchAction } from "./watch-action.js?v=1.1.1.8.2";
-import { authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=1.1.1.8.2";
-import { personalRatingPillHtml, personalMediaActionsHtml } from "./personal-media.js?v=1.1.1.8.2";
+import { state, elements } from "./state.js?v=1.2.0.0.1";
+import { escapeHtml, escapeAttribute, formatDate, formatTmdbDate, isDemoMode } from "./utils.js?v=1.2.0.0.1";
+import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=1.2.0.0.1";
+import { isWatchedHistoryAction, isMediaSyncing, mediaSyncNoticeHtml, getMediaTargetSyncStatus, renderSyncStatusDot } from "./sync.js?v=1.2.0.0.1";
+import { fetchTmdbDetails } from "./tmdb.js?v=1.2.0.0.1";
+import { renderWatchDatePrompt, isMovieSavingWatchAction } from "./watch-action.js?v=1.2.0.0.1";
+import { authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=1.2.0.0.1";
+import { personalRatingPillHtml, personalMediaActionsHtml } from "./personal-media.js?v=1.2.0.0.1";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderMediaImagesSection, renderMediaFacts,
   renderExternalRatingPills, ratingPillHtml, renderSeerrRequestPill, fetchSeerrMediaStatus,
   refreshActiveMediaDetailAfterSeerrStatus, rankedRecommendations, recommendedTvShowsForMovie,
   renderRecommendationSection, hydrateMediaAppLinks, renderCollectionSection, mediaAppLinksHtml,
   markDetailPrimaryReady,
-} from "./media-detail-shared.js?v=1.1.1.8.2";
+} from "./media-detail-shared.js?v=1.2.0.0.1";
 
 // Watch history list - playHistory (every { id, watched_at, source } entry for
 // this movie, collapsed server-side in dedupeMovies/collapseMovieCluster) has
@@ -307,12 +307,12 @@ function _renderWatchedMovieContent(root, movie, {
 
   setMediaDetailActions(`
     ${personalMediaActionsHtml(personalMediaItem)}
-    <button class="action-pill action-pill-ghost" type="button" ${isSaving || isSyncing ? "disabled" : ""} data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-tmdb-id="${escapeAttribute(tmdbData?.id || movie.tmdb_id || "")}" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">
-      ${eyeSlashIcon}
-      <span>Mark <br>Unwatched</span>
-    </button>
     ${ytWatchBtn}
     ${mediaToolsActionHtml(`
+      <button class="action-pill action-pill-ghost" type="button" ${isSaving || isSyncing ? "disabled" : ""} data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-tmdb-id="${escapeAttribute(tmdbData?.id || movie.tmdb_id || "")}" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">
+        ${eyeSlashIcon}
+        <span>Mark unwatched</span>
+      </button>
       ${mediaForceSyncActionHtml({
         type: "movie",
         title: movieTitle,
@@ -324,7 +324,7 @@ function _renderWatchedMovieContent(root, movie, {
       ${mediaInfoActionHtml()}
       <button class="action-pill media-edit-image-btn" type="button" ${isSaving ? "disabled" : ""} data-artwork-scope="movie" data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || movieTitle || "")}" data-poster-url="${escapeAttribute(movie.poster_url || "")}" data-logo-url="${escapeAttribute(movie.logo_url || "")}" data-backdrop-url="${escapeAttribute(movie.backdrop_url || "")}">
         ${imageIcon}
-        <span>Edit <br>Images</span>
+        <span>Edit Images</span>
       </button>
       <button class="action-pill media-fix-match-btn" type="button" ${isSaving ? "disabled" : ""} data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-media-type="movie">
         ${searchIcon}
@@ -444,12 +444,12 @@ export function patchMovieWatchedState(movie) {
 
   setMediaDetailActions(`
     ${personalMediaActionsHtml(personalMediaItem)}
-    <button class="action-pill action-pill-ghost" type="button" data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-tmdb-id="${escapeAttribute(movie.tmdb_id || "")}" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">
-      ${eyeSlashIcon}
-      <span>Mark <br>Unwatched</span>
-    </button>
     ${ytWatchBtn}
     ${mediaToolsActionHtml(`
+      <button class="action-pill action-pill-ghost" type="button" data-unwatch-id="${escapeAttribute(movie.id)}" data-unwatch-kind="movie" data-unwatch-tmdb-id="${escapeAttribute(movie.tmdb_id || "")}" data-unwatch-label="${escapeAttribute(movie.title || "this movie")}">
+        ${eyeSlashIcon}
+        <span>Mark unwatched</span>
+      </button>
       ${mediaForceSyncActionHtml({
         type: "movie",
         title: movie.title,
@@ -460,7 +460,7 @@ export function patchMovieWatchedState(movie) {
       ${mediaInfoActionHtml()}
       <button class="action-pill media-edit-image-btn" type="button" data-artwork-scope="movie" data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-poster-url="${escapeAttribute(movie.poster_url || "")}" data-logo-url="${escapeAttribute(movie.logo_url || "")}" data-backdrop-url="${escapeAttribute(movie.backdrop_url || "")}">
         ${imageIcon}
-        <span>Edit <br>Images</span>
+        <span>Edit Images</span>
       </button>
       <button class="action-pill media-fix-match-btn" type="button" data-edit-id="${escapeAttribute(movie.id)}" data-title="${escapeAttribute(movie.title || "")}" data-media-type="movie">
         ${searchIcon}

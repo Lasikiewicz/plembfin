@@ -2452,7 +2452,8 @@ html.light-mode .docs-page-outline-link.active {
 }
 
 .article-next a {
-  max-width: 48%;
+  max-width: none;
+  white-space: nowrap;
   color: var(--accent-strong);
   font-size: 0.8rem;
   font-weight: 700;
@@ -2835,6 +2836,7 @@ html.light-mode .docs-page-outline-link.active {
   .article-next a:last-child {
     max-width: 100%;
     margin-left: 0;
+    white-space: normal;
     text-align: left;
   }
 }

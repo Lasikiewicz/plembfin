@@ -42,6 +42,13 @@ const THROTTLE_PRIORITY = { interactive: 0, sync: 1, enrichment: 2 };
 // --- SQLite-backed cache helpers ---
 const metaGetStmt = db.prepare("SELECT * FROM tmdb_metadata_cache WHERE id = ?");
 const metaGetByTmdbIdStmt = db.prepare("SELECT * FROM tmdb_metadata_cache WHERE media_type = 'tv' AND tmdb_id = ? ORDER BY updated_at_ms DESC LIMIT 1");
+// Demo fixture rows are written under their TMDB id. A show detail opened
+// from a local episode can arrive with only the series TVDB id, so keep a
+// cache-only lookup for that identity as well. JSON1 is already required by
+// the metadata-column migration in db.js.
+const metaGetByTvdbIdStmt = db.prepare(
+  "SELECT * FROM tmdb_metadata_cache WHERE media_type = 'tv' AND json_valid(details) AND json_extract(details, '$.external_ids.tvdb_id') = ? ORDER BY updated_at_ms DESC LIMIT 1",
+);
 // `status`, `poster_path` and the backdrop/poster URLs are mirrored out of the
 // details blob into their own columns so grid and card paths can read the two
 // or three fields they need without parsing a blob that averages 64KB for a TV
@@ -66,6 +73,11 @@ function metaGet(id) {
 }
 function metaGetByTmdbId(tmdbId) {
   const row = metaGetByTmdbIdStmt.get(String(tmdbId || ""));
+  if (!row) return null;
+  return { tmdbId: row.tmdb_id, mediaType: row.media_type, title: row.title, details: parseJson(row.details), schemaVersion: row.schema_version, updatedAtMs: row.updated_at_ms };
+}
+function metaGetByTvdbId(tvdbId) {
+  const row = metaGetByTvdbIdStmt.get(String(tvdbId || ""));
   if (!row) return null;
   return { tmdbId: row.tmdb_id, mediaType: row.media_type, title: row.title, details: parseJson(row.details), schemaVersion: row.schema_version, updatedAtMs: row.updated_at_ms };
 }
@@ -121,7 +133,7 @@ const recentProgressStmt = db.prepare(`
 `);
 
 function hash(value) {
-  return crypto.createHash("sha1").update(String(value)).digest("hex");
+  return crypto.createHash("sha256").update(String(value)).digest("hex");
 }
 
 function canonicalTitle(value = "") {
@@ -246,6 +258,13 @@ function metadataCacheRow(item = {}) {
     // not let a cache-only read turn that stale identity into another show.
     if (item.mediaType === "tv" && requestedTvdbId && cachedTvdbId !== requestedTvdbId) continue;
     return cached;
+  }
+  // A legacy or bundled row may not have the explicit TVDB alias yet. Match
+  // the identity inside the cached details before declaring a demo title
+  // missing; this keeps TVDB-routed detail pages cache-only and offline.
+  if (item.mediaType === "tv" && requestedTvdbId) {
+    const cached = metaGetByTvdbId(requestedTvdbId);
+    if (cached?.details) return cached;
   }
   return null;
 }

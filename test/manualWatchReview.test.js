@@ -75,7 +75,7 @@ test("manual watch reviews are durable, deduplicated, and re-open on a changed p
   assert.equal(getManualWatchReview(first.review.id).status, "pending");
 });
 
-test("a pending review remains visible when an older watched record already exists", async () => {
+test("a pending review is hidden when an older watched record already exists", async () => {
   const reviewMedia = {
     title: "Existing Date Review Movie",
     type: "movie",
@@ -99,8 +99,8 @@ test("a pending review remains visible when an older watched record already exis
     sourceFingerprint: "emby|existing-date-review-movie|1",
   });
 
-  assert.equal(queued.status, "pending");
-  assert.equal(listPendingManualWatchReviews().some((review) => review.id === queued.review.id), true);
+  assert.equal(queued.status, "already_watched");
+  assert.equal(listPendingManualWatchReviews().some((review) => review.id === queued.review.id), false);
   setManualWatchReviewStatus(queued.review.id, "dismissed");
 });
 
@@ -252,6 +252,72 @@ test("pending reviews are hidden and retired after an explicit unwatch", async (
   assert.equal(getManualWatchReview(queued.review.id).decision_mode, "unwatched");
 });
 
+test("manual movie unwatch clears a provider-id alias when part numbers use words and roman numerals", async () => {
+  const reviewMedia = {
+    title: "Alias Guard Movie: Part One",
+    type: "movie",
+    source: "plex",
+    isValid: true,
+  };
+  const importedMedia = {
+    title: "Alias Guard Movie: Part I",
+    media_type: "movie",
+    imdb_id: "tt99123451",
+    tmdb_id: "9912345",
+    tvdb_id: "299123",
+    watched_at: "2026-08-01T10:00:00.000Z",
+    source: "trakt_import",
+    sync_action: "watched",
+  };
+  await repo.insertWatchRecord(importedMedia);
+
+  const queued = enqueueManualWatchReview(reviewMedia, {
+    releaseDate: "2026-08-01",
+    sourceFingerprint: "plex|alias-guard-movie-part-one|1",
+  });
+  assert.equal(queued.status, "pending");
+
+  await applyManualUnwatch(
+    reviewMedia,
+    {
+      plex: { disabled: true },
+      emby: { disabled: true },
+      jellyfin: { disabled: true },
+    },
+    createLoopStore(),
+    "",
+    { includeSourcePlatform: true, trackDispatch: false, force: true, lane: "interactive" },
+  );
+
+  const importedKey = repo.mediaKeyFor({
+    type: "movie",
+    title: reviewMedia.title,
+    ids: {
+      imdb: importedMedia.imdb_id,
+      tmdb: importedMedia.tmdb_id,
+      tvdb: importedMedia.tvdb_id,
+    },
+  });
+  const watchedAlias = db.prepare(
+    "SELECT id FROM watch_history WHERE media_key = ? AND sync_action = 'watched' LIMIT 1",
+  ).get(importedKey);
+  assert.equal(watchedAlias, undefined);
+
+  const tombstone = db.prepare(
+    "SELECT sync_action FROM watch_history WHERE media_key = ? ORDER BY id DESC LIMIT 1",
+  ).get(importedKey);
+  assert.equal(tombstone?.sync_action, "unwatched");
+
+  const playstate = db.prepare(
+    "SELECT state FROM playstate WHERE media_key = ? LIMIT 1",
+  ).get(importedKey);
+  assert.equal(playstate?.state, "unwatched");
+
+  const review = getManualWatchReview(queued.review.id);
+  assert.equal(review.status, "dismissed");
+  assert.equal(review.decision_mode, "unwatched");
+});
+
 test("generic provider watched flags are suppressed while the canonical state is unwatched", async () => {
   const media = {
     title: "Suppressed Stale Flag Movie",
@@ -272,6 +338,29 @@ test("generic provider watched flags are suppressed while the canonical state is
   assert.equal(result.status, "unwatched");
   assert.equal(result.suppressed, true);
   assert.equal(result.review, null);
+});
+
+test("review-required provider flags can be held for a decision while locally unwatched", async () => {
+  const media = {
+    title: "Held Provider Flag Movie",
+    type: "movie",
+    source: "jellyfin",
+    itemId: "jellyfin-held-provider-flag-movie",
+    ids: { tmdb: "held-provider-flag-movie" },
+    releaseDate: "2026-08-01",
+    isValid: true,
+  };
+  await repo.upsertPlaystateForMedia(media, "unwatched", "2026-09-08T16:48:00.000Z", { skipInvalidate: true });
+
+  const result = enqueueManualWatchReview(media, {
+    releaseDate: "2026-08-01T00:00:00.000Z",
+    sourceFingerprint: "jellyfin|held-provider-flag-movie|1",
+    allowWhenUnwatched: true,
+  });
+  assert.equal(result.queued, true);
+  assert.equal(result.status, "pending");
+  assert.equal(listPendingManualWatchReviews().some((review) => review.id === result.review.id), true);
+  setManualWatchReviewStatus(result.review.id, "dismissed");
 });
 
 test("a manual unwatch tombstone suppresses a provider alias with a title-normalization mismatch", async () => {
@@ -339,17 +428,6 @@ test("mark watched now updates an existing cross-key watch instead of keeping it
   const title = "Existing Review Show - S01E01 - Pilot";
   const showTitle = "Existing Review Show";
   const oldDate = "2026-08-01T10:00:00.000Z";
-  const existing = await repo.insertWatchRecord({
-    title,
-    show_title: showTitle,
-    media_type: "episode",
-    season: 1,
-    episode: 1,
-    imdb_id: "review-existing-imdb",
-    watched_at: oldDate,
-    source: "trakt_import",
-    sync_action: "watched",
-  });
   const queued = enqueueManualWatchReview({
     title,
     showTitle,
@@ -367,6 +445,17 @@ test("mark watched now updates an existing cross-key watch instead of keeping it
   });
   assert.equal(queued.status, "pending");
 
+  const existing = await repo.insertWatchRecord({
+    title,
+    show_title: showTitle,
+    media_type: "episode",
+    season: 1,
+    episode: 1,
+    imdb_id: "review-existing-imdb",
+    watched_at: oldDate,
+    source: "trakt_import",
+    sync_action: "watched",
+  });
   const request = {
     method: "POST",
     body: { mode: "now" },

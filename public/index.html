@@ -7,24 +7,24 @@
     <link rel="icon" href="/favicon.svg?v=1.1.1.8.0" type="image/svg+xml" />
     <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png?v=20260824h" />
     <meta name="apple-mobile-web-app-title" content="Plembfin" />
-    <link rel="manifest" href="/manifest.webmanifest?v=1.1.1.8.2" />
+    <link rel="manifest" href="/manifest.webmanifest?v=1.2.0.0.1" />
     <meta name="theme-color" content="#05080c" />
-    <script src="/theme-boot.js?v=1.1.1.8.2"></script>
+    <script src="/theme-boot.js?v=1.2.0.0.1"></script>
     <link rel="preconnect" href="https://image.tmdb.org" />
-    <link rel="modulepreload" href="/app.js?v=1.1.1.8.2" />
-    <link rel="modulepreload" href="/modules/auth.js?v=1.1.1.8.2" />
-    <link rel="modulepreload" href="/modules/logs.js?v=1.1.1.8.2" />
-    <link rel="modulepreload" href="/modules/settings-shell.js?v=1.1.1.8.2" />
-    <link rel="modulepreload" href="/modules/state.js?v=1.1.1.8.2" />
-    <link rel="modulepreload" href="/modules/appearance.js?v=1.1.1.8.2" />
-    <link rel="modulepreload" href="/modules/status-indicators.js?v=1.1.1.8.2" />
-    <link rel="modulepreload" href="/modules/media-routing.js?v=1.1.1.8.2" />
-    <link rel="modulepreload" href="/modules/cast-disclosure.js?v=1.1.1.8.2" />
-    <link rel="modulepreload" href="/modules/utils.js?v=1.1.1.8.2" />
-    <link rel="modulepreload" href="/modules/images.js?v=1.1.1.8.2" />
-    <link rel="modulepreload" href="/modules/sync.js?v=1.1.1.8.2" />
-    <link rel="modulepreload" href="/modules/route-modules.js?v=1.1.1.8.2" />
-    <link rel="stylesheet" href="/styles.css?v=1.1.1.8.2" />
+    <link rel="modulepreload" href="/app.js?v=1.2.0.0.1" />
+    <link rel="modulepreload" href="/modules/auth.js?v=1.2.0.0.1" />
+    <link rel="modulepreload" href="/modules/logs.js?v=1.2.0.0.1" />
+    <link rel="modulepreload" href="/modules/settings-shell.js?v=1.2.0.0.1" />
+    <link rel="modulepreload" href="/modules/state.js?v=1.2.0.0.1" />
+    <link rel="modulepreload" href="/modules/appearance.js?v=1.2.0.0.1" />
+    <link rel="modulepreload" href="/modules/status-indicators.js?v=1.2.0.0.1" />
+    <link rel="modulepreload" href="/modules/media-routing.js?v=1.2.0.0.1" />
+    <link rel="modulepreload" href="/modules/cast-disclosure.js?v=1.2.0.0.1" />
+    <link rel="modulepreload" href="/modules/utils.js?v=1.2.0.0.1" />
+    <link rel="modulepreload" href="/modules/images.js?v=1.2.0.0.1" />
+    <link rel="modulepreload" href="/modules/sync.js?v=1.2.0.0.1" />
+    <link rel="modulepreload" href="/modules/route-modules.js?v=1.2.0.0.1" />
+    <link rel="stylesheet" href="/styles.css?v=1.2.0.0.1" />
   </head>
   <body class="auth-locked">
     <div class="app-chassis">
@@ -313,22 +313,27 @@
 
         <section id="discover-view" class="view-panel hidden" data-view-panel="discover">
           <section class="glass-panel p-section discover-shell">
-            <div id="discoverTopbarControls" class="view-control-source discover-controls" aria-label="Discover filters">
-              <label class="compact-field">
-                <span>Type</span>
-                <select id="discoverMediaType" class="field">
-                  <option value="all">Movies &amp; TV</option>
-                  <option value="movie">Movies</option>
-                  <option value="tv">TV shows</option>
-                </select>
-              </label>
-              <label class="compact-field">
-                <span>Genre</span>
-                <select id="discoverGenre" class="field">
-                  <option value="">All genres</option>
-                </select>
-              </label>
-              <button id="discoverRefreshButton" class="button-ghost" type="button">Refresh</button>
+            <div id="discoverTopbarControls" class="view-control-source discover-controls page-action-bar" aria-label="Discover controls">
+              <div class="page-action-primary" role="toolbar" aria-label="Discover actions">
+                <label class="compact-field discover-filter-field">
+                  <span>Type</span>
+                  <select id="discoverMediaType" class="field">
+                    <option value="all">Movies &amp; TV</option>
+                    <option value="movie">Movies</option>
+                    <option value="tv">TV shows</option>
+                  </select>
+                </label>
+                <label class="compact-field discover-filter-field">
+                  <span>Genre</span>
+                  <select id="discoverGenre" class="field">
+                    <option value="">All genres</option>
+                  </select>
+                </label>
+                <button id="discoverRefreshButton" class="action-pill page-action-pill discover-refresh-action" type="button" title="Refresh Discover">
+                  <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M13.7 3.3A6.9 6.9 0 0 0 8 1a7 7 0 1 0 6.7 9h-1.6A5.5 5.5 0 1 1 8 2.5c1.3 0 2.5.45 3.45 1.2L9.5 5.65H15V.2l-1.3 1.3z"/></svg>
+                  <span>Refresh</span>
+                </button>
+              </div>
             </div>
             <div id="discoverPanel" class="discover-panel" aria-live="polite"></div>
           </section>
@@ -344,7 +349,8 @@
         <section id="history-view" class="view-panel hidden" data-view-panel="history">
           <section class="glass-panel p-section">
             <div class="view-control-source">
-              <div id="historyTopbarControls" class="explorer-controls">
+              <div id="historyTopbarControls" class="explorer-controls page-action-bar">
+                <div class="page-action-primary">
                 <div class="mobile-controls-row">
                   <button class="mobile-control-tab" data-target="search" type="button" aria-pressed="false">
                     <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>
@@ -354,15 +360,20 @@
                     <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M1.5 1.5A.5.5 0 0 1 2 1h12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.128.33L10 8.293V11.5a.5.5 0 0 1-.27.445l-3 1.5A.5.5 0 0 1 6 13V8.293L2.128 3.83a.5.5 0 0 1-.128-.33v-2z"/></svg>
                     <span>Filter</span>
                   </button>
-                  <button class="mobile-control-tab" data-target="size" type="button" aria-pressed="false">
-                    <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M11.5 1a.5.5 0 0 1 1.5 1.5v12a.5.5 0 0 1-1 0v-12A.5.5 0 0 1 12 1.5z"/></svg>
-                    <span>Size</span>
-                  </button>
                   <button class="mobile-control-tab" data-target="view" type="button" aria-pressed="false">
                     <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M1.5 2.5A1.5 1.5 0 0 1 3 1h10a1.5 1.5 0 0 1 1.5 1.5v10A1.5 1.5 0 0 1 13 15H3a1.5 1.5 0 0 1-1.5-1.5v-10zM3 2a.5.5 0 0 0-.5.5v10a.5.5 0 0 0 .5.5h10a.5.5 0 0 0 .5-.5v-10a.5.5 0 0 0-.5-.5H3z"/><path d="M4 4.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zm0 3.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zm0 3.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5z"/></svg>
                     <span>View</span>
                   </button>
+                  <button class="mobile-control-tab" data-target="size" type="button" aria-pressed="false" title="Change poster size">
+                    <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M2 2.25a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 2.25Zm0 5.75a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 8Zm0 5.75a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1-.75-.75Z"/><path d="M5 1.25h1.5v2H5zm4.5 5.75H11v2H9.5zm-3 5.75H8v2H6.5z"/></svg>
+                    <span>Size</span>
+                  </button>
                 </div>
+                </div>
+                <label class="compact-field explorer-size-slider history-size-control">
+                  <span>Size</span>
+                  <input id="historyPosterSize" type="range" min="60" max="180" value="150" />
+                </label>
                 <label class="compact-field explorer-search-box">
                   <span>Search</span>
                   <input id="historySearchInput" class="field" type="search" placeholder="Search history..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" readonly />
@@ -383,10 +394,6 @@
                     <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true"><rect x="1" y="1" width="4" height="13" rx="1" fill="currentColor"/><rect x="6.5" y="1" width="7.5" height="2" rx="0.75" fill="currentColor"/><rect x="6.5" y="4.5" width="7.5" height="1.5" rx="0.75" fill="currentColor"/><rect x="6.5" y="7.5" width="5" height="1.5" rx="0.75" fill="currentColor"/></svg>
                   </button>
                 </div>
-                <label class="compact-field explorer-size-slider">
-                  <span>Size</span>
-                  <input id="historyPosterSize" type="range" min="60" max="180" value="150" />
-                </label>
               </div>
             </div>
             <div class="explorer-with-alpha">
@@ -396,28 +403,30 @@
         </section>
 
         <section id="stats-view" class="view-panel hidden" data-view-panel="stats">
-          <section class="view-control-source stats-toolbar glass-panel" aria-label="Stats filters">
-            <div id="statsTopbarControls" class="stats-controls">
-              <label class="compact-field">
-                <span>Media</span>
-                <select id="statsMediaFilter" class="field">
-                  <option value="all">Movies &amp; TV</option>
-                  <option value="movie">Movies</option>
-                  <option value="episode">TV shows</option>
-                </select>
-              </label>
-              <label class="compact-field">
-                <span>Period</span>
-                <select id="statsPeriodType" class="field">
-                  <option value="all">All time</option>
-                  <option value="year">Year</option>
-                  <option value="month">Month</option>
-                </select>
-              </label>
-              <label class="compact-field">
-                <span>Range</span>
-                <select id="statsPeriodValue" class="field"></select>
-              </label>
+          <section class="view-control-source stats-toolbar page-action-bar" aria-label="Stats controls">
+            <div id="statsTopbarControls" class="stats-controls page-action-bar" role="toolbar" aria-label="Stats filters">
+              <div class="page-action-primary stats-action-primary">
+                <label class="compact-field stats-filter-field">
+                  <span>Media</span>
+                  <select id="statsMediaFilter" class="field">
+                    <option value="all">Movies &amp; TV</option>
+                    <option value="movie">Movies</option>
+                    <option value="episode">TV shows</option>
+                  </select>
+                </label>
+                <label class="compact-field stats-filter-field">
+                  <span>Period</span>
+                  <select id="statsPeriodType" class="field">
+                    <option value="all">All time</option>
+                    <option value="year">Year</option>
+                    <option value="month">Month</option>
+                  </select>
+                </label>
+                <label class="compact-field stats-filter-field">
+                  <span>Range</span>
+                  <select id="statsPeriodValue" class="field"></select>
+                </label>
+              </div>
             </div>
           </section>
 
@@ -465,18 +474,37 @@
         <section id="upcoming-view" class="view-panel hidden" data-view-panel="upcoming">
           <section class="glass-panel p-section">
             <div class="view-control-source">
-              <div id="upcomingTopbarControls" class="upcoming-controls">
-                <label class="compact-field upcoming-search-field">
-                  <span>Search</span>
-                  <input id="upcomingSearchInput" class="field" type="search" placeholder="Search episodes..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
-                </label>
+            <div id="upcomingTopbarControls" class="upcoming-controls page-action-bar">
+              <div class="page-action-primary" role="toolbar" aria-label="Upcoming actions">
+                <details class="upcoming-search-dropdown">
+                    <summary class="action-pill page-action-pill upcoming-search-trigger" aria-label="Search upcoming episodes" title="Search upcoming episodes">
+                      <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M6.75 2a4.75 4.75 0 1 0 2.96 8.47l3.91 3.91 1.06-1.06-3.91-3.91A4.75 4.75 0 0 0 6.75 2Zm0 1.5a3.25 3.25 0 1 1 0 6.5 3.25 3.25 0 0 1 0-6.5Z"/></svg>
+                      <span class="sr-only">Search upcoming episodes</span>
+                    </summary>
+                    <div class="upcoming-search-panel">
+                      <label class="compact-field upcoming-search-field">
+                        <span class="sr-only">Search upcoming episodes</span>
+                        <input id="upcomingSearchInput" class="field" type="search" placeholder="Search episodes..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+                      </label>
+                    </div>
+                </details>
                 <div class="upcoming-month-controls" aria-label="Upcoming calendar controls">
-                  <button id="upcomingPrevButton" class="button-ghost upcoming-nav-button" type="button" aria-label="Previous month">&#8249;</button>
-                  <span id="upcomingMonthTitle" class="upcoming-month-title"></span>
-                  <button id="upcomingNextButton" class="button-ghost upcoming-nav-button" type="button" aria-label="Next month">&#8250;</button>
-                  <button id="upcomingTodayButton" class="button-ghost" type="button">Today</button>
+                  <button id="upcomingPrevButton" class="action-pill page-action-pill upcoming-nav-button" type="button" aria-label="Previous month" title="Previous month">
+                    <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="m9.75 2.25-5.5 5.5a.35.35 0 0 1 0 .5l5.5 5.5 1-1L5.75 8l5-5z"/></svg>
+                    <span>Previous</span>
+                  </button>
+                  <span id="upcomingMonthTitle" class="upcoming-month-title" aria-live="polite"></span>
+                  <button id="upcomingNextButton" class="action-pill page-action-pill upcoming-nav-button" type="button" aria-label="Next month" title="Next month">
+                    <span>Next</span>
+                    <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="m6.25 2.25 5.5 5.5a.35.35 0 0 1 0 .5l-5.5 5.5-1-1 5-4.75-5-4.75z"/></svg>
+                  </button>
                 </div>
+                <button id="upcomingTodayButton" class="action-pill page-action-pill upcoming-today-button" type="button" aria-label="Jump to today" title="Jump to today">
+                  <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><rect x="2" y="3.5" width="12" height="10" rx="1" fill="none" stroke="currentColor" stroke-width="1.3"/><path d="M4.5 1.5v4M11.5 1.5v4M2.5 6.5h11" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/><path d="M5 9h1v1H5zm2.5 0h1v1h-1zm2.5 0h1v1h-1z"/></svg>
+                  <span class="upcoming-today-label">Today</span>
+                </button>
               </div>
+            </div>
             </div>
             <div id="upcomingCalendar" class="upcoming-calendar"></div>
           </section>
@@ -537,6 +565,7 @@
                 <input id="manualWatchReviewSearch" class="field" type="search" placeholder="Search shows or episodes..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
               </label>
               <div class="manual-watch-review-toolbar-status">
+                <button id="manualWatchReviewRefresh" class="button-ghost" type="button" title="Re-read Plembfin's current watch state and review queue">Recheck status</button>
                 <span id="manualWatchReviewStatus" class="message muted" role="status" aria-live="polite"></span>
                 <span id="manualWatchReviewFilterStatus" class="message muted" aria-live="polite"></span>
               </div>
@@ -548,7 +577,8 @@
         <section class="view-panel hidden" data-view-panel="explorer">
           <section class="glass-panel p-section">
             <div class="view-control-source">
-              <div id="explorerTopbarControls" class="explorer-controls">
+              <div id="explorerTopbarControls" class="explorer-controls page-action-bar">
+                <div class="page-action-primary">
                 <div class="mobile-controls-row">
                   <button class="mobile-control-tab" data-target="search" type="button" aria-pressed="false">
                     <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001c.03.04.062.078.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1.007 1.007 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0z"/></svg>
@@ -562,22 +592,35 @@
                     <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M1.5 1.5A.5.5 0 0 1 2 1h12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.128.33L10 8.293V11.5a.5.5 0 0 1-.27.445l-3 1.5A.5.5 0 0 1 6 13V8.293L2.128 3.83a.5.5 0 0 1-.128-.33v-2z"/></svg>
                     <span>Filter</span>
                   </button>
-                  <button class="mobile-control-tab" data-target="size" type="button" aria-pressed="false">
-                    <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M11.5 1A.5.5 0 0 1 12 1.5v12a.5.5 0 0 1-1 0v-12a.5.5 0 0 1 .5-.5zM8 1a.5.5 0 0 1 .5.5v12a.5.5 0 0 1-1 0v-12A.5.5 0 0 1 8 1zm-3.5 0a.5.5 0 0 1 .5.5v12a.5.5 0 0 1-1 0v-12a.5.5 0 0 1 .5-.5z"/></svg>
-                    <span>Size</span>
-                  </button>
                   <button class="mobile-control-tab" data-target="view" type="button" aria-pressed="false">
                     <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M1.5 2.5A1.5 1.5 0 0 1 3 1h10a1.5 1.5 0 0 1 1.5 1.5v10A1.5 1.5 0 0 1 13 15H3a1.5 1.5 0 0 1-1.5-1.5v-10zM3 2a.5.5 0 0 0-.5.5v10a.5.5 0 0 0 .5.5h10a.5.5 0 0 0 .5-.5v-10a.5.5 0 0 0-.5-.5H3z"/><path d="M4 4.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zm0 3.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zm0 3.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5z"/></svg>
                     <span>View</span>
                   </button>
                 </div>
+                <details class="page-tools-dropdown page-tools-dropdown--mobile">
+                  <summary class="action-pill page-tools-trigger" title="Library options">
+                    <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M1.5 2A.5.5 0 0 1 2 1.5h12a.5.5 0 0 1 .4.8L9.5 8.4v4.1a.5.5 0 0 1-.28.45l-2 1A.5.5 0 0 1 6.5 13.5V8.4L1.6 2.3a.5.5 0 0 1-.1-.3zM3.05 2.5 7.4 7.95a.5.5 0 0 1 .1.3v4.45l1-.5V8.25a.5.5 0 0 1 .1-.3l4.35-5.45z"/></svg>
+                    <span>Options</span>
+                  </summary>
+                  <div class="page-tools-panel">
+                    <label class="compact-field explorer-size-slider">
+                      <span>Size</span>
+                      <input id="explorerPosterSize" type="range" min="80" max="240" value="160" />
+                    </label>
+                    <label id="explorerHideWatchedLabel" class="compact-field explorer-hide-toggle" style="display: none;">
+                      <span>Hide Fully Watched</span>
+                      <input id="explorerHideWatched" type="checkbox" class="explorer-hide-checkbox" />
+                    </label>
+                    <label id="explorerHideEndedLabel" class="compact-field explorer-hide-toggle" style="display: none;">
+                      <span>Hide Ended</span>
+                      <input id="explorerHideEnded" type="checkbox" class="explorer-hide-checkbox" />
+                    </label>
+                  </div>
+                </details>
+                </div>
                 <label class="compact-field explorer-search-box">
                   <span>Search</span>
                   <input id="explorerSearchInput" class="field" type="search" placeholder="Movie, show, IMDb, TMDB, TVDB..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" readonly />
-                </label>
-                <label class="compact-field explorer-size-slider">
-                  <span>Size</span>
-                  <input id="explorerPosterSize" type="range" min="80" max="240" value="160" />
                 </label>
                 <label class="compact-field">
                   <span>Sort</span>
@@ -588,14 +631,6 @@
                     <option value="watched_asc">Watched oldest</option>
                     <option value="next_air_asc">Next Airing</option>
                   </select>
-                </label>
-                <label id="explorerHideWatchedLabel" class="compact-field explorer-hide-toggle" style="display: none;">
-                  <span>Hide Fully Watched</span>
-                  <input id="explorerHideWatched" type="checkbox" class="explorer-hide-checkbox" />
-                </label>
-                <label id="explorerHideEndedLabel" class="compact-field explorer-hide-toggle" style="display: none;">
-                  <span>Hide Ended</span>
-                  <input id="explorerHideEnded" type="checkbox" class="explorer-hide-checkbox" />
                 </label>
                 <div class="explorer-view-toggle" role="group" aria-label="View type">
                   <button class="explorer-view-btn active" type="button" data-explorer-view="posters" title="Poster grid" aria-label="Show library as a poster grid" aria-pressed="true">
@@ -632,13 +667,6 @@
               Demo settings are read-only. You can browse the configuration, but changes, connections, syncs, backups, and restores are disabled.
             </div>
             <div class="settings-content">
-              <div class="settings-mobile-section">
-                <label for="settingsSectionSelect">Settings section</label>
-                <select id="settingsSectionSelect" class="field">
-                  <option value="/settings">Overview</option>
-                </select>
-              </div>
-
               <section id="settingsOverview" class="settings-overview" aria-label="Settings">
                 <div id="settingsOverviewList" class="settings-link-list"></div>
               </section>
@@ -2739,7 +2767,7 @@
                         </header>
 
                         <p class="about-build-line" aria-label="Build information">
-                          <span>Version <strong id="aboutCurrentVersion">v1.1.1</strong></span>
+                          <span>Version <strong id="aboutCurrentVersion">v1.2.0</strong></span>
                           <span class="about-build-separator" aria-hidden="true">·</span>
                           <span>Channel <strong id="aboutReleaseChannel">Latest</strong></span>
                         </p>
@@ -2988,7 +3016,7 @@
       </article>
     </div>
 
-    <script type="module" src="/modules/analytics.js?v=1.1.1.8.2"></script>
-    <script type="module" src="/app.js?v=1.1.1.8.2"></script>
+    <script type="module" src="/modules/analytics.js?v=1.2.0.0.1"></script>
+    <script type="module" src="/app.js?v=1.2.0.0.1"></script>
   </body>
 </html>

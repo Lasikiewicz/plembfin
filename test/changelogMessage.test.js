@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import {
   bulletPointsFrom,
   changelogEntryProcessViolations,
+  dedupeChangelogDetails,
   filterChangelogDetails,
   filterChangelogEntries,
   formatChangelogMessage,
@@ -165,4 +166,15 @@ test("validateReleaseMessage accepts meaningful details and maintenance commits"
     [],
   );
   assert.deepEqual(validateReleaseMessage("chore: update dependencies"), []);
+});
+
+test("dedupeChangelogDetails collapses equivalent user-facing bullets", () => {
+  assert.deepEqual(dedupeChangelogDetails([
+    "Feature: Keep the review list visible.",
+    "Keep the review list visible",
+    "Explain which connected app reported the item",
+  ]), [
+    "Feature: Keep the review list visible.",
+    "Explain which connected app reported the item",
+  ]);
 });

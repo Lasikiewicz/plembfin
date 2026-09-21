@@ -1,10 +1,10 @@
-import { state } from "./state.js?v=1.1.1.8.2";
-import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, formatDate, actualWatchHistory, sourceBadgeHtml, isDemoMode, tvShowTvdbHref } from "./utils.js?v=1.1.1.8.2";
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.8.2";
-import { isWatchedHistoryAction } from "./sync.js?v=1.1.1.8.2";
-import { tmdbPoster, tmdbImage, proxiedArtworkUrl } from "./images.js?v=1.1.1.8.2";
-import { dateAtMiddayIso, refreshShowAfterManualWatch, watchedAtForChoice, watchedReferenceFor } from "./watch-action.js?v=1.1.1.8.2";
-import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=1.1.1.8.2";
+import { state } from "./state.js?v=1.2.0.0.1";
+import { escapeHtml, escapeAttribute, slug, sanitizeTitle, showTitleFrom, formatDate, actualWatchHistory, sourceBadgeHtml, isDemoMode, tvShowTvdbHref } from "./utils.js?v=1.2.0.0.1";
+import { buildAuthHeaders } from "./auth.js?v=1.2.0.0.1";
+import { isWatchedHistoryAction } from "./sync.js?v=1.2.0.0.1";
+import { tmdbPoster, tmdbImage, proxiedArtworkUrl } from "./images.js?v=1.2.0.0.1";
+import { dateAtMiddayIso, refreshShowAfterManualWatch, watchedAtForChoice, watchedReferenceFor } from "./watch-action.js?v=1.2.0.0.1";
+import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=1.2.0.0.1";
 
 // Callbacks injected by app.js at startup.
 let _setMessage = () => {};
@@ -567,11 +567,15 @@ export function openEditDateDialog(_container, id, currentWatchedAt, onSaved, op
     };
     const updateRemoveButtonsState = () => {
       const rowEls = [...listEl.querySelectorAll(".watch-date-list-row")];
-      const onlyOne = rowEls.length <= 1;
       rowEls.forEach((rowEl) => {
         const btn = rowEl.querySelector(".watch-date-remove-btn");
-        if (btn) btn.disabled = onlyOne;
-        if (btn) btn.title = onlyOne ? "Use “Mark unwatched” to remove the only watch date" : "Remove this watch date";
+        // Removing the last date is the edit-dialog equivalent of Mark
+        // unwatched. Keep the same per-row confirmation and let the server
+        // clear playstate when no watched row remains.
+        if (btn) {
+          btn.disabled = false;
+          btn.title = "Remove this watch date";
+        }
       });
     };
     updateRemoveButtonsState();

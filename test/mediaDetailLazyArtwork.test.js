@@ -59,6 +59,13 @@ test("rail artwork waits for its rail to be reached instead of native lazy loadi
   assert.match(source, /new IntersectionObserver\([\s\S]*?rootMargin: RAIL_VIEWPORT_MARGIN/);
 });
 
+test("rail image promotion accepts only HTTP(S) URLs", () => {
+  assert.match(source, /function safeRailImageUrl\(value\)/);
+  assert.match(source, /new URL\(raw, document\.baseURI\)/);
+  assert.match(source, /url\.protocol !== "http:" && url\.protocol !== "https:"/);
+  assert.match(source, /const safeSrc = safeRailImageUrl\(src\)/);
+});
+
 test("every rail poster is lazy-loaded", () => {
   const tags = imgTags("season-poster-img");
   assert.ok(tags.length >= 3, `expected the related/recommendation/images rails, found ${tags.length}`);

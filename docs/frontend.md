@@ -134,6 +134,10 @@ SPA navigation via `history.pushState`:
 
 - `navigateTo(url)` - pushes state, resets the shell and nested view scroll positions,
   then routes so every page entry starts with fresh controls and a clean viewport.
+  The shell reset is repeated after the active view paints and after any lazy route
+  modules replay the route, so replacing a page cannot restore the previous page's
+  scroll offset. Explicit hash anchors and Upcoming's current-week anchor keep their
+  intentional destinations.
 - `handleRouting(path)` (`app.js`) - parses the URL into `state.activeView` (+ mode/
   detail state) and calls the right opener. Routes:
 
@@ -299,6 +303,15 @@ At mobile widths, Discover, Watchlist, Ratings, Custom Lists, and History use th
 dashboard's compact poster-first card geometry. Each feed or collection is a
 horizontal rail that exposes the next card at the right edge, while the card's
 metadata and actions remain below its poster inside the tile.
+
+The mobile page topbar mounts only the active page's controls. Explorer and Upcoming
+control groups keep their hidden state when they are moved into the shared topbar, so
+their search/calendar controls cannot leak onto Discover, personal-media, History,
+Stats, or Settings pages. Upcoming, Discover, Watchlist, Ratings, Custom Lists, History,
+Stats, and Settings use the same media-detail-style icon/label action strip; secondary
+filters, search, sizing, and settings-section controls live in a compact Options disclosure.
+Calendar navigation remains visible for Upcoming, while the other page controls keep the
+same compact action geometry without squeezing a full desktop form into the phone width.
 
 ## Settings Layout & Design Standards
 

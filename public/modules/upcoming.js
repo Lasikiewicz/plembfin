@@ -1,7 +1,7 @@
-import { buildAuthHeaders } from "./auth.js?v=1.1.1.8.2";
-import { state, elements } from "./state.js?v=1.1.1.8.2";
-import { escapeHtml, escapeAttribute, tvShowTmdbHref } from "./utils.js?v=1.1.1.8.2";
-import { posterMarkup, hydratePosters } from "./images.js?v=1.1.1.8.2";
+import { buildAuthHeaders } from "./auth.js?v=1.2.0.0.1";
+import { state, elements } from "./state.js?v=1.2.0.0.1";
+import { escapeHtml, escapeAttribute, tvShowTmdbHref } from "./utils.js?v=1.2.0.0.1";
+import { posterMarkup, hydratePosters } from "./images.js?v=1.2.0.0.1";
 
 let _cb = {};
 
@@ -13,10 +13,6 @@ const UPCOMING_SEARCH_DEBOUNCE_MS = 220;
 // in both directions; scrolling near either end grows the range further.
 const UPCOMING_INITIAL_PAST_MONTHS = 1;
 const UPCOMING_INITIAL_FUTURE_MONTHS = 1;
-// Bounds on how far the range can grow, measured in months either side of the
-// current month.
-const UPCOMING_MAX_PAST_MONTHS = 24;
-const UPCOMING_MAX_FUTURE_MONTHS = 24;
 // How close to either end of the scroll container the user must get before the
 // next month is appended/prepended.
 const UPCOMING_EXTEND_THRESHOLD_PX = 400;
@@ -145,24 +141,22 @@ function ensureUpcomingRange() {
   resetUpcomingRange(currentMonth());
 }
 
-function extendRangePast({ bounded = true } = {}) {
+function extendRangePast() {
   const nextMonth = addMonths(state.upcomingRangeStart.slice(0, 7), -1);
-  if (bounded && nextMonth < addMonths(currentMonth(), -UPCOMING_MAX_PAST_MONTHS)) return false;
   state.upcomingRangeStart = startOfMonthIso(nextMonth);
   return true;
 }
 
-function extendRangeFuture({ bounded = true } = {}) {
+function extendRangeFuture() {
   const nextMonth = addMonths(state.upcomingRangeEnd.slice(0, 7), 1);
-  if (bounded && nextMonth > addMonths(currentMonth(), UPCOMING_MAX_FUTURE_MONTHS)) return false;
   state.upcomingRangeEnd = endOfMonthIso(nextMonth);
   return true;
 }
 
 function ensureRangeCoversMonth(monthKey) {
   ensureUpcomingRange();
-  while (monthKey < state.upcomingRangeStart.slice(0, 7)) extendRangePast({ bounded: false });
-  while (monthKey > state.upcomingRangeEnd.slice(0, 7)) extendRangeFuture({ bounded: false });
+  while (monthKey < state.upcomingRangeStart.slice(0, 7)) extendRangePast();
+  while (monthKey > state.upcomingRangeEnd.slice(0, 7)) extendRangeFuture();
 }
 
 // The Monday of every week a month's grid needs, including the partial weeks at
@@ -247,23 +241,36 @@ function scrollToWeekOf(dayIso, options = {}) {
   return anchorTo(weekRowSelector(dayIso), options);
 }
 
+function scrollToToday(options = {}) {
+  const today = todayIsoDate();
+  const isMobile = typeof window !== "undefined"
+    && typeof window.matchMedia === "function"
+    && window.matchMedia("(max-width: 760px)").matches;
+  if (isMobile) {
+    state.upcomingMonth = today.slice(0, 7);
+    ensureRangeCoversMonth(state.upcomingMonth);
+    return anchorTo(`[data-day="${today}"]`, options);
+  }
+  return scrollToWeekOf(today, options);
+}
+
 function shiftUpcomingMonth(delta) {
   scrollToMonth(addMonths(activeMonth(), delta));
 }
 
 function goToToday() {
-  scrollToWeekOf(todayIsoDate());
+  scrollToToday();
 }
 
 // Called whenever the Upcoming page is navigated to, so it always opens with
-// the current week as the top row rather than wherever a prior visit's scroll
-// position landed. Months either side are already rendered, so the user can
-// scroll straight up into the past or down into the future.
+// today visible rather than wherever a prior visit's scroll position landed.
+// Desktop anchors the containing week; mobile anchors the actual day card so
+// an empty today still appears first in the agenda.
 export function openUpcomingToToday() {
   const month = currentMonth();
   state.upcomingMonth = month;
   resetUpcomingRange(month);
-  return scrollToWeekOf(todayIsoDate(), { revalidateMonth: month });
+  return scrollToToday({ revalidateMonth: month });
 }
 
 function handleUpcomingScroll() {

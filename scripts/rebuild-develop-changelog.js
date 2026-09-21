@@ -25,7 +25,7 @@ import path from "node:path";
 import { execFileSync, spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { buildVersion } from "./version.js";
-import { bulletPointsFrom, filterChangelogDetails, formatChangelogMessage, isChangelogProcessMessage, isNoiseCommitMessage, isReleaseTypeCommitMessage, synthesizeHeadline, validateReleaseMessage } from "./changelog-message.js";
+import { bulletPointsFrom, dedupeChangelogDetails, filterChangelogDetails, formatChangelogMessage, isChangelogProcessMessage, isNoiseCommitMessage, isReleaseTypeCommitMessage, synthesizeHeadline, validateReleaseMessage } from "./changelog-message.js";
 import { changeAreaDetails, changedFilesForCommit, commitsSinceLastEntry, gitHeadAuthor, gitHeadCommit } from "./changelog-git-helpers.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -81,7 +81,7 @@ export function buildDevelopEntry({ commits, headCommit, date, author, nextBuild
         : [formatChangelogMessage(String(commit.message || "").split(/\r?\n/, 1)[0])]));
     }
   }
-  details = details.filter((v, i, arr) => v && arr.indexOf(v) === i);
+  details = dedupeChangelogDetails(details);
 
   // Every real commit since the reset anchor contributes its own headline -
   // not just the most recent one - so a develop entry spanning several

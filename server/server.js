@@ -17,45 +17,48 @@ process.env.PLEMBFIN_INSTANCE_ID = INSTANCE_ID;
 process.env.ROLE = ROLE;
 const { isDemoMode } = await import("./src/utils/demoMode.js");
 const DEMO_MODE = isDemoMode();
+const { createTraksProxyHandler, resolveTraksCollectorOrigin } = await import("./src/utils/traksProxy.js");
 
-// Website analytics are deliberately demo-only. The values are public by
-// design, but the server validates the tracker URL before exposing them to the
-// browser and before widening the demo CSP.
+// Website analytics are deliberately demo-only. The browser always loads the
+// tracker through the demo's own /t route; only the server knows the collector
+// origin. The legacy full tracker URL remains a supported fallback so existing
+// demo environment configuration can be migrated without a forced rebuild.
 const TRAKS_CONFIG = (() => {
-  const scriptUrl = String(process.env.PLEMBFIN_TRAKS_SCRIPT_URL || "").trim();
+  const collectorOrigin = String(process.env.PLEMBFIN_TRAKS_COLLECTOR_ORIGIN || "").trim();
+  const legacyScriptUrl = String(process.env.PLEMBFIN_TRAKS_SCRIPT_URL || "").trim();
   const siteKey = String(process.env.PLEMBFIN_TRAKS_SITE_KEY || "").trim();
-  const requireConsent = String(process.env.PLEMBFIN_TRAKS_REQUIRE_CONSENT || "true").trim().toLowerCase() !== "false";
-  if (!DEMO_MODE || !scriptUrl || !siteKey) {
-    return { enabled: false, scriptUrl: "", siteKey: "", requireConsent, origin: "" };
+  if (!DEMO_MODE || !siteKey || (!collectorOrigin && !legacyScriptUrl)) {
+    return { enabled: false, scriptUrl: "/t", siteKey: "", collectorOrigin: "" };
   }
 
   try {
-    const parsed = new URL(scriptUrl);
-    if (parsed.protocol !== "https:") throw new Error("Traks tracker URL must use HTTPS");
-    return { enabled: true, scriptUrl: parsed.href, siteKey, requireConsent, origin: parsed.origin };
+    const resolvedOrigin = resolveTraksCollectorOrigin({ collectorOrigin, legacyScriptUrl });
+    return { enabled: true, scriptUrl: "/t", siteKey, collectorOrigin: resolvedOrigin };
   } catch (error) {
     console.warn(`[security] Traks analytics disabled: ${error.message}`);
-    return { enabled: false, scriptUrl: "", siteKey: "", requireConsent, origin: "" };
+    return { enabled: false, scriptUrl: "/t", siteKey: "", collectorOrigin: "" };
   }
 })();
 
 const GOOGLE_ANALYTICS_CONFIG = (() => {
   const measurementId = String(process.env.PLEMBFIN_GA_MEASUREMENT_ID || "").trim();
-  const requireConsent = String(process.env.PLEMBFIN_GA_REQUIRE_CONSENT || "true").trim().toLowerCase() !== "false";
   if (!DEMO_MODE || !measurementId) {
-    return { enabled: false, measurementId: "", requireConsent };
+    return { enabled: false, measurementId: "" };
   }
   if (!/^G-[A-Z0-9]+$/i.test(measurementId)) {
     console.warn("[security] Google Analytics disabled: invalid GA4 Measurement ID");
-    return { enabled: false, measurementId: "", requireConsent };
+    return { enabled: false, measurementId: "" };
   }
-  return { enabled: true, measurementId, requireConsent };
+  return { enabled: true, measurementId };
 })();
 
 const ANALYTICS_CONFIG = {
   enabled: TRAKS_CONFIG.enabled || GOOGLE_ANALYTICS_CONFIG.enabled,
-  requireConsent: TRAKS_CONFIG.requireConsent || GOOGLE_ANALYTICS_CONFIG.requireConsent,
-  traks: TRAKS_CONFIG,
+  traks: {
+    enabled: TRAKS_CONFIG.enabled,
+    scriptUrl: TRAKS_CONFIG.scriptUrl,
+    siteKey: TRAKS_CONFIG.siteKey,
+  },
   googleAnalytics: GOOGLE_ANALYTICS_CONFIG,
 };
 
@@ -205,13 +208,12 @@ app.use(async (_req, res, next) => {
     // A public demo must be able to render only its bundled/local resources.
     // Keeping the policy local also prevents a future UI regression from
     // quietly reintroducing a provider, image, font, or iframe request.
-    const traksOrigin = TRAKS_CONFIG.enabled ? ` ${TRAKS_CONFIG.origin}` : "";
     const googleAnalyticsScriptOrigin = GOOGLE_ANALYTICS_CONFIG.enabled ? " https://www.googletagmanager.com" : "";
     const googleAnalyticsImageOrigin = GOOGLE_ANALYTICS_CONFIG.enabled ? " https://www.google-analytics.com" : "";
     const googleAnalyticsConnectOrigins = GOOGLE_ANALYTICS_CONFIG.enabled
       ? " https://www.google-analytics.com https://region1.google-analytics.com https://analytics.google.com"
       : "";
-    contentSecurityPolicy = `default-src 'self'; img-src 'self' data: blob:${googleAnalyticsImageOrigin}; script-src 'self'${traksOrigin}${googleAnalyticsScriptOrigin}; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self'${traksOrigin}${googleAnalyticsConnectOrigins}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; frame-src 'none';`;
+    contentSecurityPolicy = `default-src 'self'; img-src 'self' data: blob:${googleAnalyticsImageOrigin}; script-src 'self'${googleAnalyticsScriptOrigin}; style-src 'self' 'unsafe-inline'; font-src 'self'; connect-src 'self'${googleAnalyticsConnectOrigins}; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; frame-src 'none';`;
   } else {
     let extraImgSrc = "";
     try {
@@ -305,6 +307,13 @@ app.get("/analytics-config.json", (_req, res) => {
   res.setHeader("Cache-Control", "no-store");
   res.json(ANALYTICS_CONFIG);
 });
+
+// Keep the collector first-party to the demo. Without these routes the SPA
+// fallback would return index.html for /t, which makes the browser reject the
+// response as tracker JavaScript and no pageview can be sent.
+const traksProxyHandler = createTraksProxyHandler({ collectorOrigin: TRAKS_CONFIG.collectorOrigin });
+app.all("/t", traksProxyHandler);
+app.all("/api/event", express.raw({ type: "*/*", limit: "256kb" }), traksProxyHandler);
 
 app.use("/api", (_req, res, next) => {
   res.setHeader("Cache-Control", "no-store");

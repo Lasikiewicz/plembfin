@@ -1,7 +1,249 @@
 {
-  "version": "1.1.1",
-  "updatedAt": "2026-09-14T09:16:13.782Z",
+  "version": "1.2.0",
+  "updatedAt": "2026-09-19T15:29:26.115Z",
   "entries": [
+    {
+      "version": "1.2.0",
+      "version5Digit": "1.2.0.0.0",
+      "date": "2026-09-19T15:29:26.115Z",
+      "commit": "86648083208a3fc32a4a57792795f0f720d9cb05",
+      "message": "This release makes recommendations more personal, keeps Up Next and watch-state sync reliable across providers, improves manual review and recovery workflows, adds safe Tautulli history import, and makes the whole app noticeably faster.",
+      "author": "Lasikiewicz",
+      "details": [
+        "Feature: Improve Settings, Manual Watch review, and sync recovery workflows.",
+        "Feature: Complete startup, media detail, Up Next, website, and release refinements.",
+        "Feature: Improve application speed across the app.",
+        "Feature: Add clearer progress and removal feedback for background sync actions.",
+        "Feature: Add Help after two failed provider retries and publish Jellyfin connection troubleshooting guidance.",
+        "Feature: Add reviewable one-time Tautulli history imports with safe merges and preserved watch dates.",
+        "Feature: Personalize recommendations from recent watch history.",
+        "Feature: Let users choose Don't recommend to remove unwanted movies and shows from the personalized rail.",
+        "Fix: Use a generic Dismiss & mark unwatched action, send the unwatched correction to all configured media apps, and keep the dismissed row hidden while stale refreshes settle.",
+        "Fix: Keep media changes visible during sync",
+        "Fix: Give Tautulli backup and import a clear preview, backup, import, and syncing flow with progress feedback.",
+        "Fix: Refresh open media details immediately after removing one watch date while preserving surviving watches.",
+        "Fix: Show syncing state and pause only affected media controls while queued imports and dispatches finish.",
+        "Fix: Keep repeated watch actions responsive and visible, including animated Up Next requests with failure-safe labels.",
+        "Fix: Clarify Tautulli backup and import progress",
+        "Fix: Use Plembfin's in-app confirmation for the multiline backup and import summary.",
+        "Fix: Show Importing while the backup and import request runs and keep the action disabled.",
+        "Fix: Confirm completion and that Plembfin is syncing imported watches to connected media servers.",
+        "Fix: Keep Up Next stable while watch state syncs",
+        "Fix: Keep stale watched or unwatched cards out of Up Next until an authoritative refresh confirms their removal.",
+        "Fix: Animate matching Up Next cards as Saving while watch and unwatch actions sync.",
+        "Fix: Match pending actions by show identity and episode coordinates so rematches do not affect the wrong title.",
+        "Fix: Keep removed or unwatched TV shows out of Up Next, including stale provider and fallback entries.",
+        "Fix: Preserve selected TVDB identity in watch history and repair same-coordinate title-only episodes during Fix Match.",
+        "Fix: Restore Jellyfin watched, resume, and rating imports against current API field rules.",
+        "Fix: Keep removed TV shows out of Up Next across all episodes and provider refreshes.",
+        "Fix: Hide Clear progress unless a resume item has a positive playback position.",
+        "Tweak: Keep media changes visible while sync is in progress.",
+        "Tweak: Keep Up Next and watch-state changes visible immediately while provider sync continues in the background",
+        "Tweak: Make Manual Watch review decisions clearer, confirmed, merged by episode, and removed from the working list without layout jumps",
+        "Tweak: Align review counts with the actionable episodes shown and stop re-announcing flags already resolved by Plembfin",
+        "Tweak: Improve Sync Activity issue handling and add connection recovery guidance for unavailable media servers",
+        "Tweak: Keep completed shows out of Up Next while retaining manually queued never-watched shows.",
+        "Tweak: Surface media-server connection retries inline and improve Sync Activity match issue handling.",
+        "Tweak: Media-page Up Next changes now appear promptly by prioritizing their sync and rebuilding stale queue projections.",
+        "Tweak: Existing provider requests finish safely before the priority update is sent.",
+        "Tweak: Refresh Up Next immediately after dashboard unwatch actions and keep valid manual watch reviews visible when older watch history exists.",
+        "Tweak: Require confirmation before applying individual or show-level watch and unwatched decisions from Manual Watch review.",
+        "Tweak: Show which connected app reported a watch and where dismissing the review will mark it unwatched.",
+        "Tweak: Organize Manual Watch review actions by show, season, and episode with concise provider-specific labels.",
+        "Tweak: Show newest review seasons first in boxed panels beneath the poster, preview only a few latest-season episodes, merge duplicate provider records into one row with source pills, remove the redundant show-level count summary, and remove accepted decisions optimistically while sync continues.",
+        "Tweak: Improve cross-platform sync and onboarding while making Up Next reliably include watched shows and select the first released unwatched episode.",
+        "Tweak: Keep Up Next aligned with media-page watch state, episode release dates, and TV-show actions.",
+        "Tweak: Standardize settings sections, help guides, backup controls, and onboarding access.",
+        "Tweak: Surface sync outcomes, retries, and unresolved media matches in the Sync Activity hub.",
+        "Tweak: Improve provider-aware watch-state synchronization and recovery safeguards.",
+        "Tweak: Up Next now checks every previously watched show, so new episodes are no longer missed because of a recency cap.",
+        "Tweak: Keep the Up Next rail on the first released unwatched episode instead of jumping to a later season.",
+        "Tweak: Improve dismissed Up Next interactions and watch-date actions.",
+        "Tweak: Keep recommendation exclusions saved across refreshes and browsers.",
+        "Tweak: Hide watched titles and improve poster recovery across Discover.",
+        "Tweak: Improve card metadata hierarchy, summary readability, and release-date presentation across personal lists."
+      ],
+      "sections": {
+        "newFeatures": [
+          "Improve Settings, Manual Watch review, and sync recovery workflows.",
+          "Complete startup, media detail, Up Next, website, and release refinements.",
+          "Improve application speed across the app.",
+          "Add clearer progress and removal feedback for background sync actions.",
+          "Add Help after two failed provider retries and publish Jellyfin connection troubleshooting guidance.",
+          "Add reviewable one-time Tautulli history imports with safe merges and preserved watch dates.",
+          "Personalize recommendations from recent watch history.",
+          "Let users choose Don't recommend to remove unwanted movies and shows from the personalized rail."
+        ],
+        "majorBugFixes": [
+          "Use a generic Dismiss & mark unwatched action, send the unwatched correction to all configured media apps, and keep the dismissed row hidden while stale refreshes settle.",
+          "Keep media changes visible during sync",
+          "Give Tautulli backup and import a clear preview, backup, import, and syncing flow with progress feedback.",
+          "Refresh open media details immediately after removing one watch date while preserving surviving watches.",
+          "Show syncing state and pause only affected media controls while queued imports and dispatches finish.",
+          "Keep repeated watch actions responsive and visible, including animated Up Next requests with failure-safe labels.",
+          "Clarify Tautulli backup and import progress",
+          "Use Plembfin's in-app confirmation for the multiline backup and import summary.",
+          "Show Importing while the backup and import request runs and keep the action disabled.",
+          "Confirm completion and that Plembfin is syncing imported watches to connected media servers.",
+          "Keep Up Next stable while watch state syncs",
+          "Keep stale watched or unwatched cards out of Up Next until an authoritative refresh confirms their removal.",
+          "Animate matching Up Next cards as Saving while watch and unwatch actions sync.",
+          "Match pending actions by show identity and episode coordinates so rematches do not affect the wrong title.",
+          "Keep removed or unwatched TV shows out of Up Next, including stale provider and fallback entries.",
+          "Preserve selected TVDB identity in watch history and repair same-coordinate title-only episodes during Fix Match.",
+          "Restore Jellyfin watched, resume, and rating imports against current API field rules.",
+          "Keep removed TV shows out of Up Next across all episodes and provider refreshes.",
+          "Hide Clear progress unless a resume item has a positive playback position."
+        ],
+        "tweaks": [
+          "Keep media changes visible while sync is in progress.",
+          "Keep Up Next and watch-state changes visible immediately while provider sync continues in the background",
+          "Make Manual Watch review decisions clearer, confirmed, merged by episode, and removed from the working list without layout jumps",
+          "Align review counts with the actionable episodes shown and stop re-announcing flags already resolved by Plembfin",
+          "Improve Sync Activity issue handling and add connection recovery guidance for unavailable media servers",
+          "Keep completed shows out of Up Next while retaining manually queued never-watched shows.",
+          "Surface media-server connection retries inline and improve Sync Activity match issue handling.",
+          "Media-page Up Next changes now appear promptly by prioritizing their sync and rebuilding stale queue projections.",
+          "Existing provider requests finish safely before the priority update is sent.",
+          "Refresh Up Next immediately after dashboard unwatch actions and keep valid manual watch reviews visible when older watch history exists.",
+          "Require confirmation before applying individual or show-level watch and unwatched decisions from Manual Watch review.",
+          "Show which connected app reported a watch and where dismissing the review will mark it unwatched.",
+          "Organize Manual Watch review actions by show, season, and episode with concise provider-specific labels.",
+          "Show newest review seasons first in boxed panels beneath the poster, preview only a few latest-season episodes, merge duplicate provider records into one row with source pills, remove the redundant show-level count summary, and remove accepted decisions optimistically while sync continues.",
+          "Improve cross-platform sync and onboarding while making Up Next reliably include watched shows and select the first released unwatched episode.",
+          "Keep Up Next aligned with media-page watch state, episode release dates, and TV-show actions.",
+          "Standardize settings sections, help guides, backup controls, and onboarding access.",
+          "Surface sync outcomes, retries, and unresolved media matches in the Sync Activity hub.",
+          "Improve provider-aware watch-state synchronization and recovery safeguards.",
+          "Up Next now checks every previously watched show, so new episodes are no longer missed because of a recency cap.",
+          "Keep the Up Next rail on the first released unwatched episode instead of jumping to a later season.",
+          "Improve dismissed Up Next interactions and watch-date actions.",
+          "Keep recommendation exclusions saved across refreshes and browsers.",
+          "Hide watched titles and improve poster recovery across Discover.",
+          "Improve card metadata hierarchy, summary readability, and release-date presentation across personal lists."
+        ]
+      },
+      "sectionGroups": {
+        "newFeatures": [
+          {
+            "title": "Settings",
+            "details": [
+              "Improve Settings, Manual Watch review, and sync recovery workflows."
+            ]
+          },
+          {
+            "title": "Discover & recommendations",
+            "details": [
+              "Personalize recommendations from recent watch history.",
+              "Let users choose Don't recommend to remove unwanted movies and shows from the personalized rail."
+            ]
+          },
+          {
+            "title": "Tautulli imports",
+            "details": [
+              "Add reviewable one-time Tautulli history imports with safe merges and preserved watch dates."
+            ]
+          },
+          {
+            "title": "Sync & connection recovery",
+            "details": [
+              "Complete startup, media detail, Up Next, website, and release refinements.",
+              "Improve application speed across the app.",
+              "Add clearer progress and removal feedback for background sync actions.",
+              "Add Help after two failed provider retries and publish Jellyfin connection troubleshooting guidance."
+            ]
+          }
+        ],
+        "majorBugFixes": [
+          {
+            "title": "Up Next & watch-state",
+            "details": [
+              "Keep repeated watch actions responsive and visible, including animated Up Next requests with failure-safe labels.",
+              "Keep Up Next stable while watch state syncs",
+              "Keep stale watched or unwatched cards out of Up Next until an authoritative refresh confirms their removal.",
+              "Animate matching Up Next cards as Saving while watch and unwatch actions sync.",
+              "Keep removed or unwatched TV shows out of Up Next, including stale provider and fallback entries.",
+              "Keep removed TV shows out of Up Next across all episodes and provider refreshes.",
+              "Hide Clear progress unless a resume item has a positive playback position."
+            ]
+          },
+          {
+            "title": "Tautulli imports",
+            "details": [
+              "Give Tautulli backup and import a clear preview, backup, import, and syncing flow with progress feedback.",
+              "Show syncing state and pause only affected media controls while queued imports and dispatches finish.",
+              "Clarify Tautulli backup and import progress",
+              "Use Plembfin's in-app confirmation for the multiline backup and import summary.",
+              "Show Importing while the backup and import request runs and keep the action disabled.",
+              "Confirm completion and that Plembfin is syncing imported watches to connected media servers."
+            ]
+          },
+          {
+            "title": "Manual Watch & watch actions",
+            "details": [
+              "Use a generic Dismiss & mark unwatched action, send the unwatched correction to all configured media apps, and keep the dismissed row hidden while stale refreshes settle.",
+              "Refresh open media details immediately after removing one watch date while preserving surviving watches.",
+              "Match pending actions by show identity and episode coordinates so rematches do not affect the wrong title.",
+              "Preserve selected TVDB identity in watch history and repair same-coordinate title-only episodes during Fix Match."
+            ]
+          },
+          {
+            "title": "Sync & provider recovery",
+            "details": [
+              "Keep media changes visible during sync",
+              "Restore Jellyfin watched, resume, and rating imports against current API field rules."
+            ]
+          }
+        ],
+        "tweaks": [
+          {
+            "title": "Up Next & watch-state",
+            "details": [
+              "Keep media changes visible while sync is in progress.",
+              "Keep Up Next and watch-state changes visible immediately while provider sync continues in the background",
+              "Keep completed shows out of Up Next while retaining manually queued never-watched shows.",
+              "Media-page Up Next changes now appear promptly by prioritizing their sync and rebuilding stale queue projections.",
+              "Improve cross-platform sync and onboarding while making Up Next reliably include watched shows and select the first released unwatched episode.",
+              "Keep Up Next aligned with media-page watch state, episode release dates, and TV-show actions.",
+              "Improve provider-aware watch-state synchronization and recovery safeguards.",
+              "Up Next now checks every previously watched show, so new episodes are no longer missed because of a recency cap.",
+              "Keep the Up Next rail on the first released unwatched episode instead of jumping to a later season.",
+              "Improve dismissed Up Next interactions and watch-date actions."
+            ]
+          },
+          {
+            "title": "Manual Watch review",
+            "details": [
+              "Make Manual Watch review decisions clearer, confirmed, merged by episode, and removed from the working list without layout jumps",
+              "Align review counts with the actionable episodes shown and stop re-announcing flags already resolved by Plembfin",
+              "Refresh Up Next immediately after dashboard unwatch actions and keep valid manual watch reviews visible when older watch history exists.",
+              "Require confirmation before applying individual or show-level watch and unwatched decisions from Manual Watch review.",
+              "Show which connected app reported a watch and where dismissing the review will mark it unwatched.",
+              "Organize Manual Watch review actions by show, season, and episode with concise provider-specific labels.",
+              "Show newest review seasons first in boxed panels beneath the poster, preview only a few latest-season episodes, merge duplicate provider records into one row with source pills, remove the redundant show-level count summary, and remove accepted decisions optimistically while sync continues."
+            ]
+          },
+          {
+            "title": "Discover & recommendations",
+            "details": [
+              "Keep recommendation exclusions saved across refreshes and browsers.",
+              "Hide watched titles and improve poster recovery across Discover.",
+              "Improve card metadata hierarchy, summary readability, and release-date presentation across personal lists."
+            ]
+          },
+          {
+            "title": "Sync & connection recovery",
+            "details": [
+              "Improve Sync Activity issue handling and add connection recovery guidance for unavailable media servers",
+              "Surface media-server connection retries inline and improve Sync Activity match issue handling.",
+              "Existing provider requests finish safely before the priority update is sent.",
+              "Standardize settings sections, help guides, backup controls, and onboarding access.",
+              "Surface sync outcomes, retries, and unresolved media matches in the Sync Activity hub."
+            ]
+          }
+        ]
+      }
+    },
     {
       "version": "1.1.1",
       "version5Digit": "1.1.1.0.0",

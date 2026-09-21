@@ -102,6 +102,28 @@ test("getTmdbDetails returns fresh cached TV details without upstream fetches", 
   assert.equal(result.cache_stale, undefined);
 });
 
+test("demo TV details can resolve a TMDB-keyed row through its TVDB identity", async () => {
+  db.prepare(
+    `INSERT INTO tmdb_metadata_cache (id, tmdb_id, media_type, title, details, schema_version, updated_at_ms)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).run("tv_556", "556", "tv", "TVDB Routed Demo Show", toJson({
+    id: "556",
+    name: "TVDB Routed Demo Show",
+    external_ids: { tvdb_id: "445", tmdb_id: "556" },
+  }), 9999, Date.now());
+
+  const previousDemoMode = process.env.PLEMBFIN_DEMO_MODE;
+  process.env.PLEMBFIN_DEMO_MODE = "1";
+  try {
+    const result = await getTmdbDetails({ mediaType: "tv", ids: { tvdbId: "445" } });
+    assert.equal(result.name, "TVDB Routed Demo Show");
+    assert.equal(result.external_ids.tvdb_id, "445");
+  } finally {
+    if (previousDemoMode === undefined) delete process.env.PLEMBFIN_DEMO_MODE;
+    else process.env.PLEMBFIN_DEMO_MODE = previousDemoMode;
+  }
+});
+
 test("explicit TVDB and IMDb ids cannot reuse a conflicting TMDB cache slot", async () => {
   db.prepare(
     `INSERT INTO tmdb_metadata_cache (id, tmdb_id, media_type, title, details, schema_version, updated_at_ms)

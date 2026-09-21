@@ -971,3 +971,25 @@ to go to manual review.
 `canonicalTransitionIsNewer` (`server/src/utils/dataRepo.js`);
 `test/mediaForceSyncCanonicalState.test.js` covers the accepted revival, the generic-flag
 safeguard, the late replay, and the skewed provider clock.
+
+### 32. Provider watched flags while locally unwatched enter review instead of disappearing
+**Date:** 2026-09-19  |  **Status:** Active
+
+**Context:** Plex library notifications and Emby/Jellyfin played-flag callbacks do not always
+identify whether a person clicked Mark watched or whether the provider is replaying an older
+state. The previous safeguard discarded generic flags while Plembfin was unwatched. That kept
+stale echoes from resurrecting canonical history, but it also made a genuine provider-side
+mark invisible to the user.
+
+**Decision:** When the current watched-flag import policy requires review, a provider watched
+flag is queued for Manual Watch review even while Plembfin is locally unwatched. It never writes
+canonical watch history or propagates to another provider before the user confirms or dismisses
+the review. The existing outbound-echo guard still drops Plembfin's own watched writes, and
+non-review import modes retain their existing automatic policy.
+
+**Rejected:** Silently discarding every generic flag while locally unwatched. It avoids stale
+echoes at the cost of losing a user-visible provider action; review gives the user a safe,
+recoverable decision boundary instead.
+
+**Enforced by:** provider notification handling in `server/src/scheduler.js`, webhook handling
+in `server/src/routes/sync.js`, and the scheduled provider-history paths in `server/src/scheduled.js`.

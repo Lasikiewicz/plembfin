@@ -2,7 +2,24 @@
 import SiteLayout from "../layouts/SiteLayout.astro";
 import release from "../generated/release.json";
 
-const alphaEntries = (release.alpha as { entries?: typeof release.entries } | null)?.entries ?? [];
+type ChangelogGroup = { title: string; bullets: string[] };
+type ChangelogSection = { title: string; groups: ChangelogGroup[] };
+type ChangelogEntry = {
+  version: string;
+  date: string;
+  title: string;
+  summary: string;
+  bullets: string[];
+  sections?: ChangelogSection[];
+};
+type ReleaseData = {
+  entries: ChangelogEntry[];
+  alpha?: { entries?: ChangelogEntry[] } | null;
+};
+
+const releaseData = release as unknown as ReleaseData;
+const alphaEntries = releaseData.alpha?.entries ?? [];
+const sectionsOf = (entry: ChangelogEntry) => entry.sections ?? [];
 ---
 
 <SiteLayout title="Changelog" description="Release history and current changes in Plembfin.">
@@ -16,15 +33,15 @@ const alphaEntries = (release.alpha as { entries?: typeof release.entries } | nu
     </header>
     <section class="changelog-panel" data-changelog-panel="stable" aria-label="Stable releases">
       <div class="changelog-list">
-        {release.entries.map((entry) => (
+        {releaseData.entries.map((entry) => (
           <article class="changelog-entry">
             <div class="changelog-entry-meta"><strong>v{entry.version}</strong><span>{entry.date}</span></div>
             <div class="changelog-entry-content">
               <h2>{entry.title}</h2>
               <p>{entry.summary}</p>
-              {entry.sections?.length > 0 ? (
+              {sectionsOf(entry).length > 0 ? (
                 <div class="changelog-sections">
-                  {entry.sections.map((section) => (
+                  {sectionsOf(entry).map((section) => (
                     <section class="changelog-section">
                       <h3>{section.title}</h3>
                       <div class="changelog-subgroups">

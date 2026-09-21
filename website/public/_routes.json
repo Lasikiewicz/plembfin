@@ -1,0 +1,5 @@
+{
+  "version": 1,
+  "include": ["/t", "/api/event"],
+  "exclude": []
+}

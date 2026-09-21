@@ -52,6 +52,19 @@ findings. Do not ask whether to run this gate: the website is part of every main
 Run the check against the current development checkout so it sees the latest application
 source and release metadata.
 
+Before reviewing the site, refresh the local committed-change inventory:
+
+```bash
+npm run updates:refresh
+```
+
+Read `plan/updates.md`. Use its **Website check targets** section
+to focus the review on the guides, captures, and shared site surfaces mapped to the app
+paths changed since `origin/main`; then use **Changelog-ready changes** and the commit
+inventory to confirm the website copy covers the same user-visible outcomes. The ledger is
+regenerated from history and groups each website guide once, so a follow-up commit touching
+the same area updates the existing target instead of creating a duplicate checklist item.
+
 **Commit any website change it produces on `develop` before continuing.** Updating the
 website is part of this release, not a reason to abandon it: step 1a takes `develop`'s
 reviewed `website/` tree into the release commit, so there is no need to run "Force to

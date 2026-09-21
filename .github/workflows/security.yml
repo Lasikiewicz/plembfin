@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, alpha]
   pull_request:
-    branches: [main]
+    branches: [main, alpha]
   schedule:
     - cron: "0 3 * * *"
 
@@ -44,6 +44,9 @@ jobs:
 
   codeql:
     name: CodeQL
+    # Mark this check as required in the main/alpha branch rulesets. Push
+    # events keep the default branches continuously monitored; pull requests
+    # are the blocking path before a change is merged or promoted.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -52,3 +55,14 @@ jobs:
           languages: javascript
           config-file: ./.github/codeql/codeql-config.yml
       - uses: github/codeql-action/analyze@v4.38.0
+        with:
+          # Keep a local copy so the following gate can inspect the exact
+          # post-processed results that CodeQL uploads to code scanning.
+          output: ${{ runner.temp }}/codeql-results
+          post-processed-sarif-path: ${{ runner.temp }}/codeql-processed
+          wait-for-processing: true
+
+      - name: Block high-severity CodeQL findings
+        env:
+          CODEQL_RESULTS: ${{ runner.temp }}/codeql-processed
+        run: node .github/scripts/check-codeql-severity.mjs "$CODEQL_RESULTS"

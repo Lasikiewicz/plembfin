@@ -1,26 +1,9 @@
 const CONFIG_URL = "/analytics-config.json";
-const CONSENT_KEY = "plembfin:demo-analytics-consent-v2";
 
 function privacySignalIsSet() {
   return navigator.doNotTrack === "1"
     || window.doNotTrack === "1"
     || navigator.globalPrivacyControl === true;
-}
-
-function readConsent() {
-  try {
-    return window.localStorage.getItem(CONSENT_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function writeConsent(value) {
-  try {
-    window.localStorage.setItem(CONSENT_KEY, value);
-  } catch {
-    // A privacy-restricted browser can still use the current-page choice.
-  }
 }
 
 function loadTraks(config) {
@@ -86,46 +69,6 @@ function scheduleAnalyticsLoad(config) {
   }
 }
 
-function showConsentPrompt(config) {
-  const banner = document.createElement("aside");
-  banner.setAttribute("role", "dialog");
-  banner.setAttribute("aria-label", "Analytics preference");
-  banner.style.cssText = [
-    "position:fixed",
-    "left:16px",
-    "right:16px",
-    "bottom:16px",
-    "z-index:10000",
-    "display:flex",
-    "align-items:center",
-    "justify-content:space-between",
-    "gap:16px",
-    "padding:16px 18px",
-    "border:1px solid rgba(148,163,184,.3)",
-    "border-radius:12px",
-    "background:#111827",
-    "color:#f8fafc",
-    "box-shadow:0 12px 40px rgba(0,0,0,.35)",
-    "font:14px/1.45 system-ui,sans-serif",
-  ].join(";");
-  banner.innerHTML = `
-    <p style="margin:0;max-width:720px">Allow Plembfin to share page views, time-on-page, browser/device details, referrer, and a coarse region with Traks and Google Analytics. Traks is cookieless; Google Analytics may use cookies or similar measurement technologies.</p>
-    <span style="display:flex;gap:8px;flex:0 0 auto">
-      <button type="button" data-analytics-decline style="padding:8px 12px;border:1px solid #64748b;border-radius:8px;background:transparent;color:inherit;cursor:pointer">Decline</button>
-      <button type="button" data-analytics-allow style="padding:8px 12px;border:0;border-radius:8px;background:#38bdf8;color:#082f49;cursor:pointer;font-weight:600">Allow analytics</button>
-    </span>`;
-
-  const finish = (choice) => {
-    writeConsent(choice);
-    banner.remove();
-    if (choice === "granted") loadAnalytics(config);
-  };
-
-  banner.querySelector("[data-analytics-decline]")?.addEventListener("click", () => finish("denied"));
-  banner.querySelector("[data-analytics-allow]")?.addEventListener("click", () => finish("granted"));
-  document.body.appendChild(banner);
-}
-
 async function boot() {
   if (privacySignalIsSet()) return;
 
@@ -150,18 +93,18 @@ async function boot() {
   const traksEnabled = traksConfig?.enabled
     && typeof traksConfig.scriptUrl === "string"
     && typeof traksConfig.siteKey === "string"
-    && /^https:\/\//i.test(traksConfig.scriptUrl);
+    && (() => {
+      try {
+        const scriptUrl = new URL(traksConfig.scriptUrl, window.location.href);
+        return scriptUrl.origin === window.location.origin && scriptUrl.pathname === "/t";
+      } catch {
+        return false;
+      }
+    })();
   const googleAnalyticsEnabled = googleAnalyticsConfig?.enabled
     && typeof googleAnalyticsConfig.measurementId === "string"
     && /^G-[A-Z0-9]+$/i.test(googleAnalyticsConfig.measurementId);
   if (!traksEnabled && !googleAnalyticsEnabled) return;
-
-  const consent = readConsent();
-  if (config.requireConsent !== false) {
-    if (consent === "granted") loadAnalytics(config);
-    else if (consent !== "denied") showConsentPrompt(config);
-    return;
-  }
 
   scheduleAnalyticsLoad(config);
 }

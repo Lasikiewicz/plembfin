@@ -12,6 +12,19 @@ globalThis.document.querySelectorAll = () => [];
 
 const read = (file) => fs.readFileSync(path.resolve(import.meta.dirname, "..", file), "utf8");
 const appSource = read("public/app.js");
+const appEventsSource = read("public/modules/app-events.js");
+const indexSource = read("public/index.html");
+const upcomingSource = read("public/modules/upcoming.js");
+const syncSource = read("public/modules/sync.js");
+const stylesSource = read("public/styles.css");
+const personalMediaSource = read("public/modules/personal-media.js");
+const mediaDetailContextSource = read("public/modules/media-detail-context.js");
+const mediaDetailMovieSource = read("public/modules/media-detail-movie.js");
+const mediaDetailSharedSource = read("public/modules/media-detail-shared.js");
+const showDetailSource = read("public/modules/media-detail-show.js");
+const showDetailEventsSource = read("public/modules/media-detail-events.js");
+const editDialogsSource = read("public/modules/edit-dialogs.js");
+const watchActionSource = read("public/modules/watch-action.js");
 
 const { state } = await import("../public/modules/state.js");
 const utils = await import("../public/modules/utils.js");
@@ -220,4 +233,169 @@ test("refresh-job status is resumed from Settings, not on every page", () => {
   assert.doesNotMatch(appSource, /scheduleDeferredStartupWork\(startDeferredStatusWork\);\s*resumeActiveRefreshJobs\(\);/);
   const lifecycle = appSource.slice(appSource.indexOf("function syncSettingsStatusLifecycle()"), appSource.indexOf("function applyActiveViewNow()"));
   assert.match(lifecycle, /resumeActiveRefreshJobs\(\);/);
+});
+
+test("route entry scroll reset survives lazy route rendering", () => {
+  assert.match(appSource, /pendingPageEntryScrollResetGeneration/);
+  assert.match(appSource, /container\.scrollTo\(\{ top: 0, left: 0, behavior: "auto" \}\)/);
+  assert.match(appSource, /finishPageEntryScrollReset\(generation\)/);
+  assert.match(appSource, /routePathname\(url\) === "\/upcoming"/);
+  assert.match(appSource, /hasExplicitAnchor/);
+});
+
+test("Now Playing refreshes suspended mobile pages on resume", () => {
+  assert.match(syncSource, /loadActiveSessions\(\{ force = false \} = \{\}\)/);
+  assert.match(syncSource, /nowPlayingRequestController/);
+  assert.match(syncSource, /nowPlayingRequestGeneration/);
+  assert.match(appEventsSource, /startHistoryPolling\(\{ force: true \}\)/);
+  assert.match(appEventsSource, /window\.addEventListener\("pageshow", resumeNowPlayingPolling\)/);
+  assert.match(appEventsSource, /window\.addEventListener\("focus", resumeNowPlayingPolling\)/);
+});
+
+test("mobile show detail episodes stay in a two-column grid", () => {
+  assert.match(
+    stylesSource,
+    /@media \(max-width: 760px\) \{\s+\.media-detail-page \.show-episode-list \{\s+grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/,
+  );
+  assert.match(
+    stylesSource,
+    /@media \(max-width: 760px\) \{\s+\.season-accordion-trigger[\s\S]*?\.season-accordion-panel \.show-episode-list \{\s+grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/,
+  );
+});
+
+test("mobile TV show summaries sit below the logo without moving progress", () => {
+  assert.match(showDetailSource, /media-detail-page media-detail-show-page/);
+  assert.match(
+    stylesSource,
+    /@media \(max-width: 640px\) \{[\s\S]*?\.media-detail-page\.media-detail-show-page \.immersive-overview \{\s+grid-column: 2;\s+grid-row: 2 \/ 6;/,
+  );
+  assert.match(
+    stylesSource,
+    /\.media-detail-page \.progress-section \{\s+grid-column: 1 \/ -1;\s+grid-row: 6;/,
+  );
+});
+
+test("mobile show detail episodes use a compact title, availability, summary, and watched hierarchy", () => {
+  assert.match(showDetailSource, /immersive-episode-availability/);
+  assert.match(showDetailSource, /episodeAvailabilityPillsHtml/);
+  assert.match(
+    stylesSource,
+    /\.season-accordion-panel \.immersive-episode-row\.is-watched \.immersive-episode-meta-row \{\s+display: none;/,
+  );
+  assert.match(
+    stylesSource,
+    /\.season-accordion-panel \.immersive-episode-row\.is-watched \.episode-watch-history-row:not\(:first-child\)/,
+  );
+  assert.match(
+    stylesSource,
+    /\.season-accordion-panel \.immersive-episode-row\.is-watched \.episode-watch-history-row \.source-badge \{\s+display: none;/,
+  );
+});
+
+test("mobile TV season summary stays on one line without Expand All", () => {
+  assert.match(showDetailSource, /season-section-title/);
+  assert.match(showDetailSource, /renderSeerrRequestPill\("tv", tvSeerrTmdbId, showIsNowPlaying, \{ compactTvSummary: true \}\)/);
+  assert.doesNotMatch(showDetailSource, /data-toggle-all-seasons/);
+  assert.match(mediaDetailSharedSource, /tvAvailabilityCompactSummary/);
+  assert.match(mediaDetailSharedSource, /data-compact-tv-summary/);
+  assert.match(stylesSource, /\.season-section-title[\s\S]*?\.tv-availability-summary/);
+});
+
+test("mobile TV detail controls keep navigation and season options compact", () => {
+  const headingStart = showDetailSource.indexOf('<b class="immersive-episode-heading">');
+  const headingEnd = showDetailSource.indexOf("</b>", headingStart);
+  assert.ok(headingStart >= 0 && headingEnd > headingStart);
+  const headingMarkup = showDetailSource.slice(headingStart, headingEnd);
+  assert.doesNotMatch(headingMarkup, /syncStatusDotHtml/);
+  assert.match(showDetailSource, /immersive-episode-availability[\s\S]*syncStatusDotHtml[\s\S]*episodeAvailabilityPillsHtml/);
+  assert.match(showDetailSource, /season-mobile-action-menu/);
+  assert.match(showDetailSource, /show-season-summary[\s\S]*?show-season-label[\s\S]*?season-mobile-action-menu/);
+  assert.match(showDetailSource, /season-row-mobile-summary/);
+  assert.doesNotMatch(showDetailSource, /episode-mobile-action-menu|Episode options/);
+  assert.match(showDetailSource, /season-mobile-action-trigger">Season options</);
+  assert.match(showDetailSource, /data-unwatch-kind="episode"/);
+  assert.match(showDetailEventsSource, /event\.target\.closest\("details"\)/);
+  assert.match(
+    stylesSource,
+    /\.brand-block \{[\s\S]*?position: absolute;[\s\S]*?left: 50%;[\s\S]*?transform: translateX\(-50%\);/,
+  );
+  assert.match(stylesSource, /\.season-row-episodes,[\s\S]*?\.season-row-watched,[\s\S]*?\.season-row-next \{\s+display: none;/);
+  assert.match(stylesSource, /\.show-season-summary \{[\s\S]*?display: flex;[\s\S]*?flex: 1 1 auto;/);
+  assert.doesNotMatch(stylesSource, /episode-mobile-action/);
+});
+
+test("mobile media controls keep watch actions in Options and popup surfaces within the viewport", () => {
+  const showActionsStart = showDetailSource.indexOf("setMediaDetailActions(`");
+  const showToolsStart = showDetailSource.indexOf("${mediaToolsActionHtml(`", showActionsStart);
+  assert.ok(showActionsStart >= 0 && showToolsStart > showActionsStart);
+  assert.doesNotMatch(showDetailSource.slice(showActionsStart, showToolsStart), /data-watch-scope="show"/);
+  assert.match(showDetailSource.slice(showToolsStart), /data-watch-scope="show"[\s\S]*mediaForceSyncActionHtml/);
+  assert.doesNotMatch(showDetailSource, /Mark <br>Watched|Mark <br>Unwatched/);
+  assert.doesNotMatch(mediaDetailMovieSource, /Mark <br>Unwatched/);
+  assert.match(mediaDetailMovieSource, /mediaToolsActionHtml\([\s\S]*Mark unwatched/);
+  assert.doesNotMatch(mediaDetailMovieSource, /Edit <br>Images/);
+  assert.doesNotMatch(showDetailSource, /Edit <br>Images/);
+  assert.match(watchActionSource, /Mark Unwatched/);
+  assert.match(mediaDetailContextSource, /<span>Force Sync<\/span>/);
+  assert.doesNotMatch(mediaDetailContextSource, /Force <br>Sync/);
+  assert.match(mediaDetailContextSource, /aria-label="Open media options" title="Options"/);
+  assert.match(mediaDetailContextSource, /<span>Options<\/span>/);
+  assert.doesNotMatch(personalMediaSource, /title="Personal media options"[\s\S]*<span>Options<\/span>/);
+  assert.match(stylesSource, /actions-tools-panel \.action-pill span,[\s\S]*white-space: nowrap;/);
+  assert.match(stylesSource, /\.watch-date-options \{\s+grid-template-columns: minmax\(0, 1fr\);/);
+  assert.match(editDialogsSource, /watch-date-remove-btn[\s\S]*?btn\.disabled = false;[\s\S]*?btn\.title = "Remove this watch date"/);
+  assert.doesNotMatch(editDialogsSource, /Use “Mark unwatched” to remove the only watch date/);
+  assert.match(stylesSource, /\.wd-body \{\s+flex-direction: column;/);
+  assert.match(stylesSource, /\.edit-dialog-overlay \{\s+align-items: center;[\s\S]*overflow-y: auto;/);
+  assert.match(stylesSource, /\.modal-panel:not\(\.modal-panel--immersive\) \{\s+width: 100%;[\s\S]*max-height: calc\(100vh - 1rem\);/);
+  assert.match(stylesSource, /body \.explorer-controls:not\(\.hidden\) \{\s+width: 100% !important;/);
+  assert.match(stylesSource, /body #upcomingTopbarControls:not\(\.hidden\) \{\s+display: grid !important;/);
+  assert.match(stylesSource, /body \.page-topbar-actions > \.hidden,[\s\S]*body #upcomingTopbarControls\.hidden,[\s\S]*display: none !important;/);
+});
+
+test("mobile page controls share the media action-bar layout without redundant Options menus", () => {
+  for (const id of [
+    "discoverTopbarControls",
+    "historyTopbarControls",
+    "statsTopbarControls",
+    "upcomingTopbarControls",
+    "explorerTopbarControls",
+  ]) {
+    assert.match(indexSource, new RegExp("id=\"" + id + "\"[^>]*page-action-bar"), id + " should use the shared action bar");
+  }
+  assert.match(indexSource, /id="discoverMediaType"[\s\S]*id="discoverGenre"[\s\S]*id="discoverRefreshButton"/);
+  assert.doesNotMatch(indexSource, /title="Discover filters"/);
+  assert.match(indexSource, /id="upcomingSearchInput"[\s\S]*id="upcomingTodayButton"/);
+  const upcomingStart = indexSource.indexOf('<section id="upcoming-view"');
+  const upcomingEnd = indexSource.indexOf('<section id="sync-activity-view"', upcomingStart);
+  const upcomingMarkup = indexSource.slice(upcomingStart, upcomingEnd);
+  assert.match(upcomingMarkup, /upcoming-search-dropdown/);
+  assert.match(upcomingMarkup, /upcoming-search-dropdown[\s\S]*upcoming-month-controls[\s\S]*upcomingTodayButton/);
+  assert.match(upcomingMarkup, /<\/div>\s*<div id="upcomingCalendar"/);
+  assert.doesNotMatch(upcomingMarkup, /page-tools-dropdown/);
+  assert.match(upcomingSource, /function scrollToToday[\s\S]*window\.matchMedia\("\(max-width: 760px\)"\)/);
+  assert.match(upcomingSource, /anchorTo\(`\[data-day="\$\{today\}"\]`/);
+  assert.match(indexSource, /id="historyPosterSize"/);
+  assert.match(indexSource, /data-target="size"[\s\S]*id="historyPosterSize"/);
+  assert.doesNotMatch(indexSource, /title="History options"/);
+  assert.match(indexSource, /id="statsMediaFilter"[\s\S]*id="statsPeriodType"[\s\S]*id="statsPeriodValue"/);
+  const statsStart = indexSource.indexOf('<section id="stats-view"');
+  const statsEnd = indexSource.indexOf('<section id="upcoming-view"', statsStart);
+  assert.doesNotMatch(indexSource.slice(statsStart, statsEnd), /page-tools-dropdown/);
+  assert.match(indexSource, /id="explorerPosterSize"[\s\S]*id="explorerHideEnded"/);
+  assert.doesNotMatch(indexSource, /id="settingsTopbarControls"/);
+  assert.doesNotMatch(indexSource, /id="settingsSectionSelect"/);
+  assert.doesNotMatch(indexSource, /<span>Tools<\/span>/);
+  assert.match(indexSource, /title="Search upcoming episodes"/);
+  assert.match(indexSource, /title="Library options"/);
+  assert.match(personalMediaSource, /page-action-bar personal-media-toolbar-actions/);
+  assert.doesNotMatch(personalMediaSource, /title="Personal media options"/);
+  assert.match(personalMediaSource, /personal-media-sync-button/);
+  assert.match(personalMediaSource, /personal-media-create-list-button/);
+  assert.match(stylesSource, /Shared media-style page action bars/);
+  assert.match(stylesSource, /page-topbar-actions \.page-action-bar:not\(\.hidden\)/);
+  assert.match(stylesSource, /page-tools-dropdown\[open\] > \.page-tools-panel/);
+  assert.match(stylesSource, /\.upcoming-week-day\.is-outside \{\s+display: none;/);
+  assert.doesNotMatch(stylesSource, /\.upcoming-week-day\.is-outside,\s+\.upcoming-week-day\.is-empty/);
+  assert.match(stylesSource, /grid-template-areas: "search month today"/);
 });

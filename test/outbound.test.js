@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 
 import {
   assertSafeOutboundUrl,
+  boundedFetchTimeoutMs,
   createUpstreamTimeoutError,
   fetchWithTimeout,
 } from "../server/src/utils/outbound.js";
@@ -13,6 +14,13 @@ test("upstream timeouts map to HTTP 504 errors", () => {
   assert.equal(error.status, 504);
   assert.equal(error.code, "UPSTREAM_TIMEOUT");
   assert.match(error.message, /2500ms/);
+});
+
+test("explicit outbound timeout overrides are finite and bounded", () => {
+  assert.equal(boundedFetchTimeoutMs(200), 200);
+  assert.equal(boundedFetchTimeoutMs(999_999), 120_000);
+  assert.equal(boundedFetchTimeoutMs(-10), 1);
+  assert.equal(boundedFetchTimeoutMs("not-a-number"), 10_000);
 });
 
 test("outbound URLs reject unsafe schemes, credentials, and metadata endpoints", () => {

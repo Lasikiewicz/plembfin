@@ -3,10 +3,11 @@ title: Navigation and global controls
 description: Find the main Plembfin pages and use the controls shared across the app.
 category: Use the app
 order: 1
-sourceVersion: "1.1.1"
+sourceVersion: "1.2.0"
 sourcePaths:
   - public/index.html
   - public/app.js
+  - website/src/data/site.js
 screenshots:
   - /assets/app-captures/dashboard-dark.png
   - /assets/app-captures/dashboard-light.png
@@ -41,6 +42,11 @@ The main sidebar links to:
 - **Stats** for reports and viewing breakdowns; and
 - **Settings** for connections, metadata, sync tools, backups, diagnostics, and maintenance.
 
+When a review decision is pending, the sidebar status area also links to [Manual Watch
+review](/docs/manual-watch-review/). The documentation sidebar keeps **Sync Activity**,
+**Manual Watch review**, and **Guides** as separate top-level paths so the review workflow is
+easy to find without opening Settings first.
+
 Select a title, poster, or history row when you need to open its media details. Discovery
 cards and cards from Watchlist, Ratings, or Custom Lists use the same detail routes, so a
 title can move between workflows without creating a duplicate library record.
@@ -68,8 +74,8 @@ The lower part of the sidebar contains controls that are available across pages:
 ## Page navigation
 
 <ScreenshotFigure
-  darkSrc="/assets/app-captures/settings-index-dark.png"
-  lightSrc="/assets/app-captures/settings-index-light.png"
+  darkSrc="/assets/app-captures/settings-index-focused-dark.png"
+  lightSrc="/assets/app-captures/settings-index-focused-light.png"
   alt="Plembfin page navigation represented by the app's grouped settings surface"
   caption="Use the current page's section navigation and browser history to move through focused workflows."
 />

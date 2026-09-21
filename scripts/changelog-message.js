@@ -80,6 +80,22 @@ export function filterChangelogDetails(details) {
     .filter((detail) => detail && !isChangelogProcessText(detail) && !isReleaseToolingText(detail));
 }
 
+// Keep one user-facing change when two commits describe it with harmless
+// differences such as a conventional prefix, punctuation, or line wrapping.
+// The first spelling wins so a reviewed/manual wording remains stable while
+// later duplicate commits cannot make a release entry grow.
+export function dedupeChangelogDetails(details) {
+  const seen = new Set();
+  return (Array.isArray(details) ? details : [details])
+    .map((detail) => String(detail || "").trim())
+    .filter((detail) => {
+      const key = comparable(detail);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+}
+
 export function filterChangelogEntries(entries = []) {
   if (!Array.isArray(entries)) return [];
 
