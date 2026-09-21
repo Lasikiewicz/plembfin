@@ -12,8 +12,8 @@
 // version and never raises an update prompt - the server forces
 // alphaBuild.newerBuildAvailable false off the alpha channel for exactly that
 // reason.
-import { state, elements } from "./state.js?v=1.2.0.0.2";
-import { escapeHtml, formatBuildVersion, formatListDate, versionDisplayLabel } from "./utils.js?v=1.2.0.0.2";
+import { state, elements } from "./state.js?v=1.2.0.1.0";
+import { escapeHtml, formatBuildVersion, formatListDate, versionDisplayLabel } from "./utils.js?v=1.2.0.1.0";
 
 export { formatBuildVersion };
 

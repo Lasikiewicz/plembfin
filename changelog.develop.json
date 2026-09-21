@@ -1,23 +1,7 @@
 {
-  "version": "1.2.0.0.2",
-  "build": 2,
-  "resetCommit": "dc9f5a936294007fd0e63ab4e16ebdc4572565dc",
-  "updatedAt": "2026-09-21T12:41:00.444Z",
-  "entries": [
-    {
-      "build": 2,
-      "date": "2026-09-21T12:41:00.444Z",
-      "commit": "5c2ce499cfae526eba54be61ea2a5a91a846b113",
-      "message": "Fix - Improve media review, mobile controls, and tracker privacy",
-      "author": "Lasikiewicz",
-      "details": [
-        "Keep watched items and dismissed title-only movie matches out of Manual Watch review.",
-        "Improve mobile media and Upcoming layouts with inline season actions, shared controls, and clearer TV show summaries.",
-        "Refresh stale Now Playing data when returning to suspended pages.",
-        "Route tracker scripts and events through first-party website and demo endpoints while honoring DNT and GPC.",
-        "Restore locked-login centering and bundled TVDB demo metadata, with refreshed release documentation and captures.",
-        "Block release publication when unresolved high-severity CodeQL findings remain."
-      ]
-    }
-  ]
+  "version": "1.2.0.1.0",
+  "build": 0,
+  "resetCommit": "8b3ba338e85aef818cb613fbe81863063fbfee5a",
+  "updatedAt": "2026-09-21T12:50:34.129Z",
+  "entries": []
 }
