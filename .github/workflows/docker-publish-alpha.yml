@@ -90,10 +90,14 @@ jobs:
 
       # docker/metadata-action lowercases the image ref; github.repository
       # preserves the owner's account casing (Lasikiewicz/plembfin), which
-      # GHCR rejects as an image tag.
+      # GHCR rejects as an image tag. provenance/sbom push a multi-manifest
+      # index, and GHCR reads the package description from the index
+      # annotations, not image labels.
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v6
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: manifest,index
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
@@ -107,6 +111,7 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+          annotations: ${{ steps.meta.outputs.annotations }}
           build-args: BUILD_CHANNEL=alpha
           cache-from: type=gha
           cache-to: type=gha,mode=max
