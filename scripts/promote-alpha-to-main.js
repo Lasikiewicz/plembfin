@@ -172,16 +172,15 @@ function computeAlphaToMainRelease({ targetVersion = "", sourceDate = new Date()
     throw new Error(`Refusing to promote alpha to main: the entry is not publishable:\n${quality.map((v) => `- ${v}`).join("\n")}`);
   }
 
-  // The website content-impact gate: a changed application surface must map to
-  // a reviewed website/docs update in this same release, or the commit(s) that
-  // touched it must carry an explicit `site-impact:` decision (see
-  // scripts/site-impact.js). Runs from the previous main release's own commit
-  // to this checkout's HEAD, so it covers every alpha build folded into this
-  // promotion - not just the current build. Silently a no-op when there is no
-  // previous release commit to anchor from (first release, or a working-tree
-  // fallback with no remote history).
+  // The website content-impact gate (scripts/site-impact.js): every guide the
+  // release's commits need, by their `site-impact:` note or else by the
+  // app-surface.json file mapping, must differ from the previous release in
+  // the website tree being released - the develop tree skill step 1a stages,
+  // not only alpha's commits. Walks from the previous main release's own
+  // commit to this checkout's HEAD, so it covers every alpha build folded into
+  // this promotion. Silently a no-op when there is no previous release commit
+  // to anchor from (first release, or a working-tree fallback).
   const impactFailures = websiteContentImpactViolations({
-    root,
     fromCommit: changelog.entries[0]?.commit || "",
     toCommit: gitHeadCommit(root),
   });

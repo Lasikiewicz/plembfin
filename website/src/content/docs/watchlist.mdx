@@ -3,7 +3,7 @@ title: Watchlist
 description: Save movies and TV shows for later without changing watched state.
 category: Media and discovery
 order: 3.31
-sourceVersion: "1.2.1"
+sourceVersion: "1.2.2"
 sourcePaths:
   - public/index.html
   - public/modules/personal-media.js
@@ -83,7 +83,9 @@ the same watchlist contract.
 The first sync uses a safe union of the local and Plex lists. Later complete Plex snapshots
 reconcile additions and removals; an outage or incomplete snapshot cannot delete the local
 canonical list. A Plex-only addition is imported locally, and local changes are delivered
-through a durable queue.
+through a durable queue. A common or duplicate title is resolved by year and then by the
+item's provider ids, so two separate entries such as two *Arrival* (2016) titles each find the
+right Plex item.
 
 Use **Sync now** for a full reconcile. Failed, unavailable, or reauthentication-required
 changes stay visible in the Sync panel with a **Retry queued changes** action. Reconnecting

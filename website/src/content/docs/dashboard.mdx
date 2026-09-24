@@ -3,7 +3,7 @@ title: Dashboard
 description: Read live playback, the mixed Up Next queue, and durable watch history from one screen.
 category: Dashboard and libraries
 order: 3
-sourceVersion: "1.2.1"
+sourceVersion: "1.2.2"
 sourcePaths:
   - public/index.html
   - public/modules/dashboard.js
@@ -153,15 +153,19 @@ resume card remains useful without a provider connection.
 
 When **Sync Up Next to media apps** is enabled in [Settings → Sync → Sync tuning](/docs/settings/sync/#sync-tuning),
 Plembfin queues one coalesced background push whenever the unified queue changes. Additions,
-removals, reorderings, and resume-progress changes are sent to Plex Continue Watching, Emby
-Continue Watching, and Jellyfin Next Up. The worker uses the latest queue and continues even
-when the Dashboard is closed. Use **Sync Up Next** for an explicit immediate push; turning the
-setting off leaves those provider lists unchanged while Plembfin's own Up Next view remains
-available.
+reorderings, and resume-progress changes are sent to Plex Continue Watching, Emby Continue
+Watching, and Jellyfin Next Up. The push never removes an item just because Plembfin's queue
+does not list it: an item leaves a media app only when you clear its progress or remove it in
+Plembfin, and the sync message reports how many app-only items were left in place. The worker
+uses the latest queue and continues even when the Dashboard is closed. Use **Sync Up Next** for
+an explicit immediate push; turning the setting off leaves those provider lists unchanged while
+Plembfin's own Up Next view remains available.
 
 If a provider feed fails, Plembfin keeps the last good observation and shows a compact
-source-status message instead of deleting the queue. The builder deduplicates matching resume
-and next-up observations and does not merge a re-release or reboot from a different year.
+source-status message instead of deleting the queue. An offline server is skipped by the push
+and a new push is queued as soon as it answers again. The builder deduplicates matching resume
+and next-up observations, keeps shows that share a title but have different TMDB or TVDB ids
+as separate cards, and does not merge a re-release or reboot from a different year.
 
 Use the card's **More options** menu for **Mark Watched**, **Rate**, **Add to watch list**,
 **Clear Progress** when resume exists, or **Remove from Up Next**. Removing a card updates
@@ -180,7 +184,7 @@ per-item removal endpoint, so Plembfin keeps the local queue authoritative while
 up.
 
 When one or more items are dismissed, the count button beside the **Up Next** heading opens
-**Dismissed Up Next**. Choose **Add back** for one item or **Add all back** to restore the cards;
+**Dismissed Up Next**, which shows up to six cards per row on wide screens. Choose **Add back** for one item or **Add all back** to restore the cards;
 Plembfin then pushes the restored queue to the connected media apps. A dismissal is a “not now”
 choice, not a permanent delete: the item can return automatically after newer genuine playback
 progress is recorded.

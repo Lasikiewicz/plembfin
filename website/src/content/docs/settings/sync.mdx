@@ -3,7 +3,7 @@ title: Sync
 description: Tune synchronization, run controlled repair tools, and review delivery history.
 category: Settings
 order: 5.6
-sourceVersion: "1.2.1"
+sourceVersion: "1.2.2"
 sourcePaths:
   - public/index.html
   - public/modules/settings-shell.js
@@ -64,9 +64,10 @@ Change one value at a time, save it, and verify the next event in Sync Activity.
 
 ## Up Next provider sync
 
-The **Sync Up Next to media apps** toggle is on by default. When it is enabled, Plembfin keeps
-the unified Up Next queue aligned with Plex Continue Watching, Emby Continue Watching, and
-Jellyfin Next Up.
+The **Sync Up Next to media apps** toggle is on by default. When it is enabled, Plembfin pushes
+the unified Up Next queue to Plex Continue Watching, Emby Continue Watching, and Jellyfin Next
+Up without removing anything already there. An item leaves a media app only when you clear its
+progress or remove it in Plembfin.
 
 Queue additions, removals, reorderings, and resume-progress changes queue one coalesced
 background push using the latest queue content. The push runs through the worker even when the
@@ -97,7 +98,8 @@ Trakt cannot identify a show.
 Personal Rating Sync is independent of watched-state synchronization and is disabled by
 default. The single **Sync personal ratings** toggle enables two-way reconciliation for
 personal movie, TV-show, and episode ratings across connected Plex, Emby, Jellyfin, and Trakt
-accounts. Plembfin remains the conflict authority.
+accounts. Plembfin remains the conflict authority: a change made directly on one service syncs
+out to the others unless a local edit is genuinely newer.
 
 The first complete snapshot imports provider ratings. Later complete snapshots reconcile
 additions, edits, and removals; partial or failed reads cannot clear local ratings. Local

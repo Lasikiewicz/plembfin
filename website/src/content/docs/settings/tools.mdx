@@ -3,13 +3,14 @@ title: Tools
 description: Reopen onboarding, repair local records, rebuild library identities, and wipe data safely.
 category: Settings
 order: 5.9
-sourceVersion: "1.2.1"
+sourceVersion: "1.2.2"
 sourcePaths:
   - public/index.html
   - public/modules/tools.js
   - public/modules/tools-maintenance.js
   - public/modules/tools-duplicates.js
   - public/modules/tools-wipe-data.js
+  - public/modules/tools-playstate-aliases.js
   - docs/settings.md
   - docs/dashboard.md
 screenshots:
@@ -48,10 +49,23 @@ Database Repairs contains confirmed tools for repairing derived or duplicate dat
 - **Remove Duplicate Watches** removes extra current watch dates after you review the count.
 - **Restore Missing Episode Names** checks episode records and fills a missing name when
   provider metadata supplies one.
+- **Watch-State Aliases** lists episode watch states the automatic repair could not tie to
+  their show, with the reason for each. See [Watch-State Aliases](#watch-state-aliases).
 
 The episode-name audit distinguishes resolved rows, retryable metadata failures, and episodes
 verified by the metadata source as **No title provided**. Repairs can change the rows used by
 History, TV progress, and Stats. Check those views and destination telemetry afterward.
+
+### Watch-State Aliases
+
+Duplicate episode watch states are matched to their show automatically through TMDB, TVDB, and
+the show's own IMDb or TVDB id. Select **Check Watch-State Aliases** to list the ones no lookup
+could place, grouped by show with the reason for each:
+
+- **Belongs to this show** moves the entries into the show, keeping the newest watch state.
+- **Different show** leaves them alone and stops them being listed or moved again.
+
+Only Plembfin's own watch state changes; nothing is sent to connected platforms.
 
 ## Library Rebuilds and Backfills
 

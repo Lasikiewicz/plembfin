@@ -81,7 +81,7 @@ function pathMatches(sourcePath, changedPath) {
   return Boolean(source && changed && (source === changed || changed.startsWith(`${source}/`)));
 }
 
-function loadSurfaces(surfaces = null) {
+export function loadSurfaces(surfaces = null) {
   if (Array.isArray(surfaces)) return surfaces;
   try {
     return JSON.parse(fs.readFileSync(surfacePath, "utf8"));
@@ -287,7 +287,7 @@ export function buildUpdatesMarkdown(model) {
   }
 
   if (model.unmappedFiles.length) {
-    lines.push("### Unmapped application/site paths", "", "These paths need an explicit website-impact decision during the review:", "");
+    lines.push("### Unmapped application/site paths", "", "No website guide covers these paths; check them during the Force to main review:", "");
     lines.push(...model.unmappedFiles.map((file) => `- \`${file}\``));
     lines.push("");
   }

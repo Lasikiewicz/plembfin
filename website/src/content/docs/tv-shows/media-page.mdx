@@ -3,7 +3,7 @@ title: TV Shows media page
 description: Read and use a single TV show media page in Plembfin.
 category: Dashboard and libraries
 order: 3.1
-sourceVersion: "1.2.1"
+sourceVersion: "1.2.2"
 sourcePaths:
   - public/app.js
   - public/index.html
@@ -83,8 +83,12 @@ the series context, season list, episode progress, actions, and provider content
 
 The header can include:
 
-- the poster, backdrop, logo, and show title;
-- the synopsis and provider ratings;
+- the poster, backdrop, logo, show title, and synopsis;
+- a **Media facts** table with **Status**, which reads as release date then show status (for
+  example `Released - 14 Aug 2020 - Continuing`), **Genres**, **Network**, **Language**, and
+  **Runtime**;
+- **Available on**, **Watch Now**, and **Ratings** groups, with external ratings shown as
+  logo badges with their scores;
 - sync status and media-server availability;
 - provider identifiers and links back to Plex, Emby, or Jellyfin; and
 - a Seerr request control when Seerr is connected.

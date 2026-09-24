@@ -1,0 +1,17 @@
+{
+  "publishedVersion": "1.2.1",
+  "unchanged": {
+    "appearance": "Mapped via shared index.html, dashboard.js and tools-backups.js; no Appearance option or layout control changed, only asset restamps",
+    "concepts": "Architecture and scheduled-sync doc edits cover same-title identity and Up Next internals; the event lifecycle and Sync Activity model described here are unchanged",
+    "custom-lists": "Only a fresh-page-load state fix for list buttons; the Custom Lists workflow and controls are unchanged",
+    "discover": "discover.js, tmdbGateway.js and index.js changes are asset restamps with no Discover behaviour change",
+    "getting-started": "onboarding.js change is an asset restamp; installation and Guided Setup are unchanged",
+    "guides": "Index page; every linked canonical guide still exists and its summary is still accurate",
+    "history-search": "Only the Recently Watched same-title fix; History search, filters and poster size are unchanged",
+    "navigation": "Sidebar and header structure are unchanged; the favicon fix is not documented here",
+    "operations": "tools-backups.js change is the restore-log final-lines fix; backup and restore operations are unchanged",
+    "safe-daily-workflows": "The daily-workflow table and Sync Activity checks still match the app",
+    "settings": "Settings index routes are unchanged; the new Watch-State Aliases card is documented on Settings, Tools",
+    "stats": "stats.js change is an asset restamp; Stats is unchanged"
+  }
+}

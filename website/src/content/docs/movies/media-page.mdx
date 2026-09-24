@@ -3,7 +3,7 @@ title: Movies media page
 description: Read and use a single movie media page in Plembfin.
 category: Dashboard and libraries
 order: 2.1
-sourceVersion: "1.2.1"
+sourceVersion: "1.2.2"
 sourcePaths:
   - public/app.js
   - public/index.html
@@ -90,8 +90,11 @@ movie's poster, metadata, watch state, actions, and provider content together.
 
 The header can include:
 
-- the poster, backdrop, logo, title, and release date;
-- the synopsis and provider ratings;
+- the poster, backdrop, logo, title, and synopsis;
+- a **Media facts** table with **Status** (the release date is part of this row, such as
+  `Released - 31 May 2023`), **Genres**, **Runtime**, **Studio**, and **Language**;
+- **Available on**, **Watch Now**, and **Ratings** groups, with external ratings shown as
+  logo badges with their scores;
 - sync status and media-server availability;
 - provider identifiers and links back to Plex, Emby, or Jellyfin; and
 - a Seerr request control when Seerr is connected.

@@ -142,7 +142,18 @@ Use this format - the first line becomes the changelog `message`; bullet-point b
 - Key change 2
 - Key change 3
 ...
+
+site-impact: <docSlug>, <docSlug>
 ```
+
+The last line is the website note. Do **not** edit `website/` for app changes here: the
+website is only updated during "Force to main", once the release is final. The note just
+records which website guides this change will need then, so that review knows where to
+look. Use the `docSlug` values from `website/src/data/app-surface.json` (for example
+`site-impact: dashboard, media-details`), or `site-impact: none` when nothing a website
+reader sees has changed (internal refactors, tests, tooling). Without a note, Force to main
+falls back to every guide the changed files map to, which for a shared file like
+`public/index.html` is a dozen guides. A misspelled slug fails the Force to main gate.
 
 Types: `feat` (new feature), `fix` (bug fix), `security` (security change), `chore` (maintenance), `docs` (docs only).
 
@@ -267,7 +278,10 @@ message. `git reset --soft` preserves the working tree exactly, so the changelog
 6 already rebuilt is included in this final commit untouched. In all-scope mode, if more
 than one *product* commit is being squashed, combine their bullet lists into one
 list that keeps every user-visible bullet (drop only a bullet that just restates another
-one in the group, and bullets about agent guidance or release tooling), and re-run step 6
+one in the group, and bullets about agent guidance or release tooling), merge their
+`site-impact:` notes into one line listing every guide named (`none` only when every
+squashed commit said `none`; a commit with no note contributes its mapped guides from
+`plan/updates.md` **Website check targets**), and re-run step 6
 afterward so the rebuilt
 entry reflects the final, consolidated message rather than the pre-squash one.
 

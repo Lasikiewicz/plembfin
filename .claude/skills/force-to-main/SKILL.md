@@ -65,6 +65,29 @@ inventory to confirm the website copy covers the same user-visible outcomes. The
 regenerated from history and groups each website guide once, so a follow-up commit touching
 the same area updates the existing target instead of creating a duplicate checklist item.
 
+This is the only point where the website is updated for application changes. Push to git
+and Force to alpha never edit `website/` for them; each commit only carries a
+`site-impact:` note naming the guides it needs (or `none`). Get the exact list of guides
+this release needs, built from those notes, with a file-mapping fallback for commits
+without one:
+
+```bash
+npm run check:website-impact
+```
+
+It fails, listing every guide still to do, until each one has changed on `develop`
+compared with the live `origin/main` website. A `sourceVersion` restamp alone does not
+count. It also prints the changed files no guide covers, for review. When the review finds
+a listed guide is still accurate, record that instead of making a cosmetic edit, in
+`website/src/data/release-review.json`:
+
+```json
+{ "publishedVersion": "<version live on origin/main>", "unchanged": { "stats": "only the asset restamp touched it" } }
+```
+
+The entries only count while `publishedVersion` matches `origin/main`, so a previous
+release's review never excuses the next one. Re-run the check until it passes.
+
 **Commit any website change it produces on `develop` before continuing.** Updating the
 website is part of this release, not a reason to abandon it: step 1a takes `develop`'s
 reviewed `website/` tree into the release commit, so there is no need to run "Force to
@@ -96,9 +119,11 @@ resets the local branch to the remote tip every time.
 
 ### 1a - Take develop's reviewed website into the release
 ```bash
-git checkout origin/develop -- website/
+git checkout develop -- website/
 git status --short website/
 ```
+Local `develop`, not `origin/develop`: step 0 commits the website work on local `develop`
+and this command never pushes `develop`, so `origin/develop` would silently drop it.
 The application ships from the alpha tip; the website ships from `develop`. This is what
 lets step 0 update the website without restarting the command, and what stops each
 release redoing the previous release's website work, since the release commit is never
@@ -145,11 +170,12 @@ it does **not** write `changelog.json`, `package.json`, `package-lock.json`,
 new version (`v<version>` + 5-digit form) and the merged release entry (message, New
 Features, Major Bug Fixes, Tweaks) that will be committed to `main`.
 
-This same step also runs the website content-impact gate (`scripts/site-impact.js`): if a
-changed application surface since the last main release has no matching website update and
-no commit carries a `site-impact:` decision, `--preview` throws here instead of printing the
-changelog. See ["Content-impact check"](docs/websiteupdate.md#content-impact-check-automated-fail-closed)
-for how to resolve it - fix it on `develop`, repeat "Force to alpha", and retry this command.
+This same step also re-runs the website content-impact gate (`scripts/site-impact.js`)
+against alpha's commits and the `website/` tree step 1a staged. If a guide the release
+needs has not been updated or recorded as reviewed, `--preview` throws here instead of
+printing the changelog. See ["Content-impact check"](docs/websiteupdate.md#content-impact-check-automated-fail-closed).
+Fix it the same way as in step 0: update the guide on `develop`, commit, repeat step 1a,
+and retry. No Force to alpha rerun is needed.
 
 **Do not continue past this step until the user has confirmed the changelog in chat.**
 This is a required gate, not a formality: "Force to main" is a force-push onto the

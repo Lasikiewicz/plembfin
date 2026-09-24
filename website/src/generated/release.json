@@ -1,8 +1,100 @@
 {
-  "version": "1.2.1",
-  "date": "21 September 2026",
-  "summary": "This hotfix improves Plembfin's watch-state review, mobile media navigation, and playback refresh reliability.",
+  "version": "1.2.2",
+  "date": "24 September 2026",
+  "summary": "This update keeps shows that share a title apart, makes Up Next sync with Plex, Emby and Jellyfin more reliable, syncs rating changes made on any service, and adds a Watch-State Aliases repair card.",
   "entries": [
+    {
+      "version": "1.2.2",
+      "date": "24 September 2026",
+      "title": "v1.2.2",
+      "summary": "This update keeps shows that share a title apart, makes Up Next sync with Plex, Emby and Jellyfin more reliable, syncs rating changes made on any service, and adds a Watch-State Aliases repair card.",
+      "bullets": [
+        "Settings > Tools > Database Repairs has a Watch-State Aliases card listing episode watch states the automatic repair could not tie to their show, with the reason for each; Belongs to this show moves them into the show, keeping the newest watch state, and Different show stops them being listed or moved again. Only Plembfin's own watch state changes",
+        "Rating changes made directly on Plex, Emby, Jellyfin or Trakt now sync out to every other service unless a local edit is genuinely newer; an unchanged rating is no longer re-imported on every scan, a stale pending local write no longer wins a conflict, and clearing a rating on Jellyfin takes effect",
+        "The media detail header has a new layout: a facts table for status, genres, network, language and runtime, TV status reading Released - date - status, external ratings as logo badges with scores, and ratings beside the progress bar; its rating pill and watchlist and list buttons reflect your data on a fresh direct page load",
+        "Shows that share a title but have different TMDB or TVDB ids, such as Scrubs and its 2026 reboot, are kept apart everywhere: they no longer merge into one Up Next card, appear twice, overwrite each other's identity, progress or poster, merge in Recently Watched, or skip a first watch because the other show has one at that season and episode",
+        "When two Plex shows share a title, Up Next, Watch now and watch sync use the show whose ids match, and a Plex title with a country tag such as The Assembly (UK) gets its Watch now link; on Emby or Jellyfin an ambiguous title is skipped instead of written to both, a title with a year such as Scrubs (2026) finds only that show, and a card for a show no library holds is no longer linked to a same-name show",
+        "Up Next syncing no longer removes items from Plex or Emby Continue Watching just because Plembfin's queue does not list them; items leave only when you clear progress or remove them in Plembfin, the sync message reports how many app-only items were left in place, and a refresh with nothing new no longer triggers a needless sync",
+        "Clearing progress no longer comes back as a resume card when a server still reports the old position and now reaches Trakt; a part-watched movie stays at the front of Up Next, and stopping part-way, clearing progress, or marking watched or unwatched on the dashboard updates the Up Next rail straight away",
+        "Up Next offers the right episode: marking an episode watched brings in the correct next one, a Continue Watching episode with no position shows as next rather than 0%, episodes removed from every library are no longer offered, refreshing Emby or Jellyfin's native rail no longer unmarks or re-dates the previous episode, and a later watch no longer makes an earlier unwatched episode read as watched",
+        "Emby part-watches reach Up Next even when the episode was once marked unwatched, and Up Next syncing no longer adds a play to Emby's count; starting an episode in Jellyfin no longer counts as an unwatch, and part-watching one version of a multi-version Jellyfin episode is picked up by the resume check",
+        "Up Next cards keep their Plex, Emby and Jellyfin Watch now links in more cases, including cards only Emby or Jellyfin lists, shows resumed after being fully unwatched, and part-watches Jellyfin leaves out of Next Up; resume progress keeps the reported IMDb and TMDB ids and no longer adds an empty Part Watched card",
+        "An offline media server is stood down briefly, skipped by the Up Next push and queued for a push as soon as it answers; restarting Plembfin keeps the cards only that server can confirm, the dashboard shows its connection-unavailable line within about a minute, and the Up Next response is no longer cached by the browser",
+        "Marking an episode unwatched while Up Next is syncing no longer puts it back to watched on Jellyfin, Emby or Plex, and new episodes or movies added to Plex no longer create unwatched history entries or send unwatches to Emby, Jellyfin and Trakt",
+        "Watches reported only through a watched-library scan are stored under the show with show and episode ids, and duplicate episode watch states are matched to their show through TVDB, TMDB and the show's own IMDb or TVDB id, so more are cleaned up automatically",
+        "A Tautulli import skips a play older than the item's newest unwatch, and no longer skips a real episode play as a duplicate of a different episode of the same show",
+        "Watching, unwatching, clearing progress on, removing or restoring one same-title show no longer changes, hides, fades or brings back the other show's episodes, cards, history entries or pending reviews, including during Jellyfin scheduled sync and from a show's page",
+        "Manual Watch review: the sidebar count matches the page, the page no longer reloads repeatedly, each review names the show its ids prove, season and show actions are one watched and one unwatched button with the media page's date popup and confirmation, reviews without ids stay pending when two shows share a title, and items already watched are no longer queued or left lingering",
+        "Plex watchlist sync resolves a common or duplicate title by year and then by the item's real provider ids, so it no longer gets stuck as not available, including two separate Arrival (2016) entries",
+        "Interface fixes: the Upcoming control bar matches the media action pills, the poster size slider leads the Movies and TV Shows control bars, the Dismissed Up Next pop-up shows up to six cards per row, the Mark watched date dialog buttons work from a dashboard card menu, browser tabs show the Plembfin logo again, a restore log shows its final lines, and Sync Activity lists cross-platform match issues with Fix match and Remove again"
+      ],
+      "websiteUrl": "https://plembfin.com",
+      "sections": [
+        {
+          "title": "New Features",
+          "groups": [
+            {
+              "title": "Settings",
+              "bullets": [
+                "Settings > Tools > Database Repairs has a Watch-State Aliases card listing episode watch states the automatic repair could not tie to their show, with the reason for each; Belongs to this show moves them into the show, keeping the newest watch state, and Different show stops them being listed or moved again. Only Plembfin's own watch state changes"
+              ]
+            },
+            {
+              "title": "Sync & connection recovery",
+              "bullets": [
+                "Rating changes made directly on Plex, Emby, Jellyfin or Trakt now sync out to every other service unless a local edit is genuinely newer; an unchanged rating is no longer re-imported on every scan, a stale pending local write no longer wins a conflict, and clearing a rating on Jellyfin takes effect",
+                "The media detail header has a new layout: a facts table for status, genres, network, language and runtime, TV status reading Released - date - status, external ratings as logo badges with scores, and ratings beside the progress bar; its rating pill and watchlist and list buttons reflect your data on a fresh direct page load"
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Bug Fixes",
+          "groups": [
+            {
+              "title": "Up Next & watch-state",
+              "bullets": [
+                "Shows that share a title but have different TMDB or TVDB ids, such as Scrubs and its 2026 reboot, are kept apart everywhere: they no longer merge into one Up Next card, appear twice, overwrite each other's identity, progress or poster, merge in Recently Watched, or skip a first watch because the other show has one at that season and episode",
+                "When two Plex shows share a title, Up Next, Watch now and watch sync use the show whose ids match, and a Plex title with a country tag such as The Assembly (UK) gets its Watch now link; on Emby or Jellyfin an ambiguous title is skipped instead of written to both, a title with a year such as Scrubs (2026) finds only that show, and a card for a show no library holds is no longer linked to a same-name show",
+                "Up Next syncing no longer removes items from Plex or Emby Continue Watching just because Plembfin's queue does not list them; items leave only when you clear progress or remove them in Plembfin, the sync message reports how many app-only items were left in place, and a refresh with nothing new no longer triggers a needless sync",
+                "Clearing progress no longer comes back as a resume card when a server still reports the old position and now reaches Trakt; a part-watched movie stays at the front of Up Next, and stopping part-way, clearing progress, or marking watched or unwatched on the dashboard updates the Up Next rail straight away",
+                "Up Next offers the right episode: marking an episode watched brings in the correct next one, a Continue Watching episode with no position shows as next rather than 0%, episodes removed from every library are no longer offered, refreshing Emby or Jellyfin's native rail no longer unmarks or re-dates the previous episode, and a later watch no longer makes an earlier unwatched episode read as watched",
+                "Emby part-watches reach Up Next even when the episode was once marked unwatched, and Up Next syncing no longer adds a play to Emby's count; starting an episode in Jellyfin no longer counts as an unwatch, and part-watching one version of a multi-version Jellyfin episode is picked up by the resume check",
+                "Up Next cards keep their Plex, Emby and Jellyfin Watch now links in more cases, including cards only Emby or Jellyfin lists, shows resumed after being fully unwatched, and part-watches Jellyfin leaves out of Next Up; resume progress keeps the reported IMDb and TMDB ids and no longer adds an empty Part Watched card",
+                "An offline media server is stood down briefly, skipped by the Up Next push and queued for a push as soon as it answers; restarting Plembfin keeps the cards only that server can confirm, the dashboard shows its connection-unavailable line within about a minute, and the Up Next response is no longer cached by the browser",
+                "Marking an episode unwatched while Up Next is syncing no longer puts it back to watched on Jellyfin, Emby or Plex, and new episodes or movies added to Plex no longer create unwatched history entries or send unwatches to Emby, Jellyfin and Trakt",
+                "Watches reported only through a watched-library scan are stored under the show with show and episode ids, and duplicate episode watch states are matched to their show through TVDB, TMDB and the show's own IMDb or TVDB id, so more are cleaned up automatically"
+              ]
+            },
+            {
+              "title": "Tautulli imports",
+              "bullets": [
+                "A Tautulli import skips a play older than the item's newest unwatch, and no longer skips a real episode play as a duplicate of a different episode of the same show"
+              ]
+            },
+            {
+              "title": "Sync & provider recovery",
+              "bullets": [
+                "Watching, unwatching, clearing progress on, removing or restoring one same-title show no longer changes, hides, fades or brings back the other show's episodes, cards, history entries or pending reviews, including during Jellyfin scheduled sync and from a show's page",
+                "Manual Watch review: the sidebar count matches the page, the page no longer reloads repeatedly, each review names the show its ids prove, season and show actions are one watched and one unwatched button with the media page's date popup and confirmation, reviews without ids stay pending when two shows share a title, and items already watched are no longer queued or left lingering",
+                "Plex watchlist sync resolves a common or duplicate title by year and then by the item's real provider ids, so it no longer gets stuck as not available, including two separate Arrival (2016) entries"
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Tweaks",
+          "groups": [
+            {
+              "title": "Up Next & watch-state",
+              "bullets": [
+                "Interface fixes: the Upcoming control bar matches the media action pills, the poster size slider leads the Movies and TV Shows control bars, the Dismissed Up Next pop-up shows up to six cards per row, the Mark watched date dialog buttons work from a dashboard card menu, browser tabs show the Plembfin logo again, a restore log shows its final lines, and Sync Activity lists cross-platform match issues with Fix match and Remove again"
+              ]
+            }
+          ]
+        }
+      ]
+    },
     {
       "version": "1.2.1",
       "date": "21 September 2026",

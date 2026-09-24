@@ -1,10 +1,10 @@
-import { buildAuthHeaders } from "./auth.js?v=1.2.1.1.0";
-import { state, elements } from "./state.js?v=1.2.1.1.0";
-import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, sourceBadgeHtml, formatDate, formatTmdbDate, resolveEpisodeTitle, episodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress, isDemoMode } from "./utils.js?v=1.2.1.1.0";
-import { posterMarkup, posterOverflowMenu, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, isLocalArtworkUrl } from "./images.js?v=1.2.1.1.0";
-import { ifLoaded } from "./route-modules.js?v=1.2.1.1.0";
-import { initialMediaAppLinksContent } from "./media-detail-shared.js?v=1.2.1.1.0";
-import { dedupeMediaRecords } from "./media-records.js?v=1.2.1.1.0";
+import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.0";
+import { state, elements } from "./state.js?v=1.2.2.0.0";
+import { escapeHtml, escapeAttribute, slug, showTitleFrom, showName, movieHref, movieTmdbHref, tvShowBaseHrefFromEpisode, sourceBadgeHtml, formatDate, formatTmdbDate, resolveEpisodeTitle, episodeTitle, episodeCode, normalizePlatformSource, platformBadge, sourceClass, platformIconMarkup, platformSourceValues, computeProgress, isDemoMode } from "./utils.js?v=1.2.2.0.0";
+import { posterMarkup, posterOverflowMenu, hydratePosters, lookupPosterUrl, bindPosterImageErrorHandler, safePosterElementUrl, isLocalArtworkUrl } from "./images.js?v=1.2.2.0.0";
+import { ifLoaded } from "./route-modules.js?v=1.2.2.0.0";
+import { initialMediaAppLinksContent } from "./media-detail-shared.js?v=1.2.2.0.0";
+import { dedupeMediaRecords } from "./media-records.js?v=1.2.2.0.0";
 
 // The setup wizard loads only when setup is unfinished or its checklist has
 // items (see the deferred check in app.js); until then there is nothing to show.

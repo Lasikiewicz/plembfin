@@ -3,7 +3,7 @@ title: Manual Watch review
 description: Resolve uncertain watch events, correct provider state, and recheck stale reviews.
 category: Sync and maintain
 order: 6.5
-sourceVersion: "1.2.1"
+sourceVersion: "1.2.2"
 sourcePaths:
   - public/index.html
   - public/modules/manual-watch-review.js
@@ -47,15 +47,23 @@ field to narrow the queue, then open a show group when you want to process its e
 
 ## Choose a watch date
 
-For an episode or show group, choose the date policy that matches what happened:
+For a movie or a single episode, choose the date policy that matches what happened:
 
 - **Mark watched now** records the current date and time.
 - **Use release day** uses the movie or episode release date.
 - **Use episode timing** uses nearby episode dates when that context is available.
 - **Choose date & time** records a specific custom date.
 
-Show-level actions apply the same choice to the selected episodes. Review the resulting date
+Each season and show group has one watched and one unwatched button, such as **Mark all
+reviewed episodes watched** and **Mark all reviewed episodes unwatched**. The watched button
+opens the same date popup as the [media page's season and show actions](/docs/tv-shows/media-page/#watch-state-actions),
+and the unwatched button uses the same unwatch confirmation. Only the episodes waiting for
+review change; other episodes of the season or show keep their state. Review the resulting date
 before confirming it.
+
+Each review names the show its provider ids prove, and shows no poster rather than the wrong
+show's. A review without provider ids is looked up through the reporting app and stays pending
+instead of guessing when two shows share the title. The sidebar count matches the page.
 
 ## Correct provider state
 
@@ -65,7 +73,7 @@ provider's watched flag. Choose **Dismiss & mark unwatched** when the provider e
 wrong; Plembfin clears the local review and corrects the provider state before closing the
 item.
 
-Use the show-level bulk action when every pending episode in a group should receive the same
+Use the show-level buttons when every pending episode in a group should receive the same
 decision. If a provider correction fails, the review remains pending so it can be retried. An
 explicit unwatch clears an existing review, while a later deliberate provider event can create
 a new one.
@@ -75,7 +83,8 @@ a new one.
 Use **Recheck status** when a watch was already handled in another client or the queue looks
 stale. Plembfin rereads its canonical watch state and the pending review queue, then removes
 items that are already marked watched in Plembfin. This keeps provider leftovers from appearing
-as decisions that still need action.
+as decisions that still need action. Library imports also skip items that are already watched,
+and pending reviews that local state already answers are closed automatically.
 
 For delivery outcomes and targeted retries, see [Sync Activity](/docs/sync-tools/). For the
 policy and timing controls that feed this queue, see [Settings → Sync](/docs/settings/sync/).

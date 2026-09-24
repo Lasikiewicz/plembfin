@@ -3,7 +3,7 @@ title: Shared library controls
 description: Use the controls shared by the Movies and TV Shows libraries.
 category: Dashboard and libraries
 order: 4
-sourceVersion: "1.2.1"
+sourceVersion: "1.2.2"
 sourcePaths:
   - public/index.html
   - public/modules/explorer.js
@@ -37,11 +37,13 @@ Both libraries provide a similar set of browsing controls.
 
 The exact available sort values depend on the page and the loaded data.
 
+- **Size** leads the control bar and changes how many poster cards fit across the page.
 - **Search** narrows the loaded titles by the title and available library fields.
 - **Sort** changes the order, including title, watch date, and the available next-airing order.
-- **A–Z** jumps to a letter in the loaded result set.
-- **Poster size** changes how many cards fit across the page.
 - **Poster, list, or overview-card view** changes how much information is visible while browsing.
+- **A–Z** jumps to a letter in the loaded result set.
+
+Every control sits directly in the control bar; there is no separate Options menu.
 - Selecting a poster opens the relevant [media detail page](/docs/media-details/).
 
 Large libraries load progressively as you scroll.

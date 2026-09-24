@@ -3,7 +3,7 @@ title: Troubleshooting
 description: Start with the symptom, confirm the source of truth, and take the smallest safe action.
 category: Fix a problem
 order: 7
-sourceVersion: "1.2.1"
+sourceVersion: "1.2.2"
 sourcePaths:
   - docs/troubleshooting.md
   - docs/webhooks.md
@@ -112,7 +112,10 @@ event setup](/docs/integrations/#media-servers).
 
 If **Up Next** shows **Jellyfin connection unavailable**, or the equivalent notice for Plex or
 Emby, Plembfin keeps the saved Up Next items visible while it retries the affected server in the
-background. A connection problem does not delete your local watch history or clear the rail.
+background. The notice appears within about a minute of the server going offline. A connection
+problem does not delete your local watch history or clear the rail: an offline server is stood
+down briefly instead of being retried on every lookup, skipped by the Up Next push, and cards
+only that server can confirm keep their Watch now links, even across a Plembfin restart.
 
 1. Select **Retry Connection** beside the notice.
 2. Check the server URL and credentials under [Settings → Media servers](/docs/settings/media-servers/).
@@ -126,7 +129,8 @@ Plembfin container or host, the API key or user token is current, and the user c
 libraries used by Up Next. If the server was moved or its reverse-proxy path changed, update the
 connection URL and retry.
 
-When the connection recovers, refresh the dashboard. Plembfin replaces the saved snapshot with
+When the connection recovers, Plembfin queues an Up Next push straight away. Refresh the
+dashboard; Plembfin replaces the saved snapshot with
 the latest provider response; until then, avoid marking an item watched solely because the
 provider rail is unavailable.
 

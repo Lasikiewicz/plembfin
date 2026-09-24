@@ -92,8 +92,6 @@
     "public/assets/app-captures/media-watch-status-light.png",
     "public/assets/app-captures/movie-detail-page-dark.png",
     "public/assets/app-captures/movie-detail-page-light.png",
-    "public/assets/app-captures/movies-dark.png",
-    "public/assets/app-captures/movies-light.png",
     "public/assets/app-captures/now-playing-dark.png",
     "public/assets/app-captures/now-playing-light.png",
     "public/assets/app-captures/ratings-cards-dark.png",
@@ -216,8 +214,6 @@
     "public/assets/app-captures/tv-spoilers-on-light.png",
     "public/assets/app-captures/tv-trailers-focus-dark.png",
     "public/assets/app-captures/tv-trailers-focus-light.png",
-    "public/assets/app-captures/tvshows-dark.png",
-    "public/assets/app-captures/tvshows-light.png",
     "public/assets/app-captures/upcoming-dark.png",
     "public/assets/app-captures/upcoming-light.png",
     "public/assets/app-captures/watchlist-card-dark.png",
@@ -230,6 +226,42 @@
     "public/assets/plembfin_header_logo_light.png"
   ],
   "redactedAssets": {
+    "public/assets/app-captures/movies-dark.png": {
+      "method": "blur",
+      "reason": "The Plex account username appended to the Movies page title is masked.",
+      "reviewedAt": "2026-09-24",
+      "regions": [
+        { "label": "Plex account username in page title", "x": 243, "y": 11, "width": 52, "height": 20 }
+      ],
+      "reviewedUnblurred": "Navigation, library controls, public movie titles, posters, and watch dates remain visible."
+    },
+    "public/assets/app-captures/movies-light.png": {
+      "method": "blur",
+      "reason": "The Plex account username appended to the Movies page title is masked.",
+      "reviewedAt": "2026-09-24",
+      "regions": [
+        { "label": "Plex account username in page title", "x": 243, "y": 11, "width": 52, "height": 20 }
+      ],
+      "reviewedUnblurred": "Navigation, library controls, public movie titles, posters, and watch dates remain visible."
+    },
+    "public/assets/app-captures/tvshows-dark.png": {
+      "method": "blur",
+      "reason": "The Plex account username appended to the TV Shows page title is masked.",
+      "reviewedAt": "2026-09-24",
+      "regions": [
+        { "label": "Plex account username in page title", "x": 257, "y": 11, "width": 52, "height": 20 }
+      ],
+      "reviewedUnblurred": "Navigation, library controls, public show titles, posters, watch counts, and watch dates remain visible."
+    },
+    "public/assets/app-captures/tvshows-light.png": {
+      "method": "blur",
+      "reason": "The Plex account username appended to the TV Shows page title is masked.",
+      "reviewedAt": "2026-09-24",
+      "regions": [
+        { "label": "Plex account username in page title", "x": 257, "y": 11, "width": 52, "height": 20 }
+      ],
+      "reviewedUnblurred": "Navigation, library controls, public show titles, posters, watch counts, and watch dates remain visible."
+    },
     "public/assets/app-captures/settings-connections-dark.png": {
       "method": "blur",
       "reason": "The connected Trakt account username is masked in the live connection summary.",

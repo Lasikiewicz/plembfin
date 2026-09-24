@@ -3,7 +3,7 @@ title: Integrations
 description: Connect media servers, Trakt, Tautulli, Seerr, and metadata providers with the right expectations.
 category: Connect services
 order: 4
-sourceVersion: "1.2.1"
+sourceVersion: "1.2.2"
 sourcePaths:
   - docs/plex.md
   - docs/emby.md
@@ -63,6 +63,12 @@ Add the other services once the first connection is healthy.
 | Jellyfin | Library state, playback, watch history, and resume progress | Webhooks plugin plus polling |
 
 The server running Plembfin must reach each configured URL.
+
+Shows or films that share a title are kept apart by their TMDB, TVDB, and IMDb ids. When two
+Plex shows share a title, Plembfin uses the one whose ids match, including a show Plex titles
+with a country tag such as *The Assembly (UK)*. When a title alone cannot tell two items apart
+on Emby or Jellyfin, Plembfin skips that server instead of writing to both; a title with a year
+such as *Scrubs (2026)* finds only that show.
 
 When a browser test succeeds but background sync does not move, test the same hostname,
 port, and protocol from the Plembfin host.

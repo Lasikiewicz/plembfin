@@ -3,7 +3,7 @@ title: Ratings
 description: Give movies, TV shows, and episodes private scores from 1 to 10.
 category: Media and discovery
 order: 3.32
-sourceVersion: "1.2.1"
+sourceVersion: "1.2.2"
 sourcePaths:
   - public/index.html
   - public/modules/personal-media.js
@@ -78,9 +78,10 @@ sends a watched-state correction to a connected service.
 
 Rating sync is optional and disabled by default. Enable the single **Sync personal ratings**
 toggle under [Settings → Sync → Personal Rating Sync](/docs/settings/sync/#personal-rating-sync) to reconcile ratings with every
-connected Plex, Emby, Jellyfin, and Trakt account. Plembfin remains the conflict authority;
-newer local values win conflicts, while provider additions are imported when there is no
-newer local change.
+connected Plex, Emby, Jellyfin, and Trakt account. Plembfin remains the conflict authority. A
+rating added, changed, or cleared directly on one service is imported and sent out to every
+other service, unless a local edit is genuinely newer. An unchanged rating is not re-imported
+as a remote change on later scans.
 
 The first complete provider snapshot imports existing ratings. Later complete snapshots
 reconcile additions, edits, and removals; a partial or failed read cannot clear the local

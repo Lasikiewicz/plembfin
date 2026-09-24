@@ -134,48 +134,59 @@ findings. The website gate is mandatory for every main release.
 
 ### Content-impact check (automated, fail-closed)
 
-`scripts/site-impact.js` enforces the rule above mechanically: every changed application
-surface since the previous main release must map to a website/docs update committed in this
-same release, or the commit(s) that touched it must carry an explicit `site-impact:` decision
-in its message body. It reuses the same app-surface catalog and website-target mapping as
-`plan/updates.md`'s **Website check targets** section, so a file it flags is exactly a file
-that section would also have surfaced for review.
+The website is only updated for application changes during **Force to main**, once the
+release is final. Develop and alpha work can still change, and neither branch publishes the
+site, so documenting it earlier is wasted effort. Push to git records intent instead: each
+product commit ends with a note naming the guides it will need.
 
-The check runs automatically, both as part of `node scripts/promote-alpha-to-main.js
---preview` (step 3 of the "Force to main" skill) and again inside `--confirm`, so it cannot be
-skipped by omitting a manual step - a failure raises an error and refuses to promote. It can
-also be run on demand:
+```text
+site-impact: dashboard, media-details
+site-impact: none
+```
+
+Slugs are the `docSlug` values in `website/src/data/app-surface.json`.
+
+`scripts/site-impact.js` turns those notes into the release's website to-do list and
+enforces it:
+
+- A commit with `site-impact: none` needs no guide.
+- A commit naming guides needs exactly those. The note replaces the file mapping for that
+  commit, because a shared file such as `public/index.html` maps to a dozen guides. An
+  unknown slug fails the check, so a typo cannot silently pass.
+- A commit with no note needs every guide `app-surface.json` maps its changed files to (the
+  same mapping as `plan/updates.md` **Website check targets**). Changed `public/`, `server/`
+  or `docs/` paths that no guide covers are printed for review. They do not fail the check.
+
+A needed guide passes when its content differs from the live `origin/main` website in the
+tree being released. That tree includes uncommitted and staged changes, so `develop`'s
+website staged by skill step 1a counts. A `sourceVersion` restamp alone does not count,
+because `promote-alpha-to-main.js` stamps every page. When the review finds a needed guide
+is still accurate, record that in `website/src/data/release-review.json` rather than making
+a cosmetic edit:
+
+```json
+{ "publishedVersion": "1.2.1", "unchanged": { "stats": "only the asset restamp touched it" } }
+```
+
+Entries only count while `publishedVersion` is the version live on `origin/main`, so one
+release's review never excuses the next.
+
+Run it at the start of the Force to main website gate, and re-run it until it passes:
 
 ```bash
 npm run check:website-impact
 ```
 
-**Resolving a failure:** either update the affected website guide (then the check sees the
-guide changed in-range and passes), or add a line to the *relevant commit's* message body:
-
-```text
-site-impact: none
-```
-
-or, to name which guide already covers it:
-
-```text
-site-impact: <docSlug>
-```
-
-`<docSlug>` must match a real entry in `website/src/data/app-surface.json`; a typo does not
-silently pass. The decision has to be on the commit that actually touched the flagged file -
-a later unrelated commit's trailer does not retroactively excuse an earlier one. Since this
-runs against the alpha cycle, fix the source commit on `develop` (amend or add a follow-up
-commit there), repeat "Force to alpha", and retry "Force to main" - the same remediation
-path already used for a changelog-process violation.
+It also runs inside `node scripts/promote-alpha-to-main.js --preview` and `--confirm`, so it
+cannot be skipped. **Resolving a failure:** update the guide (or record it as reviewed) on
+`develop`, commit, re-take the website into the release checkout (skill step 1a), and retry.
+No Force to alpha rerun is needed.
 
 Release-bookkeeping commits (changelog rebuilds, alpha/main promotions, build-counter resets)
 are excluded from the walk entirely, since they mechanically restamp most of `public/`
-without being a real product change. The check is scoped to `app-surface.json`'s catalogued
-targets plus any other changed `public/`, `server/`, or `docs/` path; it does not gate
-`website/`-only edits, `README.md`, `package.json`, or the changelog manifests, which are
-release metadata and shared layout, not a catalogued feature surface.
+without being a real product change. `website/`-only edits, `README.md`, `package.json`, and
+the changelog manifests are release metadata and shared layout, not a catalogued feature
+surface, and are not gated.
 
 ## Publish plan
 
