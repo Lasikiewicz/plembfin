@@ -5,6 +5,7 @@ import { DATA_DIR } from "../paths.js";
 import { getUpNextFeedSourceVersion, listUpNextProviderFeedStates } from "./upNextRepository.js";
 import { getCanonicalPosterUrl } from "./mediaArtwork.js";
 import { publicUpNextItems } from "./upNextService.js";
+import { sortUpNextItems } from "./upNextIdentity.js";
 
 // Bump when the projection's episode-order rules change so a persisted queue
 // built by the previous rule cannot keep showing a later-season episode.
@@ -73,8 +74,10 @@ function normalizeCache(parsed) {
     upNextVersion: Number(parsed?.upNextVersion || getUpNextVersion()),
     // Older cache snapshots can contain the same resume twice under an
     // identity-bearing key and a title-only key. Normalize known media rows
-    // while leaving legacy/diagnostic entries untouched.
-    items: [...publicUpNextItems(mergeableItems), ...passthroughItems].slice(0, MAX_ITEMS),
+    // while leaving legacy/diagnostic entries untouched. Re-sort with the
+    // projection's own rule: appending the movies after the episodes moved a
+    // part-watched movie to the end of the rail on every cached read.
+    items: sortUpNextItems([...publicUpNextItems(mergeableItems), ...passthroughItems]).slice(0, MAX_ITEMS),
     sourceStatus: (Array.isArray(parsed?.sourceStatus) ? parsed.sourceStatus : [])
       .filter((feed) => UP_NEXT_PROVIDERS.has(String(feed?.provider || "").toLowerCase())),
   };
@@ -142,8 +145,12 @@ async function storeCache(result, fallbackSourceVersion) {
     await fs.mkdir(DATA_DIR, { recursive: true });
     await fs.writeFile(TEMP_FILE, JSON.stringify(next), "utf8");
     await fs.rename(TEMP_FILE, CACHE_FILE);
+    // Keep serving exactly what was built. Forcing a re-read ran our own write
+    // back through normalizeCache, so the next rebuild never compared equal and
+    // every rebuild bumped the Up Next version. Another process's later write
+    // still changes the mtime and is picked up.
     memoryCache = next;
-    memoryMtimeMs = 0;
+    memoryMtimeMs = await fs.stat(CACHE_FILE).then((stat) => stat.mtimeMs, () => 0);
     stored = { ...next, changed };
   });
   await writeChain;

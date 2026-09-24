@@ -72,6 +72,8 @@ Every minute `fetchLiveSessions` polls `/Sessions` for Now Playing. The catch-up
   whose webhooks were missed.
 - **Resumable items** - `fetchEmbyResumableItems` (`/Users/<id>/Items/Resume`) →
   `syncRecentlyResumableFromEmby` replicates resume positions to the other platforms.
+  The query asks for `Fields=UserDataLastPlayedDate`: Emby 4.9 otherwise omits the last-played
+  time, and without it an older explicit unwatch outranks the part-watch (decision 35).
   Episode rows include series provider IDs so cross-server lookup can resolve the
   series before selecting the matching season and episode.
 - **Next Up** - `fetchEmbyNextUpItems` (`/Shows/NextUp`, scoped to the configured user)
@@ -122,14 +124,14 @@ platform that reported them.
 
 | Function | What it does |
 | --- | --- |
-| `findEmbyItems` | Locates library items by provider ID (`AnyProviderIdEquals` with `imdb.` / `tmdb.` / `tvdb.` terms), falling back to title/year search; episodes resolved through the series |
+| `findEmbyItems` | Locates library items by provider ID (`AnyProviderIdEquals` with `imdb.` / `tmdb.` / `tvdb.` terms), falling back to title/year search; episodes resolved through the series. A title search that matches two items with different ids or years (two shows or films of the same name, such as "Scrubs" 2001 and 2026) finds nothing rather than both ([decision 40](decisions.md)) |
 | `markEmbyPlayed` / `markEmbyUnplayed` | `POST` / `DELETE` on `/Users/<userId>/PlayedItems/<itemId>` |
 | `setEmbyProgress` | Writes a resume position via the item's UserData, retaining the source progress date so Emby's Continue Watching feed can order and include it |
 | `markEmbyUnplayedById` | Unplay by item ID (used by unwatch propagation) |
 | `fetchEmbySeriesEpisodes` / `fetchEmbyEpisodes` | Episode lists for season-level operations |
 | `fetchEmbyWatchedItems` / `fetchEmbyResumableItems` / `fetchEmbyNextUpItems` | Watched, resume, and Next Up feeds for catch-up sync |
 | `fetchEmbyPersonalRatingSnapshot` | Reads rated movies, series, and episodes for the isolated personal-rating snapshot worker |
-| `setEmbyPersonalRating` / `clearEmbyPersonalRating` | Writes or clears a personal rating without changing played state or resume progress |
+| `setEmbyPersonalRating` / `clearEmbyPersonalRating` | Writes or clears a personal rating without changing played state or resume progress. **Known defect:** Emby 4.9.5.0 returns 204 but does not store the numeric `Rating`, so writes report success without effect and the snapshot reads no ratings (see `plan/personal-rating-sync.md`) |
 
 ## Artwork
 

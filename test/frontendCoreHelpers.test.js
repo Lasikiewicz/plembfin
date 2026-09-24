@@ -387,7 +387,8 @@ test("mobile page controls share the media action-bar layout without redundant O
   assert.doesNotMatch(indexSource, /id="settingsSectionSelect"/);
   assert.doesNotMatch(indexSource, /<span>Tools<\/span>/);
   assert.match(indexSource, /title="Search upcoming episodes"/);
-  assert.match(indexSource, /title="Library options"/);
+  assert.doesNotMatch(indexSource, /title="Library options"/);
+  assert.match(indexSource, /data-target="size"[\s\S]*id="explorerPosterSize"/);
   assert.match(personalMediaSource, /page-action-bar personal-media-toolbar-actions/);
   assert.doesNotMatch(personalMediaSource, /title="Personal media options"/);
   assert.match(personalMediaSource, /personal-media-sync-button/);

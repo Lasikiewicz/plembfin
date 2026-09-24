@@ -82,6 +82,24 @@ test("provider feed generations keep the last good snapshot through partial fail
   assert.equal(completedState.item_count, 0);
 });
 
+test("an unchanged feed in provider order is not a content change", () => {
+  // Providers return Resume and Next Up by recency, not by id; the stored
+  // snapshot reads back ordered by id. Order alone must not count as a change.
+  const items = ["jf-b", "jf-a"].map((id, index) => ({
+    Id: id,
+    Type: "Episode",
+    Name: `Episode ${index + 1}`,
+    SeriesName: `Order Show ${id}`,
+    SeriesId: `${id}-series`,
+    ParentIndexNumber: 1,
+    IndexNumber: index + 1,
+    SeriesProviderIds: { Tmdb: `9${index}` },
+  }));
+  assert.equal(recordUpNextProviderFeed("jellyfin", "next_up", items, { now: 5_000 }).changed, true);
+  const repeat = recordUpNextProviderFeed("jellyfin", "next_up", items, { now: 5_500 });
+  assert.equal(repeat.changed, false);
+});
+
 test("provider feed error redaction removes credentials without hiding the useful message", () => {
   const message = redactUpNextProviderError(new Error("request api_key=abc123 for Next Up failed"));
   assert.equal(message, "request api_key=[redacted] for Next Up failed");

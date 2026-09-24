@@ -1,7 +1,6 @@
 import {
   fetchPlexContinueWatchingItems,
   fetchPlexSeriesEpisodes,
-  hidePlexFromContinueWatching,
   markPlexPlayed,
   markPlexUnplayed,
 } from "./plexClient.js";
@@ -9,7 +8,6 @@ import {
   fetchEmbyNextUpItems,
   fetchEmbyResumableItems,
   fetchEmbySeriesEpisodes,
-  hideEmbyFromResume,
   markEmbyPlayed,
   markEmbyUnplayed,
   touchEmbyResumeRail,
@@ -18,7 +16,6 @@ import {
   fetchJellyfinNextUpItems,
   fetchJellyfinResumableItems,
   fetchJellyfinSeriesEpisodes,
-  hideJellyfinFromResume,
   markJellyfinPlayed,
   markJellyfinUnplayed,
   updateJellyfinUserData,
@@ -28,10 +25,12 @@ import {
   failUpNextProviderFeed,
   isPlembfinPrimaryUpNextFeed,
   startUpNextProviderFeed,
+  withUpNextFeedSeriesIdentity,
 } from "./upNextRepository.js";
+import { getPlaystateForMediaSync } from "./dataRepo.js";
 import { normalizeUpNextCandidate, upNextIdentityAliases } from "./upNextIdentity.js";
 import { createLoopStore } from "./loopStore.js";
-import { recordOutboundPlayedMarks, recordOutboundProgressMarks, recordOutboundUnplayedMarks, syncMediaProgress } from "./syncOrchestrator.js";
+import { recordOutboundPlayedMarks, recordOutboundProgressMarks, recordOutboundRailRefresh, recordOutboundUnplayedMarks, syncMediaProgress } from "./syncOrchestrator.js";
 import { clearLegacyUpNextRailSeeds, clearLegacyUpNextRailSeed } from "./upNextRailSeed.js";
 import { resolveUpNextProviderTargets, upNextLookupMedia } from "./upNextLibraryLookup.js";
 import { isUpNextRailSeedPosition, listUpNextRailSeeds } from "./upNextSeedLedger.js";
@@ -160,6 +159,14 @@ async function markProviderUnplayed(provider, config, media) {
   return markJellyfinUnplayed(config.jellyfin, media);
 }
 
+function canonicalPredecessorUnwatched(media) {
+  try {
+    return getPlaystateForMediaSync(media)?.state === "unwatched";
+  } catch {
+    return false;
+  }
+}
+
 function providerEpisodeSeriesIds(provider, episode = {}) {
   const ids = provider === "plex"
     ? (Array.isArray(episode.Guid) ? episode.Guid : [])
@@ -254,18 +261,16 @@ function feedDefinitions(config = {}) {
     {
       provider: "plex",
       feedKind: "resume",
-      supportsDismissal: true,
       configured: configuredProvider(config, "plex"),
+      providerConfig: config.plex,
       fetch: () => fetchPlexContinueWatchingItems(config.plex, { limit: 0 }),
-      hide: (providerItemId) => hidePlexFromContinueWatching(config.plex, providerItemId, { lane: "interactive" }),
     },
     {
       provider: "emby",
       feedKind: "resume",
-      supportsDismissal: true,
       configured: configuredProvider(config, "emby"),
+      providerConfig: config.emby,
       fetch: () => fetchEmbyResumableItems(config.emby, { limit: 0 }),
-      hide: (providerItemId) => hideEmbyFromResume(config.emby, providerItemId, { lane: "interactive" }),
     },
     {
       // Emby exposes this separately, but Plembfin's Emby equivalent is
@@ -273,8 +278,8 @@ function feedDefinitions(config = {}) {
       // compatibility; it is deliberately ignored by queue reconciliation.
       provider: "emby",
       feedKind: "next_up",
-      supportsDismissal: false,
       configured: configuredProvider(config, "emby"),
+      providerConfig: config.emby,
       fetch: () => fetchEmbyNextUpItems(config.emby, { limit: 0 }),
     },
     {
@@ -282,20 +287,18 @@ function feedDefinitions(config = {}) {
       // part-watches, not the native rail Plembfin reconciles.
       provider: "jellyfin",
       feedKind: "resume",
-      supportsDismissal: true,
       configured: configuredProvider(config, "jellyfin"),
+      providerConfig: config.jellyfin,
       fetch: () => fetchJellyfinResumableItems(config.jellyfin, { limit: 0 }),
-      hide: (providerItemId) => hideJellyfinFromResume(config.jellyfin, providerItemId, { lane: "interactive" }),
     },
     {
-      // Jellyfin's Next Up is a calculated GET feed with no per-item write, so
-      // it is read as an observation and reported as unsupported for removal.
+      // Jellyfin's Next Up is a calculated GET feed with no per-item write.
       // The provider rail refresh below updates the watched predecessor so the
       // server recalculates the desired series entry naturally.
       provider: "jellyfin",
       feedKind: "next_up",
-      supportsDismissal: false,
       configured: configuredProvider(config, "jellyfin"),
+      providerConfig: config.jellyfin,
       fetch: () => fetchJellyfinNextUpItems(config.jellyfin, { limit: 0 }),
     },
   ];
@@ -347,15 +350,16 @@ function matchesDesiredCandidate(candidate, desiredAliases) {
   return desiredAliases.some((desired) => [...aliases].some((alias) => desired.has(alias)));
 }
 
-// Build a dry-run reconciliation plan without talking to a media server. This
-// is useful for diagnostics and for the authoritative push route. Only a
-// successful native feed is eligible for reconciliation; failed feeds must
-// never be interpreted as an empty queue.
+// Build a dry-run reconciliation plan without talking to a media server. Only
+// a successful native feed is read; failed feeds must never be interpreted as
+// an empty queue. A native rail item that is not in Plembfin's queue is
+// retained, never hidden: absence from the queue is not evidence the user is
+// done with it (docs/decisions.md entry 36). Removal is only ever the direct
+// result of the user's own Clear progress or Remove action on that item.
 export function planUpNextProviderSync({ desiredItems = [], feeds = [] } = {}) {
   const desiredIds = desiredProviderIds(desiredItems);
   const desiredAliases = normalizedDesiredCandidates(desiredItems).map(candidateAliases);
-  const dismissals = [];
-  const unsupported = [];
+  const retained = [];
 
   for (const feed of Array.isArray(feeds) ? feeds : []) {
     if (feed?.status !== "succeeded") continue;
@@ -382,21 +386,18 @@ export function planUpNextProviderSync({ desiredItems = [], feeds = [] } = {}) {
         desiredIds[provider].add(providerItemId);
         continue;
       }
-      const action = {
+      retained.push({
         provider,
         feed_kind: feedKind,
         provider_item_id: providerItemId,
         title: text(candidate?.title || candidate?.name) || "Untitled",
-      };
-      if (feed.supportsDismissal === true && PUSH_PROVIDERS.includes(provider)) dismissals.push(action);
-      else unsupported.push(action);
+      });
     }
   }
 
   return {
     desiredProviderIds: Object.fromEntries(PROVIDERS.map((provider) => [provider, [...desiredIds[provider]]])),
-    dismissals,
-    unsupported,
+    retained,
   };
 }
 
@@ -463,22 +464,25 @@ function actionableProgressItem(item = {}) {
   return media.isValid && media.positionMs >= 1000 && media.progress < 95 ? media : null;
 }
 
-async function fetchAndRecordFeed(definition) {
+async function fetchAndRecordFeed(definition, { triggerOnRecovery = false } = {}) {
   const generation = startUpNextProviderFeed(definition.provider, definition.feedKind);
   try {
-    const rawItems = await definition.fetch();
+    const rawItems = await withUpNextFeedSeriesIdentity(
+      definition.provider,
+      await definition.fetch(),
+      definition.providerConfig,
+    );
     const items = feedCandidates(definition.provider, definition.feedKind, rawItems);
     // This feed read is part of an outbound reconciliation. The repository
     // normally schedules an automatic push when a feed changes, but allowing
     // this read to schedule another push would create a feedback loop.
-    completeUpNextProviderFeed(definition.provider, definition.feedKind, generation, rawItems, { triggerAutoSync: false });
+    completeUpNextProviderFeed(definition.provider, definition.feedKind, generation, rawItems, { triggerAutoSync: false, triggerOnRecovery });
     return {
       provider: definition.provider,
       feed_kind: definition.feedKind,
       status: "succeeded",
       item_count: items.length,
       items,
-      supportsDismissal: definition.supportsDismissal,
     };
   } catch (error) {
     failUpNextProviderFeed(definition.provider, definition.feedKind, generation, error);
@@ -488,13 +492,12 @@ async function fetchAndRecordFeed(definition) {
       status: "failed",
       item_count: 0,
       items: [],
-      supportsDismissal: definition.supportsDismissal,
       error: text(error?.message || error) || "Provider feed refresh failed",
     };
   }
 }
 
-// Refresh provider observations without pushing or dismissing provider items.
+// Refresh provider observations without pushing to provider items.
 // This is used by the dashboard's explicit refresh action to clear stale feed
 // failures after a media server or network outage has recovered.
 export async function refreshUpNextProviderFeeds({ config = {}, providers = null } = {}) {
@@ -507,15 +510,29 @@ export async function refreshUpNextProviderFeeds({ config = {}, providers = null
   const configuredDefinitions = definitions.filter((definition) => (
     definition.configured && (!providerFilter || providerFilter.has(definition.provider))
   ));
-  return Promise.all(configuredDefinitions.map(fetchAndRecordFeed));
+  // Not part of a push, so a provider found back after an outage queues the
+  // push the outage skipped (the scheduler's failed-feed retry lands here).
+  return Promise.all(configuredDefinitions.map((definition) => fetchAndRecordFeed(definition, { triggerOnRecovery: true })));
 }
 
-async function propagateKnownProgress(items, config) {
+async function propagateKnownProgress(items, config, { isStale = null } = {}) {
   const progressItems = (Array.isArray(items) ? items : [])
     .slice(0, MAX_REQUEST_ITEMS)
     .map(actionableProgressItem)
     .filter(Boolean);
   if (!progressItems.length) return [];
+  // The automatic sync builds its projection seconds before this point. A
+  // Clear progress in that window deleted the resume row, and writing the
+  // projected position would put it straight back on every provider.
+  if (isStale?.()) {
+    return progressItems.map((media) => ({
+      id: media.media_key || media.title,
+      title: media.title,
+      status: "skipped",
+      targetStates: [],
+      details: "Canonical state changed after the queue was built",
+    }));
+  }
   const loopStore = createLoopStore();
   return Promise.all(progressItems.map(async (media) => {
     try {
@@ -695,7 +712,23 @@ export async function refreshProviderRail({ provider, config, targets = [] } = {
       // do not let a briefly stale metadata read collapse it as idempotent.
       forcePlayedWrite: true,
     };
+    // The candidate list comes from a queue built earlier and a provider
+    // inventory read before any toggle. A Mark unwatched on the predecessor in
+    // between must win: restamping it would re-mark it played on the provider
+    // with its old date (defect O). Checked per predecessor, not by data
+    // version, so unrelated playback ticks do not starve the refresh.
+    if (canonicalPredecessorUnwatched(refreshMedia)) {
+      outcomes[candidate.resultIndex] = {
+        ...result,
+        status: "skipped",
+        reason: "Plembfin has the preceding episode as unwatched; it was not re-marked watched.",
+      };
+      continue;
+    }
     try {
+      // The toggle's callbacks must never read as a user unwatch or a new
+      // watch, whatever canonical row the webhook resolves (defect AG).
+      await recordOutboundRailRefresh(refreshMedia, provider, loopStore);
       await recordOutboundUnplayedMarks(refreshMedia, [provider], loopStore);
       const unplayedOutcome = await markProviderUnplayed(provider, config, refreshMedia);
       if (unplayedOutcome?.status !== "fulfilled") throw new Error(`${provider} did not accept the unwatched predecessor mark.`);
@@ -746,6 +779,22 @@ export async function refreshProviderRail({ provider, config, targets = [] } = {
       result.reason = text(error?.message || error) || `${provider} native Up Next refresh failed.`;
     }
 
+    // An unwatch that landed while the pair was in flight may have been
+    // overwritten by the played write; send the canonical unwatch again.
+    if (refreshed && canonicalPredecessorUnwatched(refreshMedia)) {
+      result.predecessor_unwatched_during_refresh = true;
+      try {
+        await recordOutboundUnplayedMarks(refreshMedia, [provider], loopStore);
+        const restored = await markProviderUnplayed(provider, config, refreshMedia);
+        if (restored?.status !== "fulfilled") throw new Error(`${provider} did not accept the unwatched predecessor restore.`);
+        result.predecessor_unwatch_restored = true;
+      } catch (error) {
+        base.failed_count += 1;
+        result.status = "partial";
+        result.reason = text(error?.message || error) || "Could not restore the unwatched predecessor.";
+      }
+    }
+
     if (refreshed && candidate.legacySeed) {
       try {
         await recordOutboundProgressMarks(
@@ -774,39 +823,14 @@ export async function refreshProviderRail({ provider, config, targets = [] } = {
   return base;
 }
 
-async function applyDismissals(plan, definitions) {
-  const definitionByFeed = new Map(definitions.map((definition) => [
-    `${definition.provider}:${definition.feedKind}`,
-    definition,
-  ]));
-  return Promise.all(plan.dismissals.map(async (action) => {
-    const definition = definitionByFeed.get(`${action.provider}:${action.feed_kind}`);
-    if (!definition?.hide) {
-      return { ...action, status: "failed", details: "Provider Up Next push is not supported" };
-    }
-    try {
-      await definition.hide(action.provider_item_id);
-      return {
-        ...action,
-        status: "fulfilled",
-        details: `Removed from ${action.provider === "jellyfin" ? "Next Up" : "Continue Watching"}`,
-      };
-    } catch (error) {
-      return { ...action, status: "failed", details: text(error?.message || error) || "Provider dismissal failed" };
-    }
-  }));
-}
-
 // Push Plembfin's authoritative Up Next snapshot to each connected media
-// server: refresh the native rail, apply native dismissal actions, and replay
-// only known positive resume positions. The native target rail is Plex
-// Continue Watching, Emby Continue Watching (Resume), and Jellyfin Next Up.
-// Those feeds are calculated: their native APIs can hide or read membership,
-// but cannot add an arbitrary future episode, so a ready episode reaches the
-// rail by restamping its watched predecessor. Other feeds are read only to
-// protect real progress and are never reconciled as Plembfin's queue, and
-// failed or incomplete feeds never trigger native removals.
-export async function syncUpNextToProviders({ desiredItems = [], config = {} } = {}) {
+// server: refresh the native rail and replay only known positive resume
+// positions. The native target rail is Plex Continue Watching, Emby Continue
+// Watching (Resume), and Jellyfin Next Up. Those feeds are calculated: their
+// native APIs cannot add an arbitrary future episode, so a ready episode
+// reaches the rail by restamping its watched predecessor. The push only adds;
+// it never hides a native item because the queue lacks it (decisions entry 36).
+export async function syncUpNextToProviders({ desiredItems = [], config = {}, isStale = null } = {}) {
   if (config?.upNextSync?.enabled === false) {
     return {
       ok: true,
@@ -817,8 +841,7 @@ export async function syncUpNextToProviders({ desiredItems = [], config = {} } =
       railSeeds: [],
       legacyRailCleanup: [],
       providerRails: [],
-      providerDismissals: [],
-      unsupported: [],
+      retained: [],
       progress: [],
       jellyfinRail: {
         provider: "jellyfin",
@@ -844,21 +867,25 @@ export async function syncUpNextToProviders({ desiredItems = [], config = {} } =
       status: config?.[definition.provider]?.disabled ? "disabled" : "not_configured",
       item_count: 0,
       items: [],
-      supportsDismissal: definition.supportsDismissal,
     }));
   const feeds = await Promise.all(configuredDefinitions.map(fetchAndRecordFeed));
   const plan = planUpNextProviderSync({ desiredItems, feeds });
-  const dismissalDefinitions = configuredDefinitions.filter((definition) => (
-    definition.supportsDismissal === true && PUSH_PROVIDERS.includes(definition.provider)
-  ));
-  const providerDismissals = await applyDismissals(plan, dismissalDefinitions);
-  const progress = await propagateKnownProgress(desiredItems, config);
+  const progress = await propagateKnownProgress(desiredItems, config, { isStale });
   const pushProviders = PUSH_PROVIDERS.filter((provider) => (
     configuredDefinitions.some((definition) => definition.provider === provider)
   ));
+  // A provider whose every feed read just failed cannot be reached. Pushing to
+  // it anyway resolved each queue item twice and walked the rail, which during
+  // a Jellyfin outage was hundreds of failed requests per automatic run. Skip
+  // it; the next run after it recovers pushes the whole queue again.
+  const unreachableProviders = new Set(pushProviders.filter((provider) => {
+    const providerFeeds = feeds.filter((feed) => feed.provider === provider);
+    return providerFeeds.length > 0 && providerFeeds.every((feed) => feed.status === "failed");
+  }));
+  const reachableProviders = pushProviders.filter((provider) => !unreachableProviders.has(provider));
   // Resolve every desired item to its native id once per provider, so the
   // rail refresh and any later step work from the same answer.
-  const targetsByProvider = Object.fromEntries(await Promise.all(pushProviders.map(async (provider) => [
+  const targetsByProvider = Object.fromEntries(await Promise.all(reachableProviders.map(async (provider) => [
     provider,
     await resolveUpNextProviderTargets({
       provider,
@@ -876,14 +903,27 @@ export async function syncUpNextToProviders({ desiredItems = [], config = {} } =
   // are cleared when stale; no new synthetic position is created here.
   const legacyRailCleanup = await clearLegacyUpNextRailSeeds({
     config,
-    providers: pushProviders,
+    providers: reachableProviders,
     desiredIdsByProvider,
   });
-  const providerRails = await Promise.all(pushProviders.map((provider) => refreshProviderRail({
-    provider,
-    config,
-    targets: targetsByProvider[provider]?.resolved || [],
-  })));
+  const providerRails = await Promise.all(pushProviders.map((provider) => (unreachableProviders.has(provider)
+    ? {
+      provider,
+      status: "failed",
+      refreshed_count: 0,
+      promoted_count: 0,
+      cleared_legacy_seed_count: 0,
+      cleared_seed_count: 0,
+      skipped_count: 0,
+      failed_count: 0,
+      results: [],
+      reason: `${provider} could not be reached (every Up Next feed read failed), so its rail was not refreshed.`,
+    }
+    : refreshProviderRail({
+      provider,
+      config,
+      targets: targetsByProvider[provider]?.resolved || [],
+    }))));
   const jellyfinRail = providerRails.find((rail) => rail.provider === "jellyfin") || {
     provider: "jellyfin",
     status: "skipped",
@@ -897,13 +937,11 @@ export async function syncUpNextToProviders({ desiredItems = [], config = {} } =
   };
   // A provider counts as pushed when it was configured, contacted, and nothing
   // Plembfin attempted against it failed. There is no managed provider list to
-  // measure completeness against any more; the native rail refresh and the
-  // dismissals are the whole push.
-  const pushedProviders = pushProviders.filter((provider) => {
-    const rail = providerRails.find((entry) => entry.provider === provider);
-    if (rail?.status === "failed") return false;
-    return !providerDismissals.some((entry) => entry.provider === provider && entry.status !== "fulfilled");
-  });
+  // measure completeness against any more; the native rail refresh is the
+  // whole push.
+  const pushedProviders = pushProviders.filter((provider) => (
+    providerRails.find((entry) => entry.provider === provider)?.status !== "failed"
+  ));
 
   return {
     ok: true,
@@ -919,8 +957,7 @@ export async function syncUpNextToProviders({ desiredItems = [], config = {} } =
     railSeeds: [],
     legacyRailCleanup,
     providerRails,
-    providerDismissals,
-    unsupported: plan.unsupported.map((item) => ({
+    retained: plan.retained.map((item) => ({
       provider: item.provider,
       feed_kind: item.feed_kind,
       title: item.title,

@@ -5,9 +5,16 @@ import {
   canonicalTitleKey,
   findWatchedByAnyMediaKeySync,
   getPlaystateForMediaSync,
+  historyShowsWatchedSync,
+  idsShareAny,
   mediaKeyFor,
+  provenPlaystateAliasProfile,
+  seriesIdentityProfilesForShowTitle,
+  showTitleNamesSeveralShows,
 } from "./dataRepo.js";
 import { getCachedShowProgress } from "./showProgressCache.js";
+import { getCachedTmdbExternalIdKind } from "./tmdbGateway.js";
+import { getCachedTvdbEpisodeKind } from "./tvdbGateway.js";
 
 const EXPLICIT_PLAYED_EVENT_KEYS = new Set([
   "itemmarkplayed",
@@ -350,14 +357,62 @@ function rowToReview(row, { includeWatchContext = true } = {}) {
     reviewed_at: Number(row.reviewed_at || 0) || null,
     media,
   };
-  if (includeWatchContext && review.media_type === "episode") review.watch_context = manualWatchReviewWatchContext(review);
+  if (includeWatchContext && review.media_type === "episode") {
+    review.watch_context = manualWatchReviewWatchContext(review);
+    Object.assign(review, reviewShowIdentity(review));
+  }
   return review;
 }
 
+// The page looks each show group's poster and episode catalog up by title
+// when a review carries no show ids, and a title shared by two shows resolved
+// the 2001 Scrubs group to the 2026 reboot. Name the proven profile the review
+// belongs to (its own ids, or the playstate alias proof for Emby's episode
+// ids), and flag a title history proves is shared so the page never trusts a
+// title-only lookup for it (decision 15).
+function reviewShowIdentity(review = {}) {
+  const media = manualWatchReviewMedia(review);
+  const profiles = seriesIdentityProfilesForShowTitle(media.showTitle);
+  if (!profiles.length) return {};
+  const ambiguous = profiles.length > 1;
+  const showIds = { imdb: text(media.showIds?.imdb), tmdb: text(media.showIds?.tmdb), tvdb: text(media.showIds?.tvdb) };
+  const ids = { imdb: text(media.ids?.imdb), tmdb: text(media.ids?.tmdb), tvdb: text(media.ids?.tvdb) };
+  let matches = profiles.filter((candidate) => idsShareAny(showIds, candidate.ids));
+  if (!matches.length) matches = profiles.filter((candidate) => idsShareAny(ids, candidate.ids));
+  let profile = matches.length === 1 ? matches[0] : null;
+  if (!matches.length && (ids.imdb || ids.tvdb) && media.season != null && media.episode != null) {
+    profile = provenPlaystateAliasProfile({
+      imdb_id: ids.imdb,
+      tvdb_id: ids.tvdb,
+      season: media.season,
+      episode: media.episode,
+    }, profiles, reviewAliasProof());
+  }
+  if (!profile && !matches.length && !ambiguous) [profile] = profiles;
+  const provenIds = profile
+    ? Object.fromEntries(Object.entries(profile.ids).filter(([, value]) => value))
+    : null;
+  return {
+    ...(provenIds && Object.keys(provenIds).length ? { proven_show_ids: provenIds } : {}),
+    ...(ambiguous ? { show_title_ambiguous: true } : {}),
+  };
+}
+
+// A review that Plembfin's own state already answers is closed rather than
+// hidden, so the queue never holds invisible pending rows (user decision,
+// 24 September 2026). Status only: nothing is written to history or sent. The
+// same provider snapshot stays suppressed (dismissed + same fingerprint); a
+// changed snapshot can queue a fresh review.
+export const RESOLVED_BY_LOCAL_STATE = "resolved_by_local_state";
+
 export function listPendingManualWatchReviews({ includeWatchContext = true } = {}) {
-  return selectPendingReviewsStmt.all()
-    .map((row) => rowToReview(row, { includeWatchContext }))
-    .filter((review) => !reviewIsAlreadyWatched(review));
+  const pending = [];
+  for (const row of selectPendingReviewsStmt.all()) {
+    const review = rowToReview(row, { includeWatchContext });
+    if (reviewIsAlreadyWatched(review)) setManualWatchReviewStatus(review.id, "dismissed", RESOLVED_BY_LOCAL_STATE);
+    else pending.push(review);
+  }
+  return pending;
 }
 
 // The GET listing (sidebar badge on every page load, a 30 s poll, and the
@@ -406,7 +461,9 @@ function reviewDisplayKey(review = {}) {
       || media.show_tmdb_id
       || media.showImdbId
       || media.show_imdb_id,
-  ) || canonicalShowTitleKey(review.show_title || media.showTitle || media.show_title || showTitleFromMedia(review));
+  // Keep the year, as the review page does: Scrubs and Scrubs (2026) at the
+  // same coordinate are two items, not one.
+  ) || canonicalTitleKey(review.show_title || media.showTitle || media.show_title || showTitleFromMedia(review));
   const season = integerOrNull(review.season ?? media.season);
   const episode = integerOrNull(review.episode ?? media.episode);
   if (showIdentity && season != null && episode != null) return `episode:${showIdentity}:s${season}:e${episode}`;
@@ -547,15 +604,18 @@ function mediaProviderIds(media = {}) {
   ].map((value) => text(value)).filter(Boolean);
 }
 
+function mediaMatchesReviewByIdentity(left = {}, right = {}) {
+  if (mediaKeyFor(left) === mediaKeyFor(right)) return true;
+  const rightIds = new Set(mediaProviderIds(right));
+  return mediaProviderIds(left).some((id) => rightIds.has(id));
+}
+
 function mediaMatchesReview(left = {}, right = {}) {
   const leftType = text(left.type || left.media_type).toLowerCase();
   const rightType = text(right.type || right.media_type).toLowerCase();
   if (!leftType || leftType !== rightType) return false;
 
-  if (mediaKeyFor(left) === mediaKeyFor(right)) return true;
-
-  const rightIds = new Set(mediaProviderIds(right));
-  if (mediaProviderIds(left).some((id) => rightIds.has(id))) return true;
+  if (mediaMatchesReviewByIdentity(left, right)) return true;
 
   if (leftType === "episode") {
     const sameCoordinates = Number(left.season) === Number(right.season)
@@ -602,6 +662,12 @@ export function dismissPendingManualWatchReviewsForMedia(media = {}, { before = 
     const review = rowToReview(row);
     if (Number(review.updated_at || 0) > Number(before)) continue;
     if (!mediaMatchesReview(normalizedMedia, review.media)) continue;
+    // A title and coordinate match cannot tell two same-title shows apart: a
+    // 2001 Scrubs S01E05 unwatch retired the reboot's S01E05 reviews. Leave
+    // such a review pending when history proves the title names two shows.
+    if (text(review.media?.type || review.media?.media_type).toLowerCase() === "episode"
+      && !mediaMatchesReviewByIdentity(normalizedMedia, review.media)
+      && showTitleNamesSeveralShows(showTitleFromMedia(review.media) || showTitleFromMedia(normalizedMedia))) continue;
     updateStatusStmt.run({
       id: review.id,
       status: "dismissed",
@@ -614,10 +680,60 @@ export function dismissPendingManualWatchReviewsForMedia(media = {}, { before = 
   return dismissed;
 }
 
-function reviewIsAlreadyWatched(review = {}) {
+function reviewAliasProof() {
+  return {
+    findCached: getCachedTmdbExternalIdKind,
+    tvdbCached: getCachedTvdbEpisodeKind,
+    pendingLookups: new Map(),
+    pendingTvdbLookups: new Map(),
+  };
+}
+
+// Emby's episode review carries only the episode's own IMDb/TVDB ids, which
+// share nothing with the show's ids, so the title match above cannot reach the
+// show's rows (decision 34). The playstate alias repair's cached proof places
+// those ids on one profile; the watched checks then run under its ids. Hides
+// only. Uncached ids are collected for the repair's lookup job.
+function provenProfileShowsWatched(media, proof) {
+  if (media.type !== "episode" || media.season == null || media.episode == null) return false;
+  const ids = { imdb: text(media.ids?.imdb), tmdb: text(media.ids?.tmdb), tvdb: text(media.ids?.tvdb) };
+  if (!ids.imdb && !ids.tvdb) return false;
+  const profiles = seriesIdentityProfilesForShowTitle(media.showTitle);
+  if (!profiles.length || profiles.some((profile) => idsShareAny(ids, profile.ids))) return false;
+  const profile = provenPlaystateAliasProfile({
+    imdb_id: ids.imdb,
+    tvdb_id: ids.tvdb,
+    season: media.season,
+    episode: media.episode,
+  }, profiles, proof);
+  if (!profile) return false;
+  const showIds = Object.fromEntries(Object.entries(profile.ids).filter(([, value]) => value));
+  const showMedia = { ...media, ids: showIds, showIds };
+  // No legacy any-watched-row fallback here: it ignores a newer unwatch, and
+  // history's newest transition already answers under the proven ids.
+  return historyShowsWatchedSync(showMedia) || getPlaystateForMediaSync(showMedia)?.state === "watched";
+}
+
+// Ids pending reviews need looked up before provenProfileShowsWatched can
+// place them; the playstate alias repair job looks them up with its own.
+export function pendingManualWatchReviewAliasLookups() {
+  const proof = reviewAliasProof();
+  for (const row of selectPendingReviewsStmt.all()) {
+    reviewIsAlreadyWatched(rowToReview(row, { includeWatchContext: false }), proof);
+  }
+  return {
+    pendingLookups: [...proof.pendingLookups.values()],
+    pendingTvdbLookups: [...proof.pendingTvdbLookups.values()],
+  };
+}
+
+function reviewIsAlreadyWatched(review = {}, proof = reviewAliasProof()) {
   try {
     const media = manualWatchReviewMedia(review);
     if (reviewShowMarkedWatched(media)) return true;
+    // An episode the show page shows as watched is not a decision to make,
+    // even when its playstate row is a stale unwatched.
+    if (historyShowsWatchedSync(media)) return true;
     const playstate = getPlaystateForMediaSync(media);
     // Plembfin's canonical watched state is authoritative for this queue. A
     // provider flag is not a new manual decision when the item is already
@@ -628,16 +744,18 @@ function reviewIsAlreadyWatched(review = {}) {
     // from watched to unwatched. Explicit provider Mark played events are the
     // exception: they represent a new user decision and may remain reviewable.
     if (playstate?.state === "unwatched") {
-      return !isExplicitPlayedMedia(media) && !media.manualReviewAllowWhenUnwatched;
+      if (!isExplicitPlayedMedia(media) && !media.manualReviewAllowWhenUnwatched) return true;
+      return provenProfileShowsWatched(media, proof);
     }
     if (!playstate && hasManualUnwatchForMedia(media) && !isExplicitPlayedMedia(media)) {
-      return !media.manualReviewAllowWhenUnwatched;
+      if (!media.manualReviewAllowWhenUnwatched) return true;
+      return provenProfileShowsWatched(media, proof);
     }
 
     // Keep legacy databases safe too: a watched history row is still a local
     // Plembfin watch even when its playstate pointer has not been rebuilt yet.
-    const watched = findWatchedByAnyMediaKeySync(media);
-    return Boolean(watched);
+    if (findWatchedByAnyMediaKeySync(media)) return true;
+    return provenProfileShowsWatched(media, proof);
   } catch {
     // A malformed legacy review should remain visible so it can be corrected
     // manually instead of disappearing because a read-only filter failed.

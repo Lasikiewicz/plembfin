@@ -1274,6 +1274,8 @@ export async function handleUpNext(req, res) {
       mediaConfig: mediaConfig || await loadMediaConfig().catch(() => null),
     });
     const snapshot = await getUpNextCacheSnapshot(build, { refresh, revalidate, allowStale });
+    // The body carries live provider feed status and the server keeps its own
+    // snapshot cache, so an HTTP-cached copy would only hide an outage.
     return sendJson(res, {
       items: snapshot.items,
       builtAt: snapshot.builtAt,
@@ -1282,7 +1284,7 @@ export async function handleUpNext(req, res) {
       sourceStatus: snapshot.sourceStatus,
       cacheStale: snapshot.stale,
       manualShows: listManualUpNextShows(),
-    }, 200, { "Cache-Control": "private, max-age=60, stale-while-revalidate=120", Vary: "Authorization" });
+    }, 200, { "Cache-Control": "private, no-store", Vary: "Authorization" });
   } catch (error) {
     console.error("Up Next request failed", error);
     return sendJson(res, { error: error.message || "Up Next request failed" }, error.status || 500);

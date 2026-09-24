@@ -14,6 +14,7 @@ const { applyManualUnwatch } = await import("../server/src/routes/sync.js");
 const { createLoopStore } = await import("../server/src/utils/loopStore.js");
 const {
   countPendingManualWatchReviews,
+  dismissPendingManualWatchReviewsForMedia,
   enqueueManualWatchReview,
   getManualWatchReview,
   listPendingManualWatchReviews,
@@ -138,6 +139,11 @@ test("pending reviews are hidden after the item becomes canonically watched", as
 
   assert.equal(listPendingManualWatchReviews().some((review) => review.id === queued.review.id), false);
   assert.equal(countPendingManualWatchReviews(), 0);
+  // Closed, not left pending out of sight (user decision, 24 September 2026).
+  const closed = getManualWatchReview(queued.review.id);
+  assert.equal(closed.status, "dismissed");
+  assert.equal(closed.decision_mode ?? closed.decisionMode, "resolved_by_local_state");
+  assert.equal(db.prepare("SELECT COUNT(*) AS count FROM manual_watch_reviews WHERE id = ? AND status = 'pending'").get(queued.review.id).count, 0);
   const repeat = enqueueManualWatchReview(reviewMedia, {
     releaseDate: "2026-08-01T00:00:00.000Z",
     sourceFingerprint: "plex|stale-review-402|2",
@@ -653,6 +659,121 @@ test("dismissing a review marks it unwatched across connected media apps", async
   assert.equal(getManualWatchReview(failed.review.id).status, "pending");
 });
 
+// Verified live (Up Next matrix defect AI): a Plex review for Scrubs 2001
+// S01E04 was stored with no provider ids. Dismissing it applied the unwatch by
+// title and coordinate, which also unmarked the 2026 reboot's S01E04 locally
+// and on every provider.
+test("dismissing an id-less episode review resolves its show from the reporting item", async (t) => {
+  const originalFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = originalFetch; });
+  await saveMediaConfig({
+    plex: { baseUrl: "http://plex-ai.test", token: "plex-token", disabled: false },
+    emby: { disabled: true },
+    jellyfin: { disabled: true },
+  });
+  const original = { imdb: "tt0285403", tmdb: "4556", tvdb: "76156" };
+  const reboot = { imdb: "tt40197357", tmdb: "295778", tvdb: "465690" };
+  const episodeMedia = (ids, episode) => ({
+    title: `Scrubs - S01E0${episode}`, showTitle: "Scrubs", type: "episode", season: 1, episode, source: "manual", isValid: true, ids,
+  });
+  const seedWatches = async () => {
+    for (const [ids, episode] of [[original, 3], [original, 4], [reboot, 3], [reboot, 4]]) {
+      const result = await repo.insertWatchRecord({
+        title: `Scrubs - S01E0${episode}`, show_title: "Scrubs", media_type: "episode", source: "manual",
+        watched_at: `2026-09-0${episode}T01:00:00.000Z`, season: 1, episode,
+        imdb_id: ids.imdb, tmdb_id: ids.tmdb, tvdb_id: ids.tvdb, sync_dispatch_telemetry: "Dispatch status: success",
+      });
+      await result.assetPrefetch;
+      await repo.upsertPlaystateForMedia(episodeMedia(ids, episode), "watched", `2026-09-0${episode}T01:00:00.000Z`);
+    }
+  };
+
+  let plexItemReadable = true;
+  globalThis.fetch = async (url) => {
+    const path = new URL(String(url)).pathname;
+    if (path === "/library/metadata/3263") {
+      if (!plexItemReadable) return { ok: false, status: 404, headers: { get: () => "" }, json: async () => ({}) };
+      return { ok: true, status: 200, headers: { get: () => "" }, json: async () => ({ MediaContainer: { Metadata: [{ ratingKey: "3263", grandparentRatingKey: "3200" }] } }) };
+    }
+    if (path === "/library/metadata/3200") {
+      return { ok: true, status: 200, headers: { get: () => "" }, json: async () => ({ MediaContainer: { Metadata: [{ ratingKey: "3200", Guid: [{ id: "imdb://tt0285403" }, { id: "tmdb://4556" }, { id: "tvdb://76156" }] }] } }) };
+    }
+    return { ok: true, status: 200, headers: { get: () => "" }, json: async () => ({}) };
+  };
+
+  const dismiss = async (reviewId) => {
+    const request = {
+      method: "POST",
+      headers: { "x-api-key": AUTH.apiKey },
+      cookies: {},
+      get(name) { return this.headers[String(name).toLowerCase()] || ""; },
+    };
+    const reply = { statusCode: 200, body: null };
+    const response = {
+      status(code) { reply.statusCode = code; return this; },
+      set() { return this; },
+      send(payload) { reply.body = JSON.parse(payload); return this; },
+    };
+    await handleManualWatchReview(request, response, `manual-watch-review/${encodeURIComponent(reviewId)}/dismiss`);
+    return reply;
+  };
+  const queue = (fingerprint) => enqueueManualWatchReview({
+    title: "Scrubs - S01E04", showTitle: "Scrubs", type: "episode", season: 1, episode: 4, source: "plex",
+    ids: {}, showIds: {}, isValid: true,
+    watchProvenance: { version: 1, source: "plex", ingest_path: "plex_scheduled_library_history", item_id: "3263" },
+  }, { releaseDate: "2001-10-16T00:00:00.000Z", sourceFingerprint: fingerprint, allowWhenUnwatched: true });
+
+  plexItemReadable = false;
+  // Queued before the watches exist, as live: the review was raised while the
+  // episode read unwatched.
+  const unreadable = queue("plex|ai|3263|1");
+  assert.equal(unreadable.status, "pending");
+  await seedWatches();
+  const refused = await dismiss(unreadable.review.id);
+  assert.equal(refused.statusCode, 409);
+  assert.match(refused.body.error, /Could not confirm which show/);
+  assert.equal(getManualWatchReview(unreadable.review.id).status, "pending");
+  assert.equal(repo.getPlaystateForMediaSync(episodeMedia(original, 4))?.state, "watched");
+  assert.equal(repo.getPlaystateForMediaSync(episodeMedia(reboot, 4))?.state, "watched");
+
+  plexItemReadable = true;
+  const reply = await dismiss(unreadable.review.id);
+  assert.equal(reply.statusCode, 200);
+  assert.equal(getManualWatchReview(unreadable.review.id).status, "dismissed");
+  assert.equal(repo.getPlaystateForMediaSync(episodeMedia(original, 4))?.state, "unwatched");
+  assert.equal(repo.getPlaystateForMediaSync(episodeMedia(reboot, 4))?.state, "watched");
+});
+
+test("an unwatch of one same-title show does not retire the other show's pending review by title", async () => {
+  // Live: a manual unwatch of 2001 Scrubs S01E05 retired the reboot's S01E05
+  // reviews as dismissed, matched only by title and coordinate.
+  const first = { imdb: "tt91001", tmdb: "91001", tvdb: "91101" };
+  const second = { imdb: "tt91002", tmdb: "91002", tvdb: "91102" };
+  for (const [ids, episode] of [[first, 1], [first, 3], [second, 1], [second, 3]]) {
+    const result = await repo.insertWatchRecord({
+      title: `Twin Clinic - S01E0${episode}`, show_title: "Twin Clinic", media_type: "episode", source: "manual",
+      watched_at: `2026-09-0${episode}T01:00:00.000Z`, season: 1, episode,
+      imdb_id: ids.imdb, tmdb_id: ids.tmdb, tvdb_id: ids.tvdb, sync_dispatch_telemetry: "Dispatch status: success",
+    });
+    await result.assetPrefetch;
+  }
+  const review = (ids, fingerprint) => enqueueManualWatchReview({
+    title: "Twin Clinic - S01E02", showTitle: "Twin Clinic", type: "episode", season: 1, episode: 2, source: "plex",
+    ids, isValid: true,
+  }, { releaseDate: "2026-01-01T00:00:00.000Z", sourceFingerprint: fingerprint, allowWhenUnwatched: true });
+  const idless = review({}, "plex|twin-clinic|idless");
+  const own = review(first, "plex|twin-clinic|own");
+  assert.equal(idless.status, "pending");
+  assert.equal(own.status, "pending");
+
+  const retired = dismissPendingManualWatchReviewsForMedia({
+    title: "Twin Clinic - S01E02", showTitle: "Twin Clinic", type: "episode", season: 1, episode: 2, ids: first,
+  });
+  assert.equal(retired, 1);
+  assert.equal(getManualWatchReview(own.review.id).status, "dismissed");
+  assert.equal(getManualWatchReview(idless.review.id).status, "pending", "a title-only match must not retire it");
+});
+
 test("the cached pending listing is reused until a review changes or its ceiling passes", () => {
   const queued = enqueueManualWatchReview({
     title: "Cached Listing Movie",
@@ -705,4 +826,234 @@ test("the cached summary listing skips episode watch context while the full list
   assert.ok(full.find((review) => review.id === queued.review.id)?.watch_context);
 
   setManualWatchReviewStatus(queued.review.id, "dismissed");
+});
+
+test("approving an episode-id review writes playstate under its history row's show key, not an alias", async (t) => {
+  const originalFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = originalFetch; });
+  globalThis.fetch = async () => { throw new Error("offline in test"); };
+
+  const showTitle = "Alias Lane";
+  const showIds = { imdb_id: "tt8000001", tvdb_id: "8001" };
+  for (const episode of [1, 2, 3]) {
+    await repo.insertWatchRecord({
+      title: `${showTitle} - S01E0${episode}`,
+      show_title: showTitle,
+      media_type: "episode",
+      season: 1,
+      episode,
+      ...showIds,
+      watched_at: `2026-09-0${episode}T20:00:00.000Z`,
+      source: "plex",
+      sync_action: "watched",
+    });
+  }
+  // The index behind the title profiles is memoized for 60 s.
+  await repo.repairEpisodeSeriesIdentity();
+  const historyRow = db.prepare("SELECT * FROM watch_history WHERE show_title = ? AND episode = 1").get(showTitle);
+  // A stale show-keyed unwatch, as Slow Horses S06E01 had.
+  repo.upsertPlaystateSync({
+    title: `${showTitle} - S01E01`,
+    media_type: "episode",
+    season: 1,
+    episode: 1,
+    ...showIds,
+    watched_at: "2026-09-01T20:00:00.000Z",
+    source: "emby",
+    sync_action: "unwatched",
+  }, "unwatched");
+
+  const queued = enqueueManualWatchReview({
+    title: `${showTitle} - S01E01`,
+    showTitle,
+    type: "episode",
+    season: 1,
+    episode: 1,
+    source: "emby",
+    itemId: "emby-alias-lane-101",
+    // The episode's own IMDb id, leaked into the series slot.
+    ids: { imdb: "tt8100001" },
+    isValid: true,
+  }, {
+    releaseDate: "2026-09-01T00:00:00.000Z",
+    sourceFingerprint: "emby|alias-lane-101|1",
+    allowWhenUnwatched: true,
+  });
+  // History already shows it watched, so the listing hides it; a review
+  // listed before history caught up can still be approved.
+  assert.equal(queued.status, "already_watched");
+
+  let statusCode = 200;
+  let responseBody = null;
+  await handleManualWatchReview(
+    {
+      method: "POST",
+      body: { mode: "now" },
+      headers: { "x-api-key": AUTH.apiKey },
+      cookies: {},
+      get(name) { return this.headers[String(name).toLowerCase()] || ""; },
+    },
+    {
+      status(code) { statusCode = code; return this; },
+      set() { return this; },
+      send(payload) { responseBody = JSON.parse(payload); return this; },
+    },
+    `manual-watch-review/${encodeURIComponent(queued.review.id)}/approve`,
+  );
+  assert.equal(statusCode, 200, JSON.stringify(responseBody));
+  assert.equal(responseBody.watchRecordId, historyRow.id);
+
+  const rows = db.prepare("SELECT media_key, state FROM playstate WHERE title_lower LIKE ? AND season = 1 AND episode = 1")
+    .all(`${showTitle.toLowerCase()} - s01e01%`);
+  assert.deepEqual(rows, [{ media_key: historyRow.media_key, state: "watched" }]);
+  assert.equal(db.prepare("SELECT COUNT(*) AS c FROM watch_history WHERE show_title = ? AND episode = 1").get(showTitle).c, 1);
+});
+
+test("a review is hidden when history shows the episode watched, even with a stale unwatched playstate", async () => {
+  // Live: Slow Horses S06E01. A Plex unwatch, then a newer Emby watch in
+  // history, but the show-keyed playstate stayed unwatched, so a
+  // library-history review stayed listed although the show page read watched.
+  const ids = { imdb: "tt92001", tmdb: "92001", tvdb: "92101" };
+  const row = (episode, source, action) => ({
+    title: `Stale Horses - S01E0${episode}`, show_title: "Stale Horses", media_type: "episode", source,
+    watched_at: "2026-09-15T00:00:00.000Z", season: 1, episode, sync_action: action,
+    imdb_id: ids.imdb, tmdb_id: ids.tmdb, tvdb_id: ids.tvdb, sync_dispatch_telemetry: "Dispatch status: success",
+  });
+  const pause = () => new Promise((resolve) => setTimeout(resolve, 5));
+  const media = (episode) => ({
+    title: `Stale Horses - S01E0${episode}`, showTitle: "Stale Horses", type: "episode", season: 1, episode,
+    source: "emby", ids, isValid: true,
+  });
+  for (const [episode, actions] of [[1, ["unwatched", "watched"]], [2, ["watched", "unwatched"]]]) {
+    for (const [index, action] of actions.entries()) {
+      const result = await repo.insertWatchRecord(row(episode, index ? "emby" : "plex", action));
+      await result.assetPrefetch;
+      await pause();
+    }
+    repo.upsertPlaystateForMediaSync(media(episode), "unwatched", undefined, { skipInvalidate: true });
+  }
+  assert.equal(repo.historyShowsWatchedSync(media(1)), true);
+  assert.equal(repo.historyShowsWatchedSync(media(2)), false);
+
+  const queue = (episode) => enqueueManualWatchReview(media(episode), {
+    releaseDate: "2026-09-15T00:00:00.000Z", sourceFingerprint: `emby|stale-horses|${episode}`, allowWhenUnwatched: true,
+  });
+  const watched = queue(1);
+  assert.equal(watched.status, "already_watched");
+  assert.equal(listPendingManualWatchReviews().some((review) => review.id === watched.review.id), false);
+  const unwatched = queue(2);
+  assert.equal(unwatched.status, "pending", "a newer media-server unwatch still leaves the review to decide");
+  setManualWatchReviewStatus(unwatched.review.id, "dismissed");
+});
+
+test("the sidebar item count keeps same-title reboots apart, as the review page does", async () => {
+  const { countPendingManualWatchReviewItems } = await import("../server/src/utils/manualWatchReview.js");
+  const review = (id, showTitle, source) => ({
+    id, title: `${showTitle} - S01E02`, show_title: showTitle, media_type: "episode", season: 1, episode: 2,
+    media: { type: "episode", showTitle, season: 1, episode: 2, source, ids: {}, showIds: {} },
+  });
+  assert.equal(countPendingManualWatchReviewItems([
+    review("a", "Scrubs", "emby"),
+    review("b", "Scrubs (2026)", "emby"),
+    review("c", "Scrubs (2026)", "plex"),
+  ]), 2);
+});
+
+test("an episode-id review is hidden once cached TMDB find proves it is an episode history shows watched", async (t) => {
+  // Live: The Walking Dead S07/S08. Emby's review carries only the episode's
+  // own IMDb/TVDB ids, which share nothing with the show's ids, so the title match
+  // could not reach the watched history (decision 34).
+  const { lookupTmdbExternalIdKind } = await import("../server/src/utils/tmdbGateway.js");
+  const { pendingManualWatchReviewAliasLookups } = await import("../server/src/utils/manualWatchReview.js");
+  const show = { imdb_id: "tt93001", tmdb_id: "93001", tvdb_id: "93101" };
+  const pause = () => new Promise((resolve) => setTimeout(resolve, 5));
+  for (const [episode, actions] of [[1, ["watched"]], [2, ["watched", "unwatched"]], [3, ["watched"]]]) {
+    for (const action of actions) {
+      const result = await repo.insertWatchRecord({
+        title: `Walking Alias - S07E0${episode}`, show_title: "Walking Alias", media_type: "episode", source: "plex",
+        watched_at: "2026-09-10T00:00:00.000Z", season: 7, episode, sync_action: action,
+        ...show, sync_dispatch_telemetry: "Dispatch status: success",
+      });
+      await result.assetPrefetch;
+      await pause();
+    }
+  }
+  repo.invalidateSeriesIdentityIndex();
+  const queue = (episode) => enqueueManualWatchReview({
+    title: `Walking Alias - S07E0${episode}`, showTitle: "Walking Alias", type: "episode", season: 7, episode,
+    source: "emby", ids: { imdb: `tt9310${episode}`, tvdb: `9320${episode}` }, isValid: true,
+  }, { releaseDate: "2026-09-10T00:00:00.000Z", sourceFingerprint: `emby|walking-alias|${episode}` });
+  const reviews = [1, 2, 3].map((episode) => queue(episode).review);
+  const listed = () => new Set(listPendingManualWatchReviews().map((review) => review.id));
+  assert.equal(reviews.every((review) => listed().has(review.id)), true, "uncached ids leave every review listed");
+  const pending = pendingManualWatchReviewAliasLookups().pendingLookups.map(({ id }) => id);
+  assert.equal(["tt93101", "93201", "tt93103", "93203"].every((id) => pending.includes(id)), true, "uncached ids are queued for lookup");
+
+  await saveMediaConfig({ tmdb: { apiKey: "test-key" } });
+  const originalFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = originalFetch; });
+  globalThis.fetch = async (url) => {
+    const id = decodeURIComponent(new URL(String(url)).pathname.split("/").pop());
+    const episode = Number(id.slice(-1));
+    const body = { tv_results: [], tv_episode_results: [{ show_id: 93001, season_number: 7, episode_number: episode === 3 ? 4 : episode }] };
+    return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  for (const episode of [1, 2, 3]) {
+    await lookupTmdbExternalIdKind("imdb_id", `tt9310${episode}`);
+    await lookupTmdbExternalIdKind("tvdb_id", `9320${episode}`);
+  }
+
+  const after = listed();
+  assert.equal(after.has(reviews[0].id), false, "a proven episode history shows watched is hidden");
+  assert.equal(after.has(reviews[1].id), true, "a proven episode history shows unwatched stays to decide");
+  assert.equal(after.has(reviews[2].id), true, "a coordinate mismatch is not a proof");
+  assert.equal(pendingManualWatchReviewAliasLookups().pendingLookups.some(({ id }) => /^(tt931|932)/.test(id)), false);
+  for (const review of reviews) setManualWatchReviewStatus(review.id, "dismissed");
+});
+
+test("reviews of a title two shows share name their proven show and flag the title instead of trusting it", async (t) => {
+  // Live: the 2001 Scrubs group drew the 2026 reboot's poster, because the page
+  // looked the show up by title alone and the title resolved to the reboot.
+  const { lookupTmdbExternalIdKind } = await import("../server/src/utils/tmdbGateway.js");
+  const pause = () => new Promise((resolve) => setTimeout(resolve, 5));
+  const original = { imdb_id: "tt94001", tmdb_id: "94001", tvdb_id: "94101" };
+  const reboot = { imdb_id: "tt94002", tmdb_id: "94002", tvdb_id: "94102" };
+  for (const [showTitle, ids] of [["Poster Twin", original], ["Poster Twin (2026)", reboot]]) {
+    for (const episode of [1, 2]) {
+      const result = await repo.insertWatchRecord({
+        title: `${showTitle} - S01E0${episode}`, show_title: showTitle, media_type: "episode", source: "plex",
+        watched_at: "2026-09-10T00:00:00.000Z", season: 1, episode, sync_action: "watched",
+        ...ids, sync_dispatch_telemetry: "Dispatch status: success",
+      });
+      await result.assetPrefetch;
+      await pause();
+    }
+  }
+  repo.invalidateSeriesIdentityIndex();
+  const queue = (showTitle, source, extra, key) => enqueueManualWatchReview({
+    title: `${showTitle} - S01E05`, showTitle, type: "episode", season: 1, episode: 5, source, isValid: true, ...extra,
+  }, { releaseDate: "2026-09-10T00:00:00.000Z", sourceFingerprint: `${source}|poster-twin|${key}` }).review;
+  const emby = queue("Poster Twin", "emby", { ids: { imdb: "tt94105", tvdb: "94205" } }, "emby");
+  const plex = queue("Poster Twin", "plex", { ids: {} }, "plex");
+  const withShowIds = queue("Poster Twin (2026)", "jellyfin", { ids: {}, showIds: { tmdb: "94002" } }, "jellyfin");
+  const find = (id) => listPendingManualWatchReviews().find((review) => review.id === id);
+
+  assert.equal(find(emby.id).show_title_ambiguous, true);
+  assert.equal(find(emby.id).proven_show_ids, undefined, "uncached episode ids prove nothing yet");
+  assert.equal(find(plex.id).show_title_ambiguous, true);
+  assert.equal(find(plex.id).proven_show_ids, undefined, "a title alone never picks one of the two shows");
+  assert.deepEqual(find(withShowIds.id).proven_show_ids, { imdb: "tt94002", tmdb: "94002", tvdb: "94102" });
+
+  await saveMediaConfig({ tmdb: { apiKey: "test-key" } });
+  const originalFetch = globalThis.fetch;
+  t.after(() => { globalThis.fetch = originalFetch; });
+  globalThis.fetch = async () => new Response(JSON.stringify({
+    tv_results: [], tv_episode_results: [{ show_id: 94001, season_number: 1, episode_number: 5 }],
+  }), { status: 200, headers: { "content-type": "application/json" } });
+  await lookupTmdbExternalIdKind("imdb_id", "tt94105");
+  await lookupTmdbExternalIdKind("tvdb_id", "94205");
+
+  assert.deepEqual(find(emby.id).proven_show_ids, { imdb: "tt94001", tmdb: "94001", tvdb: "94101" },
+    "cached TMDB find places the episode ids on the original show, not the reboot");
+  for (const review of [emby, plex, withShowIds]) setManualWatchReviewStatus(review.id, "dismissed");
 });

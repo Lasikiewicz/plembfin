@@ -14,6 +14,7 @@ import {
   findJellyfinItems,
 } from "./jellyfinClient.js";
 import { runWithConcurrency } from "./concurrency.js";
+import { db } from "../db.js";
 
 const PROVIDERS = ["plex", "emby", "jellyfin"];
 // A resolved library item is stable: the same episode keeps its ratingKey/Id
@@ -27,9 +28,51 @@ const MISSING_TTL_MS = 15 * 60 * 1000;
 const MAX_LOOKUPS_PER_BUILD = 32;
 const MAX_CACHE_ENTRIES = 2000;
 const EPISODE_INVENTORY_TTL_MS = 5 * 60 * 1000;
+// A failed lookup is not cached (it is not evidence the episode is absent), so
+// without a backoff every projection rebuild during an outage re-ran every
+// lookup against the unreachable server: about 2,800 failed Jellyfin requests,
+// each logged with a stack trace, in a few minutes. Stand the provider down for
+// about one scheduler tick after a failure; cached answers are still used.
+const PROVIDER_OUTAGE_BACKOFF_MS = 60 * 1000;
+// Resolved answers are also kept in SQLite, read only when the provider cannot
+// answer. The in-memory cache is empty after a restart, so restarting during a
+// Jellyfin outage dropped every local next-up card only Jellyfin could prove
+// (The Assembly S01E01) and the Jellyfin ids of others until it came back
+// (defect V). A remembered id is the last thing the library itself said; a
+// live answer replaces it, and a live "missing" deletes it.
+const REMEMBERED_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const REMEMBERED_PRUNE_INTERVAL_MS = 60 * 60 * 1000;
+let lastRememberedPrune = 0;
 
 const lookupCache = new Map();
 const episodeInventoryCache = new Map();
+const providerOutages = new Map();
+let outageNow = () => Date.now();
+
+function outageKey(provider, config) {
+  return `${provider}:${text(config?.[provider]?.baseUrl).toLowerCase()}`;
+}
+
+function providerInOutage(provider, config) {
+  const key = outageKey(provider, config);
+  const until = providerOutages.get(key);
+  if (!until) return false;
+  if (outageNow() < until) return true;
+  providerOutages.delete(key);
+  return false;
+}
+
+function recordProviderOutage(provider, config) {
+  providerOutages.set(outageKey(provider, config), outageNow() + PROVIDER_OUTAGE_BACKOFF_MS);
+}
+
+function clearProviderOutage(provider, config) {
+  providerOutages.delete(outageKey(provider, config));
+}
+
+export function __setUpNextLibraryLookupNow(fn) {
+  outageNow = typeof fn === "function" ? fn : () => Date.now();
+}
 
 function text(value = "") {
   return String(value ?? "").trim();
@@ -256,10 +299,45 @@ function writeCache(key, providerItemId) {
   lookupCache.set(key, { at: Date.now(), providerItemId });
 }
 
+function rememberAnswer(key, provider, providerItemId) {
+  const now = Date.now();
+  try {
+    if (providerItemId) {
+      db.prepare(`
+        INSERT INTO up_next_library_items (lookup_key, provider, provider_item_id, resolved_at)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(lookup_key) DO UPDATE SET
+          provider_item_id = excluded.provider_item_id,
+          resolved_at = excluded.resolved_at
+      `).run(key, provider, providerItemId, now);
+    } else {
+      db.prepare("DELETE FROM up_next_library_items WHERE lookup_key = ?").run(key);
+    }
+    if (now - lastRememberedPrune >= REMEMBERED_PRUNE_INTERVAL_MS) {
+      lastRememberedPrune = now;
+      db.prepare("DELETE FROM up_next_library_items WHERE resolved_at < ?").run(now - REMEMBERED_TTL_MS);
+    }
+  } catch (error) {
+    console.error(`[up-next] Could not remember a library lookup: ${error?.message || error}`);
+  }
+}
+
+function rememberedAnswer(key) {
+  try {
+    const row = db.prepare(
+      "SELECT provider_item_id FROM up_next_library_items WHERE lookup_key = ? AND resolved_at >= ?",
+    ).get(key, Date.now() - REMEMBERED_TTL_MS);
+    return text(row?.provider_item_id);
+  } catch {
+    return "";
+  }
+}
+
 export function clearUpNextLibraryLookupCache() {
   lookupCache.clear();
   episodeInventoryCache.clear();
   runtimeCache.clear();
+  providerOutages.clear();
 }
 
 function providerEpisodeId(provider, episode = {}) {
@@ -319,8 +397,10 @@ export function createUpNextLibraryEpisodeLookup(config = {}) {
       const key = providerInventoryKey(provider, config, show);
       const cached = episodeInventoryCache.get(key);
       if (cached && Date.now() - cached.at < EPISODE_INVENTORY_TTL_MS) return cached.episodes;
+      if (providerInOutage(provider, config)) return [];
       try {
         const rawEpisodes = await providerSeriesEpisodes(provider, config, media);
+        clearProviderOutage(provider, config);
         const episodes = (Array.isArray(rawEpisodes) ? rawEpisodes : [])
           .map((episode) => {
             const coordinate = providerEpisodeCoordinate(provider, episode);
@@ -355,6 +435,7 @@ export function createUpNextLibraryEpisodeLookup(config = {}) {
       } catch {
         // A failed inventory is not evidence that the show is absent. Do not
         // cache failures, so the next projection can retry after an outage.
+        recordProviderOutage(provider, config);
         return [];
       }
     }));
@@ -373,34 +454,65 @@ export function createUpNextLibraryEpisodeLookup(config = {}) {
 //
 // Returns null when no supported provider is configured, so the caller keeps
 // its offline behavior instead of silently dropping every fallback candidate.
+//
+// With `{ detailed: true }` it returns `{ providerItems, unanswered }`, where
+// `unanswered` lists the providers that were not asked (budget, outage) or
+// failed. A missing id from a provider not in that list is a real "not in this
+// library" answer.
 export function createUpNextLibraryLookup(config = {}) {
   const providers = PROVIDERS.filter((provider) => configuredProvider(config, provider));
   if (!providers.length) return null;
   let budget = MAX_LOOKUPS_PER_BUILD;
 
-  return async function resolveProviderItems(candidate) {
+  return async function resolveProviderItems(candidate, { detailed = false, only = null } = {}) {
+    // `only` limits the lookup to named providers, so a caller filling a gap
+    // does not spend the build budget re-asking providers it already has.
+    const asked = Array.isArray(only) ? providers.filter((provider) => only.includes(provider)) : providers;
     const media = upNextLookupMedia(candidate);
-    if (!media.type || !media.title) return {};
+    if (!media.type || !media.title) return detailed ? { providerItems: {}, unanswered: [...asked] } : {};
     const providerItems = {};
-    for (const provider of providers) {
+    const unanswered = [];
+    for (const provider of asked) {
       const key = cacheKey(provider, config, media);
       const cached = readCache(key);
       if (cached) {
         if (cached.providerItemId) providerItems[provider] = [cached.providerItemId];
         continue;
       }
-      if (budget <= 0) continue;
+      // An unreachable provider still counts as unanswered, but its last
+      // resolved id (from before a restart) keeps the card it proved.
+      const useRemembered = () => {
+        const remembered = rememberedAnswer(key);
+        if (remembered) providerItems[provider] = [remembered];
+        unanswered.push(provider);
+      };
+      if (providerInOutage(provider, config)) {
+        useRemembered();
+        continue;
+      }
+      if (budget <= 0) {
+        unanswered.push(provider);
+        continue;
+      }
       budget -= 1;
       try {
         const { providerItemId } = await resolveUpNextProviderItemId(provider, config[provider], candidate);
+        clearProviderOutage(provider, config);
         writeCache(key, providerItemId);
+        // A direct stored id is returned unverified; only a library answer
+        // is worth remembering.
+        if (!media.provider_item_id && !Object.keys(media.provider_items || {}).length) {
+          rememberAnswer(key, provider, providerItemId);
+        }
         if (providerItemId) providerItems[provider] = [providerItemId];
       } catch {
         // A provider that cannot answer right now is not evidence that the
         // episode is absent. Leave it uncached so the next build retries
         // rather than hiding a real episode for the whole miss window.
+        recordProviderOutage(provider, config);
+        useRemembered();
       }
     }
-    return providerItems;
+    return detailed ? { providerItems, unanswered } : providerItems;
   };
 }

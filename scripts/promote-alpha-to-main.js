@@ -22,6 +22,7 @@ import { buildChangelogSectionGroups, changelogSectionGroups } from "./changelog
 import { formatSections, mergeSections } from "./promote-develop-to-alpha.js";
 import { generateChangelogMarkdown } from "./generate-changelog-md.js";
 import { fileAtRef, gitHeadAuthor, gitHeadCommit } from "./changelog-git-helpers.js";
+import { websiteContentImpactViolations } from "./site-impact.js";
 import { buildVersion, compareBuildVersions } from "./version.js";
 import { spawnSync } from "node:child_process";
 
@@ -169,6 +170,23 @@ function computeAlphaToMainRelease({ targetVersion = "", sourceDate = new Date()
   const quality = changelogEntryQualityViolations(mainEntry);
   if (quality.length > 0) {
     throw new Error(`Refusing to promote alpha to main: the entry is not publishable:\n${quality.map((v) => `- ${v}`).join("\n")}`);
+  }
+
+  // The website content-impact gate: a changed application surface must map to
+  // a reviewed website/docs update in this same release, or the commit(s) that
+  // touched it must carry an explicit `site-impact:` decision (see
+  // scripts/site-impact.js). Runs from the previous main release's own commit
+  // to this checkout's HEAD, so it covers every alpha build folded into this
+  // promotion - not just the current build. Silently a no-op when there is no
+  // previous release commit to anchor from (first release, or a working-tree
+  // fallback with no remote history).
+  const impactFailures = websiteContentImpactViolations({
+    root,
+    fromCommit: changelog.entries[0]?.commit || "",
+    toCommit: gitHeadCommit(root),
+  });
+  if (impactFailures.length > 0) {
+    throw new Error(`Refusing to promote alpha to main: the website content-impact gate failed:\n${impactFailures.map((v) => `- ${v}`).join("\n")}`);
   }
 
   return { changelog, alpha, newMainVersion, new5DigitVersion, mainEntry, historySource };

@@ -380,6 +380,39 @@ export function failPersonalRatingQueue({ provider, mediaKey, intentId, status =
   return result;
 }
 
+// A local intent that has not yet been confirmed on this provider. Plex, Emby,
+// and Jellyfin expose no rating-modified time, so an undelivered local edit is
+// the only evidence that Plembfin's value is newer than what the provider holds.
+const OUTSTANDING_QUEUE_STATUSES = ["pending", "processing", "failed", "reauth_required"];
+
+export function getOutstandingPersonalRatingIntent(provider, mediaKeys = []) {
+  const target = providerOrThrow(provider);
+  const keys = [...new Set((Array.isArray(mediaKeys) ? mediaKeys : [mediaKeys]).map((key) => String(key || "")).filter(Boolean))];
+  if (!keys.length) return null;
+  const row = db.prepare(`
+    SELECT * FROM personal_rating_sync_queue
+    WHERE provider = ? AND media_key IN (${keys.map(() => "?").join(",")})
+      AND status IN (${OUTSTANDING_QUEUE_STATUSES.map(() => "?").join(",")})
+    ORDER BY updated_at DESC
+    LIMIT 1
+  `).get(target, ...keys, ...OUTSTANDING_QUEUE_STATUSES);
+  return row ? mapQueueRow(row) : null;
+}
+
+// Drops an undelivered local intent for one provider once a newer value from
+// that same provider has become canonical, so the stale local value is not
+// written back over it. In-flight (processing) rows are left to finish.
+export function supersedePersonalRatingIntent(provider, mediaKeys = []) {
+  const target = providerOrThrow(provider);
+  const keys = [...new Set((Array.isArray(mediaKeys) ? mediaKeys : [mediaKeys]).map((key) => String(key || "")).filter(Boolean))];
+  if (!keys.length) return 0;
+  return db.prepare(`
+    DELETE FROM personal_rating_sync_queue
+    WHERE provider = ? AND media_key IN (${keys.map(() => "?").join(",")})
+      AND status IN ('pending', 'failed', 'reauth_required')
+  `).run(target, ...keys).changes;
+}
+
 export function retryPersonalRatingQueue({ provider = "", mediaKey = "", now = Date.now() } = {}) {
   const target = provider ? providerOrThrow(provider) : "";
   const clauses = ["status IN ('not_found','reauth_required','failed')"];

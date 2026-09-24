@@ -1,5 +1,5 @@
-import { state } from "./state.js?v=1.2.1.0.0";
-import { escapeAttribute, slug } from "./utils.js?v=1.2.1.0.0";
+import { state } from "./state.js?v=1.2.1.0.1";
+import { escapeAttribute, slug } from "./utils.js?v=1.2.1.0.1";
 
 function identityValues(item = {}, kind = "tmdb") {
   const capitalized = `${kind.charAt(0).toUpperCase()}${kind.slice(1)}`;
@@ -11,7 +11,93 @@ function identityValues(item = {}, kind = "tmdb") {
   ].map((value) => String(value || "").trim()).filter(Boolean);
 }
 
+const UP_NEXT_PROVIDERS = new Set(["plex", "emby", "jellyfin"]);
+
+function showTitleSlug(item = {}) {
+  return String(item.show_title || item.showTitle || "")
+    .trim()
+    .toLowerCase()
+    .replace(/\(\d{4}\)/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function isEpisode(item = {}) {
+  return String(item.media_type || item.mediaType || "").trim().toLowerCase() === "episode";
+}
+
+// The key builders below are title-based as well as id-based, so two
+// same-title shows share keys; pair them with provenDifferentShow.
+export function upNextCoordinateDismissalKey(item = {}) {
+  if (!isEpisode(item)) return "";
+  const showTitle = showTitleSlug(item);
+  const season = Number(item.season);
+  const episode = Number(item.episode);
+  if (!showTitle || item.season == null || item.episode == null || item.season === "" || item.episode === "" || !Number.isInteger(season) || !Number.isInteger(episode) || season < 0 || episode < 0) return "";
+  return `episode:${showTitle}:s${season}:e${episode}`;
+}
+
+export function upNextShowDismissalKeys(item = {}) {
+  if (!isEpisode(item)) return [];
+  const keys = [];
+  for (const provider of ["imdb", "tmdb", "tvdb"]) {
+    const id = String(item[`show_${provider}_id`] || item[`show${provider.charAt(0).toUpperCase()}${provider.slice(1)}Id`] || "").trim();
+    if (id) keys.push(`show:${provider}:${id.toLowerCase()}`);
+  }
+  const showTitle = showTitleSlug(item);
+  if (showTitle) keys.push(`show:title:${showTitle}`);
+  return [...new Set(keys)];
+}
+
+export function upNextDismissalKeys(item = {}, mediaKey = "") {
+  const keys = new Set();
+  const id = String(item.id || "").trim();
+  const itemMediaKey = String(item.media_key || item.mediaKey || mediaKey || "").trim();
+  if (id) keys.add(id);
+  if (itemMediaKey) keys.add(itemMediaKey);
+  const providerItemId = String(item.provider_item_id || item.providerItemId || "").trim();
+  if (providerItemId) keys.add(providerItemId);
+  const providerItems = item.provider_items || item.providerItems || {};
+  for (const [provider, values] of Object.entries(providerItems)) {
+    if (!UP_NEXT_PROVIDERS.has(String(provider || "").toLowerCase())) continue;
+    for (const value of (Array.isArray(values) ? values : [values])) {
+      const providerId = String(value || "").trim();
+      if (providerId) keys.add(providerId);
+    }
+  }
+  const coordinate = upNextCoordinateDismissalKey(item);
+  if (coordinate) keys.add(coordinate);
+  for (const key of upNextShowDismissalKeys(item)) keys.add(key);
+  return [...keys].filter(Boolean);
+}
+
+// An episode card's plain tmdb/tvdb id is the episode's, so only its show_*
+// ids identify the show. A show record (manual show, media page button) has
+// no episode media type and carries the show ids directly.
+function showIdValue(item = {}, kind = "tmdb") {
+  const capitalized = `${kind.charAt(0).toUpperCase()}${kind.slice(1)}`;
+  const showLevel = String(item[`show_${kind}_id`] || item[`show${capitalized}Id`] || "").trim();
+  if (showLevel) return showLevel.toLowerCase();
+  const mediaType = String(item.media_type || item.mediaType || "").trim().toLowerCase();
+  if (mediaType === "episode") return "";
+  return String(item[`${kind}_id`] || item[`${kind}Id`] || "").trim().toLowerCase();
+}
+
+// Two shows can share a title (Scrubs 2001 and its 2026 reboot), and so share
+// every title and episode-coordinate key. A TMDB or TVDB show id that
+// disagrees proves they are different shows, so title-keyed matching must
+// never pair them. Mirrors provenDifferentShow in
+// server/src/utils/upNextDismissals.js.
+export function provenDifferentShow(left = {}, right = {}) {
+  return ["tmdb", "tvdb"].some((kind) => {
+    const leftId = showIdValue(left, kind);
+    const rightId = showIdValue(right, kind);
+    return Boolean(leftId && rightId && leftId !== rightId);
+  });
+}
+
 export function manualShowMatches(show = {}, candidate = {}) {
+  if (provenDifferentShow(show, candidate)) return false;
   const ids = ["tmdb", "tvdb", "imdb"];
   const sameId = ids.some((kind) => {
     const left = identityValues(show, kind);

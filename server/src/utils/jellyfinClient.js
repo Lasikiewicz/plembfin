@@ -103,6 +103,37 @@ function yearMatches(dbTitle, resultYear) {
   return Number(dbYear) === Number(resultYear);
 }
 
+// The title search runs only after no library series carried any requested id,
+// so a title match whose own TMDB or TVDB id differs from the request's show
+// id is a different show with the same name (live 23 September 2026: the
+// Australian "The Assembly" card linked the UK show's S01E01). Only explicit
+// show ids are compared: a watch record's plain ids can be the episode's own.
+function seriesIdsConflict(media = {}, providerIds = {}) {
+  return [["tmdb", "Tmdb"], ["tvdb", "Tvdb"]].some(([key, field]) => {
+    const wanted = String(media?.[`show_${key}_id`] || "").trim().toLowerCase();
+    const actual = String(providerIds?.[field] || "").trim().toLowerCase();
+    return Boolean(wanted && actual && wanted !== actual);
+  });
+}
+
+// Two title matches whose provider ids or years disagree are two different
+// shows or films of the same name ("Scrubs" 2001 and its 2026 revival, both
+// named plain "Scrubs" in Jellyfin). With no year or show id to choose between
+// them, writing to every match marked the other show too, so the title match
+// is refused instead (decision 40). Matches that agree still all count.
+function titleMatchNamesSeveralItems(items = []) {
+  const differ = (a, b) => Boolean(a && b && a !== b);
+  const identity = (item) => {
+    const ids = {};
+    for (const [key, value] of Object.entries(item?.ProviderIds || {})) ids[key.toLowerCase()] = String(value || "").trim().toLowerCase();
+    return { ids, year: Number(item?.ProductionYear) || 0 };
+  };
+  const identities = items.map(identity);
+  return identities.some((left, index) => identities.slice(index + 1).some((right) =>
+    differ(left.year, right.year) || ["imdb", "tmdb", "tvdb"].some((key) => differ(left.ids[key], right.ids[key]))
+  ));
+}
+
 function parseShowTitle(title) {
   const str = String(title || "");
   const regex = /(?:\s*-\s*|\s+)S(\d+)E(\d+)/i;
@@ -255,7 +286,9 @@ async function searchJellyfinFallback(config, media, targetType) {
 
   url.searchParams.set("Recursive", "true");
   url.searchParams.set("IncludeItemTypes", targetType);
-  url.searchParams.set("SearchTerm", queryTitle);
+  // The year is left out of the search (Jellyfin finds nothing for "Scrubs
+  // (2026)") and checked against ProductionYear instead.
+  url.searchParams.set("SearchTerm", queryTitle.replace(/\s*\(\d{4}\)\s*$/, ""));
   // Jellyfin's Fields parameter accepts ItemFields enum values. UserData is
   // controlled separately by EnableUserData and is not an ItemFields value.
   url.searchParams.set("Fields", "ProviderIds");
@@ -267,9 +300,14 @@ async function searchJellyfinFallback(config, media, targetType) {
     const matched = results.filter((item) => {
       if (!titleMatches(queryTitle, item.Name)) return false;
       if (!yearMatches(media.title, item.ProductionYear)) return false;
+      if (targetType === "Series" && seriesIdsConflict(media, item.ProviderIds)) return false;
       return true;
     });
 
+    if (titleMatchNamesSeveralItems(matched)) {
+      traceLog("Jellyfin search fallback refused an ambiguous title", { query: queryTitle, targetType, itemIds: matched.map(i => i.Id) });
+      return [];
+    }
     if (matched.length > 0) {
       traceLog("Jellyfin search fallback matched items", { count: matched.length, itemIds: matched.map(i => i.Id) });
       return matched;
@@ -600,14 +638,22 @@ export async function markJellyfinUnplayedById(config, itemId, { lane = "sync" }
   return { platform: "jellyfin", status: "fulfilled", itemId, httpStatus: response.status };
 }
 
+// Jellyfin has no resume dismissal: HideFromResume is Emby's, and Jellyfin
+// 12.0.0 answers it with 404. An item leaves Jellyfin's Resume list when its
+// position is zero or it is played, which the callers' unplayed/progress write
+// has already done. This only confirms that, without writing anything.
 export async function hideJellyfinFromResume(config, itemId, { lane = "interactive" } = {}) {
   requireJellyfinConfig(config);
   if (!itemId) return { platform: "jellyfin", status: "not_found" };
-  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${encodeURIComponent(config.userId)}/Items/${encodeURIComponent(itemId)}/HideFromResume`);
-  url.searchParams.set("Hide", "true");
-  const response = await fetchWithTimeout(url, { method: "POST", headers: authHeaders(config), lane });
-  if (!response.ok) throw new Error(`Jellyfin resume removal failed with status ${response.status} for item ${itemId}`);
-  return { platform: "jellyfin", status: "fulfilled", itemId: String(itemId), httpStatus: response.status };
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${encodeURIComponent(config.userId)}/Items/${encodeURIComponent(itemId)}`);
+  const response = await fetchWithTimeout(url, { headers: authHeaders(config), lane });
+  if (response.status === 404) return { platform: "jellyfin", status: "not_found", itemId: String(itemId) };
+  if (!response.ok) throw new Error(`Jellyfin resume check failed with status ${response.status} for item ${itemId}`);
+  const userData = (await response.json())?.UserData || {};
+  if (userData.Played || !Number(userData.PlaybackPositionTicks || 0)) {
+    return { platform: "jellyfin", status: "fulfilled", itemId: String(itemId), httpStatus: response.status };
+  }
+  throw new Error(`Jellyfin item ${itemId} still has a resume position; Jellyfin has no separate resume dismissal`);
 }
 
 function buildJellyfinWatchedItemsUrl(config, { limit = 0, parentId = "" } = {}) {
@@ -704,7 +750,20 @@ export async function countJellyfinWatchedItems(config, { libraryIds } = {}) {
 export async function fetchJellyfinResumableItems(config, { limit = 0 } = {}) {
   requireJellyfinConfig(config);
   const baseUrl = trimTrailingSlash(config.baseUrl);
-  return fetchPagedFeed(config, (start, pageSize) => {
+  // The Resume endpoint is what Jellyfin's own Continue Watching reads. The
+  // generic Items?Filters=IsResumable query hides a merged episode's
+  // non-primary version, so a part-watch of the 720p copy of a two-version
+  // episode never reached Plembfin (Jellyfin 12.0).
+  const buildResumeUrl = (start, pageSize) => {
+    const url = new URL(`${baseUrl}/Users/${config.userId}/Items/Resume`);
+    url.searchParams.set("IncludeItemTypes", "Movie,Episode");
+    url.searchParams.set("Fields", "ProviderIds");
+    url.searchParams.set("EnableUserData", "true");
+    url.searchParams.set("StartIndex", String(start));
+    url.searchParams.set("Limit", String(pageSize));
+    return url;
+  };
+  const buildLegacyResumeUrl = (start, pageSize) => {
     const url = new URL(`${baseUrl}/Users/${config.userId}/Items`);
     url.searchParams.set("Recursive", "true");
     url.searchParams.set("Filters", "IsResumable");
@@ -716,7 +775,18 @@ export async function fetchJellyfinResumableItems(config, { limit = 0 } = {}) {
     url.searchParams.set("StartIndex", String(start));
     url.searchParams.set("Limit", String(pageSize));
     return url;
-  }, limit);
+  };
+  try {
+    const native = await fetchPagedFeed(config, buildResumeUrl, limit);
+    if (native.length) return native;
+    // Emby's Resume endpoint can answer an empty 200 while IsResumable lists
+    // real part-watches (docs/decisions.md); do not trust an empty answer.
+    return await fetchPagedFeed(config, buildLegacyResumeUrl, limit);
+  } catch (error) {
+    // Only a missing route falls back; a real failure stays visible.
+    if (Number(error?.status) !== 404) throw error;
+    return fetchPagedFeed(config, buildLegacyResumeUrl, limit);
+  }
 }
 
 export async function fetchJellyfinNextUpItems(config, { limit = 0 } = {}) {
@@ -848,7 +918,11 @@ async function writeJellyfinPersonalRating(config, media, rating, { lane = "sync
       method: "POST",
       headers: { ...authHeaders(config), "Content-Type": "application/json" },
       lane,
-      body: JSON.stringify({ Rating: rating == null ? null : Math.max(1, Math.min(10, Math.round(Number(rating)))) }),
+      // Jellyfin treats a null field in this partial update as "leave
+      // unchanged": `Rating: null` returned 200 but kept the old rating
+      // (verified against Jellyfin 12.0.0, 22 September 2026). 0 is stored
+      // and read back as 0, which every rating snapshot treats as unrated.
+      body: JSON.stringify({ Rating: rating == null ? 0 : Math.max(1, Math.min(10, Math.round(Number(rating)))) }),
     });
     if (response.status === 404) return { platform: "jellyfin", status: "not_found", itemId: item.Id };
     if (!response.ok) {

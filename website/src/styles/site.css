@@ -5350,6 +5350,670 @@ html.light-mode .docs-page-outline-link.active {
   }
 }
 
+/* Why Plembfin: scenario-led explanation of the local source-of-truth model. */
+.simple-why {
+  width: min(calc(100% - 3rem), 78rem);
+  margin-inline: auto;
+}
+
+.simple-why-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 0.86fr) minmax(0, 1.14fr);
+  gap: clamp(2rem, 6vw, 6rem);
+  align-items: center;
+  padding-block: clamp(3rem, 6vw, 4.75rem) clamp(2.25rem, 4vw, 3.25rem);
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.simple-why-hero h1 {
+  max-width: 15ch;
+  margin: 0.9rem 0 0;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: clamp(2.3rem, 4vw, 3.6rem);
+  font-weight: 700;
+  letter-spacing: -0.05em;
+  line-height: 1;
+}
+
+.simple-why-hero > div:first-child > p:not(.simple-eyebrow) {
+  max-width: 44ch;
+  margin: 1.25rem 0 0;
+  color: var(--soft);
+  font-size: 1.05rem;
+  line-height: 1.65;
+}
+
+.simple-why-hero .simple-actions {
+  justify-content: flex-start;
+}
+
+.simple-why-hero-proof {
+  min-width: 0;
+}
+
+.simple-why-hero-proof .screenshot-figure {
+  margin: 0;
+}
+
+.simple-why-hero-proof .screenshot-frame {
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.simple-why-hero-proof .screenshot-frame img {
+  border-radius: var(--poster-radius);
+}
+
+.simple-why-hero-proof figcaption {
+  margin-top: var(--space-2);
+  color: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+}
+
+.simple-why-builder {
+  padding-block: clamp(2.75rem, 5vw, 4.5rem);
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.simple-why-builder-grid {
+  display: grid;
+  grid-template-columns: minmax(15rem, 0.72fr) minmax(0, 1.28fr);
+  gap: clamp(1.5rem, 5vw, 5rem);
+  align-items: start;
+}
+
+.simple-why-builder-questions {
+  display: grid;
+  gap: 1.25rem;
+  min-width: 0;
+}
+
+.simple-why-builder-title {
+  max-width: 22ch;
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: clamp(1.85rem, 3.3vw, 3rem);
+  font-weight: 700;
+  letter-spacing: -0.045em;
+  line-height: 1;
+}
+
+.simple-why-builder-options {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.simple-why-builder-options legend {
+  padding: 0;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.025em;
+}
+
+.simple-why-builder-options + .simple-why-builder-options {
+  padding-top: 0;
+  border-top: 1px solid var(--line-strong);
+}
+
+.simple-why-builder-help {
+  max-width: 42ch;
+  margin: 0.25rem 0 0.65rem;
+  color: var(--muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
+.simple-why-option-list {
+  display: grid;
+  gap: 0;
+  border-top: 1px solid var(--line-strong);
+}
+
+.simple-why-option-list--compact {
+  border-top: 0;
+}
+
+.simple-why-trakt-mode {
+  padding: 0.45rem 0 0.45rem 2.1rem;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.simple-why-trakt-mode .simple-why-option-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  border-top: 0;
+}
+
+.simple-why-trakt-mode .simple-why-option {
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--line-strong);
+}
+
+.simple-why-option {
+  display: grid;
+  grid-template-columns: 1.5rem minmax(0, 1fr) auto;
+  gap: 0.6rem;
+  align-items: center;
+  width: 100%;
+  padding: 0.58rem 0;
+  color: var(--soft);
+  background: transparent;
+  border: 0;
+  border-bottom: 1px solid var(--line-strong);
+  cursor: pointer;
+  text-align: left;
+  transition: color 160ms ease, background-color 160ms ease;
+}
+
+.simple-why-option:hover,
+.simple-why-option:focus-visible,
+.simple-why-option.is-selected {
+  color: var(--text);
+  background: color-mix(in oklab, var(--accent) 7%, transparent);
+}
+
+.simple-why-option:focus-visible,
+.simple-why-reset:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.simple-why-option img {
+  width: 1.25rem;
+  height: 1.25rem;
+  object-fit: contain;
+}
+
+.simple-why-option-mark {
+  display: inline-grid;
+  width: 1.25rem;
+  height: 1.25rem;
+  place-items: center;
+  color: var(--accent-strong);
+  border: 1px solid var(--line-strong);
+  border-radius: 50%;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 800;
+}
+
+.simple-why-option strong,
+.simple-why-option small {
+  display: block;
+}
+
+.simple-why-option strong {
+  color: inherit;
+  font-size: 0.9rem;
+  font-weight: 750;
+}
+
+.simple-why-option small {
+  margin-top: 0.12rem;
+  color: var(--muted);
+  font-size: 0.62rem;
+}
+
+.simple-why-option-check {
+  color: var(--accent-strong);
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  line-height: 1;
+  transition: transform 180ms ease;
+}
+
+.simple-why-option.is-selected .simple-why-option-check {
+  transform: rotate(45deg);
+}
+
+.simple-why-reset {
+  margin-top: 0.85rem;
+  padding: 0;
+  color: var(--muted);
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  font-size: 0.72rem;
+  text-decoration: underline;
+  text-decoration-color: var(--line-strong);
+  text-underline-offset: 0.2rem;
+}
+
+.simple-why-reset:hover {
+  color: var(--text);
+}
+
+.simple-why-builder-result {
+  position: sticky;
+  top: 5.5rem;
+  align-self: stretch;
+  min-height: 19rem;
+  padding: clamp(1.5rem, 4vw, 3rem);
+  background: color-mix(in oklab, var(--surface-soft) 76%, transparent);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--poster-radius);
+  transition: background-color 180ms ease, border-color 180ms ease;
+}
+
+.simple-why-builder-result.is-changing {
+  animation: simple-stack-result-change 260ms var(--ease-out-quart, cubic-bezier(0.25, 1, 0.5, 1));
+}
+
+.simple-why-builder-result h3 {
+  max-width: 22ch;
+  margin: 0.5rem 0 0;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: clamp(1.55rem, 3vw, 2.55rem);
+  font-weight: 700;
+  letter-spacing: -0.045em;
+  line-height: 1;
+}
+
+.simple-why-builder-result > p:not(.simple-eyebrow) {
+  max-width: none;
+  width: 100%;
+  margin: 0.75rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.simple-why-builder-result .simple-why-builder-audience {
+  color: var(--soft);
+  font-weight: 650;
+}
+
+.simple-stack-flow {
+  display: block;
+  margin-top: 1.45rem;
+  color: var(--accent-strong);
+}
+
+.simple-stack-flow-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+.simple-stack-flow-path {
+  fill: none;
+  stroke: var(--accent-strong);
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.simple-stack-flow--continuous .simple-stack-flow-path--live,
+.simple-stack-flow--continuous .simple-stack-flow-path--send,
+.simple-stack-flow--continuous .simple-stack-flow-path--return {
+  stroke-width: 2.5;
+}
+
+.simple-stack-flow-node rect {
+  fill: var(--surface);
+  stroke: var(--line-strong);
+  stroke-width: 1.5;
+}
+
+.simple-stack-flow-node--hub rect {
+  fill: var(--surface);
+  stroke: var(--accent-strong);
+}
+
+.simple-stack-flow-node image {
+  image-rendering: auto;
+}
+
+.simple-stack-flow-node-label {
+  fill: var(--soft);
+  font-family: var(--font-body);
+  font-size: 15px;
+  font-weight: 750;
+}
+
+.simple-stack-flow-caption {
+  fill: var(--muted);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-anchor: middle;
+}
+
+.simple-stack-flow-caption--center {
+  text-anchor: middle;
+}
+
+.simple-stack-flow-pulse {
+  fill: var(--accent-strong);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .simple-stack-flow--continuous .simple-stack-flow-path--live,
+  .simple-stack-flow--continuous .simple-stack-flow-path--send,
+  .simple-stack-flow-pulse {
+    display: none;
+  }
+}
+
+.simple-stack-node {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-height: 2.2rem;
+  padding: 0.4rem 0.65rem;
+  color: var(--soft);
+  background: color-mix(in oklab, var(--surface) 72%, transparent);
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  font-family: var(--font-body);
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.simple-stack-node--hub {
+  color: var(--accent-contrast);
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
+.simple-stack-node img {
+  width: 1.3rem;
+  height: 1.3rem;
+  object-fit: contain;
+}
+
+.simple-stack-node-mark {
+  display: inline-grid;
+  width: 1.3rem;
+  height: 1.3rem;
+  place-items: center;
+  color: var(--accent-strong);
+  border: 1px solid currentColor;
+  border-radius: 50%;
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 800;
+}
+
+.simple-why-builder-result .simple-text-link {
+  margin-top: 1.15rem;
+}
+
+@keyframes simple-stack-result-change {
+  from {
+    opacity: 0.62;
+    transform: translateY(0.35rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.simple-why-scenarios,
+.simple-why-reasons,
+.simple-why-changes {
+  padding-block: clamp(2.75rem, 5vw, 4.5rem);
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.simple-why-scenario-list {
+  border-top: 1px solid var(--line-strong);
+}
+
+.simple-why-scenario {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr) minmax(13rem, 0.65fr);
+  gap: clamp(1.25rem, 3vw, 3.5rem);
+  padding-block: 1.65rem;
+  border-bottom: 1px solid var(--line-strong);
+}
+
+.simple-why-scenario-index {
+  display: grid;
+  align-content: start;
+  gap: 0.45rem;
+}
+
+.simple-why-scenario-index .simple-number {
+  font-size: 1rem;
+}
+
+.simple-why-scenario-copy h3,
+.simple-why-reason h3 {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: clamp(1.45rem, 2.3vw, 2rem);
+  font-weight: 700;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+
+.simple-why-scenario-copy p,
+.simple-why-reason p,
+.simple-why-changes > div > p:not(.simple-eyebrow) {
+  max-width: 60ch;
+  margin: 0.7rem 0 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.6;
+}
+
+.simple-why-scenario-copy .simple-why-audience {
+  color: var(--soft);
+  font-weight: 650;
+}
+
+.simple-why-scenario-copy .simple-text-link,
+.simple-why-changes .simple-text-link {
+  margin-top: 0.9rem;
+}
+
+.simple-why-scenario-flow {
+  align-self: center;
+  padding: 1rem 0 1rem 1.25rem;
+  border-left: 1px solid var(--line-strong);
+}
+
+.simple-why-scenario-flow .simple-service-list {
+  gap: 0.65rem 1rem;
+}
+
+.simple-why-scenario-flow > p {
+  margin: 0.85rem 0 0;
+  color: var(--accent-strong);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  line-height: 1.4;
+}
+
+.simple-why-reason-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--line-strong);
+}
+
+.simple-why-reason {
+  display: grid;
+  grid-template-columns: 1.6rem minmax(0, 1fr);
+  gap: var(--space-3);
+  min-width: 0;
+  padding: 1.2rem 1.25rem 0.5rem 0;
+}
+
+.simple-why-reason + .simple-why-reason {
+  padding-left: 1.25rem;
+  border-left: 1px solid var(--line-strong);
+}
+
+.simple-why-reason h3 {
+  font-size: 1.2rem;
+}
+
+.simple-why-reason p {
+  font-size: 0.82rem;
+}
+
+.simple-why-changes {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  gap: clamp(2rem, 7vw, 7rem);
+  align-items: start;
+}
+
+.simple-why-changes h2,
+.simple-why-footer h2 {
+  max-width: 18ch;
+  margin: 0.45rem 0 0;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: clamp(1.85rem, 3.3vw, 3rem);
+  font-weight: 700;
+  letter-spacing: -0.05em;
+  line-height: 1;
+}
+
+.simple-why-change-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--line-strong);
+}
+
+.simple-why-change-list li {
+  padding: 1rem 0;
+  color: var(--soft);
+  border-bottom: 1px solid var(--line-strong);
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.simple-why-change-list li::before {
+  display: inline-block;
+  width: 1.5rem;
+  color: var(--accent-strong);
+  content: "↳";
+  font-family: var(--font-mono);
+}
+
+.simple-why-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2rem;
+  padding-block: 2.5rem 3.5rem;
+}
+
+.simple-why-footer .simple-actions {
+  flex-shrink: 0;
+  margin-top: 0;
+}
+
+@media (max-width: 900px) {
+  .simple-why,
+  .simple-why-hero {
+    width: min(calc(100% - 2rem), 44rem);
+  }
+
+  .simple-why-hero {
+    grid-template-columns: 1fr;
+    gap: 2.25rem;
+  }
+
+  .simple-why-hero h1 {
+    max-width: 18ch;
+  }
+
+  .simple-why-builder-grid {
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+
+  .simple-why-builder-result {
+    position: static;
+  }
+
+  .simple-why-scenario {
+    grid-template-columns: 5.5rem minmax(0, 1fr);
+  }
+
+  .simple-why-scenario-flow {
+    grid-column: 2;
+    padding: 0.25rem 0 0;
+    border-left: 0;
+  }
+
+  .simple-why-changes {
+    grid-template-columns: 1fr;
+    gap: 1.75rem;
+  }
+
+  .simple-why-footer {
+    display: grid;
+    gap: 1.25rem;
+  }
+
+  .simple-why-footer .simple-actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .simple-why-hero {
+    padding-block: 2.75rem 2.25rem;
+  }
+
+  .simple-why-hero h1 {
+    font-size: clamp(2.5rem, 12vw, 3.65rem);
+  }
+
+  .simple-why-scenario {
+    grid-template-columns: 1fr;
+    gap: 0.85rem;
+  }
+
+  .simple-why-builder-result {
+    min-height: 0;
+    padding: 1.35rem;
+  }
+
+  .simple-why-scenario-flow {
+    grid-column: auto;
+  }
+
+  .simple-why-reason-list {
+    grid-template-columns: 1fr;
+  }
+
+  .simple-why-reason,
+  .simple-why-reason + .simple-why-reason {
+    padding: 1rem 0;
+    border-left: 0;
+  }
+
+  .simple-why-footer .simple-actions {
+    display: grid;
+    justify-content: stretch;
+  }
+}
+
 /* Homepage overview and feature index: compact Plembfin surfaces. */
 .overview-page,
 .features-page {

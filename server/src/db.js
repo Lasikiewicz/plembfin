@@ -1269,6 +1269,19 @@ const migrations = [
       }
     },
   },
+  {
+    id: 42,
+    up(database) {
+      database.exec(`
+        CREATE TABLE IF NOT EXISTS up_next_library_items (
+          lookup_key TEXT PRIMARY KEY,
+          provider TEXT NOT NULL,
+          provider_item_id TEXT NOT NULL,
+          resolved_at INTEGER NOT NULL
+        );
+      `);
+    },
+  },
 ];
 
 function parseJsonValue(value, fallback) {

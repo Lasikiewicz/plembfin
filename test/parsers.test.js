@@ -160,6 +160,35 @@ test("zero-position UserData Played=false remains an unwatch", () => {
   assert.equal(parseJellyfinWebhook({ NotificationType: "UserDataSaved", Item: item }).phase, "unplayed");
 });
 
+test("Jellyfin play-start UserData Played=false at position 0 is not an unwatch", () => {
+  // Flat webhook-plugin payload as Jellyfin 12 sent it when a play started
+  // (Up Next matrix step 6 repeat, defect Q).
+  const payload = (saveReason) => ({
+    NotificationType: "UserDataSaved",
+    ItemType: "Episode",
+    Name: "Episode 2",
+    SeriesName: "Scot Squad",
+    SeasonNumber: 1,
+    EpisodeNumber: 2,
+    Provider_tvdb: "264603",
+    ItemId: "689a470f5e81f5a1ed01c7fe09354925",
+    Played: false,
+    PlayCount: 1,
+    PlaybackPositionTicks: 0,
+    LastPlayedDate: "2026-09-23T08:15:47.5987763Z",
+    SaveReason: saveReason,
+  });
+
+  for (const reason of ["PlaybackStart", "PlaybackProgress", "PlaybackFinished"]) {
+    assert.equal(parseJellyfinWebhook(payload(reason)).phase, "ignored", reason);
+  }
+  // A user unplay in Jellyfin, and a UserData write through the API, stay unwatches.
+  assert.equal(parseJellyfinWebhook({ ...payload("TogglePlayed"), PlayCount: 0, LastPlayedDate: undefined }).phase, "unplayed");
+  assert.equal(parseJellyfinWebhook(payload("UpdateUserData")).phase, "unplayed");
+  // Positive progress saved at play start is still partial playback.
+  assert.equal(parseJellyfinWebhook({ ...payload("PlaybackStart"), PlaybackPositionTicks: 3_000_000_000 }).phase, "ended");
+});
+
 test("episode webhooks prefer series provider ids for cross-app matching", async () => {
   const plex = await parsePlexWebhook(plexForm("media.scrobble", {
     type: "episode",

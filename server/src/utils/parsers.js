@@ -7,6 +7,7 @@ const PLEX_ACTIVE_EVENTS = ["media.play", "media.resume", "media.progress", "med
 const PLEX_COMPLETE_EVENTS = ["media.scrobble", "user.playrate"];
 const EMBY_ACTIVE_EVENTS = ["playback.start", "playback.unpause", "playback.progress", "playback.pause"];
 const JELLYFIN_ACTIVE_EVENTS = ["PlaybackStart", "PlaybackProgress", "PlaybackPause"];
+const JELLYFIN_PLAYBACK_SAVE_REASONS = ["playbackstart", "playbackprogress", "playbackfinished"];
 
 const NAMED_ENTITIES = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'" };
 
@@ -389,7 +390,14 @@ function phaseFromJellyfinEvent(event, json, item) {
   // Jellyfin uses the same UserData shape as Emby: positive progress is
   // persisted together with Played=false. Do not turn that ordinary partial
   // play into an explicit canonical unwatch.
-  if (userDataEvent && played === false) return positionMs > 0 ? "ended" : "unplayed";
+  if (userDataEvent && played === false && positionMs > 0) return "ended";
+  // Starting a play saves Played=false at position 0 (SaveReason PlaybackStart,
+  // and PlaybackProgress/PlaybackFinished near the start). That is playback
+  // bookkeeping, not the user unmarking the item: as an unwatch it restamped
+  // the playstate after the play began and blocked the play's own resume
+  // position. A user unplay arrives as TogglePlayed (or UpdateUserData).
+  if (userDataEvent && played === false && JELLYFIN_PLAYBACK_SAVE_REASONS.includes(String(json?.SaveReason || "").toLowerCase())) return "ignored";
+  if (userDataEvent && played === false) return "unplayed";
   if (compactEventKey === "playbackstop") return progress >= watchedThresholdPercent() ? "completed" : "ended";
   if (JELLYFIN_ACTIVE_EVENTS.map((activeEvent) => activeEvent.toLowerCase()).includes(eventKey)) return "active";
   return "ignored";

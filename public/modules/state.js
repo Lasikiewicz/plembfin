@@ -1,6 +1,6 @@
-import { readStoredAdminToken } from "./auth.js?v=1.2.1.0.0";
-import { readStoredDebugLogs } from "./logs.js?v=1.2.1.0.0";
-import { isDemoMode } from "./utils.js?v=1.2.1.0.0";
+import { readStoredAdminToken } from "./auth.js?v=1.2.1.0.1";
+import { readStoredDebugLogs } from "./logs.js?v=1.2.1.0.1";
+import { isDemoMode } from "./utils.js?v=1.2.1.0.1";
 
 const TOKEN_KEY = "adminToken";
 const LEGACY_UPPER_TOKEN_KEY = "ADMIN_TOKEN";
@@ -161,8 +161,8 @@ const initialState = {
   upNextErrorCode: "",
   upNextFromCache: false,
   upNextExitIds: [],
-  upNextPendingRemovalKeys: [],
-  upNextPendingWatchedRemovalKeys: [],
+  upNextPendingRemovals: [],
+  upNextPendingWatchedRemovals: [],
   upNextVersion: 0,
   upNextSourceVersion: "",
   upNextSourceStatus: [],

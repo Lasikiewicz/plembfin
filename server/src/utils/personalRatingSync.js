@@ -37,6 +37,7 @@ import {
   findCanonicalPersonalRating,
   finishPersonalRatingSyncRun,
   getCanonicalPersonalRating,
+  getOutstandingPersonalRatingIntent,
   getPersonalRatingSyncRun,
   getRatingSourceRow,
   listCanonicalPersonalRatings,
@@ -47,6 +48,7 @@ import {
   ratingQueueCounts,
   retryPersonalRatingQueue,
   startPersonalRatingSyncRun,
+  supersedePersonalRatingIntent,
   updatePersonalRatingSyncRun,
   updateRatingSourceSyncStatus,
   upsertCanonicalPersonalRating,
@@ -245,7 +247,7 @@ function providerDirections(config) {
 // Called by the personal-media route inside its existing SQLite transaction.
 // The queue is intentionally the only remote side effect of a local rating
 // write; no provider request is made on the request path.
-export function queuePersonalRatingMutation(media, rating, { config = {}, source = "manual", timestamp = Date.now() } = {}) {
+export function queuePersonalRatingMutation(media, rating, { config = {}, source = "manual", timestamp = Date.now(), providers = null } = {}) {
   const normalized = normalizePersonalRatingMedia(media);
   const settings = configForRating(config);
   if (!settings.ratingSync.enabled) return { queued: 0, providers: [] };
@@ -253,6 +255,7 @@ export function queuePersonalRatingMutation(media, rating, { config = {}, source
   const queuedProviders = [];
   const canonicalVersion = Number(timestamp) || Date.now();
   for (const provider of PERSONAL_RATING_PROVIDERS) {
+    if (Array.isArray(providers) && !providers.includes(provider)) continue;
     if (!directionAllows(settings.ratingSync.providers[provider], "send")) continue;
     if (!providerConfigured(settings, provider)) continue;
     ensureRatingSourceRow(provider, normalized, { now: canonicalVersion });
@@ -292,7 +295,7 @@ function queueImportedFanout(media, rating, sourceProvider, config, timestamp) {
   return queued;
 }
 
-function applyRemoteObservation({ provider, media, rating, previous, config, mode, now }) {
+function applyRemoteObservation({ provider, media, rating, previous, config, mode, now, remoteChangedAt }) {
   const settings = configForRating(config);
   if (mode !== "import" || !directionAllows(settings.ratingSync.providers[provider], "receive")) {
     return { changed: false, imported: false, cleared: false, conflict: false, queued: [] };
@@ -326,20 +329,50 @@ function applyRemoteObservation({ provider, media, rating, previous, config, mod
         },
       }, { mediaKey: existing.media_key })
     : media;
+  // The provider is reporting the value Plembfin itself last delivered to it,
+  // and nothing different has been observed from it since that delivery. It
+  // acknowledges our write; it is not a new remote change, so it must not
+  // restamp the canonical row or fan out again (manual provider matrix step 5,
+  // 22 September 2026: every delivery was re-imported on the next scan and
+  // re-queued to every other provider, resetting their retry backoff).
   const echo = Boolean(previous
     && previous.last_outbound_state === remoteState
-    && Number(previous.last_outbound_rating ?? 0) === Number(rating ?? 0));
-  const localIsNewer = Boolean(existing && (!previous || currentLocalTimestamp(existing) > Number(previous.last_inbound_at || 0)));
-  if (!echo && settings.ratingSync.conflictPolicy === "local_wins" && localIsNewer) {
-    updateRatingSourceSyncStatus(provider, media.media_key, "conflict", "Local rating retained over a newer remote observation");
+    && Number(previous.last_outbound_rating ?? 0) === Number(rating ?? 0)
+    && Number(previous.last_outbound_at || 0) >= Number(previous.last_inbound_at || 0));
+  if (echo) return { changed: false, imported: false, cleared: false, conflict: false, queued: [] };
+  if (existing && remoteState === "rated" && Number(existing.rating) === Number(rating)) {
+    return { changed: false, imported: false, cleared: false, conflict: false, queued: [] };
+  }
+
+  // A change detected on any connected app becomes canonical and fans out to
+  // every other one (maintainer decision, 22 September 2026) unless the local
+  // value is genuinely newer. Trakt exposes a real modified-time (see
+  // traktClient.js's `ratedAt`), so compare against it. Plex, Emby, and
+  // Jellyfin do not (docs/decisions.md): for those the local value is newer
+  // exactly when a local edit for this provider has not been delivered yet.
+  // Using the scan time as a stand-in timestamp made every local edit made
+  // before a scan lose to any older provider value, and the provider then got
+  // the stale local write anyway - leaving Plembfin and that provider diverged.
+  const remoteTimestamp = Number(remoteChangedAt) || 0;
+  const candidateKeys = [existing?.media_key, media.media_key];
+  const localIsNewer = Boolean(existing && (remoteTimestamp
+    ? currentLocalTimestamp(existing) > remoteTimestamp
+    : getOutstandingPersonalRatingIntent(provider, candidateKeys)));
+  if (settings.ratingSync.conflictPolicy === "local_wins" && localIsNewer) {
+    updateRatingSourceSyncStatus(provider, media.media_key, "conflict", "Local rating retained over an older remote observation");
     const localRating = Number(existing.rating);
     const queued = queuePersonalRatingMutation(remoteMedia, Number.isInteger(localRating) ? localRating : null, {
       config: settings,
       source: "reconcile",
       timestamp: currentLocalTimestamp(existing),
+      providers: [provider],
     }).providers;
     return { changed: true, imported: false, cleared: false, conflict: true, queued };
   }
+
+  // The provider's value is now canonical; an older undelivered local intent
+  // for that same provider must not be written back over it.
+  supersedePersonalRatingIntent(provider, candidateKeys);
 
   if (remoteState === "rated") {
     upsertCanonicalPersonalRating(remoteMedia, rating, { origin: "reconcile", timestamp: now });
@@ -431,9 +464,9 @@ async function runProviderSnapshot(provider, { config, mode, logger = () => {} }
         syncStatus: "synced",
       };
       const result = transaction(() => {
-        const reconciliation = applyRemoteObservation({ provider, media, rating: remoteRating, previous, config, mode, now });
+        const reconciliation = applyRemoteObservation({ provider, media, rating: remoteRating, previous, config, mode, now, remoteChangedAt: observation.remoteRatedAt });
         upsertRatingSourceObservation({ ...observation, syncStatus: reconciliation.conflict ? "conflict" : "synced" });
-        if (reconciliation.conflict) updateRatingSourceSyncStatus(provider, media.media_key, "conflict", "Local rating retained over a newer remote observation");
+        if (reconciliation.conflict) updateRatingSourceSyncStatus(provider, media.media_key, "conflict", "Local rating retained over an older remote observation");
         return reconciliation;
       });
       if (result.changed) changedCount += 1;
@@ -475,7 +508,7 @@ async function runProviderSnapshot(provider, { config, mode, logger = () => {} }
             lastInboundAt: now,
             syncStatus: reconciliation.conflict ? "conflict" : "synced",
           });
-          if (reconciliation.conflict) updateRatingSourceSyncStatus(provider, media.media_key, "conflict", "Local rating retained over a newer remote clear");
+          if (reconciliation.conflict) updateRatingSourceSyncStatus(provider, media.media_key, "conflict", "Local rating retained over an older remote clear");
           return reconciliation;
         });
         if (result.changed) changedCount += 1;

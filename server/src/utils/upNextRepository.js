@@ -1,6 +1,7 @@
 import { db, getDataVersion, bumpUpNextVersion, parseJson, toJson } from "../db.js";
 import { normalizeUpNextCandidate } from "./upNextIdentity.js";
 import { queueTmdbMetadataWarmup } from "./tmdbGateway.js";
+import { resolveSeriesIds } from "./seriesIdentity.js";
 
 const PROVIDERS = new Set(["plex", "emby", "jellyfin"]);
 const FEED_KINDS = new Set(["resume", "next_up"]);
@@ -231,8 +232,13 @@ function rowToCandidate(row) {
   });
 }
 
+// The stored snapshot reads back ordered by id while providers send recency
+// order, and feed order is never stored, so compare in id order.
 function contentSignature(items = []) {
-  return JSON.stringify(items.map((item) => ({
+  const ordered = [...items].sort((a, b) => (
+    String(a.provider_item_id) < String(b.provider_item_id) ? -1 : String(a.provider_item_id) > String(b.provider_item_id) ? 1 : 0
+  ));
+  return JSON.stringify(ordered.map((item) => ({
     provider: item.source,
     provider_item_id: item.provider_item_id,
     media_key: item.media_key,
@@ -290,14 +296,23 @@ export function startUpNextProviderFeed(provider, feedKind, { now = Date.now(), 
     item_count: Number(current?.item_count || 0),
     last_run_complete: 0,
     cursor_json: cursor == null ? current?.cursor_json || null : toJson(cursor),
-    last_error: null,
+    // Kept until this run ends: complete clears it and fail replaces it, so a
+    // completing run can tell that the previous one failed.
+    last_error: current?.last_error || null,
     retry_after: 0,
     updated_at: now,
   });
   return generation;
 }
 
-export function completeUpNextProviderFeed(provider, feedKind, generation, items = [], { now = Date.now(), cursor = null, triggerAutoSync = true } = {}) {
+export function completeUpNextProviderFeed(provider, feedKind, generation, items = [], {
+  now = Date.now(),
+  cursor = null,
+  triggerAutoSync = true,
+  // A read outside a push that finds a provider back still needs the push the
+  // outage skipped, even when feed changes must not queue one.
+  triggerOnRecovery = triggerAutoSync,
+} = {}) {
   const normalized = assertFeed(provider, feedKind);
   const state = selectFeedStateStmt.get(normalized.provider, normalized.feedKind);
   if (!state || Number(state.current_generation) !== Number(generation)) {
@@ -306,6 +321,9 @@ export function completeUpNextProviderFeed(provider, feedKind, generation, items
   const candidates = normalizedFeedItems(normalized.provider, normalized.feedKind, items, now);
   const before = selectActiveItemsForFeedStmt.all(normalized.provider, normalized.feedKind).map(rowToCandidate);
   const changed = contentSignature(before) !== contentSignature(candidates);
+  // A provider coming back with the same items is not a content change, but
+  // the automatic push skipped it while it was down and must now reach it.
+  const recovered = Boolean(state.last_error);
 
   db.transaction(() => {
     deleteFeedItemsStmt.run(normalized.provider, normalized.feedKind);
@@ -381,6 +399,9 @@ export function completeUpNextProviderFeed(provider, feedKind, generation, items
     bumpUpNextVersion();
     if (triggerAutoSync) queueAutomaticUpNextSync(`provider ${normalized.provider} ${normalized.feedKind} feed changed`);
   }
+  if (recovered && triggerOnRecovery && !(changed && triggerAutoSync)) {
+    queueAutomaticUpNextSync(`provider ${normalized.provider} ${normalized.feedKind} feed recovered`);
+  }
   return { changed, ignored: false, generation, itemCount: candidates.length };
 }
 
@@ -405,6 +426,24 @@ export function failUpNextProviderFeed(provider, feedKind, generation, error, { 
     updated_at: now,
   });
   return { ignored: false, generation, status: partial ? "partial" : "failed" };
+}
+
+// Feed episodes often carry only their own ids plus the native series handle
+// (Plex's modern agent sends no grandparent guids). Without series ids the
+// projection falls back to the title index, which gives a same-title show's
+// ids (Scrubs 2001 vs the 2026 reboot). Resolve the handle before storing so
+// the observation keeps the identity the media server itself gave it.
+export async function withUpNextFeedSeriesIdentity(provider, items = [], providerConfig = null, {
+  resolve = resolveSeriesIds,
+} = {}) {
+  if (!Array.isArray(items) || !providerConfig) return items;
+  return Promise.all(items.map(async (raw) => {
+    const candidate = normalizeUpNextCandidate({ provider, item: raw });
+    if (candidate.media_type !== "episode" || !candidate.series_provider_item_id) return raw;
+    if (candidate.show_imdb_id || candidate.show_tmdb_id || candidate.show_tvdb_id) return raw;
+    const seriesIds = await resolve(provider, candidate.series_provider_item_id, providerConfig);
+    return seriesIds ? { ...raw, show_ids: seriesIds } : raw;
+  }));
 }
 
 export function recordUpNextProviderFeed(provider, feedKind, items = [], options = {}) {

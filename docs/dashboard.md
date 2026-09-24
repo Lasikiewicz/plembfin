@@ -29,7 +29,10 @@ state stays transparent so it follows the surrounding surface in both themes. If
 connected media server cannot refresh its provider feed, the dashboard identifies that
 server, keeps the last usable queue visible, and offers a Retry connection action. The
 background scheduler retries only the affected provider every two minutes by default;
-the normal multi-provider catch-up remains on its longer cadence.
+the normal multi-provider catch-up remains on its longer cadence. An outage is noticed
+without waiting for either: when the Now Playing session poll (about every 45 seconds)
+cannot reach a server whose feeds last succeeded, that server's feeds are re-read at once
+(at most every two minutes per server), so the status line appears within about a minute.
 
 ### Up Next
 
@@ -38,13 +41,18 @@ The dashboard's Up Next section is a single mixed queue of movies and TV episode
 episodes from provider observations and a local cache-backed fallback. For TV shows, the media
 detail page's episode watch state is the source of truth: the first released episode not marked
 watched there is the only eligible next episode. Provider Resume/Next Up data may contribute
-native item IDs, artwork, and progress, but cannot jump past that episode. A local fallback
+native item IDs, artwork, and progress, but cannot jump past that episode. Two shows count as
+the same show only when no TMDB or TVDB show id disagrees, so a same-title reboot (Scrubs 2001
+and 2026) keeps its own next-up card and cannot hold back or replace the other show's; the
+one-card-per-show collapse of provider next-up rows splits on the same rule. A local fallback
 episode is included only when an active provider observation confirms that exact show and
 season/episode coordinate exists in a connected media-server library; local history and metadata
 alone do not create a Watch now card. Resume cards always come first and are ordered by authoritative
 progress-update time; next-up cards then prioritize the show whose episode was watched most
 recently, with show/season/episode order as the deterministic tie-breaker. A matching
-resume and next-up observation becomes one resume card. The builder is bounded to the most
+resume and next-up observation becomes one resume card. An episode listed in a provider's
+Continue Watching or Resume rail with no playback position (Plex lists the next episode there
+with no offset) is a `next_up` card, not a 0% resume; any real position keeps it a resume. The builder is bounded to the most
 recently active shows and a small number of candidate seasons, and reads TMDB/TVDB metadata
 only from SQLite. Missing or stale metadata is queued by library-added/provider-feed discovery
 and refreshed by the single background warm-up worker, so a dashboard render cannot create an
@@ -146,12 +154,21 @@ update, preserving its play count, watched flag, and resume position. Genuine pa
 never overwritten, and an item that is already part-watched is already on its provider's rail by
 that position alone.
 
-The push also reconciles stale entries on successful native target feeds that expose a removal
-API, and forwards known positive resume checkpoints. A failed or incomplete feed never triggers
-native-feed removals. Jellyfin Continue Watching is read only to protect genuine part-watched
-progress; it is not the Jellyfin queue being reconciled. Jellyfin Next Up is a calculated GET feed
-with no per-item write, so stale native entries are reported and left unchanged. Provider removal
-is also available as an explicit per-card action.
+The push also forwards known positive resume checkpoints. It only ever adds to the native rails:
+an entry the app lists but Plembfin's queue does not is reported as left in place and is never
+hidden, whether the push is automatic or started from the header (`docs/decisions.md` entry 36).
+Jellyfin Continue Watching is read only to protect genuine part-watched progress; it is not the
+Jellyfin queue being reconciled. It never adds a card, but when it lists an episode that already
+has a resume card it gives that card its Jellyfin item, so Watch now can open the exact episode
+there. Removing an item from an app's rail happens only as the direct
+result of your own Clear progress or Remove from up next action on that card.
+
+A provider whose every Up Next feed read failed in the same push is treated as unreachable: its
+rail is not refreshed and its result reports that it could not be reached, so an outage does not
+turn each automatic push into a search for every queued item. Known resume checkpoints are still
+attempted. An automatic push that reached every other provider counts as done for that queue, so
+the push does not repeat while the provider stays down; the first feed read that succeeds again
+queues a push, which refreshes the recovered provider's whole rail.
 
 Plembfin no longer maintains a managed `Plembfin Up Next` playlist on any provider; see
 `docs/decisions.md` entry 28. An installation upgraded from a build that created one keeps that
@@ -171,7 +188,10 @@ The local fallback can queue the detail page's first unwatched released episode 
 provider feed mentions it. Watch history only records a native provider item id once something
 has been played, so a next unwatched episode never carries one; the projection resolves it against
 the configured Plex, Emby, and Jellyfin libraries with the same lookup the push uses
-(`upNextLibraryLookup.js`), caching hits for six hours and misses for fifteen minutes. An episode
+(`upNextLibraryLookup.js`), caching hits for six hours and misses for fifteen minutes. A lookup that
+fails (the server is unreachable or returns an error) is not cached as a miss; instead that provider's
+lookups stand down for one minute, so an outage costs one failed request per minute rather than one
+per show on every rebuild, and cached answers keep being used meanwhile. An episode
 that no configured library contains is still not queued. A show manually added to Up Next is also
 eligible before its first watch, but a show whose current records are all explicit unwatch actions
 is excluded, so a deliberate clear cannot be resurrected by a stale Continue Watching or Next Up

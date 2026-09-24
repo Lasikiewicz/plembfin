@@ -70,6 +70,45 @@ test("Jellyfin inventory feeds request supported fields and preserve UserData", 
   }
 });
 
+test("Jellyfin resume feed reads the Resume endpoint, which lists a merged episode's non-primary version", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const paths = [];
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    paths.push(url.pathname);
+    // Jellyfin 12.0: Items?Filters=IsResumable omits the 720p version of a
+    // two-version episode; /Items/Resume lists it.
+    if (url.pathname.endsWith("/Items/Resume")) {
+      return jsonResponse({ Items: [{ Id: "version-720p", Type: "Episode", UserData: { PlaybackPositionTicks: 3e9 } }], TotalRecordCount: 1 });
+    }
+    return jsonResponse({ Items: [], TotalRecordCount: 0 });
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  const items = await fetchJellyfinResumableItems(config, { limit: 0 });
+  assert.deepEqual(items.map((item) => item.Id), ["version-720p"]);
+  assert.deepEqual(paths, ["/Users/jellyfin-user/Items/Resume"]);
+});
+
+test("Jellyfin resume feed falls back to the IsResumable query when the Resume route is missing", async (t) => {
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    if (url.pathname.endsWith("/Items/Resume")) return jsonResponse({}, 404);
+    if (url.searchParams.get("Filters") === "IsResumable") {
+      return jsonResponse({ Items: [{ Id: "legacy-resume", Type: "Movie" }], TotalRecordCount: 1 });
+    }
+    return jsonResponse({ Items: [] });
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  const items = await fetchJellyfinResumableItems(config, { limit: 0 });
+  assert.deepEqual(items.map((item) => item.Id), ["legacy-resume"]);
+
+  globalThis.fetch = async () => jsonResponse({}, 401);
+  await assert.rejects(fetchJellyfinResumableItems(config, { limit: 0 }), (error) => error.status === 401);
+});
+
 test("Jellyfin provider lookups do not send UserData as an ItemField", async (t) => {
   const originalFetch = globalThis.fetch;
   let requestUrl;

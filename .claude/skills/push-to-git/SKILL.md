@@ -146,7 +146,7 @@ Use this format - the first line becomes the changelog `message`; bullet-point b
 
 Types: `feat` (new feature), `fix` (bug fix), `security` (security change), `chore` (maintenance), `docs` (docs only).
 
-Keep bullet points to the 3-8 most significant user-visible changes. Skip internal refactors that don't affect behaviour.
+List every significant user-visible change as its own bullet. Skip internal refactors that don't affect behaviour.
 
 Keep release-process bookkeeping - such as consolidating changelog entries, trimming
 folded-in bullets, or resetting a branch build counter - out of release bullets. The
@@ -266,11 +266,9 @@ changelog" commit has no product bullets of its own and contributes nothing to t
 message. `git reset --soft` preserves the working tree exactly, so the changelog file step
 6 already rebuilt is included in this final commit untouched. In all-scope mode, if more
 than one *product* commit is being squashed, combine their bullet lists into one
-consolidated list using the same standard as step 4 (3-8 of the most significant
-user-visible changes; drop a bullet that just restates another one in the group more
-briefly) - this is exactly what turned one evening's worth of commits into a 38-bullet
-release note once (see `docs: consolidate v0.12.9 changelog entry into higher-level
-bullets` for the correction this required) - and re-run step 6 afterward so the rebuilt
+list that keeps every user-visible bullet (drop only a bullet that just restates another
+one in the group, and bullets about agent guidance or release tooling), and re-run step 6
+afterward so the rebuilt
 entry reflects the final, consolidated message rather than the pre-squash one.
 
 ### 8 - Push

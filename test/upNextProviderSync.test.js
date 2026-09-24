@@ -26,7 +26,7 @@ test("disabled Up Next provider sync returns without contacting media servers", 
   }
 });
 
-test("Up Next provider reconciliation preserves visible ids and dismisses only stale removable resume items", () => {
+test("Up Next provider reconciliation preserves visible ids and retains native items missing from the queue", () => {
   const plan = planUpNextProviderSync({
     desiredItems: [
       { provider_items: { plex: ["plex-keep"], emby: ["emby-keep"], jellyfin: ["jelly-keep"] } },
@@ -57,13 +57,15 @@ test("Up Next provider reconciliation preserves visible ids and dismisses only s
     emby: ["emby-keep"],
     jellyfin: ["jelly-keep"],
   });
-  assert.deepEqual(plan.dismissals, [{
+  // Absence from Plembfin's queue is not evidence the user is done with an
+  // item, so the plan never contains a dismissal (decisions entry 36).
+  assert.equal("dismissals" in plan, false);
+  assert.deepEqual(plan.retained, [{
     provider: "plex",
     feed_kind: "resume",
     provider_item_id: "plex-remove",
     title: "Remove",
   }]);
-  assert.deepEqual(plan.unsupported, []);
 });
 
 test("native Emby Next Up is observation-only when Emby Continue Watching is the target rail", () => {
@@ -81,8 +83,7 @@ test("native Emby Next Up is observation-only when Emby Continue Watching is the
     }],
   });
 
-  assert.deepEqual(plan.dismissals, []);
-  assert.deepEqual(plan.unsupported, []);
+  assert.deepEqual(plan.retained, []);
 });
 
 test("Jellyfin Continue Watching protects real progress while Jellyfin Next Up is reconciled", () => {
@@ -109,8 +110,7 @@ test("Jellyfin Continue Watching protects real progress while Jellyfin Next Up i
     ],
   });
 
-  assert.deepEqual(plan.dismissals, []);
-  assert.deepEqual(plan.unsupported, [{
+  assert.deepEqual(plan.retained, [{
     provider: "jellyfin",
     feed_kind: "next_up",
     provider_item_id: "jelly-next-extra",
@@ -118,7 +118,7 @@ test("Jellyfin Continue Watching protects real progress while Jellyfin Next Up i
   }]);
 });
 
-test("pushing the merged Up Next rail dismisses stale native entries on Plex and Emby", async (t) => {
+test("pushing the merged Up Next rail never hides native entries missing from Plembfin's queue", async (t) => {
   const originalFetch = globalThis.fetch;
   const calls = [];
   globalThis.fetch = async (input, options = {}) => {
@@ -219,22 +219,18 @@ test("pushing the merged Up Next rail dismisses stale native entries on Plex and
   });
 
   assert.deepEqual(summary.pushedProviders, ["plex", "emby"]);
-  assert.deepEqual(summary.providerDismissals.map(({ provider, feed_kind, provider_item_id, status }) => ({
-    provider,
-    feed_kind,
-    provider_item_id,
-    status,
-  })), [
-    { provider: "plex", feed_kind: "resume", provider_item_id: "plex-stale", status: "fulfilled" },
-    { provider: "emby", feed_kind: "resume", provider_item_id: "emby-stale", status: "fulfilled" },
+  // The stale entries may be items the user just started in the app that
+  // Plembfin has not ingested yet; the push leaves them in place.
+  assert.equal("providerDismissals" in summary, false);
+  assert.deepEqual(summary.retained, [
+    { provider: "plex", feed_kind: "resume", title: "Plex stale item" },
+    { provider: "emby", feed_kind: "resume", title: "Emby stale item" },
   ]);
   const mutations = calls.filter(({ options }) => options.method !== "GET");
   const mutationKeys = mutations.map(({ url, options }) => `${options.method} ${url.pathname}`);
-  assert.ok(mutationKeys.includes("PUT /actions/removeFromContinueWatching"));
-  assert.ok(mutationKeys.includes("POST /Users/emby-user/Items/emby-stale/HideFromResume"));
+  assert.deepEqual(mutationKeys.filter((key) => /removeFromContinueWatching|HideFromResume/.test(key)), []);
   // The push writes to the native feeds only; there is no managed provider list.
   assert.deepEqual(mutationKeys.filter((key) => /playlist/i.test(key)), []);
-  assert.deepEqual(summary.unsupported, []);
   assert.deepEqual(summary.feeds.map((feed) => [feed.provider, feed.feed_kind, feed.status]), [
     ["plex", "resume", "succeeded"],
     ["emby", "resume", "succeeded"],
@@ -271,6 +267,60 @@ test("configured Jellyfin takes part in the Up Next push", async () => {
   }
 });
 
+// Seen live in the step 7 offline run: with Jellyfin stopped, every automatic
+// push still resolved each queue item against it (twice, as "request failed"
+// is treated as transient) and walked its rail, hundreds of failed requests
+// per run.
+test("a provider whose every feed read failed is not pushed to in that run", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const originalError = console.error;
+  const calls = [];
+  globalThis.fetch = async (input) => {
+    const url = new URL(String(input));
+    calls.push(url);
+    if (url.hostname === "jellyfin.test") return new Response("Not Found", { status: 404 });
+    return new Response(JSON.stringify({ Items: [] }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  console.error = () => {};
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+    console.error = originalError;
+  });
+
+  const summary = await syncUpNextToProviders({
+    desiredItems: [1, 2, 3].map((n) => ({
+      id: `offline-${n}`,
+      media_key: `offline-${n}`,
+      media_type: "episode",
+      title: `Offline Show ${n} - S01E02`,
+      show_title: `Offline Show ${n}`,
+      show_ids: { tvdb: String(9100 + n) },
+      season: 1,
+      episode: 2,
+    })),
+    config: {
+      emby: { baseUrl: "http://emby.test", apiKey: "emby-key", userId: "emby-user" },
+      jellyfin: { baseUrl: "http://jellyfin.test", apiKey: "jellyfin-key", userId: "jelly-user" },
+    },
+  });
+
+  assert.deepEqual(summary.feeds
+    .filter((feed) => feed.provider === "jellyfin")
+    .map((feed) => feed.status), ["failed", "failed"]);
+  const jellyfinRail = summary.providerRails.find((entry) => entry.provider === "jellyfin");
+  assert.equal(jellyfinRail.status, "failed");
+  assert.match(jellyfinRail.reason, /could not be reached/);
+  assert.equal(summary.pushedProviders.includes("jellyfin"), false);
+  // Only the feed reads reached Jellyfin: no item search or rail walk.
+  assert.deepEqual(calls
+    .filter((url) => url.hostname === "jellyfin.test")
+    .filter((url) => url.searchParams.has("AnyProviderIdEquals") || url.searchParams.has("SearchTerm")), []);
+  // Emby answered, so it is still resolved and pushed.
+  assert.ok(calls.some((url) => url.hostname === "emby.test"
+    && (url.searchParams.has("AnyProviderIdEquals") || url.searchParams.has("SearchTerm"))));
+  assert.notEqual(summary.providerRails.find((entry) => entry.provider === "emby")?.reason, jellyfinRail.reason);
+});
+
 test("the Jellyfin push writes no synthetic resume position", async (t) => {
   const originalFetch = globalThis.fetch;
   const calls = [];
@@ -304,6 +354,44 @@ test("the Jellyfin push writes no synthetic resume position", async (t) => {
   assert.deepEqual(calls.filter(({ url }) => /playlist/i.test(url.pathname)), []);
   assert.equal(summary.providerRails.find((entry) => entry.provider === "jellyfin")?.refreshed_count, 0);
   assert.equal(calls.some(({ url, method }) => method === "POST" && /\/Items\/jelly-keep\/UserData$/.test(url.pathname)), false);
+});
+
+// Verified live in the step 2 repeat: an automatic sync whose projection was
+// built just before Clear progress wrote the cleared 245s back everywhere.
+test("a stale automatic sync does not push resume positions built before a canonical change", async (t) => {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (input, options = {}) => {
+    calls.push({ url: new URL(String(input)), method: String(options.method || "GET").toUpperCase() });
+    if (options.method && options.method !== "GET") return new Response(null, { status: 204 });
+    return new Response(JSON.stringify({ Items: [] }), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+
+  const resume = {
+    id: "scrubs-s01e04",
+    media_key: "episode:1:4:imdb:tt0285403",
+    media_type: "episode",
+    queue_kind: "resume",
+    title: "Scrubs - S01E04",
+    show_title: "Scrubs",
+    season: 1,
+    episode: 4,
+    position_ms: 245_000,
+    duration_ms: 1_331_349,
+    progress: 18.4,
+    provider_items: { jellyfin: ["0f292f2c"] },
+  };
+  const summary = await syncUpNextToProviders({
+    desiredItems: [resume],
+    config: { jellyfin: { baseUrl: "http://jellyfin.test", apiKey: "jellyfin-key", userId: "jelly-user" } },
+    isStale: () => true,
+  });
+
+  assert.equal(summary.progress.length, 1);
+  assert.equal(summary.progress[0].status, "skipped");
+  assert.match(summary.progress[0].details, /changed after the queue was built/);
+  assert.equal(calls.some(({ url }) => /0f292f2c/.test(url.pathname) && /UserData|Playing/.test(url.pathname)), false);
 });
 
 test("a legacy Jellyfin rail seed is cleared while the watched predecessor refreshes Next Up", async (t) => {
@@ -359,7 +447,7 @@ test("a legacy Jellyfin rail seed is cleared while the watched predecessor refre
     if (method === "POST") return new Response(null, { status: 204 });
 
     let response = { Items: [] };
-    if (url.pathname === "/Users/jelly-user/Items" && url.searchParams.get("Filters") === "IsResumable") {
+    if (url.pathname === "/Users/jelly-user/Items/Resume") {
       response = { Items: [{ ...episodes[2] }], TotalRecordCount: 1 };
     } else if (url.pathname === "/Shows/NextUp") {
       response = { Items: [{ ...episodes[2] }] };
@@ -453,6 +541,8 @@ test("the native rail refresh applies to Plex, Emby, and Jellyfin", async (t) =>
       body = { Items: [{ Id: "emby-series", Type: "Series", Name: "Native Refresh", ProviderIds: { Tmdb: "native-refresh" } }] };
     } else if (url.hostname === "emby-native.test" && url.pathname === "/Users/emby-user/Items" && url.searchParams.get("ParentId") === "emby-series") {
       body = { Items: episodes.emby, TotalRecordCount: episodes.emby.length };
+    } else if (url.hostname === "emby-native.test" && url.pathname === "/Users/emby-user/Items/emby-target") {
+      body = { Id: "emby-target", UserData: { Played: false, PlayCount: 3, PlaybackPositionTicks: 0, LastPlayedDate: "2026-09-22T19:35:42.0000000Z" } };
     } else if (url.hostname === "jelly-native.test" && url.pathname === "/Users/jelly-user/Items" && url.searchParams.get("AnyProviderIdEquals")) {
       body = { Items: [{ Id: "jelly-series", Type: "Series", Name: "Native Refresh", ProviderIds: { Tmdb: "native-refresh" } }] };
     } else if (url.hostname === "jelly-native.test" && url.pathname === "/Users/jelly-user/Items" && url.searchParams.get("ParentId") === "jelly-series") {
@@ -499,6 +589,14 @@ test("the native rail refresh applies to Plex, Emby, and Jellyfin", async (t) =>
   assert.deepEqual(embyRailCalls.map((call) => call.url.pathname), ["/Sessions/Playing", "/Sessions/Playing/Progress", "/Sessions/Playing/Stopped"]);
   assert.ok(embyRailCalls.every((call) => JSON.parse(call.body).PositionTicks === 0), "the Emby rail touch never writes resume progress");
   assert.ok(embyRailCalls.every((call) => call.body.includes("plembfin-up-next-refresh-emby-target")), "the Emby rail touch uses the reserved refresh session");
+  // Each session raises Emby's PlayCount (docs/decisions.md, Emby rail seeding).
+  // Verified live in matrix step 4: without the restore every automatic run
+  // added a play to the next-up item (0 -> 1 -> 2 on 2001 Scrubs S01E06).
+  const stopped = calls.find((call) => call.method === "POST" && call.url.pathname === "/Sessions/Playing/Stopped" && call.url.hostname === "emby-native.test");
+  const restore = calls.find((call) => call.method === "POST" && call.url.hostname === "emby-native.test" && call.url.pathname === "/Users/emby-user/Items/emby-target/UserData");
+  assert.ok(restore, "the Emby rail touch restores the item's UserData");
+  assert.ok(calls.indexOf(stopped) < calls.indexOf(restore), "the restore follows the session");
+  assert.deepEqual(JSON.parse(restore.body), { PlayCount: 3, Played: false, PlaybackPositionTicks: 0, LastPlayedDate: "2026-09-22T19:35:42.0000000Z" });
   assert.ok(calls.some((call) => call.method === "DELETE" && call.url.hostname === "jelly-native.test" && call.url.pathname.endsWith("/PlayedItems/jelly-prev")));
   assert.ok(calls.some((call) => call.method === "POST" && call.url.hostname === "jelly-native.test" && call.url.pathname.endsWith("/PlayedItems/jelly-prev")));
 });
@@ -578,6 +676,90 @@ test("a new season uses the watched final episode of the previous season as its 
   assert.ok(calls.some((call) => call.method === "GET" && call.url.hostname === "plex-boundary.test" && call.url.pathname === "/:/scrobble" && call.url.searchParams.get("key") === "plex-s1e2"));
   assert.ok(calls.some((call) => call.method === "DELETE" && call.url.hostname === "emby-boundary.test" && call.url.pathname.endsWith("/PlayedItems/emby-s1e2")));
   assert.ok(calls.some((call) => call.method === "DELETE" && call.url.hostname === "jelly-boundary.test" && call.url.pathname.endsWith("/PlayedItems/jelly-s1e2")));
+});
+
+function unwatchRaceFixture(t, seriesTmdb, { onPlayedWrite = null } = {}) {
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  const host = `jelly-${seriesTmdb}.test`;
+  const episodes = [
+    { Id: `${seriesTmdb}-e1`, Type: "Episode", Name: "E1", SeriesName: "Unwatch Race", ParentIndexNumber: 1, IndexNumber: 1, PremiereDate: "2025-01-01", UserData: { Played: true, PlaybackPositionTicks: 0, LastPlayedDate: "2025-01-03T10:00:00.000Z" } },
+    { Id: `${seriesTmdb}-e2`, Type: "Episode", Name: "E2", SeriesName: "Unwatch Race", ParentIndexNumber: 1, IndexNumber: 2, PremiereDate: "2025-01-02", UserData: { Played: false, PlaybackPositionTicks: 0 } },
+  ];
+  globalThis.fetch = async (input, options = {}) => {
+    const url = new URL(String(input));
+    const method = String(options.method || "GET").toUpperCase();
+    calls.push({ url, method });
+    if (method === "POST" && url.pathname.endsWith(`/PlayedItems/${seriesTmdb}-e1`)) await onPlayedWrite?.();
+    if (method !== "GET") return new Response(null, { status: 204 });
+    let body = { Items: [] };
+    if (url.searchParams.get("AnyProviderIdEquals")) {
+      body = { Items: [{ Id: `${seriesTmdb}-series`, Type: "Series", Name: "Unwatch Race", ProviderIds: { Tmdb: seriesTmdb } }] };
+    } else if (url.searchParams.get("ParentId") === `${seriesTmdb}-series`) {
+      body = { Items: episodes, TotalRecordCount: episodes.length };
+    }
+    return new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+  };
+  t.after(() => { globalThis.fetch = originalFetch; });
+  return {
+    calls,
+    host,
+    run: () => refreshProviderRail({
+      provider: "jellyfin",
+      config: { jellyfin: { baseUrl: `http://${host}`, apiKey: "jelly-key", userId: "jelly-user" } },
+      targets: [{
+        providerItemId: `${seriesTmdb}-e2`,
+        item: { media_type: "episode", title: "Unwatch Race - S01E02", show_title: "Unwatch Race", season: 1, episode: 2, show_tmdb_id: seriesTmdb, position_ms: 0 },
+      }],
+    }),
+  };
+}
+
+test("the native rail refresh never restamps a predecessor Plembfin has as unwatched", async (t) => {
+  const { setPlaystateForMediaIdentitySync } = await import("../server/src/utils/dataRepo.js");
+  // The queue still lists E02 as next up, but E01 was marked unwatched after
+  // the queue was built and before Jellyfin's inventory caught up (defect O).
+  setPlaystateForMediaIdentitySync({
+    title: "Unwatch Race - S01E01", show_title: "Unwatch Race", type: "episode", media_type: "episode",
+    season: 1, episode: 1, ids: { tmdb: "race-skip" }, source: "manual",
+  }, "unwatched");
+  const { calls, run } = unwatchRaceFixture(t, "race-skip");
+
+  const result = await run();
+
+  assert.equal(result.refreshed_count, 0);
+  assert.equal(result.results[0].status, "skipped");
+  assert.match(result.results[0].reason, /unwatched/);
+  assert.equal(calls.filter((call) => call.method !== "GET").length, 0, "no played or unplayed write reaches Jellyfin");
+});
+
+test("an unwatch that lands during the rail restamp is sent to the provider again", async (t) => {
+  const { setPlaystateForMediaIdentitySync } = await import("../server/src/utils/dataRepo.js");
+  const media = {
+    title: "Unwatch Race - S01E01", show_title: "Unwatch Race", type: "episode", media_type: "episode",
+    season: 1, episode: 1, ids: { tmdb: "race-during" }, source: "manual",
+  };
+  setPlaystateForMediaIdentitySync(media, "watched", "2025-01-03T10:00:00.000Z");
+  const { calls, run } = unwatchRaceFixture(t, "race-during", {
+    onPlayedWrite: () => setPlaystateForMediaIdentitySync(media, "unwatched"),
+  });
+
+  const result = await run();
+
+  const writes = calls
+    .filter((call) => call.method !== "GET" && call.url.pathname.includes("/PlayedItems/"))
+    .map((call) => call.method);
+  assert.deepEqual(writes, ["DELETE", "POST", "DELETE"], "the restamp is followed by the canonical unwatch");
+  assert.equal(result.results[0].predecessor_unwatched_during_refresh, true);
+  assert.equal(result.results[0].predecessor_unwatch_restored, true);
+
+  // The toggle's own callbacks are marked by item id so the webhook consumes
+  // them (defect AG); the target and other items are not covered.
+  const { isRecentOutboundRailRefresh } = await import("../server/src/utils/syncOrchestrator.js");
+  const { createLoopStore } = await import("../server/src/utils/loopStore.js");
+  assert.equal(await isRecentOutboundRailRefresh({ itemId: "race-during-e1" }, "jellyfin", createLoopStore()), true);
+  assert.equal(await isRecentOutboundRailRefresh({ itemId: "race-during-e1" }, "emby", createLoopStore()), false);
+  assert.equal(await isRecentOutboundRailRefresh({ itemId: "race-during-e2" }, "jellyfin", createLoopStore()), false);
 });
 
 test("Plex native rail refresh does not touch Plex when historical sync is disabled", async (t) => {

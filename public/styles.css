@@ -7,7 +7,7 @@
   font-style: normal;
   font-display: swap;
   font-weight: 100 900;
-  src: url("/fonts/outfit-latin-ext-wght-normal.woff2?v=1.2.1.0.0") format("woff2");
+  src: url("/fonts/outfit-latin-ext-wght-normal.woff2?v=1.2.1.0.1") format("woff2");
   unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
 }
 
@@ -16,7 +16,7 @@
   font-style: normal;
   font-display: swap;
   font-weight: 100 900;
-  src: url("/fonts/outfit-latin-wght-normal.woff2?v=1.2.1.0.0") format("woff2");
+  src: url("/fonts/outfit-latin-wght-normal.woff2?v=1.2.1.0.1") format("woff2");
   unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
 }
 
@@ -25,7 +25,7 @@
   font-style: normal;
   font-display: swap;
   font-weight: 100 800;
-  src: url("/fonts/jetbrains-mono-latin-ext-wght-normal.woff2?v=1.2.1.0.0") format("woff2");
+  src: url("/fonts/jetbrains-mono-latin-ext-wght-normal.woff2?v=1.2.1.0.1") format("woff2");
   unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
 }
 
@@ -34,7 +34,7 @@
   font-style: normal;
   font-display: swap;
   font-weight: 100 800;
-  src: url("/fonts/jetbrains-mono-latin-wght-normal.woff2?v=1.2.1.0.0") format("woff2");
+  src: url("/fonts/jetbrains-mono-latin-wght-normal.woff2?v=1.2.1.0.1") format("woff2");
   unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
 }
 
@@ -871,8 +871,8 @@ h2 {
 
 .media-detail-page .immersive-header {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
-  gap: clamp(1rem, 2.5vw, 2rem);
+  grid-template-columns: auto minmax(0, 3fr) minmax(0, 2fr);
+  gap: clamp(1rem, 2.5vw, 2.5rem);
   align-items: stretch;
   align-content: start;
   margin-top: 0;
@@ -1030,12 +1030,37 @@ a.media-fact-chip:hover {
   height: 100%;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  flex: 1 1 auto;
+  min-height: 0;
+  justify-content: space-between;
+}
+
+.immersive-sidebar .media-facts-details::details-content {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  height: 100%;
+  min-height: 0;
+  justify-content: space-between;
+}
+
+@media (min-width: 761px) {
+  .immersive-sidebar .media-facts-details {
+    display: contents !important;
+  }
+
+  .immersive-sidebar .media-facts-details::details-content {
+    display: contents !important;
+  }
+
+  .immersive-sidebar .media-facts-summary {
+    display: none !important;
+  }
 }
 
 .media-detail-page .immersive-header:has(.immersive-sidebar) {
-  grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
-  gap: clamp(1rem, 2.5vw, 2rem);
+  grid-template-columns: auto minmax(0, 3fr) minmax(0, 2fr);
+  gap: clamp(1rem, 2.5vw, 2.5rem);
 }
 
 .media-detail-page .immersive-header .immersive-sidebar {
@@ -1043,50 +1068,266 @@ a.media-fact-chip:hover {
   grid-row: 1;
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
   align-self: stretch;
   justify-self: stretch;
   width: 100%;
   height: 100%;
+  min-height: 0;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
 }
 
-.media-detail-page .media-facts-rail--sidebar {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3) var(--space-4);
-  align-self: start;
-  justify-self: stretch;
-  margin-top: 0;
-  padding-top: 0;
+.media-facts-panel {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  width: 100%;
+  height: 100%;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.media-facts-top-group {
+  display: flex;
+  flex-direction: column;
   width: 100%;
 }
 
-.media-facts-rail--sidebar {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-3) var(--space-3);
-  align-self: center;
-  justify-self: center;
+.media-fact-table {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.media-fact-table-row {
+  display: grid;
+  grid-template-columns: 130px 1fr;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  align-items: center;
+}
+
+.media-fact-table-label {
+  padding: 0.65rem 0.9rem 0.65rem 0;
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--muted, #94a3b8);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.media-fact-table-value {
+  padding: 0.65rem 0 0.65rem 0.9rem;
+  color: var(--text, #ffffff);
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.media-facts-group {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.media-facts-group--available {
+  margin-top: 1.1rem;
+}
+
+.media-facts-bottom-group {
+  margin-top: auto;
+  padding-top: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  width: 100%;
+}
+
+.media-facts-bottom-group .media-facts-group--available,
+.media-facts-bottom-group .media-facts-group--watch-now,
+.media-facts-bottom-group .media-facts-group--ratings {
   margin-top: 0;
-  padding-top: 0;
-  width: min(100%, 620px);
 }
 
-.media-facts-rail--sidebar .media-fact:last-child:nth-child(odd) {
-  grid-column: 1 / -1;
+.media-facts-group--watch-now {
+  margin-top: 0.9rem;
 }
 
-.media-facts-rail--sidebar .media-fact--wide {
-  grid-column: 1 / -1;
+.media-facts-group--ratings {
+  margin-top: 1rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.45rem;
 }
 
-/* Unlike the wider desktop facts rail, this card is only two columns, so
-   forcing Genres/Network/Streaming onto their own full-width row (as the
-   rules above do) wasted the whole second column on short values and threw
-   off the row-divider alignment below. Let every fact flow naturally in the
-   default (non-bio) detail layout instead - long values still wrap fine.
-   The bio layout's centered variant keeps the full-span behavior above. */
-.media-detail-page .immersive-header > .immersive-sidebar .media-facts-rail--sidebar .media-fact--wide,
-.media-detail-page .immersive-header > .immersive-sidebar .media-facts-rail--sidebar .media-fact:last-child:nth-child(odd) {
-  grid-column: auto;
+.media-facts-group-label {
+  color: var(--muted, #94a3b8);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.media-facts-group-content {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* Provider tile icons */
+.media-provider-list {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.media-provider-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  padding: 0;
+  border-radius: 8px;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  text-decoration: none;
+  overflow: hidden;
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.media-provider-tile:hover {
+  background: transparent !important;
+  border: none !important;
+  filter: brightness(1.2);
+  transform: translateY(-1px);
+}
+
+.media-provider-icon {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  border-radius: 5px;
+}
+
+.media-provider-tile--text,
+.media-provider-name {
+  width: auto;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: var(--text, #ffffff);
+}
+
+/* Watch now badges - no border, no background */
+.media-facts-group--watch-now .media-app-links {
+  width: auto;
+}
+
+.media-facts-group--watch-now .media-app-link-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.media-facts-group--watch-now .media-app-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: auto;
+  padding: 0.2rem 0.5rem 0.2rem 0;
+  border-radius: 4px;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: var(--text, #ffffff);
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-decoration: none;
+  transition: opacity 0.15s ease, filter 0.15s ease, transform 0.15s ease;
+}
+
+.media-facts-group--watch-now .media-app-link:hover {
+  background: transparent !important;
+  border: none !important;
+  filter: brightness(1.25);
+  transform: translateY(-1px);
+}
+
+.media-facts-group--watch-now .media-app-link-logo {
+  width: 1.35rem;
+  height: 1.35rem;
+  object-fit: contain;
+  flex: 0 0 auto;
+}
+
+/* Ratings row - no border, no background, logo + rating format */
+.media-ratings-row {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.media-ratings-row .rating-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-height: auto;
+  padding: 0.2rem 0.4rem 0.2rem 0;
+  border-radius: 4px;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  color: var(--text, #ffffff) !important;
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity 0.15s ease, filter 0.15s ease, transform 0.15s ease;
+}
+
+.media-ratings-row .rating-pill:hover {
+  background: transparent !important;
+  border: none !important;
+  filter: brightness(1.25);
+  transform: translateY(-1px);
+}
+
+.media-ratings-row .rating-pill-icon {
+  width: auto;
+  height: 1.35rem;
+  max-width: 2.5rem;
+  object-fit: contain;
+  border-radius: 3px;
+  flex: 0 0 auto;
+}
+
+.media-ratings-row .rating-pill--personal {
+  padding: 0.2rem 0;
+  color: var(--muted, #94a3b8) !important;
+}
+
+.media-ratings-row .rating-pill--personal:hover {
+  color: var(--accent, #38bdf8) !important;
+}
+
+.media-ratings-row .rating-pill--personal.has-rating {
+  color: var(--accent, #38bdf8) !important;
 }
 
 .media-facts-details {
@@ -1560,18 +1801,19 @@ body.demo-mode #manualWatchReviewButton {
     display: inline-flex; /* Show toggle button on mobile */
   }
 
-  .media-facts-details[open] .media-facts-rail--sidebar {
+  .media-facts-details[open] .media-facts-rail--sidebar,
+  .media-facts-details[open] .media-facts-panel {
     margin-top: var(--space-3);
+  }
+
+  .media-fact-table-row {
+    grid-template-columns: 110px 1fr;
   }
 }
 
 @media (min-width: 761px) and (max-width: 1180px) {
   .media-detail-page .immersive-header:has(.immersive-sidebar) {
-    grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr);
-  }
-
-  .media-facts-rail--sidebar {
-    grid-template-columns: 1fr;
+    grid-template-columns: auto minmax(0, 3fr) minmax(0, 2fr);
   }
 }
 
@@ -1854,7 +2096,7 @@ body.demo-mode #manualWatchReviewButton {
 }
 
 .settings-modal.up-next-dismissed-modal {
-  width: min(1600px, 98vw);
+  width: min(2200px, 98vw);
 }
 
 .up-next-dismissed-intro {
@@ -1865,16 +2107,16 @@ body.demo-mode #manualWatchReviewButton {
 
 .up-next-dismissed-card-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: var(--space-2);
   margin: 0;
   padding: 0;
 }
 
 .shared-media-card--up-next-dismissed {
-  justify-self: start;
+  justify-self: stretch;
   width: 100%;
-  max-width: min(100%, 20rem);
+  min-width: 0;
   min-height: 11rem;
 }
 
@@ -1917,6 +2159,18 @@ body.demo-mode #manualWatchReviewButton {
     animation: none;
     opacity: 0.7;
     transform: none;
+  }
+}
+
+@media (max-width: 1500px) {
+  .up-next-dismissed-card-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1200px) {
+  .up-next-dismissed-card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 
@@ -2899,6 +3153,72 @@ html.light-mode .theme-aware-icon-set .theme-aware-icon--dark {
 .import-terminal.compact-terminal {
   min-height: 5.5rem;
   max-height: 9rem;
+}
+
+/* Settings -> Tools -> Database Repairs -> Watch-State Aliases */
+.playstate-alias-list {
+  display: grid;
+  gap: var(--space-3);
+  margin-top: var(--space-2);
+}
+
+.playstate-alias-show {
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  padding: var(--space-3);
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.playstate-alias-show h4 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.playstate-alias-ids,
+.playstate-alias-note {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  overflow-wrap: anywhere;
+}
+
+.playstate-alias-warning {
+  margin: 0;
+  color: var(--yellow);
+  font-size: 0.85rem;
+}
+
+.playstate-alias-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+  font-size: 0.85rem;
+}
+
+.playstate-alias-rows li {
+  display: grid;
+  grid-template-columns: 4.5rem minmax(0, 1fr) minmax(0, 1fr);
+  gap: var(--space-2);
+  overflow-wrap: anywhere;
+}
+
+.playstate-alias-rows li small {
+  grid-column: 2 / -1;
+  color: var(--muted);
+}
+
+@media (max-width: 760px) {
+  .playstate-alias-rows li {
+    grid-template-columns: 4rem minmax(0, 1fr);
+  }
+
+  .playstate-alias-rows li > span:nth-child(3) {
+    grid-column: 2;
+  }
 }
 
 #tautulliPreviewSummary,
@@ -22061,25 +22381,29 @@ html.light-mode .settings-pane .drop-zone:hover {
 }
 
 .upcoming-month-controls {
-  display: grid;
-  grid-template-columns: auto auto auto auto;
+  display: flex;
   align-items: center;
-  gap: 0.5rem;
+  gap: 0.35rem;
   min-width: 0;
 }
 
 .upcoming-month-title {
-  font-size: 1rem;
+  font-size: 0.81rem;
   font-weight: 800;
-  min-width: 10.5rem;
+  line-height: 1.2;
+  min-width: 0;
+  padding: 0 0.35rem;
   text-align: center;
   white-space: nowrap;
 }
 
 .upcoming-nav-button {
-  min-width: 2.4rem;
-  font-size: 1.1rem;
-  line-height: 1;
+  min-width: 0;
+  min-height: 1.8rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.81rem;
+  font-weight: 800;
+  line-height: 1.2;
 }
 
 .upcoming-search-field {
@@ -22488,9 +22812,12 @@ html.light-mode .upcoming-week-day {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-width: 2.75rem;
-  min-height: 2.75rem;
-  padding: 0.5rem;
+  gap: 0.35rem;
+  min-height: 1.8rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.81rem;
+  font-weight: 800;
+  line-height: 1.2;
   list-style: none;
 }
 
@@ -22688,8 +23015,10 @@ body .page-topbar-actions:has(.upcoming-search-dropdown[open]) {
   }
 
   body .page-topbar-actions .upcoming-month-controls {
-    grid-template-columns: 2.4rem minmax(8rem, 1fr) 2.4rem auto;
-    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    width: auto;
     min-width: 0;
   }
 }
@@ -27798,31 +28127,6 @@ html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
   white-space: nowrap;
 }
 
-.manual-watch-review-date-field {
-  display: grid;
-  gap: var(--space-2);
-  color: var(--muted);
-  font-size: 0.8rem;
-  font-weight: 750;
-}
-
-.manual-watch-review-date-field .field {
-  width: 100%;
-  min-height: 2.4rem;
-  color-scheme: dark;
-}
-
-html.light-mode .manual-watch-review-date-field .field {
-  color-scheme: light;
-}
-
-.manual-watch-review-date-help {
-  margin: 0;
-  color: var(--muted);
-  font-size: 0.8rem;
-  line-height: 1.45;
-}
-
 html.light-mode .manual-watch-review-card {
   background: color-mix(in srgb, var(--yellow) 6%, var(--panel-2));
 }
@@ -29048,6 +29352,16 @@ body .page-topbar-actions:has(.page-tools-dropdown[open]) {
   overflow: visible !important;
 }
 
+body .page-topbar-actions #upcomingTopbarControls .action-pill,
+#upcomingTopbarControls .action-pill {
+  min-height: 1.8rem;
+  padding: 0.35rem 0.75rem;
+  font-size: 0.81rem;
+  font-weight: 800;
+  line-height: 1.2;
+  border-radius: 6px;
+}
+
 @media (max-width: 760px) {
   body .page-topbar-actions .page-action-bar:not(.hidden),
   body .page-topbar-actions .view-control-source.page-action-bar:not(.hidden),
@@ -29199,9 +29513,11 @@ body .page-topbar-actions:has(.page-tools-dropdown[open]) {
     align-items: stretch !important;
   }
 
-  body .page-topbar-actions .page-action-bar.explorer-controls > .page-action-primary {
+  body .page-topbar-actions .page-action-bar.explorer-controls > .page-action-primary,
+  #explorerTopbarControls > .page-action-primary {
     width: 100% !important;
     flex: 1 1 auto !important;
+    order: 0 !important;
   }
 
   body .page-topbar-actions .upcoming-month-controls {
@@ -29423,6 +29739,7 @@ body .page-topbar-actions:has(.page-tools-dropdown[open]) {
     padding-inline: 0 !important;
   }
 
+  body #upcomingTopbarControls .upcoming-search-trigger .upcoming-search-label,
   body #upcomingTopbarControls #upcomingTodayButton .upcoming-today-label {
     display: none !important;
   }
@@ -29557,7 +29874,8 @@ body .page-topbar-actions:has(.page-tools-dropdown[open]) {
   }
 
   body #historyTopbarControls > .explorer-search-box.active-mobile-panel,
-  body #historyTopbarControls > .history-size-control.active-mobile-panel {
+  body #historyTopbarControls > .history-size-control.active-mobile-panel,
+  body #explorerTopbarControls > .explorer-size-slider.active-mobile-panel {
     display: grid !important;
     width: 100% !important;
     min-width: 0 !important;
@@ -29571,14 +29889,16 @@ body .page-topbar-actions:has(.page-tools-dropdown[open]) {
     min-width: 0 !important;
   }
 
-  body #historyTopbarControls > .history-size-control.active-mobile-panel {
+  body #historyTopbarControls > .history-size-control.active-mobile-panel,
+  body #explorerTopbarControls > .explorer-size-slider.active-mobile-panel {
     display: flex !important;
     align-items: center !important;
     justify-content: space-between !important;
     gap: 0.75rem !important;
   }
 
-  body #historyTopbarControls > .history-size-control.active-mobile-panel input {
+  body #historyTopbarControls > .history-size-control.active-mobile-panel input,
+  body #explorerTopbarControls > .explorer-size-slider.active-mobile-panel input {
     flex: 1 1 auto !important;
     width: 100% !important;
     min-width: 0 !important;

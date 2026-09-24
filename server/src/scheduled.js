@@ -20,7 +20,7 @@ import { buildWatchProvenance, provenanceTelemetryLines } from "./utils/watchPro
 import { recordWatchAuditEvent, recordWatchAuditEvents } from "./utils/watchAudit.js";
 import { canReceiveState } from "./utils/syncRoles.js";
 import { earliestTraktWatchedAt, loadTraktWatchedDateIndex } from "./utils/mediaForceSync.js";
-import { startUpNextProviderFeed, completeUpNextProviderFeed, failUpNextProviderFeed, listUpNextProviderFeedStates, redactUpNextProviderError } from "./utils/upNextRepository.js";
+import { startUpNextProviderFeed, completeUpNextProviderFeed, failUpNextProviderFeed, listUpNextProviderFeedStates, redactUpNextProviderError, withUpNextFeedSeriesIdentity } from "./utils/upNextRepository.js";
 import { refreshUpNextProviderFeeds } from "./utils/upNextProviderSync.js";
 import { reconcileAvailableWatchedItems } from "./utils/libraryAvailabilitySync.js";
 
@@ -32,6 +32,21 @@ import { reconcileAvailableWatchedItems } from "./utils/libraryAvailabilitySync.
 export function shouldSkipLibraryHistoryImport(existing, playstate) {
   return playstate?.state === "unwatched"
     || (!existing && playstate?.state === "watched");
+}
+
+// What a Plex/Emby/Jellyfin library-history row does, given Plembfin's own
+// state. A review is never queued for an item Plembfin already has watched:
+// its manual watch pushed to the server comes back as a played flag, and
+// reviewing it again is noise (Marshals S01E02 on Emby, 23 September 2026).
+// A locally unwatched item still goes to review (decision 32).
+export function libraryHistoryDecision({ requiresReview = false, existing = null, playstate = null, now = Date.now() } = {}) {
+  if (requiresReview) {
+    const alreadyWatched = playstate?.state === "watched" || (Boolean(existing) && playstate?.state !== "unwatched");
+    return alreadyWatched ? "skip_already_watched" : "review";
+  }
+  if (recentUnwatchBlocksLibraryImport(playstate, now)) return "skip_recent_unwatch";
+  if (shouldSkipLibraryHistoryImport(existing, playstate)) return "skip_already_watched";
+  return "import";
 }
 import {
   playstateBlocksStoredResumeProgress,
@@ -73,7 +88,7 @@ import {
   upsertPlaybackProgress,
   upsertPlaystateForMedia,
 } from "./utils/dataRepo.js";
-import { withSeriesIdentity } from "./utils/seriesIdentity.js";
+import { librarySeriesItemId, withSeriesIdentity } from "./utils/seriesIdentity.js";
 import { enqueueManualWatchReview } from "./utils/manualWatchReview.js";
 
 const SCHEDULED_RECENT_WATCH_LIMIT = 50;
@@ -231,6 +246,44 @@ async function retryFailedUpNextProviderFeeds(config, logger = console.log) {
   const failed = results.filter((result) => result?.status === "failed").length;
   logger(`Scheduled Sync: retried ${results.length} Up Next feed(s); ${failed} still unavailable.`);
   return results.length;
+}
+
+// The automatic push returns "unchanged" before reading any feed, and the retry
+// above covers only feeds already failed, so an outage used to stay invisible
+// (feeds "succeeded", no status line) until the queue changed (defect AA). The
+// live-session poll already asks every provider each tick; when one of those
+// calls fails, re-read that provider's Up Next feeds so the failure is recorded.
+// Throttled per provider so a flaky sessions endpoint cannot hammer the feeds.
+const upNextOutageProbeAt = new Map();
+const upNextOutageProbesInFlight = new Set();
+
+export function upNextProvidersToProbeForOutage(failedSources, config, { now = Date.now(), feeds = listUpNextProviderFeedStates() } = {}) {
+  return [...(failedSources || [])].map((source) => String(source || "").trim().toLowerCase()).filter((provider) => {
+    if (!["plex", "emby", "jellyfin"].includes(provider)) return false;
+    const section = config?.[provider] || {};
+    if (section.disabled || !section.baseUrl) return false;
+    if (provider === "plex" ? !section.token : !((section.apiKey || section.api_key || section.token) && section.userId)) return false;
+    if (upNextOutageProbesInFlight.has(provider)) return false;
+    if (now - (upNextOutageProbeAt.get(provider) || 0) < UP_NEXT_FAILED_FEED_RETRY_INTERVAL_MS) return false;
+    const providerFeeds = (Array.isArray(feeds) ? feeds : []).filter((feed) => String(feed?.provider || "").toLowerCase() === provider);
+    // Already recorded as failed: the scheduler's retry owns it from here.
+    return !(providerFeeds.length && providerFeeds.every((feed) => ["failed", "partial"].includes(String(feed?.status || "").toLowerCase())));
+  });
+}
+
+function probeUpNextFeedsAfterSessionFailure(failedSources, config, logger) {
+  if (!failedSources?.size) return;
+  const providers = upNextProvidersToProbeForOutage(failedSources, config);
+  if (!providers.length) return;
+  const now = Date.now();
+  for (const provider of providers) {
+    upNextOutageProbeAt.set(provider, now);
+    upNextOutageProbesInFlight.add(provider);
+  }
+  logger(`Live Sessions: ${providers.join(", ")} did not answer; re-reading its Up Next feeds.`);
+  refreshUpNextProviderFeeds({ config, providers })
+    .catch((error) => logger(`Up Next outage probe failed: ${error?.message || error}`))
+    .finally(() => { for (const provider of providers) upNextOutageProbesInFlight.delete(provider); });
 }
 
 export function syncRetryDelayMs(retryCount) {
@@ -740,8 +793,11 @@ async function checkJellyfinUnwatchedStatus(config, loopStore) {
 
 async function processCompletedSession(row, config, loopStore) {
   if (isAuthoritativeRestoreActive()) return null;
-  const media = cachedRowToMedia(row);
+  let media = cachedRowToMedia(row);
   if (!media.isValid || Number(media.progress || 0) < watchedThresholdPercent()) return null;
+  // Same series resolution as webhooks and Continue Watching; without it an id-less
+  // live session folds onto whichever show profile history already holds for the title.
+  media = await withSeriesIdentity(media, config);
 
   // After an authoritative restore, drop stale cached sessions whose last update predates the
   // restore â€” they would otherwise post a watch record dated today. Sessions still genuinely
@@ -855,8 +911,9 @@ async function processCompletedSession(row, config, loopStore) {
 
 async function processStoppedSessionProgress(row, config, loopStore) {
   if (isAuthoritativeRestoreActive()) return null;
-  const media = cachedRowToMedia(row);
+  let media = cachedRowToMedia(row);
   if (!shouldSyncResumeProgress(media)) return null;
+  media = await withSeriesIdentity(media, config);
 
   const [existingPlaystate, existingProgress] = await Promise.all([
     getPlaystateForMedia(media).catch(() => null),
@@ -958,13 +1015,14 @@ function clearResumeOutcome(media) {
   lastResumeOutcome.delete(`${media.source}|${media.title}|${media.season ?? ""}|${media.episode ?? ""}`);
 }
 
-async function fetchAndRecordUpNextFeed(provider, feedKind, fetchItems, logger = console.log) {
+async function fetchAndRecordUpNextFeed(provider, feedKind, fetchItems, logger = console.log, providerConfig = null) {
   if (isAuthoritativeRestoreActive()) return [];
   const generation = startUpNextProviderFeed(provider, feedKind);
   try {
     const items = await fetchItems();
+    const storedItems = await withUpNextFeedSeriesIdentity(provider, items, providerConfig);
     if (isAuthoritativeRestoreActive()) return [];
-    completeUpNextProviderFeed(provider, feedKind, generation, items);
+    completeUpNextProviderFeed(provider, feedKind, generation, storedItems);
     return items;
   } catch (error) {
     failUpNextProviderFeed(provider, feedKind, generation, error);
@@ -1082,6 +1140,7 @@ async function syncRecentlyResumableFromPlex(config, loopStore, logger = console
       "resume",
       () => fetchPlexContinueWatchingItems(config.plex, { limit: 0 }),
       logger,
+      config.plex,
     );
     const propagationItems = raw.slice(0, SCHEDULED_RESUME_SYNC_LIMIT);
     logger(`Plex: fetched ${raw.length} Continue Watching item(s); propagating the newest ${propagationItems.length}.`);
@@ -1111,6 +1170,7 @@ async function syncRecentlyResumableFromEmby(config, loopStore, logger = console
       "resume",
       () => fetchEmbyResumableItems(config.emby, { limit: 0 }),
       logger,
+      config.emby,
     );
     const propagationItems = raw.slice(0, SCHEDULED_RESUME_SYNC_LIMIT);
     logger(`Emby: fetched ${raw.length} Continue Watching item(s); propagating the newest ${propagationItems.length}.`);
@@ -1143,6 +1203,7 @@ async function syncRecentlyResumableFromJellyfin(config, loopStore, logger = con
       "resume",
       () => fetchJellyfinResumableItems(config.jellyfin, { limit: 0 }),
       logger,
+      config.jellyfin,
     );
     const propagationItems = raw.slice(0, SCHEDULED_RESUME_SYNC_LIMIT);
     logger(`Jellyfin: fetched ${raw.length} Continue Watching item(s); propagating the newest ${propagationItems.length}.`);
@@ -1166,6 +1227,7 @@ async function syncRecentlyNextUpFromEmby(config, logger = console.log) {
       "next_up",
       () => fetchEmbyNextUpItems(config.emby, { limit: 0 }),
       logger,
+      config.emby,
     );
     // This remains an observation for compatibility; Emby's target native
     // rail is Continue Watching/Resume.
@@ -1187,6 +1249,7 @@ async function syncRecentlyNextUpFromJellyfin(config, logger = console.log) {
       "next_up",
       () => fetchJellyfinNextUpItems(config.jellyfin, { limit: 0 }),
       logger,
+      config.jellyfin,
     );
     logger(`Jellyfin: fetched ${raw.length} Next Up item(s).`);
     return raw.length;
@@ -1260,6 +1323,9 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
           sectionAllUrl.searchParams.set("sort", "lastViewedAt:desc");
           sectionAllUrl.searchParams.set("X-Plex-Container-Start", "0");
           sectionAllUrl.searchParams.set("X-Plex-Container-Size", "50");
+          // Without it Plex lists no <Guid> children, and the import (or a
+          // manual watch review it queues) carries no ids at all.
+          sectionAllUrl.searchParams.set("includeGuids", "1");
           if (targetAccountId != null) {
             sectionAllUrl.searchParams.set("accountID", String(targetAccountId));
           }
@@ -1328,7 +1394,7 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
 
     for (const { item, watchedAt, watchDate } of orderedItems) {
       if (isAuthoritativeRestoreActive()) return syncedCount;
-      const media = {
+      let media = {
         title: item.title,
         type: item.type,
         source: "plex",
@@ -1345,6 +1411,10 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
         media.episode = Number(item.index);
         media.title = `${media.showTitle || "Unknown Show"} - S${String(media.season ?? "?").padStart(2, "0")}E${String(media.episode ?? "?").padStart(2, "0")}`;
         media.episodeTitle = item.title;
+        // The modern Plex agent's grandparentGuid is plex://, so the parse
+        // above can fall through to the episode's own ids.
+        media.seriesItemId = librarySeriesItemId(item, "plex");
+        media = await withSeriesIdentity(media, config);
       }
 
       media.runtimeMinutes = runtimeMinutesForSourceItem(item, "plex");
@@ -1367,12 +1437,7 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
       if (!scheduledMediaInScope(config, media)) continue;
 
       const playstate = await getPlaystateForMedia(media).catch(() => null);
-      if (recentUnwatchBlocksLibraryImport(playstate) && !dateChoice.requiresReview) {
-        logger(`Plex: ignored stale watched row immediately after unwatch: ${media.title}`);
-        continue;
-      }
       const existing = await findWatchedByAnyMediaKey(media);
-
       // A library-history poll is a snapshot of the server's current played
       // flag, not evidence of another viewing. Plembfin may deliberately keep
       // an older local watch date after the user removes newer duplicates;
@@ -1381,12 +1446,17 @@ async function syncRecentlyWatchedFromPlex(config, loopStore, logger = console.l
       // the history lookup above, but the broader playstate lookup still says
       // the episode is canonically watched. Never let that stale snapshot
       // recreate the watch date the user just removed.
-      if (shouldSkipLibraryHistoryImport(existing, playstate) && !dateChoice.requiresReview) {
+      const libraryDecision = libraryHistoryDecision({ requiresReview: dateChoice.requiresReview, existing, playstate });
+      if (libraryDecision === "skip_recent_unwatch") {
+        logger(`Plex: ignored stale watched row immediately after unwatch: ${media.title}`);
+        continue;
+      }
+      if (libraryDecision === "skip_already_watched") {
         logger(`Plex: ignored library-history date for an item already watched in Plembfin: ${media.title}`);
         continue;
       }
 
-      if (dateChoice.requiresReview) {
+      if (libraryDecision === "review") {
         const queued = enqueueManualWatchReview(media, {
           releaseDate,
           observedWatchedAt: watchDate.sourceTimestamp,
@@ -1496,7 +1566,7 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
         ? { ...(item.ProviderIds || {}), ...(item.SeriesProviderIds || {}) }
         : (item.ProviderIds || {});
       const ids = normalizeProviderIds(rawIds);
-      const media = {
+      const media = await withSeriesIdentity({
         title: item.Type === "Episode" ? `${item.SeriesName} - S${String(item.ParentIndexNumber ?? "?").padStart(2, "0")}E${String(item.IndexNumber ?? "?").padStart(2, "0")}` : item.Name,
         showTitle: item.Type === "Episode" ? (item.SeriesName || "") : null,
         type: item.Type === "Episode" ? "episode" : "movie",
@@ -1509,8 +1579,9 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
         },
         episodeTitle: item.Type === "Episode" ? item.Name : null,
         source: "emby",
+        seriesItemId: librarySeriesItemId(item, "emby"),
         isValid: true,
-      };
+      }, config);
       const { watchedAt, reason: watchedAtReason } = watchedAtForEmbyLikeItem(item);
       const manualMark = !watchedAt && watchedAtReason === "marked without playback";
       if (!watchedAt && !manualMark) {
@@ -1538,19 +1609,19 @@ async function syncRecentlyWatchedFromEmby(config, loopStore, logger = console.l
       if (!scheduledMediaInScope(config, media)) continue;
 
       const playstate = await getPlaystateForMedia(media).catch(() => null);
-      if (recentUnwatchBlocksLibraryImport(playstate) && !dateChoice.requiresReview) {
+      const existing = await findWatchedByAnyMediaKey(media);
+      const libraryDecision = libraryHistoryDecision({ requiresReview: dateChoice.requiresReview, existing, playstate });
+      if (libraryDecision === "skip_recent_unwatch") {
         logger(`Emby: ignored stale watched row immediately after unwatch: ${media.title}`);
         continue;
       }
 
-      const existing = await findWatchedByAnyMediaKey(media);
-
-      if (shouldSkipLibraryHistoryImport(existing, playstate) && !dateChoice.requiresReview) {
+      if (libraryDecision === "skip_already_watched") {
         logger(`Emby: ignored library-history date for an item already watched in Plembfin: ${media.title}`);
         continue;
       }
 
-      if (dateChoice.requiresReview) {
+      if (libraryDecision === "review") {
         const queued = enqueueManualWatchReview(media, {
           releaseDate,
           observedWatchedAt: watchedAt,
@@ -1649,7 +1720,7 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
         ? { ...(item.ProviderIds || {}), ...(item.SeriesProviderIds || {}) }
         : (item.ProviderIds || {});
       const ids = normalizeProviderIds(rawIds);
-      const media = {
+      const media = await withSeriesIdentity({
         title: item.Type === "Episode" ? `${item.SeriesName} - S${String(item.ParentIndexNumber ?? "?").padStart(2, "0")}E${String(item.IndexNumber ?? "?").padStart(2, "0")}` : item.Name,
         showTitle: item.Type === "Episode" ? (item.SeriesName || "") : null,
         type: item.Type === "Episode" ? "episode" : "movie",
@@ -1662,8 +1733,9 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
         },
         episodeTitle: item.Type === "Episode" ? item.Name : null,
         source: "jellyfin",
+        seriesItemId: librarySeriesItemId(item, "jellyfin"),
         isValid: true,
-      };
+      }, config);
       if (await isRecentOutboundJellyfinNextUpNudge({ ...media, itemId: item.Id }, loopStore).catch(() => false)) {
         logger(`Jellyfin: ignored watched-library echo from a Next Up ordering nudge: ${media.title}`);
         continue;
@@ -1695,19 +1767,19 @@ async function syncRecentlyWatchedFromJellyfin(config, loopStore, logger = conso
       if (!scheduledMediaInScope(config, media)) continue;
 
       const playstate = await getPlaystateForMedia(media).catch(() => null);
-      if (recentUnwatchBlocksLibraryImport(playstate) && !dateChoice.requiresReview) {
+      const existing = await findWatchedByAnyMediaKey(media);
+      const libraryDecision = libraryHistoryDecision({ requiresReview: dateChoice.requiresReview, existing, playstate });
+      if (libraryDecision === "skip_recent_unwatch") {
         logger(`Jellyfin: ignored stale watched row immediately after unwatch: ${media.title}`);
         continue;
       }
 
-      const existing = await findWatchedByAnyMediaKey(media);
-
-      if (shouldSkipLibraryHistoryImport(existing, playstate) && !dateChoice.requiresReview) {
+      if (libraryDecision === "skip_already_watched") {
         logger(`Jellyfin: ignored library-history date for an item already watched in Plembfin: ${media.title}`);
         continue;
       }
 
-      if (dateChoice.requiresReview) {
+      if (libraryDecision === "review") {
         const queued = enqueueManualWatchReview(media, {
           releaseDate,
           observedWatchedAt: watchedAt,
@@ -2021,6 +2093,7 @@ const MISSING_LIVE_SESSION_CONFIRMATION_POLLS = 2;
 export async function refreshLiveSessions(config, loopStore, { logger = () => {}, trace = () => {} } = {}) {
   if (isAuthoritativeRestoreActive()) return { currentRows: [], completions: [], progressUpdates: [], staleIds: [], cachedCount: 0, pendingConfirmations: 0, skipped: true };
   const { sessions: currentSessions, failedSources } = await fetchLiveSessions(config);
+  probeUpNextFeedsAfterSessionFailure(failedSources, config, logger);
   const currentRows = currentSessions.map(buildCacheRow);
   const currentIds = new Set(currentRows.map((row) => row.session_id));
   const cachedRows = await loadLiveTrackingCache({ includeCompleted: true });

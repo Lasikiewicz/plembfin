@@ -42,7 +42,9 @@ changes: canonical watch/resume progress, a changed provider feed snapshot, a se
 dismissal/restore, or a changed cached projection. The worker queues one singleton
 `up_next_sync` job for a burst of changes, builds the latest mixed movie-and-episode
 projection (up to 100 items) when it runs, and pushes it through the configured native
-provider rails. The dashboard does not need to be open. If another change lands during
+provider rails. The push only adds to those rails; an entry the app lists that the
+projection lacks is left in place, never hidden (`docs/decisions.md` entry 36). The
+dashboard does not need to be open. If another change lands during
 the push, one follow-up job is queued after it finishes; the push's own feed reads are
 excluded from this trigger so it cannot loop on itself.
 
@@ -382,7 +384,14 @@ already in flight is not cancelled; the guard only prevents new competing outbou
      use their respective stable dates. With **Require review**, the scanner stores a
       deduplicated pending item in `manual_watch_reviews` and waits for the Manual Watch
       review page. A flag already superseded by a newer canonical watched state is not
-      reported as a new queued review. Unscoped library scans remain diagnostic evidence
+      reported as a new queued review, and neither is an episode history already shows
+      watched. An episode review that carries only the episode's own IMDb/TVDB ids (Emby) is
+      matched to its show through the same cached TMDB `find` / TVDB proof the playstate
+      alias repair uses; uncached ids are looked up by that repair's background job
+      (`repair_playstate_episode_ids`). A library import never queues a review for an item
+      Plembfin already has watched, and a pending review that local state already answers is
+      closed (`dismissed`, `resolved_by_local_state`, status only) rather than kept pending out
+      of sight (`docs/decisions.md` entry 39). Unscoped library scans remain diagnostic evidence
       rather than asserted watches.
    - Emby/Jellyfin episode resume rows retain series provider IDs so the corresponding SxxExx item can be found on another server. Resume and playstate records sharing any IMDb, TMDB, or TVDB ID are treated as one media item even when app titles differ. When a server reads back the same position with a stale or missing `LastPlayedDate`, Plembfin retains the newer timestamp already stored for that position; generic item-save/create dates never outrank an explicit watch-state change, and a genuinely newer unwatch still clears older progress.
    - Propagates playstate changes that were missed by webhooks. A server-side unwatch

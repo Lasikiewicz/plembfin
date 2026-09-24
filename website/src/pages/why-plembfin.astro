@@ -1,0 +1,476 @@
+---
+import SiteLayout from "../layouts/SiteLayout.astro";
+import ScreenshotFigure from "../components/ScreenshotFigure.astro";
+
+const importOptions = [
+  { id: "none", name: "No, start fresh", role: "Manual tracking", icon: "/assets/icons/plembfin.png" },
+  { id: "trakt", name: "Trakt", role: "Import watch history", icon: "/assets/icons/trakt.svg" },
+  { id: "tautulli", name: "Tautulli", role: "Import Plex history", icon: "/assets/icons/tautulli.ico" },
+];
+
+const mediaServerOptions = [
+  { id: "plex", name: "Plex", role: "Media server", icon: "/assets/icons/plex.svg" },
+  { id: "emby", name: "Emby", role: "Media server", icon: "/assets/icons/emby.svg" },
+  { id: "jellyfin", name: "Jellyfin", role: "Media server", icon: "/assets/icons/jellyfin.svg" },
+];
+
+const reasons = [
+  {
+    number: "01",
+    title: "One local record",
+    text: "Every watched event, resume position, source, and rewatch has a durable place to land before it is sent anywhere else.",
+  },
+  {
+    number: "02",
+    title: "One bridge, fewer conflicts",
+    text: "Connected services do not need to write directly to each other. Plembfin is the point of comparison that prevents stale state from winning silently.",
+  },
+  {
+    number: "03",
+    title: "One visible result",
+    text: "Sync Activity records the origin, every destination, the outcome, and the retry path when a provider is unavailable or a title needs matching.",
+  },
+];
+
+const changes = [
+  "A media server is rebuilt: push the local record back when the library is ready.",
+  "A provider is offline: keep the local history and retry only the missing destination later.",
+  "Two services report the same watch: collapse the delivery echo, preserve a genuine rewatch.",
+  "You add another server: connect it to the same record instead of starting over.",
+];
+---
+
+<SiteLayout
+  title="Why Plembfin"
+  description="See how Plembfin fits different media stacks, from private manual tracking to Plex, Emby, Jellyfin, and Trakt working from one local source of truth."
+  image="/assets/optimized/plembfin-hub.svg"
+>
+  <div class="simple-why">
+    <header class="simple-why-hero" aria-labelledby="why-plembfin-title">
+      <div>
+        <p class="simple-eyebrow">PLEMBFIN / WHY</p>
+        <h1 id="why-plembfin-title">Your servers are where you watch. Plembfin is where your history lives.</h1>
+        <p>
+          Use Plembfin as a private manual tracker, a bridge to Trakt, or the local source of truth for a whole mixed media stack.
+        </p>
+        <div class="simple-actions">
+          <a class="simple-button simple-button--primary" href="/docs/getting-started/">Get started <span aria-hidden="true">↗</span></a>
+          <a class="simple-button" href="/features/">View features <span aria-hidden="true">→</span></a>
+        </div>
+      </div>
+      <div class="simple-why-hero-proof">
+        <ScreenshotFigure
+          src="/assets/optimized/plembfin-hub.svg"
+          alt="Plembfin connected as the local hub between Plex, Emby, Jellyfin, Trakt, and supporting services"
+          caption="Every service has a role. Plembfin keeps the record they can agree on."
+          width={1200}
+          height={540}
+        />
+      </div>
+    </header>
+
+    <section class="simple-why-builder" aria-labelledby="builder-title">
+      <div class="simple-why-builder-grid">
+        <div class="simple-why-builder-questions">
+          <h2 class="simple-why-builder-title" id="builder-title">Build your setup.</h2>
+          <fieldset class="simple-why-builder-options">
+            <legend>1. Import existing history?</legend>
+            <p class="simple-why-builder-help">Start fresh, or import from Trakt or Tautulli.</p>
+            <div class="simple-why-option-list">
+              {importOptions.map((option) => (
+                <>
+                  <button
+                    class="simple-why-option"
+                    class:is-selected={option.id === "none"}
+                    type="button"
+                    data-import-source={option.id}
+                    data-stack-name={option.name}
+                    data-stack-role={option.role}
+                    data-stack-icon={option.icon}
+                    aria-pressed={option.id === "none" ? "true" : "false"}
+                  >
+                    {option.icon ? (
+                      <img
+                        src={option.icon}
+                        data-theme-image={option.id === "none" ? "true" : undefined}
+                        data-dark-src={option.id === "none" ? option.icon : undefined}
+                        data-light-src={option.id === "none" ? "/assets/icons/plembfin-light.png" : undefined}
+                        alt=""
+                        aria-hidden="true"
+                        width="24"
+                        height="24"
+                      />
+                    ) : <span class="simple-why-option-mark" aria-hidden="true">T</span>}
+                    <span><strong>{option.name}</strong><small>{option.role}</small></span>
+                    <span class="simple-why-option-check" aria-hidden="true">+</span>
+                  </button>
+                  {option.id === "trakt" && (
+                    <div class="simple-why-trakt-mode" data-trakt-question hidden>
+                      <div class="simple-why-option-list simple-why-option-list--compact">
+                        <button class="simple-why-option is-selected" type="button" data-trakt-mode="once" aria-pressed="true">
+                          <span><strong>One-time import</strong><small>Bring the existing history across</small></span>
+                          <span class="simple-why-option-check" aria-hidden="true">+</span>
+                        </button>
+                        <button class="simple-why-option" type="button" data-trakt-mode="continuous" aria-pressed="false">
+                          <span><strong>Continuous sync</strong><small>Keep Trakt connected after import</small></span>
+                          <span class="simple-why-option-check" aria-hidden="true">+</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset class="simple-why-builder-options">
+            <legend>2. Which media servers?</legend>
+            <p class="simple-why-builder-help">Select all that apply.</p>
+            <div class="simple-why-option-list">
+              {mediaServerOptions.map((option) => (
+                <button
+                  class="simple-why-option"
+                  type="button"
+                  data-media-server={option.id}
+                  data-stack-name={option.name}
+                  data-stack-role={option.role}
+                  data-stack-icon={option.icon}
+                  aria-pressed="false"
+                >
+                  <img src={option.icon} alt="" aria-hidden="true" width="24" height="24" />
+                  <span><strong>{option.name}</strong><small>{option.role}</small></span>
+                  <span class="simple-why-option-check" aria-hidden="true">+</span>
+                </button>
+              ))}
+            </div>
+          </fieldset>
+          <button class="simple-why-reset" type="button" data-stack-reset>Reset builder</button>
+        </div>
+
+        <div class="simple-why-builder-result" data-stack-result aria-live="polite">
+          <p class="simple-eyebrow" data-stack-label>YOUR STARTING POINT</p>
+          <p class="simple-why-builder-audience" data-stack-audience>No history to import? Start private and local.</p>
+          <p data-stack-description>Search for a title, mark it watched, choose the date, and keep the record on your own instance. Add connections whenever your stack grows.</p>
+          <div class="simple-stack-flow" data-stack-flow>
+            <span class="simple-stack-node simple-stack-node--hub"><img data-theme-image src="/assets/icons/plembfin.png" data-dark-src="/assets/icons/plembfin.png" data-light-src="/assets/icons/plembfin-light.png" alt="" aria-hidden="true" width="24" height="24" />Plembfin</span>
+          </div>
+          <a class="simple-text-link" data-stack-link href="/docs/media-details/#mark-watched">See manual tracking <span aria-hidden="true">→</span></a>
+        </div>
+      </div>
+    </section>
+
+    <section class="simple-why-reasons" aria-labelledby="reasons-title">
+      <div class="simple-section-heading">
+        <div>
+          <p class="simple-eyebrow">WHY THE MIDDLE MATTERS</p>
+          <h2 id="reasons-title">A bridge is useful when it remembers.</h2>
+        </div>
+        <p>Media players are good at playback. Trackers are good at sharing. Plembfin keeps the durable, explainable record between them.</p>
+      </div>
+
+      <div class="simple-why-reason-list">
+        {reasons.map((reason) => (
+          <div class="simple-why-reason">
+            <span class="simple-number">{reason.number}</span>
+            <div>
+              <h3>{reason.title}</h3>
+              <p>{reason.text}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <section class="simple-why-changes" aria-labelledby="changes-title">
+      <div>
+        <p class="simple-eyebrow">WHEN THE STACK CHANGES</p>
+        <h2 id="changes-title">Your history does not have to start over.</h2>
+        <p>Servers go offline, libraries get rebuilt, and providers occasionally disagree. Plembfin keeps the local archive steady while the rest catches up.</p>
+        <a class="simple-text-link" href="/docs/sync-tools/">See sync tools and recovery paths <span aria-hidden="true">→</span></a>
+      </div>
+      <ul class="simple-why-change-list">
+        {changes.map((change) => <li>{change}</li>)}
+      </ul>
+    </section>
+
+    <section class="simple-why-footer" aria-labelledby="start-title">
+      <div>
+        <p class="simple-eyebrow">YOUR NEXT STEP</p>
+        <h2 id="start-title">Connect one thing. Keep the history yours.</h2>
+      </div>
+      <div class="simple-actions">
+        <a class="simple-button simple-button--primary" href="/docs/getting-started/">Start with Plembfin <span aria-hidden="true">↗</span></a>
+        <a class="simple-button" href="/docs/integrations/">Browse integrations <span aria-hidden="true">→</span></a>
+      </div>
+    </section>
+  </div>
+</SiteLayout>
+
+<script>
+  const importButtons = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-import-source]"));
+  const mediaButtons = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-media-server]"));
+  const traktModeButtons = Array.from(document.querySelectorAll<HTMLButtonElement>("[data-trakt-mode]"));
+  const traktQuestion = document.querySelector("[data-trakt-question]");
+  const result = document.querySelector("[data-stack-result]");
+  const label = document.querySelector("[data-stack-label]");
+  const audience = document.querySelector("[data-stack-audience]");
+  const description = document.querySelector("[data-stack-description]");
+  const flow = document.querySelector("[data-stack-flow]");
+  const link = document.querySelector("[data-stack-link]");
+  const reset = document.querySelector("[data-stack-reset]");
+  const selectedImports = new Set<string>(["none"]);
+  let traktMode = "once";
+  const selectedServers = new Set<string>();
+
+  const renderStack = () => {
+    const servers = mediaButtons
+      .filter((button) => selectedServers.has(button.dataset.mediaServer || ""))
+      .map((button) => ({
+        id: button.dataset.mediaServer || "",
+        name: button.dataset.stackName || "",
+        icon: button.dataset.stackIcon || "",
+      }));
+    const hasTrakt = selectedImports.has("trakt");
+    const hasTautulli = selectedImports.has("tautulli");
+
+    let nextLabel = "YOUR STARTING POINT";
+    let nextAudience = "No history to import? Start private and local.";
+    let nextDescription = "Search for a title, mark it watched, choose the date, and keep the record on your own instance. Add connections whenever your stack grows.";
+    let nextHref = "/docs/media-details/#mark-watched";
+    let nextLinkLabel = "See manual tracking";
+
+    if (hasTrakt && hasTautulli) {
+      nextLabel = "DUAL HISTORY IMPORT";
+      nextAudience = "Bring both your shared Trakt archive and completed Plex history into one local record.";
+      nextDescription = traktMode === "continuous"
+        ? "Plembfin can import your existing Trakt history and completed Plex history from Tautulli, then keep the combined archive local while Trakt and your selected media servers stay in sync. Tautulli remains a one-time import."
+        : "Plembfin can import your existing Trakt history and completed Plex history from Tautulli, then keep the combined archive local and ready for future watches. Tautulli remains a one-time import; choose Continuous sync to keep Trakt and your selected media servers in sync.";
+      nextHref = "/docs/integrations/";
+      nextLinkLabel = "See the integration setup";
+    } else if (hasTrakt) {
+      nextLabel = traktMode === "continuous" ? "CONTINUOUS SYNC" : "ONE-TIME IMPORT";
+      nextAudience = traktMode === "continuous" ? "Keep Trakt connected while Plembfin remains your local source of truth." : "Bring an existing Trakt archive into a private local record.";
+      nextDescription = traktMode === "continuous" ? "Import your existing Trakt history, then let future changes flow through Plembfin to your selected media servers." : "Import your existing Trakt history once, then use Plembfin as the archive for future manual or server-reported watches.";
+      nextHref = "/docs/integrations/#trakt";
+      nextLinkLabel = "See the Trakt setup";
+    } else if (hasTautulli) {
+      nextLabel = "PLEX HISTORY IMPORT";
+      nextAudience = "Bring completed Plex history across before you connect the servers you use today.";
+      nextDescription = "Tautulli provides the completed Plex history. Plembfin previews and matches it, creates a backup, then keeps the imported archive local.";
+      nextHref = "/docs/integrations/#tautulli";
+      nextLinkLabel = "See the Tautulli setup";
+    } else if (servers.length > 1) {
+      nextLabel = "MIXED MEDIA STACK";
+      nextAudience = "For households and self-hosters who move between more than one media server.";
+      nextDescription = "Watch on whichever server is convenient. Plembfin keeps watched state, resume progress, and genuine rewatches aligned across the stack.";
+      nextHref = "/docs/concepts/#the-canonical-record";
+      nextLinkLabel = "Understand the canonical record";
+    } else if (servers.length === 1) {
+      nextLabel = "ONE MEDIA SERVER";
+      nextAudience = `For ${servers[0].name} users who want their history to outlive the library.`;
+      nextDescription = `${servers[0].name} provides playback events while Plembfin stores the local record, resume progress, and rewatch history.`;
+      nextHref = `/docs/integrations/#${servers[0].id}`;
+      nextLinkLabel = `See the ${servers[0].name} setup`;
+    }
+
+    label?.replaceChildren(nextLabel);
+    audience?.replaceChildren(nextAudience);
+    description?.replaceChildren(nextDescription);
+    if (link instanceof HTMLAnchorElement) {
+      link.href = nextHref;
+      link.replaceChildren(nextLinkLabel, document.createTextNode(" "));
+      const arrow = document.createElement("span");
+      arrow.setAttribute("aria-hidden", "true");
+      arrow.textContent = "→";
+      link.append(arrow);
+    }
+    if (flow) {
+      flow.replaceChildren();
+      flow.classList.toggle("simple-stack-flow--continuous", traktMode === "continuous" && hasTrakt);
+      const imports = [
+        hasTrakt ? { name: "Trakt", icon: "/assets/icons/trakt.svg" } : null,
+        hasTautulli ? { name: "Tautulli", icon: "/assets/icons/tautulli.ico" } : null,
+      ].filter((source): source is { name: string; icon: string } => Boolean(source));
+      const serverNodes = servers.map((server) => ({ name: server.name, icon: server.icon }));
+      const svgNamespace = "http://www.w3.org/2000/svg";
+      const svg = document.createElementNS(svgNamespace, "svg");
+      svg.classList.add("simple-stack-flow-svg");
+      svg.setAttribute("viewBox", "0 0 900 430");
+      svg.setAttribute("role", "img");
+      svg.setAttribute("aria-label", hasTautulli
+        ? "Trakt and Tautulli import into Plembfin; Tautulli is a one-time import, while Trakt and the selected media apps can stay in sync."
+        : "Selected connections flow through Plembfin to the selected media apps.");
+
+      const addPath = (d: string, className: string) => {
+        const path = document.createElementNS(svgNamespace, "path");
+        const pathId = `simple-stack-flow-path-${svg.querySelectorAll(".simple-stack-flow-path").length}`;
+        path.setAttribute("d", d);
+        path.id = pathId;
+        path.setAttribute("class", `simple-stack-flow-path ${className}`);
+        svg.append(path);
+        if (className.includes("live") || className.includes("one-way")) {
+          const isOneWay = className.includes("one-way");
+          const pulseCount = isOneWay ? 1 : 2;
+          const duration = isOneWay ? "3.2s" : "1.8s";
+          Array.from({ length: pulseCount }, (_, index) => index).forEach((index) => {
+            const pulse = document.createElementNS(svgNamespace, "circle");
+            pulse.setAttribute("class", "simple-stack-flow-pulse");
+            pulse.setAttribute("r", "4");
+            pulse.setAttribute("aria-hidden", "true");
+            const motion = document.createElementNS(svgNamespace, "animateMotion");
+            motion.setAttribute("dur", duration);
+            motion.setAttribute("repeatCount", "indefinite");
+            motion.setAttribute("begin", `${index * (isOneWay ? 0 : 0.9)}s`);
+            motion.setAttribute("calcMode", "linear");
+            motion.setAttribute("keyTimes", "0;1");
+            motion.setAttribute("keyPoints", isOneWay ? "0;1" : index === 1 ? "1;0" : "0;1");
+            const motionPath = document.createElementNS(svgNamespace, "mpath");
+            motionPath.setAttribute("href", `#${pathId}`);
+            motion.append(motionPath);
+            pulse.append(motion);
+            svg.append(pulse);
+          });
+        }
+      };
+
+      const addNode = (node: { name: string; icon: string }, x: number, y: number, isHub = false) => {
+        const group = document.createElementNS(svgNamespace, "g");
+        group.setAttribute("class", `simple-stack-flow-node${isHub ? " simple-stack-flow-node--hub" : ""}`);
+        group.setAttribute("transform", `translate(${x - (isHub ? 110 : 85)},${y - (isHub ? 34 : 25)})`);
+        const rect = document.createElementNS(svgNamespace, "rect");
+        rect.setAttribute("width", String(isHub ? 220 : 170));
+        rect.setAttribute("height", String(isHub ? 68 : 50));
+        rect.setAttribute("rx", "12");
+        group.append(rect);
+        if (node.icon) {
+          const image = document.createElementNS(svgNamespace, "image");
+          const source = isHub
+            ? (document.documentElement.classList.contains("light-mode")
+              ? "/assets/optimized/plembfin_header_logo_light-376.webp"
+              : "/assets/optimized/plembfin_header_logo_dark-376.webp")
+            : node.icon;
+          image.setAttribute("href", source);
+          image.setAttribute("width", isHub ? "160" : "28");
+          image.setAttribute("height", isHub ? "50" : "28");
+          image.setAttribute("x", isHub ? "30" : "16");
+          image.setAttribute("y", isHub ? "9" : "11");
+          if (isHub) {
+            image.dataset.themeImage = "true";
+            image.dataset.darkSrc = "/assets/optimized/plembfin_header_logo_dark-376.webp";
+            image.dataset.lightSrc = "/assets/optimized/plembfin_header_logo_light-376.webp";
+          }
+          group.append(image);
+        }
+        if (!isHub) {
+          const labelNode = document.createElementNS(svgNamespace, "text");
+          labelNode.textContent = node.name;
+          labelNode.setAttribute("x", node.icon ? "56" : "18");
+          labelNode.setAttribute("y", "31");
+          labelNode.setAttribute("class", "simple-stack-flow-node-label");
+          group.append(labelNode);
+        }
+        svg.append(group);
+      };
+
+      const hubX = 450;
+      const sourceY = 58;
+      const hubY = 190;
+      const appY = 340;
+      const sourceStartX = imports.length > 1 ? hubX - 110 : hubX;
+      const appStartX = serverNodes.length > 1 ? hubX - ((serverNodes.length - 1) * 290) / 2 : hubX;
+      imports.forEach((source, index) => {
+        const x = sourceStartX + index * 220;
+        addNode(source, x, sourceY);
+        const importPathClass = source.name === "Trakt" && traktMode === "continuous"
+          ? "simple-stack-flow-path--live"
+          : source.name === "Trakt"
+            ? "simple-stack-flow-path--import simple-stack-flow-path--one-way"
+          : source.name === "Tautulli"
+            ? "simple-stack-flow-path--import simple-stack-flow-path--one-way simple-stack-flow-path--slow"
+            : "simple-stack-flow-path--import";
+        addPath(`M ${x} ${sourceY + 25} C ${x} 112, ${hubX} 128, ${hubX} ${hubY - 34}`, importPathClass);
+      });
+      addNode({ name: "Plembfin", icon: "/assets/icons/plembfin.png" }, hubX, hubY, true);
+
+      if (serverNodes.length) {
+        serverNodes.forEach((server, index) => {
+          const x = appStartX + index * 290;
+          addNode(server, x, appY);
+          const appPathClass = "simple-stack-flow-path--send simple-stack-flow-path--live";
+          addPath(`M ${hubX} ${hubY + 34} C ${hubX} 250, ${x} 280, ${x} ${appY - 25}`, appPathClass);
+        });
+      }
+      flow.append(svg);
+    }
+    const syncTheme = Reflect.get(window, "__plembfinSyncTheme");
+    if (typeof syncTheme === "function") syncTheme();
+    result?.classList.remove("is-changing");
+    requestAnimationFrame(() => result?.classList.add("is-changing"));
+  };
+
+  const updatePressed = (buttons: HTMLButtonElement[], active: HTMLButtonElement) => {
+    buttons.forEach((button) => {
+      const isActive = button === active;
+      button.setAttribute("aria-pressed", String(isActive));
+      button.classList.toggle("is-selected", isActive);
+    });
+  };
+
+  importButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const id = button.dataset.importSource || "none";
+      if (id === "none") {
+        selectedImports.clear();
+        selectedImports.add("none");
+      } else {
+        selectedImports.delete("none");
+        if (selectedImports.has(id)) selectedImports.delete(id);
+        else selectedImports.add(id);
+        if (selectedImports.size === 0) selectedImports.add("none");
+      }
+      importButtons.forEach((importButton) => {
+        const isSelected = selectedImports.has(importButton.dataset.importSource || "none");
+        importButton.setAttribute("aria-pressed", String(isSelected));
+        importButton.classList.toggle("is-selected", isSelected);
+      });
+      if (traktQuestion instanceof HTMLElement) traktQuestion.hidden = !selectedImports.has("trakt");
+      renderStack();
+    });
+  });
+
+  mediaButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const id = button.dataset.mediaServer || "";
+      if (selectedServers.has(id)) selectedServers.delete(id);
+      else selectedServers.add(id);
+      button.setAttribute("aria-pressed", String(selectedServers.has(id)));
+      button.classList.toggle("is-selected", selectedServers.has(id));
+      renderStack();
+    });
+  });
+
+  traktModeButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      traktMode = button.dataset.traktMode || "once";
+      updatePressed(traktModeButtons, button);
+      renderStack();
+    });
+  });
+
+  reset?.addEventListener("click", () => {
+    selectedImports.clear();
+    selectedImports.add("none");
+    traktMode = "once";
+    selectedServers.clear();
+    updatePressed(importButtons, importButtons[0]);
+    updatePressed(traktModeButtons, traktModeButtons[0]);
+    mediaButtons.forEach((button) => {
+      button.setAttribute("aria-pressed", "false");
+      button.classList.remove("is-selected");
+    });
+    if (traktQuestion instanceof HTMLElement) traktQuestion.hidden = true;
+    renderStack();
+  });
+
+  renderStack();
+</script>

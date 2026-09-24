@@ -721,7 +721,9 @@ Emby and Jellyfin session readers skip it. Nothing reached watch history or
 until the sessions aged out.
 
 **Enforced by:** `reportEmbyResumePosition` and `UP_NEXT_SEED_DEVICE_ID` in
-`server/src/utils/embyClient.js`; `isUpNextSeedSession` in `server/src/utils/liveSessions.js`;
+`server/src/utils/embyClient.js`; `touchEmbyResumeRail` there too, whose next-up rail touch
+skipped the restore and added an Emby play to the next-up item on every automatic sync run
+until 2026-09-22 (verified live in the Up Next matrix step 4); `isUpNextSeedSession` in `server/src/utils/liveSessions.js`;
 the Emby branch of `writeSeed` and `clearStaleSeeds` in `server/src/utils/upNextRailSeed.js`;
 `test/upNextProviderSync.test.js`; `test/upNextRailSeed.test.js`.
 
@@ -738,6 +740,9 @@ separate Next Up feed, but the requested equivalent of Plembfin Up Next there is
 (the provider's Resume API), and Jellyfin Next Up. Provider Resume/Continue Watching feeds that
 are not the target mapping are still read when useful as a protection boundary, but they are not
 projected into the provider-backed queue and are never reconciled or cleared as stale queue items.
+(Amended 2026-09-23: such a Resume row may lend its native id to a card a canonical resume row
+already backs, so a Jellyfin part-watch absent from Jellyfin Next Up still gets its Jellyfin
+item. It never creates, keeps, or repositions a card.)
 The Jellyfin Next Up feed is a calculated GET with no per-item dismissal API, so the push reports
 stale native entries and leaves them unchanged. For a desired ready-to-watch episode, the push
 may now remove only Plembfin's own ledger-tracked synthetic resume position and update only the
@@ -800,7 +805,7 @@ so the dashboard shows the same part-watched state as the media detail view. The
 available for ingestion guards and cleanup of legacy provider state; it is no longer consulted when
 rendering an Up Next card.
 ### 28. The managed provider playlist is removed; the native rail refresh is the whole push
-**Date:** 2026-09-14  |  **Status:** Active, supersedes the managed-playlist part of entries 19, 20, 25, and 26
+**Date:** 2026-09-14  |  **Status:** Active, supersedes the managed-playlist part of entries 19, 20, 25, and 26; its push-dismissal step is superseded by entry 36
 
 **Context:** The `Plembfin Up Next` playlist was introduced (entry 19) because the native rails are
 calculated and cannot be handed an arbitrary future item, so it was the only writable provider-side
@@ -993,3 +998,242 @@ recoverable decision boundary instead.
 
 **Enforced by:** provider notification handling in `server/src/scheduler.js`, webhook handling
 in `server/src/routes/sync.js`, and the scheduled provider-history paths in `server/src/scheduled.js`.
+
+### 33. Rating conflicts on timestamp-less providers are decided by undelivered local intent, not scan time
+**Date:** 2026-09-22  |  **Status:** Active
+
+**Context:** Personal rating sync imports a change seen on any provider and fans it out to the
+others (maintainer decision, 22 September 2026), unless the local value is genuinely newer. Trakt
+reports a real `rated_at`; Plex, Emby, and Jellyfin report no rating-modified time. The first
+correction used the scan's detection time as the remote change time for those three. In the
+manual provider matrix that made any local edit made before the next scan lose to an older Plex
+value: Plembfin took Plex's old value, fanned it out, and then Plex's own still-pending queue row
+wrote the stale local value to Plex, leaving Plembfin and Plex permanently diverged. The same pass
+found every delivered value being re-imported as a "remote change" on the next scan.
+
+**Decision:** For Plex, Emby, and Jellyfin the local value is newer exactly when a local intent
+for that provider is still undelivered (`pending`, `processing`, `failed`, `reauth_required`); that
+provider alone is re-queued. When a remote value is accepted instead, the source provider's own
+stale undelivered row is dropped. Trakt keeps the `rated_at` comparison. A remote value equal to
+the last delivered one, with nothing different observed from that provider since the delivery,
+is an echo and changes nothing.
+
+**Rejected:** Detection time as a timestamp proxy (local can never win, and the provider diverges);
+"local always wins" (a provider-side edit made after a delivered local edit would be reverted,
+which the maintainer ruled out); importing echoes (redundant writes to every provider on every
+change, and a reset of their retry backoff).
+
+**Enforced by:** `applyRemoteObservation` in `server/src/utils/personalRatingSync.js`, with
+`getOutstandingPersonalRatingIntent`/`supersedePersonalRatingIntent` in
+`server/src/utils/personalRatingRepository.js`.
+
+### 34. A resolved provider id always outranks the single-known-title-profile default
+**Date:** 2026-09-22  |  **Status:** Active
+
+**Context:** `canonicalizePlaybackProgressRecord` in `server/src/utils/dataRepo.js` folds a
+resume event with no resolved identity onto the one show `watch_history` has already proven
+for that title, so an id-less event still joins the right canonical row instead of forming a
+duplicate cluster. Verified live in the Up Next manual provider matrix: a real Plex play of
+the original "Scrubs" (2001, correctly resolved to `tt0285403` by Plex's own metadata) was
+silently rewritten to `tt40197357` - "Scrubs (2026)" - because Jellyfin's own library has a
+genuinely mismatched "Scrubs" entry, and that mismatch was the only "Scrubs" profile
+`watch_history` had ever proven, from an earlier Emby-sourced watch. The single-profile
+default treated its own guess as more authoritative than a fresh, provider-verified series
+lookup for the specific event in hand.
+
+**Decision:** The single-known-profile default is skipped when the incoming record carries a
+TMDB or TVDB id (a provider's own series-level lookup succeeded for this event) and none of its
+ids agree with the sole known profile; the record's own ids are kept, rather than treating
+"only one profile has ever been seen" as proof it is correct. An IMDb-only record still folds
+onto the profile: providers leak the episode's own IMDb id into that slot when their series
+lookup misses (an Emby Ted Lasso S04E06 event carried only the episode id `tt38494472`), and
+the first version of this entry, which trusted any disagreeing id, re-split those episodes
+into duplicate rows (caught by `test/episodeIdentityRepair.test.js`, narrowed 2026-09-22).
+
+**Rejected:** Always preferring the single known profile (the shipped behavior until this
+entry - actively wrong whenever the one provider that established the profile has a mismatched
+library entry, and the corruption is invisible until a differently-matched provider disagrees);
+preferring whichever provider synced most recently (same failure, just relabeled - a later
+correct sync would still lose to an earlier wrong one, and vice versa).
+
+The same rule applies to the scheduled `repairEpisodeSeriesIdentity` job (`seriesIdsForRow`,
+`sameProgressGroupRows`): verified live, the ingest kept the 2001 ids and the next repair tick
+rekeyed the row onto the reboot profile. It only holds if the record reaches it with its series
+ids, so the Plex/Emby/Jellyfin live-session stop and completion paths resolve them with
+`withSeriesIdentity` like webhooks and Continue Watching do (added 2026-09-22).
+
+**Enforced by:** `disagreesWithSoleProfile` and its callers `canonicalizePlaybackProgressRecord`,
+`seriesIdsForRow`, and `sameProgressGroupRows` in `server/src/utils/dataRepo.js`. In the Up Next
+projection (`server/src/utils/upNextService.js`, 2026-09-22): `canonicalIdsDisagreeWithShow`
+keeps a disagreeing canonical row's own series ids (`seriesKeyedRowIds`), series-keyed playstate
+rows also index their own identity, and provider feed episodes are stored with the series ids of
+their native series handle (`withUpNextFeedSeriesIdentity` in `upNextRepository.js`), so the
+title index no longer decides their show. Title and coordinate alias matching of episode
+playstate and history rows (`setPlaystateForMediaIdentitySync`, `getPlaystateForMediaSync`,
+`siblingWatchRowsFor`, `clearWatchHistoryForMediaIdentitySync`,
+`findLatestWatchedByAnyMediaKeySync`, 2026-09-23) skips a row whose ids resolve to a different
+proven series profile of the same title (`episodeRecordsNameDifferentShows`); ids proven for no
+profile still converge by title, so rematch aliases fold as before, unless both records carry
+TMDB and TVDB ids that both disagree and share no id (`unprovenSeriesIdsConflict`, 2026-09-23:
+a UK "The Assembly" unplay superseded the Australian show's only watch).
+
+### 35. Clear progress outranks an older provider position, and the automatic push re-checks it
+**Date:** 2026-09-22  |  **Status:** Active
+
+**Context:** Verified live in the Up Next manual provider matrix (step 2): after Clear progress
+on Scrubs S01E04, the episode came back as a 245s resume card and every provider was set back
+to 245s. Two paths did it. The projection let a provider resume row through whenever the
+canonical state was `unwatched`, regardless of timestamps, so the providers' not-yet-refreshed
+feed snapshot still produced a resume. And the automatic Up Next provider sync had built its
+projection seconds before the clear, then pushed that stale 245s to every provider after it.
+
+**Decision:** A provider resume observation is subject to the same timestamp rule as a canonical
+row: an explicit watched/unwatched transition newer than the provider's last-played time blocks
+it; only a genuinely newer play can start it again. A provider "resume" membership with no
+position after an explicit unwatch (Plex keeps the cleared episode in Continue Watching as its
+next episode) is shown as `next_up` from 0. The automatic sync skips its resume-position writes
+when the data version moved after its projection was built, does not remember that run's
+fingerprint, and reruns from fresh state.
+
+**Rejected:** Keeping the unwatched bypass (it is what made a clear undo itself on every
+provider); re-reading canonical state per pushed item (the data-version check covers every
+canonical table in one comparison, and the rerun already exists).
+
+**Enforced by:** the `providerResume` filter and the membership reclassification in
+`buildUpNextProjection` (`server/src/utils/upNextService.js`); `isStale` in
+`runAutomaticUpNextSync` (`upNextAutoSync.js`) and `propagateKnownProgress`
+(`upNextProviderSync.js`). Tests: `test/upNextQueue.test.js` (cleared-episode cases) and
+`test/upNextProviderSync.test.js` ("a stale automatic sync ...").
+
+### 36. The Up Next push never hides a native rail item because Plembfin's queue lacks it
+**Date:** 2026-09-23  |  **Status:** Active, supersedes the push-dismissal step of entries 25 and 28
+
+**Context:** Reported as a major bug: items were disappearing from the Up Next sections of the
+media apps. Since 4 September the push (automatic and header-button) read each native target rail
+and hid every entry that was not in Plembfin's projection: `removeFromContinueWatching` on Plex,
+`HideFromResume` on Emby. The projection is built from the last recorded feed snapshots and is
+deliberately filtered (one card per show, no specials, local watched state, first-unwatched gating,
+dismissals, shows never watched locally), and the automatic push runs after almost every queue
+change. So anything Plembfin had not ingested yet (a show just started in the app, Plex's own next
+episode) or had filtered out was hidden in the app. Both hides are sticky: the item stays hidden
+until a new play. The `isStale` guard from entry 35 covered only resume-position writes, not these
+hides.
+
+**Decision:** The push only adds to native rails (predecessor refresh and known resume positions).
+A native entry missing from the queue is reported as `retained` and left in place. An item leaves an
+app's rail only as the direct result of the user's own Clear progress or Remove from up next action,
+which already hides it on every provider at the moment of the action (`hideUpNextAcrossProviders`
+in `routes/sync.js`).
+
+**Rejected:** Keeping omission-based hides with narrower guards (build the projection after the
+fresh feed read, skip hides when the data version moved). That still hides everything the projection
+filters out on purpose, and the filters change often; a wrong hide costs the user an item they
+cannot see or easily get back, while a stale extra entry costs nothing. Same principle as entry 1:
+a missing item is not evidence.
+
+**Consequence to know:** entries hidden by earlier builds are not restored; Plex and Emby show them
+again after the next play. Stale entries the user never touched now stay on the app rails until the
+app itself drops them or the user removes them.
+
+**Enforced by:** `planUpNextProviderSync` and `syncUpNextToProviders` in
+`server/src/utils/upNextProviderSync.js`; `test/upNextProviderSync.test.js` ("pushing the merged Up
+Next rail never hides native entries missing from Plembfin's queue").
+
+### 37. The Up Next rail refresh re-reads the predecessor's canonical state around each restamp
+**Date:** 2026-09-23  |  **Status:** Active
+
+**Context:** Up Next manual matrix step 6: after Mark unwatched on Scot Squad S01E02, Plembfin
+re-marked it played on Jellyfin with its old watch date (defect O). The native rail refresh had
+picked S01E02 as the watched predecessor of the next-up S01E03 from a queue and a provider
+inventory read before the unwatch, then restamped it (unplayed, then played) after the unwatch.
+
+**Decision:** Before each restamp, a predecessor whose canonical `playstate` is `unwatched` is
+skipped. After a restamp, if it has become `unwatched` in the meantime, the unplayed mark is sent
+again.
+
+**Rejected:** The entry 35 data-version `isStale` check. Playback-progress writes also move the
+data version, so during any active playback the rail refresh would keep standing down; and the
+rerun it triggers does not undo a restamp already made (the rerun sees the target as watched on the
+provider and skips it, so the phantom watch stays).
+
+**Enforced by:** `canonicalPredecessorUnwatched` in `refreshProviderRail`
+(`server/src/utils/upNextProviderSync.js`); `test/upNextProviderSync.test.js` ("the native rail
+refresh never restamps a predecessor Plembfin has as unwatched", "an unwatch that lands during the
+rail restamp is sent to the provider again").
+
+### 38. Rail refresh callbacks are consumed by provider item id, whatever the canonical state
+**Date:** 2026-09-23  |  **Status:** Active
+
+**Context:** Ted Lasso S04E03 sat in Up Next behind a watched S04E04 (defect AG). The Emby rail
+refresh restamped S04E04, then S04E03, as predecessors. Their `item.markunplayed` callbacks
+carried Plembfin's own unplayed mark, but the generic echo check lets an unplayed callback through
+whenever the playstate row it resolves is not `watched`, so a real user unwatch is not swallowed by
+an old marker. The webhook resolved the series-keyed rows (an older explicit unwatch), while the
+refresh had read the newer watch stored under leaked episode-level ids. The echoes were applied as
+user unwatches and deleted a real Emby watch from history. Entry 37's "re-send the unwatch" step
+then re-sent the unplay to Emby, because canonical state now read unwatched.
+
+**Decision:** The refresh records a short-lived marker keyed by the predecessor's provider item id
+only (no title or provider-id keys, so a same-title show's episode at the same coordinate is never
+covered). For 2 minutes, an Emby or Jellyfin unplayed or played-flag callback for that item is
+consumed before any canonical lookup. A genuine user unwatch of that exact predecessor inside those
+2 minutes is lost; that trade is accepted because the alternative deleted history.
+
+**Rejected:** Making the webhook and the refresh read the same playstate row. Which row wins
+depends on id resolution (leaked episode ids, title aliases, series ids), and any remaining split
+would let the echo through again.
+
+**Enforced by:** `recordOutboundRailRefresh` / `isRecentOutboundRailRefresh`
+(`server/src/utils/syncOrchestrator.js`), the webhook guard in `handleWebhook`
+(`server/src/routes/sync.js`); `test/webhookContentType.test.js` ("a native rail refresh callback
+never unwatches or deletes watch history").
+
+### 39. A manual watch review that local state already answers is closed, not hidden
+**Date:** 2026-09-24  |  **Status:** Active
+
+**Context:** The review listing filtered out reviews whose item Plembfin already had watched (or
+had already unwatched) but left them `pending`. They stayed invisible in the database: 549 pending
+rows on 24 September 2026, of which the page showed one. Review `499b5d89` (Marshals S01E02) was
+one of them.
+
+**Decision:** When the listing finds a review that local state already answers (the same
+`reviewIsAlreadyWatched` rules that used to hide it), it sets the review to `dismissed` with
+`decision_mode` `resolved_by_local_state`. This changes the status only. Nothing is written to
+history and nothing is sent to a provider. The same provider snapshot stays suppressed, and a
+changed snapshot can queue a fresh review. Separately, a Plex/Emby/Jellyfin library import no
+longer queues a review for an item Plembfin already has watched (`libraryHistoryDecision`).
+Decision 32 still holds for locally unwatched items.
+
+**Rejected:** *Hiding them.* Hidden pending rows pile up without limit, and the counts disagree with
+what the user can act on. *Dismissing them through the normal dismiss path.* That path is a
+Plembfin-wide unwatch and would unmark watched items on every provider.
+
+**Enforced by:** `listPendingManualWatchReviews` (`server/src/utils/manualWatchReview.js`) and
+`libraryHistoryDecision` (`server/src/scheduled.js`). Tests: `test/manualWatchReview.test.js`
+("pending reviews are hidden after the item becomes canonically watched") and
+`test/scheduledLibraryHistoryAuthority.test.js`.
+
+### 40. An ambiguous Emby/Jellyfin title search writes to nothing, not to every match
+**Date:** 2026-09-24  |  **Status:** Active
+
+**Context:** When an episode or movie carries no id its Emby or Jellyfin library can resolve (an
+Emby review carries only the episode's own ids, a Plex review none), the client falls back to a
+title search and writes to every title match. On 24 September 2026 a "Scrubs" (2001) S01E03
+dismissal also marked "Scrubs (2026)" S01E03 unplayed on Emby, and an S01E04 restore wrote both
+series on Emby and Jellyfin. Jellyfin names both series plain "Scrubs"; Emby names the revival
+"Scrubs (2026)", and its search did not return `ProductionYear`, so even a request titled
+"Scrubs (2026)" matched the 2001 series.
+
+**Decision:** When the title matches include two items whose provider ids or years disagree, the
+search returns nothing, so the write reports `not_found`. Matches that agree (one series in two
+libraries) still all count. A year or the series' own ids still pick exactly one item: the search
+now leaves the year out of the search term, and Emby asks for `ProductionYear` so the year check
+works.
+
+**Rejected:** *Writing to every match* (the old behavior): it marks the wrong show, a phantom
+watch or unwatch that then spreads. *Picking the match whose name has no year:* Jellyfin names
+both "Scrubs", so there is nothing to pick by.
+
+**Enforced by:** `titleMatchNamesSeveralItems` in `server/src/utils/embyClient.js` and
+`server/src/utils/jellyfinClient.js`; `test/sameTitleSeriesSearchFallback.test.js` ("an ambiguous
+title with no year or show id writes to neither same-title series").

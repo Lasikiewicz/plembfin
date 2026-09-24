@@ -122,6 +122,38 @@ function yearMatches(dbTitle, resultYear) {
   return Number(dbYear) === Number(resultYear);
 }
 
+// The title search runs only after no library series carried any requested id,
+// so a title match whose own TMDB or TVDB id differs from the request's show
+// id is a different show with the same name (the UK and Australian "The
+// Assembly"). Only explicit show ids are compared: a watch record's plain ids
+// can be the episode's own.
+function seriesIdsConflict(media = {}, providerIds = {}) {
+  return [["tmdb", "Tmdb"], ["tvdb", "Tvdb"]].some(([key, field]) => {
+    const wanted = String(media?.[`show_${key}_id`] || "").trim().toLowerCase();
+    const actual = String(providerIds?.[field] || "").trim().toLowerCase();
+    return Boolean(wanted && actual && wanted !== actual);
+  });
+}
+
+// Two title matches whose provider ids or years disagree are two different
+// shows or films of the same name ("Scrubs" 2001 and its 2026 revival, which
+// Emby names "Scrubs (2026)" and Jellyfin names plain "Scrubs"). With no year
+// or show id to choose between them, writing to every match marked the other
+// show too, so the title match is refused instead (decision 40). Matches that
+// agree, such as one series in two libraries, still all count.
+function titleMatchNamesSeveralItems(items = []) {
+  const differ = (a, b) => Boolean(a && b && a !== b);
+  const identity = (item) => {
+    const ids = {};
+    for (const [key, value] of Object.entries(item?.ProviderIds || {})) ids[key.toLowerCase()] = String(value || "").trim().toLowerCase();
+    return { ids, year: Number(item?.ProductionYear) || 0 };
+  };
+  const identities = items.map(identity);
+  return identities.some((left, index) => identities.slice(index + 1).some((right) =>
+    differ(left.year, right.year) || ["imdb", "tmdb", "tvdb"].some((key) => differ(left.ids[key], right.ids[key]))
+  ));
+}
+
 function parseShowTitle(title) {
   const str = String(title || "");
   const regex = /(?:\s*-\s*|\s+)S(\d+)E(\d+)/i;
@@ -282,8 +314,11 @@ async function searchEmbyFallback(config, media, targetType) {
 
   url.searchParams.set("Recursive", "true");
   url.searchParams.set("IncludeItemTypes", targetType);
-  url.searchParams.set("SearchTerm", queryTitle);
-  url.searchParams.set("Fields", "ProviderIds,UserData");
+  // The year is left out of the search and checked against ProductionYear
+  // instead; without that field Emby omits the year, so "Scrubs (2026)" also
+  // matched the 2001 series.
+  url.searchParams.set("SearchTerm", queryTitle.replace(/\s*\(\d{4}\)\s*$/, ""));
+  url.searchParams.set("Fields", "ProviderIds,UserData,ProductionYear");
   url.searchParams.set("api_key", config.apiKey);
 
   traceLog("Emby search fallback started", { query: queryTitle, targetType });
@@ -294,9 +329,14 @@ async function searchEmbyFallback(config, media, targetType) {
     const matched = results.filter((item) => {
       if (!titleMatches(queryTitle, item.Name)) return false;
       if (!yearMatches(media.title, item.ProductionYear)) return false;
+      if (targetType === "Series" && seriesIdsConflict(media, item.ProviderIds)) return false;
       return true;
     });
 
+    if (titleMatchNamesSeveralItems(matched)) {
+      traceLog("Emby search fallback refused an ambiguous title", { query: queryTitle, targetType, itemIds: matched.map(i => i.Id) });
+      return [];
+    }
     if (matched.length > 0) {
       traceLog("Emby search fallback matched items", { count: matched.length, itemIds: matched.map(i => i.Id) });
       return matched;
@@ -565,7 +605,10 @@ export async function fetchEmbyEpisodes(config, parentId, media = null) {
   url.searchParams.set("ParentId", parentId);
   url.searchParams.set("Recursive", "true");
   url.searchParams.set("IncludeItemTypes", "Episode");
-  url.searchParams.set("Fields", "ProviderIds,UserData,PremiereDate,ProductionYear,MediaSources,MediaStreams,Width,Height");
+  // UserDataLastPlayedDate: without it Emby omits UserData.LastPlayedDate, and
+  // the native rail refresh re-marked each predecessor played with no date, so
+  // Emby moved its watch date to the refresh time (defect K).
+  url.searchParams.set("Fields", "ProviderIds,UserData,UserDataLastPlayedDate,PremiereDate,ProductionYear,MediaSources,MediaStreams,Width,Height");
   url.searchParams.set("api_key", config.apiKey);
 
   const data = await fetchJson(url, config, media);
@@ -712,7 +755,10 @@ export async function fetchEmbyResumableItems(config, { limit = 0 } = {}) {
     // The generic Items?Filters=IsResumable query returns an empty snapshot on
     // some Emby versions even while the native Continue Watching rail is full.
     url.searchParams.set("MediaTypes", "Video");
-    url.searchParams.set("Fields", "ProviderIds,SeriesProviderIds,UserData,PremiereDate,ProductionYear,RunTimeTicks");
+    // Emby omits UserData.LastPlayedDate here unless it is requested. Without
+    // it the observation has no source time, so any explicit unwatch outranks
+    // a genuinely newer part-watch (docs/decisions.md entry 35).
+    url.searchParams.set("Fields", "ProviderIds,SeriesProviderIds,UserData,UserDataLastPlayedDate,PremiereDate,ProductionYear,RunTimeTicks");
     url.searchParams.set("StartIndex", String(start));
     url.searchParams.set("Limit", String(pageSize));
     url.searchParams.set("EnableTotalRecordCount", "true");
@@ -725,7 +771,7 @@ export async function fetchEmbyResumableItems(config, { limit = 0 } = {}) {
     url.searchParams.set("Recursive", "true");
     url.searchParams.set("Filters", "IsResumable");
     url.searchParams.set("IncludeItemTypes", "Movie,Episode");
-    url.searchParams.set("Fields", "ProviderIds,SeriesProviderIds,UserData,PremiereDate,ProductionYear,RunTimeTicks");
+    url.searchParams.set("Fields", "ProviderIds,SeriesProviderIds,UserData,UserDataLastPlayedDate,PremiereDate,ProductionYear,RunTimeTicks");
     url.searchParams.set("SortBy", "DatePlayed");
     url.searchParams.set("SortOrder", "Descending");
     url.searchParams.set("StartIndex", String(start));
@@ -807,12 +853,23 @@ async function embyRailSessionReport(config, path, payload, { lane = "interactiv
 // immediately stopped session makes that native index recalculate the ready
 // episode after its predecessor is marked watched. The reserved device id is
 // deliberately retained so the live-session poller and webhook path ignore
-// this bookkeeping as playback. No UserData progress or play count is written.
+// this bookkeeping as playback. Each session raises Emby's PlayCount, so the
+// item's play count, watched flag and position are written back afterwards,
+// keeping the session's LastPlayedDate that places it on the rail.
+async function fetchEmbyUserData(config, id, lane) {
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${encodeURIComponent(config.userId)}/Items/${encodeURIComponent(id)}`);
+  url.searchParams.set("Fields", "UserData");
+  url.searchParams.set("api_key", config.apiKey);
+  const item = await fetchJson(url, config, { lane });
+  return item?.UserData || {};
+}
+
 export async function touchEmbyResumeRail(config, itemId, { lane = "interactive" } = {}) {
   requireEmbyConfig(config);
   const id = String(itemId || "").trim();
   if (!id) return { platform: "emby", status: "not_found" };
 
+  const before = await fetchEmbyUserData(config, id, lane);
   const payload = {
     ItemId: id,
     MediaSourceId: id,
@@ -825,6 +882,25 @@ export async function touchEmbyResumeRail(config, itemId, { lane = "interactive"
   await embyRailSessionReport(config, "/Sessions/Playing", payload, { lane });
   await embyRailSessionReport(config, "/Sessions/Playing/Progress", payload, { lane });
   await embyRailSessionReport(config, "/Sessions/Playing/Stopped", payload, { lane });
+  const after = await fetchEmbyUserData(config, id, lane);
+  const restoreUrl = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${encodeURIComponent(config.userId)}/Items/${encodeURIComponent(id)}/UserData`);
+  restoreUrl.searchParams.set("api_key", config.apiKey);
+  const restored = await fetchWithTimeout(restoreUrl, {
+    method: "POST",
+    headers: { ...authHeaders(config), "Content-Type": "application/json" },
+    lane,
+    body: JSON.stringify({
+      PlayCount: Number(before.PlayCount || 0),
+      Played: before.Played === true,
+      PlaybackPositionTicks: Number(before.PlaybackPositionTicks || 0),
+      ...(after.LastPlayedDate ? { LastPlayedDate: after.LastPlayedDate } : {}),
+    }),
+  });
+  if (!restored.ok) {
+    const error = new Error(`Emby rail refresh UserData restore failed with status ${restored.status}`);
+    error.status = restored.status;
+    throw error;
+  }
   console.log("Emby native Continue Watching rail refreshed", { itemId: id });
   return { platform: "emby", status: "fulfilled", itemId: id, positionMs: 0 };
 }
@@ -961,8 +1037,35 @@ async function writeEmbyPersonalRating(config, media, rating, { lane = "sync" } 
       throw error;
     }
     lastHttpStatus = response.status;
+    await verifyEmbyPersonalRating(config, item.Id, body.Rating, lane);
   }
   return { platform: "emby", status: "fulfilled", itemId: items[0].Id, itemIds: items.map((item) => item.Id), httpStatus: lastHttpStatus };
+}
+
+// Emby 4.9.5.0 answers 204 to a UserData Rating write without storing it, so a
+// successful response is not evidence of delivery. Read the item back and fail
+// the write unless the stored rating matches what was sent.
+async function verifyEmbyPersonalRating(config, itemId, expected, lane) {
+  const url = new URL(`${trimTrailingSlash(config.baseUrl)}/Users/${config.userId}/Items/${itemId}`);
+  url.searchParams.set("Fields", "UserData");
+  url.searchParams.set("api_key", config.apiKey);
+  const response = await fetchWithTimeout(url, { headers: authHeaders(config), lane });
+  if (!response.ok) {
+    const error = new Error(`Emby personal rating read-back failed with status ${response.status}`);
+    error.status = response.status;
+    throw error;
+  }
+  const item = await response.json();
+  const raw = item?.UserData?.Rating;
+  const stored = raw == null || raw === "" ? null : Number(raw);
+  const matches = expected == null
+    ? stored == null || !Number.isFinite(stored) || stored < 1
+    : Number.isFinite(stored) && Math.round(stored) === expected;
+  if (!matches) {
+    throw new Error(expected == null
+      ? `Emby accepted the rating clear but item ${itemId} still reports rating ${stored}`
+      : `Emby accepted the rating write but did not store it (item ${itemId} reports ${stored == null ? "no rating" : `rating ${stored}`}, expected ${expected})`);
+  }
 }
 
 export function setEmbyPersonalRating(config, media, rating, options = {}) {

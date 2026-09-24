@@ -275,6 +275,25 @@ function requestedIds(media) {
   return { tmdb: normalized.tmdb_id, tvdb: normalized.tvdb_id, imdb: normalized.imdb_id };
 }
 
+// Unlike Discover search, the full metadata response carries the external
+// Guid array, so this is the only way to get a real tmdb/tvdb/imdb id for a
+// candidate. Used only as a last resort, when title+year still leaves more
+// than one candidate - which happens for a genuine same-title, same-year
+// Plex catalog duplicate (verified live: two distinct "Arrival" (2016)
+// entries) - so a normal add never pays for the extra request.
+async function fetchPlexMetadataById(config, ratingKey) {
+  try {
+    const body = await plexRequest(config, `/library/metadata/${encodeURIComponent(ratingKey)}`, {
+      host: discoverUrl(config),
+      params: { includeGuids: 1 },
+    });
+    return plexItemsFromBody(body)[0] || null;
+  } catch (error) {
+    if ([404, 405].includes(Number(error.status))) return null;
+    throw error;
+  }
+}
+
 export async function resolveTargets(config, media) {
   const normalized = normalizePersonalWatchlistMedia(media);
   const candidates = [];
@@ -288,12 +307,36 @@ export async function resolveTargets(config, media) {
     candidates.push(...snapshot.items.map((item) => item.remote_item || item));
   }
   const ids = requestedIds(normalized);
-  const targets = sortRemoteTargets([...new Map(candidates.map((item) => [String(item.ratingKey || item.rating_key || item.key || item.guid || item.title), item])).values()]
+  let targets = sortRemoteTargets([...new Map(candidates.map((item) => [String(item.ratingKey || item.rating_key || item.key || item.guid || item.title), item])).values()]
     .map((item) => {
       const remote = normalizePlexItem(item);
       return remote ? { id: remote.provider_item_id, item, providerIds: remote.provider_ids, media: remote } : null;
     })
     .filter((target) => target && target.media.media_type === normalized.media_type && (providerIdsMatch(ids, target.media) || titleAndYearMatch(normalized, target.media))));
+  // Discover search never returns external provider ids, so a common title
+  // routinely matches several catalog entries once titleAndYearMatch's
+  // missing-year fallback lets a same-titled, undated entry ride along with
+  // the real match. When we know the requested year, prefer whichever
+  // candidates actually match it (or matched by provider id) over a same-title
+  // guess with no year at all, instead of calling the whole set ambiguous.
+  if (targets.length > 1 && normalized.year) {
+    const exactYear = targets.filter((target) => providerIdsMatch(ids, target.media) || Number(target.media.year) === Number(normalized.year));
+    if (exactYear.length) targets = exactYear;
+  }
+  // Title and year alone cannot separate a genuine same-title, same-year
+  // catalog duplicate. Fetch full metadata (which does carry real provider
+  // ids, unlike search) for just the remaining candidates and narrow to
+  // whichever one actually matches the requested tmdb/tvdb/imdb id.
+  if (targets.length > 1 && (ids.tmdb || ids.tvdb || ids.imdb)) {
+    const detailed = await Promise.all(targets.map(async (target) => {
+      const full = await fetchPlexMetadataById(config, target.id);
+      if (!full) return target;
+      const remote = normalizePlexItem(full, target.id);
+      return remote ? { ...target, media: remote, providerIds: remote.provider_ids } : target;
+    }));
+    const idMatches = detailed.filter((target) => providerIdsMatch(ids, target.media));
+    targets = idMatches.length ? idMatches : detailed;
+  }
   return {
     targets,
     primaryTarget: targets.length === 1 ? targets[0] : null,

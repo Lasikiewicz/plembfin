@@ -663,6 +663,52 @@ export async function isRecentOutboundJellyfinNextUpNudge(media, kv, {
   return Boolean(newest && Number.isFinite(receivedAt) && receivedAt >= newest && receivedAt - newest <= windowMs);
 }
 
+// The native Up Next rail refresh toggles a watched predecessor unplayed and
+// back to played. Both callbacks are Plembfin's own writes, but the generic
+// unplayed-echo check lets an unplayed callback through whenever the canonical
+// row it reads is not `watched`. When an episode's watches sit under leaked
+// episode-level ids while an older series-keyed row says unwatched, the
+// refresh (reading one row) and the webhook (reading the other) disagree, and
+// the echo was applied as a real unwatch that deleted watch history (defect
+// AG). This marker is keyed by the provider item id only, so a same-title show
+// at the same coordinate is never covered, and it is short-lived.
+const OUTBOUND_RAIL_REFRESH_TTL_SECONDS = 15 * 60;
+const OUTBOUND_RAIL_REFRESH_PREFIX = "rail_refresh";
+
+function railRefreshKey(media, target) {
+  const itemId = String(media?.itemId || media?.provider_item_id || "").trim();
+  if (!itemId || !target) return "";
+  return `${OUTBOUND_RAIL_REFRESH_PREFIX}:item:${normalizeCachePart(itemId)}:target:${normalizeCachePart(target)}`;
+}
+
+export async function recordOutboundRailRefresh(media, target, kv) {
+  const key = railRefreshKey(media, target);
+  if (!kv || !key) return;
+  try {
+    await kv.put(key, Date.now(), { expirationTtl: OUTBOUND_RAIL_REFRESH_TTL_SECONDS });
+  } catch (error) {
+    console.error("Failed to record outbound rail refresh", { target, error });
+  }
+}
+
+export async function isRecentOutboundRailRefresh(media, target, kv, {
+  now = Date.now(),
+  windowMs = 2 * 60 * 1000,
+} = {}) {
+  const key = railRefreshKey(media, target);
+  if (!kv || !key) return false;
+  let markedAt = 0;
+  try {
+    markedAt = Number(await kv.get(key));
+  } catch (error) {
+    console.error("Failed to read outbound rail refresh", { target, error });
+    return false;
+  }
+  const receivedAt = Number(now);
+  return Boolean(markedAt && Number.isFinite(markedAt) && Number.isFinite(receivedAt)
+    && receivedAt >= markedAt && receivedAt - markedAt <= windowMs);
+}
+
 // A genuine provider-side unwatch is a new state transition. Clear any old
 // Plembfin played marker for that item on the same provider so a later manual
 // re-mark is not mistaken for a delayed echo of the original outbound mark.

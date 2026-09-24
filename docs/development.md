@@ -14,7 +14,17 @@ npm run test:multiprocess # real isolated web/worker replica test
 npm run docs:check # verify README setup guidance matches package/runtime requirements
 npm run build     # syntax check + npm test + server boot gate
 npm run seed:demo # insert fictional demo movies/shows with generated posters
+npm run server:restart # stop whatever listens on PORT, start detached, wait for /api/ping (--if-down reuses)
 ```
+
+`server:restart` (`scripts/restart-server.js`) writes the server output to
+`plembfin-local-server.log` in the OS temp directory and prints one status line, or the last log
+lines when `/api/ping` does not answer within 90 seconds. It stops any process listening on the
+port, including one started by hand in a terminal.
+
+A fresh install's admin username defaults to `admin`; without `ADMIN_PASSWORD` a random password
+is printed once to the logs (override with `ADMIN_USERNAME` / `ADMIN_PASSWORD`). First boot
+writes `data/config.json` with the admin credentials, a generated API key, and a session secret.
 
 ### Windows provider-backed server launches
 
@@ -39,13 +49,50 @@ Invoke-WebRequest http://127.0.0.1:5055/api/ping
 netstat -ano -p tcp | Select-String ':5055\s+.*LISTENING'
 ```
 
+A sandboxed agent workspace may also deny Git access to `C:\Users\<user>\.config\git\ignore`.
+For read-only status checks there, pass a repository-local excludes file per command, and never
+change global or repository Git config to work around it:
+
+```powershell
+git -c core.excludesFile=C:\path\to\plembfin\.git\info\exclude status --short --branch
+```
+
 There is no separate linter configured. A local `.env` at the repo root is loaded by
 `server/src/env.js` (existing env vars win). Data lands in `<repo>/data/` (override
 with `DATA_DIR`).
 
 When implementation work completes an item in [`plan/todo.md`](../plan/todo.md), remove it in
-the same change and refresh the relevant documentation and README section if the
-completed work changes user-visible behavior.
+the same change, move its verified plan into `plan/archive/`, and refresh the relevant
+documentation and README section if the completed work changes user-visible behavior.
+
+## Module size limits
+
+`public/app.js` stays under 3,000 lines; `public/modules/*.js` and `server/src/routes/*.js`
+have a soft limit of 1,200 and a hard limit of 1,500 lines; `server/src/index.js` stays under
+500. The rules for working with the files below (do not grow them, split only with explicit
+approval) are in `CLAUDE.md` "Module discipline".
+
+Grandfathered files, already over their limit (measured 2026-09-08):
+
+| File | Lines | Limit |
+| --- | --- | --- |
+| `public/app.js` | 3428 | 3000 |
+| `public/modules/media-detail-show.js` | 2541 | 1500 |
+| `public/modules/app-events.js` | 2225 | 1500 |
+| `public/modules/sync-activity.js` | 2199 | 1500 |
+| `public/modules/manual-watch-review.js` | 2155 (added 2026-09-24) | 1500 |
+| `public/modules/explorer.js` | 2098 | 1500 |
+| `public/modules/edit-dialogs.js` | 1932 | 1500 |
+| `public/modules/media-detail-events.js` | 1774 | 1500 |
+| `public/modules/watch-action.js` | 1680 | 1500 |
+| `public/modules/tools-maintenance.js` | 1541 | 1500 |
+| `public/modules/onboarding.js` | 1442 | 1200 soft |
+| `public/modules/sync.js` | 1355 | 1200 soft |
+| `public/modules/tools-backups.js` | 1307 | 1200 soft |
+| `server/src/routes/sync.js` | 3389 | 1500 |
+| `server/src/routes/metadata.js` | 1505 | 1500 |
+| `server/src/routes/maintenance.js` | 1399 | 1200 soft |
+| `server/src/routes/media.js` | 1311 | 1200 soft |
 
 ## The build check (`scripts/build-check.js`)
 

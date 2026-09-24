@@ -54,7 +54,11 @@ phase:
 
 - `PlaybackStart` / `PlaybackProgress` / `PlaybackPause` → `active`
 - Mark-played events, or userdata saved with `Played=true` → `completed`
-- Mark-unplayed events, or `Played=false` → `unplayed`
+- Mark-unplayed events, or `Played=false` at position 0 → `unplayed`
+- `Played=false` with a positive position → `ended` (partial playback)
+- `Played=false` at position 0 saved by playback itself (`SaveReason` `PlaybackStart`,
+  `PlaybackProgress`, `PlaybackFinished`) → ignored; Jellyfin writes it when a play starts, and
+  treating it as an unwatch blocked that play's resume position
 - `PlaybackStop` → `completed` at the watched threshold (90% by default), else `ended`
 
 Jellyfin sends mark-unplayed events, so unwatch propagation works purely through the
@@ -99,7 +103,7 @@ Playback positions use tick units (1 tick = 100 ns), converted in `scheduled.js`
 
 | Function | What it does |
 | --- | --- |
-| `findJellyfinItems` | Locates library items by provider ID (`AnyProviderIdEquals`), falling back to title/year search; episodes resolved through the series |
+| `findJellyfinItems` | Locates library items by provider ID (`AnyProviderIdEquals`), falling back to title/year search; episodes resolved through the series. A title search that matches two items with different ids or years (two shows or films of the same name, such as "Scrubs" 2001 and 2026) finds nothing rather than both ([decision 40](decisions.md)) |
 | `markJellyfinPlayed` / `markJellyfinUnplayed` | `POST` / `DELETE` on `/Users/<userId>/PlayedItems/<itemId>` |
 | `setJellyfinProgress` | Writes a resume position via the item's UserData |
 | `updateJellyfinUserData` | Merges selected UserData fields, used to order a verified Next Up series without resetting play count or progress |
@@ -107,7 +111,7 @@ Playback positions use tick units (1 tick = 100 ns), converted in `scheduled.js`
 | `fetchJellyfinSeriesEpisodes` / `fetchJellyfinEpisodes` | Episode lists for season-level operations |
 | `fetchJellyfinWatchedItems` / `fetchJellyfinResumableItems` / `fetchJellyfinNextUpItems` | Watched, resume, and Next Up feeds for catch-up sync |
 | `fetchJellyfinPersonalRatingSnapshot` | Reads rated movies, series, and episodes for the isolated personal-rating snapshot worker |
-| `setJellyfinPersonalRating` / `clearJellyfinPersonalRating` | Writes or clears a personal rating without changing played state or resume progress |
+| `setJellyfinPersonalRating` / `clearJellyfinPersonalRating` | Writes or clears a personal rating without changing played state or resume progress. A clear sends `Rating: 0`: Jellyfin (verified on 12.0.0) ignores `Rating: null` in this partial update |
 
 ## Artwork
 

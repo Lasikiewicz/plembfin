@@ -21,6 +21,7 @@ import { handlePersonalMedia } from "./routes/personal.js";
 import { handleRatingSync } from "./routes/ratingSync.js";
 import { handleWatchlistSync } from "./routes/watchlistSync.js";
 import { handleManualWatchReview } from "./routes/manualWatchReview.js";
+import { handlePlaystateAliases } from "./routes/playstateAliases.js";
 import { isDemoMode } from "./utils/demoMode.js";
 import { handleTautulli } from "./routes/tautulli.js";
 
@@ -51,7 +52,7 @@ const DEMO_DISABLED_ROUTE_PATTERNS = Object.freeze([
   /^(?:tmdb-search|tvdb-search|fix-match-search|media-search|refresh-tmdb-metadata|refresh-tvdb-metadata)(?:\/|$)/i,
   /^(?:remote-artwork|tmdb-poster|tmdb-profile|fanart-images|tvdb-images|tmdb-images|youtube-meta|omdb-rating)(?:\/|$)/i,
   /^(?:admin-|phantom-watch-|episode-title-|stale-|split-identity-|likely-false-)/i,
-  /^(?:rematch-show|merge-shows|duplicate-watch-)/i,
+  /^(?:rematch-show|merge-shows|duplicate-watch-|playstate-aliases)/i,
   /^(?:diagnostic-logs|debug-plex-match|webhook)$/i,
 ]);
 
@@ -189,6 +190,7 @@ async function dispatch(req, res) {
     if (path === "manual-watch") return handleManualWatch(req, res);
     if (path === "manual-unwatch") return handleManualUnwatch(req, res);
     if (path === "manual-watch-review" || path.startsWith("manual-watch-review/")) return handleManualWatchReview(req, res, path);
+    if (path === "playstate-aliases" || path.startsWith("playstate-aliases/")) return handlePlaystateAliases(req, res, path);
     if (path === "playback-progress") return handlePlaybackProgressList(req, res);
     if (path === "playback-progress/watch") return handlePlaybackProgressWatch(req, res);
     if (path === "playback-progress/unwatch") return handlePlaybackProgressUnwatch(req, res);

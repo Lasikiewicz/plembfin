@@ -12,7 +12,7 @@ import { watchedPlayedSyncEnabled } from "./utils/syncFlags.js";
 import { watchedThresholdPercent, watchImportMode } from "./utils/tuning.js";
 import { isRecentOutboundPlayedEcho, isRecentOutboundUnplayedFlagEcho, lastOutboundPlayedMarkAt, syncCanonicalPlaystate, syncMediaPlaystate } from "./utils/syncOrchestrator.js";
 import { applyUnwatchedTransition } from "./utils/watchStateTransitions.js";
-import { shouldRepairRecentPlexUnwatch } from "./utils/plexWatchstate.js";
+import { plexUnplayedHasWatchEvidence, shouldRepairRecentPlexUnwatch } from "./utils/plexWatchstate.js";
 import { pollConnectedTrackers } from "./utils/trackerSync.js";
 import { getTrackerConnection } from "./utils/trackerConnectionRepo.js";
 import { withFreshTraktConnection } from "./utils/trackerDispatcher.js";
@@ -25,6 +25,7 @@ import { runScheduledPlembfinBackup } from "./utils/plembfinBackups.js";
 import { runRatingSyncScheduler } from "./utils/personalRatingSync.js";
 import { runWatchlistSyncScheduler } from "./utils/personalWatchlistSync.js";
 import { pruneSyncPlans } from "./utils/syncPlans.js";
+import { runScheduledPlaystateAliasRepair } from "./utils/playstateAliasRepair.js";
 import {
   deletePlaybackProgress,
   findWatchedByAnyMediaKey,
@@ -470,6 +471,10 @@ async function runScheduledTickSteps({ isLeader = () => true } = {}) {
     if (!isLeader()) return { skipped: true, reason: "lease-lost" };
     lastEpisodeIdentityRepairAt = Date.now();
     await runWithTimeBudget("Episode identity repair", () => repairEpisodeSeriesIdentity(), 30_000);
+    // Cached TMDB answers only; uncached ids go to a background lookup job.
+    if (!isAuthoritativeRestoreActive()) {
+      await runWithTimeBudget("Playstate episode-id alias repair", () => runScheduledPlaystateAliasRepair(), 30_000);
+    }
   }
   if (isAuthoritativeRestoreActive()) return { skipped: true, reason: "authoritative-restore-active" };
   // The gateway queues missing/stale library metadata on a single background
@@ -838,6 +843,15 @@ async function processPlexLibraryItemChange(ratingKey, metadataOverride = null) 
       viewOffset,
     });
   }
+
+  // A never-watched item (for example one Plex just added to the library) also
+  // arrives as unplayed. Recording it would write an unwatched history row and
+  // push the unwatch to every target for something nobody watched.
+  const unplayedPlaystate = await getPlaystateForMedia(media).catch(() => null);
+  const unplayedWatchedRecord = unplayedPlaystate?.state === "watched"
+    ? null
+    : await findWatchedByAnyMediaKey(media).catch(() => null);
+  if (!plexUnplayedHasWatchEvidence({ playstate: unplayedPlaystate, watchedRecord: unplayedWatchedRecord })) return;
 
   const loopStore = createLoopStore();
   if (viewCount === 0) {

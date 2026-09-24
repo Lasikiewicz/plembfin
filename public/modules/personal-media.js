@@ -1,9 +1,9 @@
-import { buildAuthHeaders } from "./auth.js?v=1.2.1.0.0";
-import { state, elements } from "./state.js?v=1.2.1.0.0";
-import { escapeAttribute, escapeHtml, formatTmdbDate, episodeCode } from "./utils.js?v=1.2.1.0.0";
-import { hydratePosters } from "./images.js?v=1.2.1.0.0";
-import { normalizeMediaCardRecord, renderMediaCard } from "./media-card.js?v=1.2.1.0.0";
-import { hydratePersonalMetadata, personalMetadataItems, propagatePersonalMetadata } from "./personal-media-metadata.js?v=1.2.1.0.0";
+import { buildAuthHeaders } from "./auth.js?v=1.2.1.0.1";
+import { state, elements } from "./state.js?v=1.2.1.0.1";
+import { escapeAttribute, escapeHtml, formatTmdbDate, episodeCode } from "./utils.js?v=1.2.1.0.1";
+import { hydratePosters } from "./images.js?v=1.2.1.0.1";
+import { normalizeMediaCardRecord, renderMediaCard } from "./media-card.js?v=1.2.1.0.1";
+import { hydratePersonalMetadata, personalMetadataItems, propagatePersonalMetadata } from "./personal-media-metadata.js?v=1.2.1.0.1";
 
 const PERSONAL_MEDIA_TTL_MS = 2 * 60 * 1000;
 const PERSONAL_MEDIA_TIMEOUT_MS = 15000;
@@ -406,6 +406,7 @@ function personalCustomListActionState(item) {
 }
 
 export function personalMediaActionsHtml(item = {}) {
+  ensurePersonalMediaLoaded();
   const normalized = normalizeItem(item);
   const attributes = personalMediaDataAttributes(normalized);
   const watchlist = personalWatchlistActionState(normalized);
@@ -442,7 +443,27 @@ export function refreshRenderedPersonalMediaControls() {
   }
 }
 
+// personalRatings/personalWatchlist/personalLists are only ever fetched by
+// loadPersonalMedia(), and until this session-scoped fix that was only called
+// when the Watchlist/Ratings/Custom Lists/Discover route itself was active.
+// A movie/show/episode detail page opened directly - a deep link, a search
+// result, a bookmark, a fresh tab - never triggered it, so the personal
+// rating pill and the watchlist/list buttons silently rendered as "not yet
+// rated"/"not on your list" even when the item already was, on the first
+// paint of every session until one of those other routes happened to load
+// it. Verified against a real rating during the personal-rating-sync manual
+// provider matrix, 22 September 2026. Firing a background, deduped,
+// TTL-respecting load from here - the same load every one of those routes
+// already uses - self-heals every rendered pill/button in place via
+// loadPersonalMedia()'s own refreshPersonalViews() call, regardless of which
+// page happened to render first.
+function ensurePersonalMediaLoaded() {
+  if (state.personalMediaLoadedAt || state.personalMediaLoading) return;
+  loadPersonalMedia().catch(() => { });
+}
+
 export function personalRatingPillHtml(item = {}) {
+  ensurePersonalMediaLoaded();
   const normalized = normalizeItem(item);
   const rating = getPersonalRating(normalized);
   const label = rating ? `Your rating · ${rating}/10` : "Rate this";
@@ -451,6 +472,7 @@ export function personalRatingPillHtml(item = {}) {
 }
 
 export function personalEpisodeRatingButtonHtml(item = {}) {
+  ensurePersonalMediaLoaded();
   const normalized = normalizeItem(item);
   const rating = getPersonalRating(normalized);
   const code = episodeCode(normalized.season, normalized.episode);

@@ -196,6 +196,42 @@ test("availability reconciliation does not overwrite a canonical unwatch", async
   assert.equal(markCount, 0);
 });
 
+test("an id-less episode is not marked from a same-title show's watch once its series ids resolve", async () => {
+  // Two real shows titled "The Assembly": the UK one is explicitly unwatched,
+  // the Australian one has a watch. Jellyfin lists the UK episode with no ids.
+  const uk = { imdb: "tt8064568", tmdb: "290057", tvdb: "453869" };
+  const au = { imdb: "tt33204483", tmdb: "262100", tvdb: "452480" };
+  const base = { title: "The Assembly - S01E04", show_title: "The Assembly", media_type: "episode", type: "episode", season: 1, episode: 4 };
+  await repo.upsertPlaystateForMedia({ ...base, ids: uk }, "unwatched", "2026-09-23T13:29:59.000Z");
+  const watched = await repo.insertWatchRecord({
+    title: base.title, show_title: base.show_title, media_type: "episode", season: 1, episode: 4,
+    imdb_id: au.imdb, tmdb_id: au.tmdb, tvdb_id: au.tvdb, watched_at: "2026-06-16T21:26:00.000Z", source: "trakt",
+  });
+  await repo.upsertPlaystateForMedia({ ...base, ids: au }, "watched", watched.record.watched_at);
+
+  const jellyfinConfig = { plex: { disabled: true }, emby: { disabled: true }, jellyfin: { baseUrl: "https://jf.example", apiKey: "key", userId: "user" } };
+  const item = { Id: "jf-uk-s1e4", Type: "Episode", Name: "Gary Lineker", SeriesName: "The Assembly", SeriesId: "jf-uk-series", ParentIndexNumber: 1, IndexNumber: 4, ProviderIds: {}, UserData: { Played: false, PlayCount: 0 } };
+  const run = async (resolveSeriesIdentity) => {
+    const marked = [];
+    await reconcileAvailableWatchedItems(jellyfinConfig, {
+      clients: { jellyfin: { fetch: async () => [item] } },
+      resolveSeriesIdentity,
+      markWatched: async (media) => { marked.push(media); return { status: "success" }; },
+    });
+    return marked;
+  };
+
+  // Without series ids the title/coordinate lookup finds the Australian watch.
+  assert.equal((await run(async (media) => media)).length, 1);
+  let resolvedSeries = "";
+  const marked = await run(async (media) => {
+    resolvedSeries = media.seriesItemId;
+    return { ...media, ids: { ...media.ids, ...uk } };
+  });
+  assert.equal(resolvedSeries, "jf-uk-series");
+  assert.equal(marked.length, 0);
+});
+
 test("a failed provider inventory produces no writes and no inferred unwatch", async () => {
   let markCount = 0;
   const result = await reconcileAvailableWatchedItems(embyConfig(), {

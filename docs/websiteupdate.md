@@ -132,6 +132,51 @@ baseline, review changes after it, start the local app and website preview, audi
 images, check privacy, run the inventory and website checks, and report the local visual
 findings. The website gate is mandatory for every main release.
 
+### Content-impact check (automated, fail-closed)
+
+`scripts/site-impact.js` enforces the rule above mechanically: every changed application
+surface since the previous main release must map to a website/docs update committed in this
+same release, or the commit(s) that touched it must carry an explicit `site-impact:` decision
+in its message body. It reuses the same app-surface catalog and website-target mapping as
+`plan/updates.md`'s **Website check targets** section, so a file it flags is exactly a file
+that section would also have surfaced for review.
+
+The check runs automatically, both as part of `node scripts/promote-alpha-to-main.js
+--preview` (step 3 of the "Force to main" skill) and again inside `--confirm`, so it cannot be
+skipped by omitting a manual step - a failure raises an error and refuses to promote. It can
+also be run on demand:
+
+```bash
+npm run check:website-impact
+```
+
+**Resolving a failure:** either update the affected website guide (then the check sees the
+guide changed in-range and passes), or add a line to the *relevant commit's* message body:
+
+```text
+site-impact: none
+```
+
+or, to name which guide already covers it:
+
+```text
+site-impact: <docSlug>
+```
+
+`<docSlug>` must match a real entry in `website/src/data/app-surface.json`; a typo does not
+silently pass. The decision has to be on the commit that actually touched the flagged file -
+a later unrelated commit's trailer does not retroactively excuse an earlier one. Since this
+runs against the alpha cycle, fix the source commit on `develop` (amend or add a follow-up
+commit there), repeat "Force to alpha", and retry "Force to main" - the same remediation
+path already used for a changelog-process violation.
+
+Release-bookkeeping commits (changelog rebuilds, alpha/main promotions, build-counter resets)
+are excluded from the walk entirely, since they mechanically restamp most of `public/`
+without being a real product change. The check is scoped to `app-surface.json`'s catalogued
+targets plus any other changed `public/`, `server/`, or `docs/` path; it does not gate
+`website/`-only edits, `README.md`, `package.json`, or the changelog manifests, which are
+release metadata and shared layout, not a catalogued feature surface.
+
 ## Publish plan
 
 The website is a tracked static Astro site in `website/`. The GitHub-to-Cloudflare Pages

@@ -89,6 +89,20 @@ function showIdentityIds(item = {}) {
   return ids;
 }
 
+// Two shows can share a title (Scrubs 2001 and its reboot), and so share the
+// show:title and coordinate aliases. A TMDB or TVDB show id that disagrees
+// proves they are different shows, so one's dismissal never hides, replaces
+// or restores the other's.
+function provenDifferentShow(dismissal, item = {}) {
+  const left = normalizeUpNextCandidate(dismissal.snapshot || dismissal);
+  const right = normalizeUpNextCandidate(item);
+  return ["tmdb", "tvdb"].some((provider) => {
+    const leftId = text(left[`show_${provider}_id`]).toLowerCase();
+    const rightId = text(right[`show_${provider}_id`]).toLowerCase();
+    return Boolean(leftId && rightId && leftId !== rightId);
+  });
+}
+
 function dismissalMatchesRematchedEpisode(dismissal, item = {}) {
   if (dismissal.media_type !== "episode") return false;
   const candidate = normalizeUpNextCandidate(item);
@@ -168,7 +182,7 @@ export function recordUpNextDismissal(item = {}, { now = Date.now() } = {}) {
   // One dismissal per identity: re-dismissing an item that already has a row
   // under an overlapping alias replaces it rather than accumulating rows that
   // all resolve to the same card.
-  const existing = findDismissalByAliases(aliases);
+  const existing = findDismissalByAliases(aliases, item);
   db.transaction(() => {
     if (existing && existing.id !== id) deleteStmt.run(existing.id);
     upsertStmt.run(row);
@@ -199,12 +213,14 @@ export function listUpNextDismissals() {
   return selectAllStmt.all().map(rowToDismissal);
 }
 
-function findDismissalByAliases(aliases = []) {
+function findDismissalByAliases(aliases = [], item = {}) {
   const wanted = new Set(aliases);
   if (!wanted.size) return null;
   for (const row of selectAllStmt.all()) {
     const stored = parseJson(row.aliases_json, []) || [];
-    if (stored.some((alias) => wanted.has(alias))) return rowToDismissal(row);
+    if (!stored.some((alias) => wanted.has(alias))) continue;
+    const dismissal = rowToDismissal(row);
+    if (!provenDifferentShow(dismissal, item)) return dismissal;
   }
   return null;
 }
@@ -240,6 +256,7 @@ export function restoreUpNextDismissalsForMedia(item = {}, { after = 0 } = {}) {
   const matches = selectAllStmt.all()
     .map(rowToDismissal)
     .filter((dismissal) => threshold <= 0 || dismissal.dismissed_at <= threshold)
+    .filter((dismissal) => !provenDifferentShow(dismissal, item))
     .filter((dismissal) => dismissal.aliases.some((alias) => wanted.has(alias)) || dismissalMatchesRematchedEpisode(dismissal, item));
   if (!matches.length) return 0;
   const removed = db.transaction(() => matches.reduce((count, dismissal) => (
@@ -279,16 +296,19 @@ export function createUpNextDismissalFilter() {
   if (!dismissals.length) {
     return { isDismissed: () => false, dismissedAt: () => 0, count: 0 };
   }
+  // An alias can belong to several dismissals (two same-title shows share
+  // show:title), so keep them all, newest first, and skip a different show's.
   const byAlias = new Map();
   for (const dismissal of dismissals) {
     for (const alias of dismissal.aliases) {
-      const existing = byAlias.get(alias);
-      if (!existing || dismissal.dismissed_at > existing.dismissed_at) byAlias.set(alias, dismissal);
+      if (!byAlias.has(alias)) byAlias.set(alias, []);
+      byAlias.get(alias).push(dismissal);
     }
   }
+  for (const list of byAlias.values()) list.sort((a, b) => b.dismissed_at - a.dismissed_at);
   const lookup = (candidate) => {
     for (const alias of dismissalAliases(candidate)) {
-      const hit = byAlias.get(alias);
+      const hit = byAlias.get(alias)?.find((dismissal) => !provenDifferentShow(dismissal, candidate));
       if (hit) return hit;
     }
     return null;

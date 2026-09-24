@@ -116,12 +116,55 @@ export async function resolveSeriesIds(source, seriesItemId, config) {
   return resolved;
 }
 
+// Returns the media server's native series handle for one of its episode
+// items (Plex grandparentRatingKey, Emby/Jellyfin SeriesId), or "" when the
+// item cannot be read. Never throws.
+export async function resolveEpisodeSeriesItemId(source, itemId, config) {
+  const cleanId = String(itemId || "").trim();
+  if (!cleanId || !config) return "";
+  try {
+    if (source === "plex") {
+      const metadata = await fetchPlexMetadataItem(config, cleanId, { lane: "interactive" });
+      return String(metadata?.grandparentRatingKey || "").trim();
+    }
+    if (source !== "emby" && source !== "jellyfin") return "";
+    const baseUrl = trimTrailingSlash(config.baseUrl);
+    if (!baseUrl || !config.userId) return "";
+    const url = new URL(`${baseUrl}/Users/${encodeURIComponent(config.userId)}/Items/${encodeURIComponent(cleanId)}`);
+    const headers =
+      source === "jellyfin"
+        ? jellyfinAuthHeaders(config)
+        : { Accept: "application/json", "X-Emby-Token": config.apiKey };
+    if (source === "emby") url.searchParams.set("api_key", config.apiKey);
+    const response = await fetchWithTimeout(url, { headers, lane: "interactive" });
+    if (!response.ok) return "";
+    const item = await response.json();
+    return String(item?.SeriesId || "").trim();
+  } catch (error) {
+    console.warn("Episode series handle lookup failed", { source, itemId: cleanId, error: error?.message || String(error) });
+    return "";
+  }
+}
+
 // Upgrades an episode media object in place of its episode-level provider ids.
 //
 // Only episodes are touched, and only when the payload actually carries a
 // series handle. If the payload already agrees with the series identity, or the
 // lookup fails, the media object is returned unchanged - so this can be applied
 // to every ingest path without making any of them depend on it succeeding.
+// The native series handle of a library item, so a scheduled library-history
+// import resolves series ids like every other path. Emby and Jellyfin list
+// only the episode's own ProviderIds (no SeriesProviderIds), which otherwise
+// key the watch on episode ids (decision 15).
+export function librarySeriesItemId(item = {}, source = "") {
+  if (source === "plex") {
+    if (item.type !== "episode") return null;
+    const fromKey = String(item.grandparentKey || "").match(/\/library\/metadata\/(\d+)$/)?.[1];
+    return item.grandparentRatingKey || fromKey || null;
+  }
+  return item.Type === "Episode" ? (item.SeriesId || null) : null;
+}
+
 export async function withSeriesIdentity(media, config) {
   if (!media || media.type !== "episode") return media;
 

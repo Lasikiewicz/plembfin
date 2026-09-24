@@ -1,10 +1,10 @@
-import { state } from "./state.js?v=1.2.1.0.0";
-import { buildAuthHeaders } from "./auth.js?v=1.2.1.0.0";
-import { escapeAttribute, escapeHtml } from "./utils.js?v=1.2.1.0.0";
+import { state } from "./state.js?v=1.2.1.0.1";
+import { buildAuthHeaders } from "./auth.js?v=1.2.1.0.1";
+import { escapeAttribute, escapeHtml } from "./utils.js?v=1.2.1.0.1";
 import {
   PLEX_HISTORICAL_SYNC_LABEL,
   plexHistoricalSyncEnabled,
-} from "./plex-history-policy.js?v=1.2.1.0.0";
+} from "./plex-history-policy.js?v=1.2.1.0.1";
 
 let bound = false;
 let preview = null;
@@ -483,6 +483,7 @@ async function previewImport() {
       `• ${Number(result.new || 0).toLocaleString()} plays are ready to import into Plembfin.`,
       `• ${Number(result.merged || 0).toLocaleString()} plays are already in Plembfin, so they will be skipped.`,
       `• ${Number(result.skipped_incomplete || 0).toLocaleString()} incomplete or part-watched plays will be ignored.`,
+      `• ${Number(result.skipped_newer_unwatch || 0).toLocaleString()} plays are older than a later unwatch in Plembfin, so they will be skipped.`,
       `• ${Number(result.needs_review || 0).toLocaleString()} have more than one possible match and still need a decision below.`,
       `• ${Number(result.unresolved || 0).toLocaleString()} could not be matched because key details were missing.`,
       ...(reviewed ? [
@@ -547,6 +548,7 @@ async function runImport() {
     `Imported ${Number(result.inserted || 0).toLocaleString()} new record(s).`,
     `• ${Number(result.merged || 0).toLocaleString()} already represented in Plembfin.`,
     `• ${Number(result.skipped_incomplete || 0).toLocaleString()} incomplete or part-watched plays ignored.`,
+    `• ${Number(result.skipped_newer_unwatch || 0).toLocaleString()} skipped because a later unwatch in Plembfin supersedes them.`,
     `• ${Number(result.reviewed_merged || 0).toLocaleString()} reviewed and merged into an existing record.`,
     `• ${Number(result.reviewed_imported || 0).toLocaleString()} reviewed and imported as separate plays.`,
     `• ${Number(result.reviewed_skipped || 0).toLocaleString()} reviewed and skipped.`,

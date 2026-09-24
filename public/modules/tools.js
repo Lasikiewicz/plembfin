@@ -1,11 +1,12 @@
-import { buildAuthHeaders } from "./auth.js?v=1.2.1.0.0";
-import { state, elements } from "./state.js?v=1.2.1.0.0";
-import { escapeHtml, escapeAttribute, formatNumber, formatDate, csvRows, normalizeHeader, episodeCode } from "./utils.js?v=1.2.1.0.0";
-import { initBackupTools } from "./tools-backups.js?v=1.2.1.0.0";
-import { initMaintenanceTools } from "./tools-maintenance.js?v=1.2.1.0.0";
-import { initHealthTools } from "./tools-health.js?v=1.2.1.0.0";
-import { initDuplicateWatchTools } from "./tools-duplicates.js?v=1.2.1.0.0";
-import { initWipeDataTools } from "./tools-wipe-data.js?v=1.2.1.0.0";
+import { buildAuthHeaders } from "./auth.js?v=1.2.1.0.1";
+import { state, elements } from "./state.js?v=1.2.1.0.1";
+import { escapeHtml, escapeAttribute, formatNumber, formatDate, csvRows, normalizeHeader, episodeCode } from "./utils.js?v=1.2.1.0.1";
+import { initBackupTools } from "./tools-backups.js?v=1.2.1.0.1";
+import { initMaintenanceTools } from "./tools-maintenance.js?v=1.2.1.0.1";
+import { initHealthTools } from "./tools-health.js?v=1.2.1.0.1";
+import { initDuplicateWatchTools } from "./tools-duplicates.js?v=1.2.1.0.1";
+import { initWipeDataTools } from "./tools-wipe-data.js?v=1.2.1.0.1";
+import { initPlaystateAliasTools } from "./tools-playstate-aliases.js?v=1.2.1.0.1";
 // Callbacks injected by app.js at startup to avoid circular imports.
 let _setMessage = () => {};
 let _openConfirmDialog = async () => false;
@@ -33,6 +34,7 @@ export function initTools(callbacks) {
   initHealthTools();
   initDuplicateWatchTools(callbacks);
   initWipeDataTools(callbacks);
+  initPlaystateAliasTools(callbacks);
 }
 function authHeaders() {
   return buildAuthHeaders(state.token);
@@ -72,10 +74,10 @@ export {
   setBackupTransferState,
   updatePlembfinButtonsState,
   uploadWatchBackupFile,
-} from "./tools-backups.js?v=1.2.1.0.0";
-export { APPEARANCE_DEFAULTS, applyAppearanceToBody, loadAppearanceSettings } from "./appearance.js?v=1.2.1.0.0";
-export { loadCacheStats, renderCachePanel, resetFullSyncWatchstates } from "./tools-maintenance.js?v=1.2.1.0.0";
-export { loadSyncHealth } from "./tools-health.js?v=1.2.1.0.0";
+} from "./tools-backups.js?v=1.2.1.0.1";
+export { APPEARANCE_DEFAULTS, applyAppearanceToBody, loadAppearanceSettings } from "./appearance.js?v=1.2.1.0.1";
+export { loadCacheStats, renderCachePanel, resetFullSyncWatchstates } from "./tools-maintenance.js?v=1.2.1.0.1";
+export { loadSyncHealth } from "./tools-health.js?v=1.2.1.0.1";
 // ── Trakt / CSV import ─────────────────────────────────────────────────────
 export async function parseSelectedFiles(files) {
   const selectedFiles = [...files];
@@ -347,9 +349,9 @@ export async function startImport() {
 // ── Maintenance tools ──────────────────────────────────────────────────────
 // History repair, dedup, Trakt backfill, full-sync, and system integrity
 // checks live in tools-maintenance.js (per CLAUDE.md's module table) and are
-// re-exported here so existing imports of these names from "./tools.js?v=1.2.1.0.0"
+// re-exported here so existing imports of these names from "./tools.js?v=1.2.1.0.1"
 // keep working unchanged.
-export { runRepairWorkflow, runPhantomWatchAudit, runPhantomWatchRepair, runTraktBackfill, runRematchTvShows, runFullSyncWatchstates, cancelFullSyncWatchstates, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory } from "./tools-maintenance.js?v=1.2.1.0.0";
-export { runDuplicateWatchCleanup } from "./tools-duplicates.js?v=1.2.1.0.0";
-export { runEpisodeTitleAudit, runEpisodeTitleBackfill } from "./tools-maintenance.js?v=1.2.1.0.0";
-export { loadWipeDataPreview, runWipeData } from "./tools-wipe-data.js?v=1.2.1.0.0";
+export { runRepairWorkflow, runPhantomWatchAudit, runPhantomWatchRepair, runTraktBackfill, runRematchTvShows, runFullSyncWatchstates, cancelFullSyncWatchstates, runSystemIntegrityCheck, triggerClearMissingTelemetry, triggerRetryAllCategory } from "./tools-maintenance.js?v=1.2.1.0.1";
+export { runDuplicateWatchCleanup } from "./tools-duplicates.js?v=1.2.1.0.1";
+export { runEpisodeTitleAudit, runEpisodeTitleBackfill } from "./tools-maintenance.js?v=1.2.1.0.1";
+export { loadWipeDataPreview, runWipeData } from "./tools-wipe-data.js?v=1.2.1.0.1";

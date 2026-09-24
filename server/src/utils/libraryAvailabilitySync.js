@@ -7,6 +7,7 @@ import { fetchEmbyLibraryItems } from "./embyClient.js";
 import { fetchJellyfinLibraryItems } from "./jellyfinClient.js";
 import { syncCanonicalPlaystate } from "./syncOrchestrator.js";
 import { buildWatchProvenance } from "./watchProvenance.js";
+import { withSeriesIdentity } from "./seriesIdentity.js";
 
 const PROVIDERS = ["plex", "emby", "jellyfin"];
 const RECONCILIATION_CONCURRENCY = 4;
@@ -121,6 +122,8 @@ export function mediaFromLibraryItem(provider, item = {}) {
   const episode = numberOrNull(provider === "plex" ? item.index : item.IndexNumber);
   if (!showTitle || season == null || season < 0 || episode == null || episode < 1) return null;
 
+  const seriesItemId = text(provider === "plex" ? item.grandparentRatingKey : item.SeriesId);
+  if (seriesItemId) media.seriesItemId = seriesItemId;
   media.show_title = showTitle;
   media.showTitle = showTitle;
   media.season = season;
@@ -155,6 +158,7 @@ export async function reconcileAvailableWatchedItems(config = {}, {
   onMarked = null,
   shouldStop = async () => false,
   concurrency = RECONCILIATION_CONCURRENCY,
+  resolveSeriesIdentity = withSeriesIdentity,
 } = {}) {
   const result = {
     scanned: 0,
@@ -239,6 +243,21 @@ export async function reconcileAvailableWatchedItems(config = {}, {
       if (canonicalState !== "watched") {
         providerResult.skipped += 1;
         return;
+      }
+      // Jellyfin episodes often carry no provider ids, so the lookup above
+      // matched on title and coordinate alone and can land on a same-title
+      // show's watch. Resolve the series ids (only for the few watched
+      // candidates) and require the watch to hold under them.
+      if (media.type === "episode" && media.seriesItemId) {
+        const resolved = await resolveSeriesIdentity(media, config).catch(() => media);
+        if (resolved !== media) {
+          const resolvedState = await getCanonicalWatchState(resolved).catch(() => null);
+          if (resolvedState !== "watched") {
+            providerResult.skipped += 1;
+            return;
+          }
+          media = resolved;
+        }
       }
       // The restore fence guards the provider write below. Checking it here,
       // immediately before that write, keeps the guarantee while skipping a

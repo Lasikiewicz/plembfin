@@ -516,7 +516,14 @@ function mergeGroup(rows) {
     if (row.source) sources.add(lower(row.source));
     mergeProviderItems(providerItems, row.provider_items);
   }
-  const queueKind = resumes.length ? "resume" : "next_up";
+  // Rail membership with no position is not saved progress. For an episode it
+  // is the provider's next episode (Plex lists it in Continue Watching with no
+  // offset; Emby Resume at 0 is Plembfin's own rail refresh), so it must not
+  // be labelled part-watched. A movie has no next-episode meaning; keep it.
+  const membershipOnly = resumes.length > 0
+    && representative.media_type === "episode"
+    && resumes.every((row) => row.playback_position_known === false);
+  const queueKind = resumes.length && !membershipOnly ? "resume" : "next_up";
   const latestShowWatch = [...normalized]
     .map((row) => row.show_latest_watched_at)
     .filter(Boolean)

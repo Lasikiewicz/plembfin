@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { shouldRepairRecentPlexUnwatch } from "../server/src/utils/plexWatchstate.js";
+import { plexUnplayedHasWatchEvidence, shouldRepairRecentPlexUnwatch } from "../server/src/utils/plexWatchstate.js";
 
 test("a positive-offset Plex rollback is repaired after recent threshold playback", () => {
   assert.equal(shouldRepairRecentPlexUnwatch({
@@ -43,4 +43,17 @@ test("ordinary Plex unwatches are not hidden by the rollback guard", () => {
     viewOffset: 3_064_000,
     hasPlaybackEvidence: true,
   }), false, "the guard cannot revive an already-unwatched canonical state");
+});
+
+test("an unplayed Plex notification for a never-watched item is not an unwatch", () => {
+  assert.equal(plexUnplayedHasWatchEvidence({ playstate: null, watchedRecord: null }), false,
+    "a newly added library item has nothing to unwatch");
+  assert.equal(plexUnplayedHasWatchEvidence({ playstate: { state: "unwatched" }, watchedRecord: null }), false,
+    "an already-unwatched item has nothing to unwatch");
+});
+
+test("an unplayed Plex notification is an unwatch when Plembfin holds a watch", () => {
+  assert.equal(plexUnplayedHasWatchEvidence({ playstate: { state: "watched" } }), true);
+  assert.equal(plexUnplayedHasWatchEvidence({ playstate: null, watchedRecord: { id: "w1" } }), true,
+    "a watched history row under a sibling key still counts");
 });

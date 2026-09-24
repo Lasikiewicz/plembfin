@@ -90,12 +90,96 @@ function coordinate(row = {}) {
   return `${season}:${episode}`;
 }
 
-function rowCandidate(row = {}, { queueKind = "resume", canonical = false, showIdentities = null } = {}) {
+// Canonical progress rows carry the series identity ingest resolved for them.
+// When that identity has its own TMDB/TVDB resolution and shares no id with
+// the only show known by the same title, it is a different show with the same
+// name (Scrubs 2001 against the 2026 reboot), not a gap to fill by title.
+// Mirrors the ingest rule in docs/decisions.md entry 34. Provider feed items
+// are left alone: they carry episode-level ids that never match a series.
+function canonicalIdsDisagreeWithShow(item = {}, ids = null) {
+  if (!ids || !(text(item.tmdb_id) || text(item.tvdb_id))) return false;
+  return !["imdb", "tmdb", "tvdb"].some((provider) => {
+    const own = text(item[`${provider}_id`]).toLowerCase();
+    return own && ids[provider] && own === String(ids[provider]).toLowerCase();
+  });
+}
+
+// A canonical episode key is built from the series id ingest resolved
+// (`episode:1:4:imdb:tt0285403`, docs/decisions.md entry 15). When the row's
+// own id is the one in its key, its flattened ids are series ids.
+function seriesKeyedRowIds(row = {}) {
+  const match = /^episode:\d+:\d+:(imdb|tmdb|tvdb):(.+)$/i.exec(text(row.media_key));
+  if (!match || text(row[`${match[1].toLowerCase()}_id`]).toLowerCase() !== match[2].toLowerCase()) return null;
+  return { imdb: row.imdb_id || "", tmdb: row.tmdb_id || "", tvdb: row.tvdb_id || "" };
+}
+
+// Those flattened series ids read as episode ids when the row gets no show
+// ids (no title profile, or a title two shows share), so every episode of the
+// show shared one `episode:imdb:<series id>` alias and the newest state
+// anywhere in the show answered for all of them: reboot Scrubs S01E04 and
+// S01E06, both unwatched, read as watched from the S01E05 watch, and Up Next
+// skipped to S01E07. Replace them with series aliases scoped to the row's own
+// episode, one per id, so an imdb-keyed history row still finds the same
+// episode's tvdb-keyed playstate row.
+function seriesKeyedStateAliases(row = {}, aliases = []) {
+  const ids = seriesKeyedRowIds(row);
+  if (!ids) return new Set(aliases);
+  const [, season, episode] = /^episode:(\d+):(\d+):/i.exec(text(row.media_key)).map(Number);
+  const values = new Map(["imdb", "tmdb", "tvdb"]
+    .filter((provider) => text(ids[provider]))
+    .map((provider) => [provider, text(ids[provider]).toLowerCase()]));
+  const scoped = new Set([...aliases].filter((alias) => {
+    const match = /^episode:(imdb|tmdb|tvdb):(.+)$/.exec(alias);
+    return !match || values.get(match[1]) !== match[2];
+  }));
+  for (const [provider, value] of values) scoped.add(`episode|series:${provider}:${value}|s:${season}|e:${episode}`);
+  return scoped;
+}
+
+// The aliases a local history or playstate row's own state is looked up by.
+// A series-keyed row knows its show, so a title two shows share must not
+// answer for it.
+function rowStateAliases(row = {}, { showIdentities = null, ambiguousTitles = null } = {}) {
+  const candidate = rowCandidate(row, { queueKind: "next_up", showIdentities });
+  const aliases = seriesKeyedStateAliases(row, upNextIdentityAliases(candidate));
+  const titleKey = text(showTitleFrom(candidate.show_title || "")).toLowerCase();
+  if (seriesKeyedRowIds(row) && ambiguousTitles?.has(titleKey) && candidate.canonical_key.startsWith("episode|title:")) {
+    aliases.delete(candidate.canonical_key);
+  }
+  return aliases;
+}
+
+// A title profile built from history can know fewer ids than the show really
+// has (Scot Squad's history rows carry only tvdb 264603). A series-keyed row
+// that shares an id with it fills the profile's empty slots, so its card keys
+// by the same series id as the provider observations instead of becoming a
+// second, tvdb-keyed card. Ids the profile does hold always win.
+function titleShowIdsFilledFromRow(titleShowIds = null, rowIds = null) {
+  if (!titleShowIds) return {};
+  const shares = rowIds && ["imdb", "tmdb", "tvdb"].some((provider) => {
+    const own = text(rowIds[provider]).toLowerCase();
+    return own && titleShowIds[provider] && own === String(titleShowIds[provider]).toLowerCase();
+  });
+  if (!shares) return titleShowIds;
+  return {
+    imdb: titleShowIds.imdb || rowIds.imdb || null,
+    tmdb: titleShowIds.tmdb || rowIds.tmdb || null,
+    tvdb: titleShowIds.tvdb || rowIds.tvdb || null,
+  };
+}
+
+function rowCandidate(row = {}, { queueKind = "resume", canonical = false, showIdentities = null, ambiguousTitles = null } = {}) {
   const isEpisode = row.media_type === "episode";
   const showTitle = isEpisode ? text(row.show_title || showTitleFrom(row.title || "")) : "";
-  const localShowIds = isEpisode
-    ? showIdentities?.get(text(showTitleFrom(showTitle)).toLowerCase()) || {}
-    : {};
+  const titleKey = text(showTitleFrom(showTitle)).toLowerCase();
+  const titleShowIds = isEpisode ? showIdentities?.get(titleKey) || null : null;
+  // A same-title show's row keeps its own series ids as show ids, so it joins
+  // the provider observations of that show instead of becoming a title card.
+  const disagrees = isEpisode && canonical && (ambiguousTitles?.has(titleKey)
+    || Boolean(titleShowIds && canonicalIdsDisagreeWithShow(row, titleShowIds)));
+  const localShowIds = disagrees
+    ? seriesKeyedRowIds(row) || {}
+    : titleShowIdsFilledFromRow(titleShowIds, isEpisode && canonical ? seriesKeyedRowIds(row) : null);
   // The bundled demo deliberately stores series ids on its compact progress
   // rows, because there are no provider-specific episode ids in an offline
   // fixture. Treat those ids as show ids only for demo rows; real libraries
@@ -188,10 +272,37 @@ function buildCanonicalStateIndex(playstateRows = [], episodeRows = [], showIden
         : "watched",
     })),
   ];
-  stateRows.forEach(({ row, state }, order) => {
-    const updatedAt = number(row.updated_at);
+  const entries = stateRows.map(({ row, state }) => {
     const stateRow = { ...row, state };
-    for (const alias of upNextIdentityAliases(rowCandidate(stateRow, { queueKind: "next_up", showIdentities }))) {
+    const aliases = new Set(upNextIdentityAliases(rowCandidate(stateRow, { queueKind: "next_up", showIdentities })));
+    // The title fill above gives a same-title show's row the other show's
+    // ids, so a Scrubs 2001 unwatch would never reach the 2001 provider card.
+    // A series-keyed row also answers for its own identity.
+    const ownIds = !(row.show_imdb_id || row.show_tmdb_id || row.show_tvdb_id) && seriesKeyedRowIds(row);
+    if (ownIds) {
+      const ownRow = { ...stateRow, show_imdb_id: ownIds.imdb, show_tmdb_id: ownIds.tmdb, show_tvdb_id: ownIds.tvdb };
+      for (const alias of upNextIdentityAliases(rowCandidate(ownRow, { queueKind: "next_up" }))) aliases.add(alias);
+      for (const alias of seriesKeyedStateAliases(row)) aliases.add(alias);
+    }
+    return { stateRow, aliases };
+  });
+  // An episode-level id names one episode. One claimed by rows at different
+  // coordinates is a series id read as an episode id (seriesKeyedStateAliases)
+  // and would let one episode's state answer for another, so it is not indexed.
+  // A leaked real episode id (a single coordinate) stays reachable.
+  const coordinatesByEpisodeAlias = new Map();
+  for (const { stateRow, aliases } of entries) {
+    if (!coordinate(stateRow)) continue;
+    for (const alias of aliases) {
+      if (!/^episode:(imdb|tmdb|tvdb):/.test(alias)) continue;
+      if (!coordinatesByEpisodeAlias.has(alias)) coordinatesByEpisodeAlias.set(alias, new Set());
+      coordinatesByEpisodeAlias.get(alias).add(coordinate(stateRow));
+    }
+  }
+  entries.forEach(({ stateRow, aliases }, order) => {
+    const updatedAt = number(stateRow.updated_at);
+    for (const alias of aliases) {
+      if ((coordinatesByEpisodeAlias.get(alias)?.size || 0) > 1) continue;
       const existing = byAlias.get(alias);
       if (!existing || updatedAt > existing.updatedAt) byAlias.set(alias, { row: stateRow, updatedAt, order });
     }
@@ -200,8 +311,12 @@ function buildCanonicalStateIndex(playstateRows = [], episodeRows = [], showIden
 }
 
 function newestStateFor(candidate, playstateIndex) {
+  return newestStateForAliases(upNextIdentityAliases(candidate), playstateIndex);
+}
+
+function newestStateForAliases(aliases, playstateIndex) {
   let best = null;
-  for (const alias of upNextIdentityAliases(candidate)) {
+  for (const alias of aliases) {
     const entry = playstateIndex.get(alias);
     if (!entry) continue;
     // Ties resolve to the row that came first in the query's own ordering,
@@ -254,21 +369,52 @@ function showIsCompleted(item = {}) {
   return totalEpisodes > 0 && watchedEpisodes >= totalEpisodes;
 }
 
-function buildShowStateKeys(episodeRows = [], playstateIndex, showIdentities, expectedState) {
+// The series TMDB/TVDB ids an item names. Episode items carry episode ids in
+// their plain fields, so only their show_* fields count.
+function showTmdbTvdbIds(item = {}) {
+  const episode = item.media_type === "episode";
+  return {
+    tmdb: text(item.show_tmdb_id || (episode ? "" : item.tmdb_id)).toLowerCase(),
+    tvdb: text(item.show_tvdb_id || (episode ? "" : item.tvdb_id)).toLowerCase(),
+  };
+}
+
+function tmdbTvdbConflict(left = {}, right = {}) {
+  return ["tmdb", "tvdb"].some((provider) => left[provider] && right[provider] && left[provider] !== right[provider]);
+}
+
+// Records, per title key, the series ids of the evidence that added it, so a
+// title-only match can be checked against them (showEligibleForUpNext).
+function addTitleEvidence(titleIds, keys, item) {
+  if (!titleIds) return;
+  const ids = showTmdbTvdbIds(item);
+  for (const key of keys) {
+    if (!key.startsWith("title:")) continue;
+    if (!titleIds.has(key)) titleIds.set(key, []);
+    titleIds.get(key).push(ids);
+  }
+}
+
+function buildShowStateKeys(episodeRows = [], playstateIndex, showIdentities, expectedState, titleIds = null, ambiguousTitles = null) {
   const keys = new Set();
   for (const row of episodeRows) {
     const candidate = rowCandidate(row, { queueKind: "next_up", showIdentities });
-    if (newestStateFor(candidate, playstateIndex)?.state !== expectedState) continue;
-    for (const key of showIdentityKeys(candidate)) keys.add(key);
+    const aliases = rowStateAliases(row, { showIdentities, ambiguousTitles });
+    if (newestStateForAliases(aliases, playstateIndex)?.state !== expectedState) continue;
+    const candidateKeys = showIdentityKeys(candidate);
+    for (const key of candidateKeys) keys.add(key);
+    addTitleEvidence(titleIds, candidateKeys, candidate);
   }
   return keys;
 }
 
-function buildWatchedShowKeys(episodeRows = [], playstateIndex, showIdentities, shows = []) {
-  const watchedShowKeys = buildShowStateKeys(episodeRows, playstateIndex, showIdentities, "watched");
+function buildWatchedShowKeys(episodeRows = [], playstateIndex, showIdentities, shows = [], titleIds = null, ambiguousTitles = null) {
+  const watchedShowKeys = buildShowStateKeys(episodeRows, playstateIndex, showIdentities, "watched", titleIds, ambiguousTitles);
   for (const show of Array.isArray(shows) ? shows : []) {
     if (!text(show.latest_watched_at)) continue;
-    for (const key of showIdentityKeys(show)) watchedShowKeys.add(key);
+    const showKeys = showIdentityKeys(show);
+    for (const key of showKeys) watchedShowKeys.add(key);
+    addTitleEvidence(titleIds, showKeys, show);
   }
   return watchedShowKeys;
 }
@@ -284,11 +430,18 @@ function buildCompletedShowKeys(shows = []) {
 
 function showEligibleForUpNext(
   item,
-  { watchedShowKeys, unwatchedShowKeys, manualShowKeys, completedShowKeys },
+  { watchedShowKeys, unwatchedShowKeys, manualShowKeys, completedShowKeys, watchedTitleIds = null },
 ) {
   const keys = showIdentityKeys(item);
   if (!keys.length || keys.some((key) => completedShowKeys.has(key))) return false;
-  const hasWatched = keys.some((key) => watchedShowKeys.has(key));
+  // A title match is evidence only when some watch under that title could be
+  // this show. Jellyfin titles the UK The Assembly "The Assembly", the name of
+  // the Australian show, and that show's one watch vouched for a UK show the
+  // user had cleared. A TMDB/TVDB disagreement means two shows (as in G, E, Z).
+  const ownIds = showTmdbTvdbIds(item);
+  const hasWatched = keys.some((key) => watchedShowKeys.has(key)
+    && !(key.startsWith("title:") && watchedTitleIds?.has(key)
+      && watchedTitleIds.get(key).every((ids) => tmdbTvdbConflict(ownIds, ids))));
   const hasExplicitUnwatch = keys.some((key) => unwatchedShowKeys.has(key));
   // A manually queued show with no history is intentional. A show whose
   // current records are all explicit unwatches is not: manual membership must
@@ -379,6 +532,7 @@ export function showIdentityIndex(shows = []) {
       ambiguous.add(key);
     }
   }
+  index.ambiguousTitles = ambiguous;
   return index;
 }
 
@@ -395,6 +549,9 @@ const SERIES_ID_FIELDS = [
 // before falling back. Discarding it lets the local identity below fill the gap,
 // and falling back to a title route is in any case better than a broken one.
 function withoutSelfReferentialSeriesIds(item = {}) {
+  // A series-keyed canonical row's flattened ids are the series ids, so its
+  // show ids match them by construction rather than by a raw observation.
+  if (seriesKeyedRowIds(item)) return item;
   let cleaned = item;
   for (const [showKey, ownKey] of SERIES_ID_FIELDS) {
     const showId = item[showKey];
@@ -414,6 +571,7 @@ export function withLocalShowIdentity(item = {}, index) {
   if (cleaned.show_imdb_id || cleaned.show_tmdb_id || cleaned.show_tvdb_id) return cleaned;
   const ids = index.get(text(showTitleFrom(cleaned.show_title || cleaned.title || "")).toLowerCase());
   if (!ids) return cleaned;
+  if (cleaned.is_canonical === true && canonicalIdsDisagreeWithShow(cleaned, ids)) return cleaned;
   return {
     ...cleaned,
     show_imdb_id: cleaned.show_imdb_id || ids.imdb,
@@ -446,14 +604,15 @@ function showRecencyIndex(shows = []) {
   for (const show of Array.isArray(shows) ? shows : []) {
     const latest = text(show.latest_watched_at || show.latestWatchedAt);
     if (!latest) continue;
+    const ids = showTmdbTvdbIds(show);
     for (const key of showRecencyKeys({
       show_title: show.title,
       show_imdb_id: show.imdb_id,
       show_tmdb_id: show.tmdb_id,
       show_tvdb_id: show.tvdb_id,
     })) {
-      const current = index.get(key);
-      if (!current || String(latest).localeCompare(String(current)) > 0) index.set(key, latest);
+      if (!index.has(key)) index.set(key, []);
+      index.get(key).push({ latest, ...ids });
     }
   }
   return index;
@@ -461,9 +620,13 @@ function showRecencyIndex(shows = []) {
 
 function decorateShowRecency(candidate, index) {
   if (candidate?.media_type !== "episode") return candidate;
+  // A same-title show with conflicting ids is another show; its watch date
+  // must not become this card's recency (see showEligibleForUpNext).
+  const ownIds = showTmdbTvdbIds(candidate);
   const latest = showRecencyKeys(candidate)
-    .map((key) => index.get(key))
-    .filter(Boolean)
+    .flatMap((key) => (index.get(key) || [])
+      .filter((entry) => !key.startsWith("title:") || !tmdbTvdbConflict(ownIds, entry)))
+    .map((entry) => entry.latest)
     .sort((left, right) => String(right).localeCompare(String(left)))[0] || null;
   return latest ? { ...candidate, show_latest_watched_at: latest } : candidate;
 }
@@ -499,6 +662,20 @@ function providerObservationMatches(candidate, providerCandidate) {
   return Boolean(candidateTitle && candidateTitle === providerTitle);
 }
 
+// A TMDB or TVDB disagreement means two shows, even when another id is shared:
+// a mixed-identity card (the Scrubs reboot's TMDB/IMDb ids plus the 2001 TVDB
+// id) otherwise became the authoritative next episode for both shows and
+// suppressed the 2001 show's real next episode. IMDb alone is not trusted to
+// split, since providers sometimes report an episode's own IMDb id as the
+// series id (decision 34).
+function showIdsConflict(left = {}, right = {}) {
+  return ["tmdb", "tvdb"].some((provider) => {
+    const leftId = text(left[`show_${provider}_id`]).toLowerCase();
+    const rightId = text(right[`show_${provider}_id`]).toLowerCase();
+    return Boolean(leftId && rightId && leftId !== rightId);
+  });
+}
+
 function episodeShowIdentityMatches(left = {}, right = {}) {
   const leftIds = {
     imdb: text(left.show_imdb_id),
@@ -512,6 +689,7 @@ function episodeShowIdentityMatches(left = {}, right = {}) {
   };
   const leftHasIds = Object.values(leftIds).some(Boolean);
   const rightHasIds = Object.values(rightIds).some(Boolean);
+  if (showIdsConflict(left, right)) return false;
   const sharedId = ["imdb", "tmdb", "tvdb"].some((provider) => (
     leftIds[provider] && rightIds[provider] && leftIds[provider].toLowerCase() === rightIds[provider].toLowerCase()
   ));
@@ -657,6 +835,7 @@ async function localNextUpForShow(show, {
   resolveProviderItems = null,
   resolveProviderEpisodes = null,
   allowUnplayable = false,
+  ambiguousTitles = null,
 }) {
   const detail = await queryShowDetail({
     episodeRows,
@@ -666,14 +845,11 @@ async function localNextUpForShow(show, {
     tvdbId: show.tvdb_id,
     imdbId: show.imdb_id,
   }).catch(() => null);
-  const episodes = Array.isArray(detail?.episodes) ? detail.episodes : [];
-  const watched = new Set();
+  const episodes = Array.isArray(detail?.episodes) ? detail.episodes : [];  const watched = new Set();
   for (const row of episodes) {
-    const candidate = rowCandidate(row, { queueKind: "next_up" });
-    const canonicalState = newestStateFor(candidate, playstateIndex)?.state;
+    const canonicalState = newestStateForAliases(rowStateAliases(row, { ambiguousTitles }), playstateIndex)?.state;
     const isWatched = canonicalState === "watched"
-      || (!canonicalState && String(row.sync_action || "watched").toLowerCase() !== "unwatched");
-    if (isWatched) {
+      || (!canonicalState && String(row.sync_action || "watched").toLowerCase() !== "unwatched");    if (isWatched) {
       const key = coordinate(row);
       if (key) watched.add(key);
     }
@@ -716,8 +892,7 @@ async function localNextUpForShow(show, {
     for (const episode of seasonEpisodes) {
       const episodeNumber = number(episode.episode_number, 0);
       const key = `${seasonNumber}:${episodeNumber}`;
-      const isReleased = released(episode.air_date, today);
-      if (!isReleased || watched.has(key)) continue;
+      const isReleased = released(episode.air_date, today);      if (!isReleased || watched.has(key)) continue;
       const trackedEpisode = episodes.find((row) => coordinate(row) === key) || null;
       const showIds = { tmdb: tmdbId, tvdb: tvdbId, imdb: show.imdb_id };
       const candidate = normalizeUpNextCandidate({
@@ -751,10 +926,36 @@ async function localNextUpForShow(show, {
       // be the observations that passed their own filters: passing the raw
       // list let an already-suppressed card cancel this one too, and the
       // episode vanished from Up Next entirely.
-      if (providerCandidates.some((providerCandidate) => providerObservationMatches(candidate, providerCandidate))) return null;
+      if (providerCandidates.some((providerCandidate) => providerObservationMatches(candidate, providerCandidate))) {
+        // The observations only list the providers whose native rail holds the
+        // episode. 2001 Scrubs S01E06 was in Emby Resume and Jellyfin Next Up
+        // but not in any Plex rail, so the card listed no Plex item and Watch
+        // now on Plex had no target. Ask the libraries the observations do not
+        // cover and hand back only those ids; the merge adds them to the
+        // observation's card. Only when the candidate shares an alias with an
+        // observation, so the fill-in cannot become a second card.
+        if (allowUnplayable || isDemoMode() || !resolveProviderItems || lookups >= MAX_LIBRARY_LOOKUPS_PER_SHOW) return null;
+        const aliases = aliasesFor(candidate);
+        const covering = providerCandidates.filter((providerCandidate) => (
+          episodeCoordinateForCandidate(providerCandidate) === key
+          && aliasesIntersect(aliases, aliasesFor(providerCandidate))));
+        if (!covering.length) return null;
+        const covered = new Set(covering.flatMap((providerCandidate) => [
+          text(providerCandidate.source).toLowerCase(),
+          ...Object.keys(providerCandidate.provider_items || {}),
+        ]));
+        const missing = [...UP_NEXT_PROVIDERS].filter((provider) => !covered.has(provider));
+        if (!missing.length) return null;
+        lookups += 1;
+        const found = await resolveProviderItems({ ...candidate, provider_items: {} }, { only: missing })
+          .catch(() => ({}));
+        const fillIn = Object.fromEntries(Object.entries(found || {})
+          .filter(([provider, ids]) => missing.includes(provider) && Array.isArray(ids) && ids.length));
+        return Object.keys(fillIn).length ? { ...candidate, provider_items: fillIn } : null;
+      }
       // The offline demo catalog is its own authoritative library, so its
       // bundled metadata alone is enough for a realistic next-up rail.
-      if (Object.keys(candidate.provider_items || {}).length || isDemoMode()) return candidate;
+      if (isDemoMode()) return candidate;
       // Watch history only carries a native item id once something has been
       // played, so the next unwatched episode never has one. Ask the
       // configured libraries directly rather than dropping a card for an
@@ -764,6 +965,26 @@ async function localNextUpForShow(show, {
         lookups += 1;
         return resolveProviderItems(candidate).catch(() => ({}));
       };
+      const historyItems = candidate.provider_items || {};
+      if (Object.keys(historyItems).length) {
+        // A native id from an earlier play of this episode is not proof it is
+        // still in the library: Expedition X S12E01 was deleted from Emby after
+        // a watch/unwatch, and its card kept the dead id, so Watch now opened
+        // "item not found". Re-check the libraries by identity (without the
+        // stored id, which would be returned unverified). Drop the card only
+        // when every provider holding a stored id actually answered "missing";
+        // an unasked or failing provider keeps its stored id as before.
+        if (allowUnplayable || !resolveProviderItems || lookups >= MAX_LIBRARY_LOOKUPS_PER_SHOW) return candidate;
+        lookups += 1;
+        const verified = await resolveProviderItems({ ...candidate, provider_items: {} }, { detailed: true })
+          .catch(() => null);
+        if (!verified) return candidate;
+        const detailed = Object.hasOwn(verified, "providerItems");
+        const unanswered = new Set(detailed ? verified.unanswered || [] : []);
+        const retained = Object.fromEntries(Object.entries(historyItems).filter(([provider]) => unanswered.has(provider)));
+        const merged = { ...retained, ...((detailed ? verified.providerItems : verified) || {}) };
+        return Object.keys(merged).length ? { ...candidate, provider_items: merged } : null;
+      }
       if (allowUnplayable) return candidate;
       const providerItems = await lookupProviderItems();
       // Do not try a later episode when the first released unwatched one is
@@ -854,8 +1075,22 @@ function collapseUncertainEpisodeQueues(items = []) {
     groups.get(key).push(item);
   }
 
-  const collapsed = [...ungrouped];
+  // The title key strips a year, so the 2001 Scrubs and its 2026 reboot share
+  // one; split rows that provably belong to different shows, or the reboot's
+  // S01E05 silently replaced the 2001 show's S01E05.
+  const showGroups = [];
   for (const rows of groups.values()) {
+    const clusters = [];
+    for (const row of rows) {
+      const cluster = clusters.find((members) => !members.some((member) => showIdsConflict(member, row)));
+      if (cluster) cluster.push(row);
+      else clusters.push([row]);
+    }
+    showGroups.push(...clusters);
+  }
+
+  const collapsed = [...ungrouped];
+  for (const rows of showGroups) {
     const knownResume = rows.filter((row) => row.queue_kind === "resume" && row.playback_position_known !== false);
     const uncertain = rows.filter(uncertainEpisodeQueueItem);
     if (!knownResume.length && uncertain.length > 1) {
@@ -872,6 +1107,7 @@ async function localNextUpCandidates({
   shows,
   playstateIndex,
   watchedShowKeys,
+  watchedTitleIds = null,
   unwatchedShowKeys,
   completedShowKeys,
   progressCandidates,
@@ -882,12 +1118,14 @@ async function localNextUpCandidates({
   resolveProviderEpisodes = null,
   allowUnplayable = false,
   manualShowKeys = new Set(),
+  ambiguousTitles = null,
 }) {
   // Every show resolves against the same episode snapshot, so read and dedupe
   // the episode table once for the whole pass rather than once per show.
   const selectedShows = (Array.isArray(shows) ? shows : [])
     .filter((show) => showEligibleForUpNext(show, {
       watchedShowKeys,
+      watchedTitleIds,
       unwatchedShowKeys,
       manualShowKeys,
       completedShowKeys,
@@ -927,6 +1165,7 @@ async function localNextUpCandidates({
         resolveProviderItems,
         resolveProviderEpisodes,
         allowUnplayable,
+        ambiguousTitles,
       });
       if (candidate) results.push(candidate);
     }
@@ -952,12 +1191,18 @@ export async function buildUpNextProjection({
   resolveProviderEpisodes = null,
 } = {}) {
   const rawProgressRows = progressRows || selectProgressRowsStmt.all();
-  const observations = (providerItems || listActiveUpNextProviderItems())
-    .filter((item) => UP_NEXT_PROVIDERS.has(String(item?.source || item?.provider || "").toLowerCase()))
-    .filter((item) => isPlembfinPrimaryUpNextFeed(
-      item?.source || item?.provider,
-      item?.feed_kind || item?.feedKind || item?.queue_kind || item?.queueKind || "resume",
-    ))
+  const feedKindOf = (item) => item?.feed_kind || item?.feedKind || item?.queue_kind || item?.queueKind || "resume";
+  const activeProviderItems = (providerItems || listActiveUpNextProviderItems())
+    .filter((item) => UP_NEXT_PROVIDERS.has(String(item?.source || item?.provider || "").toLowerCase()));
+  const observations = activeProviderItems
+    .filter((item) => isPlembfinPrimaryUpNextFeed(item?.source || item?.provider, feedKindOf(item)))
+    .slice(0, MAX_PROVIDER_OBSERVATIONS);
+  // A Resume feed that is not the provider's queue mapping (Jellyfin's) never
+  // decides membership (decision 25), but it names that provider's item for a
+  // part-watch a canonical resume row already backs. It only lends that id.
+  const secondaryResumeObservations = activeProviderItems
+    .filter((item) => String(feedKindOf(item)).toLowerCase() === "resume"
+      && !isPlembfinPrimaryUpNextFeed(item?.source || item?.provider, "resume"))
     .slice(0, MAX_PROVIDER_OBSERVATIONS);
   const rawProviderCandidates = observations.map((item) => normalizeUpNextCandidate(item));
   const baseShowRows = shows || ((localFallback || rawProviderCandidates.some((candidate) => candidate.queue_kind === "next_up"))
@@ -970,6 +1215,19 @@ export async function buildUpNextProjection({
   // canonical key is built. Applying this only after merge is too late: an
   // episode-id key and a series-id key have already become separate groups.
   const showIdentities = showIdentityIndex(showRows);
+  // A canonical resume row resolved to a different show under the same title
+  // proves the title is shared, so it is as ambiguous as two library shows
+  // with one name. Filling provider observations from it would give the 2001
+  // show's native Continue Watching items the reboot's ids. Two library shows
+  // with one title are ambiguous too; without them here a series-keyed row
+  // under that title became a separate title-keyed resume card.
+  const ambiguousTitles = new Set(showIdentities.ambiguousTitles);
+  for (const row of rawProgressRows) {
+    if (row?.media_type !== "episode") continue;
+    const key = text(showTitleFrom(row.show_title || row.title || "")).toLowerCase();
+    if (canonicalIdsDisagreeWithShow(row, showIdentities.get(key))) ambiguousTitles.add(key);
+  }
+  for (const key of ambiguousTitles) showIdentities.delete(key);
   // Provider Next Up observations can use a native series key while manual
   // and imported watches live in watch_history under an external-id key. Use
   // both stores when deciding whether an episode is still actionable so a
@@ -982,18 +1240,21 @@ export async function buildUpNextProjection({
     trackedEpisodeRows,
     showIdentities,
   );
-  const watchedShowKeys = buildWatchedShowKeys(trackedEpisodeRows, playstateIndex, showIdentities, showRows);
-  const unwatchedShowKeys = buildShowStateKeys(trackedEpisodeRows, playstateIndex, showIdentities, "unwatched");
+  const watchedTitleIds = new Map();
+  const watchedShowKeys = buildWatchedShowKeys(trackedEpisodeRows, playstateIndex, showIdentities, showRows, watchedTitleIds, ambiguousTitles);
+  const unwatchedShowKeys = buildShowStateKeys(trackedEpisodeRows, playstateIndex, showIdentities, "unwatched", null, ambiguousTitles);
   const completedShowKeys = buildCompletedShowKeys(showRows);
   const showRecency = showRecencyIndex(showRows);
   const canonicalResume = rawProgressRows
-    .map((row) => rowCandidate(row, { queueKind: "resume", canonical: true, showIdentities }))
+    .map((row) => rowCandidate(row, { queueKind: "resume", canonical: true, showIdentities, ambiguousTitles }))
     .map((candidate) => ensureDemoSeriesIdentity(candidate, showIdentities))
     .map((candidate) => decorateShowRecency(candidate, showRecency))
     .filter(actionableResume)
     .filter(isRegularUpNextEpisode)
     .filter((candidate) => !stateBlocksCandidate(candidate, playstateIndex, { progressUpdatedAt: candidate.updated_at }));
   const canonicalResumeAliases = canonicalResume.map(aliasesFor);
+  const aliasesCanonicalResume = (candidate) => canonicalResumeAliases
+    .some((aliases) => aliasesIntersect(aliases, aliasesFor(candidate)));
 
   // The media detail page is the source of truth for episode progression: its
   // episode list marks the first released episode not currently watched as
@@ -1004,6 +1265,7 @@ export async function buildUpNextProjection({
       shows: showRows,
       playstateIndex,
       watchedShowKeys,
+      watchedTitleIds,
       unwatchedShowKeys,
       completedShowKeys,
       progressCandidates: canonicalResume,
@@ -1012,6 +1274,7 @@ export async function buildUpNextProjection({
       today: new Date(now).toISOString().slice(0, 10),
       allowUnplayable: true,
       manualShowKeys,
+      ambiguousTitles,
     })
     : [];
 
@@ -1021,35 +1284,72 @@ export async function buildUpNextProjection({
   // native provider card as a second group beside the local resume row.
   const providerCandidates = rawProviderCandidates
     .map((candidate) => normalizeUpNextCandidate(withLocalShowIdentity(candidate, showIdentities)))
-    .map((candidate) => decorateShowRecency(candidate, showRecency));
+    .map((candidate) => decorateShowRecency(candidate, showRecency))
+    // Plex keeps a cleared episode in Continue Watching as its next episode,
+    // with no offset. After an explicit unwatch that membership is the
+    // cleared episode starting again, which the contract shows as next_up.
+    .map((candidate) => (candidate.queue_kind === "resume" && !actionableResume(candidate)
+      && stateIsUnwatched(candidate, playstateIndex)
+      ? { ...candidate, queue_kind: "next_up" }
+      : candidate));
   const providerResume = providerCandidates
     .filter((candidate) => candidate.queue_kind === "resume" && (actionableResume(candidate) || providerResumeMembership(candidate)))
     .filter(isRegularUpNextEpisode)
-    .filter((candidate) => candidate.media_type !== "episode" || showEligibleForUpNext(candidate, {
-      watchedShowKeys,
-      unwatchedShowKeys,
-      manualShowKeys,
-      completedShowKeys: new Set(),
-    }))
-    .filter((candidate) => matchesAuthoritativeNextEpisode(candidate, authoritativeNextEpisodes))
-    .filter((candidate) => stateIsUnwatched(candidate, playstateIndex)
-      || !stateBlocksCandidate(candidate, playstateIndex, { progressUpdatedAt: candidate.updated_at }))
+    // The canonical resume row is not gated by show eligibility, so its own
+    // native items must not be either: a new play of a show whose episodes
+    // were all explicitly unwatched otherwise yields a resume card with no
+    // native ids.
+    .filter((candidate) => candidate.media_type !== "episode" || aliasesCanonicalResume(candidate)
+      || showEligibleForUpNext(candidate, {
+        watchedShowKeys,
+        watchedTitleIds,
+        unwatchedShowKeys,
+        manualShowKeys,
+        completedShowKeys: new Set(),
+      }))
+    // The resolver skips an episode that is already a canonical resume and
+    // names the one after it, so that resume's own native items must not be
+    // filtered as having jumped past it.
+    .filter((candidate) => aliasesCanonicalResume(candidate)
+      || matchesAuthoritativeNextEpisode(candidate, authoritativeNextEpisodes))
+    .filter((candidate) => !stateBlocksCandidate(candidate, playstateIndex, { progressUpdatedAt: candidate.updated_at }))
     .filter((candidate) => !stateIsWatched(candidate, playstateIndex));
-  const providerNextUp = providerCandidates
+  const eligibleProviderNextUp = providerCandidates
     .filter((candidate) => candidate.queue_kind === "next_up" && released(candidate.air_date, new Date(now).toISOString().slice(0, 10)))
     .filter(isRegularUpNextEpisode)
-    .filter((candidate) => candidate.media_type !== "episode" || showEligibleForUpNext(candidate, {
-      watchedShowKeys,
-      unwatchedShowKeys,
-      manualShowKeys,
-      completedShowKeys,
-    }))
-    .filter((candidate) => matchesAuthoritativeNextEpisode(candidate, authoritativeNextEpisodes))
+    // Exempt for the same reason as providerResume: an item of the canonical
+    // resume episode only feeds that card's native ids (resumeNativeNextUp).
+    .filter((candidate) => candidate.media_type !== "episode" || aliasesCanonicalResume(candidate)
+      || showEligibleForUpNext(candidate, {
+        watchedShowKeys,
+        watchedTitleIds,
+        unwatchedShowKeys,
+        manualShowKeys,
+        completedShowKeys,
+      }))
     .filter((candidate) => stateIsUnwatched(candidate, playstateIndex)
       || !stateBlocksCandidate(candidate, playstateIndex, { progressUpdatedAt: candidate.updated_at }))
     .filter((candidate) => !stateIsWatched(candidate, playstateIndex))
-    .filter((candidate) => !canonicalResumeAliases.some((aliases) => aliasesIntersect(aliases, aliasesFor(candidate))))
     .map((candidate) => ({ ...candidate, position_ms: 0, duration_ms: null, progress: 0 }));
+  const providerNextUp = eligibleProviderNextUp
+    .filter((candidate) => matchesAuthoritativeNextEpisode(candidate, authoritativeNextEpisodes))
+    .filter((candidate) => !aliasesCanonicalResume(candidate));
+  // Jellyfin Resume is not a projection feed, so a Jellyfin part-watch is only
+  // a canonical row, and Jellyfin keeps listing that episode in Next Up. Merge
+  // that row into the resume card (the merge keeps resume priority) so the
+  // card lists the Jellyfin id. It stays out of the local fallback input and
+  // is exempt from the authoritative-next check, which names the episode after
+  // a canonical resume.
+  const resumeNativeNextUp = eligibleProviderNextUp.filter(aliasesCanonicalResume);
+  // Mapped to next_up at 0 so the merge keeps the canonical row as the card's
+  // representative: the row adds its native id and nothing else, and it can
+  // never create or keep a card on its own.
+  const resumeNativeSecondary = secondaryResumeObservations
+    .map((item) => normalizeUpNextCandidate(withLocalShowIdentity(normalizeUpNextCandidate(item), showIdentities)))
+    .filter(isRegularUpNextEpisode)
+    .filter(aliasesCanonicalResume)
+    .filter((candidate) => !stateIsWatched(candidate, playstateIndex))
+    .map((candidate) => ({ ...candidate, queue_kind: "next_up", position_ms: 0, duration_ms: null, progress: 0 }));
 
   let localNextUp = [];
   if (localFallback) {
@@ -1057,6 +1357,7 @@ export async function buildUpNextProjection({
       shows: showRows,
       playstateIndex,
       watchedShowKeys,
+      watchedTitleIds,
       unwatchedShowKeys,
       completedShowKeys,
       progressCandidates: canonicalResume,
@@ -1070,6 +1371,7 @@ export async function buildUpNextProjection({
       resolveProviderItems: resolveProviderItems || (mediaConfig ? createUpNextLibraryLookup(mediaConfig) : null),
       resolveProviderEpisodes: resolveProviderEpisodes || (mediaConfig ? createUpNextLibraryEpisodeLookup(mediaConfig) : null),
       manualShowKeys,
+      ambiguousTitles,
     });
   }
 
@@ -1082,6 +1384,8 @@ export async function buildUpNextProjection({
     ...canonicalResume,
     ...providerResume,
     ...providerNextUp,
+    ...resumeNativeNextUp,
+    ...resumeNativeSecondary,
     ...localNextUp,
   ]).filter(isRegularUpNextEpisode).filter((candidate) => {
     const dismissedAt = dismissals.dismissedAt(candidate);

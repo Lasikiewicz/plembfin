@@ -169,7 +169,9 @@ Plex's "Mark Unwatched" clears `viewCount` but can leave a stale `viewOffset` be
 lingering offset alone cannot distinguish that from a fresh in-progress first watch. The
 callback only treats a nonzero offset as a real unwatch when Plembfin already had the item
 recorded as watched; otherwise it is left alone, the same as any other watch in progress.
-Either transition also bumps the
+The same rule applies to an unplayed notification with no offset: Plex sends one when it
+adds a new item to the library, so it is ignored unless Plembfin holds a watched playstate
+or a watched history row for the item (under any matching key). Either transition also bumps the
 `nowPlayingRefresh` runtime-state signal (same as the webhook route), which is what tells
 any open Plembfin browser tab to refresh - see
 [now-playing.md](now-playing.md) for how the frontend consumes that signal.
@@ -219,7 +221,7 @@ Used by the sync orchestrator and manual watch actions:
 
 | Function | What it does |
 | --- | --- |
-| `findPlexItem` | Locates a library item by provider GUID (tmdb/tvdb/imdb), falling back to title/year search; episodes resolved through the series' leaves |
+| `findPlexItem` | Locates a library item by provider GUID (tmdb/tvdb/imdb), falling back to title/year search; episodes resolved through the series' leaves. When the show search returns several title matches (a year-less "Scrubs" matches both "Scrubs" and "Scrubs (2026)"), it reads each candidate's Guids and takes the first that shares an id with the request, else the first title match. A candidate whose TMDB or TVDB id differs from the request's explicit show id is skipped even when it is the only match, so a show that no library holds does not resolve to a same-title show (the Jellyfin and Emby series title searches apply the same rule). `/library/all?guid=` finds nothing on the tested server, so this search is the usual path |
 | `markPlexPlayed` / `markPlexUnplayed` | `/:/scrobble` and `/:/unscrobble` with the resolved account |
 | `setPlexProgress` | `/:/progress` to set a resume position |
 | `markPlexUnplayedByRatingKey` | Unscrobble by ratingKey (used by unwatch propagation) |

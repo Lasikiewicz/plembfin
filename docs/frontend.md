@@ -81,6 +81,9 @@ Rules that keep this correct:
   `lazyExport()` (actions: loads the module on first use) and `ifLoaded()` (renders and
   cleanups: never triggers a load). A synchronous read of another module (for example the
   watch-date reference or edit-date options) must `await loadRouteModules([...])` first.
+  `media-detail-events.js` also owns the watch-date prompt's click and change handlers, so
+  `watch-action` lists it as a dependency: a prompt opened from a dashboard card menu would
+  otherwise have a dead X and dead date presets.
 - Each route-module export used by `app.js` is a `let` holding a no-op placeholder until its
   module loads. **Never hand one to another module by value**: that module keeps the
   placeholder forever. Pass `live(() => name)` for renders or `viaModule(key, () => name)`
@@ -456,6 +459,74 @@ Responsive behavior:
 
 5. **All settings navigation links** (sidebar buttons, overview link rows, section-select dropdown options) must navigate to the **parent group path**, with an optional child `#hash` anchor (for example `/settings/sync#full-sync-watchstates`). Child anchors identify the in-page section on the parent route.
 6. **`focusSettingsRoute`** must scroll the `.page-shell` container to the selected section while respecting its scroll margin; a route without a hash should start at the top of the parent group page.
+
+## Where new frontend code goes
+
+Place new frontend code in the most specific existing module that owns its feature area.
+The size limits and grandfathered files that constrain these modules are in `CLAUDE.md`
+("Module discipline"); new code for an over-limit file goes into a sibling module instead.
+
+| Feature area | Module |
+| --- | --- |
+| Formatting, string escaping, date helpers | `modules/utils.js` |
+| Poster URLs, image caching, `posterMarkup` | `modules/images.js` |
+| Static help/guide HTML | `modules/help-content.js` |
+| Always-available appearance preferences | `modules/appearance.js` |
+| Always-available sync/manual-review indicators and compact status summaries | `modules/status-indicators.js` |
+| Core movie lookups and Now Playing route links | `modules/media-routing.js` |
+| Core deferred cast disclosure markup and focus handling | `modules/cast-disclosure.js` |
+| Sync status, sync history, now-playing polling | `modules/sync.js`, `modules/sync-preview.js` |
+| Sync Activity page (`/sync-activity`), including its route-scoped action/event handlers | `modules/sync-activity.js` |
+| Dashboard rendering | `modules/dashboard.js` |
+| Shared media identity/deduplication | `modules/media-records.js` |
+| Stats rendering | `modules/stats.js` |
+| Explorer grid, history page, search page | `modules/explorer.js` |
+| Upcoming page (scrolling month calendar of upcoming episode air dates) | `modules/upcoming.js` |
+| Up Next rail, provider push, dismissed-items dialog | `modules/up-next.js` |
+| Up Next show identity, same-title show veto, dismissal keys, and action markup | `modules/up-next-shared.js` |
+| Personal ratings/watchlist/custom-list metadata fill (overview, release date) | `modules/personal-media-metadata.js` |
+| Backup/restore tools (Settings route) | `modules/tools-backups.js` |
+| Settings changelog renderer and Main/Alpha tabs (build-version display formatting is core, in `modules/utils.js`) | `modules/changelog-channels.js` |
+| TV/movie detail entry points, lookups, modal-close routing | `modules/media-detail.js` |
+| Detail-modal shell/context: callbacks, `authHeaders`, modal DOM root, render-token, debug modal | `modules/media-detail-context.js` |
+| Detail-page watch and sync info summary rendering | `modules/media-info-summary.js` |
+| Route-scoped shared TMDB/Seerr rendering fragments (cast, trailers, images, ratings, recommendations) | `modules/media-detail-shared.js` |
+| TV show detail rendering (seasons, episodes, show modal) | `modules/media-detail-show.js` |
+| Movie detail rendering | `modules/media-detail-movie.js` |
+| Person profiles and filmography | `modules/media-person.js` |
+| Edit dialogs and watched-date/image/match tools | `modules/edit-dialogs.js` |
+| Manual watched/unwatched actions | `modules/watch-action.js` |
+| Shared calendar/time picker (used by edit dialogs and mark-watched prompts) | `modules/calendar-picker.js` |
+| TMDB detail/season/person enrichment helpers | `modules/tmdb.js` |
+| Trailer playback and photo lightbox | `modules/media-lightbox.js` |
+| Trakt/CSV import and settings tools bridge | `modules/tools.js` |
+| Tautulli connection and one-time watch-history importer | `modules/settings-services.js`, `modules/tautulli-import.js` |
+| Live Trakt connection and initial-sync controls | `modules/tracker-settings.js` |
+| Authenticated live watch-state refresh stream | `modules/live-updates.js` |
+| Backup tools and appearance save actions | `modules/tools-backups.js`; `modules/appearance.js` owns the always-available defaults/body/loading helper |
+| Maintenance diagnostics, cache tools, sync repair tools, and sync health | `modules/tools-maintenance.js`, `modules/tools-health.js` |
+| Library-wide duplicate-watch cleanup (Settings → Tools → Database Repairs) | `modules/tools-duplicates.js` |
+| Watch-state aliases card: fold or dismiss unproven episode-id playstate rows (Settings → Tools → Database Repairs) | `modules/tools-playstate-aliases.js` |
+| Wipe data (Settings → Tools → Wipe data): watch history, sync history/logs, and full factory reset | `modules/tools-wipe-data.js` |
+| Auth, session, tokens | `modules/auth.js` |
+| Guided first-run setup (`/setup`), account-claim form wiring, dashboard checklist, Settings resume banner | `modules/onboarding.js` |
+| Debug/diagnostic logs & telemetry export | `modules/logs.js` (categorization, local time formatting, export) |
+| Connection label formatting | `modules/settings.js` |
+| Shared settings modal, picker, and card-grid primitives | `modules/settings-ui.js` |
+| Media-server and metadata-provider settings cards/modals | `modules/settings-services.js` |
+| Personal Rating Sync settings, provider directions, status polling, and manual actions | `modules/rating-sync-settings.js` |
+| Flat settings routes, landing list, sidebar, help panels, and clean path routing (`/settings/media-servers`, `/settings/sync`, etc.) | `modules/settings-shell.js` |
+| Shared `state` and `elements` objects | `modules/state.js` |
+| Global app event wiring | `modules/app-events.js` |
+| Settings-page event wiring (logs, admin login/webhook secret, import, backups, maintenance tools, sync controls), loaded with the Settings route | `modules/settings-events.js` |
+| Media-detail modal click delegation (cast/trailers/poster edit/watch actions/card navigation) | `modules/media-detail-events.js` |
+| Shared copy for the Plex historical watched-sync setting (setup wizard and Sync Tuning) | `modules/plex-history-policy.js` |
+| Poster-card three-dot overflow menu (Mark Unwatched / Edit watch date / Fix match) outside the media detail pages | `modules/poster-menu.js` |
+| Route-module registry: on-demand `import()` loaders, dependency order, `lazyExport`/`ifLoaded`, shell-module readiness and early click/submit hold-and-replay | `modules/route-modules.js` |
+| App startup, routing, `bindElements` | `app.js` |
+
+Create a new module only when the feature area fits none of these and would exceed 150
+lines, then add it to this table.
 
 ## Adding a new module
 

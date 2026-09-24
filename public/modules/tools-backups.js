@@ -1,8 +1,8 @@
-import { buildAuthHeaders } from "./auth.js?v=1.2.1.0.0";
-import { state, elements } from "./state.js?v=1.2.1.0.0";
-import { escapeHtml, escapeAttribute, formatNumber, formatDate } from "./utils.js?v=1.2.1.0.0";
-import { openSettingsEditModal, openSettingsPickerModal, renderServiceCardGrid } from "./settings-ui.js?v=1.2.1.0.0";
-import { applyAppearanceToBody } from "./appearance.js?v=1.2.1.0.0";
+import { buildAuthHeaders } from "./auth.js?v=1.2.1.0.1";
+import { state, elements } from "./state.js?v=1.2.1.0.1";
+import { escapeHtml, escapeAttribute, formatNumber, formatDate } from "./utils.js?v=1.2.1.0.1";
+import { openSettingsEditModal, openSettingsPickerModal, renderServiceCardGrid } from "./settings-ui.js?v=1.2.1.0.1";
+import { applyAppearanceToBody } from "./appearance.js?v=1.2.1.0.1";
 
 let _setMessage = () => {};
 let _openConfirmDialog = async () => false;
@@ -1054,14 +1054,14 @@ export async function saveAppearanceSettings() {
   applyAppearanceToBody(prefs);
 
   if (state.activeShowModalKey) {
-    const { openShowInlineDetail, renderImmersiveShowModal } = await import("./media-detail-show.js?v=1.2.1.0.0");
+    const { openShowInlineDetail, renderImmersiveShowModal } = await import("./media-detail-show.js?v=1.2.1.0.1");
     if (state.mediaDetailInline) {
       openShowInlineDetail(state.activeShowModalKey, state.activeShowModalSeason).catch(() => null);
     } else {
       renderImmersiveShowModal(state.activeShowModalKey, state.activeShowModalSeason).catch(() => null);
     }
   } else if (state.activeMovieTmdbId || state.activeMovieModalId) {
-    const { openMovieImmersiveModalByTmdbId, openMovieImmersiveModal } = await import("./media-detail-movie.js?v=1.2.1.0.0");
+    const { openMovieImmersiveModalByTmdbId, openMovieImmersiveModal } = await import("./media-detail-movie.js?v=1.2.1.0.1");
     if (state.activeMovieTmdbId) {
       openMovieImmersiveModalByTmdbId(state.activeMovieTmdbId).catch(() => null);
     } else if (state.activeMovieModalId) {
@@ -1249,6 +1249,21 @@ async function runAuthoritativeRestore(payload) {
 // Poll the watch-backups status endpoint, appending new restore-job log lines to the terminal
 // until the job is actually finished (restoreSync.active === false). A large restore can run a
 // long time, so we keep following it (high safety cap ~3h) instead of giving up early.
+//
+// The endpoint deliberately empties `log` once active is false unless `report=1` is passed (see
+// handleWatchBackups), since the in-memory tail isn't reliable once a job has finished. A poll
+// timed to land exactly as the job finishes therefore sees active:false with no lines at all -
+// including the final "restore complete" confirmation - even though real work happened between
+// the previous poll and this one. Measured directly (plan/speed.md, Test 4): a ~7-minute restore
+// left 18 lines, including the completion line, unreported by the live poll loop. Once active
+// flips false, re-fetch the same cursor with report=1 so the terminal reads from the persisted
+// report instead of settling for whatever the in-memory tail happened to still hold.
+function appendRestoreLog(terminal, log, printed) {
+  if (!terminal || !log.length) return printed;
+  for (const line of log) terminal.textContent += `${line}\n`;
+  terminal.scrollTop = terminal.scrollHeight;
+  return printed + log.length;
+}
 async function pollRestoreProgress(terminal) {
   const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
   const MAX_TICKS = 5400; // ~3h at 2s
@@ -1265,17 +1280,26 @@ async function pollRestoreProgress(terminal) {
       continue;
     }
     const rs = data.restoreSync || {};
-    const log = Array.isArray(rs.log) ? rs.log : [];
-    if (terminal && log.length) {
-      for (const line of log) terminal.textContent += `${line}\n`;
-      terminal.scrollTop = terminal.scrollHeight;
-      printed += log.length;
-    }
+    printed = appendRestoreLog(terminal, Array.isArray(rs.log) ? rs.log : [], printed);
     if (rs.active !== true) {
-      if (terminal && rs.result && rs.result.success === false) {
-        terminal.textContent += `[ERROR] ${rs.result.error || "Restore reconcile failed"}\n`;
+      let finalResult = rs.result || null;
+      try {
+        const finalUrl = new URL("/api/watch-backups", window.location.origin);
+        finalUrl.searchParams.set("since", String(printed));
+        finalUrl.searchParams.set("report", "1");
+        const finalResponse = await fetch(finalUrl, { headers: authHeaders(), cache: "no-store" });
+        const finalData = await finalResponse.json().catch(() => ({}));
+        const finalRs = finalData.restoreSync || {};
+        printed = appendRestoreLog(terminal, Array.isArray(finalRs.log) ? finalRs.log : [], printed);
+        finalResult = finalRs.result || finalResult;
+      } catch {
+        // The tail is best-effort polish on top of the result already in hand; the restore
+        // itself already completed, so a failed follow-up fetch must not block returning it.
       }
-      return rs.result || null;
+      if (terminal && finalResult && finalResult.success === false) {
+        terminal.textContent += `[ERROR] ${finalResult.error || "Restore reconcile failed"}\n`;
+      }
+      return finalResult;
     }
     await sleep(2000);
   }

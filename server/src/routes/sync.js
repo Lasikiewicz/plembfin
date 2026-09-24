@@ -27,10 +27,10 @@ import { probePlexNotificationSocket } from "../utils/plexNotificationListener.j
 import { pokeLiveSessionPoller } from "../scheduler.js";
 import { withSeriesIdentity } from "../utils/seriesIdentity.js";
 import { isUpNextSeedDeviceId, markEmbyPlayed, setEmbyProgress, markEmbyUnplayedById, hideEmbyFromResume, fetchEmbyWatchedItems, findEmbyItems, fetchEmbySeriesEpisodes, listEmbyLibraries } from "../utils/embyClient.js";
-import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems, fetchJellyfinSeriesEpisodes, listJellyfinLibraries } from "../utils/jellyfinClient.js";
+import { markJellyfinPlayed, setJellyfinProgress, markJellyfinUnplayedById, fetchJellyfinWatchedItems, fetchJellyfinSeriesEpisodes, listJellyfinLibraries, findJellyfinItems, hideJellyfinFromResume } from "../utils/jellyfinClient.js";
 import { setJellyfinApiKey } from "../utils/jellyfinAuth.js";
 import { buildPlexMediaFromMetadata, normalizeProviderIds, parseCustomWebhook, parseEmbyWebhook, parseJellyfinWebhook, parsePlexMediaIds, parsePlexWebhook } from "../utils/parsers.js";
-import { clearOutboundPlayedMarks, completeDispatchTracking, dispatchProgressKey, finishDispatchTracking, getTargetsForSource, isRecentOutboundJellyfinNextUpNudge, isRecentOutboundPlayedEcho, isRecentOutboundPlayedFlagEcho, isRecentOutboundProgressEcho, isRecentOutboundUnplayedFlagEcho, markReservedDispatchStarted, recordOutboundPlayedMarks, reserveDispatchBatch, shouldSyncResumeProgress, syncCanonicalPlaystate, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
+import { clearOutboundPlayedMarks, completeDispatchTracking, dispatchProgressKey, finishDispatchTracking, getTargetsForSource, isRecentOutboundJellyfinNextUpNudge, isRecentOutboundRailRefresh,isRecentOutboundPlayedEcho, isRecentOutboundPlayedFlagEcho, isRecentOutboundProgressEcho, isRecentOutboundUnplayedFlagEcho, markReservedDispatchStarted, recordOutboundPlayedMarks, reserveDispatchBatch, shouldSyncResumeProgress, syncCanonicalPlaystate, syncMediaPlaystate, syncMediaProgress, syncMediaUnplayedPlaystate } from "../utils/syncOrchestrator.js";
 import { canReceiveState } from "../utils/syncRoles.js";
 import {
   playstateBlocksStoredResumeProgress,
@@ -2320,12 +2320,17 @@ export async function handlePlaybackProgressList(req, res) {
         const knownIdentity = showTitle
           ? await getKnownShowIdentityForTitle(showTitle).catch(() => ({}))
           : {};
+        // Prefer the row's own resolved ids over a title-only "known show for
+        // this title" guess. Episodes are keyed on the show's ids, so
+        // row.tmdb_id/tvdb_id/imdb_id already identify the correct show; a
+        // title match can point at the wrong same-titled show (e.g. a reboot)
+        // when a different provider's library has that title mismatched.
         const showIdentity = {
           media_type: "tv",
           title: showTitle,
-          tmdb_id: row.show_tmdb_id || knownIdentity.tmdb_id || "",
-          tvdb_id: row.show_tvdb_id || knownIdentity.tvdb_id || "",
-          imdb_id: row.show_imdb_id || knownIdentity.imdb_id || "",
+          tmdb_id: row.show_tmdb_id || row.tmdb_id || knownIdentity.tmdb_id || "",
+          tvdb_id: row.show_tvdb_id || row.tvdb_id || knownIdentity.tvdb_id || "",
+          imdb_id: row.show_imdb_id || row.imdb_id || knownIdentity.imdb_id || "",
         };
         const showPosterUrl = getCanonicalPosterUrl(showIdentity);
         return {
@@ -2444,20 +2449,31 @@ function requestProviderItems(value) {
   return typeof value === "object" ? value : {};
 }
 
-function mediaFromProgressRequest(progressRow, body = {}, mediaKey = "") {
+export function mediaFromProgressRequest(progressRow, body = {}, mediaKey = "") {
   const mediaType = String(body.media_type || body.mediaType || progressRow?.media_type || "").toLowerCase() === "movie"
     ? "movie"
     : "episode";
   const title = String(body.title || progressRow?.title || body.show_title || body.showTitle || "").trim();
   const seasonValue = body.season ?? progressRow?.season;
   const episodeValue = body.episode ?? progressRow?.episode;
+  // An episode's media ids are its show's ids (the Trakt payload nests the
+  // season/episode under the show). Up Next cards carry the episode's own ids
+  // in tmdb_id/imdb_id/tvdb_id, so when any show id is sent use only those;
+  // mixing in an episode id would send Trakt a show it cannot find.
+  const showIds = mediaType === "episode" && ["imdb", "tmdb", "tvdb"].some((key) => body[`show_${key}_id`])
+    ? {
+        imdb: body.show_imdb_id || undefined,
+        tmdb: body.show_tmdb_id || undefined,
+        tvdb: body.show_tvdb_id || undefined,
+      }
+    : null;
   return {
     title,
     showTitle: String(body.show_title || body.showTitle || progressRow?.show_title || "").trim() || undefined,
     type: mediaType,
     source: "manual",
     media_key: mediaKey || progressRow?.media_key || undefined,
-    ids: {
+    ids: showIds || {
       imdb: body.imdb_id || body.imdbId || body.imdb || progressRow?.imdb_id || undefined,
       tmdb: body.tmdb_id || body.tmdbId || body.tmdb || progressRow?.tmdb_id || undefined,
       tvdb: body.tvdb_id || body.tvdbId || body.tvdb || progressRow?.tvdb_id || undefined,
@@ -2527,8 +2543,8 @@ async function resolveUpNextProviderIds(provider, config, media, body, { lane = 
     const item = await findPlexItem(config.plex, lookupMedia);
     return item?.ratingKey ? [String(item.ratingKey)] : [];
   }
-  if (provider !== "emby") return [];
-  const items = await findEmbyItems(config.emby, lookupMedia);
+  if (provider !== "emby" && provider !== "jellyfin") return [];
+  const items = await (provider === "emby" ? findEmbyItems : findJellyfinItems)(config[provider], lookupMedia);
   return [...new Set((items || []).map((item) => String(item?.Id || "").trim()).filter(Boolean))];
 }
 
@@ -3339,6 +3355,33 @@ export async function handleWebhook(req, res) {
       propagated: false,
       skipped: true,
       reason: "Jellyfin Next Up ordering nudge, not a watch",
+    });
+  }
+
+  // The native rail refresh's unplayed/played toggle of a watched predecessor
+  // echoes back as flag events. Consume them before any canonical lookup: the
+  // generic unplayed-echo check defers to the playstate row it resolves, which
+  // can be an older series-keyed unwatch while the watch sits under other ids,
+  // and the echo then deleted real watch history (defect AG).
+  if (
+    ["emby", "jellyfin"].includes(String(media.source || "").toLowerCase())
+    && (media.phase === "unplayed" || media.playedFlagOnly === true)
+    && await isRecentOutboundRailRefresh(media, media.source, loopStore).catch(() => false)
+  ) {
+    console.log("Webhook: ignored native Up Next rail refresh callback", {
+      source: media.source,
+      title: media.title,
+      event: media.event,
+      phase: media.phase,
+      itemId: media.itemId,
+    });
+    await setRuntimeState({ nowPlayingRefresh: Date.now() }).catch(() => null);
+    return sendJson(res, {
+      ok: true,
+      inserted: false,
+      propagated: false,
+      skipped: true,
+      reason: "Native Up Next rail refresh callback, not a user action",
     });
   }
 

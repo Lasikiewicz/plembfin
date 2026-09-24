@@ -75,6 +75,9 @@ test("module groups only name registered modules", () => {
   assert.ok(routeModuleDeps("settings-services").includes("help-content"));
   assert.ok(!SHELL_ROUTE_MODULES.includes("media-detail-events"));
   assert.ok(DETAIL_ROUTE_MODULES.includes("media-detail-events"));
+  // The watch-date prompt's close and preset buttons are handled there, and a
+  // dashboard card menu opens the prompt without the detail route loaded.
+  assert.ok(routeModuleDeps("watch-action").includes("media-detail-events"));
   assert.deepEqual([...SETTINGS_ROUTE_MODULES], ["settings-services", "changelog-channels", "tracker-settings", "rating-sync-settings", "watchlist-sync-settings", "tautulli-import", "settings-events"]);
   assert.ok(!SHELL_ROUTE_MODULES.includes("rating-sync-settings"), "settings status modules must not be global shell work");
 });

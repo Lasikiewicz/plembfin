@@ -8,6 +8,7 @@ import {
 import { enqueueBackgroundJob } from "./backgroundJobs.js";
 import { buildUpNextProjection } from "./upNextService.js";
 import { syncUpNextToProviders } from "./upNextProviderSync.js";
+import { listUpNextProviderFeedStates } from "./upNextRepository.js";
 
 export const UP_NEXT_AUTO_SYNC_JOB = "up_next_sync";
 // Media-detail actions are user intent and must be delivered before older
@@ -81,6 +82,22 @@ export function configuredUpNextProviders(config = {}) {
   });
 }
 
+// Providers whose every Up Next feed read failed, from either the push summary
+// or the stored feed state. The push skips them (see syncUpNextToProviders).
+function unreachableProviders(providers, feeds = []) {
+  return providers.filter((provider) => {
+    const providerFeeds = (Array.isArray(feeds) ? feeds : []).filter((feed) => feed?.provider === provider);
+    return providerFeeds.length > 0 && providerFeeds.every((feed) => feed?.status === "failed");
+  }).sort();
+}
+
+// The remembered fingerprint names the providers that were unreachable when it
+// was pushed. While one stays down the next run is "unchanged", and once its
+// feed read succeeds again the marker differs and the queue is pushed to it.
+function fingerprintWithOutages(fingerprint, unreachable = []) {
+  return unreachable.length ? `${fingerprint}|unreachable:${unreachable.join(",")}` : fingerprint;
+}
+
 export function upNextSyncCompleted(providers, summary = {}) {
   if (!providers.length) return false;
   if (summary?.disabled || summary?.ok === false) return false;
@@ -112,8 +129,8 @@ export async function requestUpNextAutoSync(reason = "", { priority = false } = 
 // A manual header sync has already reconciled the exact list supplied by the
 // browser. Remember it so the invalidation that follows that request does not
 // immediately enqueue an identical automatic push.
-export async function rememberUpNextSync(items = [], { at = Date.now() } = {}) {
-  const fingerprint = upNextQueueFingerprint(items);
+export async function rememberUpNextSync(items = [], { at = Date.now(), unreachable = [] } = {}) {
+  const fingerprint = fingerprintWithOutages(upNextQueueFingerprint(items), unreachable);
   await setRuntimeState({
     [FINGERPRINT_RUNTIME_KEY]: fingerprint,
     [LAST_SYNC_RUNTIME_KEY]: Number(at) || Date.now(),
@@ -134,7 +151,10 @@ export async function runAutomaticUpNextSync({ logger = () => {}, isCancelled = 
   const beforeUpNextVersion = getUpNextVersion();
   const projection = await buildUpNextProjection({ mediaConfig: config, limit: 100 });
   const items = Array.isArray(projection?.items) ? projection.items.slice(0, 100) : [];
-  const fingerprint = upNextQueueFingerprint(items);
+  const fingerprint = fingerprintWithOutages(
+    upNextQueueFingerprint(items),
+    unreachableProviders(providers, listUpNextProviderFeedStates()),
+  );
   const runtime = await loadRuntimeState();
 
   if (runtime[FINGERPRINT_RUNTIME_KEY] === fingerprint) {
@@ -145,9 +165,25 @@ export async function runAutomaticUpNextSync({ logger = () => {}, isCancelled = 
     return { status: "skipped", aborted: true, reason: "cancelled" };
   }
   logger(`[up-next] automatic provider sync started (${items.length} item${items.length === 1 ? "" : "s"})`);
-  const summary = await syncUpNextToProviders({ desiredItems: items, config });
+  let pushedStale = false;
+  const summary = await syncUpNextToProviders({
+    desiredItems: items,
+    config,
+    // A canonical write since the projection (a Clear progress, say) makes
+    // its resume positions stale; the rerun below rebuilds from fresh state.
+    isStale: () => (pushedStale = getDataVersion() !== beforeDataVersion),
+  });
   const complete = upNextSyncCompleted(providers, summary);
-  if (complete) await rememberUpNextSync(items);
+  // A run with one provider unreachable is still remembered once every other
+  // provider took the push. Otherwise nothing was ever "unchanged" during an
+  // outage: each run's Emby rail restamp came back as a webhook, set rerun, and
+  // pushed again (step 7 offline run: 9 runs and 72 Emby played marks a minute).
+  const unreachable = unreachableProviders(providers, summary?.feeds);
+  const reachable = providers.filter((provider) => !unreachable.includes(provider));
+  const settled = complete || (reachable.length > 0 && upNextSyncCompleted(reachable, summary));
+  // Not remembered when skipped as stale, so an identical rebuilt queue is
+  // still pushed rather than reported unchanged.
+  if (settled && !pushedStale) await rememberUpNextSync(items, { unreachable: complete ? [] : unreachable });
 
   const rerun = getDataVersion() !== beforeDataVersion || getUpNextVersion() !== beforeUpNextVersion;
   return {

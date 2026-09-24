@@ -145,6 +145,12 @@ it does **not** write `changelog.json`, `package.json`, `package-lock.json`,
 new version (`v<version>` + 5-digit form) and the merged release entry (message, New
 Features, Major Bug Fixes, Tweaks) that will be committed to `main`.
 
+This same step also runs the website content-impact gate (`scripts/site-impact.js`): if a
+changed application surface since the last main release has no matching website update and
+no commit carries a `site-impact:` decision, `--preview` throws here instead of printing the
+changelog. See ["Content-impact check"](docs/websiteupdate.md#content-impact-check-automated-fail-closed)
+for how to resolve it - fix it on `develop`, repeat "Force to alpha", and retry this command.
+
 **Do not continue past this step until the user has confirmed the changelog in chat.**
 This is a required gate, not a formality: "Force to main" is a force-push onto the
 shared `main` branch, and the release notes in Settings → Changelog /

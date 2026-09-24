@@ -6,18 +6,22 @@ labels: enhancement
 assignees: ''
 ---
 
-## Is your feature request related to a problem?
+Before submitting, search the existing issues for a similar request. Describe the use case and the
+problem to solve so the maintainer can consider the right solution.
 
-A clear description of the problem or limitation you're running into.
+## What would you like to do?
 
-## Describe the solution you'd like
+What are you trying to do, and what limitation or friction are you running into?
 
-What you'd like to see happen.
+## What would you like Plembfin to do?
 
-## Describe alternatives you've considered
+Describe the behavior or outcome you would find useful.
 
-Any alternative solutions, workarounds, or features you've considered.
+## Alternatives or workarounds
+
+Have you tried another approach, or is there a workaround you use today?
 
 ## Additional context
 
-Any other context, mockups, or examples that would help explain the request.
+Include the relevant Plembfin area, media server(s), examples, or mockups that would help explain
+the request. Do not include passwords, API keys, access tokens, or webhook URLs.

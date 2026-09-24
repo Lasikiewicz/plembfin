@@ -48,6 +48,47 @@ test("a dismissal matches the same episode under a different provider id", () =>
   }), true);
 });
 
+test("dismissing one same-title show leaves the other show's card, dismissal and restore alone", () => {
+  restoreAllUpNextDismissals();
+  const scrubs2001 = {
+    media_key: "episode|series:imdb:tt0285403|s:1|e:6",
+    media_type: "episode",
+    title: "Scrubs - S01E06",
+    show_title: "Scrubs",
+    season: 1,
+    episode: 6,
+    show_imdb_id: "tt0285403",
+    show_tmdb_id: "4556",
+    show_tvdb_id: "76156",
+    provider_items: { plex: ["3265"] },
+  };
+  const scrubsReboot = {
+    media_key: "episode|series:imdb:tt40197357|s:1|e:6",
+    media_type: "episode",
+    title: "Scrubs - S01E06",
+    show_title: "Scrubs",
+    season: 1,
+    episode: 6,
+    show_imdb_id: "tt40197357",
+    show_tmdb_id: "295778",
+    show_tvdb_id: "465690",
+    provider_items: { plex: ["3314"] },
+  };
+  recordUpNextDismissal(scrubs2001);
+  // Same title and coordinate, so show:title and coordinate aliases collide.
+  assert.equal(createUpNextDismissalFilter().isDismissed(scrubs2001), true);
+  assert.equal(createUpNextDismissalFilter().isDismissed(scrubsReboot), false);
+
+  // Dismissing the reboot adds its own row instead of replacing the 2001 one.
+  recordUpNextDismissal(scrubsReboot);
+  assert.equal(listUpNextDismissals().length, 2);
+
+  // Unwatching the reboot restores only the reboot's dismissal.
+  assert.equal(restoreUpNextDismissalsForMedia(scrubsReboot), 1);
+  assert.equal(createUpNextDismissalFilter().isDismissed(scrubs2001), true);
+  assert.equal(createUpNextDismissalFilter().isDismissed(scrubsReboot), false);
+});
+
 test("re-dismissing the same item replaces its row rather than adding one", () => {
   restoreAllUpNextDismissals();
   recordUpNextDismissal(reacher);

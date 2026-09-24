@@ -30,7 +30,10 @@ A "show" is derived from `watch_history` rows with `media_type = "episode"`, gro
 so a title-only grouping key can't silently merge two distinct real shows that share an
 exact title (a reboot/revival, e.g. Scrubs 2001 vs Scrubs 2026), while episode-level provider ids
 stay scoped to individual episodes. A row with no show provider id folds into the cluster matching
-its canonical title. `getCachedShows()` builds one summary per resulting show - earliest/latest
+its canonical title. A lone row whose ids match no established cluster of the same title is
+folded into that cluster, but it never lends the cluster its TVDB id: only rows with no TMDB
+id or the cluster's own TMDB id supply the show's TVDB id, so a folded 2001 Scrubs watch
+cannot give the 2026 reboot's show row a mixed identity. `getCachedShows()` builds one summary per resulting show - earliest/latest
 watch, episode count, inherited artwork (first available poster/logo/backdrop from its
 episode rows) - memoized in-process and invalidated on any history change.
 

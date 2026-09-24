@@ -1,10 +1,10 @@
-import { state } from "./state.js?v=1.2.1.0.0";
-import { buildAuthHeaders } from "./auth.js?v=1.2.1.0.0";
-import { escapeHtml, escapeAttribute, slug, movieSlug, movieHref, showName, formatTmdbDate, tvShowTmdbHref, movieTmdbHref, platformIconUrl, isDemoMode } from "./utils.js?v=1.2.1.0.0";
-import { tmdbImage, tmdbPoster, tmdbProfile } from "./images.js?v=1.2.1.0.0";
-import { fetchTmdbDetails } from "./tmdb.js?v=1.2.1.0.0";
-import { movieById, movieBySlugOrId, nowPlayingHref } from "./media-routing.js?v=1.2.1.0.0";
-import { hydrateDeferredCastDisclosure, renderCastActor } from "./cast-disclosure.js?v=1.2.1.0.0";
+import { state } from "./state.js?v=1.2.1.0.1";
+import { buildAuthHeaders } from "./auth.js?v=1.2.1.0.1";
+import { escapeHtml, escapeAttribute, slug, movieSlug, movieHref, showName, formatTmdbDate, tvShowTmdbHref, movieTmdbHref, platformIconUrl, isDemoMode } from "./utils.js?v=1.2.1.0.1";
+import { tmdbImage, tmdbPoster, tmdbProfile } from "./images.js?v=1.2.1.0.1";
+import { fetchTmdbDetails } from "./tmdb.js?v=1.2.1.0.1";
+import { movieById, movieBySlugOrId, nowPlayingHref } from "./media-routing.js?v=1.2.1.0.1";
+import { hydrateDeferredCastDisclosure, renderCastActor } from "./cast-disclosure.js?v=1.2.1.0.1";
 
 export { movieById, movieBySlugOrId, nowPlayingHref, hydrateDeferredCastDisclosure };
 
@@ -557,16 +557,15 @@ export function mediaAppLinksHtml(tmdbData, mediaType = "movie") {
 function providerChipsHtml(items = [], watchLink = "") {
   if (!items.length) return "";
   return `
-    <div class="media-fact-chip-row">
+    <div class="media-provider-list media-fact-chip-row">
       ${items.map(({ name, logoPath }) => {
         const logoUrl = logoPath ? tmdbImage(logoPath, "w92") : "";
-        const inner = `
-          ${logoUrl ? `<img class="media-fact-chip-icon" src="${escapeAttribute(logoUrl)}" alt="" loading="lazy" />` : ""}
-          <span>${escapeHtml(name)}</span>
-        `;
+        const inner = logoUrl
+          ? `<img class="media-provider-icon media-fact-chip-icon" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(name)}" loading="lazy" />`
+          : `<span class="media-provider-name">${escapeHtml(name)}</span>`;
         return watchLink
-          ? `<a class="media-fact-chip" href="${escapeAttribute(watchLink)}" target="_blank" rel="noopener noreferrer" title="Where to watch ${escapeAttribute(name)}">${inner}</a>`
-          : `<span class="media-fact-chip">${inner}</span>`;
+          ? `<a class="media-provider-tile media-fact-chip" href="${escapeAttribute(watchLink)}" target="_blank" rel="noopener noreferrer" title="Available on ${escapeAttribute(name)}">${inner}</a>`
+          : `<span class="media-provider-tile media-fact-chip" title="${escapeAttribute(name)}">${inner}</span>`;
       }).join("")}
     </div>
   `;
@@ -597,7 +596,7 @@ function findProviderLogoForNetwork(networkName, providers) {
   return match?.logo_path || "";
 }
 
-export function renderMediaFacts(tmdbData, mediaType = "movie", placement = "inline", { ratingsHtml = "", appLinksHtml = "" } = {}) {
+export function renderMediaFacts(tmdbData, mediaType = "movie", placement = "sidebar", { ratingsHtml = "", appLinksHtml = "" } = {}) {
   if (!tmdbData && !ratingsHtml) return "";
   tmdbData = tmdbData || {};
   const watchProviders = tmdbData["watch/providers"]?.results?.GB || tmdbData["watch/providers"]?.results?.US;
@@ -607,70 +606,155 @@ export function renderMediaFacts(tmdbData, mediaType = "movie", placement = "inl
   const runtime = mediaType === "movie"
     ? (tmdbData.runtime ? `${tmdbData.runtime} min` : "")
     : (tmdbData.episode_run_time?.[0] ? `${tmdbData.episode_run_time[0]} min episodes` : "");
-  // Status/First aired/Language share the top line; Runtime and Genres share
-  // the next line below it (Runtime first); Network sits directly left of
-  // Ratings; Available on and Watch Now each get their own full-width row,
-  // with Watch Now anchoring the very bottom.
-  const facts = [
-    { label: "Status", text: tmdbData.status },
-    { label: mediaType === "movie" ? "Release" : "First aired", text: formatTmdbDate(tmdbData.release_date || tmdbData.first_air_date) },
-    { label: "Language", text: String(tmdbData.original_language || "").toUpperCase() },
-    { label: "Runtime", text: runtime },
-    { label: "Genres", text: (tmdbData.genres || []).map((genre) => genre.name).join(", "), full: !runtime },
-    {
-      label: "Network",
-      text: networks.map((network) => network.name).join(", "),
-      // TMDB's "networks" entries frequently have no logo of their own even
-      // when the very same service also appears with one in "watch/providers"
-      // (e.g. Apple TV) - borrow that logo by name rather than showing a
-      // bare text chip next to the Available on row's icon version of it.
-      html: providerChipsHtml(networks.map((network) => ({
-        name: network.name,
-        logoPath: network.logo_path || findProviderLogoForNetwork(network.name, providers),
-      })), watchLink),
-    },
-    { label: "Ratings", html: ratingsHtml ? `<div class="media-fact-chip-row">${ratingsHtml}</div>` : "" },
-    {
-      label: "Available on",
-      text: providers.map((provider) => provider.provider_name).join(", "),
-      html: providerChipsHtml(providers.map((provider) => ({ name: provider.provider_name, logoPath: provider.logo_path })), watchLink),
-      full: true,
-    },
-    { label: "Watch Now", html: appLinksHtml ? `<div class="media-fact-chip-row">${appLinksHtml}</div>` : "", full: true },
-  ].filter((fact) => fact.html || fact.text);
-  if (!facts.length) return "";
-  const wideLabels = new Set(["Network"]);
 
-  // Status, First aired/Release, and Language always share the top line.
-  const visibleFacts = facts.slice(0, 3);
-  const hiddenFacts = facts.slice(3);
+  // Table rows:
+  // STATUS (incorporating release date), GENRES, NETWORK / STUDIO, LANGUAGE, RUNTIME
+  const tableRows = [];
 
-  const factValueHtml = (fact) => fact.html || `<b>${escapeHtml(fact.text)}</b>`;
-  const factClass = (fact) => [fact.full ? "media-fact--full" : "", wideLabels.has(fact.label) ? "media-fact--wide" : ""].filter(Boolean).join(" ");
+  // 1. Status (incorporating release / air date, e.g. "Released - 31 May 2023" or "Released - 14 Aug 2020 - Continuing")
+  let statusText = tmdbData.status || (mediaType === "movie" ? "Released" : "");
+  if (statusText === "Returning Series") statusText = "Continuing";
+  const rawDate = mediaType === "movie" ? tmdbData.release_date : (tmdbData.first_air_date || tmdbData.release_date);
+  const formattedDate = formatTmdbDate(rawDate);
+  const isFuture = rawDate && !Number.isNaN(new Date(rawDate).getTime()) && new Date(rawDate).getTime() > Date.now();
+  const releaseLabel = isFuture ? "Airing" : "Released";
 
-  const visibleHtml = visibleFacts.map((fact) => `
-    <div class="media-fact${fact.full ? " media-fact--full" : ""}"><span>${escapeHtml(fact.label)}</span>${factValueHtml(fact)}</div>
-  `).join("");
+  let combinedStatus = "";
+  if (mediaType === "tv") {
+    if (formattedDate && statusText && statusText.toLowerCase() !== "released") {
+      combinedStatus = `${releaseLabel} - ${formattedDate} - ${statusText}`;
+    } else if (formattedDate) {
+      combinedStatus = `${releaseLabel} - ${formattedDate}`;
+    } else if (statusText) {
+      combinedStatus = statusText;
+    }
+  } else {
+    if (statusText && formattedDate) {
+      combinedStatus = statusText.toLowerCase() === "released"
+        ? `${releaseLabel} - ${formattedDate}`
+        : `${statusText} - ${formattedDate}`;
+    } else if (statusText) {
+      combinedStatus = statusText;
+    } else if (formattedDate) {
+      combinedStatus = `${releaseLabel} - ${formattedDate}`;
+    }
+  }
 
-  const hiddenHtml = hiddenFacts.map((fact) => `
-    <div class="media-fact ${factClass(fact)}"><span>${escapeHtml(fact.label)}</span>${factValueHtml(fact)}</div>
-  `).join("");
+  if (combinedStatus) {
+    tableRows.push({ label: "Status", text: combinedStatus });
+  }
+
+  // 3. Genres
+  const genresText = (tmdbData.genres || []).map((g) => g.name).filter(Boolean).join(", ");
+  if (genresText) {
+    tableRows.push({ label: "Genres", text: genresText });
+  }
+
+  // 4. TV: Network | Movie: Runtime, Studio
+  if (mediaType === "tv") {
+    const networkNames = networks.map((n) => n.name).filter(Boolean).join(", ");
+    if (networkNames) {
+      tableRows.push({ label: "Network", text: networkNames });
+    }
+  } else {
+    if (runtime) {
+      tableRows.push({ label: "Runtime", text: runtime });
+    }
+    const studios = (tmdbData.production_companies || []).slice(0, 2).map((c) => c.name).filter(Boolean).join(", ");
+    if (studios) {
+      tableRows.push({ label: "Studio", text: studios });
+    }
+  }
+
+  // 5. Language
+  if (tmdbData.original_language) {
+    tableRows.push({ label: "Language", text: String(tmdbData.original_language).toUpperCase() });
+  }
+
+  // 6. TV Runtime (if not already shown)
+  if (mediaType === "tv" && runtime) {
+    tableRows.push({ label: "Runtime", text: runtime });
+  }
+
+  const tableHtml = tableRows.length ? `
+    <div class="media-fact-table">
+      ${tableRows.map((row) => `
+        <div class="media-fact-table-row">
+          <div class="media-fact-table-label">${escapeHtml(row.label)}</div>
+          <div class="media-fact-table-value">${escapeHtml(row.text)}</div>
+        </div>
+      `).join("")}
+    </div>
+  ` : "";
+
+  // Available on
+  const availableProvidersHtml = providers.length
+    ? providerChipsHtml(providers.map((p) => ({ name: p.provider_name, logoPath: p.logo_path })), watchLink)
+    : "";
+
+  const availableSectionHtml = availableProvidersHtml ? `
+    <div class="media-facts-group media-facts-group--available">
+      <span class="media-facts-group-label">Available on</span>
+      <div class="media-facts-group-content">
+        ${availableProvidersHtml}
+      </div>
+    </div>
+  ` : "";
+
+  // Watch Now
+  const watchNowSectionHtml = appLinksHtml ? `
+    <div class="media-facts-group media-facts-group--watch-now">
+      <span class="media-facts-group-label">Watch Now</span>
+      <div class="media-facts-group-content">
+        ${appLinksHtml}
+      </div>
+    </div>
+  ` : "";
+
+  // Ratings
+  let ratingsSectionHtml = "";
+  if (ratingsHtml) {
+    ratingsSectionHtml = `
+      <div class="media-facts-group media-facts-group--ratings">
+        <span class="media-facts-group-label">Ratings</span>
+        <div class="media-ratings-row">
+          ${ratingsHtml}
+        </div>
+      </div>
+    `;
+  }
+
+  const bottomSectionHtml = (availableSectionHtml || watchNowSectionHtml || ratingsSectionHtml) ? `
+    <div class="media-facts-bottom-group">
+      ${availableSectionHtml}
+      ${watchNowSectionHtml}
+      ${ratingsSectionHtml}
+    </div>
+  ` : "";
 
   const openAttr = window.innerWidth <= 640 ? "" : " open";
+
+  const topGroupHtml = tableHtml ? `
+    <div class="media-facts-top-group">
+      ${tableHtml}
+    </div>
+  ` : "";
+
+  const contentHtml = `
+    ${topGroupHtml}
+    ${bottomSectionHtml}
+  `;
 
   if (placement === "sidebar") {
     return `
       <div class="immersive-sidebar">
         <details class="media-facts-details"${openAttr}>
           <summary class="media-facts-summary">
-            <div class="media-facts-visible-row">
-              ${visibleHtml}
-            </div>
             <span class="media-facts-expand-btn"></span>
           </summary>
-          <aside class="media-facts-rail media-facts-rail--sidebar" aria-label="Media facts">
-            ${hiddenHtml}
-          </aside>
+          <div class="media-facts-panel" aria-label="Media facts">
+            ${contentHtml}
+          </div>
         </details>
       </div>
     `;
@@ -679,14 +763,11 @@ export function renderMediaFacts(tmdbData, mediaType = "movie", placement = "inl
   return `
     <details class="media-facts-details"${openAttr}>
       <summary class="media-facts-summary">
-        <div class="media-facts-visible-row">
-          ${visibleHtml}
-        </div>
         <span class="media-facts-expand-btn"></span>
       </summary>
-      <aside class="media-facts-rail" aria-label="Media facts">
-        ${hiddenHtml}
-      </aside>
+      <div class="media-facts-panel" aria-label="Media facts">
+        ${contentHtml}
+      </div>
     </details>
   `;
 }
@@ -778,15 +859,15 @@ export async function hydrateMediaAppLinks(root = document, { allowNetwork = tru
       : `
         <b class="media-app-link-row">
           <a class="media-app-link media-app-link--plex media-app-link--disabled" title="Checking Plex..." aria-label="Checking Plex..." style="opacity: 0.4; cursor: not-allowed;">
-            <img class="media-app-link-logo" src="/icons/plex.svg?v=1.2.1.0.0" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
+            <img class="media-app-link-logo" src="/icons/plex.svg?v=1.2.1.0.1" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
             <span>Plex</span>
           </a>
           <a class="media-app-link media-app-link--emby media-app-link--disabled" title="Checking Emby..." aria-label="Checking Emby..." style="opacity: 0.4; cursor: not-allowed;">
-            <img class="media-app-link-logo" src="/icons/emby.svg?v=1.2.1.0.0" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
+            <img class="media-app-link-logo" src="/icons/emby.svg?v=1.2.1.0.1" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
             <span>Emby</span>
           </a>
           <a class="media-app-link media-app-link--jellyfin media-app-link--disabled" title="Checking Jellyfin..." aria-label="Checking Jellyfin..." style="opacity: 0.4; cursor: not-allowed;">
-            <img class="media-app-link-logo" src="/icons/jellyfin.svg?v=1.2.1.0.0" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
+            <img class="media-app-link-logo" src="/icons/jellyfin.svg?v=1.2.1.0.1" alt="" loading="eager" decoding="async" data-err="hide-show-next" />
             <span>Jellyfin</span>
           </a>
         </b>
@@ -867,7 +948,7 @@ export function tvdbSeriesUrl(tvdbId) {
   return `https://thetvdb.com/dereferrer/series/${encodeURIComponent(id)}`;
 }
 
-const RATING_SOURCE_ICONS = { TMDB: "/icons/tmdb.svg?v=1.2.1.0.0", TVDB: "/icons/tvdb.svg?v=1.2.1.0.0", IMDb: "/icons/imdb.svg?v=1.2.1.0.0" };
+const RATING_SOURCE_ICONS = { TMDB: "/icons/tmdb.svg?v=1.2.1.0.1", TVDB: "/icons/tvdb.svg?v=1.2.1.0.1", IMDb: "/icons/imdb.svg?v=1.2.1.0.1" };
 
 export function ratingPillHtml({ label, value = "View", href = "", title = "" } = {}) {
   if (!label || !href) return "";
@@ -1072,23 +1153,33 @@ export function refreshActiveMediaDetailAfterSeerrStatus(mediaType, tmdbId) {
 }
 export function renderExternalRatingPills(mediaType, tmdbData, title, rating = "") {
   const tmdbId = tmdbData?.id || tmdbData?.tmdb_id || "";
-  const tvdbId = tmdbData?.tvdb_id || tmdbData?.external_ids?.tvdb_id || "";
+  const tvdbId = tmdbData?.tvdb_id || tmdbData?.external_ids?.tvdb_id || tmdbData?.tvdbId || tmdbData?.show_tvdb_id || "";
   const pills = [];
-  if (tmdbId) {
-    pills.push(ratingPillHtml({
-      label: "TMDB",
-      value: rating || "View",
-      href: tmdbTitleUrl(mediaType, tmdbId),
-      title: "Open this title on TMDB",
-    }));
-  }
-  if (mediaType === "tv" && tvdbId) {
-    pills.push(ratingPillHtml({
-      label: "TVDB",
-      value: "",
-      href: tvdbSeriesUrl(tvdbId),
-      title: "Open this series on TheTVDB",
-    }));
+  if (mediaType === "tv") {
+    if (tvdbId) {
+      pills.push(ratingPillHtml({
+        label: "TVDB",
+        value: rating || "",
+        href: tvdbSeriesUrl(tvdbId),
+        title: "Open this series on TheTVDB",
+      }));
+    } else if (tmdbId) {
+      pills.push(ratingPillHtml({
+        label: "TMDB",
+        value: rating || "View",
+        href: tmdbTitleUrl(mediaType, tmdbId),
+        title: "Open this title on TMDB",
+      }));
+    }
+  } else {
+    if (tmdbId) {
+      pills.push(ratingPillHtml({
+        label: "TMDB",
+        value: rating || "View",
+        href: tmdbTitleUrl(mediaType, tmdbId),
+        title: "Open this title on TMDB",
+      }));
+    }
   }
   return pills.join("");
 }

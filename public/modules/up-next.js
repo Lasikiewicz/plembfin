@@ -1,11 +1,14 @@
-import { buildAuthHeaders } from "./auth.js?v=1.2.1.0.0";
-import { state, elements } from "./state.js?v=1.2.1.0.0";
-import { escapeAttribute, escapeHtml, slug } from "./utils.js?v=1.2.1.0.0";
-import { hydratePosters } from "./images.js?v=1.2.1.0.0";
-import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=1.2.1.0.0";
-import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=1.2.1.0.0";
-import { manualShowMatches, isShowInUpNext, upNextShowActionHtml } from "./up-next-shared.js?v=1.2.1.0.0";
-import { renderMediaCard } from "./media-card.js?v=1.2.1.0.0";
+import { buildAuthHeaders } from "./auth.js?v=1.2.1.0.1";
+import { state, elements } from "./state.js?v=1.2.1.0.1";
+import { escapeAttribute, escapeHtml, slug } from "./utils.js?v=1.2.1.0.1";
+import { hydratePosters } from "./images.js?v=1.2.1.0.1";
+import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=1.2.1.0.1";
+import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=1.2.1.0.1";
+import {
+  manualShowMatches, isShowInUpNext, provenDifferentShow, upNextShowActionHtml,
+  upNextCoordinateDismissalKey, upNextShowDismissalKeys, upNextDismissalKeys,
+} from "./up-next-shared.js?v=1.2.1.0.1";
+import { renderMediaCard } from "./media-card.js?v=1.2.1.0.1";
 
 const UP_NEXT_TTL_MS = 2 * 60 * 1000;
 const UP_NEXT_TIMEOUT_MS = 20000;
@@ -168,6 +171,9 @@ export async function removeShowFromUpNext(button) {
           tmdb_id: item.tmdb_id || item.tmdbId || item.show_tmdb_id || item.showTmdbId || show.tmdb_id,
           imdb_id: item.imdb_id || item.imdbId || item.show_imdb_id || item.showImdbId || show.imdb_id,
           tvdb_id: item.tvdb_id || item.tvdbId || item.show_tvdb_id || item.showTvdbId || show.tvdb_id,
+          show_tmdb_id: item.show_tmdb_id || item.showTmdbId || show.tmdb_id || "",
+          show_imdb_id: item.show_imdb_id || item.showImdbId || show.imdb_id || "",
+          show_tvdb_id: item.show_tvdb_id || item.showTvdbId || show.tvdb_id || "",
           season: item.season ?? "",
           episode: item.episode ?? "",
           provider_items: item.provider_items || item.providerItems || {},
@@ -222,39 +228,6 @@ function persistDismissedUpNext() {
   }
 }
 
-function upNextCoordinateDismissalKey(item = {}) {
-  const mediaType = String(item.media_type || item.mediaType || "").trim().toLowerCase();
-  if (mediaType !== "episode") return "";
-  const showTitle = String(item.show_title || item.showTitle || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\(\d{4}\)/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  const season = Number(item.season);
-  const episode = Number(item.episode);
-  if (!showTitle || item.season == null || item.episode == null || item.season === "" || item.episode === "" || !Number.isInteger(season) || !Number.isInteger(episode) || season < 0 || episode < 0) return "";
-  return `episode:${showTitle}:s${season}:e${episode}`;
-}
-
-function upNextShowDismissalKeys(item = {}) {
-  const mediaType = String(item.media_type || item.mediaType || "").trim().toLowerCase();
-  if (mediaType !== "episode") return [];
-  const keys = [];
-  for (const provider of ["imdb", "tmdb", "tvdb"]) {
-    const id = String(item[`show_${provider}_id`] || item[`show${provider.charAt(0).toUpperCase()}${provider.slice(1)}Id`] || "").trim();
-    if (id) keys.push(`show:${provider}:${id.toLowerCase()}`);
-  }
-  const showTitle = String(item.show_title || item.showTitle || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\(\d{4}\)/g, "")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-  if (showTitle) keys.push(`show:title:${showTitle}`);
-  return [...new Set(keys)];
-}
-
 // Adding a show from its media page is an explicit request to make it
 // eligible again. The server removes its dismissal, but older browser
 // sessions can still have the pre-server dismissal key in localStorage. Clear
@@ -303,28 +276,6 @@ function clearLocalUpNextDismissalsForShow(show = {}) {
   return changed;
 }
 
-function upNextDismissalKeys(item = {}, mediaKey = "") {
-  const keys = new Set();
-  const id = String(item.id || "").trim();
-  const itemMediaKey = String(item.media_key || item.mediaKey || mediaKey || "").trim();
-  if (id) keys.add(id);
-  if (itemMediaKey) keys.add(itemMediaKey);
-  const providerItemId = String(item.provider_item_id || item.providerItemId || "").trim();
-  if (providerItemId) keys.add(providerItemId);
-  const providerItems = item.provider_items || item.providerItems || {};
-  for (const [provider, values] of Object.entries(providerItems)) {
-    if (!UP_NEXT_PROVIDERS.has(String(provider || "").toLowerCase())) continue;
-    for (const value of (Array.isArray(values) ? values : [values])) {
-      const providerId = String(value || "").trim();
-      if (providerId) keys.add(providerId);
-    }
-  }
-  const coordinate = upNextCoordinateDismissalKey(item);
-  if (coordinate) keys.add(coordinate);
-  for (const key of upNextShowDismissalKeys(item)) keys.add(key);
-  return [...keys].filter(Boolean);
-}
-
 export function isUpNextItemDismissed(item) {
   if (!item) return false;
   const keys = upNextDismissalKeys(item);
@@ -352,7 +303,7 @@ export function removeUpNextItem(itemId, details = {}, { showScope = false } = {
   const matchesRemoval = (item) => {
     const isSameItem = String(item?.id || "") === id || String(item?.media_key || "") === mediaKey;
     if (isSameItem) return true;
-    return showKeys.size > 0 && upNextShowDismissalKeys(item).some((key) => showKeys.has(key));
+    return showKeys.size > 0 && !provenDifferentShow(removedItem, item) && upNextShowDismissalKeys(item).some((key) => showKeys.has(key));
   };
   const removedItems = state.upNextItems.filter(matchesRemoval);
   // The caller keeps the card in a pending-removal state until the server has
@@ -360,8 +311,7 @@ export function removeUpNextItem(itemId, details = {}, { showScope = false } = {
   // from the same series in one repaint and let the row play its exit motion.
   state.upNextExitIds = removedItems.map((item) => String(item?.id || item?.media_key || "")).filter(Boolean);
   if (!removedItems.length) state.upNextExitIds = [id || mediaKey].filter(Boolean);
-  const removedPendingKeys = new Set([removedItem, ...removedItems].flatMap((item) => upNextPendingRemovalKeys(item)));
-  state.upNextPendingRemovalKeys = (state.upNextPendingRemovalKeys || []).filter((key) => !removedPendingKeys.has(key));
+  for (const item of [removedItem, ...removedItems]) clearUpNextRemovalPending(item);
   state.upNextItems = state.upNextItems.filter((item) => !matchesRemoval(item));
   persistUpNextCache(visibleUpNextItems());
   renderUpNext();
@@ -506,9 +456,14 @@ function upNextPendingRemovalKeys(item = {}) {
   return upNextDismissalKeys(normalized);
 }
 
+// Pending removals keep the item, not just its keys: same-title shows share title keys and only ids tell them apart.
+const pendingRemovalMatches = (pendingItem, item) => !provenDifferentShow(pendingItem, item)
+  && upNextPendingRemovalKeys(item).some((key) => upNextPendingRemovalKeys(pendingItem).includes(key));
 function isUpNextRemovalPending(item) {
-  const pending = new Set(state.upNextPendingRemovalKeys || []);
-  return upNextPendingRemovalKeys(item).some((key) => pending.has(key));
+  return (state.upNextPendingRemovals || []).some((pendingItem) => pendingRemovalMatches(pendingItem, item));
+}
+function clearUpNextRemovalPending(item) {
+  state.upNextPendingRemovals = (state.upNextPendingRemovals || []).filter((pendingItem) => !pendingRemovalMatches(pendingItem, item));
 }
 
 function upNextWatchEpisodeIdentity(episode = {}) {
@@ -525,31 +480,38 @@ function upNextWatchEpisodeIdentity(episode = {}) {
   };
 }
 
-function upNextWatchedActionKeys(action = {}) {
+// Each entry keeps the show its keys belong to (anchor): the title and
+// coordinate keys are shared by same-title shows, and only the ids in the
+// anchor keep a watch of one Scrubs from touching the other's card.
+function upNextWatchedActionEntries(action = {}) {
   const episodes = [
     ...(Array.isArray(action.episodes) ? action.episodes : []),
     ...(Array.isArray(action.resyncEpisodes) ? action.resyncEpisodes : []),
   ];
+  const showIds = (episode = {}) => ({
+    showTitle: episode.show_title || episode.showTitle || action.showTitle || action.show_title || "",
+    showTmdbId: episode.show_tmdb_id || episode.showTmdbId || action.showTmdbId || action.show_tmdb_id || "",
+    showTvdbId: episode.show_tvdb_id || episode.showTvdbId || action.showTvdbId || action.show_tvdb_id || "",
+    showImdbId: episode.show_imdb_id || episode.showImdbId || action.showImdbId || action.show_imdb_id || "",
+  });
   if (action.scope === "show") {
-    const anchor = upNextWatchEpisodeIdentity({
-      showTitle: action.showTitle || action.show_title || episodes[0]?.showTitle || "",
-      showTmdbId: action.showTmdbId || action.show_tmdb_id || episodes[0]?.showTmdbId || "",
-      showTvdbId: action.showTvdbId || action.show_tvdb_id || episodes[0]?.showTvdbId || "",
-      showImdbId: action.showImdbId || action.show_imdb_id || episodes[0]?.showImdbId || "",
-    });
-    return upNextShowDismissalKeys(anchor);
+    const anchor = upNextWatchEpisodeIdentity(showIds(episodes[0]));
+    return [{ keys: upNextShowDismissalKeys(anchor), anchor }];
   }
-  return [...new Set(episodes.flatMap((episode) => {
+  return episodes.map((episode) => {
     const identity = upNextWatchEpisodeIdentity(episode);
-    return [
-      upNextCoordinateDismissalKey(identity),
-      identity.media_key,
-      identity.provider_item_id || identity.providerItemId || "",
-    ].filter(Boolean);
-  }))];
+    const anchor = upNextWatchEpisodeIdentity({ ...episode, ...showIds(episode) });
+    const keys = [upNextCoordinateDismissalKey(identity), identity.media_key, identity.provider_item_id || identity.providerItemId || ""];
+    return { keys: keys.filter(Boolean), anchor };
+  }).filter((entry) => entry.keys.length);
+}
+
+function upNextWatchedEntryMatches(entry = {}, item = {}, itemKeys = upNextDismissalKeys(item)) {
+  return !provenDifferentShow(entry.anchor || {}, item) && itemKeys.some((key) => (entry.keys || []).includes(key));
 }
 
 function upNextShowIdentityMatches(left = {}, right = {}) {
+  if (provenDifferentShow({ ...left, media_type: "episode" }, { ...right, media_type: "episode" })) return false;
   const leftKeys = new Set(upNextShowDismissalKeys({
     media_type: "episode",
     show_title: left.show_title || left.showTitle || "",
@@ -583,9 +545,10 @@ function upNextActionEpisodeMatches(item = {}, action = {}) {
 }
 
 function isUpNextWatchedRemovalPending(item) {
-  const pending = new Set(state.upNextPendingWatchedRemovalKeys || []);
-  if (!pending.size) return false;
-  return upNextDismissalKeys(item).some((key) => pending.has(key));
+  const pending = state.upNextPendingWatchedRemovals || [];
+  if (!pending.length) return false;
+  const itemKeys = upNextDismissalKeys(item);
+  return pending.some((entry) => upNextWatchedEntryMatches(entry, item, itemKeys));
 }
 
 // Marking a show watched changes the canonical watch state before the derived
@@ -593,11 +556,9 @@ function isUpNextWatchedRemovalPending(item) {
 // away, then keep an optimistic identity filter active while any concurrent
 // sync/revalidation still returns the old snapshot.
 export function removeWatchedUpNextItems(action = {}) {
-  const keys = upNextWatchedActionKeys(action);
-  if (!keys.length) return 0;
-  const pending = new Set(state.upNextPendingWatchedRemovalKeys || []);
-  keys.forEach((key) => pending.add(key));
-  state.upNextPendingWatchedRemovalKeys = [...pending];
+  const entries = upNextWatchedActionEntries(action);
+  if (!entries.length) return 0;
+  state.upNextPendingWatchedRemovals = [...(state.upNextPendingWatchedRemovals || []), ...entries];
 
   const removedItems = (Array.isArray(state.upNextItems) ? state.upNextItems : [])
     .filter(isUpNextWatchedRemovalPending);
@@ -617,27 +578,28 @@ export function removeWatchedUpNextItems(action = {}) {
 // dismissal for the show and clear the optimistic watched-removal filter that
 // could otherwise hide the freshly restored card during the next refresh.
 export async function removeDismissedUpNextItems(action = {}) {
-  const keys = new Set(upNextWatchedActionKeys({ ...action, scope: "show" }));
-  if (!keys.size) return 0;
+  const [show] = upNextWatchedActionEntries({ ...action, scope: "show" });
+  if (!show?.keys.length) return 0;
+  const sameShow = (anchor = {}, keys = []) => !provenDifferentShow(show.anchor, { ...anchor, media_type: "episode" })
+    && keys.some((key) => show.keys.includes(key));
 
-  state.upNextPendingWatchedRemovalKeys = (state.upNextPendingWatchedRemovalKeys || [])
-    .filter((key) => !keys.has(key));
+  state.upNextPendingWatchedRemovals = (state.upNextPendingWatchedRemovals || [])
+    .filter((entry) => !sameShow(entry.anchor, entry.keys));
   const entries = dismissedUpNextItems().filter((entry) => (
-    dismissalShowKeys(entry).some((key) => keys.has(key))
+    sameShow({ ...dismissalSnapshot(entry), ...entry }, dismissalShowKeys(entry))
   ));
   if (!entries.length) return 0;
   return restoreDismissedUpNextItems(entries);
 }
 
 function filterPendingWatchedUpNextItems(nextItems = [], { authoritative = false } = {}) {
-  const pending = new Set(state.upNextPendingWatchedRemovalKeys || []);
-  if (!pending.size) return nextItems;
+  if (!(state.upNextPendingWatchedRemovals || []).length) return nextItems;
   const serverStillHasPendingItems = nextItems.some(isUpNextWatchedRemovalPending);
   // A stale cache is allowed to omit the card before reintroducing it from a
   // second provider snapshot. Keep the optimistic watched filter alive until
   // a fresh projection has actually confirmed the item is gone.
   if (!serverStillHasPendingItems && authoritative) {
-    state.upNextPendingWatchedRemovalKeys = [];
+    state.upNextPendingWatchedRemovals = [];
     return nextItems;
   }
   return nextItems.filter((item) => !isUpNextWatchedRemovalPending(item));
@@ -650,8 +612,8 @@ function isUpNextWatchSaving(item = {}) {
   ];
   for (const action of savingActions) {
     if (action?.scope === "show") {
-      const actionKeys = new Set(upNextWatchedActionKeys(action));
-      if (upNextShowDismissalKeys(item).some((key) => actionKeys.has(key))) return true;
+      const [show] = upNextWatchedActionEntries(action);
+      if (show && upNextWatchedEntryMatches(show, item, upNextShowDismissalKeys(item))) return true;
     } else if (upNextActionEpisodeMatches(item, action)) {
       return true;
     }
@@ -679,14 +641,9 @@ function preservePendingUpNextItems(nextItems = []) {
 }
 
 export function setUpNextRemovalPending(item, pending = true) {
-  const keys = upNextPendingRemovalKeys(item);
-  if (!keys.length) return;
-  const next = new Set(state.upNextPendingRemovalKeys || []);
-  for (const key of keys) {
-    if (pending) next.add(key);
-    else next.delete(key);
-  }
-  state.upNextPendingRemovalKeys = [...next];
+  if (!item || !upNextPendingRemovalKeys(item).length) return;
+  clearUpNextRemovalPending(item);
+  if (pending) state.upNextPendingRemovals = [...(state.upNextPendingRemovals || []), item];
   renderUpNext();
 }
 
@@ -743,6 +700,9 @@ async function migrateLocalDismissals() {
         tmdb_id: item.tmdb_id || item.show_tmdb_id || "",
         imdb_id: item.imdb_id || item.show_imdb_id || "",
         tvdb_id: item.tvdb_id || item.show_tvdb_id || "",
+        show_tmdb_id: item.show_tmdb_id || "",
+        show_imdb_id: item.show_imdb_id || "",
+        show_tvdb_id: item.show_tvdb_id || "",
         provider_items: item.provider_items || {},
       }),
     }).catch(() => null);
@@ -1209,15 +1169,10 @@ function upNextSyncMessage(body = {}) {
     .map((provider) => providerNames[String(provider || "").toLowerCase()])
     .filter(Boolean))];
   const failedFeeds = configuredFeeds.filter((feed) => feed?.status === "failed");
-  const dismissals = Array.isArray(body.providerDismissals) ? body.providerDismissals : [];
-  const dismissed = dismissals.filter((entry) => entry?.status === "fulfilled").length;
-  const dismissalFailures = dismissals.filter((entry) => entry?.status !== "fulfilled").length;
+  const retained = Array.isArray(body.retained) ? body.retained.length : 0;
   const jellyfinRail = body.jellyfinRail && typeof body.jellyfinRail === "object" ? body.jellyfinRail : {};
   const providerRails = Array.isArray(body.providerRails) ? body.providerRails : [];
   const legacyRailCleanup = Array.isArray(body.legacyRailCleanup) ? body.legacyRailCleanup : [];
-  const unsupportedFeeds = [...new Set((Array.isArray(body.unsupported) ? body.unsupported : [])
-    .filter((entry) => UP_NEXT_PROVIDERS.has(String(entry?.provider || "").toLowerCase()))
-    .map((entry) => `${providerNames[String(entry?.provider || "").toLowerCase()] || entry?.provider || "Provider"} ${entry?.feed_kind === "next_up" ? "Next Up" : "feed"}`))];
   const progressTargets = new Set();
   for (const result of (Array.isArray(body.progress) ? body.progress : [])) {
     for (const target of (result?.targetStates || [])) {
@@ -1243,16 +1198,14 @@ function upNextSyncMessage(body = {}) {
   if (refreshedByRail.length) details.push(refreshedByRail.join("; "));
   if (legacyCleared) details.push(`cleared ${legacyCleared} legacy native-rail position${legacyCleared === 1 ? "" : "s"}`);
   if (railFailures) details.push(`native Up Next rail refresh failed for ${railFailures} item${railFailures === 1 ? "" : "s"}`);
-  if (dismissed) details.push(`${dismissed} removed item${dismissed === 1 ? "" : "s"} hidden on connected apps`);
   if (progressTargets.size) details.push(`resume position sent to ${upNextListLabel([...progressTargets])}`);
-  if (unsupportedFeeds.length) details.push(`${upNextListLabel(unsupportedFeeds)} ${unsupportedFeeds.length === 1 ? "is" : "are"} calculated by the native API and ${unsupportedFeeds.length === 1 ? "was" : "were"} left unchanged`);
+  if (retained) details.push(`${retained} item${retained === 1 ? "" : "s"} listed only by the apps ${retained === 1 ? "was" : "were"} left in place`);
   if (failedFeeds.length) {
     details.push(`${upNextListLabel([...new Set(failedFeeds.map((feed) => providerNames[String(feed.provider || "").toLowerCase()] || feed.provider || "provider"))])} feed refresh failed`);
   }
-  if (dismissalFailures) details.push(`${dismissalFailures} provider dismissal${dismissalFailures === 1 ? "" : "s"} failed`);
   return {
     text: [intro, ...details].join(" "),
-    tone: unsupportedFeeds.length || failedFeeds.length || dismissalFailures || railFailures || legacyFailures ? "muted" : "success",
+    tone: failedFeeds.length || railFailures || legacyFailures ? "muted" : "success",
   };
 }
 
@@ -1333,6 +1286,13 @@ export function resetUpNext({ preserveItems = false } = {}) {
     upNextExitRepaintTimer = null;
   }
   upNextExitDeferred = false;
+  // An in-flight load may carry the pre-mutation projection, so it is aborted.
+  // On a live dashboard refresh (preserveItems) the rail still needs that load,
+  // and so does any refresh queued behind it: reissue it below rather than
+  // drop it. Dropping it left the rail waiting on an unrelated later event
+  // after a manual watch (the aborted request showed as a failed revalidate).
+  const reissueLoad = preserveItems && (Boolean(state.upNextAbortController) || state.upNextRefreshQueued);
+  const reissueForce = state.upNextForceRefreshQueued;
   state.upNextRequestVersion += 1;
   state.upNextAbortController?.abort();
   state.upNextAbortController = null;
@@ -1354,10 +1314,11 @@ export function resetUpNext({ preserveItems = false } = {}) {
   state.upNextError = "";
   state.upNextErrorCode = "";
   state.upNextExitIds = [];
-  state.upNextPendingRemovalKeys = [];
-  if (!preserveItems) state.upNextPendingWatchedRemovalKeys = [];
+  state.upNextPendingRemovals = [];
+  if (!preserveItems) state.upNextPendingWatchedRemovals = [];
   state.upNextRefreshQueued = false;
   state.upNextForceRefreshQueued = false;
+  if (reissueLoad) loadUpNext({ force: reissueForce, fromSse: !reissueForce }).catch(() => { });
 }
 
 function upNextErrorPresentation() {

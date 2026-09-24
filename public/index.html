@@ -4,27 +4,28 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Plembfin</title>
-    <link rel="icon" href="/favicon.svg?v=1.1.1.8.0" type="image/svg+xml" />
+    <link rel="icon" href="/icon-192.png?v=20260824h" type="image/png" media="(prefers-color-scheme: light)" />
+    <link rel="icon" href="/icon-192-dark.png?v=20260824h" type="image/png" media="(prefers-color-scheme: dark)" />
     <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png?v=20260824h" />
     <meta name="apple-mobile-web-app-title" content="Plembfin" />
-    <link rel="manifest" href="/manifest.webmanifest?v=1.2.1.0.0" />
+    <link rel="manifest" href="/manifest.webmanifest?v=1.2.1.0.1" />
     <meta name="theme-color" content="#05080c" />
-    <script src="/theme-boot.js?v=1.2.1.0.0"></script>
+    <script src="/theme-boot.js?v=1.2.1.0.1"></script>
     <link rel="preconnect" href="https://image.tmdb.org" />
-    <link rel="modulepreload" href="/app.js?v=1.2.1.0.0" />
-    <link rel="modulepreload" href="/modules/auth.js?v=1.2.1.0.0" />
-    <link rel="modulepreload" href="/modules/logs.js?v=1.2.1.0.0" />
-    <link rel="modulepreload" href="/modules/settings-shell.js?v=1.2.1.0.0" />
-    <link rel="modulepreload" href="/modules/state.js?v=1.2.1.0.0" />
-    <link rel="modulepreload" href="/modules/appearance.js?v=1.2.1.0.0" />
-    <link rel="modulepreload" href="/modules/status-indicators.js?v=1.2.1.0.0" />
-    <link rel="modulepreload" href="/modules/media-routing.js?v=1.2.1.0.0" />
-    <link rel="modulepreload" href="/modules/cast-disclosure.js?v=1.2.1.0.0" />
-    <link rel="modulepreload" href="/modules/utils.js?v=1.2.1.0.0" />
-    <link rel="modulepreload" href="/modules/images.js?v=1.2.1.0.0" />
-    <link rel="modulepreload" href="/modules/sync.js?v=1.2.1.0.0" />
-    <link rel="modulepreload" href="/modules/route-modules.js?v=1.2.1.0.0" />
-    <link rel="stylesheet" href="/styles.css?v=1.2.1.0.0" />
+    <link rel="modulepreload" href="/app.js?v=1.2.1.0.1" />
+    <link rel="modulepreload" href="/modules/auth.js?v=1.2.1.0.1" />
+    <link rel="modulepreload" href="/modules/logs.js?v=1.2.1.0.1" />
+    <link rel="modulepreload" href="/modules/settings-shell.js?v=1.2.1.0.1" />
+    <link rel="modulepreload" href="/modules/state.js?v=1.2.1.0.1" />
+    <link rel="modulepreload" href="/modules/appearance.js?v=1.2.1.0.1" />
+    <link rel="modulepreload" href="/modules/status-indicators.js?v=1.2.1.0.1" />
+    <link rel="modulepreload" href="/modules/media-routing.js?v=1.2.1.0.1" />
+    <link rel="modulepreload" href="/modules/cast-disclosure.js?v=1.2.1.0.1" />
+    <link rel="modulepreload" href="/modules/utils.js?v=1.2.1.0.1" />
+    <link rel="modulepreload" href="/modules/images.js?v=1.2.1.0.1" />
+    <link rel="modulepreload" href="/modules/sync.js?v=1.2.1.0.1" />
+    <link rel="modulepreload" href="/modules/route-modules.js?v=1.2.1.0.1" />
+    <link rel="stylesheet" href="/styles.css?v=1.2.1.0.1" />
   </head>
   <body class="auth-locked">
     <div class="app-chassis">
@@ -479,7 +480,7 @@
                 <details class="upcoming-search-dropdown">
                     <summary class="action-pill page-action-pill upcoming-search-trigger" aria-label="Search upcoming episodes" title="Search upcoming episodes">
                       <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M6.75 2a4.75 4.75 0 1 0 2.96 8.47l3.91 3.91 1.06-1.06-3.91-3.91A4.75 4.75 0 0 0 6.75 2Zm0 1.5a3.25 3.25 0 1 1 0 6.5 3.25 3.25 0 0 1 0-6.5Z"/></svg>
-                      <span class="sr-only">Search upcoming episodes</span>
+                      <span class="upcoming-search-label">Search</span>
                     </summary>
                     <div class="upcoming-search-panel">
                       <label class="compact-field upcoming-search-field">
@@ -543,6 +544,7 @@
                 <span id="syncActivityPauseStatus" class="sync-activity-pause-status hidden">Page updates paused; sync continues in the background.</span>
               </div>
             </section>
+            <section id="syncActivityAttention" class="sync-attention-panel hidden" aria-live="polite" aria-label="Sync attention"></section>
             <div id="syncActivityTraktProgress" class="guide-callout sync-activity-trakt-progress hidden"></div>
             <div id="syncActivityRows" class="sync-activity-rows"></div>
             <div id="syncActivityPagination" class="sync-activity-pagination hidden" aria-label="Sync activity pages">
@@ -596,28 +598,16 @@
                     <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor"><path d="M1.5 2.5A1.5 1.5 0 0 1 3 1h10a1.5 1.5 0 0 1 1.5 1.5v10A1.5 1.5 0 0 1 13 15H3a1.5 1.5 0 0 1-1.5-1.5v-10zM3 2a.5.5 0 0 0-.5.5v10a.5.5 0 0 0 .5.5h10a.5.5 0 0 0 .5-.5v-10a.5.5 0 0 0-.5-.5H3z"/><path d="M4 4.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zm0 3.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zm0 3.5a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5z"/></svg>
                     <span>View</span>
                   </button>
+                  <button class="mobile-control-tab" data-target="size" type="button" aria-pressed="false" title="Change poster size">
+                    <svg viewBox="0 0 16 16" width="16" height="16" fill="currentColor" aria-hidden="true"><path d="M2 2.25a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 2.25Zm0 5.75a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H2.75A.75.75 0 0 1 2 8Zm0 5.75a.75.75 0 0 1 .75-.75h10.5a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1-.75-.75Z"/><path d="M5 1.25h1.5v2H5zm4.5 5.75H11v2H9.5zm-3 5.75H8v2H6.5z"/></svg>
+                    <span>Size</span>
+                  </button>
                 </div>
-                <details class="page-tools-dropdown page-tools-dropdown--mobile">
-                  <summary class="action-pill page-tools-trigger" title="Library options">
-                    <svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M1.5 2A.5.5 0 0 1 2 1.5h12a.5.5 0 0 1 .4.8L9.5 8.4v4.1a.5.5 0 0 1-.28.45l-2 1A.5.5 0 0 1 6.5 13.5V8.4L1.6 2.3a.5.5 0 0 1-.1-.3zM3.05 2.5 7.4 7.95a.5.5 0 0 1 .1.3v4.45l1-.5V8.25a.5.5 0 0 1 .1-.3l4.35-5.45z"/></svg>
-                    <span>Options</span>
-                  </summary>
-                  <div class="page-tools-panel">
-                    <label class="compact-field explorer-size-slider">
-                      <span>Size</span>
-                      <input id="explorerPosterSize" type="range" min="80" max="240" value="160" />
-                    </label>
-                    <label id="explorerHideWatchedLabel" class="compact-field explorer-hide-toggle" style="display: none;">
-                      <span>Hide Fully Watched</span>
-                      <input id="explorerHideWatched" type="checkbox" class="explorer-hide-checkbox" />
-                    </label>
-                    <label id="explorerHideEndedLabel" class="compact-field explorer-hide-toggle" style="display: none;">
-                      <span>Hide Ended</span>
-                      <input id="explorerHideEnded" type="checkbox" class="explorer-hide-checkbox" />
-                    </label>
-                  </div>
-                </details>
                 </div>
+                <label class="compact-field explorer-size-slider">
+                  <span>Size</span>
+                  <input id="explorerPosterSize" type="range" min="80" max="240" value="160" />
+                </label>
                 <label class="compact-field explorer-search-box">
                   <span>Search</span>
                   <input id="explorerSearchInput" class="field" type="search" placeholder="Movie, show, IMDb, TMDB, TVDB..." autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" readonly />
@@ -643,6 +633,14 @@
                     <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true"><rect x="1" y="1" width="4" height="13" rx="1" fill="currentColor"/><rect x="6.5" y="1" width="7.5" height="2" rx="0.75" fill="currentColor"/><rect x="6.5" y="4.5" width="7.5" height="1.5" rx="0.75" fill="currentColor"/><rect x="6.5" y="7.5" width="5" height="1.5" rx="0.75" fill="currentColor"/></svg>
                   </button>
                 </div>
+                <label id="explorerHideWatchedLabel" class="compact-field explorer-hide-toggle" style="display: none;">
+                  <span>Hide Fully Watched</span>
+                  <input id="explorerHideWatched" type="checkbox" class="explorer-hide-checkbox" />
+                </label>
+                <label id="explorerHideEndedLabel" class="compact-field explorer-hide-toggle" style="display: none;">
+                  <span>Hide Ended</span>
+                  <input id="explorerHideEnded" type="checkbox" class="explorer-hide-checkbox" />
+                </label>
               </div>
             </div>
             <div class="explorer-with-alpha">
@@ -1727,6 +1725,25 @@
                             </div>
                           </div>
                         </details>
+
+                        <!-- Inner Box 5: Watch-State Aliases -->
+                        <details id="playstate-aliases" class="sync-tool-details">
+                          <summary class="accordion-header">
+                            <div class="sync-tool-summary-title">
+                              <svg class="accordion-chevron" width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 4l4 4-4 4"/></svg>
+                              <b>Watch-State Aliases</b>
+                              <span id="playstateAliasStatus" class="status-pill status-muted">Idle</span>
+                            </div>
+                            <span>Decide which show the episode watch states the automatic repair could not place belong to</span>
+                          </summary>
+                          <div class="tool-item-row">
+                            <div id="playstateAliasLog" class="import-terminal compact-terminal hidden" style="margin-top: var(--space-2);"></div>
+                            <div id="playstateAliasList" class="playstate-alias-list hidden"></div>
+                            <div class="settings-actions" style="margin-top: var(--space-2);">
+                              <button id="playstateAliasScanButton" class="button-ghost sync-action-btn sync-tool-button" type="button">Check Watch-State Aliases</button>
+                            </div>
+                          </div>
+                        </details>
                       </div>
                     </article>
                   </div>
@@ -1744,6 +1761,7 @@
                             <li><b>Audit Phantom Watches</b><span>Runs a read-only scan for suspicious duplicates or broken imported episode data. Results are marked high-confidence or review-only; nothing is changed.</span></li>
                             <li><b>Remove Duplicate Watches</b><span>Finds repeated movie or episode watches and keeps the oldest date. The other rows are deleted and the correction is pushed to connected platforms after you confirm the exact count. This cannot be undone.</span></li>
                             <li><b>Restore Missing Episode Names</b><span>Finds episode rows with a missing or coordinate-only name and restores the real title using stored rows, cached season metadata, and a metadata lookup when needed. Read-only audit results are kept separate from retryable failures.</span></li>
+                            <li><b>Watch-State Aliases</b><span>Lists episode watch states stored under an episode's own ids that no TMDB or TVDB lookup could tie to the show. Per show, choose Belongs to this show (the newest watch state wins and the entries join the show) or Different show (they are left alone and never listed again). Only Plembfin's local watch state changes; nothing is sent to connected platforms.</span></li>
                           </ul>
                         </div>
                       </div>
@@ -3016,7 +3034,7 @@
       </article>
     </div>
 
-    <script type="module" src="/modules/analytics.js?v=1.2.1.0.0"></script>
-    <script type="module" src="/app.js?v=1.2.1.0.0"></script>
+    <script type="module" src="/modules/analytics.js?v=1.2.1.0.1"></script>
+    <script type="module" src="/app.js?v=1.2.1.0.1"></script>
   </body>
 </html>

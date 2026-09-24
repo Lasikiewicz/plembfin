@@ -320,6 +320,14 @@ const POST_RESTORE_WEBHOOK_GUARD_MS = 24 * 60 * 60 * 1000;
 const RESTORE_PUSH_CONCURRENCY = Math.min(Math.max(Number(process.env.PLEMBFIN_RESTORE_CONCURRENCY || 8), 1), 64);
 const RESTORE_ITEM_TIMEOUT_MS = 30000;
 const RESTORE_TARGET_FAILURE_THRESHOLD = Math.min(Math.max(Number(process.env.PLEMBFIN_RESTORE_TARGET_FAILURE_THRESHOLD || 3), 1), 10);
+// Test-only, opt-in: a disposable fixture with no providers configured makes
+// the whole push phase a no-op (no targets means no jobs), so a restore
+// against it finishes in seconds and never exercises the poll/log UI over a
+// realistic multi-minute window (see plan/speed.md, Test 4). Setting this
+// inserts a synthetic per-row wait, at the same concurrency the real push
+// uses, so the live log and progress polling are measured honestly without
+// contacting any provider. Zero (the default) is a no-op in every other case.
+const DEBUG_RESTORE_PUSH_DELAY_MS = Math.max(Number(process.env.PLEMBFIN_DEBUG_RESTORE_PUSH_DELAY_MS || 0), 0);
 
 function normalizedTitlePart(value = "") {
   return String(value || "").trim().toLowerCase();
@@ -656,6 +664,22 @@ async function pushRestoredStateToApps(config, logLine, { shouldCancel = async (
       logLine(`  Pushed ${done}/${jobs.length} target operation(s) (rows complete: watched ${current.watched}, unwatched ${current.unwatched}, failed ${current.failed})`);
     }
   });
+
+  if (!targets.length && DEBUG_RESTORE_PUSH_DELAY_MS > 0) {
+    logLine(`[debug] PLEMBFIN_DEBUG_RESTORE_PUSH_DELAY_MS=${DEBUG_RESTORE_PUSH_DELAY_MS}: simulating provider push latency across ${rows.length} item(s) at concurrency ${RESTORE_PUSH_CONCURRENCY}. No provider is contacted.`);
+    let simulated = 0;
+    await runWithConcurrency(indexedRows, RESTORE_PUSH_CONCURRENCY, async () => {
+      if (await shouldCancel()) {
+        cancelled = true;
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, DEBUG_RESTORE_PUSH_DELAY_MS));
+      simulated++;
+      if (simulated % 25 === 0 || simulated === indexedRows.length) {
+        logLine(`  [debug] Simulated ${simulated}/${indexedRows.length} item(s)...`);
+      }
+    });
+  }
 
   const issues = [];
   const expectedSkips = [];

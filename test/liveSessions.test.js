@@ -48,7 +48,7 @@ test("live sessions are terminal only when playback has reached the final grace 
 
 function plexSessionXml(state) {
   return `<MediaContainer size="1">
-<Video type="episode" grandparentTitle="Ludwig (2024)" parentIndex="2" index="2" title="Episode 2" duration="3189360" viewOffset="219000" ratingKey="2752" sessionKey="4">
+<Video type="episode" grandparentTitle="Ludwig (2024)" grandparentRatingKey="2740" parentIndex="2" index="2" title="Episode 2" duration="3189360" viewOffset="219000" ratingKey="2752" sessionKey="4">
 <User />
 <Player address="192.168.1.102" machineIdentifier="i0kdarajoqmdwfh1k0xn558x" state="${state}" title="Chrome" userID="1" />
 </Video>
@@ -102,6 +102,14 @@ test("Plex sessions carry the player account id when <User> is empty", () => {
   const [session] = parsePlexSessions(plexSessionXml("playing"), {});
   assert.equal(session.client.userName, "");
   assert.equal(session.client.userId, "1");
+});
+
+// A Plex live session carries no series ids of its own. Without the show's
+// handle, a stopped Scrubs (2001) session folded onto the 2026 reboot identity
+// that a mismatched Jellyfin library had put into history.
+test("Plex episode sessions carry the show handle for series id resolution", () => {
+  const [session] = parsePlexSessions(plexSessionXml("paused"), {});
+  assert.equal(session.seriesItemId, "2740");
 });
 
 // Two movies played back to back on one client share every field the session

@@ -376,7 +376,9 @@ test("a wrong-ID Force episode reports the Trakt mismatch without a title fallba
     assert.equal(markerSeenBeforePoll, true, "the canonical Trakt intent must exist throughout the local phase");
     assert.equal(pollResult?.unwatched, 0);
     assert.equal(pollResult?.deferredUnwatched, 1);
-    assert.equal((await repo.getPlaystateForMedia(media))?.state, "watched");
+    // The local rows carry their own (wrong) ids; every one disagrees with the
+    // Trakt identity, so the local state is read under the local ids.
+    assert.equal((await repo.getPlaystateForMedia({ ...media, ids: wrongIds }))?.state, "watched");
     assert.equal(result.results[0]?.canonicalState, "watched");
     assert.equal(result.results[0]?.status, "partial");
     assert.equal(result.results[0]?.targetStates.find((target) => target.target === "trakt")?.status, "error");

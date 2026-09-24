@@ -14,6 +14,8 @@ import {
   invalidateHistoryDerivedCaches,
   mediaKeyFor,
   mediaToWatchRecord,
+  seriesIdsForEpisodeMedia,
+  showTitleNamesSeveralShows,
   updateWatchRecord,
   updateWatchTelemetry,
   upsertPlaystateForMedia,
@@ -33,6 +35,7 @@ import {
   setManualWatchReviewStatus,
 } from "../utils/manualWatchReview.js";
 import { recordWatchAuditEvent } from "../utils/watchAudit.js";
+import { resolveEpisodeSeriesItemId, withSeriesIdentity } from "../utils/seriesIdentity.js";
 
 const REVIEW_MODES = new Set(["now", "release_day", "episode_timing", "custom"]);
 const REVIEW_SOURCES = new Set(["plex", "emby", "jellyfin"]);
@@ -106,13 +109,46 @@ function safeReviewTargetState(target = {}) {
   };
 }
 
+function reviewHasProviderIds(media = {}) {
+  const ids = media.ids || {};
+  return Boolean(ids.imdb || ids.tmdb || ids.tvdb);
+}
+
+// A review stored with no provider ids would otherwise be applied by show
+// title and coordinates, which matches every same-title show (defect AI: a
+// dismissed Scrubs 2001 S01E04 review unmarked the 2026 reboot's S01E04 too).
+// Resolve the series ids from the reporting app's own item first. When they
+// cannot be resolved and stored history proves the title names two shows, keep
+// the review pending rather than guess.
+async function reviewMediaWithIdentity(review, config) {
+  const media = manualWatchReviewMedia(review);
+  if (media.type !== "episode" || reviewHasProviderIds(media)) return media;
+  const source = String(review.source || media.source || "").trim().toLowerCase();
+  const provenance = media.watchProvenance || media.watch_provenance || {};
+  const itemId = String(review.source_item_id || media.itemId || media.providerItemId || provenance.item_id || "").trim();
+  const seriesItemId = itemId && REVIEW_SOURCES.has(source)
+    ? await resolveEpisodeSeriesItemId(source, itemId, config?.[source])
+    : "";
+  const resolved = seriesItemId
+    ? await withSeriesIdentity({ ...media, source, itemId: media.itemId || itemId, seriesItemId }, config)
+    : null;
+  if (resolved && reviewHasProviderIds(resolved)) return { ...resolved, source: media.source };
+  if (showTitleNamesSeveralShows(media.showTitle || media.show_title || "")) {
+    throw Object.assign(
+      new Error(`Could not confirm which show "${media.title || "this episode"}" belongs to from ${reviewProviderLabel(source)}; the review remains pending.`),
+      { status: 409 },
+    );
+  }
+  return media;
+}
+
 async function dismissReview(review) {
   if (isAuthoritativeRestoreActive()) {
     throw Object.assign(new Error("An authoritative watch-history restore is active; manual watch-state changes are paused until it completes."), { status: 409 });
   }
 
   const config = await loadMediaConfig();
-  const media = manualWatchReviewMedia(review);
+  const media = await reviewMediaWithIdentity(review, config);
   const source = String(review.source || media.source || "").trim().toLowerCase();
   if (!REVIEW_SOURCES.has(source)) {
     throw Object.assign(new Error("This review has no supported reporting app, so it remains pending."), { status: 400 });
@@ -247,6 +283,34 @@ async function dismissReview(review) {
   };
 }
 
+// A review can carry the episode's own ids (an Emby library-history review of
+// Slow Horses S06E01 held only its episode TVDB id). Use the title's proven
+// series ids where the scheduled repair would, so the history row is keyed on
+// the show.
+function withProfileSeriesIds(media) {
+  const seriesIds = seriesIdsForEpisodeMedia(media);
+  if (!seriesIds) return media;
+  const ids = { ...(media.ids || {}) };
+  for (const provider of ["imdb", "tmdb", "tvdb"]) {
+    if (seriesIds[provider]) ids[provider] = seriesIds[provider];
+    else delete ids[provider];
+  }
+  return { ...media, ids };
+}
+
+// Playstate goes under the identity of the history row just written or
+// updated. Matching on the review's own ids let an episode-id alias take the
+// write while history sat under the show key, so the review stayed listed.
+async function upsertPlaystateLikeHistory(media, historyRow, watchedAt) {
+  const ids = {
+    imdb: historyRow.imdb_id || undefined,
+    tmdb: historyRow.tmdb_id || undefined,
+    tvdb: historyRow.tvdb_id || undefined,
+  };
+  const mediaKey = historyRow.media_key || mediaKeyFor({ ...media, ids });
+  await upsertPlaystateForMedia({ ...media, ids }, "watched", watchedAt, { skipInvalidate: true, mediaKey });
+}
+
 async function approveReview(review, requestedMode = "", requestedWatchedAt = "") {
   if (isAuthoritativeRestoreActive()) {
     throw Object.assign(new Error("An authoritative watch-history restore is active; manual watch-state changes are paused until it completes."), { status: 409 });
@@ -257,7 +321,7 @@ async function approveReview(review, requestedMode = "", requestedWatchedAt = ""
   const mode = REVIEW_MODES.has(requested)
     ? requested
     : (watchImportMode() === "review" ? "now" : watchImportMode());
-  const media = manualWatchReviewMedia(review);
+  const media = withProfileSeriesIds(await reviewMediaWithIdentity(review, config));
   let dateChoice;
   if (mode === "custom") {
     const watchedAt = isoDateTime(requestedWatchedAt);
@@ -314,7 +378,7 @@ async function approveReview(review, requestedMode = "", requestedWatchedAt = ""
     if (!updatedRecord?.ok) throw new Error(updatedRecord?.error || "Stored watch record could not be updated");
     media.watchRecordId = existing.id;
     await deletePlaybackProgress(media).catch(() => null);
-    await upsertPlaystateForMedia(media, "watched", media.watched_at, { skipInvalidate: true });
+    await upsertPlaystateLikeHistory(media, existing, media.watched_at);
 
     const loopStore = createLoopStore();
     const summary = await syncMediaPlaystate(media, config, loopStore, { lane: "interactive" }).catch((error) => ({
@@ -382,7 +446,7 @@ async function approveReview(review, requestedMode = "", requestedWatchedAt = ""
   const inserted = await insertWatchRecord(watchRecord, { skipInvalidate: true, watchlistConfig: config });
   media.watchRecordId = inserted.id;
   await deletePlaybackProgress(media).catch(() => null);
-  await upsertPlaystateForMedia(media, "watched", inserted.record.watched_at, { skipInvalidate: true });
+  await upsertPlaystateLikeHistory(media, inserted.record, inserted.record.watched_at);
 
   const loopStore = createLoopStore();
   const summary = await syncMediaPlaystate(media, config, loopStore, { lane: "interactive" }).catch((error) => ({

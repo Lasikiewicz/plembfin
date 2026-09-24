@@ -2,467 +2,260 @@
 
 Agent instructions for working with this codebase.
 
-> **Before changing anything, read [`docs/architecture.md`](docs/architecture.md).**
-> It is the master guide: the big picture, a complete map of every file in the repo,
-> request flow, the data layer, auth, and environment variables. The table at the end
-> of this file routes you to the doc that owns the area you are touching.
-
-> **For website update requests, also follow [`docs/websiteupdate.md`](docs/websiteupdate.md).**
-> Start by discovering the verification baseline recorded by the website, then review
-> and document all changes after that baseline and visually check affected pages locally.
-
-> **For website publishing setup, follow [`docs/website-deployment.md`](docs/website-deployment.md).**
-> The website is a static Astro site in `website/`; do not push or deploy it without an
-> explicit user request.
-
-> **IMPORTANT — website/Traks work is isolated and this rule is mandatory.** Read the
-> website deployment docs and skill before acting; use only the local `website/` tree and
-> direct Wrangler deployment to `plembfin-website`. Never use GitHub, modify `main`, run
-> application CI, run the root Plembfin build, or touch the `plembfin` application project
-> unless the user explicitly requests **"Force to main"**.
-
-> **For the explicit phrase "Push website live", follow
-> [`.claude/skills/push-website-live/SKILL.md`](.claude/skills/push-website-live/SKILL.md).**
-> This is a website-only publish from the current local `website/` tree to the separate
-> `plembfin-website` Cloudflare Pages project; it must not push GitHub or rebuild the
-> Plembfin application.
->
-> **For the explicit phrase "Start the website", follow
-> [`.claude/skills/start-website/SKILL.md`](.claude/skills/start-website/SKILL.md).**
-> This starts the local Astro preview at `http://localhost:4321/` for editing and
-> testing only; it must not publish or deploy anything.
->
-> **For the explicit phrase "Check requests", follow
-> [`.claude/check-requests.md`](.claude/check-requests.md).** This is a local-only,
-> read-only monitor for the Plembfin feature requests on Plex, Emby, and Jellyfin;
-> it reports status, votes, comments, and any reply that needs a draft.
-
-## Local testing context
-
-When local-server or connected-browser testing is explicitly requested, check whether
-`.claude/local-environment.md` exists and read it before testing. It contains
-machine-specific local URLs and signed-in browser-session context, and is intentionally
-gitignored. Treat it as optional because it is absent from fresh clones and other
-machines.
+> **Before changing anything, read the relevant parts of [`docs/architecture.md`](docs/architecture.md).**
+> It is the master guide (big picture, complete file map, request flow, data layer, auth,
+> environment variables). It is about 100 KB, so read "The big picture" and "Subsystem map"
+> (top ~85 lines) first, then only the file-map subsection and topic sections for the area
+> you are touching. The routing table at the end of this file names the doc that owns each area.
 
 ## Agent Guidelines
 
-- **No Git Pushes** - Never execute `git push` or push commits to any remote repository unless the user explicitly instructs you to push in their request.
-- **No Deployments** - Never deploy the application or run deployment commands unless explicitly instructed by the user.
-- **No Unsolicited Actions** - Do only exactly what the user asks. Do not perform unsolicited refactorings, add extra features, or modify files outside the direct scope of the request.
-- **No Browser Actions Unless Asked** - Never open web browsers/browser tools unless the user has explicitly requested it. Test commands are part of the normal project checks: run `npm test` or `npm run build` when a change touches code covered by those checks or when the user asks for verification.
-- **Website-only safety** - Website/Traks work must use the local `website/` checks/build and direct deployment to `plembfin-website`; it must never modify GitHub `main`, trigger application CI, run the root build, or touch the `plembfin` application project. The only exception is the explicit release workflow **"Force to main"**.
-- **Act immediately on simple requests** - If the user describes a clear, specific change, make it directly without preamble, planning steps, or explanation. Save analysis for genuinely complex or ambiguous tasks.
+- **No Git Pushes** - Never run `git push` or push to any remote unless the user explicitly instructs it in their request.
+- **Local commits only at the end of a chat** - `git add` and `git commit` run without a prompt, so never commit mid-task. Commit once, as the last step when the chat's work is finished.
+- **No Deployments** - Never deploy or run deployment commands unless explicitly instructed.
+- **No Unsolicited Actions** - Do exactly what the user asks. No unsolicited refactors, extra features, or edits outside the request's scope.
+- **No Browser Actions Unless Asked** - Never open browsers/browser tools unless explicitly requested. Test commands are part of the normal project checks: run `npm test` or `npm run build` when a change touches code covered by those checks or when the user asks for verification.
+- **Act immediately on simple requests** - Make clear, specific changes directly without preamble or planning steps. Save analysis for genuinely complex or ambiguous tasks.
+
+## Website work is isolated (mandatory)
+
+- Website/Traks work uses only the local `website/` tree, its own checks/build, and direct
+  Wrangler deployment to the separate `plembfin-website` Cloudflare Pages project. It must
+  never use GitHub, modify `main`, run application CI, run the root Plembfin build, or touch
+  the `plembfin` application project, unless the user explicitly requests **"Force to main"**.
+- Read the website deployment docs and skill before acting. Website update requests follow
+  [`docs/websiteupdate.md`](docs/websiteupdate.md): discover the verification baseline recorded
+  by the website, review and document all changes after it, and visually check affected pages
+  locally. Publishing setup follows [`docs/website-deployment.md`](docs/website-deployment.md).
+  Never push or deploy the website without an explicit user request.
+
+## Local testing context
+
+When local-server or connected-browser testing is explicitly requested, read
+`.claude/local-environment.md` first if it exists (machine-specific URLs and signed-in browser
+sessions; gitignored, so absent on fresh clones).
+
+## Token efficiency
+
+Cost is driven by context size multiplied by the number of calls: every call re-sends the whole
+conversation. Keep both small without cutting any verification.
+
+**Session hygiene** (the agent cannot open sessions itself, so it says so to the user):
+
+- **One task per session.** When a task is finished, and especially when the user asks "what's
+  next", recommend a fresh session instead of carrying the history forward, and give a one-line
+  handoff to paste into it: the plan path plus the current step (for example
+  `Continue plan/unified-up-next-sync.md, manual matrix step 2`).
+- **Checkpoint long runs.** Before starting a multi-phase job ("do it", "start phase N", `/goal`),
+  write the current progress and next step into the owning plan file, then recommend running
+  each phase in a fresh session that starts from that file.
+- **Context budget.** A local hook (`.claude/hooks/context-budget.mjs`) reports the context size
+  past 150k and 250k, at each prompt and once per level mid-task. Past 150k, "what's next" gets the next item plus a handoff line, not the
+  item itself. Past 250k, finish only the current item, write the handoff into the plan, and
+  recommend a fresh session. The audit that prompted this found 91% of input tokens were spent
+  above 200k context (`plan/agent-token-efficiency.md`).
+- **Stale sessions.** When a large session resumes after an hour or more away, its cache has
+  expired and the whole context is paid for again; recommend starting fresh from the plan file.
+
+**Working style:**
+
+- **Explore efficiently.** Run independent searches and reads in parallel in one message. Use
+  Grep with small context, or Read with `offset`/`limit`, instead of `sed -n` ranges, whole-file
+  dumps, or unbounded `git diff` output. Do not re-read a file already in context unless it
+  changed. Delegate broad multi-file searches to an Explore subagent so only its conclusion
+  enters the main context.
+- **Edit with the Edit tool**, not ad-hoc Python/shell rewrite scripts.
+- **Avoid permission prompts.** Each Bash call that is not allowlisted stops the user for approval.
+  - Create and change files with Write/Edit, never `cat > file`, heredoc redirects, `sed -i`,
+    `cp` backups, or inline `node`/`python` rewrites.
+  - Put probe scripts and temporary files in the session scratchpad, not the repo root, so no
+    `rm` cleanup is needed. Prefer `curl -s http://localhost:5055/...` or `node -e` over a new
+    script file when a one-off query is enough. Run scratchpad scripts as
+    `node "<absolute scratchpad path>/x.mjs" args` (the form a local allowlist can match); never
+    through a shell variable (`Q=...; node $Q`) or after `cd`, which prompt every time.
+  - Do not chain an allowlisted command (`npm test`, `node --test`, `npm run server:restart`,
+    `curl` to localhost) with one that needs approval; one unapproved part prompts for the whole
+    line. Run the part that needs approval as its own call, or find an allowlisted form.
+  - Temporarily mutating source to prove a test fails is fine, but do it with Edit and revert
+    with Edit.
+- **Browser checks: text first, screenshots last.** Prefer `curl` against the API, page text
+  (`get_page_text`), the accessibility tree (`read_page`), or a JavaScript probe. Take screenshots
+  only when the check is genuinely visual, at reduced scale, and never inside large batches. Use
+  one browser stack per session. Run multi-step browser verification in a subagent that returns
+  only a pass/fail table with evidence, so screenshots and page dumps never enter the main
+  context. Cap `preview_logs` at about 200 lines and use its `search` filter.
+- **Large files: search, never read whole.** A hook denies whole-file `Read` of text files over
+  60 KB (plan `-results`/`-reference` companions, big route modules); Grep, then Read with
+  offset/limit. Shell reads (`sed -n`, `cat`, `head`) and inline Python get a warning.
+- **Server restarts are one call:** `npm run server:restart` (stop, start, wait for `/api/ping`,
+  one line out). Do not hand-roll stop/start/sleep/probe loops.
+- **Poll sparingly.** Every wake-up re-sends the full context; wait on a notification or a
+  single well-timed check rather than repeated short sleeps.
+
+**Plan files stay lean.** Each active plan in `plan/` stays under about 15 KB and holds only
+status, decisions, and next steps. Measurements, test runs, and implementation logs go in
+`plan/<name>-results.md`; bulky design/specification detail goes in `plan/<name>-reference.md`
+(or `plan/archive/` once completed). Open those companions only when the step at hand needs
+them. Record new evidence in the results file, and update the main plan's status line.
 
 ## Branching model: `develop` → `alpha` → `main`
 
-Day-to-day work lands on the `develop` branch, never directly on `alpha` or `main`.
-`alpha` only moves when the separate "Force to alpha" command explicitly promotes
-`develop` onto it; `main` only moves when "Force to main" explicitly promotes `alpha`
-onto it, and each promotion to `main` becomes exactly one release (one changelog entry,
-one version bump, one `:latest` + versioned Docker image publish).
-After a main promotion nothing is pushed back: the release is not merged into `develop`
-and `origin/develop` is not touched. Each promotion writes the new version numbers into the
-local manifests and the next ordinary "Push to git" publishes them. This is what keeps a
-promotion to one channel from also publishing a second, meaningless develop image. See
-`docs/decisions.md` entry 18, which supersedes entries 7, 9, and 16.
-
-### Changelog content is computed locally, before every push - never by CI
-
-All three of `changelog.develop.json`, `changelog.alpha.json`, and `changelog.json` are
-written locally, by the push command that produces them, from real local git history.
-No CI job ever writes changelog content or a version back to a branch; the publish
-workflows only build, verify, and publish using values already committed.
-
-The reason: `alpha` and `main` are always reached by force-push, and a force-push's
-GitHub push event carries an empty or incomplete commit list, so anything computed from
-it comes out truncated. Local git history is always complete. See `docs/decisions.md`
-entry 6 for what was rejected and why.
-
-Build versions are five numeric segments, `major.minor.patch.alpha.dev`: the released
-semver, then alpha builds since that release, then develop builds since the last alpha
-build. Trailing zeros are trimmed for display, so a release still reads `v1.1.0` and an
-alpha build `v1.1.0.1`. `package.json` keeps the three-segment semver only. See
-`scripts/version.js`.
-
-- **`develop`**: `scripts/rebuild-develop-changelog.js` recomputes the single entry from
-  every real commit between `resetCommit` and `HEAD`, and restamps `public/` assets with
-  this build's version. Shows as the five-segment version itself, trailing zeros trimmed
-  (`1.1.0.1.3`).
-- **`alpha`**: `scripts/promote-develop-to-alpha.js` prepends develop's entry as its own
-  standalone build entry, so a tester sees each build separately, and requires the user to
-  approve that entry before anything is committed. Shows as `v<version> alpha`.
-- **`main`**: `scripts/promote-alpha-to-main.js` consolidates the cycle's alpha entries
-  into one release, headlined by the `releaseMessage` the operator writes and the user
-  approves, then bumps the real semver.
-
-Both promotion scripts run `changelogEntryProcessViolations` (`scripts/changelog-message.js`)
-and refuse to write an entry containing recognized release-process text.
-
-Full detail, including the per-branch file formats, image tags, and the publish
-workflows, is in [`docs/development.md`](docs/development.md). The step-by-step
-procedures live in the `push-to-git`, `force-to-alpha`, and `force-to-main` skills.
+Day-to-day work lands on `develop`, never directly on `alpha` or `main`; those move only through
+"Force to alpha" and "Force to main", and nothing is pushed back into `develop` afterwards
+(`docs/decisions.md` entry 18). Changelog content and versions are computed locally by the push
+command that produces them, never by CI (`docs/decisions.md` entry 6). Versioning, changelog
+scripts, and promotion detail are in [`docs/development.md`](docs/development.md); procedures
+live in the skills below.
 
 ## Release commands: use the matching skill
 
-Six phrases trigger a named release, publishing, local-development, or request-monitoring procedure. Each one lives in its own skill or local workflow so the
-whole procedure arrives fresh at invocation instead of competing for attention here.
-**Invoke the skill and follow it exactly. Never improvise or reconstruct these
-procedures from memory.**
+These phrases trigger a named procedure. **Invoke the skill (or workflow file) and follow it
+exactly. Never improvise or reconstruct these procedures from memory.**
 
 | The user says | Invoke |
 | --- | --- |
 | "Push to git", "Push all to git", "push all the git" (any case) | `push-to-git` |
 | "Force to alpha" (exactly) | `force-to-alpha` |
 | "Force to main" (exactly) | `force-to-main` |
-| "Push website live" (case-insensitive) | `push-website-live` |
-| "Start the website" (case-insensitive) | `start-website` |
-| "Start the server" (case-insensitive) | Start or reuse the Plembfin application server using the network-enabled launch path |
+| "Push website live" (case-insensitive) | `push-website-live` (website-only publish of local `website/` to `plembfin-website` via Wrangler; no GitHub push, no root build, no application CI) |
+| "Start the website" (case-insensitive) | `start-website` (local Astro preview on `http://localhost:4321/`; never publishes or runs the root build) |
+| "Start the server" (case-insensitive) | Start or reuse the Plembfin application server (see below) |
 | "Check requests" (case-insensitive) | `.claude/check-requests.md` |
 
-These hold regardless of which skill is running, so they are repeated here:
+Rules that hold regardless of which skill is running:
 
-- Never run `git push` because one of these phrases appeared. The phrase means run the
-  workflow; the push is one late step inside it, after every gate has passed.
-- Never deploy, and never push to any remote, unless the user explicitly asked in that
-  request.
-- "Push website live" is the website-only publish workflow: use the current local
-  `website/` tree and deploy directly to `plembfin-website` with Wrangler. Do not run
-  the root Plembfin build, push GitHub, or trigger the application CI workflows.
-- "Start the website" is local-only: start or reuse the Astro dev server on
-  `http://localhost:4321/` and open that URL for editing/testing. Do not deploy it or
-  run the root Plembfin build.
-- "Start the server" is the Plembfin application-server workflow: start or reuse
-  `npm start` (or `npm run dev` when auto-reload is requested) on `http://localhost:5055`.
-  On Windows, the agent must launch it with `exec_command` using
-  `sandbox_permissions: "require_escalated"` and a user-facing justification that
-  network access is required for Plex, Emby, Jellyfin, Trakt, TMDB, or TVDB. Never
-  launch this server from the restricted sandbox; it can bind localhost while blocking
-  the outbound connections the application needs.
-- "Check requests" is local-only and read-only: inspect the registered Plex, Emby, and
-  Jellyfin request pages in connected Chrome, compare public status/vote/comment data
-  with the ignored local snapshot, and draft (but do not post) replies when a maintainer
-  needs an answer. If a provider asks for login, stop at that provider and tell the user
-  which session needs attention.
+- A trigger phrase never means `git push` by itself; the push is one late step inside the
+  workflow, after every gate has passed. Never deploy or push to any remote unless the user
+  explicitly asked in that request.
+- "Start the server": `npm run server:restart -- --if-down` (reuses a running server) on
+  `http://localhost:5055`; `npm run server:restart` forces a restart. It needs outbound network
+  access for providers; see `docs/development.md` "Windows provider-backed server launches".
+- "Check requests" is local-only and read-only: inspect the registered Plex, Emby, and Jellyfin
+  request pages in connected Chrome, compare status/votes/comments with the ignored local
+  snapshot, and draft (never post) replies a maintainer needs. If a provider asks for login,
+  stop at that provider and tell the user which session needs attention.
 - Never bypass a hook with `--no-verify`, and never bypass the changelog rebuild.
-- After every completed local commit, merge, amend, or rebase, the `.githooks/post-commit`,
-  `post-merge`, and `post-rewrite` hooks regenerate the ignored `plan/updates.md` ledger
-  from committed history since `origin/main`. Refresh it with `npm run updates:refresh`
-  before Push to git or Force to main; use its unique changelog bullets and grouped website
-  targets as the review inventory. It is not a replacement for the committed changelog
+- The `.githooks/post-commit`, `post-merge`, and `post-rewrite` hooks regenerate the ignored
+  `plan/updates.md` ledger from committed history since `origin/main`. Refresh it with
+  `npm run updates:refresh` before Push to git or Force to main and use its changelog bullets
+  and website targets as the review inventory. It does not replace the committed changelog
   manifests or the human website gate.
-- Before any of the three, check that GHCR Cleanup is not mid-run
-  (`gh run list --workflow ghcr-cleanup.yml --limit 1`); each skill repeats this as its
-  first step.
-- "Force to alpha" and "Force to main" are force-pushes to shared branches. Show the user
-  what is about to land first. Both require explicit user approval of the previewed
-  changelog in chat before anything is staged, and both then stop every local server and
-  start the build being published so the user can check it before the push. "Force to main" also runs the mandatory
-  website update gate, and stops if that gate produces a website change, because the
-  release is built from alpha's tip and the change must travel through "Force to alpha"
-  first.
+- Before Push to git, Force to alpha, or Force to main, check GHCR Cleanup is not mid-run
+  (`gh run list --workflow ghcr-cleanup.yml --limit 1`); each skill repeats this first.
+- "Force to alpha" and "Force to main" force-push shared branches. Show what will land, get
+  explicit chat approval of the previewed changelog before staging, then stop every local server
+  and start the build being published for the user to check before the push. "Force to main"
+  also runs the mandatory website update gate and stops if it produces a website change (that
+  change must travel through "Force to alpha" first).
 - Neither force command pushes `develop`. If a procedure tells you to, it is out of date.
-- Day-to-day work lands on `develop`, never directly on `alpha` or `main`.
 
 ## Documentation and backlog sync
 
-[`plan/todo.md`](plan/todo.md) is the single backlog: it indexes every plan in `plan/`,
-records each one's status, and carries the unscheduled items below that index. There is no
-root `TODO.md`; it was retired on 15 September 2026 and its items were folded into plans.
+[`plan/todo.md`](plan/todo.md) is the single backlog. Active plans live in `plan/`; completed
+plans move to [`plan/archive/`](plan/archive/) and leave the TODO. There is no root `TODO.md`
+(retired 15 September 2026).
 
-When implementing or finishing work described there, update the entry in the same change -
-remove it when it is genuinely finished, or move it to a truthful status when it is not. If
-the completed work changes user-visible behavior, also update the relevant `docs/` page and
-README section. Before removing an item, verify that the code and documentation both
-describe the current behavior.
+When implementing or finishing planned work, update its entry in the same change. If
+user-visible behavior changes, also update the relevant `docs/` page and README section. Before
+closing a plan, verify code and docs both describe current behavior.
 
 ### MANDATORY: keep the TODO current, and never overstate status
 
-**Before ending any turn that changed code, and before starting a new phase of work,
-update [`plan/todo.md`](plan/todo.md) with the real status**, together with the status line
-in the plan the work belongs to. This is not optional and does not wait to be asked. Work
-with no plan of its own goes under that file's "Unscheduled backlog" heading; if it is
-substantial enough to need one, write the plan.
+**Before ending any turn that changed code, and before starting a new phase of work, update
+[`plan/todo.md`](plan/todo.md) and the owning plan's status line with the real status.** Not
+optional, not waiting to be asked. Work with no plan goes under "Unscheduled backlog"; if it is
+substantial, write the plan.
 
-The status must be accurate rather than flattering. Specifically:
-
-- **Distinguish "implemented", "unit-tested", and "verified".** Code that compiles is not
-  tested. Code covered by tests that stub the network is not verified against the real
-  service. Each is a separate claim; only make the ones that are true.
-- **A plan is only `Completed` once its own verification section has actually been run.**
-  Until then it is `Implemented and unit-tested; not yet Completed`, with the outstanding
-  checks listed individually as unticked boxes, not summarized.
-- **List what is NOT verified explicitly**, including the failure mode. "Emby `DatePlayed`
-  unconfirmed - a wrong format degrades silently to watched-dated-today while still
-  reporting success" is useful; "some testing remains" is not.
-- **Record scoping calls made during implementation** that the user has not reviewed, so a
-  decision taken for expediency cannot quietly become settled behaviour.
-- **Never mark a downstream plan unblocked** because an upstream plan was implemented. It
-  unblocks when the upstream plan reaches `Completed`.
+- **Distinguish "implemented", "unit-tested", and "verified".** Compiling is not tested; tests
+  that stub the network are not verified against the real service. Only make true claims.
+- **A plan is `Completed` only once its own verification section has actually been run.** Until
+  then it is `Implemented and unit-tested; not yet Completed`, with outstanding checks listed
+  individually as unticked boxes.
+- **Archive completed plans immediately**: in the change that closes the TODO item, move the plan
+  into `plan/archive/` and fix relative links crossing the archive boundary. Never archive plans
+  with unverified or deferred checks; incomplete, deferred, blocked, and merely implemented plans
+  stay outside the archive.
+- **List what is NOT verified explicitly, with the failure mode.** "Emby `DatePlayed` unconfirmed
+  - a wrong format degrades silently to watched-dated-today while still reporting success" is
+  useful; "some testing remains" is not.
+- **Record scoping calls made during implementation** that the user has not reviewed.
+- **Never mark a downstream plan unblocked** until the upstream plan reaches `Completed`.
 
 A task is finished when it is verified, not when it is written.
 
 ### Decision records
 
-[`docs/decisions.md`](docs/decisions.md) holds the reasoning behind deliberate calls, so
-it survives a squashed history and a later reader does not undo an incident-driven
-safeguard without seeing the incident. Add a numbered entry only when all three are true:
-a plausible alternative existed and was rejected, the reason is not visible from reading
-the code, and undoing it later would cost real time, data, or user trust. Ordinary
-implementation choices, anything already stated in a feature doc, and release bookkeeping
-do not get entries. Append in date order, never renumber, and mark a reversed decision as
-superseded with a pointer to the entry that replaced it rather than deleting it.
-
-Before changing behavior that looks unnecessarily cautious - a dropped sync signal, an
-extra confirmation step, a guard that seems redundant - check `docs/decisions.md` first.
-
+[`docs/decisions.md`](docs/decisions.md) preserves the reasoning behind deliberate calls. Add a
+numbered entry only when all three hold: a plausible alternative was rejected, the reason is not
+visible from the code, and undoing it would cost real time, data, or user trust. Not for ordinary
+implementation choices, things already in a feature doc, or release bookkeeping. Append in date
+order, never renumber, and mark reversed decisions superseded with a pointer instead of deleting.
+Before changing behavior that looks unnecessarily cautious (a dropped sync signal, an extra
+confirmation, a seemingly redundant guard), check `docs/decisions.md` first.
 
 ## Commands
 
-```bash
-# Install dependencies (native modules better-sqlite3 + sharp install via prebuilt binaries)
-npm install
+`npm start` (UI + API + scheduler on `http://localhost:5055`), `npm run dev` (auto-reload),
+`npm test` (`node:test` suite), `npm run build` (syntax check, tests, JSON validation,
+outbound-fetch guard, one-shot boot). No linter. Details, first-boot credentials, and the
+sandboxed-agent launch and Git-check rules are in [`docs/development.md`](docs/development.md).
+An outbound-fetch `EACCES` from an agent-launched server is an execution-environment failure,
+not an application result: restart it with network access before diagnosing.
 
-# Run the app locally (serves UI + API + scheduler on http://localhost:5055).
-# On Windows, use the approved elevated network-enabled execution path.
-npm start
+## Module discipline (frontend and backend)
 
-# Run with auto-reload during development (also use the elevated path on Windows)
-npm run dev
+Size limits: `public/app.js` is orchestrator only, under **3,000 lines**.
+`public/modules/*.js` and `server/src/routes/*.js`: soft limit **1,200**, hard limit **1,500**
+lines; split by feature area before adding to a file past the soft limit.
+`server/src/index.js` is the route table only, under **500 lines** (currently 190).
 
-# Build & run as a container
-docker compose up --build
-```
+### Grandfathered files
 
-### Local-server launch standard
+Files already over their limit are listed in `docs/development.md` "Module size limits"; the
+limits apply in full to every other file.
 
-On Windows, every local server opened for browser, provider-backed, or connected-service
-testing must be started through the approved elevated network-enabled execution path by
-default. Do not start `npm start` or `npm run dev` inside the restricted sandbox: outbound
-provider requests can fail with `EACCES` even when the application and provider are healthy.
-Offline unit tests and static checks may still run in the restricted sandbox.
+- **Do not grow them.** New code for these areas goes into a new or existing sibling module.
+- **Do not split one on your own initiative.** Being over the limit is not a task. Split only
+  when the requested work already touches that file, and only after proposing the extraction
+  and getting the user's explicit go-ahead. These files own a lot of behavior; a careless split
+  breaks more than it tidies.
+- **When a split is approved, do it properly.** Move whole feature units or handler groups, not
+  line ranges; keep named exports working or update every importer; check nothing else imported
+  what moved. Frontend: add the `modulepreload` link in `index.html` (or register a route module
+  in `route-modules.js`) and update the module table in `docs/frontend.md`. Backend: update the `dispatch()` entries in `server/src/index.js` and the API area table.
 
-This is a launch-environment rule, not a replacement npm command: `npm start` remains the
-canonical server command. A normal host PowerShell terminal is already network-enabled;
-agent-launched starts must explicitly request the elevated network-enabled execution path.
+`server/src/routes/sync.js` deserves particular care: it owns webhook ingestion, manual watch and
+unwatch, playback progress, sync job/history APIs, cron and force sync, preview plans, and now
+playing, and several incident-driven rules in [`docs/decisions.md`](docs/decisions.md) constrain it.
 
-### Network-backed local testing
+### Where new frontend code goes
 
-Provider-backed flows (TMDB, TVDB, Plex, Emby, Jellyfin, or Trakt) must be tested
-with the local server started using the approved network-enabled execution path on
-Windows. A server started inside the restricted sandbox can report `EACCES` while
-opening an outbound provider connection even though the application and provider
-are healthy. Stop that process, start the same command with approved elevated
-network access, confirm `http://localhost:5055` responds, and only then diagnose
-provider or application behavior. Treat an outbound-fetch `EACCES` from the
-restricted process as an execution-environment failure, not an application result.
+Before adding frontend code, look up the owning module in the feature-area table in
+[`docs/frontend.md`](docs/frontend.md) ("Where new frontend code goes") and place the code in the
+most specific module listed there. Create a new module only when the area fits none of them and
+would exceed 150 lines; follow that doc's "Adding a new module" steps (core-graph modules get a
+`modulepreload` link, route modules are registered in `route-modules.js` instead) and add the new
+module to the table.
 
-### Restricted Windows Git checks
-
-The managed workspace may deny Git access to the user-level excludes file at
-`C:\Users\<user>\.config\git\ignore`. For read-only status checks in that
-environment, use a per-command repository-local excludes file instead of changing
-global Git configuration:
-
-```powershell
-git -c core.excludesFile=C:\path\to\plembfin\.git\info\exclude status --short --branch
-```
-
-Do not modify global Git configuration or the repository config to work around that
-host permission boundary.
-
-`npm test` runs the focused `node:test` suite under `test/`. `npm run build` runs the
-syntax check, the same `node:test` suite, JSON validation, the server-side outbound-fetch guard, and a
-one-shot server boot against a temp `DATA_DIR`. There is no separate linter configured.
-
-The app listens on `PORT` (default `5055`). On a fresh install the admin username defaults
-to `admin`; if `ADMIN_PASSWORD` isn't set, a random password is generated and printed once
-to the server console/logs. Override with the `ADMIN_USERNAME` / `ADMIN_PASSWORD` environment
-variables. On first boot the server writes `data/config.json` with the admin credentials,
-a generated API key, and a session secret.
-
-## Frontend Module Discipline
-
-> These rules prevent `app.js` from growing back into a monolith.
-
-### File size limits
-- **`public/app.js`** - orchestrator only. Must stay under **3,000 lines**. If it approaches this limit, extract the next logical group into a module.
-- **`public/modules/*.js`** - individual modules. Soft limit **1,200 lines**; hard limit **1,500 lines**. If a module exceeds 1,200 lines, split it before adding more to it.
-
-#### Grandfathered files (already over, measured 2026-09-08)
-
-These are already past the limits above. The limits still apply in full to every file
-not on this list.
-
-| File | Lines | Limit |
-| --- | --- | --- |
-| `public/app.js` | 3428 | 3000 |
-| `public/modules/media-detail-show.js` | 2541 | 1500 |
-| `public/modules/app-events.js` | 2225 | 1500 |
-| `public/modules/sync-activity.js` | 2199 | 1500 |
-| `public/modules/explorer.js` | 2098 | 1500 |
-| `public/modules/edit-dialogs.js` | 1932 | 1500 |
-| `public/modules/media-detail-events.js` | 1774 | 1500 |
-| `public/modules/watch-action.js` | 1680 | 1500 |
-| `public/modules/tools-maintenance.js` | 1541 | 1500 |
-| `public/modules/onboarding.js` | 1442 | 1200 soft |
-| `public/modules/sync.js` | 1355 | 1200 soft |
-| `public/modules/tools-backups.js` | 1307 | 1200 soft |
-
-**Do not grow them.** New code for these feature areas goes into a new or existing
-sibling module, not onto the end of one of these.
-
-**Do not split one on your own initiative.** Being over the limit is not a task. Split
-only when the work you were already asked to do is touching that file anyway, and even
-then say what you propose to extract and get the user's explicit go-ahead first. An
-unrequested refactor is a violation of the Agent Guidelines above, and these files are
-large precisely because they own a lot of behavior, so a careless split breaks more than
-it tidies.
-
-**When a split is approved, do it properly:** move whole feature units rather than
-arbitrary line ranges, keep the existing named exports working or update every importer,
-add the `modulepreload` link in `index.html`, update the module table below, and check
-that nothing else imported what you moved.
-
-### Where new code goes
-When adding frontend code, place it in the most specific existing module that owns that feature area:
-
-| Feature area | Module |
-| --- | --- |
-| Formatting, string escaping, date helpers | `modules/utils.js` |
-| Poster URLs, image caching, `posterMarkup` | `modules/images.js` |
-| Static help/guide HTML | `modules/help-content.js` |
-| Always-available appearance preferences | `modules/appearance.js` |
-| Always-available sync/manual-review indicators and compact status summaries | `modules/status-indicators.js` |
-| Core movie lookups and Now Playing route links | `modules/media-routing.js` |
-| Core deferred cast disclosure markup and focus handling | `modules/cast-disclosure.js` |
-| Sync status, sync history, now-playing polling | `modules/sync.js`, `modules/sync-preview.js` |
-| Sync Activity page (`/sync-activity`), including its route-scoped action/event handlers | `modules/sync-activity.js` |
-| Dashboard rendering | `modules/dashboard.js` |
-| Shared media identity/deduplication | `modules/media-records.js` |
-| Stats rendering | `modules/stats.js` |
-| Explorer grid, history page, search page | `modules/explorer.js` |
-| Upcoming page (scrolling month calendar of upcoming episode air dates) | `modules/upcoming.js` |
-| Up Next rail, provider push, dismissed-items dialog | `modules/up-next.js` |
-| Up Next show identity and action markup | `modules/up-next-shared.js` |
-| Personal ratings/watchlist/custom-list metadata fill (overview, release date) | `modules/personal-media-metadata.js` |
-| Backup/restore tools (Settings route) | `modules/tools-backups.js` |
-| Settings changelog renderer and Main/Alpha tabs (build-version display formatting is core, in `modules/utils.js`) | `modules/changelog-channels.js` |
-| TV/movie detail entry points, lookups, modal-close routing | `modules/media-detail.js` |
-| Detail-modal shell/context: callbacks, `authHeaders`, modal DOM root, render-token, debug modal | `modules/media-detail-context.js` |
-| Detail-page watch and sync info summary rendering | `modules/media-info-summary.js` |
-| Route-scoped shared TMDB/Seerr rendering fragments (cast, trailers, images, ratings, recommendations) | `modules/media-detail-shared.js` |
-| TV show detail rendering (seasons, episodes, show modal) | `modules/media-detail-show.js` |
-| Movie detail rendering | `modules/media-detail-movie.js` |
-| Person profiles and filmography | `modules/media-person.js` |
-| Edit dialogs and watched-date/image/match tools | `modules/edit-dialogs.js` |
-| Manual watched/unwatched actions | `modules/watch-action.js` |
-| Shared calendar/time picker (used by edit dialogs and mark-watched prompts) | `modules/calendar-picker.js` |
-| TMDB detail/season/person enrichment helpers | `modules/tmdb.js` |
-| Trailer playback and photo lightbox | `modules/media-lightbox.js` |
-| Trakt/CSV import and settings tools bridge | `modules/tools.js` |
-| Tautulli connection and one-time watch-history importer | `modules/settings-services.js`, `modules/tautulli-import.js` |
-| Live Trakt connection and initial-sync controls | `modules/tracker-settings.js` |
-| Authenticated live watch-state refresh stream | `modules/live-updates.js` |
-| Backup tools and appearance save actions | `modules/tools-backups.js`; `modules/appearance.js` owns the always-available defaults/body/loading helper |
-| Maintenance diagnostics, cache tools, sync repair tools, and sync health | `modules/tools-maintenance.js`, `modules/tools-health.js` |
-| Library-wide duplicate-watch cleanup (Settings → Tools → Database Repairs) | `modules/tools-duplicates.js` |
-| Wipe data (Settings → Tools → Wipe data): watch history, sync history/logs, and full factory reset | `modules/tools-wipe-data.js` |
-| Auth, session, tokens | `modules/auth.js` |
-| Guided first-run setup (`/setup`), account-claim form wiring, dashboard checklist, Settings resume banner | `modules/onboarding.js` |
-| Debug/diagnostic logs & telemetry export | `modules/logs.js` (categorization, local time formatting, export) |
-| Connection label formatting | `modules/settings.js` |
-| Shared settings modal, picker, and card-grid primitives | `modules/settings-ui.js` |
-| Media-server and metadata-provider settings cards/modals | `modules/settings-services.js` |
-| Personal Rating Sync settings, provider directions, status polling, and manual actions | `modules/rating-sync-settings.js` |
-| Flat settings routes, landing list, sidebar, help panels, and clean path routing (`/settings/media-servers`, `/settings/sync`, etc.) | `modules/settings-shell.js` |
-| Shared `state` and `elements` objects | `modules/state.js` |
-| Global app event wiring | `modules/app-events.js` |
-| Settings-page event wiring (logs, admin login/webhook secret, import, backups, maintenance tools, sync controls), loaded with the Settings route | `modules/settings-events.js` |
-| Media-detail modal click delegation (cast/trailers/poster edit/watch actions/card navigation) | `modules/media-detail-events.js` |
-| Shared copy for the Plex historical watched-sync setting (setup wizard and Sync Tuning) | `modules/plex-history-policy.js` |
-| Poster-card three-dot overflow menu (Mark Unwatched / Edit watch date / Fix match) outside the media detail pages | `modules/poster-menu.js` |
-| Route-module registry: on-demand `import()` loaders, dependency order, `lazyExport`/`ifLoaded`, shell-module readiness and early click/submit hold-and-replay | `modules/route-modules.js` |
-| App startup, routing, `bindElements` | `app.js` |
-
-### Creating a new module
-If a new feature area doesn't fit any existing module and would exceed 150 lines:
-1. Create `public/modules/<feature>.js` using named ES module exports
-2. Add `<link rel="modulepreload" href="/modules/<feature>.js" />` to `index.html`
-3. Import it in `app.js` (or the owning module)
-4. Update this table above
-
-### Dependency rules
-- Modules may import from `state.js`, `utils.js`, `images.js`, `auth.js`, `logs.js`, `settings.js`, `settings-ui.js`
-- `sync.js` may be imported by `dashboard.js` and `media-detail.js` - not the reverse
-- No module may import from `app.js`
-- Avoid circular dependencies - if you need A→B and B→A, the shared logic belongs in a third module
-
-## Backend Module Discipline
-
-> These rules prevent `server/src/index.js` from growing back into a monolith.
-
-### File size limits
-- **`server/src/index.js`** - route table only. Keep it under **500 lines**.
-- **`server/src/routes/*.js`** - owning route modules. Soft limit **1,200 lines**; hard limit **1,500 lines**. Split by feature area before crossing the hard limit.
-
-#### Grandfathered files (already over, measured 2026-09-08)
-
-These are already past the limits above. The limits still apply in full to every file
-not on this list. `server/src/index.js` is well inside its own limit at 190 lines.
-
-| File | Lines | Limit |
-| --- | --- | --- |
-| `server/src/routes/sync.js` | 3389 | 1500 |
-| `server/src/routes/metadata.js` | 1505 | 1500 |
-| `server/src/routes/maintenance.js` | 1399 | 1200 soft |
-| `server/src/routes/media.js` | 1311 | 1200 soft |
-
-The same three rules apply as for the frontend list: **do not grow them**, **do not
-split one on your own initiative** (only when the work at hand is already touching the
-file, and only after proposing the extraction and getting the user's explicit
-go-ahead), and **when a split is approved, do it properly** - move whole handler groups,
-update the `dispatch()` entries in `server/src/index.js`, keep shared helpers in
-`server/src/utils/` only when more than one module needs them, and update the API area
-table below.
-
-`sync.js` deserves particular care: it owns webhook ingestion, manual watch and unwatch,
-playback progress, the sync job and history APIs, cron and force sync, preview plans, and
-now playing. Several of the incident-driven rules in [`docs/decisions.md`](docs/decisions.md)
-constrain code in this file.
+**Dependency rules:** modules may import from `state.js`, `utils.js`, `images.js`, `auth.js`,
+`logs.js`, `settings.js`, `settings-ui.js`. `sync.js` may be imported by `dashboard.js` and
+`media-detail.js`, not the reverse. No module imports from `app.js`. No circular dependencies;
+shared logic for A↔B belongs in a third module.
 
 ### Where new route code goes
-- Add the route entry in `dispatch()` inside `server/src/index.js`.
-- Put the handler in the owning `server/src/routes/*.js` module.
-- Keep shared helpers in `server/src/utils/` only when more than one route module needs them.
-- Avoid circular imports back into `server/src/index.js`; route modules may import utilities and data-layer modules directly.
 
-| API area | Module |
-| --- | --- |
-| Config, appearance, Seerr/app links, connection tests | `server/src/routes/admin.js` |
-| Personal Rating Sync status, snapshot, explicit push, and retry | `server/src/routes/ratingSync.js` |
-| Plex, Emby, and Jellyfin account connection flows | `server/src/routes/mediaAuth.js` |
-| Trakt device authorization and connection management | `server/src/routes/trackerAuth.js` |
-| Guided first-run setup status/step/import/complete/restart/checklist API | `server/src/routes/onboarding.js` |
-| Authenticated browser watch-state update stream | `server/src/routes/liveUpdates.js` |
-| Portable, watch-history, and encrypted backup APIs | `server/src/routes/backups.js` |
-| History, library, and watch-record edits | `server/src/routes/media.js` |
-| TMDB/TVDB/Fanart/OMDb/YouTube metadata and image APIs | `server/src/routes/metadata.js` |
-| Webhooks, manual watch/unwatch, playback progress, sync job/history listing, cron/force sync, preview plans, now playing, Up Next push/dismiss/restore | `server/src/routes/sync.js` |
-| Backfill, repair, dedup, rematch, cache, logs, changelog, ping | `server/src/routes/maintenance.js` |
-| Wipe data: watch history, sync history/logs, and full factory reset (also resets `data/config.json` via `appConfig.js`'s `resetAdminAccount()`) | `server/src/routes/wipeData.js` |
-| Scheduler tick and Plex notification listener lifecycle | `server/src/scheduler.js` |
+Add the route entry in `dispatch()` in `server/src/index.js` and put the handler in the owning
+`server/src/routes/*.js` module. Keep helpers in `server/src/utils/` only when more than one
+route module needs them. No imports back into `server/src/index.js`; route modules may import
+utilities and data-layer modules directly. The owning module for each API area is in the
+`server/src/routes/` table of `docs/architecture.md` (scheduler tick and Plex notification
+listener: `server/src/scheduler.js`).
 
 ## Architecture: read the docs, do not rely on this file
 
-[`docs/architecture.md`](docs/architecture.md) is the master guide: the big picture, the
-complete file map, request flow, data layer, auth, and environment variables. Read it
-before changing anything. This table routes you to the doc that owns the area you are
-touching.
-
 | Touching | Read |
 | --- | --- |
-| Anything, first time in a session | [`docs/architecture.md`](docs/architecture.md) |
+| Anything, first time in a session | [`docs/architecture.md`](docs/architecture.md) (relevant sections, see top of this file) |
 | Why a guard or a cautious-looking behavior exists | [`docs/decisions.md`](docs/decisions.md) |
 | A watch that looks wrong, or an episode that will not match | [`docs/troubleshooting.md`](docs/troubleshooting.md) |
 | Webhook parsing, phases, auth | [`docs/webhooks.md`](docs/webhooks.md) |
@@ -476,13 +269,13 @@ touching.
 | Backups and restore | [`docs/backups.md`](docs/backups.md) |
 | Build checks, git hooks, CI, Docker, releases | [`docs/development.md`](docs/development.md) |
 
-Three things are worth knowing before you open any of them:
+Worth knowing before opening any of them:
 
-- **One process, one SQLite file.** The default `ROLE=all` process serves the UI, the
-  `/api/*` surface, and the per-minute scheduler against `data/plembfin.db`. There is no
-  cloud function, no external database, and no separate production environment.
-- **`dispatch()` in `server/src/index.js` is the whole route table.** Handlers live in
-  the owning `server/src/routes/*.js` module, never in `index.js`.
+- **One process, one SQLite file.** The default `ROLE=all` process serves the UI, `/api/*`, and
+  the per-minute scheduler against `data/plembfin.db`. No cloud function, external database, or
+  separate production environment.
+- **`dispatch()` in `server/src/index.js` is the whole route table.** Handlers live in the owning
+  `server/src/routes/*.js` module, never in `index.js`.
 - **Derived caches are memoized against a shared data version.** `bumpDataVersion()` in
-  `server/src/db.js` is what makes every process reload; forgetting it is why a change
-  can look like it did not take effect.
+  `server/src/db.js` makes every process reload; forgetting it is why a change can look like it
+  did not take effect.

@@ -1,18 +1,18 @@
-import { state, elements } from "./state.js?v=1.2.1.0.0";
-import { escapeHtml, escapeAttribute, formatDate, formatTmdbDate, isDemoMode } from "./utils.js?v=1.2.1.0.0";
-import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=1.2.1.0.0";
-import { isWatchedHistoryAction, isMediaSyncing, mediaSyncNoticeHtml, getMediaTargetSyncStatus, renderSyncStatusDot } from "./sync.js?v=1.2.1.0.0";
-import { fetchTmdbDetails } from "./tmdb.js?v=1.2.1.0.0";
-import { renderWatchDatePrompt, isMovieSavingWatchAction } from "./watch-action.js?v=1.2.1.0.0";
-import { authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=1.2.1.0.0";
-import { personalRatingPillHtml, personalMediaActionsHtml } from "./personal-media.js?v=1.2.1.0.0";
+import { state, elements } from "./state.js?v=1.2.1.0.1";
+import { escapeHtml, escapeAttribute, formatDate, formatTmdbDate, isDemoMode } from "./utils.js?v=1.2.1.0.1";
+import { posterUrlFor, tmdbImage, tmdbPoster, bestTmdbLogo, proxiedArtworkUrl, hydratePosters } from "./images.js?v=1.2.1.0.1";
+import { isWatchedHistoryAction, isMediaSyncing, mediaSyncNoticeHtml } from "./sync.js?v=1.2.1.0.1";
+import { fetchTmdbDetails } from "./tmdb.js?v=1.2.1.0.1";
+import { renderWatchDatePrompt, isMovieSavingWatchAction } from "./watch-action.js?v=1.2.1.0.1";
+import { authHeaders, mediaDetailRoot, mediaDetailLoaderHtml, setMediaDetailActions, mediaInfoActionHtml, mediaForceSyncActionHtml, mediaToolsActionHtml, setMediaInfoContext, bumpMediaRenderToken, currentMediaRenderToken } from "./media-detail-context.js?v=1.2.1.0.1";
+import { personalRatingPillHtml, personalMediaActionsHtml } from "./personal-media.js?v=1.2.1.0.1";
 import {
   renderCastSection, renderTrailersSection, renderReviewsSection, renderMediaImagesSection, renderMediaFacts,
   renderExternalRatingPills, ratingPillHtml, renderSeerrRequestPill, fetchSeerrMediaStatus,
   refreshActiveMediaDetailAfterSeerrStatus, rankedRecommendations, recommendedTvShowsForMovie,
   renderRecommendationSection, hydrateMediaAppLinks, renderCollectionSection, mediaAppLinksHtml,
   markDetailPrimaryReady,
-} from "./media-detail-shared.js?v=1.2.1.0.0";
+} from "./media-detail-shared.js?v=1.2.1.0.1";
 
 // Watch history list - playHistory (every { id, watched_at, source } entry for
 // this movie, collapsed server-side in dedupeMovies/collapseMovieCluster) has
@@ -262,16 +262,6 @@ function _renderWatchedMovieContent(root, movie, {
   });
   const ratingsFactHtml = `${ratingBadgeHtml || (tmdbData ? renderExternalRatingPills("movie", tmdbData, movieTitle) : "")}${imdbPillHtml}${personalRatingHtml}`;
   const appLinksFactHtml = tmdbData ? mediaAppLinksHtml(tmdbData, "movie") : "";
-  const syncStatusDotHtml = renderSyncStatusDot(movie);
-  const visibleSyncStatuses = getMediaTargetSyncStatus(movie).filter((s) => !s.hidden);
-  const allSynced = !visibleSyncStatuses.length || visibleSyncStatuses.every((s) => s.status === "success" || s.status === "skipped");
-  const syncStatusBlockHtml = syncStatusDotHtml ? `
-            <div style="display: flex; gap: 0.5rem; align-items: center; margin-left: auto;">
-              <span style="font-size: 0.72rem; color: var(--muted); font-weight: 800; text-transform: uppercase;">Sync Status:</span>
-              ${syncStatusDotHtml}
-              ${!allSynced ? `<button class="retry-sync-btn action-pill" type="button" ${isSaving || isSyncing ? "disabled" : ""} data-retry-sync-id="${escapeAttribute(movie.id)}" style="font-size: 0.7rem; padding: 0.15rem 0.45rem;">Retry Sync</button>` : ""}
-            </div>
-  ` : "";
   setMediaInfoContext({
     mediaType: "movie",
     media: movie,
@@ -345,11 +335,8 @@ function _renderWatchedMovieContent(root, movie, {
           <img class="immersive-poster-img" src="${escapeAttribute(posterUrl || localPoster)}" alt="${escapeHtml(movieTitle)} poster" data-err="fav" data-lightbox-src="${escapeAttribute(posterUrl || localPoster)}" />
           <div class="immersive-meta">
             ${logoUrl ? `<img class="immersive-logo" data-err="logo-title" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(movieTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(movieTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(movieTitle)}</h2>`}
-            <p class="immersive-subtitle">${escapeHtml(released)}${youtubeMeta?.channelName ? ` &middot; ${escapeHtml(youtubeMeta.channelName)}` : ""}</p>
+            ${youtubeMeta?.channelName ? `<p class="immersive-subtitle">${escapeHtml(youtubeMeta.channelName)}</p>` : ""}
             <div class="media-detail-bottom-stack">
-              <div class="ratings-row" style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                ${syncStatusBlockHtml}
-              </div>
               ${renderSeerrRequestPill("movie", tmdbData?.id || movie.tmdb_id, true)}
               <p class="immersive-overview">${escapeHtml(overview)}</p>
               <section class="progress-section" style="border: 0; padding-top: 0; margin-top: 0.5rem; width: 100%;">
@@ -394,16 +381,6 @@ export function patchMovieWatchedState(movie) {
   state.activeMovieModalId = movie.id;
   state.activeMovieTmdbId = movie.tmdb_id ? String(movie.tmdb_id) : state.activeMovieTmdbId;
 
-  const syncStatusDotHtml = renderSyncStatusDot(movie);
-  const visibleSyncStatuses = getMediaTargetSyncStatus(movie).filter((s) => !s.hidden);
-  const allSynced = !visibleSyncStatuses.length || visibleSyncStatuses.every((s) => s.status === "success" || s.status === "skipped");
-  const syncStatusBlockHtml = syncStatusDotHtml ? `
-            <div style="display: flex; gap: 0.5rem; align-items: center; margin-left: auto;">
-              <span style="font-size: 0.72rem; color: var(--muted); font-weight: 800; text-transform: uppercase;">Sync Status:</span>
-              ${syncStatusDotHtml}
-              ${!allSynced ? `<button class="retry-sync-btn action-pill" type="button" data-retry-sync-id="${escapeAttribute(movie.id)}" style="font-size: 0.7rem; padding: 0.15rem 0.45rem;">Retry Sync</button>` : ""}
-            </div>
-  ` : "";
   if (state.activeMediaInfo?.mediaType === "movie") {
     setMediaInfoContext({
       ...state.activeMediaInfo,
@@ -413,10 +390,6 @@ export function patchMovieWatchedState(movie) {
     });
   }
   syncMovieWatchActionControls();
-  const ratingsRow = page.querySelector(".ratings-row");
-  if (ratingsRow && syncStatusBlockHtml && !ratingsRow.querySelector("[data-sync-status-dot]")) {
-    ratingsRow.insertAdjacentHTML("beforeend", syncStatusBlockHtml);
-  }
 
   const eyeSlashIcon = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M16 8s-3-5.5-8-5.5S0 8 0 8s3 5.5 8 5.5S16 8 16 8zM1.173 8a13.133 13.133 0 0 1 1.66-2.043C4.12 4.668 5.88 4 8 4c2.12 0 3.879.668 5.168 1.957A13.133 13.133 0 0 1 14.828 8c-.058.087-.122.183-.195.288-.335.48-.83 1.12-1.465 1.755C11.879 11.332 10.119 12 8 12c-2.12 0-3.879-.668-5.168-1.957A13.133 13.133 0 0 1 1.172 8z"/><path d="M8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5zM4.5 8a3.5 3.5 0 1 1 7 0 3.5 3.5 0 0 1-7 0z"/></svg>`;
   const imageIcon = `<svg viewBox="0 0 16 16" width="15" height="15" fill="currentColor" aria-hidden="true"><path d="M6.002 5.5a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0z"/><path d="M2.002 1a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V3a2 2 0 0 0-2-2h-12zm12 1a1 1 0 0 1 1 1v6.5l-3.777-1.947a.5.5 0 0 0-.577.093l-3.71 3.71-2.66-1.772a.5.5 0 0 0-.63.062L1.002 12V3a1 1 0 0 1 1-1h12z"/></svg>`;
@@ -631,7 +604,6 @@ export async function openMovieImmersiveModalByTmdbId(tmdbId) {
         <img class="immersive-poster-img" src="${escapeAttribute(posterUrl)}" alt="${escapeHtml(movieTitle)} poster" data-err="fav" data-lightbox-src="${escapeAttribute(posterUrl)}" />
         <div class="immersive-meta">
           ${logoUrl ? `<img class="immersive-logo" data-err="logo-title" src="${escapeAttribute(logoUrl)}" alt="${escapeAttribute(movieTitle)}" /><h2 class="immersive-title sr-only">${escapeHtml(movieTitle)}</h2>` : `<h2 class="immersive-title">${escapeHtml(movieTitle)}</h2>`}
-          <p class="immersive-subtitle">${escapeHtml(released)}</p>
           <div class="media-detail-bottom-stack">
             ${renderSeerrRequestPill("movie", tmdbId, false)}
             <p class="immersive-overview">${escapeHtml(overview)}</p>

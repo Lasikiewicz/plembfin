@@ -273,6 +273,15 @@ CREATE TABLE IF NOT EXISTS up_next_manual_shows (
 CREATE INDEX IF NOT EXISTS idx_up_next_manual_shows_added_at
   ON up_next_manual_shows(added_at ASC, id ASC);
 
+-- Last library-confirmed native id per Up Next lookup, read only while that
+-- provider cannot answer (upNextLibraryLookup.js).
+CREATE TABLE IF NOT EXISTS up_next_library_items (
+  lookup_key TEXT PRIMARY KEY,
+  provider TEXT NOT NULL,
+  provider_item_id TEXT NOT NULL,
+  resolved_at INTEGER NOT NULL
+);
+
 -- Cross-process mutex for writes that change a media server's played state.
 -- A watched write and the corresponding progress-clear + unplayed pair must
 -- never pass each other on the wire: whichever operation acquires this lease

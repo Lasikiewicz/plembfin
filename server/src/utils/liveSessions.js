@@ -273,6 +273,9 @@ export function parsePlexSessions(xmlText = "", config = {}) {
       paused: state === "paused",
       season: indexNumberOrNull(attributes.parentIndex),
       episode: indexNumberOrNull(attributes.index),
+      // The show's own handle, so the stop/complete paths can resolve series ids
+      // instead of reaching identity canonicalization with episode-only or no ids.
+      seriesItemId: mediaType === "episode" ? String(attributes.grandparentRatingKey || "") : "",
       posterUrl: plexPosterUrl(attributes, mediaType),
       client: {
         deviceName: player.title || player.product || player.platform || "",
@@ -416,6 +419,7 @@ function normalizeSessionItem(session = {}, source = "unknown", config = {}) {
     paused: isSessionPaused(session),
     season: indexNumberOrNull(item.ParentIndexNumber),
     episode: indexNumberOrNull(item.IndexNumber),
+    seriesItemId: mediaType === "episode" ? String(item.SeriesId || "") : "",
     posterUrl: embyLikePosterUrl(item, mediaType),
     ids: {
       imdb: item.ProviderIds?.Imdb || item.ProviderIds?.IMDb || undefined,

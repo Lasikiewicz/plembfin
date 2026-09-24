@@ -5,7 +5,7 @@ import path from "node:path";
 import { makeTempDataDir } from "./helpers.js";
 
 const dataDir = makeTempDataDir("plembfin-up-next-cache-");
-const { bumpDataVersion, bumpUpNextVersion, getUpNextVersion } = await import("../server/src/db.js");
+const { bumpDataVersion, bumpUpNextVersion, getDataVersion, getUpNextVersion } = await import("../server/src/db.js");
 const { getUpNextCacheSnapshot } = await import("../server/src/utils/upNextCache.js");
 
 test("Up Next rebuilds synchronously when watch history changes", async () => {
@@ -98,8 +98,23 @@ test("Up Next rebuilds synchronously when the queue generation changes", async (
   assert.equal(buildCount, 2);
 });
 
+// Writes a snapshot file as another process (or an older build) would, current
+// against both versions so a read serves it instead of rebuilding.
+async function writeCacheFile(items) {
+  const cacheFile = path.join(dataDir, "up-next-cache.json");
+  const current = JSON.parse(await fs.readFile(cacheFile, "utf8"));
+  await fs.writeFile(cacheFile, JSON.stringify({
+    ...current,
+    builtAt: Date.now(),
+    historyVersion: getDataVersion(),
+    upNextVersion: getUpNextVersion(),
+    items,
+  }), "utf8");
+}
+
 test("reading a legacy cache snapshot collapses identity and title-only episode duplicates", async () => {
-  await getUpNextCacheSnapshot(async () => ([
+  await getUpNextCacheSnapshot(async () => [], { refresh: true });
+  await writeCacheFile([
     {
       id: "episode|series:tmdb:6278773|s:1|e:5",
       media_type: "episode",
@@ -125,9 +140,57 @@ test("reading a legacy cache snapshot collapses identity and title-only episode 
       duration_ms: 1000,
       progress: 9,
     },
-  ]), { refresh: true });
+  ]);
 
   const snapshot = await getUpNextCacheSnapshot(async () => [], { revalidate: true });
   assert.equal(snapshot.items.length, 1);
   assert.equal(snapshot.items[0].show_tmdb_id, "6278773");
+});
+
+const partWatchedMovie = {
+  id: "movie|id:imdb:tt27165187",
+  media_type: "movie",
+  title: "The End of Oak Street",
+  imdb_id: "tt27165187",
+  queue_kind: "resume",
+  playback_position_known: true,
+  position_ms: 742052,
+  duration_ms: 5984672,
+  progress: 12.4,
+  updated_at: Date.parse("2026-09-24T08:35:49Z"),
+};
+const nextEpisode = {
+  id: "episode|series:tmdb:7700002|s:1|e:4",
+  media_type: "episode",
+  title: "Example Show - S01E04",
+  show_title: "Example Show",
+  show_tmdb_id: "7700002",
+  season: 1,
+  episode: 4,
+  queue_kind: "next_up",
+  playback_position_known: false,
+  show_latest_watched_at: "2026-09-24T08:28:30Z",
+  updated_at: Date.parse("2026-09-24T08:51:36Z"),
+};
+
+// Regression (24 Sep 2026): a reloaded snapshot listed every episode before
+// every movie, so a part-watched movie dropped to the end of the rail.
+test("a part-watched movie keeps its place ahead of episodes when the snapshot is reloaded", async () => {
+  await getUpNextCacheSnapshot(async () => [partWatchedMovie, nextEpisode], { refresh: true });
+  await writeCacheFile([partWatchedMovie, nextEpisode]);
+
+  const snapshot = await getUpNextCacheSnapshot(async () => [], { revalidate: true });
+  assert.deepEqual(snapshot.items.map((item) => item.media_type), ["movie", "episode"]);
+});
+
+// Regression (24 Sep 2026): the process re-read its own write through the
+// legacy normalizer, so an unchanged rebuild never compared equal and bumped
+// the Up Next version (and queued an automatic sync) every time.
+test("an unchanged rebuild does not advance the Up Next version", async () => {
+  const build = async () => [partWatchedMovie, nextEpisode];
+  const first = await getUpNextCacheSnapshot(build, { refresh: true });
+  const second = await getUpNextCacheSnapshot(build, { refresh: true });
+  assert.equal(second.upNextVersion, first.upNextVersion);
+  assert.equal(getUpNextVersion(), first.upNextVersion);
+  assert.deepEqual(second.items.map((item) => item.media_type), ["movie", "episode"]);
 });

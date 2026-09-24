@@ -1,8 +1,9 @@
-import { state } from "./state.js?v=1.2.1.0.0";
-import { buildAuthHeaders } from "./auth.js?v=1.2.1.0.0";
-import { posterMarkup, hydratePosters, tmdbPoster } from "./images.js?v=1.2.1.0.0";
-import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.2.1.0.0";
-import { escapeAttribute, escapeHtml, formatDate, formatTmdbDate, movieHref, movieTmdbHref, platformSourceValues, slug, sourceBadgeHtml, toDateTimeInputValue, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js?v=1.2.1.0.0";
+import { state } from "./state.js?v=1.2.1.0.1";
+import { buildAuthHeaders } from "./auth.js?v=1.2.1.0.1";
+import { posterMarkup, hydratePosters, tmdbPoster } from "./images.js?v=1.2.1.0.1";
+import { fetchTmdbDetails, fetchTmdbSeasonDetails } from "./tmdb.js?v=1.2.1.0.1";
+import { calendarStateFromIso, mountCalendarPicker } from "./calendar-picker.js?v=1.2.1.0.1";
+import { escapeAttribute, escapeHtml, formatDate, formatTmdbDate, movieHref, movieTmdbHref, platformSourceValues, slug, sourceBadgeHtml, tvShowTmdbHref, tvShowTvdbHref } from "./utils.js?v=1.2.1.0.1";
 
 let _cb = {};
 let _openConfirmDialog = async () => false;
@@ -710,11 +711,13 @@ function manualWatchReviewEventHtml(episode = {}) {
 }
 
 export function reviewActionScopeLabel(scope, action, source = "", seasonLabel = "the season") {
-  if (action === "dismiss") return scope === "show" ? "Mark all show unwatched" : `Mark ${seasonLabel} unwatched`;
-  const prefix = scope === "show" ? "Mark all show" : `Mark ${seasonLabel}`;
+  // Season and show actions only change the episodes waiting for review, so
+  // the labels say "reviewed" rather than implying the whole season or show.
+  const prefix = scope === "show" ? "Mark all reviewed episodes" : `Mark reviewed ${seasonLabel} episodes`;
+  if (action === "dismiss") return `${prefix} unwatched`;
   if (action === "release_day") return `${prefix} on release day`;
   if (action === "episode_timing") return `${prefix} with episode timing`;
-  return `${prefix} watched now`;
+  return `${prefix} watched`;
 }
 
 function scopedReviewActionButtons({ scope, groupKey, seasonKey = "", source = "" } = {}) {
@@ -722,17 +725,13 @@ function scopedReviewActionButtons({ scope, groupKey, seasonKey = "", source = "
   const keyAttribute = scope === "show"
     ? `data-manual-watch-review-group-key="${escapeAttribute(groupKey)}"`
     : `data-manual-watch-review-group-key="${escapeAttribute(groupKey)}" data-manual-watch-review-season-key="${escapeAttribute(seasonKey)}"`;
+  // "Mark watched" opens the watched-date popup (release day, episode timing,
+  // now, or a picked date), like the media page's season and show buttons.
   const customAttributes = scope === "show"
     ? `data-manual-watch-review-custom="group" data-manual-watch-review-group-key="${escapeAttribute(groupKey)}"`
     : `data-manual-watch-review-custom="season" data-manual-watch-review-group-key="${escapeAttribute(groupKey)}" data-manual-watch-review-season-key="${escapeAttribute(seasonKey)}"`;
-  const makeButton = (action, mode, label) => `
-    <button class="button-ghost" type="button" ${actionAttribute}="${action}" ${keyAttribute}${mode ? ` data-manual-watch-review-mode="${mode}"` : ""}>${escapeHtml(label)}</button>
-  `;
   return `
-    ${makeButton("approve", "now", reviewActionScopeLabel(scope, "now", source, reviewSeasonLabel(seasonKey)))}
-    ${makeButton("approve", "release_day", reviewActionScopeLabel(scope, "release_day", source, reviewSeasonLabel(seasonKey)))}
-    ${makeButton("approve", "episode_timing", reviewActionScopeLabel(scope, "episode_timing", source, reviewSeasonLabel(seasonKey)))}
-    <button class="button-ghost" type="button" ${customAttributes}>${escapeHtml(scope === "show" ? "Choose date & time for show" : "Choose date & time for season")}</button>
+    <button class="button-ghost" type="button" ${customAttributes}>${escapeHtml(reviewActionScopeLabel(scope, "now", source, reviewSeasonLabel(seasonKey)))}</button>
     <button class="button-danger" type="button" ${actionAttribute}="dismiss" ${keyAttribute}>${escapeHtml(reviewActionScopeLabel(scope, "dismiss", source, reviewSeasonLabel(seasonKey)))}</button>
   `;
 }
@@ -857,11 +856,33 @@ function manualWatchReviewCatalogKey(groupKey, seasonKey) {
   return `${groupKey}:${seasonKey}`;
 }
 
-function manualWatchReviewShowLookupUrl(group) {
-  const first = group?.reviews?.[0] || {};
-  const ids = reviewShowIds(first);
+// The show a group's poster and episode catalog come from. The server names
+// each review's proven show (proven_show_ids) and flags a title that history
+// proves two shows share; a title-only lookup for such a title picked the
+// 2026 Scrubs reboot for the 2001 group, so it gets no lookup at all.
+export function manualWatchReviewGroupShowIdentity(group) {
+  const reviews = group?.reviews || [];
+  const proven = [...new Set(reviews
+    .map((review) => review.proven_show_ids)
+    .filter((ids) => ids && Object.keys(ids).length)
+    .map((ids) => JSON.stringify({ imdb: ids.imdb || "", tmdb: ids.tmdb || "", tvdb: ids.tvdb || "" })))];
+  const ambiguous = reviews.some((review) => review.show_title_ambiguous);
+  if (proven.length === 1) return { ids: JSON.parse(proven[0]), ambiguous, proven: true };
+  // Reviews proven to different shows share no answer to trust.
+  if (proven.length > 1) return { ids: { imdb: "", tmdb: "", tvdb: "" }, ambiguous, proven: false };
+  return { ids: reviewShowIds(reviews[0] || {}), ambiguous, proven: false };
+}
+
+function manualWatchReviewGroupHasShowIds(identity) {
+  return Boolean(identity.ids.imdb || identity.ids.tmdb || identity.ids.tvdb);
+}
+
+export function manualWatchReviewShowLookupUrl(group) {
+  const identity = manualWatchReviewGroupShowIdentity(group);
+  const { ids } = identity;
   const params = new URLSearchParams();
-  if (group?.title) params.set("title", group.title);
+  // Ids alone decide the show when the title names several.
+  if (group?.title && !(identity.ambiguous && manualWatchReviewGroupHasShowIds(identity))) params.set("title", group.title);
   if (ids.tmdb) params.set("tmdbId", ids.tmdb);
   if (ids.tvdb) params.set("tvdbId", ids.tvdb);
   if (ids.imdb) params.set("imdbId", ids.imdb);
@@ -944,7 +965,13 @@ async function fetchManualWatchReviewShowMetadata(group) {
 
   const first = group?.reviews?.[0] || {};
   const request = (async () => {
-    const ids = reviewShowIds(first);
+    const identity = manualWatchReviewGroupShowIdentity(group);
+    const { ids } = identity;
+    // A shared title with no ids would resolve to whichever show the title
+    // search favours; leave the group without show artwork or a catalog.
+    if (identity.ambiguous && !manualWatchReviewGroupHasShowIds(identity)) {
+      return { show: null, tmdbData: null, seasonLookupId: "", showPosterUrl: "" };
+    }
     const show = await fetchManualWatchReviewShow(group);
     const showTmdbId = String(show?.tmdb_id || ids.tmdb || "").trim();
     const showTvdbId = String(show?.tvdb_id || ids.tvdb || "").trim();
@@ -952,7 +979,7 @@ async function fetchManualWatchReviewShowMetadata(group) {
     const tmdbData = await fetchTmdbDetails(
       "tv",
       showTmdbId,
-      group.title,
+      identity.ambiguous ? "" : group.title,
       { imdbId: showImdbId, tvdbId: showTvdbId },
       { immediate: true },
     ).catch(() => null);
@@ -1128,47 +1155,67 @@ function renderReviewShowGroup(group, query = "", { isTopmost = false } = {}) {
   `;
 }
 
-function manualReviewDateInputValue(reviews = []) {
-  const first = Array.isArray(reviews) ? reviews[0] : reviews;
-  const preferred = first?.observed_watched_at || first?.release_date || new Date().toISOString();
-  return toDateTimeInputValue(preferred) || toDateTimeInputValue(new Date());
-}
-
 function renderManualDatePrompt(target) {
   const isGroup = target?.kind === "group";
   const isSeason = target?.kind === "season";
   const isEpisode = target?.kind === "episode";
   const reviews = isGroup || isSeason || isEpisode ? target.reviews : [target.review];
   const title = isGroup || isSeason || isEpisode ? (target.title || reviewTitle(reviews[0])) : reviewTitle(target.review);
+  // Same layout as the media page's "Mark season watched" prompt
+  // (renderWatchDatePrompt in watch-action.js); the choices map onto the
+  // review approval modes.
+  const episodes = reviews.every(isEpisodeReview) ? groupReviewsByEpisode(reviews) : [];
+  const episodeCount = episodes.length;
   const sub = isGroup || isSeason
-    ? `${reviews.length} episode${reviews.length === 1 ? "" : "s"}`
+    ? `${episodeCount} episode${episodeCount === 1 ? "" : "s"}`
     : isEpisode
       ? `${groupSourceLabel(reviews)} · ${reviewEpisodeCode(reviews[0])}`
     : reviewSource(target.review);
-  const help = isGroup || isSeason
-    ? `This date and time will be applied to every episode in ${isSeason ? "this season" : "this show"}.`
-    : isEpisode
-      ? "This date and time will be saved for this episode on every reporting app shown."
-    : "This date and time will be saved as the watch date for this item.";
+  const them = episodeCount > 1 ? "these episodes" : episodeCount === 1 ? "this episode" : "this item";
   const hasReleaseDate = reviews.some((review) => review.release_date || review.releaseDate);
   const today = new Date().toISOString().slice(0, 10);
+  const episodesHtml = episodes.map((episode) => {
+    const releaseDate = episode.reviews.map((review) => review.release_date || review.releaseDate).find(Boolean);
+    return `
+      <li class="watch-date-episode">
+        <span class="watch-date-episode-code">${escapeHtml(reviewEpisodeCode(episode))}</span>
+        <span class="watch-date-episode-title">${escapeHtml(reviewEpisodeTitle(episode) || "Untitled episode")}</span>
+        <span class="watch-date-episode-air">${releaseDate ? escapeHtml(formatTmdbDate(String(releaseDate).slice(0, 10))) : "Air date TBA"}</span>
+      </li>
+    `;
+  }).join("");
   return `
-    <div class="watch-date-overlay manual-watch-review-date-overlay" role="dialog" aria-modal="true" aria-label="Choose watch date and time">
+    <div class="watch-date-overlay manual-watch-review-date-overlay" role="dialog" aria-modal="true" aria-label="Choose watched date">
       <div class="watch-date-dialog manual-watch-review-date-dialog">
         <div class="watch-date-head">
           <div class="watch-date-head-text">
-            <h3>Choose watch date &amp; time</h3>
+            <h3>${escapeHtml(target.heading || "Choose watch date & time")}</h3>
             <p class="watch-date-sub">${escapeHtml(title)} &middot; ${escapeHtml(sub)}</p>
           </div>
           <button class="watch-date-close" type="button" data-manual-watch-review-date-cancel aria-label="Cancel">&times;</button>
         </div>
-        <p class="watch-date-intro">Choose how the watched date should be recorded for ${escapeHtml(isEpisode ? "this episode" : "these review items")}.</p>
+        <p class="watch-date-intro">Logs ${escapeHtml(them)} to your watch history and marks ${episodeCount > 1 ? "them" : "it"} played on Plex, Emby, and Jellyfin. Pick which date to record.${isGroup || isSeason ? ` Only the episodes waiting for review are changed; other ${isSeason ? "episodes in this season" : "episodes of this show"} keep their state.` : ""}</p>
+        ${episodeCount ? `
+        <div class="watch-date-episodes">
+          <div class="watch-date-episodes-head">
+            <span>${episodeCount === 1 ? "Episode" : "Episodes"}</span>
+            <span>${episodeCount}</span>
+          </div>
+          <ul class="watch-date-episode-list">${episodesHtml}</ul>
+        </div>
+        ` : ""}
         <div class="watch-date-section-label">Watched date</div>
         <div class="watch-date-options">
           <button class="watch-date-pick" type="button" data-manual-watch-review-date-choice="release_day"${hasReleaseDate ? "" : " disabled"}>
             <span class="watch-date-pick-title">Day of release</span>
-            <span class="watch-date-pick-sub">Use each episode's release date</span>
+            <span class="watch-date-pick-sub">Use each episode's air date</span>
           </button>
+          ${episodeCount ? `
+          <button class="watch-date-pick" type="button" data-manual-watch-review-date-choice="episode_timing">
+            <span class="watch-date-pick-title">Same as other episodes</span>
+            <span class="watch-date-pick-sub">Date from the episodes watched around ${episodeCount === 1 ? "it" : "them"}</span>
+          </button>
+          ` : ""}
           <button class="watch-date-pick" type="button" data-manual-watch-review-date-choice="now">
             <span class="watch-date-pick-title">Now</span>
             <span class="watch-date-pick-sub">Today, ${escapeHtml(formatTmdbDate(today))}</span>
@@ -1176,21 +1223,27 @@ function renderManualDatePrompt(target) {
         </div>
         <div class="watch-date-custom">
           <div class="watch-date-section-label">Or pick a specific date &amp; time</div>
-          <label class="manual-watch-review-date-field">
-            <span>Watch date and time</span>
-            <input class="field" type="datetime-local" data-manual-watch-review-date-input value="${escapeAttribute(manualReviewDateInputValue(reviews))}" max="${escapeAttribute(toDateTimeInputValue(new Date()))}" required />
-          </label>
-          <p class="manual-watch-review-date-help">${escapeHtml(help)}</p>
-          <div class="watch-date-calendar-actions">
-            <button class="button-primary" type="button" data-manual-watch-review-date-save>Confirm date &amp; time</button>
-          </div>
-        </div>
-        <div class="watch-date-calendar-actions">
-          <button class="button-ghost" type="button" data-manual-watch-review-date-cancel>Cancel</button>
+          <div class="watch-date-picker" data-manual-watch-review-date-picker></div>
         </div>
       </div>
     </div>
   `;
+}
+
+function submitManualDatePromptCustom(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+    _cb.setMessage?.("Choose a valid watch date and time.", "error");
+    return;
+  }
+  if (date.getTime() > Date.now() + 60_000) {
+    _cb.setMessage?.("The watch date and time cannot be in the future.", "error");
+    return;
+  }
+  const target = manualDatePrompt;
+  closeManualDatePrompt();
+  if (!target) return;
+  submitManualWatchReviewChoice(target, "custom", date.toISOString())
+    ?.catch?.((error) => reportManualWatchReviewFailure(error));
 }
 
 function closeManualDatePrompt() {
@@ -1264,9 +1317,16 @@ function openManualDatePrompt(target) {
     closeManualDatePrompt();
     manualDatePrompt = target;
     document.body.insertAdjacentHTML("beforeend", renderManualDatePrompt(target));
-    const input = document.querySelector("[data-manual-watch-review-date-input]");
-    input?.focus();
-    input?.select?.();
+    const host = document.querySelector("[data-manual-watch-review-date-picker]");
+    if (host) {
+      const reviews = target.reviews || [target.review];
+      const initial = reviews[0]?.observed_watched_at || reviews[0]?.release_date || new Date().toISOString();
+      const pickerState = calendarStateFromIso(initial);
+      mountCalendarPicker(host, pickerState, {
+        showCancel: false,
+        onConfirm: (selected) => submitManualDatePromptCustom(new Date(selected.getTime())),
+      });
+    }
     return true;
   } catch (error) {
     manualDatePrompt = null;
@@ -1327,33 +1387,9 @@ function bindManualDatePrompt() {
       return;
     }
 
-    const save = event.target.closest?.("[data-manual-watch-review-date-save]");
-    if (!save) {
-      if (event.target.closest?.(".manual-watch-review-date-overlay") && event.target === event.target.closest(".manual-watch-review-date-overlay")) {
-        closeManualDatePrompt();
-      }
-      return;
+    if (event.target.closest?.(".manual-watch-review-date-overlay") && event.target === event.target.closest(".manual-watch-review-date-overlay")) {
+      closeManualDatePrompt();
     }
-
-    const input = document.querySelector("[data-manual-watch-review-date-input]");
-    const rawValue = String(input?.value || "").trim();
-    const date = new Date(rawValue);
-    if (!rawValue || Number.isNaN(date.getTime())) {
-      _cb.setMessage?.("Enter a valid watch date and time.", "error");
-      input?.focus();
-      return;
-    }
-    if (date.getTime() > Date.now() + 60_000) {
-      _cb.setMessage?.("The watch date and time cannot be in the future.", "error");
-      input?.focus();
-      return;
-    }
-
-    const target = manualDatePrompt;
-    closeManualDatePrompt();
-    if (!target) return;
-    submitManualWatchReviewChoice(target, "custom", date.toISOString())
-      ?.catch?.((error) => reportManualWatchReviewFailure(error));
   });
 }
 
@@ -1455,7 +1491,15 @@ export function initManualWatchReview(callbacks = {}) {
         if (kind === "group") {
           const groupKey = customButton.dataset.manualWatchReviewGroupKey || "";
           const reviews = currentManualWatchReviews().filter((review) => isEpisodeReview(review) && reviewGroupKey(review) === groupKey);
-          if (groupKey && reviews.length) openManualDatePrompt({ kind: "group", groupKey, title: reviewShowTitle(reviews[0]), reviews });
+          if (groupKey && reviews.length) {
+            openManualDatePrompt({
+              kind: "group",
+              groupKey,
+              title: reviewShowTitle(reviews[0]),
+              heading: reviewActionScopeLabel("show", "now"),
+              reviews,
+            });
+          }
         } else if (kind === "season") {
           const groupKey = customButton.dataset.manualWatchReviewGroupKey || "";
           const seasonKey = customButton.dataset.manualWatchReviewSeasonKey || "";
@@ -1465,7 +1509,8 @@ export function initManualWatchReview(callbacks = {}) {
               kind: "season",
               groupKey,
               seasonKey,
-              title: `${reviewShowTitle(reviews[0])} · ${reviewSeasonLabel(seasonKey)}`,
+              title: reviewShowTitle(reviews[0]),
+              heading: reviewActionScopeLabel("season", "now", "", reviewSeasonLabel(seasonKey)),
               reviews,
             });
           }
@@ -1731,7 +1776,11 @@ export async function loadManualWatchReview({ summaryOnly = false, refresh = fal
       manualWatchReviewCatalogLoads.clear();
       manualWatchReviewShowMetadata.clear();
       state.manualWatchReviewLoaded = true;
-      if (manualWatchReviewDisplayCount(state.manualWatchReviews) === state.manualWatchReviewCount) manualWatchReviewLastRefreshCount = null;
+      // Compare with the server's own count, not state.manualWatchReviewCount
+      // (set from this same response above, so always equal). If the server
+      // and page ever group reviews differently, resetting here would let
+      // every summary poll start another full reload.
+      if (manualWatchReviewDisplayCount(state.manualWatchReviews) === visibleServerCount) manualWatchReviewLastRefreshCount = null;
     }
     renderManualWatchReviewSummary();
     if (state.activeView === "manualWatchReview" && isLatestFullRequest) renderManualWatchReviewPage();
@@ -1839,10 +1888,11 @@ export function manualWatchReviewConfirmation({ action = "approve", mode = "now"
     ? `“${title}”`
     : `${itemCount} episodes from “${title}”`;
   if (action === "dismiss") {
+    // Worded like the media page's "Mark unwatched" dialog (watch-action.js).
     return {
-      title: itemCount === 1 ? "Dismiss manual watch review?" : "Dismiss all manual watch reviews?",
-      body: `This will dismiss ${subject} and mark ${itemCount === 1 ? "it" : "them"} unwatched across connected media apps. The unwatched state will be queued for sync.`,
-      confirmLabel: itemCount === 1 ? "Dismiss & mark unwatched" : "Dismiss all & mark unwatched",
+      title: "Mark unwatched",
+      body: `Keep ${subject} unwatched and mark ${itemCount === 1 ? "it" : "them"} unplayed on Plex, Emby, and Jellyfin?${itemCount === 1 ? "" : " Episodes not waiting for review are not changed."}`,
+      confirmLabel: "Mark unwatched",
       danger: true,
     };
   }

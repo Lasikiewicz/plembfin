@@ -147,10 +147,22 @@ function providerIds(record) {
   return [record.imdb_id, record.tmdb_id, record.tvdb_id].filter(Boolean).map(String);
 }
 
+// Tautulli ids can be show-level (a show's IMDb guid on every episode), so a
+// shared id alone let one episode's play match a different episode and be
+// skipped as its duplicate. Two episodes that both carry coordinates must
+// share them; a row missing either coordinate still matches on ids.
+function episodeCoordinatesDiffer(record, existing) {
+  if (record.media_type !== "episode") return false;
+  const known = (value) => value !== null && value !== undefined && value !== "" && Number.isFinite(Number(value));
+  if (![record.season, record.episode, existing.season, existing.episode].every(known)) return false;
+  return Number(existing.season) !== Number(record.season) || Number(existing.episode) !== Number(record.episode);
+}
+
 function identityMatches(record, existing) {
   if (!existing || existing.media_type !== record.media_type) return false;
   const sameDay = dayKey(existing.watched_at) === dayKey(record.watched_at);
   if (!sameDay && !record._tautulli_missing_timestamp) return false;
+  if (episodeCoordinatesDiffer(record, existing)) return false;
   const incomingIds = providerIds(record);
   const existingIds = providerIds(existing);
   if (incomingIds.some((id) => existingIds.includes(id))) return true;
@@ -196,6 +208,7 @@ function dayGap(a, b) {
 function identityMatchesIgnoringDate(record, existing) {
   if (!existing || existing.media_type !== record.media_type) return false;
   if (String(existing.sync_action || "watched").toLowerCase() !== "watched") return false;
+  if (episodeCoordinatesDiffer(record, existing)) return false;
   const incomingIds = providerIds(record);
   const existingIds = providerIds(existing);
   if (incomingIds.some((id) => existingIds.includes(id))) return true;
@@ -208,6 +221,40 @@ function identityMatchesIgnoringDate(record, existing) {
   const incomingYear = text(record._tautulli_year) || titleYear(record.title);
   const existingYear = titleYear(existing.title);
   return !incomingYear || !existingYear || incomingYear === existingYear;
+}
+
+// Same item as an existing history row, whatever its state or date. Episodes
+// must also share season and episode, because Tautulli ids can be show-level.
+function sameItemAnyState(record, existing) {
+  if (!existing || existing.media_type !== record.media_type) return false;
+  if (record.media_type === "episode") {
+    if (Number(existing.season) !== Number(record.season) || Number(existing.episode) !== Number(record.episode)) return false;
+    const incomingIds = providerIds(record);
+    const existingIds = providerIds(existing);
+    return incomingIds.some((id) => existingIds.includes(id))
+      || canonicalShowTitleKey(existing.show_title || existing.title) === canonicalShowTitleKey(record.show_title || record.title);
+  }
+  const incomingIds = providerIds(record);
+  const existingIds = providerIds(existing);
+  if (incomingIds.some((id) => existingIds.includes(id))) return true;
+  if (titleKey(existing.title) !== titleKey(record.title)) return false;
+  const incomingYear = text(record._tautulli_year) || titleYear(record.title);
+  const existingYear = titleYear(existing.title);
+  return !incomingYear || !existingYear || incomingYear === existingYear;
+}
+
+// When the item was last unwatched, in epoch ms (0 if never). An unwatch row's
+// created_at is when the user acted; its watched_at can be an older display
+// date, so the later of the two is the unwatch time.
+function newestUnwatchTime(index, record) {
+  let newest = 0;
+  for (const candidate of indexedCandidates(index, record)) {
+    if (String(candidate.sync_action || "watched").toLowerCase() !== "unwatched") continue;
+    if (!sameItemAnyState(record, candidate)) continue;
+    const at = Math.max(Number(candidate.created_at) || 0, Date.parse(String(candidate.watched_at || "")) || 0);
+    if (at > newest) newest = at;
+  }
+  return newest;
 }
 
 /**
@@ -402,6 +449,7 @@ export async function prepareTautulliImport(rows = [], options = {}) {
     reviewed_skipped: 0,
     merged_approximate_date: 0,
     possible_rewatch: 0,
+    skipped_newer_unwatch: 0,
     items: [],
     reviews: [],
   };
@@ -552,6 +600,17 @@ export async function prepareTautulliImport(rows = [], options = {}) {
       }
       // "import": the administrator confirmed this is a separate rewatch.
       result.reviewed_imported += 1;
+    }
+
+    // The play's own timestamp decides: a play older than the item's newest
+    // unwatch must not re-watch it. Importing it would write a watched
+    // playstate newer than the unwatch and dispatch it to every server.
+    const unwatchedAt = newestUnwatchTime(identityIndex, record);
+    if (unwatchedAt && (Date.parse(record.watched_at) || 0) <= unwatchedAt) {
+      result.skipped_newer_unwatch += 1;
+      result.items.push({ index, status: "skipped_newer_unwatch", title: record.title, unwatchedAt: new Date(unwatchedAt).toISOString() });
+      await reportProgress(index + 1);
+      continue;
     }
 
     const duplicateKey = reviewKey;

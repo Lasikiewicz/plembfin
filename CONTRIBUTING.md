@@ -59,7 +59,9 @@ that feature area.
 ## Reporting bugs and requesting features
 
 Use the issue templates provided when opening a new issue. Include enough detail (Plex/Emby/
-Jellyfin version, logs, steps to reproduce) for the maintainer to act on the report.
+Jellyfin version, relevant log excerpts, and steps to reproduce) for the maintainer to act on the
+report. Redact passwords, API keys, access tokens, webhook URLs, and personal information before
+posting logs or configuration details.
 
 ## Code of Conduct
 

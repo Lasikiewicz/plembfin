@@ -21,3 +21,11 @@ export function shouldRepairRecentPlexUnwatch({
     && Number(viewOffset || 0) > 0
     && (hasPlaybackEvidence === true || justMarkedWatched);
 }
+
+// Plex also publishes an unplayed viewstate (viewCount 0, no viewOffset) when
+// it adds a new item to the library. That is not an unwatch: there is nothing
+// to undo. An unplayed notification is only a transition when Plembfin holds a
+// watched playstate or a watched history row for the item.
+export function plexUnplayedHasWatchEvidence({ playstate, watchedRecord } = {}) {
+  return playstate?.state === "watched" || Boolean(watchedRecord);
+}

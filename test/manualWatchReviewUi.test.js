@@ -25,6 +25,8 @@ const {
   buildManualWatchReviewEpisodeCatalog,
   manualWatchReviewEpisodeStatusLabel,
   stopManualWatchReviewPolling,
+  manualWatchReviewGroupShowIdentity,
+  manualWatchReviewShowLookupUrl,
 } = await import("../public/modules/manual-watch-review.js");
 const { posterUrlFor } = await import("../public/modules/images.js?v=1.1.2.0.0");
 
@@ -39,6 +41,26 @@ test("manual watch review groups preserve newest incoming order and sort episode
 
   assert.deepEqual(groups.map((group) => group.title), ["Zeta Show", "Alpha Show"]);
   assert.deepEqual(groups[0].reviews.map((review) => review.episode), [1, 2]);
+});
+
+test("a show group whose title two shows share looks its show up by proven ids, never by title alone", () => {
+  // Live: the 2001 Scrubs group drew the 2026 reboot's poster from a title lookup.
+  const plex = { id: "p", media_type: "episode", show_title: "Scrubs", season: 1, episode: 23, show_title_ambiguous: true, media: {} };
+  const emby = { ...plex, id: "e", proven_show_ids: { tmdb: "4556", tvdb: "76156" } };
+  const proven = { key: "show:scrubs", title: "Scrubs", reviews: [plex, emby] };
+  assert.deepEqual(manualWatchReviewGroupShowIdentity(proven).ids, { imdb: "", tmdb: "4556", tvdb: "76156" });
+  assert.equal(manualWatchReviewShowLookupUrl(proven), "/api/show?tmdbId=4556&tvdbId=76156");
+
+  const unproven = { key: "show:scrubs", title: "Scrubs", reviews: [plex] };
+  const identity = manualWatchReviewGroupShowIdentity(unproven);
+  assert.equal(identity.ambiguous, true);
+  assert.equal(Boolean(identity.ids.imdb || identity.ids.tmdb || identity.ids.tvdb), false);
+
+  const conflicting = { ...proven, reviews: [emby, { ...emby, id: "x", proven_show_ids: { tmdb: "295778" } }] };
+  assert.deepEqual(manualWatchReviewGroupShowIdentity(conflicting).ids, { imdb: "", tmdb: "", tvdb: "" });
+
+  const unique = { key: "show:zeta", title: "Zeta Show", reviews: [{ id: "z", media_type: "episode", show_title: "Zeta Show", media: {} }] };
+  assert.equal(manualWatchReviewShowLookupUrl(unique), "/api/show?title=Zeta+Show");
 });
 
 test("manual watch review keeps a show in place after removing its first episode", () => {
@@ -69,8 +91,10 @@ test("manual watch review separates season groups and names their action scope",
     ["Season 2", 1],
     ["Season 1", 2],
   ]);
-  assert.equal(reviewActionScopeLabel("show", "now"), "Mark all show watched now");
-  assert.equal(reviewActionScopeLabel("season", "dismiss", "Emby", "Season 2"), "Mark Season 2 unwatched");
+  assert.equal(reviewActionScopeLabel("show", "now"), "Mark all reviewed episodes watched");
+  assert.equal(reviewActionScopeLabel("show", "dismiss"), "Mark all reviewed episodes unwatched");
+  assert.equal(reviewActionScopeLabel("season", "now", "Emby", "Season 2"), "Mark reviewed Season 2 episodes watched");
+  assert.equal(reviewActionScopeLabel("season", "dismiss", "Emby", "Season 2"), "Mark reviewed Season 2 episodes unwatched");
 });
 
 test("manual watch review combines provider records for the same episode", () => {
@@ -143,9 +167,9 @@ test("manual watch review confirmation protects single-item unwatched decisions"
     title: "Lioness - S03E07",
     source: "Plex",
   }), {
-    title: "Dismiss manual watch review?",
-    body: "This will dismiss “Lioness - S03E07” and mark it unwatched across connected media apps. The unwatched state will be queued for sync.",
-    confirmLabel: "Dismiss & mark unwatched",
+    title: "Mark unwatched",
+    body: "Keep “Lioness - S03E07” unwatched and mark it unplayed on Plex, Emby, and Jellyfin?",
+    confirmLabel: "Mark unwatched",
     danger: true,
   });
 });

@@ -101,6 +101,30 @@ test("Emby Continue Watching uses the dedicated Resume endpoint", async () => {
     assert.equal(calls.length, 1);
     assert.equal(calls[0].searchParams.get("MediaTypes"), "Video");
     assert.equal(calls[0].searchParams.get("EnableTotalRecordCount"), "true");
+    // Emby 4.9 leaves UserData.LastPlayedDate out of Resume unless asked. With
+    // no source time, any explicit unwatch outranked the feed (decision 35) and
+    // a genuine newer Emby part-watch was dropped (matrix step 4).
+    assert.ok(calls[0].searchParams.get("Fields").split(",").includes("UserDataLastPlayedDate"));
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+// Defect K: the native rail refresh re-marks the predecessor played with the
+// date read from this inventory. Without the field Emby left the date out, the
+// mark went out with no DatePlayed, and the watch moved to the refresh time.
+test("Emby series episode inventory asks for the last played date", async () => {
+  const { fetchEmbyEpisodes } = await import("../server/src/utils/embyClient.js");
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  globalThis.fetch = async (url) => {
+    calls.push(new URL(String(url)));
+    return jsonResponse({ Items: [] });
+  };
+  try {
+    await fetchEmbyEpisodes({ baseUrl: "https://emby.example.test", apiKey: "api-key", userId: "emby-user" }, "series-1");
+    assert.equal(calls.length, 1);
+    assert.ok(calls[0].searchParams.get("Fields").split(",").includes("UserDataLastPlayedDate"));
   } finally {
     globalThis.fetch = originalFetch;
   }

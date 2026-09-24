@@ -398,24 +398,24 @@ of a premature "no episodes" message.
   prove a miss by title - a record may exist with a title and no provider id - so
   one page load asks at most once per shape rather than once in total.
 - **Media facts panel** (`renderMediaFacts` in `media-detail-shared.js`) - a
-  transparent, borderless panel next to the poster listing Status/First aired/
-  Language on one line, then Runtime/Genres, then Network paired with the Ratings
-  row, then Available on, then Watch Now anchoring the bottom (each of Ratings/
-  Available on/Watch Now spans its own full-width row). Network and Available on
-  render as icon chips (`providerChipsHtml`) using TMDB's `logo_path` for each
-  network/provider; a network's own `logo_path` is frequently empty even when the
-  same service also has one under `watch/providers` (e.g. Apple TV), so a network
-  without its own logo borrows one from a provider whose name loosely matches
-  (`findProviderLogoForNetwork` - either name containing the other, not just an
-  exact match). A show resolved primarily via TheTVDB only carries a network name
-  with no logo at all (TVDB's company data has no logo field), so those still show
-  as text-only. Each Network/Available on chip links to TMDB's own "where to watch"
-  page for the title (the `watch/providers.results.<region>.link` TMDB's terms
-  require attributing when that data is shown), since TMDB doesn't expose a
-  per-provider deep link. All the pill/chip icons in this panel and the ratings row
-  are theme-agnostic (no background fill), and the "STATUS"/"NETWORK"/etc. labels
-  use the same orange-in-dark/blue-in-light accent as the active "TV Shows" sidebar
-  tab (`.nav-tab.active`).
+  transparent, borderless panel next to the center section (with a 60/40 header
+  split) displaying a top metadata table (Status incorporating release/air date,
+  Genres, Network/Studio, Language, and Runtime) and a bottom-anchored group with
+  Available on, Watch Now, and Ratings (each with borders and backgrounds removed).
+  The Ratings row is anchored to the bottom edge inline with the progress bar in the
+  center column and formatted as brand logo plus rating percentage (e.g. TVDB/TMDB/IMDb
+  logos) rather than star widgets. Network and Available on render as icon chips
+  (`providerChipsHtml`) using TMDB's `logo_path` for each network/provider; a
+  network's own `logo_path` is frequently empty even when the same service also has
+  one under `watch/providers` (e.g. Apple TV), so a network without its own logo
+  borrows one from a provider whose name loosely matches (`findProviderLogoForNetwork` -
+  either name containing the other, not just an exact match). A show resolved
+  primarily via TheTVDB only carries a network name with no logo at all (TVDB's company
+  data has no logo field), so those still show as text-only. Each Network/Available on
+  chip links to TMDB's own "where to watch" page for the title (the
+  `watch/providers.results.<region>.link` TMDB's terms require attributing when that data
+  is shown), since TMDB doesn't expose a per-provider deep link. All the icons in this
+  panel and the ratings row are theme-agnostic (no background fill or border boxes).
 - **Poster lightbox** - clicking the poster image opens it in the same photo lightbox
   used for the media images gallery (`window.openPhotoLightbox`, `media-lightbox.js`),
   via a `data-lightbox-src` attribute on `.immersive-poster-img`.

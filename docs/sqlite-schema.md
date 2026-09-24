@@ -13,6 +13,7 @@ Reference for `data/plembfin.db`. The full authoritative schema is in
 | `playback_progress` | Resume position records | webhook `ended`, sync orchestrator | resume propagation |
 | `up_next_provider_items` | Latest generation of provider Resume/Continue Watching/Next Up observations, keyed by provider feed and native item ID | scheduled provider feed sync | unified Up Next builder, source-ledger mutation lookup |
 | `up_next_provider_feed_state` | Per-provider/feed generation, completion, freshness, count, cursor, retry, and redacted error state | scheduled provider feed sync | Up Next cache/status response |
+| `up_next_library_items` | Last library-confirmed native item id per Up Next library lookup (30-day window); a live "missing" deletes the row | Up Next library lookup | the same lookup, only while that provider cannot answer, so a restart during an outage keeps the cards it proved |
 | `playstate` | Per-item watched/unwatched state for sync targets | sync orchestrator | sync orchestrator |
 | `manual_watch_reviews` | Deduplicated provider watched flags awaiting an administrator date decision | scheduled library sync, Manual Watch review page | Manual Watch review page |
 | `sync_history` | Permanent log of sync dispatch results, with `activity_group_key` for grouped movie/show activity and `activity_item_key` for latest-result selection per movie/episode | sync outcome changes | sync-history and sync-activity endpoints |

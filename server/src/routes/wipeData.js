@@ -132,6 +132,7 @@ WIPE_SCOPES.factory = {
     "up_next_provider_items",
     "up_next_provider_feed_state",
     "up_next_manual_shows",
+    "up_next_library_items",
   ],
 };
 

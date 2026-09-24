@@ -7,9 +7,9 @@ makeTempDataDir("plembfin-webhook-content-type-");
 const { handleWebhook, normalizeWebhook } = await import("../server/src/routes/sync.js");
 const { AUTH } = await import("../server/src/appConfig.js");
 const { deleteActiveSession, listActiveSessions } = await import("../server/src/utils/activeSessions.js");
-const { insertWatchRecord, upsertPlaystateForMedia } = await import("../server/src/utils/dataRepo.js");
+const { getWatchRecordById, insertWatchRecord, upsertPlaystateForMedia } = await import("../server/src/utils/dataRepo.js");
 const { createLoopStore } = await import("../server/src/utils/loopStore.js");
-const { recordOutboundPlayedMarks } = await import("../server/src/utils/syncOrchestrator.js");
+const { recordOutboundPlayedMarks, recordOutboundRailRefresh, recordOutboundUnplayedMarks } = await import("../server/src/utils/syncOrchestrator.js");
 const { UP_NEXT_SEED_DEVICE_ID } = await import("../server/src/utils/embyClient.js");
 
 function request({ contentType = "", userAgent = "test-agent", body = "" } = {}) {
@@ -122,6 +122,51 @@ test("a watched callback caused by Plembfin is acknowledged without re-reconcili
   assert.equal(response.statusCode, 200);
   assert.equal(response.body.skipped, true);
   assert.match(response.body.reason, /outbound mark/i);
+});
+
+// Defect AG: the native rail refresh toggles a watched predecessor unplayed and
+// back. Its unplayed callback was applied as a user unwatch whenever the
+// canonical row the webhook resolved already read unwatched (an older
+// series-keyed unwatch while the watch sat under other ids), and deleted the
+// watch history row.
+test("a native rail refresh callback never unwatches or deletes watch history", async () => {
+  const media = {
+    title: "Rail Echo Movie",
+    type: "movie",
+    mediaType: "movie",
+    ids: { tmdb: "rail-echo-movie" },
+    itemId: "emby-rail-echo",
+    isValid: true,
+  };
+  const record = await insertWatchRecord({
+    title: media.title,
+    media_type: "movie",
+    tmdb_id: media.ids.tmdb,
+    watched_at: "2026-09-19T12:32:59.000Z",
+    source: "emby",
+  });
+  await upsertPlaystateForMedia(media, "unwatched", "2026-09-12T22:58:10.000Z");
+  const loopStore = createLoopStore();
+  await recordOutboundRailRefresh(media, "emby", loopStore);
+  await recordOutboundUnplayedMarks(media, ["emby"], loopStore);
+
+  const response = responseCapture();
+  await handleWebhook(webhookRequest({
+    Event: "item.markunplayed",
+    Item: {
+      Id: media.itemId,
+      Type: "Movie",
+      Name: media.title,
+      ProviderIds: { Tmdb: media.ids.tmdb },
+      UserData: { Played: false },
+    },
+  }), response);
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.body.skipped, true);
+  assert.match(response.body.reason, /rail refresh/i);
+  assert.ok(record.id);
+  assert.ok(await getWatchRecordById(record.id), "the watch history row is kept");
 });
 
 test("a body that is not JSON at all is rejected with the sender recorded", async () => {

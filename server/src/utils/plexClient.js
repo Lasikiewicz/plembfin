@@ -160,6 +160,68 @@ function parseShowTitle(title) {
   };
 }
 
+function plexGuidIds(item = {}) {
+  const ids = {};
+  for (const guid of item.Guid || []) {
+    const match = String(guid?.id || guid || "").match(/(?:^|\.)(imdb|tmdb|tvdb|themoviedb|thetvdb):\/\/([^/?]+)/i);
+    if (match) ids[match[1].toLowerCase().replace("themoviedb", "tmdb").replace("thetvdb", "tvdb")] = match[2].toLowerCase();
+  }
+  return ids;
+}
+
+// A year-less title such as "Scrubs" matches both "Scrubs" (2001) and
+// "Scrubs (2026)", and /search results carry no Guids, so the first hit used to
+// win: the reboot's Up Next card resolved to the 2001 show's episodes. When the
+// request has ids, read each candidate's Guids and return the first one that
+// shares an id with it. A differing id alone is not a conflict: watch records
+// mix the episode's own imdb/tvdb ids with the show's tmdb id. With no shared
+// id anywhere, keep the first title match as before. Explicit show ids are
+// different: a candidate whose own TMDB or TVDB id differs from the request's
+// show id is another show with the same name, even when it is the only title
+// match (the Australian "The Assembly" must not resolve to the UK show).
+function showIdsConflict(media = {}, ids = {}) {
+  return ["tmdb", "tvdb"].some((provider) => {
+    const wanted = String(media?.[`show_${provider}_id`] || "").trim().toLowerCase();
+    return Boolean(wanted && ids[provider] && ids[provider] !== wanted);
+  });
+}
+
+async function pickShowSearchResultByIds(config, media, candidates, { requireSharedId = false } = {}) {
+  const requested = Object.fromEntries(["imdb", "tmdb", "tvdb"]
+    .map((provider) => [provider, String(media?.ids?.[provider] || "").trim().toLowerCase()])
+    .filter(([, value]) => value));
+  const hasShowIds = ["tmdb", "tvdb"].some((provider) => String(media?.[`show_${provider}_id`] || "").trim());
+  if (requireSharedId && !Object.keys(requested).length) return undefined;
+  if (!candidates.length || !Object.keys(requested).length) return candidates[0];
+  if (candidates.length < 2 && !hasShowIds && !requireSharedId) return candidates[0];
+  let first;
+  for (const candidate of candidates) {
+    let item = candidate;
+    if (!(item.Guid || []).length && item.ratingKey) {
+      try {
+        item = (await fetchPlexMetadataItem(config, item.ratingKey, { lane: media?.lane || "sync" })) || candidate;
+      } catch (error) {
+        console.warn(`Plex search fallback could not read Guids for ${candidate.ratingKey}`, error.message);
+      }
+    }
+    const ids = plexGuidIds(item);
+    if (showIdsConflict(media, ids)) continue;
+    if (Object.keys(requested).some((provider) => ids[provider] === requested[provider])) return item;
+    first ||= item;
+  }
+  return requireSharedId ? undefined : first;
+}
+
+// Plex names a show that shares its title with another country's version
+// "The Assembly (UK)", while watch records and Up Next cards carry "The
+// Assembly". The guid lookup cannot bridge the two: this server's
+// /library/all?guid= matches only Plex's own plex:// guid, never an external
+// id. So a show search also accepts a title that differs only by a trailing
+// qualifier, but only on a candidate whose Guids share an id with the request.
+function removeTrailingQualifier(title) {
+  return String(title || "").replace(/\s*\([^()]*\)\s*$/, "").trim();
+}
+
 async function searchPlexFallback(config, media, targetType) {
   const baseUrl = trimTrailingSlash(config.baseUrl);
 
@@ -184,16 +246,20 @@ async function searchPlexFallback(config, media, targetType) {
     const body = await response.json();
     const results = body?.MediaContainer?.Metadata || [];
 
-    const matched = results.find((item) => {
+    const typeMatched = results.filter((item) => {
       const itemType = item.type === "series" ? "show" : item.type;
       const expectedType = targetType === "series" ? "show" : targetType;
-      if (itemType !== expectedType) return false;
-
-      if (!titleMatches(queryTitle, item.title)) return false;
-      if (!yearMatches(media.title, item.year)) return false;
-
-      return true;
+      return itemType === expectedType && yearMatches(media.title, item.year);
     });
+    const titleMatched = typeMatched.filter((item) => titleMatches(queryTitle, item.title));
+    let matched = isShowSearch
+      ? await pickShowSearchResultByIds(config, media, titleMatched)
+      : titleMatched[0];
+    if (!matched && isShowSearch) {
+      const qualified = typeMatched.filter((item) => !titleMatches(queryTitle, item.title)
+        && titleMatches(queryTitle, removeTrailingQualifier(item.title)));
+      if (qualified.length) matched = await pickShowSearchResultByIds(config, media, qualified, { requireSharedId: true });
+    }
 
     if (matched?.ratingKey) {
       traceLog("Plex search fallback matched item", { ratingKey: matched.ratingKey, title: matched.title, year: matched.year, query: queryTitle });

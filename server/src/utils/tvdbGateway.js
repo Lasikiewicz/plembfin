@@ -371,6 +371,47 @@ export async function resolveTvdbSeriesIdFromEpisodeId(tvdbEpisodeId, { lane = "
   }
 }
 
+// What a TVDB id is as an episode: its series and aired-order coordinate, or
+// nothing (TVDB answers 404). Tier 2 of the playstate episode-id repair
+// (plan/playstate-episode-id-repair.md) reads the cache only; the lookup runs
+// from its background job and throws on any other failure, so nothing is
+// cached and the id is retried later.
+const EPISODE_KIND_TTL_MS = 30 * DAY_MS;
+
+export function getCachedTvdbEpisodeKind(tvdbEpisodeId) {
+  const id = normalizeTvdbId(tvdbEpisodeId);
+  if (!id) return null;
+  const cached = seriesGetStmt.get(`episode_kind_${id}`);
+  if (!cached || !fresh(cached.updated_at_ms, EPISODE_KIND_TTL_MS)) return null;
+  const details = parseJson(cached.details);
+  return details?.kind ? details : null;
+}
+
+export async function lookupTvdbEpisodeKind(tvdbEpisodeId, { lane = "enrichment" } = {}) {
+  const id = normalizeTvdbId(tvdbEpisodeId);
+  if (!id) return null;
+  const cached = getCachedTvdbEpisodeKind(id);
+  if (cached) return cached;
+  let details;
+  try {
+    const episode = await upstream({ type: "episode", id }, {}, 0, { lane });
+    details = episode?.seriesId
+      ? { kind: "episode", seriesId: String(episode.seriesId), season: Number(episode.seasonNumber), episode: Number(episode.number) }
+      : { kind: "none" };
+  } catch (error) {
+    if (error?.status !== 404) throw error;
+    details = { kind: "none" };
+  }
+  seriesSetStmt.run({
+    id: `episode_kind_${id}`,
+    tvdb_id: details.seriesId || "",
+    title: "",
+    details: toJson(details),
+    updated_at_ms: Date.now(),
+  });
+  return details;
+}
+
 export async function resolveTvdbSeriesId({ tvdbId = "", title = "", lane = "enrichment" } = {}) {
   const cleanedId = normalizeTvdbId(tvdbId);
   if (cleanedId) return cleanedId;

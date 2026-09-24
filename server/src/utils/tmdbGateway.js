@@ -548,6 +548,42 @@ async function resolveTmdbExternalId(type, source, externalId, lane = "enrichmen
   }
 }
 
+// What an IMDb or TVDB id is to TMDB: a series, an episode (with its show and
+// coordinate), or nothing. Cached apart from resolveTmdbExternalId, which keeps
+// only the resolved show id. The playstate episode-id repair reads the cache
+// only; lookupTmdbExternalIdKind runs from its background job.
+const EXTERNAL_ID_KIND_TTL_MS = 30 * DAY_MS;
+
+function externalIdKindKey(source, externalId) {
+  return `external_kind_${source}_${hash(String(externalId).trim().toLowerCase())}`;
+}
+
+export function getCachedTmdbExternalIdKind(source, externalId) {
+  if (!String(externalId || "").trim()) return null;
+  const cached = metaGet(externalIdKindKey(source, externalId));
+  if (!cached?.details?.kind) return null;
+  if (Date.now() - Number(cached.updatedAtMs || 0) > EXTERNAL_ID_KIND_TTL_MS) return null;
+  return cached.details;
+}
+
+// Throws on a failed request (nothing is cached, so the id is retried later).
+export async function lookupTmdbExternalIdKind(source, externalId, { lane = "enrichment" } = {}) {
+  const cleaned = String(externalId || "").trim();
+  if (!cleaned) return null;
+  const cached = getCachedTmdbExternalIdKind(source, cleaned);
+  if (cached) return cached;
+  const result = await upstream(`find/${encodeURIComponent(cleaned)}`, { external_source: source }, 0, { lane });
+  const series = result?.tv_results?.[0];
+  const episode = result?.tv_episode_results?.[0];
+  const details = series
+    ? { kind: "series", showId: String(series.id) }
+    : episode
+      ? { kind: "episode", showId: String(episode.show_id), season: Number(episode.season_number), episode: Number(episode.episode_number) }
+      : { kind: "none" };
+  metaSet(externalIdKindKey(source, cleaned), { tmdbId: null, mediaType: "external_id_kind", title: cleaned, details, updatedAtMs: Date.now() });
+  return details;
+}
+
 async function resolveTmdbId(mediaType, tmdbId, title, ids = {}, { ignoreTmdbId = false, lane = "enrichment" } = {}) {
   if (tmdbId && !ignoreTmdbId) return String(tmdbId);
   const type = mediaTypeFor(mediaType);

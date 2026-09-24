@@ -84,7 +84,7 @@ const SECTIONS = {
       { id: "sync-field-min_resume_position", label: "Minimum Resume Position (sec)", description: "Minimum playback position before a stopped play is saved as a resume point" },
       { id: "sync-field-active_session_ttl", label: "Active Session TTL (min)", description: "How long a now playing session is kept without an update before it's considered stale" },
       { id: "sync-field-request_timeout", label: "Outbound Request Timeout (sec)", description: "How long Plembfin waits for a response from Plex, Emby, or Jellyfin before giving up" },
-      { id: "sync-field-up_next_sync", label: "Up Next Sync", description: "Allow the Up Next sync button to mirror Plembfin's queue to connected media apps" },
+      { id: "sync-field-up_next_sync", label: "Up Next Sync", description: "Allow Up Next sync to push Plembfin's queue to connected media apps without removing anything already there" },
     ],
     isDisplayOnly: true, // Not a navigable route
   },
@@ -281,6 +281,7 @@ const SECTIONS = {
       { id: "phantom-watch-audit", label: "Audit Phantom Watches", description: "Finds suspicious duplicates and malformed imported episode rows" },
       { id: "remove-duplicate-watches", label: "Remove Duplicate Watches", description: "Keeps the oldest watch date for each TV episode or movie library-wide" },
       { id: "episode-title-gap-fix", label: "Restore Missing Episode Names", description: "Backfill real episode names onto watch rows that only stored a coordinate" },
+      { id: "playstate-aliases", label: "Watch-State Aliases", description: "Decide which show unplaced episode watch states belong to" },
     ],
     isDisplayOnly: true,
   },

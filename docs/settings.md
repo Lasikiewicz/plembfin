@@ -400,7 +400,11 @@ server reached over the public internet from being overwhelmed by a large sync.
   in one operation, backfills real names onto rows that only stored a coordinate ("8" /
   "Episode 08"), and reports verified **No title provided** rows separately. Exact audit
   counts cover the full library; temporary metadata failures remain retryable rather than
-  being presented as verified title-less records.
+  being presented as verified title-less records. The **Watch-State Aliases** card lists
+  episode watch states the automatic repair could not tie to their show, with the reason for
+  each. **Belongs to this show** moves them into the show (the newest watch state wins);
+  **Different show** leaves them alone and stops them being listed or repaired again. Only
+  Plembfin's own watch state changes; nothing is sent to connected platforms.
 - Trakt owns the Trakt/CSV importer; Backup and Restore own their respective workflows.
 - Wipe data (`server/src/routes/wipeData.js`, `GET/POST /api/wipe-data(/preview)`) offers four
   destructive scopes: Watch History, Sync History & Logs, Everything Tracked (both together),

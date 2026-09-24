@@ -3,6 +3,7 @@ import { site } from "../data/site.js";
 
 const pathname = Astro.url.pathname;
 const isDocs = pathname.startsWith("/docs");
+const isWhyPlembfin = pathname.startsWith("/why-plembfin");
 const isFeatures = pathname.startsWith("/features");
 const isChangelog = pathname.startsWith("/changelog");
 const isSupport = pathname.startsWith("/support");
@@ -12,34 +13,22 @@ const globalSearchQuery = Astro.url.searchParams.get("q")?.trim() || "";
 <header class="site-header">
   <div class="site-header-inner">
     <a class="site-brand" href="/" aria-label="Plembfin home">
-      <picture>
-        <source
-          type="image/webp"
-          media="(prefers-color-scheme: dark)"
-          data-theme-source="dark"
-          srcset="/assets/optimized/plembfin_header_logo_dark-376.webp"
-        />
-        <source
-          type="image/webp"
-          media="(prefers-color-scheme: light)"
-          data-theme-source="light"
-          srcset="/assets/optimized/plembfin_header_logo_light-376.webp"
-        />
-        <img
-          data-theme-logo
-          data-dark-src="/assets/optimized/plembfin_header_logo_dark-376.webp"
-          data-light-src="/assets/optimized/plembfin_header_logo_light-376.webp"
-          src="/assets/optimized/plembfin_header_logo_dark-376.webp"
-          alt="Plembfin"
-          width="376"
-          height="61"
-        />
-      </picture>
+      <img
+        data-theme-logo
+        data-theme-image
+        data-dark-src="/assets/optimized/plembfin_header_logo_dark-376.webp"
+        data-light-src="/assets/optimized/plembfin_header_logo_light-376.webp"
+        src="/assets/optimized/plembfin_header_logo_dark-376.webp"
+        alt="Plembfin"
+        width="376"
+        height="61"
+      />
     </a>
 
     <nav id="site-nav" class="site-nav" aria-label="Main navigation">
       <div class="site-nav-primary">
         <a class:list={{ active: pathname === "/" }} href="/">Home</a>
+        <a class:list={{ active: isWhyPlembfin }} href="/why-plembfin/">Why Plembfin</a>
         <a class:list={{ active: isFeatures }} href="/features/">Features</a>
         <a class:list={{ active: isDocs }} href="/docs/">Documentation</a>
         <a class:list={{ active: isChangelog }} href="/changelog/">Changelog</a>
@@ -155,10 +144,11 @@ const globalSearchQuery = Astro.url.searchParams.get("q")?.trim() || "";
     }
 
     document.querySelectorAll("[data-theme-image]").forEach((image) => {
-      if (image instanceof HTMLImageElement) {
+      if (image instanceof HTMLImageElement || image instanceof SVGImageElement) {
         const nextSource = isLightMode ? image.dataset.lightSrc : image.dataset.darkSrc;
-        if (nextSource && !image.closest("picture") && image.getAttribute("src") !== nextSource) {
-          image.setAttribute("src", nextSource);
+        const currentSource = image instanceof SVGImageElement ? image.getAttribute("href") : image.getAttribute("src");
+        if (nextSource && !image.closest("picture") && currentSource !== nextSource) {
+          image.setAttribute(image instanceof SVGImageElement ? "href" : "src", nextSource);
         }
 
         const imageLink = image.closest("[data-theme-image-link]");
