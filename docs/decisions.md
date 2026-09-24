@@ -464,7 +464,11 @@ silently turned into `0` - and that function decides which version ships to ever
    segments is not valid semver and npm rejects or mishandles it.
 3. Neither force command pushes to `origin/develop`, and "Force to main" does not merge
    `main` into `develop`. Each promotion writes the new numbers locally and the next
-   ordinary "Push to git" publishes them.
+   ordinary "Push to git" publishes them. (Amended 2026-09-24: after "Force to main", local
+   `develop` is moved onto the release commit so new work starts from the released build,
+   once a check shows every `develop` commit is already in the release. It is still never
+   merged or pushed by the command; the next "Push to git" carries it with real work, so
+   no empty develop image is published.)
 4. `promote-alpha-to-main.js` reads the released history from `origin/main:changelog.json`
    rather than the working tree, and refuses the promotion if the merged history is missing
    any prior release or does not add exactly one.

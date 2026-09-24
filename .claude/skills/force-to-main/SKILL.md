@@ -313,12 +313,43 @@ and report the release as incomplete rather than claiming that the demo is curre
 Do not call `npm run demo:assets` or `npm run demo:seed` as part of this refresh; those
 commands prepare fixture content and are separate from pulling the released image.
 
-### 7 - Stop. Do not synchronize develop.
+### 7 - Point local develop at the release (local only, never pushed)
 
-There is no step 7 any more. Do not merge `origin/main` into `develop`, and do not push
-`develop`.
+Once the workflow and the demo check have passed, move local `develop` onto the release
+commit so all further work starts from the released build. Do not merge, and do not push
+`develop`: it reaches `origin/develop` only with the user's next "Push to git", together
+with their new work.
 
-The old step merged the release commit into `develop` and pushed it. That push carried the
+First confirm that local `develop` holds nothing the release lacks. `develop` can be ahead
+of the alpha tip that was released, and moving the branch would drop that work:
+
+```bash
+git status --short
+git log --oneline origin/main..develop
+base=$(git merge-base develop HEAD)
+git diff develop HEAD -- $(git diff --name-only "$base"...develop)
+```
+
+The working tree must be clean. Every commit listed must already be in the release: in
+practice the website commits step 0 made, which step 1a carried in, and anything taken
+from `develop` like them. Every hunk in the diff must be release restamping only
+(`sourceVersion` markers, `?v=` asset versions, version fields). If any `develop` commit
+carries application or documentation work that is not in the release, stop and report it
+to the user instead of moving the branch.
+
+Then:
+
+```bash
+git checkout -B develop origin/main
+git branch -u origin/develop
+git status -sb
+```
+
+`develop` now equals the release commit and shows as ahead of `origin/develop` by a
+fast-forward. Tell the user the previous `develop` tip hash (recoverable from the reflog).
+
+Do not merge `origin/main` into `develop`, and do not push `develop`. The old step merged
+the release commit into `develop` and pushed it straight away. That push carried the
 `public/` asset restamp, `package.json`, and `package-lock.json`, so
 `docker-publish-develop.yml`'s `paths-ignore` never matched and every release published a
 second, meaningless develop image on top of the release one.

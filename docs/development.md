@@ -266,18 +266,18 @@ node scripts/promote-alpha-to-main.js --confirm && git add README.md changelog.j
 git log origin/main..HEAD --oneline
 git push origin HEAD:main --force
 
-# Synchronize develop to the new main version
-git checkout develop
-git merge --ff-only origin/develop
-git merge origin/main --no-edit
-git push origin develop
+# Point local develop at the release (local only; check nothing on develop is missing from it first)
+git log --oneline origin/main..develop
+git checkout -B develop origin/main
+git branch -u origin/develop
 ```
 
 The alpha workflow reads the alpha build metadata already committed and publishes
 `:alpha` plus an `alpha-<build>` tag. The main workflow reads the version already
 committed, publishes a multi-architecture `:latest` plus version tag for AMD64 and
 ARM64 hosts, and then deploys that exact version to the OCI demo job. After that check
-the procedure ends; it pushes neither `develop` nor `alpha`.
+the procedure moves local `develop` onto the release commit so new work starts from the
+released build, and ends; it pushes neither `develop` nor `alpha`.
 
 For a demo-only catch-up, run the **Deploy Public Demo** workflow manually from the
 `main` ref. Type `DEPLOY` in its confirmation input and leave the version blank to use
