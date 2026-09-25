@@ -112,6 +112,13 @@ test("Plex episode sessions carry the show handle for series id resolution", () 
   assert.equal(session.seriesItemId, "2740");
 });
 
+// The Now Playing card labels an episode "S02E02 - <episode title>"; without
+// the field it showed only the code.
+test("Plex episode sessions carry the episode title", () => {
+  const [session] = parsePlexSessions(plexSessionXml("playing"), {});
+  assert.equal(session.episodeTitle, "Episode 2");
+});
+
 // Two movies played back to back on one client share every field the session
 // key used to be built from - the client id, and a null season and episode. The
 // second overwrote the first in live_tracking_cache, reconciliation saw the id

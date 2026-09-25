@@ -1,9 +1,9 @@
-import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.0";
-import { state, elements } from "./state.js?v=1.2.2.0.0";
-import { escapeAttribute, escapeHtml, formatTmdbDate, episodeCode } from "./utils.js?v=1.2.2.0.0";
-import { hydratePosters } from "./images.js?v=1.2.2.0.0";
-import { normalizeMediaCardRecord, renderMediaCard } from "./media-card.js?v=1.2.2.0.0";
-import { hydratePersonalMetadata, personalMetadataItems, propagatePersonalMetadata } from "./personal-media-metadata.js?v=1.2.2.0.0";
+import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.15";
+import { state, elements } from "./state.js?v=1.2.2.0.15";
+import { escapeAttribute, escapeHtml, formatTmdbDate, episodeCode } from "./utils.js?v=1.2.2.0.15";
+import { hydratePosters } from "./images.js?v=1.2.2.0.15";
+import { normalizeMediaCardRecord, renderMediaCard } from "./media-card.js?v=1.2.2.0.15";
+import { hydratePersonalMetadata, personalMetadataItems, propagatePersonalMetadata } from "./personal-media-metadata.js?v=1.2.2.0.15";
 
 const PERSONAL_MEDIA_TTL_MS = 2 * 60 * 1000;
 const PERSONAL_MEDIA_TIMEOUT_MS = 15000;
@@ -647,6 +647,8 @@ function renderPersonalRatingSections(ratings) {
 }
 
 function renderPersonalControls() {
+  let compactCards = false;
+  try { compactCards = localStorage.getItem("plembfin:card-mode:personal") === "1"; } catch { /* storage unavailable */ }
   const createListSource = state.personalMediaTab === "lists" ? "custom-lists" : "";
   const syncType = state.personalMediaTab === "ratings"
     ? "ratings"
@@ -667,10 +669,13 @@ function renderPersonalControls() {
           <span>New list</span>
         </button>`
       : "";
-  if (!action) return "";
   return `
     <div class="page-action-bar personal-media-toolbar-actions">
       <div class="page-action-primary" role="toolbar" aria-label="Personal media actions">
+        <button class="icon-button dashboard-compact-toggle page-card-mode-toggle" type="button" data-card-mode-toggle="personal" aria-pressed="${compactCards}" aria-label="Show personal media as posters only" title="${compactCards ? "Show full cards" : "Posters only"}">
+          <svg class="dashboard-compact-icon-card" viewBox="0 0 24 24" aria-hidden="true"><rect x="1.5" y="3" width="21" height="18" rx="2"/><rect x="4" y="5.5" width="8" height="13" rx="1" fill="currentColor" stroke="none"/><path d="M14.5 8h5.5M14.5 12h5.5M14.5 16h4"/></svg>
+          <svg class="dashboard-compact-icon-posters" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="1" width="16" height="22" rx="2"/><circle cx="9" cy="7.5" r="1.5" fill="currentColor" stroke="none"/><path d="m6.5 17 3-4 2.5 2.25 3-3.75 2.5 5.5Z" fill="currentColor" stroke="none"/><path d="M6.5 19.5h11"/></svg>
+        </button>
         ${action}
       </div>
     </div>
@@ -721,6 +726,9 @@ export function renderPersonalMedia() {
   if (elements.personalMediaTopbarControls) {
     elements.personalMediaTopbarControls.innerHTML = state.token ? renderPersonalControls() : "";
   }
+  elements.personalMediaPanel?.closest('[data-view-panel="personal-media"]')?.classList.toggle("page-card-mode-compact", (() => {
+    try { return localStorage.getItem("plembfin:card-mode:personal") === "1"; } catch { return false; }
+  })());
   if (!state.token) {
     panel.innerHTML = "";
     return;

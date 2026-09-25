@@ -25,8 +25,9 @@ Behavior:
   per calendar day, so same-day webhook echoes don't crowd out genuine later rewatches
   (`dedupe` option in `queryWatchHistory`).
 - **View modes** - grid / list / cards (`plembfin:historyView`), filter all/movies/shows
-  (`plembfin:historyFilter`), search box (server-side `?search=`), adjustable poster
-  width (`applyHistoryPosterWidth`). On mobile, the cards view uses the same compact
+  (`plembfin:historyFilter`), search box (server-side `?search=`). There is no size
+  control: posters use the other pages' poster-mode width, and on desktop the cards
+  view uses the Movies and TV full-card size. On mobile, the cards view uses the same compact
   poster-first horizontal rail geometry as the dashboard and preserves its position
   when another page of history is appended.
 - **Row actions** - each entry links to its detail page; sync pills, edit-date, and

@@ -1,11 +1,11 @@
-import { buildAuthHeaders, buildNowPlayingUrl, getWebhookToken, onAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./auth.js?v=1.2.2.0.0";
-import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs } from "./logs.js?v=1.2.2.0.0";
-import { state, elements } from "./state.js?v=1.2.2.0.0";
-import { escapeHtml, sanitizeTitle, safeImageUrl, movieSlug, showTitleFrom, slug, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel } from "./utils.js?v=1.2.2.0.0";
-import { compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, markArtworkUnavailable, tmdbProfile } from "./images.js?v=1.2.2.0.0";
-import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerCronSync, triggerStopSync } from "./sync.js?v=1.2.2.0.0";
-import { attachSidebarMiddleClickNavigation } from "./sidebar-navigation.js?v=1.2.2.0.0";
-import { WATCH_ROUTE_MODULES, ifLoaded, lazyExport, loadRouteModules, onRouteModuleLoaded } from "./route-modules.js?v=1.2.2.0.0";
+import { buildAuthHeaders, buildNowPlayingUrl, getWebhookToken, onAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./auth.js?v=1.2.2.0.15";
+import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs } from "./logs.js?v=1.2.2.0.15";
+import { state, elements } from "./state.js?v=1.2.2.0.15";
+import { escapeHtml, sanitizeTitle, safeImageUrl, movieSlug, showTitleFrom, slug, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel } from "./utils.js?v=1.2.2.0.15";
+import { compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, markArtworkUnavailable, tmdbProfile } from "./images.js?v=1.2.2.0.15";
+import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerCronSync, triggerStopSync } from "./sync.js?v=1.2.2.0.15";
+import { attachSidebarMiddleClickNavigation } from "./sidebar-navigation.js?v=1.2.2.0.15";
+import { WATCH_ROUTE_MODULES, ifLoaded, lazyExport, loadRouteModules, onRouteModuleLoaded } from "./route-modules.js?v=1.2.2.0.15";
 
 // Route modules are not imported statically: that pulled the whole route graph
 // (about 1 MB) into the event wiring every page loads. Actions load their module
@@ -27,7 +27,7 @@ const addShowToUpNext = lazyUpNext("addShowToUpNext");
 const upNextAttentionOptions = ifLoaded("up-next", "upNextAttentionOptions", () => ({}));
 const restoreUpNextItem = lazyUpNext("restoreUpNextItem");
 const setUpNextRemovalPending = ifLoaded("up-next", "setUpNextRemovalPending");
-const renderSearchPage = ifLoaded("explorer", "renderSearchPage"), applyExplorerPosterWidth = ifLoaded("explorer", "applyExplorerPosterWidth"), applyHistoryPosterWidth = ifLoaded("explorer", "applyHistoryPosterWidth");
+const renderSearchPage = ifLoaded("explorer", "renderSearchPage");
 const loadMoreSearchPeople = lazyExport("explorer", "loadMoreSearchPeople"), loadSearchCollection = lazyExport("explorer", "loadSearchCollection"), loadShowDetail = lazyExport("explorer", "loadShowDetail");
 const openWatchDatePrompt = lazyExport("watch-action", "openWatchDatePrompt", WATCH_ROUTE_MODULES), markDiscoverWatched = lazyExport("watch-action", "markDiscoverWatched", WATCH_ROUTE_MODULES), submitSeerrRequest = lazyExport("watch-action", "submitSeerrRequest", WATCH_ROUTE_MODULES);
 // Synchronous: callers load WATCH_ROUTE_MODULES before using it.
@@ -41,7 +41,7 @@ const dontRecommendDiscoverItem = lazyExport("discover", "dontRecommendDiscoverI
 const syncMediaActionsMenuState = ifLoaded("media-detail", "syncMediaActionsMenuState"), closeDebugModal = ifLoaded("media-detail", "closeDebugModal"), closeMediaDetail = ifLoaded("media-detail", "closeMediaDetail"), closeMediaInfoModal = ifLoaded("media-detail", "closeMediaInfoModal");
 const openHistoryDebugModal = lazyExport("media-detail", "openHistoryDebugModal");
 const closePersonProfile = ifLoaded("media-person", "closePersonProfile");
-import { hydrateDeferredCastDisclosure } from "./cast-disclosure.js?v=1.2.2.0.0";
+import { hydrateDeferredCastDisclosure } from "./cast-disclosure.js?v=1.2.2.0.15";
 
 let _cb = {};
 
@@ -240,6 +240,40 @@ function updatePosterMenuAction(button, { label, ariaLabel = label, title = aria
 function attachEvents() {
   attachSidebarMiddleClickNavigation(document.querySelector(".topnav"));
 
+  const cardModeTargets = {
+    explorer: document.querySelector('#explorer-view-root, [data-view-panel="explorer"]'),
+    discover: document.querySelector('[data-view-panel="discover"]'),
+    personal: document.querySelector('[data-view-panel="personal-media"]'),
+    history: document.querySelector('[data-view-panel="history"]'),
+  };
+  const cardModeKey = (target) => `plembfin:card-mode:${target}`;
+  const syncCardMode = (target) => {
+    let compact = false;
+    try { compact = localStorage.getItem(cardModeKey(target)) === "1"; } catch { /* storage unavailable */ }
+    cardModeTargets[target]?.classList.toggle("page-card-mode-compact", compact);
+    document.querySelectorAll(`[data-card-mode-toggle="${target}"]`).forEach((button) => {
+      button.setAttribute("aria-pressed", String(compact));
+      button.title = compact ? "Show full cards" : "Posters only";
+    });
+  };
+  Object.keys(cardModeTargets).forEach(syncCardMode);
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-card-mode-toggle]");
+    if (!button) return;
+    const target = button.dataset.cardModeToggle;
+    if (!(target in cardModeTargets)) return;
+    const compact = button.getAttribute("aria-pressed") !== "true";
+    try {
+      if (compact) localStorage.setItem(cardModeKey(target), "1");
+      else localStorage.removeItem(cardModeKey(target));
+    } catch { /* storage unavailable; this page still updates */ }
+    cardModeTargets[target]?.classList.toggle("page-card-mode-compact", compact);
+    document.querySelectorAll(`[data-card-mode-toggle="${target}"]`).forEach((control) => {
+      control.setAttribute("aria-pressed", String(compact));
+      control.title = compact ? "Show full cards" : "Posters only";
+    });
+  });
+
   document.querySelectorAll(".backup-managed-form").forEach((form) => {
     form.addEventListener("submit", (event) => {
       event.preventDefault();
@@ -278,8 +312,6 @@ function attachEvents() {
             if (hideWatched) hideWatched.classList.add("active-mobile-panel");
             if (hideEnded) hideEnded.classList.add("active-mobile-panel");
             if (historyFilter) historyFilter.classList.add("active-mobile-panel");
-          } else if (target === "size") {
-            container.querySelector(".explorer-size-slider")?.classList.add("active-mobile-panel");
           } else if (target === "view") {
             const viewToggle = container.querySelector(".explorer-view-toggle:not(.history-filter-toggle)");
             if (viewToggle) viewToggle.classList.add("active-mobile-panel");
@@ -1651,8 +1683,6 @@ function attachEvents() {
   });
 
   window.addEventListener("resize", () => {
-    applyExplorerPosterWidth();
-    applyHistoryPosterWidth();
     syncPageTopbar();
     syncMediaActionsMenuState();
     window.clearTimeout(state.dashboardHistoryResizeTimer);

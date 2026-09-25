@@ -1,7 +1,7 @@
-import { buildAuthHeaders, buildNowPlayingUrl } from "./auth.js?v=1.2.2.0.0";
-import { state, elements } from "./state.js?v=1.2.2.0.0";
-import { escapeHtml, escapeAttribute, platformBadge, sourceClass, sourceBadgeHtml, computeProgress, formatDate, formatPlaybackClock, showName } from "./utils.js?v=1.2.2.0.0";
-import { hydratePosters, posterMarkup } from "./images.js?v=1.2.2.0.0";
+import { buildAuthHeaders, buildNowPlayingUrl } from "./auth.js?v=1.2.2.0.15";
+import { state, elements } from "./state.js?v=1.2.2.0.15";
+import { escapeHtml, escapeAttribute, platformBadge, sourceClass, sourceBadgeHtml, computeProgress, formatDate, formatPlaybackClock, showName } from "./utils.js?v=1.2.2.0.15";
+import { hydratePosters, posterMarkup } from "./images.js?v=1.2.2.0.15";
 
 const NOW_PLAYING_POLL_MS = 10000;
 
@@ -768,12 +768,21 @@ export function activeSessionsKey(sessions = []) {
     .join("::");
 }
 
+let lastNowPlayingItemsKey = "";
+
 export function setActiveSessions(sessions = [], { force = false } = {}) {
   const nextKey = activeSessionsKey(sessions);
   if (!force && nextKey === state.nowPlayingSessionKey) return false;
   state.activeSessions = sessions;
   state.nowPlayingSessionKey = nextKey;
   renderActiveSessions();
+  // Up Next hides whatever is playing, so it repaints when the playing items
+  // change (not on every progress tick).
+  const itemsKey = sessions.map((s) => `${s.mediaType}|${s.title}|${s.season ?? ""}|${s.episode ?? ""}`).sort().join("::");
+  if (itemsKey !== lastNowPlayingItemsKey) {
+    lastNowPlayingItemsKey = itemsKey;
+    _cb.renderUpNext?.();
+  }
   return true;
 }
 
@@ -911,7 +920,7 @@ export function renderActiveSessions() {
         <b>No media currently playing.</b>
       </div>
     `;
-    if (elements.nowPlayingGrid.dataset.renderedHtml !== "empty") {
+    if (elements.nowPlayingGrid.dataset.renderedHtml !== "empty" || elements.nowPlayingGrid.querySelector("[data-now-playing-card-id]")) {
       elements.nowPlayingGrid.dataset.renderedHtml = "empty";
       elements.nowPlayingGrid.innerHTML = emptyHtml;
     }

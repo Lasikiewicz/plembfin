@@ -1,5 +1,5 @@
-import { state } from "./state.js?v=1.2.2.0.0";
-import { escapeAttribute, slug } from "./utils.js?v=1.2.2.0.0";
+import { state } from "./state.js?v=1.2.2.0.15";
+import { escapeAttribute, slug } from "./utils.js?v=1.2.2.0.15";
 
 function identityValues(item = {}, kind = "tmdb") {
   const capitalized = `${kind.charAt(0).toUpperCase()}${kind.slice(1)}`;
@@ -35,6 +35,31 @@ export function upNextCoordinateDismissalKey(item = {}) {
   const episode = Number(item.episode);
   if (!showTitle || item.season == null || item.episode == null || item.season === "" || item.episode === "" || !Number.isInteger(season) || !Number.isInteger(episode) || season < 0 || episode < 0) return "";
   return `episode:${showTitle}:s${season}:e${episode}`;
+}
+
+// Up Next hides what is playing right now: the same episode (show, season and
+// episode) or the same movie as a live session. Title-based, as live sessions
+// carry no show ids; the card returns when playback stops.
+function liveSessionUpNextKey(session = {}) {
+  const isLiveEpisode = session.mediaType === "episode" || (session.season != null && session.episode != null);
+  if (isLiveEpisode) {
+    const title = String(session.title || "");
+    const showTitle = session.showTitle || title.replace(/\s+-\s+S\d{1,3}E\d{1,4}\b.*$/i, "").trim();
+    return upNextCoordinateDismissalKey({ media_type: "episode", show_title: showTitle, season: session.season, episode: session.episode });
+  }
+  return session.mediaType === "movie" ? `movie:${showTitleSlug({ show_title: session.title })}` : "";
+}
+
+function upNextItemLiveKey(item = {}) {
+  if (isEpisode(item)) return upNextCoordinateDismissalKey(item);
+  const mediaType = String(item.media_type || item.mediaType || "").trim().toLowerCase();
+  return mediaType === "movie" ? `movie:${showTitleSlug({ show_title: item.title })}` : "";
+}
+
+export function withoutNowPlaying(items = [], sessions = []) {
+  const liveKeys = new Set(sessions.map(liveSessionUpNextKey).filter((key) => key && key !== "movie:"));
+  if (!liveKeys.size) return items;
+  return items.filter((item) => !liveKeys.has(upNextItemLiveKey(item)));
 }
 
 export function upNextShowDismissalKeys(item = {}) {

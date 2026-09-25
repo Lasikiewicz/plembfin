@@ -1,0 +1,494 @@
+import { episodeCode, escapeAttribute, escapeHtml, showName } from "./utils.js?v=1.2.2.0.15";
+import { state } from "./state.js?v=1.2.2.0.15";
+import { tmdbImage } from "./images.js?v=1.2.2.0.15";
+import { fetchTmdbDetails } from "./tmdb.js?v=1.2.2.0.15";
+import { THEME_STYLE_EVENT, isModernStyle } from "./appearance.js?v=1.2.2.0.15";
+
+// Dashboard behaviour added with the Modern theme style (plan/theme-styles.md).
+// Compact rows, collapsed TV runs and the featured Up Next cards apply under
+// both styles; backdrop artwork and run stack peeks are Modern-only.
+
+// --- Compact rows (both styles) --------------------------------------------
+// The toggle beside each "Recently watched" title folds every card in that
+// row into its poster (the details slide closed behind it). Clicking a
+// folded poster opens that card, closing whichever was open; a further click
+// behaves as normal. Clicking a folded stack (a collapsed run) expands the
+// run with every card in it open, and it folds back into a stack when
+// another card opens. The toggle is remembered per browser, per row.
+
+const COMPACT_KEY_PREFIX = "plembfin:dashboard-compact:";
+const COMPACT_ROW_IDS = { tv: "tvHistoryRow", movie: "movieHistoryRow" };
+const compactRows = { tv: readCompactRow("tv"), movie: readCompactRow("movie") };
+// Card keys, or run keys that open every card of an expanded run.
+const openCompactCards = new Set();
+// Runs expanded by opening their folded stack.
+const compactExpandedRuns = new Set();
+
+function compactCardKey(card) {
+  const data = card?.dataset || {};
+  return String(data.historyId || data.collapsedRunKey || data.partWatchedCardId || "");
+}
+
+function isCompactCardOpen(card) {
+  const runKey = card.dataset?.runKey;
+  return openCompactCards.has(compactCardKey(card)) || Boolean(runKey && openCompactCards.has(runKey));
+}
+
+function closeCompactCards() {
+  openCompactCards.clear();
+  const runs = [...compactExpandedRuns];
+  compactExpandedRuns.clear();
+  for (const key of runs) expandedRunKeys.delete(key);
+  if (runs.length) rerenderRuns();
+}
+
+function openCompactCard(card) {
+  const runKey = card.dataset.collapsedRunKey;
+  const key = compactCardKey(card);
+  closeCompactCards();
+  if (runKey) {
+    openCompactCards.add(runKey);
+    compactExpandedRuns.add(runKey);
+    setDashboardRunExpanded(runKey, true);
+  } else {
+    openCompactCards.add(key);
+  }
+  syncCompactOpenCards();
+}
+
+function compactRowCards() {
+  if (typeof document === "undefined" || typeof document.querySelectorAll !== "function") return [];
+  const rows = Object.keys(COMPACT_ROW_IDS).filter(isDashboardRowCompact).map((kind) => `#${COMPACT_ROW_IDS[kind]} > .dashboard-history-page-card`);
+  return rows.length ? [...document.querySelectorAll(rows.join(", "))] : [];
+}
+
+// Re-applies the open state to cards a row re-render replaced.
+function syncCompactOpenCards() {
+  for (const card of compactRowCards()) {
+    const open = isCompactCardOpen(card);
+    if (card.classList.contains("dashboard-card-open") !== open) card.classList.toggle("dashboard-card-open", open);
+  }
+}
+
+function readCompactRow(kind) {
+  try {
+    return localStorage.getItem(COMPACT_KEY_PREFIX + kind) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function isDashboardRowCompact(kind) {
+  return Boolean(compactRows[kind]);
+}
+
+export function setDashboardRowCompact(kind, compact) {
+  if (!(kind in compactRows)) return;
+  compactRows[kind] = Boolean(compact);
+  closeCompactCards();
+  try {
+    if (compact) localStorage.setItem(COMPACT_KEY_PREFIX + kind, "1");
+    else localStorage.removeItem(COMPACT_KEY_PREFIX + kind);
+  } catch { /* storage unavailable: the choice lasts for this page only */ }
+  syncCompactControls();
+  syncCompactOpenCards();
+}
+
+function syncCompactControls() {
+  if (typeof document === "undefined" || typeof document.querySelectorAll !== "function") return;
+  for (const button of document.querySelectorAll("[data-dashboard-compact]")) {
+    const compact = isDashboardRowCompact(button.dataset.dashboardCompact);
+    button.setAttribute("aria-pressed", String(compact));
+    button.title = compact ? "Show full cards" : "Posters only";
+    button.closest(".dashboard-history-panel")?.classList.toggle("dashboard-row-compact", compact);
+  }
+}
+
+// --- Collapsed runs in the TV history row ---------------------------------
+// Consecutive watches of the same show collapse into one card for the newest
+// episode, drawn as a stack with the older cards peeking out to its right.
+// Clicking it expands the run back into one card per episode, in place.
+// Expansion lasts until the page is reloaded (a compact row folds it back when
+// another card opens). The History page's cards mode uses the same runs
+// (modules/explorer.js).
+
+const expandedRunKeys = new Set();
+const runRerenders = new Set();
+
+function rerenderRuns() {
+  for (const rerender of runRerenders) rerender();
+}
+
+function runShowKey(entry = {}) {
+  if (entry.isPartWatched || entry.part_watched || entry.up_next || entry.media_type === "movie") return "";
+  const id = entry.show_tmdb_id || entry.show_tvdb_id;
+  if (id) return `id:${id}`;
+  const title = String(entry.show_title || showName(entry.title) || "").trim().toLowerCase();
+  return title ? `title:${title}` : "";
+}
+
+// Returns the row as units, newest first. A collapsed run is one unit with a
+// `key`; an expanded run gives one unit per entry, each carrying the run's
+// key as `runKey`. Runs form under both styles; only the stacked peeks
+// behind a collapsed run are Modern's (styles-modern.css).
+export function dashboardTvRowUnits(items = []) {
+  const runs = [];
+  for (const entry of items) {
+    const show = runShowKey(entry);
+    const last = runs.at(-1);
+    if (last && show && last.show === show) last.entries.push(entry);
+    else runs.push({ show, entries: [entry] });
+  }
+  return runs.flatMap((run) => {
+    if (run.entries.length < 2) return [{ entries: run.entries }];
+    const key = `run:${run.show}:${run.entries.at(-1).id ?? ""}`;
+    if (!expandedRunKeys.has(key)) return [{ key, entries: run.entries }];
+    return run.entries.map((entry) => ({ entries: [entry], expanded: true, runKey: key }));
+  });
+}
+
+export function setDashboardRunExpanded(key, expanded) {
+  if (!key) return;
+  if (expanded) expandedRunKeys.add(key);
+  else expandedRunKeys.delete(key);
+  rerenderRuns();
+}
+
+function runTitle(entry) {
+  return entry.show_title || showName(entry.title) || "this show";
+}
+
+function renderedCard(html) {
+  const template = document.createElement("template");
+  template.innerHTML = html.trim();
+  return template.content.firstElementChild;
+}
+
+// The poster of an older episode, drawn on the card that peeks out for it.
+function runPeekHtml(entry, depth, renderCard) {
+  const src = renderedCard(renderCard(entry))?.querySelector(".history-card-poster-wrapper img")?.getAttribute("src") || "";
+  const art = src ? `<img src="${escapeAttribute(src)}" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" />` : "";
+  return `<span class="dashboard-run-peek" data-run-peek="${depth}" aria-hidden="true">${art}</span>`;
+}
+
+// renderCard renders one entry as the usual dashboard history card. A run
+// reuses the newest entry's card, swapping its link wrapper for an expand
+// control and showing the episode range and count.
+export function renderDashboardTvRowUnit(unit, renderCard, { stack = true } = {}) {
+  const html = renderCard(unit.entries[0]);
+  if (!unit.key && !unit.expanded) return html;
+  const source = renderedCard(html);
+  if (!source) return html;
+
+  if (unit.expanded) {
+    source.classList.add("dashboard-run-expanded");
+    if (unit.runKey) source.dataset.runKey = unit.runKey;
+    return source.outerHTML;
+  }
+
+  const newest = unit.entries[0];
+  const oldest = unit.entries.at(-1);
+  const count = unit.entries.length;
+  const card = document.createElement("article");
+  card.className = `${source.className} dashboard-collapsed-run-card`;
+  if (source.dataset.art) card.dataset.art = source.dataset.art;
+  card.dataset.collapsedRunKey = unit.key;
+  // The dashboard uses poster peeks; History keeps its run as a single card.
+  const depth = stack ? (count > 2 ? 2 : 1) : 0;
+  if (depth) card.dataset.runStack = String(depth);
+  card.setAttribute("role", "button");
+  card.setAttribute("tabindex", "0");
+  card.setAttribute("aria-expanded", "false");
+  card.setAttribute("aria-label", `Show all ${count} episodes of ${runTitle(newest)}`);
+  card.innerHTML = source.innerHTML;
+
+  const range = card.querySelector(".history-card-meta-row .meta-value");
+  if (range) range.textContent = `${episodeCode(oldest.season, oldest.episode)} - ${episodeCode(newest.season, newest.episode)}`;
+  card.querySelector(".history-card-header")
+    ?.insertAdjacentHTML("beforeend", `<span class="dashboard-run-count">${escapeHtml(`${count} episodes`)}</span>`);
+  // The next-older episode peeks out first, right behind the newest.
+  if (depth) {
+    card.insertAdjacentHTML("beforeend", unit.entries.slice(1, depth + 1).map((entry, index) => runPeekHtml(entry, index + 1, renderCard)).join(""));
+  }
+  return card.outerHTML;
+}
+
+// Registers a view that renders runs, re-run when a run expands or collapses
+// or the theme style changes.
+export function bindDashboardRuns(rerender) {
+  runRerenders.add(rerender);
+}
+
+const hasDocument = typeof document !== "undefined" && typeof document.addEventListener === "function";
+
+if (hasDocument) {
+  syncCompactControls();
+
+  document.addEventListener("click", (event) => {
+    const button = event.target.closest?.("[data-dashboard-compact]");
+    if (!button) return;
+    const kind = button.dataset.dashboardCompact;
+    setDashboardRowCompact(kind, !isDashboardRowCompact(kind));
+  });
+
+  // Capture phase: a folded card is a link (or holds one), so the first
+  // click must open it before the router or the run handler sees it.
+  document.addEventListener("click", (event) => {
+    const card = event.target.closest?.(".dashboard-row-compact .dashboard-history-page-card:not(.dashboard-card-open)");
+    if (!card || !compactRowCards().includes(card) || event.target.closest("button")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    openCompactCard(card);
+  }, true);
+
+  document.addEventListener("click", (event) => {
+    const card = event.target.closest?.("[data-collapsed-run-key]");
+    if (!card || event.target.closest("button, a")) return;
+    event.preventDefault();
+    setDashboardRunExpanded(card.dataset.collapsedRunKey, true);
+  });
+
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    const card = event.target.matches?.("[data-collapsed-run-key]") ? event.target : null;
+    if (!card) return;
+    event.preventDefault();
+    setDashboardRunExpanded(card.dataset.collapsedRunKey, true);
+  });
+}
+
+// --- Backdrop artwork behind the cards -------------------------------------
+// Dashboard cards carry data-art="type|tmdb|tvdb|imdb|title". Under Modern the
+// backdrop for each key is looked up once through the batched TMDB details
+// request and published as a CSS rule in one injected stylesheet, so the
+// cards themselves are never mutated (their reconcile signature is their
+// outerHTML) and a re-rendered card picks its backdrop up immediately.
+
+function artKey(type, { tmdb = "", tvdb = "", imdb = "", title = "" } = {}) {
+  const parts = [tmdb, tvdb, imdb].map((value) => String(value ?? "").trim().replace(/\|/g, ""));
+  const name = String(title ?? "").trim();
+  if (!parts.some(Boolean) && !name) return "";
+  return [type, ...parts, name].join("|");
+}
+
+export function dashboardCardArtAttribute(entry = {}) {
+  const isEpisode = entry.media_type === "episode";
+  const key = isEpisode
+    ? artKey("tv", { tmdb: entry.show_tmdb_id, tvdb: entry.show_tvdb_id, imdb: entry.show_imdb_id, title: entry.show_title || showName(entry.title) })
+    : artKey("movie", { tmdb: entry.tmdb_id, tvdb: entry.tvdb_id, imdb: entry.imdb_id, title: entry.title });
+  return key ? ` data-art="${escapeAttribute(key)}"` : "";
+}
+
+function sessionArtKey(session = {}) {
+  const isEpisode = session.mediaType === "episode" || (session.season != null && session.episode != null);
+  const ids = session.ids || {};
+  return artKey(isEpisode ? "tv" : "movie", {
+    tmdb: ids.tmdb || session.tmdb_id || session.tmdbId,
+    tvdb: ids.tvdb || session.tvdb_id || session.tvdbId,
+    imdb: ids.imdb || session.imdb_id || session.imdbId,
+    title: isEpisode ? (session.showTitle || showName(session.title)) : session.title,
+  });
+}
+
+const requestedArt = new Set();
+let artSheet = null;
+
+async function resolveBackdrop(key) {
+  const [type, tmdb, tvdb, imdb, ...title] = key.split("|");
+  try {
+    const details = await fetchTmdbDetails(type, tmdb, title.join("|"), { tvdbId: tvdb, imdbId: imdb }, { light: true });
+    return details?.cached_backdrop_url || tmdbImage(details?.backdrop_path, "w780") || "";
+  } catch {
+    return "";
+  }
+}
+
+function publishArt(key, url) {
+  if (!url || typeof CSS === "undefined") return;
+  if (!artSheet) {
+    artSheet = document.createElement("style");
+    artSheet.id = "modernArtStyles";
+    document.head.append(artSheet);
+  }
+  const safeUrl = url.replace(/["\\\s]/g, (char) => encodeURIComponent(char));
+  const selector = CSS.escape(key);
+  // The page backdrop uses its own property: the cards inside the page would
+  // otherwise inherit it when they have no backdrop of their own.
+  artSheet.append(`[data-art="${selector}"]{--modern-art:url("${safeUrl}");--modern-art-shade:1}\n`
+    + `[data-page-art="${selector}"]{--modern-page-art:url("${safeUrl}")}\n`);
+}
+
+function requestArtKey(key) {
+  if (!key || requestedArt.has(key)) return;
+  requestedArt.add(key);
+  resolveBackdrop(key).then((url) => publishArt(key, url));
+}
+
+let dashboardCardArtObserver = null;
+export function observeDashboardCardArtwork(root) {
+  if (!root || !isModernStyle()) {
+    dashboardCardArtObserver?.disconnect();
+    return;
+  }
+  const cards = root.querySelectorAll("[data-art]");
+  if (!("IntersectionObserver" in window)) {
+    cards.forEach((card) => requestArtKey(card.getAttribute("data-art")));
+    return;
+  }
+  dashboardCardArtObserver ||= new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      dashboardCardArtObserver.unobserve(entry.target);
+      requestArtKey(entry.target.getAttribute("data-art"));
+    }
+  }, { rootMargin: "200px" });
+  for (const card of cards) {
+    if (!requestedArt.has(card.getAttribute("data-art"))) dashboardCardArtObserver.observe(card);
+  }
+}
+
+let explorerCardArtRoot = null;
+let explorerCardArtObserver = null;
+export function observeExplorerCardArtwork(root) {
+  explorerCardArtRoot = root || null;
+  explorerCardArtObserver?.disconnect();
+  if (!root || !isModernStyle()) return;
+  const cards = root.querySelectorAll(".explorer-history-card[data-art]");
+  if (!("IntersectionObserver" in window)) {
+    cards.forEach((card) => requestArtKey(card.getAttribute("data-art")));
+    return;
+  }
+  explorerCardArtObserver ||= new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (!entry.isIntersecting) continue;
+      explorerCardArtObserver.unobserve(entry.target);
+      requestArtKey(entry.target.getAttribute("data-art"));
+    }
+  }, { rootMargin: "300px" });
+  cards.forEach((card) => explorerCardArtObserver.observe(card));
+}
+
+if (typeof document !== "undefined") {
+  document.addEventListener(THEME_STYLE_EVENT, () => {
+    if (isModernStyle() && explorerCardArtRoot?.isConnected) observeExplorerCardArtwork(explorerCardArtRoot);
+  });
+}
+
+// --- Now Playing -----------------------------------------------------------
+// The section heading is hidden under Modern. While nothing plays, sync.js
+// renders an .idle-state placeholder in #nowPlayingGrid; under both styles,
+// features built from the first two Up Next cards are added beside it (CSS
+// hides the placeholder and those cards in the Up Next rail; only the backdrop
+// and shade are Modern's). sync.js removes every non-session
+// child when playback starts, which drops the features and returns the cards
+// to the rail; the live session cards take the same look, side by side.
+
+const timelineView = hasDocument ? document.querySelector?.("#timeline-view") : null;
+const nowPlayingGrid = hasDocument ? document.querySelector?.("#nowPlayingGrid") : null;
+const upNextPanel = hasDocument ? document.querySelector?.("#upNextPanel") : null;
+let featuredSourceHtml = "";
+let syncFrame = 0;
+
+// Keep in step with the :nth-child rule in styles-modern.css that hides the
+// featured cards from the rail.
+const FEATURED_UP_NEXT_COUNT = 2;
+
+function removeIdleFeature() {
+  nowPlayingGrid?.querySelectorAll(".modern-idle-feature").forEach((feature) => feature.remove());
+  featuredSourceHtml = "";
+}
+
+// The feature is a copy of the Up Next card itself, in a card-row wrapper so
+// the normal card styles apply; only its width and backdrop differ. Its
+// buttons carry the card's own data attributes, so the document-level Up Next
+// and poster-menu handlers act on it as they would in the rail.
+function buildIdleFeature(source) {
+  const feature = document.createElement("div");
+  feature.className = "dashboard-history-card-row modern-idle-feature";
+  feature.append(source.cloneNode(true));
+  return feature;
+}
+
+// The Now Playing heading names what the panel holds: "Up Next" while it
+// features Up Next cards (CSS then hides the rail's own title).
+function syncNowPlayingHeading() {
+  const heading = nowPlayingGrid?.closest(".live-panel")?.querySelector(".section-heading h2");
+  const text = nowPlayingGrid?.querySelector(".modern-idle-feature") ? "Up Next" : "Now Playing";
+  if (heading && heading.textContent !== text) heading.textContent = text;
+}
+
+function syncIdleFeature() {
+  syncIdleFeatureCard();
+  syncNowPlayingHeading();
+}
+
+function syncIdleFeatureCard() {
+  if (!nowPlayingGrid) return;
+  const idle = nowPlayingGrid.querySelector(":scope > .idle-state");
+  // The first FEATURED_UP_NEXT_COUNT Up Next cards, matching the CSS that
+  // hides them from the rail.
+  const sources = [...(upNextPanel?.querySelectorAll(":scope > [data-up-next-card-id]") || [])].slice(0, FEATURED_UP_NEXT_COUNT);
+  if (!idle || !sources.length) {
+    removeIdleFeature();
+    return;
+  }
+  const sourceHtml = sources.map((source) => source.outerHTML).join("");
+  if (nowPlayingGrid.querySelector(".modern-idle-feature") && featuredSourceHtml === sourceHtml) return;
+  nowPlayingGrid.querySelectorAll(".modern-idle-feature").forEach((feature) => feature.remove());
+  featuredSourceHtml = sourceHtml;
+  nowPlayingGrid.append(...sources.map(buildIdleFeature));
+}
+
+// Live cards are rendered by sync.js in state.activeSessions order.
+function tagLiveCards() {
+  if (!nowPlayingGrid) return;
+  const cards = nowPlayingGrid.querySelectorAll(":scope > [data-now-playing-card-id]");
+  cards.forEach((card, index) => {
+    const key = sessionArtKey(state.activeSessions?.[index]);
+    if (key && card.getAttribute("data-art") !== key) card.setAttribute("data-art", key);
+  });
+}
+
+// The main area takes the backdrop of the top item: the feature while idle,
+// otherwise the first live session.
+function syncPageArt() {
+  const pageShell = timelineView?.closest(".page-shell");
+  if (!pageShell) return;
+  const key = isModernStyle() ? nowPlayingGrid?.querySelector("[data-art]")?.getAttribute("data-art") || "" : "";
+  if (key) {
+    // The featured backdrop spans the page, even when its source card is below view.
+    requestArtKey(key);
+    if (pageShell.getAttribute("data-page-art") !== key) pageShell.setAttribute("data-page-art", key);
+  } else if (pageShell.hasAttribute("data-page-art")) {
+    pageShell.removeAttribute("data-page-art");
+  }
+}
+
+function syncModernDashboard() {
+  syncFrame = 0;
+  syncIdleFeature();
+  syncCompactOpenCards();
+  if (isModernStyle() && timelineView) {
+    tagLiveCards();
+  }
+  syncPageArt();
+  observeDashboardCardArtwork(timelineView);
+}
+
+function scheduleModernSync() {
+  if (!syncFrame) syncFrame = requestAnimationFrame(syncModernDashboard);
+}
+
+if (timelineView) {
+  // Every change is coalesced into one pass per frame, and that pass only
+  // writes when something differs, so its own writes settle immediately.
+  new MutationObserver(scheduleModernSync).observe(timelineView, { childList: true, subtree: true, attributes: true, attributeFilter: ["src"] });
+  scheduleModernSync();
+}
+
+if (hasDocument) {
+  document.addEventListener(THEME_STYLE_EVENT, () => {
+    rerenderRuns();
+    scheduleModernSync();
+  });
+}

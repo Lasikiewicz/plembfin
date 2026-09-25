@@ -1,6 +1,6 @@
 // Theme boot: a small classic script loaded with a blocking <script> in <head>,
 // so it runs before the body is parsed. It applies the saved (or system) theme
-// before first paint and gives each theme-aware logo its correct image.
+// and the saved theme style (Classic or Modern) before first paint and gives each theme-aware logo its correct image.
 //
 // The logo <img> elements in index.html deliberately have no src. With a src in
 // the markup, the browser's preload scanner requests that image before any
@@ -17,7 +17,13 @@
   const light = saved === "light" || (saved === null && !prefersDark);
   document.documentElement.classList.toggle("light-mode", light);
 
-  const logo = light ? "/plembfin_header_logo_light.png?v=1.2.2.0.0" : "/plembfin_header_logo_dark.png?v=1.2.2.0.0";
+  // Theme style is independent of the mode: absent (or unknown) is Classic,
+  // which carries no attribute at all. modules/appearance.js owns the toggle.
+  let style = null;
+  try { style = localStorage.getItem("plembfin:style"); } catch { /* storage unavailable: Classic */ }
+  if (style === "modern") document.documentElement.setAttribute("data-style", "modern");
+
+  const logo = light ? "/plembfin_header_logo_light.png?v=1.2.2.0.15" : "/plembfin_header_logo_dark.png?v=1.2.2.0.15";
   const preload = document.createElement("link");
   preload.rel = "preload";
   preload.as = "image";

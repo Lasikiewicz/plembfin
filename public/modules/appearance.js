@@ -1,5 +1,5 @@
-import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.0";
-import { state, elements } from "./state.js?v=1.2.2.0.0";
+import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.15";
+import { state, elements, THEME_STYLE_KEY } from "./state.js?v=1.2.2.0.15";
 
 export const APPEARANCE_DEFAULTS = {
   showLogoArt: true,
@@ -29,6 +29,41 @@ function populateAppearanceForm(prefs) {
   if (elements.appearShowReviews) elements.appearShowReviews.checked = prefs.showReviews;
   if (elements.appearShowImages) elements.appearShowImages.checked = prefs.showImages;
   if (elements.appearShowRelated) elements.appearShowRelated.checked = prefs.showRelated;
+}
+
+// Theme style (Classic or Modern) is per browser, like the light/dark mode, and
+// independent of it. theme-boot.js applies the saved style before first paint;
+// this keeps it in sync afterwards. Classic is the absence of data-style.
+let themeStyleTransitionTimeout = null;
+
+// Dispatched on document after the style changes, for features that render
+// differently under Modern (modules/dashboard-modern.js).
+export const THEME_STYLE_EVENT = "plembfin:theme-style";
+
+export function isModernStyle() {
+  return typeof document !== "undefined" && document.documentElement?.getAttribute("data-style") === "modern";
+}
+
+export function toggleThemeStyle() {
+  const root = document.documentElement;
+  root.classList.add("theme-transition");
+  clearTimeout(themeStyleTransitionTimeout);
+  themeStyleTransitionTimeout = setTimeout(() => root.classList.remove("theme-transition"), 180);
+
+  const modern = root.getAttribute("data-style") !== "modern";
+  if (modern) root.setAttribute("data-style", "modern");
+  else root.removeAttribute("data-style");
+  try {
+    if (modern) localStorage.setItem(THEME_STYLE_KEY, "modern");
+    else localStorage.removeItem(THEME_STYLE_KEY);
+  } catch { /* storage unavailable: the choice lasts for this page only */ }
+  document.dispatchEvent(new CustomEvent(THEME_STYLE_EVENT));
+}
+
+// The sidebar toggle is static markup and module scripts run after parsing,
+// so it can be bound here without a hook in app.js or app-events.js.
+if (typeof document !== "undefined") {
+  document.querySelector?.("#themeStyleButton")?.addEventListener("click", toggleThemeStyle);
 }
 
 export async function loadAppearanceSettings() {

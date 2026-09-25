@@ -1,4 +1,4 @@
-import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.0";
+import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.15";
 import {
   state, elements,
   EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS,
@@ -6,21 +6,23 @@ import {
   HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS,
   HISTORY_VIEW_KEY, HISTORY_FILTER_KEY,
   HISTORY_VIEW_MODES, HISTORY_FILTERS,
-} from "./state.js?v=1.2.2.0.0";
+} from "./state.js?v=1.2.2.0.15";
 import {
   escapeHtml, escapeAttribute, slug, showTitleFrom, showName, tvShowBaseHrefFromEpisode,
   movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, platformBadge, sourceClass, sourceBadgeHtml, formatDate,
   computeProgress, sanitizeTitle, episodeTitle, episodeCode,
-} from "./utils.js?v=1.2.2.0.0";
-import { posterMarkup, posterOverflowMenu, hydratePosters, bindPosterImageErrorHandler, tmdbPoster, tmdbProfile, proxiedArtworkUrl } from "./images.js?v=1.2.2.0.0";
+} from "./utils.js?v=1.2.2.0.15";
+import { posterMarkup, posterOverflowMenu, hydratePosters, bindPosterImageErrorHandler, tmdbPoster, tmdbProfile, proxiedArtworkUrl } from "./images.js?v=1.2.2.0.15";
 import {
   historySyncPill, renderSyncStatusDot, renderMediaSyncPills,
   renderAvailabilityPills, renderShowAvailabilityPills, showAvailIssuePopup,
   isWatchedHistoryAction,
-} from "./sync.js?v=1.2.2.0.0";
-import { dedupeMediaRecords } from "./media-records.js?v=1.2.2.0.0";
-import { renderMediaCard } from "./media-card.js?v=1.2.2.0.0";
-import { nextAiringCell, nextAiringDateValue, formatListDate, futureListDate } from "./stats.js?v=1.2.2.0.0";
+} from "./sync.js?v=1.2.2.0.15";
+import { dedupeMediaRecords } from "./media-records.js?v=1.2.2.0.15";
+import { renderMediaCard } from "./media-card.js?v=1.2.2.0.15";
+import { renderDashboardHistoryPageCard } from "./dashboard.js?v=1.2.2.0.15";
+import { observeExplorerCardArtwork } from "./dashboard-modern.js?v=1.2.2.0.15";
+import { nextAiringCell, nextAiringDateValue, formatListDate, futureListDate } from "./stats.js?v=1.2.2.0.15";
 // ---------------------------------------------------------------------------
 // Callback injection - functions defined outside the 2636-4016 range in app.js
 // ---------------------------------------------------------------------------
@@ -88,18 +90,6 @@ function initExplorerEvents() {
     applyListHeaderSort(header.dataset.sortKey);
   });
   elements.alphaFilterNav?.addEventListener("click", handleAlphaFilterClick);
-
-  elements.explorerPosterSize?.addEventListener("input", (event) => {
-    const value = event.target.value;
-    document.documentElement.style.setProperty("--poster-width", `${value}px`);
-    const widthKey = currentPosterWidthKey();
-    if (widthKey) localStorage.setItem(widthKey, `${value}px`);
-  });
-  elements.historyPosterSize?.addEventListener("input", (event) => {
-    const value = event.target.value;
-    document.documentElement.style.setProperty("--history-poster-width", `${value}px`);
-    localStorage.setItem("plembfin:history:posterWidth", `${value}px`);
-  });
 
   elements.historySearchInput?.addEventListener("input", () => {
     window.clearTimeout(state.historyViewSearchTimer);
@@ -220,6 +210,8 @@ let _explorerPrefetchObserver = null;
 let _filmographyObserver = null;
 let movieExplorerRenderKey = "";
 let movieExplorerRenderedCount = 0;
+let showExplorerRenderKey = "";
+let showExplorerRenderedRecords = [];
 export function getFilmographyObserver() { return _filmographyObserver; }
 export function setFilmographyObserver(v) { _filmographyObserver = v; }
 // ---------------------------------------------------------------------------
@@ -719,10 +711,6 @@ export function renderExplorer() {
   }
   const viewToggle = elements.explorerViewButtons?.[0]?.closest(".explorer-view-toggle");
   viewToggle?.classList.toggle("hidden", lockNextAirList);
-  if (elements.explorerPosterSizeLabel) {
-    elements.explorerPosterSizeLabel.style.display = activeView === "posters" ? "" : "none";
-  }
-  applyExplorerPosterWidth();
   if (elements.explorerSort) {
     const sort = currentExplorerSort();
     elements.explorerSort.value = sort;
@@ -870,6 +858,8 @@ export function resetShowExplorer(key = explorerQueryKey("shows")) {
   state.showsLoading = false;
   state.showsQueryKey = key;
   state.explorerScrollArmed = false;
+  showExplorerRenderKey = "";
+  showExplorerRenderedRecords = [];
 }
 
 function isCurrentExplorerRoute(mode) {
@@ -918,11 +908,10 @@ export function observeExplorerTmdbPrefetch(container) {
         const mediaType = el.dataset.prefetchType;
         const tmdbId = el.dataset.prefetchTmdb;
         const title = el.dataset.prefetchTitle;
-        // In the default "posters" grid the only thing TMDB details supplies is a
-        // poster_path for cards whose poster hasn't resolved yet. Cards that already
-        // rendered an <img> need nothing - skip them so we don't fire a request per
-        // card. List/overview views always need the metadata (dates, runtime, eps).
-        const needsMeta = currentExplorerView() === "list" || currentExplorerView() === "overview" || (mediaType === "tv" && currentExplorerView() === "posters");
+        // Every view needs the metadata: list (dates, runtime, eps), overview and
+        // the default cards view (the summary), so each card makes one light,
+        // cached request. The cards view's summary reuses [data-overview-text].
+        const needsMeta = ["list", "overview", "posters"].includes(currentExplorerView());
         const needsPoster = !!el.querySelector(".poster-fallback[data-poster-id]");
         if (!needsMeta && !needsPoster) {
           _explorerPrefetchObserver?.unobserve(el);
@@ -1004,7 +993,7 @@ export function observeExplorerTmdbPrefetch(container) {
               if (state.explorerSortShows === "next_air_asc" && mediaType === "tv") {
                 scheduleNextAirResort();
               }
-              if (currentExplorerView() === "overview" && data) {
+              if ((currentExplorerView() === "overview" || currentExplorerView() === "posters") && data) {
                 const attrsEl = el.querySelector("[data-overview-attrs]");
                 const textEl = el.querySelector("[data-overview-text]");
                 if (attrsEl && !attrsEl.textContent.trim()) {
@@ -1060,19 +1049,6 @@ export function setCurrentExplorerSort(value) {
     state.explorerSortMovies = value;
     localStorage.setItem(EXPLORER_SORT_KEY_MOVIES, value);
   }
-}
-export function currentPosterWidthKey() {
-  const mode = state.explorerMode === "shows" ? "shows" : "movies";
-  const view = currentExplorerView();
-  const isMobile = window.innerWidth <= 760;
-  return `plembfin:posterWidthV2:${mode}:${view}${isMobile ? ":mobile" : ""}`;
-}
-export function applyExplorerPosterWidth() {
-  const isMobile = window.innerWidth <= 760;
-  const defaultSize = isMobile ? "80px" : "160px";
-  const saved = localStorage.getItem(currentPosterWidthKey()) || defaultSize;
-  document.documentElement.style.setProperty("--poster-width", saved);
-  if (elements.explorerPosterSize) elements.explorerPosterSize.value = parseInt(saved) || (isMobile ? 80 : 160);
 }
 function explorerGridClass(isShows = false) {
   const base = isShows ? "movie-grid explorer-show-grid" : "movie-grid";
@@ -1140,21 +1116,13 @@ function rewatchBadge(entry) {
 export function renderMovieCard(movie) {
   if (currentExplorerView() === "list") return renderMovieListCard(movie);
   if (currentExplorerView() === "overview") return renderMovieOverviewCard(movie);
-  return `
-    <a class="movie-card" href="${escapeAttribute(movieHref(movie))}" data-history-id="${movie.id}" data-alpha-letter="${firstAlphaLetter(movie.title)}" data-prefetch-type="movie" data-prefetch-tmdb="${escapeAttribute(movie.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(movie.title || "")}" style="text-decoration: none; color: inherit;">
-      <div class="poster-media-wrap">
-        ${posterMarkup(movie, "movie-poster")}
-        ${posterOverflowMenu(movie)}
-      </div>
-      <div class="movie-card-body">
-        <div class="movie-card-title-row" style="display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; min-width: 0; width: 100%;">
-          <b style="min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="${escapeAttribute(movie.title)}">${escapeHtml(movie.title)}</b>
-          ${renderSyncStatusDot(movie, "margin-left: 0.25rem;")}
-        </div>
-        <span>${formatDate(movie.watched_at)} ${rewatchBadge(movie)}</span>
-      </div>
-    </a>
-  `;
+  const attributes = ` data-alpha-letter="${escapeAttribute(firstAlphaLetter(movie.title))}" data-prefetch-type="movie" data-prefetch-tmdb="${escapeAttribute(movie.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(movie.title || "")}"`;
+  return renderDashboardHistoryPageCard({ ...movie, media_type: "movie" }, {
+    explorer: true, explorerSummary: resolvedTmdbCache("movie", movie.tmdb_id, movie.title)?.overview || "",
+    explorerClass: "movie-card",
+    explorerAttributes: attributes,
+    explorerHref: movieHref(movie),
+  });
 }
 
 function commitMovieExplorerHtml(html) {
@@ -1186,10 +1154,12 @@ function commitMovieExplorerHtml(html) {
     currentGrid.replaceChildren(...nextGrid.childNodes);
     nextGrid.remove();
     elements.explorerPanel.replaceChildren(currentGrid, ...template.content.childNodes);
+    observeExplorerCardArtwork(elements.explorerPanel);
     return;
   }
 
   elements.explorerPanel.replaceChildren(...template.content.childNodes);
+  observeExplorerCardArtwork(elements.explorerPanel);
 }
 
 function syncMovieExplorerSentinel() {
@@ -1256,7 +1226,7 @@ function renderListHeader(isShows) {
   `;
 }
 function renderMovieListCard(movie) {
-  const sourceBadge = movie.source ? `<span class="source-badge ${sourceClass(movie.source)}">${escapeHtml(platformBadge(movie.source))}</span>` : "";
+  const sourceBadge = movie.source ? `<span class="source-badge ${sourceClass(movie.source)}"><span>${escapeHtml(platformBadge(movie.source))}</span></span>` : "";
   const tmdb = resolvedTmdbCache("movie", movie.tmdb_id, movie.title);
   const releaseDate = tmdb?.release_date ? formatListDate(tmdb.release_date) : "";
   const runtime = tmdb?.runtime ? `${tmdb.runtime} min` : "";
@@ -1279,7 +1249,7 @@ function renderMovieOverviewCard(movie) {
   const year = tmdb?.release_date?.slice(0, 4) || "";
   const genres = tmdb?.genres?.slice(0, 3).map((g) => escapeHtml(g.name)).join(" &middot; ") || "";
   const overview = tmdb?.overview || "";
-  const sourceBadge = movie.source ? `<span class="source-badge ${sourceClass(movie.source)}">${escapeHtml(platformBadge(movie.source))}</span>` : "";
+  const sourceBadge = movie.source ? `<span class="source-badge ${sourceClass(movie.source)}"><span>${escapeHtml(platformBadge(movie.source))}</span></span>` : "";
   return `
     <a class="movie-card explorer-overview-card" href="${escapeAttribute(movieHref(movie))}" data-history-id="${movie.id}" data-alpha-letter="${firstAlphaLetter(movie.title)}" data-prefetch-type="movie" data-prefetch-tmdb="${escapeAttribute(movie.tmdb_id || "")}" data-prefetch-title="${escapeAttribute(movie.title || "")}" style="text-decoration: none; color: inherit;">
       ${posterMarkup(movie, "overview-thumb-poster")}
@@ -1478,13 +1448,6 @@ export async function refreshHistoryViewInPlace() {
 // ---------------------------------------------------------------------------
 // History view
 // ---------------------------------------------------------------------------
-export function applyHistoryPosterWidth() {
-  const isMobile = window.innerWidth <= 760;
-  const defaultSize = "150px";
-  const saved = localStorage.getItem("plembfin:history:posterWidth") || defaultSize;
-  document.documentElement.style.setProperty("--history-poster-width", saved);
-  if (elements.historyPosterSize) elements.historyPosterSize.value = parseInt(saved) || 150;
-}
 export function resetHistoryView(key = "") {
   clearHistoryViewLoadWatchers();
   state.historyViewRequestVersion += 1;
@@ -1548,7 +1511,7 @@ function renderHistoryGridCard(entry) {
       <div class="history-grid-copy">
         <b title="${escapeAttribute(displayTitle)}">${escapeHtml(displayTitle)}</b>
         <span>${escapeHtml(isEpisode ? epTitle : mediaLabel)}</span>
-        <small>${formatDate(entry.watched_at)} ${rewatchBadge(entry)} ${renderSyncStatusDot(entry, "margin-left: 0.35rem;")}</small>
+        <small>${formatDate(entry.watched_at)} ${rewatchBadge(entry)}</small>
       </div>
     </a>
   `;
@@ -1562,7 +1525,7 @@ function renderHistoryListRow(entry) {
       <span class="history-list-col" title="${escapeAttribute(epTitle || mediaLabel)}">${escapeHtml(epTitle || mediaLabel)}</span>
       <span class="history-list-col">${escapeHtml(seasonEpisode || mediaLabel)}</span>
       <span class="history-list-col">${formatDate(entry.watched_at)} ${rewatchBadge(entry)}</span>
-      <span class="history-list-source">${sourceBadge}${renderSyncStatusDot(entry, "margin-left: 0.35rem;")}</span>
+      <span class="history-list-source">${sourceBadge}</span>
     </a>
   `;
 }
@@ -1606,7 +1569,6 @@ function renderHistoryPageCard(entry) {
         <div class="history-card-footer">
           <span class="meta-label">App Used:</span>
           ${sourceBadge}
-          ${renderSyncStatusDot(entry, "margin-left: 0.35rem;")}
         </div>
       </div>
     </a>
@@ -1634,7 +1596,6 @@ export function renderHistoryView() {
     elements.historyPanel.innerHTML = emptyExplorer("Loading watch history...");
     return;
   }
-  applyHistoryPosterWidth();
   if (elements.historySearchInput && elements.historySearchInput.value !== state.historyViewSearch) {
     elements.historySearchInput.value = state.historyViewSearch;
   }
@@ -1718,6 +1679,66 @@ export function observeHistorySentinel() {
 // ---------------------------------------------------------------------------
 // Show explorer
 // ---------------------------------------------------------------------------
+function syncShowExplorerSentinel() {
+  const current = elements.explorerPanel.querySelector('[data-explorer-sentinel="shows"]');
+  const html = renderExplorerSentinel("shows", state.showsHasMore, state.showsLoading);
+  if (!html) {
+    current?.remove();
+    return;
+  }
+  const template = document.createElement("template");
+  template.innerHTML = html;
+  const next = template.content.firstElementChild;
+  if (current) current.replaceWith(next);
+  else elements.explorerPanel.append(next);
+}
+
+function updateShowExplorerCards(viewKey, showsToRender) {
+  const renderedCount = showExplorerRenderedRecords.length;
+  const sortedByNextAir = state.explorerSortShows === "next_air_asc";
+  if (showExplorerRenderKey !== viewKey || !renderedCount) return false;
+  if (sortedByNextAir ? showsToRender.length < renderedCount : showsToRender.length <= renderedCount) return false;
+  const currentGrid = elements.explorerPanel.firstElementChild;
+  if (!currentGrid || currentGrid.className !== explorerGridClass(true)) return false;
+  const renderedNodes = [...currentGrid.querySelectorAll(":scope > [data-show-key]")];
+  if (renderedNodes.length !== renderedCount) return false;
+  if (!sortedByNextAir && !showExplorerRenderedRecords.every((record, index) => record === showsToRender[index])) return false;
+
+  if (sortedByNextAir) {
+    const nodesByRecord = new Map(showExplorerRenderedRecords.map((record, index) => [record, renderedNodes[index]]));
+    const nextRecords = new Set(showsToRender);
+    if (nodesByRecord.size !== renderedCount || !showExplorerRenderedRecords.every((record) => nextRecords.has(record))) return false;
+    const newRecords = showsToRender.filter((record) => !nodesByRecord.has(record));
+    const template = document.createElement("template");
+    template.innerHTML = newRecords.map(renderShowRecord).join("");
+    if (template.content.children.length !== newRecords.length) return false;
+    newRecords.forEach((record, index) => nodesByRecord.set(record, template.content.children[index]));
+    // Move existing cards into the new order; only newly fetched records need markup.
+    let cursor = currentGrid.firstElementChild?.classList.contains("explorer-list-header")
+      ? currentGrid.firstElementChild.nextElementSibling
+      : currentGrid.firstElementChild;
+    for (const record of showsToRender) {
+      const node = nodesByRecord.get(record);
+      if (node !== cursor) currentGrid.insertBefore(node, cursor);
+      cursor = node.nextElementSibling;
+      const nextAirEl = node.querySelector("[data-list-next-air]");
+      if (nextAirEl) {
+        const nextAiring = nextAiringCell(resolvedTmdbCache("tv", record.tmdb_id, record.title) || record);
+        if (nextAirEl.textContent !== nextAiring.text) nextAirEl.textContent = nextAiring.text;
+        nextAirEl.classList.toggle("list-next-air-status", Boolean(nextAiring.text && nextAiring.isStatus));
+      }
+    }
+  } else {
+    const newCards = showsToRender.slice(renderedCount).map(renderShowRecord).join("");
+    if (newCards) currentGrid.insertAdjacentHTML("beforeend", newCards);
+  }
+
+  elements.explorerPanel.querySelector('[data-explorer-sentinel="shows"]')?.remove();
+  showExplorerRenderedRecords = showsToRender.slice();
+  syncShowExplorerSentinel();
+  return true;
+}
+
 export function renderShowExplorer() {
   if (!isCurrentExplorerRoute("shows")) return;
   const key = explorerQueryKey("shows");
@@ -1726,7 +1747,14 @@ export function renderShowExplorer() {
     loadExplorerShows().catch((error) => setMessage(error.message, "error"));
   }
   if (!state.showsRaw.length && state.showsLoading) {
+    showExplorerRenderKey = "";
+    showExplorerRenderedRecords = [];
     elements.explorerPanel.innerHTML = emptyExplorer("Loading TV shows...");
+    return;
+  }
+  const viewKey = `${key}|${currentExplorerView()}|${currentExplorerSort()}`;
+  if (state.showsRaw.length && state.showsLoading && showExplorerRenderKey === viewKey) {
+    syncShowExplorerSentinel();
     return;
   }
   const showsToRender = state.explorerSortShows === "next_air_asc"
@@ -1741,10 +1769,24 @@ export function renderShowExplorer() {
       return String(a.title).localeCompare(String(b.title));
     })
     : state.showsRaw;
+  const hasNewCards = showsToRender.length > showExplorerRenderedRecords.length;
+  if (updateShowExplorerCards(viewKey, showsToRender)) {
+    if (hasNewCards) {
+      hydratePosters(elements.explorerPanel);
+      observeExplorerCardArtwork(elements.explorerPanel);
+      observeExplorerTmdbPrefetch(elements.explorerPanel);
+    }
+    observeExplorerSentinel("shows");
+    updateAlphaFilter();
+    return;
+  }
   elements.explorerPanel.innerHTML = showsToRender.length
     ? `<div class="${explorerGridClass(true)}">${currentExplorerView() === "list" ? renderListHeader(true) : ""}${showsToRender.map(renderShowRecord).join("")}</div>${renderExplorerSentinel("shows", state.showsHasMore, state.showsLoading)}`
     : emptyExplorer("No TV episodes logged yet");
+  showExplorerRenderKey = viewKey;
+  showExplorerRenderedRecords = showsToRender.slice();
   hydratePosters(elements.explorerPanel);
+  observeExplorerCardArtwork(elements.explorerPanel);
   observeExplorerSentinel("shows");
   observeExplorerTmdbPrefetch(elements.explorerPanel);
   updateAlphaFilter();
@@ -2128,7 +2170,7 @@ export function renderShowRecord(show = {}) {
     const episodeProgressHtml = totalEps
       ? `<div class="list-eps-progress" data-list-eps data-watched="${episodeCount}" data-total="${totalEps}"><div class="list-eps-bar-track"><div class="list-eps-bar-fill" style="width:${pct}%"></div></div><span class="list-eps-label">${episodeCount} / ${totalEps}${actualWatchText}</span></div>`
       : `<span class="list-card-col" data-list-eps data-watched="${episodeCount}" data-total="0">${episodeCount}${actualWatchText}</span>`;
-    const sourceEl = latestEpisode?.source ? `<span class="source-badge ${sourceClass(latestEpisode.source)}">${escapeHtml(platformBadge(latestEpisode.source))}</span>` : "";
+    const sourceEl = latestEpisode?.source ? `<span class="source-badge ${sourceClass(latestEpisode.source)}"><span>${escapeHtml(platformBadge(latestEpisode.source))}</span></span>` : "";
     return `
       <article class="explorer-list-card explorer-list-show-card" data-show-key="${escapeAttribute(showKey)}" data-show-href="${escapeAttribute(detailHref)}" data-alpha-letter="${firstAlphaLetter(displayTitle)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId)}" data-prefetch-title="${escapeAttribute(displayTitle)}">
         ${posterMarkup(showLibraryPosterEntry(show, latestEpisode), "list-thumb-poster")}
@@ -2162,23 +2204,28 @@ export function renderShowRecord(show = {}) {
     `;
   }
   const tmdbShow = resolvedTmdbCache("tv", tmdbId, displayTitle);
-  const totalEps = show.total_episodes || tmdbShow?.number_of_episodes || 0;
   const latestWatchedAt = latestEpisode?.watched_at || show.latest_watched_at || "";
-  return `
-    <article class="folder-card" data-alpha-letter="${firstAlphaLetter(displayTitle)}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId)}" data-prefetch-title="${escapeAttribute(displayTitle)}">
-      <a class="folder-trigger" href="${escapeAttribute(detailHref)}" data-show-key="${escapeAttribute(showKey)}" data-show-href="${escapeAttribute(detailHref)}"${historyId ? ` data-show-record-id="${escapeAttribute(historyId)}"` : ""} style="border: 0; background: transparent; padding: 0; width: 100%; text-align: left; display: block; text-decoration: none; color: inherit;">
-        <div class="poster-media-wrap">
-          ${posterMarkup(showLibraryPosterEntry(show, latestEpisode), "explorer-folder-poster")}
-          ${posterOverflowMenu(latestEpisode)}
-        </div>
-        <div class="movie-card-body" style="margin-top: 0.5rem;">
-          <b>${escapeHtml(displayTitle)}</b>
-          <span>${episodeCount}/${totalEps || "?"} watched${actualWatchText}</span>
-          ${latestWatchedAt ? `<span>${formatDate(latestWatchedAt)}</span>` : ""}
-        </div>
-      </a>
-    </article>
-  `;
+  const libraryPosterEntry = showLibraryPosterEntry(show, latestEpisode);
+  const historyEntry = {
+    ...latestEpisode,
+    id: latestEpisode?.id || historyId || show.id || "",
+    title: latestEpisode?.title || displayTitle,
+    media_type: "episode",
+    show_title: displayTitle,
+    show_tmdb_id: show.show_tmdb_id || tmdbId || latestEpisode?.show_tmdb_id || "",
+    show_tvdb_id: show.show_tvdb_id || show.tvdb_id || latestEpisode?.show_tvdb_id || "",
+    show_imdb_id: show.show_imdb_id || show.imdb_id || latestEpisode?.show_imdb_id || "",
+    poster_url: libraryPosterEntry.poster_url || "",
+    show_poster_url: libraryPosterEntry.show_poster_url || libraryPosterEntry.poster_url || "",
+    watched_at: latestWatchedAt,
+  };
+  const attributes = ` data-alpha-letter="${escapeAttribute(firstAlphaLetter(displayTitle))}" data-prefetch-type="tv" data-prefetch-tmdb="${escapeAttribute(tmdbId)}" data-prefetch-title="${escapeAttribute(displayTitle)}" data-show-key="${escapeAttribute(showKey)}" data-show-href="${escapeAttribute(detailHref)}"${historyId ? ` data-show-record-id="${escapeAttribute(historyId)}"` : ""}`;
+  return renderDashboardHistoryPageCard(historyEntry, {
+    explorer: true, explorerSummary: tmdbShow?.overview || "",
+    explorerClass: "folder-card",
+    explorerAttributes: attributes,
+    explorerHref: detailHref,
+  });
 }
 function showDetailHref(show = {}, displayTitle = "", showKey = "", historyId = "") {
   if (show.tmdb_id) return tvShowTmdbHref(show.tmdb_id, displayTitle);

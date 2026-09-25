@@ -1062,7 +1062,7 @@ function furthestEpisode(left = {}, right = {}) {
     || String(left.id || "").localeCompare(String(right.id || ""));
 }
 
-function collapseUncertainEpisodeQueues(items = []) {
+export function collapseUncertainEpisodeQueues(items = []) {
   const groups = new Map();
   const ungrouped = [];
   for (const item of Array.isArray(items) ? items : []) {
@@ -1093,7 +1093,15 @@ function collapseUncertainEpisodeQueues(items = []) {
   for (const rows of showGroups) {
     const knownResume = rows.filter((row) => row.queue_kind === "resume" && row.playback_position_known !== false);
     const uncertain = rows.filter(uncertainEpisodeQueueItem);
-    if (!knownResume.length && uncertain.length > 1) {
+    // One card per show. A part-watched episode is where the viewer actually
+    // is, so it wins over the show's next-up row (Ted Lasso S04E04 at 7% used
+    // to sit beside S04E05); several part-watched episodes keep the latest.
+    if (knownResume.length) {
+      const latest = [...knownResume].sort((left, right) => (
+        Number(right.updated_at || 0) - Number(left.updated_at || 0) || furthestEpisode(left, right)
+      ))[0];
+      collapsed.push(...rows.filter((row) => row !== latest && !knownResume.includes(row) && !uncertain.includes(row)), latest);
+    } else if (uncertain.length > 1) {
       const winner = [...uncertain].sort(furthestEpisode)[0];
       collapsed.push(...rows.filter((row) => !uncertain.includes(row)), winner);
     } else {

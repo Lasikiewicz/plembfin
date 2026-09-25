@@ -103,6 +103,31 @@ Rules that keep this correct:
   requests exactly one logo whatever the combination of saved theme and system preference.
   The two logo URLs and the fonts are versioned (`?v=`) like other assets, so production
   caches them immutably and a theme toggle is served from cache.
+- The theme style (Classic or Modern) is a second setting, independent of light/dark. It is
+  stored under `plembfin:style` (`THEME_STYLE_KEY` in `state.js`; absent = Classic) and
+  applied by `theme-boot.js` as `html[data-style="modern"]` before first paint. Classic has no
+  attribute at all. The Classic/Modern pill sits in the sidebar footer above the Light/Dark
+  toggle; `toggleThemeStyle()` in `modules/appearance.js` binds it and keeps the attribute and
+  key in sync. Modern rules live in `public/styles-modern.css`, loaded after `styles.css`, and
+  every rule there is scoped to `html[data-style="modern"]` (dark) or
+  `html[data-style="modern"].light-mode` (light). See `plan/archive/theme-styles.md`.
+  `toggleThemeStyle()` dispatches `plembfin:theme-style` (`THEME_STYLE_EVENT`) on `document`,
+  and `isModernStyle()` reports the current style. Modern-only dashboard behaviour lives in
+  `modules/dashboard-modern.js` (imported by `dashboard.js`): consecutive watches of one show
+  collapse into a single TV history card that expands in place when clicked (the newest
+  expanded card has a Collapse button). The same module owns the compact toggle beside each
+  "Recently watched" title (both styles, stored per row under `plembfin:dashboard-compact:tv`
+  and `:movie`): every card in the row folds to its poster (the details slide closed behind
+  it), clicking a folded poster opens that card, and a further click behaves as normal. The
+  Now Playing heading is hidden; when nothing is
+  playing the first Up Next item is featured there in a backdrop layout (and hidden from the
+  Up Next rail by CSS), and live sessions take the same layout side by side. Dashboard cards
+  carry `data-art="type|tmdb|tvdb|imdb|title"` (live cards get it from
+  `state.activeSessions`); each key's backdrop is looked up once through the batched TMDB
+  details request and published as a rule in an injected `#modernArtStyles` stylesheet, so
+  the cards are never mutated and their reconcile signatures stay stable. One
+  MutationObserver on `#timeline-view` drives all of this, so `sync.js` and `up-next.js`
+  have no hooks for it.
 - Every dynamic import carries the canonical `?v=` token. `assets:check` fails an unstamped
   or stale one (`test/assetVersionDynamicImports.test.js`).
 - Detail pages mark `plembfin:detail-primary-ready` (`markDetailPrimaryReady()` in
@@ -128,8 +153,9 @@ and title share one `/api/show` answer. Both are short-lived and cleared by
 
 Explorer paging appends only the newly loaded cards rather than re-rendering the whole
 accumulated list, guarded by a check that the grid on screen still matches the prefix
-already rendered; anything else (sort, view change, refresh) falls back to a full
-redraw.
+already rendered. Movies and ordinary TV sorts use this path. TV's Next Airing sort moves
+existing cards into their updated order as metadata or another page arrives, keeping
+their DOM nodes mounted. Sort, view, and data refreshes still redraw the grid.
 
 ## Routing
 
@@ -254,6 +280,9 @@ stays set to the slug throughout, so the address bar keeps the `/tvshow/:key` fo
 - Long-lived caches (explorer pages, dashboard history, Up Next, poster lookups, and
   Discover rail snapshots) persist to localStorage with TTLs and versioned keys; bump the
   key version when the cached shape changes.
+- TV Shows explorer pages revalidate after 30 minutes even when watch history has not
+  changed, because their summaries include independently refreshed next-airing data.
+  Movie explorer pages retain the longer persisted TTL.
 - `modules/live-updates.js` keeps an authenticated streaming `fetch` open to
   `/api/live-updates`. A shared SQLite data version lets web and worker processes
   announce committed watch-state and personal-media changes, while separate Discover
@@ -478,6 +507,7 @@ The size limits and grandfathered files that constrain these modules are in `CLA
 | Sync status, sync history, now-playing polling | `modules/sync.js`, `modules/sync-preview.js` |
 | Sync Activity page (`/sync-activity`), including its route-scoped action/event handlers | `modules/sync-activity.js` |
 | Dashboard rendering | `modules/dashboard.js` |
+| Modern-style-only dashboard behaviour (collapsed runs, Now Playing feature layout, card backdrops) and the compact Recently watched rows | `modules/dashboard-modern.js` |
 | Shared media identity/deduplication | `modules/media-records.js` |
 | Stats rendering | `modules/stats.js` |
 | Explorer grid, history page, search page | `modules/explorer.js` |

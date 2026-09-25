@@ -1,7 +1,48 @@
 {
-  "version": "1.2.2.0.0",
-  "build": 0,
+  "version": "1.2.2.0.15",
+  "build": 15,
   "resetCommit": "7b7a931d414af7634703386462c9d1d99a8c98fe",
-  "updatedAt": "2026-09-24T11:11:43.999Z",
-  "entries": []
+  "updatedAt": "2026-09-25T08:05:50.799Z",
+  "entries": [
+    {
+      "build": 15,
+      "date": "2026-09-25T08:05:50.799Z",
+      "commit": "574bcf37af8060ccb679c17c4f16d7f39b1b9e1c",
+      "message": "Feature - Add the Modern style, fold watched runs into stacks, and show one Up Next card per show",
+      "author": "Lasikiewicz",
+      "details": [
+        "Added a Classic/Modern switch in the sidebar, just above the Light/Dark toggle; the choice is remembered in this browser and works with both light and dark mode",
+        "The Modern style restyles the dashboard in dark and light mode: rounded gradient cards that lift on hover, provider-coloured Plex, Emby, and Jellyfin names, quieter field labels, and a highlighted active sidebar item",
+        "In the Modern style, dashboard cards show the title's backdrop artwork behind their details, and the dashboard background shows the artwork of the item at the top, shaded so text stays readable",
+        "In the Modern style, the featured Up Next card stretches across the top panel while nothing is playing, with its Clear button and progress bar; the heading reads Up Next while idle and Now Playing during playback",
+        "In the Modern style, playing sessions use the same backdrop layout side by side, with their details stacked one per line",
+        "The Now Playing section blurs the dashboard background like the sections below it, and the yellow hover border no longer fades at rounded corners",
+        "On phones, the Modern Up Next feature is a compact card with the poster beside the details",
+        "In the Modern style, episodes of the same show watched in a row fold into one run card showing the episode range and count, drawn as a stack with the older episodes' posters peeking out to the right; hovering spreads the stack a little",
+        "A button beside the TV Shows and Movies Recently watched titles folds that row's cards into their posters; clicking a folded poster or stack opens it, and opening another card folds the open one closed again. The choice is remembered per row",
+        "History cards mode takes the Modern card look in dark and light, with folded runs like the dashboard TV row",
+        "History grid posters and list mode get rounded corners, accent hovers, a tinted list header and readable provider badges in the Modern style",
+        "Under the Modern style, Discover, Watchlist, Ratings and custom list cards take the dashboard card look, with the rating as a small pill",
+        "Movies and TV cards and overview cards show the rounded Modern card surface and accent hover, and their provider labels are readable in light and dark mode",
+        "Movie and show pages in the Modern style get rounded posters, a card-style season list, episode tiles with an accent hover, and tidier fact labels",
+        "Settings sections and their expandable rows get rounded corners, a soft gradient surface and an accent hover border in the Modern style",
+        "Up Next shows each show once: a part-watched episode replaces that show's next-up card",
+        "The episode playing right now is hidden from Up Next until playback stops, and Now Playing cards show the episode title next to the episode number",
+        "The Now Playing card no longer stays on screen after playback ends",
+        "Movies and TV cards show the title's summary; on TV the show summary replaces the episode line",
+        "App Used labels on Movies and TV cards match the dashboard and stay neutral in the Modern style",
+        "Posters-only mode on Movies and TV has rounded poster corners, and Discover cards and posters match the Movies and TV sizes",
+        "Dashboard Watch now links no longer use provider-coloured text",
+        "Watchlist, Ratings, Custom lists and Discover show Released and the release date with a gap and no dash",
+        "History no longer shows the sync status, and its size slider is removed; its posters and cards use the Movies and TV sizes",
+        "The poster, card and compact view icons have been redesigned",
+        "On narrow tablet-width screens, dashboard cards keep a fixed-width poster beside the text, and the two featured Up Next cards sit side by side",
+        "On phones, dashboard card text fits the card width and Watch Now links wrap onto a second line; Movies and TV overview cards fit the screen",
+        "Movies overview cards with long titles no longer push their details past the card edge",
+        "In Modern light, list mode column headers on History, Movies and TV Shows are easier to read",
+        "The TV Shows page keeps existing cards on screen while loading more or re-sorting by Next Airing, and refreshes its cached pages after 30 minutes so next-airing dates stay current",
+        "Modern dashboard card artwork loads as cards scroll near the screen instead of all at once"
+      ]
+    }
+  ]
 }

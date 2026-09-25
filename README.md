@@ -60,6 +60,7 @@ None of these talk to each other - they all talk to Plembfin.
 - **Rich analytics & stats** - In-depth all-time and period reports, top shows, and platform playback distribution
 - **Personal media organization** - Save movies, shows, and episodes to a watch list or custom lists, and rate them from their media pages; episode ratings use one canonical show/season/episode identity everywhere
 - **Cache-first media detail pages** - Reuse the latest local history snapshot on reload so known artwork, summaries, watched rows, and watch dates stay visible while provider metadata refreshes
+- **Paged media libraries** - Movies and TV Shows load more cards as you scroll without rebuilding the cards already on screen; saved TV pages revalidate after 30 minutes when reopened
 - **Personal Rating Sync** - One-toggle, two-way rating sync with every connected Plex, Emby, Jellyfin, and Trakt account through an isolated durable queue, with Plembfin as the conflict authority
 - **Plex Watchlist Sync** - One-toggle, two-way sync between Plembfin and the Plex account watchlist, with safe first-run union, durable retries, a Sync now action, and a plain-language explanation of anything Plex refuses
 - **Upcoming episodes calendar** - Air date schedule for upcoming and past releases, pre-cached for instant loading
@@ -78,6 +79,20 @@ None of these talk to each other - they all talk to Plembfin.
 - **Progressive Web App (PWA)** - Installable directly on iOS, Android, macOS, and Windows with a native app experience
 
 See [`docs/architecture.md`](docs/architecture.md) for how each feature is actually built.
+
+---
+
+## Appearance
+
+Use the two switches at the bottom of the sidebar to choose **Classic** or **Modern** and
+**Light** or **Dark**. The choices are independent: each style works in either mode. Classic
+is the default; Modern changes the surfaces and accents while keeping the same pages and
+controls. Both choices are saved in your browser and restored when you reopen Plembfin.
+On a phone, open the navigation drawer to reach the switches.
+
+The **Appearance** menu on movie and TV detail pages controls which optional sections,
+such as cast, trailers, and reviews, are shown. It is separate from the style and mode
+switches.
 
 ---
 

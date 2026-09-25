@@ -7,7 +7,7 @@
   font-style: normal;
   font-display: swap;
   font-weight: 100 900;
-  src: url("/fonts/outfit-latin-ext-wght-normal.woff2?v=1.2.2.0.0") format("woff2");
+  src: url("/fonts/outfit-latin-ext-wght-normal.woff2?v=1.2.2.0.15") format("woff2");
   unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
 }
 
@@ -16,7 +16,7 @@
   font-style: normal;
   font-display: swap;
   font-weight: 100 900;
-  src: url("/fonts/outfit-latin-wght-normal.woff2?v=1.2.2.0.0") format("woff2");
+  src: url("/fonts/outfit-latin-wght-normal.woff2?v=1.2.2.0.15") format("woff2");
   unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
 }
 
@@ -25,7 +25,7 @@
   font-style: normal;
   font-display: swap;
   font-weight: 100 800;
-  src: url("/fonts/jetbrains-mono-latin-ext-wght-normal.woff2?v=1.2.2.0.0") format("woff2");
+  src: url("/fonts/jetbrains-mono-latin-ext-wght-normal.woff2?v=1.2.2.0.15") format("woff2");
   unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF;
 }
 
@@ -34,7 +34,7 @@
   font-style: normal;
   font-display: swap;
   font-weight: 100 800;
-  src: url("/fonts/jetbrains-mono-latin-wght-normal.woff2?v=1.2.2.0.0") format("woff2");
+  src: url("/fonts/jetbrains-mono-latin-wght-normal.woff2?v=1.2.2.0.15") format("woff2");
   unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD;
 }
 
@@ -14026,6 +14026,130 @@ h1 {
   background: var(--panel-3);
 }
 
+/* Compact history rows (modules/dashboard-modern.js): the toggle beside each
+   "Recently watched" title shows that row as posters only, in both styles.
+   The #timeline-view plus row-id selectors outrank the Classic and Modern
+   card rules, so compact holds in all four style and mode combinations. */
+.dashboard-history-heading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.dashboard-compact-toggle {
+  width: 1.85rem;
+  min-width: 1.85rem;
+  min-height: 1.85rem;
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+/* Page control bars use the standard icon-button footprint. Dashboard row
+   toggles keep their smaller, title-adjacent size. */
+.page-card-mode-toggle {
+  width: 2.1rem;
+  min-width: 2.1rem;
+  min-height: 2.05rem;
+}
+
+.dashboard-compact-toggle svg {
+  display: block;
+  width: 1.4rem;
+  height: 1.4rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.65;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* The icon shows the row's current look: tiles for full cards, posters when
+   compact. */
+.dashboard-compact-toggle[aria-pressed="true"] .dashboard-compact-icon-card,
+.dashboard-compact-toggle:not([aria-pressed="true"]) .dashboard-compact-icon-posters {
+  display: none;
+}
+
+.dashboard-compact-toggle:hover,
+.dashboard-compact-toggle:focus-visible {
+  color: var(--text);
+}
+
+.dashboard-compact-toggle[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--text), transparent 91%);
+  background: color-mix(in srgb, var(--text), transparent 96%);
+  color: color-mix(in srgb, var(--text), var(--muted) 35%);
+}
+
+/* Every card keeps its normal look; only its width changes. The poster gets
+   a fixed width and the details a fixed width (open card width minus the
+   poster), so folding the card to the poster width slides the details
+   closed behind the poster without reflowing them. The open width follows
+   the dashboard's per-state card widths below. */
+#timeline-view .dashboard-row-compact {
+  --compact-poster-width: 10.25rem;
+  --compact-open-width: 385px;
+}
+
+#timeline-view[data-dash-state="2"] .dashboard-row-compact {
+  --compact-open-width: 430px;
+}
+
+#timeline-view[data-dash-state="3"] .dashboard-row-compact {
+  --compact-open-width: 500px;
+}
+
+#timeline-view .dashboard-row-compact :is(#tvHistoryRow, #movieHistoryRow) > .dashboard-history-page-card {
+  flex: 0 0 var(--compact-open-width);
+  transition: flex-basis 260ms cubic-bezier(0.22, 1, 0.36, 1), border-color 140ms ease, background 140ms ease, box-shadow 140ms ease, transform 140ms ease;
+}
+
+#timeline-view .dashboard-row-compact :is(#tvHistoryRow, #movieHistoryRow) > .dashboard-history-page-card:not(.dashboard-card-open) {
+  flex-basis: calc(var(--compact-poster-width) + 2px);
+  cursor: pointer;
+}
+
+#timeline-view .dashboard-row-compact :is(#tvHistoryRow, #movieHistoryRow) > .dashboard-history-page-card > .history-card-poster-wrapper {
+  flex: 0 0 var(--compact-poster-width);
+  width: var(--compact-poster-width);
+  align-self: stretch;
+}
+
+#timeline-view .dashboard-row-compact :is(#tvHistoryRow, #movieHistoryRow) > .dashboard-history-page-card > .history-card-details {
+  flex: 0 0 auto;
+  width: calc(var(--compact-open-width) - var(--compact-poster-width) - 2px);
+  min-width: 0;
+}
+
+/* Phones stack the poster over the text, so a folded card just hides it. */
+@media (max-width: 640px) {
+  #timeline-view .dashboard-row-compact :is(#tvHistoryRow, #movieHistoryRow) > .dashboard-history-page-card,
+  #timeline-view .dashboard-row-compact :is(#tvHistoryRow, #movieHistoryRow) > .dashboard-history-page-card:not(.dashboard-card-open) {
+    flex-basis: clamp(128px, 40vw, 176px);
+  }
+
+  #timeline-view .dashboard-row-compact :is(#tvHistoryRow, #movieHistoryRow) > .dashboard-history-page-card > .history-card-poster-wrapper {
+    flex: 0 0 auto;
+    width: 100%;
+  }
+
+  #timeline-view .dashboard-row-compact :is(#tvHistoryRow, #movieHistoryRow) > .dashboard-history-page-card > .history-card-details {
+    width: auto;
+  }
+
+  #timeline-view .dashboard-row-compact :is(#tvHistoryRow, #movieHistoryRow) > .dashboard-history-page-card:not(.dashboard-card-open) > .history-card-details {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #timeline-view .dashboard-row-compact :is(#tvHistoryRow, #movieHistoryRow) > .dashboard-history-page-card {
+    transition: none;
+  }
+}
+
 .dashboard-part-watched-card .history-card-poster-wrapper,
 .dashboard-up-next-card .history-card-poster-wrapper {
   position: relative;
@@ -14291,12 +14415,26 @@ html.light-mode #timeline-view .part-watched-app-badge {
   }
 }
 
+/* At 641-760px the rows lose their fixed height and the cards keep the
+   poster beside the text, so a poster sized from the card height grows with
+   the wrapping text until it fills the card. Give it a fixed width instead. */
+@media (min-width: 641px) and (max-width: 760px) {
+  #timeline-view .dashboard-history-card-row .dashboard-history-page-card > .history-card-poster-wrapper {
+    flex: 0 0 7.5rem;
+    width: 7.5rem;
+    aspect-ratio: auto;
+  }
+}
+
 @media (max-width: 640px) {
   .page-shell[data-active-view="dashboard"] .dashboard-history-card-row .dashboard-history-page-card,
   #timeline-view[data-dash-state="2"] .dashboard-history-card-row .dashboard-history-page-card,
   #timeline-view[data-dash-state="3"] .dashboard-history-card-row .dashboard-history-page-card {
     flex: 0 0 clamp(128px, 40vw, 176px);
     flex-direction: column;
+    /* The generic <= 600px .history-page-card rule sets flex-start, which
+       sizes the details to their text and clips it past the card edge. */
+    align-items: stretch;
     padding: 0.5rem;
     gap: 0.5rem;
   }
@@ -14335,6 +14473,13 @@ html.light-mode #timeline-view .part-watched-app-badge {
 
   .page-shell[data-active-view="dashboard"] .dashboard-history-card-row .meta-label {
     font-size: 0.58rem;
+  }
+
+  /* The narrow cards cannot fit all three Watch Now links on one line. */
+  #timeline-view .dashboard-up-next-card .up-next-app-links .media-app-link-row {
+    width: auto;
+    max-width: 100%;
+    flex-wrap: wrap;
   }
 }
 
@@ -16469,14 +16614,14 @@ body:has(#explorerPanel > .modal-backdrop-image) .view-panel[data-view-panel="ex
 
 .explorer-overview-view {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(420px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(420px, 100%), 1fr));
   gap: var(--space-2);
   align-items: start;
 }
 
 .explorer-overview-card {
   display: grid;
-  grid-template-columns: 40% 60%;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
   border-radius: 8px;
   border: 1px solid var(--line);
   background: var(--panel-2);
@@ -16515,6 +16660,7 @@ body:has(#explorerPanel > .modal-backdrop-image) .view-panel[data-view-panel="ex
   padding: 0.85rem;
   min-width: 0;
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: 0.35rem;
   align-content: start;
 }
@@ -19940,6 +20086,26 @@ html.light-mode .theme-toggle-label--dark {
   color: var(--muted);
 }
 
+/* Theme style toggle: same pill, Classic on the left, Modern on the right.
+   Driven by html[data-style], independent of light/dark. */
+.theme-style-toggle .theme-toggle-thumb {
+  transform: translateX(0);
+}
+
+html[data-style="modern"] .theme-style-toggle .theme-toggle-thumb {
+  transform: translateX(100%);
+}
+
+.theme-toggle-label--classic,
+html[data-style="modern"] .theme-toggle-label--modern {
+  color: var(--text);
+}
+
+.theme-toggle-label--modern,
+html[data-style="modern"] .theme-toggle-label--classic {
+  color: var(--muted);
+}
+
 /* Ensure sidebar footer has proper styling */
 .sidebar-footer {
   display: flex;
@@ -20564,7 +20730,7 @@ html.light-mode button.shared-media-card-rating--action {
   display: flex;
   width: 100%;
   align-items: baseline;
-  gap: 0;
+  gap: 0.35em;
   min-width: 0;
   color: var(--muted);
   white-space: nowrap;
@@ -27278,10 +27444,39 @@ html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
 
   body .topnav.nav-open {
     position: fixed !important;
-    inset: 0 !important;
-    width: 100% !important;
+    inset: 0 auto 0 0 !important;
+    width: min(19rem, 84vw) !important;
     height: 100vh !important;
+    height: 100dvh !important;
     max-height: 100vh !important;
+    max-height: 100dvh !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    border-right: 1px solid var(--line-strong) !important;
+    border-bottom: 0 !important;
+    box-shadow: 16px 0 42px rgba(0, 0, 0, 0.28);
+    z-index: 500 !important;
+    animation: mobile-nav-enter 220ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+
+  body .topnav.nav-open .brand-search {
+    padding: 0.45rem 0.55rem;
+    gap: 0.35rem;
+  }
+
+  body .topnav.nav-open .global-search {
+    margin-top: 0.2rem;
+  }
+
+  body .topnav.nav-open .nav-tab {
+    min-height: 2.5rem;
+    padding: 0.4rem 0.65rem;
+    font-size: 0.9rem;
+  }
+
+  body .topnav.nav-open .sidebar-footer {
+    padding-top: 0.45rem;
+    padding-bottom: max(0.55rem, env(safe-area-inset-bottom));
   }
 
   body .page-shell[data-active-view="dashboard"] .dashboard-history-panel .dashboard-row-section {
@@ -27368,6 +27563,165 @@ html:not(.light-mode) #globalSearchDropdown .gsd-more:focus {
     width: 100%;
     min-width: 0;
   }
+}
+
+@keyframes mobile-nav-enter {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  body .topnav.nav-open { animation-duration: 1ms; }
+}
+
+/* The same full-card/poster control is available on library and media pages.
+   Compact mode only changes card presentation; each page's current view and
+   filters stay selected. */
+.page-card-mode-compact :is(.discover-feed-row, .personal-media-card-grid, .personal-media-list-row) > .shared-media-card {
+  flex-direction: column;
+  flex-basis: 10rem;
+  width: 10rem;
+  padding: 0;
+  gap: 0;
+}
+
+.page-card-mode-compact :is(.discover-feed-row, .personal-media-card-grid, .personal-media-list-row) > .shared-media-card .shared-media-card-poster-wrap {
+  flex-basis: auto;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+  border-radius: 0;
+}
+
+.page-card-mode-compact :is(.discover-feed-row, .personal-media-card-grid, .personal-media-list-row) > .shared-media-card .shared-media-card-body {
+  display: none;
+}
+
+.page-card-mode-compact .explorer-overview-view {
+  grid-template-columns: repeat(auto-fill, minmax(min(10rem, 100%), min(10rem, 100%)));
+  justify-content: space-between;
+}
+
+.page-card-mode-compact .explorer-overview-card {
+  display: block;
+  width: 100%;
+  aspect-ratio: 2 / 3;
+}
+
+.page-card-mode-compact .explorer-overview-card > :is(.overview-thumb-poster, .overview-show-poster-btn) {
+  display: block;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  object-fit: cover;
+}
+
+.page-card-mode-compact .explorer-overview-card > .overview-card-meta {
+  display: none;
+}
+
+.page-card-mode-compact .explorer-list-view {
+  grid-template-columns: repeat(auto-fill, minmax(min(10rem, 100%), min(10rem, 100%)));
+  gap: 0.65rem;
+  overflow: visible;
+  border: 0;
+  justify-content: space-between;
+}
+
+.page-card-mode-compact .explorer-list-header {
+  display: none;
+}
+
+.page-card-mode-compact .explorer-list-card {
+  display: block;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  aspect-ratio: 2 / 3;
+}
+
+.page-card-mode-compact .explorer-list-card > :not(.list-thumb-poster) {
+  display: none;
+}
+
+.page-card-mode-compact .explorer-list-card > .list-thumb-poster {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border: 0;
+  border-radius: 0;
+}
+
+.page-card-mode-compact .history-list .history-page-card {
+  aspect-ratio: 2 / 3;
+  min-width: 0;
+}
+
+.page-card-mode-compact .history-list {
+  grid-template-columns: repeat(auto-fill, minmax(min(10rem, 100%), min(10rem, 100%)));
+  justify-content: space-between;
+}
+
+.page-card-mode-compact .history-grid-view {
+  grid-template-columns: repeat(auto-fill, minmax(min(10rem, 100%), min(10rem, 100%)));
+  justify-content: space-between;
+}
+
+.page-card-mode-compact .history-list .history-page-card > .history-card-details {
+  display: none;
+}
+
+.page-card-mode-compact .history-list .history-page-card > .history-card-poster-wrapper {
+  flex: 0 0 100%;
+  width: 100%;
+}
+
+.page-card-mode-compact .history-grid-view .history-grid-copy,
+.page-card-mode-compact .history-list .history-list-header,
+.page-card-mode-compact .history-table-view .history-list-header,
+.page-card-mode-compact .history-table-view .history-list-row > :not(.history-list-poster) {
+  display: none;
+}
+
+.page-card-mode-compact .history-table-view {
+  grid-template-columns: repeat(auto-fill, minmax(min(10rem, 100%), min(10rem, 100%)));
+  gap: 0.65rem;
+  border: 0;
+  overflow: visible;
+  justify-content: space-between;
+}
+
+.page-card-mode-compact .history-list-row {
+  display: block;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  aspect-ratio: 2 / 3;
+}
+
+.page-card-mode-compact .history-list-row > .history-list-poster {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border: 0;
+  border-radius: 0;
+}
+
+/* Run cards on History are folded records, not visual poster stacks. */
+#history-view .dashboard-collapsed-run-card {
+  box-shadow: none !important;
+  margin-right: 0 !important;
+}
+
+#history-view .dashboard-run-expanded {
+  box-shadow: none !important;
+}
+
+/* Stack peeks are Modern-only: Classic draws a run as one plain card. */
+html:not([data-style="modern"]) .dashboard-run-peek,
+#history-view .dashboard-run-peek {
+  display: none !important;
 }
 
 /* Mobile media rails ----------------------------------------------------- *
@@ -29874,7 +30228,6 @@ body .page-topbar-actions #upcomingTopbarControls .action-pill,
   }
 
   body #historyTopbarControls > .explorer-search-box.active-mobile-panel,
-  body #historyTopbarControls > .history-size-control.active-mobile-panel,
   body #explorerTopbarControls > .explorer-size-slider.active-mobile-panel {
     display: grid !important;
     width: 100% !important;
@@ -29889,7 +30242,6 @@ body .page-topbar-actions #upcomingTopbarControls .action-pill,
     min-width: 0 !important;
   }
 
-  body #historyTopbarControls > .history-size-control.active-mobile-panel,
   body #explorerTopbarControls > .explorer-size-slider.active-mobile-panel {
     display: flex !important;
     align-items: center !important;
@@ -29897,7 +30249,6 @@ body .page-topbar-actions #upcomingTopbarControls .action-pill,
     gap: 0.75rem !important;
   }
 
-  body #historyTopbarControls > .history-size-control.active-mobile-panel input,
   body #explorerTopbarControls > .explorer-size-slider.active-mobile-panel input {
     flex: 1 1 auto !important;
     width: 100% !important;
@@ -29947,5 +30298,437 @@ body #statsTopbarControls .stats-filter-field .field {
     max-width: 34ch;
     align-self: start;
     justify-self: stretch;
+  }
+}
+
+/* Compact mode also wins over the mobile rail's stacked-card defaults. */
+@media (max-width: 760px) {
+  .page-shell[data-active-view="discover"] [data-view-panel="discover"].page-card-mode-compact .shared-media-card-body,
+  .page-shell[data-active-view="watchlist"] [data-view-panel="personal-media"].page-card-mode-compact .shared-media-card-body,
+  .page-shell[data-active-view="ratings"] [data-view-panel="personal-media"].page-card-mode-compact .shared-media-card-body,
+  .page-shell[data-active-view="custom-lists"] [data-view-panel="personal-media"].page-card-mode-compact .shared-media-card-body,
+  .page-shell[data-active-view="history"] [data-view-panel="history"].page-card-mode-compact .history-card-details {
+    display: none !important;
+  }
+
+  .page-shell[data-active-view="explorer"] [data-view-panel="explorer"].page-card-mode-compact .movie-grid {
+    grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  }
+}
+
+/* Compact page mode is a poster gallery. These rules follow the page-specific
+   rail sizing so Discover and Personal Media cannot retain their 385px cards. */
+.page-shell [data-view-panel="discover"].page-card-mode-compact .discover-feed-row > .shared-media-card--discover {
+  box-sizing: border-box;
+  width: 10rem;
+  min-width: 10rem;
+  max-width: 10rem;
+  flex: 0 0 10rem;
+  height: auto;
+  align-self: flex-start;
+  min-height: 0;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+}
+
+.page-shell [data-view-panel="discover"].page-card-mode-compact .discover-feed-row {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  overflow: visible;
+}
+
+.page-shell [data-view-panel="discover"].page-card-mode-compact .shared-media-card--discover .shared-media-card-poster-wrap {
+  box-sizing: border-box;
+  width: 100%;
+  height: auto;
+  max-height: none;
+  flex: 0 0 auto;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--poster-radius) var(--poster-radius) 0 0;
+}
+
+.page-shell [data-view-panel="discover"].page-card-mode-compact .shared-media-card--discover .shared-media-card-body,
+.page-shell [data-view-panel="personal-media"].page-card-mode-compact .shared-media-card--personal .shared-media-card-body {
+  display: none !important;
+}
+
+.page-shell [data-view-panel="personal-media"].page-card-mode-compact .personal-media-card-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(10rem, 100%), min(10rem, 100%)));
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.page-shell [data-view-panel="personal-media"].page-card-mode-compact .personal-media-list-row {
+  flex-wrap: wrap;
+  justify-content: space-between;
+  overflow: visible;
+}
+
+.page-shell [data-view-panel="personal-media"].page-card-mode-compact .personal-media-card-grid > .shared-media-card--personal {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 10rem;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+}
+
+.page-shell [data-view-panel="personal-media"].page-card-mode-compact .personal-media-card-grid .shared-media-card-poster-wrap {
+  box-sizing: border-box;
+  width: 100%;
+  height: auto;
+  flex: 0 0 auto;
+  aspect-ratio: 2 / 3;
+}
+
+.page-shell [data-view-panel="personal-media"].page-card-mode-compact .personal-media-list-row > .shared-media-card--personal {
+  box-sizing: border-box;
+  width: 10rem;
+  min-width: 10rem;
+  max-width: 10rem;
+  flex: 0 0 10rem;
+  height: 100%;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+}
+
+.page-shell [data-view-panel="personal-media"].page-card-mode-compact .personal-media-list-row .shared-media-card-poster-wrap {
+  box-sizing: border-box;
+  width: 100%;
+  height: auto;
+  flex: 0 0 auto;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--poster-radius) var(--poster-radius) 0 0;
+}
+
+/* The Movies / TV poster view is already poster-only. Compact mode makes its
+   tiles denser, while overview and list views fold down to the same gallery. */
+.page-shell [data-view-panel="explorer"].page-card-mode-compact .movie-grid:not(.explorer-list-view) {
+  grid-template-columns: repeat(auto-fill, minmax(min(10rem, 100%), min(10rem, 100%)));
+  justify-content: space-between;
+}
+
+.page-shell [data-view-panel="explorer"].page-card-mode-compact .movie-grid .movie-card-body {
+  display: none !important;
+}
+
+.page-shell [data-view-panel="explorer"].page-card-mode-compact .movie-grid > .explorer-history-card {
+  box-sizing: border-box;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+  aspect-ratio: 2 / 3;
+}
+
+.page-shell [data-view-panel="history"].page-card-mode-compact .history-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(10rem, 100%), min(10rem, 100%)));
+  justify-content: space-between;
+  overflow: visible;
+}
+
+.page-shell [data-view-panel="explorer"].page-card-mode-compact .explorer-history-card > .history-card-poster-wrapper {
+  box-sizing: border-box;
+  width: 100%;
+  height: auto;
+  max-height: none;
+  flex: 0 0 auto;
+  align-self: stretch;
+  aspect-ratio: 2 / 3;
+  border-radius: var(--poster-radius) var(--poster-radius) 0 0;
+}
+
+.page-shell [data-view-panel="explorer"].page-card-mode-compact .explorer-history-card .history-page-poster {
+  width: 100%;
+  height: 100%;
+  aspect-ratio: 2 / 3;
+}
+
+.page-shell [data-view-panel="explorer"].page-card-mode-compact .explorer-history-card > .history-card-details {
+  display: none !important;
+}
+
+.page-shell [data-view-panel="history"].page-card-mode-compact .history-list .history-page-card,
+.page-shell [data-view-panel="history"].page-card-mode-compact .history-table-view .history-list-row {
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+.page-shell [data-view-panel="explorer"].page-card-mode-compact .explorer-overview-view {
+  grid-template-columns: repeat(auto-fill, minmax(7rem, 9rem));
+  justify-content: start;
+}
+
+.page-shell [data-view-panel="explorer"].page-card-mode-compact .explorer-list-view {
+  grid-template-columns: repeat(auto-fill, minmax(7rem, 9rem));
+  justify-content: start;
+}
+
+@media (max-width: 760px) {
+  .page-shell [data-view-panel="personal-media"].page-card-mode-compact .personal-media-card-grid,
+  .page-shell [data-view-panel="history"].page-card-mode-compact .history-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(10rem, 100%), min(10rem, 100%)));
+    justify-content: space-between;
+    overflow: visible;
+  }
+
+  .page-shell [data-view-panel="discover"].page-card-mode-compact .discover-feed-row > .shared-media-card--discover,
+  .page-shell [data-view-panel="personal-media"].page-card-mode-compact .personal-media-list-row > .shared-media-card--personal {
+    width: 10rem;
+    min-width: 0;
+    max-width: 10rem;
+    flex-basis: 10rem;
+  }
+
+  .page-shell [data-view-panel="personal-media"].page-card-mode-compact .personal-media-card-grid {
+    grid-template-columns: repeat(auto-fill, minmax(min(10rem, 100%), min(10rem, 100%)));
+    justify-content: space-between;
+  }
+
+  .page-shell[data-active-view="discover"] [data-view-panel="discover"].page-card-mode-compact .discover-feed-row > .shared-media-card--discover,
+  .page-shell[data-active-view="watchlist"] [data-view-panel="personal-media"].page-card-mode-compact .personal-media-card-grid > .shared-media-card--personal,
+  .page-shell[data-active-view="ratings"] [data-view-panel="personal-media"].page-card-mode-compact .personal-media-card-grid > .shared-media-card--personal,
+  .page-shell[data-active-view="custom-lists"] [data-view-panel="personal-media"].page-card-mode-compact .personal-media-list-row > .shared-media-card--personal {
+    width: 10rem;
+    min-width: 10rem;
+    max-width: 10rem;
+    flex: 0 0 10rem;
+  }
+
+  .page-shell[data-active-view="history"] [data-view-panel="history"].page-card-mode-compact .history-list > .history-page-card {
+    width: 100%;
+    flex: initial;
+  }
+
+  .page-shell [data-view-panel="explorer"].page-card-mode-compact .movie-grid:not(.explorer-list-view) {
+    grid-template-columns: repeat(auto-fill, minmax(min(10rem, 100%), min(10rem, 100%)));
+    justify-content: space-between;
+  }
+}
+
+/* Movies and TV reuse the dashboard's history tile markup and theme styling.
+   Keep the alternate compact, list, and overview modes under their own rules. */
+.page-shell [data-view-panel="explorer"]:not(.page-card-mode-compact) #explorerPanel .movie-grid:not(.explorer-list-view, .explorer-overview-view) {
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 24.0625rem), 1fr));
+  justify-content: stretch;
+  align-items: stretch;
+}
+
+.page-shell [data-view-panel="explorer"]:not(.page-card-mode-compact) #explorerPanel .movie-grid:not(.explorer-list-view, .explorer-overview-view) > :is(.movie-card, .folder-card) {
+  box-sizing: border-box;
+  display: flex;
+  min-width: 0;
+  height: 15rem;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 0;
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--panel-2);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
+}
+
+.page-shell [data-view-panel="explorer"]:not(.page-card-mode-compact) #explorerPanel .movie-grid:not(.explorer-list-view, .explorer-overview-view) > .explorer-history-card {
+  position: relative;
+  isolation: isolate;
+  text-decoration: none;
+}
+
+.page-shell [data-view-panel="explorer"]:not(.page-card-mode-compact) #explorerPanel .explorer-history-card > .history-card-poster-wrapper {
+  box-sizing: border-box;
+  width: auto;
+  height: 100%;
+  flex: 0 0 auto;
+  aspect-ratio: 2 / 3;
+  align-self: stretch;
+  overflow: hidden;
+  border-radius: 0;
+  background: var(--panel-3);
+  box-shadow: none;
+}
+
+.page-shell [data-view-panel="explorer"]:not(.page-card-mode-compact) #explorerPanel .explorer-history-card .history-page-poster {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  border-radius: 0;
+  object-fit: cover;
+  box-shadow: none;
+}
+
+.page-shell [data-view-panel="explorer"]:not(.page-card-mode-compact) #explorerPanel .explorer-history-card > .history-card-details {
+  min-width: 0;
+  min-height: 0;
+  flex: 1 1 auto;
+  padding: 0.65rem;
+}
+
+.page-shell [data-view-panel="explorer"]:not(.page-card-mode-compact) #explorerPanel .explorer-history-card .history-card-title {
+  font-size: 1rem;
+  font-weight: 850;
+}
+
+.page-shell [data-view-panel="explorer"]:not(.page-card-mode-compact) #explorerPanel .explorer-history-card:hover .history-card-poster-wrapper {
+  transform: none;
+}
+
+@media (max-width: 760px) {
+  .page-shell [data-view-panel="explorer"]:not(.page-card-mode-compact) #explorerPanel .movie-grid:not(.explorer-list-view, .explorer-overview-view) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* History has no size control: its posters use the other pages' poster-mode
+   width, and on desktop its cards mode takes the Movies and TV full-card size
+   above. Phones keep the shared mobile card rail. */
+.page-shell [data-view-panel="history"] {
+  --history-poster-width: 10.041rem;
+}
+
+@media (min-width: 761px) {
+  .page-shell [data-view-panel="history"]:not(.page-card-mode-compact) .history-list {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 24.0625rem), 1fr));
+    align-items: stretch;
+  }
+
+  .page-shell [data-view-panel="history"]:not(.page-card-mode-compact) .history-list > .history-page-card {
+    box-sizing: border-box;
+    min-width: 0;
+    height: 15rem;
+  }
+
+  .page-shell [data-view-panel="history"]:not(.page-card-mode-compact) .history-list > .history-page-card > .history-card-poster-wrapper {
+    width: auto;
+    height: 100%;
+    flex: 0 0 auto;
+    aspect-ratio: 2 / 3;
+  }
+
+  .page-shell [data-view-panel="history"]:not(.page-card-mode-compact) .history-list > .history-page-card > .history-card-details {
+    min-height: 0;
+    padding: 0.65rem;
+  }
+
+  .page-shell [data-view-panel="history"]:not(.page-card-mode-compact) .history-list > .history-page-card .history-card-title {
+    font-size: 1rem;
+  }
+}
+
+/* Poster mode uses the poster dimensions of each page's full-card layout.
+   Discover and Custom Lists have slightly shorter rail cards than the fixed
+   10rem gallery cards used by the other page groups. */
+.page-shell [data-view-panel="discover"].page-card-mode-compact .discover-feed-row > .shared-media-card--discover {
+  width: 10.041rem;
+  min-width: 10.041rem;
+  max-width: 10.041rem;
+  flex-basis: 10.041rem;
+}
+
+.page-shell [data-view-panel="personal-media"].page-card-mode-compact .personal-media-list-row > .shared-media-card--personal {
+  width: 9.707rem;
+  min-width: 9.707rem;
+  max-width: 9.707rem;
+  flex-basis: 9.707rem;
+}
+
+.page-shell [data-view-panel="personal-media"].page-card-mode-compact .personal-media-card-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(10.125rem, 100%), min(10.125rem, 100%)));
+}
+
+.page-shell [data-view-panel="personal-media"].page-card-mode-compact .personal-media-card-grid > .shared-media-card--personal {
+  max-width: 10.125rem;
+}
+
+.page-shell[data-active-view="history"] [data-view-panel="history"].page-card-mode-compact .history-list,
+.page-shell[data-active-view="history"] [data-view-panel="history"].page-card-mode-compact .history-grid-view,
+.page-shell[data-active-view="history"] [data-view-panel="history"].page-card-mode-compact .history-table-view {
+  grid-template-columns: repeat(auto-fill, minmax(min(var(--history-poster-width, 86px), 100%), min(var(--history-poster-width, 86px), 100%)));
+}
+
+.page-shell[data-active-view="history"] [data-view-panel="history"].page-card-mode-compact .history-list .history-page-card,
+.page-shell[data-active-view="history"] [data-view-panel="history"].page-card-mode-compact .history-table-view .history-list-row {
+  width: 100%;
+  aspect-ratio: 2 / 3;
+}
+
+.page-shell [data-view-panel="explorer"].page-card-mode-compact .movie-grid:not(.explorer-list-view, .explorer-overview-view) {
+  grid-template-columns: repeat(auto-fill, minmax(min(10.041rem, 100%), min(10.041rem, 100%)));
+}
+
+/* Poster mode hides the details, so the card's own rounded corners must clip
+   the poster (Modern squares the poster itself for the full-card layout). */
+.page-shell [data-view-panel="explorer"].page-card-mode-compact .movie-grid > .explorer-history-card {
+  overflow: hidden;
+}
+
+/* Movies and TV cards show the title's summary under the title (in place of
+   the episode line on TV); explorer.js fills it in once TMDB details load. */
+.page-shell #explorerPanel .explorer-history-card .history-card-summary {
+  display: -webkit-box;
+  margin: 0.2rem 0 0;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+.page-shell #explorerPanel .explorer-history-card .history-card-summary:empty {
+  display: none;
+}
+
+/* App Used matches the dashboard's plain badge. The older .movie-card span
+   rules would otherwise resize, recolour and fill it on the Movies page. */
+.page-shell #explorerPanel .explorer-history-card .history-card-apps .source-badge {
+  background: transparent;
+  gap: var(--space-1);
+  padding-inline: var(--space-1);
+  color: var(--soft);
+  font-size: 0.74rem;
+  font-weight: 850;
+}
+
+.page-shell #explorerPanel .explorer-history-card .history-card-apps .source-badge span {
+  color: inherit;
+  font-size: inherit;
+  font-weight: inherit;
+}
+
+/* Discover's full cards take the Movies and TV card size and type: 15rem
+   tall, a flush full-height 2:3 poster and a 1rem heavy title. */
+@media (min-width: 761px) {
+  .page-shell [data-view-panel="discover"]:not(.page-card-mode-compact) .discover-feed-row > .shared-media-card--discover {
+    box-sizing: border-box;
+    height: 15rem;
+    min-height: 15rem;
+  }
+
+  .page-shell [data-view-panel="discover"]:not(.page-card-mode-compact) .shared-media-card--discover .shared-media-card-poster-wrap {
+    width: auto;
+    height: 100%;
+    max-height: none;
+    flex: 0 0 auto;
+    aspect-ratio: 2 / 3;
+  }
+
+  .page-shell [data-view-panel="discover"]:not(.page-card-mode-compact) .shared-media-card--discover .shared-media-card-body {
+    min-width: 0;
+    padding: 0.65rem;
+  }
+
+  .page-shell [data-view-panel="discover"]:not(.page-card-mode-compact) .shared-media-card--discover .shared-media-card-title {
+    font-size: 1rem;
+    font-weight: 850;
   }
 }

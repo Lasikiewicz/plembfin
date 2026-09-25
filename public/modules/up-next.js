@@ -1,14 +1,14 @@
-import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.0";
-import { state, elements } from "./state.js?v=1.2.2.0.0";
-import { escapeAttribute, escapeHtml, slug } from "./utils.js?v=1.2.2.0.0";
-import { hydratePosters } from "./images.js?v=1.2.2.0.0";
-import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=1.2.2.0.0";
-import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=1.2.2.0.0";
+import { buildAuthHeaders } from "./auth.js?v=1.2.2.0.15";
+import { state, elements } from "./state.js?v=1.2.2.0.15";
+import { escapeAttribute, escapeHtml, slug } from "./utils.js?v=1.2.2.0.15";
+import { hydratePosters } from "./images.js?v=1.2.2.0.15";
+import { hydrateMediaAppLinks } from "./media-detail-shared.js?v=1.2.2.0.15";
+import { renderDashboardUpNextCard, updateDashboardRowWithMotion } from "./dashboard.js?v=1.2.2.0.15";
 import {
   manualShowMatches, isShowInUpNext, provenDifferentShow, upNextShowActionHtml,
-  upNextCoordinateDismissalKey, upNextShowDismissalKeys, upNextDismissalKeys,
-} from "./up-next-shared.js?v=1.2.2.0.0";
-import { renderMediaCard } from "./media-card.js?v=1.2.2.0.0";
+  upNextCoordinateDismissalKey, upNextShowDismissalKeys, upNextDismissalKeys, withoutNowPlaying,
+} from "./up-next-shared.js?v=1.2.2.0.15";
+import { renderMediaCard } from "./media-card.js?v=1.2.2.0.15";
 
 const UP_NEXT_TTL_MS = 2 * 60 * 1000;
 const UP_NEXT_TIMEOUT_MS = 20000;
@@ -1374,7 +1374,7 @@ export function renderUpNext({ exitIds = [] } = {}) {
     return;
   }
 
-  const items = visibleUpNextItems();
+  const items = withoutNowPlaying(visibleUpNextItems(), state.activeSessions || []);
 
   if (state.upNextLoading && !state.upNextItems.length) {
     if (section) section.classList.remove("hidden");

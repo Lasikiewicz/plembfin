@@ -62,7 +62,7 @@ const assetReferencePattern = /(["'`])((?:\/|\.{1,2}\/)[^"'`)\s]+?\.(?:m?js|css|
 // several releases, and the browser then fetched the same icon under both that
 // token and the canonical one. This second pass reads the version query alone,
 // wherever it appears on a managed path, so a dynamic reference cannot drift.
-const dynamicVersionPattern = /(\/(?:icons|modules)\/[^"'`\s>]*?|\/app\.js|\/styles\.css)\?v=([A-Za-z0-9._-]+)/g;
+const dynamicVersionPattern = /(\/(?:icons|modules)\/[^"'`\s>]*?|\/app\.js|\/styles(?:-modern)?\.css)\?v=([A-Za-z0-9._-]+)/g;
 
 function textFiles(directory) {
   return fs.readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
@@ -79,6 +79,7 @@ function managesAsset(assetPath) {
     || assetPath.startsWith("/icons/")
     || assetPath === "/app.js"
     || assetPath === "/styles.css"
+    || assetPath === "/styles-modern.css"
     || assetPath === "/manifest.webmanifest"
     || assetPath === "/theme-boot.js"
     || assetPath.startsWith("/fonts/")

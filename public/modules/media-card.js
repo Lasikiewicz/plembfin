@@ -8,8 +8,8 @@ import {
   tvShowHrefFromEpisode,
   tvShowTmdbHref,
   tvShowTvdbHref,
-} from "./utils.js?v=1.2.2.0.0";
-import { posterMarkup, posterOverflowMenu, proxiedArtworkUrl, tmdbPoster } from "./images.js?v=1.2.2.0.0";
+} from "./utils.js?v=1.2.2.0.15";
+import { posterMarkup, posterOverflowMenu, proxiedArtworkUrl, tmdbPoster } from "./images.js?v=1.2.2.0.15";
 
 function normalizedType(item = {}) {
   const raw = String(item.media_type || item.mediaType || item.type || "").toLowerCase();
@@ -134,7 +134,7 @@ export function renderMediaCard(item = {}, options = {}) {
     : "";
   const releaseDate = options.releaseDate || "";
   const releaseDateHtml = releaseDate
-    ? `<div class="shared-media-card-release"><span class="shared-media-card-release-label">Released</span><span class="shared-media-card-release-value"> - ${escapeHtml(releaseDate)}</span></div>`
+    ? `<div class="shared-media-card-release"><span class="shared-media-card-release-label">Released</span><span class="shared-media-card-release-value">${escapeHtml(releaseDate)}</span></div>`
     : "";
   const description = record.description
     ? `<p class="shared-media-card-description"><span class="shared-media-card-description-text">${escapeHtml(record.description)}</span></p>`

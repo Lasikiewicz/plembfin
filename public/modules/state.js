@@ -1,6 +1,6 @@
-import { readStoredAdminToken } from "./auth.js?v=1.2.2.0.0";
-import { readStoredDebugLogs } from "./logs.js?v=1.2.2.0.0";
-import { isDemoMode } from "./utils.js?v=1.2.2.0.0";
+import { readStoredAdminToken } from "./auth.js?v=1.2.2.0.15";
+import { readStoredDebugLogs } from "./logs.js?v=1.2.2.0.15";
+import { isDemoMode } from "./utils.js?v=1.2.2.0.15";
 
 const TOKEN_KEY = "adminToken";
 const LEGACY_UPPER_TOKEN_KEY = "ADMIN_TOKEN";
@@ -17,6 +17,8 @@ export const HIDE_ENDED_KEY_SHOWS = "plembfin:hideEnded:shows";
 export const HIDE_EPISODE_SPOILERS_KEY = "plembfin:hideEpisodeSpoilers";
 export const HISTORY_VIEW_KEY = "plembfin:historyView";
 export const HISTORY_FILTER_KEY = "plembfin:historyFilter";
+// Theme style ("modern"; absent = Classic). Read before first paint by theme-boot.js.
+export const THEME_STYLE_KEY = "plembfin:style";
 export const HISTORY_VIEW_MODES = ["grid", "list", "cards"];
 export const HISTORY_FILTERS = ["all", "movies", "shows"];
 export const PERSONAL_MEDIA_VIEWS = ["watchlist", "ratings", "custom-lists"];

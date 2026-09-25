@@ -165,6 +165,11 @@ grid sort by upcoming episode and show "next airs" chips without any per-row API
 Shares the explorer infrastructure with Movies ([movies.md](movies.md)): 240-item
 pages, IntersectionObserver infinite scroll, persisted page cache, poster/list view
 modes, adjustable poster width, A-Z filter, server-side search, TMDB prefetch.
+Ordinary sorts append the next page's cards while keeping existing poster nodes mounted.
+Next Airing moves mounted cards into their updated order as metadata or another page
+arrives, and refreshes the visible next-airing cells without rebuilding the list. TV page
+cache entries revalidate after 30 minutes even when watch history is unchanged, since
+the server's next-airing cache updates independently.
 
 TV-specific extras:
 

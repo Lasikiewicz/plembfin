@@ -1,15 +1,15 @@
-import { buildAuthHeaders, buildNowPlayingUrl, currentUser, getWebhookToken, onAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./modules/auth.js?v=1.2.2.0.0";
-import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs, formatLogLineToHtml } from "./modules/logs.js?v=1.2.2.0.0";
-import { applySettingsRoute, focusSettingsRoute, parseSettingsRoute, prepareSettingsShell, scrollToSettingsSection, settingsPathForLegacy } from "./modules/settings-shell.js?v=1.2.2.0.0";
-import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS, EXPLORER_VIEW_KEY_MOVIES, EXPLORER_VIEW_KEY_SHOWS, HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS, HISTORY_VIEW_KEY, HISTORY_FILTER_KEY, HISTORY_VIEW_MODES, HISTORY_FILTERS, PERSONAL_MEDIA_VIEWS, PRIMARY_VIEWS } from "./modules/state.js?v=1.2.2.0.0";
-import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, isDemoMode, slug, movieSlug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, showName, showTitleFrom, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDate, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel, versionDisplayLabel } from "./modules/utils.js?v=1.2.2.0.0";
-import { isCachedStorageImageUrl, compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, rememberPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, tmdbProfile, proxiedArtworkUrl } from "./modules/images.js?v=1.2.2.0.0";
-import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, showAvailIssuePopup, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerRetrySync, triggerCronSync, triggerStopSync, triggerForceSync, isSyncProgressActive } from "./modules/sync.js?v=1.2.2.0.0";
-import { startLiveUpdates, stopLiveUpdates } from "./modules/live-updates.js?v=1.2.2.0.0";
-import { APPEARANCE_DEFAULTS, applyAppearanceToBody, loadAppearanceSettings } from "./modules/appearance.js?v=1.2.2.0.0";
-import { loadManualWatchReviewSummary, loadSyncAttentionSummary, renderManualWatchReviewSummary as renderCoreManualWatchReviewSummary, renderSyncActivityStatus as renderCoreSyncActivityStatus, setSyncActivityProgress as setCoreSyncActivityProgress, setSyncAttentionSummary as setCoreSyncAttentionSummary, startStatusSummaryPolling, stopStatusSummaryPolling } from "./modules/status-indicators.js?v=1.2.2.0.0";
-import { movieBySlugOrId, nowPlayingHref } from "./modules/media-routing.js?v=1.2.2.0.0";
-import { DETAIL_ROUTE_MODULES, SETTINGS_ROUTE_MODULES, SHELL_ROUTE_MODULES, STATUS_ROUTE_MODULES, ensureShellModules, ifLoaded, installEarlyActivationCapture, replayEarlyActivation,isRouteModuleLoaded, loadRouteModule, loadRouteModules, registerRouteModuleInitializer, routeModulesLoaded } from "./modules/route-modules.js?v=1.2.2.0.0";
+import { buildAuthHeaders, buildNowPlayingUrl, currentUser, getWebhookToken, onAuthChange, readStoredAdminToken, rotateWebhookSecret, scrubTokenFromLocation, signInAdmin, signOutAdmin, updateAdminCredentials } from "./modules/auth.js?v=1.2.2.0.15";
+import { appendDebugLog, clearDebugLogs, logsToText, readStoredDebugLogs, fetchDiagnosticLogs, clearDiagnosticLogs as clearBackendDiagnosticLogs, formatLogLineToHtml } from "./modules/logs.js?v=1.2.2.0.15";
+import { applySettingsRoute, focusSettingsRoute, parseSettingsRoute, prepareSettingsShell, scrollToSettingsSection, settingsPathForLegacy } from "./modules/settings-shell.js?v=1.2.2.0.15";
+import { state, elements, ACTIVE_VIEW_KEY, ACTIVE_SETTINGS_TAB_KEY, EXPLORER_SORT_KEY_MOVIES, EXPLORER_SORT_KEY_SHOWS, EXPLORER_VIEW_KEY_MOVIES, EXPLORER_VIEW_KEY_SHOWS, HIDE_WATCHED_KEY_SHOWS, HIDE_ENDED_KEY_SHOWS, HISTORY_VIEW_KEY, HISTORY_FILTER_KEY, HISTORY_VIEW_MODES, HISTORY_FILTERS, PERSONAL_MEDIA_VIEWS, PRIMARY_VIEWS } from "./modules/state.js?v=1.2.2.0.15";
+import { escapeHtml, escapeAttribute, sanitizeTitle, safeImageUrl, isDemoMode, slug, movieSlug, movieHref, movieTmdbHref, tvShowTmdbHref, tvShowTvdbHref, showName, showTitleFrom, episodeTitle, startOfWeek, addDays, toDateInputValue, toDateTimeInputValue, formatDayName, formatDayDate, formatWeekRange, formatShortTime, formatNumber, formatDate, formatDateShort, shortMonthLabel, normalizePlatformSource, platformName, platformBadge, sourceClass, computeProgress, formatDuration, formatPlaybackClock, formatNowPlayingMeta, idLine, csvRows, normalizeHeader, formatTmdbDate, ordinalDay, formatLongAiringDate, knownShowAirtime, formatEpisodeAirtime, showEpisodeKey, episodeCode, seasonLabel, versionDisplayLabel } from "./modules/utils.js?v=1.2.2.0.15";
+import { isCachedStorageImageUrl, compactPosterUrl, clearPersistentPosterLookupCache, cachedPosterLookup, rememberPosterLookup, posterServerConfig, configuredImageUrl, posterUrlFor, posterMarkup, posterFallbackElement, lookupPosterUrl, hydratePosterFallbacks, bindPosterImageErrorHandler, hydratePosterImages, hydratePosters, tmdbImage, tmdbPoster, bestTmdbLogo, tmdbProfile, proxiedArtworkUrl } from "./modules/images.js?v=1.2.2.0.15";
+import { initSync, nowPlayingUrl, telemetryLineValue, historyAction, isWatchedHistoryAction, syncStatus, historySyncPill, getActiveTargets, sourcePlatform, normalizeTargetStatus, targetStateUnavailable, targetStateNoop, hasConfirmedMediaAvailability, sharedLibraryAvailability, getMediaTargetSyncStatus, getSyncStatusTone, getSyncStatusTooltip, renderSyncStatusDot, showAvailIssuePopup, renderAvailabilityPills, renderShowAvailabilityPills, renderMediaSyncPills, telemetryTargetStates, syncJobSortWeight, renderTargetPills, syncJobMediaType, syncHistoryTone, syncHistoryActionLabel, syncHistoryTargetPills, categorizeIssues, renderIssueCategory, renderSyncJobs, renderSyncHistory, loadSyncJobs, loadSyncHistory, activeSessionsKey, setActiveSessions, renderActiveSessions, loadActiveSessions, pollNowPlayingOnce, startHistoryPolling, stopHistoryPolling, syncNowPlayingPolling, triggerRetrySync, triggerCronSync, triggerStopSync, triggerForceSync, isSyncProgressActive } from "./modules/sync.js?v=1.2.2.0.15";
+import { startLiveUpdates, stopLiveUpdates } from "./modules/live-updates.js?v=1.2.2.0.15";
+import { APPEARANCE_DEFAULTS, applyAppearanceToBody, loadAppearanceSettings } from "./modules/appearance.js?v=1.2.2.0.15";
+import { loadManualWatchReviewSummary, loadSyncAttentionSummary, renderManualWatchReviewSummary as renderCoreManualWatchReviewSummary, renderSyncActivityStatus as renderCoreSyncActivityStatus, setSyncActivityProgress as setCoreSyncActivityProgress, setSyncAttentionSummary as setCoreSyncAttentionSummary, startStatusSummaryPolling, stopStatusSummaryPolling } from "./modules/status-indicators.js?v=1.2.2.0.15";
+import { movieBySlugOrId, nowPlayingHref } from "./modules/media-routing.js?v=1.2.2.0.15";
+import { DETAIL_ROUTE_MODULES, SETTINGS_ROUTE_MODULES, SHELL_ROUTE_MODULES, STATUS_ROUTE_MODULES, ensureShellModules, ifLoaded, installEarlyActivationCapture, replayEarlyActivation,isRouteModuleLoaded, loadRouteModule, loadRouteModules, registerRouteModuleInitializer, routeModulesLoaded } from "./modules/route-modules.js?v=1.2.2.0.15";
 
 // Route, dialog, media-detail, and maintenance modules load on demand through
 // modules/route-modules.js: a route downloads only the modules it renders.
@@ -26,7 +26,7 @@ let initUpNext = lazyNoop, renderUpNext = lazyNoop, loadUpNext = lazyNoopAsync, 
 let renderWatchBackups = lazyNoop, renderPlembfinBackups = lazyNoop, loadRemoteBackupsForRestoreTab = lazyNoopAsync, loadRemotePlembfinBackupsForRestoreTab = lazyNoopAsync, loadWatchBackups = lazyNoopAsync, loadPlembfinBackups = lazyNoopAsync;
 let renderSyncActivity = lazyNoop, renderSyncActivityStatus = renderCoreSyncActivityStatus, setSyncActivityProgress = setCoreSyncActivityProgress, setSyncAttentionSummary = setCoreSyncAttentionSummary, loadSyncAttention = lazyNoopAsync, renderSyncAttention = lazyNoop, skipSyncAttention = lazyNoopAsync, skipSyncAttentionItem = lazyNoopAsync, retrySyncAttentionItem = lazyNoopAsync, skipSyncAttentionShow = lazyNoopAsync, retrySyncAttentionShow = lazyNoopAsync, recordClientAttention = lazyNoop, clearClientAttention = lazyNoop, clearClientAttentionForRoute = lazyNoop, retryClientAttention = lazyNoopAsync, setSyncActivitySearch = lazyNoop, resetSyncActivity = lazyNoop, loadSyncActivity = lazyNoopAsync, queueSyncActivityRefresh = lazyNoop, downloadSyncActivityLog = lazyNoop, retrySyncActivity = lazyNoopAsync, dismissSyncActivity = lazyNoopAsync, dismissSyncActivityGroup = lazyNoopAsync, retrySyncActivityGroup = lazyNoopAsync, startRetryAllSyncActivity = lazyNoopAsync, resumeRetryAllSyncActivityIfRunning = lazyNoop, fetchAllRetryableSyncActivityIds = lazyNoopAsync, toggleSyncActivityRowLog = lazyNoop, setSyncActivityGroupView = lazyNoop, loadOlderSyncActivityGroup = lazyNoopAsync, toggleSyncActivityFailedOnly = lazyNoop, toggleSyncActivityPaused = lazyNoop, startSyncActivityRefresh = lazyNoop, stopSyncActivityRefresh = lazyNoop, initSyncPreview = lazyNoop;
 let initDiscover = lazyNoop, renderDiscover = lazyNoop, loadDiscover = lazyNoopAsync, resetDiscover = lazyNoop, initPersonalMedia = lazyNoop, renderPersonalMedia = lazyNoop, loadPersonalMedia = lazyNoopAsync, resetPersonalMedia = lazyNoop, initStats = lazyNoop, futureListDate = lazyNoop, showStatusLabel = lazyNoop, nextAiringDateValue = lazyNoop, nextAiringCell = lazyNoop, statsReports = [], statsPeriodLabel = lazyNoop, syncStatsPeriodOptions = lazyNoop, selectedStatsReport = lazyNoop, statsFilteredRows = lazyNoop, statsPeriodNoun = lazyNoop, statsTrackingSpanText = lazyNoop, statsPlatformLabel = lazyNoop, statsSelectedMediaLabel = lazyNoop, statsIntroCards = lazyNoop, renderStatsKpis = lazyNoop, renderStatsLeaderboard = lazyNoop, renderStatsMoviesTvSplit = lazyNoop, renderStatsPlatformRows = lazyNoop, renderStatsBookends = lazyNoop, renderMonthChart = lazyNoop, renderStats = lazyNoop, loadStats = lazyNoopAsync, renderRankingTable = lazyNoop, initUpcoming = lazyNoop, openUpcomingToToday = lazyNoop;
-let initExplorer = lazyNoop, syncExplorerControlsState = lazyNoop, syncInlineMediaDetailHeading = lazyNoop, triggerSearchPage = lazyNoop, renderSearchPage = lazyNoop, renderExplorer = lazyNoop, explorerQueryKey = lazyNoop, updateAlphaFilter = lazyNoop, handleAlphaFilterClick = lazyNoop, resetMovieExplorer = lazyNoop, resetShowExplorer = lazyNoop, renderExplorerSentinel = lazyNoop, observeExplorerSentinel = lazyNoop, observeExplorerTmdbPrefetch = lazyNoop, scheduleNextAirResort = lazyNoop, currentExplorerView = lazyNoop, currentExplorerSort = lazyNoop, currentPosterWidthKey = lazyNoop, setCurrentExplorerSort = lazyNoop, applyExplorerPosterWidth = lazyNoop, applyListHeaderSort = lazyNoop, renderMovieCard = lazyNoop, renderMovieExplorer = lazyNoop, loadExplorerMovies = lazyNoopAsync, refreshMovieExplorerInPlace = lazyNoopAsync, refreshShowExplorerInPlace = lazyNoopAsync, applyHistoryPosterWidth = lazyNoop, renderHistoryItems = lazyNoop, renderHistoryView = lazyNoop, resetHistoryView = lazyNoop, loadHistoryView = lazyNoopAsync, refreshHistoryViewInPlace = lazyNoopAsync, observeHistorySentinel = lazyNoop, renderShowExplorer = lazyNoop, loadExplorerShows = lazyNoopAsync, loadShowDetail = lazyNoopAsync, matchesExplorerSearch = lazyNoop, sortExplorerItems = lazyNoop, renderShowRecord = lazyNoop, renderShowFolder = lazyNoop, renderSeasonFolder = lazyNoop, seasonsFromShowRecord = lazyNoop, representativeEpisode = lazyNoop, tmdbLookupIdsFromShow = lazyNoop, emptyExplorer = lazyNoop, FILMOGRAPHY_PAGE_SIZE = 24, getFilmographyObserver = lazyNoop, setFilmographyObserver = lazyNoop;
+let initExplorer = lazyNoop, syncExplorerControlsState = lazyNoop, syncInlineMediaDetailHeading = lazyNoop, triggerSearchPage = lazyNoop, renderSearchPage = lazyNoop, renderExplorer = lazyNoop, explorerQueryKey = lazyNoop, updateAlphaFilter = lazyNoop, handleAlphaFilterClick = lazyNoop, resetMovieExplorer = lazyNoop, resetShowExplorer = lazyNoop, renderExplorerSentinel = lazyNoop, observeExplorerSentinel = lazyNoop, observeExplorerTmdbPrefetch = lazyNoop, scheduleNextAirResort = lazyNoop, currentExplorerView = lazyNoop, currentExplorerSort = lazyNoop, setCurrentExplorerSort = lazyNoop, applyListHeaderSort = lazyNoop, renderMovieCard = lazyNoop, renderMovieExplorer = lazyNoop, loadExplorerMovies = lazyNoopAsync, refreshMovieExplorerInPlace = lazyNoopAsync, refreshShowExplorerInPlace = lazyNoopAsync,renderHistoryItems = lazyNoop, renderHistoryView = lazyNoop, resetHistoryView = lazyNoop, loadHistoryView = lazyNoopAsync, refreshHistoryViewInPlace = lazyNoopAsync, observeHistorySentinel = lazyNoop, renderShowExplorer = lazyNoop, loadExplorerShows = lazyNoopAsync, loadShowDetail = lazyNoopAsync, matchesExplorerSearch = lazyNoop, sortExplorerItems = lazyNoop, renderShowRecord = lazyNoop, renderShowFolder = lazyNoop, renderSeasonFolder = lazyNoop, seasonsFromShowRecord = lazyNoop, representativeEpisode = lazyNoop, tmdbLookupIdsFromShow = lazyNoop, emptyExplorer = lazyNoop, FILMOGRAPHY_PAGE_SIZE = 24, getFilmographyObserver = lazyNoop, setFilmographyObserver = lazyNoop;
 let initEditDialogs = lazyNoop, openEditDateDialog = lazyNoop, openEditShowDateDialog = lazyNoop, openEditSeasonDateDialog = lazyNoop, openEditImageDialog = lazyNoop, openFixMatchDialog = lazyNoop, openMergeShowDialog = lazyNoop, applyWatchedAtToLocalWatchRecord = lazyNoopAsync, editDateOptionsFromButton = lazyNoop;
 let initWatchAction = lazyNoop, openWatchDatePrompt = lazyNoop, closeWatchDatePrompt = lazyNoop, submitSeerrRequest = lazyNoopAsync, markMovieWatched = lazyNoopAsync, refreshShowAfterManualWatch = lazyNoopAsync, applyWatchDateChoice = lazyNoopAsync, confirmAndMarkUnwatched = lazyNoopAsync, confirmAndDeleteMedia = lazyNoopAsync;
 let initMediaDetail = lazyNoop, openMovieInlineDetail = lazyNoopAsync, openShowInlineDetail = lazyNoopAsync, clearMediaDetailState = lazyNoop, syncMediaActionsMenuState = lazyNoop, syncTopbarControlsMenuState = lazyNoop, closeDebugModal = lazyNoop, closeMediaDetail = lazyNoop, renderImmersiveShowModal = lazyNoop, patchShowModalEpisodeFromLive = lazyNoop, patchShowModalEpisodesSavingState = lazyNoop, syncShowModalWatchActionControls = lazyNoop, renderMovieImmersiveModalContent = lazyNoop, openMovieImmersiveModalByTmdbId = lazyNoopAsync, openShowImmersiveModalByTmdbId = lazyNoopAsync, openShowImmersiveModalByTvdbId = lazyNoopAsync, openHistoryDebugModal = lazyNoop, patchMovieWatchedState = lazyNoop, syncActiveMediaDetailState = lazyNoop;
@@ -136,7 +136,7 @@ const ROUTE_MODULE_INITIALIZERS = {
     initUpcoming({ navigateTo, setMessage });
   },
   explorer(module) {
-    ({ initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, triggerSearchPage, renderSearchPage, renderExplorer, explorerQueryKey, updateAlphaFilter, handleAlphaFilterClick, resetMovieExplorer, resetShowExplorer, renderExplorerSentinel, observeExplorerSentinel, observeExplorerTmdbPrefetch, scheduleNextAirResort, currentExplorerView, currentExplorerSort, currentPosterWidthKey, setCurrentExplorerSort, applyExplorerPosterWidth, applyListHeaderSort, renderMovieCard, renderMovieExplorer, loadExplorerMovies, refreshMovieExplorerInPlace, refreshShowExplorerInPlace, applyHistoryPosterWidth, renderHistoryItems, renderHistoryView, resetHistoryView, loadHistoryView, refreshHistoryViewInPlace, observeHistorySentinel, renderShowExplorer, loadExplorerShows, loadShowDetail, matchesExplorerSearch, sortExplorerItems, renderShowRecord, renderShowFolder, renderSeasonFolder, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, emptyExplorer, FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver } = module);
+    ({ initExplorer, syncExplorerControlsState, syncInlineMediaDetailHeading, triggerSearchPage, renderSearchPage, renderExplorer, explorerQueryKey, updateAlphaFilter, handleAlphaFilterClick, resetMovieExplorer, resetShowExplorer, renderExplorerSentinel, observeExplorerSentinel, observeExplorerTmdbPrefetch, scheduleNextAirResort, currentExplorerView, currentExplorerSort, setCurrentExplorerSort, applyListHeaderSort, renderMovieCard, renderMovieExplorer, loadExplorerMovies, refreshMovieExplorerInPlace, refreshShowExplorerInPlace,renderHistoryItems, renderHistoryView, resetHistoryView, loadHistoryView, refreshHistoryViewInPlace, observeHistorySentinel, renderShowExplorer, loadExplorerShows, loadShowDetail, matchesExplorerSearch, sortExplorerItems, renderShowRecord, renderShowFolder, renderSeasonFolder, seasonsFromShowRecord, representativeEpisode, tmdbLookupIdsFromShow, emptyExplorer, FILMOGRAPHY_PAGE_SIZE, getFilmographyObserver, setFilmographyObserver } = module);
     initExplorer({
       setMessage,
       selectView,
@@ -146,7 +146,6 @@ const ROUTE_MODULE_INITIALIZERS = {
       fetchTmdbDetails: viaModule("tmdb", () => fetchTmdbDetails),
       resolveEpisodeTitleFromTmdb: viaModule("tmdb", () => resolveEpisodeTitleFromTmdb),
     });
-    applyExplorerPosterWidth();
   },
   "edit-dialogs"(module) {
     ({ initEditDialogs, openEditDateDialog, openEditShowDateDialog, openEditSeasonDateDialog, openEditImageDialog, openFixMatchDialog, openMergeShowDialog, applyWatchedAtToLocalWatchRecord, editDateOptionsFromButton } = module);
@@ -362,7 +361,7 @@ const THEME_KEY = "plembfin:theme";
 
 function updateThemeIcon() {
   const isLightMode = document.documentElement.classList.contains("light-mode");
-  const src = isLightMode ? "/plembfin_header_logo_light.png?v=1.2.2.0.0" : "/plembfin_header_logo_dark.png?v=1.2.2.0.0";
+  const src = isLightMode ? "/plembfin_header_logo_light.png?v=1.2.2.0.15" : "/plembfin_header_logo_dark.png?v=1.2.2.0.15";
   // Several logos can exist at once - the sidebar, setup wizard, and locked
   // login panel all need to track the selected theme.
   for (const logo of document.querySelectorAll(".brand-logo, [data-theme-logo]")) {
@@ -538,8 +537,6 @@ function bindElements() {
     historySearchInput: document.querySelector("#historySearchInput"),
     historyFilterButtons: [...document.querySelectorAll("[data-history-filter]")],
     historyViewButtons: [...document.querySelectorAll("[data-history-view]")],
-    explorerPosterSize: document.querySelector("#explorerPosterSize"),
-    historyPosterSize: document.querySelector("#historyPosterSize"),
     partWatchedPanel: document.querySelector("#partWatchedRows"),
     partWatchedRows: document.querySelector("#partWatchedRows"),
     partWatchedSection: document.querySelector("#partWatchedRows"),
@@ -547,7 +544,6 @@ function bindElements() {
     partWatchedTvSection: document.querySelector("#partWatchedTvSection"),
     partWatchedMovieRow: document.querySelector("#partWatchedMovieRow"),
     partWatchedMovieSection: document.querySelector("#partWatchedMovieSection"),
-    explorerPosterSizeLabel: document.querySelector("#explorerTopbarControls .explorer-size-slider") || document.querySelector(".explorer-size-slider"),
     explorerSort: document.querySelector("#explorerSort"),
     explorerHideWatchedLabel: document.querySelector("#explorerHideWatchedLabel"),
     explorerHideWatched: document.querySelector("#explorerHideWatched"),
@@ -1290,6 +1286,16 @@ function writePersistentExplorerCache(entries) {
   }
 }
 
+function isShowsExplorerPageKey(key) {
+  return /\/api\/shows(?:\?|$)/.test(String(key || ""));
+}
+
+function explorerPersistedCacheTtlMs(key) {
+  // Show summaries also contain independently refreshed next-airing dates.
+  // A history-version match alone cannot keep those fields fresh for 14 days.
+  return isShowsExplorerPageKey(key) ? EXPLORER_CACHE_TTL_MS : EXPLORER_PERSISTED_CACHE_TTL_MS;
+}
+
 function clearPersistentExplorerPageCache() {
   try {
     localStorage.removeItem(persistentExplorerCacheKey());
@@ -1307,14 +1313,19 @@ function cachedExplorerPage(key) {
   }
 
   const now = Date.now();
-  const entries = readPersistentExplorerCache().filter((entry) => now - Number(entry.savedAt || 0) <= EXPLORER_PERSISTED_CACHE_TTL_MS);
+  const entries = readPersistentExplorerCache().filter((entry) => now - Number(entry.savedAt || 0) <= explorerPersistedCacheTtlMs(entry.key));
   const persisted = entries.find((entry) => entry.key === key && entry.version === version);
   if (!persisted) {
     if (entries.length) writePersistentExplorerCache(entries);
     return null;
   }
 
-  state.explorerPageCache.set(key, { savedAt: now, version, body: persisted.body });
+  // Preserve the original fetch time for shows so a persisted hit cannot
+  // restart another 30-minute in-memory window for old next-airing data.
+  const savedAt = isShowsExplorerPageKey(key)
+    ? Number(persisted.savedAt || now)
+    : now;
+  state.explorerPageCache.set(key, { savedAt, version, body: persisted.body });
   return persisted.body;
 }
 
@@ -1328,7 +1339,7 @@ function rememberExplorerPage(key, body) {
   }
 
   const nextEntries = readPersistentExplorerCache()
-    .filter((entry) => entry.key !== key && savedAt - Number(entry.savedAt || 0) <= EXPLORER_PERSISTED_CACHE_TTL_MS)
+    .filter((entry) => entry.key !== key && savedAt - Number(entry.savedAt || 0) <= explorerPersistedCacheTtlMs(entry.key))
     .concat({ key, version, savedAt, body })
     .sort((a, b) => Number(b.savedAt || 0) - Number(a.savedAt || 0))
     .slice(0, EXPLORER_PERSISTED_CACHE_LIMIT);
@@ -3396,6 +3407,7 @@ function initialize() {
     renderPartWatched: live(() => renderPartWatched),
     setMessage,
     updateDashboardSplitState: live(() => updateDashboardSplitState),
+    renderUpNext: live(() => renderUpNext),
     nowPlayingHref,
     clearDerivedUiCaches,
     renderDashboard: live(() => renderDashboard),

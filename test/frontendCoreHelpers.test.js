@@ -375,20 +375,23 @@ test("mobile page controls share the media action-bar layout without redundant O
   assert.doesNotMatch(upcomingMarkup, /page-tools-dropdown/);
   assert.match(upcomingSource, /function scrollToToday[\s\S]*window\.matchMedia\("\(max-width: 760px\)"\)/);
   assert.match(upcomingSource, /anchorTo\(`\[data-day="\$\{today\}"\]`/);
-  assert.match(indexSource, /id="historyPosterSize"/);
-  assert.match(indexSource, /data-target="size"[\s\S]*id="historyPosterSize"/);
+  // History has no size control; its cards match the other pages' size.
+  assert.doesNotMatch(indexSource, /id="historyPosterSize"|data-target="size"/);
   assert.doesNotMatch(indexSource, /title="History options"/);
   assert.match(indexSource, /id="statsMediaFilter"[\s\S]*id="statsPeriodType"[\s\S]*id="statsPeriodValue"/);
   const statsStart = indexSource.indexOf('<section id="stats-view"');
   const statsEnd = indexSource.indexOf('<section id="upcoming-view"', statsStart);
   assert.doesNotMatch(indexSource.slice(statsStart, statsEnd), /page-tools-dropdown/);
-  assert.match(indexSource, /id="explorerPosterSize"[\s\S]*id="explorerHideEnded"/);
+  assert.doesNotMatch(indexSource, /id="explorerPosterSize"|class="compact-field explorer-size-slider"/);
   assert.doesNotMatch(indexSource, /id="settingsTopbarControls"/);
   assert.doesNotMatch(indexSource, /id="settingsSectionSelect"/);
   assert.doesNotMatch(indexSource, /<span>Tools<\/span>/);
   assert.match(indexSource, /title="Search upcoming episodes"/);
   assert.doesNotMatch(indexSource, /title="Library options"/);
-  assert.match(indexSource, /data-target="size"[\s\S]*id="explorerPosterSize"/);
+  const explorerStart = indexSource.indexOf('<section class="view-panel hidden" data-view-panel="explorer">');
+  const explorerEnd = indexSource.indexOf('<section id="settings-view"', explorerStart);
+  const explorerMarkup = indexSource.slice(explorerStart, explorerEnd);
+  assert.doesNotMatch(explorerMarkup, /data-target="size"|explorer-size-slider/);
   assert.match(personalMediaSource, /page-action-bar personal-media-toolbar-actions/);
   assert.doesNotMatch(personalMediaSource, /title="Personal media options"/);
   assert.match(personalMediaSource, /personal-media-sync-button/);

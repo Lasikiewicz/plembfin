@@ -37,6 +37,11 @@ cannot reach a server whose feeds last succeeded, that server's feeds are re-rea
 ### Up Next
 
 The dashboard's Up Next section is a single mixed queue of movies and TV episodes.
+While an item is in Now Playing, its Up Next card (same show, season and episode, or the same
+movie title) is hidden on the dashboard and returns when playback stops (client-side,
+`withoutNowPlaying()` in `public/modules/up-next-shared.js`). Each show has at most one card:
+a part-watched episode with a known position wins over that show's next-up card, and of several
+part-watched episodes the most recently updated is kept (`collapseUncertainEpisodeQueues()`).
 `GET /api/up-next` combines actionable canonical resume progress with released `next_up`
 episodes from provider observations and a local cache-backed fallback. For TV shows, the media
 detail page's episode watch state is the source of truth: the first released episode not marked

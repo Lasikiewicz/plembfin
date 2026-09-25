@@ -115,7 +115,7 @@ for (const file of sourceRoots.flatMap(javascriptFiles)) {
 run(process.execPath, ["scripts/docs-check.js"]);
 run(process.execPath, ["scripts/asset-versions.js"]);
 
-run(process.execPath, ["--test"]);
+run(process.execPath, ["--import", "./scripts/test-data-setup.js", "--test"]);
 
 for (const file of ["package.json", "package-lock.json", "changelog.json"]) {
   JSON.parse(fs.readFileSync(path.join(root, file), "utf8"));

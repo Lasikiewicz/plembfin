@@ -10,8 +10,9 @@ const indexSource = fs.readFileSync(path.join(root, "public/index.html"), "utf8"
 const assetVersion = indexSource.match(/theme-boot\.js\?v=([A-Za-z0-9._-]+)/)?.[1];
 
 // Runs public/theme-boot.js against a minimal DOM and returns what it did.
-function runBoot({ saved, prefersDark }) {
+function runBoot({ saved, prefersDark, style = null }) {
   const classes = new Set();
+  const attributes = {};
   const appended = [];
   const listeners = {};
   let observerCallback = null;
@@ -30,11 +31,12 @@ function runBoot({ saved, prefersDark }) {
   const documentElement = {
     nodeType: 1,
     classList: { toggle: (name, force) => (force ? classes.add(name) : classes.delete(name)) },
+    setAttribute: (name, value) => { attributes[name] = value; },
     matches: () => false,
     querySelectorAll: () => [],
   };
   const context = {
-    localStorage: { getItem: (key) => (key === "plembfin:theme" ? saved : null) },
+    localStorage: { getItem: (key) => ({ "plembfin:theme": saved, "plembfin:style": style })[key] ?? null },
     window: { matchMedia: (query) => ({ matches: query === "(prefers-color-scheme: dark)" ? prefersDark : false }) },
     document: {
       documentElement,
@@ -52,8 +54,20 @@ function runBoot({ saved, prefersDark }) {
   const parsed = makeImg();
   const alreadySet = makeImg("/custom.png");
   observerCallback?.([{ addedNodes: [parsed, alreadySet] }]);
-  return { light: classes.has("light-mode"), preload: appended[0], parsed, alreadySet, listeners };
+  return { light: classes.has("light-mode"), dataStyle: attributes["data-style"], preload: appended[0], parsed, alreadySet, listeners };
 }
+
+test("theme boot applies the saved Modern style independently of the mode; anything else is Classic", () => {
+  for (const saved of ["light", "dark"]) {
+    const modern = runBoot({ saved, prefersDark: true, style: "modern" });
+    assert.equal(modern.dataStyle, "modern", `saved=${saved}`);
+    assert.equal(modern.light, saved === "light", `saved=${saved}: the style does not change the mode`);
+  }
+  // Classic is the absence of the attribute, so Classic users get no new selector matches.
+  for (const style of [null, "classic", "unknown"]) {
+    assert.equal(runBoot({ saved: "dark", prefersDark: true, style }).dataStyle, undefined, `style=${style}`);
+  }
+});
 
 test("theme boot follows the saved theme first, then the system preference", () => {
   const cases = [
