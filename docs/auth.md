@@ -76,7 +76,12 @@ key. Passwords entered for Emby or Jellyfin are used only for the authorization 
 and are never persisted.
 
 Account and tracker authorization routes require an authenticated browser session and
-same-origin requests. Short-lived authorization-flow rows are bound to that browser and
+same-origin requests (`isSameOriginBrowserRequest` in `server/src/utils/auth.js`): a
+`Sec-Fetch-Site` header decides when present, then `Origin`, then `Referer`, and a request
+with none of the three is rejected. The `Referer` step exists because plain-HTTP LAN
+addresses are not secure contexts, so browsers send neither `Sec-Fetch-Site` nor (on a GET)
+`Origin`; `Referrer-Policy: same-origin` keeps `Referer` on the app's own requests only.
+Short-lived authorization-flow rows are bound to that browser and
 expire automatically. API-key callers cannot initiate those interactive flows.
 
 ## Request authentication

@@ -1,5 +1,5 @@
 import crypto from "node:crypto";
-import { requireAdmin } from "../utils/auth.js";
+import { isSameOriginBrowserRequest, requireAdmin } from "../utils/auth.js";
 import { db, writeAuditLog } from "../db.js";
 import { sendJson, sendOptions, methodNotAllowed } from "../utils/http.js";
 import { readJson } from "../utils/requestBody.js";
@@ -13,18 +13,10 @@ function requestFingerprint(req) {
   return crypto.createHash("sha256").update(String(req.cookies?.plembfin_session || "")).digest("base64url");
 }
 
-function isSameOrigin(req) {
-  const fetchSite = String(req.get("sec-fetch-site") || "").toLowerCase();
-  if (fetchSite) return fetchSite === "same-origin";
-  const origin = req.get("origin");
-  if (!origin) return false;
-  try { return new URL(origin).host === String(req.get("host") || ""); } catch { return false; }
-}
-
 async function requireMediaAuthAdmin(req, res, principal) {
   if (!mediaAccountAuthEnabled()) { sendJson(res, { error: "Media account authentication is disabled" }, 404); return null; }
   if (principal.via !== "session") { sendJson(res, { error: "An administrator browser session is required" }, 403); return null; }
-  if (!isSameOrigin(req)) { sendJson(res, { error: "Same-origin request required" }, 403); return null; }
+  if (!isSameOriginBrowserRequest(req)) { sendJson(res, { error: "Same-origin request required" }, 403); return null; }
   return principal;
 }
 
